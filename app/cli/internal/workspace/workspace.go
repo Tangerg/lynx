@@ -31,7 +31,9 @@ func (workspace Workspace) Validate() error {
 		return errors.New("workspace path is empty")
 	case !filepath.IsAbs(workspace.Path):
 		return errors.New("workspace path is not absolute")
-	case workspace.ProjectRoot != "" && !filepath.IsAbs(workspace.ProjectRoot):
+	case strings.TrimSpace(workspace.ProjectRoot) == "":
+		return errors.New("workspace project root is empty")
+	case !filepath.IsAbs(workspace.ProjectRoot):
 		return errors.New("workspace project root is not absolute")
 	case !workspace.Availability.Valid():
 		return fmt.Errorf("workspace availability %q is invalid", workspace.Availability)

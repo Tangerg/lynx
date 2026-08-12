@@ -14,7 +14,7 @@ func (a *app) ShowDiscoveredSkills() {
 		a.message("this runtime composition has no skill service")
 		return
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.runRuntimeReaderQuery("loading discovered skills", skillOperation, runtimeReaderDiscoveredSkills,
 		func(ctx context.Context) (readerDocument, error) {
 			discovered, err := a.skills.Discover(ctx, workspace)
@@ -75,7 +75,7 @@ func (a *app) ShowSkillProposals() {
 		a.message("this runtime composition has no skill service")
 		return
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.runRuntimeReaderQuery("loading skill proposals", skillOperation, runtimeReaderSkillProposals,
 		func(ctx context.Context) (readerDocument, error) {
 			proposals, err := a.skills.Proposals(ctx, workspace)
@@ -165,7 +165,7 @@ func (a *app) PrepareSkillProposalDecision(identity string, approve bool) error 
 	if identity == "" {
 		return errors.New("a proposal name or scope/name is required")
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.status.note("loading skill proposal " + identity)
 	started := runOperation(a, skillOperation, false,
 		func(ctx context.Context) (skillProposalDecision, error) {

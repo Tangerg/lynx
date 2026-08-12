@@ -17,6 +17,12 @@ type sessionCatalogStub struct {
 	update func(protocol.UpdateSessionRequest) (*protocol.Session, error)
 }
 
+func testProtocolWorkspace(path, projectRoot string, availability protocol.WorkspaceAvailability) protocol.WorkspaceInfo {
+	return protocol.WorkspaceInfo{
+		Ref: protocol.WorkspaceRef{Path: path}, ProjectRoot: projectRoot, Availability: availability,
+	}
+}
+
 func (stub sessionCatalogStub) ListSessions(_ context.Context, query protocol.PageQuery, _ embedded.CallOptions) (*protocol.Page[protocol.Session], error) {
 	return stub.pages[query.Cursor], nil
 }
@@ -46,7 +52,8 @@ func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
 		}
 		return &protocol.Session{
 			ID: request.SessionID, Title: title, Status: protocol.SessionStatusIdle, Model: model,
-			Workspace: protocol.WorkspaceInfo{Ref: *request.Workspace}, Favorite: favorite, Revision: 8,
+			Workspace: testProtocolWorkspace(request.Workspace.Path, "/workspace", protocol.WorkspaceAvailable),
+			Favorite:  favorite, Revision: 8,
 		}, nil
 	}}
 	runtime := &Runtime{sessionCatalog: stub, meta: requestMeta("test")}
@@ -57,8 +64,49 @@ func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Workspace != workspace || updated.Model != model || !updated.Favorite || updated.Revision != 8 {
+	if updated.Workspace.Path != workspace || updated.Workspace.ProjectRoot != "/workspace" || !updated.Workspace.IsAvailable() ||
+		updated.Model != model || !updated.Favorite || updated.Revision != 8 {
 		t.Fatalf("updated session = %+v", updated)
+	}
+}
+
+func TestProjectSessionPreservesResolvedWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	projected, err := projectSession(protocol.Session{
+		ID: "ses_1", Status: protocol.SessionStatusIdle,
+		Workspace: testProtocolWorkspace("/repo/work", "/repo", protocol.WorkspaceMissing),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projected.Workspace.Path != "/repo/work" || projected.Workspace.ProjectRoot != "/repo" ||
+		projected.Workspace.IsAvailable() {
+		t.Fatalf("workspace = %+v", projected.Workspace)
+	}
+	if !matchesSession(projected, "repo", "") || !matchesSession(projected, "", "/repo/work") {
+		t.Fatalf("resolved workspace is not searchable: %+v", projected.Workspace)
+	}
+}
+
+func TestProjectSessionRejectsIncompleteWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		workspace protocol.WorkspaceInfo
+	}{
+		{name: "project root", workspace: testProtocolWorkspace("/workspace", "", protocol.WorkspaceAvailable)},
+		{name: "availability", workspace: testProtocolWorkspace("/workspace", "/workspace", "")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := projectSession(protocol.Session{ID: "ses_1", Status: protocol.SessionStatusIdle, Workspace: test.workspace})
+			if err == nil {
+				t.Fatalf("projectSession accepted %+v", test.workspace)
+			}
+		})
 	}
 }
 

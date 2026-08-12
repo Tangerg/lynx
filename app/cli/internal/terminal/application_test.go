@@ -1170,10 +1170,10 @@ func TestRelocateMovesTheCurrentSessionAndRebindsWorkspaceState(t *testing.T) {
 	host.Until(t, "the current session to relocate", func() bool {
 		var readErr error
 		snapshot, readErr = backend.GetSession(t.Context(), sessionID)
-		return readErr == nil && snapshot.Session.Workspace == want && host.Repaint()
+		return readErr == nil && snapshot.Session.Workspace.Path == want && host.Repaint()
 	})
-	if snapshot.Session.Workspace != want {
-		t.Fatalf("relocated workspace = %q, want %q", snapshot.Session.Workspace, want)
+	if snapshot.Session.Workspace.Path != want {
+		t.Fatalf("relocated workspace = %q, want %q", snapshot.Session.Workspace.Path, want)
 	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})

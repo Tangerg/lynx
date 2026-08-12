@@ -26,7 +26,7 @@ func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]ag
 	}
 	out := make([]agent.ApprovalRule, 0, len(r.rules))
 	for _, stored := range r.rules {
-		if ruleApplies(stored, sessionID, session.meta.Workspace) {
+		if ruleApplies(stored, sessionID, session.meta.Workspace.ProjectRoot) {
 			out = append(out, stored.view)
 		}
 	}
@@ -59,7 +59,7 @@ func (r *Runtime) rememberApprovalLocked(run *runState, approval agent.Approval,
 	tool, subject := approvalRuleParts(approval)
 	for _, stored := range r.rules {
 		rule := stored.view
-		if rule.Tool == tool && rule.Subject == subject && rule.Scope == answer.Remember && ruleApplies(stored, run.sessionID, session.meta.Workspace) {
+		if rule.Tool == tool && rule.Subject == subject && rule.Scope == answer.Remember && ruleApplies(stored, run.sessionID, session.meta.Workspace.ProjectRoot) {
 			return
 		}
 	}
@@ -73,7 +73,7 @@ func (r *Runtime) rememberApprovalLocked(run *runState, approval agent.Approval,
 	case agent.RememberSession:
 		stored.sessionID = run.sessionID
 	case agent.RememberProject:
-		stored.view.Dir = session.meta.Workspace
+		stored.view.Dir = session.meta.Workspace.ProjectRoot
 	case agent.RememberGlobal:
 	default:
 		return
@@ -101,7 +101,7 @@ func (r *Runtime) resolveRememberedLocked(run *runState, interactions []agent.In
 }
 
 func (r *Runtime) rememberedAnswerLocked(run *runState, approval agent.Approval) (agent.ApprovalAnswer, bool) {
-	workspace := r.sessions[run.sessionID].meta.Workspace
+	workspace := r.sessions[run.sessionID].meta.Workspace.ProjectRoot
 	tool, subject := approvalRuleParts(approval)
 	for _, stored := range slices.Backward(r.rules) {
 		rule := stored.view

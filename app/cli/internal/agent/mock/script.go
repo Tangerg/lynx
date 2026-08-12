@@ -419,8 +419,8 @@ func words(text string) []string {
 func demoSessions() []agent.Session {
 	now := time.Date(2026, 8, 4, 11, 30, 0, 0, time.UTC)
 	return []agent.Session{
-		{ID: "ses_demo_1", Title: "Flaky cache expiry test", Status: agent.SessionIdle, Workspace: "/tmp/demo/store", UpdatedAt: now, Revision: 7},
-		{ID: "ses_demo_2", Title: "Rename the shell tool family", Status: agent.SessionIdle, Workspace: "/tmp/demo/store", UpdatedAt: now.Add(-90 * time.Minute), Revision: 3},
-		{ID: "ses_demo_3", Title: "Draft the release notes", Status: agent.SessionIdle, Workspace: "/tmp/demo/docs", UpdatedAt: now.Add(-26 * time.Hour), Revision: 12},
+		{ID: "ses_demo_1", Title: "Flaky cache expiry test", Status: agent.SessionIdle, Workspace: availableWorkspace("/tmp/demo/store"), UpdatedAt: now, Revision: 7},
+		{ID: "ses_demo_2", Title: "Rename the shell tool family", Status: agent.SessionIdle, Workspace: availableWorkspace("/tmp/demo/store"), UpdatedAt: now.Add(-90 * time.Minute), Revision: 3},
+		{ID: "ses_demo_3", Title: "Draft the release notes", Status: agent.SessionIdle, Workspace: availableWorkspace("/tmp/demo/docs"), UpdatedAt: now.Add(-26 * time.Hour), Revision: 12},
 	}
 }

@@ -12,12 +12,13 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 func TestSessionHeaderUsesSpaceProgressively(t *testing.T) {
 	header := newSessionHeader(kit.Dark(), kit.Unicode(), agent.Session{
 		Title:     "Architecture review",
-		Workspace: "/workspace/lynx",
+		Workspace: workspace.Workspace{Path: "/workspace/lynx", ProjectRoot: "/workspace", Availability: workspace.Available},
 	})
 	header.SetUsage(agent.Usage{InputTokens: 1_234, OutputTokens: 56_789})
 
@@ -38,6 +39,22 @@ func TestSessionHeaderUsesSpaceProgressively(t *testing.T) {
 	narrow := drawStatic(t, header, headerMinWidth-1, 2)
 	if strings.TrimSpace(narrow) != "" {
 		t.Fatalf("narrow header should yield its space, got:\n%s", narrow)
+	}
+}
+
+func TestSessionHeaderExposesMissingWorkspace(t *testing.T) {
+	t.Parallel()
+
+	header := newSessionHeader(kit.Dark(), kit.Unicode(), agent.Session{
+		Title: "History", Workspace: workspace.Workspace{
+			Path: "/gone/work", ProjectRoot: "/gone", Availability: workspace.Missing,
+		},
+	})
+	got := drawStatic(t, header, 72, 2)
+	for _, want := range []string{"/gone/work", "missing", "History"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing workspace header does not contain %q:\n%s", want, got)
+		}
 	}
 }
 
@@ -126,7 +143,9 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 	}
 	theme, glyphs := kit.Dark(), kit.Unicode()
 	transcript := testTranscriptView(t)
-	header := newSessionHeader(theme, glyphs, agent.Session{Title: "New session", Workspace: "/workspace/lynx"})
+	header := newSessionHeader(theme, glyphs, agent.Session{Title: "New session", Workspace: workspace.Workspace{
+		Path: "/workspace/lynx", ProjectRoot: "/workspace", Availability: workspace.Available,
+	}})
 	activity := newActivityView(theme, glyphs)
 	activity.Set([]agent.PlanItem{{Title: "Inspect", Status: agent.PlanActive}})
 	status := newStatusView(theme, glyphs, settings.Default().RunOptions())
@@ -155,7 +174,9 @@ func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
 	theme, glyphs := kit.Dark(), kit.Unicode()
 	transcript := testTranscriptView(t)
 	transcript.Append(&kit.Message{Theme: theme, Speaker: "lyra", Body: "VISIBLE_TRANSCRIPT"})
-	header := newSessionHeader(theme, glyphs, agent.Session{Title: "Hidden title", Workspace: "/hidden/workspace"})
+	header := newSessionHeader(theme, glyphs, agent.Session{Title: "Hidden title", Workspace: workspace.Workspace{
+		Path: "/hidden/workspace", ProjectRoot: "/hidden/workspace", Availability: workspace.Available,
+	}})
 	activity := newActivityView(theme, glyphs)
 	activity.Set([]agent.PlanItem{{Title: "HIDDEN_PLAN", Status: agent.PlanActive}})
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}

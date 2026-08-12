@@ -172,7 +172,7 @@ func (a *app) deleteSessionFromCenter(id string) {
 }
 
 func (a *app) NewSession() {
-	a.startSessionInWorkspace(a.session.Workspace)
+	a.startSessionInWorkspace(a.session.Workspace.Path)
 }
 
 func (a *app) RenameSession(title string) {
@@ -304,7 +304,7 @@ type sessionInstallation struct {
 }
 
 func (a *app) prepareSessionInstallation(snapshot agent.SessionSnapshot) (sessionInstallation, error) {
-	attachments, err := attachment.New(snapshot.Session.Workspace)
+	attachments, err := attachment.New(snapshot.Session.Workspace.Path)
 	if err != nil {
 		return sessionInstallation{}, fmt.Errorf("session attachments: %w", err)
 	}
@@ -328,7 +328,7 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 	if err != nil {
 		return agent.Message{}, fmt.Errorf("load session draft: %w", err)
 	}
-	if err := a.workbench.RememberWorkspace(session.Workspace); err != nil {
+	if err := a.workbench.RememberWorkspace(session.Workspace.Path); err != nil {
 		return agent.Message{}, fmt.Errorf("remember workspace: %w", err)
 	}
 	change := a.sessionChangeDraft

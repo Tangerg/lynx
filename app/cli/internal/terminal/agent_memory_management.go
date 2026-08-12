@@ -14,7 +14,7 @@ func (a *app) ShowAgentMemory(argument string) error {
 	if a.agentMemory == nil {
 		return errors.New("this runtime composition has no agent memory service")
 	}
-	target, err := parseAgentMemoryTarget(argument, a.session.Workspace)
+	target, err := parseAgentMemoryTarget(argument, a.session.Workspace.Path)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (a *app) AddAgentMemory(argument string) error {
 	if a.agentMemory == nil {
 		return errors.New("this runtime composition has no agent memory service")
 	}
-	target, err := parseAgentMemoryTarget(argument, a.session.Workspace)
+	target, err := parseAgentMemoryTarget(argument, a.session.Workspace.Path)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (a *app) loadAgentMemoryItem(argument, label string, apply func(agentmemory
 	if a.agentMemory == nil {
 		return errors.New("this runtime composition has no agent memory service")
 	}
-	target, identity, err := parseAgentMemoryIdentity(argument, a.session.Workspace)
+	target, identity, err := parseAgentMemoryIdentity(argument, a.session.Workspace.Path)
 	if err != nil {
 		return err
 	}

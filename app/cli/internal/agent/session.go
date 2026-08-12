@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type SessionStatus string
@@ -21,7 +23,7 @@ type Session struct {
 	Title     string
 	Status    SessionStatus
 	Model     string
-	Workspace string
+	Workspace workspace.Workspace
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	Favorite  bool
@@ -33,8 +35,8 @@ func (s Session) Validate() error {
 	if strings.TrimSpace(s.ID) == "" {
 		problems = append(problems, errors.New("id is empty"))
 	}
-	if strings.TrimSpace(s.Workspace) == "" {
-		problems = append(problems, errors.New("workspace is empty"))
+	if err := s.Workspace.Validate(); err != nil {
+		problems = append(problems, err)
 	}
 	if s.Status != SessionRunning && s.Status != SessionWaiting && s.Status != SessionIdle {
 		problems = append(problems, fmt.Errorf("status %q is invalid", s.Status))

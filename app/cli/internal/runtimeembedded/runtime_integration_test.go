@@ -32,9 +32,9 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	requireWorkspaceInspection(t, runtime, workspace)
 	forked := requireSessionMutation(t, runtime, created, t.TempDir())
 	requireSessionPortability(t, runtime, forked.ID)
-	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace)
-	requireContextManagement(t, runtime, created.Workspace)
-	requireAuxiliaryCapabilities(t, runtime, created.ID, created.Workspace)
+	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace.Path)
+	requireContextManagement(t, runtime, created.Workspace.Path)
+	requireAuxiliaryCapabilities(t, runtime, created.ID, created.Workspace.Path)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
 }
@@ -205,7 +205,7 @@ func requireSessionCatalog(t *testing.T, runtime *Runtime, workspace string) age
 		t.Fatalf("CreateSession: %v", err)
 	}
 	page, err := runtime.ListSessions(t.Context(), agent.SessionQuery{
-		Limit: 10, Search: "ADAPTER", Workspace: created.Workspace,
+		Limit: 10, Search: "ADAPTER", Workspace: created.Workspace.Path,
 	})
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
@@ -248,7 +248,7 @@ func requireSessionMutation(t *testing.T, runtime *Runtime, created agent.Sessio
 	if canonicalErr != nil {
 		t.Fatal(canonicalErr)
 	}
-	if updated.Title != title || updated.Workspace != canonicalWorkspace || updated.Model != model ||
+	if updated.Title != title || updated.Workspace.Path != canonicalWorkspace || updated.Model != model ||
 		!updated.Favorite || updated.Revision <= created.Revision {
 		t.Fatalf("updated = %+v", updated)
 	}

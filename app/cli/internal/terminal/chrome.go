@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/oolong/core/text"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 const (
@@ -90,10 +91,13 @@ func headerRightLabel(usage agent.Usage, changes int, known bool) string {
 	return strings.Join(parts, "  ")
 }
 
-func displayWorkspace(path string) string {
-	path = filepath.Clean(strings.TrimSpace(path))
+func displayWorkspace(value workspace.Workspace) string {
+	path := filepath.Clean(strings.TrimSpace(value.Path))
 	if path == "." || path == "" {
 		return "workspace"
+	}
+	if !value.IsAvailable() {
+		return path + "  ·  missing"
 	}
 	return path
 }

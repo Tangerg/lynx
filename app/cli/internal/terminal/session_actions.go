@@ -29,7 +29,7 @@ func (a *app) prepareSessionImport(path string) error {
 	if err := a.requireRuntimeFeature(runtimeprofile.FeatureSessionExport); err != nil {
 		return err
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.message("reading session artifact")
 	started := runOperation(a, sessionOutputOperation, false,
 		func(context.Context) (sessionImport, error) {

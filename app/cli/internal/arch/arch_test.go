@@ -75,7 +75,7 @@ var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
 	"failure":          nil,
 	"runtimeprofile":   nil,
-	"agent":            {"failure"},
+	"agent":            {"failure", "workspace"},
 	"agentmemory":      nil,
 	"authoringcontext": nil,
 	"diagnostictool":   nil,
@@ -105,7 +105,7 @@ var allowed = map[string][]string{
 	"attachment":      {"agent"},
 	"reconnect":       {"agent"},
 	"runrecovery":     {"agent"},
-	"mock":            {"agent", "failure"},
+	"mock":            {"agent", "failure", "workspace"},
 	"runtimeembedded": {"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "codebase", "diagnostictool", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "runtimeprofile", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
 	"render":          {"agent", "failure"},
 

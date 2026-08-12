@@ -33,6 +33,35 @@ func TestChangeOwnsItsRenameAndBinaryInvariants(t *testing.T) {
 	}
 }
 
+func TestWorkspaceOwnsResolvedIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		workspace Workspace
+		want      string
+	}{
+		{name: "available", workspace: Workspace{Path: "/repo/work", ProjectRoot: "/repo", Availability: Available}},
+		{name: "missing", workspace: Workspace{Path: "/gone/work", ProjectRoot: "/gone", Availability: Missing}},
+		{name: "relative path", workspace: Workspace{Path: "work", ProjectRoot: "/repo", Availability: Available}, want: "not absolute"},
+		{name: "empty project root", workspace: Workspace{Path: "/repo", Availability: Available}, want: "project root is empty"},
+		{name: "relative project root", workspace: Workspace{Path: "/repo/work", ProjectRoot: "repo", Availability: Available}, want: "project root is not absolute"},
+		{name: "unknown availability", workspace: Workspace{Path: "/repo", ProjectRoot: "/repo", Availability: "unknown"}, want: "availability"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := test.workspace.Validate()
+			if test.want == "" && err != nil {
+				t.Fatalf("Validate: %v", err)
+			}
+			if test.want != "" && (err == nil || !strings.Contains(err.Error(), test.want)) {
+				t.Fatalf("Validate = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestStructuredDiffValidatesAndRendersEveryRow(t *testing.T) {
 	t.Parallel()
 	diff := Diff{Files: []FileDiff{{

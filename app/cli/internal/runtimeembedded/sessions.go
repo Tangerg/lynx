@@ -86,11 +86,12 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 }
 
 func matchesSession(session agent.Session, search, workspace string) bool {
-	if workspace != "" && session.Workspace != workspace {
+	if workspace != "" && session.Workspace.Path != workspace {
 		return false
 	}
 	return search == "" || strings.Contains(strings.ToLower(session.Title), search) ||
-		strings.Contains(strings.ToLower(session.Workspace), search)
+		strings.Contains(strings.ToLower(session.Workspace.Path), search) ||
+		strings.Contains(strings.ToLower(session.Workspace.ProjectRoot), search)
 }
 
 func projectSessionPage(page *protocol.Page[protocol.Session]) (agent.SessionPage, error) {
@@ -112,10 +113,14 @@ func projectSessionPage(page *protocol.Page[protocol.Session]) (agent.SessionPag
 }
 
 func projectSession(value protocol.Session) (agent.Session, error) {
+	projectedWorkspace, err := projectWorkspace(value.Workspace)
+	if err != nil {
+		return agent.Session{}, fmt.Errorf("runtime session %q: %w", value.ID, err)
+	}
 	status := agent.SessionStatus(value.Status)
 	projected := agent.Session{
 		ID: value.ID, Title: value.Title, Status: status, Model: value.Model,
-		Workspace: value.Workspace.Ref.Path, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Workspace: projectedWorkspace, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		Favorite: value.Favorite, Revision: value.Revision,
 	}
 	if err := projected.Validate(); err != nil {

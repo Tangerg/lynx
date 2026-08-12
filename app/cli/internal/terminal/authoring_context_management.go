@@ -15,7 +15,7 @@ func (a *app) ShowAgentDocuments() {
 		a.message("this runtime composition has no authoring context service")
 		return
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.runRuntimeReaderQuery("loading agent documents", authoringContextOperation, runtimeReaderAgentDocuments,
 		func(ctx context.Context) (readerDocument, error) {
 			documents, err := a.authoringContext.Documents(ctx, workspace)
@@ -46,7 +46,7 @@ func (a *app) ShowRecipes() {
 		a.message("this runtime composition has no authoring context service")
 		return
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.runRuntimeReaderQuery("loading recipes", authoringContextOperation, runtimeReaderRecipes,
 		func(ctx context.Context) (readerDocument, error) {
 			recipes, err := a.authoringContext.Recipes(ctx, workspace)
@@ -84,7 +84,7 @@ func (a *app) PrepareRecipe(argument string) error {
 	if requested == "" {
 		return errors.New("usage: /recipe <name> [arguments]")
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.status.note("loading recipe")
 	if !runOperation(a, authoringContextOperation, false,
 		func(ctx context.Context) (expandedRecipe, error) {

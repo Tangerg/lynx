@@ -15,7 +15,7 @@ func (a *app) ShowKnowledge() {
 		a.message("this runtime composition has no knowledge service")
 		return
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.runRuntimeReaderQuery("loading LYRA.md knowledge", knowledgeOperation, runtimeReaderKnowledge,
 		func(ctx context.Context) (readerDocument, error) {
 			entries, err := a.knowledge.Entries(ctx, workspace)
@@ -51,7 +51,7 @@ func (a *app) ReadKnowledge(argument string) error {
 	if a.knowledge == nil {
 		return errors.New("this runtime composition has no knowledge service")
 	}
-	target, err := parseKnowledgeTarget(argument, a.session.Workspace)
+	target, err := parseKnowledgeTarget(argument, a.session.Workspace.Path)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (a *app) EditKnowledge(argument string) error {
 	if a.knowledge == nil {
 		return errors.New("this runtime composition has no knowledge service")
 	}
-	target, err := parseKnowledgeTarget(argument, a.session.Workspace)
+	target, err := parseKnowledgeTarget(argument, a.session.Workspace.Path)
 	if err != nil {
 		return err
 	}

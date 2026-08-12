@@ -34,6 +34,31 @@ func TestApprovalCatalogRejectsEmptyIdentitiesConsistently(t *testing.T) {
 	}
 }
 
+func TestProjectApprovalRulesFollowTheResolvedProjectRoot(t *testing.T) {
+	t.Parallel()
+
+	runtime := New()
+	runtime.mu.Lock()
+	runtime.sessions["ses_demo_1"].meta.Workspace.ProjectRoot = "/tmp/demo"
+	runtime.sessions["ses_demo_2"].meta.Workspace.ProjectRoot = "/tmp/demo"
+	runtime.rules = []storedRule{{view: agent.ApprovalRule{
+		ID: "rule_project", Scope: agent.RememberProject, Dir: "/tmp/demo",
+		Tool: "shell", Subject: "go test ./...", Decision: agent.ApprovalRuleAllow,
+	}}}
+	runtime.mu.Unlock()
+
+	for _, sessionID := range []string{"ses_demo_1", "ses_demo_2"} {
+		rules, err := runtime.ListApprovalRules(t.Context(), sessionID)
+		if err != nil || len(rules) != 1 {
+			t.Fatalf("project rules for %s = %+v, %v", sessionID, rules, err)
+		}
+	}
+	rules, err := runtime.ListApprovalRules(t.Context(), "ses_demo_3")
+	if err != nil || len(rules) != 0 {
+		t.Fatalf("unrelated project rules = %+v, %v", rules, err)
+	}
+}
+
 func startWaitingRun(t *testing.T, runtime *Runtime, sessionID string) (agent.SegmentStream, *agent.Conversation) {
 	t.Helper()
 	opened, err := runtime.StartRun(t.Context(), agent.StartRun{

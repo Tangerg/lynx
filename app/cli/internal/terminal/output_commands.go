@@ -55,7 +55,7 @@ func (a *app) exportSession(argument string) error {
 	if err != nil {
 		return err
 	}
-	sessionID, workspace := a.session.ID, a.session.Workspace
+	sessionID, workspace := a.session.ID, a.session.Workspace.Path
 	title := a.session.Title
 	started := runOperation(a, sessionOutputOperation, false,
 		func(ctx context.Context) (sessionOutputResult, error) {

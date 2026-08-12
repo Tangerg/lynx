@@ -17,16 +17,27 @@ type sessionSnapshotRecord struct {
 	Interactions []interactionJSON `json:"interactions,omitempty"`
 }
 
+type sessionPageRecord struct {
+	Items      []sessionFrame `json:"items"`
+	NextCursor string         `json:"nextCursor,omitempty"`
+}
+
 type sessionFrame struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Status    string    `json:"status"`
-	Model     string    `json:"model,omitempty"`
-	Workspace string    `json:"workspace"`
-	CreatedAt time.Time `json:"createdAt,omitzero"`
-	UpdatedAt time.Time `json:"updatedAt,omitzero"`
-	Favorite  bool      `json:"favorite,omitempty"`
-	Revision  uint64    `json:"revision"`
+	ID        string         `json:"id"`
+	Title     string         `json:"title"`
+	Status    string         `json:"status"`
+	Model     string         `json:"model,omitempty"`
+	Workspace workspaceFrame `json:"workspace"`
+	CreatedAt time.Time      `json:"createdAt,omitzero"`
+	UpdatedAt time.Time      `json:"updatedAt,omitzero"`
+	Favorite  bool           `json:"favorite,omitempty"`
+	Revision  uint64         `json:"revision"`
+}
+
+type workspaceFrame struct {
+	Path         string `json:"path"`
+	ProjectRoot  string `json:"projectRoot"`
+	Availability string `json:"availability"`
 }
 
 type runFrame struct {
@@ -73,6 +84,28 @@ type runCancellationRecord struct {
 	Root     runFrame `json:"root"`
 }
 
+// WriteSessionJSON writes one session using the same field contract as session
+// pages and cold snapshots.
+func WriteSessionJSON(w io.Writer, session agent.Session) error {
+	if err := session.Validate(); err != nil {
+		return fmt.Errorf("render session: %w", err)
+	}
+	return json.NewEncoder(w).Encode(encodeSession(session))
+}
+
+// WriteSessionPageJSON writes a validated runtime page without losing its
+// opaque continuation cursor.
+func WriteSessionPageJSON(w io.Writer, page agent.SessionPage) error {
+	if err := page.Validate(); err != nil {
+		return fmt.Errorf("render session page: %w", err)
+	}
+	record := sessionPageRecord{Items: make([]sessionFrame, 0, len(page.Items)), NextCursor: page.NextCursor}
+	for _, session := range page.Items {
+		record.Items = append(record.Items, encodeSession(session))
+	}
+	return json.NewEncoder(w).Encode(record)
+}
+
 // WriteSessionSnapshotJSON writes the CLI's stable cold-read JSON projection.
 // Domain values intentionally carry no encoding tags, so this adapter owns the
 // external field names instead of leaking a delivery format into the core.
@@ -81,12 +114,7 @@ func WriteSessionSnapshotJSON(w io.Writer, snapshot agent.SessionSnapshot) error
 		return fmt.Errorf("render session snapshot: %w", err)
 	}
 	record := sessionSnapshotRecord{
-		Session: sessionFrame{
-			ID: snapshot.Session.ID, Title: snapshot.Session.Title, Status: string(snapshot.Session.Status),
-			Model: snapshot.Session.Model, Workspace: snapshot.Session.Workspace,
-			CreatedAt: snapshot.Session.CreatedAt, UpdatedAt: snapshot.Session.UpdatedAt,
-			Favorite: snapshot.Session.Favorite, Revision: snapshot.Session.Revision,
-		},
+		Session:      encodeSession(snapshot.Session),
 		Transcript:   make([]blockFrame, 0, len(snapshot.Transcript)),
 		Runs:         make([]runFrame, 0, len(snapshot.Runs)),
 		Plan:         planSnapshotFrame{Revision: snapshot.PlanRevision, Items: encodePlan(snapshot.Plan)},
@@ -99,6 +127,18 @@ func WriteSessionSnapshotJSON(w io.Writer, snapshot agent.SessionSnapshot) error
 		record.Runs = append(record.Runs, encodeRun(run))
 	}
 	return json.NewEncoder(w).Encode(record)
+}
+
+func encodeSession(session agent.Session) sessionFrame {
+	return sessionFrame{
+		ID: session.ID, Title: session.Title, Status: string(session.Status), Model: session.Model,
+		Workspace: workspaceFrame{
+			Path: session.Workspace.Path, ProjectRoot: session.Workspace.ProjectRoot,
+			Availability: string(session.Workspace.Availability),
+		},
+		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
+		Favorite: session.Favorite, Revision: session.Revision,
+	}
 }
 
 // WriteRunJSON writes one durable run projection using the same field contract

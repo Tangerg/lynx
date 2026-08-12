@@ -549,7 +549,7 @@ func TestProjectSnapshotKeepsPendingApprovalIdenticalToToolItem(t *testing.T) {
 	snapshot, err := projectSnapshot(coldRead{
 		session: protocol.Session{
 			ID: "ses_1", Status: protocol.SessionStatusWaiting,
-			Workspace: protocol.WorkspaceInfo{Ref: protocol.WorkspaceRef{Path: "/workspace"}},
+			Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 		},
 		runs: []protocol.RunRef{{
 			RunSummary: protocol.RunSummary{ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusWaiting},

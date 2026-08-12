@@ -52,7 +52,7 @@ func (a *app) ShowWorkspaces() {
 }
 
 func (a *app) ShowWorkspaceChanges() {
-	path := a.session.Workspace
+	path := a.session.Workspace.Path
 	a.runWorkspaceQuery("loading workspace changes",
 		func(ctx context.Context) (readerDocument, error) {
 			changes, err := a.workspaces.Changes(ctx, path)
@@ -69,7 +69,7 @@ func (a *app) ShowWorkspaceDiff(argument string) error {
 		return err
 	}
 	request := workspace.DiffRequest{
-		Workspace: a.session.Workspace, Path: selection.path,
+		Workspace: a.session.Workspace.Path, Path: selection.path,
 		Mode: selection.mode, Format: selection.format, Limit: selection.limit,
 	}
 	a.runWorkspaceQuery("loading workspace diff",
@@ -99,7 +99,7 @@ func (a *app) PreviewWorkspaceFile(argument string) error {
 	if err != nil {
 		return err
 	}
-	request := workspace.HeadRequest{Workspace: a.session.Workspace, Path: selection.path, Lines: selection.lines}
+	request := workspace.HeadRequest{Workspace: a.session.Workspace.Path, Path: selection.path, Lines: selection.lines}
 	a.runWorkspaceQuery("loading file preview",
 		func(ctx context.Context) (readerDocument, error) {
 			head, err := a.workspaces.Head(ctx, request)
@@ -122,7 +122,7 @@ func (a *app) SearchWorkspace(argument string) error {
 		return err
 	}
 	request := workspace.SearchRequest{
-		Workspace: a.session.Workspace, Query: selection.query, Path: selection.path, Limit: selection.limit,
+		Workspace: a.session.Workspace.Path, Query: selection.query, Path: selection.path, Limit: selection.limit,
 	}
 	a.runWorkspaceQuery("searching workspace",
 		func(ctx context.Context) (readerDocument, error) {
@@ -150,7 +150,7 @@ func (a *app) BrowseWorkspace(argument string) error {
 		return err
 	}
 	request := workspace.FilesRequest{
-		Workspace: a.session.Workspace, Path: selection.path, Glob: selection.glob,
+		Workspace: a.session.Workspace.Path, Path: selection.path, Glob: selection.glob,
 		Recursive: selection.recursive, IncludeIgnored: selection.includeIgnored,
 	}
 	a.runWorkspaceQuery("browsing workspace",
@@ -203,7 +203,7 @@ func (a *app) ReadWorkspaceFile(argument string) error {
 		return err
 	}
 	request := workspace.ReadRequest{
-		Workspace: a.session.Workspace, Path: selection.path,
+		Workspace: a.session.Workspace.Path, Path: selection.path,
 		StartLine: selection.startLine, EndLine: selection.endLine, MaxBytes: selection.maxBytes,
 	}
 	a.runWorkspaceQuery("reading workspace file",
@@ -271,7 +271,7 @@ func workspaceChangesDocument(path string, changes []workspace.Change) readerDoc
 
 func (a *app) followRuntimeChanges() {
 	a.operations.Cancel(runtimeChangesOperation)
-	workspacePath := a.session.Workspace
+	workspacePath := a.session.Workspace.Path
 	var repository workspace.ChangeReader
 	if a.runtimeSupports(runtimeprofile.FeatureGit) {
 		repository = a.workspaces
@@ -288,7 +288,7 @@ func (a *app) followRuntimeChanges() {
 			includeSchedules: a.schedules != nil,
 			applyFiles: func(changes []workspace.Change) error {
 				return post(ctx, dispatcher, func() {
-					if !a.operations.Current(lease) || a.closed || a.session.Workspace != workspacePath {
+					if !a.operations.Current(lease) || a.closed || a.session.Workspace.Path != workspacePath {
 						return
 					}
 					a.applyWorkspaceChanges(changes)
@@ -296,7 +296,7 @@ func (a *app) followRuntimeChanges() {
 			},
 			applyEvent: func(event changefeed.Event) error {
 				return post(ctx, dispatcher, func() {
-					if !a.operations.Current(lease) || a.closed || a.session.Workspace != workspacePath {
+					if !a.operations.Current(lease) || a.closed || a.session.Workspace.Path != workspacePath {
 						return
 					}
 					a.applyRuntimeInvalidation(event)
@@ -304,7 +304,7 @@ func (a *app) followRuntimeChanges() {
 			},
 			applyResync: func(topics []changefeed.Topic) error {
 				return post(ctx, dispatcher, func() {
-					if !a.operations.Current(lease) || a.closed || a.session.Workspace != workspacePath {
+					if !a.operations.Current(lease) || a.closed || a.session.Workspace.Path != workspacePath {
 						return
 					}
 					a.applyRuntimeResync(topics)
@@ -319,7 +319,7 @@ func (a *app) applyWorkspaceChanges(changes []workspace.Change) {
 	a.header.SetWorkspaceChanges(len(changes))
 	if a.workspaceReader == workspaceReaderChanges {
 		follow := a.reader.scroll.AtBottom()
-		a.reader.replace(workspaceChangesDocument(a.session.Workspace, changes), true, follow)
+		a.reader.replace(workspaceChangesDocument(a.session.Workspace.Path, changes), true, follow)
 	}
 }
 

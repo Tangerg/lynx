@@ -84,7 +84,7 @@ func (a *app) showLocalWorkspaceChoices() error {
 	for _, workspace := range workspaces {
 		choices = append(choices, workspaceChoice{
 			workspace: workspace,
-			current:   samePath(workspace.Path, a.session.Workspace),
+			current:   samePath(workspace.Path, a.session.Workspace.Path),
 			available: true,
 		})
 	}
@@ -115,7 +115,7 @@ func (a *app) loadWorkspaceChoices() {
 				}
 				byPath[summary.Workspace.Path] = workspaceChoice{
 					workspace: workbench.Workspace{Path: summary.Workspace.Path, LastOpened: lastOpened},
-					current:   samePath(summary.Workspace.Path, a.session.Workspace),
+					current:   samePath(summary.Workspace.Path, a.session.Workspace.Path),
 					available: summary.Workspace.IsAvailable(), detail: detail,
 				}
 			}
@@ -124,7 +124,7 @@ func (a *app) loadWorkspaceChoices() {
 					continue
 				}
 				byPath[recent.Path] = workspaceChoice{
-					workspace: recent, current: samePath(recent.Path, a.session.Workspace), available: true,
+					workspace: recent, current: samePath(recent.Path, a.session.Workspace.Path), available: true,
 				}
 			}
 			choices := make([]workspaceChoice, 0, len(byPath))
@@ -157,7 +157,7 @@ func (a *app) loadWorkspaceChoices() {
 }
 
 func (a *app) resolveAndStartWorkspace(requested string) {
-	path, err := resolveWorkspace(a.session.Workspace, requested)
+	path, err := resolveWorkspace(a.session.Workspace.Path, requested)
 	if err != nil {
 		a.message(err.Error())
 		return
@@ -182,7 +182,7 @@ func (a *app) resolveAndStartWorkspace(requested string) {
 }
 
 func (a *app) createSessionInWorkspace(requested string) error {
-	workspace, err := resolveWorkspace(a.session.Workspace, requested)
+	workspace, err := resolveWorkspace(a.session.Workspace.Path, requested)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (a *app) RelocateSession(requested string) error {
 	if err := a.requireRuntimeFeature(runtimeprofile.FeatureRelocate); err != nil {
 		return err
 	}
-	path, err := resolveWorkspace(a.session.Workspace, requested)
+	path, err := resolveWorkspace(a.session.Workspace.Path, requested)
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (a *app) RelocateSession(requested string) error {
 }
 
 func (a *app) relocateSession(path string) {
-	if samePath(path, a.session.Workspace) {
+	if samePath(path, a.session.Workspace.Path) {
 		a.message("session already uses " + path)
 		return
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 func TestTextRendersStreamedAnswerToolAndUsage(t *testing.T) {
@@ -613,7 +614,9 @@ func TestColdReconciliationKeepsOneShotOutputScopedToItsRun(t *testing.T) {
 
 func reconciliationSnapshot() agent.SessionSnapshot {
 	return agent.SessionSnapshot{
-		Session: agent.Session{ID: "ses_1", Status: agent.SessionIdle, Workspace: "/tmp/demo"},
+		Session: agent.Session{ID: "ses_1", Status: agent.SessionIdle, Workspace: workspace.Workspace{
+			Path: "/tmp/demo", ProjectRoot: "/tmp/demo", Availability: workspace.Available,
+		}},
 		Transcript: []agent.Block{
 			{ID: "old", RunID: "run_old", Status: agent.BlockStatusCompleted, Kind: agent.BlockAssistant, Text: "historical answer"},
 			{ID: "current", RunID: "run_1", Status: agent.BlockStatusCompleted, Kind: agent.BlockAssistant, Text: "current answer"},

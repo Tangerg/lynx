@@ -99,7 +99,7 @@ func (a *app) editPromptExternally() error {
 	if err != nil {
 		return err
 	}
-	edited, err := a.editor.Edit(a.ctx, a.loop.Session(), a.session.Workspace, message.Text)
+	edited, err := a.editor.Edit(a.ctx, a.loop.Session(), a.session.Workspace.Path, message.Text)
 	if err != nil {
 		return err
 	}

@@ -15,7 +15,7 @@ func (a *app) ShowHooks() {
 		a.message("this runtime composition has no hook service")
 		return
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.runRuntimeReaderQuery("loading lifecycle hooks", hookOperation, runtimeReaderHooks,
 		func(ctx context.Context) (readerDocument, error) {
 			catalog, err := a.hooks.Catalog(ctx, workspace)
@@ -63,7 +63,7 @@ func (a *app) PrepareHookTrust(trusted bool) error {
 	if a.hooks == nil {
 		return errors.New("this runtime composition has no hook service")
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.status.note("loading project hook trust")
 	if !runOperation(a, hookOperation, false,
 		func(ctx context.Context) (hookpolicy.Catalog, error) { return a.hooks.Catalog(ctx, workspace) },

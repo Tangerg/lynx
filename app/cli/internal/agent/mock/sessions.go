@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (agent.SessionPage, error) {
@@ -23,10 +24,10 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 	needle := strings.ToLower(strings.TrimSpace(query.Search))
 	workspace := strings.TrimSpace(query.Workspace)
 	for _, state := range r.sessions {
-		if workspace != "" && state.meta.Workspace != workspace {
+		if workspace != "" && state.meta.Workspace.Path != workspace {
 			continue
 		}
-		if needle != "" && !strings.Contains(strings.ToLower(state.meta.Title+"\n"+state.meta.Workspace), needle) {
+		if needle != "" && !strings.Contains(strings.ToLower(state.meta.Title+"\n"+state.meta.Workspace.Path+"\n"+state.meta.Workspace.ProjectRoot), needle) {
 			continue
 		}
 		items = append(items, state.meta)
@@ -121,7 +122,7 @@ func (r *Runtime) CreateSession(ctx context.Context, in agent.CreateSession) (ag
 	now := r.now()
 	session := agent.Session{
 		ID: fmt.Sprintf("ses_mock_%d", r.next), Title: title, Status: agent.SessionIdle,
-		Workspace: workspace, CreatedAt: now, UpdatedAt: now, Revision: 1,
+		Workspace: availableWorkspace(workspace), CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
 	r.sessions[session.ID] = &sessionState{meta: session}
 	return session, nil
@@ -151,7 +152,7 @@ func (r *Runtime) UpdateSession(ctx context.Context, in agent.UpdateSession) (ag
 		state.meta.Title = title
 	}
 	if in.Workspace != nil {
-		state.meta.Workspace = strings.TrimSpace(*in.Workspace)
+		state.meta.Workspace = availableWorkspace(strings.TrimSpace(*in.Workspace))
 	}
 	if in.Model != nil {
 		state.meta.Model = strings.TrimSpace(*in.Model)
@@ -162,6 +163,10 @@ func (r *Runtime) UpdateSession(ctx context.Context, in agent.UpdateSession) (ag
 	state.meta.Revision++
 	state.meta.UpdatedAt = r.now()
 	return state.meta, nil
+}
+
+func availableWorkspace(path string) workspace.Workspace {
+	return workspace.Workspace{Path: path, ProjectRoot: path, Availability: workspace.Available}
 }
 
 func (r *Runtime) ForkSession(ctx context.Context, in agent.ForkSession) (agent.Session, error) {

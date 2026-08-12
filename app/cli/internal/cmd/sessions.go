@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -76,11 +75,7 @@ func newSessionsUpdateCommand(provider runtimeProvider) *cobra.Command {
 			if err := updated.Validate(); err != nil {
 				return fmt.Errorf("update session: %w", err)
 			}
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(sessionJSON{
-				ID: updated.ID, Title: updated.Title, Status: string(updated.Status), Model: updated.Model,
-				Workspace: updated.Workspace, CreatedAt: updated.CreatedAt, UpdatedAt: updated.UpdatedAt,
-				Favorite: updated.Favorite, Revision: updated.Revision,
-			})
+			return render.WriteSessionJSON(cmd.OutOrStdout(), updated)
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "Replace the session title")
@@ -117,7 +112,7 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 				return fmt.Errorf("list sessions: %w", err)
 			}
 			if asJSON {
-				return writeSessionPageJSON(cmd, page)
+				return render.WriteSessionPageJSON(cmd.OutOrStdout(), page)
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			for _, session := range page.Items {
@@ -125,7 +120,7 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 				if title == "" {
 					title = "(untitled)"
 				}
-				if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", session.ID, relativeAge(session.UpdatedAt), title, session.Workspace); err != nil {
+				if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", session.ID, relativeAge(session.UpdatedAt), title, sessionWorkspaceLabel(session)); err != nil {
 					return err
 				}
 			}
@@ -146,33 +141,11 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 	return cmd
 }
 
-type sessionPageJSON struct {
-	Items      []sessionJSON `json:"items"`
-	NextCursor string        `json:"nextCursor,omitempty"`
-}
-
-type sessionJSON struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Status    string    `json:"status"`
-	Model     string    `json:"model,omitempty"`
-	Workspace string    `json:"workspace"`
-	CreatedAt time.Time `json:"createdAt,omitzero"`
-	UpdatedAt time.Time `json:"updatedAt,omitzero"`
-	Favorite  bool      `json:"favorite,omitempty"`
-	Revision  uint64    `json:"revision"`
-}
-
-func writeSessionPageJSON(cmd *cobra.Command, page agent.SessionPage) error {
-	output := sessionPageJSON{Items: make([]sessionJSON, 0, len(page.Items)), NextCursor: page.NextCursor}
-	for _, session := range page.Items {
-		output.Items = append(output.Items, sessionJSON{
-			ID: session.ID, Title: session.Title, Status: string(session.Status), Model: session.Model,
-			Workspace: session.Workspace, CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
-			Favorite: session.Favorite, Revision: session.Revision,
-		})
+func sessionWorkspaceLabel(session agent.Session) string {
+	if session.Workspace.IsAvailable() {
+		return session.Workspace.Path
 	}
-	return json.NewEncoder(cmd.OutOrStdout()).Encode(output)
+	return session.Workspace.Path + " (missing)"
 }
 
 func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
@@ -206,7 +179,7 @@ func writeSessionSnapshot(cmd *cobra.Command, snapshot agent.SessionSnapshot, as
 	if asJSON {
 		return render.WriteSessionSnapshotJSON(cmd.OutOrStdout(), snapshot)
 	}
-	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, sessionWorkspaceLabel(snapshot.Session)); err != nil {
 		return err
 	}
 	return render.WriteSessionTranscript(cmd.OutOrStdout(), snapshot)

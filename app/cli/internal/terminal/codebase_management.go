@@ -18,7 +18,7 @@ func (a *app) ShowCodebaseStatus() {
 		a.message("this runtime composition has no codebase service")
 		return
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.runRuntimeReaderQuery("loading codebase index status", codebaseOperation, runtimeReaderCodebase,
 		func(ctx context.Context) (readerDocument, error) {
 			status, err := a.codebase.Status(ctx, workspace)
@@ -50,7 +50,7 @@ func (a *app) SearchCodebase(query string) error {
 	if a.codebase == nil {
 		return errors.New("this runtime composition has no codebase service")
 	}
-	request := codebase.Query{Workspace: a.session.Workspace, Text: strings.TrimSpace(query), Limit: defaultCodebaseSearchLimit}
+	request := codebase.Query{Workspace: a.session.Workspace.Path, Text: strings.TrimSpace(query), Limit: defaultCodebaseSearchLimit}
 	if err := request.Validate(); err != nil {
 		return errors.New("usage: /codebase-search <query>")
 	}
@@ -83,7 +83,7 @@ func (a *app) PrepareCodebaseReindex() error {
 	if a.codebase == nil {
 		return errors.New("this runtime composition has no codebase service")
 	}
-	workspace := a.session.Workspace
+	workspace := a.session.Workspace.Path
 	a.confirmAction("Reindex codebase", "Rebuild the semantic index for "+workspace+"?", "Start reindex", func() {
 		a.reindexCodebase(workspace)
 	})

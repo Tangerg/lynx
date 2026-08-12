@@ -44,7 +44,7 @@ func TestSessionControlProjectsRollbackWithoutLosingInlineInput(t *testing.T) {
 			t.Fatalf("rollback options = %+v", options)
 		}
 		return &protocol.RollbackSessionResponse{
-			Session: &protocol.Session{ID: "ses_1", Status: protocol.SessionStatusIdle, Workspace: protocol.WorkspaceInfo{Ref: protocol.WorkspaceRef{Path: "/workspace"}}},
+			Session: &protocol.Session{ID: "ses_1", Status: protocol.SessionStatusIdle, Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable)},
 			DroppedRuns: []protocol.DroppedRun{{
 				Run: protocol.RunSummary{ID: "run_2", SessionID: "ses_1", Status: protocol.RunStatusFinished},
 				UserInput: []protocol.ContentBlock{
@@ -106,7 +106,7 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 		}
 		return &protocol.ImportSessionResponse{Session: &protocol.Session{
 			ID: "ses_imported", Status: protocol.SessionStatusIdle,
-			Workspace: protocol.WorkspaceInfo{Ref: protocol.WorkspaceRef{Path: "/workspace"}},
+			Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 		}}, nil
 	}
 	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}

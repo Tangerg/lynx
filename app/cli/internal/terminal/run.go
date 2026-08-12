@@ -165,7 +165,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, err
 	}
-	attachments, err := attachment.New(opened.Session.Workspace)
+	attachments, err := attachment.New(opened.Session.Workspace.Path)
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
 	}
@@ -173,7 +173,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("open CLI workbench: %w", err)
 	}
-	if err := authoring.RememberWorkspace(opened.Session.Workspace); err != nil {
+	if err := authoring.RememberWorkspace(opened.Session.Workspace.Path); err != nil {
 		return preparedSession{}, fmt.Errorf("remember workspace: %w", err)
 	}
 	draft, _, err := authoring.Draft(opened.Session.ID)
