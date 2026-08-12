@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -30,21 +29,21 @@ func (r *Runtime) Roles(ctx context.Context) (modelconfig.Roles, error) {
 		return modelconfig.Roles{}, classifyError(err)
 	}
 	if utility == nil {
-		return modelconfig.Roles{}, errors.New("model roles: runtime returned nil utility role")
+		return modelconfig.Roles{}, runtimeContractViolation("model roles returned nil utility role")
 	}
 	embedding, err := r.modelConfig.GetEmbeddingRole(ctx, r.callOptions())
 	if err != nil {
 		return modelconfig.Roles{}, classifyError(err)
 	}
 	if embedding == nil {
-		return modelconfig.Roles{}, errors.New("model roles: runtime returned nil embedding role")
+		return modelconfig.Roles{}, runtimeContractViolation("model roles returned nil embedding role")
 	}
 	roles := modelconfig.Roles{
 		Utility:   modelconfig.Role{Kind: modelconfig.UtilityRole, Provider: utility.Provider, Model: utility.Model},
 		Embedding: modelconfig.Role{Kind: modelconfig.EmbeddingRole, Provider: embedding.Provider, Model: embedding.Model},
 	}
 	if err := roles.Validate(); err != nil {
-		return modelconfig.Roles{}, fmt.Errorf("model roles: %w", err)
+		return modelconfig.Roles{}, runtimeContractViolation("model roles returned an invalid projection: %v", err)
 	}
 	return roles, nil
 }
@@ -65,7 +64,7 @@ func (r *Runtime) SetRole(ctx context.Context, role modelconfig.Role) (modelconf
 			return modelconfig.Role{}, classifyError(callErr)
 		}
 		if result == nil {
-			return modelconfig.Role{}, errors.New("set utility role: runtime returned nil")
+			return modelconfig.Role{}, runtimeContractViolation("set utility role returned nil")
 		}
 		projected = modelconfig.Role{Kind: role.Kind, Provider: result.Provider, Model: result.Model}
 	case modelconfig.EmbeddingRole:
@@ -74,12 +73,15 @@ func (r *Runtime) SetRole(ctx context.Context, role modelconfig.Role) (modelconf
 			return modelconfig.Role{}, classifyError(callErr)
 		}
 		if result == nil {
-			return modelconfig.Role{}, errors.New("set embedding role: runtime returned nil")
+			return modelconfig.Role{}, runtimeContractViolation("set embedding role returned nil")
 		}
 		projected = modelconfig.Role{Kind: role.Kind, Provider: result.Provider, Model: result.Model}
 	}
 	if err := projected.Validate(); err != nil {
-		return modelconfig.Role{}, fmt.Errorf("set model role: %w", err)
+		return modelconfig.Role{}, runtimeContractViolation("set model role returned an invalid projection: %v", err)
+	}
+	if projected != role {
+		return modelconfig.Role{}, runtimeContractViolation("set %s role returned %q/%q for %q/%q", role.Kind, projected.Provider, projected.Model, role.Provider, role.Model)
 	}
 	return projected, nil
 }
@@ -98,10 +100,10 @@ func (r *Runtime) Providers(ctx context.Context) ([]modelconfig.Provider, error)
 	for index, value := range values {
 		provider := projectProvider(value)
 		if err := provider.Validate(); err != nil {
-			return nil, fmt.Errorf("list providers item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list providers item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[provider.ID]; duplicate {
-			return nil, fmt.Errorf("list providers repeats %q", provider.ID)
+			return nil, runtimeContractViolation("list providers repeats %q", provider.ID)
 		}
 		seen[provider.ID] = struct{}{}
 		providers = append(providers, provider)
@@ -125,11 +127,14 @@ func (r *Runtime) UpdateProvider(ctx context.Context, update modelconfig.UpdateP
 		return modelconfig.Provider{}, classifyError(err)
 	}
 	if result == nil {
-		return modelconfig.Provider{}, errors.New("update provider: runtime returned nil")
+		return modelconfig.Provider{}, runtimeContractViolation("update provider returned nil")
 	}
 	provider := projectProvider(*result)
 	if err := provider.Validate(); err != nil {
-		return modelconfig.Provider{}, fmt.Errorf("update provider: %w", err)
+		return modelconfig.Provider{}, runtimeContractViolation("update provider returned an invalid provider: %v", err)
+	}
+	if provider.ID != update.Provider {
+		return modelconfig.Provider{}, runtimeContractViolation("update provider returned id %q for %q", provider.ID, update.Provider)
 	}
 	return provider, nil
 }
@@ -144,11 +149,11 @@ func (r *Runtime) TestProvider(ctx context.Context, providerID string) (modelcon
 		return modelconfig.TestResult{}, classifyError(err)
 	}
 	if result == nil {
-		return modelconfig.TestResult{}, errors.New("test provider: runtime returned nil")
+		return modelconfig.TestResult{}, runtimeContractViolation("test provider returned nil")
 	}
 	projected := modelconfig.TestResult{OK: result.OK, Problem: projectRuntimeProblem(result.Error)}
 	if err := projected.Validate(); err != nil {
-		return modelconfig.TestResult{}, fmt.Errorf("test provider: %w", err)
+		return modelconfig.TestResult{}, runtimeContractViolation("test provider returned an invalid result: %v", err)
 	}
 	return projected, nil
 }

@@ -60,13 +60,31 @@ func TestUsageAdapterProjectsSessionAndSummaryReports(t *testing.T) {
 	}
 }
 
+func TestUsageAdapterRejectsInvalidRuntimeReports(t *testing.T) {
+	t.Parallel()
+	runtime := &Runtime{usage: usageBindingStub{
+		session: func(context.Context, protocol.SessionUsageRequest, embedded.CallOptions) (*protocol.Usage, error) {
+			return &protocol.Usage{ModelUsage: protocol.ModelUsage{InputTokens: -1}}, nil
+		},
+		summary: func(context.Context, protocol.UsageSummaryRequest, embedded.CallOptions) (*protocol.UsageSummary, error) {
+			return &protocol.UsageSummary{ByModel: []protocol.UsageBucket{{Key: "same"}, {Key: "same"}}}, nil
+		},
+	}, meta: requestMeta("test")}
+	_, err := runtime.SessionUsage(t.Context(), "ses_1")
+	requireRuntimeContractViolation(t, err)
+	_, err = runtime.Summary(t.Context(), 7)
+	requireRuntimeContractViolation(t, err)
+}
+
 type modelConfigBindingStub struct {
-	utility      protocol.UtilityRole
-	embedding    protocol.EmbeddingRole
-	providers    []protocol.Provider
-	utilitySet   func(protocol.UtilityRole, embedded.CommandOptions)
-	embeddingSet func(protocol.EmbeddingRole, embedded.CommandOptions)
-	updated      func(protocol.UpdateProviderRequest, embedded.CommandOptions)
+	utility       protocol.UtilityRole
+	embedding     protocol.EmbeddingRole
+	providers     []protocol.Provider
+	utilityReply  *protocol.UtilityRole
+	providerReply *protocol.Provider
+	utilitySet    func(protocol.UtilityRole, embedded.CommandOptions)
+	embeddingSet  func(protocol.EmbeddingRole, embedded.CommandOptions)
+	updated       func(protocol.UpdateProviderRequest, embedded.CommandOptions)
 }
 
 func (stub *modelConfigBindingStub) GetUtilityRole(context.Context, embedded.CallOptions) (*protocol.UtilityRole, error) {
@@ -75,6 +93,9 @@ func (stub *modelConfigBindingStub) GetUtilityRole(context.Context, embedded.Cal
 
 func (stub *modelConfigBindingStub) SetUtilityRole(_ context.Context, request protocol.UtilityRole, options embedded.CommandOptions) (*protocol.UtilityRole, error) {
 	stub.utilitySet(request, options)
+	if stub.utilityReply != nil {
+		return stub.utilityReply, nil
+	}
 	stub.utility = request
 	return &stub.utility, nil
 }
@@ -95,7 +116,26 @@ func (stub *modelConfigBindingStub) ListProviders(context.Context, embedded.Call
 
 func (stub *modelConfigBindingStub) UpdateProvider(_ context.Context, request protocol.UpdateProviderRequest, options embedded.CommandOptions) (*protocol.Provider, error) {
 	stub.updated(request, options)
+	if stub.providerReply != nil {
+		return stub.providerReply, nil
+	}
 	return &stub.providers[0], nil
+}
+
+func TestModelConfigurationRejectsMutationIdentityDrift(t *testing.T) {
+	t.Parallel()
+	stub := &modelConfigBindingStub{
+		utilityReply:  &protocol.UtilityRole{Provider: "other", Model: "model"},
+		providerReply: &protocol.Provider{ID: "other"},
+		utilitySet:    func(protocol.UtilityRole, embedded.CommandOptions) {},
+		updated:       func(protocol.UpdateProviderRequest, embedded.CommandOptions) {},
+	}
+	runtime := &Runtime{modelConfig: stub, meta: requestMeta("test")}
+	_, err := runtime.SetRole(t.Context(), modelconfig.Role{Kind: modelconfig.UtilityRole, Provider: "deepseek", Model: "chat"})
+	requireRuntimeContractViolation(t, err)
+	change := modelconfig.ValueChange{Kind: modelconfig.ClearValue}
+	_, err = runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{Provider: "deepseek", APIKey: &change})
+	requireRuntimeContractViolation(t, err)
 }
 
 func (*modelConfigBindingStub) TestProvider(_ context.Context, request protocol.TestProviderRequest, _ embedded.CallOptions) (*protocol.ProviderTestResult, error) {

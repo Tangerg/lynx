@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -36,7 +35,16 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 	}
 
 	var models []agent.Model
+	seenProviders := make(map[string]struct{}, len(providerValues))
 	for _, provider := range providerValues {
+		projectedProvider := projectProvider(provider)
+		if err := projectedProvider.Validate(); err != nil {
+			return nil, runtimeContractViolation("model catalog returned an invalid provider: %v", err)
+		}
+		if _, duplicate := seenProviders[provider.ID]; duplicate {
+			return nil, runtimeContractViolation("model catalog repeats provider %q", provider.ID)
+		}
+		seenProviders[provider.ID] = struct{}{}
 		page, err := r.modelCatalog.ListModels(ctx, protocol.ListModelsRequest{Provider: provider.ID}, r.callOptions())
 		if err != nil {
 			return nil, classifyError(err)
@@ -46,11 +54,14 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 			return nil, err
 		}
 		for _, value := range values {
+			if value.Provider != provider.ID {
+				return nil, runtimeContractViolation("models for provider %q returned model %q from %q", provider.ID, value.ID, value.Provider)
+			}
 			models = append(models, projectModel(value))
 		}
 	}
 	if err := agent.ValidateModels(models); err != nil {
-		return nil, fmt.Errorf("list models projection: %w", err)
+		return nil, runtimeContractViolation("list models returned an invalid projection: %v", err)
 	}
 	return models, nil
 }
@@ -97,11 +108,11 @@ func (r *Runtime) GetApprovalMode(ctx context.Context) (agent.ApprovalMode, erro
 		return "", classifyError(err)
 	}
 	if result == nil {
-		return "", errors.New("get approval mode: runtime returned nil")
+		return "", runtimeContractViolation("get approval mode returned nil")
 	}
 	mode := agent.ApprovalMode(result.Mode)
 	if err := mode.Validate(); err != nil {
-		return "", fmt.Errorf("get approval mode projection: %w", err)
+		return "", runtimeContractViolation("get approval mode returned an invalid projection: %v", err)
 	}
 	return mode, nil
 }
@@ -119,11 +130,14 @@ func (r *Runtime) SetApprovalMode(ctx context.Context, mode agent.ApprovalMode) 
 		return "", classifyError(err)
 	}
 	if result == nil {
-		return "", errors.New("set approval mode: runtime returned nil")
+		return "", runtimeContractViolation("set approval mode returned nil")
 	}
 	applied := agent.ApprovalMode(result.Mode)
 	if err := applied.Validate(); err != nil {
-		return "", fmt.Errorf("set approval mode projection: %w", err)
+		return "", runtimeContractViolation("set approval mode returned an invalid projection: %v", err)
+	}
+	if applied != mode {
+		return "", runtimeContractViolation("set approval mode returned %q for %q", applied, mode)
 	}
 	return applied, nil
 }
@@ -138,7 +152,7 @@ func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]ag
 		return nil, classifyError(err)
 	}
 	if result == nil {
-		return nil, errors.New("list approval rules: runtime returned nil")
+		return nil, runtimeContractViolation("list approval rules returned nil")
 	}
 	rules := make([]agent.ApprovalRule, 0, len(result.Rules))
 	for _, value := range result.Rules {
@@ -148,7 +162,7 @@ func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]ag
 		})
 	}
 	if err := agent.ValidateApprovalRules(rules); err != nil {
-		return nil, fmt.Errorf("list approval rules projection: %w", err)
+		return nil, runtimeContractViolation("list approval rules returned an invalid projection: %v", err)
 	}
 	return rules, nil
 }

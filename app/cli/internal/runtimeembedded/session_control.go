@@ -39,22 +39,31 @@ func (r *Runtime) RollbackSession(ctx context.Context, input agent.RollbackSessi
 		return agent.RollbackResult{}, classifyError(err)
 	}
 	if response == nil || response.Session == nil {
-		return agent.RollbackResult{}, errors.New("rollback session: runtime returned an incomplete result")
+		return agent.RollbackResult{}, runtimeContractViolation("rollback session returned an incomplete result")
 	}
 	result := agent.RollbackResult{Dropped: make([]agent.DroppedRun, 0, len(response.DroppedRuns))}
 	result.Session, err = projectSession(*response.Session)
 	if err != nil {
-		return agent.RollbackResult{}, err
+		return agent.RollbackResult{}, runtimeContractViolation("rollback session returned an invalid session: %v", err)
+	}
+	if result.Session.ID != input.SessionID {
+		return agent.RollbackResult{}, runtimeContractViolation("rollback session returned session %q for %q", result.Session.ID, input.SessionID)
 	}
 	for _, dropped := range response.DroppedRuns {
+		if dropped.Run.SessionID != input.SessionID {
+			return agent.RollbackResult{}, runtimeContractViolation(
+				"rollback session %q returned dropped run %q from %q",
+				input.SessionID, dropped.Run.ID, dropped.Run.SessionID,
+			)
+		}
 		projected, err := projectDroppedRun(dropped)
 		if err != nil {
-			return agent.RollbackResult{}, err
+			return agent.RollbackResult{}, runtimeContractViolation("rollback session returned an invalid dropped run: %v", err)
 		}
 		result.Dropped = append(result.Dropped, projected)
 	}
 	if err := result.Validate(); err != nil {
-		return agent.RollbackResult{}, err
+		return agent.RollbackResult{}, runtimeContractViolation("rollback session returned an invalid projection: %v", err)
 	}
 	return result, nil
 }
@@ -92,33 +101,39 @@ func (r *Runtime) ExportSession(ctx context.Context, request sessiontransfer.Exp
 		return sessiontransfer.Document{}, classifyError(err)
 	}
 	if response == nil {
-		return sessiontransfer.Document{}, errors.New("export session: runtime returned nil")
+		return sessiontransfer.Document{}, runtimeContractViolation("export session returned nil")
 	}
 	if protocol.ExportFormat(request.Format) != response.Format {
-		return sessiontransfer.Document{}, fmt.Errorf("export session: runtime returned format %q, want %q", response.Format, request.Format)
+		return sessiontransfer.Document{}, runtimeContractViolation("export session returned format %q, want %q", response.Format, request.Format)
 	}
 	var body []byte
 	switch request.Format {
 	case sessiontransfer.Markdown:
 		if response.Artifact != nil || response.Markdown == "" {
-			return sessiontransfer.Document{}, errors.New("export session: runtime returned a malformed Markdown result")
+			return sessiontransfer.Document{}, runtimeContractViolation("export session returned a malformed Markdown result")
 		}
 		body = []byte(response.Markdown)
 	case sessiontransfer.JSON:
 		if response.Artifact == nil || response.Markdown != "" {
-			return sessiontransfer.Document{}, errors.New("export session: runtime returned a malformed JSON result")
+			return sessiontransfer.Document{}, runtimeContractViolation("export session returned a malformed JSON result")
 		}
 		if err := protocol.ValidateWireTree(*response.Artifact); err != nil {
-			return sessiontransfer.Document{}, fmt.Errorf("export session: %w", err)
+			return sessiontransfer.Document{}, runtimeContractViolation("export session returned an invalid artifact: %v", err)
+		}
+		if response.Artifact.Session.ID != request.SessionID {
+			return sessiontransfer.Document{}, runtimeContractViolation(
+				"export session returned artifact for %q, want %q",
+				response.Artifact.Session.ID, request.SessionID,
+			)
 		}
 		body, err = json.MarshalIndent(response.Artifact, "", "  ")
 		if err != nil {
-			return sessiontransfer.Document{}, fmt.Errorf("export session: encode artifact: %w", err)
+			return sessiontransfer.Document{}, runtimeContractViolation("export session artifact cannot be encoded: %v", err)
 		}
 	}
 	document, err := sessiontransfer.NewDocument(request.Format, body)
 	if err != nil {
-		return sessiontransfer.Document{}, fmt.Errorf("export session: %w", err)
+		return sessiontransfer.Document{}, runtimeContractViolation("export session returned an invalid document: %v", err)
 	}
 	return document, nil
 }
@@ -148,9 +163,9 @@ func (r *Runtime) ImportSession(ctx context.Context, request sessiontransfer.Imp
 		return agent.Session{}, classifyError(err)
 	}
 	if response == nil || response.Session == nil {
-		return agent.Session{}, errors.New("import session: runtime returned an incomplete result")
+		return agent.Session{}, runtimeContractViolation("import session returned an incomplete result")
 	}
-	return projectSession(*response.Session)
+	return projectSessionResult("import session", artifact.Session.ID, response.Session, nil)
 }
 
 func requireJSONEnd(decoder *json.Decoder) error {

@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -28,7 +27,7 @@ func (r *Runtime) SessionUsage(ctx context.Context, sessionID string) (usage.Ses
 		return usage.SessionReport{}, classifyError(err)
 	}
 	if result == nil {
-		return usage.SessionReport{}, errors.New("session usage: runtime returned nil")
+		return usage.SessionReport{}, runtimeContractViolation("session usage returned nil")
 	}
 	report := usage.SessionReport{
 		SessionID: sessionID,
@@ -44,7 +43,7 @@ func (r *Runtime) SessionUsage(ctx context.Context, sessionID string) (usage.Ses
 		report.ByModel = append(report.ByModel, usage.Bucket{Key: key, Totals: projectUsageTotals(result.ByModel[key])})
 	}
 	if err := report.Validate(); err != nil {
-		return usage.SessionReport{}, err
+		return usage.SessionReport{}, runtimeContractViolation("session usage returned an invalid report: %v", err)
 	}
 	return report, nil
 }
@@ -58,7 +57,7 @@ func (r *Runtime) Summary(ctx context.Context, sinceDays int) (usage.Summary, er
 		return usage.Summary{}, classifyError(err)
 	}
 	if result == nil {
-		return usage.Summary{}, errors.New("usage summary: runtime returned nil")
+		return usage.Summary{}, runtimeContractViolation("usage summary returned nil")
 	}
 	summary := usage.Summary{
 		SinceDays: sinceDays, Total: projectUsageTotals(result.Total),
@@ -68,7 +67,7 @@ func (r *Runtime) Summary(ctx context.Context, sinceDays int) (usage.Summary, er
 		Sessions:   result.Sessions, Runs: result.Runs,
 	}
 	if err := summary.Validate(); err != nil {
-		return usage.Summary{}, fmt.Errorf("usage summary: %w", err)
+		return usage.Summary{}, runtimeContractViolation("usage summary returned an invalid report: %v", err)
 	}
 	return summary, nil
 }

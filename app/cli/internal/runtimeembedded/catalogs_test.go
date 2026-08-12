@@ -17,13 +17,17 @@ type approvalBindingRecorder struct {
 	forgetOptions embedded.CommandOptions
 	listCalls     int
 	forgetCalls   int
+	setMode       protocol.ApprovalMode
 }
 
 func (*approvalBindingRecorder) GetApprovalMode(context.Context, embedded.CallOptions) (*protocol.ApprovalModeResult, error) {
 	return &protocol.ApprovalModeResult{Mode: protocol.ApprovalModeBalanced}, nil
 }
 
-func (*approvalBindingRecorder) SetApprovalMode(_ context.Context, request protocol.SetApprovalModeRequest, _ embedded.CommandOptions) (*protocol.ApprovalModeResult, error) {
+func (recorder *approvalBindingRecorder) SetApprovalMode(_ context.Context, request protocol.SetApprovalModeRequest, _ embedded.CommandOptions) (*protocol.ApprovalModeResult, error) {
+	if recorder.setMode != "" {
+		return &protocol.ApprovalModeResult{Mode: recorder.setMode}, nil
+	}
 	return &protocol.ApprovalModeResult{Mode: request.Mode}, nil
 }
 
@@ -34,6 +38,22 @@ func (recorder *approvalBindingRecorder) ListApprovalRules(_ context.Context, re
 		ID: "rule_1", Scope: protocol.ApprovalRuleScopeProject, Tool: "shell",
 		Subject: "go test *", Dir: "/workspace", Decision: protocol.ApprovalRuleDecisionAllow,
 	}}}, nil
+}
+
+func TestCatalogsRejectResponsesOutsideTheRequestedIdentity(t *testing.T) {
+	t.Parallel()
+	models := &Runtime{modelCatalog: modelCatalogBindingStub{
+		providers: protocol.NewPage([]protocol.Provider{{ID: "deepseek"}}),
+		models: map[string]*protocol.Page[protocol.Model]{
+			"deepseek": protocol.NewPage([]protocol.Model{{ID: "chat", Provider: "other"}}),
+		},
+	}, meta: requestMeta("test")}
+	_, err := models.ListModels(t.Context())
+	requireRuntimeContractViolation(t, err)
+
+	approvals := &Runtime{approvals: &approvalBindingRecorder{setMode: protocol.ApprovalModeYolo}, meta: requestMeta("test")}
+	_, err = approvals.SetApprovalMode(t.Context(), agent.ApprovalModeSafe)
+	requireRuntimeContractViolation(t, err)
 }
 
 func (recorder *approvalBindingRecorder) ForgetApprovalRule(_ context.Context, request protocol.ForgetApprovalRuleRequest, options embedded.CommandOptions) error {

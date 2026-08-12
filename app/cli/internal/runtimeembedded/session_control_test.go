@@ -71,6 +71,29 @@ func TestSessionControlProjectsRollbackWithoutLosingInlineInput(t *testing.T) {
 	}
 }
 
+func TestSessionControlRejectsCrossSessionResponses(t *testing.T) {
+	t.Parallel()
+	stub := sessionBindingStub{
+		rollback: func(context.Context, protocol.RollbackSessionRequest, embedded.CommandOptions) (*protocol.RollbackSessionResponse, error) {
+			return &protocol.RollbackSessionResponse{Session: &protocol.Session{
+				ID: "ses_other", Status: protocol.SessionStatusIdle,
+				Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
+			}}, nil
+		},
+		export: func(context.Context, protocol.ExportSessionRequest, embedded.CallOptions) (*protocol.ExportSessionResponse, error) {
+			return &protocol.ExportSessionResponse{Format: protocol.ExportFormatJSON, Artifact: &protocol.SessionArtifact{
+				Version: protocol.SessionArtifactVersion,
+				Session: protocol.ArtifactSession{ID: "ses_other", Workspace: protocol.WorkspaceRef{Path: "/workspace"}},
+			}}, nil
+		},
+	}
+	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}
+	_, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{SessionID: "ses_1", Scope: agent.RestoreHistory})
+	requireRuntimeContractViolation(t, err)
+	_, err = runtime.ExportSession(t.Context(), sessiontransfer.ExportRequest{SessionID: "ses_1", Format: sessiontransfer.JSON})
+	requireRuntimeContractViolation(t, err)
+}
+
 func TestSessionTransferPreservesRuntimeNativeFormats(t *testing.T) {
 	stub := sessionBindingStub{}
 	stub.export = func(_ context.Context, request protocol.ExportSessionRequest, _ embedded.CallOptions) (*protocol.ExportSessionResponse, error) {
@@ -105,7 +128,7 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 			t.Fatalf("import request = %+v, options = %+v", request, options)
 		}
 		return &protocol.ImportSessionResponse{Session: &protocol.Session{
-			ID: "ses_imported", Status: protocol.SessionStatusIdle,
+			ID: request.Artifact.Session.ID, Status: protocol.SessionStatusIdle,
 			Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 		}}, nil
 	}
@@ -116,7 +139,7 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 		t.Fatal(err)
 	}
 	session, err := runtime.ImportSession(t.Context(), sessiontransfer.ImportRequest{Artifact: document})
-	if err != nil || session.ID != "ses_imported" {
+	if err != nil || session.ID != "ses_1" {
 		t.Fatalf("ImportSession = (%+v, %v)", session, err)
 	}
 
