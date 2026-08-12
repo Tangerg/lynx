@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -149,6 +150,29 @@ func TestRuntimeChangeMonitorReconnectsWhenAStreamClosesUnexpectedly(t *testing.
 	cancel()
 	if err := <-done; !errors.Is(err, context.Canceled) {
 		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+}
+
+func TestRuntimeChangeMonitorBacksOffRepeatedEmptyStreams(t *testing.T) {
+	closed := make(chan struct{})
+	close(closed)
+	source := &runtimeChangeSourceStub{
+		events:       make(chan changefeed.Event),
+		streamClosed: closed,
+		subscription: make(chan changefeed.Subscription, 8),
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 55*time.Millisecond)
+	defer cancel()
+	monitor := runtimeChangeMonitor{
+		source:   source,
+		recovery: reconnect.Backoff{Base: 20 * time.Millisecond, Maximum: 40 * time.Millisecond},
+	}
+
+	if err := monitor.run(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("run error = %v, want deadline exceeded", err)
+	}
+	if subscriptions := len(source.subscription); subscriptions != 2 {
+		t.Fatalf("subscriptions = %d, want two exponentially spaced attempts", subscriptions)
 	}
 }
 

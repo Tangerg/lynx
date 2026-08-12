@@ -284,6 +284,7 @@ func (a *app) followRuntimeChanges() {
 	a.operations.Go(runtimeChangesOperation, true, func(ctx context.Context, lease operationLease) {
 		monitor := runtimeChangeMonitor{
 			workspace: workspacePath, repository: repository, source: a.changes,
+			recovery:     runtimeRecoveryBackoff,
 			watchFiles:   a.runtimeSupports(runtimeprofile.FeatureFileWatch),
 			includeGoals: a.goals != nil, includeSkills: a.skills != nil, includeMCP: a.mcp != nil,
 			includeSchedules: a.schedules != nil,
@@ -335,6 +336,7 @@ type runtimeChangeMonitor struct {
 	workspace        string
 	repository       workspace.ChangeReader
 	source           changefeed.Source
+	recovery         reconnect.Backoff
 	watchFiles       bool
 	includeGoals     bool
 	includeSkills    bool
@@ -354,7 +356,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 	if monitor.repository != nil && monitor.watchFiles && containsTopic(topics, changefeed.FilesChanged) {
 		subscription.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}}
 	}
-	failures := 0
+	setupFailures, streamFailures := 0, 0
 	for context.Cause(ctx) == nil {
 		attemptContext, cancelAttempt := context.WithCancel(ctx)
 		stream, err := monitor.source.Subscribe(attemptContext, subscription)
@@ -366,8 +368,8 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 			if !reconnect.Retryable(err) {
 				return err
 			}
-			failures++
-			if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
+			setupFailures++
+			if reconnect.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
 				return context.Cause(ctx)
 			}
 			continue
@@ -387,8 +389,8 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 				if !reconnect.Retryable(err) {
 					return err
 				}
-				failures++
-				if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
+				setupFailures++
+				if reconnect.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
 					return context.Cause(ctx)
 				}
 				continue
@@ -402,14 +404,15 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 			if !reconnect.Retryable(err) {
 				return err
 			}
-			failures++
-			if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
+			setupFailures++
+			if reconnect.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
 				return context.Cause(ctx)
 			}
 			continue
 		}
-		failures = 0
+		setupFailures = 0
 		lastSequence := uint64(0)
+		progressed := false
 		var attemptErr error
 		for event, streamErr := range stream {
 			if streamErr != nil {
@@ -433,6 +436,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 				// observed, so they include both the missing changes and the
 				// frame itself. Applying it again would only restart the same
 				// projections and can starve convergence on a gappy stream.
+				progressed = true
 				continue
 			}
 			if monitor.invalidatesFiles(event) {
@@ -447,6 +451,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 					break
 				}
 			}
+			progressed = true
 		}
 		cancelAttempt()
 		if cause := context.Cause(ctx); cause != nil {
@@ -458,12 +463,23 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 		if !reconnect.Retryable(attemptErr) {
 			return attemptErr
 		}
-		failures++
-		if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
+		if progressed {
+			streamFailures = 0
+		}
+		streamFailures++
+		if reconnect.Wait(ctx, monitor.recoveryDelay(streamFailures)) != nil {
 			return context.Cause(ctx)
 		}
 	}
 	return context.Cause(ctx)
+}
+
+func (monitor runtimeChangeMonitor) recoveryDelay(failure int) time.Duration {
+	backoff := monitor.recovery
+	if backoff.Base <= 0 && backoff.Maximum <= 0 {
+		backoff = runtimeRecoveryBackoff
+	}
+	return backoff.Delay(failure)
 }
 
 func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) error {
@@ -478,7 +494,7 @@ func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) error {
 			return err
 		}
 		failures++
-		if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
+		if reconnect.Wait(ctx, monitor.recoveryDelay(failures)) != nil {
 			return context.Cause(ctx)
 		}
 	}
