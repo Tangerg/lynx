@@ -242,6 +242,70 @@ func TestRuntimeInvalidationDefersColdReplacementUntilTheStreamSettles(t *testin
 	stop()
 }
 
+func TestSessionChangeSettlementReconcilesItsDeferredInvalidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		changeErr error
+		cancel    bool
+	}{
+		{name: "canceled", cancel: true},
+		{name: "failed", changeErr: errors.New("session creation failed")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			base := mock.New()
+			counting := &snapshotCountingRuntime{Runtime: base, readSignal: make(chan struct{}, 16)}
+			backend := &blockingSessionChangeRuntime{
+				Runtime:       counting,
+				blockCreateAt: 1,
+				changeErr:     test.changeErr,
+				changeStarted: make(chan struct{}),
+				releaseChange: make(chan struct{}),
+			}
+			source := &runtimeChangeSourceStub{
+				events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+				applied: make(chan changefeed.Event, 1),
+			}
+			host, stop := runUIWithRuntimeChanges(t, backend, source, "ses_demo_1")
+			host.Shows(t, "Ask lyra")
+			awaitSignal(t, source.subscription, "runtime invalidation subscription")
+			host.Type("/new")
+			host.Press(input.Enter)
+			awaitSignal(t, backend.changeStarted, "session creation")
+
+			snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			title := "Changed during " + test.name + " session creation"
+			if _, err := base.UpdateSession(t.Context(), agent.UpdateSession{
+				SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			baseline := counting.reads.Load()
+			drainSignals(counting.readSignal)
+			source.events <- changefeed.Event{
+				Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+				SessionIDs: []string{"ses_demo_1"},
+			}
+			awaitSignal(t, source.applied, "session invalidation")
+			if got := counting.reads.Load(); got != baseline {
+				t.Fatalf("active session change triggered a cold session read: reads %d, want %d", got, baseline)
+			}
+
+			if test.cancel {
+				host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+			} else {
+				close(backend.releaseChange)
+			}
+			awaitSignal(t, counting.readSignal, "deferred authoritative session read")
+			host.Shows(t, title)
+			stop()
+		})
+	}
+}
+
 type snapshotCountingRuntime struct {
 	*mock.Runtime
 	reads      atomic.Int32

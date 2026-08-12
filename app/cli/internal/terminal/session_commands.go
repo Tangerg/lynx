@@ -293,17 +293,16 @@ func runSessionChangeWithDraftDisposition[T any](
 	}
 	a.message(label)
 	if !runOperation(a, sessionChangeOperation, false, work, func(result T, err error) {
+		defer a.settleSessionChange()
 		if err != nil {
-			a.sessionDraftTransition = nil
 			a.message(label + " failed: " + err.Error())
 			return
 		}
 		if err := apply(result); err != nil {
 			a.message(label + " failed: " + err.Error())
 		}
-		a.sessionDraftTransition = nil
 	}) {
-		a.sessionDraftTransition = nil
+		a.settleSessionChange()
 		a.message("wait for the current session change to finish")
 	}
 }
@@ -317,9 +316,19 @@ func (a *app) cancelSessionChange() bool {
 		return false
 	}
 	a.operations.Cancel(sessionChangeOperation)
-	a.sessionDraftTransition = nil
 	a.message("session change canceled")
+	a.settleSessionChange()
 	return true
+}
+
+// settleSessionChange closes the terminal-side draft transaction and resumes
+// any authoritative refresh that runtime notifications deferred behind it.
+func (a *app) settleSessionChange() {
+	a.sessionDraftTransition = nil
+	if a.sessionInvalidated && a.conversation.Phase() != agent.ConversationRunning &&
+		!a.following && a.pendingCancel == nil {
+		a.refreshInvalidatedSession(false)
+	}
 }
 
 type sourceDraftDisposition uint8

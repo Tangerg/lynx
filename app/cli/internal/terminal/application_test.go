@@ -150,10 +150,12 @@ type recordingRuntime struct {
 }
 
 type blockingSessionChangeRuntime struct {
-	*mock.Runtime
+	agent.Runtime
 
-	creates atomic.Int32
-	starts  atomic.Int32
+	creates       atomic.Int32
+	blockCreateAt int32
+	changeErr     error
+	starts        atomic.Int32
 
 	changeStarted chan struct{}
 	releaseChange chan struct{}
@@ -197,12 +199,20 @@ func (runtime *transientForkProjectionRuntime) GetSession(ctx context.Context, s
 }
 
 func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
-	if r.creates.Add(1) == 1 {
+	ordinal := r.creates.Add(1)
+	blockAt := r.blockCreateAt
+	if blockAt == 0 {
+		blockAt = 2
+	}
+	if ordinal != blockAt {
 		return r.Runtime.CreateSession(ctx, input)
 	}
 	close(r.changeStarted)
 	select {
 	case <-r.releaseChange:
+		if r.changeErr != nil {
+			return agent.Session{}, r.changeErr
+		}
 		return r.Runtime.CreateSession(ctx, input)
 	case <-ctx.Done():
 		return agent.Session{}, context.Cause(ctx)
