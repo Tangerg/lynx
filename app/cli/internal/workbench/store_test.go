@@ -211,3 +211,90 @@ func TestRejectedDispatchRequeuesWithANewCommandIdentity(t *testing.T) {
 		t.Fatalf("requeued command = %+v", pending)
 	}
 }
+
+func TestCancelingDispatchPersistsBothMutationIdentities(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_88888888888888888888888888888888"),
+		SessionID: "ses_1", Message: agent.Message{Text: "cancel this uncertain start"},
+	}
+	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: command}); err != nil {
+		t.Fatal(err)
+	}
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID); err != nil || replayed != cancelID {
+		t.Fatalf("idempotent cancel transition = %q, %v; want %q", replayed, err, cancelID)
+	}
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending := reopened.PendingRuns(command.SessionID)
+	if len(pending) != 1 || pending[0].State != PendingRunCanceling ||
+		pending[0].Command.CommandID != command.CommandID || pending[0].CancelCommandID != cancelID {
+		t.Fatalf("restored canceling dispatch = %+v", pending)
+	}
+}
+
+func TestStorePersistsPendingInteractionResumeUntilExactSettlement(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := agent.Approval{
+		RunID: "run_1", ItemID: "item_approval_1", Title: "Delete generated files",
+		Tool:         &agent.ToolCall{Kind: agent.ToolEdit, Name: "delete", Status: agent.ToolRunning},
+		Rememberable: true,
+	}
+	pending := PendingResume{
+		Command: agent.ResumeRun{
+			CommandID: agent.CommandID("cli_33333333333333333333333333333333"), RunID: approval.RunID,
+			Answers: []agent.InterruptAnswer{{
+				ItemID: approval.ItemID,
+				Answer: agent.ApprovalAnswer{
+					Decision: agent.ApprovalDeny, Reason: "keep the generated fixture",
+				},
+			}},
+		},
+		Interactions: []agent.Interaction{approval},
+	}
+	if err := store.StagePendingResume("ses_1", pending); err != nil {
+		t.Fatal(err)
+	}
+	pending.Command.Answers[0].Answer = agent.ApprovalAnswer{Decision: agent.ApprovalApprove}
+	pending.Interactions[0] = agent.Approval{RunID: "mutated"}
+
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, ok := reopened.PendingResume("ses_1")
+	if !ok || restored.Command.CommandID != agent.CommandID("cli_33333333333333333333333333333333") ||
+		restored.Command.RunID != approval.RunID || len(restored.Interactions) != 1 {
+		t.Fatalf("restored pending resume = %+v, present = %v", restored, ok)
+	}
+	answer, ok := restored.Command.Answers[0].Answer.(agent.ApprovalAnswer)
+	if !ok || answer.Decision != agent.ApprovalDeny || answer.Reason != "keep the generated fixture" {
+		t.Fatalf("restored pending answer = %#v", restored.Command.Answers[0].Answer)
+	}
+	if err := reopened.AcknowledgePendingResume("ses_1", agent.CommandID("cli_44444444444444444444444444444444")); err == nil {
+		t.Fatal("mismatched acknowledgement retired pending resume")
+	}
+	if _, ok := reopened.PendingResume("ses_1"); !ok {
+		t.Fatal("mismatched acknowledgement removed pending resume")
+	}
+	if err := reopened.AcknowledgePendingResume("ses_1", restored.Command.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := reopened.PendingResume("ses_1"); ok {
+		t.Fatal("acknowledged pending resume remains")
+	}
+}

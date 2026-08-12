@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/runrecovery"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 const (
@@ -89,16 +90,38 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 		if err := opened.ValidateStart(); err != nil {
 			return agent.SegmentStream{}, fmt.Errorf("start run: %w", err)
 		}
-		if a.workbench != nil {
-			if err := a.workbench.AcknowledgePendingRun(input.SessionID, input.CommandID); err != nil {
-				return agent.SegmentStream{}, fmt.Errorf("acknowledge pending run: %w", err)
-			}
-		}
 		return opened, nil
-	}, streamOpeningObserver{rejected: func(err error) error {
-		return errors.Join(err, a.requeueDefinitivelyRefusedStart(input, err))
-	}})
+	}, streamOpeningObserver{
+		persistent: true,
+		accepted:   func(opened agent.SegmentStream) { a.acceptStartedRun(input, opened) },
+		rejected: func(err error) error {
+			return errors.Join(err, a.requeueDefinitivelyRefusedStart(input, err))
+		},
+	})
 	return true
+}
+
+func (a *app) acceptStartedRun(input agent.StartRun, opened agent.SegmentStream) {
+	a.openingRunID = opened.RunID
+	if a.workbench == nil {
+		return
+	}
+	pending := a.workbench.PendingRuns(input.SessionID)
+	if len(pending) == 0 || pending[0].Command.CommandID != input.CommandID {
+		return
+	}
+	if pending[0].State != workbench.PendingRunCanceling {
+		if err := a.workbench.AcknowledgePendingRun(input.SessionID, input.CommandID); err != nil {
+			a.message("could not retire acknowledged run start: " + err.Error())
+		}
+		return
+	}
+	a.status.active("canceling")
+	a.requestRuntimeCancellation(agent.CancelRun{
+		CommandID: pending[0].CancelCommandID,
+		RunID:     opened.RunID,
+		Reason:    "canceled while start delivery was unconfirmed",
+	}, applyRuntimeSettlement)
 }
 
 func (a *app) requeueDefinitivelyRefusedStart(input agent.StartRun, failure error) error {
@@ -142,8 +165,12 @@ func openStartRun(ctx context.Context, runtime agent.RunLifecycle, command agent
 }
 
 type streamOpeningObserver struct {
-	accepted func()
+	accepted func(agent.SegmentStream)
 	rejected func(error) error
+	// persistent makes retryable opening failures wait for either an
+	// acknowledgement or owner cancellation. It is reserved for idempotent
+	// mutations whose delivery outcome is ambiguous after a disconnect.
+	persistent bool
 }
 
 func (a *app) followOpening(
@@ -250,13 +277,13 @@ func (f *streamFollower) run() {
 			return
 		}
 	}
-	if !f.postOpenAccepted() {
+	if !f.postOpenAccepted(current) {
 		return
 	}
 	f.runStream(current)
 }
 
-func (f *streamFollower) postOpenAccepted() bool {
+func (f *streamFollower) postOpenAccepted(opened agent.SegmentStream) bool {
 	if f.opening.accepted == nil {
 		return true
 	}
@@ -266,19 +293,23 @@ func (f *streamFollower) postOpenAccepted() bool {
 			active = false
 			return
 		}
-		f.opening.accepted()
+		f.opening.accepted(opened)
 	})
 	return err == nil && active
 }
 
 func (f *streamFollower) waitBeforeOpenRetry(cause error) bool {
 	f.failures++
+	if f.opening.persistent && reconnect.Retryable(cause) {
+		delay := runtimeRecoveryBackoff.Delay(f.failures)
+		return f.postRetryStatus(true) && reconnect.Wait(f.ctx, delay) == nil
+	}
 	delay, retry := f.policy.Next(f.failures, cause)
 	if !retry {
 		f.postOpenFailure(cause)
 		return false
 	}
-	return f.postRetryStatus() && reconnect.Wait(f.ctx, delay) == nil
+	return f.postRetryStatus(false) && reconnect.Wait(f.ctx, delay) == nil
 }
 
 func (f *streamFollower) runStream(current agent.SegmentStream) {
@@ -420,13 +451,17 @@ func (f *streamFollower) waitBeforeRetry(runID string, cause error) bool {
 		f.postFailure(runID, cause)
 		return false
 	}
-	return f.postRetryStatus() && reconnect.Wait(f.ctx, delay) == nil
+	return f.postRetryStatus(false) && reconnect.Wait(f.ctx, delay) == nil
 }
 
-func (f *streamFollower) postRetryStatus() bool {
+func (f *streamFollower) postRetryStatus(persistent bool) bool {
 	err := post(f.ctx, f.dispatcher, func() {
 		if f.app.streamSeq == f.sequence {
-			f.app.status.note(fmt.Sprintf("reconnecting %d/%d", f.failures, f.policy.Attempts))
+			label := fmt.Sprintf("reconnecting %d/%d", f.failures, f.policy.Attempts)
+			if persistent {
+				label = fmt.Sprintf("confirming delivery · attempt %d", f.failures)
+			}
+			f.app.status.note(label)
 			f.app.syncAnimation()
 		}
 	})
@@ -561,6 +596,7 @@ func (a *app) applyPresentationEvent(envelope agent.RunEvent) {
 	switch event := envelope.Event.(type) {
 	case agent.SegmentStarted:
 		if event.Run.Lineage.IsRoot() {
+			a.openingRunID = ""
 			a.commitQueuedDispatch()
 			a.executionClock.start(event.Run.Usage.Duration, time.Now())
 			a.status.active("working")
@@ -654,6 +690,7 @@ func (a *app) fail(err error) {
 		return
 	}
 	a.following = false
+	a.openingRunID = ""
 	a.releaseQueuedDispatch()
 	a.conversation.Failed(err)
 	a.transcript.settleLive(a.conversation.Outcome())
@@ -685,33 +722,122 @@ func (a *app) cancel() {
 	a.status.doing = "canceling"
 	runID := a.conversation.RunID()
 	if runID == "" {
-		if a.dispatchingQueueEntry != 0 && a.workbench != nil {
-			entry, ok := a.queue.Next(a.session.ID)
-			if ok && entry.ID == a.dispatchingQueueEntry {
-				if err := a.workbench.RejectPendingRun(a.session.ID, entry.CommandID); err != nil {
-					a.message("could not retire canceled run start: " + err.Error())
-					return
-				}
-			}
+		pending, staged, err := a.stageOpeningCancellation()
+		if err != nil {
+			a.message("could not preserve cancellation of unconfirmed run: " + err.Error())
+			return
 		}
-		a.discardQueuedDispatch()
+		if !staged {
+			return
+		}
 		a.dropStream()
 		if err := a.conversation.CancelStarting(); err != nil {
 			a.fail(err)
 			return
 		}
-		a.status.settled(a.conversation.Outcome(), a.conversation.Usage())
-		a.header.SetUsage(a.conversation.Usage())
+		a.releaseQueuedDispatch()
 		a.prompt.SetBusy(false)
+		a.status.note("canceled · reconciling runtime delivery")
 		a.syncAnimation()
+		a.reconcileCanceledStart(pending)
 		return
 	}
 	a.cancelRuntime(agent.CancelRun{RunID: runID, Reason: "canceled by the terminal user"})
 }
 
+func (a *app) stageOpeningCancellation() (workbench.PendingRun, bool, error) {
+	if a.dispatchingQueueEntry == 0 {
+		return workbench.PendingRun{}, false, nil
+	}
+	entry, ok := a.queue.Next(a.session.ID)
+	if !ok || entry.ID != a.dispatchingQueueEntry {
+		return workbench.PendingRun{}, false, errors.New("dispatching queue entry is no longer available")
+	}
+	if a.workbench == nil {
+		return workbench.PendingRun{}, false, errors.New("CLI workbench is unavailable")
+	}
+	if _, err := a.workbench.MarkPendingRunCanceling(a.session.ID, entry.CommandID); err != nil {
+		return workbench.PendingRun{}, false, err
+	}
+	pending, ok := pendingRunByCommandID(a.workbench.PendingRuns(a.session.ID), entry.CommandID)
+	if !ok {
+		return workbench.PendingRun{}, false, errors.New("canceling run start disappeared from the durable outbox")
+	}
+	return pending, true, nil
+}
+
+func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
+	dispatcher := a.loop.Dispatcher()
+	a.operations.GoSession(pendingRunRecoveryOperation, false, func(ctx context.Context, lease operationLease) {
+		opened, err := openStartRunWithBackoff(ctx, a.runtime, pending.Command, runtimeRecoveryBackoff)
+		if context.Cause(ctx) != nil {
+			return
+		}
+		_ = post(ctx, dispatcher, func() {
+			if !a.operations.Current(lease) || a.closed || a.session.ID != pending.Command.SessionID ||
+				!a.operations.Release(lease) {
+				return
+			}
+			if err != nil {
+				if reconnect.Retryable(err) {
+					a.fail(fmt.Errorf("reconcile canceled start: %w", err))
+					return
+				}
+				if retireErr := a.retireCanceledStart(pending); retireErr != nil {
+					a.fail(errors.Join(err, retireErr))
+				}
+				return
+			}
+			if validateErr := opened.ValidateStart(); validateErr != nil {
+				a.fail(fmt.Errorf("reconcile canceled start: %w", validateErr))
+				return
+			}
+			a.requestRuntimeCancellation(agent.CancelRun{
+				CommandID: pending.CancelCommandID,
+				RunID:     opened.RunID,
+				Reason:    "canceled while start delivery was unconfirmed",
+			}, applyRuntimeSettlement)
+		})
+	})
+}
+
+func openStartRunWithBackoff(
+	ctx context.Context,
+	runtime agent.RunLifecycle,
+	command agent.StartRun,
+	backoff reconnect.Backoff,
+) (agent.SegmentStream, error) {
+	for failures := 0; ; {
+		opened, err := runtime.StartRun(ctx, command)
+		if err == nil || !reconnect.Retryable(err) {
+			return opened, err
+		}
+		failures++
+		if err := reconnect.Wait(ctx, backoff.Delay(failures)); err != nil {
+			return agent.SegmentStream{}, err
+		}
+	}
+}
+
+func (a *app) retireCanceledStart(pending workbench.PendingRun) error {
+	if err := a.workbench.AcknowledgePendingRun(pending.Command.SessionID, pending.Command.CommandID); err != nil {
+		return fmt.Errorf("retire canceled start: %w", err)
+	}
+	if entry, ok := a.queue.Next(pending.Command.SessionID); ok && entry.CommandID == pending.Command.CommandID {
+		_, _ = a.queue.Remove(pending.Command.SessionID, entry.ID)
+		a.syncQueue()
+	}
+	a.status.note("canceled")
+	a.drainQueue()
+	return nil
+}
+
 func (a *app) activeCancellation() (agent.CancelRun, bool) {
 	if runID := a.conversation.RunID(); runID != "" && a.conversation.Busy() {
 		return agent.CancelRun{RunID: runID, Reason: "terminal closed"}, true
+	}
+	if a.openingRunID != "" {
+		return agent.CancelRun{RunID: a.openingRunID, Reason: "terminal closed"}, true
 	}
 	return agent.CancelRun{}, false
 }
@@ -811,7 +937,29 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 		a.message("could not cancel run: " + err.Error())
 		return
 	}
+	if a.workbench != nil && a.pendingCancel != nil {
+		if pendingResume, ok := a.workbench.PendingResume(a.session.ID); ok &&
+			pendingResume.Command.RunID == a.pendingCancel.RunID {
+			if retireErr := a.workbench.AcknowledgePendingResume(a.session.ID, pendingResume.Command.CommandID); retireErr != nil {
+				a.message("could not retire canceled interaction decisions: " + retireErr.Error())
+			}
+		}
+		pending := a.workbench.PendingRuns(a.session.ID)
+		if len(pending) > 0 && pending[0].State == workbench.PendingRunCanceling &&
+			pending[0].CancelCommandID == a.pendingCancel.CommandID {
+			if retireErr := a.workbench.AcknowledgePendingRun(a.session.ID, pending[0].Command.CommandID); retireErr != nil {
+				a.message("could not retire canceled run start: " + retireErr.Error())
+			} else if entry, ok := a.queue.Next(a.session.ID); ok && entry.CommandID == pending[0].Command.CommandID {
+				_, _ = a.queue.Remove(a.session.ID, entry.ID)
+				if entry.ID == a.dispatchingQueueEntry {
+					a.dispatchingQueueEntry = 0
+				}
+				a.syncQueue()
+			}
+		}
+	}
 	a.pendingCancel = nil
+	a.openingRunID = ""
 	a.dropStream()
 	if policy == preserveProjectionFailure {
 		a.prompt.SetBusy(false)
@@ -835,10 +983,33 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 	a.drainQueue()
 }
 
-func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) {
+func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) bool {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
 	defer cancel()
-	_, _ = a.runtime.CancelRun(ctx, target)
+	_, err := a.runtime.CancelRun(ctx, target)
+	return err == nil || errors.Is(err, agent.ErrRunFinished)
+}
+
+func (a *app) cancelOpeningRunNow(ownerCtx context.Context, pending workbench.PendingRun) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
+	defer cancel()
+	opened, err := openStartRunWithBackoff(ctx, a.runtime, pending.Command, runtimeRecoveryBackoff)
+	if err != nil {
+		if !reconnect.Retryable(err) {
+			_ = a.retireCanceledStart(pending)
+		}
+		return
+	}
+	if opened.ValidateStart() != nil {
+		return
+	}
+	if a.cancelRuntimeNow(ctx, agent.CancelRun{
+		CommandID: pending.CancelCommandID,
+		RunID:     opened.RunID,
+		Reason:    "terminal closed during start delivery",
+	}) {
+		_ = a.retireCanceledStart(pending)
+	}
 }
 
 func (a *app) dropStream() {

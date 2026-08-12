@@ -455,6 +455,67 @@ func TestRejectedApprovalResumePreservesTheReviewAndUsesANewIdentity(t *testing.
 	stop()
 }
 
+func TestPendingApprovalResumeSurvivesRestartAndReplaysTheSameIdentity(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	opened, err := base.StartRun(t.Context(), agent.StartRun{
+		CommandID: agent.CommandID("cli_55555555555555555555555555555555"),
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "persist approval delivery"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range opened.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Interactions) != 1 {
+		t.Fatalf("waiting interactions = %+v", snapshot.Interactions)
+	}
+	command := agent.ResumeRun{
+		CommandID: agent.CommandID("cli_66666666666666666666666666666666"),
+		RunID:     opened.RunID,
+		Answers: []agent.InterruptAnswer{{
+			ItemID: agent.InteractionItemID(snapshot.Interactions[0]),
+			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove},
+		}},
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
+		Command: command, Interactions: snapshot.Interactions,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &replayingResumeRuntime{Runtime: base}
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("resize during restored resume delivery failed")
+	}
+	host.Shows(t, "complete")
+	attempts := runtime.resumeAttempts()
+	if len(attempts) < 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID ||
+		attempts[1].CommandID != command.CommandID {
+		t.Fatalf("resume attempts after restart = %+v", attempts)
+	}
+	store, err = workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending, ok := store.PendingResume("ses_demo_1"); ok {
+		t.Fatalf("acknowledged resume remains = %+v", pending)
+	}
+	stop()
+}
+
 func TestShiftEnterInsertsANewlineWithoutSubmitting(t *testing.T) {
 	backend := &recordingRuntime{Runtime: mock.New()}
 	backend.Instant = true

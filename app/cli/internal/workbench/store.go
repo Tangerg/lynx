@@ -53,9 +53,10 @@ type Workspace struct {
 }
 
 type sessionState struct {
-	SessionID   string        `json:"sessionId"`
-	Draft       agent.Message `json:"draft"`
-	PendingRuns []PendingRun  `json:"pendingRuns"`
+	SessionID     string         `json:"sessionId"`
+	Draft         agent.Message  `json:"draft"`
+	PendingRuns   []PendingRun   `json:"pendingRuns"`
+	PendingResume *PendingResume `json:"pendingResume,omitempty"`
 }
 
 type PendingRunState string
@@ -63,21 +64,154 @@ type PendingRunState string
 const (
 	PendingRunQueued      PendingRunState = "queued"
 	PendingRunDispatching PendingRunState = "dispatching"
+	PendingRunCanceling   PendingRunState = "canceling"
 )
 
 // PendingRun is one durable runtime outbox entry. State distinguishes intent
 // that has never left the queue from an ambiguous command handshake.
 type PendingRun struct {
-	State   PendingRunState `json:"state"`
-	Command agent.StartRun  `json:"command"`
+	State           PendingRunState `json:"state"`
+	Command         agent.StartRun  `json:"command"`
+	CancelCommandID agent.CommandID `json:"cancelCommandId,omitempty"`
+}
+
+// PendingResume is a HITL decision whose command may already have reached the
+// runtime. It remains durable until the runtime either acknowledges the exact
+// command identity or definitively rejects it.
+type PendingResume struct {
+	Command      agent.ResumeRun     `json:"-"`
+	Interactions []agent.Interaction `json:"interactions"`
+}
+
+func (pending PendingResume) validate() error {
+	if err := pending.Command.Validate(); err != nil {
+		return err
+	}
+	if err := agent.ValidateInteractions(pending.Interactions); err != nil {
+		return err
+	}
+	for index, interaction := range pending.Interactions {
+		if agent.InteractionRunID(interaction) != pending.Command.RunID {
+			return fmt.Errorf("interaction %d belongs to another run", index+1)
+		}
+	}
+	if len(pending.Command.Answers) != len(pending.Interactions) {
+		return errors.New("resume answer count does not match interactions")
+	}
+	for index, interaction := range pending.Interactions {
+		response := pending.Command.Answers[index]
+		if response.ItemID != agent.InteractionItemID(interaction) {
+			return fmt.Errorf("resume answer %d targets another interaction", index+1)
+		}
+		if err := agent.ValidateAnswer(interaction, response.Answer); err != nil {
+			return fmt.Errorf("resume answer %d: %w", index+1, err)
+		}
+	}
+	return nil
+}
+
+type pendingResumeJSON struct {
+	CommandID    agent.CommandID          `json:"commandId"`
+	RunID        string                   `json:"runId"`
+	Message      *agent.Message           `json:"message,omitempty"`
+	Interactions []pendingInteractionJSON `json:"interactions"`
+}
+
+type pendingInteractionJSON struct {
+	Kind           string                `json:"kind"`
+	Approval       *agent.Approval       `json:"approval,omitempty"`
+	Question       *agent.Question       `json:"question,omitempty"`
+	ApprovalAnswer *agent.ApprovalAnswer `json:"approvalAnswer,omitempty"`
+	QuestionAnswer *agent.QuestionAnswer `json:"questionAnswer,omitempty"`
+}
+
+func (pending PendingResume) MarshalJSON() ([]byte, error) {
+	if err := pending.validate(); err != nil {
+		return nil, err
+	}
+	wire := pendingResumeJSON{
+		CommandID:    pending.Command.CommandID,
+		RunID:        pending.Command.RunID,
+		Message:      pending.Command.Message,
+		Interactions: make([]pendingInteractionJSON, len(pending.Interactions)),
+	}
+	for index, interaction := range pending.Interactions {
+		answer := pending.Command.Answers[index].Answer
+		switch item := interaction.(type) {
+		case agent.Approval:
+			decision := answer.(agent.ApprovalAnswer)
+			cloned := item.Clone()
+			wire.Interactions[index] = pendingInteractionJSON{
+				Kind: "approval", Approval: &cloned, ApprovalAnswer: &decision,
+			}
+		case agent.Question:
+			response := agent.CloneAnswer(answer).(agent.QuestionAnswer)
+			cloned := item.Clone()
+			wire.Interactions[index] = pendingInteractionJSON{
+				Kind: "question", Question: &cloned, QuestionAnswer: &response,
+			}
+		}
+	}
+	return json.Marshal(wire)
+}
+
+func (pending *PendingResume) UnmarshalJSON(encoded []byte) error {
+	var wire pendingResumeJSON
+	if err := json.Unmarshal(encoded, &wire); err != nil {
+		return err
+	}
+	decoded := PendingResume{
+		Command: agent.ResumeRun{
+			CommandID: wire.CommandID, RunID: wire.RunID, Message: wire.Message,
+			Answers: make([]agent.InterruptAnswer, len(wire.Interactions)),
+		},
+		Interactions: make([]agent.Interaction, len(wire.Interactions)),
+	}
+	for index, item := range wire.Interactions {
+		switch item.Kind {
+		case "approval":
+			if item.Approval == nil || item.ApprovalAnswer == nil || item.Question != nil || item.QuestionAnswer != nil {
+				return fmt.Errorf("pending resume interaction %d has an invalid approval shape", index+1)
+			}
+			decoded.Interactions[index] = item.Approval.Clone()
+			decoded.Command.Answers[index] = agent.InterruptAnswer{
+				ItemID: item.Approval.ItemID, Answer: *item.ApprovalAnswer,
+			}
+		case "question":
+			if item.Question == nil || item.QuestionAnswer == nil || item.Approval != nil || item.ApprovalAnswer != nil {
+				return fmt.Errorf("pending resume interaction %d has an invalid question shape", index+1)
+			}
+			decoded.Interactions[index] = item.Question.Clone()
+			decoded.Command.Answers[index] = agent.InterruptAnswer{
+				ItemID: item.Question.ItemID, Answer: agent.CloneAnswer(*item.QuestionAnswer),
+			}
+		default:
+			return fmt.Errorf("pending resume interaction %d has unknown kind %q", index+1, item.Kind)
+		}
+	}
+	if err := decoded.validate(); err != nil {
+		return err
+	}
+	*pending = clonePendingResume(decoded)
+	return nil
 }
 
 func (pending PendingRun) validate(sessionID string) error {
-	if pending.State != PendingRunQueued && pending.State != PendingRunDispatching {
+	if pending.State != PendingRunQueued && pending.State != PendingRunDispatching && pending.State != PendingRunCanceling {
 		return fmt.Errorf("state %q is invalid", pending.State)
 	}
 	if err := pending.Command.Validate(); err != nil {
 		return err
+	}
+	switch pending.State {
+	case PendingRunCanceling:
+		if err := pending.CancelCommandID.Validate(); err != nil {
+			return fmt.Errorf("cancel command: %w", err)
+		}
+	default:
+		if pending.CancelCommandID != "" {
+			return errors.New("non-canceling run carries a cancel command")
+		}
 	}
 	if pending.Command.SessionID != sessionID {
 		return fmt.Errorf("command belongs to session %s", pending.Command.SessionID)
@@ -100,6 +234,7 @@ type Store struct {
 	stashes        []Stash
 	workspaces     []Workspace
 	pendingRuns    map[string][]PendingRun
+	pendingResumes map[string]PendingResume
 }
 
 // Open loads a file-backed store. An empty directory creates a memory-only
@@ -114,6 +249,7 @@ func Open(directory string, config Config) (*Store, error) {
 		random:         config.Random,
 		drafts:         make(map[string]agent.Message),
 		pendingRuns:    make(map[string][]PendingRun),
+		pendingResumes: make(map[string]PendingResume),
 	}
 	if store.now == nil {
 		store.now = time.Now
@@ -154,6 +290,89 @@ func (s *Store) PendingRuns(sessionID string) []PendingRun {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return clonePendingRunSlice(s.pendingRuns[strings.TrimSpace(sessionID)])
+}
+
+// PendingResume returns the unacknowledged HITL command for one session.
+func (s *Store) PendingResume(sessionID string) (PendingResume, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, ok := s.pendingResumes[strings.TrimSpace(sessionID)]
+	return clonePendingResume(pending), ok
+}
+
+// StagePendingResume transfers a completed interaction review into the durable
+// command outbox before delivery starts.
+func (s *Store) StagePendingResume(sessionID string, pending PendingResume) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("session id is empty")
+	}
+	if err := pending.validate(); err != nil {
+		return err
+	}
+	pending = clonePendingResume(pending)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if current, exists := s.pendingResumes[sessionID]; exists {
+		if current.Command.CommandID == pending.Command.CommandID {
+			return nil
+		}
+		return errors.New("another resume command is already pending")
+	}
+	next := clonePendingResumes(s.pendingResumes)
+	next[sessionID] = pending
+	if err := s.saveSessionStateWithResume(sessionID, s.drafts[sessionID], s.pendingRuns[sessionID], &pending); err != nil {
+		return err
+	}
+	s.pendingResumes = next
+	return nil
+}
+
+// AcknowledgePendingResume retires exactly the command whose runtime response
+// was observed. A stale callback cannot delete a newer interaction decision.
+func (s *Store) AcknowledgePendingResume(sessionID string, commandID agent.CommandID) error {
+	return s.retirePendingResume(sessionID, commandID)
+}
+
+// RejectPendingResume releases a command after a definitive runtime refusal so
+// its review can be edited and submitted under a fresh identity.
+func (s *Store) RejectPendingResume(sessionID string, commandID agent.CommandID) error {
+	return s.retirePendingResume(sessionID, commandID)
+}
+
+// DiscardPendingResume retires terminal authoring state for a session that the
+// runtime has deleted or replaced. It never runs as part of ordinary session
+// navigation, where the outstanding command must remain recoverable.
+func (s *Store) DiscardPendingResume(sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.pendingResumes[sessionID]; !exists {
+		return nil
+	}
+	if err := s.saveSessionStateWithResume(sessionID, s.drafts[sessionID], s.pendingRuns[sessionID], nil); err != nil {
+		return err
+	}
+	delete(s.pendingResumes, sessionID)
+	return nil
+}
+
+func (s *Store) retirePendingResume(sessionID string, commandID agent.CommandID) error {
+	if err := commandID.Validate(); err != nil {
+		return err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, exists := s.pendingResumes[sessionID]
+	if !exists || pending.Command.CommandID != commandID {
+		return errors.New("pending resume command identity changed")
+	}
+	if err := s.saveSessionStateWithResume(sessionID, s.drafts[sessionID], s.pendingRuns[sessionID], nil); err != nil {
+		return err
+	}
+	delete(s.pendingResumes, sessionID)
+	return nil
 }
 
 // StagePendingRun atomically moves one draft into the durable runtime outbox.
@@ -221,7 +440,8 @@ func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.Comm
 	if index < 0 {
 		return errors.New("pending run is absent")
 	}
-	if s.pendingRuns[sessionID][index].State == PendingRunDispatching {
+	if s.pendingRuns[sessionID][index].State == PendingRunDispatching ||
+		s.pendingRuns[sessionID][index].State == PendingRunCanceling {
 		return nil
 	}
 	next := clonePendingRuns(s.pendingRuns)
@@ -231,6 +451,39 @@ func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.Comm
 	}
 	s.pendingRuns = next
 	return nil
+}
+
+// MarkPendingRunCanceling durably records that a command with an uncertain
+// acknowledgement must be canceled as soon as its run identity is recovered.
+func (s *Store) MarkPendingRunCanceling(sessionID string, commandID agent.CommandID) (agent.CommandID, error) {
+	if err := commandID.Validate(); err != nil {
+		return "", err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	index := pendingRunIndex(s.pendingRuns[sessionID], commandID)
+	if index < 0 {
+		return "", errors.New("pending run is absent")
+	}
+	if s.pendingRuns[sessionID][index].State == PendingRunCanceling {
+		return s.pendingRuns[sessionID][index].CancelCommandID, nil
+	}
+	if s.pendingRuns[sessionID][index].State != PendingRunDispatching {
+		return "", errors.New("pending run has not been dispatched")
+	}
+	cancelCommandID, err := agent.NewCommandID()
+	if err != nil {
+		return "", err
+	}
+	next := clonePendingRuns(s.pendingRuns)
+	next[sessionID][index].State = PendingRunCanceling
+	next[sessionID][index].CancelCommandID = cancelCommandID
+	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
+		return "", err
+	}
+	s.pendingRuns = next
+	return cancelCommandID, nil
 }
 
 // RequeuePendingRun turns a definitively refused runtime mutation back into an
@@ -254,6 +507,7 @@ func (s *Store) RequeuePendingRun(sessionID string, commandID agent.CommandID) (
 	next := clonePendingRuns(s.pendingRuns)
 	next[sessionID][index].State = PendingRunQueued
 	next[sessionID][index].Command.CommandID = replacement
+	next[sessionID][index].CancelCommandID = ""
 	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
 		return "", err
 	}
@@ -546,17 +800,36 @@ func (s *Store) loadSessionStates() error {
 		if len(state.PendingRuns) > 0 {
 			s.pendingRuns[state.SessionID] = clonePendingRunSlice(state.PendingRuns)
 		}
+		if state.PendingResume != nil {
+			if err := state.PendingResume.validate(); err != nil {
+				return fmt.Errorf("state %s pending resume: %w", entry.Name(), err)
+			}
+			s.pendingResumes[state.SessionID] = clonePendingResume(*state.PendingResume)
+		}
 	}
 	return nil
 }
 
 func (s *Store) saveSessionState(sessionID string, draft agent.Message, pending []PendingRun) error {
+	resume, ok := s.pendingResumes[sessionID]
+	if !ok {
+		return s.saveSessionStateWithResume(sessionID, draft, pending, nil)
+	}
+	return s.saveSessionStateWithResume(sessionID, draft, pending, &resume)
+}
+
+func (s *Store) saveSessionStateWithResume(
+	sessionID string,
+	draft agent.Message,
+	pending []PendingRun,
+	resume *PendingResume,
+) error {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return errors.New("session id is empty")
 	}
 	name := s.sessionStateName(sessionID)
-	if messageEmpty(draft) && len(pending) == 0 {
+	if messageEmpty(draft) && len(pending) == 0 && resume == nil {
 		if s.directory == "" {
 			return nil
 		}
@@ -566,9 +839,14 @@ func (s *Store) saveSessionState(sessionID string, draft agent.Message, pending 
 		}
 		return nil
 	}
-	return s.save(name, sessionState{
+	state := sessionState{
 		SessionID: sessionID, Draft: draft.Clone(), PendingRuns: clonePendingRunSlice(pending),
-	})
+	}
+	if resume != nil {
+		cloned := clonePendingResume(*resume)
+		state.PendingResume = &cloned
+	}
+	return s.save(name, state)
 }
 
 func (s *Store) save(name string, value any) error {
@@ -663,6 +941,14 @@ func clonePendingRuns(pending map[string][]PendingRun) map[string][]PendingRun {
 	return out
 }
 
+func clonePendingResumes(pending map[string]PendingResume) map[string]PendingResume {
+	out := make(map[string]PendingResume, len(pending))
+	for sessionID, command := range pending {
+		out[sessionID] = clonePendingResume(command)
+	}
+	return out
+}
+
 func clonePendingRunSlice(commands []PendingRun) []PendingRun {
 	out := make([]PendingRun, len(commands))
 	for index, command := range commands {
@@ -674,6 +960,12 @@ func clonePendingRunSlice(commands []PendingRun) []PendingRun {
 func clonePendingRun(command PendingRun) PendingRun {
 	command.Command = command.Command.Clone()
 	return command
+}
+
+func clonePendingResume(pending PendingResume) PendingResume {
+	pending.Command = pending.Command.Clone()
+	pending.Interactions = agent.CloneInteractions(pending.Interactions)
+	return pending
 }
 
 func pendingRunIndex(commands []PendingRun, commandID agent.CommandID) int {

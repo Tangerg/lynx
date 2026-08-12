@@ -119,6 +119,25 @@ type ResumeRun struct {
 	Message   *Message
 }
 
+// Clone detaches every mutable answer and optional message owned by a resume
+// command. Delivery adapters may retain the clone across retries or process
+// restarts without sharing the interaction editor's draft state.
+func (r ResumeRun) Clone() ResumeRun {
+	answers := r.Answers
+	r.Answers = make([]InterruptAnswer, len(answers))
+	for index, response := range answers {
+		r.Answers[index] = InterruptAnswer{
+			ItemID: response.ItemID,
+			Answer: CloneAnswer(response.Answer),
+		}
+	}
+	if r.Message != nil {
+		message := r.Message.Clone()
+		r.Message = &message
+	}
+	return r
+}
+
 type CancelRun struct {
 	CommandID CommandID
 	RunID     string

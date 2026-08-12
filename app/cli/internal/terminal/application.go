@@ -179,6 +179,7 @@ type app struct {
 
 	streamSeq              uint64
 	dispatchingQueueEntry  uint64
+	openingRunID           string
 	pendingCancel          *agent.CancelRun
 	sessionDraftTransition *sessionDraftTransition
 	following              bool
@@ -291,6 +292,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	a.registerCommands()
 	a.buildInterface(appearance, cfg.keyBindings.editor)
 	a.restore(cfg.snapshot)
+	a.restorePendingResume()
 	a.restorePendingRuns()
 	a.persistDraft()
 	a.followRuntimeChanges()
@@ -305,8 +307,16 @@ func (a *app) restorePendingRuns() {
 	if len(pending) == 0 {
 		return
 	}
+	if pending[0].State == workbench.PendingRunCanceling {
+		if err := a.restorePendingQueue(pending); err != nil {
+			a.fail(err)
+			return
+		}
+		a.reconcileCanceledStart(pending[0])
+		return
+	}
 	if a.conversation.Busy() && pending[0].State == workbench.PendingRunDispatching {
-		a.reconcilePendingRun(pending[0].Command)
+		a.reconcilePendingRun(pending[0])
 		return
 	}
 	if err := a.restorePendingQueue(pending); err != nil {
@@ -316,6 +326,57 @@ func (a *app) restorePendingRuns() {
 	if !a.conversation.Busy() {
 		a.drainQueue()
 	}
+}
+
+func (a *app) restorePendingResume() {
+	if a.workbench == nil {
+		return
+	}
+	pending, ok := a.workbench.PendingResume(a.session.ID)
+	if !ok {
+		return
+	}
+	if a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != pending.Command.RunID ||
+		!sameInteractions(a.conversation.Interactions(), pending.Interactions) {
+		// The authoritative snapshot has advanced beyond this decision. Its exact
+		// runtime outcome is therefore already visible and the local outbox can be
+		// retired without replaying an obsolete command.
+		if err := a.workbench.AcknowledgePendingResume(a.session.ID, pending.Command.CommandID); err != nil {
+			a.fail(fmt.Errorf("retire settled interaction decisions: %w", err))
+		}
+		return
+	}
+	review, err := restoreInteractionReview(pending.Interactions, pending.Command.Answers)
+	if err != nil {
+		a.fail(fmt.Errorf("restore pending interaction decisions: %w", err))
+		return
+	}
+	a.dismissInteractionProjection()
+	a.interactionReview = review
+	a.deliverInteractionResume(review, pending.Command.Clone())
+}
+
+func sameInteractions(left, right []agent.Interaction) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index, item := range left {
+		switch typed := item.(type) {
+		case agent.Approval:
+			other, ok := right[index].(agent.Approval)
+			if !ok || !typed.Equal(other) {
+				return false
+			}
+		case agent.Question:
+			other, ok := right[index].(agent.Question)
+			if !ok || !typed.Equal(other) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (a *app) restorePendingQueue(pending []workbench.PendingRun) error {
@@ -330,7 +391,8 @@ func (a *app) restorePendingQueue(pending []workbench.PendingRun) error {
 	return nil
 }
 
-func (a *app) reconcilePendingRun(command agent.StartRun) {
+func (a *app) reconcilePendingRun(pending workbench.PendingRun) {
+	command := pending.Command
 	activeRunID := a.conversation.RunID()
 	dispatcher := a.loop.Dispatcher()
 	a.operations.GoSession(pendingRunRecoveryOperation, false, func(ctx context.Context, lease operationLease) {
@@ -534,6 +596,7 @@ func (a *app) reconcileRunSnapshot(snapshot agent.SessionSnapshot, stream agent.
 
 	previousTranscript := a.transcript
 	a.setActiveSession(snapshot.Session)
+	a.openingRunID = ""
 	a.conversation = projection.conversation
 	a.transcript = projection.transcript
 	a.wireTranscript(projection.transcript)
@@ -626,6 +689,7 @@ func (a *app) Close(ctx context.Context) {
 	if !cancelRuntime && a.pendingCancel != nil {
 		target, cancelRuntime = *a.pendingCancel, true
 	}
+	pendingStart, cancelOpening, _ := a.stageOpeningCancellation()
 	a.dropStream()
 	a.operations.Cancel(completionOperation)
 	a.cancelPluginCommands()
@@ -638,7 +702,13 @@ func (a *app) Close(ctx context.Context) {
 		a.reportWorkbenchError(err)
 	}
 	if cancelRuntime {
-		a.cancelRuntimeNow(ctx, target)
+		if a.cancelRuntimeNow(ctx, target) && a.workbench != nil {
+			if pending, ok := a.workbench.PendingResume(a.session.ID); ok && pending.Command.RunID == target.RunID {
+				_ = a.workbench.AcknowledgePendingResume(a.session.ID, pending.Command.CommandID)
+			}
+		}
+	} else if cancelOpening {
+		a.cancelOpeningRunNow(ctx, pendingStart)
 	}
 	a.transcript.Close()
 	if a.reader != nil {

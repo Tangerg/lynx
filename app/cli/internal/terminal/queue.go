@@ -117,7 +117,7 @@ func (a *app) enqueueFollowUp(commandID agent.CommandID, message agent.Message) 
 
 func (a *app) drainQueue() bool {
 	if a.dispatchingQueueEntry != 0 || a.conversation.Busy() || a.following || a.pendingCancel != nil ||
-		a.operations.Active(sessionChangeOperation) {
+		a.operations.Active(sessionChangeOperation) || a.operations.Active(pendingRunRecoveryOperation) {
 		return false
 	}
 	entry, ok := a.queue.Next(a.session.ID)
@@ -143,15 +143,6 @@ func (a *app) commitQueuedDispatch() {
 		a.message(err.Error())
 		return
 	}
-	a.dispatchingQueueEntry = 0
-	a.syncQueue()
-}
-
-func (a *app) discardQueuedDispatch() {
-	if a.dispatchingQueueEntry == 0 {
-		return
-	}
-	_, _ = a.queue.Remove(a.session.ID, a.dispatchingQueueEntry)
 	a.dispatchingQueueEntry = 0
 	a.syncQueue()
 }

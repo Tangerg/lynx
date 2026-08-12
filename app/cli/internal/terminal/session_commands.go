@@ -442,6 +442,9 @@ func (a *app) retireSessionState(sessionID string) (int, error) {
 	if err := a.workbench.SavePendingRuns(sessionID, nil); err != nil {
 		return discarded, fmt.Errorf("discard session pending runs: %w", err)
 	}
+	if err := a.workbench.DiscardPendingResume(sessionID); err != nil {
+		return discarded, fmt.Errorf("discard session pending resume: %w", err)
+	}
 	if err := a.workbench.DiscardDraft(sessionID); err != nil {
 		return discarded, fmt.Errorf("discard session draft: %w", err)
 	}
@@ -483,6 +486,7 @@ func (installation sessionInstallation) apply(a *app) {
 		a.queueDialog.Dismiss()
 	}
 	a.dispatchingQueueEntry = 0
+	a.openingRunID = ""
 	a.conversation = installation.projection.conversation
 	a.attachments = installation.attachments
 	a.transcript = installation.projection.transcript

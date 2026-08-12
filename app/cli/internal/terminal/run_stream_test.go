@@ -358,6 +358,48 @@ func TestLaunchRequeuesARejectedHandshakeBehindAnotherActiveRun(t *testing.T) {
 	stop()
 }
 
+func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		}}}}
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_77777777777777777777777777777777"),
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "cancel after restart"},
+	}
+	runtime := &idempotentStartRuntime{Runtime: base}
+	if _, err := runtime.StartRun(t.Context(), command); err != nil {
+		t.Fatal(err)
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StagePendingRun(workbench.PendingRun{
+		State: workbench.PendingRunDispatching, Command: command,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
+	host.Shows(t, "canceled")
+	host.Until(t, "the canceled opening command to leave the durable outbox", func() bool {
+		reopened, openErr := workbench.Open(stateDirectory, workbench.Config{})
+		return openErr == nil && len(reopened.PendingRuns(command.SessionID)) == 0 && host.Repaint()
+	})
+	if cancelID == "" {
+		t.Fatal("cancel command identity is empty")
+	}
+	stop()
+}
+
 func TestActiveDurationClockStartsFromDurableExecutionTime(t *testing.T) {
 	startedAt := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
 	clock := activeDurationClock{}

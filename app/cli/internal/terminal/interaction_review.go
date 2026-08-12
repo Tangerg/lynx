@@ -25,6 +25,28 @@ func newInteractionReview(items []agent.Interaction) (*interactionReview, error)
 	return &interactionReview{items: cloned, answers: make([]agent.Answer, len(cloned))}, nil
 }
 
+func restoreInteractionReview(items []agent.Interaction, responses []agent.InterruptAnswer) (*interactionReview, error) {
+	review, err := newInteractionReview(items)
+	if err != nil {
+		return nil, err
+	}
+	if len(responses) != len(items) {
+		return nil, errors.New("interaction response count does not match review")
+	}
+	for index, response := range responses {
+		if response.ItemID != agent.InteractionItemID(items[index]) {
+			return nil, fmt.Errorf("interaction response %d targets another item", index+1)
+		}
+		if err := review.Record(response.Answer); err != nil {
+			return nil, fmt.Errorf("restore interaction response %d: %w", index+1, err)
+		}
+		if !review.Advance() && index+1 < len(responses) {
+			return nil, fmt.Errorf("restore interaction response %d did not advance", index+1)
+		}
+	}
+	return review, nil
+}
+
 func (r *interactionReview) Current() (agent.Interaction, bool) {
 	if r == nil || r.current < 0 || r.current >= len(r.items) {
 		return nil, false

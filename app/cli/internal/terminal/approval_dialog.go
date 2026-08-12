@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 type approvalPane struct {
@@ -339,10 +340,22 @@ func (a *app) resumeInteractions() {
 		a.fail(err)
 		return
 	}
+	command := agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers}
+	if a.workbench != nil {
+		pending := workbench.PendingResume{Command: command.Clone(), Interactions: review.Items()}
+		if err := a.workbench.StagePendingResume(a.session.ID, pending); err != nil {
+			a.message("resume blocked: save interaction decisions: " + err.Error())
+			return
+		}
+	}
+	a.deliverInteractionResume(review, command)
+}
+
+func (a *app) deliverInteractionResume(review *interactionReview, command agent.ResumeRun) {
 	a.status.active("resuming")
 	a.syncAnimation()
 	a.followOpening(func(ctx context.Context) (agent.SegmentStream, error) {
-		stream, err := a.runtime.ResumeRun(ctx, agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers})
+		stream, err := a.runtime.ResumeRun(ctx, command)
 		if err != nil {
 			return agent.SegmentStream{}, &resumeRunCallError{err: err}
 		}
@@ -351,18 +364,31 @@ func (a *app) resumeInteractions() {
 		}
 		return stream, nil
 	}, streamOpeningObserver{
-		accepted: func() { a.interactionReview = nil },
+		persistent: true,
+		accepted: func(agent.SegmentStream) {
+			a.interactionReview = nil
+			if a.workbench != nil {
+				if err := a.workbench.AcknowledgePendingResume(a.session.ID, command.CommandID); err != nil {
+					a.message("could not retire acknowledged interaction decisions: " + err.Error())
+				}
+			}
+		},
 		rejected: func(failure error) error {
-			return a.restoreRejectedInteractionReview(review, runID, failure)
+			return a.restoreRejectedInteractionReview(review, command, failure)
 		},
 	})
 }
 
-func (a *app) restoreRejectedInteractionReview(review *interactionReview, runID string, failure error) error {
+func (a *app) restoreRejectedInteractionReview(review *interactionReview, command agent.ResumeRun, failure error) error {
 	callFailure, refused := errors.AsType[*resumeRunCallError](failure)
 	if !refused || reconnect.Retryable(callFailure.err) || a.interactionReview != review ||
-		a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != runID {
+		a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != command.RunID {
 		return failure
+	}
+	if a.workbench != nil {
+		if err := a.workbench.RejectPendingResume(a.session.ID, command.CommandID); err != nil {
+			return errors.Join(failure, fmt.Errorf("release refused interaction decisions: %w", err))
+		}
 	}
 	a.following = false
 	a.status.note("resume refused · review preserved")

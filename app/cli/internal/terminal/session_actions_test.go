@@ -32,6 +32,25 @@ func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
 		if _, err := queue.Enqueue(sessionID, agent.Message{Text: sessionID + " queued"}); err != nil {
 			t.Fatal(err)
 		}
+		approval := agent.Approval{
+			RunID: sessionID + "_run", ItemID: sessionID + "_approval", Title: "Approve",
+			Tool: &agent.ToolCall{Kind: agent.ToolRead, Name: "read", Path: "README.md", Status: agent.ToolRunning},
+		}
+		if err := store.StagePendingResume(sessionID, workbench.PendingResume{
+			Command: agent.ResumeRun{
+				CommandID: agent.CommandID("cli_" + map[string]string{
+					"retired": "11111111111111111111111111111111",
+					"active":  "22222222222222222222222222222222",
+				}[sessionID]),
+				RunID: approval.RunID,
+				Answers: []agent.InterruptAnswer{{
+					ItemID: approval.ItemID, Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
+				}},
+			},
+			Interactions: []agent.Interaction{approval},
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	application := &app{workbench: store, queue: queue}
 
@@ -48,11 +67,17 @@ func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
 	if entries := queue.Snapshot("retired").Entries; len(entries) != 0 {
 		t.Fatalf("retired queue = %+v", entries)
 	}
+	if _, found := store.PendingResume("retired"); found {
+		t.Fatal("retired pending resume remains")
+	}
 	if draft, found, err := store.Draft("active"); err != nil || !found || draft.Text != "active draft" {
 		t.Fatalf("active draft = %+v, found %t, error %v", draft, found, err)
 	}
 	if entries := queue.Snapshot("active").Entries; len(entries) != 1 || entries[0].Message.Text != "active queued" {
 		t.Fatalf("active queue = %+v", entries)
+	}
+	if _, found := store.PendingResume("active"); !found {
+		t.Fatal("active pending resume was discarded")
 	}
 }
 
