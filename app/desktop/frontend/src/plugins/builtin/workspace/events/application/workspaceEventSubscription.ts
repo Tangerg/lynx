@@ -1,8 +1,5 @@
 import type { WorkspaceEventLoop } from "./workspaceEventLoop";
 
-const RESOLVE_RETRY_BASE_MS = 1_000;
-const RESOLVE_RETRY_CAP_MS = 30_000;
-
 export type WorkspaceCwdResolution =
   { status: "resolved"; cwd?: string } | { status: "unavailable" };
 
@@ -20,15 +17,8 @@ export function startWorkspaceEventSubscription(
   const controller = new AbortController();
   let started = false;
   let retargetGeneration = 0;
-  let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const clearRetry = (): void => {
-    if (retryTimer === undefined) return;
-    clearTimeout(retryTimer);
-    retryTimer = undefined;
-  };
-
-  const resolveTarget = (generation: number, attempt: number): void => {
+  const resolveTarget = (generation: number): void => {
     void ports.resolveWorkspaceCwd().then((resolution) => {
       if (generation !== retargetGeneration || controller.signal.aborted) return;
       if (resolution.status === "resolved") {
@@ -36,23 +26,18 @@ export function startWorkspaceEventSubscription(
           type: "workspace",
           ...(resolution.cwd ? { cwd: resolution.cwd } : {}),
         });
-        return;
       }
-      retryTimer = setTimeout(
-        () => resolveTarget(generation, attempt + 1),
-        Math.min(RESOLVE_RETRY_BASE_MS * 2 ** attempt, RESOLVE_RETRY_CAP_MS),
-      );
     });
   };
 
   const retarget = (): void => {
     const generation = ++retargetGeneration;
-    clearRetry();
     // Do not let an unresolved active session inherit either the Runtime's
     // default workspace or the previous session's file watch. The global topic
-    // stream remains online while the authoritative identity is retried.
+    // stream remains online until the session projection changes and supplies
+    // another authoritative identity input.
     ports.loop.retarget({ type: "none" });
-    resolveTarget(generation, 0);
+    resolveTarget(generation);
   };
 
   const startIfAdvertised = (): void => {
@@ -68,7 +53,6 @@ export function startWorkspaceEventSubscription(
 
   return () => {
     retargetGeneration += 1;
-    clearRetry();
     unsubscribeCapabilities();
     unsubscribeCwdInputs();
     controller.abort();

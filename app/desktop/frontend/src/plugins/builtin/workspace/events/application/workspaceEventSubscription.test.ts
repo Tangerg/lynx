@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { WorkspaceEventLoop } from "./workspaceEventLoop";
 import {
   startWorkspaceEventSubscription,
@@ -14,8 +14,6 @@ function deferred<T>() {
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-afterEach(() => vi.useRealTimers());
 
 function subscriptionPorts(
   patch: Partial<WorkspaceEventSubscriptionPorts> = {},
@@ -98,24 +96,27 @@ describe("startWorkspaceEventSubscription", () => {
     });
   });
 
-  it("keeps global topics online and retries before binding the default workspace", async () => {
-    vi.useFakeTimers();
+  it("keeps global topics online until a new identity input resolves the workspace", async () => {
+    let onCwdChange: (() => void) | undefined;
     const ports = subscriptionPorts({
       resolveWorkspaceCwd: vi
         .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
         .mockResolvedValueOnce({ status: "unavailable" })
         .mockResolvedValueOnce({ status: "resolved" }),
+      subscribeWorkspaceCwdInputs: (listener) => {
+        onCwdChange = listener;
+        return vi.fn();
+      },
     });
 
     startWorkspaceEventSubscription(ports);
-    await vi.advanceTimersByTimeAsync(0);
+    await tick();
     expect(ports.loop.retarget).toHaveBeenCalledOnce();
     expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
     expect(ports.resolveWorkspaceCwd).toHaveBeenCalledOnce();
 
-    await vi.advanceTimersByTimeAsync(999);
-    expect(ports.resolveWorkspaceCwd).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(1);
+    onCwdChange?.();
+    await tick();
     expect(ports.resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
     expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "workspace" });
   });
