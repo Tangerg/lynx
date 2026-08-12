@@ -156,6 +156,18 @@ func projectTool(value *protocol.ToolInvocation, status protocol.ItemStatus, dur
 		Query:   firstStringArgument(value.Arguments, "query", "pattern", "search"),
 		URL:     firstStringArgument(value.Arguments, "url", "uri"),
 	}
+	argumentsJSON, err := json.Marshal(value.Arguments)
+	if err != nil {
+		return agent.ToolCall{}, fmt.Errorf("encode tool arguments: %w", err)
+	}
+	tool.ArgumentsJSON = argumentsJSON
+	if value.Result != nil {
+		resultJSON, err := json.Marshal(value.Result)
+		if err != nil {
+			return agent.ToolCall{}, fmt.Errorf("encode tool result: %w", err)
+		}
+		tool.ResultJSON = resultJSON
+	}
 	if durationMillis != nil {
 		tool.Duration = time.Duration(*durationMillis) * time.Millisecond
 	}

@@ -9,6 +9,7 @@ package agent
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -189,6 +190,11 @@ type ToolCall struct {
 	Query   string
 	URL     string
 	Output  string
+	// ArgumentsJSON and ResultJSON preserve the complete, normalized JSON
+	// values for generic presenters and machine consumers. Semantic fields such
+	// as Command and Path remain the high-quality projection for known tools.
+	ArgumentsJSON []byte
+	ResultJSON    []byte
 	// Diff is a unified diff when the call changed files.
 	Diff string
 	// ExitCode is set for completed process-like tools. Nil distinguishes an
@@ -199,6 +205,8 @@ type ToolCall struct {
 }
 
 func (t ToolCall) Clone() ToolCall {
+	t.ArgumentsJSON = bytes.Clone(t.ArgumentsJSON)
+	t.ResultJSON = bytes.Clone(t.ResultJSON)
 	if t.ExitCode != nil {
 		t.ExitCode = new(*t.ExitCode)
 	}
@@ -211,6 +219,7 @@ func (t ToolCall) Equal(other ToolCall) bool {
 	if t.Kind != other.Kind || t.Name != other.Name || t.Summary != other.Summary ||
 		t.Status != other.Status || t.Command != other.Command || t.Path != other.Path ||
 		t.Query != other.Query || t.URL != other.URL || t.Output != other.Output ||
+		!bytes.Equal(t.ArgumentsJSON, other.ArgumentsJSON) || !bytes.Equal(t.ResultJSON, other.ResultJSON) ||
 		t.Diff != other.Diff || t.Duration != other.Duration ||
 		(t.ExitCode == nil) != (other.ExitCode == nil) {
 		return false
@@ -235,6 +244,15 @@ func (t ToolCall) Validate() error {
 	}
 	if t.Status == ToolRunning && t.ExitCode != nil {
 		problems = append(problems, errors.New("running tool has an exit code"))
+	}
+	if len(t.ArgumentsJSON) > 0 {
+		var arguments map[string]any
+		if !json.Valid(t.ArgumentsJSON) || json.Unmarshal(t.ArgumentsJSON, &arguments) != nil || arguments == nil {
+			problems = append(problems, errors.New("arguments JSON is not an object"))
+		}
+	}
+	if len(t.ResultJSON) > 0 && !json.Valid(t.ResultJSON) {
+		problems = append(problems, errors.New("result JSON is invalid"))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("tool call: %w", err)

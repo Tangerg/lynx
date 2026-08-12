@@ -140,6 +140,51 @@ func TestToolKindsBuildSpecializedOolongBlocks(t *testing.T) {
 	}
 }
 
+func TestUnknownToolPresentsCompleteArgumentsAndResult(t *testing.T) {
+	call := agent.ToolCall{
+		Kind: agent.ToolUnknown, Name: "mcp__calendar__create", Status: agent.ToolOK,
+		ArgumentsJSON: []byte(`{"calendar":"work","guests":["a@example.com"]}`),
+		ResultJSON:    []byte(`{"eventId":"evt_123","accepted":true}`),
+	}
+	presentation := presentUnknownTool(call)
+	if len(presentation.Sections) != 2 || presentation.Sections[0].Title != "Arguments" ||
+		presentation.Sections[1].Title != "Result" ||
+		!strings.Contains(presentation.Sections[0].Text, "a@example.com") ||
+		!strings.Contains(presentation.Sections[1].Text, "evt_123") {
+		t.Fatalf("unknown tool presentation = %+v", presentation)
+	}
+}
+
+func TestKnownToolAlsoPresentsCompleteArgumentsAndResult(t *testing.T) {
+	call := agent.ToolCall{
+		Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK,
+		ArgumentsJSON: []byte(`{"command":"go test ./...","timeoutMs":30000}`),
+		ResultJSON:    []byte(`{"exitCode":0,"truncated":false}`),
+	}
+	presentation := presentShellTool(call)
+	if len(presentation.Sections) != 2 || presentation.Sections[0].Title != "Arguments" ||
+		presentation.Sections[1].Title != "Result" ||
+		!strings.Contains(presentation.Sections[0].Text, "timeoutMs") ||
+		!strings.Contains(presentation.Sections[1].Text, "truncated") {
+		t.Fatalf("known tool presentation = %+v", presentation)
+	}
+}
+
+func TestToolBlockOwnsCompleteToolValues(t *testing.T) {
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
+	call := agent.ToolCall{
+		Kind: agent.ToolUnknown, Name: "provider_tool", Status: agent.ToolOK,
+		ArgumentsJSON: []byte(`{"scope":"source"}`), ResultJSON: []byte(`{"status":"source"}`),
+	}
+	block := newToolBlock(presentation, agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &call})
+	copy(call.ArgumentsJSON, `{"scope":"mutant"}`)
+	copy(call.ResultJSON, `{"status":"mutant"}`)
+
+	if strings.Contains(string(block.call.ArgumentsJSON), "mutant") || strings.Contains(string(block.call.ResultJSON), "mutant") {
+		t.Fatalf("tool block retained caller-owned JSON: %+v", block.call)
+	}
+}
+
 func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
 	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}

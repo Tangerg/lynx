@@ -1511,7 +1511,10 @@ func TestApprovalDenialSubmitsOptionalUserFeedback(t *testing.T) {
 		return mock.Script{
 			Interactions: []agent.Interaction{agent.Approval{
 				ItemID: "approval-feedback", Title: "Run destructive command", Detail: "Review this request carefully",
-				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Command: "rm generated.txt", Status: agent.ToolRunning},
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "rm generated.txt", Status: agent.ToolRunning,
+					ArgumentsJSON: []byte(`{"command":"rm generated.txt","generatedFixture":"cache_test.go"}`),
+				},
 			}},
 			Continue: func(provided []agent.InterruptAnswer) []mock.Step {
 				answers <- provided
@@ -1524,6 +1527,8 @@ func TestApprovalDenialSubmitsOptionalUserFeedback(t *testing.T) {
 	host.Type("remove generated output")
 	host.Press(input.Enter)
 	host.Shows(t, "$ rm generated.txt")
+	host.Shows(t, "generatedFixture")
+	host.Shows(t, "cache_test.go")
 	host.Press(input.Down)
 	host.Press(input.Tab)
 	host.Type("keep the generated fixture")

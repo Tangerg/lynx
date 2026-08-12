@@ -126,7 +126,7 @@ func normalizeApprovalChoice(choice string, rememberable bool) string {
 }
 
 func (a *app) openApproval(approval agent.Approval) {
-	cloned := approval
+	cloned := approval.Clone()
 	a.approval = &cloned
 	a.approvalReason = ""
 	initial := approvalDefault(a.settings.Approval.Remember.Scope())

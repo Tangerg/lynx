@@ -62,6 +62,12 @@ func TestNDJSONCarriesSegmentIdentityAndInterruptSet(t *testing.T) {
 	if !ok || len(interactions) != 2 {
 		t.Fatalf("interactions = %#v", frame["interactions"])
 	}
+	approval := interactions[0].(map[string]any)
+	tool := approval["tool"].(map[string]any)
+	arguments := tool["arguments"].(map[string]any)
+	if approval["rememberable"] != true || tool["name"] != "shell" || arguments["command"] != "go test ./..." {
+		t.Fatalf("approval interaction = %#v", approval)
+	}
 	usage, ok := frame["usage"].(map[string]any)
 	if !ok || usage["inputTokens"] != float64(42) {
 		t.Fatalf("interrupt usage = %#v", frame["usage"])
@@ -182,6 +188,33 @@ func TestRenderersPreserveAssistantInlineImages(t *testing.T) {
 	}
 	if !strings.Contains(textOutput.String(), "@ chart.png (image/png, 9 bytes)") {
 		t.Fatalf("text image fallback = %q", textOutput.String())
+	}
+}
+
+func TestNDJSONPreservesCompleteToolArgumentsAndResult(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewNDJSON(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	event := testEvent("tool", agent.BlockCompleted{Block: agent.Block{
+		ID: "tool_1", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+			Kind: agent.ToolUnknown, Name: "mcp__calendar__create", Status: agent.ToolOK,
+			ArgumentsJSON: []byte(`{"guests":["a@example.com"]}`), ResultJSON: []byte(`{"eventId":"evt_123"}`),
+		},
+	}})
+	if err := renderer.Render(event); err != nil {
+		t.Fatal(err)
+	}
+	var frame map[string]any
+	if err := json.Unmarshal(output.Bytes(), &frame); err != nil {
+		t.Fatal(err)
+	}
+	block := frame["block"].(map[string]any)
+	tool := block["tool"].(map[string]any)
+	if tool["arguments"].(map[string]any)["guests"].([]any)[0] != "a@example.com" ||
+		tool["result"].(map[string]any)["eventId"] != "evt_123" {
+		t.Fatalf("tool frame = %+v", tool)
 	}
 }
 
@@ -491,7 +524,10 @@ func testRun() agent.Run {
 
 func testApproval(itemID, title string) agent.Approval {
 	return agent.Approval{
-		RunID: "run_1", ItemID: itemID, Title: title,
-		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+		RunID: "run_1", ItemID: itemID, Title: title, Rememberable: true,
+		Tool: &agent.ToolCall{
+			Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning,
+			ArgumentsJSON: []byte(`{"command":"go test ./...","timeoutMs":30000}`),
+		},
 	}
 }

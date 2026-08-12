@@ -121,18 +121,20 @@ type imageFrame struct {
 }
 
 type toolFrame struct {
-	Kind       string  `json:"kind"`
-	Name       string  `json:"name"`
-	Summary    string  `json:"summary,omitzero"`
-	Status     string  `json:"status"`
-	Command    string  `json:"command,omitzero"`
-	Path       string  `json:"path,omitzero"`
-	Query      string  `json:"query,omitzero"`
-	URL        string  `json:"url,omitzero"`
-	Output     string  `json:"output,omitzero"`
-	Diff       string  `json:"diff,omitzero"`
-	ExitCode   *int    `json:"exitCode,omitzero"`
-	DurationMS float64 `json:"durationMs,omitzero"`
+	Kind       string          `json:"kind"`
+	Name       string          `json:"name"`
+	Summary    string          `json:"summary,omitzero"`
+	Status     string          `json:"status"`
+	Command    string          `json:"command,omitzero"`
+	Path       string          `json:"path,omitzero"`
+	Query      string          `json:"query,omitzero"`
+	URL        string          `json:"url,omitzero"`
+	Output     string          `json:"output,omitzero"`
+	Arguments  json.RawMessage `json:"arguments,omitempty"`
+	Result     json.RawMessage `json:"result,omitempty"`
+	Diff       string          `json:"diff,omitzero"`
+	ExitCode   *int            `json:"exitCode,omitzero"`
+	DurationMS float64         `json:"durationMs,omitzero"`
 }
 
 type planFrame struct {
@@ -141,15 +143,17 @@ type planFrame struct {
 }
 
 type interactionJSON struct {
-	Kind     string              `json:"kind"`
-	RunID    string              `json:"runId"`
-	ItemID   string              `json:"itemId"`
-	Title    string              `json:"title"`
-	Detail   string              `json:"detail,omitzero"`
-	Diff     string              `json:"diff,omitzero"`
-	Risk     string              `json:"risk,omitzero"`
-	RuleHint string              `json:"ruleHint,omitzero"`
-	Fields   []questionFieldJSON `json:"fields,omitzero"`
+	Kind         string              `json:"kind"`
+	RunID        string              `json:"runId"`
+	ItemID       string              `json:"itemId"`
+	Title        string              `json:"title"`
+	Detail       string              `json:"detail,omitzero"`
+	Tool         *toolFrame          `json:"tool,omitzero"`
+	Diff         string              `json:"diff,omitzero"`
+	Risk         string              `json:"risk,omitzero"`
+	RuleHint     string              `json:"ruleHint,omitzero"`
+	Rememberable bool                `json:"rememberable,omitzero"`
+	Fields       []questionFieldJSON `json:"fields,omitzero"`
 }
 
 type questionFieldJSON struct {
@@ -348,7 +352,8 @@ func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 	case agent.Approval:
 		return &interactionJSON{
 			Kind: "approval", RunID: item.RunID, ItemID: item.ItemID, Title: item.Title,
-			Detail: item.Detail, Diff: item.Diff, Risk: string(item.Risk), RuleHint: item.RuleHint,
+			Detail: item.Detail, Tool: encodeTool(item.Tool), Diff: item.Diff, Risk: string(item.Risk),
+			RuleHint: item.RuleHint, Rememberable: item.Rememberable,
 		}
 	case agent.Question:
 		out := &interactionJSON{Kind: "question", RunID: item.RunID, ItemID: item.ItemID, Title: item.Title, Detail: item.Detail}
@@ -389,25 +394,34 @@ func encodeBlock(b agent.Block) *blockFrame {
 		})
 	}
 	if b.Tool != nil {
-		out.Tool = &toolFrame{
-			Kind:       string(b.Tool.Kind),
-			Name:       b.Tool.Name,
-			Summary:    b.Tool.Summary,
-			Status:     string(b.Tool.Status),
-			Command:    b.Tool.Command,
-			Path:       b.Tool.Path,
-			Query:      b.Tool.Query,
-			URL:        b.Tool.URL,
-			Output:     b.Tool.Output,
-			Diff:       b.Tool.Diff,
-			ExitCode:   b.Tool.ExitCode,
-			DurationMS: float64(b.Tool.Duration.Milliseconds()),
-		}
+		out.Tool = encodeTool(b.Tool)
 	}
 	if b.Question != nil {
 		out.Question = encodeInteraction(*b.Question)
 	}
 	return out
+}
+
+func encodeTool(tool *agent.ToolCall) *toolFrame {
+	if tool == nil {
+		return nil
+	}
+	return &toolFrame{
+		Kind:       string(tool.Kind),
+		Name:       tool.Name,
+		Summary:    tool.Summary,
+		Status:     string(tool.Status),
+		Command:    tool.Command,
+		Path:       tool.Path,
+		Query:      tool.Query,
+		URL:        tool.URL,
+		Output:     tool.Output,
+		Arguments:  json.RawMessage(tool.ArgumentsJSON),
+		Result:     json.RawMessage(tool.ResultJSON),
+		Diff:       tool.Diff,
+		ExitCode:   tool.ExitCode,
+		DurationMS: float64(tool.Duration.Milliseconds()),
+	}
 }
 
 func encodePlan(items []agent.PlanItem) []planFrame {

@@ -71,11 +71,7 @@ func (t *toolBlock) Update(block agent.Block) {
 	if block.Tool == nil {
 		t.call = agent.ToolCall{Kind: agent.ToolUnknown, Name: "invalid tool", Summary: "runtime omitted the tool projection", Status: agent.ToolError}
 	} else {
-		t.call = *block.Tool
-		if block.Tool.ExitCode != nil {
-			code := *block.Tool.ExitCode
-			t.call.ExitCode = &code
-		}
+		t.call = block.Tool.Clone()
 	}
 	t.rebuild()
 }

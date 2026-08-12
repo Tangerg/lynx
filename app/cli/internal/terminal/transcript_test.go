@@ -177,7 +177,10 @@ func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 
 func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T) {
 	view := testTranscriptView(t)
-	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
+	running := agent.ToolCall{
+		Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning,
+		ArgumentsJSON: []byte(`{"phase":"provisional-arguments"}`),
+	}
 	tool := beginTestTool(view, running)
 	tool.SetExpanded(true)
 	for _, chunk := range []string{"first\n", "second\n"} {
@@ -188,7 +191,11 @@ func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T)
 	if got := copyableRowsText(tool.Rows(48)); !strings.Contains(got, "first") || !strings.Contains(got, "second") {
 		t.Fatalf("live tool rows = %q", got)
 	}
-	completed := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK, Output: "final\n"}
+	completed := agent.ToolCall{
+		Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK, Output: "final\n",
+		ArgumentsJSON: []byte(`{"phase":"authoritative-arguments"}`),
+		ResultJSON:    []byte(`{"resultMarker":"authoritative-result"}`),
+	}
 	if err := view.Apply(agent.BlockCompleted{Block: agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed}}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +203,9 @@ func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T)
 		t.Fatal("tool completion discarded the expanded state")
 	}
 	got := copyableRowsText(tool.Rows(48))
-	if !strings.Contains(got, "final") || strings.Contains(got, "first") || strings.Contains(got, "second") {
+	if !strings.Contains(got, "final") || !strings.Contains(got, "authoritative-arguments") ||
+		!strings.Contains(got, "authoritative-result") || strings.Contains(got, "provisional-arguments") ||
+		strings.Contains(got, "first") || strings.Contains(got, "second") {
 		t.Fatalf("completed tool did not use authoritative output: %q", got)
 	}
 }

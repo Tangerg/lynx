@@ -114,3 +114,18 @@ func TestBlockCloneOwnsAssistantImageBytes(t *testing.T) {
 		t.Fatalf("inline image clone is not value-owned: source=%+v clone=%+v", block.Images, clone.Images)
 	}
 }
+
+func TestToolCallCloneOwnsRawJSON(t *testing.T) {
+	call := ToolCall{
+		Kind: ToolUnknown, Name: "provider_tool", Status: ToolOK,
+		ArgumentsJSON: []byte(`{"nested":{"value":1}}`), ResultJSON: []byte(`{"ok":true}`),
+	}
+	if err := call.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	clone := call.Clone()
+	clone.ArgumentsJSON[0], clone.ResultJSON[0] = '[', '['
+	if bytes.Equal(call.ArgumentsJSON, clone.ArgumentsJSON) || bytes.Equal(call.ResultJSON, clone.ResultJSON) || !call.Equal(call.Clone()) {
+		t.Fatalf("tool JSON clone aliases source: source=%+v clone=%+v", call, clone)
+	}
+}

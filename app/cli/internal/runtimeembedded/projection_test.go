@@ -24,8 +24,30 @@ func TestProjectToolPreservesStructuredDetails(t *testing.T) {
 		t.Fatalf("projectTool: %v", err)
 	}
 	if tool.Kind != agent.ToolShell || tool.Command != "go test ./..." || tool.Output != "ok" ||
-		tool.ExitCode == nil || *tool.ExitCode != 0 || tool.Duration != 1250*time.Millisecond {
+		tool.ExitCode == nil || *tool.ExitCode != 0 || tool.Duration != 1250*time.Millisecond ||
+		!json.Valid(tool.ArgumentsJSON) || !bytes.Contains(tool.ArgumentsJSON, []byte(`"command":"go test ./..."`)) ||
+		!json.Valid(tool.ResultJSON) || !bytes.Contains(tool.ResultJSON, []byte(`"output":"ok"`)) {
 		t.Fatalf("tool = %+v", tool)
+	}
+}
+
+func TestProjectUnknownToolPreservesCompleteArgumentsAndResult(t *testing.T) {
+	tool, err := projectTool(&protocol.ToolInvocation{
+		Name: "mcp__calendar__create_event",
+		Arguments: map[string]any{
+			"calendar": "work", "guests": []any{"a@example.com", "b@example.com"},
+			"metadata": map[string]any{"source": "lyra"},
+		},
+		Result: map[string]any{"eventId": "evt_123", "accepted": true},
+	}, protocol.ItemStatusCompleted, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tool.Kind != agent.ToolUnknown || tool.Name != "mcp__calendar__create_event" ||
+		!bytes.Contains(tool.ArgumentsJSON, []byte(`"guests"`)) ||
+		!bytes.Contains(tool.ArgumentsJSON, []byte(`"source":"lyra"`)) ||
+		!bytes.Contains(tool.ResultJSON, []byte(`"eventId":"evt_123"`)) {
+		t.Fatalf("unknown tool = %+v", tool)
 	}
 }
 
@@ -83,6 +105,30 @@ func TestQuestionItemAndInterruptShareProjection(t *testing.T) {
 	}
 	if block.Question == nil || !reflect.DeepEqual(*block.Question, interaction.(agent.Question)) {
 		t.Fatalf("block question = %+v, interrupt = %+v", block.Question, interaction)
+	}
+}
+
+func TestApprovalInterruptPreservesCompleteToolArguments(t *testing.T) {
+	interaction, err := projectInteraction(protocol.Interrupt{
+		ItemID: "tool_1", RunID: "run_1", Type: protocol.InterruptApproval,
+		Payload: &protocol.InterruptPayload{
+			Tool: &protocol.ToolInvocation{
+				Name: "mcp__calendar__create_event",
+				Arguments: map[string]any{
+					"calendar": "work", "metadata": map[string]any{"source": "approval"},
+				},
+			},
+			Risk: protocol.ApprovalRiskHigh, Reason: "creates a shared event", Rememberable: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := interaction.(agent.Approval)
+	if approval.Tool == nil || approval.Tool.Name != "mcp__calendar__create_event" ||
+		!bytes.Contains(approval.Tool.ArgumentsJSON, []byte(`"source":"approval"`)) ||
+		approval.Risk != agent.ApprovalRiskHigh || approval.Detail != "creates a shared event" || !approval.Rememberable {
+		t.Fatalf("approval = %+v", approval)
 	}
 }
 

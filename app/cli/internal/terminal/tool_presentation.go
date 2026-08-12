@@ -76,14 +76,12 @@ func presentShellTool(call agent.ToolCall) ToolPresentation {
 }
 
 func presentEditTool(call agent.ToolCall) ToolPresentation {
-	sections := make([]ToolSection, 0, 2)
-	if strings.TrimSpace(call.Diff) != "" {
-		sections = append(sections, ToolSection{Title: "Changes", Style: toolSectionDiff, Language: "diff", Text: call.Diff})
+	return ToolPresentation{
+		Label: toolKindLabel("edit", toolPrimary(call.Path, call.Summary)),
+		Sections: toolSections(call, ToolSection{
+			Title: "Output", Style: toolSectionCode, Language: "text", Text: call.Output,
+		}),
 	}
-	if strings.TrimSpace(call.Output) != "" {
-		sections = append(sections, ToolSection{Title: "Output", Style: toolSectionCode, Language: "text", Text: call.Output})
-	}
-	return ToolPresentation{Label: toolKindLabel("edit", toolPrimary(call.Path, call.Summary)), Sections: sections}
 }
 
 func presentReadTool(call agent.ToolCall) ToolPresentation {
@@ -132,12 +130,22 @@ func presentUnknownTool(call agent.ToolCall) ToolPresentation {
 }
 
 func toolSections(call agent.ToolCall, output ToolSection) []ToolSection {
-	sections := make([]ToolSection, 0, 2)
+	sections := make([]ToolSection, 0, 4)
+	if len(call.ArgumentsJSON) != 0 {
+		sections = append(sections, ToolSection{
+			Title: "Arguments", Style: toolSectionCode, Language: "json", Text: prettyJSON(call.ArgumentsJSON),
+		})
+	}
 	if strings.TrimSpace(call.Diff) != "" {
 		sections = append(sections, ToolSection{Title: "Changes", Style: toolSectionDiff, Language: "diff", Text: call.Diff})
 	}
 	if strings.TrimSpace(output.Text) != "" {
 		sections = append(sections, output)
+	}
+	if len(call.ResultJSON) != 0 {
+		sections = append(sections, ToolSection{
+			Title: "Result", Style: toolSectionCode, Language: "json", Text: prettyJSON(call.ResultJSON),
+		})
 	}
 	return sections
 }
