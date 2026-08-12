@@ -1,10 +1,12 @@
 package runtimeembedded
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
@@ -35,8 +37,110 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace.Path)
 	requireContextManagement(t, runtime, created.Workspace.Path)
 	requireAuxiliaryCapabilities(t, runtime, created.ID, created.Workspace.Path)
+	requireExternalAuthoredInvalidations(t, runtime, created.Workspace.Path)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
+}
+
+func requireExternalAuthoredInvalidations(t *testing.T, runtime *Runtime, workspace string) {
+	t.Helper()
+	for _, topic := range []changefeed.Topic{changefeed.KnowledgeChanged, changefeed.HooksChanged} {
+		if !runtime.Supports(topic) {
+			t.Fatalf("embedded runtime did not advertise %s", topic)
+		}
+	}
+
+	streamContext, cancelStream := context.WithCancel(t.Context())
+	stream, err := runtime.Subscribe(streamContext, changefeed.Subscription{
+		Topics: []changefeed.Topic{
+			changefeed.FilesChanged,
+			changefeed.KnowledgeChanged,
+			changefeed.HooksChanged,
+		},
+		Watches: []changefeed.Watch{{ID: "authored-resources", Workspace: workspace}},
+	})
+	if err != nil {
+		t.Fatalf("subscribe to authored resources: %v", err)
+	}
+	events := make(chan changefeed.Event, 8)
+	streamErrors := make(chan error, 1)
+	streamStopped := make(chan struct{})
+	go func() {
+		defer close(streamStopped)
+		for event, streamErr := range stream {
+			if streamErr != nil {
+				streamErrors <- streamErr
+				return
+			}
+			select {
+			case events <- event:
+			case <-streamContext.Done():
+				return
+			}
+		}
+	}()
+	defer func() {
+		cancelStream()
+		select {
+		case <-streamStopped:
+		case <-time.After(3 * time.Second):
+			t.Error("authored-resource subscription did not stop")
+		}
+	}()
+
+	knowledgePath := filepath.Join(workspace, "LYRA.md")
+	if err := os.WriteFile(knowledgePath, []byte("# External knowledge\n"), 0o600); err != nil {
+		t.Fatalf("write external knowledge: %v", err)
+	}
+	awaitRuntimeInvalidation(t, events, streamErrors, changefeed.KnowledgeChanged)
+	target, err := knowledge.NewTarget(knowledge.WorkingDirectory, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := runtime.services().Knowledge.Document(t.Context(), target)
+	if err != nil || document.Content != "# External knowledge\n" {
+		t.Fatalf("knowledge after external invalidation = (%+v, %v)", document, err)
+	}
+
+	hooksDirectory := filepath.Join(workspace, ".lyra")
+	if err := os.MkdirAll(hooksDirectory, 0o700); err != nil {
+		t.Fatalf("create external hooks directory: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(hooksDirectory, "hooks.json"),
+		[]byte(`{"hooks":[{"event":"SessionStart","inject":"external context"}]}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write external hooks: %v", err)
+	}
+	awaitRuntimeInvalidation(t, events, streamErrors, changefeed.HooksChanged)
+	catalog, err := runtime.services().Hooks.Catalog(t.Context(), workspace)
+	if err != nil || len(catalog.Hooks) != 1 || catalog.Hooks[0].Inject != "external context" {
+		t.Fatalf("hooks after external invalidation = (%+v, %v)", catalog, err)
+	}
+}
+
+func awaitRuntimeInvalidation(
+	t *testing.T,
+	events <-chan changefeed.Event,
+	streamErrors <-chan error,
+	topic changefeed.Topic,
+) {
+	t.Helper()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case event := <-events:
+			if event.Type == changefeed.EventType(topic) {
+				return
+			}
+		case err := <-streamErrors:
+			t.Fatalf("wait for %s: %v", topic, err)
+		case <-timer.C:
+			t.Fatalf("no %s invalidation after external edit", topic)
+		}
+	}
 }
 
 func requireAuxiliaryCapabilities(t *testing.T, runtime *Runtime, sessionID, workspace string) {
