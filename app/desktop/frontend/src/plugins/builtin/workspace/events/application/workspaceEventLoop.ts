@@ -11,7 +11,7 @@ export interface WorkspaceEventLoopDeps {
   }): Promise<AsyncIterable<WorkspaceEventLike>>;
   handleEvent(ev: WorkspaceEventLike): void;
   invalidateAll(): void;
-  reportError(error: unknown): void;
+  reportDisconnect(error?: unknown): void;
 }
 
 export interface WorkspaceEventLoop {
@@ -36,15 +36,17 @@ function sameTarget(left: WorkspaceWatchTarget, right: WorkspaceWatchTarget): bo
 export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): WorkspaceEventLoop {
   let watchTarget: WorkspaceWatchTarget = { type: "none" };
   let iterAbort: AbortController | null = null;
+  let generation = 0;
 
   return {
     start(signal) {
+      const ownGeneration = ++generation;
       void subscribeLoop(
         deps,
         signal,
         () => watchTarget,
         (next) => {
-          iterAbort = next;
+          if (generation === ownGeneration) iterAbort = next;
         },
       );
     },
@@ -68,6 +70,7 @@ async function subscribeLoop(
     setIterAbort(iter);
     const onOuterAbort = () => iter.abort();
     signal.addEventListener("abort", onOuterAbort, { once: true });
+    let failure: unknown;
     try {
       const events = await deps.subscribe({ target: watchTarget(), signal: iter.signal });
       // A transport may resolve its opening promise at the same instant a
@@ -86,7 +89,7 @@ async function subscribeLoop(
         deps.handleEvent(ev);
       }
     } catch (error) {
-      if (!signal.aborted && iter.signal.reason !== RETARGET) deps.reportError(error);
+      if (!signal.aborted && iter.signal.reason !== RETARGET) failure = error;
     } finally {
       signal.removeEventListener("abort", onOuterAbort);
       setIterAbort(null);
@@ -96,6 +99,10 @@ async function subscribeLoop(
       attempt = 0;
       continue;
     }
+    // An RPC stream ending without outer cancellation is also a connection
+    // signal. Let the Runtime context verify and withdraw capabilities promptly
+    // instead of allowing this consumer to guess global connection health.
+    deps.reportDisconnect(failure);
     const backoff = new AbortController();
     setIterAbort(backoff);
     const abortBackoff = () => backoff.abort();

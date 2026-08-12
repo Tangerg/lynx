@@ -1,9 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { runtimeCapabilities } from "./application/ports/capabilities";
-import { discoverRuntime } from "./application/discoverRuntime";
 import { installRuntimeEndpointConfiguration } from "./adapters/runtimeEndpointConfiguration";
 import { installRuntimeCapabilityPort } from "./adapters/runtimeCapabilityStore";
-import { runtimeDiscovery } from "./adapters/runtimeDiscovery";
 import { createRuntimeServiceController } from "./application/runtimeService";
 import { runtimeServiceInspector } from "./adapters/runtimeServiceInspector";
 import {
@@ -21,24 +19,20 @@ export default definePlugin({
     serviceStore.clear();
     const serviceController = createRuntimeServiceController(runtimeServiceInspector(), {
       checking: () => useRuntimeServiceStore.getState().checking(),
-      replace: (observation) => useRuntimeServiceStore.getState().replace(observation),
-      unavailable: (failure) => useRuntimeServiceStore.getState().unavailable(failure),
+      replace: ({ service, capabilities }) => {
+        runtimeCapabilities().replace(capabilities);
+        useRuntimeServiceStore.getState().replace(service);
+      },
+      unavailable: (failure) => {
+        runtimeCapabilities().clear();
+        useRuntimeServiceStore.getState().unavailable(failure);
+      },
     });
     const disposeServiceStatus = installRuntimeServiceStatusPort(serviceController);
     const capabilities = runtimeCapabilities();
     capabilities.clear();
-    let active = true;
-
-    void discoverRuntime(runtimeDiscovery())
-      .then((discovered) => {
-        if (active) capabilities.replace(discovered);
-      })
-      .catch((error) => {
-        if (active) console.warn("[runtime] discovery failed; running degraded:", error);
-      });
-    void serviceController.refresh();
+    serviceController.start();
     return () => {
-      active = false;
       serviceController.dispose();
       useRuntimeServiceStore.getState().clear();
       disposeServiceStatus();

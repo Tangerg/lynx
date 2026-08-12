@@ -8,7 +8,10 @@ import {
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
 import { asSessionId, isErrorType } from "@/rpc";
-import type { WorkspaceCwdResolution } from "../application/workspaceEventSubscription";
+import type {
+  WorkspaceCwdInputChange,
+  WorkspaceCwdResolution,
+} from "../application/workspaceEventSubscription";
 
 export async function resolveActiveSessionWorkspaceCwd(
   signal: AbortSignal,
@@ -28,9 +31,13 @@ export async function resolveActiveSessionWorkspaceCwd(
     });
 }
 
-export function subscribeWorkspaceCwdInputs(onChange: () => void): () => void {
-  const unsubSession = subscribeActiveSessionId(onChange);
-  const unsubCache = subscribeAgentSessionProjection(sessionWorkspaceRevision, onChange);
+export function subscribeWorkspaceCwdInputs(
+  onChange: (change: WorkspaceCwdInputChange) => void,
+): () => void {
+  const unsubSession = subscribeActiveSessionId(() => onChange("identity"));
+  const unsubCache = subscribeAgentSessionProjection(sessionWorkspaceRevision, () =>
+    onChange("projection"),
+  );
   return () => {
     unsubSession();
     unsubCache();
@@ -38,5 +45,7 @@ export function subscribeWorkspaceCwdInputs(onChange: () => void): () => void {
 }
 
 function sessionWorkspaceRevision(sessions: readonly AgentSessionSummary[] | undefined): string {
-  return JSON.stringify(sessions?.map(({ id, cwd }) => [id, cwd ?? ""]) ?? null);
+  const active = getActiveSessionId();
+  const session = sessions?.find(({ id }) => id === active);
+  return JSON.stringify([active, session ? session.cwd : null]);
 }

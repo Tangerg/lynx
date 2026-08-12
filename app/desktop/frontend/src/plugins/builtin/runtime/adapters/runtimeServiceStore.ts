@@ -40,5 +40,6 @@ export function installRuntimeServiceStatusPort(controller: RuntimeServiceContro
     useSnapshot: () => useRuntimeServiceStore((state) => state.snapshot),
     snapshot: () => useRuntimeServiceStore.getState().snapshot,
     refresh: () => controller.refresh(),
+    verify: () => controller.verify(),
   });
 }

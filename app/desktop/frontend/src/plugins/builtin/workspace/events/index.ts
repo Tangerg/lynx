@@ -6,6 +6,7 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { subscribeRuntimeCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
+import { verifyRuntimeServiceConnection } from "@/plugins/builtin/runtime/public/serviceStatus";
 import { installProjectIndexRefresh } from "./adapters/projectIndexRefresh";
 import {
   invalidateWorkspaceEvent,
@@ -31,7 +32,9 @@ export default definePlugin({
       subscribe: ({ target, signal }) => subscribeRuntimeWorkspaceEvents(target, signal),
       handleEvent: invalidateWorkspaceEvent,
       invalidateAll: invalidateWorkspaceEverything,
-      reportError: (error) => console.warn("[workspace-events] subscribe failed:", error),
+      reportDisconnect: () => {
+        void verifyRuntimeServiceConnection();
+      },
     });
 
     const disposeProjectIndex = installProjectIndexRefresh();

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceEventLoop } from "./workspaceEventLoop";
 import {
   startWorkspaceEventSubscription,
+  type WorkspaceCwdInputChange,
   type WorkspaceCwdResolution,
   type WorkspaceEventSubscriptionPorts,
 } from "./workspaceEventSubscription";
@@ -67,12 +68,42 @@ describe("startWorkspaceEventSubscription", () => {
     expect(ports.loop.start).toHaveBeenCalledOnce();
   });
 
+  it("stops and reopens the event loop when discovery withdraws and restores streaming", () => {
+    let onCapabilitiesChange: (() => void) | undefined;
+    let advertised = true;
+    const signals: AbortSignal[] = [];
+    const ports = subscriptionPorts({
+      canSubscribe: () => advertised,
+      subscribeCapabilities: (listener) => {
+        onCapabilitiesChange = listener;
+        return vi.fn();
+      },
+      loop: {
+        start: vi.fn((signal) => signals.push(signal)),
+        retarget: vi.fn(),
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(false);
+
+    advertised = false;
+    onCapabilitiesChange?.();
+    expect(signals[0]?.aborted).toBe(true);
+
+    advertised = true;
+    onCapabilitiesChange?.();
+    expect(signals).toHaveLength(2);
+    expect(signals[1]?.aborted).toBe(false);
+  });
+
   it("retargets to the latest resolved cwd and ignores stale resolutions", async () => {
     const first =
       deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
     const second =
       deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
-    let onCwdChange: (() => void) | undefined;
+    let onCwdChange: ((change: WorkspaceCwdInputChange) => void) | undefined;
     const resolveWorkspaceCwd = vi
       .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
       .mockReturnValueOnce(first.promise)
@@ -86,7 +117,7 @@ describe("startWorkspaceEventSubscription", () => {
     });
 
     startWorkspaceEventSubscription(ports);
-    onCwdChange?.();
+    onCwdChange?.("identity");
     first.resolve({ status: "resolved", cwd: "/old" });
     await tick();
     second.resolve({ status: "resolved", cwd: "/new" });
@@ -101,7 +132,7 @@ describe("startWorkspaceEventSubscription", () => {
   });
 
   it("aborts in-flight identity reads when retargeted or disposed", async () => {
-    let onCwdChange: (() => void) | undefined;
+    let onCwdChange: ((change: WorkspaceCwdInputChange) => void) | undefined;
     const signals: AbortSignal[] = [];
     const resolveWorkspaceCwd = vi.fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>(
       (signal) => {
@@ -127,7 +158,7 @@ describe("startWorkspaceEventSubscription", () => {
     expect(signals).toHaveLength(1);
     expect(signals[0]).toBeInstanceOf(AbortSignal);
 
-    onCwdChange?.();
+    onCwdChange?.("identity");
     expect(signals[0]?.aborted).toBe(true);
     expect(signals).toHaveLength(2);
     expect(signals[1]).toBeInstanceOf(AbortSignal);
@@ -139,7 +170,7 @@ describe("startWorkspaceEventSubscription", () => {
   });
 
   it("keeps global topics online until a new identity input resolves the workspace", async () => {
-    let onCwdChange: (() => void) | undefined;
+    let onCwdChange: ((change: WorkspaceCwdInputChange) => void) | undefined;
     const ports = subscriptionPorts({
       resolveWorkspaceCwd: vi
         .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
@@ -153,11 +184,11 @@ describe("startWorkspaceEventSubscription", () => {
 
     startWorkspaceEventSubscription(ports);
     await tick();
-    expect(ports.loop.retarget).toHaveBeenCalledOnce();
+    expect(ports.loop.retarget).toHaveBeenCalledTimes(2);
     expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
     expect(ports.resolveWorkspaceCwd).toHaveBeenCalledOnce();
 
-    onCwdChange?.();
+    onCwdChange?.("identity");
     await tick();
     expect(ports.resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
     expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "workspace" });
@@ -190,7 +221,7 @@ describe("startWorkspaceEventSubscription", () => {
 
   it("cancels a failed identity's backoff when the active session changes", async () => {
     vi.useFakeTimers();
-    let onCwdChange: (() => void) | undefined;
+    let onCwdChange: ((change: WorkspaceCwdInputChange) => void) | undefined;
     const resolveWorkspaceCwd = vi
       .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
       .mockRejectedValueOnce(new Error("old session offline"))
@@ -205,7 +236,7 @@ describe("startWorkspaceEventSubscription", () => {
 
     const dispose = startWorkspaceEventSubscription(ports);
     await vi.advanceTimersByTimeAsync(0);
-    onCwdChange?.();
+    onCwdChange?.("identity");
     await vi.advanceTimersByTimeAsync(0);
 
     expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
@@ -255,7 +286,7 @@ describe("startWorkspaceEventSubscription", () => {
   });
 
   it("drops the previous file watch before resolving a newly selected session", async () => {
-    let onCwdChange: (() => void) | undefined;
+    let onCwdChange: ((change: WorkspaceCwdInputChange) => void) | undefined;
     const second =
       deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
     const ports = subscriptionPorts({
@@ -276,10 +307,59 @@ describe("startWorkspaceEventSubscription", () => {
       cwd: "/first",
     });
 
-    onCwdChange?.();
+    onCwdChange?.("identity");
     expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
     second.resolve({ status: "unavailable" });
     await tick();
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
+  });
+
+  it("keeps an active workspace watch while its session projection catches up", async () => {
+    let onCwdChange: ((change: WorkspaceCwdInputChange) => void) | undefined;
+    const ports = subscriptionPorts({
+      resolveWorkspaceCwd: vi
+        .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+        .mockResolvedValue({ status: "resolved", cwd: "/repo" }),
+      subscribeWorkspaceCwdInputs: (listener) => {
+        onCwdChange = listener;
+        return vi.fn();
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    await tick();
+    onCwdChange?.("projection");
+    await tick();
+
+    expect(ports.loop.retarget).toHaveBeenNthCalledWith(1, { type: "none" });
+    expect(ports.loop.retarget).toHaveBeenNthCalledWith(2, {
+      type: "workspace",
+      cwd: "/repo",
+    });
+    expect(ports.loop.retarget).toHaveBeenNthCalledWith(3, {
+      type: "workspace",
+      cwd: "/repo",
+    });
+  });
+
+  it("withdraws an active workspace watch when its projection becomes unavailable", async () => {
+    let onCwdChange: ((change: WorkspaceCwdInputChange) => void) | undefined;
+    const ports = subscriptionPorts({
+      resolveWorkspaceCwd: vi
+        .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+        .mockResolvedValueOnce({ status: "resolved", cwd: "/repo" })
+        .mockResolvedValueOnce({ status: "unavailable" }),
+      subscribeWorkspaceCwdInputs: (listener) => {
+        onCwdChange = listener;
+        return vi.fn();
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    await tick();
+    onCwdChange?.("projection");
+    await tick();
+
     expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
   });
 

@@ -1,8 +1,14 @@
 import { getContainer } from "@/main/container";
-import { HTTP_ENDPOINTS, type ReadinessStatus, type RuntimeInfo } from "@/rpc";
+import {
+  HTTP_ENDPOINTS,
+  type DiscoverResponse,
+  type ReadinessStatus,
+  type RuntimeInfo,
+  type ServerCapabilities,
+} from "@/rpc";
 import type {
+  RuntimeConnectionInspector,
   RuntimeServiceHealth,
-  RuntimeServiceInspector,
   RuntimeServiceObservation,
 } from "../application/runtimeService";
 
@@ -24,27 +30,46 @@ function assertEndpointIdentity(info: RuntimeInfo): void {
   }
 }
 
+function assertRuntimeIdentity(info: RuntimeInfo, discovery: DiscoverResponse): void {
+  if (
+    info.server.name !== discovery.serverInfo.name ||
+    info.server.version !== discovery.serverInfo.version
+  ) {
+    throw new Error("Runtime info and discovery identify different servers");
+  }
+  if (
+    info.protocol.current !== discovery.protocol.current ||
+    info.protocol.minSupported !== discovery.protocol.minSupported
+  ) {
+    throw new Error("Runtime info and discovery advertise different protocol ranges");
+  }
+}
+
 /** Translate typed sidecar responses into Runtime context service facts. */
-export function runtimeServiceInspector(): RuntimeServiceInspector {
-  const client = getContainer().sidecar();
+export function runtimeServiceInspector(): RuntimeConnectionInspector<ServerCapabilities> {
+  const sidecar = getContainer().sidecar();
+  const client = getContainer().client();
   return {
     async inspect(signal) {
       const cohort = new AbortController();
       const linkedSignal = AbortSignal.any([signal, cohort.signal]);
       let info: RuntimeInfo;
-      let liveness: Awaited<ReturnType<typeof client.liveness>>;
+      let liveness: Awaited<ReturnType<typeof sidecar.liveness>>;
       let readiness: ReadinessStatus;
+      let discovery: Awaited<ReturnType<typeof client.runtime.discover>>;
       try {
-        [info, liveness, readiness] = await Promise.all([
-          client.info(linkedSignal),
-          client.liveness(linkedSignal),
-          client.readiness(linkedSignal),
+        [info, liveness, readiness, discovery] = await Promise.all([
+          sidecar.info(linkedSignal),
+          sidecar.liveness(linkedSignal),
+          sidecar.readiness(linkedSignal),
+          client.runtime.discover(linkedSignal),
         ]);
       } catch (error) {
         cohort.abort();
         throw error;
       }
       assertEndpointIdentity(info);
+      assertRuntimeIdentity(info, discovery);
       if (liveness.status !== "ok") throw new Error("Runtime liveness check failed");
 
       const checks: RuntimeServiceObservation["checks"] = {};
@@ -52,13 +77,16 @@ export function runtimeServiceInspector(): RuntimeServiceInspector {
         checks[name] = serviceHealth(health);
       }
       return {
-        server: { name: info.server.name, version: info.server.version },
-        protocol: {
-          current: info.protocol.current,
-          minSupported: info.protocol.minSupported,
+        service: {
+          server: { name: info.server.name, version: info.server.version },
+          protocol: {
+            current: info.protocol.current,
+            minSupported: info.protocol.minSupported,
+          },
+          health: serviceHealth(readiness.status),
+          checks,
         },
-        health: serviceHealth(readiness.status),
-        checks,
+        capabilities: discovery.capabilities,
       };
     },
   };

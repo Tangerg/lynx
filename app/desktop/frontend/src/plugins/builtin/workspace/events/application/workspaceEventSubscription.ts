@@ -8,9 +8,11 @@ export interface WorkspaceEventSubscriptionPorts {
   subscribeCapabilities: (onChange: () => void) => () => void;
   resolveWorkspaceCwd: (signal: AbortSignal) => Promise<WorkspaceCwdResolution>;
   reportResolutionError: (error: unknown) => void;
-  subscribeWorkspaceCwdInputs: (onChange: () => void) => () => void;
+  subscribeWorkspaceCwdInputs: (onChange: (change: WorkspaceCwdInputChange) => void) => () => void;
   loop: WorkspaceEventLoop;
 }
+
+export type WorkspaceCwdInputChange = "identity" | "projection";
 
 const RESOLVE_RETRY_BASE_MS = 1_000;
 const RESOLVE_RETRY_CAP_MS = 30_000;
@@ -19,7 +21,7 @@ export function startWorkspaceEventSubscription(
   ports: WorkspaceEventSubscriptionPorts,
 ): () => void {
   const controller = new AbortController();
-  let started = false;
+  let loopAbort: AbortController | null = null;
   let retargetGeneration = 0;
   let resolutionAbort: AbortController | null = null;
 
@@ -43,6 +45,8 @@ export function startWorkspaceEventSubscription(
               type: "workspace",
               ...(resolution.cwd ? { cwd: resolution.cwd } : {}),
             });
+          } else {
+            ports.loop.retarget({ type: "none" });
           }
           return;
         } catch (error) {
@@ -63,25 +67,32 @@ export function startWorkspaceEventSubscription(
     })();
   };
 
-  const retarget = (): void => {
+  const retarget = (change: WorkspaceCwdInputChange): void => {
     const generation = ++retargetGeneration;
-    // Do not let an unresolved active session inherit either the Runtime's
-    // default workspace or the previous session's file watch. The global topic
-    // stream remains online until the session projection changes and supplies
-    // another authoritative identity input.
-    ports.loop.retarget({ type: "none" });
+    // A new active Session must never inherit the previous Session's watch while
+    // its identity resolves. A projection update belongs to the same Session,
+    // so keep the current watch until its workspace resolves: WorkspaceEventLoop
+    // suppresses an equal target and avoids tearing down a healthy stream merely
+    // because the Session list caught up after a cold direct read.
+    if (change === "identity") ports.loop.retarget({ type: "none" });
     resolveTarget(generation);
   };
 
-  const startIfAdvertised = (): void => {
-    if (started || controller.signal.aborted || !ports.canSubscribe()) return;
-    started = true;
-    ports.loop.start(controller.signal);
+  const reconcileCapability = (): void => {
+    if (controller.signal.aborted) return;
+    if (ports.canSubscribe()) {
+      if (loopAbort) return;
+      loopAbort = new AbortController();
+      ports.loop.start(loopAbort.signal);
+      return;
+    }
+    loopAbort?.abort();
+    loopAbort = null;
   };
 
-  startIfAdvertised();
-  const unsubscribeCapabilities = ports.subscribeCapabilities(startIfAdvertised);
-  retarget();
+  reconcileCapability();
+  const unsubscribeCapabilities = ports.subscribeCapabilities(reconcileCapability);
+  retarget("identity");
   const unsubscribeCwdInputs = ports.subscribeWorkspaceCwdInputs(retarget);
 
   return () => {
@@ -89,6 +100,8 @@ export function startWorkspaceEventSubscription(
     resolutionAbort?.abort();
     unsubscribeCapabilities();
     unsubscribeCwdInputs();
+    loopAbort?.abort();
+    loopAbort = null;
     controller.abort();
   };
 }

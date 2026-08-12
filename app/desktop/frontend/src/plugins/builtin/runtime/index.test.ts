@@ -82,7 +82,7 @@ afterEach(() => {
 });
 
 describe("runtime plugin", () => {
-  it("discovers capabilities through the Runtime composition boundary", async () => {
+  it("discovers capabilities through the supervised Runtime connection", async () => {
     const discover = vi.fn().mockResolvedValue(discovery);
     stubContainer(discover);
 
@@ -124,13 +124,17 @@ describe("runtime plugin", () => {
   });
 
   it("degrades without publishing stale capabilities when discovery fails", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     useRuntimeStore.getState().replace(discovery.capabilities);
     stubContainer(vi.fn().mockRejectedValue(new Error("method not found")));
 
     await loadPlugin(runtimePlugin);
 
-    await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    await vi.waitFor(() => {
+      expect(useRuntimeServiceStore.getState().snapshot).toMatchObject({
+        phase: "unavailable",
+        failure: { reason: "failed", detail: "method not found" },
+      });
+    });
     expect(useRuntimeStore.getState().capabilities).toBeNull();
   });
 
@@ -153,6 +157,29 @@ describe("runtime plugin", () => {
     await Promise.resolve();
 
     expect(useRuntimeStore.getState().capabilities).toBeNull();
+  });
+
+  it("automatically rediscovers and republishes capabilities after a cold-start outage", async () => {
+    vi.useFakeTimers();
+    try {
+      const discover = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("offline"))
+        .mockResolvedValue(discovery);
+      stubContainer(discover);
+
+      await loadPlugin(runtimePlugin);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(useRuntimeStore.getState().capabilities).toBeNull();
+      expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("unavailable");
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(discover).toHaveBeenCalledTimes(2);
+      expect(useRuntimeStore.getState().capabilities).toEqual(discovery.capabilities);
+      expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("ready");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not publish a sidecar result after the plugin is unloaded", async () => {

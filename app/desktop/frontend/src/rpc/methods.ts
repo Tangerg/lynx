@@ -237,7 +237,7 @@ export type AgentMemoryTarget =
 
 export interface Methods {
   runtime: {
-    discover: () => Promise<DiscoverResponse>;
+    discover: (signal?: AbortSignal) => Promise<DiscoverResponse>;
   };
   sessions: {
     list: (query?: PageQuery) => AutoPagingPromise<Page<Session>>;
@@ -614,7 +614,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
 
   return {
     runtime: {
-      discover: () => call("runtime.discover", {}),
+      discover: (signal) => call("runtime.discover", {}, { signal }),
     },
     sessions: {
       list: (query) => call("sessions.list", query ?? {}),

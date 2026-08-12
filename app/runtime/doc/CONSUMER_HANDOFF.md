@@ -79,6 +79,16 @@ handwritten sidecar paths or response schemas. A runtime-event consumer must als
 intersect the topics it can fold with `runtime.discover.capabilities.runtimeTopics`:
 asking an older Runtime for a newly added topic rejects the entire subscription.
 
+P57 makes Desktop discovery a supervised connection lifecycle rather than a
+bootstrap-only read. A consumer must publish service state and capabilities from
+one coherent info/liveness/readiness/discovery inspection, withdraw capabilities
+on failure, and retry with bounded backoff. Long-lived consumers report a stream
+ending through the Runtime service port so that this supervisor verifies the
+connection; they do not copy sidecar/discovery retry policy. Workspace target
+identity changes revoke the old watch immediately, while a projection update for
+the same active Session keeps the existing watch until a different target is
+resolved, preventing duplicate subscriptions during cache catch-up.
+
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;
 - `app/desktop/frontend/src/plugins/builtin/runtime/` discovery and capability

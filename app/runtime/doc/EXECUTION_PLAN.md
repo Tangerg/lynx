@@ -90,6 +90,7 @@
 | P54 | Checkpoint source ownership 与 shadow ignore 收敛 | P53 + tracked build input / ignored generated sibling 反例 | 已完成 |
 | P55 | Git 子进程仓库环境所有权收敛 | P54 + foreign `GIT_*` / physical metadata identity 反例 | 已完成 |
 | P56 | HTTP sidecar 合同、Desktop 消费与事件协商收敛 | P55 + sidecar omission / outage recovery / older-topic negotiation 反例 | 已完成 |
+| P57 | Desktop Runtime 冷启动、断线复检与事件流单 owner 收敛 | P56 + cold offline / crash / duplicate subscription 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1373,10 +1374,33 @@
 - 后端停机后 UI 有界进入 unavailable，同页重启可回到 ready；旧 Runtime 只接收自己声明的 9 topic，SSE 保持 200；
 - HTTP/wire/UI/i18n 不进入 Runtime Domain/Application、Desktop Agent 或 Go Agent Framework。
 
-## 61. 进度记录
+## 61. P57 — Desktop Runtime 冷启动、断线复检与事件流单 owner 收敛
+
+### 目标
+
+关闭 Desktop 只做一次 `runtime.discover`、sidecar 恢复但能力永远为空的冷启动缺口，并让服务状态同时依赖 HTTP sidecar 与 RPC discovery 的同代事实。Runtime connection supervisor 是重试、deadline、健康巡检和能力撤销的唯一 owner；Workspace 事件消费者只上报流结束这一连接证据。Session 身份变化与同一 Session 投影追平必须分开，不能因缓存填充重复打开相同 `runtime.subscribe`。
+
+### 工作项
+
+- [x] P57-01 Runtime context controller 统一拥有 10 秒 inspection deadline、1/2/4/8/16/30 秒失败退避、30 秒健康巡检、并发合并、dispose 和 late-settlement 抑制；
+- [x] P57-02 inspection 同代读取 info/liveness/readiness/discovery，并校验 server/version/protocol/endpoint identity 后原子发布 service 与 capabilities；
+- [x] P57-03 Workspace capability 撤销会停止现有 stream，恢复时建立新 generation，旧 generation 不得清除新 iter/retarget ownership；
+- [x] P57-04 active Session identity 变化先撤销旧 watch，同一 Session projection 变化保留当前 watch 直到解析出不同 target，且 revision 只观察 active Session cwd；
+- [x] P57-05 event stream 异常或正常远端结束经 Runtime 公共 service port 请求静默复检，Workspace 不复制全局连接状态、sidecar 或 discovery 策略；
+- [x] P57-06 完成前端全量门禁、Runtime standalone 回归与 fresh browser 冷启动、健康巡检、在线崩溃、自动恢复、单订阅联调。
+
+### 验收
+
+- 页面在 Runtime 离线时启动后无需 reload，后端上线可恢复 ready、产品读取和唯一 event stream；
+- 每个 connection generation 恰好一条 `runtime.subscribe`，同 Session 列表投影追平与 30 秒健康巡检均不重启 stream；
+- stream 断线立即请求 Runtime supervisor 复检并撤销能力，不等待下一轮健康巡检、不由 Workspace 自行猜测全局状态；
+- HTTP/RPC DTO、重试/身份校验不进入 Workspace Application、Desktop Agent 或 Go Agent Framework。
+
+## 62. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-13 | P57（Desktop Runtime cold start / disconnect verification / single stream ownership） | Desktop Runtime context 将原一次性 discovery 与 sidecar 状态合并为唯一 connection supervisor：同代 inspection 并发读取 info/liveness/readiness/discovery，校验 endpoint/server/version/protocol identity 后原子发布 service/capabilities，失败执行有界退避，健康执行周期巡检。Workspace event stream 只通过 Runtime 公共 service port 上报连接丢失证据；capability withdrawal/restore 分别停止和新建 stream generation。Session target 输入区分 identity 与 projection，同 Session projection catch-up 不再先清空相同 watch，revision 只关注 active Session cwd。HTTP/RPC wire、连接策略未进入 Workspace Application、Desktop Agent 或 Go Agent Framework | Frontend 272 files / 1655 tests 与 typecheck/lint/format/knip/circular/context/published-boundary/layer/port/API consumer/design/i18n/bootstrap/bundle 全绿；consumer gate 为 86/86 operations + 3/3 sidecars + 12/12 events / 106 typed call sites。fresh browser 在后端离线启动后按 1/2/4/8/16 秒退避，无 reload 恢复；恢复、30 秒健康巡检、在线 crash、再次恢复各阶段 page error 为零。网络记录证明两个恢复 generation 各只有一条 `runtime.subscribe`，健康巡检只追加 discovery；stream 故障触发即时静默复检后 console/page error 为零 |
 | 2026-08-13 | P56（HTTP sidecar contract / Desktop consumption / topic negotiation） | Runtime HTTP Delivery 以唯一 endpoint registry 同源生成 RPC、info、liveness、readiness 的 method/path/auth/status/response contract，并由该 registry 注册 handler、豁免 auth、生成 info 自描述；contractgen 将三条 sidecar API 与响应 Schema 投影到 manifest/TS/validator/reference，Desktop SDK 删除手写路径和响应 Schema。Runtime context 新增中性 service inspection Application/port，由 HTTP Adapter 消费三条 sidecar，Settings 只消费公开状态；10 秒 deadline、并发 coalescing、dispose late-settlement 与 retry 均由 lifecycle owner 管理。真实旧 Runtime 进一步暴露 workspace subscription 把客户端全量主题误当后端能力，现由 Runtime capability port 提供中性 topic membership，Workspace Adapter 只请求客户端可折叠集合与 discovery 声明集合的交集。HTTP/wire/UI/i18n 均未进入 Runtime Application、Desktop Agent 或 Go Agent Framework | Runtime standalone build/vet/test/tidy/lint/race 全绿；Frontend 定向 controller/inspector/store/UI/SDK/consumer/旧 Runtime topic negotiation 回归通过，静态 consumer gate 覆盖 86/86 operations + 3/3 HTTP sidecars + 12/12 events / 106 typed call sites。真实浏览器确认三条 sidecar 均 200、停机刷新进入 unavailable、同页重启恢复 ready；旧 Runtime discovery 仅声明 9 topic 时，重载后的 `runtime.subscribe` 精确发送这 9 个并保持 SSE 200，console/page error 为零 |
 | 2026-08-13 | P55（Git process environment ownership） | 新增中立 `infra/gitprocess` 作为 Runtime 内唯一 Git OS-process boundary：清除父进程全部 `GIT_*` 控制面，再按 checkpoint shadow repo 等调用者安装显式 override；checkpoint source discovery、workspace VCS read 与 Git watcher 共同消费。Watcher 的 per-worktree/common metadata path 同时经 `pathidentity` 收敛为 physical identity。Application、Delivery、Agent/Framework、Protocol、SQLite/Artifact shape 均未变化 | 三条红测先证明 ambient foreign index 令 checkpoint 失败、foreign repository routing 令 VCS read 判错且 watcher 订阅外部 `.git`；修复后各自转绿，相关五包完整测试与四包 race、Runtime standalone tidy/build/vet/test 全绿。污染父进程中的真实 HTTP VCS read 返回目标仓库 modified +1/-1；真实 HTTP→TypeScript SDK 流式 Run 与手工保留 Run 均 completed，maintenance checkpoint 成功，shadow tag/tree/fsck 完整，foreign index SHA-256 前后不变；architecture guard 阻止 owner 外直接 Git subprocess |
 | 2026-08-13 | P54（checkpoint source ownership / shadow ignore） | Checkpoint Infra 明确 `ls-files --exclude-standard` 是唯一路径 ownership decision：source index 已跟踪路径保留，ignored untracked 路径排除，普通文件再经类型/2 MiB 策略筛选；精确候选列表用 force-add 更新 shadow index，避免 `build/` backstop exclude 二次否决真实仓库合法跟踪的 build 输入。修复止于 `infra/checkpoint`，Run/Goal/Agent 不吞 maintenance 错误，Runtime/Protocol/SQLite/Artifact shape 不变 | 红测真实复现 tracked `app/build/config.yml` 因 shadow ignore 导致 `git add` 失败；修复后 tracked+ignored sibling 矩阵 20×、checkpoint 完整包/race、Runtime standalone tidy/build/vet/test 全绿，真实 HTTP Plan/HITL/Approval/Goal 7 场景通过。修复后的 Runtime 对真实 lynx 工作树完成 Goal checkpoint：shadow tree 精确含 7 个 tracked Desktop build 输入、排除 bin/ios/linux/windows generated paths，`git fsck` 通过且 maintenance 无 ERROR，Goal 到达 1/1 budget boundary |
