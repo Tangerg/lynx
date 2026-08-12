@@ -122,7 +122,7 @@
 | Conversation message log | `domain/conversation` + `application/conversations` I/O | 保持 | Retain | Count/Truncate/Seed 不依赖 Run executor |
 | Transcript Items | `domain/transcript` | 保持唯一 Item aggregate owner | Retain + Refactor complete | P16-02 已关闭公开 tagged-union mutation：非 Tool variants 构造即 complete，ToolCall 只经 start/complete/fail/abandon/classify 行为迁移；Application 仅拥有 provisional stream `ItemStart`，Persistence/Artifact codec 只在机器守卫允许的技术边界使用严格 snapshot |
 | Offloaded transcript content | `domain/toolresult` | 保持准确独立 capability | Retain | 无泛化 blob service |
-| Knowledge/LYRA.md | `domain/knowledge` + `application/workspace` + `infra/knowledgefile` | 保持独立 | Retain + CAS hardening | P50 以 opaque content revision、权威返回与 committed-only `knowledge.changed` 消除单进程丢更新；P51 以唯一 physical identity containment、跨进程 document lease、权限继承、fsync+rename 与 cold staging recovery 关闭 symlink 越界和 crash/CAS 缺口；用户编辑与 Agent state 无关，wire 只在 Delivery/Desktop Adapter 映射 |
+| Knowledge/LYRA.md | `domain/knowledge` + `application/workspace` + `infra/knowledgefile` | 保持独立 | Retain + CAS hardening | P50 以 opaque content revision、权威返回与 committed-only `knowledge.changed` 消除单进程丢更新；P51 以唯一 physical identity containment、跨进程 document lease、权限继承、fsync+rename 与 cold staging recovery 关闭 symlink 越界和 crash/CAS 缺口；P52 以精确路径指纹观察外部 create/write/rename/remove，API write 则在发布前按 exact identity 接受新基线，避免漏失效和重复 refetch；用户编辑与 Agent state 无关，wire 只在 Delivery/Desktop Adapter 映射 |
 | WorkingContext | Application composer + Agent Framework Interaction private state | 保持 Host composition 与 executor state 分离 | Retain | fresh root 读取产品事实；restore 只用 opaque checkpoint，不从 Conversation 重算 |
 
 ### 3.3 Interrupt 与 approval
@@ -156,7 +156,7 @@
 | Model/provider catalog | domain/application/adapters | Retain | 每 Run exact model binding 进入 deployment assembly |
 | MCP/A2A/LSP | domain/application/infra/toolset | Retain | 保持技术能力，不进入 Agent Framework Kernel |
 | Workspace/change/isolation | application/adapters/infra | Retain + recovery audit | 外部事实失效由 Host policy 处理 |
-| Hooks | domain/application/adapter | Retain | P5 已在普通 Tool 边界触发；post-hook 是 observation，不覆写 settlement；P50 trust commit 后发布专用 `hooks.changed`，Desktop 按 project 串行且 UI pending 锁定，不依赖文件 watch |
+| Hooks | domain/application/adapter | Retain | P5 已在普通 Tool 边界触发；post-hook 是 observation，不覆写 settlement；P50 trust commit 后发布专用 `hooks.changed`，Desktop 按 project 串行且 UI pending 锁定；P52 让 global/project/cwd `.lyra/hooks.json` 的外部新增、替换与删除进入同一专用失效流，文件布局仍只属于 Workspace Adapter |
 | Feedback/codebase index | domain/application | Retain | 与 execution migration 无直接耦合 |
 
 ## 4. Application 能力

@@ -176,3 +176,11 @@ type workspaceWatchUseCases interface {
 	Available() bool
 	Watch(cwds []string, notify func()) (io.Closer, error)
 }
+
+type workspaceAuthoredWatchUseCases interface {
+	Watch(
+		cwds []string,
+		resources []workspaceapp.AuthoredResource,
+		notify func(workspaceapp.AuthoredResource),
+	) (workspaceapp.AuthoredObservation, error)
+}

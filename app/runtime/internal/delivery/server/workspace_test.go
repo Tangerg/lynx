@@ -16,26 +16,43 @@ import (
 )
 
 type workspaceTestConfig struct {
-	Knowledge workspaceapp.KnowledgeStore
-	Skills    workspaceapp.SkillCatalog
-	Curator   workspaceapp.SkillCurator
-	Proposals workspaceapp.SkillProposals
-	Hooks     workspaceapp.HookInspector
-	Trust     workspaceapp.HookTrustStore
-	Recipes   workspaceapp.RecipeLister
-	Watcher   workspaceapp.GitStateWatcher
+	Knowledge       workspaceapp.KnowledgeStore
+	Skills          workspaceapp.SkillCatalog
+	Curator         workspaceapp.SkillCurator
+	Proposals       workspaceapp.SkillProposals
+	Hooks           workspaceapp.HookInspector
+	Trust           workspaceapp.HookTrustStore
+	Recipes         workspaceapp.RecipeLister
+	Watcher         workspaceapp.GitStateWatcher
+	AuthoredWatcher workspaceapp.AuthoredResourceWatcher
 }
 
 type workspaceSurfaces struct {
-	roots     *workspaceapp.Scope
-	files     *workspaceapp.Files
-	vcs       *workspaceapp.VCS
-	discovery *workspaceapp.Discovery
-	knowledge *workspaceapp.Knowledge
-	skills    *workspaceapp.Skills
-	hooks     *workspaceapp.Hooks
-	watch     *workspaceapp.GitWatch
+	roots         *workspaceapp.Scope
+	files         *workspaceapp.Files
+	vcs           *workspaceapp.VCS
+	discovery     *workspaceapp.Discovery
+	knowledge     *workspaceapp.Knowledge
+	skills        *workspaceapp.Skills
+	hooks         *workspaceapp.Hooks
+	watch         *workspaceapp.GitWatch
+	authoredWatch *workspaceapp.AuthoredWatch
 }
+
+type inertAuthoredWatcher struct{}
+
+func (inertAuthoredWatcher) Watch(
+	[]workspaceapp.AuthoredScope,
+	[]workspaceapp.AuthoredResource,
+	func(workspaceapp.AuthoredResource),
+) (workspaceapp.AuthoredObservation, error) {
+	return inertWorkspaceCloser{}, nil
+}
+
+type inertWorkspaceCloser struct{}
+
+func (inertWorkspaceCloser) Close() error                               { return nil }
+func (inertWorkspaceCloser) Accept([]workspaceapp.AuthoredChange) error { return nil }
 
 func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces {
 	roots := workspaceapp.NewScope(cwd, cwd, workspacepath.Resolver{})
@@ -43,15 +60,29 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 	if watcher == nil {
 		watcher = workspaceadapter.GitWatcher{}
 	}
+	authoredWatcher := cfg.AuthoredWatcher
+	if authoredWatcher == nil {
+		if filepath.IsAbs(cwd) {
+			var err error
+			authoredWatcher, err = workspaceadapter.NewAuthoredWatcher(cwd, cwd)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			authoredWatcher = inertAuthoredWatcher{}
+		}
+	}
+	authoredWatch := workspaceapp.NewAuthoredWatch(roots, workspacepath.Resolver{}, authoredWatcher)
 	return workspaceSurfaces{
-		roots:     roots,
-		files:     workspaceapp.NewFiles(roots, workspaceadapter.FileBrowser{}),
-		vcs:       workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
-		discovery: workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
-		knowledge: workspaceapp.NewKnowledge(roots, workspacepath.Resolver{}, cfg.Knowledge, nil),
-		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Proposals, nil),
-		hooks:     workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust, nil),
-		watch:     workspaceapp.NewGitWatch(roots, watcher),
+		roots:         roots,
+		files:         workspaceapp.NewFiles(roots, workspaceadapter.FileBrowser{}),
+		vcs:           workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
+		discovery:     workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
+		knowledge:     workspaceapp.NewKnowledge(roots, workspacepath.Resolver{}, cfg.Knowledge, authoredWatch, nil),
+		skills:        workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Proposals, nil),
+		hooks:         workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust, nil),
+		watch:         workspaceapp.NewGitWatch(roots, watcher),
+		authoredWatch: authoredWatch,
 	}
 }
 
@@ -63,6 +94,7 @@ func applyWorkspaceSurfaces(s *Server, surfaces workspaceSurfaces) {
 	s.workspaceSkills = surfaces.skills
 	s.workspaceHooks = surfaces.hooks
 	s.workspaceWatch = surfaces.watch
+	s.workspaceAuthoredWatch = surfaces.authoredWatch
 }
 
 func newWorkspaceServer(cwd string) *Server {

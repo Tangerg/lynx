@@ -51,13 +51,14 @@ type Config struct {
 	// capability_not_negotiated.
 	AgentMemory agentMemoryUseCases
 
-	WorkspaceFiles     workspaceFileUseCases
-	WorkspaceVCS       workspaceVCSUseCases
-	WorkspaceDiscovery workspaceDiscoveryUseCases
-	WorkspaceKnowledge workspaceKnowledgeUseCases
-	WorkspaceSkills    workspaceSkillUseCases
-	WorkspaceHooks     workspaceHookUseCases
-	WorkspaceWatch     workspaceWatchUseCases
+	WorkspaceFiles         workspaceFileUseCases
+	WorkspaceVCS           workspaceVCSUseCases
+	WorkspaceDiscovery     workspaceDiscoveryUseCases
+	WorkspaceKnowledge     workspaceKnowledgeUseCases
+	WorkspaceSkills        workspaceSkillUseCases
+	WorkspaceHooks         workspaceHookUseCases
+	WorkspaceWatch         workspaceWatchUseCases
+	WorkspaceAuthoredWatch workspaceAuthoredWatchUseCases
 
 	Codebase codebaseUseCases
 
@@ -85,13 +86,14 @@ type Server struct {
 	goals       goalUseCases
 	agentMemory agentMemoryUseCases
 
-	workspaceFiles     workspaceFileUseCases
-	workspaceVCS       workspaceVCSUseCases
-	workspaceDiscovery workspaceDiscoveryUseCases
-	workspaceKnowledge workspaceKnowledgeUseCases
-	workspaceSkills    workspaceSkillUseCases
-	workspaceHooks     workspaceHookUseCases
-	workspaceWatch     workspaceWatchUseCases
+	workspaceFiles         workspaceFileUseCases
+	workspaceVCS           workspaceVCSUseCases
+	workspaceDiscovery     workspaceDiscoveryUseCases
+	workspaceKnowledge     workspaceKnowledgeUseCases
+	workspaceSkills        workspaceSkillUseCases
+	workspaceHooks         workspaceHookUseCases
+	workspaceWatch         workspaceWatchUseCases
+	workspaceAuthoredWatch workspaceAuthoredWatchUseCases
 
 	features featureAvailability
 
@@ -176,6 +178,9 @@ func (cfg Config) validate() error {
 		cfg.WorkspaceHooks == nil || cfg.WorkspaceWatch == nil {
 		return errors.New("server: workspace use cases are required")
 	}
+	if cfg.WorkspaceAuthoredWatch == nil {
+		return errors.New("server: authored workspace observation is required")
+	}
 	return nil
 }
 
@@ -252,6 +257,7 @@ func newServer(cfg Config, facts contractFacts) *Server {
 		workspaceSkills:          cfg.WorkspaceSkills,
 		workspaceHooks:           cfg.WorkspaceHooks,
 		workspaceWatch:           cfg.WorkspaceWatch,
+		workspaceAuthoredWatch:   cfg.WorkspaceAuthoredWatch,
 		features:                 facts.features,
 		replay:                   facts.replay,
 		idempotency:              cfg.IdempotencyLimits,

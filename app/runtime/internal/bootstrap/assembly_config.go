@@ -168,6 +168,10 @@ type Config struct {
 	// KnowledgeStore persists the human-authored LYRA.md cascade for both the
 	// workspace use case and the execution adapter's read-only prompt view.
 	KnowledgeStore workspace.KnowledgeStore
+	// KnowledgeDirectory is the explicit global filesystem scope observed for
+	// externally-authored knowledge changes. It is the Runtime data directory,
+	// not the OS user home used by global hook configuration.
+	KnowledgeDirectory string
 
 	// ApprovalMode sets the initial runtime approval stance. The zero value is
 	// [approval.ModeSafe]; [ComposeConfig] explicitly selects the product default

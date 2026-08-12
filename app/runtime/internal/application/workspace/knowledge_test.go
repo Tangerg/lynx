@@ -11,7 +11,7 @@ import (
 )
 
 func TestRuntimeKnowledgeUnavailable(t *testing.T) {
-	c := NewKnowledge(NewScope("", "", nil), nil, nil, nil)
+	c := NewKnowledge(NewScope("", "", nil), nil, nil, nil, nil)
 	ctx := context.Background()
 
 	if c.Available() {
@@ -41,7 +41,7 @@ func TestRuntimeKnowledgePorts(t *testing.T) {
 	c := NewKnowledge(
 		NewScope("", "", testPaths{}),
 		knowledgeInspector{resolved: Resolved{Path: "/repo/work", ProjectRoot: "/repo"}},
-		store, func(notice invalidation.Notice) { notices = append(notices, notice) },
+		store, nil, func(notice invalidation.Notice) { notices = append(notices, notice) },
 	)
 
 	if !c.Available() {
@@ -77,7 +77,7 @@ func TestRuntimeKnowledgePorts(t *testing.T) {
 
 func TestRuntimeKnowledgeRejectsUnknownScopeBeforeDispatch(t *testing.T) {
 	store := &fakeKnowledgeStore{}
-	c := NewKnowledge(NewScope("", "", testPaths{}), knowledgeInspector{}, store, nil)
+	c := NewKnowledge(NewScope("", "", testPaths{}), knowledgeInspector{}, store, nil, nil)
 	unknown := knowledge.Scope("workspace")
 
 	if _, err := c.Read(t.Context(), unknown, "/repo"); err == nil {
@@ -96,7 +96,7 @@ func TestRuntimeKnowledgeMapsInfraContainmentWithoutLeakingFilesystemMechanics(t
 	c := NewKnowledge(
 		NewScope("", "", testPaths{}),
 		knowledgeInspector{resolved: Resolved{Path: "/repo", ProjectRoot: "/repo"}},
-		store, nil,
+		store, nil, nil,
 	)
 
 	if _, err := c.Entries(t.Context(), "/repo"); !errors.Is(err, ErrPathOutsideRoot) {

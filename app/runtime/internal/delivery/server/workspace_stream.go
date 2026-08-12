@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -454,8 +455,41 @@ func (s *Server) SubscribeRuntime(ctx context.Context, request protocol.RuntimeS
 			return nil, nil, mapWorkspaceWatchError(err)
 		}
 	}
+	var authoredWatcher io.Closer
+	authoredResources := subscribedAuthoredResources(topics)
+	if len(authoredResources) > 0 {
+		authoredWatcher, err = s.workspaceAuthoredWatch.Watch(
+			workingDirectories,
+			authoredResources,
+			func(resource workspaceapp.AuthoredResource) {
+				notice := invalidation.Notice{}
+				switch resource {
+				case workspaceapp.AuthoredKnowledge:
+					notice.Resource = invalidation.Knowledge
+				case workspaceapp.AuthoredHooks:
+					notice.Resource = invalidation.Hooks
+				default:
+					return
+				}
+				if event, ok := runtimeEventFor(notice); ok {
+					s.workspaceHub.publishTo(subscription, event)
+				}
+			},
+		)
+		if err != nil {
+			if fileWatcher != nil {
+				_ = fileWatcher.Close()
+			}
+			unregister()
+			close(events)
+			return nil, nil, wireWorkspaceError(fmt.Errorf("start authored resource watcher: %w", err))
+		}
+	}
 
 	releaseSubscription := sync.OnceFunc(func() {
+		if authoredWatcher != nil {
+			_ = authoredWatcher.Close() // joins callbacks — no emit after this
+		}
 		if fileWatcher != nil {
 			_ = fileWatcher.Close() // joins callbacks — no emit after this
 		}
@@ -472,6 +506,17 @@ func (s *Server) SubscribeRuntime(ctx context.Context, request protocol.RuntimeS
 		func() { s.workspaceHub.drained(subscription) },
 		stopSubscription,
 	), nil
+}
+
+func subscribedAuthoredResources(topics map[protocol.RuntimeTopic]bool) []workspaceapp.AuthoredResource {
+	resources := make([]workspaceapp.AuthoredResource, 0, 2)
+	if topics[protocol.TopicKnowledgeChanged] {
+		resources = append(resources, workspaceapp.AuthoredKnowledge)
+	}
+	if topics[protocol.TopicHooksChanged] {
+		resources = append(resources, workspaceapp.AuthoredHooks)
+	}
+	return resources
 }
 
 // subscriptionEventSequence presents a subscription channel as the iter.Seq

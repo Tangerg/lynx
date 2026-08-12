@@ -9,7 +9,11 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	workspaceadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -80,6 +84,147 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("broadcast event not delivered on a non-repo subscription")
+	}
+}
+
+// TestWorkspaceSubscribe_ExternalAuthoredFiles verifies that the two
+// file-backed, user-authored resources converge when another process edits
+// them. Git observation is deliberately irrelevant here: neither LYRA.md nor
+// hooks.json needs to be staged before its query projection becomes stale.
+func TestWorkspaceSubscribe_ExternalAuthoredFiles(t *testing.T) {
+	dir := t.TempDir()
+	s := newWorkspaceServer(dir)
+	s.workspaceHub = newWorkspaceHub()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics: []protocol.RuntimeTopic{
+			protocol.TopicFilesChanged,
+			protocol.TopicKnowledgeChanged,
+			protocol.TopicHooksChanged,
+		},
+		Watches: []protocol.WatchSpec{{WatchID: "authored", Workspace: protocol.WorkspaceRef{Path: dir}}},
+	})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	events := drainSeq(ctx, seq)
+
+	if err := os.WriteFile(filepath.Join(dir, "LYRA.md"), []byte("external knowledge\n"), 0o644); err != nil {
+		t.Fatalf("write knowledge: %v", err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeKnowledgeChanged)
+
+	if err := os.MkdirAll(filepath.Join(dir, ".lyra"), 0o755); err != nil {
+		t.Fatalf("create hook directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".lyra", "hooks.json"), []byte(`{"hooks":[]}`), 0o644); err != nil {
+		t.Fatalf("write hooks: %v", err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeHooksChanged)
+}
+
+func TestWorkspaceSubscribe_GlobalAuthoredFilesDoNotRequireWorkspaceWatch(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	knowledgeHome := t.TempDir()
+	hooksHome := t.TempDir()
+	authored, err := workspaceadapter.NewAuthoredWatcher(knowledgeHome, hooksHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newWorkspaceServerWithConfig(workspaceRoot, workspaceTestConfig{AuthoredWatcher: authored})
+	s.workspaceHub = newWorkspaceHub()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{Topics: []protocol.RuntimeTopic{
+		protocol.TopicKnowledgeChanged, protocol.TopicHooksChanged,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := drainSeq(ctx, seq)
+	if err := os.WriteFile(filepath.Join(knowledgeHome, "LYRA.md"), []byte("global knowledge"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeKnowledgeChanged)
+	if err := os.MkdirAll(filepath.Join(hooksHome, ".lyra"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(hooksHome, ".lyra", "hooks.json"), []byte(`{"hooks":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeHooksChanged)
+
+	if err := os.WriteFile(filepath.Join(workspaceRoot, "LYRA.md"), []byte("unwatched workspace"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case event := <-events:
+		t.Fatalf("workspace path without a watch produced %+v", event)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+func TestWorkspaceSubscribe_KnowledgeUpdateDoesNotDoublePublishFromFileObservation(t *testing.T) {
+	dir := t.TempDir()
+	store, err := knowledgefile.New(dir, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	surfaces := newWorkspaceSurfaces(dir, workspaceTestConfig{Knowledge: store})
+	s := &Server{}
+	applyWorkspaceSurfaces(s, surfaces)
+	s.workspaceHub = newWorkspaceHub()
+	s.workspaceKnowledge = workspaceapp.NewKnowledge(
+		surfaces.roots, workspacepath.Resolver{}, store, surfaces.authoredWatch,
+		func(notice invalidation.Notice) {
+			if event, ok := runtimeEventFor(notice); ok {
+				s.workspaceHub.publish(event)
+			}
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics:  []protocol.RuntimeTopic{protocol.TopicFilesChanged, protocol.TopicKnowledgeChanged},
+		Watches: []protocol.WatchSpec{{WatchID: "knowledge", Workspace: protocol.WorkspaceRef{Path: dir}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := drainSeq(ctx, seq)
+	current, err := s.GetKnowledge(ctx, protocol.GetKnowledgeRequest{
+		Scope: protocol.KnowledgeScopeCWD, Workspace: &protocol.WorkspaceRef{Path: dir},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UpdateKnowledge(ctx, protocol.UpdateKnowledgeRequest{
+		Scope: protocol.KnowledgeScopeCWD, Workspace: &protocol.WorkspaceRef{Path: dir},
+		ExpectedRevision: current.Revision, Content: "one event\n",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeKnowledgeChanged)
+	select {
+	case event := <-events:
+		t.Fatalf("knowledge.update published a duplicate observation event: %+v", event)
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+func assertRuntimeEventType(t *testing.T, events <-chan protocol.RuntimeEvent, want protocol.RuntimeEventType) {
+	t.Helper()
+	select {
+	case event := <-events:
+		if event.Type != want {
+			t.Fatalf("event = %+v, want %s", event, want)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatalf("no %s event within 3s of an external file change", want)
 	}
 }
 

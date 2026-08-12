@@ -50,6 +50,7 @@ func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chat
 		PermissionModeStore:    stores.PermissionModes,
 		GoalStore:              stores.Goals,
 		KnowledgeStore:         stores.Knowledge,
+		KnowledgeDirectory:     stores.DataDirectory,
 		Provider:               cfg.Provider,
 		Model:                  cfg.Model,
 		HooksResolver:          hooks,

@@ -30,11 +30,21 @@ type Knowledge struct {
 	scope         *Scope
 	workspaces    KnowledgeWorkspaceInspector
 	store         KnowledgeStore
+	observations  *AuthoredWatch
 	invalidations invalidation.Publish
 }
 
-func NewKnowledge(scope *Scope, workspaces KnowledgeWorkspaceInspector, store KnowledgeStore, invalidations invalidation.Publish) *Knowledge {
-	return &Knowledge{scope: scope, workspaces: workspaces, store: store, invalidations: invalidations}
+func NewKnowledge(
+	scope *Scope,
+	workspaces KnowledgeWorkspaceInspector,
+	store KnowledgeStore,
+	observations *AuthoredWatch,
+	invalidations invalidation.Publish,
+) *Knowledge {
+	return &Knowledge{
+		scope: scope, workspaces: workspaces, store: store,
+		observations: observations, invalidations: invalidations,
+	}
 }
 
 // Available reports whether this runtime has a long-term knowledge store.
@@ -113,6 +123,11 @@ func (k *Knowledge) Update(ctx context.Context, scope knowledge.Scope, cwd, expe
 func (k *Knowledge) update(ctx context.Context, scope knowledge.Scope, root, expectedRevision, content string) (knowledge.Entry, error) {
 	entry, err := k.store.Update(ctx, scope, root, expectedRevision, content)
 	if err == nil {
+		if k.observations != nil {
+			k.observations.Accept(AuthoredChange{
+				Resource: AuthoredKnowledge, Identities: []string{entry.Path},
+			})
+		}
 		k.invalidations.Notify(invalidation.Notice{Resource: invalidation.Knowledge})
 	}
 	return entry, knowledgePathError(err)

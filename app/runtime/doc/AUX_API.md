@@ -98,15 +98,18 @@
 
 - **订阅点名 topic**：`topics` 是闭合集合（`RuntimeTopic`），客户端只收它点过的名。上限在
   `capabilities.limits.runtimeSubscription{maxTopics,maxWatches}` 里公布并被强制执行。
-- **`watches` 是文件监视的附加维度**（`features.fileWatch`）：每个 watch 必带客户端命名的 `watchId` 与显式
-  `workspace: WorkspaceRef`，`files.changed` 原样回显二者。
+- **`watches` 是 workspace 文件身份的附加维度**（`features.fileWatch`）：每个 watch 必带客户端命名的 `watchId` 与显式
+  `workspace: WorkspaceRef`，`files.changed` 原样回显二者；同一订阅点名 `knowledge.changed` / `hooks.changed` 时，该身份也让
+  Runtime 精确观察对应 workspace/projectRoot 的 `LYRA.md` 与 hooks cascade。无 watch 的对应 topic 仍观察 Runtime 全局
+  Knowledge / Hook 配置，不凭空猜测 workspace。
 - **作用域 = 这条流本身**：topic / watch 集随订阅参数走，无独立 `watch` / `unwatch` 方法——**改集合 = 关流重订**。
 - **信号只说"再读一次"**：每条事件带被影响资源的 id（`sessionIds` / `runIds` / `paths` / …），**不带业务数据**。
   客户端收到后调对应读方法重取（`state.changed` 带 `key`，指向该 key 声明的 `recoveryMethod`，`API.md §5.3`）。
 - **每个 topic 都有生产者**：discovery 里出现的 topic，runtime 一定会在对应提交之后发它。一个"名字在、流是静的"
   topic 比没有更糟——第二个窗口会安静地过时，并且察觉不到。
-- **人工配置也有专用信号**：成功的 `knowledge.update` 发 `knowledge.changed`，成功的 `hooks.setTrust` 发
-  `hooks.changed`；客户端分别重读 `knowledge.*` 与 `hooks.list`，不能依赖文件 watch 覆盖全局目录或 API 自身写入。
+- **人工配置也有专用信号**：成功的 `knowledge.update` 发一次 `knowledge.changed`，成功的 `hooks.setTrust` 发
+  `hooks.changed`；外部进程新增、替换、删除已订阅作用域的 `LYRA.md` / `.lyra/hooks.json` 也发对应信号。客户端分别重读
+  `knowledge.*` 与 `hooks.list`；文件事件只提供语义失效，不把文件内容塞进流，也不把 workspace 观测细节泄露到 Agent。
 
 ### 3.1 连接与投递模型
 

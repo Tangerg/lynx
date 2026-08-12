@@ -20,7 +20,7 @@ import {
 } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createLyraClient, type LyraClient } from "./sdk";
@@ -2372,7 +2372,10 @@ for await (const line of lines) {
 
     const streamController = new AbortController();
     const subscription = await client.runtimeEvents.subscribe(
-      { topics: ["knowledge.changed"] },
+      {
+        topics: ["files.changed", "knowledge.changed"],
+        watches: [{ watchId: "knowledge-files", workspace: { path: workspaceRoot } }],
+      },
       streamController.signal,
     );
     const events = subscription.events[Symbol.asyncIterator]();
@@ -2491,6 +2494,28 @@ for await (const line of lines) {
         { scope: "cwd", content: "", revision: clearedCwd.revision },
       ],
     });
+
+    // External editors and sync processes bypass knowledge.update. The same
+    // runtime stream must still invalidate every cascade scope, after which
+    // the SDK's cold read observes the exact new file content.
+    for (const change of [
+      { scope: "home" as const, path: join(runtimeData, "LYRA.md"), content: "external home\n" },
+      {
+        scope: "projectRoot" as const,
+        path: join(projectRoot, "LYRA.md"),
+        content: "external project\n",
+      },
+      { scope: "cwd" as const, path: join(workspaceRoot, "LYRA.md"), content: "external cwd\n" },
+    ]) {
+      await writeFile(change.path, change.content);
+      await expect(nextRuntimeEvent(events, "knowledge.changed")).resolves.toMatchObject({
+        type: "knowledge.changed",
+      });
+      await expect(workspace.knowledge.get(change.scope)).resolves.toMatchObject({
+        scope: change.scope,
+        content: change.content,
+      });
+    }
     streamController.abort();
     await events.return?.();
   }, 30_000);
@@ -2837,7 +2862,10 @@ for await (const line of lines) {
     ]);
     const hookController = new AbortController();
     const hookSubscription = await client.runtimeEvents.subscribe(
-      { topics: ["hooks.changed"] },
+      {
+        topics: ["files.changed", "hooks.changed"],
+        watches: [{ watchId: "hook-files", workspace: { path: workspaceRoot } }],
+      },
       hookController.signal,
     );
     const hookEvents = hookSubscription.events[Symbol.asyncIterator]();
@@ -2858,6 +2886,44 @@ for await (const line of lines) {
       type: "hooks.changed",
     });
     await expect(workspace.hooks.list()).resolves.toMatchObject({ projectTrusted: false });
+
+    // hooks.json has no mutation API; direct global/project/cwd edits are its
+    // authoritative input and must converge through hooks.changed.
+    const externalHookChanges = [
+      {
+        path: join(runtimeHome, ".lyra", "hooks.json"),
+        marker: "external global hook",
+        scope: "global",
+        event: "SessionStart",
+      },
+      {
+        path: join(projectRoot, ".lyra", "hooks.json"),
+        marker: "external project hook",
+        scope: "project",
+        event: "UserPromptSubmit",
+      },
+      {
+        path: join(workspaceRoot, ".lyra", "hooks.json"),
+        marker: "external cwd hook",
+        scope: "project",
+        event: "Notification",
+      },
+    ] as const;
+    for (const change of externalHookChanges) {
+      await mkdir(dirname(change.path), { recursive: true });
+      await writeFile(
+        change.path,
+        JSON.stringify({ hooks: [{ event: change.event, inject: change.marker }] }),
+      );
+      await expect(nextRuntimeEvent(hookEvents, "hooks.changed")).resolves.toMatchObject({
+        type: "hooks.changed",
+      });
+      await expect(workspace.hooks.list()).resolves.toMatchObject({
+        hooks: expect.arrayContaining([
+          expect.objectContaining({ scope: change.scope, inject: change.marker }),
+        ]),
+      });
+    }
     hookController.abort();
     await hookEvents.return?.();
   }, 30_000);

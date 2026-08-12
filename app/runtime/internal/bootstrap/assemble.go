@@ -58,24 +58,25 @@ import (
 // application use cases and notification sources, but owns no resource closers;
 // the Host does (§5.3).
 type Stack struct {
-	Sessions           *sessions.Coordinator
-	MCP                *mcpapp.Coordinator
-	Approvals          *approvals.Coordinator
-	Models             *models.Coordinator
-	Tools              *tools.Coordinator
-	Codebase           *codebase.Coordinator
-	Queries            *queries.Coordinator
-	Usage              *usage.Reporter
-	Feedback           *feedbackapp.Recorder
-	WorkspaceFiles     *workspace.Files
-	WorkspaceVCS       *workspace.VCS
-	WorkspaceDiscovery *workspace.Discovery
-	WorkspaceKnowledge *workspace.Knowledge
-	WorkspaceSkills    *workspace.Skills
-	WorkspaceHooks     *workspace.Hooks
-	WorkspaceWatch     *workspace.GitWatch
-	Schedules          *schedules.Coordinator
-	Goals              *goals.Driver
+	Sessions               *sessions.Coordinator
+	MCP                    *mcpapp.Coordinator
+	Approvals              *approvals.Coordinator
+	Models                 *models.Coordinator
+	Tools                  *tools.Coordinator
+	Codebase               *codebase.Coordinator
+	Queries                *queries.Coordinator
+	Usage                  *usage.Reporter
+	Feedback               *feedbackapp.Recorder
+	WorkspaceFiles         *workspace.Files
+	WorkspaceVCS           *workspace.VCS
+	WorkspaceDiscovery     *workspace.Discovery
+	WorkspaceKnowledge     *workspace.Knowledge
+	WorkspaceSkills        *workspace.Skills
+	WorkspaceHooks         *workspace.Hooks
+	WorkspaceWatch         *workspace.GitWatch
+	WorkspaceAuthoredWatch *workspace.AuthoredWatch
+	Schedules              *schedules.Coordinator
+	Goals                  *goals.Driver
 	// AgentMemory is the HITL review use-case coordinator over the agent's
 	// self-maintained memory (agentMemory.*). It may hold a disabled store, so
 	// Delivery can truthfully negotiate the capability without a domain-port leak.
@@ -248,8 +249,13 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Invalidations: applicationInvalidations.Publish,
 	})
 	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
+	authoredWatcher, err := checkpointstore.NewAuthoredWatcher(cfg.KnowledgeDirectory, cfg.UserHome)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: build authored resource watcher: %w", err)
+	}
+	workspaceAuthoredWatch := workspace.NewAuthoredWatch(workspaceScope, workspacepath.Resolver{}, authoredWatcher)
 	workspaceKnowledge := workspace.NewKnowledge(
-		workspaceScope, workspacepath.Resolver{}, cfg.KnowledgeStore, applicationInvalidations.Publish,
+		workspaceScope, workspacepath.Resolver{}, cfg.KnowledgeStore, workspaceAuthoredWatch, applicationInvalidations.Publish,
 	)
 	// One signal covers every committed Skill-library mutation, including
 	// proposal submission and review decisions.
@@ -605,19 +611,20 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Usage: usage.New(usage.Dependencies{
 				Runs: cfg.RunStore, Sessions: cfg.SessionStore,
 			}),
-			Feedback:           feedbackapp.New(cfg.FeedbackStore),
-			WorkspaceFiles:     workspaceFiles,
-			WorkspaceVCS:       workspaceVCS,
-			WorkspaceDiscovery: workspaceDiscovery,
-			WorkspaceKnowledge: workspaceKnowledge,
-			WorkspaceSkills:    workspaceSkills,
-			WorkspaceHooks:     workspaceHooks,
-			WorkspaceWatch:     workspaceWatch,
-			Schedules:          scheduleCoordinator,
-			Goals:              goalDriver,
-			AgentMemory:        agentMemoryCoordinator,
-			GitAvailable:       checkpointstore.GitAvailable(),
-			PlanEnabled:        cfg.PlanStore != nil,
+			Feedback:               feedbackapp.New(cfg.FeedbackStore),
+			WorkspaceFiles:         workspaceFiles,
+			WorkspaceVCS:           workspaceVCS,
+			WorkspaceDiscovery:     workspaceDiscovery,
+			WorkspaceKnowledge:     workspaceKnowledge,
+			WorkspaceSkills:        workspaceSkills,
+			WorkspaceHooks:         workspaceHooks,
+			WorkspaceWatch:         workspaceWatch,
+			WorkspaceAuthoredWatch: workspaceAuthoredWatch,
+			Schedules:              scheduleCoordinator,
+			Goals:                  goalDriver,
+			AgentMemory:            agentMemoryCoordinator,
+			GitAvailable:           checkpointstore.GitAvailable(),
+			PlanEnabled:            cfg.PlanStore != nil,
 		},
 		lifetime: lifetime,
 	}
@@ -637,6 +644,9 @@ func validateAssemblyConfig(cfg Config) error {
 	if !filepath.IsAbs(cfg.DefaultWorkspacePath) {
 		return errors.New("runtime: DefaultWorkspacePath must be absolute")
 	}
+	if cfg.KnowledgeDirectory == "" {
+		return errors.New("runtime: KnowledgeDirectory is required")
+	}
 	for _, path := range []struct {
 		name  string
 		value string
@@ -645,6 +655,7 @@ func validateAssemblyConfig(cfg Config) error {
 		{name: "SandboxDir", value: cfg.SandboxDir},
 		{name: "RecipesGlobalDir", value: cfg.RecipesGlobalDir},
 		{name: "CheckpointDir", value: cfg.CheckpointDir},
+		{name: "KnowledgeDirectory", value: cfg.KnowledgeDirectory},
 	} {
 		if path.value != "" && !filepath.IsAbs(path.value) {
 			return fmt.Errorf("runtime: %s must be absolute when set", path.name)

@@ -427,6 +427,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	mcpServers := sqlitestore.NewMCPServerStore(db)
 	return Config{
 		UserHome:             t.TempDir(),
+		KnowledgeDirectory:   t.TempDir(),
 		DefaultWorkspacePath: t.TempDir(),
 		ChatClient:           client,
 		BuildID:              "sha256:0000000000000000000000000000000000000000000000000000000000000000",
