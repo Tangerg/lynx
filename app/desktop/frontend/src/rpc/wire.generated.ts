@@ -1233,6 +1233,8 @@ export interface Schedule {
   workspace?: WorkspaceRef;
 }
 
+export type ScheduleWorkspaceMode = "default";
+
 export interface SearchHit {
   lineNumber?: number;
   path: string;
@@ -1471,6 +1473,7 @@ export interface UpdateScheduleRequest {
   provider?: string;
   title?: string;
   workspace?: WorkspaceRef;
+  workspaceMode?: ScheduleWorkspaceMode;
 }
 
 export interface UpdateSessionRequest {
@@ -1627,6 +1630,7 @@ export const WIRE_ENUMS = {
   RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"],
   RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"],
   SafetyClass: ["safe", "write", "exec", "network"],
+  ScheduleWorkspaceMode: ["default"],
   SegmentOutcomeType: ["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
   SessionStatus: ["running", "waiting", "idle"],
   SkillLifecycle: ["active", "archived"],

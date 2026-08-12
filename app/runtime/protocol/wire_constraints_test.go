@@ -163,6 +163,33 @@ func TestMCPSecretMapChangesRejectEmptyReplacement(t *testing.T) {
 	}
 }
 
+func TestUpdateScheduleWorkspaceModesAreUnambiguous(t *testing.T) {
+	t.Parallel()
+
+	valid := []UpdateScheduleRequest{
+		{ID: "sch_1", ExpectedRevision: 1},
+		{ID: "sch_1", ExpectedRevision: 1, Workspace: &WorkspaceRef{Path: "/workspace"}},
+		{ID: "sch_1", ExpectedRevision: 1, WorkspaceMode: ScheduleWorkspaceDefault},
+	}
+	for _, request := range valid {
+		if err := ValidateWireTree(request); err != nil {
+			t.Errorf("ValidateWireTree rejected legal schedule workspace patch %+v: %v", request, err)
+		}
+	}
+
+	assertConstraintField(t, ValidateWireTree(UpdateScheduleRequest{
+		ID:               "sch_1",
+		ExpectedRevision: 1,
+		Workspace:        &WorkspaceRef{Path: "/workspace"},
+		WorkspaceMode:    ScheduleWorkspaceDefault,
+	}), "UpdateScheduleRequest", "workspace")
+	assertConstraintField(t, (UpdateScheduleRequest{
+		ID:               "sch_1",
+		ExpectedRevision: 1,
+		WorkspaceMode:    "unknown",
+	}).ValidateWire(), "UpdateScheduleRequest", "workspaceMode")
+}
+
 func TestMCPWireUnionsAcceptEveryLegalBranch(t *testing.T) {
 	t.Parallel()
 

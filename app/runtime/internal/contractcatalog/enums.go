@@ -72,6 +72,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[protocol.RunOutcomeType]():                    {string(protocol.OutcomeCompleted), string(protocol.OutcomeTimedOut), string(protocol.OutcomeFailed), string(protocol.OutcomeMaxSteps), string(protocol.OutcomeMaxBudget), string(protocol.OutcomeCanceled), string(protocol.OutcomeLost)},
 	reflect.TypeFor[protocol.RunProtocolFeature]():                runProtocolFeatureValues(),
 	reflect.TypeFor[protocol.RunStatus]():                         {string(protocol.RunStatusRunning), string(protocol.RunStatusWaiting), string(protocol.RunStatusFinished)},
+	reflect.TypeFor[protocol.ScheduleWorkspaceMode]():             {string(protocol.ScheduleWorkspaceDefault)},
 	reflect.TypeFor[protocol.SegmentOutcomeType]():                {string(protocol.SegmentInterrupt), string(protocol.SegmentSuspended), string(protocol.SegmentCompleted), string(protocol.SegmentTimedOut), string(protocol.SegmentFailed), string(protocol.SegmentMaxSteps), string(protocol.SegmentMaxBudget), string(protocol.SegmentCanceled), string(protocol.SegmentLost)},
 	reflect.TypeFor[protocol.SafetyClass]():                       {string(protocol.SafetyClassSafe), string(protocol.SafetyClassWrite), string(protocol.SafetyClassExec), string(protocol.SafetyClassNetwork)},
 	reflect.TypeFor[protocol.SessionStatus]():                     {string(protocol.SessionStatusRunning), string(protocol.SessionStatusWaiting), string(protocol.SessionStatusIdle)},

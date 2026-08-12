@@ -3425,6 +3425,23 @@
   ],
   "objectConstraints": [
     {
+      "type": "UpdateScheduleRequest",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "workspaceMode",
+              "operator": "equals",
+              "value": "default"
+            }
+          ],
+          "forbidden": [
+            "workspace"
+          ]
+        }
+      ]
+    },
+    {
       "type": "Item",
       "rules": [
         {

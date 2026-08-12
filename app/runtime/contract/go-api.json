@@ -1681,6 +1681,11 @@
           "value": "\"write\""
         },
         {
+          "name": "ScheduleWorkspaceDefault",
+          "type": "ScheduleWorkspaceMode",
+          "value": "\"default\""
+        },
+        {
           "name": "SegmentCanceled",
           "type": "SegmentOutcomeType",
           "value": "\"canceled\""
@@ -6886,6 +6891,11 @@
           ]
         },
         {
+          "name": "ScheduleWorkspaceMode",
+          "kind": "defined",
+          "underlying": "string"
+        },
+        {
           "name": "SegmentOutcome",
           "kind": "struct",
           "fields": [
@@ -7849,6 +7859,11 @@
               "name": "Workspace",
               "type": "*WorkspaceRef",
               "tag": "json:\"workspace,omitempty\""
+            },
+            {
+              "name": "WorkspaceMode",
+              "type": "ScheduleWorkspaceMode",
+              "tag": "json:\"workspaceMode,omitempty\""
             },
             {
               "name": "Provider",

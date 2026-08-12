@@ -832,6 +832,10 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 cron 形态的 headless run 管理（`features.schedules`）：一条 schedule 存的是完整、自包含的执行 instructions，不是一个 recipe
 引用 —— 引用会让"这条定时任务当初要做什么"随 recipe 被改写而改变。触发一次 = 起一个普通 run。
 
+`schedules.update` 是带 `expectedRevision` 的部分更新。工作区有三个无歧义分支：省略 `workspace` 与
+`workspaceMode` 保持现有绑定；发送合法 `workspace: WorkspaceRef` 设置显式绑定；发送
+`workspaceMode: "default"` 删除显式绑定并回到 `ServerInfo.defaultWorkspace`。后两者互斥，空路径不是清空语义。
+
 ### 7.10 codebase.\*
 
 语义代码索引的状态与检索（`features.codebase`）：索引进度是一个可轮询的状态读，检索是一个普通分页读。

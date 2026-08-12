@@ -7076,6 +7076,12 @@
         "title"
       ]
     },
+    "ScheduleWorkspaceMode": {
+      "type": "string",
+      "enum": [
+        "default"
+      ]
+    },
     "SearchHit": {
       "type": "object",
       "properties": {
@@ -8320,11 +8326,33 @@
         },
         "workspace": {
           "$ref": "#/$defs/WorkspaceRef"
+        },
+        "workspaceMode": {
+          "$ref": "#/$defs/ScheduleWorkspaceMode"
         }
       },
       "required": [
         "expectedRevision",
         "id"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "workspaceMode": {
+                "const": "default"
+              }
+            },
+            "required": [
+              "workspaceMode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "workspace": false
+            }
+          }
+        }
       ]
     },
     "UpdateSessionRequest": {

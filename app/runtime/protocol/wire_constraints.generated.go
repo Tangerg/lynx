@@ -245,6 +245,8 @@ func (value UpdateScheduleRequest) ValidateWire() error {
 		positiveNumber("expectedRevision", value.ExpectedRevision),
 		optionalText("instructions", value.Instructions),
 		optionalText("cron", value.Cron),
+		closedEnum("workspaceMode", string(value.WorkspaceMode), []string{"default"}, true),
+		forbiddenWhen(wireFieldEquals(value, "workspaceMode", "default"), "workspace", value),
 	)
 }
 

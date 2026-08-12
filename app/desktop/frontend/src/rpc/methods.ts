@@ -74,6 +74,7 @@ import type {
   RunScheduleNowResponse,
   Schedule,
   CreateScheduleRequest,
+  UpdateScheduleRequest,
   ServerCapabilities,
   StateSnapshot,
   Session,
@@ -445,13 +446,7 @@ export interface Methods {
   schedules: {
     list: (query?: PageQuery) => AutoPagingPromise<Page<Schedule>>;
     create: (params: CreateScheduleRequest) => MutationPromise<Schedule>;
-    update: (
-      params: Partial<CreateScheduleRequest> & {
-        id: string;
-        expectedRevision: number;
-        enabled?: boolean;
-      },
-    ) => MutationPromise<Schedule>;
+    update: (params: UpdateScheduleRequest) => MutationPromise<Schedule>;
     delete: (id: string) => MutationPromise<void>;
     runNow: (id: string) => MutationPromise<RunScheduleNowResponse>;
   };

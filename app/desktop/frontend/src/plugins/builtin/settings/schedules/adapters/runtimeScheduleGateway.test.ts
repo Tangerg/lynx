@@ -45,7 +45,7 @@ describe("runtimeScheduleGateway", () => {
     });
   });
 
-  it("sends an explicit empty workspace patch when an edit clears a binding", async () => {
+  it("uses the explicit Runtime-default mode when an edit clears a binding", async () => {
     const update = vi.fn().mockResolvedValue(schedule());
     setContainer({ client: () => ({ schedules: { update } }) as unknown as LyraClient });
     uninstall = installScheduleGateway();
@@ -65,7 +65,33 @@ describe("runtimeScheduleGateway", () => {
       expectedRevision: 7,
       title: "Review",
       instructions: "Review changes",
-      workspace: { path: "" },
+      workspaceMode: "default",
+      cron: "0 9 * * 1",
+      enabled: true,
+    });
+  });
+
+  it("sends a valid workspace ref when an edit sets an explicit binding", async () => {
+    const update = vi.fn().mockResolvedValue(schedule({ path: "/workspace" }));
+    setContainer({ client: () => ({ schedules: { update } }) as unknown as LyraClient });
+    uninstall = installScheduleGateway();
+
+    await scheduleGateway().update({
+      id: "schedule-1",
+      title: "Review",
+      instructions: "Review changes",
+      cwd: "/workspace",
+      cron: "0 9 * * 1",
+      enabled: true,
+      revision: 7,
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      id: "schedule-1",
+      expectedRevision: 7,
+      title: "Review",
+      instructions: "Review changes",
+      workspace: { path: "/workspace" },
       cron: "0 9 * * 1",
       enabled: true,
     });

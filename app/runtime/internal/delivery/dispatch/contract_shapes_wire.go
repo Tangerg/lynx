@@ -460,6 +460,14 @@ func registerDiffUnions(s *Shapes) {
 }
 
 func registerObjectConstraints(s *Shapes) {
+	s.constraint(ObjectConstraintSpec{
+		GoType: typeOf[protocol.UpdateScheduleRequest](),
+		Rules: []PresenceRule{{
+			When:      []operation.FieldCondition{{Field: "workspaceMode", Operator: operation.OperatorEquals, Value: string(protocol.ScheduleWorkspaceDefault)}},
+			Forbidden: []string{"workspace"},
+		}},
+	})
+
 	for _, target := range []reflect.Type{
 		typeOf[protocol.Item](),
 		typeOf[protocol.ArtifactItem](),

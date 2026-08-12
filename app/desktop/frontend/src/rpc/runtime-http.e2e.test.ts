@@ -1621,8 +1621,10 @@ for await (const line of lines) {
       expectedRevision: firedSchedule.revision,
       enabled: false,
       title: "HTTP schedule lifecycle updated",
+      workspaceMode: "default",
     });
     expect(updated.revision).toBe(firedSchedule.revision + 1);
+    expect(updated.workspace).toBeUndefined();
     await expect(nextRuntimeEvent(runtimeEvents, "schedules.changed")).resolves.toMatchObject({
       type: "schedules.changed",
       scheduleIds: [created.id],

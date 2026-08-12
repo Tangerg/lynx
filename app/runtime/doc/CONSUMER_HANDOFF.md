@@ -7,7 +7,7 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-12, during the post-P25 adversarial audit.
+> Desktop generated consumer: 2026-08-12, during the post-P33 adversarial audit.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
@@ -50,12 +50,22 @@ Runtime normalizes the durable note at its Application boundary, while generated
 Go, JSON Schema, OpenRPC, and TypeScript validators reject an oversized request
 before it reaches execution.
 
+`schedules.update` workspace edits have three exact branches: omit both fields
+to preserve, send a non-empty `workspace` ref to set an explicit binding, or send
+`workspaceMode: "default"` to remove it. `workspace` and `workspaceMode` are
+mutually exclusive; an empty ref is invalid and never means clear.
+
 ## Desktop follow-up
 
 The desktop vendors generated Runtime bindings and samples from
 `app/runtime/contract/typescript`. P25 synchronized the projection/runtime
 contract; every later protocol batch must continue replacing those generated
 copies atomically with handwritten SDK semantics and fixtures:
+
+P33 synchronized the generated Schedule request and validator, changed the
+handwritten `schedules.update` wrapper to consume `UpdateScheduleRequest`
+directly, and connected the default-workspace branch to the Schedule settings
+product form.
 
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;

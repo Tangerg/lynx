@@ -143,6 +143,7 @@ export type {
   RecipeScope,
   Schedule,
   CreateScheduleRequest,
+  UpdateScheduleRequest,
   AgentDoc,
   MCPServer,
   MCPAuthorizationAttempt,

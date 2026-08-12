@@ -144,7 +144,7 @@
 |---|---|---|---|
 | Goal | domain/application/toolset | Retain | autonomous Run admission retry、等待边界后的 incarnation ownership refresh 与 terminal resolution 分属准确私有行为；消费端口名为 `AutonomousRuns`，不下沉 Agent Framework |
 | Plan | `domain/plan` + `application/plans` | Retain + Refactor complete | P16-03 已由私有 `plan.State` 独占 replacement/invariant/revision/time；Application 形成 CAS replacement 并在成功保存后发布 invalidation，Tool 只消费用例，SQLite 不决定 transition；保持 Plan 唯一术语且不与 Goal/Todo 合并 |
-| Schedule | domain/application/toolset | Retain | 通过 `RunStarter` 启动并返回 `StartedRun` 事实；有界 `occurrenceBatch` 分别处理 pending dispatch 与 due claim，不直接调用 Agent Framework |
+| Schedule | domain/application/toolset | Retain | 通过 `RunStarter` 启动并返回 `StartedRun` 事实；有界 `occurrenceBatch` 分别处理 pending dispatch 与 due claim，不直接调用 Agent Framework。更新 workspace 的 wire 三态由 Protocol/Delivery 拥有，Domain/Application 继续只消费空值=Runtime 默认、非空=已准入显式路径的 `CWD` |
 | Skill/Proposal | domain/application/adapter/toolset | Retain | deferred manifest 接线更新 |
 | Agent memory | domain/application/toolset | Retain | 与 Conversation/Knowledge 分开 |
 | Model/provider catalog | domain/application/adapters | Retain | 每 Run exact model binding 进入 deployment assembly |
@@ -268,14 +268,14 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前 owner | Verdict | 说明 |
 |---|---|---|---|
-| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-12`、Artifact v17；ToolCall lifecycle 与 optional exact execution duration 分离，后者排除审批等待且 unknown 时不伪造；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；机器真相仍在 contract |
+| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-12`、Artifact v17；ToolCall lifecycle 与 optional exact execution duration 分离，后者排除审批等待且 unknown 时不伪造；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；Schedule workspace patch 以省略/合法 ref/`workspaceMode:"default"` 精确表达保持/设置/清空且生成互斥约束；机器真相仍在 contract |
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
 | Embedded Go | 旧 internal channel prototype 已删除；P19 新建类型化公共 binding | Rewrite, do not revive transport | CLI 已成为真实消费者；复用 operation/Application，不导出 envelope/Router |
 | Server product-value projections | Application read/write use cases + 必要 immutable Domain values | Retain | 只做 wire validation/error mapping/projection，不读取 repository、不持有 lifecycle owner |
 | Delivery adapter imports | architecture guard 禁止 | Retain | Delivery 只驱动 Application；对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零 |
-| frontend/TUI/CLI generated consumers | Desktop generated Runtime bindings、strict validators、samples 与 handwritten SDK 已同步 P25/P26；其他消费者按各自阶段消费公共 `protocol` / `embedded` | Retain boundary | 精确 cutover 见 `CONSUMER_HANDOFF.md`；Runtime 不为消费者建立兼容 shape |
+| frontend/TUI/CLI generated consumers | Desktop generated Runtime bindings、strict validators、samples 与 handwritten SDK 已同步 P25/P26/P33；Schedule SDK update 直接消费生成 request，不以 create shape 猜测 update surface；其他消费者按各自阶段消费公共 `protocol` / `embedded` | Retain boundary | 精确 cutover 见 `CONSUMER_HANDOFF.md`；Runtime 不为消费者建立兼容 shape |
 
 ## 9. 结构清理台账
 
@@ -398,3 +398,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P27 以真实依赖图收缩发布信任面：Frontend clean install 解析到修复后的 Mermaid/DOMPurify/NanoID；Runtime 的 Ollama chat/embedding 在 Infra 内复用既有 OpenAI-compatible protocol，移除完整 Ollama 服务端 module。`npm audit` 与 Runtime 可达 `govulncheck` 均为零，真实 HITL/Tool/Goal/Plan 崩溃恢复、双 Session 隔离、约 92.6 万次 codec fuzz 和终态数据库不变量全绿；Agent/Application/Domain/Delivery 公共合同未变化。
 - P28 将同一依赖边界修复推进到独立 `models/ollama` owner：provider module 以私有窄 wire 保留原生 `/api/chat`、`/api/embed`、NDJSON stream、Core extensions 与 HTTP failure 语义，同时移除完整 daemon repository 及其 server/auth/ordered-map 依赖。该模块 `govulncheck` 从 8 条可达路径降为零，公开构造器与 Runtime/Agent 合同不变化。
 - P29 关闭 CLI standalone consumer 的发布图缺口：CLI 直接绑定已推送 commit `420f627f131a` 对应 Runtime pseudo-version，并随其消费 Agent Baseline 20；旧 Runtime→`models/ollama`→daemon 依赖链从 standalone graph 删除。CLI 全量 normal/race/static/lint/build/vet 与 `govulncheck` 全绿，未使用 workspace `replace` 或夹带 CLI 功能改动。
+- P33 关闭 Schedule 默认工作区更新的协议表达缺口：Protocol/Delivery 精确拥有保持、设置、回到默认三态及互斥校验，Desktop handwritten SDK 直接消费生成 `UpdateScheduleRequest`。Domain/Application 仍只拥有 Schedule/CWD 行为，Agent Framework 未接收任何 Runtime workspace、wire 或 UI 抽象；真实 UI/SQLite 证明失败路径已持久化收口。

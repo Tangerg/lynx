@@ -26,6 +26,29 @@ function agentMessageItem(id: string, runId: string, status: Item["status"]): It
 }
 
 describe("methods factory", () => {
+  it("forwards the complete generated schedule update contract", async () => {
+    const call = vi.fn().mockResolvedValue({ id: "schedule_1", revision: 3 });
+    const methods = createMethods({ call } as unknown as RpcClient);
+
+    await methods.schedules.update({
+      id: "schedule_1",
+      expectedRevision: 2,
+      title: "Use the Runtime default",
+      workspaceMode: "default",
+    });
+
+    expect(call).toHaveBeenCalledWith(
+      "schedules.update",
+      {
+        id: "schedule_1",
+        expectedRevision: 2,
+        title: "Use the Runtime default",
+        workspaceMode: "default",
+      },
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
+
   it("binds an immutable workspace identity into every nested resource call", async () => {
     const call = vi.fn().mockResolvedValue({ data: [] });
     const methods = createMethods({ call } as unknown as RpcClient);

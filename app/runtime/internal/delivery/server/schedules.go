@@ -60,7 +60,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 		Patch: schedule.Patch{
 			Title:        in.Title,
 			Instructions: in.Instructions,
-			CWD:          workspacePathPatch(in.Workspace),
+			CWD:          scheduleWorkspacePathPatch(in.Workspace, in.WorkspaceMode),
 			Provider:     in.Provider,
 			Model:        in.Model,
 			Cron:         in.Cron,
@@ -88,6 +88,14 @@ func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowR
 		return nil, mapScheduleErr(err, "schedules.runNow", in.ID)
 	}
 	return &protocol.RunScheduleNowResponse{SessionID: handle.SessionID, RunID: handle.RunID}, nil
+}
+
+func scheduleWorkspacePathPatch(ref *protocol.WorkspaceRef, mode protocol.ScheduleWorkspaceMode) *string {
+	if mode == protocol.ScheduleWorkspaceDefault {
+		path := ""
+		return &path
+	}
+	return workspacePathPatch(ref)
 }
 
 // mapScheduleErr surfaces an unknown-id as invalid_params (the supplied id

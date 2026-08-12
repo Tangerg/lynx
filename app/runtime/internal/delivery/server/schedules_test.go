@@ -169,6 +169,31 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	}
 }
 
+func TestUpdateScheduleCanReturnToDefaultWorkspace(t *testing.T) {
+	reg := &fakeScheduleRegistry{byID: map[string]schedule.Schedule{
+		"sch_1": {
+			ID: "sch_1", Revision: 1, Instructions: "Review the repository",
+			CWD: t.TempDir(), Cron: "@daily", Enabled: true,
+		},
+	}}
+	s := serverWithSchedules(reg)
+
+	got, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
+		ID:               "sch_1",
+		ExpectedRevision: 1,
+		WorkspaceMode:    protocol.ScheduleWorkspaceDefault,
+	})
+	if err != nil {
+		t.Fatalf("return schedule to default workspace: %v", err)
+	}
+	if len(reg.updated) != 1 || reg.updated[0].CWD != "" {
+		t.Fatalf("updated schedules = %+v, want one default-workspace binding", reg.updated)
+	}
+	if got.Workspace != nil {
+		t.Fatalf("wire schedule workspace = %+v, want omitted Runtime default", got.Workspace)
+	}
+}
+
 func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
 	s := serverWithSchedules(&fakeScheduleRegistry{})
 

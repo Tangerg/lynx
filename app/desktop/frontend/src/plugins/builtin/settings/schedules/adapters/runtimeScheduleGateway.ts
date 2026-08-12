@@ -31,9 +31,7 @@ const gateway: ScheduleGateway = {
         .client()
         .schedules.update({
           ...scheduleInput(input),
-          // Update is a patch: an explicit empty ref clears a previous binding
-          // back to the Runtime default, while omission would preserve it.
-          workspace: { path: input.cwd },
+          ...(input.cwd ? {} : { workspaceMode: "default" }),
           id: input.id,
           expectedRevision: input.revision,
           enabled: input.enabled,

@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P32 已完成；发布后反证审计持续进行
+> 状态：P1–P33 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -63,6 +63,10 @@
 | P27 | Runtime/Frontend 依赖信任边界收缩 | P26 + 真实依赖图/漏洞可达性/恢复压力证据 | 已完成 |
 | P28 | Ollama standalone client/daemon 边界纠偏 | P27 + workspace module 可达性审计 | 已完成 |
 | P29 | CLI standalone Runtime consumer 发布闭环 | P28 + 已推送 Runtime canonical commit | 已完成 |
+| P30 | Runtime 失效流订阅隔离与断号恢复 | P29 + 多订阅/重连证据 | 已完成 |
+| P31 | Goal root Run boundary / HITL 状态判定 | P30 + whole-tree stream 反例 | 已完成 |
+| P32 | Goal objective incarnation / HITL Resume accounting | P31 + crash-resume accounting 证据 | 已完成 |
+| P33 | Schedule 默认工作区更新合同与 Desktop 消费闭环 | P32 + 真实 UI/SQLite 失败证据 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -867,10 +871,30 @@
 - session startable 等待不是 reservation，等待返回后的权威 Goal 已 blocked/complete/paused/superseded 时 Run start 次数保持为零；
 - Runtime standalone build/vet/test/race/staticcheck/lint/tidy 全绿，旧 Goal lease vocabulary 在 production/schema/checkpoint 当前 shape 中为零；Agent production graph 对 Runtime import 为零，Runtime 的 Framework import 仍只存在于 `adapter/agentexec`。
 
-## 37. 进度记录
+## 37. P33 — Schedule 默认工作区更新合同与 Desktop 消费闭环
+
+### 目标
+
+让 Schedule 的 workspace 部分更新完整表达保持、设置和回到 Runtime 默认三态，并保证 Desktop SDK 与产品入口直接消费 Runtime 生成合同，不再用非法空 `WorkspaceRef` 猜测清空语义。
+
+### 工作项
+
+- [x] P33-01 `UpdateScheduleRequest` 新增 closed `workspaceMode: "default"`，省略保持、合法 `workspace` 设置、default 清空，生成合同禁止同时出现后两者；
+- [x] P33-02 Delivery 只把协议动作投影到既有 `schedule.Patch.CWD`，Domain/Application 的空 CWD 默认语义和 workspace admission owner 保持不变；
+- [x] P33-03 Desktop handwritten SDK 直接消费生成的 `UpdateScheduleRequest`，Schedule gateway 对空工作目录发送 default mode，对显式目录发送合法 ref；
+- [x] P33-04 补齐 wire、Delivery、SDK、gateway、真实 HTTP lifecycle 与浏览器/SQLite 回归，并同步生成制品和合同摘要基线。
+
+### 验收
+
+- 编辑默认工作区 Schedule 可持久化其他字段；显式绑定可回到 Runtime 默认，空路径在任何分支都不是清空语义；
+- Runtime 生成器、Go/JSON Schema/TypeScript validator、Desktop SDK 与产品调用点使用同一 request shape；
+- 变更不进入 Agent Framework、Domain 或 Application 协议层，不修改 SQLite shape，也不触碰并存的 CLI 工作。
+
+## 38. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P33（Schedule workspace patch / Desktop consumer） | Schedule 更新合同补齐省略保持、合法 ref 设置、`workspaceMode:"default"` 清空三态，并生成互斥约束；Delivery 将 default 投影到既有空 CWD Domain 语义。Desktop 删除非法空 ref，handwritten SDK 改为直接消费生成 `UpdateScheduleRequest` 并公开该类型。没有把 Runtime workspace/transport 类型泄露进 Agent、Domain 或 Application，也没有修改 SQLite shape 或并存 CLI 工作 | 原失败 UI 路径真实复测后标题持久化、cwd 为空、revision 1→2；wire/Delivery/SDK/gateway/HTTP lifecycle 回归、Frontend 238 files/1471 tests、API consumer 86/86 operations + 10/10 events 和 Desktop Go tests 全绿；Runtime 全门禁与 race 在本批提交前收口 |
 | 2026-08-12 | P32（Goal objective incarnation / HITL Resume accounting） | Goal provenance 从混合 process-local ownership 的 lease 治本纠正为 objective-lifetime incarnation：fresh Start 才换身份，Pause/Resume/Stop/Reconcile 保留身份；outstanding HITL Run 的 terminal accounting/outcome 因而仍归原目标。driver 在每次 session-startable 等待后重读并结算权威状态，消除预算耗尽或已完成后额外启动 Run 的窗口。SQLite epoch 68、checkpoint policy v2 采用唯一 incarnation shape，旧字段/版本 fail closed；没有修改公共 Protocol 或 Agent Framework | outstanding Run budget/completed-report、fresh-objective fencing、SQLite exact/retired shape 与 checkpoint strict codec 回归通过；Runtime standalone 全门禁与双向抽象边界扫描在本批提交前收口 |
 | 2026-08-12 | P31（Goal root boundary / HITL classification） | Goal driver 从 whole-tree Run stream 只采纳 `StartResult.RunID` 的 root segment boundary；root `Waiting` 以权威 Run state 暂停为 `awaitingInput`，无 root boundary 或只有 child waiting frame 均 fail closed 为 `terminalOutcomeMissing`。测试 fake 同步真实 Event envelope。变更止于 Application/goals，没有引入 Delivery、Infra、SQLite、Frontend 或 Agent Framework 类型 | waiting/missing/foreign-child/malformed 定向普通与 race 各连续 20 轮通过，goals 全包普通与 race 各 20 轮通过；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Agent production import 反向扫描零 `app/runtime` |
 | 2026-08-12 | P30（subscription scope / loss recovery） | Runtime Delivery subscription 同时拥有声明的 topic/watch scope，按流过滤普通 watch invalidation 与 resync；拥塞合并新增 broad-file 支配语义，消除跨连接 watch 泄漏和 broad 事实被 watchIds 过度收窄。Frontend 从每条新连接的首帧开始验证 sequence，retarget 后按连接重置。修改止于 Delivery 与 Frontend event application，不把 Runtime/transport/watch 类型下沉到 Agent、Domain 或 Application | workspace hub 定向普通/竞态重复回归覆盖 topic/watch 交集、foreign drop、stable order、malformed recovery、broad↔targeted 两种顺序；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Frontend 224 files/1381 tests及 type/lint/format/knip/全部架构/生产 bundle 门禁全绿 |
@@ -954,6 +978,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 38. 当前下一步
+## 39. 当前下一步
 
-P32 已完成，当前已知的 Goal whole-tree root/child boundary、waiting HITL 判定以及 Resume 切断 outstanding Run accounting/outcome 的缺陷已清除。下一轮建立完整的 backend operation → generated client → frontend product consumer → stream/invalidation coverage matrix；生成方法不计作已消费，并优先补齐 Goal commands、核心 Run stream 与文件/旁路事件的真实入口。同时继续反证 cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复边界；每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P33 已关闭 Schedule 默认工作区编辑和 handwritten SDK 丢失 update-only 字段的问题。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵做真实反证，并优先排查开发热更新时插件重复装载警告是否掩盖 subscription/consumer 重复注册；同时继续覆盖 Goal commands、核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

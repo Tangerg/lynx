@@ -252,6 +252,7 @@ export type WireTypeName =
   | "RuntimeTopic"
   | "SafetyClass"
   | "Schedule"
+  | "ScheduleWorkspaceMode"
   | "SearchHit"
   | "SearchResult"
   | "SegmentOutcome"
@@ -2701,6 +2702,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     title: text(),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["createdAt", "cron", "enabled", "id", "instructions", "revision", "title"]),
+  ScheduleWorkspaceMode: enumOf(["default"]),
   SearchHit: object({
     lineNumber: integer(),
     path: text(),
@@ -3099,17 +3101,28 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     baseUrl: ref(() => CHECKS.ProviderConfigChange),
     provider: allOf([text(), minLength(1)]),
   }, ["provider"]),
-  UpdateScheduleRequest: object({
-    cron: allOf([text(), minLength(1)]),
-    enabled: flag(),
-    expectedRevision: allOf([integer(), minimum(1)]),
-    id: allOf([text(), minLength(1)]),
-    instructions: allOf([text(), minLength(1)]),
-    model: text(),
-    provider: text(),
-    title: text(),
-    workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["expectedRevision", "id"]),
+  UpdateScheduleRequest: allOf([
+    object({
+      cron: allOf([text(), minLength(1)]),
+      enabled: flag(),
+      expectedRevision: allOf([integer(), minimum(1)]),
+      id: allOf([text(), minLength(1)]),
+      instructions: allOf([text(), minLength(1)]),
+      model: text(),
+      provider: text(),
+      title: text(),
+      workspace: ref(() => CHECKS.WorkspaceRef),
+      workspaceMode: ref(() => CHECKS.ScheduleWorkspaceMode),
+    }, ["expectedRevision", "id"]),
+    ifThen(
+      fields({
+        workspaceMode: literal("default"),
+      }, ["workspaceMode"]),
+      fields({
+        workspace: absent(),
+      }, []),
+    ),
+  ]),
   UpdateSessionRequest: object({
     expectedRevision: allOf([integer(), minimum(1)]),
     favorite: flag(),

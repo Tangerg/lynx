@@ -33,18 +33,31 @@ type CreateScheduleRequest struct {
 	Cron         string        `json:"cron"`
 }
 
-// UpdateScheduleRequest — schedules.update body (full-replace of the editable
-// fields by id).
+// ScheduleWorkspaceMode selects the Runtime-owned workspace binding for a
+// schedule update. Omitting it preserves the current binding.
+type ScheduleWorkspaceMode string
+
+const (
+	// ScheduleWorkspaceDefault removes an explicit binding so future firings use
+	// ServerInfo.defaultWorkspace.
+	ScheduleWorkspaceDefault ScheduleWorkspaceMode = "default"
+)
+
+// UpdateScheduleRequest — schedules.update body. Editable fields form a
+// revision-checked partial patch. Workspace sets an explicit binding;
+// WorkspaceMode="default" clears one. Omitting both preserves the binding, and
+// they are mutually exclusive.
 type UpdateScheduleRequest struct {
-	ID               string        `json:"id"`
-	ExpectedRevision uint64        `json:"expectedRevision"`
-	Title            *string       `json:"title,omitempty"`
-	Instructions     *string       `json:"instructions,omitempty"`
-	Workspace        *WorkspaceRef `json:"workspace,omitempty"`
-	Provider         *string       `json:"provider,omitempty"`
-	Model            *string       `json:"model,omitempty"`
-	Cron             *string       `json:"cron,omitempty"`
-	Enabled          *bool         `json:"enabled,omitempty"`
+	ID               string                `json:"id"`
+	ExpectedRevision uint64                `json:"expectedRevision"`
+	Title            *string               `json:"title,omitempty"`
+	Instructions     *string               `json:"instructions,omitempty"`
+	Workspace        *WorkspaceRef         `json:"workspace,omitempty"`
+	WorkspaceMode    ScheduleWorkspaceMode `json:"workspaceMode,omitempty"`
+	Provider         *string               `json:"provider,omitempty"`
+	Model            *string               `json:"model,omitempty"`
+	Cron             *string               `json:"cron,omitempty"`
+	Enabled          *bool                 `json:"enabled,omitempty"`
 }
 
 // DeleteScheduleRequest — schedules.delete body.
