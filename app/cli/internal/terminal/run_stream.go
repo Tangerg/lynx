@@ -983,33 +983,43 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 	a.drainQueue()
 }
 
-func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) bool {
+func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
 	defer cancel()
-	_, err := a.runtime.CancelRun(ctx, target)
-	return err == nil || errors.Is(err, agent.ErrRunFinished)
+	result, err := a.runtime.CancelRun(ctx, target)
+	if errors.Is(err, agent.ErrRunFinished) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := result.ValidateTarget(target.RunID); err != nil {
+		return fmt.Errorf("validate terminal-close cancellation: %w", err)
+	}
+	return nil
 }
 
-func (a *app) cancelOpeningRunNow(ownerCtx context.Context, pending workbench.PendingRun) {
+func (a *app) cancelOpeningRunNow(ownerCtx context.Context, pending workbench.PendingRun) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
 	defer cancel()
 	opened, err := openStartRunWithBackoff(ctx, a.runtime, pending.Command, runtimeRecoveryBackoff)
 	if err != nil {
 		if !reconnect.Retryable(err) {
-			_ = a.retireCanceledStart(pending)
+			return a.retireCanceledStart(pending)
 		}
-		return
+		return fmt.Errorf("reconcile run start during terminal close: %w", err)
 	}
-	if opened.ValidateStart() != nil {
-		return
+	if err := opened.ValidateStart(); err != nil {
+		return fmt.Errorf("validate run start during terminal close: %w", err)
 	}
-	if a.cancelRuntimeNow(ctx, agent.CancelRun{
+	if err := a.cancelRuntimeNow(ctx, agent.CancelRun{
 		CommandID: pending.CancelCommandID,
 		RunID:     opened.RunID,
 		Reason:    "terminal closed during start delivery",
-	}) {
-		_ = a.retireCanceledStart(pending)
+	}); err != nil {
+		return fmt.Errorf("cancel run opened during terminal close: %w", err)
 	}
+	return a.retireCanceledStart(pending)
 }
 
 func (a *app) dropStream() {

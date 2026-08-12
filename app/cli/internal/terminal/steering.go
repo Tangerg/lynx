@@ -99,5 +99,5 @@ func (a *app) restoreSteerAttachments(rejected []agent.Attachment) {
 		seen[attachment.ID] = struct{}{}
 	}
 	a.restoreComposer(current)
-	a.persistDraft()
+	_ = a.persistDraft()
 }

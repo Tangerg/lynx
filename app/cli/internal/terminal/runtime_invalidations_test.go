@@ -1092,6 +1092,8 @@ func TestRuntimeChangeMonitorTreatsAnUnscopedFileInvalidationAsBroad(t *testing.
 		{name: "current broad", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), Workspace: "/workspace"}, want: true},
 		{name: "foreign broad", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), Workspace: "/other"}},
 		{name: "current watch", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), WatchID: workspaceWatchID, Workspace: "/workspace"}, want: true},
+		{name: "current watch without workspace", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), WatchID: workspaceWatchID}, want: true},
+		{name: "current watch wrong workspace", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), WatchID: workspaceWatchID, Workspace: "/other"}},
 		{name: "foreign watch", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), WatchID: "other", Workspace: "/workspace"}},
 	}
 	for _, test := range tests {

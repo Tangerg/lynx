@@ -195,6 +195,34 @@ type flakyCancellationRuntime struct {
 	failure   error
 }
 
+type refusingCloseCancellationRuntime struct {
+	agent.Runtime
+	canceled chan agent.CancelRun
+	err      error
+}
+
+type invalidCloseCancellationRuntime struct {
+	agent.Runtime
+}
+
+func (runtime *invalidCloseCancellationRuntime) CancelRun(
+	context.Context,
+	agent.CancelRun,
+) (agent.RunCancellation, error) {
+	return agent.RunCancellation{}, nil
+}
+
+func (runtime *refusingCloseCancellationRuntime) CancelRun(
+	ctx context.Context,
+	input agent.CancelRun,
+) (agent.RunCancellation, error) {
+	select {
+	case runtime.canceled <- input:
+	default:
+	}
+	return agent.RunCancellation{}, runtime.err
+}
+
 type mismatchedSessionUpdateRuntime struct {
 	agent.Runtime
 	returned agent.Session
@@ -905,6 +933,127 @@ func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
 	}
 	if snapshot.Session.Status != agent.SessionIdle {
 		t.Fatalf("session status = %s, want idle", snapshot.Session.Status)
+	}
+}
+
+func TestClosingTheTerminalPropagatesRuntimeCancellationFailure(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	want := errors.New("runtime rejected terminal close cancellation")
+	runtime := &refusingCloseCancellationRuntime{
+		Runtime: base, canceled: make(chan agent.CancelRun, 1), err: want,
+	}
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{
+			Runtime: runtime, Workspace: "/tmp/lyra-cli-test", Host: host,
+		})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		_ = host.Close()
+	})
+
+	host.Shows(t, "Ask lyra")
+	host.Type("keep running until close fails")
+	host.Press(input.Enter)
+	host.Shows(t, "keep running until")
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, want) {
+			t.Fatalf("Run error = %v, want cancellation failure", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("terminal did not return after cancellation failure")
+	}
+	request := awaitValue(t, runtime.canceled, "terminal-close cancellation")
+	if request.RunID == "" || request.Reason != "terminal closed" {
+		t.Fatalf("cancellation request = %+v", request)
+	}
+}
+
+func TestClosingTheTerminalRejectsAnInvalidCancellationReceipt(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	runtime := &invalidCloseCancellationRuntime{Runtime: base}
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{
+			Runtime: runtime, Workspace: "/tmp/lyra-cli-test", Host: host,
+		})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		_ = host.Close()
+	})
+
+	host.Shows(t, "Ask lyra")
+	host.Type("invalid close receipt")
+	host.Press(input.Enter)
+	host.Shows(t, "invalid close receipt")
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "validate terminal-close cancellation") {
+			t.Fatalf("Run error = %v, want invalid cancellation receipt", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("terminal did not return after invalid cancellation receipt")
+	}
+}
+
+func TestClosingTheTerminalPropagatesFinalDraftPersistenceFailure(t *testing.T) {
+	stateDirectory := t.TempDir()
+	sessionsPath := filepath.Join(stateDirectory, "sessions")
+	if err := os.MkdirAll(sessionsPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	base := mock.New()
+	base.Instant = true
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{
+			Runtime: base, Workspace: "/tmp/lyra-cli-test",
+			StateDirectory: stateDirectory, Host: host,
+		})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		_ = os.Remove(sessionsPath)
+		_ = host.Close()
+	})
+
+	host.Shows(t, "Ask lyra")
+	if err := os.Remove(sessionsPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sessionsPath, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host.Type("draft whose final flush must fail")
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "not a directory") {
+			t.Fatalf("Run error = %v, want final draft persistence failure", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("terminal did not return after draft persistence failure")
 	}
 }
 

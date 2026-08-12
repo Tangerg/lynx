@@ -329,13 +329,14 @@ func (a *app) rememberPrompt(message agent.Message) error {
 	return nil
 }
 
-func (a *app) persistDraft() {
+func (a *app) persistDraft() error {
 	a.cancelScheduledDraftSave()
 	message, _, err := a.currentDraft()
 	if err == nil {
 		err = a.saveDraft(message)
 	}
 	a.reportWorkbenchError(err)
+	return err
 }
 
 // scheduleDraftPersistence marks authoring input in constant time. The complete
@@ -386,7 +387,9 @@ func (a *app) reportWorkbenchError(err error) {
 		return
 	}
 	a.workbenchProblem = problem
-	a.message(problem)
+	if !a.closed {
+		a.message(problem)
+	}
 }
 
 func (a *app) restoreComposer(message agent.Message) {

@@ -186,6 +186,7 @@ type app struct {
 	stopClock              func()
 	executionClock         activeDurationClock
 	closed                 bool
+	closeErr               error
 	syntax                 highlight.Renderer
 }
 
@@ -294,7 +295,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	a.restore(cfg.snapshot)
 	a.restorePendingResume()
 	a.restorePendingRuns()
-	a.persistDraft()
+	_ = a.persistDraft()
 	a.followRuntimeChanges()
 	return a
 }
@@ -680,16 +681,25 @@ func (a *app) Draw(frame headless.Frame) {
 	}
 }
 
-func (a *app) Close(ctx context.Context) {
+func (a *app) Close(ctx context.Context) error {
 	if a.closed {
-		return
+		return a.closeErr
 	}
 	a.closed = true
+	var closeErr error
 	target, cancelRuntime := a.activeCancellation()
 	if !cancelRuntime && a.pendingCancel != nil {
 		target, cancelRuntime = *a.pendingCancel, true
 	}
-	pendingStart, cancelOpening, _ := a.stageOpeningCancellation()
+	var (
+		pendingStart  workbench.PendingRun
+		cancelOpening bool
+	)
+	if !cancelRuntime {
+		var err error
+		pendingStart, cancelOpening, err = a.stageOpeningCancellation()
+		closeErr = errors.Join(closeErr, err)
+	}
 	a.dropStream()
 	a.operations.Cancel(completionOperation)
 	a.cancelPluginCommands()
@@ -697,18 +707,17 @@ func (a *app) Close(ctx context.Context) {
 	a.cancelScheduledDraftSave()
 	// Flush is a serialization barrier: any autosave already in the filesystem
 	// finishes first, then the last visible composer state is written last.
-	a.persistDraft()
-	if err := a.drafts.Close(); err != nil {
-		a.reportWorkbenchError(err)
-	}
+	closeErr = errors.Join(closeErr, a.persistDraft(), a.drafts.Close())
 	if cancelRuntime {
-		if a.cancelRuntimeNow(ctx, target) && a.workbench != nil {
+		if err := a.cancelRuntimeNow(ctx, target); err == nil && a.workbench != nil {
 			if pending, ok := a.workbench.PendingResume(a.session.ID); ok && pending.Command.RunID == target.RunID {
-				_ = a.workbench.AcknowledgePendingResume(a.session.ID, pending.Command.CommandID)
+				closeErr = errors.Join(closeErr, a.workbench.AcknowledgePendingResume(a.session.ID, pending.Command.CommandID))
 			}
+		} else {
+			closeErr = errors.Join(closeErr, err)
 		}
 	} else if cancelOpening {
-		a.cancelOpeningRunNow(ctx, pendingStart)
+		closeErr = errors.Join(closeErr, a.cancelOpeningRunNow(ctx, pendingStart))
 	}
 	a.transcript.Close()
 	if a.reader != nil {
@@ -718,6 +727,8 @@ func (a *app) Close(ctx context.Context) {
 		a.stopClock()
 		a.stopClock = nil
 	}
+	a.closeErr = closeErr
+	return closeErr
 }
 
 func (a *app) submit() {

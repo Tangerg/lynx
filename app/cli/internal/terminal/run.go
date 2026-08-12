@@ -123,7 +123,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 		Host:     cfg.Host,
 	})
 	if active != nil {
-		active.Close(ctx)
+		err = errors.Join(err, active.Close(ctx))
 	}
 	return err
 }

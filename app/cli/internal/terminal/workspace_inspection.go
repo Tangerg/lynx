@@ -632,7 +632,8 @@ func (monitor runtimeChangeMonitor) invalidatesFiles(event changefeed.Event) boo
 	switch event.Type {
 	case changefeed.EventType(changefeed.FilesChanged):
 		if event.WatchID != "" {
-			return event.WatchID == workspaceWatchID && event.Workspace == monitor.workspace
+			return event.WatchID == workspaceWatchID &&
+				(event.Workspace == "" || event.Workspace == monitor.workspace)
 		}
 		// Agent tool writes are broad file invalidations. They carry the
 		// affected workspace but no client watch identity, and must refresh the

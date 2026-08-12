@@ -198,7 +198,7 @@ func (a *app) rollbackSession(preview rollbackPreview) {
 				text, images := input.OpeningText()
 				if strings.TrimSpace(text) != "" {
 					a.restoreComposer(agent.Message{Text: text})
-					a.persistDraft()
+					_ = a.persistDraft()
 				}
 				if images > 0 {
 					a.message(fmt.Sprintf("rolled back %d runs; restored text, but %d inline images must be reattached", len(installation.result.Dropped), images))

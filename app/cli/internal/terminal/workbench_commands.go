@@ -23,7 +23,7 @@ func (a *app) stashPrompt() error {
 		return err
 	}
 	a.resetComposer()
-	a.persistDraft()
+	_ = a.persistDraft()
 	a.message("stashed prompt · " + stash.ID)
 	return nil
 }
@@ -52,7 +52,7 @@ func (a *app) applyPromptStash(identity string) error {
 		return err
 	}
 	a.restoreComposer(stash.Message)
-	a.persistDraft()
+	_ = a.persistDraft()
 	a.message("applied prompt stash · " + stash.ID)
 	return nil
 }

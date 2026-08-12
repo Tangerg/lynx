@@ -105,7 +105,7 @@ func (a *app) editPromptExternally() error {
 	}
 	message.Text = edited
 	a.restoreComposer(message)
-	a.persistDraft()
+	_ = a.persistDraft()
 	a.message("updated prompt from external editor")
 	return nil
 }
