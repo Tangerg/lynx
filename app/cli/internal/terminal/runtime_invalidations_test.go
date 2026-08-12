@@ -161,18 +161,25 @@ func TestRuntimeChangeMonitorBacksOffRepeatedEmptyStreams(t *testing.T) {
 		streamClosed: closed,
 		subscription: make(chan changefeed.Subscription, 8),
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 55*time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	monitor := runtimeChangeMonitor{
 		source:   source,
 		recovery: reconnect.Backoff{Base: 20 * time.Millisecond, Maximum: 40 * time.Millisecond},
 	}
+	done := make(chan error, 1)
+	started := time.Now()
+	go func() { done <- monitor.run(ctx) }()
 
-	if err := monitor.run(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("run error = %v, want deadline exceeded", err)
+	awaitSignal(t, source.subscription, "initial runtime subscription")
+	awaitSignal(t, source.subscription, "first replacement runtime subscription")
+	awaitSignal(t, source.subscription, "second replacement runtime subscription")
+	if elapsed := time.Since(started); elapsed < 55*time.Millisecond {
+		t.Fatalf("three empty streams retried after %s, before the cumulative backoff", elapsed)
 	}
-	if subscriptions := len(source.subscription); subscriptions != 2 {
-		t.Fatalf("subscriptions = %d, want two exponentially spaced attempts", subscriptions)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
 	}
 }
 
