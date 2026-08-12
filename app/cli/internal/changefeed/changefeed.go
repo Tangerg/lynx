@@ -161,6 +161,52 @@ func (subscription Subscription) Validate() error {
 	return nil
 }
 
+// ValidateEvent checks both the event shape and the delivery scope owned by
+// this subscription. Runtime events are invalidations, so accepting a frame
+// for an undeclared topic or watch can make an unrelated local projection look
+// authoritative.
+func (subscription Subscription) ValidateEvent(event Event) error {
+	if err := subscription.Validate(); err != nil {
+		return err
+	}
+	if err := event.Validate(); err != nil {
+		return err
+	}
+	if event.Type != Resync {
+		topic := Topic(event.Type)
+		if !slices.Contains(subscription.Topics, topic) {
+			return fmt.Errorf("change event topic %q is outside the subscription", topic)
+		}
+		if topic == FilesChanged && event.WatchID != "" {
+			watchIndex := slices.IndexFunc(subscription.Watches, func(watch Watch) bool {
+				return watch.ID == event.WatchID
+			})
+			if watchIndex < 0 {
+				return fmt.Errorf("file change watch %q is outside the subscription", event.WatchID)
+			}
+			if event.Workspace != "" && event.Workspace != subscription.Watches[watchIndex].Workspace {
+				return fmt.Errorf("file change watch %q names another workspace", event.WatchID)
+			}
+		}
+		return nil
+	}
+
+	for _, topic := range event.Topics {
+		if !slices.Contains(subscription.Topics, topic) {
+			return fmt.Errorf("resync topic %q is outside the subscription", topic)
+		}
+	}
+	if len(event.WatchIDs) > 0 && !slices.Contains(event.Topics, FilesChanged) {
+		return errors.New("resync watch scope requires the files.changed topic")
+	}
+	for _, watchID := range event.WatchIDs {
+		if !slices.ContainsFunc(subscription.Watches, func(watch Watch) bool { return watch.ID == watchID }) {
+			return fmt.Errorf("resync watch %q is outside the subscription", watchID)
+		}
+	}
+	return nil
+}
+
 type Event struct {
 	Type        EventType
 	Sequence    uint64
@@ -192,7 +238,10 @@ func (event Event) Validate() error {
 		return fmt.Errorf("change event type %q is invalid", event.Type)
 	}
 	if topic == FilesChanged {
-		if strings.TrimSpace(event.WatchID) == "" || strings.TrimSpace(event.Workspace) == "" || len(event.Paths) == 0 {
+		// Tool writes are broad invalidations and intentionally carry no watch ID.
+		// Watch-produced signals may add WatchID and Workspace so consumers can
+		// narrow the authoritative read, but neither is required by the protocol.
+		if len(event.Paths) == 0 {
 			return errors.New("file change event is incomplete")
 		}
 	}

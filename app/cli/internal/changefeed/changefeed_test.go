@@ -123,6 +123,93 @@ func TestEventDistinguishesInvalidationFromResync(t *testing.T) {
 	}
 }
 
+func TestEventAcceptsBroadFileInvalidations(t *testing.T) {
+	t.Parallel()
+	event := Event{
+		Type: EventType(FilesChanged), Sequence: 1,
+		Workspace: "/workspace", Paths: []string{"main.go"},
+	}
+	if err := event.Validate(); err != nil {
+		t.Fatalf("broad file invalidation: %v", err)
+	}
+	event.Paths = nil
+	if err := event.Validate(); err == nil {
+		t.Fatal("pathless file invalidation was accepted")
+	}
+}
+
+func TestSubscriptionRejectsEventsOutsideItsDeclaredScope(t *testing.T) {
+	t.Parallel()
+	subscription := Subscription{
+		Topics:  []Topic{FilesChanged, SessionsChanged},
+		Watches: []Watch{{ID: "active", Workspace: "/workspace"}},
+	}
+	tests := []struct {
+		name  string
+		event Event
+		want  string
+	}{
+		{
+			name: "broad file event", event: Event{
+				Type: EventType(FilesChanged), Sequence: 1,
+				Workspace: "/workspace", Paths: []string{"main.go"},
+			},
+		},
+		{
+			name: "owned watch", event: Event{
+				Type: EventType(FilesChanged), Sequence: 1, WatchID: "active",
+				Workspace: "/workspace", Paths: []string{"main.go"},
+			},
+		},
+		{
+			name: "foreign topic", want: "outside the subscription",
+			event: Event{Type: EventType(RunsChanged), Sequence: 1},
+		},
+		{
+			name: "foreign watch", want: "outside the subscription",
+			event: Event{
+				Type: EventType(FilesChanged), Sequence: 1, WatchID: "foreign",
+				Workspace: "/workspace", Paths: []string{"main.go"},
+			},
+		},
+		{
+			name: "watch workspace mismatch", want: "another workspace",
+			event: Event{
+				Type: EventType(FilesChanged), Sequence: 1, WatchID: "active",
+				Workspace: "/other", Paths: []string{"main.go"},
+			},
+		},
+		{
+			name: "foreign resync topic", want: "outside the subscription",
+			event: Event{Type: Resync, Sequence: 1, Topics: []Topic{RunsChanged}},
+		},
+		{
+			name: "foreign resync watch", want: "outside the subscription",
+			event: Event{
+				Type: Resync, Sequence: 1, Topics: []Topic{FilesChanged}, WatchIDs: []string{"foreign"},
+			},
+		},
+		{
+			name: "watch without file resync", want: "files.changed",
+			event: Event{
+				Type: Resync, Sequence: 1, Topics: []Topic{SessionsChanged}, WatchIDs: []string{"active"},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := subscription.ValidateEvent(test.event)
+			if test.want == "" && err != nil {
+				t.Fatalf("ValidateEvent: %v", err)
+			}
+			if test.want != "" && (err == nil || !strings.Contains(err.Error(), test.want)) {
+				t.Fatalf("ValidateEvent = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestStateChangeRequiresTheProjectionThisClientOwns(t *testing.T) {
 	t.Parallel()
 	event := Event{Type: EventType(StateChanged), Sequence: 1, StateKey: StatePlan}

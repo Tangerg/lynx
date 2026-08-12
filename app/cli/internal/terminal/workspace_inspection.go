@@ -631,7 +631,13 @@ func (monitor runtimeChangeMonitor) resync(topics []changefeed.Topic) error {
 func (monitor runtimeChangeMonitor) invalidatesFiles(event changefeed.Event) bool {
 	switch event.Type {
 	case changefeed.EventType(changefeed.FilesChanged):
-		return event.WatchID == workspaceWatchID && event.Workspace == monitor.workspace
+		if event.WatchID != "" {
+			return event.WatchID == workspaceWatchID && event.Workspace == monitor.workspace
+		}
+		// Agent tool writes are broad file invalidations. They carry the
+		// affected workspace but no client watch identity, and must refresh the
+		// same authoritative projection as a watch-produced signal.
+		return event.Workspace == "" || event.Workspace == monitor.workspace
 	case changefeed.Resync:
 		return containsTopic(event.Topics, changefeed.FilesChanged) || containsString(event.WatchIDs, workspaceWatchID)
 	default:

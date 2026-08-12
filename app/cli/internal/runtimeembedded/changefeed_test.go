@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"iter"
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -55,6 +56,92 @@ func TestChangefeedAdapterNegotiatesAndProjectsRuntimeEvents(t *testing.T) {
 	}
 	if !stub.called || len(stub.request.Watches) != 1 || stub.request.Watches[0].WatchID != "active" {
 		t.Fatalf("request = %+v", stub.request)
+	}
+}
+
+func TestChangefeedAdapterProjectsBroadFileInvalidations(t *testing.T) {
+	t.Parallel()
+	workspaceRef := protocol.WorkspaceRef{Path: "/workspace"}
+	stub := &changeBindingStub{events: func(yield func(protocol.RuntimeEvent, error) bool) {
+		yield(protocol.RuntimeEvent{
+			Type: protocol.RuntimeFilesChanged, Sequence: 1,
+			Workspace: &workspaceRef, Paths: []string{"main.go"},
+		}, nil)
+	}}
+	runtime := &Runtime{
+		changes: stub, meta: requestMeta("test"),
+		profile: changefeedProfile(changefeed.FilesChanged),
+	}
+	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{
+		Topics: []changefeed.Topic{changefeed.FilesChanged},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event, eventErr := range stream {
+		if eventErr != nil {
+			t.Fatal(eventErr)
+		}
+		if event.WatchID != "" || event.Workspace != "/workspace" || !slices.Equal(event.Paths, []string{"main.go"}) {
+			t.Fatalf("broad file event = %+v", event)
+		}
+		return
+	}
+	t.Fatal("broad file stream yielded no event")
+}
+
+func TestChangefeedAdapterRejectsEventsOutsideTheSubscription(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		subscription changefeed.Subscription
+		event        protocol.RuntimeEvent
+	}{
+		{
+			name:         "topic",
+			subscription: changefeed.Subscription{Topics: []changefeed.Topic{changefeed.SessionsChanged}},
+			event:        protocol.RuntimeEvent{Type: protocol.RuntimeRunsChanged, Sequence: 1},
+		},
+		{
+			name: "watch",
+			subscription: changefeed.Subscription{
+				Topics:  []changefeed.Topic{changefeed.FilesChanged},
+				Watches: []changefeed.Watch{{ID: "active", Workspace: "/workspace"}},
+			},
+			event: protocol.RuntimeEvent{
+				Type: protocol.RuntimeFilesChanged, Sequence: 1,
+				WatchID: "foreign", Paths: []string{"main.go"},
+			},
+		},
+		{
+			name:         "resync",
+			subscription: changefeed.Subscription{Topics: []changefeed.Topic{changefeed.SessionsChanged}},
+			event: protocol.RuntimeEvent{
+				Type: protocol.RuntimeResync, Sequence: 1,
+				Topics: []protocol.RuntimeTopic{protocol.TopicRunsChanged},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			stub := &changeBindingStub{events: func(yield func(protocol.RuntimeEvent, error) bool) {
+				yield(test.event, nil)
+			}}
+			runtime := &Runtime{
+				changes: stub, meta: requestMeta("test"),
+				profile: changefeedProfile(changefeed.FilesChanged, changefeed.SessionsChanged, changefeed.RunsChanged),
+			}
+			stream, err := runtime.Subscribe(t.Context(), test.subscription)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, eventErr := range stream {
+				requireRuntimeContractViolation(t, eventErr)
+				return
+			}
+			t.Fatal("out-of-scope stream yielded no error")
+		})
 	}
 }
 

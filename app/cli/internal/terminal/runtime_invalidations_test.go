@@ -1047,6 +1047,63 @@ func TestRuntimeChangeMonitorRefreshesFilesOnceForASequenceGap(t *testing.T) {
 	}
 }
 
+func TestRuntimeChangeMonitorRefreshesFilesForBroadWorkspaceInvalidations(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	service := newWorkspaceServiceStub()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 2), subscription: make(chan changefeed.Subscription, 1),
+		supported: []changefeed.Topic{changefeed.FilesChanged},
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.FilesChanged), Sequence: 1,
+		Workspace: "/other", Paths: []string{"foreign.go"},
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.FilesChanged), Sequence: 2,
+		Workspace: "/workspace", Paths: []string{"main.go"},
+	}
+	applied := 0
+	monitor := runtimeChangeMonitor{
+		workspace: "/workspace", repository: service, source: source, watchFiles: true,
+		applyFiles: func([]workspace.Change) error {
+			applied++
+			if applied == 2 {
+				cancel()
+			}
+			return nil
+		},
+	}
+	monitor.run(ctx)
+	if reads := service.callCount("changes"); reads != 2 || applied != 2 {
+		t.Fatalf("workspace reads/applies = %d/%d, want initial plus current-workspace broad invalidation", reads, applied)
+	}
+}
+
+func TestRuntimeChangeMonitorTreatsAnUnscopedFileInvalidationAsBroad(t *testing.T) {
+	t.Parallel()
+	monitor := runtimeChangeMonitor{workspace: "/workspace"}
+	tests := []struct {
+		name  string
+		event changefeed.Event
+		want  bool
+	}{
+		{name: "global broad", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged)}, want: true},
+		{name: "current broad", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), Workspace: "/workspace"}, want: true},
+		{name: "foreign broad", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), Workspace: "/other"}},
+		{name: "current watch", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), WatchID: workspaceWatchID, Workspace: "/workspace"}, want: true},
+		{name: "foreign watch", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged), WatchID: "other", Workspace: "/workspace"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := monitor.invalidatesFiles(test.event); got != test.want {
+				t.Fatalf("invalidatesFiles(%+v) = %t, want %t", test.event, got, test.want)
+			}
+		})
+	}
+}
+
 func TestRuntimeChangeMonitorAppliesAContiguousScopedResync(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()

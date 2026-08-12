@@ -67,7 +67,7 @@ func (r *Runtime) Subscribe(ctx context.Context, subscription changefeed.Subscri
 				return
 			}
 			projected := projectRuntimeEvent(event)
-			if err := projected.Validate(); err != nil {
+			if err := subscription.ValidateEvent(projected); err != nil {
 				yield(changefeed.Event{}, runtimeContractViolation("runtime change event cannot be projected: %v", err))
 				return
 			}
