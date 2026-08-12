@@ -91,7 +91,7 @@ func TestStorePreservesCachedDraftWhenDurableDeletionFails(t *testing.T) {
 	if err := store.SaveDraft(sessionID, want); err != nil {
 		t.Fatal(err)
 	}
-	draftPath := store.path(store.draftName(sessionID))
+	draftPath := store.path(store.sessionStateName(sessionID))
 	if err := os.Remove(draftPath); err != nil {
 		t.Fatal(err)
 	}
@@ -141,5 +141,73 @@ func TestStoreRejectsUnknownOnDiskFormat(t *testing.T) {
 	}
 	if _, err := Open(directory, Config{}); err == nil {
 		t.Fatal("unknown format was accepted")
+	}
+}
+
+func TestStorePersistsAndAcknowledgesPendingRunsByCommandIdentity(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commandID := agent.CommandID("cli_0123456789abcdef0123456789abcdef")
+	pending := agent.StartRun{
+		CommandID: commandID, SessionID: "ses_1", Message: agent.Message{Text: "recover this start"},
+		Options: agent.RunOptions{Provider: "deepseek", Model: "deepseek-v4-flash", Generation: agent.GenerationParams{Stop: []string{"done"}}},
+	}
+	if err := store.SaveDraft("ses_1", pending.Message); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: pending}); err != nil {
+		t.Fatal(err)
+	}
+	pending.Message.Text = "mutated"
+	pending.Options.Generation.Stop[0] = "mutated"
+
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored := reopened.PendingRuns("ses_1")
+	if len(restored) != 1 || restored[0].State != PendingRunDispatching || restored[0].Command.Message.Text != "recover this start" || restored[0].Command.Options.Generation.Stop[0] != "done" {
+		t.Fatalf("restored pending runs = %+v", restored)
+	}
+	if err := reopened.AcknowledgePendingRun("ses_1", agent.CommandID("cli_ffffffffffffffffffffffffffffffff")); err == nil {
+		t.Fatal("mismatched acknowledgement removed pending run")
+	}
+	if len(reopened.PendingRuns("ses_1")) != 1 {
+		t.Fatal("mismatched acknowledgement removed pending run")
+	}
+	if err := reopened.AcknowledgePendingRun("ses_1", commandID); err != nil {
+		t.Fatal(err)
+	}
+	if len(reopened.PendingRuns("ses_1")) != 0 {
+		t.Fatal("acknowledged pending run remains")
+	}
+}
+
+func TestRejectedDispatchRequeuesWithANewCommandIdentity(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := agent.CommandID("cli_11111111111111111111111111111111")
+	command := agent.StartRun{
+		CommandID: original, SessionID: "ses_1", Message: agent.Message{Text: "wait behind active run"},
+	}
+	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: command}); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := store.RequeuePendingRun(command.SessionID, original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replacement == original || replacement.Validate() != nil {
+		t.Fatalf("replacement command id = %q", replacement)
+	}
+	pending := store.PendingRuns(command.SessionID)
+	if len(pending) != 1 || pending[0].State != PendingRunQueued ||
+		pending[0].Command.CommandID != replacement || !pending[0].Command.Message.Equal(command.Message) {
+		t.Fatalf("requeued command = %+v", pending)
 	}
 }

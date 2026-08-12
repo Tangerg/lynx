@@ -15,15 +15,21 @@ func (a *app) ShowHooks() {
 		a.message("this runtime composition has no hook service")
 		return
 	}
+	a.executeRuntimeReaderQuery(a.hooksReaderQuery())
+}
+
+func (a *app) hooksReaderQuery() runtimeReaderQuery {
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading lifecycle hooks", runtimeReaderHooks,
-		func(ctx context.Context) (readerDocument, error) {
+	return runtimeReaderQuery{
+		status: "loading lifecycle hooks", mode: runtimeReaderHooks,
+		read: func(ctx context.Context) (readerDocument, error) {
 			catalog, err := a.hooks.Catalog(ctx, workspace)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return hooksDocument(workspace, catalog), nil
-		})
+		},
+	}
 }
 
 func hooksDocument(workspace string, catalog hookpolicy.Catalog) readerDocument {

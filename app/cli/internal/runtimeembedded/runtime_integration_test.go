@@ -104,7 +104,15 @@ func requireContextManagement(t *testing.T, runtime *Runtime, workspace string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := services.Knowledge.Save(t.Context(), target, "# Integration knowledge\n"); err != nil {
+	before, err := services.Knowledge.Document(t.Context(), target)
+	if err != nil {
+		t.Fatalf("read knowledge before save: %v", err)
+	}
+	update, err := before.Revise(target, "# Integration knowledge\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := services.Knowledge.Save(t.Context(), update); err != nil {
 		t.Fatalf("Save knowledge: %v", err)
 	}
 	document, err := services.Knowledge.Document(t.Context(), target)

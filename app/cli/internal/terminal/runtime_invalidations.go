@@ -18,6 +18,8 @@ func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 	a.refreshSkillReader(changefeed.Topic(event.Type) == changefeed.SkillsChanged)
 	a.refreshMCPReader(changefeed.Topic(event.Type) == changefeed.MCPChanged)
 	a.refreshScheduleReader(changefeed.Topic(event.Type) == changefeed.SchedulesChanged)
+	a.refreshKnowledgeReader(changefeed.Topic(event.Type) == changefeed.KnowledgeChanged)
+	a.refreshHooksReader(changefeed.Topic(event.Type) == changefeed.HooksChanged)
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(event),
 		invalidationAffectsSession(event, a.session.ID, a.conversation.RunID()),
@@ -29,10 +31,29 @@ func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
 	a.refreshSkillReader(containsTopic(topics, changefeed.SkillsChanged))
 	a.refreshMCPReader(containsTopic(topics, changefeed.MCPChanged))
 	a.refreshScheduleReader(containsTopic(topics, changefeed.SchedulesChanged))
+	a.refreshKnowledgeReader(containsTopic(topics, changefeed.KnowledgeChanged))
+	a.refreshHooksReader(containsTopic(topics, changefeed.HooksChanged))
 	a.applySessionInvalidation(
 		containsTopic(topics, changefeed.SessionsChanged),
 		resyncAffectsSession(topics),
 	)
+}
+
+func (a *app) refreshKnowledgeReader(affected bool) {
+	if !affected || a.knowledge == nil || a.runtimeReader != runtimeReaderKnowledge || !a.readerDialog.Open() {
+		return
+	}
+	if a.runtimeSelection.knowledgeEntry {
+		a.refreshRuntimeReader(a.knowledgeDocumentReaderQuery(a.runtimeSelection.knowledgeTarget))
+		return
+	}
+	a.refreshRuntimeReader(a.knowledgeEntriesReaderQuery())
+}
+
+func (a *app) refreshHooksReader(affected bool) {
+	if affected && a.hooks != nil && a.runtimeReader == runtimeReaderHooks && a.readerDialog.Open() {
+		a.refreshRuntimeReader(a.hooksReaderQuery())
+	}
 }
 
 func (a *app) refreshScheduleReader(affected bool) {

@@ -59,6 +59,9 @@ func (r Policy) Next(n int, err error) (time.Duration, bool) {
 		}
 		delay *= 2
 	}
+	if errors.Is(err, agent.ErrCommandInProgress) {
+		delay = max(delay, time.Second)
+	}
 	return min(delay, maximum), true
 }
 
@@ -79,5 +82,5 @@ func Wait(ctx context.Context, delay time.Duration) error {
 // Retryable reports whether retrying can repair the classified transport
 // failure. Business, validation, and compatibility errors are permanent.
 func Retryable(err error) bool {
-	return errors.Is(err, agent.ErrDisconnected)
+	return errors.Is(err, agent.ErrDisconnected) || errors.Is(err, agent.ErrCommandInProgress)
 }

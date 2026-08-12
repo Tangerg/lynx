@@ -85,9 +85,16 @@ type ApprovalCatalog interface {
 }
 
 type StartRun struct {
+	CommandID CommandID
 	SessionID string
 	Message   Message
 	Options   RunOptions
+}
+
+func (r StartRun) Clone() StartRun {
+	r.Message = r.Message.Clone()
+	r.Options = r.Options.Clone()
+	return r
 }
 
 // SubscribeRun rebinds one exact segment. AfterEventID is an opaque checkpoint
@@ -106,12 +113,14 @@ type InterruptAnswer struct {
 }
 
 type ResumeRun struct {
-	RunID   string
-	Answers []InterruptAnswer
-	Message *Message
+	CommandID CommandID
+	RunID     string
+	Answers   []InterruptAnswer
+	Message   *Message
 }
 
 type CancelRun struct {
-	RunID  string
-	Reason string
+	CommandID CommandID
+	RunID     string
+	Reason    string
 }

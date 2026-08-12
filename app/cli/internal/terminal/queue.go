@@ -13,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 const (
@@ -101,8 +102,9 @@ func countedNoun(count int, noun string) string {
 	return fmt.Sprintf("%d %ss", count, noun)
 }
 
-func (a *app) enqueueFollowUp(message agent.Message) {
-	if _, err := a.queue.Enqueue(a.session.ID, message); err != nil {
+func (a *app) enqueueFollowUp(commandID agent.CommandID, message agent.Message) {
+	_, err := a.queue.EnqueueCommand(commandID, a.session.ID, message, a.options)
+	if err != nil {
 		a.message(err.Error())
 		return
 	}
@@ -124,7 +126,7 @@ func (a *app) drainQueue() bool {
 	}
 	a.dispatchingQueueEntry = entry.ID
 	a.syncQueue()
-	if !a.startRun(entry.Message, "starting queued follow-up") {
+	if !a.startRun(entry.CommandID, entry.Message, entry.Options, "starting queued follow-up") {
 		a.dispatchingQueueEntry = 0
 		a.syncQueue()
 		return false
@@ -136,7 +138,11 @@ func (a *app) commitQueuedDispatch() {
 	if a.dispatchingQueueEntry == 0 {
 		return
 	}
-	_, _ = a.queue.Remove(a.session.ID, a.dispatchingQueueEntry)
+	_, err := a.queue.Remove(a.session.ID, a.dispatchingQueueEntry)
+	if err != nil {
+		a.message(err.Error())
+		return
+	}
 	a.dispatchingQueueEntry = 0
 	a.syncQueue()
 }
@@ -173,6 +179,70 @@ func (a *app) syncQueue() promptqueue.Snapshot {
 		}
 	}
 	return snapshot
+}
+
+func (a *app) persistQueuedRuns() error {
+	if a.workbench == nil {
+		return nil
+	}
+	entries := a.queue.Snapshot(a.session.ID).Entries
+	persisted := a.workbench.PendingRuns(a.session.ID)
+	commands := make([]workbench.PendingRun, 0, len(entries))
+	for _, entry := range entries {
+		state := workbench.PendingRunQueued
+		if entry.ID == a.dispatchingQueueEntry {
+			pending, ok := pendingRunByCommandID(persisted, entry.CommandID)
+			if !ok {
+				// StartRun was already acknowledged. The UI queue retains the
+				// entry until SegmentStarted arrives, but it no longer belongs in
+				// the durable authoring outbox.
+				continue
+			}
+			state = pending.State
+		}
+		commands = append(commands, workbench.PendingRun{
+			State: workbench.PendingRunQueued,
+			Command: agent.StartRun{
+				CommandID: entry.CommandID, SessionID: entry.SessionID,
+				Message: entry.Message.Clone(), Options: entry.Options.Clone(),
+			},
+		})
+		commands[len(commands)-1].State = state
+	}
+	return a.workbench.SavePendingRuns(a.session.ID, commands)
+}
+
+// commitQueueMutation keeps the in-memory queue and durable authoring outbox
+// on the same side of every edit. Runtime control starts only after this
+// transaction succeeds, so a failed disk write cannot silently change FIFO
+// order, content, or command identity for the live process alone.
+func (a *app) commitQueueMutation(mutate func() error) error {
+	before := a.queue.Snapshot(a.session.ID)
+	if err := mutate(); err != nil {
+		return a.rollbackQueueMutation(before, err)
+	}
+	if err := a.persistQueuedRuns(); err != nil {
+		return a.rollbackQueueMutation(before, err)
+	}
+	a.syncQueue()
+	return nil
+}
+
+func (a *app) rollbackQueueMutation(before promptqueue.Snapshot, cause error) error {
+	if err := a.queue.RestoreSnapshot(a.session.ID, before); err != nil {
+		return errors.Join(cause, fmt.Errorf("restore prompt queue: %w", err))
+	}
+	a.syncQueue()
+	return cause
+}
+
+func pendingRunByCommandID(pending []workbench.PendingRun, commandID agent.CommandID) (workbench.PendingRun, bool) {
+	for _, candidate := range pending {
+		if candidate.Command.CommandID == commandID {
+			return candidate, true
+		}
+	}
+	return workbench.PendingRun{}, false
 }
 
 func (a *app) ShowQueue() {
@@ -223,13 +293,14 @@ func (a *app) saveQueuedPrompt(entry promptqueue.Entry, message agent.Message, s
 	if entry.ID == a.dispatchingQueueEntry {
 		return errQueuedPromptDispatching
 	}
-	if err := a.queue.Update(entry.SessionID, entry.ID, message); err != nil {
+	if err := a.commitQueueMutation(func() error {
+		if err := a.queue.Update(entry.SessionID, entry.ID, message); err != nil {
+			return err
+		}
+		return a.queue.Release(entry.SessionID, entry.ID)
+	}); err != nil {
 		return err
 	}
-	if err := a.queue.Release(entry.SessionID, entry.ID); err != nil {
-		return err
-	}
-	a.syncQueue()
 	if sendNow {
 		return a.sendQueuedNow(entry.ID)
 	}
@@ -253,10 +324,13 @@ func (a *app) removeQueuedPrompt(id uint64) error {
 	if id == a.dispatchingQueueEntry {
 		return errQueuedPromptDispatching
 	}
-	if _, err := a.queue.Remove(a.session.ID, id); err != nil {
+	if err := a.commitQueueMutation(func() error {
+		_, err := a.queue.Remove(a.session.ID, id)
+		return err
+	}); err != nil {
 		return err
 	}
-	snapshot := a.syncQueue()
+	snapshot := a.queue.Snapshot(a.session.ID)
 	if len(snapshot.Entries) == 0 {
 		a.message("queue is empty")
 	}
@@ -267,10 +341,11 @@ func (a *app) moveQueuedPrompt(id uint64, offset int) error {
 	if id == a.dispatchingQueueEntry {
 		return errQueuedPromptDispatching
 	}
-	if err := a.queue.Move(a.session.ID, id, offset); err != nil {
+	if err := a.commitQueueMutation(func() error {
+		return a.queue.Move(a.session.ID, id, offset)
+	}); err != nil {
 		return err
 	}
-	a.syncQueue()
 	return nil
 }
 
@@ -284,10 +359,11 @@ func (a *app) sendQueuedNow(id uint64) error {
 	if a.operations.Active(sessionChangeOperation) {
 		return errors.New("wait for the current session change to finish")
 	}
-	if err := a.queue.Promote(a.session.ID, id); err != nil {
+	if err := a.commitQueueMutation(func() error {
+		return a.queue.Promote(a.session.ID, id)
+	}); err != nil {
 		return err
 	}
-	a.syncQueue()
 	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 		a.cancel()
 		return nil

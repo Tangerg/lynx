@@ -105,6 +105,7 @@ type Message struct {
 // SteerRun injects an instruction only into the exact running segment the user
 // is currently observing. A stale segment must be rejected, never retargeted.
 type SteerRun struct {
+	CommandID CommandID
 	RunID     string
 	SegmentID string
 	Message   Message
@@ -177,6 +178,20 @@ type GenerationParams struct {
 	MaxTokens   *int64
 	TopP        *float64
 	Stop        []string
+}
+
+func (options RunOptions) Clone() RunOptions {
+	if options.Generation.Temperature != nil {
+		options.Generation.Temperature = new(*options.Generation.Temperature)
+	}
+	if options.Generation.MaxTokens != nil {
+		options.Generation.MaxTokens = new(*options.Generation.MaxTokens)
+	}
+	if options.Generation.TopP != nil {
+		options.Generation.TopP = new(*options.Generation.TopP)
+	}
+	options.Generation.Stop = slices.Clone(options.Generation.Stop)
+	return options
 }
 
 type Model struct {

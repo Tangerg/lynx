@@ -332,11 +332,16 @@ func (a *app) resumeInteractions() {
 		return
 	}
 	runID := a.conversation.RunID()
+	commandID, err := agent.NewCommandID()
+	if err != nil {
+		a.fail(err)
+		return
+	}
 	a.interactionReview = nil
 	a.status.active("resuming")
 	a.syncAnimation()
 	a.follow(func(ctx context.Context) (agent.SegmentStream, error) {
-		stream, err := a.runtime.ResumeRun(ctx, agent.ResumeRun{RunID: runID, Answers: answers})
+		stream, err := a.runtime.ResumeRun(ctx, agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers})
 		if err != nil {
 			return agent.SegmentStream{}, err
 		}

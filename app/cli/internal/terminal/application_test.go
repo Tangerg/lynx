@@ -140,6 +140,14 @@ type delayedFirstRuntime struct {
 	starts atomic.Int32
 }
 
+type replayingResumeRuntime struct {
+	*mock.Runtime
+
+	mu       sync.Mutex
+	attempts []agent.ResumeRun
+	stream   agent.SegmentStream
+}
+
 type recordingRuntime struct {
 	*mock.Runtime
 
@@ -315,6 +323,31 @@ func (r *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun
 	return r.Runtime.StartRun(ctx, input)
 }
 
+func (r *replayingResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	r.mu.Lock()
+	r.attempts = append(r.attempts, input)
+	attempt := len(r.attempts)
+	cached := r.stream
+	r.mu.Unlock()
+	if attempt == 1 {
+		continued, err := r.Runtime.ResumeRun(ctx, input)
+		if err != nil {
+			return agent.SegmentStream{}, err
+		}
+		r.mu.Lock()
+		r.stream = continued
+		r.mu.Unlock()
+		return agent.SegmentStream{}, fmt.Errorf("lost resume acknowledgement: %w", agent.ErrDisconnected)
+	}
+	return cached, nil
+}
+
+func (r *replayingResumeRuntime) resumeAttempts() []agent.ResumeRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.attempts)
+}
+
 func TestMockConversationStreamsApprovalAndCompletes(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
@@ -342,6 +375,25 @@ func TestMockConversationStreamsApprovalAndCompletes(t *testing.T) {
 	host.Hides(t, "failed:")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestApprovalResumeRetriesTheSameMutationIdentity(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	runtime := &replayingResumeRuntime{Runtime: base}
+	host, stop := runUIWith(t, runtime)
+	host.Shows(t, "Ask lyra")
+	host.Type("approval retry")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+
+	attempts := runtime.resumeAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID {
+		t.Fatalf("resume attempts = %+v", attempts)
+	}
 	stop()
 }
 
@@ -1323,7 +1375,7 @@ func TestSessionChangeDoesNotInstallAfterAnInFlightDraftSaveFailure(t *testing.T
 	}
 	host.Shows(t, "creating session in /tmp/demo/store")
 
-	draftsDirectory := filepath.Join(stateDirectory, "drafts")
+	draftsDirectory := filepath.Join(stateDirectory, "sessions")
 	entries, err := os.ReadDir(draftsDirectory)
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("draft files = %d, %v", len(entries), err)
@@ -1556,7 +1608,8 @@ func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
 
 	host.Type("ask again")
 	host.Press(input.Enter)
-	host.Shows(t, "Choose a strategy")
+	host.Shows(t, "waiting for your answers")
+	showsPlain(t, host, "╭─Choose a strategy")
 	host.Press(input.Esc)
 	host.Shows(t, "canceled")
 
@@ -1818,8 +1871,8 @@ func TestSessionChangeStopsBeforeMutationWhenTheSourceDraftCannotBeSaved(t *test
 	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
 	host.Shows(t, "durable prefix")
 
-	draftsDirectory := filepath.Join(stateDirectory, "drafts")
-	backupDirectory := filepath.Join(stateDirectory, "drafts-backup")
+	draftsDirectory := filepath.Join(stateDirectory, "sessions")
+	backupDirectory := filepath.Join(stateDirectory, "sessions-backup")
 	if err := os.Rename(draftsDirectory, backupDirectory); err != nil {
 		t.Fatal(err)
 	}
@@ -1857,7 +1910,7 @@ func TestSessionChangeStopsBeforeMutationWhenTheSourceDraftCannotBeSaved(t *test
 	stop()
 }
 
-func TestPromptSubmissionStopsBeforeRuntimeWhenTheDraftCannotBeRetired(t *testing.T) {
+func TestPromptSubmissionStopsBeforeRuntimeWhenTheOutboxCannotBeSaved(t *testing.T) {
 	base := mock.New()
 	backend := &recordingRuntime{Runtime: base}
 	stateDirectory := t.TempDir()
@@ -1871,7 +1924,7 @@ func TestPromptSubmissionStopsBeforeRuntimeWhenTheDraftCannotBeRetired(t *testin
 	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
 	host.Shows(t, "must remain editable")
 
-	draftsDirectory := filepath.Join(stateDirectory, "drafts")
+	draftsDirectory := filepath.Join(stateDirectory, "sessions")
 	entries, err := os.ReadDir(draftsDirectory)
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("draft files = %d, %v", len(entries), err)
@@ -1889,7 +1942,7 @@ func TestPromptSubmissionStopsBeforeRuntimeWhenTheDraftCannotBeRetired(t *testin
 	}
 
 	host.Press(input.Enter)
-	host.Shows(t, "prompt submission blocked: save cleared draft")
+	host.Shows(t, "prompt submission blocked: save pending run")
 	host.Shows(t, "must remain editable")
 	if got := backend.startCount(); got != 0 {
 		t.Fatalf("runtime started %d runs after draft retirement failed", got)
@@ -1907,7 +1960,7 @@ func TestPromptSubmissionStopsBeforeRuntimeWhenTheDraftCannotBeRetired(t *testin
 	stop()
 }
 
-func TestPromptSubmissionStopsBeforeRuntimeWhenHistoryCannotBeSaved(t *testing.T) {
+func TestPromptSubmissionCommitsHistoryOnlyAfterRuntimeAcknowledgement(t *testing.T) {
 	base := mock.New()
 	backend := &recordingRuntime{Runtime: base}
 	stateDirectory := t.TempDir()
@@ -1920,21 +1973,20 @@ func TestPromptSubmissionStopsBeforeRuntimeWhenHistoryCannotBeSaved(t *testing.T
 	}
 	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
 	host.Shows(t, "history must commit first")
-	if err := os.Mkdir(filepath.Join(stateDirectory, "history.json"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(stateDirectory, "history.json", "blocker"), []byte("block replacement"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	host.Press(input.Enter)
-	host.Shows(t, "prompt submission blocked: save prompt history")
-	host.Shows(t, "history must commit first")
-	if got := backend.startCount(); got != 0 {
-		t.Fatalf("runtime started %d runs after history persistence failed", got)
+	host.Shows(t, "Tool approval")
+	if got := backend.startCount(); got != 1 {
+		t.Fatalf("runtime started %d runs, want one", got)
 	}
-	draft, found, err := store.Draft("ses_demo_1")
-	if err != nil || !found || draft.Text != "history must commit first" {
-		t.Fatalf("draft after failed history save = %+v, found %t, error %v", draft, found, err)
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history := reopened.History(); len(history) != 1 || history[0].Text != "history must commit first" {
+		t.Fatalf("history after runtime acknowledgement = %+v", history)
+	}
+	if draft, found, err := reopened.Draft("ses_demo_1"); err != nil || found {
+		t.Fatalf("draft after runtime acknowledgement = %+v, found %t, error %v", draft, found, err)
 	}
 	stop()
 }
@@ -2650,11 +2702,14 @@ func TestCancelingARunSettlesItsLiveToolProjection(t *testing.T) {
 func TestCancelBeforeRunIdentityDoesNotBlockTheNextRun(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true
-	host, stop := runUIWith(t, &delayedFirstRuntime{Runtime: backend})
+	runtime := &delayedFirstRuntime{Runtime: backend}
+	host, stop := runUIWith(t, runtime)
 	host.Shows(t, "Ask lyra")
 	host.Type("first request waits before returning a stream")
 	host.Press(input.Enter)
-	host.Shows(t, "starting run")
+	host.Until(t, "the first runtime handshake to block", func() bool {
+		return runtime.starts.Load() == 1 && host.Repaint()
+	})
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	host.Shows(t, "canceled")
 

@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
+	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
@@ -210,6 +212,34 @@ func TestHookAuditAndTrustRequireResizeSafeConfirmation(t *testing.T) {
 		t.Fatal("project trust was not enabled")
 	}
 	host.Shows(t, "project trust true")
+	stop()
+}
+
+func TestHookChangeConvergesTheOpenAuditProjection(t *testing.T) {
+	hooks := &hookServiceStub{changed: make(chan bool, 1)}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1), supported: []changefeed.Topic{changefeed.HooksChanged},
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", Hooks: hooks, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	subscription := awaitValue(t, source.subscription, "hook change subscription")
+	if !slices.Equal(subscription.Topics, []changefeed.Topic{changefeed.HooksChanged}) {
+		t.Fatalf("hook subscription = %v", subscription.Topics)
+	}
+	host.Type("/hooks")
+	host.Press(input.Enter)
+	host.Shows(t, "project trust false")
+
+	if err := hooks.SetProjectTrust(t.Context(), "/workspace", true); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.HooksChanged), Sequence: 1}
+	awaitValue(t, source.applied, "hook invalidation")
+	host.Shows(t, "project trust true")
+	host.Shows(t, "PreToolUse · active")
 	stop()
 }
 

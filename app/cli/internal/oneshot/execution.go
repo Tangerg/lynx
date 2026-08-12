@@ -45,12 +45,18 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	if invocation.Renderer == nil {
 		return errors.New("one-shot run requires a renderer")
 	}
+	if invocation.Start.CommandID == "" {
+		invocation.Start.CommandID, runErr = agent.NewCommandID()
+		if runErr != nil {
+			return runErr
+		}
+	}
 	if err := invocation.Start.Validate(); err != nil {
 		return err
 	}
 	defer func() { runErr = errors.Join(runErr, invocation.Renderer.Close()) }()
 
-	opened, err := invocation.Runtime.StartRun(ctx, invocation.Start)
+	opened, err := openRun(ctx, invocation.Runtime, invocation.Start, reconnect.New(invocation.ReconnectAttempts))
 	if err != nil {
 		return err
 	}
@@ -84,6 +90,22 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	return err
 }
 
+func openRun(ctx context.Context, runtime Runtime, command agent.StartRun, policy reconnect.Policy) (agent.SegmentStream, error) {
+	for attempt := 1; ; attempt++ {
+		opened, err := runtime.StartRun(ctx, command)
+		if err == nil {
+			return opened, nil
+		}
+		delay, retry := policy.Next(attempt, err)
+		if !retry {
+			return agent.SegmentStream{}, err
+		}
+		if err := reconnect.Wait(ctx, delay); err != nil {
+			return agent.SegmentStream{}, err
+		}
+	}
+}
+
 type cancellationWatcher struct {
 	exit chan bool
 	done chan struct{}
@@ -101,9 +123,13 @@ func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, runID st
 		if !shouldCancel {
 			return
 		}
+		commandID, err := agent.NewCommandID()
+		if err != nil {
+			return
+		}
 		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancellationTimeout)
 		defer cancel()
-		_, _ = runtime.CancelRun(cancelCtx, agent.CancelRun{RunID: runID, Reason: "CLI execution ended before the run settled"})
+		_, _ = runtime.CancelRun(cancelCtx, agent.CancelRun{CommandID: commandID, RunID: runID, Reason: "CLI execution ended before the run settled"})
 	}()
 	return watcher
 }
@@ -172,9 +198,24 @@ func (d *executionDriver) resume(ctx context.Context, interactions []agent.Inter
 	if err != nil {
 		return err
 	}
-	continued, err := d.invocation.Runtime.ResumeRun(ctx, agent.ResumeRun{RunID: runID, Answers: answers})
+	commandID, err := agent.NewCommandID()
 	if err != nil {
 		return err
+	}
+	command := agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers}
+	var continued agent.SegmentStream
+	for attempt := 1; ; attempt++ {
+		continued, err = d.invocation.Runtime.ResumeRun(ctx, command)
+		if err == nil {
+			break
+		}
+		delay, retry := d.policy.Next(attempt, err)
+		if !retry {
+			return err
+		}
+		if err := reconnect.Wait(ctx, delay); err != nil {
+			return err
+		}
 	}
 	if err := validateContinuation(continued, d.openedRunID); err != nil {
 		return err

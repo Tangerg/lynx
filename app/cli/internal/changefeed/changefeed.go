@@ -24,6 +24,8 @@ const (
 	StateChanged      Topic = "state.changed"
 	GoalsChanged      Topic = "goals.changed"
 	InterruptsChanged Topic = "interrupts.changed"
+	KnowledgeChanged  Topic = "knowledge.changed"
+	HooksChanged      Topic = "hooks.changed"
 )
 
 // Topics returns the complete change vocabulary understood by this client.
@@ -40,6 +42,8 @@ func Topics() []Topic {
 		StateChanged,
 		GoalsChanged,
 		InterruptsChanged,
+		KnowledgeChanged,
+		HooksChanged,
 	}
 }
 

@@ -9,6 +9,7 @@ type operationSlot string
 
 const (
 	streamOperation              operationSlot = "stream"
+	pendingRunRecoveryOperation  operationSlot = "pending-run-recovery"
 	completionOperation          operationSlot = "completion"
 	searchOperation              operationSlot = "search"
 	readerSearchOperation        operationSlot = "reader-search"

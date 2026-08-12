@@ -64,6 +64,7 @@ func (target Target) Validate() error {
 type Entry struct {
 	Scope     Scope
 	Content   string
+	Revision  string
 	UpdatedAt *time.Time
 }
 
@@ -74,11 +75,46 @@ func (entry Entry) Validate() error {
 	if entry.UpdatedAt != nil && entry.UpdatedAt.IsZero() {
 		return errors.New("knowledge update time is zero")
 	}
+	if strings.TrimSpace(entry.Revision) == "" {
+		return errors.New("knowledge revision is empty")
+	}
+	return nil
+}
+
+// Revise binds edited content to the exact document version the user opened.
+// The runtime can therefore reject a stale editor instead of overwriting a
+// concurrent change.
+func (entry Entry) Revise(target Target, content string) (Update, error) {
+	if err := entry.Validate(); err != nil {
+		return Update{}, err
+	}
+	if err := target.Validate(); err != nil {
+		return Update{}, err
+	}
+	if entry.Scope != target.Scope {
+		return Update{}, fmt.Errorf("knowledge entry scope %s does not match target %s", entry.Scope, target.Scope)
+	}
+	return Update{Target: target, ExpectedRevision: entry.Revision, Content: content}, nil
+}
+
+type Update struct {
+	Target           Target
+	ExpectedRevision string
+	Content          string
+}
+
+func (update Update) Validate() error {
+	if err := update.Target.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(update.ExpectedRevision) == "" {
+		return errors.New("knowledge update expected revision is empty")
+	}
 	return nil
 }
 
 type Service interface {
 	Entries(context.Context, string) ([]Entry, error)
 	Document(context.Context, Target) (Entry, error)
-	Save(context.Context, Target, string) error
+	Save(context.Context, Update) (Entry, error)
 }

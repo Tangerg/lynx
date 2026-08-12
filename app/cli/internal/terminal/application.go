@@ -30,6 +30,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessionartifact"
@@ -157,6 +158,7 @@ type app struct {
 	readerSearchQuery   string
 	workspaceReader     workspaceReaderMode
 	runtimeReader       runtimeReaderMode
+	runtimeSelection    runtimeReaderSelection
 	mcpToolServer       string
 	mcpAuthorizationID  string
 	queueDialog         *headless.Dialog
@@ -289,9 +291,81 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	a.registerCommands()
 	a.buildInterface(appearance, cfg.keyBindings.editor)
 	a.restore(cfg.snapshot)
+	a.restorePendingRuns()
 	a.persistDraft()
 	a.followRuntimeChanges()
 	return a
+}
+
+func (a *app) restorePendingRuns() {
+	if a.workbench == nil {
+		return
+	}
+	pending := a.workbench.PendingRuns(a.session.ID)
+	if len(pending) == 0 {
+		return
+	}
+	if a.conversation.Busy() && pending[0].State == workbench.PendingRunDispatching {
+		a.reconcilePendingRun(pending[0].Command)
+		return
+	}
+	if err := a.restorePendingQueue(pending); err != nil {
+		a.fail(err)
+		return
+	}
+	if !a.conversation.Busy() {
+		a.drainQueue()
+	}
+}
+
+func (a *app) restorePendingQueue(pending []workbench.PendingRun) error {
+	commands := make([]agent.StartRun, 0, len(pending))
+	for _, entry := range pending {
+		commands = append(commands, entry.Command.Clone())
+	}
+	if err := a.queue.Restore(a.session.ID, commands); err != nil {
+		return fmt.Errorf("restore pending runs: %w", err)
+	}
+	a.syncQueue()
+	return nil
+}
+
+func (a *app) reconcilePendingRun(command agent.StartRun) {
+	activeRunID := a.conversation.RunID()
+	dispatcher := a.loop.Dispatcher()
+	a.operations.GoSession(pendingRunRecoveryOperation, false, func(ctx context.Context, lease operationLease) {
+		opened, err := openStartRun(ctx, a.runtime, command, reconnect.New(a.settings.UI.ReconnectAttempts))
+		if context.Cause(ctx) != nil {
+			return
+		}
+		_ = post(ctx, dispatcher, func() {
+			if !a.operations.Current(lease) || a.closed || a.session.ID != command.SessionID ||
+				!a.operations.Release(lease) {
+				return
+			}
+			switch {
+			case err == nil && opened.RunID == activeRunID:
+				if validateErr := opened.ValidateStart(); validateErr != nil {
+					err = fmt.Errorf("reconcile pending run: %w", validateErr)
+				} else {
+					err = a.workbench.AcknowledgePendingRun(command.SessionID, command.CommandID)
+				}
+			case err == nil:
+				err = fmt.Errorf("pending command %s opened run %s while session projects %s", command.CommandID, opened.RunID, activeRunID)
+			case errors.Is(err, agent.ErrSessionHasActiveRun):
+				_, err = a.workbench.RequeuePendingRun(command.SessionID, command.CommandID)
+			default:
+				err = fmt.Errorf("reconcile pending run: %w", err)
+			}
+			if err != nil {
+				a.fail(err)
+				return
+			}
+			if err := a.restorePendingQueue(a.workbench.PendingRuns(command.SessionID)); err != nil {
+				a.fail(err)
+			}
+		})
+	})
 }
 
 func (a *app) configureComposer(appearance terminalAppearance, keys *keymap.Map, initial agent.Message) {
@@ -611,14 +685,24 @@ func (a *app) dispatchPrompt(message agent.Message) {
 		a.message("wait for the current session change to finish")
 		return
 	}
-	if err := a.commitPromptSubmission(message); err != nil {
+	commandID, err := agent.NewCommandID()
+	if err != nil {
+		a.message("prompt submission blocked: " + err.Error())
+		return
+	}
+	if err := a.commitPromptSubmission(commandID, message); err != nil {
 		a.reportWorkbenchError(err)
 		a.message("prompt submission blocked: " + err.Error())
 		return
 	}
 	a.reportWorkbenchError(nil)
 	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
-		a.enqueueFollowUp(message)
+		a.enqueueFollowUp(commandID, message)
+		return
+	}
+	_, err = a.queue.EnqueueCommand(commandID, a.session.ID, message, a.options)
+	if err != nil {
+		a.message(err.Error())
 		return
 	}
 	a.operations.Cancel(pickerCatalogOperation)
@@ -627,21 +711,28 @@ func (a *app) dispatchPrompt(message agent.Message) {
 	a.resetComposer()
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
-	a.startRun(message, "starting run")
+	if !a.drainQueue() {
+		a.syncQueue()
+	}
 }
 
 // commitPromptSubmission is the durable ownership boundary between the composer
 // and a runtime run or follow-up queue. Once submission starts, a restart must
 // not resurrect the same prompt as an unsent draft.
-func (a *app) commitPromptSubmission(message agent.Message) error {
+func (a *app) commitPromptSubmission(commandID agent.CommandID, message agent.Message) error {
 	if err := message.Validate(); err != nil {
 		return err
 	}
-	if err := a.rememberPrompt(message); err != nil {
-		return fmt.Errorf("save prompt history: %w", err)
-	}
-	if err := a.saveDraft(agent.Message{}); err != nil {
-		return fmt.Errorf("save cleared draft: %w", err)
+	if a.workbench != nil {
+		pending := workbench.PendingRun{
+			State: workbench.PendingRunQueued,
+			Command: agent.StartRun{
+				CommandID: commandID, SessionID: a.session.ID, Message: message.Clone(), Options: a.options.Clone(),
+			},
+		}
+		if err := a.workbench.StagePendingRun(pending); err != nil {
+			return fmt.Errorf("save pending run: %w", err)
+		}
 	}
 	return nil
 }

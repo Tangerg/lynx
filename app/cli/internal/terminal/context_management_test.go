@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
+	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 )
 
@@ -138,6 +140,7 @@ func (service *agentMemoryServiceStub) Add(_ context.Context, target agentmemory
 type knowledgeServiceStub struct {
 	mu        sync.Mutex
 	content   map[knowledge.Scope]string
+	revisions map[knowledge.Scope]string
 	saved     chan string
 	failed    chan struct{}
 	failNext  bool
@@ -152,6 +155,9 @@ func newKnowledgeServiceStub() *knowledgeServiceStub {
 			knowledge.ProjectRoot:      "project rules",
 			knowledge.Home:             "global preferences",
 		},
+		revisions: map[knowledge.Scope]string{
+			knowledge.WorkingDirectory: "rev-cwd", knowledge.ProjectRoot: "rev-project", knowledge.Home: "rev-home",
+		},
 		saved: make(chan string, 1), failed: make(chan struct{}, 1),
 	}
 }
@@ -161,9 +167,9 @@ func (service *knowledgeServiceStub) Entries(context.Context, string) ([]knowled
 	defer service.mu.Unlock()
 	now := time.Now()
 	return []knowledge.Entry{
-		{Scope: knowledge.WorkingDirectory, Content: service.content[knowledge.WorkingDirectory], UpdatedAt: &now},
-		{Scope: knowledge.ProjectRoot, Content: service.content[knowledge.ProjectRoot], UpdatedAt: &now},
-		{Scope: knowledge.Home, Content: service.content[knowledge.Home], UpdatedAt: &now},
+		{Scope: knowledge.WorkingDirectory, Content: service.content[knowledge.WorkingDirectory], Revision: service.revisions[knowledge.WorkingDirectory], UpdatedAt: &now},
+		{Scope: knowledge.ProjectRoot, Content: service.content[knowledge.ProjectRoot], Revision: service.revisions[knowledge.ProjectRoot], UpdatedAt: &now},
+		{Scope: knowledge.Home, Content: service.content[knowledge.Home], Revision: service.revisions[knowledge.Home], UpdatedAt: &now},
 	}, nil
 }
 
@@ -173,19 +179,24 @@ func (service *knowledgeServiceStub) Document(_ context.Context, target knowledg
 	}
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	return knowledge.Entry{Scope: target.Scope, Content: service.content[target.Scope]}, nil
+	return knowledge.Entry{Scope: target.Scope, Content: service.content[target.Scope], Revision: service.revisions[target.Scope]}, nil
 }
 
-func (service *knowledgeServiceStub) Save(ctx context.Context, target knowledge.Target, content string) error {
-	if err := target.Validate(); err != nil {
-		return err
+func (service *knowledgeServiceStub) Save(ctx context.Context, update knowledge.Update) (knowledge.Entry, error) {
+	if err := update.Validate(); err != nil {
+		return knowledge.Entry{}, err
 	}
+	target, content := update.Target, update.Content
 	service.mu.Lock()
+	if service.revisions[target.Scope] != update.ExpectedRevision {
+		service.mu.Unlock()
+		return knowledge.Entry{}, errors.New("revision conflict")
+	}
 	if service.failNext {
 		service.failNext = false
 		service.mu.Unlock()
 		service.failed <- struct{}{}
-		return errors.New("write refused")
+		return knowledge.Entry{}, errors.New("write refused")
 	}
 	block := service.blockNext
 	service.blockNext = nil
@@ -195,14 +206,16 @@ func (service *knowledgeServiceStub) Save(ctx context.Context, target knowledge.
 		select {
 		case <-block:
 		case <-ctx.Done():
-			return context.Cause(ctx)
+			return knowledge.Entry{}, context.Cause(ctx)
 		}
 	}
 	service.mu.Lock()
 	service.content[target.Scope] = content
+	service.revisions[target.Scope] += "+1"
+	entry := knowledge.Entry{Scope: target.Scope, Content: content, Revision: service.revisions[target.Scope]}
 	service.mu.Unlock()
 	service.saved <- content
-	return nil
+	return entry, nil
 }
 
 func TestAgentMemoryAndKnowledgeReadersShowScopeAndProvenance(t *testing.T) {
@@ -346,6 +359,35 @@ func TestKnowledgeReadUsesTheRequestedScope(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "LYRA.md · home")
 	host.Shows(t, "global preferences")
+	stop()
+}
+
+func TestKnowledgeChangeConvergesTheExactOpenScope(t *testing.T) {
+	knowledgeStore := newKnowledgeServiceStub()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1), supported: []changefeed.Topic{changefeed.KnowledgeChanged},
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", Knowledge: knowledgeStore, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	subscription := awaitValue(t, source.subscription, "knowledge change subscription")
+	if !slices.Equal(subscription.Topics, []changefeed.Topic{changefeed.KnowledgeChanged}) {
+		t.Fatalf("knowledge subscription = %v", subscription.Topics)
+	}
+	host.Type("/knowledge-read home")
+	host.Press(input.Enter)
+	host.Shows(t, "global preferences")
+
+	knowledgeStore.mu.Lock()
+	knowledgeStore.content[knowledge.Home] = "preferences from runtime change"
+	knowledgeStore.revisions[knowledge.Home] = "rev-home+external"
+	knowledgeStore.mu.Unlock()
+	source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.KnowledgeChanged), Sequence: 1}
+	awaitValue(t, source.applied, "knowledge invalidation")
+	host.Shows(t, "preferences from runtime change")
+	host.Hides(t, "cwd guidance")
 	stop()
 }
 

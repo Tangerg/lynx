@@ -26,6 +26,15 @@ type activeDurationClock struct {
 	segmentStartedAt time.Time
 }
 
+// startRunCallError identifies a refusal returned by RunLifecycle.StartRun
+// itself. Protocol validation failures after a successful call are deliberately
+// excluded: the runtime may already own that command, so changing identity
+// could execute the user's intent twice.
+type startRunCallError struct{ err error }
+
+func (e *startRunCallError) Error() string { return e.err.Error() }
+func (e *startRunCallError) Unwrap() error { return e.err }
+
 func (clock *activeDurationClock) start(carried time.Duration, at time.Time) {
 	clock.carried = carried
 	clock.segmentStartedAt = at
@@ -42,10 +51,21 @@ func (clock *activeDurationClock) elapsed(at time.Time) time.Duration {
 	return clock.carried + current
 }
 
-func (a *app) startRun(message agent.Message, status string) bool {
+func (a *app) startRun(commandID agent.CommandID, message agent.Message, options agent.RunOptions, status string) bool {
+	input := agent.StartRun{CommandID: commandID, SessionID: a.session.ID, Message: message.Clone(), Options: options.Clone()}
 	if err := a.conversation.Starting(); err != nil {
 		a.fail(err)
 		return false
+	}
+	if a.workbench != nil {
+		if err := a.workbench.MarkPendingRunDispatching(input.SessionID, input.CommandID); err != nil {
+			rollbackErr := a.conversation.CancelStarting()
+			a.message("run start blocked: save dispatching run: " + err.Error())
+			if rollbackErr != nil {
+				a.fail(errors.Join(err, rollbackErr))
+			}
+			return false
+		}
 	}
 	a.transcript.Follow()
 	a.activity.Reset()
@@ -54,21 +74,74 @@ func (a *app) startRun(message agent.Message, status string) bool {
 	a.status.active(status)
 	a.executionClock.start(0, time.Now())
 	a.syncAnimation()
-	input := agent.StartRun{SessionID: a.session.ID, Message: message.Clone(), Options: a.options}
-	a.follow(func(ctx context.Context) (agent.SegmentStream, error) {
-		opened, err := a.runtime.StartRun(ctx, input)
+	a.followOpening(func(ctx context.Context) (agent.SegmentStream, error) {
+		opened, err := openStartRun(ctx, a.runtime, input, reconnect.Policy{})
 		if err != nil {
-			return agent.SegmentStream{}, err
+			return agent.SegmentStream{}, &startRunCallError{err: err}
 		}
 		if err := opened.ValidateStart(); err != nil {
 			return agent.SegmentStream{}, fmt.Errorf("start run: %w", err)
 		}
+		if a.workbench != nil {
+			if err := a.workbench.AcknowledgePendingRun(input.SessionID, input.CommandID); err != nil {
+				return agent.SegmentStream{}, fmt.Errorf("acknowledge pending run: %w", err)
+			}
+		}
 		return opened, nil
+	}, func(err error) error {
+		return a.requeueDefinitivelyRefusedStart(input, err)
 	})
 	return true
 }
 
+func (a *app) requeueDefinitivelyRefusedStart(input agent.StartRun, failure error) error {
+	callFailure, refused := errors.AsType[*startRunCallError](failure)
+	if !refused || reconnect.Retryable(callFailure.err) || a.dispatchingQueueEntry == 0 {
+		return nil
+	}
+	var replacement agent.CommandID
+	var err error
+	if a.workbench != nil {
+		replacement, err = a.workbench.RequeuePendingRun(input.SessionID, input.CommandID)
+		if err != nil {
+			return fmt.Errorf("requeue refused run: %w", err)
+		}
+	} else {
+		replacement, err = agent.NewCommandID()
+		if err != nil {
+			return fmt.Errorf("prepare refused run for retry: %w", err)
+		}
+	}
+	if err := a.queue.ReplaceCommandID(input.SessionID, a.dispatchingQueueEntry, replacement); err != nil {
+		return fmt.Errorf("reidentify refused run: %w", err)
+	}
+	return nil
+}
+
+func openStartRun(ctx context.Context, runtime agent.RunLifecycle, command agent.StartRun, policy reconnect.Policy) (agent.SegmentStream, error) {
+	for attempt := 1; ; attempt++ {
+		opened, err := runtime.StartRun(ctx, command)
+		if err == nil {
+			return opened, nil
+		}
+		delay, retry := policy.Next(attempt, err)
+		if !retry {
+			return agent.SegmentStream{}, err
+		}
+		if err := reconnect.Wait(ctx, delay); err != nil {
+			return agent.SegmentStream{}, err
+		}
+	}
+}
+
 func (a *app) follow(open func(context.Context) (agent.SegmentStream, error)) {
+	a.followOpening(open, nil)
+}
+
+func (a *app) followOpening(
+	open func(context.Context) (agent.SegmentStream, error),
+	onOpenFailure func(error) error,
+) {
 	a.dropStream()
 	sequence := a.streamSeq
 	a.following = true
@@ -78,6 +151,7 @@ func (a *app) follow(open func(context.Context) (agent.SegmentStream, error)) {
 			open: open, applyEvent: a.apply,
 			policy: reconnect.New(a.settings.UI.ReconnectAttempts),
 		}
+		follower.onOpenFailure = onOpenFailure
 		follower.run()
 	})
 }
@@ -122,15 +196,16 @@ func (a *app) followRecoveredSession() {
 }
 
 type streamFollower struct {
-	app        *app
-	ctx        context.Context
-	dispatcher program.Dispatcher
-	sequence   uint64
-	open       func(context.Context) (agent.SegmentStream, error)
-	applyEvent func(agent.RunEvent) error
-	policy     reconnect.Policy
-	failures   int
-	checkpoint string
+	app           *app
+	ctx           context.Context
+	dispatcher    program.Dispatcher
+	sequence      uint64
+	open          func(context.Context) (agent.SegmentStream, error)
+	applyEvent    func(agent.RunEvent) error
+	policy        reconnect.Policy
+	onOpenFailure func(error) error
+	failures      int
+	checkpoint    string
 }
 
 func (f *streamFollower) restoreAttachedSession(sessionID string) (runrecovery.State, bool) {
@@ -155,12 +230,29 @@ func (e *eventApplicationError) Error() string { return e.err.Error() }
 func (e *eventApplicationError) Unwrap() error { return e.err }
 
 func (f *streamFollower) run() {
-	current, err := f.open(f.ctx)
-	if err != nil {
-		f.postFailure("", err)
-		return
+	var current agent.SegmentStream
+	for {
+		opened, err := f.open(f.ctx)
+		if err == nil {
+			current = opened
+			f.failures = 0
+			break
+		}
+		if !f.waitBeforeOpenRetry(err) {
+			return
+		}
 	}
 	f.runStream(current)
+}
+
+func (f *streamFollower) waitBeforeOpenRetry(cause error) bool {
+	f.failures++
+	delay, retry := f.policy.Next(f.failures, cause)
+	if !retry {
+		f.postOpenFailure(cause)
+		return false
+	}
+	return f.postRetryStatus() && reconnect.Wait(f.ctx, delay) == nil
 }
 
 func (f *streamFollower) runStream(current agent.SegmentStream) {
@@ -302,13 +394,17 @@ func (f *streamFollower) waitBeforeRetry(runID string, cause error) bool {
 		f.postFailure(runID, cause)
 		return false
 	}
+	return f.postRetryStatus() && reconnect.Wait(f.ctx, delay) == nil
+}
+
+func (f *streamFollower) postRetryStatus() bool {
 	err := post(f.ctx, f.dispatcher, func() {
 		if f.app.streamSeq == f.sequence {
 			f.app.status.note(fmt.Sprintf("reconnecting %d/%d", f.failures, f.policy.Attempts))
 			f.app.syncAnimation()
 		}
 	})
-	return err == nil && reconnect.Wait(f.ctx, delay) == nil
+	return err == nil
 }
 
 func (f *streamFollower) acceptRebound(runID, segmentID string, rebound agent.SegmentStream) (agent.SegmentStream, bool) {
@@ -360,12 +456,23 @@ func (f *streamFollower) finish() {
 }
 
 func (f *streamFollower) postFailure(runID string, err error) {
+	f.postFailureWith(runID, err, nil)
+}
+
+func (f *streamFollower) postOpenFailure(err error) {
+	f.postFailureWith("", err, f.onOpenFailure)
+}
+
+func (f *streamFollower) postFailureWith(runID string, err error, before func(error) error) {
 	if errors.Is(err, context.Canceled) || f.ctx.Err() != nil {
 		return
 	}
 	_ = post(f.ctx, f.dispatcher, func() {
 		if f.app.streamSeq != f.sequence {
 			return
+		}
+		if before != nil {
+			err = errors.Join(err, before(err))
 		}
 		f.app.fail(err)
 		if runID != "" {
@@ -545,6 +652,15 @@ func (a *app) cancel() {
 	a.status.doing = "canceling"
 	runID := a.conversation.RunID()
 	if runID == "" {
+		if a.dispatchingQueueEntry != 0 && a.workbench != nil {
+			entry, ok := a.queue.Next(a.session.ID)
+			if ok && entry.ID == a.dispatchingQueueEntry {
+				if err := a.workbench.RejectPendingRun(a.session.ID, entry.CommandID); err != nil {
+					a.message("could not retire canceled run start: " + err.Error())
+					return
+				}
+			}
+		}
 		a.discardQueuedDispatch()
 		a.dropStream()
 		if err := a.conversation.CancelStarting(); err != nil {
@@ -586,14 +702,20 @@ const (
 )
 
 func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancellationResultPolicy) {
+	if target.CommandID == "" {
+		commandID, err := agent.NewCommandID()
+		if err != nil {
+			a.message("could not prepare run cancellation: " + err.Error())
+			return
+		}
+		target.CommandID = commandID
+	}
 	targetCopy := target
 	a.pendingCancel = &targetCopy
 	dispatcher := a.loop.Dispatcher()
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
-		ctx, cancel := context.WithTimeout(ownerCtx, runtimeControlTimeout)
-		defer cancel()
-		settled, err := a.cancelRootRun(ctx, target)
-		_ = post(ctx, dispatcher, func() {
+		settled, err := a.cancelRootRun(ownerCtx, target)
+		_ = post(ownerCtx, dispatcher, func() {
 			a.handleRuntimeCancellation(lease, settled, err, policy)
 		})
 	})
@@ -603,7 +725,26 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 // may finish between the user's gesture and the control request; in that case
 // the durable run projection is the successful settlement of the same intent.
 func (a *app) cancelRootRun(ctx context.Context, target agent.CancelRun) (agent.Run, error) {
-	result, err := a.runtime.CancelRun(ctx, target)
+	policy := reconnect.New(a.settings.UI.ReconnectAttempts)
+	var (
+		result agent.RunCancellation
+		err    error
+	)
+	for attempt := 1; ; attempt++ {
+		attemptCtx, cancel := context.WithTimeout(ctx, runtimeControlTimeout)
+		result, err = a.runtime.CancelRun(attemptCtx, target)
+		cancel()
+		if err == nil {
+			break
+		}
+		delay, retry := policy.Next(attempt, err)
+		if !retry {
+			break
+		}
+		if waitErr := reconnect.Wait(ctx, delay); waitErr != nil {
+			return agent.Run{}, waitErr
+		}
+	}
 	if err == nil {
 		if err := result.ValidateTarget(target.RunID); err != nil {
 			return agent.Run{}, fmt.Errorf("cancel run: %w", err)

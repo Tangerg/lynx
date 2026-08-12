@@ -14,7 +14,7 @@ import (
 type knowledgeBinding interface {
 	ListKnowledge(context.Context, protocol.WorkspaceQuery, embedded.CallOptions) (*protocol.Page[protocol.KnowledgeEntry], error)
 	GetKnowledge(context.Context, protocol.GetKnowledgeRequest, embedded.CallOptions) (*protocol.KnowledgeEntry, error)
-	UpdateKnowledge(context.Context, protocol.UpdateKnowledgeRequest, embedded.CommandOptions) error
+	UpdateKnowledge(context.Context, protocol.UpdateKnowledgeRequest, embedded.CommandOptions) (*protocol.KnowledgeEntry, error)
 }
 
 type knowledgeAdapter struct{ runtime *Runtime }
@@ -79,24 +79,41 @@ func (adapter *knowledgeAdapter) Document(ctx context.Context, target knowledge.
 	return entry, nil
 }
 
-func (adapter *knowledgeAdapter) Save(ctx context.Context, target knowledge.Target, content string) error {
+func (adapter *knowledgeAdapter) Save(ctx context.Context, update knowledge.Update) (knowledge.Entry, error) {
 	r := adapter.runtime
-	if err := target.Validate(); err != nil {
-		return err
+	if err := update.Validate(); err != nil {
+		return knowledge.Entry{}, err
 	}
 	options, err := r.commandOptions()
 	if err != nil {
-		return err
+		return knowledge.Entry{}, err
 	}
-	request := protocol.UpdateKnowledgeRequest{Scope: protocol.KnowledgeScope(target.Scope), Content: content}
+	target := update.Target
+	request := protocol.UpdateKnowledgeRequest{
+		Scope: protocol.KnowledgeScope(target.Scope), ExpectedRevision: update.ExpectedRevision, Content: update.Content,
+	}
 	if target.Scope != knowledge.Home {
 		request.Workspace = &protocol.WorkspaceRef{Path: target.Workspace}
 	}
-	return classifyError(r.knowledge.UpdateKnowledge(ctx, request, options))
+	updated, err := r.knowledge.UpdateKnowledge(ctx, request, options)
+	if err != nil {
+		return knowledge.Entry{}, classifyError(err)
+	}
+	if updated == nil {
+		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned nil")
+	}
+	entry := projectKnowledgeEntry(*updated)
+	if err := entry.Validate(); err != nil {
+		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned an invalid entry: %v", err)
+	}
+	if entry.Scope != target.Scope || entry.Content != update.Content {
+		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned a mismatched entry")
+	}
+	return entry, nil
 }
 
 func projectKnowledgeEntry(value protocol.KnowledgeEntry) knowledge.Entry {
-	entry := knowledge.Entry{Scope: knowledge.Scope(value.Scope), Content: value.Content}
+	entry := knowledge.Entry{Scope: knowledge.Scope(value.Scope), Content: value.Content, Revision: value.Revision}
 	if !value.UpdatedAt.IsZero() {
 		entry.UpdatedAt = new(value.UpdatedAt)
 	}

@@ -64,6 +64,8 @@ func classifyError(err error) error {
 		{protocol.ErrSessionHasActiveRun, agent.ErrSessionHasActiveRun},
 		{protocol.ErrSessionBusy, agent.ErrSessionBusy},
 		{protocol.ErrRevisionConflict, agent.ErrRevisionConflict},
+		{protocol.ErrIdempotencyInProgress, agent.ErrCommandInProgress},
+		{protocol.ErrIdempotencyConflict, agent.ErrCommandConflict},
 		{protocol.ErrCapabilityNotNeg, agent.ErrIncompatibleRuntime},
 		{protocol.ErrInvalidProtocolVersion, agent.ErrIncompatibleRuntime},
 		{embedded.ErrClosed, agent.ErrDisconnected},

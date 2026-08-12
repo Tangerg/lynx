@@ -10,6 +10,11 @@ const MaxMessageAttachments = 16
 
 func (r StartRun) Validate() error {
 	var problems []error
+	if r.CommandID != "" {
+		if err := r.CommandID.Validate(); err != nil {
+			problems = append(problems, err)
+		}
+	}
 	if strings.TrimSpace(r.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}
@@ -64,6 +69,11 @@ func (r SubscribeRun) Validate() error {
 }
 
 func (r ResumeRun) Validate() error {
+	if r.CommandID != "" {
+		if err := r.CommandID.Validate(); err != nil {
+			return fmt.Errorf("resume run: %w", err)
+		}
+	}
 	if strings.TrimSpace(r.RunID) == "" {
 		return errors.New("resume run: run id is empty")
 	}
@@ -93,6 +103,11 @@ func (r ResumeRun) Validate() error {
 }
 
 func (r CancelRun) Validate() error {
+	if r.CommandID != "" {
+		if err := r.CommandID.Validate(); err != nil {
+			return fmt.Errorf("cancel run: %w", err)
+		}
+	}
 	if strings.TrimSpace(r.RunID) == "" {
 		return errors.New("cancel run: run id is empty")
 	}
@@ -101,6 +116,11 @@ func (r CancelRun) Validate() error {
 
 func (r SteerRun) Validate() error {
 	var problems []error
+	if r.CommandID != "" {
+		if err := r.CommandID.Validate(); err != nil {
+			problems = append(problems, err)
+		}
+	}
 	if strings.TrimSpace(r.RunID) == "" {
 		problems = append(problems, errors.New("run id is empty"))
 	}

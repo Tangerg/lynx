@@ -24,8 +24,10 @@ var (
 // slice, so callers cannot mutate the queue through a snapshot.
 type Entry struct {
 	ID        uint64
+	CommandID agent.CommandID
 	SessionID string
 	Message   agent.Message
+	Options   agent.RunOptions
 	Held      bool
 }
 
@@ -50,17 +52,111 @@ func New() *Queue {
 }
 
 func (q *Queue) Enqueue(sessionID string, message agent.Message) (Entry, error) {
-	if err := validateEntry(sessionID, message); err != nil {
+	commandID, err := agent.NewCommandID()
+	if err != nil {
+		return Entry{}, fmt.Errorf("prompt queue: %w", err)
+	}
+	return q.EnqueueCommand(commandID, sessionID, message, agent.RunOptions{})
+}
+
+// EnqueueCommand preserves a mutation identity already allocated by the
+// authoring transaction. Queue edits allocate a new identity because changing
+// content creates a different runtime operation fingerprint.
+func (q *Queue) EnqueueCommand(commandID agent.CommandID, sessionID string, message agent.Message, options agent.RunOptions) (Entry, error) {
+	if err := validateEntry(commandID, sessionID, message); err != nil {
 		return Entry{}, err
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.ensureEntries()
 	q.nextID++
-	entry := Entry{ID: q.nextID, SessionID: strings.Clone(sessionID), Message: message.Clone()}
+	entry := Entry{
+		ID: q.nextID, CommandID: commandID, SessionID: strings.Clone(sessionID),
+		Message: message.Clone(), Options: options.Clone(),
+	}
 	q.entries[sessionID] = append(q.entries[sessionID], entry)
 	q.revision++
 	return cloneEntry(entry), nil
+}
+
+// Restore replaces one session queue from a durable authoring outbox. Command
+// identity and order are preserved so runtime retries remain idempotent.
+func (q *Queue) Restore(sessionID string, commands []agent.StartRun) error {
+	entries := make([]Entry, len(commands))
+	seen := make(map[agent.CommandID]struct{}, len(commands))
+	for index, command := range commands {
+		if command.SessionID != sessionID {
+			return fmt.Errorf("prompt queue: command %d belongs to session %s", index+1, command.SessionID)
+		}
+		if err := validateEntry(command.CommandID, sessionID, command.Message); err != nil {
+			return err
+		}
+		if _, duplicate := seen[command.CommandID]; duplicate {
+			return fmt.Errorf("prompt queue: command %s is duplicated", command.CommandID)
+		}
+		seen[command.CommandID] = struct{}{}
+		entries[index] = Entry{
+			CommandID: command.CommandID, SessionID: sessionID,
+			Message: command.Message.Clone(), Options: command.Options.Clone(),
+		}
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.ensureEntries()
+	for index := range entries {
+		q.nextID++
+		entries[index].ID = q.nextID
+	}
+	if len(entries) == 0 {
+		delete(q.entries, sessionID)
+	} else {
+		q.entries[sessionID] = entries
+	}
+	q.revision++
+	return nil
+}
+
+// RestoreSnapshot replaces one session with a previously observed queue
+// snapshot. It is intended for rolling back an in-memory mutation when the
+// corresponding durable authoring transaction cannot be committed.
+func (q *Queue) RestoreSnapshot(sessionID string, snapshot Snapshot) error {
+	entries := make([]Entry, len(snapshot.Entries))
+	seenIDs := make(map[uint64]struct{}, len(snapshot.Entries))
+	seenCommands := make(map[agent.CommandID]struct{}, len(snapshot.Entries))
+	var maximumID uint64
+	for index, entry := range snapshot.Entries {
+		if entry.SessionID != sessionID {
+			return fmt.Errorf("prompt queue: entry %d belongs to session %s", index+1, entry.SessionID)
+		}
+		if entry.ID == 0 {
+			return fmt.Errorf("prompt queue: entry %d has no identity", index+1)
+		}
+		if err := validateEntry(entry.CommandID, sessionID, entry.Message); err != nil {
+			return err
+		}
+		if _, duplicate := seenIDs[entry.ID]; duplicate {
+			return fmt.Errorf("prompt queue: entry %d is duplicated", entry.ID)
+		}
+		if _, duplicate := seenCommands[entry.CommandID]; duplicate {
+			return fmt.Errorf("prompt queue: command %s is duplicated", entry.CommandID)
+		}
+		seenIDs[entry.ID] = struct{}{}
+		seenCommands[entry.CommandID] = struct{}{}
+		maximumID = max(maximumID, entry.ID)
+		entries[index] = cloneEntry(entry)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.ensureEntries()
+	q.nextID = max(q.nextID, maximumID)
+	if len(entries) == 0 {
+		delete(q.entries, sessionID)
+	} else {
+		q.entries[sessionID] = entries
+	}
+	q.revision++
+	return nil
 }
 
 func (q *Queue) Snapshot(sessionID string) Snapshot {
@@ -123,7 +219,11 @@ func (q *Queue) Release(sessionID string, id uint64) error {
 }
 
 func (q *Queue) Update(sessionID string, id uint64, message agent.Message) error {
-	if err := validateEntry(sessionID, message); err != nil {
+	commandID, err := agent.NewCommandID()
+	if err != nil {
+		return fmt.Errorf("prompt queue: %w", err)
+	}
+	if err := validateEntry(commandID, sessionID, message); err != nil {
 		return err
 	}
 	q.mu.Lock()
@@ -133,6 +233,35 @@ func (q *Queue) Update(sessionID string, id uint64, message agent.Message) error
 		return ErrEntryNotFound
 	}
 	q.entries[sessionID][index].Message = message.Clone()
+	q.entries[sessionID][index].CommandID = commandID
+	q.revision++
+	return nil
+}
+
+// ReplaceCommandID gives a queued intent a fresh runtime mutation identity
+// after the previous identity received a definitive refusal. Message content,
+// FIFO position, edit ownership, and local entry identity remain unchanged.
+func (q *Queue) ReplaceCommandID(sessionID string, id uint64, commandID agent.CommandID) error {
+	if err := commandID.Validate(); err != nil {
+		return fmt.Errorf("prompt queue: %w", err)
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	entries := q.entries[sessionID]
+	index := entryIndex(entries, id)
+	if index < 0 {
+		return ErrEntryNotFound
+	}
+	if slices.ContainsFunc(entries, func(entry Entry) bool {
+		return entry.ID != id && entry.CommandID == commandID
+	}) {
+		return fmt.Errorf("prompt queue: command %s is duplicated", commandID)
+	}
+	if entries[index].CommandID == commandID {
+		return nil
+	}
+	entries[index].CommandID = commandID
+	q.entries[sessionID] = entries
 	q.revision++
 	return nil
 }
@@ -219,7 +348,10 @@ func (q *Queue) ensureEntries() {
 	}
 }
 
-func validateEntry(sessionID string, message agent.Message) error {
+func validateEntry(commandID agent.CommandID, sessionID string, message agent.Message) error {
+	if err := commandID.Validate(); err != nil {
+		return fmt.Errorf("prompt queue: %w", err)
+	}
 	if strings.TrimSpace(sessionID) == "" {
 		return ErrSessionIDRequired
 	}
@@ -236,5 +368,6 @@ func entryIndex(entries []Entry, id uint64) int {
 func cloneEntry(entry Entry) Entry {
 	entry.SessionID = strings.Clone(entry.SessionID)
 	entry.Message = entry.Message.Clone()
+	entry.Options = entry.Options.Clone()
 	return entry
 }

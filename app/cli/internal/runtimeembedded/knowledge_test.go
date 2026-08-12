@@ -31,13 +31,13 @@ func (stub *knowledgeBindingStub) ListKnowledge(_ context.Context, request proto
 		return stub.listed, nil
 	}
 	return protocol.NewPage([]protocol.KnowledgeEntry{{
-		Scope: protocol.KnowledgeScopeProjectRoot, Content: "project rules", UpdatedAt: stub.updated,
+		Scope: protocol.KnowledgeScopeProjectRoot, Content: "project rules", Revision: "rev-project", UpdatedAt: stub.updated,
 	}}), nil
 }
 
 func TestKnowledgeAdapterRejectsUnaddressableCatalogs(t *testing.T) {
 	now := time.Now()
-	duplicate := protocol.KnowledgeEntry{Scope: protocol.KnowledgeScopeHome, Content: "prefs", UpdatedAt: now}
+	duplicate := protocol.KnowledgeEntry{Scope: protocol.KnowledgeScopeHome, Content: "prefs", Revision: "rev-home", UpdatedAt: now}
 	for _, test := range []struct {
 		name    string
 		listed  *protocol.Page[protocol.KnowledgeEntry]
@@ -68,16 +68,16 @@ func (stub *knowledgeBindingStub) GetKnowledge(_ context.Context, request protoc
 	} else if request.Workspace == nil || request.Workspace.Path != "/workspace" {
 		stub.t.Fatalf("workspace get request = %+v", request)
 	}
-	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: "document"}, nil
+	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: "document", Revision: "rev-document"}, nil
 }
 
-func (stub *knowledgeBindingStub) UpdateKnowledge(_ context.Context, request protocol.UpdateKnowledgeRequest, options embedded.CommandOptions) error {
+func (stub *knowledgeBindingStub) UpdateKnowledge(_ context.Context, request protocol.UpdateKnowledgeRequest, options embedded.CommandOptions) (*protocol.KnowledgeEntry, error) {
 	stub.assertMeta(options.RequestMeta)
 	if options.IdempotencyKey == "" {
 		stub.t.Fatal("update has no idempotency key")
 	}
 	stub.updates = append(stub.updates, request)
-	return nil
+	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: request.Content, Revision: "rev-updated", UpdatedAt: stub.updated}, nil
 }
 
 func (stub *knowledgeBindingStub) assertMeta(meta protocol.RequestMeta) {
@@ -106,10 +106,14 @@ func TestKnowledgeAdapterKeepsCascadeScopeAndVerbatimContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := adapter.Save(t.Context(), home, "line one\nline two\n"); err != nil {
+	updated, err := adapter.Save(t.Context(), knowledge.Update{
+		Target: home, ExpectedRevision: "rev-home", Content: "line one\nline two\n",
+	})
+	if err != nil || updated.Revision != "rev-updated" {
 		t.Fatal(err)
 	}
-	if len(stub.updates) != 1 || stub.updates[0].Workspace != nil || stub.updates[0].Content != "line one\nline two\n" {
+	if len(stub.updates) != 1 || stub.updates[0].Workspace != nil || stub.updates[0].Content != "line one\nline two\n" ||
+		stub.updates[0].ExpectedRevision != "rev-home" {
 		t.Fatalf("updates = %+v", stub.updates)
 	}
 }

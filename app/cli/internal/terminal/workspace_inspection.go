@@ -288,6 +288,7 @@ func (a *app) followRuntimeChanges() {
 			watchFiles:   a.runtimeSupports(runtimeprofile.FeatureFileWatch),
 			includeGoals: a.goals != nil, includeSkills: a.skills != nil, includeMCP: a.mcp != nil,
 			includeSchedules: a.schedules != nil,
+			includeKnowledge: a.knowledge != nil, includeHooks: a.hooks != nil,
 			applyFiles: func(changes []workspace.Change) error {
 				return post(ctx, dispatcher, func() {
 					if !a.operations.Current(lease) || a.closed || a.session.Workspace.Path != workspacePath {
@@ -342,6 +343,8 @@ type runtimeChangeMonitor struct {
 	includeSkills    bool
 	includeMCP       bool
 	includeSchedules bool
+	includeKnowledge bool
+	includeHooks     bool
 	applyFiles       func([]workspace.Change) error
 	applyEvent       func(changefeed.Event) error
 	applyResync      func([]changefeed.Topic) error
@@ -522,6 +525,12 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	}
 	if monitor.includeSchedules {
 		candidates = append(candidates, changefeed.SchedulesChanged)
+	}
+	if monitor.includeKnowledge {
+		candidates = append(candidates, changefeed.KnowledgeChanged)
+	}
+	if monitor.includeHooks {
+		candidates = append(candidates, changefeed.HooksChanged)
 	}
 	if monitor.repository != nil && monitor.watchFiles {
 		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)

@@ -439,6 +439,9 @@ func (a *app) retireSessionState(sessionID string) (int, error) {
 	if a.workbench == nil {
 		return discarded, nil
 	}
+	if err := a.workbench.SavePendingRuns(sessionID, nil); err != nil {
+		return discarded, fmt.Errorf("discard session pending runs: %w", err)
+	}
 	if err := a.workbench.DiscardDraft(sessionID); err != nil {
 		return discarded, fmt.Errorf("discard session draft: %w", err)
 	}

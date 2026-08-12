@@ -28,7 +28,7 @@ func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.Seg
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	options, err := r.runCommandOptions()
+	options, err := r.runCommandOptionsFor(input.CommandID)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
@@ -87,7 +87,7 @@ func (r *Runtime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.S
 		}
 		request.Input = content
 	}
-	options, err := r.runCommandOptions()
+	options, err := r.runCommandOptionsFor(input.CommandID)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
@@ -166,7 +166,7 @@ func (r *Runtime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.R
 	if err := input.Validate(); err != nil {
 		return agent.RunCancellation{}, err
 	}
-	options, err := r.commandOptions()
+	options, err := r.commandOptionsFor(input.CommandID)
 	if err != nil {
 		return agent.RunCancellation{}, err
 	}
@@ -214,7 +214,7 @@ func (r *Runtime) SteerRun(ctx context.Context, input agent.SteerRun) error {
 	if err != nil {
 		return err
 	}
-	options, err := r.commandOptions()
+	options, err := r.commandOptionsFor(input.CommandID)
 	if err != nil {
 		return err
 	}

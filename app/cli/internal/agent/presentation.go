@@ -35,6 +35,8 @@ var (
 	ErrSessionBusy         = errors.New("session is busy")
 	ErrRevisionConflict    = errors.New("revision conflict")
 	ErrEventConflict       = errors.New("event identity conflict")
+	ErrCommandInProgress   = errors.New("command is still committing")
+	ErrCommandConflict     = errors.New("command identity conflict")
 	ErrDisconnected        = errors.New("runtime disconnected")
 	ErrIncompatibleRuntime = errors.New("runtime protocol is incompatible")
 )

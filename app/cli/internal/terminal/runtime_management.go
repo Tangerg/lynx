@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/usage"
 )
@@ -42,9 +43,18 @@ const (
 // Keeping the request as a value lets user-initiated reads and event-driven
 // convergence share the same query without sharing their failure policy.
 type runtimeReaderQuery struct {
-	status string
-	mode   runtimeReaderMode
-	read   func(context.Context) (readerDocument, error)
+	status    string
+	mode      runtimeReaderMode
+	selection runtimeReaderSelection
+	read      func(context.Context) (readerDocument, error)
+}
+
+// runtimeReaderSelection carries typed identity needed to converge an open
+// reader after an authoritative change event. It deliberately contains no UI
+// or transport state.
+type runtimeReaderSelection struct {
+	knowledgeTarget knowledge.Target
+	knowledgeEntry  bool
 }
 
 type usageReport struct {
@@ -54,6 +64,9 @@ type usageReport struct {
 
 func (a *app) setRuntimeReader(mode runtimeReaderMode) {
 	a.runtimeReader = mode
+	if mode == runtimeReaderNone {
+		a.runtimeSelection = runtimeReaderSelection{}
+	}
 	if mode != runtimeReaderMCPTools {
 		a.mcpToolServer = ""
 	}
@@ -574,6 +587,7 @@ func (a *app) executeRuntimeReaderQuery(query runtimeReaderQuery) {
 			return
 		}
 		a.setRuntimeReader(query.mode)
+		a.runtimeSelection = query.selection
 		a.workspaceReader = workspaceReaderNone
 		a.openReaderDocument(document)
 		a.status.note(strings.ToLower(document.Title))

@@ -29,6 +29,19 @@ func TestReconnectRetriesOnlyTransientErrorsWithinBudget(t *testing.T) {
 	}
 }
 
+func TestCommandCommitRetriesHonorTheRuntimeBackoffFloor(t *testing.T) {
+	policy := Policy{Attempts: 2, Base: 10 * time.Millisecond, Maximum: 2 * time.Second}
+	if delay, ok := policy.Next(1, agent.ErrCommandInProgress); !ok || delay != time.Second {
+		t.Fatalf("command progress retry = %s, %t; want 1s, true", delay, ok)
+	}
+	if !Retryable(agent.ErrCommandInProgress) {
+		t.Fatal("command progress was not retryable")
+	}
+	if Retryable(agent.ErrCommandConflict) {
+		t.Fatal("command identity conflict was retryable")
+	}
+}
+
 func TestRetryableRecognizesOnlyClassifiedDisconnects(t *testing.T) {
 	tests := []struct {
 		name string

@@ -231,20 +231,38 @@ func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
 type ambiguousControls struct {
 	*mock.Runtime
 
-	mu         sync.Mutex
-	starts     int
-	resumes    int
-	loseStart  bool
-	loseResume bool
+	mu           sync.Mutex
+	starts       int
+	resumes      int
+	loseStart    bool
+	loseResume   bool
+	startStream  agent.SegmentStream
+	resumeStream agent.SegmentStream
+	startID      agent.CommandID
+	resumeID     agent.CommandID
 }
 
 func (r *ambiguousControls) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	r.mu.Lock()
+	if r.startID != "" {
+		if r.startID != input.CommandID {
+			r.mu.Unlock()
+			return agent.SegmentStream{}, agent.ErrCommandConflict
+		}
+		r.starts++
+		stream := r.startStream
+		r.mu.Unlock()
+		return stream, nil
+	}
+	r.mu.Unlock()
 	stream, err := r.Runtime.StartRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
 	r.mu.Lock()
 	r.starts++
+	r.startID = input.CommandID
+	r.startStream = stream
 	lost := r.loseStart
 	r.mu.Unlock()
 	if lost {
@@ -254,12 +272,26 @@ func (r *ambiguousControls) StartRun(ctx context.Context, input agent.StartRun) 
 }
 
 func (r *ambiguousControls) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	r.mu.Lock()
+	if r.resumeID != "" {
+		if r.resumeID != input.CommandID {
+			r.mu.Unlock()
+			return agent.SegmentStream{}, agent.ErrCommandConflict
+		}
+		r.resumes++
+		stream := r.resumeStream
+		r.mu.Unlock()
+		return stream, nil
+	}
+	r.mu.Unlock()
 	stream, err := r.Runtime.ResumeRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
 	r.mu.Lock()
 	r.resumes++
+	r.resumeID = input.CommandID
+	r.resumeStream = stream
 	lost := r.loseResume
 	r.mu.Unlock()
 	if lost {
@@ -274,28 +306,28 @@ func (r *ambiguousControls) calls() (int, int) {
 	return r.starts, r.resumes
 }
 
-func TestRunDoesNotRetryAmbiguousControlOperations(t *testing.T) {
+func TestRunRetriesAmbiguousControlOperationsByStableIdentity(t *testing.T) {
 	t.Run("start", func(t *testing.T) {
 		runtime := &ambiguousControls{Runtime: instantRuntime(), loseStart: true}
 		_, _, err := executeCommand(t, runtime, "", "run", "-s", firstSession(t, runtime), "start once")
-		if !errors.Is(err, agent.ErrDisconnected) {
-			t.Fatalf("run error = %v, want ErrDisconnected", err)
+		if err != nil {
+			t.Fatalf("run error = %v", err)
 		}
 		starts, resumes := runtime.calls()
-		if starts != 1 || resumes != 0 {
-			t.Fatalf("control calls = start %d, resume %d; want 1, 0", starts, resumes)
+		if starts != 2 || resumes != 1 {
+			t.Fatalf("control calls = start %d, resume %d; want 2, 1", starts, resumes)
 		}
 	})
 
 	t.Run("resume", func(t *testing.T) {
 		runtime := &ambiguousControls{Runtime: instantRuntime(), loseResume: true}
 		_, _, err := executeCommand(t, runtime, "", "run", "--approve-all", "-s", firstSession(t, runtime), "resume once")
-		if !errors.Is(err, agent.ErrDisconnected) {
-			t.Fatalf("run error = %v, want ErrDisconnected", err)
+		if err != nil {
+			t.Fatalf("run error = %v", err)
 		}
 		starts, resumes := runtime.calls()
-		if starts != 1 || resumes != 1 {
-			t.Fatalf("control calls = start %d, resume %d; want 1, 1", starts, resumes)
+		if starts != 1 || resumes != 2 {
+			t.Fatalf("control calls = start %d, resume %d; want 1, 2", starts, resumes)
 		}
 	})
 }

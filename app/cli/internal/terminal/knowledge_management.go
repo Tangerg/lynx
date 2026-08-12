@@ -15,15 +15,21 @@ func (a *app) ShowKnowledge() {
 		a.message("this runtime composition has no knowledge service")
 		return
 	}
+	a.executeRuntimeReaderQuery(a.knowledgeEntriesReaderQuery())
+}
+
+func (a *app) knowledgeEntriesReaderQuery() runtimeReaderQuery {
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading LYRA.md knowledge", runtimeReaderKnowledge,
-		func(ctx context.Context) (readerDocument, error) {
+	return runtimeReaderQuery{
+		status: "loading LYRA.md knowledge", mode: runtimeReaderKnowledge,
+		read: func(ctx context.Context) (readerDocument, error) {
 			entries, err := a.knowledge.Entries(ctx, workspace)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return knowledgeEntriesDocument(workspace, entries), nil
-		})
+		},
+	}
 }
 
 func knowledgeEntriesDocument(workspace string, entries []knowledge.Entry) readerDocument {
@@ -60,14 +66,21 @@ func (a *app) ReadKnowledge(argument string) error {
 }
 
 func (a *app) readKnowledge(target knowledge.Target) {
-	a.runRuntimeReaderQuery("loading "+string(target.Scope)+" LYRA.md", runtimeReaderKnowledge,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.knowledgeDocumentReaderQuery(target))
+}
+
+func (a *app) knowledgeDocumentReaderQuery(target knowledge.Target) runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading " + string(target.Scope) + " LYRA.md", mode: runtimeReaderKnowledge,
+		selection: runtimeReaderSelection{knowledgeTarget: target, knowledgeEntry: true},
+		read: func(ctx context.Context) (readerDocument, error) {
 			entry, err := a.knowledge.Document(ctx, target)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return knowledgeDocument(target, entry), nil
-		})
+		},
+	}
 }
 
 func knowledgeDocument(target knowledge.Target, entry knowledge.Entry) readerDocument {
@@ -104,6 +117,7 @@ func (a *app) EditKnowledge(argument string) error {
 				a.message("load LYRA.md to edit failed: " + err.Error())
 				return
 			}
+			current := entry
 			a.openContextEditor(
 				"Edit LYRA.md · "+string(target.Scope),
 				"Enter inserts a newline. Ctrl+S saves; an empty document clears this scope.",
@@ -114,7 +128,7 @@ func (a *app) EditKnowledge(argument string) error {
 						complete(nil)
 						return nil
 					}
-					return a.saveKnowledge(target, content, complete)
+					return a.saveKnowledge(&current, target, content, complete)
 				},
 			)
 		},
@@ -124,11 +138,18 @@ func (a *app) EditKnowledge(argument string) error {
 	return nil
 }
 
-func (a *app) saveKnowledge(target knowledge.Target, content string, complete func(error) bool) error {
+func (a *app) saveKnowledge(current *knowledge.Entry, target knowledge.Target, content string, complete func(error) bool) error {
+	if current == nil {
+		return errors.New("knowledge editor has no revision owner")
+	}
+	update, err := current.Revise(target, content)
+	if err != nil {
+		return err
+	}
 	a.status.note("saving " + string(target.Scope) + " LYRA.md")
 	if !runOperation(a, knowledgeOperation, false,
-		func(ctx context.Context) (string, error) { return content, a.knowledge.Save(ctx, target, content) },
-		func(_ string, err error) {
+		func(ctx context.Context) (knowledge.Entry, error) { return a.knowledge.Save(ctx, update) },
+		func(saved knowledge.Entry, err error) {
 			if err != nil {
 				a.message("save LYRA.md failed: " + err.Error())
 				if complete != nil {
@@ -136,13 +157,14 @@ func (a *app) saveKnowledge(target knowledge.Target, content string, complete fu
 				}
 				return
 			}
+			*current = saved
 			closed := true
 			if complete != nil {
 				closed = complete(nil)
 			}
 			a.message("LYRA.md saved · " + string(target.Scope))
 			if closed {
-				a.readKnowledge(target)
+				a.openReaderDocument(knowledgeDocument(target, saved))
 			}
 		},
 	) {

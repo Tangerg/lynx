@@ -52,6 +52,39 @@ type Workspace struct {
 	LastOpened time.Time `json:"lastOpened"`
 }
 
+type sessionState struct {
+	SessionID   string        `json:"sessionId"`
+	Draft       agent.Message `json:"draft"`
+	PendingRuns []PendingRun  `json:"pendingRuns"`
+}
+
+type PendingRunState string
+
+const (
+	PendingRunQueued      PendingRunState = "queued"
+	PendingRunDispatching PendingRunState = "dispatching"
+)
+
+// PendingRun is one durable runtime outbox entry. State distinguishes intent
+// that has never left the queue from an ambiguous command handshake.
+type PendingRun struct {
+	State   PendingRunState `json:"state"`
+	Command agent.StartRun  `json:"command"`
+}
+
+func (pending PendingRun) validate(sessionID string) error {
+	if pending.State != PendingRunQueued && pending.State != PendingRunDispatching {
+		return fmt.Errorf("state %q is invalid", pending.State)
+	}
+	if err := pending.Command.Validate(); err != nil {
+		return err
+	}
+	if pending.Command.SessionID != sessionID {
+		return fmt.Errorf("command belongs to session %s", pending.Command.SessionID)
+	}
+	return nil
+}
+
 // Store is the aggregate root for CLI authoring state. Every mutating method
 // updates memory only after its durable replacement succeeds.
 type Store struct {
@@ -66,6 +99,7 @@ type Store struct {
 	drafts         map[string]agent.Message
 	stashes        []Stash
 	workspaces     []Workspace
+	pendingRuns    map[string][]PendingRun
 }
 
 // Open loads a file-backed store. An empty directory creates a memory-only
@@ -79,6 +113,7 @@ func Open(directory string, config Config) (*Store, error) {
 		now:            config.Now,
 		random:         config.Random,
 		drafts:         make(map[string]agent.Message),
+		pendingRuns:    make(map[string][]PendingRun),
 	}
 	if store.now == nil {
 		store.now = time.Now
@@ -105,10 +140,187 @@ func Open(directory string, config Config) (*Store, error) {
 	if err := store.loadOptional("workspaces.json", &store.workspaces); err != nil {
 		return nil, fmt.Errorf("load recent workspaces: %w", err)
 	}
+	if err := store.loadSessionStates(); err != nil {
+		return nil, fmt.Errorf("load session authoring state: %w", err)
+	}
 	store.history = tailMessages(store.history, store.historyLimit)
 	store.stashes = tailStashes(store.stashes, store.stashLimit)
 	store.workspaces = slices.Clone(store.workspaces[:min(len(store.workspaces), store.workspaceLimit)])
 	return store, nil
+}
+
+// PendingRuns returns unacknowledged run-opening commands in authoring order.
+func (s *Store) PendingRuns(sessionID string) []PendingRun {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return clonePendingRunSlice(s.pendingRuns[strings.TrimSpace(sessionID)])
+}
+
+// StagePendingRun atomically moves one draft into the durable runtime outbox.
+// A crash observes either the editable draft or the replayable command, never
+// an ownership gap between separate files.
+func (s *Store) StagePendingRun(pending PendingRun) error {
+	if err := pending.validate(pending.Command.SessionID); err != nil {
+		return err
+	}
+	pending = clonePendingRun(pending)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, current := range s.pendingRuns[pending.Command.SessionID] {
+		if current.Command.CommandID == pending.Command.CommandID {
+			return nil
+		}
+	}
+	next := clonePendingRuns(s.pendingRuns)
+	next[pending.Command.SessionID] = append(next[pending.Command.SessionID], pending)
+	if err := s.saveSessionState(pending.Command.SessionID, agent.Message{}, next[pending.Command.SessionID]); err != nil {
+		return err
+	}
+	delete(s.drafts, pending.Command.SessionID)
+	s.pendingRuns = next
+	return nil
+}
+
+// SavePendingRuns atomically replaces one session's ordered runtime outbox.
+// Queue edits use this boundary so reordering, replacement, and deletion are
+// crash-consistent with the next launch.
+func (s *Store) SavePendingRuns(sessionID string, commands []PendingRun) error {
+	sessionID = strings.TrimSpace(sessionID)
+	seen := make(map[agent.CommandID]struct{}, len(commands))
+	for index, command := range commands {
+		if err := command.validate(sessionID); err != nil {
+			return fmt.Errorf("pending run %d: %w", index+1, err)
+		}
+		if _, duplicate := seen[command.Command.CommandID]; duplicate {
+			return fmt.Errorf("pending run %d repeats command %s", index+1, command.Command.CommandID)
+		}
+		seen[command.Command.CommandID] = struct{}{}
+	}
+	commands = clonePendingRunSlice(commands)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.saveSessionState(sessionID, s.drafts[sessionID], commands); err != nil {
+		return err
+	}
+	if len(commands) == 0 {
+		delete(s.pendingRuns, sessionID)
+	} else {
+		s.pendingRuns[sessionID] = commands
+	}
+	return nil
+}
+
+func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.CommandID) error {
+	if err := commandID.Validate(); err != nil {
+		return err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	index := pendingRunIndex(s.pendingRuns[sessionID], commandID)
+	if index < 0 {
+		return errors.New("pending run is absent")
+	}
+	if s.pendingRuns[sessionID][index].State == PendingRunDispatching {
+		return nil
+	}
+	next := clonePendingRuns(s.pendingRuns)
+	next[sessionID][index].State = PendingRunDispatching
+	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
+		return err
+	}
+	s.pendingRuns = next
+	return nil
+}
+
+// RequeuePendingRun turns a definitively refused runtime mutation back into an
+// ordinary FIFO entry. A new identity is mandatory: the runtime has already
+// bound the old key to its rejection outcome.
+func (s *Store) RequeuePendingRun(sessionID string, commandID agent.CommandID) (agent.CommandID, error) {
+	if err := commandID.Validate(); err != nil {
+		return "", err
+	}
+	replacement, err := agent.NewCommandID()
+	if err != nil {
+		return "", err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	index := pendingRunIndex(s.pendingRuns[sessionID], commandID)
+	if index < 0 {
+		return "", errors.New("pending run is absent")
+	}
+	next := clonePendingRuns(s.pendingRuns)
+	next[sessionID][index].State = PendingRunQueued
+	next[sessionID][index].Command.CommandID = replacement
+	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
+		return "", err
+	}
+	s.pendingRuns = next
+	return replacement, nil
+}
+
+// AcknowledgePendingRun retires only the command the caller actually observed.
+// The identity check prevents a late acknowledgement from deleting newer work.
+func (s *Store) AcknowledgePendingRun(sessionID string, commandID agent.CommandID) error {
+	if err := commandID.Validate(); err != nil {
+		return err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	commands := s.pendingRuns[sessionID]
+	index := pendingRunIndex(commands, commandID)
+	if index < 0 {
+		return errors.New("pending run command identity changed")
+	}
+	message := commands[index].Command.Message.Clone()
+	nextHistory := cloneMessages(s.history)
+	if len(nextHistory) == 0 || !nextHistory[len(nextHistory)-1].Equal(message) {
+		nextHistory = tailMessages(append(nextHistory, message), s.historyLimit)
+		if err := s.save("history.json", nextHistory); err != nil {
+			return err
+		}
+	}
+	next := clonePendingRuns(s.pendingRuns)
+	next[sessionID] = slices.Delete(next[sessionID], index, index+1)
+	if len(next[sessionID]) == 0 {
+		delete(next, sessionID)
+	}
+	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
+		return err
+	}
+	s.history = nextHistory
+	s.pendingRuns = next
+	return nil
+}
+
+// RejectPendingRun releases a mutation the runtime definitively refused. The
+// draft is intentionally preserved so the delivery layer can return ownership
+// to the composer without reconstructing authoring state from an error.
+func (s *Store) RejectPendingRun(sessionID string, commandID agent.CommandID) error {
+	if err := commandID.Validate(); err != nil {
+		return err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	commands := s.pendingRuns[sessionID]
+	index := pendingRunIndex(commands, commandID)
+	if index < 0 {
+		return errors.New("pending run command identity changed")
+	}
+	next := clonePendingRuns(s.pendingRuns)
+	next[sessionID] = slices.Delete(next[sessionID], index, index+1)
+	if len(next[sessionID]) == 0 {
+		delete(next, sessionID)
+	}
+	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
+		return err
+	}
+	s.pendingRuns = next
+	return nil
 }
 
 // History returns detached prompts in oldest-to-newest order.
@@ -142,49 +354,27 @@ func (s *Store) Remember(message agent.Message) error {
 func (s *Store) Draft(sessionID string) (agent.Message, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if draft, ok := s.drafts[sessionID]; ok {
-		return draft.Clone(), !messageEmpty(draft), nil
-	}
-	if s.directory == "" {
-		return agent.Message{}, false, nil
-	}
-	var draft agent.Message
-	err := s.load(s.draftName(sessionID), &draft)
-	if errors.Is(err, os.ErrNotExist) {
-		return agent.Message{}, false, nil
-	}
-	if err != nil {
-		return agent.Message{}, false, err
-	}
-	s.drafts[sessionID] = draft.Clone()
+	draft := s.drafts[strings.TrimSpace(sessionID)]
 	return draft.Clone(), !messageEmpty(draft), nil
 }
 
 // SaveDraft atomically replaces a session draft, or removes it when empty.
 func (s *Store) SaveDraft(sessionID string, message agent.Message) error {
+	sessionID = strings.TrimSpace(sessionID)
 	message = message.Clone()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	name := s.draftName(sessionID)
-	if messageEmpty(message) {
-		if s.directory == "" {
-			delete(s.drafts, sessionID)
-			return nil
-		}
-		err := os.Remove(s.path(name))
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		delete(s.drafts, sessionID)
-		return nil
-	}
 	if current, ok := s.drafts[sessionID]; ok && current.Equal(message) {
 		return nil
 	}
-	if err := s.save(name, message); err != nil {
+	if err := s.saveSessionState(sessionID, message, s.pendingRuns[sessionID]); err != nil {
 		return err
 	}
-	s.drafts[sessionID] = message
+	if messageEmpty(message) {
+		delete(s.drafts, sessionID)
+	} else {
+		s.drafts[sessionID] = message
+	}
 	return nil
 }
 
@@ -316,6 +506,71 @@ func (s *Store) loadOptional(name string, value any) error {
 	return err
 }
 
+func (s *Store) loadSessionStates() error {
+	if s.directory == "" {
+		return nil
+	}
+	directory := s.path("sessions")
+	entries, err := os.ReadDir(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		var state sessionState
+		if err := s.load(filepath.Join("sessions", entry.Name()), &state); err != nil {
+			return fmt.Errorf("load %s: %w", entry.Name(), err)
+		}
+		state.SessionID = strings.TrimSpace(state.SessionID)
+		if state.SessionID == "" || entry.Name() != filepath.Base(s.sessionStateName(state.SessionID)) {
+			return fmt.Errorf("state %s has an invalid session identity", entry.Name())
+		}
+		seen := make(map[agent.CommandID]struct{}, len(state.PendingRuns))
+		for index, command := range state.PendingRuns {
+			if err := command.validate(state.SessionID); err != nil {
+				return fmt.Errorf("state %s pending run %d: %w", entry.Name(), index+1, err)
+			}
+			if _, duplicate := seen[command.Command.CommandID]; duplicate {
+				return fmt.Errorf("state %s repeats command %s", entry.Name(), command.Command.CommandID)
+			}
+			seen[command.Command.CommandID] = struct{}{}
+		}
+		if !messageEmpty(state.Draft) {
+			s.drafts[state.SessionID] = state.Draft.Clone()
+		}
+		if len(state.PendingRuns) > 0 {
+			s.pendingRuns[state.SessionID] = clonePendingRunSlice(state.PendingRuns)
+		}
+	}
+	return nil
+}
+
+func (s *Store) saveSessionState(sessionID string, draft agent.Message, pending []PendingRun) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("session id is empty")
+	}
+	name := s.sessionStateName(sessionID)
+	if messageEmpty(draft) && len(pending) == 0 {
+		if s.directory == "" {
+			return nil
+		}
+		err := os.Remove(s.path(name))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	return s.save(name, sessionState{
+		SessionID: sessionID, Draft: draft.Clone(), PendingRuns: clonePendingRunSlice(pending),
+	})
+}
+
 func (s *Store) save(name string, value any) error {
 	if s.directory == "" {
 		return nil
@@ -362,9 +617,9 @@ func (s *Store) save(name string, value any) error {
 
 func (s *Store) path(name string) string { return pathologize.Join(s.directory, name) }
 
-func (s *Store) draftName(sessionID string) string {
+func (s *Store) sessionStateName(sessionID string) string {
 	digest := sha256.Sum256([]byte(strings.TrimSpace(sessionID)))
-	return filepath.Join("drafts", hex.EncodeToString(digest[:16])+".json")
+	return filepath.Join("sessions", hex.EncodeToString(digest[:16])+".json")
 }
 
 func positiveOr(value, fallback int) int {
@@ -398,6 +653,31 @@ func cloneMessages(messages []agent.Message) []agent.Message {
 		out[i] = message.Clone()
 	}
 	return out
+}
+
+func clonePendingRuns(pending map[string][]PendingRun) map[string][]PendingRun {
+	out := make(map[string][]PendingRun, len(pending))
+	for sessionID, commands := range pending {
+		out[sessionID] = clonePendingRunSlice(commands)
+	}
+	return out
+}
+
+func clonePendingRunSlice(commands []PendingRun) []PendingRun {
+	out := make([]PendingRun, len(commands))
+	for index, command := range commands {
+		out[index] = clonePendingRun(command)
+	}
+	return out
+}
+
+func clonePendingRun(command PendingRun) PendingRun {
+	command.Command = command.Command.Clone()
+	return command
+}
+
+func pendingRunIndex(commands []PendingRun, commandID agent.CommandID) int {
+	return slices.IndexFunc(commands, func(command PendingRun) bool { return command.Command.CommandID == commandID })
 }
 
 func cloneStash(stash Stash) Stash {

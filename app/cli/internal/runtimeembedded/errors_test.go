@@ -66,6 +66,21 @@ func TestClassifyErrorPreservesIdentityAndProjectsRecoveryMetadata(t *testing.T)
 	}
 }
 
+func TestClassifyErrorExposesCommandReplaySemantics(t *testing.T) {
+	for _, test := range []struct {
+		source error
+		want   error
+	}{
+		{source: protocol.ErrIdempotencyInProgress, want: agent.ErrCommandInProgress},
+		{source: protocol.ErrIdempotencyConflict, want: agent.ErrCommandConflict},
+	} {
+		err := classifyError(runtimeProblemError{cause: test.source, data: protocol.ProblemData{Type: test.source.Error()}})
+		if !errors.Is(err, test.want) || !errors.Is(err, test.source) {
+			t.Fatalf("classified %v = %v, want %v", test.source, err, test.want)
+		}
+	}
+}
+
 func TestClassifyErrorProjectsUnmappedRuntimeProblem(t *testing.T) {
 	t.Parallel()
 

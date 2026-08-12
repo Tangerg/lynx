@@ -191,12 +191,32 @@ func (r *Runtime) commandOptions() (embedded.CommandOptions, error) {
 	return embedded.CommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: key}, nil
 }
 
+func (r *Runtime) commandOptionsFor(commandID agent.CommandID) (embedded.CommandOptions, error) {
+	if commandID == "" {
+		return r.commandOptions()
+	}
+	if err := commandID.Validate(); err != nil {
+		return embedded.CommandOptions{}, err
+	}
+	return embedded.CommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: string(commandID)}, nil
+}
+
 func (r *Runtime) runCommandOptions() (embedded.RunCommandOptions, error) {
 	key, err := newIdempotencyKey()
 	if err != nil {
 		return embedded.RunCommandOptions{}, err
 	}
 	return embedded.RunCommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: key}, nil
+}
+
+func (r *Runtime) runCommandOptionsFor(commandID agent.CommandID) (embedded.RunCommandOptions, error) {
+	if commandID == "" {
+		return r.runCommandOptions()
+	}
+	if err := commandID.Validate(); err != nil {
+		return embedded.RunCommandOptions{}, err
+	}
+	return embedded.RunCommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: string(commandID)}, nil
 }
 
 func (r *Runtime) subscriptionOptions(afterEventID string) embedded.RunSubscriptionOptions {

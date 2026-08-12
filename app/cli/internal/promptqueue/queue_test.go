@@ -127,3 +127,63 @@ func TestQueueRejectsInvalidMessagesWithoutMutation(t *testing.T) {
 		t.Fatalf("invalid enqueue mutated queue: %+v", snapshot)
 	}
 }
+
+func TestQueueRestoresAnExactSnapshotAfterARejectedTransaction(t *testing.T) {
+	queue := New()
+	first, _ := queue.Enqueue("session", agent.Message{Text: "first"})
+	second, _ := queue.Enqueue("session", agent.Message{Text: "second"})
+	if err := queue.Hold("session", first.ID); err != nil {
+		t.Fatal(err)
+	}
+	before := queue.Snapshot("session")
+
+	if err := queue.Update("session", first.ID, agent.Message{Text: "edited"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := queue.Release("session", first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := queue.Remove("session", second.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := queue.RestoreSnapshot("session", before); err != nil {
+		t.Fatal(err)
+	}
+
+	after := queue.Snapshot("session")
+	if len(after.Entries) != 2 || after.Entries[0].ID != first.ID || after.Entries[1].ID != second.ID {
+		t.Fatalf("restored queue = %+v", after.Entries)
+	}
+	if after.Entries[0].CommandID != first.CommandID || after.Entries[0].Message.Text != "first" || !after.Entries[0].Held {
+		t.Fatalf("restored first entry = %+v", after.Entries[0])
+	}
+	next, err := queue.Enqueue("session", agent.Message{Text: "third"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.ID <= second.ID {
+		t.Fatalf("new entry reused identity %d after restoring through %d", next.ID, second.ID)
+	}
+}
+
+func TestQueueReidentifiesARefusedIntentWithoutChangingItsAuthoringState(t *testing.T) {
+	queue := New()
+	first, _ := queue.Enqueue("session", agent.Message{Text: "first"})
+	second, _ := queue.Enqueue("session", agent.Message{Text: "second"})
+	if err := queue.Hold("session", first.ID); err != nil {
+		t.Fatal(err)
+	}
+	replacement := agent.CommandID("cli_11111111111111111111111111111111")
+	if err := queue.ReplaceCommandID("session", first.ID, replacement); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := queue.Snapshot("session").Entries
+	if len(entries) != 2 || entries[0].ID != first.ID || entries[0].CommandID != replacement ||
+		entries[0].Message.Text != first.Message.Text || !entries[0].Held || entries[1].ID != second.ID {
+		t.Fatalf("reidentified queue = %+v", entries)
+	}
+	if err := queue.ReplaceCommandID("session", first.ID, second.CommandID); err == nil {
+		t.Fatal("duplicate command identity was accepted")
+	}
+}

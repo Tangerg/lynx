@@ -105,6 +105,51 @@ func TestStartRunMapsOptionsAndProjectsAtomicStream(t *testing.T) {
 	}
 }
 
+func TestRunMutationsPreserveCallerCommandIdentity(t *testing.T) {
+	commandID := agent.CommandID("cli_0123456789abcdef0123456789abcdef")
+	stub := runBindingStub{}
+	stub.start = func(_ context.Context, request protocol.StartRunRequest, options embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+		if options.IdempotencyKey != string(commandID) {
+			t.Fatalf("start idempotency key = %q", options.IdempotencyKey)
+		}
+		return &protocol.StartRunResponse{RunID: "run_1", SegmentID: "seg_1", UserItemID: "item_1"}, func(func(protocol.RunEvent, error) bool) {}, nil
+	}
+	stub.resume = func(_ context.Context, request protocol.ResumeRunRequest, options embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+		if options.IdempotencyKey != string(commandID) {
+			t.Fatalf("resume idempotency key = %q", options.IdempotencyKey)
+		}
+		return &protocol.ResumeRunResponse{RunID: request.RunID, SegmentID: "seg_2"}, func(func(protocol.RunEvent, error) bool) {}, nil
+	}
+	stub.cancel = func(_ context.Context, request protocol.CancelRunRequest, options embedded.CommandOptions) (*protocol.CancelRunResponse, error) {
+		if options.IdempotencyKey != string(commandID) {
+			t.Fatalf("cancel idempotency key = %q", options.IdempotencyKey)
+		}
+		return &protocol.CancelRunResponse{Type: protocol.CancelRunRoot, Run: protocol.RunRef{
+			RunSummary:      protocol.RunSummary{ID: request.RunID, SessionID: "ses_1", Status: protocol.RunStatusFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCanceled}},
+			ProtocolProfile: protocol.RunProtocolProfile{RequiredFeatures: []protocol.RunProtocolFeature{}, InterruptTypes: []protocol.InterruptType{}},
+		}}, nil
+	}
+	stub.steer = func(_ context.Context, _ protocol.SteerRunRequest, options embedded.CommandOptions) error {
+		if options.IdempotencyKey != string(commandID) {
+			t.Fatalf("steer idempotency key = %q", options.IdempotencyKey)
+		}
+		return nil
+	}
+	runtime := &Runtime{runs: stub, meta: requestMeta("test")}
+	if _, err := runtime.StartRun(t.Context(), agent.StartRun{CommandID: commandID, SessionID: "ses_1", Message: agent.Message{Text: "start"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{CommandID: commandID, RunID: "run_1", Answers: []agent.InterruptAnswer{{ItemID: "item_approval", Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.CancelRun(t.Context(), agent.CancelRun{CommandID: commandID, RunID: "run_1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.SteerRun(t.Context(), agent.SteerRun{CommandID: commandID, RunID: "run_1", SegmentID: "seg_1", Message: agent.Message{Text: "steer"}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSubscribeRunPassesOpaqueReplayCursor(t *testing.T) {
 	stub := runBindingStub{}
 	stub.subscribe = func(_ context.Context, request protocol.SubscribeRunRequest, options embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
