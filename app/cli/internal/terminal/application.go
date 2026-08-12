@@ -429,15 +429,12 @@ func (a *app) reconcilePendingRun(pending workbench.PendingRun) {
 				!a.operations.Release(lease) {
 				return
 			}
+			observed, accepted := observedSegmentStream(opened, err)
 			switch {
-			case err == nil && opened.RunID == activeRunID:
-				if validateErr := opened.ValidateStart(); validateErr != nil {
-					err = fmt.Errorf("reconcile pending run: %w", validateErr)
-				} else {
-					err = a.retireQueuedCommand(command.SessionID, command.CommandID)
-				}
-			case err == nil:
-				err = fmt.Errorf("pending command %s opened run %s while session projects %s", command.CommandID, opened.RunID, activeRunID)
+			case accepted && observed.RunID == activeRunID:
+				err = a.retireQueuedCommand(command.SessionID, command.CommandID)
+			case accepted:
+				err = fmt.Errorf("pending command %s opened run %s while session projects %s", command.CommandID, observed.RunID, activeRunID)
 			case errors.Is(err, agent.ErrSessionHasActiveRun):
 				_, err = a.workbench.RequeuePendingRun(command.SessionID, command.CommandID)
 			default:

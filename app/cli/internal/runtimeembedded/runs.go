@@ -59,12 +59,12 @@ func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.Seg
 		stream.Events = projectEventStream(events, stream.SegmentID)
 	}
 	if ack == nil || events == nil {
-		return stream, agent.NewAcceptedMutationError(
+		return agent.SegmentStream{}, agent.NewAcceptedMutationError(
 			stream, runtimeContractViolation("start run returned an incomplete stream"),
 		)
 	}
 	if err := stream.ValidateStart(); err != nil {
-		return stream, agent.NewAcceptedMutationError(
+		return agent.SegmentStream{}, agent.NewAcceptedMutationError(
 			stream, runtimeContractViolation("start run returned an invalid stream: %v", err),
 		)
 	}
@@ -113,12 +113,12 @@ func (r *Runtime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.S
 		stream.Events = projectEventStream(events, stream.SegmentID)
 	}
 	if ack == nil || events == nil {
-		return stream, agent.NewAcceptedMutationError(
+		return agent.SegmentStream{}, agent.NewAcceptedMutationError(
 			stream, runtimeContractViolation("resume run returned an incomplete stream"),
 		)
 	}
 	if err := stream.ValidateResume(input.RunID, input.Message); err != nil {
-		return stream, agent.NewAcceptedMutationError(
+		return agent.SegmentStream{}, agent.NewAcceptedMutationError(
 			stream, runtimeContractViolation("resume run returned an invalid stream: %v", err),
 		)
 	}

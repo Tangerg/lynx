@@ -17,6 +17,8 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/codebase"
+	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -35,6 +37,279 @@ type runtimeChangeSourceStub struct {
 type runtimeSubscriptionRegistration struct {
 	subscription changefeed.Subscription
 	events       chan changefeed.Event
+}
+
+type mutableRuntimeCatalog struct {
+	agent.Runtime
+
+	mu     sync.Mutex
+	models []agent.Model
+	rules  []agent.ApprovalRule
+}
+
+func (catalog *mutableRuntimeCatalog) ListModels(context.Context) ([]agent.Model, error) {
+	catalog.mu.Lock()
+	defer catalog.mu.Unlock()
+	return slices.Clone(catalog.models), nil
+}
+
+func (catalog *mutableRuntimeCatalog) ListApprovalRules(context.Context, string) ([]agent.ApprovalRule, error) {
+	catalog.mu.Lock()
+	defer catalog.mu.Unlock()
+	return slices.Clone(catalog.rules), nil
+}
+
+func (catalog *mutableRuntimeCatalog) setModels(models ...agent.Model) {
+	catalog.mu.Lock()
+	catalog.models = slices.Clone(models)
+	catalog.mu.Unlock()
+}
+
+func (catalog *mutableRuntimeCatalog) setRules(rules ...agent.ApprovalRule) {
+	catalog.mu.Lock()
+	catalog.rules = slices.Clone(rules)
+	catalog.mu.Unlock()
+}
+
+type mutableCodebaseService struct {
+	mu       sync.Mutex
+	status   codebase.Status
+	hits     []codebase.Hit
+	searches []codebase.Query
+}
+
+func (service *mutableCodebaseService) Status(context.Context, string) (codebase.Status, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	return service.status, nil
+}
+
+func (service *mutableCodebaseService) Search(_ context.Context, query codebase.Query) ([]codebase.Hit, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	service.searches = append(service.searches, query)
+	return slices.Clone(service.hits), nil
+}
+
+func (*mutableCodebaseService) Reindex(context.Context, string) (codebase.ReindexOperation, error) {
+	return codebase.ReindexOperation{ID: "op_test"}, nil
+}
+
+func (service *mutableCodebaseService) setHits(hits ...codebase.Hit) {
+	service.mu.Lock()
+	service.hits = slices.Clone(hits)
+	service.mu.Unlock()
+}
+
+func (service *mutableCodebaseService) setStatus(status codebase.Status) {
+	service.mu.Lock()
+	service.status = status
+	service.mu.Unlock()
+}
+
+func (service *mutableCodebaseService) searchQueries() []codebase.Query {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	return slices.Clone(service.searches)
+}
+
+func TestRuntimeResourceInvalidationsRefreshTheOpenProjection(t *testing.T) {
+	t.Run("model picker", func(t *testing.T) {
+		catalog := &mutableRuntimeCatalog{Runtime: mock.New()}
+		catalog.setModels(agent.Model{ID: "old", Provider: "mock", DisplayName: "Old model"})
+		source := runtimeResourceChangeSource(changefeed.ModelsChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{Runtime: catalog, Changes: source})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.ModelsChanged)
+		host.Type("/model")
+		host.Press(input.Enter)
+		host.Shows(t, "Old model")
+
+		catalog.setModels(agent.Model{ID: "new", Provider: "mock", DisplayName: "New model"})
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.ModelsChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "models.changed delivery")
+		host.Shows(t, "New model")
+		host.Hides(t, "Old model")
+		stop()
+	})
+
+	t.Run("model reader", func(t *testing.T) {
+		catalog := &mutableRuntimeCatalog{Runtime: mock.New()}
+		catalog.setModels(agent.Model{ID: "old", Provider: "mock", DisplayName: "Old catalog model"})
+		source := runtimeResourceChangeSource(changefeed.ModelsChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{Runtime: catalog, Changes: source})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.ModelsChanged)
+		host.Type("/models")
+		host.Press(input.Enter)
+		host.Shows(t, "Old catalog model")
+
+		catalog.setModels(agent.Model{ID: "new", Provider: "mock", DisplayName: "New catalog model"})
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.ModelsChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "models.changed delivery")
+		host.Shows(t, "New catalog model")
+		host.Hides(t, "Old catalog model")
+		stop()
+	})
+
+	t.Run("model roles", func(t *testing.T) {
+		models := newModelConfigServiceStub()
+		source := runtimeResourceChangeSource(changefeed.ModelsChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{
+			Runtime: mock.New(), ModelConfig: models, Changes: source,
+		})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.ModelsChanged)
+		host.Type("/roles")
+		host.Press(input.Enter)
+		host.Shows(t, "inherit the run model")
+
+		models.mu.Lock()
+		models.roles.Utility = modelconfig.Role{Kind: modelconfig.UtilityRole, Provider: "deepseek", Model: "chat"}
+		models.mu.Unlock()
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.ModelsChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "models.changed role delivery")
+		host.Shows(t, "deepseek/chat")
+		host.Hides(t, "inherit the run model")
+		stop()
+	})
+
+	t.Run("providers", func(t *testing.T) {
+		models := newModelConfigServiceStub()
+		source := runtimeResourceChangeSource(changefeed.ModelsChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{
+			Runtime: mock.New(), ModelConfig: models, Changes: source,
+		})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.ModelsChanged)
+		host.Type("/providers")
+		host.Press(input.Enter)
+		host.Shows(t, "api.deepseek.example")
+
+		models.mu.Lock()
+		models.providers[0].BaseURL = "https://new.deepseek.example"
+		models.mu.Unlock()
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.ModelsChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "models.changed provider delivery")
+		host.Shows(t, "new.deepseek.example")
+		host.Hides(t, "api.deepseek.example")
+		stop()
+	})
+
+	t.Run("approval rules", func(t *testing.T) {
+		catalog := &mutableRuntimeCatalog{Runtime: mock.New()}
+		source := runtimeResourceChangeSource(changefeed.ApprovalsChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{Runtime: catalog, Changes: source})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.ApprovalsChanged)
+		host.Type("/rules")
+		host.Press(input.Enter)
+		host.Shows(t, "No remembered approval rules")
+
+		catalog.setRules(agent.ApprovalRule{
+			ID: "rule_external", Scope: agent.RememberGlobal, Tool: "shell",
+			Subject: "go test ./...", Decision: agent.ApprovalRuleAllow,
+		})
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.ApprovalsChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "approvals.changed delivery")
+		host.Shows(t, "rule_external")
+		host.Hides(t, "No remembered approval rules")
+		stop()
+	})
+
+	t.Run("agent memory", func(t *testing.T) {
+		memory := newAgentMemoryServiceStub()
+		source := runtimeResourceChangeSource(changefeed.AgentMemoryChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{
+			Runtime: mock.New(), Workspace: "/workspace", AgentMemory: memory, Changes: source,
+		})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.AgentMemoryChanged)
+		host.Type("/memory project")
+		host.Press(input.Enter)
+		host.Shows(t, "confirm release steps")
+
+		memory.mu.Lock()
+		memory.project[0].Content = "confirm externally revised release steps"
+		memory.project[0].UpdatedAt = time.Now()
+		memory.mu.Unlock()
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.AgentMemoryChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "agentMemory.changed delivery")
+		host.Shows(t, "confirm externally revised release steps")
+		host.Hides(t, "confirm release steps")
+		stop()
+	})
+
+	t.Run("codebase search", func(t *testing.T) {
+		index := &mutableCodebaseService{status: codebase.Status{State: codebase.Ready}}
+		index.setHits(codebase.Hit{
+			Path: "internal/old.go", StartLine: 1, EndLine: 2, Snippet: "old owner", Score: .8,
+		})
+		source := runtimeResourceChangeSource(changefeed.CodebaseChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{
+			Runtime: mock.New(), Workspace: "/workspace", Codebase: index, Changes: source,
+		})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.CodebaseChanged)
+		host.Type("/codebase-search ownership")
+		host.Press(input.Enter)
+		host.Shows(t, "internal/old.go")
+
+		index.setHits(codebase.Hit{
+			Path: "internal/new.go", StartLine: 3, EndLine: 5, Snippet: "new owner", Score: .9,
+		})
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.CodebaseChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "codebase.changed delivery")
+		host.Shows(t, "internal/new.go")
+		host.Hides(t, "internal/old.go")
+		queries := index.searchQueries()
+		if len(queries) < 2 {
+			t.Fatalf("codebase refresh queries = %+v, want at least the initial and invalidation reads", queries)
+		}
+		for _, query := range queries {
+			if query != queries[0] || query.Text != "ownership" {
+				t.Fatalf("codebase refresh queries = %+v, want the exact original query", queries)
+			}
+		}
+		stop()
+	})
+
+	t.Run("codebase status", func(t *testing.T) {
+		index := &mutableCodebaseService{status: codebase.Status{
+			State: codebase.Ready, FileCount: 12, ChunkCount: 24,
+		}}
+		source := runtimeResourceChangeSource(changefeed.CodebaseChanged)
+		host, stop := runUIWithRuntimeServices(t, Config{
+			Runtime: mock.New(), Workspace: "/workspace", Codebase: index, Changes: source,
+		})
+		host.Shows(t, "Ask lyra")
+		assertSingleRuntimeTopic(t, source.subscription, changefeed.CodebaseChanged)
+		host.Type("/codebase")
+		host.Press(input.Enter)
+		host.Shows(t, "files      12")
+
+		index.setStatus(codebase.Status{State: codebase.Ready, FileCount: 17, ChunkCount: 31})
+		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.CodebaseChanged), Sequence: 1}
+		awaitSignal(t, source.applied, "codebase.changed status delivery")
+		host.Shows(t, "files      17")
+		host.Hides(t, "files      12")
+		stop()
+	})
+}
+
+func runtimeResourceChangeSource(topic changefeed.Topic) *runtimeChangeSourceStub {
+	return &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1), supported: []changefeed.Topic{topic},
+	}
+}
+
+func assertSingleRuntimeTopic(t *testing.T, subscriptions <-chan changefeed.Subscription, topic changefeed.Topic) {
+	t.Helper()
+	subscription := awaitValue(t, subscriptions, string(topic)+" subscription")
+	if !slices.Equal(subscription.Topics, []changefeed.Topic{topic}) {
+		t.Fatalf("runtime subscription topics = %v, want [%s]", subscription.Topics, topic)
+	}
 }
 
 type partitionedRuntimeChangeSourceStub struct {

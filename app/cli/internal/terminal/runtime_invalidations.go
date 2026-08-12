@@ -25,6 +25,10 @@ func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 	a.refreshScheduleReader(changefeed.Topic(event.Type) == changefeed.SchedulesChanged)
 	a.refreshKnowledgeReader(changefeed.Topic(event.Type) == changefeed.KnowledgeChanged)
 	a.refreshHooksReader(changefeed.Topic(event.Type) == changefeed.HooksChanged)
+	a.refreshModelReader(changefeed.Topic(event.Type) == changefeed.ModelsChanged)
+	a.refreshApprovalReader(changefeed.Topic(event.Type) == changefeed.ApprovalsChanged)
+	a.refreshAgentMemoryReader(changefeed.Topic(event.Type) == changefeed.AgentMemoryChanged)
+	a.refreshCodebaseReader(changefeed.Topic(event.Type) == changefeed.CodebaseChanged)
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(event),
 		invalidationAffectsSession(event, a.session.ID, a.conversation.RunID()),
@@ -38,6 +42,10 @@ func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
 	a.refreshScheduleReader(containsTopic(topics, changefeed.SchedulesChanged))
 	a.refreshKnowledgeReader(containsTopic(topics, changefeed.KnowledgeChanged))
 	a.refreshHooksReader(containsTopic(topics, changefeed.HooksChanged))
+	a.refreshModelReader(containsTopic(topics, changefeed.ModelsChanged))
+	a.refreshApprovalReader(containsTopic(topics, changefeed.ApprovalsChanged))
+	a.refreshAgentMemoryReader(containsTopic(topics, changefeed.AgentMemoryChanged))
+	a.refreshCodebaseReader(containsTopic(topics, changefeed.CodebaseChanged))
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(changefeed.Event{Type: changefeed.Resync, Topics: topics}),
 		resyncAffectsSession(topics),
@@ -96,6 +104,54 @@ func (a *app) refreshSkillReader(affected bool) {
 func (a *app) refreshGoalReader(affected bool) {
 	if affected && a.goals != nil && a.runtimeReader == runtimeReaderGoal && a.readerDialog.Open() {
 		a.refreshRuntimeReader(a.goalReaderQuery())
+	}
+}
+
+func (a *app) refreshModelReader(affected bool) {
+	if !affected {
+		return
+	}
+	if a.modelDialog.Open() {
+		a.loadModelPicker(false)
+	}
+	if !a.readerDialog.Open() {
+		return
+	}
+	switch a.runtimeReader {
+	case runtimeReaderModels:
+		a.refreshRuntimeReader(a.modelsReaderQuery())
+	case runtimeReaderModelRoles:
+		if a.modelConfig != nil {
+			a.refreshRuntimeReader(a.modelRolesReaderQuery())
+		}
+	case runtimeReaderProviders:
+		if a.modelConfig != nil {
+			a.refreshRuntimeReader(a.providersReaderQuery())
+		}
+	}
+}
+
+func (a *app) refreshApprovalReader(affected bool) {
+	if affected && a.runtimeReader == runtimeReaderApprovalRules && a.readerDialog.Open() {
+		a.refreshRuntimeReader(a.approvalRulesReaderQuery())
+	}
+}
+
+func (a *app) refreshAgentMemoryReader(affected bool) {
+	if affected && a.agentMemory != nil && a.runtimeReader == runtimeReaderAgentMemory && a.readerDialog.Open() {
+		a.refreshRuntimeReader(a.agentMemoryReaderQuery(a.runtimeSelection.agentMemoryTarget))
+	}
+}
+
+func (a *app) refreshCodebaseReader(affected bool) {
+	if !affected || a.codebase == nil || !a.readerDialog.Open() {
+		return
+	}
+	switch a.runtimeReader {
+	case runtimeReaderCodebaseStatus:
+		a.refreshRuntimeReader(a.codebaseStatusReaderQuery(a.session.Workspace.Path))
+	case runtimeReaderCodebaseSearch:
+		a.refreshRuntimeReader(a.codebaseSearchReaderQuery(a.runtimeSelection.codebaseQuery))
 	}
 }
 

@@ -798,7 +798,8 @@ func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
 				!a.operations.Release(lease) {
 				return
 			}
-			if err != nil {
+			opened, accepted := observedSegmentStream(opened, err)
+			if !accepted {
 				if mutation.AcknowledgementUncertain(err) {
 					a.fail(fmt.Errorf("reconcile canceled start: %w", err))
 					return
@@ -808,15 +809,23 @@ func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
 				}
 				return
 			}
-			if validateErr := opened.ValidateStart(); validateErr != nil {
-				a.fail(fmt.Errorf("reconcile canceled start: %w", validateErr))
+			validationErr := opened.ValidateStart()
+			if strings.TrimSpace(opened.RunID) == "" {
+				a.fail(errors.Join(
+					errors.New("reconcile canceled start: accepted receipt has no run identity"),
+					err,
+					validationErr,
+				))
 				return
+			}
+			if receiptErr := errors.Join(err, validationErr); receiptErr != nil {
+				a.message("runtime returned an invalid start receipt; canceling accepted run: " + receiptErr.Error())
 			}
 			a.requestRuntimeCancellation(agent.CancelRun{
 				CommandID: pending.CancelCommandID,
 				RunID:     opened.RunID,
 				Reason:    "canceled while start delivery was unconfirmed",
-			}, applyRuntimeSettlement)
+			}, preserveProjectionAndReportCanceled)
 		})
 	})
 }
@@ -830,6 +839,14 @@ func openStartRunWithBackoff(
 	return mutation.Confirm(ctx, backoff, func(ctx context.Context) (agent.SegmentStream, error) {
 		return runtime.StartRun(ctx, command)
 	})
+}
+
+func observedSegmentStream(stream agent.SegmentStream, err error) (agent.SegmentStream, bool) {
+	if err == nil {
+		return stream, true
+	}
+	receipt, accepted := agent.AcceptedMutationReceipt(err)
+	return receipt, accepted
 }
 
 func (a *app) retireCanceledStart(pending workbench.PendingRun) error {
@@ -867,6 +884,7 @@ type cancellationResultPolicy uint8
 const (
 	applyRuntimeSettlement cancellationResultPolicy = iota
 	preserveProjectionFailure
+	preserveProjectionAndReportCanceled
 )
 
 type pendingCancellation struct {
@@ -967,6 +985,13 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 		a.drainQueue()
 		return
 	}
+	if policy == preserveProjectionAndReportCanceled {
+		a.status.note("canceled")
+		a.prompt.SetBusy(false)
+		a.syncAnimation()
+		a.drainQueue()
+		return
+	}
 	if err := a.conversation.SettleRun(settled); err != nil {
 		a.fail(err)
 		return
@@ -1036,21 +1061,28 @@ func (a *app) cancelOpeningRunNow(ownerCtx context.Context, pending workbench.Pe
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
 	defer cancel()
 	opened, err := openStartRunWithBackoff(ctx, a.runtime, pending.Command, runtimeRecoveryBackoff)
-	if err != nil {
+	opened, accepted := observedSegmentStream(opened, err)
+	if !accepted {
 		if !mutation.AcknowledgementUncertain(err) {
 			return a.retireCanceledStart(pending)
 		}
 		return fmt.Errorf("reconcile run start during terminal close: %w", err)
 	}
-	if err := opened.ValidateStart(); err != nil {
-		return fmt.Errorf("validate run start during terminal close: %w", err)
+	validationErr := opened.ValidateStart()
+	if strings.TrimSpace(opened.RunID) == "" {
+		return errors.Join(
+			errors.New("reconcile run start during terminal close: accepted receipt has no run identity"),
+			err,
+			validationErr,
+		)
 	}
-	if err := a.cancelRuntimeNow(ctx, agent.CancelRun{
+	cancelErr := a.cancelRuntimeNow(ctx, agent.CancelRun{
 		CommandID: pending.CancelCommandID,
 		RunID:     opened.RunID,
 		Reason:    "terminal closed during start delivery",
-	}); err != nil {
-		return fmt.Errorf("cancel run opened during terminal close: %w", err)
+	})
+	if cancelErr != nil {
+		return errors.Join(err, validationErr, fmt.Errorf("cancel run opened during terminal close: %w", cancelErr))
 	}
 	return a.retireCanceledStart(pending)
 }

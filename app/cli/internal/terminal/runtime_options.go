@@ -81,6 +81,10 @@ func (a *app) ChooseModel() {
 		return
 	}
 	a.message("loading models")
+	a.loadModelPicker(true)
+}
+
+func (a *app) loadModelPicker(reset bool) {
 	runOperation(a, pickerCatalogOperation, true,
 		func(ctx context.Context) ([]agent.Model, error) { return a.runtime.ListModels(ctx) },
 		func(models []agent.Model, err error) {
@@ -92,7 +96,9 @@ func (a *app) ChooseModel() {
 				a.message(fmt.Sprintf("runtime models: %v", err))
 				return
 			}
-			a.modelPicker.Reset()
+			if reset {
+				a.modelPicker.Reset()
+			}
 			a.modelPicker.SetItems(models)
 			a.modelDialog.Show()
 			a.status.note("choose a provider-qualified model")
@@ -198,35 +204,39 @@ func formatRuntimeBytes(value int) string {
 }
 
 func (a *app) ShowApprovalRules() {
+	a.executeRuntimeReaderQuery(a.approvalRulesReaderQuery())
+}
+
+func (a *app) approvalRulesReaderQuery() runtimeReaderQuery {
 	sessionID := a.session.ID
-	runOperation(a, approvalCatalogOperation, true,
-		func(ctx context.Context) ([]agent.ApprovalRule, error) {
-			return a.runtime.ListApprovalRules(ctx, sessionID)
-		},
-		func(rules []agent.ApprovalRule, err error) {
+	return runtimeReaderQuery{
+		status: "loading approval rules", mode: runtimeReaderApprovalRules,
+		read: func(ctx context.Context) (readerDocument, error) {
+			rules, err := a.runtime.ListApprovalRules(ctx, sessionID)
 			if err != nil {
-				a.message("could not load approval rules: " + err.Error())
-				return
+				return readerDocument{}, err
 			}
 			if err := agent.ValidateApprovalRules(rules); err != nil {
-				a.message(fmt.Sprintf("runtime approval rules: %v", err))
-				return
+				return readerDocument{}, fmt.Errorf("runtime approval rules: %w", err)
 			}
-			if len(rules) == 0 {
-				a.message("no remembered approval rules")
-				return
-			}
-			lines := make([]string, 0, len(rules))
-			for _, rule := range rules {
-				subject := rule.Subject
-				if subject == "" {
-					subject = "*"
-				}
-				lines = append(lines, fmt.Sprintf("%s  %s  %s  %s:%s", rule.ID, rule.Scope, rule.Decision, rule.Tool, subject))
-			}
-			a.transcript.Append(&kit.Message{Theme: a.transcript.theme, Speaker: "approval rules", Body: strings.Join(lines, "\n")})
+			return approvalRulesDocument(rules), nil
 		},
-	)
+	}
+}
+
+func approvalRulesDocument(rules []agent.ApprovalRule) readerDocument {
+	if len(rules) == 0 {
+		return paragraphDocument("Approval rules", "none remembered", []string{"No remembered approval rules."})
+	}
+	lines := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		subject := rule.Subject
+		if subject == "" {
+			subject = "*"
+		}
+		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s:%s", rule.ID, rule.Scope, rule.Decision, rule.Tool, subject))
+	}
+	return paragraphDocument("Approval rules", fmt.Sprintf("%d remembered", len(rules)), lines)
 }
 
 func (a *app) syncOptions(message string) {

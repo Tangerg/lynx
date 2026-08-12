@@ -31,23 +31,47 @@ type finishObservingRuntime struct {
 type blockingFirstStartRuntime struct {
 	agent.Runtime
 
-	mu      sync.Mutex
-	blocked bool
-	inputs  []agent.StartRun
-	started chan agent.StartRun
-	release chan struct{}
+	mu             sync.Mutex
+	blocked        bool
+	receiptCommand agent.CommandID
+	receipt        agent.SegmentStream
+	receiptErr     error
+	inputs         []agent.StartRun
+	started        chan agent.StartRun
+	release        chan struct{}
 }
 
 func (r *blockingFirstStartRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
 	r.mu.Lock()
+	if request.CommandID != "" && request.CommandID == r.receiptCommand {
+		r.inputs = append(r.inputs, request.Clone())
+		stream, err := r.receipt, r.receiptErr
+		r.mu.Unlock()
+		if err != nil {
+			return agent.SegmentStream{}, err
+		}
+		return stream, nil
+	}
 	first := !r.blocked
 	r.blocked = true
 	r.inputs = append(r.inputs, request.Clone())
 	r.mu.Unlock()
 	stream, err := r.Runtime.StartRun(ctx, request)
-	if err != nil || !first {
+	if err != nil {
+		receipt, accepted := agent.AcceptedMutationReceipt(err)
+		if !accepted {
+			return agent.SegmentStream{}, err
+		}
+		stream = receipt
+	}
+	if !first {
 		return stream, err
 	}
+	r.mu.Lock()
+	r.receiptCommand = request.CommandID
+	r.receipt = stream
+	r.receiptErr = err
+	r.mu.Unlock()
 	select {
 	case r.started <- request.Clone():
 	case <-ctx.Done():
@@ -55,6 +79,9 @@ func (r *blockingFirstStartRuntime) StartRun(ctx context.Context, request agent.
 	}
 	select {
 	case <-r.release:
+		if err != nil {
+			return agent.SegmentStream{}, err
+		}
 		return stream, nil
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)

@@ -286,7 +286,7 @@ func TestRunAdaptersRejectMismatchedAcknowledgements(t *testing.T) {
 	}}})
 	requireRuntimeContractViolation(t, err)
 	receipt, accepted := agent.AcceptedMutationReceipt(err)
-	if !accepted || stream.RunID != "run_other" || receipt.RunID != stream.RunID || receipt.SegmentID != stream.SegmentID {
+	if !accepted || !segmentStreamEmpty(stream) || receipt.RunID != "run_other" || receipt.SegmentID != "seg_2" {
 		t.Fatalf("accepted mismatched resume = stream %+v, receipt %+v, accepted %t", stream, receipt, accepted)
 	}
 	_, err = runtime.SubscribeRun(t.Context(), agent.SubscribeRun{RunID: "run_1", SegmentID: "seg_1"})
@@ -308,7 +308,7 @@ func TestRunMutationAdaptersPreservePartialAcceptedReceipts(t *testing.T) {
 	started, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: "ses_1", Message: agent.Message{Text: "start"}})
 	requireRuntimeContractViolation(t, err)
 	receipt, accepted := agent.AcceptedMutationReceipt(err)
-	if !accepted || started.RunID != "run_started" || receipt.RunID != started.RunID || receipt.SegmentID != "seg_started" {
+	if !accepted || !segmentStreamEmpty(started) || receipt.RunID != "run_started" || receipt.SegmentID != "seg_started" {
 		t.Fatalf("partial accepted start = stream %+v, receipt %+v, accepted %t", started, receipt, accepted)
 	}
 
@@ -317,9 +317,14 @@ func TestRunMutationAdaptersPreservePartialAcceptedReceipts(t *testing.T) {
 	}}})
 	requireRuntimeContractViolation(t, err)
 	receipt, accepted = agent.AcceptedMutationReceipt(err)
-	if !accepted || resumed.RunID != "run_1" || receipt.RunID != resumed.RunID || receipt.SegmentID != "" {
+	if !accepted || !segmentStreamEmpty(resumed) || receipt.RunID != "run_1" || receipt.SegmentID != "" {
 		t.Fatalf("partial accepted resume = stream %+v, receipt %+v, accepted %t", resumed, receipt, accepted)
 	}
+}
+
+func segmentStreamEmpty(stream agent.SegmentStream) bool {
+	return stream.RunID == "" && stream.SegmentID == "" && stream.UserItemID == "" &&
+		stream.HeadEventID == "" && stream.Events == nil
 }
 
 func TestResumeAndCancelMapControlContracts(t *testing.T) {

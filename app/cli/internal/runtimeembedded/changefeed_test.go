@@ -225,6 +225,43 @@ func TestChangefeedAdapterRejectsMalformedWireEvent(t *testing.T) {
 	t.Fatal("malformed stream yielded no error")
 }
 
+func TestChangefeedAdapterProjectsRuntimeResourceInvalidations(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		topic changefeed.Topic
+		event protocol.RuntimeEventType
+	}{
+		{name: "models", topic: changefeed.ModelsChanged, event: protocol.RuntimeModelsChanged},
+		{name: "approvals", topic: changefeed.ApprovalsChanged, event: protocol.RuntimeApprovalsChanged},
+		{name: "agent memory", topic: changefeed.AgentMemoryChanged, event: protocol.RuntimeAgentMemoryChanged},
+		{name: "codebase", topic: changefeed.CodebaseChanged, event: protocol.RuntimeCodebaseChanged},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			stub := &changeBindingStub{events: func(yield func(protocol.RuntimeEvent, error) bool) {
+				yield(protocol.RuntimeEvent{Type: test.event, Sequence: 1}, nil)
+			}}
+			runtime := &Runtime{changes: stub, profile: changefeedProfile(test.topic)}
+			stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{Topics: []changefeed.Topic{test.topic}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for event, eventErr := range stream {
+				if eventErr != nil {
+					t.Fatal(eventErr)
+				}
+				if event.Type != changefeed.EventType(test.topic) || event.Sequence != 1 {
+					t.Fatalf("projected event = %+v, want %s sequence 1", event, test.topic)
+				}
+				return
+			}
+			t.Fatal("runtime resource stream yielded no event")
+		})
+	}
+}
+
 func TestChangefeedAdapterRejectsAnIncompleteRuntimeStream(t *testing.T) {
 	t.Parallel()
 	runtime := &Runtime{

@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/layout"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
+	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
@@ -30,10 +32,15 @@ const (
 	runtimeReaderMCPTools
 	runtimeReaderMCPAuthorization
 	runtimeReaderSchedules
+	runtimeReaderModels
+	runtimeReaderModelRoles
+	runtimeReaderProviders
+	runtimeReaderApprovalRules
 	runtimeReaderAgentMemory
 	runtimeReaderKnowledge
 	runtimeReaderDiagnosticTools
-	runtimeReaderCodebase
+	runtimeReaderCodebaseStatus
+	runtimeReaderCodebaseSearch
 	runtimeReaderAgentDocuments
 	runtimeReaderRecipes
 	runtimeReaderHooks
@@ -53,8 +60,10 @@ type runtimeReaderQuery struct {
 // reader after an authoritative change event. It deliberately contains no UI
 // or transport state.
 type runtimeReaderSelection struct {
-	knowledgeTarget knowledge.Target
-	knowledgeEntry  bool
+	knowledgeTarget   knowledge.Target
+	knowledgeEntry    bool
+	agentMemoryTarget agentmemory.Target
+	codebaseQuery     codebase.Query
 }
 
 type usageReport struct {
@@ -64,9 +73,7 @@ type usageReport struct {
 
 func (a *app) setRuntimeReader(mode runtimeReaderMode) {
 	a.runtimeReader = mode
-	if mode == runtimeReaderNone {
-		a.runtimeSelection = runtimeReaderSelection{}
-	}
+	a.runtimeSelection = runtimeReaderSelection{}
 	if mode != runtimeReaderMCPTools {
 		a.mcpToolServer = ""
 	}
@@ -171,14 +178,20 @@ func (a *app) ShowModelRoles() {
 		a.message("this runtime composition has no model configuration service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading model roles", runtimeReaderNone,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.modelRolesReaderQuery())
+}
+
+func (a *app) modelRolesReaderQuery() runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading model roles", mode: runtimeReaderModelRoles,
+		read: func(ctx context.Context) (readerDocument, error) {
 			roles, err := a.modelConfig.Roles(ctx)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return modelRolesDocument(roles), nil
-		})
+		},
+	}
 }
 
 func modelRolesDocument(roles modelconfig.Roles) readerDocument {
@@ -232,14 +245,20 @@ func (a *app) ShowProviders() {
 		a.message("this runtime composition has no model configuration service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading providers", runtimeReaderNone,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.providersReaderQuery())
+}
+
+func (a *app) providersReaderQuery() runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading providers", mode: runtimeReaderProviders,
+		read: func(ctx context.Context) (readerDocument, error) {
 			providers, err := a.modelConfig.Providers(ctx)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return providersDocument(providers), nil
-		})
+		},
+	}
 }
 
 func providersDocument(providers []modelconfig.Provider) readerDocument {

@@ -755,7 +755,21 @@ func TestRejectedResumeRetirementFailurePreservesTheDurableDecision(t *testing.T
 
 func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	base := mock.New()
-	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval", Title: "Persist settlement",
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "true", Status: agent.ToolRunning,
+				},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
+					Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+				}}}
+			},
+		}
+	}
 	runtime := &blockingAcceptedResumeRuntime{
 		Runtime: base, started: make(chan agent.ResumeRun, 1), release: make(chan struct{}),
 	}
@@ -808,8 +822,6 @@ func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	if durable, exists := store.PendingResume("ses_demo_1"); exists {
 		t.Fatalf("accepted resume remains durable after retry: %+v", durable)
 	}
-	host.Repaint()
-	host.Shows(t, "complete")
 	if attempts := runtime.resumeAttempts(); len(attempts) != 1 {
 		t.Fatalf("local settlement replayed the accepted resume: %+v", attempts)
 	}
@@ -1543,6 +1555,50 @@ func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
 	}
 	if snapshot.Session.Status != agent.SessionIdle {
 		t.Fatalf("session status = %s, want idle", snapshot.Session.Status)
+	}
+}
+
+func TestClosingDuringAnInvalidAcceptedStartCancelsTheRecoveredRun(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		}}}}
+	}
+	invalid := &invalidAcceptedStartRuntime{Runtime: base}
+	gate := &blockingFirstStartRuntime{
+		Runtime: invalid, started: make(chan agent.StartRun, 1), release: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, gate, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("close during an invalid accepted start")
+	host.Press(input.Enter)
+	started := awaitSignalValue(t, gate.started, "accepted start held before terminal close")
+	stop()
+
+	starts, cancellations := invalid.attempts()
+	if len(starts) != 1 || len(cancellations) != 1 || cancellations[0].RunID == "" ||
+		cancellations[0].Reason != "terminal closed during start delivery" {
+		t.Fatalf("terminal-close invalid receipt cleanup = starts %+v, cancellations %+v", starts, cancellations)
+	}
+	if attempts := gate.startInputs(); len(attempts) != 2 || attempts[0].CommandID != started.CommandID ||
+		attempts[1].CommandID != started.CommandID {
+		t.Fatalf("terminal-close start recovery identities = %+v", attempts)
+	}
+	snapshot, err := base.GetSession(t.Context(), started.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); active {
+		t.Fatalf("terminal close left malformed accepted run active: %+v", snapshot.Runs)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending := reopened.PendingRuns(started.SessionID); len(pending) != 0 {
+		t.Fatalf("terminal close left malformed start durable: %+v", pending)
 	}
 }
 
@@ -3527,7 +3583,7 @@ func TestApprovalModeSelectionRoundTripsThroughTheRuntime(t *testing.T) {
 
 	host.Type("/rules")
 	host.Press(input.Enter)
-	host.Shows(t, "no remembered approval rules")
+	host.Shows(t, "No remembered approval rules")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }

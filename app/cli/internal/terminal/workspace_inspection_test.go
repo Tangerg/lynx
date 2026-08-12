@@ -555,7 +555,7 @@ func TestObservedRuntimeResourcesRequireTheirPublishedFeature(t *testing.T) {
 		knowledge:      newKnowledgeServiceStub(),
 		hooks:          &hookServiceStub{},
 	}
-	if got := application.observedRuntimeResources(); got != (runtimeResourceObservation{hooks: true}) {
+	if got := application.observedRuntimeResources(); got != (runtimeResourceObservation{hooks: true, models: true, approvals: true}) {
 		t.Fatalf("resources with disabled features = %+v", got)
 	}
 	for feature := range features {
@@ -565,6 +565,7 @@ func TestObservedRuntimeResourcesRequireTheirPublishedFeature(t *testing.T) {
 	}
 	want := runtimeResourceObservation{
 		plan: true, goals: true, skills: true, mcp: true, schedules: true, knowledge: true, hooks: true,
+		models: true, approvals: true,
 	}
 	if got := application.observedRuntimeResources(); got != want {
 		t.Fatalf("resources with enabled features = %+v, want %+v", got, want)

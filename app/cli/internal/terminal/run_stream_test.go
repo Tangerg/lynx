@@ -73,7 +73,9 @@ func (runtime *invalidAcceptedStartRuntime) StartRun(ctx context.Context, input 
 	runtime.starts = append(runtime.starts, input.Clone())
 	runtime.mu.Unlock()
 	opened.UserItemID = ""
-	return opened, nil
+	return agent.SegmentStream{}, agent.NewAcceptedMutationError(
+		opened, fmt.Errorf("start run: %w", opened.ValidateStart()),
+	)
 }
 
 func (runtime *invalidAcceptedStartRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
@@ -556,6 +558,49 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 	})
 	if cancelID == "" {
 		t.Fatal("cancel command identity is empty")
+	}
+	stop()
+}
+
+func TestLaunchCancelsAnAcceptedRunWithAnInvalidRecoveredReceipt(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		}}}}
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_88888888888888888888888888888888"),
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "cancel malformed start after restart"},
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageDispatchingRun(t, store, command)
+	if _, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &invalidAcceptedStartRuntime{Runtime: base}
+
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
+	host.Shows(t, "canceled")
+	host.Until(t, "the invalid recovered start to leave the durable outbox", func() bool {
+		reopened, openErr := workbench.Open(stateDirectory, workbench.Config{})
+		return openErr == nil && len(reopened.PendingRuns(command.SessionID)) == 0 && host.Repaint()
+	})
+	starts, cancellations := runtime.attempts()
+	if len(starts) != 1 || len(cancellations) != 1 || cancellations[0].RunID == "" ||
+		cancellations[0].Reason != "canceled while start delivery was unconfirmed" {
+		t.Fatalf("invalid recovered start cleanup = starts %+v, cancellations %+v", starts, cancellations)
+	}
+	snapshot, err := base.GetSession(t.Context(), command.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); active {
+		t.Fatalf("invalid recovered receipt left a run active: %+v", snapshot.Runs)
 	}
 	stop()
 }

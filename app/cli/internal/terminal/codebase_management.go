@@ -19,14 +19,20 @@ func (a *app) ShowCodebaseStatus() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading codebase index status", runtimeReaderCodebase,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.codebaseStatusReaderQuery(workspace))
+}
+
+func (a *app) codebaseStatusReaderQuery(workspace string) runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading codebase index status", mode: runtimeReaderCodebaseStatus,
+		read: func(ctx context.Context) (readerDocument, error) {
 			status, err := a.codebase.Status(ctx, workspace)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return codebaseStatusDocument(workspace, status), nil
-		})
+		},
+	}
 }
 
 func codebaseStatusDocument(workspace string, status codebase.Status) readerDocument {
@@ -54,15 +60,22 @@ func (a *app) SearchCodebase(query string) error {
 	if err := request.Validate(); err != nil {
 		return errors.New("usage: /codebase-search <query>")
 	}
-	a.runRuntimeReaderQuery("searching semantic codebase", runtimeReaderCodebase,
-		func(ctx context.Context) (readerDocument, error) {
-			hits, err := a.codebase.Search(ctx, request)
+	a.executeRuntimeReaderQuery(a.codebaseSearchReaderQuery(request))
+	return nil
+}
+
+func (a *app) codebaseSearchReaderQuery(query codebase.Query) runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "searching semantic codebase", mode: runtimeReaderCodebaseSearch,
+		selection: runtimeReaderSelection{codebaseQuery: query},
+		read: func(ctx context.Context) (readerDocument, error) {
+			hits, err := a.codebase.Search(ctx, query)
 			if err != nil {
 				return readerDocument{}, err
 			}
-			return codebaseHitsDocument(request, hits), nil
-		})
-	return nil
+			return codebaseHitsDocument(query, hits), nil
+		},
+	}
 }
 
 func codebaseHitsDocument(query codebase.Query, hits []codebase.Hit) readerDocument {
@@ -108,7 +121,7 @@ func (a *app) reindexCodebase(workspace string) {
 			}
 			document := codebaseStatusDocument(workspace, result.status)
 			document.Detail = "operation " + result.operation.ID + " · " + workspace
-			a.setRuntimeReader(runtimeReaderCodebase)
+			a.setRuntimeReader(runtimeReaderCodebaseStatus)
 			a.openReaderDocument(document)
 			a.status.note("codebase reindex admitted · " + result.operation.ID)
 		},

@@ -15,17 +15,21 @@ import (
 type Topic string
 
 const (
-	FilesChanged      Topic = "files.changed"
-	SkillsChanged     Topic = "skills.changed"
-	MCPChanged        Topic = "mcp.changed"
-	SchedulesChanged  Topic = "schedules.changed"
-	SessionsChanged   Topic = "sessions.changed"
-	RunsChanged       Topic = "runs.changed"
-	StateChanged      Topic = "state.changed"
-	GoalsChanged      Topic = "goals.changed"
-	InterruptsChanged Topic = "interrupts.changed"
-	KnowledgeChanged  Topic = "knowledge.changed"
-	HooksChanged      Topic = "hooks.changed"
+	FilesChanged       Topic = "files.changed"
+	SkillsChanged      Topic = "skills.changed"
+	MCPChanged         Topic = "mcp.changed"
+	SchedulesChanged   Topic = "schedules.changed"
+	SessionsChanged    Topic = "sessions.changed"
+	RunsChanged        Topic = "runs.changed"
+	StateChanged       Topic = "state.changed"
+	GoalsChanged       Topic = "goals.changed"
+	InterruptsChanged  Topic = "interrupts.changed"
+	KnowledgeChanged   Topic = "knowledge.changed"
+	HooksChanged       Topic = "hooks.changed"
+	ModelsChanged      Topic = "models.changed"
+	ApprovalsChanged   Topic = "approvals.changed"
+	AgentMemoryChanged Topic = "agentMemory.changed"
+	CodebaseChanged    Topic = "codebase.changed"
 )
 
 // Topics returns the complete change vocabulary understood by this client.
@@ -44,6 +48,10 @@ func Topics() []Topic {
 		InterruptsChanged,
 		KnowledgeChanged,
 		HooksChanged,
+		ModelsChanged,
+		ApprovalsChanged,
+		AgentMemoryChanged,
+		CodebaseChanged,
 	}
 }
 

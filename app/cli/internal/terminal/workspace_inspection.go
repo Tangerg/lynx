@@ -348,13 +348,17 @@ type runtimeChangeMonitor struct {
 }
 
 type runtimeResourceObservation struct {
-	plan      bool
-	goals     bool
-	skills    bool
-	mcp       bool
-	schedules bool
-	knowledge bool
-	hooks     bool
+	plan        bool
+	goals       bool
+	skills      bool
+	mcp         bool
+	schedules   bool
+	knowledge   bool
+	hooks       bool
+	models      bool
+	approvals   bool
+	agentMemory bool
+	codebase    bool
 }
 
 func (observation runtimeResourceObservation) hasWorkspaceAuthoredResources() bool {
@@ -363,13 +367,17 @@ func (observation runtimeResourceObservation) hasWorkspaceAuthoredResources() bo
 
 func (a *app) observedRuntimeResources() runtimeResourceObservation {
 	return runtimeResourceObservation{
-		plan:      a.runtimeSupports(runtimeprofile.FeaturePlan),
-		goals:     a.goals != nil && a.runtimeSupports(runtimeprofile.FeatureGoals),
-		skills:    a.skills != nil && a.runtimeSupports(runtimeprofile.FeatureSkills),
-		mcp:       a.mcp != nil && a.runtimeSupports(runtimeprofile.FeatureMCP),
-		schedules: a.schedules != nil && a.runtimeSupports(runtimeprofile.FeatureSchedules),
-		knowledge: a.knowledge != nil && a.runtimeSupports(runtimeprofile.FeatureKnowledge),
-		hooks:     a.hooks != nil,
+		plan:        a.runtimeSupports(runtimeprofile.FeaturePlan),
+		goals:       a.goals != nil && a.runtimeSupports(runtimeprofile.FeatureGoals),
+		skills:      a.skills != nil && a.runtimeSupports(runtimeprofile.FeatureSkills),
+		mcp:         a.mcp != nil && a.runtimeSupports(runtimeprofile.FeatureMCP),
+		schedules:   a.schedules != nil && a.runtimeSupports(runtimeprofile.FeatureSchedules),
+		knowledge:   a.knowledge != nil && a.runtimeSupports(runtimeprofile.FeatureKnowledge),
+		hooks:       a.hooks != nil,
+		models:      true,
+		approvals:   true,
+		agentMemory: a.agentMemory != nil && a.runtimeSupports(runtimeprofile.FeatureAgentMemory),
+		codebase:    a.codebase != nil && a.runtimeSupports(runtimeprofile.FeatureCodebase),
 	}
 }
 
@@ -611,6 +619,18 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	}
 	if monitor.resources.hooks {
 		candidates = append(candidates, changefeed.HooksChanged)
+	}
+	if monitor.resources.models {
+		candidates = append(candidates, changefeed.ModelsChanged)
+	}
+	if monitor.resources.approvals {
+		candidates = append(candidates, changefeed.ApprovalsChanged)
+	}
+	if monitor.resources.agentMemory {
+		candidates = append(candidates, changefeed.AgentMemoryChanged)
+	}
+	if monitor.resources.codebase {
+		candidates = append(candidates, changefeed.CodebaseChanged)
 	}
 	if monitor.observesWorkspace() {
 		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)

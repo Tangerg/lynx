@@ -11,14 +11,20 @@ import (
 )
 
 func (a *app) ShowModels() {
-	a.runRuntimeReaderQuery("loading model catalog", runtimeReaderNone,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.modelsReaderQuery())
+}
+
+func (a *app) modelsReaderQuery() runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading model catalog", mode: runtimeReaderModels,
+		read: func(ctx context.Context) (readerDocument, error) {
 			models, err := a.runtime.ListModels(ctx)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return modelCatalogDocument(models), nil
-		})
+		},
+	}
 }
 
 func modelCatalogDocument(models []agent.Model) readerDocument {
