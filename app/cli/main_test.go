@@ -122,6 +122,16 @@ func TestInteractiveBinaryPreservesSubmittedInputSequences(t *testing.T) {
 			want:  []string{"最后字符终"},
 		},
 		{
+			name:  "kitty associated text preserves one composed input event",
+			input: "associated-\x1b[120;1;20320:22909u-tail\r",
+			want:  []string{"associated-你好-tail"},
+		},
+		{
+			name:  "combining and zwj graphemes survive at the submission tail",
+			input: "grapheme-tail-e\u0301-👩\u200d💻\r",
+			want:  []string{"grapheme-tail-e\u0301-👩\u200d💻"},
+		},
+		{
 			name:  "kitty shift enter inserts a newline",
 			input: "kitty-first\x1b[13;2u第二行-kitty-tail\r",
 			want:  []string{"kitty-first", "第二行-kitty-tail"},
@@ -135,6 +145,11 @@ func TestInteractiveBinaryPreservesSubmittedInputSequences(t *testing.T) {
 			name:  "bracketed paste and trailing enter stay separate",
 			input: "\x1b[200~pasted-first\npasted-tail-终\x1b[201~\r",
 			want:  []string{"pasted-first", "pasted-tail-终"},
+		},
+		{
+			name:  "paste terminator trailing character and enter stay ordered",
+			input: "\x1b[200~paste-body\x1b[201~末\r",
+			want:  []string{"paste-body末"},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) { requireSubmittedInputSequence(t, binary, size, test) })
