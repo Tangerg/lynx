@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"iter"
+	"slices"
 )
 
 // EventStream is the ordered event stream of one run segment. A stream yields
@@ -122,6 +123,21 @@ type ResumeRun struct {
 	RunID     string
 	Answers   []InterruptAnswer
 	Message   *Message
+}
+
+// Equal reports whether two resume commands carry the same complete decision
+// set. Answer order is semantic because the command consumes the runtime's
+// ordered interaction set atomically.
+func (r ResumeRun) Equal(other ResumeRun) bool {
+	if r.CommandID != other.CommandID || r.RunID != other.RunID || (r.Message == nil) != (other.Message == nil) {
+		return false
+	}
+	if r.Message != nil && !r.Message.Equal(*other.Message) {
+		return false
+	}
+	return slices.EqualFunc(r.Answers, other.Answers, func(left, right InterruptAnswer) bool {
+		return left.ItemID == right.ItemID && AnswerEqual(left.Answer, right.Answer)
+	})
 }
 
 // Clone detaches every mutable answer and optional message owned by a resume

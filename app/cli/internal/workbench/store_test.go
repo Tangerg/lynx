@@ -536,6 +536,57 @@ func TestStorePersistsPendingInteractionResumeUntilExactSettlement(t *testing.T)
 	}
 }
 
+func TestStagingTheSameResumeCommandRejectsDifferentDecisions(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := agent.Approval{
+		RunID: "run_1", ItemID: "item_1", Title: "Run checks", Rememberable: true,
+		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+	}
+	pending := PendingResume{
+		Command: agent.ResumeRun{
+			CommandID: agent.CommandID("cli_66666666666666666666666666666666"), RunID: approval.RunID,
+			Answers: []agent.InterruptAnswer{{ItemID: approval.ItemID, Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove}}},
+		},
+		Interactions: []agent.Interaction{approval},
+	}
+	if err := store.StagePendingResume("ses_1", pending); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StagePendingResume("ses_1", pending); err != nil {
+		t.Fatalf("identical idempotent resume staging returned %v", err)
+	}
+
+	changedAnswer := clonePendingResume(pending)
+	changedAnswer.Command.Answers[0].Answer = agent.ApprovalAnswer{
+		Decision: agent.ApprovalDeny, Reason: "not this command",
+	}
+	if err := store.StagePendingResume("ses_1", changedAnswer); err == nil {
+		t.Fatal("same resume identity accepted a different answer")
+	}
+	changedInteraction := clonePendingResume(pending)
+	changedInteraction.Interactions[0] = agent.Approval{
+		RunID: approval.RunID, ItemID: approval.ItemID, Title: "Different request", Rememberable: true,
+		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+	}
+	if err := store.StagePendingResume("ses_1", changedInteraction); err == nil {
+		t.Fatal("same resume identity accepted a different interaction")
+	}
+	message := agent.Message{Text: "additional guidance"}
+	changedMessage := clonePendingResume(pending)
+	changedMessage.Command.Message = &message
+	if err := store.StagePendingResume("ses_1", changedMessage); err == nil {
+		t.Fatal("same resume identity accepted a different message")
+	}
+
+	stored, ok := store.PendingResume("ses_1")
+	if !ok || !pendingResumeEqual(stored, pending) {
+		t.Fatalf("conflicting resume staging mutated outbox: %+v, present %t", stored, ok)
+	}
+}
+
 func TestStorePersistsTheCompleteMixedInteractionReview(t *testing.T) {
 	directory := t.TempDir()
 	store, err := Open(directory, Config{})

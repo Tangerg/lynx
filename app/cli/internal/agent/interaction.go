@@ -347,3 +347,36 @@ func CloneAnswer(answer Answer) Answer {
 		return nil
 	}
 }
+
+// AnswerEqual reports whether two interaction answers carry the same complete
+// decision value, including edited tool arguments and ordered question values.
+func AnswerEqual(left, right Answer) bool {
+	switch typed := left.(type) {
+	case ApprovalAnswer:
+		other, ok := right.(ApprovalAnswer)
+		return ok && typed.Decision == other.Decision && typed.Remember == other.Remember &&
+			typed.Reason == other.Reason && typed.ArgumentOverride.Equal(other.ArgumentOverride)
+	case QuestionAnswer:
+		other, ok := right.(QuestionAnswer)
+		return ok && equalAnswerValues(typed.Values, other.Values)
+	default:
+		return left == nil && right == nil
+	}
+}
+
+// InteractionsEqual reports whether two ordered pending interaction sets are
+// the same runtime decision surface.
+func InteractionsEqual(left, right []Interaction) bool {
+	return slices.EqualFunc(left, right, func(left, right Interaction) bool {
+		switch typed := left.(type) {
+		case Approval:
+			other, ok := right.(Approval)
+			return ok && typed.Equal(other)
+		case Question:
+			other, ok := right.(Question)
+			return ok && typed.Equal(other)
+		default:
+			return left == nil && right == nil
+		}
+	})
+}

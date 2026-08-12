@@ -374,6 +374,9 @@ func (s *Store) StagePendingResume(sessionID string, pending PendingResume) erro
 	defer s.mu.Unlock()
 	if current, exists := s.pendingResumes[sessionID]; exists {
 		if current.Command.CommandID == pending.Command.CommandID {
+			if !pendingResumeEqual(current, pending) {
+				return errors.New("pending resume command identity already owns another decision")
+			}
 			return nil
 		}
 		return errors.New("another resume command is already pending")
@@ -1024,6 +1027,10 @@ func clonePendingRun(command PendingRun) PendingRun {
 func pendingRunEqual(left, right PendingRun) bool {
 	return left.State == right.State && left.CancelCommandID == right.CancelCommandID &&
 		left.Command.Equal(right.Command)
+}
+
+func pendingResumeEqual(left, right PendingResume) bool {
+	return left.Command.Equal(right.Command) && agent.InteractionsEqual(left.Interactions, right.Interactions)
 }
 
 func clonePendingResume(pending PendingResume) PendingResume {
