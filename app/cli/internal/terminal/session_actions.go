@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
@@ -115,7 +116,10 @@ func (a *app) prepareSessionRollback(argument string) error {
 type rollbackPreview struct {
 	request         agent.RollbackSession
 	sessionRevision uint64
+	keptIDs         []string
 	droppedIDs      []string
+	openingText     string
+	openingImages   int
 }
 
 func previewRollback(snapshot agent.SessionSnapshot, request agent.RollbackSession) (rollbackPreview, error) {
@@ -132,14 +136,39 @@ func previewRollback(snapshot agent.SessionSnapshot, request agent.RollbackSessi
 			return rollbackPreview{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, request.ToRunID)
 		}
 	}
-	preview := rollbackPreview{request: request, sessionRevision: snapshot.Session.Revision}
+	allIDs := make([]string, len(snapshot.Runs))
+	for index, run := range snapshot.Runs {
+		allIDs[index] = run.ID
+	}
+	preview := rollbackPreview{
+		request: request, sessionRevision: snapshot.Session.Revision,
+		keptIDs: slices.Clone(allIDs[:boundary+1]),
+	}
 	if request.Scope != agent.RestoreFiles {
-		preview.droppedIDs = make([]string, 0, len(snapshot.Runs)-boundary-1)
-		for _, run := range snapshot.Runs[boundary+1:] {
-			preview.droppedIDs = append(preview.droppedIDs, run.ID)
-		}
+		preview.droppedIDs = slices.Clone(allIDs[boundary+1:])
+		preview.openingText, preview.openingImages = rollbackOpeningInput(snapshot.Transcript, preview.droppedIDs)
 	}
 	return preview, nil
+}
+
+func rollbackOpeningInput(transcript []agent.Block, droppedIDs []string) (string, int) {
+	for _, runID := range droppedIDs {
+		for _, block := range transcript {
+			if block.RunID != runID || block.Kind != agent.BlockUser {
+				continue
+			}
+			images := 0
+			for _, attachment := range block.Attachments {
+				if attachment.Kind == agent.AttachmentImage {
+					images++
+				}
+			}
+			if strings.TrimSpace(block.Text) != "" || images > 0 {
+				return block.Text, images
+			}
+		}
+	}
+	return "", 0
 }
 
 func (preview rollbackPreview) ValidateCommit(snapshot agent.SessionSnapshot) error {
@@ -149,6 +178,30 @@ func (preview rollbackPreview) ValidateCommit(snapshot agent.SessionSnapshot) er
 	}
 	if current.sessionRevision != preview.sessionRevision || !slices.Equal(current.droppedIDs, preview.droppedIDs) {
 		return errors.New("session changed after the rollback preview; review the action again")
+	}
+	return nil
+}
+
+// ValidateApplied proves a history rollback committed when its command result
+// was lost behind a post-commit cleanup error. Files-only rollback has no
+// observable session projection change and therefore cannot use this proof.
+func (preview rollbackPreview) ValidateApplied(snapshot agent.SessionSnapshot) error {
+	if preview.request.Scope == agent.RestoreFiles {
+		return errors.New("files-only rollback has no authoritative session outcome")
+	}
+	if err := snapshot.Validate(); err != nil {
+		return fmt.Errorf("read rollback outcome: %w", err)
+	}
+	if snapshot.Session.ID != preview.request.SessionID {
+		return errors.New("read rollback outcome: runtime returned another session")
+	}
+	remaining := make([]string, len(snapshot.Runs))
+	for index, run := range snapshot.Runs {
+		remaining[index] = run.ID
+	}
+	if len(preview.droppedIDs) == 0 || snapshot.Session.Revision <= preview.sessionRevision ||
+		!slices.Equal(remaining, preview.keptIDs) {
+		return errors.New("authoritative session does not prove the rollback committed")
 	}
 	return nil
 }
@@ -165,12 +218,22 @@ func (preview rollbackPreview) Description() string {
 }
 
 type rollbackInstallation struct {
-	result   agent.RollbackResult
-	snapshot agent.SessionSnapshot
+	result        agent.RollbackResult
+	snapshot      agent.SessionSnapshot
+	droppedCount  int
+	openingText   string
+	openingImages int
+	cleanupErr    error
 }
 
 func (a *app) rollbackSession(preview rollbackPreview) {
 	request := preview.request
+	commandID, err := agent.NewCommandID()
+	if err != nil {
+		a.message("rollback session failed: create command identity: " + err.Error())
+		return
+	}
+	request.CommandID = commandID
 	runSessionChange(a, "rolling back session",
 		func(ctx context.Context) (rollbackInstallation, error) {
 			latest, err := a.runtime.GetSession(ctx, request.SessionID)
@@ -180,12 +243,30 @@ func (a *app) rollbackSession(preview rollbackPreview) {
 			if err := preview.ValidateCommit(latest); err != nil {
 				return rollbackInstallation{}, err
 			}
-			result, err := a.runtime.RollbackSession(ctx, request)
-			if err != nil {
-				return rollbackInstallation{}, err
-			}
+			result, rollbackErr := mutation.Confirm(ctx, runtimeRecoveryBackoff, func(ctx context.Context) (agent.RollbackResult, error) {
+				return a.runtime.RollbackSession(ctx, request)
+			})
 			snapshot, err := a.readSessionAfterMutation(ctx, request.SessionID)
-			return rollbackInstallation{result: result, snapshot: snapshot}, err
+			if err != nil {
+				return rollbackInstallation{}, errors.Join(rollbackErr, err)
+			}
+			if rollbackErr != nil {
+				if outcomeErr := preview.ValidateApplied(snapshot); outcomeErr != nil {
+					return rollbackInstallation{}, errors.Join(rollbackErr, outcomeErr)
+				}
+				return rollbackInstallation{
+					result: agent.RollbackResult{Session: snapshot.Session}, snapshot: snapshot,
+					droppedCount: len(preview.droppedIDs), openingText: preview.openingText,
+					openingImages: preview.openingImages, cleanupErr: rollbackErr,
+				}, nil
+			}
+			installation := rollbackInstallation{
+				result: result, snapshot: snapshot, droppedCount: len(result.Dropped),
+			}
+			if input, ok := result.FirstOpeningInput(); ok {
+				installation.openingText, installation.openingImages = input.OpeningText()
+			}
+			return installation, nil
 		},
 		func(installation rollbackInstallation) error {
 			if installation.result.Session.ID != installation.snapshot.Session.ID {
@@ -194,24 +275,32 @@ func (a *app) rollbackSession(preview rollbackPreview) {
 			if err := a.installSnapshot(installation.snapshot); err != nil {
 				return err
 			}
-			if input, ok := installation.result.FirstOpeningInput(); ok {
-				text, images := input.OpeningText()
-				if strings.TrimSpace(text) != "" {
-					if err := a.recoverDraft(agent.Message{Text: text}); err != nil {
-						label := fmt.Sprintf("rolled back %d runs; restored text was not saved: %v", len(installation.result.Dropped), err)
-						if images > 0 {
-							label += fmt.Sprintf("; %d inline images must be reattached", images)
-						}
-						a.message(label)
-						return nil
+			if strings.TrimSpace(installation.openingText) != "" {
+				if err := a.recoverDraft(agent.Message{Text: installation.openingText}); err != nil {
+					label := fmt.Sprintf("rolled back %d runs; restored text was not saved: %v", installation.droppedCount, err)
+					if installation.openingImages > 0 {
+						label += fmt.Sprintf("; %d inline images must be reattached", installation.openingImages)
 					}
-				}
-				if images > 0 {
-					a.message(fmt.Sprintf("rolled back %d runs; restored text, but %d inline images must be reattached", len(installation.result.Dropped), images))
+					if installation.cleanupErr != nil {
+						label += "; runtime cleanup warning: " + installation.cleanupErr.Error()
+					}
+					a.message(label)
 					return nil
 				}
 			}
-			a.message(fmt.Sprintf("rolled back session · %d runs removed", len(installation.result.Dropped)))
+			if installation.openingImages > 0 {
+				label := fmt.Sprintf("rolled back %d runs; restored text, but %d inline images must be reattached", installation.droppedCount, installation.openingImages)
+				if installation.cleanupErr != nil {
+					label += "; runtime cleanup warning: " + installation.cleanupErr.Error()
+				}
+				a.message(label)
+				return nil
+			}
+			label := fmt.Sprintf("rolled back session · %d runs removed", installation.droppedCount)
+			if installation.cleanupErr != nil {
+				label += "; runtime cleanup warning: " + installation.cleanupErr.Error()
+			}
+			a.message(label)
 			return nil
 		},
 	)

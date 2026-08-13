@@ -26,6 +26,7 @@ func (scope RestoreScope) Validate() error {
 // RollbackSession keeps ToRunID and every earlier root run. An empty ToRunID
 // clears all history; file restoration therefore requires a concrete boundary.
 type RollbackSession struct {
+	CommandID CommandID
 	SessionID string
 	ToRunID   string
 	Scope     RestoreScope
@@ -33,6 +34,11 @@ type RollbackSession struct {
 
 func (rollback RollbackSession) Validate() error {
 	var problems []error
+	if rollback.CommandID != "" {
+		if err := rollback.CommandID.Validate(); err != nil {
+			problems = append(problems, err)
+		}
+	}
 	if strings.TrimSpace(rollback.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}

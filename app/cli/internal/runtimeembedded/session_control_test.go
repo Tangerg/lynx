@@ -44,12 +44,13 @@ func (stub sessionBindingStub) ImportSession(ctx context.Context, request protoc
 
 func TestSessionControlProjectsRollbackWithoutLosingInlineInput(t *testing.T) {
 	image := []byte("image body")
+	commandID := agent.CommandID("cli_77777777777777777777777777777777")
 	stub := sessionBindingStub{}
 	stub.rollback = func(_ context.Context, request protocol.RollbackSessionRequest, options embedded.CommandOptions) (*protocol.RollbackSessionResponse, error) {
 		if request.SessionID != "ses_1" || request.ToRunID != "run_1" || request.RestoreType != protocol.RestoreBoth {
 			t.Fatalf("rollback request = %+v", request)
 		}
-		if options.IdempotencyKey == "" || options.RequestMeta.ProtocolVersion != protocol.ProtocolVersion {
+		if options.IdempotencyKey != string(commandID) || options.RequestMeta.ProtocolVersion != protocol.ProtocolVersion {
 			t.Fatalf("rollback options = %+v", options)
 		}
 		return &protocol.RollbackSessionResponse{
@@ -68,7 +69,7 @@ func TestSessionControlProjectsRollbackWithoutLosingInlineInput(t *testing.T) {
 		profile: sessionControlProfile(runtimeprofile.FeatureCheckpoints),
 	}
 	result, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{
-		SessionID: "ses_1", ToRunID: "run_1", Scope: agent.RestoreBoth,
+		CommandID: commandID, SessionID: "ses_1", ToRunID: "run_1", Scope: agent.RestoreBoth,
 	})
 	if err != nil {
 		t.Fatal(err)

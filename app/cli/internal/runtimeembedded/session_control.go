@@ -34,7 +34,7 @@ func (r *Runtime) RollbackSession(ctx context.Context, input agent.RollbackSessi
 			return agent.RollbackResult{}, err
 		}
 	}
-	options, err := r.commandOptions()
+	options, err := r.commandOptionsFor(input.CommandID)
 	if err != nil {
 		return agent.RollbackResult{}, err
 	}

@@ -299,6 +299,43 @@ func TestRollbackPreviewRejectsEverySessionRevisionChange(t *testing.T) {
 	}
 }
 
+func TestRollbackPreviewProvesOnlyTheExactHistoryOutcome(t *testing.T) {
+	backend := mock.New()
+	before, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := agent.RollbackSession{SessionID: before.Session.ID, Scope: agent.RestoreHistory}
+	preview, err := previewRollback(before, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := preview.ValidateApplied(before); err == nil {
+		t.Fatal("unchanged session was accepted as a committed rollback")
+	}
+	if _, err := backend.RollbackSession(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+	after, err := backend.GetSession(t.Context(), request.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := preview.ValidateApplied(after); err != nil {
+		t.Fatalf("authoritative rollback outcome: %v", err)
+	}
+	wrong := after
+	wrong.Runs = slices.Clone(after.Runs)
+	wrong.Runs = append(wrong.Runs, before.Runs[len(before.Runs)-1])
+	if err := preview.ValidateApplied(wrong); err == nil {
+		t.Fatal("rollback outcome with a surviving dropped run was accepted")
+	}
+	files := preview
+	files.request.Scope = agent.RestoreFiles
+	if err := files.ValidateApplied(after); err == nil {
+		t.Fatal("files-only rollback was inferred from a session projection")
+	}
+}
+
 func TestRollbackConfirmationSurvivesExtremeResizeAndRestoresOpeningInput(t *testing.T) {
 	backend := mock.New()
 	host, stop := runUIForSession(t, backend, "ses_demo_1")
@@ -325,6 +362,52 @@ type blockedRollbackRuntime struct {
 
 	entered chan struct{}
 	release chan struct{}
+}
+
+type postCommitRollbackRuntime struct {
+	*mock.Runtime
+
+	mu      sync.Mutex
+	request agent.RollbackSession
+}
+
+func (runtime *postCommitRollbackRuntime) RollbackSession(
+	ctx context.Context,
+	request agent.RollbackSession,
+) (agent.RollbackResult, error) {
+	result, err := runtime.Runtime.RollbackSession(ctx, request)
+	if err != nil {
+		return result, err
+	}
+	runtime.mu.Lock()
+	runtime.request = request
+	runtime.mu.Unlock()
+	return agent.RollbackResult{}, errors.New("runtime cleanup failed after durable rollback")
+}
+
+func (runtime *postCommitRollbackRuntime) rollbackRequest() agent.RollbackSession {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return runtime.request
+}
+
+func TestRollbackConvergesPostCommitFailureAndRestoresOpeningInput(t *testing.T) {
+	backend := &postCommitRollbackRuntime{Runtime: mock.New()}
+	host, stop := runUIForSession(t, backend, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	host.Type("/rollback all history")
+	host.Press(input.Enter)
+	host.Shows(t, "Rollback session")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Shows(t, "1 runs removed")
+	host.Shows(t, "Why is the cache expiry test flaky?")
+	host.Shows(t, "runtime cleanup warning")
+	request := backend.rollbackRequest()
+	if request.SessionID != "ses_demo_1" || request.CommandID == "" {
+		t.Fatalf("rollback request = %+v", request)
+	}
+	stop()
 }
 
 func (runtime *blockedRollbackRuntime) RollbackSession(ctx context.Context, request agent.RollbackSession) (agent.RollbackResult, error) {
