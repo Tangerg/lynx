@@ -408,22 +408,33 @@ func (transition sessionDraftTransition) resolve(
 		if destinationSessionID == transition.sourceSessionID {
 			return agent.Message{}, fmt.Errorf("replacement session reused retired identity %s", destinationSessionID)
 		}
-		if err := store.SaveDraft(destinationSessionID, currentDraft); err != nil {
-			return agent.Message{}, fmt.Errorf("save replacement session draft: %w", err)
+		if strings.TrimSpace(currentDraft.Text) == "" && len(currentDraft.Attachments) == 0 {
+			return currentDraft, nil
 		}
-		if err := store.DiscardDraft(transition.sourceSessionID); err != nil {
-			return agent.Message{}, fmt.Errorf("discard retired session draft: %w", err)
+		if err := store.ApplyDraftTransfer(workbench.DraftTransfer{
+			SourceSessionID: transition.sourceSessionID, DestinationSessionID: destinationSessionID,
+			SourceBefore: currentDraft, DestinationBefore: destinationDraft,
+			DestinationAfter: currentDraft,
+		}); err != nil {
+			return agent.Message{}, fmt.Errorf("transfer replacement session draft: %w", err)
 		}
 		return currentDraft, nil
 	case preserveSourceDraft:
+		// Mutations such as rollback replace the authoritative projection without
+		// changing session identity. prepareDestinationDraft already flushed the
+		// current composer into this aggregate, so there is no cross-file transfer.
+		if destinationSessionID == transition.sourceSessionID {
+			return currentDraft, nil
+		}
 		if currentDraft.Equal(transition.baseline) {
 			return destinationDraft, nil
 		}
-		if err := store.SaveDraft(transition.sourceSessionID, transition.baseline); err != nil {
-			return agent.Message{}, fmt.Errorf("restore source session draft: %w", err)
-		}
-		if err := store.SaveDraft(destinationSessionID, currentDraft); err != nil {
-			return agent.Message{}, fmt.Errorf("move draft to destination session: %w", err)
+		if err := store.ApplyDraftTransfer(workbench.DraftTransfer{
+			SourceSessionID: transition.sourceSessionID, DestinationSessionID: destinationSessionID,
+			SourceBefore: currentDraft, SourceAfter: transition.baseline,
+			DestinationBefore: destinationDraft, DestinationAfter: currentDraft,
+		}); err != nil {
+			return agent.Message{}, fmt.Errorf("transfer session draft: %w", err)
 		}
 		return currentDraft, nil
 	default:

@@ -433,6 +433,7 @@ type Store struct {
 	pendingRollbacks map[string]PendingSessionRollback
 	pendingSteers    map[string]PendingSteer
 	sessionDeletions map[string]PendingSessionDeletion
+	draftTransfer    *DraftTransfer
 }
 
 // Open loads a file-backed store. An empty directory creates a memory-only
@@ -497,6 +498,17 @@ func Open(directory string, config Config) (*Store, error) {
 	if err := store.loadSessionStates(); err != nil {
 		return nil, fmt.Errorf("load session authoring state: %w", err)
 	}
+	var draftTransfer *DraftTransfer
+	if err := store.loadOptional(sessionDraftTransferName, &draftTransfer); err != nil {
+		return nil, fmt.Errorf("load session draft transfer: %w", err)
+	}
+	if draftTransfer != nil {
+		cloned := draftTransfer.normalized()
+		store.draftTransfer = &cloned
+		if err := store.recoverDraftTransfer(); err != nil {
+			return nil, fmt.Errorf("recover session draft transfer: %w", err)
+		}
+	}
 	store.recoverConfirmedSessionDeletions()
 	store.history = store.trimHistory(store.history)
 	store.stashes = tailStashes(store.stashes, store.stashLimit)
@@ -559,6 +571,9 @@ func (s *Store) StageSessionDeletion(request agent.DeleteSession, replay ReplayG
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.draftTransferBlocks(request.SessionID) {
+		return errors.New("session draft transfer requires recovery")
+	}
 	if current, exists := s.sessionDeletions[request.SessionID]; exists {
 		if current == pending {
 			return nil
@@ -622,6 +637,9 @@ func (s *Store) ActivateSessionState(sessionID string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.draftTransferBlocks(sessionID) {
+		return errors.New("session draft transfer requires recovery")
+	}
 	pending, exists := s.sessionDeletions[sessionID]
 	if !exists {
 		return nil
@@ -1006,6 +1024,9 @@ func (s *Store) RetireSessionState(sessionID string) error {
 }
 
 func (s *Store) retireSessionStateLocked(sessionID string, pending PendingSessionDeletion) error {
+	if s.draftTransferBlocks(sessionID) {
+		return errors.New("session draft transfer requires recovery")
+	}
 	confirmed := PendingSessionDeletion{
 		Phase: SessionDeletionConfirmed, CommandID: pending.CommandID, SessionID: sessionID,
 	}
@@ -1384,6 +1405,20 @@ func (s *Store) saveSessionStateWithResume(
 }
 
 func (s *Store) saveSessionStateRecord(
+	sessionID string,
+	draft agent.Message,
+	pending []PendingRun,
+	resume *PendingResume,
+	rollback *PendingSessionRollback,
+	steer *PendingSteer,
+) error {
+	if s.draftTransferBlocks(sessionID) {
+		return errors.New("session draft transfer requires recovery")
+	}
+	return s.saveSessionStateRecordUnfenced(sessionID, draft, pending, resume, rollback, steer)
+}
+
+func (s *Store) saveSessionStateRecordUnfenced(
 	sessionID string,
 	draft agent.Message,
 	pending []PendingRun,
