@@ -16,14 +16,12 @@ import (
 )
 
 type sessionCenterPane struct {
-	theme       kit.Theme
-	glyphs      kit.Glyphs
-	picker      *picker[agent.Session]
-	items       []agent.Session
-	cursor      string
-	seenCursors map[string]struct{}
-	active      func() bool
-
+	theme          kit.Theme
+	glyphs         kit.Glyphs
+	picker         *picker[agent.Session]
+	items          []agent.Session
+	cursor         string
+	seenCursors    map[string]struct{}
 	loadMore       func()
 	toggleFavorite func(agent.Session)
 	rename         func(agent.Session)
@@ -151,9 +149,6 @@ func (c *sessionCenterPane) drawPreview(view grid.View) {
 }
 
 func (c *sessionCenterPane) Handle(event input.Event) bool {
-	if c.active != nil && !c.active() {
-		return true
-	}
 	if key, ok := event.(input.Key); ok && key.Down() && key.Mods == input.Alt {
 		session, selected := c.picker.Current()
 		switch key.Rune {

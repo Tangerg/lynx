@@ -127,20 +127,20 @@ type app struct {
 	approvalEditor      *contextEditorSession
 	approvalForm        *headless.Form
 	approvalPane        approvalPane
-	approvalDialog      *kit.Dialog
+	approvalDialog      *presentationDialog
 	sessionCenter       *sessionCenterPane
-	sessionDialog       *kit.Dialog
+	sessionDialog       *presentationDialog
 	sessionRenameDialog *kit.Dialog
 	sessionDeleteDialog *kit.Dialog
 	confirmationDialog  *kit.Dialog
 	workspacePicker     *picker[workspaceChoice]
-	workspaceDialog     *kit.Dialog
+	workspaceDialog     *presentationDialog
 	timeline            *timelinePane
-	timelineDialog      *kit.Dialog
+	timelineDialog      *presentationDialog
 	modelPicker         *picker[agent.Model]
-	modelDialog         *kit.Dialog
+	modelDialog         *presentationDialog
 	approvalModePicker  *picker[agent.ApprovalMode]
-	approvalModeDialog  *kit.Dialog
+	approvalModeDialog  *presentationDialog
 	providerDialog      *kit.Dialog
 	mcpDialog           *kit.Dialog
 	scheduleDialog      *kit.Dialog
@@ -150,13 +150,13 @@ type app struct {
 	interactionReview   *interactionReview
 	reviewDialog        *kit.Dialog
 	commandPicker       *picker[commandPaletteItem]
-	commandDialog       *kit.Dialog
-	shortcutDialog      *kit.Dialog
+	commandDialog       *presentationDialog
+	shortcutDialog      *presentationDialog
 	shortcutViewport    *headless.Viewport
-	searchDialog        *kit.Dialog
+	searchDialog        *presentationDialog
 	reader              *readerPane
-	readerDialog        *kit.Dialog
-	readerSearchDialog  *kit.Dialog
+	readerDialog        *presentationDialog
+	readerSearchDialog  *presentationDialog
 	readerSearchQuery   string
 	workspaceReader     workspaceReaderMode
 	runtimeReader       runtimeReaderMode
@@ -526,11 +526,10 @@ func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 	a.sessionCenter.toggleFavorite = a.toggleSessionFavorite
 	a.sessionCenter.rename = a.openSessionRename
 	a.sessionCenter.delete = a.openSessionDelete
-	a.sessionDialog = kit.NewDialog(kit.DialogConfig{
+	a.sessionDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Sessions · Center", Body: a.sessionCenter,
 		Where: layout.Placement{Width: 96, Height: 24},
 	})
-	a.sessionCenter.active = a.sessionDialog.Open
 	a.sessionCenter.picker.cancel = a.sessionDialog.Dismiss
 }
 

@@ -413,6 +413,7 @@ func (a *app) ShowQueue() {
 		return
 	}
 	a.queueDrawer.ResetNotice()
+	a.queueDrawer.lifecycle.renew()
 	a.queueDialog.Show()
 	a.message(fmt.Sprintf("queue · %d waiting", len(snapshot.Entries)))
 }
@@ -429,6 +430,7 @@ func (a *app) buildQueueDrawer(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.
 		SendNow:    a.sendQueuedNow,
 		Dismiss:    dialog.Dismiss,
 	})
+	drawer.lifecycle.bind(dialog.Open)
 	a.queueDrawer = drawer
 	a.queueDialog = dialog
 }

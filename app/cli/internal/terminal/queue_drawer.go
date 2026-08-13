@@ -77,6 +77,7 @@ type queueDrawer struct {
 	dragged bool
 	notice  string
 
+	lifecycle    presentationLease
 	presentation headless.Snapshot[queuePresentation]
 	editorRegion headless.PointerRegion
 }
@@ -93,6 +94,7 @@ func newQueueDrawer(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map, clipbo
 func (q *queueDrawer) SetActions(actions queueDrawerActions) { q.actions = actions }
 
 func (q *queueDrawer) Set(snapshot promptqueue.Snapshot) {
+	q.lifecycle.renew()
 	q.snapshot = snapshot
 	entries := snapshot.Entries
 	if q.Editing() && queueEntryIndex(entries, q.editingEntry.ID) < 0 {
@@ -122,6 +124,9 @@ func (q *queueDrawer) ResetNotice() { q.notice = "" }
 func (q *queueDrawer) Editing() bool { return q.editingEntry.ID != 0 }
 
 func (q *queueDrawer) Handle(event input.Event) bool {
+	if !q.lifecycle.acceptsInput() {
+		return true
+	}
 	if key, ok := event.(input.Key); ok && key.Down() {
 		return q.handleKey(key)
 	}

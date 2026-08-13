@@ -11,7 +11,7 @@ import (
 
 func (a *app) buildReader(theme kit.Theme, glyphs kit.Glyphs) {
 	a.reader = newReaderPane(theme, glyphs, a.syntax, a.loop.Environment().Wheel(), a.loop.Clipboard())
-	a.readerDialog = kit.NewDialog(kit.DialogConfig{
+	a.readerDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Reader", Body: a.reader,
 		Where: layout.Placement{},
 	})
@@ -38,7 +38,7 @@ func (a *app) buildReader(theme kit.Theme, glyphs kit.Glyphs) {
 		Theme: theme, Glyphs: glyphs, Controller: form,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.readerSearchDialog = kit.NewDialog(kit.DialogConfig{
+	a.readerSearchDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Search reader", Body: dressed,
 		Where: layout.Placement{Width: 68, Height: 7},
 	})

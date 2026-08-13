@@ -48,7 +48,7 @@ func (a *app) buildShortcutDialog(theme kit.Theme, glyphs kit.Glyphs, applicatio
 	viewport.Keys = guideKeys
 	viewport.Scroll().Wheel(a.loop.Environment().Wheel())
 	a.shortcutViewport = viewport
-	a.shortcutDialog = kit.NewDialog(kit.DialogConfig{
+	a.shortcutDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Shortcuts", Body: viewport,
 		Where: layout.Placement{Width: 88, Height: 24}, Keys: guideKeys,
 		Hints: []keymap.Action{headless.ScrollUp, headless.ScrollDown, headless.Close},

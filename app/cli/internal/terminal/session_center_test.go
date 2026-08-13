@@ -13,28 +13,34 @@ import (
 )
 
 func TestSessionCenterRejectsActionsAfterItsControllerCloses(t *testing.T) {
-	active := true
 	favorites := 0
 	center := newSessionCenterPane(kit.Dark(), kit.Unicode(), func(agent.Session) {})
-	center.active = func() bool { return active }
 	center.toggleFavorite = func(agent.Session) { favorites++ }
 	if err := center.SetPage(agent.SessionPage{Items: []agent.Session{{ID: "ses_1", Title: "One"}}}, false); err != nil {
 		t.Fatal(err)
 	}
 	center.Focus(true)
-	root := headless.NewRoot(center)
+	var stack headless.Stack
+	dialog := newPresentationDialog(kit.DialogConfig{Stack: &stack, Theme: kit.Dark(), Glyphs: kit.Unicode(), Body: center})
+	root := headless.NewRoot(&stack)
 	surface := grid.NewSurface(80, 20)
+	dialog.Show()
 	root.Draw(surface.View())
 
-	active = false
+	dialog.Dismiss()
 	root.Handle(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
 	if favorites != 0 {
 		t.Fatalf("closed center executed %d favorite actions", favorites)
 	}
-	active = true
+	dialog.Show()
+	root.Handle(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
+	if favorites != 0 {
+		t.Fatalf("undrawn replacement executed %d favorite actions", favorites)
+	}
+	root.Draw(surface.View())
 	root.Handle(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
 	if favorites != 1 {
-		t.Fatalf("open center executed %d favorite actions", favorites)
+		t.Fatalf("visible replacement executed %d favorite actions", favorites)
 	}
 }
 

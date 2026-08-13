@@ -32,6 +32,7 @@ func (q *queueDrawer) Place(space image.Point) layout.Placement {
 }
 
 func (q *queueDrawer) Draw(frame headless.Frame) {
+	q.lifecycle.stage(frame)
 	width, height := frame.Size()
 	if width <= 0 || height <= 0 {
 		q.presentation.Stage(frame, queuePresentation{})

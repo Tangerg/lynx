@@ -242,6 +242,40 @@ func TestQueueDrawerRendersPreviewActionsAndResponsiveFallback(t *testing.T) {
 	}
 }
 
+func TestQueueDrawerRejectsCommandsAgainstAReplacedPresentation(t *testing.T) {
+	bindings, err := configuredKeyBindings(settings.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawer := newQueueDrawer(kit.Dark(), kit.Unicode(), bindings.editor, nil)
+	active := true
+	drawer.lifecycle.bind(func() bool { return active })
+	removed := make([]uint64, 0, 1)
+	drawer.SetActions(queueDrawerActions{Remove: func(id uint64) error {
+		removed = append(removed, id)
+		return nil
+	}})
+	drawer.Set(promptqueue.Snapshot{Entries: []promptqueue.Entry{{ID: 1, Message: agent.Message{Text: "visible"}}}})
+	root := headless.NewRoot(drawer)
+	surface := grid.NewSurface(72, 8)
+	root.Draw(surface.View())
+
+	drawer.Set(promptqueue.Snapshot{Entries: []promptqueue.Entry{{ID: 2, Message: agent.Message{Text: "replacement"}}}})
+	if !root.Handle(input.Key{Code: input.Delete}) || len(removed) != 0 {
+		t.Fatalf("undrawn replacement removed entries %v", removed)
+	}
+	root.Draw(surface.View())
+	if !root.Handle(input.Key{Code: input.Delete}) || len(removed) != 1 || removed[0] != 2 {
+		t.Fatalf("visible replacement removed entries %v", removed)
+	}
+
+	active = false
+	root.Handle(input.Key{Code: input.Delete})
+	if len(removed) != 1 {
+		t.Fatalf("closed drawer removed entries %v", removed)
+	}
+}
+
 func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	attachment := agent.Attachment{ID: "a", Kind: agent.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}
 	drawer, queue := testQueueDrawer(t, agent.Message{Text: "original", Attachments: []agent.Attachment{attachment}})

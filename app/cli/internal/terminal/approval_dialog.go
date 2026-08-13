@@ -97,7 +97,7 @@ func (a *app) buildApprovalDialog(theme kit.Theme, glyphs kit.Glyphs) {
 		Theme: theme, Glyphs: glyphs,
 	}
 	a.setApprovalForm(approvalAllowOnce)
-	a.approvalDialog = kit.NewDialog(kit.DialogConfig{
+	a.approvalDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Tool approval", Body: &a.approvalPane,
 		Where: layout.Placement{Width: 88, Height: 24},
 	})

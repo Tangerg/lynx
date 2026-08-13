@@ -44,7 +44,7 @@ func (a *app) buildCommandPalette(theme kit.Theme, glyphs kit.Glyphs) {
 			a.runCommand(command.Name, "")
 		},
 	)
-	a.commandDialog = kit.NewDialog(kit.DialogConfig{
+	a.commandDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Commands", Body: a.commandPicker,
 		Where: layout.Placement{Width: 82, Height: 18},
 	})
@@ -112,7 +112,7 @@ func (a *app) buildSearchDialog(theme kit.Theme, glyphs kit.Glyphs) {
 		Theme: theme, Glyphs: glyphs, Controller: form,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.searchDialog = kit.NewDialog(kit.DialogConfig{
+	a.searchDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Search", Body: dressed,
 		Where: layout.Placement{Width: 68, Height: 7},
 	})

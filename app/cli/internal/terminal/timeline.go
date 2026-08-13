@@ -132,7 +132,7 @@ func (a *app) buildTimeline(theme kit.Theme, glyphs kit.Glyphs) {
 			a.forkSessionFromRun(entry.Run.ID)
 		},
 	)
-	a.timelineDialog = kit.NewDialog(kit.DialogConfig{
+	a.timelineDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Current session timeline", Body: a.timeline,
 		Where: layout.Placement{Width: 88, Height: 20},
 	})

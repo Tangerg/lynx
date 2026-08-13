@@ -57,7 +57,7 @@ func (a *app) buildWorkspacePicker(theme kit.Theme, glyphs kit.Glyphs) {
 			}
 		},
 	)
-	a.workspaceDialog = kit.NewDialog(kit.DialogConfig{
+	a.workspaceDialog = newPresentationDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Workspaces", Body: a.workspacePicker,
 		Where: layout.Placement{Width: 92, Height: 20},
 	})
