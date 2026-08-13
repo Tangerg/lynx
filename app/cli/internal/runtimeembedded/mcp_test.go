@@ -14,13 +14,15 @@ import (
 )
 
 type mcpBindingStub struct {
-	t       *testing.T
-	actions []string
-	created protocol.MCPServerCandidate
-	updated protocol.UpdateMCPServerRequest
-	authErr error
-	authGet *protocol.MCPAuthorizationAttempt
-	now     time.Time
+	t            *testing.T
+	actions      []string
+	created      protocol.MCPServerCandidate
+	updated      protocol.UpdateMCPServerRequest
+	authErr      error
+	authGet      *protocol.MCPAuthorizationAttempt
+	now          time.Time
+	createResult *protocol.MCPServer
+	updateResult *protocol.MCPServer
 }
 
 func (stub *mcpBindingStub) ListMCPServers(_ context.Context, options embedded.CallOptions) (*protocol.Page[protocol.MCPServer], error) {
@@ -31,16 +33,43 @@ func (stub *mcpBindingStub) ListMCPServers(_ context.Context, options embedded.C
 func (stub *mcpBindingStub) CreateMCPServer(_ context.Context, request protocol.MCPServerCandidate, options embedded.CommandOptions) (*protocol.MCPServer, error) {
 	stub.assertCommand("create", options)
 	stub.created = request
-	server := wireMCPServer()
-	server.Name = request.Name
+	if stub.createResult != nil {
+		return stub.createResult, nil
+	}
+	server := wireMCPServerFromCandidate(request)
 	return &server, nil
 }
 
 func (stub *mcpBindingStub) UpdateMCPServer(_ context.Context, request protocol.UpdateMCPServerRequest, options embedded.CommandOptions) (*protocol.MCPServer, error) {
 	stub.assertCommand("update", options)
 	stub.updated = request
+	if stub.updateResult != nil {
+		return stub.updateResult, nil
+	}
 	server := wireMCPServer()
 	server.Name = request.Server
+	if request.Enabled != nil {
+		if *request.Enabled {
+			server.Status = protocol.MCPServerState{Type: protocol.MCPServerDisconnected}
+		} else {
+			server.Status = protocol.MCPServerState{Type: protocol.MCPServerDisabled}
+		}
+	}
+	if request.Description != nil {
+		server.Description = *request.Description
+	}
+	if request.Connection != nil {
+		server.Connection = wireMCPConnection(*request.Connection)
+	}
+	if request.TimeoutSeconds != nil {
+		server.TimeoutSeconds = *request.TimeoutSeconds
+	}
+	if request.DisabledTools != nil {
+		server.DisabledTools = append([]string(nil), (*request.DisabledTools)...)
+	}
+	if request.AutoApproveTools != nil {
+		server.AutoApproveTools = append([]string(nil), (*request.AutoApproveTools)...)
+	}
 	return &server, nil
 }
 
@@ -119,6 +148,42 @@ func wireMCPServer() protocol.MCPServer {
 		},
 		Status: protocol.MCPServerState{Type: protocol.MCPServerConnected, ToolCount: &count},
 	}
+}
+
+func wireMCPServerFromCandidate(candidate protocol.MCPServerCandidate) protocol.MCPServer {
+	state := protocol.MCPServerState{Type: protocol.MCPServerDisconnected}
+	if !candidate.Enabled {
+		state.Type = protocol.MCPServerDisabled
+	}
+	return protocol.MCPServer{
+		Name: candidate.Name, Description: candidate.Description,
+		Connection: wireMCPConnection(candidate.Connection), TimeoutSeconds: candidate.TimeoutSeconds,
+		DisabledTools:    append([]string(nil), candidate.DisabledTools...),
+		AutoApproveTools: append([]string(nil), candidate.AutoApproveTools...), Status: state,
+	}
+}
+
+func wireMCPConnection(input protocol.MCPConnectionInput) protocol.MCPConnection {
+	connection := protocol.MCPConnection{
+		Type: input.Type, URL: input.URL, Command: input.Command,
+		Args: append([]string(nil), input.Args...), Dir: input.Dir,
+	}
+	if input.Authorization != nil && input.Authorization.Type == protocol.MCPSecretSet {
+		connection.AuthorizationMasked = "****"
+	}
+	if input.Headers != nil && input.Headers.Type == protocol.MCPSecretSet {
+		connection.HeadersMasked = make(map[string]string, len(input.Headers.Value))
+		for key := range input.Headers.Value {
+			connection.HeadersMasked[key] = "****"
+		}
+	}
+	if input.Env != nil && input.Env.Type == protocol.MCPSecretSet {
+		connection.EnvMasked = make(map[string]string, len(input.Env.Value))
+		for key := range input.Env.Value {
+			connection.EnvMasked[key] = "****"
+		}
+	}
+	return connection
 }
 
 func TestMCPAdapterProjectsEveryServerToolAndAuthorizationOperation(t *testing.T) {
@@ -202,6 +267,55 @@ func TestMCPAuthorizationAdapterClassifiesAbsenceAndEnforcesReferenceIdentity(t 
 	stub.authGet.Server = "other"
 	if _, err := runtime.GetAuthorization(t.Context(), reference); !errors.Is(err, agent.ErrIncompatibleRuntime) {
 		t.Fatalf("mismatched authorization server = %v, want ErrIncompatibleRuntime", err)
+	}
+}
+
+func TestMCPAdapterRejectsMutationAcknowledgementDrift(t *testing.T) {
+	t.Parallel()
+	authorization := mcp.AuthorizationChange{Kind: mcp.Set, Value: "Bearer secret"}
+	candidate := mcp.Candidate{
+		Name: "docs", Enabled: true, Description: "Documentation",
+		Connection: mcp.ConnectionInput{
+			Transport: mcp.StreamableHTTP, URL: "https://mcp.example/tools", Authorization: &authorization,
+		},
+	}
+	createResult := wireMCPServerFromCandidate(projectMCPCandidate(candidate))
+	createResult.Description = "ignored"
+	description := "Updated"
+	enabled := false
+	update := mcp.ServerUpdate{Server: candidate.Name, Enabled: &enabled, Description: &description}
+	updateResult := wireMCPServer()
+	updateResult.Status = protocol.MCPServerState{Type: protocol.MCPServerDisabled}
+	updateResult.Description = "ignored"
+	tests := []struct {
+		name   string
+		stub   *mcpBindingStub
+		invoke func(*Runtime) error
+	}{
+		{
+			name: "create fields",
+			stub: &mcpBindingStub{createResult: &createResult},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.CreateServer(t.Context(), candidate)
+				return err
+			},
+		},
+		{
+			name: "update fields",
+			stub: &mcpBindingStub{updateResult: &updateResult},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.UpdateServer(t.Context(), update)
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			test.stub.t, test.stub.now = t, time.Unix(100, 0)
+			runtime := &Runtime{mcp: test.stub, meta: requestMeta("test")}
+			requireRuntimeContractViolation(t, test.invoke(runtime))
+		})
 	}
 }
 

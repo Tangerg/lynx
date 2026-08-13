@@ -63,7 +63,14 @@ func (r *Runtime) CreateServer(ctx context.Context, candidate mcp.Candidate) (mc
 		return mcp.Server{}, err
 	}
 	result, err := r.mcp.CreateMCPServer(ctx, projectMCPCandidate(candidate), options)
-	return projectMCPServerResult("create MCP server", candidate.Name, result, err)
+	projected, err := projectMCPServerResult("create MCP server", candidate.Name, result, err)
+	if err != nil {
+		return mcp.Server{}, err
+	}
+	if err := candidate.ValidateResult(projected); err != nil {
+		return mcp.Server{}, runtimeContractViolation("create MCP server returned an invalid acknowledgement: %v", err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) UpdateServer(ctx context.Context, update mcp.ServerUpdate) (mcp.Server, error) {
@@ -91,7 +98,14 @@ func (r *Runtime) UpdateServer(ctx context.Context, update mcp.ServerUpdate) (mc
 		request.AutoApproveTools = &values
 	}
 	result, err := r.mcp.UpdateMCPServer(ctx, request, options)
-	return projectMCPServerResult("update MCP server", update.Server, result, err)
+	projected, err := projectMCPServerResult("update MCP server", update.Server, result, err)
+	if err != nil {
+		return mcp.Server{}, err
+	}
+	if err := update.ValidateResult(projected); err != nil {
+		return mcp.Server{}, runtimeContractViolation("update MCP server returned an invalid acknowledgement: %v", err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) DeleteServer(ctx context.Context, server string) error {

@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
+	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	workspaceapi "github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -451,6 +452,7 @@ func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID, workspace
 	if tools, err := runtime.Tools(t.Context(), ""); err != nil {
 		t.Fatalf("MCP tools = (%+v, %v)", tools, err)
 	}
+	requireMCPMutationLifecycle(t, runtime)
 	requireScheduleLifecycle(t, runtime, workspace)
 	if rules, err := runtime.ListApprovalRules(t.Context(), sessionID); err != nil || len(rules) != 0 {
 		t.Fatalf("ListApprovalRules = (%+v, %v)", rules, err)
@@ -463,6 +465,47 @@ func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID, workspace
 	mode, err := runtime.GetApprovalMode(t.Context())
 	if err != nil || mode != agent.ApprovalModeSafe {
 		t.Fatalf("GetApprovalMode = (%q, %v)", mode, err)
+	}
+}
+
+func requireMCPMutationLifecycle(t *testing.T, runtime *Runtime) {
+	t.Helper()
+	authorization := mcp.AuthorizationChange{Kind: mcp.Set, Value: "Bearer integration-secret"}
+	headers := mcp.HeadersChange{Kind: mcp.Set, Value: map[string]string{"X-Key": "integration-secret"}}
+	candidate := mcp.Candidate{
+		Name: "integration-docs", Enabled: false, Description: "Integration MCP",
+		Connection: mcp.ConnectionInput{
+			Transport: mcp.StreamableHTTP, URL: "https://mcp.example/tools",
+			Authorization: &authorization, Headers: &headers,
+		},
+		TimeoutSeconds: 5, DisabledTools: []string{"write"}, AutoApproveTools: []string{"search"},
+	}
+	created, err := runtime.CreateServer(t.Context(), candidate)
+	if err != nil {
+		t.Fatalf("Create MCP server: %v", err)
+	}
+	if err := candidate.ValidateResult(created); err != nil {
+		t.Fatalf("created MCP server: %v", err)
+	}
+	clearAuthorization := mcp.AuthorizationChange{Kind: mcp.Clear}
+	clearHeaders := mcp.HeadersChange{Kind: mcp.Clear}
+	description, timeout := "Updated integration MCP", 10
+	update := mcp.ServerUpdate{
+		Server: candidate.Name, Description: &description, TimeoutSeconds: &timeout,
+		Connection: &mcp.ConnectionInput{
+			Transport: mcp.StreamableHTTP, URL: candidate.Connection.URL,
+			Authorization: &clearAuthorization, Headers: &clearHeaders,
+		},
+	}
+	updated, err := runtime.UpdateServer(t.Context(), update)
+	if err != nil {
+		t.Fatalf("Update MCP server: %v", err)
+	}
+	if err := update.ValidateResult(updated); err != nil {
+		t.Fatalf("updated MCP server: %v", err)
+	}
+	if err := runtime.DeleteServer(t.Context(), candidate.Name); err != nil {
+		t.Fatalf("Delete MCP server: %v", err)
 	}
 }
 

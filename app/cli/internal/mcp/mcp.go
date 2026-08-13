@@ -332,6 +332,37 @@ func (candidate Candidate) Clone() Candidate {
 	return candidate
 }
 
+func (candidate Candidate) ValidateResult(result Server) error {
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.Name != candidate.Name {
+		problems = append(problems, fmt.Errorf("runtime returned server %q, want %q", result.Name, candidate.Name))
+	}
+	if result.Description != candidate.Description {
+		problems = append(problems, fmt.Errorf("runtime returned description %q, want %q", result.Description, candidate.Description))
+	}
+	if result.TimeoutSeconds != candidate.TimeoutSeconds {
+		problems = append(problems, fmt.Errorf("runtime returned timeout %d, want %d", result.TimeoutSeconds, candidate.TimeoutSeconds))
+	}
+	if !slices.Equal(result.DisabledTools, candidate.DisabledTools) {
+		problems = append(problems, fmt.Errorf("runtime returned disabled tools %v, want %v", result.DisabledTools, candidate.DisabledTools))
+	}
+	if !slices.Equal(result.AutoApproveTools, candidate.AutoApproveTools) {
+		problems = append(problems, fmt.Errorf("runtime returned auto-approved tools %v, want %v", result.AutoApproveTools, candidate.AutoApproveTools))
+	}
+	problems = append(problems, validateEnabledResult(candidate.Enabled, result.State))
+	problems = append(problems, candidate.Connection.validateCreateResult(result.Connection))
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("MCP candidate %s: %w", candidate.Name, err)
+	}
+	return nil
+}
+
 type ServerUpdate struct {
 	Server           string
 	Enabled          *bool
@@ -373,6 +404,164 @@ func (update ServerUpdate) Validate() error {
 func (update ServerUpdate) HasChanges() bool {
 	return update.Enabled != nil || update.Description != nil || update.Connection != nil || update.TimeoutSeconds != nil ||
 		update.DisabledTools != nil || update.AutoApproveTools != nil
+}
+
+func (update ServerUpdate) ValidateResult(result Server) error {
+	if err := update.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.Name != update.Server {
+		problems = append(problems, fmt.Errorf("runtime returned server %q, want %q", result.Name, update.Server))
+	}
+	if update.Enabled != nil {
+		problems = append(problems, validateEnabledResult(*update.Enabled, result.State))
+	}
+	if update.Description != nil && result.Description != *update.Description {
+		problems = append(problems, fmt.Errorf("runtime returned description %q, want %q", result.Description, *update.Description))
+	}
+	if update.TimeoutSeconds != nil && result.TimeoutSeconds != *update.TimeoutSeconds {
+		problems = append(problems, fmt.Errorf("runtime returned timeout %d, want %d", result.TimeoutSeconds, *update.TimeoutSeconds))
+	}
+	if update.DisabledTools != nil && !slices.Equal(result.DisabledTools, *update.DisabledTools) {
+		problems = append(problems, fmt.Errorf("runtime returned disabled tools %v, want %v", result.DisabledTools, *update.DisabledTools))
+	}
+	if update.AutoApproveTools != nil && !slices.Equal(result.AutoApproveTools, *update.AutoApproveTools) {
+		problems = append(problems, fmt.Errorf("runtime returned auto-approved tools %v, want %v", result.AutoApproveTools, *update.AutoApproveTools))
+	}
+	if update.Connection != nil {
+		problems = append(problems, update.Connection.validateUpdateResult(result.Connection))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("MCP update %s: %w", update.Server, err)
+	}
+	return nil
+}
+
+func validateEnabledResult(enabled bool, state State) error {
+	disabled := state.Type == Disabled
+	if disabled == enabled {
+		return fmt.Errorf("runtime returned state %q for enabled=%t", state.Type, enabled)
+	}
+	return nil
+}
+
+func (connection ConnectionInput) validateCreateResult(result Connection) error {
+	if err := connection.validateVisibleResult(result); err != nil {
+		return err
+	}
+	switch connection.Transport {
+	case StreamableHTTP:
+		if err := validateMaskedSecret("authorization", connection.Authorization, result.AuthorizationMasked); err != nil {
+			return err
+		}
+		return validateMaskedMap("headers", connection.Headers, result.HeadersMasked)
+	case Stdio:
+		return validateMaskedMap("environment", connection.Environment, result.EnvironmentMasked)
+	default:
+		return nil
+	}
+}
+
+func (connection ConnectionInput) validateUpdateResult(result Connection) error {
+	if err := connection.validateVisibleResult(result); err != nil {
+		return err
+	}
+	switch connection.Transport {
+	case StreamableHTTP:
+		if connection.Authorization != nil {
+			if err := validateMaskedSecret("authorization", connection.Authorization, result.AuthorizationMasked); err != nil {
+				return err
+			}
+		}
+		if connection.Headers != nil {
+			return validateMaskedMap("headers", connection.Headers, result.HeadersMasked)
+		}
+	case Stdio:
+		if connection.Environment != nil {
+			return validateMaskedMap("environment", connection.Environment, result.EnvironmentMasked)
+		}
+	}
+	return nil
+}
+
+func (connection ConnectionInput) validateVisibleResult(result Connection) error {
+	var problems []error
+	if result.Transport != connection.Transport {
+		problems = append(problems, fmt.Errorf("runtime returned transport %q, want %q", result.Transport, connection.Transport))
+	}
+	switch connection.Transport {
+	case StreamableHTTP:
+		if result.URL != connection.URL {
+			problems = append(problems, fmt.Errorf("runtime returned URL %q, want %q", result.URL, connection.URL))
+		}
+	case Stdio:
+		if result.Command != connection.Command {
+			problems = append(problems, fmt.Errorf("runtime returned command %q, want %q", result.Command, connection.Command))
+		}
+		if !slices.Equal(result.Args, connection.Args) {
+			problems = append(problems, fmt.Errorf("runtime returned args %v, want %v", result.Args, connection.Args))
+		}
+		if result.Directory != connection.Directory {
+			problems = append(problems, fmt.Errorf("runtime returned directory %q, want %q", result.Directory, connection.Directory))
+		}
+	}
+	return errors.Join(problems...)
+}
+
+func validateMaskedSecret(label string, change *AuthorizationChange, masked string) error {
+	switch {
+	case change == nil && masked != "":
+		return fmt.Errorf("runtime returned unexpected masked %s", label)
+	case change != nil && change.Kind == Set && masked == "":
+		return fmt.Errorf("runtime did not confirm masked %s", label)
+	case change != nil && change.Kind == Clear && masked != "":
+		return fmt.Errorf("runtime kept masked %s after clear", label)
+	default:
+		return nil
+	}
+}
+
+func validateMaskedMap[T interface {
+	HeadersChange | EnvironmentChange
+}](label string, raw *T, masked map[string]string) error {
+	if raw == nil {
+		if len(masked) != 0 {
+			return fmt.Errorf("runtime returned unexpected masked %s", label)
+		}
+		return nil
+	}
+	var kind ChangeKind
+	var values map[string]string
+	switch change := any(*raw).(type) {
+	case HeadersChange:
+		kind, values = change.Kind, change.Value
+	case EnvironmentChange:
+		kind, values = change.Kind, change.Value
+	}
+	if kind == Clear {
+		if len(masked) != 0 {
+			return fmt.Errorf("runtime kept masked %s after clear", label)
+		}
+		return nil
+	}
+	if len(masked) != len(values) {
+		return fmt.Errorf(
+			"runtime returned masked %s keys %v, want %v",
+			label,
+			slices.Sorted(maps.Keys(masked)),
+			slices.Sorted(maps.Keys(values)),
+		)
+	}
+	for key := range values {
+		if masked[key] == "" {
+			return fmt.Errorf("runtime did not confirm masked %s key %q", label, key)
+		}
+	}
+	return nil
 }
 
 type TestResult struct {
