@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -18,7 +19,10 @@ import (
 
 	"github.com/Tangerg/oolong/ptytest"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/backend"
+	"github.com/Tangerg/lynx/app/cli/internal/terminal"
 )
 
 type terminalModeCase struct {
@@ -292,6 +296,147 @@ func TestInteractiveBinarySurvivesResizeAndApprovalRoundTrip(t *testing.T) {
 	}
 	waitForTerminalScreen(t, session, wideSize, wideAfter, "Ran the test 50 times", "$0.0412", "complete")
 	quitInteractiveSession(t, session)
+}
+
+const mixedInteractionPTYScenario = "mixed-interaction-contract"
+
+func TestInteractiveTerminalCompletesMixedInteractionReviewThroughPTY(t *testing.T) {
+	if !ptytest.Supported() {
+		t.Skip("no pty on this platform")
+	}
+	size := ptytest.Size{Cols: 96, Rows: 28}
+	session, err := ptytest.Start(t.Context(), ptytest.Config{
+		Size: size,
+		Env: terminalTestEnvironment(t, map[string]string{
+			"TERM": "xterm-256color", "COLORTERM": "truecolor", "LANG": "en_US.UTF-8",
+			"LYRA_PTY_TEST_SCENARIO": mixedInteractionPTYScenario,
+		}),
+	}, os.Args[0], "-test.run=^TestMixedInteractionPTYRuntime$")
+	if errors.Is(err, ptytest.ErrUnsupported) {
+		t.Skip("no pty on this platform")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	waitForVisibleTerminalText(t, session, size, "Ask lyra")
+	writeTerminalInput(t, session, "exercise mixed interactions\r")
+	waitForVisibleTerminalText(t, session, size, "Run contract checks", "Allow once")
+	writeTerminalInput(t, session, strings.Repeat("\x1b[B", 8)+"\r")
+	waitForVisibleTerminalText(t, session, size, "Edit tool arguments", `"command": "go test ./..."`)
+	writeTerminalInput(t, session, "\x1ba"+`{"command":"go test ./...","count":2}`+"\x13")
+	waitForVisibleTerminalText(t, session, size, "Edited arguments · one-shot", `"count": 2`)
+	writeTerminalInput(t, session, "\x1b[B\x1b[B\r")
+	waitForVisibleTerminalText(t, session, size, "Describe intent")
+	writeTerminalInput(t, session, "ship safely\r")
+	waitForVisibleTerminalText(t, session, size, "Choose platform", "Linux")
+	writeTerminalInput(t, session, "\x1b[B\r")
+	waitForVisibleTerminalText(t, session, size, "Choose checks", "Unit", "Integration")
+	writeTerminalInput(t, session, " \r")
+	waitForVisibleTerminalText(t, session, size, "Review interactions")
+
+	minimal := ptytest.Size{Cols: 1, Rows: 1}
+	if err := session.Resize(minimal); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Resize(size); err != nil {
+		t.Fatal(err)
+	}
+	waitForVisibleTerminalText(t, session, size, "Review interactions", "Submit all decisions")
+	writeTerminalInput(t, session, "\x1b[B\r")
+	waitForVisibleTerminalText(t, session, size, "Choose checks", "Unit", "Integration")
+	writeTerminalInput(t, session, "\x1b[B \r")
+	waitForVisibleTerminalText(t, session, size, "Review interactions")
+	writeTerminalInput(t, session, "\r")
+	waitForVisibleTerminalText(t, session, size, "PTY HITL contract accepted", "complete")
+	quitInteractiveSession(t, session)
+}
+
+// TestMixedInteractionPTYRuntime is launched as the child process above. The
+// environment guard keeps the ordinary package test run non-interactive.
+func TestMixedInteractionPTYRuntime(t *testing.T) {
+	if os.Getenv("LYRA_PTY_TEST_SCENARIO") != mixedInteractionPTYScenario {
+		return
+	}
+	backend := mock.New()
+	backend.Instant = true
+	backend.Script = func(string) mock.Script { return mixedInteractionPTYScript() }
+	if err := terminal.Run(t.Context(), terminal.Config{Runtime: backend, Workspace: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mixedInteractionPTYScript() mock.Script {
+	return mock.Script{
+		Interactions: []agent.Interaction{
+			agent.Approval{
+				ItemID: "approval", Title: "Run contract checks", Rememberable: true,
+				RuleHint: "shell:go test ./...",
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning,
+					ArgumentsJSON: []byte(`{"command":"go test ./...","count":1}`),
+				},
+			},
+			agent.Question{
+				ItemID: "intent", Title: "Describe intent",
+				Fields: []agent.QuestionField{{Prompt: "Intent", Kind: agent.QuestionText}},
+			},
+			agent.Question{
+				ItemID: "platform", Title: "Choose platform",
+				Fields: []agent.QuestionField{{
+					Prompt: "Platform", Kind: agent.QuestionSingle,
+					Options: []agent.QuestionOption{{Label: "Linux"}, {Label: "Darwin"}},
+				}},
+			},
+			agent.Question{
+				ItemID: "checks", Title: "Choose checks",
+				Fields: []agent.QuestionField{{
+					Prompt: "Checks", Kind: agent.QuestionMulti,
+					Options: []agent.QuestionOption{{Label: "Unit"}, {Label: "Integration"}},
+				}},
+			},
+		},
+		Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+			result := "PTY HITL contract rejected"
+			if mixedInteractionPTYAnswersMatch(provided) {
+				result = "PTY HITL contract accepted"
+			}
+			return []mock.Step{
+				{Event: agent.BlockCompleted{Block: agent.Block{ID: "result", Kind: agent.BlockNotice, Text: result}}},
+				{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+			}
+		},
+	}
+}
+
+func mixedInteractionPTYAnswersMatch(provided []agent.InterruptAnswer) bool {
+	if len(provided) != 4 {
+		return false
+	}
+	approval, ok := provided[0].Answer.(agent.ApprovalAnswer)
+	if !ok || approval.Decision != agent.ApprovalApprove || approval.Remember != agent.RememberProject ||
+		approval.ArgumentOverride == nil ||
+		string(approval.ArgumentOverride.JSON()) != `{"command":"go test ./...","count":2}` {
+		return false
+	}
+	intent, ok := provided[1].Answer.(agent.QuestionAnswer)
+	if !ok || len(intent.Values) != 1 || !slices.Equal(intent.Values[0], []string{"ship safely"}) {
+		return false
+	}
+	platform, ok := provided[2].Answer.(agent.QuestionAnswer)
+	if !ok || len(platform.Values) != 1 || !slices.Equal(platform.Values[0], []string{"Darwin"}) {
+		return false
+	}
+	checks, ok := provided[3].Answer.(agent.QuestionAnswer)
+	return ok && len(checks.Values) == 1 && slices.Equal(checks.Values[0], []string{"Unit", "Integration"})
+}
+
+func writeTerminalInput(t *testing.T, session *ptytest.Session, value string) {
+	t.Helper()
+	if written, err := io.WriteString(session, value); err != nil || written != len(value) {
+		t.Fatalf("write terminal input = (%d, %v), want %d bytes", written, err, len(value))
+	}
 }
 
 func requireFullViewportDialog(t *testing.T, screen *ptytest.Screen, title string) {
