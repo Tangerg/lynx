@@ -362,7 +362,7 @@ func (s *memoryIdempotencyStore) Claim(_ context.Context, key, fingerprint strin
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	stored, ok := s.records[key]
-	if ok && !time.Now().Before(stored.expiresAt) {
+	if ok && len(stored.Payload) != 0 && !time.Now().Before(stored.expiresAt) {
 		delete(s.records, key)
 		ok = false
 	}
@@ -382,17 +382,21 @@ func (s *memoryIdempotencyStore) Complete(_ context.Context, record idempotency.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	stored, ok := s.records[record.Key]
-	if !ok || !time.Now().Before(stored.expiresAt) {
-		delete(s.records, record.Key)
+	if !ok {
 		return idempotency.ErrClaimLost
 	}
 	if stored.Fingerprint != record.Fingerprint {
 		return idempotency.ErrKeyConflict
 	}
 	if len(stored.Payload) != 0 {
+		if !time.Now().Before(stored.expiresAt) {
+			delete(s.records, record.Key)
+			return idempotency.ErrClaimLost
+		}
 		return nil
 	}
 	stored.Payload = bytes.Clone(record.Payload)
+	stored.expiresAt = time.Now().Add(idempotency.Retention)
 	s.records[record.Key] = stored
 	return nil
 }

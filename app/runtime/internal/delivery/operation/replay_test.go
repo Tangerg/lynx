@@ -142,6 +142,44 @@ func TestOperationFingerprintUsesTypedSemanticValue(t *testing.T) {
 	}
 }
 
+func TestMemoryIdempotencyStoreKeepsAbandonedClaimReserved(t *testing.T) {
+	store := newMemoryIdempotencyStore()
+	record, claimed, err := store.Claim(t.Context(), "abandoned", "first")
+	if err != nil || !claimed {
+		t.Fatalf("initial claim = (%+v, %v, %v)", record, claimed, err)
+	}
+	store.mu.Lock()
+	aged := store.records[record.Key]
+	aged.expiresAt = time.Time{}
+	store.records[record.Key] = aged
+	store.mu.Unlock()
+
+	got, claimed, err := store.Claim(t.Context(), record.Key, record.Fingerprint)
+	if err != nil || claimed || len(got.Payload) != 0 {
+		t.Fatalf("aged pending claim = (%+v, %v, %v), want reserved", got, claimed, err)
+	}
+	if _, _, err := store.Claim(t.Context(), record.Key, "second"); !errors.Is(err, idempotency.ErrKeyConflict) {
+		t.Fatalf("reuse aged pending claim = %v, want ErrKeyConflict", err)
+	}
+	record.Payload = []byte(`{"version":1}`)
+	if err := store.Complete(t.Context(), record); err != nil {
+		t.Fatalf("complete aged pending claim: %v", err)
+	}
+	got, claimed, err = store.Claim(t.Context(), record.Key, record.Fingerprint)
+	if err != nil || claimed || string(got.Payload) != string(record.Payload) {
+		t.Fatalf("completed aged claim = (%+v, %v, %v)", got, claimed, err)
+	}
+	store.mu.Lock()
+	aged = store.records[record.Key]
+	aged.expiresAt = time.Time{}
+	store.records[record.Key] = aged
+	store.mu.Unlock()
+	got, claimed, err = store.Claim(t.Context(), record.Key, "second")
+	if err != nil || !claimed || got.Fingerprint != "second" {
+		t.Fatalf("replace expired result = (%+v, %v, %v)", got, claimed, err)
+	}
+}
+
 func TestCompletionFailureRetriesWithoutRepeatingCommand(t *testing.T) {
 	service := &countingCancelService{}
 	store := &flakyCompletionStore{Store: newMemoryIdempotencyStore()}

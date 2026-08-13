@@ -24,7 +24,13 @@ func (s *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (
 	// Standalone it still runs atomically (RunInTx begins its own).
 	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
 		db := conn(ctx, s.db)
-		if _, err := db.ExecContext(ctx, `DELETE FROM idempotency_records WHERE expires_at <= ?`, now); err != nil {
+		// Only completed results expire. An empty payload is an unresolved
+		// reservation: releasing it on elapsed wall time would let the same key
+		// execute its business mutation again after a process crash, even though
+		// the first mutation may already have committed.
+		if _, err := db.ExecContext(ctx,
+			`DELETE FROM idempotency_records WHERE expires_at <= ? AND length(payload) > 0`, now,
+		); err != nil {
 			return fmt.Errorf("sqlite: prune idempotency records: %w", err)
 		}
 		res, err := db.ExecContext(ctx, `INSERT INTO idempotency_records(
@@ -65,10 +71,11 @@ func (s *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (
 }
 
 func (s *IdempotencyStore) Complete(ctx context.Context, record idempotency.Record) error {
+	now := time.Now().Unix()
 	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE idempotency_records SET payload = ?
-		 WHERE key = ? AND fingerprint = ? AND length(payload) = 0 AND expires_at > ?`,
-		record.Payload, record.Key, record.Fingerprint, time.Now().Unix())
+		`UPDATE idempotency_records SET payload = ?, expires_at = ?
+		 WHERE key = ? AND fingerprint = ? AND length(payload) = 0`,
+		record.Payload, now+int64(idempotency.Retention/time.Second), record.Key, record.Fingerprint)
 	if err != nil {
 		return fmt.Errorf("sqlite: complete idempotency claim: %w", err)
 	}
@@ -83,7 +90,7 @@ func (s *IdempotencyStore) Complete(ctx context.Context, record idempotency.Reco
 	var payload []byte
 	err = conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT fingerprint, payload FROM idempotency_records WHERE key = ? AND expires_at > ?`,
-		record.Key, time.Now().Unix()).Scan(&fingerprint, &payload)
+		record.Key, now).Scan(&fingerprint, &payload)
 	if errors.Is(err, sql.ErrNoRows) {
 		return idempotency.ErrClaimLost
 	}

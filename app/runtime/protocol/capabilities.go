@@ -181,7 +181,8 @@ type RuntimeLimits struct {
 	RuntimeSubscription SubscriptionLimits `json:"runtimeSubscription"`
 }
 
-// IdempotencyLimits is the replay promise for command requests.
+// IdempotencyLimits is the replay promise for completed command results.
+// Pending reservations remain bound until an outcome is known.
 type IdempotencyLimits struct {
 	RetentionSeconds int `json:"retentionSeconds"`
 }

@@ -27,18 +27,24 @@ func TestIdempotencyStoreReplayConflictAndExpiry(t *testing.T) {
 	if len(got.Payload) != 0 {
 		t.Fatalf("new claim payload = %q, want empty", got.Payload)
 	}
+	if _, err := db.ExecContext(ctx, `UPDATE idempotency_records SET expires_at = 0 WHERE key = ?`, first.Key); err != nil {
+		t.Fatalf("age pending claim: %v", err)
+	}
 	got, claimed, err = store.Claim(ctx, first.Key, first.Fingerprint)
 	if err != nil || claimed || len(got.Payload) != 0 {
-		t.Fatalf("pending claim: record=%+v claimed=%v err=%v", got, claimed, err)
+		t.Fatalf("aged pending claim: record=%+v claimed=%v err=%v", got, claimed, err)
+	}
+	conflicting := idempotency.Record{Key: first.Key, Fingerprint: "second"}
+	if _, _, err := store.Claim(ctx, conflicting.Key, conflicting.Fingerprint); !errors.Is(err, idempotency.ErrKeyConflict) {
+		t.Fatalf("reuse aged pending claim = %v, want ErrKeyConflict", err)
 	}
 	if err := store.Complete(ctx, first); err != nil {
-		t.Fatalf("complete first record: %v", err)
+		t.Fatalf("complete aged pending record: %v", err)
 	}
 	got, claimed, err = store.Claim(ctx, first.Key, first.Fingerprint)
 	if err != nil || claimed || string(got.Payload) != string(first.Payload) {
 		t.Fatalf("completed claim: record=%+v claimed=%v err=%v", got, claimed, err)
 	}
-	conflicting := idempotency.Record{Key: first.Key, Fingerprint: "second"}
 	if _, _, err := store.Claim(ctx, conflicting.Key, conflicting.Fingerprint); !errors.Is(err, idempotency.ErrKeyConflict) {
 		t.Fatalf("claim conflicting record = %v, want ErrKeyConflict", err)
 	}
@@ -49,5 +55,40 @@ func TestIdempotencyStoreReplayConflictAndExpiry(t *testing.T) {
 	got, claimed, err = store.Claim(ctx, conflicting.Key, conflicting.Fingerprint)
 	if err != nil || !claimed || got.Fingerprint != conflicting.Fingerprint {
 		t.Fatalf("replace expired record: record=%+v claimed=%v err=%v", got, claimed, err)
+	}
+}
+
+func TestIdempotencyStoreKeepsAbandonedClaimAcrossReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	store := sqlite.NewIdempotencyStore(db)
+	record, claimed, err := store.Claim(t.Context(), "abandoned", "first")
+	if err != nil || !claimed {
+		t.Fatalf("initial claim = (%+v, %v, %v)", record, claimed, err)
+	}
+	if _, err := db.ExecContext(t.Context(),
+		`UPDATE idempotency_records SET expires_at = 0 WHERE key = ?`, record.Key,
+	); err != nil {
+		t.Fatalf("age pending claim: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close before reopen: %v", err)
+	}
+
+	db, err = sqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store = sqlite.NewIdempotencyStore(db)
+	got, claimed, err := store.Claim(t.Context(), record.Key, record.Fingerprint)
+	if err != nil || claimed || len(got.Payload) != 0 {
+		t.Fatalf("claim after reopen = (%+v, %v, %v), want unresolved reservation", got, claimed, err)
+	}
+	if _, _, err := store.Claim(t.Context(), record.Key, "second"); !errors.Is(err, idempotency.ErrKeyConflict) {
+		t.Fatalf("reuse after reopen = %v, want ErrKeyConflict", err)
 	}
 }

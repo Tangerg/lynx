@@ -160,8 +160,9 @@ body：
 重放，首个执行未完成时返回 `idempotency_in_progress`，同 key + 不同请求返回 `idempotency_conflict`。因此并发请求不能越过
 缓存重复落业务写入。流式 run 的重放会订阅既有 run；run 已结束时返回缓存成功响应并立即结束流，由客户端按正常断流恢复
 路径重拉持久化状态。业务响应已生成但缓存 `Complete` 暂时失败时，服务端保留该响应并返回 `idempotency_in_progress`；后续
-同 key 重试先补写/重放它，绝不重跑业务 handler。记录保留 24 小时；过期后 key 可重新表示一次新操作，服务端会在后续 claim
-时清理过期记录。
+同 key 重试先补写/重放它，绝不重跑业务 handler。已完成结果保留 24 小时；过期后 key 可重新表示一次新操作，服务端会在后续
+claim 时清理过期结果。没有 outcome 的 reservation 不按时间自动释放：进程崩溃后，时间流逝无法证明此前业务写入没有 commit，
+自动释放会让同 key 第二次运行 handler。调用方若明确选择新的逻辑操作，必须使用新 key。
 
 **响应按方法分两种形态**（content negotiation —— client 按响应 `Content-Type` 分支；**哪些方法流式由
 `ServerCapabilities.streamingMethods` 机器可读声明**，见 API.md §9，client 不硬编码方法名）：

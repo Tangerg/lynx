@@ -17,7 +17,9 @@ var ErrKeyConflict = errors.New("idempotency: key reused with different request"
 // ErrClaimLost reports that completion no longer owns the reserved key.
 var ErrClaimLost = errors.New("idempotency: claim is no longer available")
 
-// Retention is the default replay window for an idempotency key.
+// Retention is the default replay window for a completed idempotency result.
+// An unresolved reservation does not expire: elapsed time cannot prove whether
+// its business mutation committed before a process crash.
 const Retention = 24 * time.Hour
 
 // Record is the durable state of one idempotent request.
