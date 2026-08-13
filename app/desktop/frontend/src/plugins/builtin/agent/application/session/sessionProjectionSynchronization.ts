@@ -3,6 +3,9 @@ export interface SessionProjectionSynchronization {
    *  stream owns the session is retained until that stream becomes idle. The
    *  returned promise settles with the refresh's authoritative commit fact. */
   request(): Promise<boolean>;
+  /** Supersede the active Runtime generation. The current synchronization is
+   * retired even when one of its reads does not cooperate with cancellation. */
+  replace(): Promise<boolean>;
   /** Notify the coordinator after the live stream has folded its queued tail. */
   liveStreamSettled(): void;
   dispose(): void;
@@ -10,8 +13,10 @@ export interface SessionProjectionSynchronization {
 
 interface SessionProjectionSynchronizationOptions {
   isLiveStreamActive: () => boolean;
-  synchronize: () => Promise<boolean>;
+  synchronize: (signal: AbortSignal) => Promise<boolean>;
 }
+
+const ABORTED = Symbol("session-projection-synchronization.aborted");
 
 /**
  * Serializes the two fact channels which feed one mounted session projection.
@@ -28,6 +33,7 @@ export function createSessionProjectionSynchronization({
   let requested = false;
   let synchronizing = false;
   let disposed = false;
+  let activeAbort: AbortController | null = null;
   let pendingWaiters: Array<(committed: boolean) => void> = [];
   let activeWaiters: Array<(committed: boolean) => void> = [];
 
@@ -38,30 +44,42 @@ export function createSessionProjectionSynchronization({
     const waiters = pendingWaiters;
     pendingWaiters = [];
     activeWaiters = waiters;
-    void synchronize()
+    const controller = new AbortController();
+    activeAbort = controller;
+    void settleBeforeAbort(synchronize(controller.signal), controller.signal)
+      .then((committed) => (committed === ABORTED ? false : committed))
       .catch(() => false)
       .then((committed) => {
         for (const settle of waiters) settle(committed);
       })
       .finally(() => {
+        if (activeAbort === controller) activeAbort = null;
         if (activeWaiters === waiters) activeWaiters = [];
         synchronizing = false;
         drain();
       });
   };
 
+  const enqueue = (): Promise<boolean> => {
+    if (disposed) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
+      pendingWaiters.push(resolve);
+      requested = true;
+      drain();
+    });
+  };
+
   return {
-    request() {
-      if (disposed) return Promise.resolve(false);
-      return new Promise<boolean>((resolve) => {
-        pendingWaiters.push(resolve);
-        requested = true;
-        drain();
-      });
+    request: enqueue,
+    replace() {
+      activeAbort?.abort();
+      return enqueue();
     },
     liveStreamSettled: drain,
     dispose() {
       disposed = true;
+      activeAbort?.abort();
+      activeAbort = null;
       requested = false;
       const waiters = pendingWaiters;
       pendingWaiters = [];
@@ -71,4 +89,40 @@ export function createSessionProjectionSynchronization({
       for (const settle of inFlight) settle(false);
     },
   };
+}
+
+/** Observe a dependency that may ignore cancellation without allowing it to
+ * retain synchronization ownership. Its late settlement remains handled. */
+function settleBeforeAbort<T>(
+  operation: Promise<T>,
+  signal: AbortSignal,
+): Promise<T | typeof ABORTED> {
+  if (signal.aborted) {
+    void operation.catch(() => undefined);
+    return Promise.resolve(ABORTED);
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      resolve(ABORTED);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }

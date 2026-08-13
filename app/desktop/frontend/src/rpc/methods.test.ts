@@ -561,6 +561,7 @@ describe("methods factory", () => {
   });
 
   it("derives continuation calls from the paged method policy", async () => {
+    const controller = new AbortController();
     const call = vi
       .fn()
       .mockResolvedValueOnce({ data: [{ id: "run_1" }], nextCursor: "cursor_2" })
@@ -568,16 +569,23 @@ describe("methods factory", () => {
     const methods = createMethods({ call } as unknown as RpcClient);
 
     const runs = await methods.runs
-      .list({
-        sessionId: asSessionId("ses_1"),
-        statuses: ["finished"],
-        limit: 25,
-      })
+      .list(
+        {
+          sessionId: asSessionId("ses_1"),
+          statuses: ["finished"],
+          limit: 25,
+        },
+        controller.signal,
+      )
       .autoPagingToArray();
 
     expect(runs.map((run) => run.id)).toEqual(["run_1", "run_2"]);
     expect(call.mock.calls).toEqual([
-      ["runs.list", { sessionId: "ses_1", statuses: ["finished"], limit: 25 }, undefined],
+      [
+        "runs.list",
+        { sessionId: "ses_1", statuses: ["finished"], limit: 25 },
+        { signal: controller.signal },
+      ],
       [
         "runs.list",
         {
@@ -586,7 +594,7 @@ describe("methods factory", () => {
           limit: 25,
           cursor: "cursor_2",
         },
-        undefined,
+        { signal: controller.signal },
       ],
     ]);
   });

@@ -15,7 +15,7 @@ describe("session projection synchronization", () => {
     const synchronize = vi.fn().mockResolvedValue(true);
     const coordinator = createSessionProjectionSynchronization({
       isLiveStreamActive: () => active,
-      synchronize,
+      synchronize: () => synchronize(),
     });
 
     const firstRequest = coordinator.request();
@@ -37,7 +37,7 @@ describe("session projection synchronization", () => {
       .mockResolvedValue(true);
     const coordinator = createSessionProjectionSynchronization({
       isLiveStreamActive: () => false,
-      synchronize,
+      synchronize: () => synchronize(),
     });
 
     void coordinator.request();
@@ -57,7 +57,7 @@ describe("session projection synchronization", () => {
       .mockResolvedValue(true);
     const coordinator = createSessionProjectionSynchronization({
       isLiveStreamActive: () => active,
-      synchronize,
+      synchronize: () => synchronize(),
     });
 
     void coordinator.request();
@@ -78,7 +78,7 @@ describe("session projection synchronization", () => {
     const synchronize = vi.fn().mockResolvedValue(true);
     const coordinator = createSessionProjectionSynchronization({
       isLiveStreamActive: () => active,
-      synchronize,
+      synchronize: () => synchronize(),
     });
 
     const retained = coordinator.request();
@@ -95,7 +95,7 @@ describe("session projection synchronization", () => {
     const synchronize = vi.fn(() => first.promise);
     const coordinator = createSessionProjectionSynchronization({
       isLiveStreamActive: () => false,
-      synchronize,
+      synchronize: () => synchronize(),
     });
 
     const inFlight = coordinator.request();
@@ -108,5 +108,37 @@ describe("session projection synchronization", () => {
     await Promise.resolve();
 
     expect(synchronize).toHaveBeenCalledTimes(1);
+  });
+
+  it("replaces a non-cooperative Runtime snapshot generation", async () => {
+    const first = deferred();
+    const signals: AbortSignal[] = [];
+    const synchronize = vi
+      .fn<(signal: AbortSignal) => Promise<boolean>>()
+      .mockImplementationOnce((signal) => {
+        signals.push(signal);
+        return first.promise;
+      })
+      .mockImplementationOnce(async (signal) => {
+        signals.push(signal);
+        return true;
+      });
+    const coordinator = createSessionProjectionSynchronization({
+      isLiveStreamActive: () => false,
+      synchronize,
+    });
+
+    const retired = coordinator.request();
+    const replacement = coordinator.replace();
+
+    await expect(retired).resolves.toBe(false);
+    await expect(replacement).resolves.toBe(true);
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+
+    first.resolve(true);
+    await Promise.resolve();
+    expect(synchronize).toHaveBeenCalledTimes(2);
   });
 });

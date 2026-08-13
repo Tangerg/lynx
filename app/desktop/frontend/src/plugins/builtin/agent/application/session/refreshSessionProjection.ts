@@ -11,7 +11,12 @@ interface RefreshSessionProjectionOptions {
   /** Cold-open recovery uses this to reject a fetch after local interaction or
    *  teardown without coupling this use case to React lifecycle state. */
   canCommit?: () => boolean;
+  /** Lifecycle owner for a Runtime generation. An aborted read cannot commit,
+   * even when the gateway settles late or ignores cancellation. */
+  signal?: AbortSignal;
 }
+
+const ABORTED = Symbol("agent-session-snapshot.aborted");
 
 export interface AgentSessionProjectionRevalidation {
   /** Projection built from this read even when a newer local write prevents it
@@ -37,13 +42,49 @@ export async function revalidateAgentSessionProjection(
   const token = viewPort.beginViewRefresh(sessionId, options.invalidateQueuedRunEvents ?? false);
   if (!token) return null;
 
-  const snapshot = await agentRuntime().loadSessionSnapshot(sessionId);
+  const read = agentRuntime().loadSessionSnapshot(sessionId, options.signal);
+  const snapshot = options.signal ? await settleBeforeAbort(read, options.signal) : await read;
+  if (snapshot === ABORTED) return null;
   if (!snapshot || (options.canCommit && !options.canCommit())) return null;
   const view = projectAgentSessionSnapshot(snapshot);
   return {
     authoritativeView: view,
     committed: viewPort.commitViewRefresh(sessionId, token, view),
   };
+}
+
+function settleBeforeAbort<T>(
+  operation: Promise<T>,
+  signal: AbortSignal,
+): Promise<T | typeof ABORTED> {
+  if (signal.aborted) {
+    void operation.catch(() => undefined);
+    return Promise.resolve(ABORTED);
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      resolve(ABORTED);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 export interface MountedAgentSessionSynchronization {

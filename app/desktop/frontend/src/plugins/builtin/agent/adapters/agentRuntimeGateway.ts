@@ -46,25 +46,27 @@ const gateway: AgentRuntimeGateway = {
       });
     return { id: fork.id };
   },
-  async loadSessionSnapshot(sessionId) {
+  async loadSessionSnapshot(sessionId, signal) {
     const client = getContainer().client();
     const sid = asSessionId(sessionId);
     const includeDescendants = runtimeCapability("subagents");
     try {
+      const itemQuery = { scope: { type: "session" as const, sessionId: sid } };
+      const runQuery = {
+        sessionId: sid,
+        ...(includeDescendants ? { includeDescendants: true } : {}),
+      };
+      const interruptQuery = { sessionId: sid };
+      const itemPage = signal ? client.items.list(itemQuery, signal) : client.items.list(itemQuery);
+      const runPage = signal ? client.runs.list(runQuery, signal) : client.runs.list(runQuery);
+      const interruptPage = signal
+        ? client.interrupts.list(interruptQuery, signal)
+        : client.interrupts.list(interruptQuery);
       const [items, runs, pendingInterruptSets, state] = await Promise.all([
-        client.items
-          .list({
-            scope: { type: "session", sessionId: sid },
-          })
-          .autoPagingToArray(),
-        client.runs
-          .list({
-            sessionId: sid,
-            ...(includeDescendants ? { includeDescendants: true } : {}),
-          })
-          .autoPagingToArray(),
-        client.interrupts.list({ sessionId: sid }).autoPagingToArray(),
-        loadOptionalSessionState(sessionId),
+        itemPage.autoPagingToArray(),
+        runPage.autoPagingToArray(),
+        interruptPage.autoPagingToArray(),
+        loadOptionalSessionState(sessionId, signal),
       ]);
       return {
         items: items.map(runtimeItem),
@@ -121,9 +123,11 @@ const gateway: AgentRuntimeGateway = {
   },
 };
 
-async function loadOptionalSessionState(sessionId: string) {
+async function loadOptionalSessionState(sessionId: string, signal?: AbortSignal) {
   try {
-    return runtimePlanState(await getContainer().client().plan.get(asSessionId(sessionId)));
+    const plan = getContainer().client().plan;
+    const sid = asSessionId(sessionId);
+    return runtimePlanState(await (signal ? plan.get(sid, signal) : plan.get(sid)));
   } catch (error) {
     if (isErrorType(error, "capability_not_negotiated")) return undefined;
     throw error;

@@ -298,30 +298,35 @@ export interface Methods {
         statuses?: RunStatus[];
         includeDescendants?: boolean;
       },
+      signal?: AbortSignal,
     ) => AutoPagingPromise<Page<RunRef>>;
   };
   plan: {
     // The cold read the plan state key declares (§5.6). A session with no plan yet
     // answers with the empty state at revision 0 — the same shape the stream pushes.
-    get: (sessionId: SessionId) => Promise<StateSnapshot>;
+    get: (sessionId: SessionId, signal?: AbortSignal) => Promise<StateSnapshot>;
   };
   interrupts: {
     // Durable HITL discovery — the waiting sets, longest wait first (§7.3 / §10.2).
     // A page never splits a set: a set is what runs.resume answers in one call.
     list: (
       query?: PageQuery & { sessionId?: SessionId; rootRunId?: RunId },
+      signal?: AbortSignal,
     ) => AutoPagingPromise<Page<PendingInterruptSet>>;
   };
   items: {
     // The scope is required and closed (§7.4): a whole session timeline, or one
     // run's own items. `order` defaults to "asc" — the order the runtime produced,
     // which is the one a fold can replay.
-    list: (params: {
-      scope: ItemListScope;
-      order?: ItemOrder;
-      cursor?: string;
-      limit?: number;
-    }) => AutoPagingPromise<ListItemsResponse>;
+    list: (
+      params: {
+        scope: ItemListScope;
+        order?: ItemOrder;
+        cursor?: string;
+        limit?: number;
+      },
+      signal?: AbortSignal,
+    ) => AutoPagingPromise<ListItemsResponse>;
   };
   workspaces: {
     resolve: (ref?: WorkspaceRef, signal?: AbortSignal) => Promise<WorkspaceInfo>;
@@ -747,10 +752,10 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       steer: (runId, expectedSegmentId, input) =>
         call("runs.steer", { runId, expectedSegmentId, input }),
       get: (runId, signal) => call("runs.get", { runId }, { signal }),
-      list: (query) => call("runs.list", query ?? {}),
+      list: (query, signal) => call("runs.list", query ?? {}, signal ? { signal } : undefined),
     },
     plan: {
-      get: (sessionId) => call("plan.get", { sessionId }),
+      get: (sessionId, signal) => call("plan.get", { sessionId }, signal ? { signal } : undefined),
     },
     runtimeEvents: {
       subscribe: async (params, signal) => {
@@ -765,10 +770,11 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       },
     },
     interrupts: {
-      list: (query) => call("interrupts.list", query ?? {}),
+      list: (query, signal) =>
+        call("interrupts.list", query ?? {}, signal ? { signal } : undefined),
     },
     items: {
-      list: (params) => call("items.list", params),
+      list: (params, signal) => call("items.list", params, signal ? { signal } : undefined),
     },
     workspaces: {
       resolve: (ref, signal) => call("workspaces.resolve", ref ? { ref } : {}, { signal }),

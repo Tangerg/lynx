@@ -144,4 +144,24 @@ describe("refreshAgentSessionProjection", () => {
     await expect(refreshAgentSessionProjection(SESSION_ID)).resolves.toBeNull();
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view).toBe(visible);
   });
+
+  it("retires a non-cooperative snapshot read without allowing a late commit", async () => {
+    const read = deferred<AgentSessionSnapshot>();
+    const controller = new AbortController();
+    restoreRuntime = configureAgentRuntimeGateway({
+      loadSessionSnapshot: vi.fn(() => read.promise),
+    } as unknown as AgentRuntimeGateway);
+
+    const refreshing = refreshAgentSessionProjection(SESSION_ID, {
+      signal: controller.signal,
+    });
+    controller.abort();
+    await expect(refreshing).resolves.toBeNull();
+
+    read.resolve(snapshot(9));
+    await Promise.resolve();
+    const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
+      { revision?: number } | null | undefined;
+    expect(plan?.revision).not.toBe(9);
+  });
 });

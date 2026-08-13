@@ -733,6 +733,126 @@ describe("useAgentSession durable recovery", () => {
     releaseOldNext({ value: undefined as never, done: true });
   });
 
+  it("replaces a non-cooperative durable snapshot before folding the restarted Runtime", async () => {
+    let restarted = false;
+    let firstSignal: AbortSignal | undefined;
+    let releaseOldItems!: (items: unknown[]) => void;
+    const oldItems = new Promise<unknown[]>((resolve) => {
+      releaseOldItems = resolve;
+    });
+    const items = vi.fn((_query: unknown, signal?: AbortSignal) => {
+      if (!restarted) {
+        firstSignal = signal;
+        return { autoPagingToArray: vi.fn(() => oldItems) };
+      }
+      return autoPage([
+        {
+          id: "item_restarted_tool",
+          runId: "run_restarted_waiting",
+          type: "toolCall",
+          status: "running",
+          startedAt: "2026-08-13T00:00:01.000Z",
+          tool: { name: "shell", arguments: { command: "npm test" } },
+        },
+      ]);
+    });
+    const runs = vi.fn(() =>
+      autoPage(
+        restarted
+          ? [
+              runRef({
+                id: "run_restarted_waiting",
+                sessionId: RID,
+                status: "waiting",
+                activeSegmentId: undefined,
+              }),
+            ]
+          : [],
+      ),
+    );
+    const interrupts = vi.fn(() =>
+      autoPage(
+        restarted
+          ? [
+              {
+                rootRunId: "run_restarted_waiting",
+                sessionId: RID,
+                createdAt: "2026-08-13T00:00:02.000Z",
+                interrupts: [
+                  {
+                    type: "approval",
+                    itemId: "item_restarted_tool",
+                    runId: "run_restarted_waiting",
+                    payload: {
+                      tool: { name: "shell", arguments: { command: "npm test" } },
+                    },
+                  },
+                ],
+              },
+            ]
+          : [],
+      ),
+    );
+    const plan = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        type: "plan",
+        sessionId: RID,
+        revision: restarted ? 2 : 1,
+        plan: [
+          {
+            id: restarted ? "step_restarted" : "step_retired",
+            description: restarted ? "Approve recovered tool" : "Retired Runtime plan",
+            status: "in_progress",
+          },
+        ],
+      }),
+    );
+    setContainer({
+      client: () =>
+        ({
+          items: { list: items },
+          runs: { list: runs },
+          interrupts: { list: interrupts },
+          plan: { get: plan },
+        }) as unknown as LyraClient,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() => expect(firstSignal).toBeInstanceOf(AbortSignal));
+    restarted = true;
+    const synchronization = useAgentStore.getState().sessions[RID]!.synchronize!("replace-live");
+    await expect(synchronization).resolves.toBe(true);
+
+    expect(firstSignal?.aborted).toBe(true);
+    const view = useAgentStore.getState().sessions[RID]!.view;
+    expect(selectCurrentRootRun(view)).toMatchObject({
+      id: "run_restarted_waiting",
+      status: "waiting",
+    });
+    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(view.pendingInterrupts).toHaveLength(1);
+    expect(view.toolCalls.item_restarted_tool).toMatchObject({
+      name: "shell",
+      status: "requires-action",
+    });
+
+    releaseOldItems([
+      {
+        id: "item_from_retired_runtime",
+        runId: "run_retired",
+        status: "completed",
+        createdAt: "2026-08-13T00:00:00.000Z",
+        type: "agentMessage",
+        content: [{ type: "text", text: "must stay retired" }],
+      },
+    ]);
+    await Promise.resolve();
+    expect(JSON.stringify(useAgentStore.getState().sessions[RID]!.view)).not.toContain(
+      "must stay retired",
+    );
+  });
+
   it("treats a run that finishes between snapshot and subscribe as synchronized", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const subscribe = vi.fn().mockRejectedValue(

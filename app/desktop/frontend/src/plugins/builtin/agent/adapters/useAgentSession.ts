@@ -92,12 +92,13 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     let guardInitialInteraction = recoverExistingSession;
     projectionSynchronization = createSessionProjectionSynchronization({
       isLiveStreamActive: runPump.isActive,
-      synchronize: () => {
+      synchronize: (signal) => {
         const guardInteraction = guardInitialInteraction;
         guardInitialInteraction = false;
         return startAgentSessionRecovery({
           client: client(),
           sessionId,
+          signal,
           isCancelled: () => cancelled,
           hasInteracted: () => guardInteraction && interacted,
           isFollowing: runPump.isFollowing,
@@ -232,7 +233,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().setStop(sessionId, stop);
     store().setResume(sessionId, resume);
     store().setSynchronize(sessionId, (ownership) => {
-      if (ownership === "replace-live") runOpening.retire();
+      if (ownership === "replace-live") {
+        runOpening.retire();
+        return projectionSynchronization?.replace() ?? Promise.resolve(false);
+      }
       return projectionSynchronization?.request() ?? Promise.resolve(false);
     });
     store().setCancelRun(sessionId, cancelRun);

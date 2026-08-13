@@ -41,7 +41,10 @@ export interface AgentRuntimeGateway {
    * authoritatively reports that the Session no longer exists; transport and
    * other operational failures still reject.
    */
-  loadSessionSnapshot(sessionId: string): Promise<AgentSessionSnapshot | null>;
+  loadSessionSnapshot(
+    sessionId: string,
+    signal?: AbortSignal,
+  ): Promise<AgentSessionSnapshot | null>;
   loadSessionUsage(sessionId: string): Promise<AgentSessionUsage>;
   rollbackSession(input: {
     sessionId: string;
