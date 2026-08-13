@@ -853,6 +853,77 @@ describe("useAgentSession durable recovery", () => {
     );
   });
 
+  it("closes a reattach stream whose opening resolves after Runtime replacement", async () => {
+    let restarted = false;
+    let resolveOldOpening!: (stream: {
+      result: { runId: string; segmentId: string };
+      events: AsyncIterable<RunEvent>;
+    }) => void;
+    const oldOpening = new Promise<{
+      result: { runId: string; segmentId: string };
+      events: AsyncIterable<RunEvent>;
+    }>((resolve) => {
+      resolveOldOpening = resolve;
+    });
+    const closeOldStream = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    const subscribe = vi.fn(() => oldOpening);
+    const runs = vi.fn(() =>
+      autoPage(
+        restarted
+          ? []
+          : [
+              runRef({
+                id: "run_retired_opening",
+                sessionId: RID,
+                status: "running",
+                activeSegmentId: "seg_retired_opening",
+              }),
+            ],
+      ),
+    );
+    const plan = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        type: "plan",
+        sessionId: RID,
+        revision: restarted ? 2 : 1,
+        plan: [],
+      }),
+    );
+    setContainer({
+      client: () =>
+        ({
+          items: { list: vi.fn(() => autoPage([])) },
+          runs: { list: runs, subscribe },
+          interrupts: { list: vi.fn(() => autoPage([])) },
+          plan: { get: plan },
+        }) as unknown as LyraClient,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    restarted = true;
+    await expect(
+      useAgentStore.getState().sessions[RID]!.synchronize!("replace-live"),
+    ).resolves.toBe(true);
+    expect(useAgentStore.getState().sessions[RID]!.view.shared.plan).toMatchObject({
+      revision: 2,
+    });
+
+    resolveOldOpening({
+      result: { runId: "run_retired_opening", segmentId: "seg_retired_opening" },
+      events: {
+        [Symbol.asyncIterator]: () =>
+          ({
+            next: vi.fn(),
+            return: closeOldStream,
+          }) as AsyncIterator<RunEvent>,
+      },
+    });
+    await waitFor(() => expect(closeOldStream).toHaveBeenCalledOnce());
+    expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)).toBeNull();
+  });
+
   it("treats a run that finishes between snapshot and subscribe as synchronized", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const subscribe = vi.fn().mockRejectedValue(
