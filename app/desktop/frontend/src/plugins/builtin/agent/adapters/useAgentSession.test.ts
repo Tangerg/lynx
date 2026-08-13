@@ -31,11 +31,25 @@ function autoPage<T>(data: T[]) {
   return { autoPagingToArray: vi.fn().mockResolvedValue(data) };
 }
 
+function parkUntilAborted(signal: AbortSignal): Promise<never> {
+  return new Promise<never>((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
+}
+
 // A driver whose start() never resolves — keeps begin() parked in the
 // pre-segment.started window where the latch is the only guard.
 function parkedDriver(): { driver: AgentDriver; start: ReturnType<typeof vi.fn> } {
-  const start = vi.fn(() => new Promise<never>(() => {}));
-  const resume = vi.fn(() => new Promise<never>(() => {}));
+  const start = vi.fn((_input: unknown, _options: unknown, signal: AbortSignal) =>
+    parkUntilAborted(signal),
+  );
+  const resume = vi.fn((_runId: unknown, _responses: unknown, signal: AbortSignal) =>
+    parkUntilAborted(signal),
+  );
   return { driver: { start, resume } as unknown as AgentDriver, start };
 }
 
@@ -49,14 +63,14 @@ beforeEach(async () => {
     freshDraftSessionIds: new Set([SID]),
   });
 });
-afterEach(() => {
+afterEach(async () => {
   useAgentStore.getState().dropSession(SID);
   useAgentStore.getState().dropSession(SID_B);
   useAgentSessionStore.setState({
     draftSessionIds: new Set(),
     freshDraftSessionIds: new Set(),
   });
-  resetContainer();
+  await resetContainer();
   vi.restoreAllMocks();
 });
 
@@ -170,10 +184,12 @@ describe("useAgentSession run timing guards", () => {
           data: { type: "session_not_found", detail: "gone" },
         });
       })
-      .mockImplementationOnce(() => new Promise<never>(() => {}));
+      .mockImplementationOnce((...args: unknown[]) => parkUntilAborted(args.at(-1) as AbortSignal));
     const driver = {
       start,
-      resume: vi.fn(() => new Promise<never>(() => {})),
+      resume: vi.fn((_runId: unknown, _responses: unknown, signal: AbortSignal) =>
+        parkUntilAborted(signal),
+      ),
     } as unknown as AgentDriver;
     renderHook(() => useAgentSession(() => driver, SID));
 
@@ -196,9 +212,13 @@ describe("useAgentSession run timing guards", () => {
   });
 
   it("ignores a second resume while the first continuation is still starting", () => {
-    const resume = vi.fn(() => new Promise<never>(() => {}));
+    const resume = vi.fn((_runId: unknown, _responses: unknown, signal: AbortSignal) =>
+      parkUntilAborted(signal),
+    );
     const driver = {
-      start: vi.fn(() => new Promise<never>(() => {})),
+      start: vi.fn((_input: unknown, _options: unknown, signal: AbortSignal) =>
+        parkUntilAborted(signal),
+      ),
       resume,
     } as unknown as AgentDriver;
     renderHook(() => useAgentSession(() => driver, SID));
@@ -255,7 +275,9 @@ describe("useAgentSession run timing guards", () => {
       }),
     );
     const driver = {
-      start: vi.fn(() => new Promise<never>(() => {})),
+      start: vi.fn((_input: unknown, _options: unknown, signal: AbortSignal) =>
+        parkUntilAborted(signal),
+      ),
       resume,
     } as unknown as AgentDriver;
     renderHook(() => useAgentSession(() => driver, SID));
@@ -401,14 +423,12 @@ describe("useAgentSession durable recovery", () => {
     items: unknown[] = [],
   ) {
     const listItems = vi.fn(() => autoPage(items));
-    const subscribe = vi.fn(() =>
+    const subscribe = vi.fn((_params: unknown, signal: AbortSignal) =>
       Promise.resolve({
         result: { runId: "run_live", segmentId: "seg_live" },
-        // Parked stream — yields nothing, never ends (the run is "still going").
-        events: (async function* () {
-          yield* [];
-          await new Promise<never>(() => {});
-        })(),
+        // Parked while the run remains live, but owned by the subscribe signal
+        // so hook teardown settles the iterator instead of leaking it.
+        events: abortRejectingEvents(signal),
       }),
     );
     setContainer({

@@ -6,9 +6,9 @@ import { installRuntimeMutationJournalStorage } from "./runtimeMutationJournalSt
 
 const cleanups: Array<() => void> = [];
 
-afterEach(() => {
+afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
-  resetContainer();
+  await resetContainer();
 });
 
 describe("Runtime mutation journal storage adapter", () => {

@@ -131,7 +131,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
   // request must be settled (rejected). Handling only the throw path left
   // pending calls hung forever on a clean EOS (for example, an InProcess
   // transport whose recv() ends without an exception).
-  void (async () => {
+  const receiveLoop = (async () => {
     try {
       for await (const event of transport.recv()) {
         dispatchInbound(event);
@@ -369,7 +369,18 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       // be true because recv() ended. Transport ownership is independent: the
       // public close contract must still run and join its one teardown.
       if (!closed) failConnection(new RpcTransportError("client closed"));
-      await transport.close();
+      let closeFailure: unknown;
+      try {
+        await transport.close();
+      } catch (error) {
+        closeFailure = error;
+      }
+      // The receive pump is created by RpcClient, not by Transport. Transport
+      // close makes recv() terminal; joining the consumer here guarantees that
+      // close() owns the complete lifecycle and no final iterator continuation
+      // escapes into the next client/test generation.
+      await receiveLoop;
+      if (closeFailure !== undefined) throw closeFailure;
     })();
     return closePromise;
   }

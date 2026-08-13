@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { getHighlighter } from "@/lib/highlight/shiki";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 // MarkdownMessage now renders through react-markdown + remark-gfm with our
@@ -17,6 +18,13 @@ import { MarkdownMessage } from "./MarkdownMessage";
 //   5. With `instant`, no `.fade-in` wrappers are produced.
 
 describe("markdownMessage", () => {
+  beforeAll(async () => {
+    // The highlighter is an application-lifetime lazy singleton. Resolve its
+    // module/grammar load before mounting effects so this test file does not
+    // abandon that shared initialization when its synchronous assertions end.
+    await getHighlighter();
+  });
+
   it("renders an empty string without throwing", () => {
     const { container } = render(<MarkdownMessage text="" reveal="smooth" />);
     // react-markdown adds a wrapper div; the body is just empty.

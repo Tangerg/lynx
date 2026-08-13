@@ -14,12 +14,13 @@
 // suite.
 
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   getComposerText,
   replaceComposerDraft,
 } from "@/plugins/builtin/chat/composer/public/draft";
+import { drainBrowserTasks } from "@/test/browserTasks";
 import { MessageContextMenu } from "./MessageContextMenu";
 
 function buildMessage({ runId = null, ...overrides }: Partial<Message> = {}): Message {
@@ -42,6 +43,11 @@ function openMenu(triggerLabel: string): void {
 }
 
 describe("messageContextMenu", () => {
+  afterEach(async () => {
+    cleanup();
+    await drainBrowserTasks();
+  });
+
   it("shows Edit in composer + copy items for a user message", () => {
     render(
       <MessageContextMenu msg={buildMessage({ role: "user" })}>

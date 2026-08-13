@@ -6,6 +6,7 @@
 // file stays a one-liner per store.
 
 import { afterEach, beforeEach } from "vitest";
+import { MotionGlobalConfig } from "motion/react";
 import { useConfigStore } from "@/plugins/sdk/config";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { useNotificationStore } from "@/plugins/sdk/notifications";
@@ -28,6 +29,11 @@ installAgentRuntimeGateway();
 installComposerStatePorts();
 installWorkspaceNavigationPort();
 installRuntimeCapabilityPort();
+
+// Unit tests assert state and accessibility, not wall-clock interpolation.
+// Happy DOM does not advance Framer Motion's browser frame loop on teardown,
+// so an exit animation can otherwise retain its completion Promise forever.
+MotionGlobalConfig.skipAnimations = true;
 
 beforeEach(() => {
   // A fresh location per spec, with its own history. First, for the same reason.

@@ -16,7 +16,18 @@ const mcpDataProviders = definePlugin({
   },
 });
 
-afterEach(resetContainer);
+const clients: Array<ReturnType<typeof createLyraClient>> = [];
+
+function testClient(transport: ReturnType<typeof createMemoryTransport>) {
+  const client = createLyraClient(transport);
+  clients.push(client);
+  return client;
+}
+
+afterEach(async () => {
+  await Promise.all(clients.splice(0).map((client) => client.close()));
+  await resetContainer();
+});
 
 async function provider<T>(key: string): Promise<(params?: unknown) => Promise<T>> {
   await loadPlugin(mcpDataProviders);
@@ -28,7 +39,7 @@ async function provider<T>(key: string): Promise<(params?: unknown) => Promise<T
 describe("runtime MCP data providers", () => {
   it("maps unified configuration, lifecycle, and localized inline errors", async () => {
     const transport = createMemoryTransport();
-    const client = createLyraClient(transport);
+    const client = testClient(transport);
     setContainer({ client: () => client });
     const fetcher = await provider<MCPServerSettings[]>("mcp-servers");
 
@@ -87,7 +98,7 @@ describe("runtime MCP data providers", () => {
 
   it("requires an explicit server and maps tool descriptions", async () => {
     const transport = createMemoryTransport();
-    const client = createLyraClient(transport);
+    const client = testClient(transport);
     setContainer({ client: () => client });
     const fetcher = await provider<MCPToolSummary[]>("mcp-tools");
 
@@ -110,7 +121,7 @@ describe("runtime MCP data providers", () => {
 
   it("treats an unnegotiated optional MCP capability as an empty catalog", async () => {
     const transport = createMemoryTransport();
-    const client = createLyraClient(transport);
+    const client = testClient(transport);
     setContainer({ client: () => client });
     const fetcher = await provider<MCPServerSettings[]>("mcp-servers");
 

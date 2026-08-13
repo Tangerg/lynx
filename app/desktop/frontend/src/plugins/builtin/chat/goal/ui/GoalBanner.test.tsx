@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { drainBrowserTasks } from "@/test/browserTasks";
 import type { GoalReadModel } from "../application/goalQueries";
 import { GoalBanner } from "./GoalBanner";
 
@@ -42,6 +43,11 @@ vi.mock("../application/goalQueries", async (importOriginal) => ({
 }));
 
 describe("GoalBanner disclosure identity", () => {
+  afterEach(async () => {
+    cleanup();
+    await drainBrowserTasks();
+  });
+
   beforeEach(() => {
     model.sessionId = "session-a";
     model.goal = {

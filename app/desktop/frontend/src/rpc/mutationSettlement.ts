@@ -30,12 +30,19 @@ interface UnaryMutationAttempt {
 function createUnaryMutationAttempt(timeoutMs: number): UnaryMutationAttempt {
   const controller = new AbortController();
   let expired = false;
+  let deadlineSettled = false;
+  let resolveDeadline!: () => void;
   let rejectDeadline!: (reason: unknown) => void;
-  const deadline = new Promise<never>((_resolve, reject) => {
+  const deadline = new Promise<never>((resolve, reject) => {
+    // A released deadline can only settle after its operation already won the
+    // race (or before no race was installed). Resolving the `never` branch is
+    // therefore an ownership signal, never a product result.
+    resolveDeadline = () => resolve(undefined as never);
     rejectDeadline = reject;
   });
   let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
     timer = undefined;
+    deadlineSettled = true;
     expired = true;
     const error = new DOMException("Mutation attempt timed out", "TimeoutError");
     controller.abort(error);
@@ -43,9 +50,11 @@ function createUnaryMutationAttempt(timeoutMs: number): UnaryMutationAttempt {
   }, timeoutMs);
 
   const clearDeadline = () => {
-    if (timer === undefined) return;
-    clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
+    if (deadlineSettled) return;
+    deadlineSettled = true;
+    resolveDeadline();
   };
 
   return {

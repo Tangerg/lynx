@@ -36,10 +36,13 @@ describe("settleUnaryMutation", () => {
 
   it("settles after the finite retry budget even when the transport ignores abort", async () => {
     vi.useFakeTimers();
-    const never = new Promise<string>(() => {});
+    let settleIgnored!: (value: string) => void;
+    const ignored = new Promise<string>((resolve) => {
+      settleIgnored = resolve;
+    });
     let mutation!: MutationPromise<string>;
     const retry = vi.fn(() => mutation);
-    mutation = Object.assign(never, { idempotencyKey: "same-key", retry });
+    mutation = Object.assign(ignored, { idempotencyKey: "same-key", retry });
     const open = vi.fn(() => mutation);
 
     const result = settleUnaryMutation(open, 10);
@@ -52,18 +55,24 @@ describe("settleUnaryMutation", () => {
     await expect(settlement).resolves.toMatchObject({ name: "TimeoutError" });
     expect(open).toHaveBeenCalledOnce();
     expect(retry).toHaveBeenCalledOnce();
+    settleIgnored("late ignored response");
+    await ignored;
   });
 
   it("reuses the retained mutation after an unknown timeout settlement", async () => {
     vi.useFakeTimers();
-    const never = new Promise<string>(() => {});
+    let settleIgnored!: (value: string) => void;
+    const ignored = new Promise<string>((resolve) => {
+      settleIgnored = resolve;
+    });
     const retry = vi.fn(() =>
       retry.mock.calls.length === 2
         ? resolvedMutation("committed")
-        : Object.assign(never, { idempotencyKey: "same-key", retry }),
+        : Object.assign(ignored, { idempotencyKey: "same-key", retry }),
     );
     const open = vi.fn(
-      () => Object.assign(never, { idempotencyKey: "same-key", retry }) as MutationPromise<string>,
+      () =>
+        Object.assign(ignored, { idempotencyKey: "same-key", retry }) as MutationPromise<string>,
     );
     const settler = createUnaryMutationSettler();
 
@@ -75,6 +84,8 @@ describe("settleUnaryMutation", () => {
     await expect(settler.settle("goals.stop:ses_1", open, 10)).resolves.toBe("committed");
     expect(open).toHaveBeenCalledOnce();
     expect(retry).toHaveBeenCalledTimes(2);
+    settleIgnored("late ignored response");
+    await ignored;
   });
 
   it("retains protocol-ambiguous transport failures without retaining definitive failures", async () => {

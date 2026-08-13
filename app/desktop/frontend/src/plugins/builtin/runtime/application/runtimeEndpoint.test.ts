@@ -45,9 +45,9 @@ beforeEach(() => {
   useConfigStore.setState({ values: new Map(), subscribers: new Map() });
 });
 
-afterEach(() => {
+afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
-  resetContainer();
+  await resetContainer();
 });
 
 function installConnection(initial?: unknown) {

@@ -2,13 +2,25 @@
 // stream that ends without the segment's own terminal is a dropped connection, and
 // the run behind it is still executing.
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunEvent, RunRef } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId, RpcConnectionError, RpcProtocolError } from "@/rpc";
 import { createAgentRunPump, type RunStream, type RunStreamPosition } from "./agentRunPump";
 
 const RUN = asRunId("run_1");
 const SEGMENT = asSegmentId("seg_1");
+
+let nextFrame = 0;
+
+beforeEach(() => {
+  vi.stubGlobal("requestAnimationFrame", () => ++nextFrame);
+  vi.stubGlobal("cancelAnimationFrame", () => undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  nextFrame = 0;
+});
 
 function frame(eventId: string, event: RunEvent["event"], segmentId = SEGMENT): RunEvent {
   return {

@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { queryClient } from "@/lib/queryClient";
 import { configureAgentSessionStatePort, type AgentSessionStatePort } from "../ports/sessionState";
 import type { AgentSessionSummary } from "./sessionQueries";
 import { AGENT_SESSIONS_KEY } from "./sessionQueries";
@@ -10,6 +9,8 @@ import { AGENT_SESSIONS_KEY } from "./sessionQueries";
 import { useReconcilePersistedAgentSessions } from "./sessionList";
 
 let restoreState: (() => void) | undefined;
+let unmountHook: (() => void) | undefined;
+let queryClient: QueryClient;
 
 function session(id: string): AgentSessionSummary {
   return {
@@ -24,13 +25,21 @@ function session(id: string): AgentSessionSummary {
 }
 
 beforeEach(() => {
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { experimental_prefetchInRender: true, retry: false } },
+  });
   queryClient.setQueryData([AGENT_SESSIONS_KEY], [session("ses_a"), session("ses_b")]);
 });
 
 afterEach(() => {
+  // Detach the QueryObserver before removing its cache entry. Removing a live
+  // query transitions the observer back to pending and TanStack intentionally
+  // creates a never-settled thenable for that state.
+  unmountHook?.();
+  unmountHook = undefined;
   restoreState?.();
   restoreState = undefined;
-  queryClient.removeQueries({ queryKey: [AGENT_SESSIONS_KEY] });
+  queryClient.clear();
 });
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -46,7 +55,9 @@ describe("useReconcilePersistedAgentSessions", () => {
       reconcileSessions,
     } as unknown as AgentSessionStatePort);
 
-    renderHook(() => useReconcilePersistedAgentSessions(), { wrapper });
+    ({ unmount: unmountHook } = renderHook(() => useReconcilePersistedAgentSessions(), {
+      wrapper,
+    }));
     await waitFor(() => expect(reconcileSessions).toHaveBeenLastCalledWith(["ses_a", "ses_b"]));
 
     act(() => queryClient.setQueryData([AGENT_SESSIONS_KEY], [session("ses_b")]));

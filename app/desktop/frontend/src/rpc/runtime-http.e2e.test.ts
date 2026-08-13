@@ -16,6 +16,7 @@ import {
 import {
   createServer as createHttpServer,
   type IncomingMessage,
+  request as requestHttp,
   type ServerResponse,
 } from "node:http";
 import { createServer as createNetServer } from "node:net";
@@ -29,6 +30,7 @@ import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { errorType } from "./types";
 import { createSidecarClient } from "./sidecar";
 import { createHttpTransport } from "./transports/http";
+import { isWireStreamingMethodName, type WireMethodName } from "./wire.methods.generated";
 import {
   PROTOCOL_VERSION,
   type RequestMeta,
@@ -101,14 +103,34 @@ function createProviderGate(marker: string, minimumToolResults = 0): ProviderGat
   };
 }
 
-async function within<T>(promise: Promise<T>, detail: string): Promise<T> {
-  const deadline = AbortSignal.timeout(5_000);
-  const timeout = new Promise<never>((_resolve, reject) => {
-    deadline.addEventListener("abort", () => reject(new Error(`timed out waiting for ${detail}`)), {
-      once: true,
-    });
+function testDeadline(detail: string): { promise: Promise<never>; release: () => void } {
+  let settled = false;
+  let release!: () => void;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const promise = new Promise<never>((resolve, reject) => {
+    release = () => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+      resolve(undefined as never);
+    };
+    timer = setTimeout(() => {
+      timer = undefined;
+      settled = true;
+      reject(new Error(`timed out waiting for ${detail}`));
+    }, 5_000);
   });
-  return Promise.race([promise, timeout]);
+  return { promise, release };
+}
+
+async function within<T>(promise: Promise<T>, detail: string): Promise<T> {
+  const deadline = testDeadline(detail);
+  try {
+    return await Promise.race([promise, deadline.promise]);
+  } finally {
+    deadline.release();
+  }
 }
 
 async function requestJson(request: IncomingMessage): Promise<FakeChatRequest> {
@@ -153,6 +175,56 @@ function faultUnaryResponse(
   };
   return { attempts: () => attempts, fetch: faultFetch };
 }
+
+const isolatedFetch: typeof fetch = async (input, init) => {
+  const payload =
+    typeof init?.body === "string" ? (JSON.parse(init.body) as { method?: string }) : {};
+  if (payload.method && isWireStreamingMethodName(payload.method as WireMethodName)) {
+    return globalThis.fetch(input, init);
+  }
+  const headers = new Headers(init?.headers);
+  headers.set("Connection", "close");
+  const url =
+    typeof input === "string" || input instanceof URL ? new URL(input) : new URL(input.url);
+  return new Promise<Response>((resolve, reject) => {
+    const request = requestHttp(
+      url,
+      {
+        method: init?.method,
+        headers: Object.fromEntries(headers.entries()),
+        signal: init?.signal ?? undefined,
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.once("error", reject);
+        response.once("end", () => {
+          const responseHeaders = new Headers();
+          for (const [name, value] of Object.entries(response.headers)) {
+            if (Array.isArray(value)) {
+              for (const item of value) responseHeaders.append(name, item);
+            } else if (value !== undefined) {
+              responseHeaders.set(name, value);
+            }
+          }
+          resolve(
+            new Response(Buffer.concat(chunks), {
+              status: response.statusCode ?? 500,
+              statusText: response.statusMessage,
+              headers: responseHeaders,
+            }),
+          );
+        });
+      },
+    );
+    request.once("error", reject);
+    if (typeof init?.body === "string" || init?.body instanceof Uint8Array) {
+      request.end(init.body);
+    } else {
+      request.end();
+    }
+  });
+};
 
 function faultStreamOpening(method: string): { attempts: () => number; fetch: typeof fetch } {
   let attempts = 0;
@@ -451,6 +523,7 @@ async function waitUntilReady(baseUrl: string, processError: () => string): Prom
   for (let attempt = 0; attempt < 200; attempt++) {
     try {
       const response = await fetch(`${baseUrl}/v2/health/ready`);
+      await response.arrayBuffer();
       if (response.ok) return;
     } catch {
       // The process has not bound its socket yet.
@@ -464,18 +537,16 @@ async function nextRuntimeEvent(
   iterator: AsyncIterator<RuntimeEvent>,
   type: RuntimeEvent["type"],
 ): Promise<RuntimeEvent> {
-  const deadline = AbortSignal.timeout(5_000);
-  const timeout = new Promise<never>((_resolve, reject) => {
-    deadline.addEventListener("abort", () => reject(new Error(`timed out waiting for ${type}`)), {
-      once: true,
-    });
-  });
-  while (!deadline.aborted) {
-    const result = await Promise.race([iterator.next(), timeout]);
-    if (result.done) throw new Error(`runtime event stream ended before ${type}`);
-    if (result.value.type === type) return result.value;
+  const deadline = testDeadline(type);
+  try {
+    while (true) {
+      const result = await Promise.race([iterator.next(), deadline.promise]);
+      if (result.done) throw new Error(`runtime event stream ended before ${type}`);
+      if (result.value.type === type) return result.value;
+    }
+  } finally {
+    deadline.release();
   }
-  throw new Error(`timed out waiting for ${type}`);
 }
 
 async function collectSessionRuntimeEvents(
@@ -485,25 +556,26 @@ async function collectSessionRuntimeEvents(
 ): Promise<RuntimeEvent[]> {
   const pending = new Set<RuntimeEvent["type"]>(types);
   const collected: RuntimeEvent[] = [];
-  const deadline = AbortSignal.timeout(5_000);
-  const timeout = new Promise<never>((_resolve, reject) => {
-    deadline.addEventListener(
-      "abort",
-      () => reject(new Error(`timed out waiting for ${[...pending].join(", ")}`)),
-      { once: true },
-    );
-  });
-  while (pending.size > 0 && !deadline.aborted) {
-    const result = await Promise.race([iterator.next(), timeout]);
-    if (result.done) throw new Error("runtime event stream ended before aggregate reconciliation");
-    const event = result.value;
-    if (pending.has(event.type) && "sessionIds" in event && event.sessionIds?.includes(sessionId)) {
-      pending.delete(event.type);
-      collected.push(event);
+  const deadline = testDeadline(`aggregate reconciliation: ${types.join(", ")}`);
+  try {
+    while (pending.size > 0) {
+      const result = await Promise.race([iterator.next(), deadline.promise]);
+      if (result.done)
+        throw new Error("runtime event stream ended before aggregate reconciliation");
+      const event = result.value;
+      if (
+        pending.has(event.type) &&
+        "sessionIds" in event &&
+        event.sessionIds?.includes(sessionId)
+      ) {
+        pending.delete(event.type);
+        collected.push(event);
+      }
     }
+    return collected;
+  } finally {
+    deadline.release();
   }
-  if (pending.size > 0) throw new Error(`timed out waiting for ${[...pending].join(", ")}`);
-  return collected;
 }
 
 async function collectRunEvents(events: AsyncIterable<RunEvent>): Promise<RunEvent[]> {
@@ -676,7 +748,7 @@ for await (const line of lines) {
     });
     await waitUntilReady(baseUrl, () => processOutput);
 
-    client = createLyraClient(createHttpTransport({ baseUrl }), {
+    client = createLyraClient(createHttpTransport({ baseUrl, fetch: isolatedFetch }), {
       requestMeta: () => ({
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "runtime-http-e2e", version: "1" },
@@ -689,10 +761,16 @@ for await (const line of lines) {
     await client?.close();
     if (runtime?.exitCode === null) {
       runtime.kill("SIGTERM");
-      await Promise.race([
-        new Promise<void>((resolve) => runtime?.once("exit", () => resolve())),
-        new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
-      ]);
+      await new Promise<void>((resolve) => {
+        const onExit = () => finish();
+        const timer = setTimeout(() => finish(), 5_000);
+        const finish = () => {
+          clearTimeout(timer);
+          runtime?.off("exit", onExit);
+          resolve();
+        };
+        runtime?.once("exit", onExit);
+      });
       if (runtime.exitCode === null) runtime.kill("SIGKILL");
     }
     if (provider?.listening) {

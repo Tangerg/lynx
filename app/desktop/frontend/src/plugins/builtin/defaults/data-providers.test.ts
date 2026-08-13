@@ -36,41 +36,49 @@ async function runProvider<T>(
 ): Promise<{ value: T; requests: Array<{ method: string; params: unknown }> }> {
   const t = createMemoryTransport();
   const client = createLyraClient(t);
-  setContainer({ client: () => client });
-  await loadPlugin(defaultDataProviders);
+  try {
+    setContainer({ client: () => client });
+    await loadPlugin(defaultDataProviders);
 
-  const fetcher = lookupDataProvider<T>(key);
-  if (!fetcher) throw new Error(`no provider for "${key}"`);
-  const pending = fetcher(params);
-  const requests: Array<{ method: string; params: unknown }> = [];
-  for (const [method, result] of responses) {
-    const req = await waitForRequest(t, method);
-    requests.push({ method: req.method, params: req.params });
-    respondSuccess(t, req.id, result);
+    const fetcher = lookupDataProvider<T>(key);
+    if (!fetcher) throw new Error(`no provider for "${key}"`);
+    const pending = fetcher(params);
+    const requests: Array<{ method: string; params: unknown }> = [];
+    for (const [method, result] of responses) {
+      const req = await waitForRequest(t, method);
+      requests.push({ method: req.method, params: req.params });
+      respondSuccess(t, req.id, result);
+    }
+    return { value: await pending, requests };
+  } finally {
+    await client.close();
   }
-  return { value: await pending, requests };
 }
 
 describe("defaultDataProviders — providers over JSON-RPC", () => {
   it("rejects missing parameters before a parameterized provider reaches RPC", async () => {
     const client = createLyraClient(createMemoryTransport());
-    setContainer({ client: () => client });
-    await loadPlugin(defaultDataProviders);
+    try {
+      setContainer({ client: () => client });
+      await loadPlugin(defaultDataProviders);
 
-    for (const key of [
-      "diff",
-      "grep",
-      "file-head",
-      "skills",
-      "skill-proposals",
-      "agent-docs",
-      "approval-rules",
-      "list-files",
-      "read-file",
-    ]) {
-      const fetcher = lookupDataProvider(key);
-      expect(fetcher).toBeDefined();
-      await expect(fetcher!()).rejects.toThrow(`Data provider "${key}" requires parameters`);
+      for (const key of [
+        "diff",
+        "grep",
+        "file-head",
+        "skills",
+        "skill-proposals",
+        "agent-docs",
+        "approval-rules",
+        "list-files",
+        "read-file",
+      ]) {
+        const fetcher = lookupDataProvider(key);
+        expect(fetcher).toBeDefined();
+        await expect(fetcher!()).rejects.toThrow(`Data provider "${key}" requires parameters`);
+      }
+    } finally {
+      await client.close();
     }
   });
 

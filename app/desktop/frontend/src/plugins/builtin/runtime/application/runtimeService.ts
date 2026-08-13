@@ -49,7 +49,11 @@ export function createRuntimeServiceController<Capabilities>(
   let monitoring = false;
   let failures = 0;
   let scheduled: ReturnType<typeof setTimeout> | undefined;
-  let attempt: { controller: AbortController; promise: Promise<void> } | null = null;
+  let attempt: {
+    controller: AbortController;
+    promise: Promise<void>;
+    releaseDeadline: () => void;
+  } | null = null;
 
   const clearSchedule = () => {
     if (scheduled !== undefined) clearTimeout(scheduled);
@@ -72,13 +76,25 @@ export function createRuntimeServiceController<Capabilities>(
 
     const controller = new AbortController();
     const timeoutError = new Error("runtime_service_inspection_timeout");
+    let deadlineSettled = false;
+    let resolveDeadline!: () => void;
     let timeout: ReturnType<typeof setTimeout> | undefined;
-    const deadline = new Promise<never>((_resolve, reject) => {
+    const deadline = new Promise<never>((resolve, reject) => {
+      resolveDeadline = () => resolve(undefined as never);
       timeout = setTimeout(() => {
+        timeout = undefined;
+        deadlineSettled = true;
         reject(timeoutError);
         controller.abort();
       }, RUNTIME_SERVICE_INSPECTION_TIMEOUT_MS);
     });
+    const releaseDeadline = () => {
+      if (timeout !== undefined) clearTimeout(timeout);
+      timeout = undefined;
+      if (deadlineSettled) return;
+      deadlineSettled = true;
+      resolveDeadline();
+    };
     if (announce) sink.checking();
     let inspection: Promise<RuntimeConnectionInspection<Capabilities>>;
     try {
@@ -109,7 +125,7 @@ export function createRuntimeServiceController<Capabilities>(
         });
       })
       .finally(() => {
-        if (timeout !== undefined) clearTimeout(timeout);
+        releaseDeadline();
         if (attempt?.controller === controller) attempt = null;
         if (!active || !monitoring) return;
         if (succeeded) {
@@ -121,7 +137,7 @@ export function createRuntimeServiceController<Capabilities>(
           Math.min(RUNTIME_SERVICE_RETRY_BASE_MS * 2 ** exponent, RUNTIME_SERVICE_RETRY_CAP_MS),
         );
       });
-    attempt = { controller, promise };
+    attempt = { controller, promise, releaseDeadline };
     return promise;
   };
 
@@ -147,6 +163,7 @@ export function createRuntimeServiceController<Capabilities>(
       active = false;
       monitoring = false;
       clearSchedule();
+      attempt?.releaseDeadline();
       attempt?.controller.abort();
       attempt = null;
     },

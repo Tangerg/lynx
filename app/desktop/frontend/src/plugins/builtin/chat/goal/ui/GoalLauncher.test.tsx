@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { drainBrowserTasks } from "@/test/browserTasks";
 import { GoalLauncher } from "./GoalLauncher";
 
 const model = vi.hoisted(() => ({
@@ -44,6 +45,11 @@ vi.mock("../application/goalCommands", () => ({
 }));
 
 describe("GoalLauncher", () => {
+  afterEach(async () => {
+    cleanup();
+    await drainBrowserTasks();
+  });
+
   beforeEach(() => {
     model.sessionId = "session-a";
     model.composerText = "Ship alpha";

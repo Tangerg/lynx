@@ -92,9 +92,12 @@ describe("run opening settlement", () => {
 
   it("settles its finite budget even when the transport ignores cancellation", async () => {
     vi.useFakeTimers();
-    const never = new Promise<string>(() => {});
+    let settleIgnored!: (value: string) => void;
+    const ignored = new Promise<string>((resolve) => {
+      settleIgnored = resolve;
+    });
     let mutation!: MutationPromise<string>;
-    mutation = Object.assign(never, {
+    mutation = Object.assign(ignored, {
       idempotencyKey: "run-opening",
       retry: vi.fn(() => mutation),
     });
@@ -105,22 +108,27 @@ describe("run opening settlement", () => {
 
     await expect(settlement).resolves.toMatchObject({ name: "TimeoutError" });
     expect(mutation.retry).toHaveBeenCalledOnce();
+    settleIgnored("late ignored opening");
+    await ignored;
   });
 
   it("replays a retained opening after bounded settlement returned to the product", async () => {
     vi.useFakeTimers();
-    const never = new Promise<string>(() => {});
+    let settleIgnored!: (value: string) => void;
+    const ignored = new Promise<string>((resolve) => {
+      settleIgnored = resolve;
+    });
     const retry = vi.fn(() =>
       retry.mock.calls.length === 2
         ? replayableMutation(async () => "accepted", new AbortController().signal)
-        : (Object.assign(never, {
+        : (Object.assign(ignored, {
             idempotencyKey: "run-opening",
             retry,
           }) as MutationPromise<string>),
     );
     const open = vi.fn(
       () =>
-        Object.assign(never, {
+        Object.assign(ignored, {
           idempotencyKey: "run-opening",
           retry,
         }) as MutationPromise<string>,
@@ -137,6 +145,8 @@ describe("run opening settlement", () => {
     );
     expect(open).toHaveBeenCalledOnce();
     expect(retry).toHaveBeenCalledTimes(2);
+    settleIgnored("late ignored opening");
+    await ignored;
   });
 
   it("retains a parent-canceled opening for a later owner without retrying immediately", async () => {

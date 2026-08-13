@@ -258,8 +258,9 @@ describe("HTTPTransport — streamable HTTP", () => {
   it("does not report closed until an active stream reader releases", async () => {
     const cancelStarted = deferred();
     const release = deferred();
+    const pullRelease = deferred();
     const body = new ReadableStream<Uint8Array>({
-      pull: () => new Promise<void>(() => undefined),
+      pull: () => pullRelease.promise,
       async cancel() {
         cancelStarted.resolve();
         await release.promise;
@@ -283,6 +284,8 @@ describe("HTTPTransport — streamable HTTP", () => {
 
     release.resolve();
     await closing;
+    pullRelease.resolve();
+    await pullRelease.promise;
   });
 
   it("non-2xx surfaces structured transport diagnostics", async () => {

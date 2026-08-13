@@ -3,9 +3,7 @@ import type { DesktopHostClient, LyraClient } from "@/rpc";
 import { getContainer, initializeDesktopHost, resetContainer, setContainer } from "./container";
 
 describe("main/container", () => {
-  afterEach(() => {
-    resetContainer();
-  });
+  afterEach(resetContainer);
 
   it("exposes the Runtime Protocol entry points out of the box", () => {
     const c = getContainer();
@@ -22,17 +20,21 @@ describe("main/container", () => {
     expect(getContainer().desktop).toBe(before);
   });
 
-  it("resetContainer() restores defaults", () => {
+  it("resetContainer() restores defaults", async () => {
     const fake = {} as LyraClient;
     setContainer({ client: () => fake });
-    resetContainer();
+    await resetContainer();
     expect(getContainer().client()).not.toBe(fake);
   });
 
-  it("client() returns a cached singleton (one SDK client for the container's life)", () => {
+  it("client() returns a cached singleton and reset joins its teardown", async () => {
     const first = getContainer().client();
     expect(getContainer().client()).toBe(first);
-    resetContainer();
+    const closeFirst = vi.spyOn(first, "close");
+
+    await resetContainer();
+
+    expect(closeFirst).toHaveBeenCalledOnce();
     expect(getContainer().client()).not.toBe(first);
   });
 
@@ -59,10 +61,10 @@ describe("main/container", () => {
     expect(getContainer().client()).toBe(second);
   });
 
-  it("sidecar() returns a cached client for the active endpoint", () => {
+  it("sidecar() returns a cached client for the active endpoint", async () => {
     const first = getContainer().sidecar();
     expect(getContainer().sidecar()).toBe(first);
-    resetContainer();
+    await resetContainer();
     expect(getContainer().sidecar()).not.toBe(first);
   });
 });

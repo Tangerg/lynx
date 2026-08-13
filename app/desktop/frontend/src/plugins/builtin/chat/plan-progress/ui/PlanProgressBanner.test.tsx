@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { drainBrowserTasks } from "@/test/browserTasks";
 import { PlanProgressBanner } from "./PlanProgressBanner";
 
 const model = vi.hoisted(() => ({
@@ -23,6 +24,11 @@ vi.mock("@/plugins/builtin/agent/public/plan", async (importOriginal) => ({
 }));
 
 describe("PlanProgressBanner disclosure identity", () => {
+  afterEach(async () => {
+    cleanup();
+    await drainBrowserTasks();
+  });
+
   it("preserves a choice within one run and resets it for the next run", () => {
     const { rerender } = render(<PlanProgressBanner />);
     fireEvent.click(screen.getByRole("button", { name: /Expand plan/ }));

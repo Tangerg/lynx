@@ -11,21 +11,26 @@ import { PENDING_WORK_KEY, type PendingWorkItem } from "../application/hitl/pend
 import { contributeRuntimePendingWork } from "./runtimePendingWorkProvider";
 
 let disposables: Disposable[] = [];
+let clients: Array<ReturnType<typeof createLyraClient>> = [];
 
 beforeEach(() => {
   usePluginStore.getState().resetForTest();
   disposables = [];
+  clients = [];
 });
 
-afterEach(() => {
+afterEach(async () => {
   for (const disposable of disposables.reverse()) disposable.dispose();
-  resetContainer();
+  await Promise.all(clients.map((client) => client.close()));
+  await resetContainer();
 });
 
 describe("Agent-owned Runtime pending-work provider", () => {
   it("drains install-wide interrupts and publishes only the Agent read model", async () => {
     const transport = createMemoryTransport();
-    setContainer({ client: () => createLyraClient(transport) });
+    const client = createLyraClient(transport);
+    clients.push(client);
+    setContainer({ client: () => client });
     contributeRuntimePendingWork(createHost("agent-provider-test", disposables));
 
     const fetcher = lookupDataProvider<PendingWorkItem[]>(PENDING_WORK_KEY);

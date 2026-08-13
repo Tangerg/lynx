@@ -34,25 +34,36 @@ function signalIsAborted(signal: AbortSignal | undefined): boolean {
 function createOpeningAttempt(parent: AbortSignal | undefined, timeoutMs: number): OpeningAttempt {
   const controller = new AbortController();
   let expired = false;
+  let deadlineSettled = false;
+  let resolveDeadline!: () => void;
   let rejectDeadline!: (reason: unknown) => void;
-  const deadline = new Promise<never>((_resolve, reject) => {
+  const deadline = new Promise<never>((resolve, reject) => {
+    resolveDeadline = () => resolve(undefined as never);
     rejectDeadline = reject;
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const clearDeadline = () => {
-    if (timer === undefined) return;
-    clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
+  };
+  const releaseDeadline = () => {
+    clearDeadline();
+    if (deadlineSettled) return;
+    deadlineSettled = true;
+    resolveDeadline();
   };
   const abortFromParent = () => {
     clearDeadline();
     controller.abort(parent?.reason);
+    if (deadlineSettled) return;
+    deadlineSettled = true;
     rejectDeadline(abortReason(parent!));
   };
 
   timer = setTimeout(() => {
     timer = undefined;
+    deadlineSettled = true;
     expired = true;
     const error = new DOMException("Run opening attempt timed out", "TimeoutError");
     controller.abort(error);
@@ -71,9 +82,9 @@ function createOpeningAttempt(parent: AbortSignal | undefined, timeoutMs: number
     // The winning attempt's signal continues to own the returned event stream.
     // Only its opening deadline is released; the parent session signal remains
     // linked until the stream is stopped, replaced, or the driver unmounts.
-    accept: clearDeadline,
+    accept: releaseDeadline,
     dispose: () => {
-      clearDeadline();
+      releaseDeadline();
       parent?.removeEventListener("abort", abortFromParent);
       if (!controller.signal.aborted) controller.abort();
     },

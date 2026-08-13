@@ -181,6 +181,7 @@ describe("Goal lifecycle commands", () => {
     const observer = new QueryObserver(queryClient, {
       queryKey,
       queryFn: async () => authoritative,
+      experimental_prefetchInRender: true,
     });
     const unsubscribe = observer.subscribe(() => undefined);
     try {

@@ -40,21 +40,35 @@ function localTokenFor(endpoint: string): string | undefined {
   return normalized === local.endpoint.replace(/\/+$/, "") ? local.localToken : undefined;
 }
 
-function defaultContainer(): Container {
+interface DefaultContainerOwner {
+  readonly container: Container;
+  dispose(): Promise<void>;
+}
+
+function defaultContainer(): DefaultContainerOwner {
   let shared: {
     signature: string;
     storage: RuntimeMutationJournalStorage | null;
     client: LyraClient;
   } | null = null;
   let sidecar: { endpoint: string; client: SidecarClient } | null = null;
-  return {
+  const retiring = new Set<Promise<void>>();
+  const retire = (client: LyraClient) => {
+    let closing!: Promise<void>;
+    closing = client
+      .close()
+      .catch(() => undefined)
+      .finally(() => retiring.delete(closing));
+    retiring.add(closing);
+  };
+  const container: Container = {
     client: () => {
       const baseUrl = currentRuntimeEndpoint();
       const localToken = localTokenFor(baseUrl);
       const signature = `${baseUrl}\u0000${localToken ?? ""}`;
       const storage = installedRuntimeMutationJournalStorage();
       if (shared?.signature === signature && shared.storage === storage) return shared.client;
-      if (shared) void shared.client.close().catch(() => undefined);
+      if (shared) retire(shared.client);
       const client = createLyraClient(createHttpTransport({ baseUrl, localToken }), {
         requestMeta: runtimeRequestMeta,
         capabilities: negotiatedCapabilities,
@@ -86,9 +100,20 @@ function defaultContainer(): Container {
     },
     desktop: createDesktopHostClient(),
   };
+  return {
+    container,
+    async dispose() {
+      if (shared) {
+        retire(shared.client);
+        shared = null;
+      }
+      await Promise.all(retiring);
+    },
+  };
 }
 
-let instance: Container = defaultContainer();
+let defaultOwner = defaultContainer();
+let instance: Container = defaultOwner.container;
 
 export function getContainer(): Container {
   return instance;
@@ -108,7 +133,10 @@ export async function initializeDesktopHost(): Promise<void> {
 
 /** Test seam — restore every gateway to its default wiring. Call from
  *  `afterEach` so one test's stubs don't bleed into the next. */
-export function resetContainer(): void {
+export async function resetContainer(): Promise<void> {
+  const retired = defaultOwner;
+  defaultOwner = defaultContainer();
   desktopBootstrap = null;
-  instance = defaultContainer();
+  instance = defaultOwner.container;
+  await retired.dispose();
 }

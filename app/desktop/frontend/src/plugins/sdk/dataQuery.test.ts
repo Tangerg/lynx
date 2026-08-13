@@ -1,14 +1,27 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement, type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DATA_PROVIDER } from "./kernelPoints";
 import { definePlugin, loadPlugin } from "./definePlugin";
 import { createParameterizedDataQuery } from "./dataQuery";
 
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return createElement(QueryClientProvider, { client }, children);
+function createWrapper(experimentalPrefetchInRender: boolean) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    const [client] = useState(
+      () =>
+        new QueryClient({
+          defaultOptions: {
+            queries: {
+              experimental_prefetchInRender: experimentalPrefetchInRender,
+              retry: false,
+              gcTime: Infinity,
+            },
+          },
+        }),
+    );
+    return createElement(QueryClientProvider, { client }, children);
+  };
 }
 
 async function registerProvider(fetcher: (params: unknown) => Promise<string>): Promise<void> {
@@ -39,7 +52,7 @@ describe("createParameterizedDataQuery", () => {
 
     const { result, rerender } = renderHook(({ workspace }) => useResource({ workspace }), {
       initialProps: { workspace: "/work/old" },
-      wrapper,
+      wrapper: createWrapper(true),
     });
     await waitFor(() => expect(result.current.data).toBe("old value"));
 
@@ -55,9 +68,15 @@ describe("createParameterizedDataQuery", () => {
     await registerProvider(fetcher);
     const useResource = createParameterizedDataQuery<{ id: string }, string>("resource");
 
-    const { result } = renderHook(() => useResource(undefined), { wrapper });
+    const { result } = renderHook(() => useResource(undefined), {
+      wrapper: createWrapper(false),
+    });
 
     expect(result.current.fetchStatus).toBe("idle");
     expect(fetcher).not.toHaveBeenCalled();
+    // QueryObserver always creates the promise surface, even for a deliberately
+    // disabled query. Read its documented rejection so the test owns and
+    // settles that otherwise-unused observer resource.
+    await expect(result.current.promise).rejects.toThrow("experimental_prefetchInRender");
   });
 });

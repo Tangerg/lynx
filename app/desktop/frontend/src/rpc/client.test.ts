@@ -269,6 +269,42 @@ describe("RpcClient", () => {
     await Promise.all([first, second]);
   });
 
+  it("joins the receive pump after transport teardown closes its source", async () => {
+    const inner = createMemoryTransport();
+    let releaseUnwind!: () => void;
+    const unwind = new Promise<void>((resolve) => {
+      releaseUnwind = resolve;
+    });
+    let receiveFinished = false;
+    const transport: Transport = {
+      ...inner,
+      recv: () =>
+        (async function* () {
+          try {
+            yield* inner.recv();
+          } finally {
+            await unwind;
+            receiveFinished = true;
+          }
+        })(),
+    };
+    const client = createRpcClient(transport);
+
+    let closeSettled = false;
+    const closing = client.close().then(() => {
+      closeSettled = true;
+    });
+    await vi.waitFor(() => expect(inner.outbox()).toEqual([]));
+    await Promise.resolve();
+
+    expect(closeSettled).toBe(false);
+    expect(receiveFinished).toBe(false);
+
+    releaseUnwind();
+    await closing;
+    expect(receiveFinished).toBe(true);
+  });
+
   it("still tears down the transport after its receive stream ended", async () => {
     let endReceive!: () => void;
     const receiveEnded = new Promise<void>((resolve) => {

@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { drainBrowserTasks } from "@/test/browserTasks";
 import { SettingsPage } from "./SettingsPage";
 
 async function loadPanes() {
@@ -29,6 +30,11 @@ async function loadPanes() {
 }
 
 describe("settingsPage", () => {
+  afterEach(async () => {
+    cleanup();
+    await drainBrowserTasks();
+  });
+
   it("shows the first pane by default and renders its body", async () => {
     await loadPanes();
     render(<SettingsPage />);

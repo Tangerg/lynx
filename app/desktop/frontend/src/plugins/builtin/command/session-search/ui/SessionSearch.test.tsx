@@ -1,8 +1,9 @@
 import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
+import { drainBrowserTasks } from "@/test/browserTasks";
 import { useSessionSearchStore } from "../application/sessionSearchState";
 import { SessionSearch } from "./SessionSearch";
 
@@ -36,7 +37,11 @@ function open(): ReactElement {
 }
 
 function wrap(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { experimental_prefetchInRender: true, retry: false, gcTime: Infinity },
+    },
+  });
   client.setQueryData([AGENT_SESSIONS_KEY], []);
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
@@ -46,7 +51,11 @@ const marked = () =>
   screen.getAllByRole("option").filter((row) => row.getAttribute("aria-selected") === "true");
 
 beforeEach(() => selectAgentSession.mockClear());
-afterEach(() => useSessionSearchStore.setState({ open: false }));
+afterEach(async () => {
+  useSessionSearchStore.setState({ open: false });
+  cleanup();
+  await drainBrowserTasks();
+});
 
 // A surface that renders and does NOTHING is the failure this file exists for, and
 // it shipped once: the palette's rows lost the props that made them rows, so the
