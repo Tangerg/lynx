@@ -52,6 +52,23 @@ func (status Status) Validate() error {
 	return nil
 }
 
+// ValidateReindexAcknowledgement binds an authoritative status read to the
+// operation returned by Reindex whenever the status still reports an active
+// operation. A fast rebuild may finish before the read and legitimately omit
+// OperationID.
+func (status Status) ValidateReindexAcknowledgement(operation ReindexOperation) error {
+	if err := operation.Validate(); err != nil {
+		return err
+	}
+	if err := status.Validate(); err != nil {
+		return err
+	}
+	if status.OperationID != "" && status.OperationID != operation.ID {
+		return fmt.Errorf("codebase status belongs to operation %q, want %q", status.OperationID, operation.ID)
+	}
+	return nil
+}
+
 type Query struct {
 	Workspace string
 	Text      string

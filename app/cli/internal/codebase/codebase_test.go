@@ -24,6 +24,21 @@ func TestStatusOwnsLifecycleInvariants(t *testing.T) {
 	}
 }
 
+func TestStatusValidatesReindexAcknowledgement(t *testing.T) {
+	operation := ReindexOperation{ID: "op_current"}
+	for name, status := range map[string]Status{
+		"active operation": {State: Indexing, OperationID: operation.ID},
+		"fast completion":  {State: Ready},
+	} {
+		if err := status.ValidateReindexAcknowledgement(operation); err != nil {
+			t.Fatalf("%s acknowledgement: %v", name, err)
+		}
+	}
+	if err := (Status{State: Indexing, OperationID: "op_stale"}).ValidateReindexAcknowledgement(operation); err == nil {
+		t.Fatal("accepted status for another reindex operation")
+	}
+}
+
 func TestHitRejectsInvalidSpanAndScore(t *testing.T) {
 	if err := (Hit{Path: "main.go", StartLine: 2, EndLine: 4, Score: .8}).Validate(); err != nil {
 		t.Fatalf("valid hit: %v", err)

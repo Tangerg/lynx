@@ -61,7 +61,8 @@ func TestDiagnosticToolsRenderSchemaAndConfinedResultAcrossResize(t *testing.T) 
 }
 
 type codebaseServiceStub struct {
-	reindexed chan string
+	reindexed         chan string
+	statusOperationID string
 }
 
 type blockingCodebaseReindexService struct {
@@ -85,9 +86,12 @@ func (service *blockingCodebaseReindexService) Reindex(
 	}
 }
 
-func (*codebaseServiceStub) Status(context.Context, string) (codebase.Status, error) {
+func (service *codebaseServiceStub) Status(context.Context, string) (codebase.Status, error) {
 	now := time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC)
-	return codebase.Status{State: codebase.Ready, ModelID: "embed/model", FileCount: 12, ChunkCount: 24, IndexedAt: &now}, nil
+	return codebase.Status{
+		State: codebase.Ready, ModelID: "embed/model", FileCount: 12, ChunkCount: 24,
+		IndexedAt: &now, OperationID: service.statusOperationID,
+	}, nil
 }
 
 func (*codebaseServiceStub) Search(_ context.Context, query codebase.Query) ([]codebase.Hit, error) {
@@ -127,6 +131,23 @@ func TestCodebaseStatusSearchAndResizeSafeReindexConfirmation(t *testing.T) {
 		t.Fatalf("reindexed workspace = %q", got)
 	}
 	host.Shows(t, "operation op_reindex")
+	stop()
+}
+
+func TestCodebaseReindexRejectsStatusFromAnotherOperation(t *testing.T) {
+	index := &codebaseServiceStub{reindexed: make(chan string, 1), statusOperationID: "op_stale"}
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Workspace: "/workspace", Codebase: index})
+	host.Shows(t, "Ask lyra")
+	host.Type("/codebase-reindex")
+	host.Press(input.Enter)
+	host.Shows(t, "Reindex codebase")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if got := awaitValue(t, index.reindexed, "codebase reindex"); got != "/workspace" {
+		t.Fatalf("reindexed workspace = %q", got)
+	}
+	host.Shows(t, "start codebase reindex failed: verify codebase reindex")
+	host.Hides(t, "codebase reindex admitted")
 	stop()
 }
 

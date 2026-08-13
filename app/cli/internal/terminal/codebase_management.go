@@ -113,7 +113,13 @@ func (a *app) reindexCodebase(workspace string) {
 				return codebaseReindexResult{}, err
 			}
 			status, err := a.codebase.Status(ctx, workspace)
-			return codebaseReindexResult{operation: operation, status: status}, err
+			if err != nil {
+				return codebaseReindexResult{}, err
+			}
+			if err := status.ValidateReindexAcknowledgement(operation); err != nil {
+				return codebaseReindexResult{}, fmt.Errorf("verify codebase reindex: %w", err)
+			}
+			return codebaseReindexResult{operation: operation, status: status}, nil
 		},
 		func(result codebaseReindexResult, err error) {
 			if err != nil {
