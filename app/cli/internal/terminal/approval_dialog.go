@@ -389,7 +389,7 @@ func (a *app) deliverInteractionResume(review *interactionReview, command agent.
 		return stream, nil
 	}, streamOpeningObserver{
 		persistent: true,
-		accepted: func(agent.SegmentStream) {
+		accepted: func(agent.SegmentStream) streamOpeningDisposition {
 			a.interactionReview = nil
 			a.settleAcknowledgedResume(command.CommandID)
 			acceptedQuestions, err := a.conversation.RecordAcceptedInteractionAnswers(command.Answers)
@@ -402,7 +402,9 @@ func (a *app) deliverInteractionResume(review *interactionReview, command agent.
 					RunID: command.RunID, Reason: "terminal could not project accepted interaction answers",
 				})
 				a.fail(failure)
+				return rejectOpenedStream
 			}
+			return followOpenedStream
 		},
 		rejected: func(failure error) error {
 			if _, accepted := agent.AcceptedMutationReceipt(failure); accepted {

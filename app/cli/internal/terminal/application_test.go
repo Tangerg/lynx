@@ -181,6 +181,15 @@ type invalidAcceptedResumeRuntime struct {
 	cancellations []agent.CancelRun
 }
 
+type corruptingAcceptedResumeRuntime struct {
+	agent.Runtime
+
+	mu                  sync.Mutex
+	cancellations       []agent.CancelRun
+	tailRead            chan struct{}
+	releaseCancellation chan struct{}
+}
+
 type recordingRuntime struct {
 	*mock.Runtime
 
@@ -565,6 +574,46 @@ func (r *invalidAcceptedResumeRuntime) attempts() ([]agent.ResumeRun, []agent.Ca
 	return cloneResumeRuns(r.resumes), slices.Clone(r.cancellations)
 }
 
+func (r *corruptingAcceptedResumeRuntime) ResumeRun(
+	ctx context.Context,
+	input agent.ResumeRun,
+) (agent.SegmentStream, error) {
+	stream, err := r.Runtime.ResumeRun(ctx, input.Clone())
+	if len(input.Answers) != 0 {
+		input.Answers[0].ItemID = "corrupted_after_runtime_acceptance"
+	}
+	original := stream.Events
+	stream.Events = func(yield func(agent.RunEvent, error) bool) {
+		select {
+		case r.tailRead <- struct{}{}:
+		default:
+		}
+		original(yield)
+	}
+	return stream, err
+}
+
+func (r *corruptingAcceptedResumeRuntime) CancelRun(
+	ctx context.Context,
+	input agent.CancelRun,
+) (agent.RunCancellation, error) {
+	r.mu.Lock()
+	r.cancellations = append(r.cancellations, input)
+	r.mu.Unlock()
+	select {
+	case <-r.releaseCancellation:
+	case <-ctx.Done():
+		return agent.RunCancellation{}, context.Cause(ctx)
+	}
+	return r.Runtime.CancelRun(ctx, input)
+}
+
+func (r *corruptingAcceptedResumeRuntime) cancellationAttempts() []agent.CancelRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.cancellations)
+}
+
 func cloneResumeRuns(values []agent.ResumeRun) []agent.ResumeRun {
 	cloned := make([]agent.ResumeRun, len(values))
 	for index, value := range values {
@@ -916,6 +965,62 @@ func TestMisdirectedAcceptedResumeReceiptCancelsAndSettlesTheRequestedRun(t *tes
 	if _, active := snapshot.ActiveRun(); active {
 		t.Fatalf("misdirected resume receipt left the requested run active: %+v", snapshot.Runs)
 	}
+	stop()
+}
+
+func TestAcceptedResumeProjectionFailureRejectsTheContinuationTail(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Question{
+				ItemID: "question", Title: "Corrupt accepted projection",
+				Fields: []agent.QuestionField{{
+					Prompt: "Continue?", Kind: agent.QuestionSingle,
+					Options: []agent.QuestionOption{{Label: "Continue"}, {Label: "Stop"}},
+				}},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{
+					{Event: agent.BlockCompleted{Block: agent.Block{
+						ID: "untrusted-tail", Kind: agent.BlockNotice, Text: "UNTRUSTED_CONTINUATION_TAIL",
+					}}},
+					{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+				}
+			},
+		}
+	}
+	runtime := &corruptingAcceptedResumeRuntime{
+		Runtime: base, tailRead: make(chan struct{}, 1), releaseCancellation: make(chan struct{}),
+	}
+	releaseCancellation := sync.OnceFunc(func() { close(runtime.releaseCancellation) })
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	t.Cleanup(releaseCancellation)
+	host.Shows(t, "Ask lyra")
+	host.Type("reject an unprojectable accepted continuation")
+	host.Press(input.Enter)
+	host.Shows(t, "Corrupt accepted projection")
+	host.Press(input.Enter)
+	host.Shows(t, "project accepted interaction answers")
+	host.Until(t, "the unprojectable continuation to be canceled", func() bool {
+		return len(runtime.cancellationAttempts()) == 1 && host.Repaint()
+	})
+	select {
+	case <-runtime.tailRead:
+		t.Fatal("stream follower consumed a continuation after its accepted projection failed")
+	case <-time.After(250 * time.Millisecond):
+	}
+	host.Hides(t, "UNTRUSTED_CONTINUATION_TAIL")
+	host.Hides(t, "apply runtime event")
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, exists := store.PendingResume("ses_demo_1"); exists {
+		t.Fatalf("unprojectable accepted resume remains durable: %+v", durable)
+	}
+	releaseCancellation()
 	stop()
 }
 

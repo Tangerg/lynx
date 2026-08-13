@@ -98,7 +98,10 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 		return opened, nil
 	}, streamOpeningObserver{
 		persistent: true,
-		accepted:   func(opened agent.SegmentStream) { a.acceptStartedRun(input, opened) },
+		accepted: func(opened agent.SegmentStream) streamOpeningDisposition {
+			a.acceptStartedRun(input, opened)
+			return followOpenedStream
+		},
 		rejected: func(err error) error {
 			if receipt, accepted := agent.AcceptedMutationReceipt(err); accepted &&
 				strings.TrimSpace(receipt.RunID) != "" {
@@ -174,8 +177,18 @@ func openStartRun(ctx context.Context, runtime agent.RunLifecycle, command agent
 	}
 }
 
+type streamOpeningDisposition uint8
+
+const (
+	rejectOpenedStream streamOpeningDisposition = iota
+	followOpenedStream
+)
+
 type streamOpeningObserver struct {
-	accepted func(agent.SegmentStream)
+	// accepted owns the linearization boundary between command acknowledgement
+	// and stream consumption. It may reject a valid runtime stream when the local
+	// projection cannot safely install the acknowledged state.
+	accepted func(agent.SegmentStream) streamOpeningDisposition
 	rejected func(error) error
 	// persistent makes retryable opening failures wait for either an
 	// acknowledgement or owner cancellation. It is reserved for idempotent
@@ -303,7 +316,7 @@ func (f *streamFollower) postOpenAccepted(opened agent.SegmentStream) bool {
 			active = false
 			return
 		}
-		f.opening.accepted(opened)
+		active = f.opening.accepted(opened) == followOpenedStream && f.app.streamSeq == f.sequence
 	})
 	return err == nil && active
 }
