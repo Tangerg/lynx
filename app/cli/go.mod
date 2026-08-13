@@ -4,11 +4,11 @@ go 1.26.5
 
 require (
 	github.com/Tangerg/lynx/app/runtime v0.0.0-20260811170725-420f627f131a
-	github.com/Tangerg/oolong/components v0.11.0
-	github.com/Tangerg/oolong/core v0.11.0
-	github.com/Tangerg/oolong/highlight v0.11.0
-	github.com/Tangerg/oolong/markdown v0.11.0
-	github.com/Tangerg/oolong/ptytest v0.11.0
+	github.com/Tangerg/oolong/components v0.12.0
+	github.com/Tangerg/oolong/core v0.12.0
+	github.com/Tangerg/oolong/highlight v0.12.0
+	github.com/Tangerg/oolong/markdown v0.12.0
+	github.com/Tangerg/oolong/ptytest v0.12.0
 	github.com/mattn/go-shellwords v1.0.14
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/fileflow v0.1.0

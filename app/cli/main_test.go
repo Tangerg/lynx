@@ -152,6 +152,11 @@ func TestInteractiveBinaryPreservesSubmittedInputSequences(t *testing.T) {
 			want:  []string{"pasted-first", "pasted-tail-终"},
 		},
 		{
+			name:  "bracketed paste canonicalizes carriage-return line endings",
+			input: "\x1b[200~crlf-first\r\ncr-second\rcrlf-tail-终\x1b[201~\r",
+			want:  []string{"crlf-first", "cr-second", "crlf-tail-终"},
+		},
+		{
 			name:  "paste terminator trailing character and enter stay ordered",
 			input: "\x1b[200~paste-body\x1b[201~末\r",
 			want:  []string{"paste-body末"},

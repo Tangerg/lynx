@@ -310,7 +310,7 @@ func (a *app) mcpFormFields(flow *mcpFormFlow) ([]headless.Field, []*headless.Te
 			}
 			return nil
 		})
-		authorization.Mask = "•"
+		authorization.Editor().SetMask("•")
 		selectField("Headers change", &draft.headersMode, secretOptions)
 		headers := textField("Headers JSON", `{"X-Key":"secret"}`, &draft.headers, func(value string) error {
 			if draft.headersMode != "set" {
@@ -319,7 +319,7 @@ func (a *app) mcpFormFields(flow *mcpFormFlow) ([]headless.Field, []*headless.Te
 			_, err := parseMCPStringMap(value)
 			return err
 		})
-		headers.Mask = "•"
+		headers.Editor().SetMask("•")
 		secretFields = append(secretFields, authorization, headers)
 	case mcpFormStdio:
 		textField("stdio command", "mcp-server", &draft.command, requiredText)
@@ -335,7 +335,7 @@ func (a *app) mcpFormFields(flow *mcpFormFlow) ([]headless.Field, []*headless.Te
 			_, err := parseMCPStringMap(value)
 			return err
 		})
-		environment.Mask = "•"
+		environment.Editor().SetMask("•")
 		secretFields = append(secretFields, environment)
 		textField("Working directory", "Optional absolute path", &draft.directory, nil)
 	case mcpFormPolicy:

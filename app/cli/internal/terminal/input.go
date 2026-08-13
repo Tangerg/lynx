@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 
@@ -95,8 +94,9 @@ func (a *app) handleConfiguredAction(event input.Event, action keymap.Action) bo
 		a.submit()
 		return true
 	case insertNewline:
+		before := a.composer.Editor().Revision()
 		if a.composer.Editor().Do(action) {
-			a.scheduleDraftPersistence()
+			a.scheduleDraftPersistenceAfter(before)
 			a.refreshCompletion()
 			return true
 		}
@@ -121,15 +121,17 @@ func (a *app) handleUnboundEvent(event input.Event) bool {
 	if a.handleCompletion(event) {
 		return true
 	}
+	before := a.composer.Editor().Revision()
 	handled := a.stack.Handle(event)
-	a.scheduleDraftPersistenceAfter(event, handled)
+	a.scheduleDraftPersistenceAfter(before)
 	if !handled && isEscapeEvent(event) {
 		return a.handleEscape()
 	}
 	if !handled && a.shell.TranscriptFocused() && isPromptTextEvent(event) {
 		a.shell.FocusPrompt()
+		before = a.composer.Editor().Revision()
 		handled = a.stack.Handle(event)
-		a.scheduleDraftPersistenceAfter(event, handled)
+		a.scheduleDraftPersistenceAfter(before)
 	}
 	if handled {
 		a.refreshCompletion()
@@ -338,43 +340,11 @@ func (a *app) handleHistoryAction(action keymap.Action) bool {
 	}
 }
 
-// scheduleDraftPersistenceAfter observes only input that can mutate the main
-// composer. Transcript navigation, pointer motion, focus events, and modal
-// interaction must not keep resetting the autosave debounce for an unchanged
-// draft; doing so could postpone crash recovery state indefinitely.
-func (a *app) scheduleDraftPersistenceAfter(event input.Event, handled bool) {
-	if !handled || !a.shell.PromptFocused() || !draftMutationEvent(event, a.composer.Editor().Keys) {
-		return
-	}
-	a.scheduleDraftPersistence()
-}
-
-func draftMutationEvent(event input.Event, keys *keymap.Map) bool {
-	switch event := event.(type) {
-	case input.Paste:
-		return event.Text != ""
-	case input.Key:
-		if !event.Down() {
-			return false
-		}
-		if keys != nil {
-			if action, bound := keys.Action(event.Chord()); bound {
-				return editorActionMutatesDraft(action)
-			}
-		}
-		return isPromptTextEvent(event)
-	default:
-		return false
-	}
-}
-
-func editorActionMutatesDraft(action keymap.Action) bool {
-	switch action {
-	case headless.DeleteBack, headless.DeleteForward, headless.DeleteWordBack,
-		headless.KillToEnd, headless.KillToStart, headless.Yank, headless.YankPop,
-		headless.InsertNewline, headless.Undo, headless.Redo, headless.Cut, headless.Paste:
-		return true
-	default:
-		return false
+// scheduleDraftPersistenceAfter compares Oolong's semantic content token around
+// an event routed to the main composer. Navigation, focus and handled no-op edits
+// leave the token unchanged, so they cannot keep postponing durable recovery.
+func (a *app) scheduleDraftPersistenceAfter(before uint64) {
+	if a.composer.Editor().Revision() != before {
+		a.scheduleDraftPersistence()
 	}
 }

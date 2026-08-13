@@ -390,7 +390,7 @@ func (a *app) openProviderConfig(provider modelconfig.Provider) {
 	}
 	keyChoice.SetOptions(keyOptions)
 	keyField := &headless.Text{
-		Label: "New API key", Placeholder: provider.APIKeyMasked, Mask: "•", Value: headless.Bind(&apiKey),
+		Label: "New API key", Placeholder: provider.APIKeyMasked, Value: headless.Bind(&apiKey),
 		Check: func(value string) error {
 			if keyMode == "set" {
 				return requiredText(value)
@@ -398,6 +398,7 @@ func (a *app) openProviderConfig(provider modelconfig.Provider) {
 			return nil
 		},
 	}
+	keyField.Editor().SetMask("•")
 	baseField.Editor().Clipboard = a.loop.Clipboard()
 	keyField.Editor().Clipboard = a.loop.Clipboard()
 	form := headless.NewForm(baseChoice, baseField, keyChoice, keyField)

@@ -9,43 +9,10 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
-func TestDraftMutationEventsExcludeNavigationAndApplicationActions(t *testing.T) {
-	bindings, err := configuredKeyBindings(settings.Default())
-	if err != nil {
-		t.Fatal(err)
-	}
-	tests := []struct {
-		name  string
-		event input.Event
-		want  bool
-	}{
-		{name: "typing", event: input.Key{Code: input.Character, Rune: 'x'}, want: true},
-		{name: "resolved text", event: input.Key{Text: "你"}, want: true},
-		{name: "paste", event: input.Paste{Text: "pasted"}, want: true},
-		{name: "delete", event: input.Key{Code: input.Backspace}, want: true},
-		{name: "newline", event: input.Key{Code: input.Enter, Mods: input.Shift}, want: true},
-		{name: "cursor movement", event: input.Key{Code: input.Left}},
-		{name: "history", event: input.Key{Code: input.Up, Mods: input.Alt}},
-		{name: "send", event: input.Key{Code: input.Enter}},
-		{name: "focus", event: input.FocusIn{}},
-		{name: "empty paste", event: input.Paste{}},
-		{name: "empty character", event: input.Key{Code: input.Character}},
-		{name: "modified text", event: input.Key{Text: "x", Mods: input.Ctrl}},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := draftMutationEvent(test.event, bindings.editor); got != test.want {
-				t.Fatalf("draft mutation = %v, want %v", got, test.want)
-			}
-		})
-	}
-}
-
-func TestNonAuthoringInputCannotStarveDraftAutosave(t *testing.T) {
+func TestHandledNoOpEditsCannotStarveDraftAutosave(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true
 	stateDirectory := t.TempDir()
@@ -54,28 +21,31 @@ func TestNonAuthoringInputCannotStarveDraftAutosave(t *testing.T) {
 	})
 	host.Shows(t, "Ask lyra")
 	sessionID := firstRuntimeSession(t, backend)
-	host.Type("draft survives navigation")
+	host.Type("draft survives no-op edits")
+	for range len("draft survives no-op edits") {
+		host.Send(input.Key{Code: input.Left})
+	}
 
 	started := time.Now()
 	deadline := started.Add(2 * time.Second)
 	var draft agent.Message
 	var found bool
 	for time.Now().Before(deadline) {
-		host.Send(input.Key{Code: input.Left})
+		host.Send(input.Key{Code: input.Backspace})
 		if time.Since(started) >= 5*draftPersistenceDelay {
 			var err error
 			draft, found, err = storedDraft(stateDirectory, sessionID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if found && draft.Equal(agent.Message{Text: "draft survives navigation"}) {
+			if found && draft.Equal(agent.Message{Text: "draft survives no-op edits"}) {
 				break
 			}
 		}
 		time.Sleep(draftPersistenceDelay / 10)
 	}
-	if !found || !draft.Equal(agent.Message{Text: "draft survives navigation"}) {
-		t.Fatalf("autosaved draft = (%+v, %v), want the authored value while navigation continues", draft, found)
+	if !found || !draft.Equal(agent.Message{Text: "draft survives no-op edits"}) {
+		t.Fatalf("autosaved draft = (%+v, %v), want the authored value while no-op edits continue", draft, found)
 	}
 	stop()
 }

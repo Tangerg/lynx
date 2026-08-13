@@ -193,7 +193,7 @@ The host caps each output stream at 1 MiB, request JSON at 128 KiB, arguments at
 
 ## Development
 
-The TUI is pinned to the published oolong `v0.11.0` modules. Keep the module set on one release to avoid mixing component contracts.
+The TUI is pinned to the published oolong `v0.12.0` modules. Keep the module set on one release to avoid mixing component contracts.
 
 ```sh
 go mod tidy
