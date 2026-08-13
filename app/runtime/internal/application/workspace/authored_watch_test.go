@@ -8,6 +8,7 @@ import (
 type recordingAuthoredWatcher struct {
 	scopes    []AuthoredScope
 	resources []AuthoredResource
+	accepted  []AuthoredChange
 }
 
 func (w *recordingAuthoredWatcher) Watch(
@@ -17,10 +18,16 @@ func (w *recordingAuthoredWatcher) Watch(
 ) (AuthoredObservation, error) {
 	w.scopes = scopes
 	w.resources = resources
-	return nopAuthoredWatch{}, nil
+	return recordingAuthoredObservation{owner: w}, nil
 }
 
-func (w *recordingAuthoredWatcher) Accept([]AuthoredChange) error { return nil }
+type recordingAuthoredObservation struct{ owner *recordingAuthoredWatcher }
+
+func (o recordingAuthoredObservation) Close() error { return nil }
+func (o recordingAuthoredObservation) Accept(changes []AuthoredChange) error {
+	o.owner.accepted = append(o.owner.accepted, changes...)
+	return nil
+}
 
 func TestAuthoredWatchResolvesAndDeduplicatesScopes(t *testing.T) {
 	root := t.TempDir()
@@ -30,7 +37,7 @@ func TestAuthoredWatchResolvesAndDeduplicatesScopes(t *testing.T) {
 	}, watcher)
 	closer, err := useCases.Watch(
 		[]string{"", root},
-		[]AuthoredResource{AuthoredKnowledge, AuthoredKnowledge, AuthoredHooks},
+		[]AuthoredResource{AuthoredKnowledge, AuthoredKnowledge, AuthoredHooks, AuthoredSkills},
 		func(AuthoredResource) {},
 	)
 	if err != nil {
@@ -40,7 +47,7 @@ func TestAuthoredWatchResolvesAndDeduplicatesScopes(t *testing.T) {
 	if !reflect.DeepEqual(watcher.scopes, []AuthoredScope{{Workspace: root, ProjectRoot: root}}) {
 		t.Fatalf("scopes = %+v", watcher.scopes)
 	}
-	if !reflect.DeepEqual(watcher.resources, []AuthoredResource{AuthoredKnowledge, AuthoredHooks}) {
+	if !reflect.DeepEqual(watcher.resources, []AuthoredResource{AuthoredKnowledge, AuthoredHooks, AuthoredSkills}) {
 		t.Fatalf("resources = %+v", watcher.resources)
 	}
 }

@@ -468,6 +468,8 @@ func (s *Server) SubscribeRuntime(ctx context.Context, request protocol.RuntimeS
 					notice.Resource = invalidation.Knowledge
 				case workspaceapp.AuthoredHooks:
 					notice.Resource = invalidation.Hooks
+				case workspaceapp.AuthoredSkills:
+					notice.Resource = invalidation.Skills
 				default:
 					return
 				}
@@ -515,6 +517,9 @@ func subscribedAuthoredResources(topics map[protocol.RuntimeTopic]bool) []worksp
 	}
 	if topics[protocol.TopicHooksChanged] {
 		resources = append(resources, workspaceapp.AuthoredHooks)
+	}
+	if topics[protocol.TopicSkillsChanged] {
+		resources = append(resources, workspaceapp.AuthoredSkills)
 	}
 	return resources
 }

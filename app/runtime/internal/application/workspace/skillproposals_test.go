@@ -19,13 +19,13 @@ type fakeSkillProposals struct {
 	rejectErr  error
 }
 
-func (f *fakeSkillProposals) SubmitProposal(_ context.Context, projectRoot string, proposal skills.Proposal) (skills.ProposalRef, error) {
+func (f *fakeSkillProposals) SubmitProposal(_ context.Context, projectRoot string, proposal skills.Proposal) (skills.ProposalRef, []string, error) {
 	f.root = projectRoot
 	f.proposal = proposal
 	if f.submitErr != nil {
-		return skills.ProposalRef{}, f.submitErr
+		return skills.ProposalRef{}, nil, f.submitErr
 	}
-	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
+	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), []string{"/repo/.lyra/skills/_proposals/ref/SKILL.md"}, nil
 }
 
 func (f *fakeSkillProposals) ListProposals(_ context.Context, projectRoot string) ([]skills.ProposalReview, error) {
@@ -33,26 +33,26 @@ func (f *fakeSkillProposals) ListProposals(_ context.Context, projectRoot string
 	return f.list, nil
 }
 
-func (f *fakeSkillProposals) ApproveProposal(_ context.Context, projectRoot string, ref skills.ProposalRef) error {
+func (f *fakeSkillProposals) ApproveProposal(_ context.Context, projectRoot string, ref skills.ProposalRef) ([]string, error) {
 	f.root = projectRoot
 	if f.approveErr != nil {
-		return f.approveErr
+		return nil, f.approveErr
 	}
 	f.approved = append(f.approved, ref)
-	return nil
+	return []string{"/repo/.lyra/skills/run-tests/SKILL.md"}, nil
 }
 
-func (f *fakeSkillProposals) RejectProposal(_ context.Context, projectRoot string, ref skills.ProposalRef) error {
+func (f *fakeSkillProposals) RejectProposal(_ context.Context, projectRoot string, ref skills.ProposalRef) ([]string, error) {
 	f.root = projectRoot
 	if f.rejectErr != nil {
-		return f.rejectErr
+		return nil, f.rejectErr
 	}
 	f.rejected = append(f.rejected, ref)
-	return nil
+	return []string{"/repo/.lyra/skills/_proposals/ref/SKILL.md"}, nil
 }
 
 func TestSkillProposalsUnavailableWithoutStore(t *testing.T) {
-	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, nil, nil)
+	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, nil, nil, nil)
 	ref := skills.NewProposalRef(skills.ScopeProject, "run-tests", []byte("content"))
 	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "run-tests", Description: "Run the project tests when verification is requested.", Instructions: "Run the tests."}
 
@@ -74,7 +74,7 @@ func TestSkillProposalsResolveWorkspaceAndDelegate(t *testing.T) {
 	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "run-tests", Description: "Run the project tests when verification is requested.", Instructions: "Run the tests."}
 	ref := skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions))
 	fake := &fakeSkillProposals{list: []skills.ProposalReview{{Ref: ref, Description: proposal.Description, Instructions: proposal.Instructions}}}
-	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, fake, nil)
+	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, fake, nil, nil)
 
 	gotRef, err := c.SubmitProposal(t.Context(), "/repo", proposal)
 	if err != nil || gotRef != ref {

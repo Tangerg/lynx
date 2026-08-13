@@ -12,19 +12,20 @@ import (
 func TestAuthoredWatcherMapsGlobalAndWorkspaceCascades(t *testing.T) {
 	home := t.TempDir()
 	knowledgeHome := t.TempDir()
+	skillsHome := t.TempDir()
 	project := t.TempDir()
 	workspace := filepath.Join(project, "packages", "desktop")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	watcher, err := NewAuthoredWatcher(knowledgeHome, home)
+	watcher, err := NewAuthoredWatcher(knowledgeHome, home, skillsHome)
 	if err != nil {
 		t.Fatal(err)
 	}
 	events := make(chan workspaceapp.AuthoredResource, 8)
 	closer, err := watcher.Watch(
 		[]workspaceapp.AuthoredScope{{Workspace: workspace, ProjectRoot: project}},
-		[]workspaceapp.AuthoredResource{workspaceapp.AuthoredKnowledge, workspaceapp.AuthoredHooks},
+		[]workspaceapp.AuthoredResource{workspaceapp.AuthoredKnowledge, workspaceapp.AuthoredHooks, workspaceapp.AuthoredSkills},
 		func(resource workspaceapp.AuthoredResource) { events <- resource },
 	)
 	if err != nil {
@@ -42,6 +43,8 @@ func TestAuthoredWatcherMapsGlobalAndWorkspaceCascades(t *testing.T) {
 		{filepath.Join(home, ".lyra", "hooks.json"), workspaceapp.AuthoredHooks},
 		{filepath.Join(project, ".lyra", "hooks.json"), workspaceapp.AuthoredHooks},
 		{filepath.Join(workspace, ".lyra", "hooks.json"), workspaceapp.AuthoredHooks},
+		{filepath.Join(skillsHome, "global-skill", "SKILL.md"), workspaceapp.AuthoredSkills},
+		{filepath.Join(project, ".lyra", "skills", "project-skill", "SKILL.md"), workspaceapp.AuthoredSkills},
 	} {
 		if err := os.MkdirAll(filepath.Dir(change.path), 0o755); err != nil {
 			t.Fatal(err)

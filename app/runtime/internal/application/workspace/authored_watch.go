@@ -18,6 +18,7 @@ type AuthoredResource uint8
 const (
 	AuthoredKnowledge AuthoredResource = iota + 1
 	AuthoredHooks
+	AuthoredSkills
 )
 
 // AuthoredScope is one canonical workspace identity and its project root.
@@ -154,7 +155,7 @@ func (o *managedAuthoredObservation) Close() error {
 func distinctAuthoredResources(resources []AuthoredResource) []AuthoredResource {
 	out := make([]AuthoredResource, 0, len(resources))
 	for _, resource := range resources {
-		if (resource == AuthoredKnowledge || resource == AuthoredHooks) && !slices.Contains(out, resource) {
+		if (resource == AuthoredKnowledge || resource == AuthoredHooks || resource == AuthoredSkills) && !slices.Contains(out, resource) {
 			out = append(out, resource)
 		}
 	}

@@ -13,7 +13,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -103,6 +105,7 @@ func TestWorkspaceSubscribe_ExternalAuthoredFiles(t *testing.T) {
 			protocol.TopicFilesChanged,
 			protocol.TopicKnowledgeChanged,
 			protocol.TopicHooksChanged,
+			protocol.TopicSkillsChanged,
 		},
 		Watches: []protocol.WatchSpec{{WatchID: "authored", Workspace: protocol.WorkspaceRef{Path: dir}}},
 	})
@@ -123,13 +126,23 @@ func TestWorkspaceSubscribe_ExternalAuthoredFiles(t *testing.T) {
 		t.Fatalf("write hooks: %v", err)
 	}
 	assertRuntimeEventType(t, events, protocol.RuntimeHooksChanged)
+
+	skillPath := filepath.Join(dir, ".lyra", "skills", "external-skill", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+		t.Fatalf("create skill directory: %v", err)
+	}
+	if err := os.WriteFile(skillPath, []byte("external skill"), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeSkillsChanged)
 }
 
 func TestWorkspaceSubscribe_GlobalAuthoredFilesDoNotRequireWorkspaceWatch(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	knowledgeHome := t.TempDir()
 	hooksHome := t.TempDir()
-	authored, err := workspaceadapter.NewAuthoredWatcher(knowledgeHome, hooksHome)
+	skillsHome := t.TempDir()
+	authored, err := workspaceadapter.NewAuthoredWatcher(knowledgeHome, hooksHome, skillsHome)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +152,7 @@ func TestWorkspaceSubscribe_GlobalAuthoredFilesDoNotRequireWorkspaceWatch(t *tes
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{Topics: []protocol.RuntimeTopic{
-		protocol.TopicKnowledgeChanged, protocol.TopicHooksChanged,
+		protocol.TopicKnowledgeChanged, protocol.TopicHooksChanged, protocol.TopicSkillsChanged,
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -156,6 +169,14 @@ func TestWorkspaceSubscribe_GlobalAuthoredFilesDoNotRequireWorkspaceWatch(t *tes
 		t.Fatal(err)
 	}
 	assertRuntimeEventType(t, events, protocol.RuntimeHooksChanged)
+	globalSkill := filepath.Join(skillsHome, "global-skill", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(globalSkill), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(globalSkill, []byte("global skill"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeSkillsChanged)
 
 	if err := os.WriteFile(filepath.Join(workspaceRoot, "LYRA.md"), []byte("unwatched workspace"), 0o644); err != nil {
 		t.Fatal(err)
@@ -212,6 +233,56 @@ func TestWorkspaceSubscribe_KnowledgeUpdateDoesNotDoublePublishFromFileObservati
 	select {
 	case event := <-events:
 		t.Fatalf("knowledge.update published a duplicate observation event: %+v", event)
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+func TestWorkspaceSubscribe_SkillArchiveDoesNotDoublePublishFromTreeObservation(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	skillsHome := t.TempDir()
+	skillPath := filepath.Join(skillsHome, "lint", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(skillPath, []byte("---\nname: lint\ndescription: Run the project linter before completing a change.\n---\nRun the linter.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	curator := skillauthoring.NewStore(skillsHome, skills.ScopeUser)
+	authored, err := workspaceadapter.NewAuthoredWatcher(t.TempDir(), t.TempDir(), skillsHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	surfaces := newWorkspaceSurfaces(workspaceRoot, workspaceTestConfig{
+		Curator: curator, AuthoredWatcher: authored,
+	})
+	s := &Server{}
+	applyWorkspaceSurfaces(s, surfaces)
+	s.workspaceHub = newWorkspaceHub()
+	s.workspaceSkills = workspaceapp.NewSkills(
+		surfaces.roots, nil, curator, nil, surfaces.authoredWatch,
+		func(notice invalidation.Notice) {
+			if event, ok := runtimeEventFor(notice); ok {
+				s.workspaceHub.publish(event)
+			}
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := drainSeq(ctx, seq)
+	if err := s.ArchiveSkill(ctx, protocol.SkillNameRequest{Name: "lint"}); err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeEventType(t, events, protocol.RuntimeSkillsChanged)
+	select {
+	case event := <-events:
+		t.Fatalf("skills.library.archive published a duplicate observation event: %+v", event)
 	case <-time.After(500 * time.Millisecond):
 	}
 }

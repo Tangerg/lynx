@@ -2055,7 +2055,10 @@ for await (const line of lines) {
 
     const streamController = new AbortController();
     const subscription = await client.runtimeEvents.subscribe(
-      { topics: ["skills.changed"] },
+      {
+        topics: ["skills.changed", "files.changed"],
+        watches: [{ watchId: "skills-authored", workspace: { path: root } }],
+      },
       streamController.signal,
     );
     const runtimeEvents = subscription.events[Symbol.asyncIterator]();
@@ -2078,6 +2081,38 @@ for await (const line of lines) {
     });
     await expect(workspace.skills.listDiscovered()).resolves.toMatchObject({
       data: [expect.objectContaining({ name: managedSkillName, scope: "user" })],
+    });
+
+    const projectSkillName = "external-project-skill";
+    const projectSkillDirectory = join(root, ".lyra", "skills", projectSkillName);
+    await mkdir(projectSkillDirectory, { recursive: true });
+    await writeFile(
+      join(projectSkillDirectory, "SKILL.md"),
+      `---\nname: ${projectSkillName}\ndescription: Observe an externally authored project Skill.\n---\n\nUse the project workflow.\n`,
+    );
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+    await expect(workspace.skills.listDiscovered()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({ name: projectSkillName, scope: "project" }),
+      ]),
+    });
+
+    const userSkillName = "external-user-skill";
+    const userSkillDirectory = join(runtimeData, "skills", userSkillName);
+    await mkdir(userSkillDirectory, { recursive: true });
+    await writeFile(
+      join(userSkillDirectory, "SKILL.md"),
+      `---\nname: ${userSkillName}\ndescription: Observe an externally authored user Skill.\n---\n\nUse the user workflow.\n`,
+    );
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+    await expect(client.skills.listLibrary()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({ name: userSkillName, lifecycle: "active" }),
+      ]),
     });
 
     streamController.abort();

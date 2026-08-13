@@ -13,7 +13,7 @@ import (
 // installActive approves a plain (non-revising) proposal so a named skill is active.
 func installActive(t *testing.T, store *skillauthoring.Store, name, instructions string) {
 	t.Helper()
-	ref, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
+	ref, _, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
 		Name:         name,
 		Description:  "A skill with a description long enough to validate.",
 		Instructions: instructions,
@@ -21,7 +21,7 @@ func installActive(t *testing.T, store *skillauthoring.Store, name, instructions
 	if err != nil {
 		t.Fatalf("SubmitProposal(%s): %v", name, err)
 	}
-	if err := store.ApproveProposal(t.Context(), ref); err != nil {
+	if _, err := store.ApproveProposal(t.Context(), ref); err != nil {
 		t.Fatalf("ApproveProposal(%s): %v", name, err)
 	}
 }
@@ -29,7 +29,7 @@ func installActive(t *testing.T, store *skillauthoring.Store, name, instructions
 // approveRevision saves + approves a revising proposal for name with a new instructions.
 func approveRevision(t *testing.T, store *skillauthoring.Store, name, instructions string) {
 	t.Helper()
-	ref, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
+	ref, _, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
 		Name:         name,
 		Description:  "A skill with a description long enough to validate.",
 		Instructions: instructions,
@@ -39,7 +39,7 @@ func approveRevision(t *testing.T, store *skillauthoring.Store, name, instructio
 	if err != nil {
 		t.Fatalf("SubmitProposal(revision %s): %v", name, err)
 	}
-	if err := store.ApproveProposal(t.Context(), ref); err != nil {
+	if _, err := store.ApproveProposal(t.Context(), ref); err != nil {
 		t.Fatalf("ApproveProposal(revision %s): %v", name, err)
 	}
 }
@@ -59,11 +59,11 @@ func TestListProposalsReportsRefsAndProvenance(t *testing.T) {
 		Description:  "A proposal with no provenance, as a human proposal would carry.",
 		Instructions: "do the thing",
 	}
-	minedRef, err := store.SubmitProposal(t.Context(), mined)
+	minedRef, _, err := store.SubmitProposal(t.Context(), mined)
 	if err != nil {
 		t.Fatalf("SubmitProposal(mined): %v", err)
 	}
-	if _, err := store.SubmitProposal(t.Context(), authored); err != nil {
+	if _, _, err := store.SubmitProposal(t.Context(), authored); err != nil {
 		t.Fatalf("SubmitProposal(authored): %v", err)
 	}
 
@@ -99,7 +99,7 @@ func TestListProposalsReportsRefsAndProvenance(t *testing.T) {
 
 func TestListProposalsExcludesApprovedProposal(t *testing.T) {
 	store := skillauthoring.NewStore(t.TempDir(), skills.ScopeUser)
-	ref, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
+	ref, _, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
 		Name:         "approved",
 		Description:  "A proposal that will be approved out of the review queue.",
 		Instructions: "step one",
@@ -107,7 +107,7 @@ func TestListProposalsExcludesApprovedProposal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.ApproveProposal(t.Context(), ref); err != nil {
+	if _, err := store.ApproveProposal(t.Context(), ref); err != nil {
 		t.Fatalf("ApproveProposal: %v", err)
 	}
 	proposals, err := store.ListProposals(t.Context())
@@ -167,7 +167,7 @@ func TestApproveProposalNewSkillStillConflictsWithActive(t *testing.T) {
 
 	// A non-revising proposal with the same name but different bytes must NOT
 	// overwrite the active skill.
-	ref, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
+	ref, _, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
 		Name:         "dup",
 		Description:  "A skill with a description long enough to validate.",
 		Instructions: "colliding instructions",
@@ -175,7 +175,7 @@ func TestApproveProposalNewSkillStillConflictsWithActive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SubmitProposal: %v", err)
 	}
-	if err := store.ApproveProposal(t.Context(), ref); err == nil {
+	if _, err := store.ApproveProposal(t.Context(), ref); err == nil {
 		t.Fatal("approving a non-revising same-name proposal should conflict, not overwrite")
 	}
 }

@@ -15,16 +15,20 @@ type fakeIdleSkillSweeper struct {
 	now      time.Time
 }
 
-func (f *fakeIdleSkillSweeper) SweepIdle(_ context.Context, now time.Time, _ time.Duration) ([]string, error) {
+func (f *fakeIdleSkillSweeper) SweepIdle(_ context.Context, now time.Time, _ time.Duration) ([]string, []string, error) {
 	f.now = now
-	return f.archived, f.err
+	identities := make([]string, len(f.archived))
+	for index, name := range f.archived {
+		identities[index] = "/skills/" + name + "/SKILL.md"
+	}
+	return f.archived, identities, f.err
 }
 
 func TestIdleSkillArchiveNotifiesEveryCommittedPartialSweep(t *testing.T) {
 	wantErr := errors.New("usage metadata unavailable")
 	sweeper := &fakeIdleSkillSweeper{archived: []string{"old-skill"}, err: wantErr}
 	var notices []invalidation.Notice
-	maintenance := NewSkillMaintenance(sweeper, func(notice invalidation.Notice) {
+	maintenance := NewSkillMaintenance(sweeper, nil, func(notice invalidation.Notice) {
 		notices = append(notices, notice)
 	})
 	now := time.Date(2026, 8, 13, 9, 0, 0, 0, time.UTC)
@@ -54,7 +58,7 @@ func TestIdleSkillArchiveNotifiesEveryCommittedPartialSweep(t *testing.T) {
 }
 
 func TestIdleSkillArchiveUnavailableFailsExplicitly(t *testing.T) {
-	maintenance := NewSkillMaintenance(nil, nil)
+	maintenance := NewSkillMaintenance(nil, nil, nil)
 	if _, err := maintenance.ArchiveIdle(t.Context(), time.Now(), time.Hour); !errors.Is(err, ErrSkillLibraryUnavailable) {
 		t.Fatalf("ArchiveIdle error = %v, want ErrSkillLibraryUnavailable", err)
 	}

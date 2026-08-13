@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -38,134 +39,147 @@ func (s *Store) Enabled() bool {
 }
 
 // SubmitProposal validates and stages proposal under its content-addressed
-// reference. Replaying the same proposal is idempotent.
-func (s *Store) SubmitProposal(ctx context.Context, proposal skills.Proposal) (skills.ProposalRef, error) {
+// reference. It returns the exact public file identities changed by the call;
+// replaying the same proposal is idempotent and returns no identities.
+func (s *Store) SubmitProposal(ctx context.Context, proposal skills.Proposal) (skills.ProposalRef, []string, error) {
 	if !s.Enabled() {
-		return skills.ProposalRef{}, errors.New("skillauthoring: no scoped skills root configured")
+		return skills.ProposalRef{}, nil, errors.New("skillauthoring: no scoped skills root configured")
 	}
 	if err := proposal.Validate(); err != nil {
-		return skills.ProposalRef{}, err
+		return skills.ProposalRef{}, nil, err
 	}
 	if proposal.Scope != s.scope {
-		return skills.ProposalRef{}, fmt.Errorf("skillauthoring: proposal scope %q does not match store scope %q", proposal.Scope, s.scope)
+		return skills.ProposalRef{}, nil, fmt.Errorf("skillauthoring: proposal scope %q does not match store scope %q", proposal.Scope, s.scope)
 	}
 	if issue := proposal.SafetyIssue(); issue != skills.ProposalSafe {
-		return skills.ProposalRef{}, proposalSafetyError(proposal.Name, issue)
+		return skills.ProposalRef{}, nil, proposalSafetyError(proposal.Name, issue)
 	}
 	content, err := renderProposal(proposal)
 	if err != nil {
-		return skills.ProposalRef{}, err
+		return skills.ProposalRef{}, nil, err
 	}
 	ref := skills.NewProposalRef(s.scope, proposal.Name, content)
 	if err := contextError(ctx, "save proposal"); err != nil {
-		return skills.ProposalRef{}, err
+		return skills.ProposalRef{}, nil, err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	root, err := s.openRoot()
 	if err != nil {
-		return skills.ProposalRef{}, err
+		return skills.ProposalRef{}, nil, err
 	}
 	defer root.Close()
 
 	proposalDir := s.proposalDir(ref)
 	if existing, found, readErr := readSkill(root, proposalDir); readErr != nil {
-		return skills.ProposalRef{}, readErr
+		return skills.ProposalRef{}, nil, readErr
 	} else if found {
 		if !bytes.Equal(existing, content) {
-			return skills.ProposalRef{}, fmt.Errorf("%w: digest collision for revision %q", skills.ErrProposalChanged, ref.Revision)
+			return skills.ProposalRef{}, nil, fmt.Errorf("%w: digest collision for revision %q", skills.ErrProposalChanged, ref.Revision)
 		}
-		return ref, nil
+		return ref, nil, nil
 	}
 
 	if err := root.MkdirAll(proposalsSubdir, 0o755); err != nil {
-		return skills.ProposalRef{}, fmt.Errorf("skillauthoring: create proposal area: %w", err)
+		return skills.ProposalRef{}, nil, fmt.Errorf("skillauthoring: create proposal area: %w", err)
 	}
 	if err := stageProposal(ctx, root, proposalDir, content); err != nil {
-		return skills.ProposalRef{}, err
+		return skills.ProposalRef{}, nil, err
 	}
-	return ref, nil
+	return ref, s.skillIdentities(proposalDir), nil
 }
 
 // ApproveProposal publishes exactly the immutable proposal represented by handle. A
 // different active skill is a conflict UNLESS the proposal is marked as a revision
 // (frontmatter revises: "true"), in which case it replaces the active skill via
 // [Store.replaceActive]. An identical active skill is an idempotent replay and
-// the redundant proposal is removed.
-func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) error {
+// the redundant proposal is removed. Returned identities report every public
+// file change committed before return, including partial changes on error.
+func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) ([]string, error) {
 	if err := s.validateRef(ref); err != nil {
-		return err
+		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	root, err := s.openRoot()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer root.Close()
 
 	content, found, err := s.readProposal(root, ref)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !found {
-		return fmt.Errorf("skillauthoring: no proposal %q at revision %q: %w", ref.Name, ref.Revision, skills.ErrNotFound)
+		return nil, fmt.Errorf("skillauthoring: no proposal %q at revision %q: %w", ref.Name, ref.Revision, skills.ErrNotFound)
 	}
 	if err := validateSkill(ref.Name, content); err != nil {
-		return err
+		return nil, err
 	}
 	// A revision replaces the active skill of the same name (archiving the old
 	// version) rather than conflicting; it also handles its own archive slot, so
 	// it runs before the archived-conflict guard below.
 	if revises, err := proposalRevises(content); err != nil {
-		return err
+		return nil, err
 	} else if revises {
 		return s.replaceActive(ctx, root, ref, content, s.proposalDir(ref))
 	}
 	if _, statErr := root.Lstat(s.archiveDir(ref.Name)); statErr == nil {
-		return fmt.Errorf("%w: archived skill %q", skills.ErrConflict, ref.Name)
+		return nil, fmt.Errorf("%w: archived skill %q", skills.ErrConflict, ref.Name)
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
-		return fmt.Errorf("skillauthoring: inspect archived skill %q: %w", ref.Name, statErr)
+		return nil, fmt.Errorf("skillauthoring: inspect archived skill %q: %w", ref.Name, statErr)
 	}
 
 	activeDir := s.activeDir(ref.Name)
 	if active, exists, readErr := readSkill(root, activeDir); readErr != nil {
-		return readErr
+		return nil, readErr
 	} else if exists {
 		if !bytes.Equal(active, content) {
-			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, ref.Name)
+			return nil, fmt.Errorf("%w: active skill %q", skills.ErrConflict, ref.Name)
 		}
-		if err := root.RemoveAll(s.proposalDir(ref)); err != nil {
-			return fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
+		removed, err := removeSkillTree(root, s.proposalDir(ref))
+		identities := identitiesIf(removed, s.skillIdentities(s.proposalDir(ref)))
+		if err != nil {
+			return identities, fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
 		}
-		return nil
+		return identities, nil
 	}
 	if _, statErr := root.Lstat(activeDir); statErr == nil {
-		return fmt.Errorf("%w: active path %q", skills.ErrConflict, ref.Name)
+		return nil, fmt.Errorf("%w: active path %q", skills.ErrConflict, ref.Name)
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
-		return fmt.Errorf("skillauthoring: inspect active skill %q: %w", ref.Name, statErr)
+		return nil, fmt.Errorf("skillauthoring: inspect active skill %q: %w", ref.Name, statErr)
 	}
 	if err := contextError(ctx, "approve proposal"); err != nil {
-		return err
+		return nil, err
 	}
 	if err := root.Rename(s.proposalDir(ref), activeDir); err != nil {
 		active, exists, readErr := readSkill(root, activeDir)
 		if readErr != nil {
-			return fmt.Errorf("skillauthoring: inspect approval outcome for %q: %w", ref.Name, errors.Join(err, readErr))
+			return nil, fmt.Errorf("skillauthoring: inspect approval outcome for %q: %w", ref.Name, errors.Join(err, readErr))
 		}
 		if exists && bytes.Equal(active, content) {
-			if removeErr := root.RemoveAll(s.proposalDir(ref)); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
-				return fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, removeErr)
+			_, proposalRemains, proposalErr := s.readProposal(root, ref)
+			if proposalErr != nil {
+				return nil, fmt.Errorf("skillauthoring: inspect approval source for %q: %w", ref.Name, errors.Join(err, proposalErr))
 			}
-			return nil
+			if !proposalRemains {
+				return s.skillIdentities(s.proposalDir(ref), activeDir), nil
+			}
+			removed, removeErr := removeSkillTree(root, s.proposalDir(ref))
+			identities := identitiesIf(removed, s.skillIdentities(s.proposalDir(ref)))
+			if removeErr != nil {
+				return identities, fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, removeErr)
+			}
+			return identities, nil
 		}
 		if _, statErr := root.Lstat(activeDir); statErr == nil {
-			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, ref.Name)
+			return nil, fmt.Errorf("%w: active skill %q", skills.ErrConflict, ref.Name)
 		}
-		return fmt.Errorf("skillauthoring: approve proposal %q: %w", ref.Name, err)
+		return nil, fmt.Errorf("skillauthoring: approve proposal %q: %w", ref.Name, err)
 	}
-	return nil
+	return s.skillIdentities(s.proposalDir(ref), activeDir), nil
 }
 
 // proposalRevises reports whether staged content is marked as a revision of the
@@ -184,65 +198,98 @@ func proposalRevises(content []byte) (bool, error) {
 // archive; that would be the semver theater the skill model rejects). An
 // identical active skill is an idempotent no-op; a revision whose target has
 // since vanished simply installs as the current version.
-func (s *Store) replaceActive(ctx context.Context, root *os.Root, ref skills.ProposalRef, content []byte, proposalDir string) error {
+func (s *Store) replaceActive(ctx context.Context, root *os.Root, ref skills.ProposalRef, content []byte, proposalDir string) ([]string, error) {
 	activeDir := s.activeDir(ref.Name)
 	active, exists, err := readSkill(root, activeDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if exists && bytes.Equal(active, content) {
-		if err := root.RemoveAll(proposalDir); err != nil {
-			return fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
+		removed, err := removeSkillTree(root, proposalDir)
+		identities := identitiesIf(removed, s.skillIdentities(proposalDir))
+		if err != nil {
+			return identities, fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
 		}
-		return nil
+		return identities, nil
 	}
 	if err := contextError(ctx, "replace skill"); err != nil {
-		return err
+		return nil, err
 	}
+	var identities []string
 	if exists {
-		if err := s.archiveActive(root, ref.Name); err != nil {
-			return err
+		archived, err := s.archiveActive(root, ref.Name)
+		identities = append(identities, archived...)
+		if err != nil {
+			return identities, err
 		}
 	}
 	if err := root.Rename(proposalDir, activeDir); err != nil {
-		return fmt.Errorf("skillauthoring: install revised skill %q: %w", ref.Name, err)
+		installed, found, readErr := readSkill(root, activeDir)
+		if readErr != nil {
+			return identities, fmt.Errorf("skillauthoring: inspect revised skill %q: %w", ref.Name, errors.Join(err, readErr))
+		}
+		_, proposalRemains, proposalErr := s.readProposal(root, ref)
+		if proposalErr != nil {
+			return identities, fmt.Errorf("skillauthoring: inspect revised proposal %q: %w", ref.Name, errors.Join(err, proposalErr))
+		}
+		if found && bytes.Equal(installed, content) && !proposalRemains {
+			return distinctPaths(append(identities, s.skillIdentities(proposalDir, activeDir)...)), nil
+		}
+		return identities, fmt.Errorf("skillauthoring: install revised skill %q: %w", ref.Name, err)
 	}
-	return nil
+	return distinctPaths(append(identities, s.skillIdentities(proposalDir, activeDir)...)), nil
 }
 
 // archiveActive moves the active skill <name> into _archive/<name>, OVERWRITING
 // any older archived version — the single history slot the module keeps. The
 // caller holds s.mu and owns root. Shared by the revision-replace path and the
 // idle-lifecycle sweep.
-func (s *Store) archiveActive(root *os.Root, name string) error {
+func (s *Store) archiveActive(root *os.Root, name string) ([]string, error) {
+	activeDir := s.activeDir(name)
+	content, found, err := readSkill(root, activeDir)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("%w: cannot archive %q", skills.ErrNotFound, name)
+	}
 	archiveDir := s.archiveDir(name)
-	if err := root.RemoveAll(archiveDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("skillauthoring: clear archive slot for %q: %w", name, err)
+	removed, err := removeSkillTree(root, archiveDir)
+	identities := identitiesIf(removed, s.skillIdentities(archiveDir))
+	if err != nil {
+		return identities, fmt.Errorf("skillauthoring: clear archive slot for %q: %w", name, err)
 	}
 	if err := root.MkdirAll(archivedSubdir, 0o755); err != nil {
-		return fmt.Errorf("skillauthoring: create archive area: %w", err)
+		return identities, fmt.Errorf("skillauthoring: create archive area: %w", err)
 	}
-	if err := root.Rename(s.activeDir(name), archiveDir); err != nil {
-		return fmt.Errorf("skillauthoring: archive skill %q: %w", name, err)
+	if err := root.Rename(activeDir, archiveDir); err != nil {
+		moved, reconcileErr := reconcileLifecycleRename(root, name, activeDir, archiveDir, "archive", content, err)
+		if moved {
+			return distinctPaths(append(identities, s.skillIdentities(activeDir, archiveDir)...)), reconcileErr
+		}
+		return identities, reconcileErr
 	}
-	return nil
+	return distinctPaths(append(identities, s.skillIdentities(activeDir, archiveDir)...)), nil
 }
 
-// Archive moves an active skill out of discovery without deleting it, and drops
+// Archive moves an active skill out of discovery without deleting it, returns
+// the exact public file identities changed by the move, and drops
 // its usage record. Dropping the record — the same thing the idle sweep does on
 // auto-archive — makes "a restored skill starts with a fresh grace floor" hold
 // no matter which path archived it: without it, a manually archived-then-restored
 // agent-authored skill would carry a stale last-used time and be re-archived on
 // the next sweep.
-func (s *Store) Archive(ctx context.Context, name string) error {
-	if err := s.moveLifecycle(ctx, name, skills.Active, skills.Archived); err != nil {
-		return err
+func (s *Store) Archive(ctx context.Context, name string) ([]string, error) {
+	identities, err := s.moveLifecycle(ctx, name, skills.Active, skills.Archived)
+	if err != nil {
+		return identities, err
 	}
-	return s.dropUsage(ctx, name)
+	return identities, s.dropUsage(ctx, name)
 }
 
-// Restore moves an archived skill back into the active set.
-func (s *Store) Restore(ctx context.Context, name string) error {
+// Restore moves an archived skill back into the active set and returns the
+// exact public file identities changed by the move.
+func (s *Store) Restore(ctx context.Context, name string) ([]string, error) {
 	// Drop any leftover usage record BEFORE the move so the restored skill always
 	// starts with a fresh grace floor — even if an earlier Archive crashed between
 	// its rename and its own dropUsage, leaving a stale record. move + dropUsage
@@ -250,76 +297,80 @@ func (s *Store) Restore(ctx context.Context, name string) error {
 	// crash here either a no-op re-restore (still archived, usage already gone) or
 	// a clean fresh floor (moved, usage already gone), never active-with-stale-usage.
 	if err := s.dropUsage(ctx, name); err != nil {
-		return err
+		return nil, err
 	}
 	return s.moveLifecycle(ctx, name, skills.Archived, skills.Active)
 }
 
-func (s *Store) moveLifecycle(ctx context.Context, name string, from, to skills.Lifecycle) error {
+func (s *Store) moveLifecycle(ctx context.Context, name string, from, to skills.Lifecycle) ([]string, error) {
 	if !s.Enabled() {
-		return errors.New("skillauthoring: no skills root configured")
+		return nil, errors.New("skillauthoring: no skills root configured")
 	}
 	if !validName(name) {
-		return fmt.Errorf("skillauthoring: invalid skill name %q", name)
+		return nil, fmt.Errorf("skillauthoring: invalid skill name %q", name)
 	}
 	operation, err := lifecycleOperation(from, to)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	source, err := s.lifecycleDir(from, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	destination, err := s.lifecycleDir(to, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := contextError(ctx, operation+" skill"); err != nil {
-		return err
+		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	root, err := s.openRoot()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer root.Close()
 
 	info, err := root.Lstat(source)
 	if errors.Is(err, fs.ErrNotExist) {
-		return inspectCompletedLifecycleMove(root, name, destination, operation)
+		return nil, inspectCompletedLifecycleMove(root, name, destination, operation)
 	}
 	if err != nil {
-		return fmt.Errorf("skillauthoring: cannot %s %q: %w", operation, name, err)
+		return nil, fmt.Errorf("skillauthoring: cannot %s %q: %w", operation, name, err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("skillauthoring: cannot %s %q: source is not a directory", operation, name)
+		return nil, fmt.Errorf("skillauthoring: cannot %s %q: source is not a directory", operation, name)
 	}
 	content, found, err := readSkill(root, source)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !found {
-		return fmt.Errorf("%w: cannot %s %q", skills.ErrNotFound, operation, name)
+		return nil, fmt.Errorf("%w: cannot %s %q", skills.ErrNotFound, operation, name)
 	}
 	if err := validateSkill(name, content); err != nil {
-		return err
+		return nil, err
 	}
 	if _, err := root.Lstat(destination); err == nil {
-		return fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
+		return nil, fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
 	} else if !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, err)
+		return nil, fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, err)
 	}
 	if err := root.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
-		return fmt.Errorf("skillauthoring: prepare %s destination for %q: %w", operation, name, err)
+		return nil, fmt.Errorf("skillauthoring: prepare %s destination for %q: %w", operation, name, err)
 	}
 	if err := contextError(ctx, operation+" skill"); err != nil {
-		return err
+		return nil, err
 	}
 	if err := root.Rename(source, destination); err != nil {
-		return reconcileLifecycleRename(root, name, source, destination, operation, content, err)
+		moved, reconcileErr := reconcileLifecycleRename(root, name, source, destination, operation, content, err)
+		if moved {
+			return s.skillIdentities(source, destination), reconcileErr
+		}
+		return nil, reconcileErr
 	}
-	return nil
+	return s.skillIdentities(source, destination), nil
 }
 
 func inspectCompletedLifecycleMove(root *os.Root, name, destination, operation string) error {
@@ -354,10 +405,10 @@ func reconcileLifecycleRename(
 	operation string,
 	content []byte,
 	renameErr error,
-) error {
+) (bool, error) {
 	moved, found, readErr := readSkill(root, destination)
 	if readErr != nil {
-		return fmt.Errorf(
+		return false, fmt.Errorf(
 			"skillauthoring: inspect %s outcome for %q: %w",
 			operation,
 			name,
@@ -366,9 +417,9 @@ func reconcileLifecycleRename(
 	}
 	if found && bytes.Equal(moved, content) {
 		if _, sourceErr := root.Lstat(source); errors.Is(sourceErr, fs.ErrNotExist) {
-			return nil
+			return true, nil
 		} else if sourceErr != nil {
-			return fmt.Errorf(
+			return false, fmt.Errorf(
 				"skillauthoring: inspect %s source for %q: %w",
 				operation,
 				name,
@@ -377,16 +428,16 @@ func reconcileLifecycleRename(
 		}
 	}
 	if _, err := root.Lstat(destination); err == nil {
-		return fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
+		return false, fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
 	} else if !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf(
+		return false, fmt.Errorf(
 			"skillauthoring: inspect %s destination for %q: %w",
 			operation,
 			name,
 			errors.Join(renameErr, err),
 		)
 	}
-	return fmt.Errorf("skillauthoring: %s %q: %w", operation, name, renameErr)
+	return false, fmt.Errorf("skillauthoring: %s %q: %w", operation, name, renameErr)
 }
 
 func lifecycleOperation(from, to skills.Lifecycle) (string, error) {
@@ -496,35 +547,38 @@ func (s *Store) ListProposals(ctx context.Context) ([]skills.ProposalReview, err
 	return out, nil
 }
 
-// RejectProposal removes only the immutable proposal represented by handle. A
-// missing proposal is already discarded; changed bytes are never deleted.
-func (s *Store) RejectProposal(ctx context.Context, ref skills.ProposalRef) error {
+// RejectProposal removes only the immutable proposal represented by handle and
+// returns its changed public file identity. A missing proposal is already
+// discarded; changed bytes are never deleted.
+func (s *Store) RejectProposal(ctx context.Context, ref skills.ProposalRef) ([]string, error) {
 	if err := s.validateRef(ref); err != nil {
-		return err
+		return nil, err
 	}
 	if err := contextError(ctx, "reject proposal"); err != nil {
-		return err
+		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	root, err := s.openRoot()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer root.Close()
 
 	proposalDir := s.proposalDir(ref)
 	_, found, err := s.readProposal(root, ref)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !found {
-		return nil
+		return nil, nil
 	}
-	if err := root.RemoveAll(proposalDir); err != nil {
-		return fmt.Errorf("skillauthoring: reject proposal %q: %w", ref.Name, err)
+	removed, err := removeSkillTree(root, proposalDir)
+	identities := identitiesIf(removed, s.skillIdentities(proposalDir))
+	if err != nil {
+		return identities, fmt.Errorf("skillauthoring: reject proposal %q: %w", ref.Name, err)
 	}
-	return nil
+	return identities, nil
 }
 
 func (s *Store) openRoot() (*os.Root, error) {
@@ -562,6 +616,44 @@ func (s *Store) archiveDir(name string) string {
 
 func (s *Store) proposalDir(ref skills.ProposalRef) string {
 	return filepath.Join(proposalsSubdir, ref.Revision)
+}
+
+func (s *Store) skillIdentities(directories ...string) []string {
+	identities := make([]string, 0, len(directories))
+	for _, directory := range directories {
+		identities = append(identities, filepath.Join(s.root, directory, skillspec.SkillFile))
+	}
+	return distinctPaths(identities)
+}
+
+func distinctPaths(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if path != "" && !slices.Contains(out, path) {
+			out = append(out, path)
+		}
+	}
+	return out
+}
+
+func identitiesIf(changed bool, identities []string) []string {
+	if !changed {
+		return nil
+	}
+	return identities
+}
+
+func removeSkillTree(root *os.Root, directory string) (bool, error) {
+	_, existed, err := readSkill(root, directory)
+	if err != nil {
+		return false, err
+	}
+	removeErr := root.RemoveAll(directory)
+	if removeErr == nil || errors.Is(removeErr, fs.ErrNotExist) {
+		return existed, nil
+	}
+	_, remains, inspectErr := readSkill(root, directory)
+	return existed && !remains, errors.Join(removeErr, inspectErr)
 }
 
 func (s *Store) lifecycleDir(lifecycle skills.Lifecycle, name string) (string, error) {

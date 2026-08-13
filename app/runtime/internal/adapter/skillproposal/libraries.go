@@ -24,10 +24,10 @@ func NewLibraries(user *skillauthoring.Store) *Libraries {
 	return &Libraries{user: user}
 }
 
-func (l *Libraries) SubmitProposal(ctx context.Context, projectRoot string, proposal skills.Proposal) (skills.ProposalRef, error) {
+func (l *Libraries) SubmitProposal(ctx context.Context, projectRoot string, proposal skills.Proposal) (skills.ProposalRef, []string, error) {
 	store, err := l.store(proposal.Scope, projectRoot)
 	if err != nil {
-		return skills.ProposalRef{}, err
+		return skills.ProposalRef{}, nil, err
 	}
 	return store.SubmitProposal(ctx, proposal)
 }
@@ -51,18 +51,18 @@ func (l *Libraries) ListProposals(ctx context.Context, projectRoot string) ([]sk
 	return append(projectProposals, userProposals...), nil
 }
 
-func (l *Libraries) ApproveProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) error {
+func (l *Libraries) ApproveProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) ([]string, error) {
 	store, err := l.store(ref.Scope, projectRoot)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	return store.ApproveProposal(ctx, ref)
 }
 
-func (l *Libraries) RejectProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) error {
+func (l *Libraries) RejectProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) ([]string, error) {
 	store, err := l.store(ref.Scope, projectRoot)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	return store.RejectProposal(ctx, ref)
 }

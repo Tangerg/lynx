@@ -1,11 +1,15 @@
 package workspace
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	skillspec "github.com/Tangerg/lynx/skills"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/fileobservation"
 )
@@ -13,29 +17,37 @@ import (
 const (
 	authoredKnowledgeKey = "knowledge"
 	authoredHooksKey     = "hooks"
+	authoredSkillsKey    = "skills"
 )
 
-// AuthoredWatcher maps the Knowledge and Hooks filesystem layouts onto the
+// AuthoredWatcher maps the Knowledge, Hooks, and Skills filesystem layouts onto the
 // workspace application's semantic observation port. Global roots are fixed at
 // process composition; request-owned workspace roots arrive from Application.
 type AuthoredWatcher struct {
 	knowledgeHome string
 	hooksHome     string
+	skillsHome    string
 }
 
 var _ workspaceapp.AuthoredResourceWatcher = AuthoredWatcher{}
 
-// NewAuthoredWatcher binds the global Knowledge storage root and OS user home
-// explicitly. They are intentionally distinct product locations.
-func NewAuthoredWatcher(knowledgeHome, hooksHome string) (AuthoredWatcher, error) {
+// NewAuthoredWatcher binds the global Knowledge, Hooks, and Skills roots
+// explicitly. They are intentionally distinct product locations. An empty
+// Skills root disables only global Skill observation; project Skills remain
+// observable from request scopes.
+func NewAuthoredWatcher(knowledgeHome, hooksHome, skillsHome string) (AuthoredWatcher, error) {
 	for name, path := range map[string]string{"knowledge home": knowledgeHome, "hooks home": hooksHome} {
 		if path == "" || !filepath.IsAbs(path) {
 			return AuthoredWatcher{}, fmt.Errorf("workspace authored watcher: %s must be absolute", name)
 		}
 	}
+	if skillsHome != "" && !filepath.IsAbs(skillsHome) {
+		return AuthoredWatcher{}, errors.New("workspace authored watcher: skills home must be absolute when set")
+	}
 	return AuthoredWatcher{
 		knowledgeHome: filepath.Clean(knowledgeHome),
 		hooksHome:     filepath.Clean(hooksHome),
+		skillsHome:    cleanOptionalPath(skillsHome),
 	}, nil
 }
 
@@ -69,7 +81,7 @@ func (w AuthoredWatcher) Watch(
 			}
 		}
 	}
-	observation, err := fileobservation.Watch(targets, func(keys []string) {
+	files, err := fileobservation.Watch(targets, func(keys []string) {
 		for _, key := range keys {
 			switch key {
 			case authoredKnowledgeKey:
@@ -82,14 +94,28 @@ func (w AuthoredWatcher) Watch(
 	if err != nil {
 		return nil, err
 	}
-	return &authoredObservation{files: observation}, nil
+	trees, err := fileobservation.WatchTrees(w.skillTreeTargets(scopes, resources), func(keys []string) {
+		if slices.Contains(keys, authoredSkillsKey) {
+			notify(workspaceapp.AuthoredSkills)
+		}
+	})
+	if err != nil {
+		return nil, errors.Join(err, files.Close())
+	}
+	return &authoredObservation{observations: []fileobservation.Observation{files, trees}}, nil
 }
 
 type authoredObservation struct {
-	files fileobservation.Observation
+	observations []fileobservation.Observation
 }
 
-func (o *authoredObservation) Close() error { return o.files.Close() }
+func (o *authoredObservation) Close() error {
+	var errs []error
+	for _, observation := range o.observations {
+		errs = append(errs, observation.Close())
+	}
+	return errors.Join(errs...)
+}
 
 func (o *authoredObservation) Accept(changes []workspaceapp.AuthoredChange) error {
 	keys := make([]string, 0, len(changes))
@@ -100,10 +126,43 @@ func (o *authoredObservation) Accept(changes []workspaceapp.AuthoredChange) erro
 			keys = append(keys, authoredKnowledgeKey)
 		case workspaceapp.AuthoredHooks:
 			keys = append(keys, authoredHooksKey)
+		case workspaceapp.AuthoredSkills:
+			keys = append(keys, authoredSkillsKey)
 		}
 		identities = append(identities, change.Identities...)
 	}
-	return o.files.Accept(keys, identities)
+	var errs []error
+	for _, observation := range o.observations {
+		errs = append(errs, observation.Accept(keys, identities))
+	}
+	return errors.Join(errs...)
+}
+
+func (w AuthoredWatcher) skillTreeTargets(scopes []workspaceapp.AuthoredScope, resources []workspaceapp.AuthoredResource) []fileobservation.TreeTarget {
+	if !slices.Contains(resources, workspaceapp.AuthoredSkills) {
+		return nil
+	}
+	targets := make([]fileobservation.TreeTarget, 0, len(scopes)+1)
+	if w.skillsHome != "" {
+		targets = append(targets, fileobservation.TreeTarget{
+			Key: authoredSkillsKey, Path: w.skillsHome, Boundary: w.skillsHome, FileName: skillspec.SkillFile,
+		})
+	}
+	for _, scope := range scopes {
+		targets = append(targets, fileobservation.TreeTarget{
+			Key:  authoredSkillsKey,
+			Path: promptsource.ProjectSkillDir(scope.ProjectRoot), Boundary: scope.ProjectRoot,
+			FileName: skillspec.SkillFile,
+		})
+	}
+	return targets
+}
+
+func cleanOptionalPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	return filepath.Clean(path)
 }
 
 func knowledgeTarget(root string) fileobservation.Target {

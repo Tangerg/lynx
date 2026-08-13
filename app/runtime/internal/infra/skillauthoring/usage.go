@@ -75,7 +75,7 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 }
 
 // SweepIdle archives Agent-authored skills idle past archiveAfter, returning the
-// names it archived. A valid proposal origin is the provenance gate; a
+// names it archived and every public file identity it changed. A valid proposal origin is the provenance gate; a
 // human-authored Skill has none and is never auto-curated. Archiving moves the
 // Skill to _archive (never deletes)
 // and drops its usage record, so a later restore starts with a fresh grace floor
@@ -83,34 +83,35 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 // seeded at now (persisted), giving it the full archiveAfter grace anchored from
 // its first sweep before it can be judged idle. now is explicit so the policy
 // stays testable.
-func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error) {
+func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, []string, error) {
 	if !s.Enabled() {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if err := contextError(ctx, "sweep skills"); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	root, err := s.openRoot()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer root.Close()
 
 	names, err := activeSkillNames(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	usage, err := readUsage(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var archived []string
+	var identities []string
 	for _, name := range names {
 		content, found, err := readSkill(root, name)
 		if err != nil {
-			return archived, err
+			return archived, identities, err
 		}
 		if !found {
 			continue
@@ -127,8 +128,10 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 			record.FirstSeen = now.Unix()
 		}
 		if now.Sub(time.Unix(record.lastActivity(), 0)) >= archiveAfter {
-			if err := s.archiveActive(root, name); err != nil {
-				return archived, err
+			changed, err := s.archiveActive(root, name)
+			identities = append(identities, changed...)
+			if err != nil {
+				return archived, distinctPaths(identities), err
 			}
 			delete(usage, name)
 			archived = append(archived, name)
@@ -139,9 +142,9 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 		usage[name] = record
 	}
 	if err := writeUsage(root, usage); err != nil {
-		return archived, err
+		return archived, distinctPaths(identities), err
 	}
-	return archived, nil
+	return archived, distinctPaths(identities), nil
 }
 
 // activeSkillNames lists the active skill directories directly under the store

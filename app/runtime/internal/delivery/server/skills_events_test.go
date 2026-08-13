@@ -10,7 +10,8 @@ import (
 )
 
 func TestSkillInvalidationPublishesWorkspaceRefresh(t *testing.T) {
-	s := &Server{workspaceHub: newWorkspaceHub()}
+	s := newWorkspaceServer(t.TempDir())
+	s.workspaceHub = newWorkspaceHub()
 	notifier := new(testNotification[invalidation.Notice])
 	s.observeInvalidations(notifier)
 

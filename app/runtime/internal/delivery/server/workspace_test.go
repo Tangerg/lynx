@@ -64,7 +64,7 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 	if authoredWatcher == nil {
 		if filepath.IsAbs(cwd) {
 			var err error
-			authoredWatcher, err = workspaceadapter.NewAuthoredWatcher(cwd, cwd)
+			authoredWatcher, err = workspaceadapter.NewAuthoredWatcher(cwd, cwd, cwd)
 			if err != nil {
 				panic(err)
 			}
@@ -79,7 +79,7 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 		vcs:           workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
 		discovery:     workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
 		knowledge:     workspaceapp.NewKnowledge(roots, workspacepath.Resolver{}, cfg.Knowledge, authoredWatch, nil),
-		skills:        workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Proposals, nil),
+		skills:        workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Proposals, authoredWatch, nil),
 		hooks:         workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust, nil),
 		watch:         workspaceapp.NewGitWatch(roots, watcher),
 		authoredWatch: authoredWatch,
@@ -364,7 +364,8 @@ func TestListRecipes(t *testing.T) {
 // (mcp/skills) and closes on ctx cancel. The watches path has its own coverage
 // in filewatch_test.go.
 func TestWorkspaceSubscribe(t *testing.T) {
-	s := &Server{workspaceHub: newWorkspaceHub()}
+	s := newWorkspaceServer(t.TempDir())
+	s.workspaceHub = newWorkspaceHub()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -397,7 +398,8 @@ func TestWorkspaceSubscribe(t *testing.T) {
 }
 
 func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
-	s := &Server{workspaceHub: newWorkspaceHub()}
+	s := newWorkspaceServer(t.TempDir())
+	s.workspaceHub = newWorkspaceHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
@@ -425,7 +427,8 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 // by Server.Close — delivery owns no task group (§16 rule 5). Server.Close only
 // gates NEW subscriptions; an in-flight, request-owned stream is left to its ctx.
 func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
-	s := &Server{workspaceHub: newWorkspaceHub()}
+	s := newWorkspaceServer(t.TempDir())
+	s.workspaceHub = newWorkspaceHub()
 	reqCtx, cancelReq := context.WithCancel(context.Background())
 	_, seq, err := s.SubscribeRuntime(reqCtx, protocol.RuntimeSubscribeRequest{
 		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},

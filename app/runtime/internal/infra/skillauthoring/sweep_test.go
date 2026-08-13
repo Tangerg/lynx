@@ -20,7 +20,7 @@ var sweepBase = time.Unix(1_700_000_000, 0)
 // provenance-gated curator will consider it.
 func installActiveAgentSkill(t *testing.T, store *skillauthoring.Store, name string) {
 	t.Helper()
-	ref, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
+	ref, _, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
 		Name:         name,
 		Description:  "An agent-authored skill with a long enough description.",
 		Instructions: "instructions",
@@ -29,7 +29,7 @@ func installActiveAgentSkill(t *testing.T, store *skillauthoring.Store, name str
 	if err != nil {
 		t.Fatalf("SubmitProposal(%s): %v", name, err)
 	}
-	if err := store.ApproveProposal(t.Context(), ref); err != nil {
+	if _, err := store.ApproveProposal(t.Context(), ref); err != nil {
 		t.Fatalf("ApproveProposal(%s): %v", name, err)
 	}
 }
@@ -41,7 +41,7 @@ func TestSweepIdleArchivesOnlyIdleAgentSkills(t *testing.T) {
 	installActive(t, store, "human-skill", "instructions") // no provenance → human-authored
 
 	// First sweep seeds FirstSeen for both; nothing is idle yet.
-	archived, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive)
+	archived, _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestSweepIdleArchivesOnlyIdleAgentSkills(t *testing.T) {
 
 	// Far past the archive threshold: the agent skill is idle, the human one is exempt.
 	later := sweepBase.Add(sweepArchive + time.Hour)
-	archived, err = store.SweepIdle(t.Context(), later, sweepArchive)
+	archived, _, err = store.SweepIdle(t.Context(), later, sweepArchive)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestSweepIdleGivesNeverSweptSkillGrace(t *testing.T) {
 	store := skillauthoring.NewStore(t.TempDir(), skills.ScopeUser)
 	installActiveAgentSkill(t, store, "fresh")
 	// A skill first seen at this sweep gets FirstSeen=now, so it can't be idle yet.
-	archived, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive)
+	archived, _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,19 +83,19 @@ func TestSweepIdleRestoredSkillGetsFreshGrace(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
 	installActiveAgentSkill(t, store, "agent-skill")
-	if _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); err != nil {
+	if _, _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); err != nil {
 		t.Fatal(err)
 	}
 	later := sweepBase.Add(sweepArchive + time.Hour)
-	if _, err := store.SweepIdle(t.Context(), later, sweepArchive); err != nil {
+	if _, _, err := store.SweepIdle(t.Context(), later, sweepArchive); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Restore(t.Context(), "agent-skill"); err != nil {
+	if _, err := store.Restore(t.Context(), "agent-skill"); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 	// An immediate re-sweep at the same instant must NOT re-archive the just-restored
 	// skill: archiving dropped its usage record, so it starts a fresh grace floor.
-	archived, err := store.SweepIdle(t.Context(), later, sweepArchive)
+	archived, _, err := store.SweepIdle(t.Context(), later, sweepArchive)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,19 +112,19 @@ func TestManualArchiveThenRestoreGetsFreshGrace(t *testing.T) {
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
 	installActiveAgentSkill(t, store, "agent-skill")
 	// Seed a usage record with an old activity time.
-	if _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); err != nil {
+	if _, _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); err != nil {
 		t.Fatal(err)
 	}
 	// A human archives then restores it much later. Archiving drops the usage
 	// record, so the restored skill starts a fresh grace floor.
-	if err := store.Archive(t.Context(), "agent-skill"); err != nil {
+	if _, err := store.Archive(t.Context(), "agent-skill"); err != nil {
 		t.Fatalf("Archive: %v", err)
 	}
-	if err := store.Restore(t.Context(), "agent-skill"); err != nil {
+	if _, err := store.Restore(t.Context(), "agent-skill"); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 	later := sweepBase.Add(sweepArchive + time.Hour)
-	archived, err := store.SweepIdle(t.Context(), later, sweepArchive)
+	archived, _, err := store.SweepIdle(t.Context(), later, sweepArchive)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestManualArchiveThenRestoreGetsFreshGrace(t *testing.T) {
 
 func TestSweepIdleDisabledStoreNoOps(t *testing.T) {
 	store := skillauthoring.NewStore("", skills.ScopeUser)
-	archived, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive)
+	archived, _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive)
 	if err != nil || archived != nil {
 		t.Fatalf("disabled sweep = %v, %v", archived, err)
 	}

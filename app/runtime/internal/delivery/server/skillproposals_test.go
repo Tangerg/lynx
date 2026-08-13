@@ -18,7 +18,7 @@ type stubSkillProposals struct {
 	root       string
 }
 
-func (s *stubSkillProposals) SubmitProposal(context.Context, string, skills.Proposal) (skills.ProposalRef, error) {
+func (s *stubSkillProposals) SubmitProposal(context.Context, string, skills.Proposal) (skills.ProposalRef, []string, error) {
 	panic("unexpected SubmitProposal")
 }
 
@@ -27,19 +27,19 @@ func (s *stubSkillProposals) ListProposals(_ context.Context, root string) ([]sk
 	return s.list, nil
 }
 
-func (s *stubSkillProposals) ApproveProposal(_ context.Context, root string, ref skills.ProposalRef) error {
+func (s *stubSkillProposals) ApproveProposal(_ context.Context, root string, ref skills.ProposalRef) ([]string, error) {
 	s.root = root
 	if s.approveErr != nil {
-		return s.approveErr
+		return nil, s.approveErr
 	}
 	s.approved = append(s.approved, ref)
-	return nil
+	return []string{filepath.Join(root, "run-tests", "SKILL.md")}, nil
 }
 
-func (s *stubSkillProposals) RejectProposal(_ context.Context, root string, ref skills.ProposalRef) error {
+func (s *stubSkillProposals) RejectProposal(_ context.Context, root string, ref skills.ProposalRef) ([]string, error) {
 	s.root = root
 	s.rejected = append(s.rejected, ref)
-	return nil
+	return []string{filepath.Join(root, "_proposals", ref.Revision, "SKILL.md")}, nil
 }
 
 func TestSkillProposalHandlersDisabled(t *testing.T) {

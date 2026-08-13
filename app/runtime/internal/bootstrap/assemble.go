@@ -251,7 +251,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	agentMemoryCuration := agentmemoryapp.NewCuration(agentmemoryapp.CurationConfig{
 		Store: cfg.AgentMemoryStore, Invalidations: applicationInvalidations.Publish,
 	})
-	authoredWatcher, err := checkpointstore.NewAuthoredWatcher(cfg.KnowledgeDirectory, cfg.UserHome)
+	authoredWatcher, err := checkpointstore.NewAuthoredWatcher(cfg.KnowledgeDirectory, cfg.UserHome, cfg.SkillsUserDir)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: build authored resource watcher: %w", err)
 	}
@@ -271,9 +271,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		promptsource.NewWorkspaceSkills(cfg.SkillsUserDir),
 		skillCurator,
 		skillproposal.NewLibraries(skillStore),
+		workspaceAuthoredWatch,
 		applicationInvalidations.Publish,
 	)
-	skillMaintenance := workspace.NewSkillMaintenance(idleSkillSweeper, applicationInvalidations.Publish)
+	skillMaintenance := workspace.NewSkillMaintenance(idleSkillSweeper, workspaceAuthoredWatch, applicationInvalidations.Publish)
 	toolRuntime, err := buildTools(ctx, cfg, approvalPolicy, mcpConnectionSettings, modelServices.agentMemorySearch, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, workspaceSkills)
 	lifetime.toolResources = slices.Clone(toolRuntime.closers)
 	if err != nil {
