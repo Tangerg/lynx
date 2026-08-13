@@ -239,8 +239,22 @@ func TestConcurrentToolResultsCommitInModelOrder(t *testing.T) {
 		t.Fatalf("Tool result receipts: %v", err)
 	}
 
+	commits := effects.commitSnapshot()
+	for index, name := range []string{"first", "second"} {
+		commit := commits[index]
+		if len(commit.Items) != 1 || commit.Items[0].Status() != transcript.ItemRunning {
+			t.Fatalf("Tool start[%d] Items = %#v, want one running Item", index, commit.Items)
+		}
+		invocation, present := commit.Items[0].ToolInvocation()
+		if !present || invocation.Name != name || len(commit.ToolInvocations) != 1 ||
+			commit.ToolInvocations[0].State != ToolInvocationStarted ||
+			commit.ToolInvocations[0].ItemID != commit.Items[0].ID() {
+			t.Fatalf("Tool start[%d] = Item:%#v journal:%#v", index, commit.Items[0], commit.ToolInvocations)
+		}
+	}
+
 	var final *EventCommit
-	for _, commit := range effects.commitSnapshot() {
+	for _, commit := range commits {
 		if len(commit.ToolInvocations) == 2 && len(commit.Items) == 2 {
 			cloned := commit
 			final = &cloned
@@ -248,7 +262,7 @@ func TestConcurrentToolResultsCommitInModelOrder(t *testing.T) {
 		}
 	}
 	if final == nil {
-		t.Fatalf("no canonical Tool batch in commits: %#v", effects.commitSnapshot())
+		t.Fatalf("no canonical Tool batch in commits: %#v", commits)
 	}
 	first, firstPresent := final.Items[0].ToolInvocation()
 	second, secondPresent := final.Items[1].ToolInvocation()

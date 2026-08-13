@@ -2080,11 +2080,12 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 		{Member: childMember, Payload: request},
 		{Member: childMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
-	// Child segment.started is part of the atomic opening transaction, so the
-	// first CommitEvent attempt is the child's requested completed terminal.
-	// Fail only that write so cleanup must replace it with an error terminal
-	// before it may close the root.
-	effects := &fakeEffects{commitErr: commitErr, commitErrAt: 1}
+	// The parent Tool start is now the first durable CommitEvent. Child
+	// segment.started remains part of the atomic opening transaction, so the
+	// second CommitEvent is the child's requested completed terminal. Fail only
+	// that write so cleanup must replace it with an error terminal before it may
+	// close the root.
+	effects := &fakeEffects{commitErr: commitErr, commitErrAt: 2}
 	coordinator := testCoordinator(executor, effects)
 	coordinator.newRunID = func() string { return "run_child" }
 	coordinator.newSegmentID = func() string { return "seg_child" }

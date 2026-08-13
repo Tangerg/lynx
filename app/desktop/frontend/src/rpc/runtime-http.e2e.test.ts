@@ -42,6 +42,7 @@ const execFileAsync = promisify(execFile);
 const runtimeDirectory = resolve(process.cwd(), "../../runtime");
 const managedSkillName = "runtime-http-e2e";
 const liveMCPToolName = "http-e2e-stdio_ping";
+const killedMCPToolName = "http-e2e-kill_ping";
 
 async function unusedLoopbackPort(): Promise<number> {
   const server = createNetServer();
@@ -420,6 +421,22 @@ function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolC
   if (transcript.includes("E2E_MCP_TOOL") && toolResultCount >= 2) {
     return { text: transcript.includes("pong") ? "MCP pong observed." : "MCP pong missing." };
   }
+  if (
+    transcript.includes("E2E_FORCE_KILL_TOOL") &&
+    availableTools.has("search_tools") &&
+    !availableTools.has(killedMCPToolName) &&
+    toolResultCount === 0
+  ) {
+    return {
+      tool: {
+        name: "search_tools",
+        arguments: JSON.stringify({ query: `select:${killedMCPToolName}` }),
+      },
+    };
+  }
+  if (transcript.includes("E2E_FORCE_KILL_TOOL") && toolResultCount >= 1) {
+    return { tool: { name: killedMCPToolName, arguments: "{}" } };
+  }
   return { text: "HTTP runtime lifecycle complete." };
 }
 
@@ -647,6 +664,14 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     }
   };
 
+  const killRuntimeProcess = async () => {
+    const child = runtime;
+    if (!child || child.exitCode !== null) return;
+    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+    if (!child.kill("SIGKILL")) throw new Error("failed to send SIGKILL to Runtime");
+    await within(exited, "Runtime SIGKILL exit");
+  };
+
   const createRuntimeClient = () =>
     createLyraClient(createHttpTransport({ baseUrl, fetch: isolatedFetch }), {
       requestMeta: () => ({
@@ -665,9 +690,11 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     mcpFixturePath = join(environmentRoot, "mcp-fixture.mjs");
     await writeFile(
       mcpFixturePath,
-      `import { createInterface } from "node:readline";
+      `import { writeFileSync } from "node:fs";
+import { createInterface } from "node:readline";
 
 const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
+const holdToolCallMarker = process.argv.find((value) => value.startsWith("--hold-tool-call="))?.slice("--hold-tool-call=".length);
 const reply = (id, result) => {
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
 };
@@ -694,6 +721,10 @@ for await (const line of lines) {
     continue;
   }
   if (message.method === "tools/call") {
+    if (holdToolCallMarker) {
+      writeFileSync(holdToolCallMarker, "arrived\\n");
+      continue;
+    }
     reply(message.id, { content: [{ type: "text", text: "pong" }] });
     continue;
   }
@@ -4021,5 +4052,254 @@ for await (const line of lines) {
     });
     controller.abort();
     await events.return?.();
+  }, 30_000);
+
+  it("recovers durable HITL, Plan, Goal, Run and Tool reads after SIGKILL", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const beforeKill = await client.runtime.discover();
+    const planSession = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP SIGKILL plan durability",
+    });
+    const planned = await client.runs.start({
+      sessionId: asSessionId(planSession.id),
+      input: [{ type: "text", text: "E2E_PLAN preserve this plan across SIGKILL." }],
+    });
+    await collectRunEvents(planned.events);
+
+    const goalSession = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP SIGKILL Goal and HITL durability",
+    });
+    const goalSessionId = asSessionId(goalSession.id);
+    await client.goals.start({
+      sessionId: goalSessionId,
+      objective: "E2E_HITL preserve this Goal wait across SIGKILL.",
+      budget: { maxRuns: 1 },
+    });
+    let goal = await client.goals.get(goalSessionId);
+    for (let attempt = 0; attempt < 100 && goal?.status === "active"; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      goal = await client.goals.get(goalSessionId);
+    }
+    expect(goal).toMatchObject({
+      status: "paused",
+      reason: { code: "awaitingInput" },
+    });
+    const goalRuns = await client.runs.list({ sessionId: goalSessionId });
+    const waitingRun = goalRuns.data[0];
+    if (!waitingRun) throw new Error("SIGKILL fixture omitted the Goal-owned Run");
+    const waitingRunId = asRunId(waitingRun.id);
+    const pending = await client.interrupts.list({ rootRunId: waitingRunId });
+    const question = pending.data[0]?.interrupts[0];
+    if (!question || question.type !== "question") {
+      throw new Error("SIGKILL fixture omitted the Goal-owned HITL question");
+    }
+
+    const activeGoalSession = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP SIGKILL active Goal recovery",
+    });
+    const activeGoalSessionId = asSessionId(activeGoalSession.id);
+    const gate = createProviderGate("E2E_FORCE_KILL_GOAL");
+    providerGate = gate;
+    try {
+      await client.goals.start({
+        sessionId: activeGoalSessionId,
+        objective: "E2E_FORCE_KILL_GOAL remain active until process death.",
+        budget: { maxRuns: 2 },
+      });
+      await within(gate.arrived.promise, "the SIGKILL Goal model request");
+      const activeGoalRuns = await client.runs.list({ sessionId: activeGoalSessionId });
+      const activeGoalRun = activeGoalRuns.data.find((run) => run.status === "running");
+      if (!activeGoalRun) throw new Error("SIGKILL fixture omitted the active Goal-owned Run");
+      const activeGoalRunId = asRunId(activeGoalRun.id);
+
+      await killRuntimeProcess();
+      await within(gate.closed.promise, "the SIGKILL provider connection to close");
+      gate.release.resolve();
+      providerGate = undefined;
+      await client.close();
+      client = undefined;
+
+      await startRuntimeProcess();
+      client = createRuntimeClient();
+
+      await expect(client.runtime.discover()).resolves.toMatchObject({
+        capabilities: {
+          limits: {
+            idempotency: {
+              namespace: beforeKill.capabilities.limits.idempotency.namespace,
+            },
+          },
+        },
+      });
+      await expect(client.plan.get(asSessionId(planSession.id))).resolves.toMatchObject({
+        type: "plan",
+        revision: 1,
+        plan: [
+          { description: "Inspect the runtime contract", status: "completed" },
+          { description: "Verify frontend reconciliation", status: "in_progress" },
+        ],
+      });
+      await expect(
+        client.items.list({ scope: { type: "run", runId: planned.result.runId } }),
+      ).resolves.toMatchObject({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            type: "toolCall",
+            status: "completed",
+            tool: expect.objectContaining({ name: "set_plan" }),
+          }),
+        ]),
+      });
+      await expect(client.goals.get(goalSessionId)).resolves.toMatchObject({
+        status: "paused",
+        reason: { code: "awaitingInput" },
+      });
+      await expect(client.runs.get(waitingRunId)).resolves.toMatchObject({ status: "waiting" });
+      await expect(client.interrupts.list({ rootRunId: waitingRunId })).resolves.toMatchObject({
+        data: [
+          expect.objectContaining({
+            interrupts: [expect.objectContaining({ itemId: question.itemId, type: "question" })],
+          }),
+        ],
+      });
+      await expect(client.runs.get(activeGoalRunId)).resolves.toMatchObject({
+        status: "finished",
+        outcome: { type: "lost", error: expect.objectContaining({ type: "run_lost" }) },
+      });
+      await expect(client.goals.get(activeGoalSessionId)).resolves.toMatchObject({
+        status: "paused",
+        reason: { code: "runNotCompleted", detail: "lost" },
+        used: { runs: 1 },
+      });
+      const controller = new AbortController();
+      const subscription = await client.runtimeEvents.subscribe(
+        { topics: ["sessions.changed"] },
+        controller.signal,
+      );
+      const events = subscription.events[Symbol.asyncIterator]();
+      const created = await client.sessions.create({ title: "HTTP SIGKILL recovered event" });
+      await expect(nextRuntimeEvent(events, "sessions.changed")).resolves.toMatchObject({
+        type: "sessions.changed",
+        sessionIds: [created.id],
+      });
+      controller.abort();
+      await events.return?.();
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+    }
+  }, 30_000);
+
+  it("marks an in-flight Tool incomplete and its Run lost after SIGKILL", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const server = "http-e2e-kill";
+    const toolCallMarker = join(environmentRoot, "sigkill-tool-call-arrived");
+    const gate = createProviderGate("E2E_FORCE_KILL_TOOL", 1);
+    let serverCreated = false;
+    providerGate = gate;
+    try {
+      await client.mcp.create({
+        autoApproveTools: ["ping"],
+        connection: {
+          type: "stdio",
+          command: process.execPath,
+          args: [mcpFixturePath, `--hold-tool-call=${toolCallMarker}`],
+        },
+        description: "SIGKILL Tool recovery fixture",
+        enabled: true,
+        name: server,
+      });
+      serverCreated = true;
+      let connected = (await client.mcp.list()).data.find((entry) => entry.name === server);
+      for (let attempt = 0; attempt < 100 && connected?.status.type !== "connected"; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        connected = (await client.mcp.list()).data.find((entry) => entry.name === server);
+      }
+      expect(connected).toMatchObject({ status: { type: "connected", toolCount: 1 } });
+
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP SIGKILL active Tool recovery",
+      });
+      const started = await client.runs.start({
+        sessionId: asSessionId(session.id),
+        input: [{ type: "text", text: "E2E_FORCE_KILL_TOOL remain active until process death." }],
+      });
+      const runId = asRunId(started.result.runId);
+      const drain = collectRunEvents(started.events).then(
+        () => undefined,
+        () => undefined,
+      );
+      await within(gate.arrived.promise, "the SIGKILL Tool model request");
+      gate.release.resolve();
+      providerGate = undefined;
+
+      for (let attempt = 0; attempt < 200; attempt++) {
+        if (
+          await lstat(toolCallMarker).then(
+            () => true,
+            () => false,
+          )
+        )
+          break;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      await expect(lstat(toolCallMarker)).resolves.toBeDefined();
+
+      let items = await client.items.list({ scope: { type: "run", runId } });
+      for (
+        let attempt = 0;
+        attempt < 200 &&
+        !items.data.some(
+          (item) =>
+            item.type === "toolCall" &&
+            item.status === "running" &&
+            item.tool?.name === killedMCPToolName,
+        );
+        attempt++
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        items = await client.items.list({ scope: { type: "run", runId } });
+      }
+      expect(items.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "toolCall",
+            status: "running",
+            tool: expect.objectContaining({ name: killedMCPToolName }),
+          }),
+        ]),
+      );
+
+      await killRuntimeProcess();
+      await within(drain, "the killed Tool Run stream to settle");
+      await client.close();
+      client = undefined;
+
+      await startRuntimeProcess();
+      client = createRuntimeClient();
+      await expect(client.runs.get(runId)).resolves.toMatchObject({
+        status: "finished",
+        outcome: { type: "lost", error: expect.objectContaining({ type: "run_lost" }) },
+      });
+      await expect(client.items.list({ scope: { type: "run", runId } })).resolves.toMatchObject({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            type: "toolCall",
+            status: "incomplete",
+            tool: expect.objectContaining({ name: killedMCPToolName }),
+          }),
+        ]),
+      });
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+      if (serverCreated && client) await client.mcp.delete(server).catch(() => undefined);
+    }
   }, 30_000);
 });

@@ -970,12 +970,20 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		if err := e.Item.validate(); err != nil {
 			return reduction{}, fmt.Errorf("%w: Item start: %v", errReducerInvariant, err)
 		}
+		if e.Item.Kind == transcript.ToolCall {
+			// A Tool may cross the process boundary as soon as its start receipt is
+			// acknowledged. Persist its running Item in the same authoritative
+			// transaction as ToolInvocationStarted so crash recovery can always
+			// resolve the journal's ItemID. Transient model/reasoning starts remain
+			// stream-only and are persisted only after their complete value exists.
+			commit.Items = []transcript.Item{*e.Item.durable}
+		}
 	case SegmentStarted, SegmentProgressed, ItemChanged, StateSnapshot:
 		// These events have no standalone EventCommit. SegmentStarted carries a Run
 		// for the stream, but the Run's durable opening IS its admission (or its
 		// resume) — recording it a second time here would be a second writer of
-		// facts admission already owns. ItemStarted projections remain provisional;
-		// interrupt starts are folded into the atomic park write-set by project.
+		// facts admission already owns. Interrupt starts are folded into the atomic
+		// park write-set by project.
 	default:
 		return reduction{}, fmt.Errorf("%w: unhandled run event %T", errReducerInvariant, event)
 	}
