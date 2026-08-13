@@ -3,12 +3,14 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 const schedulePageLimit = 100
@@ -65,15 +67,30 @@ func (r *Runtime) Create(ctx context.Context, candidate schedule.Candidate) (sch
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	request := protocol.CreateScheduleRequest{
-		Title: candidate.Title, Instructions: candidate.Instructions,
-		Provider: candidate.Provider, Model: candidate.Model, Cron: candidate.Cron,
-	}
+	validated := candidate
 	if candidate.Workspace != "" {
-		request.Workspace = &protocol.WorkspaceRef{Path: candidate.Workspace}
+		resolved, err := r.Resolve(ctx, workspace.ResolveRequest{Path: candidate.Workspace})
+		if err != nil {
+			return schedule.Schedule{}, fmt.Errorf("create schedule workspace: %w", err)
+		}
+		validated.Workspace = resolved.Path
+	}
+	request := protocol.CreateScheduleRequest{
+		Title: validated.Title, Instructions: validated.Instructions,
+		Provider: validated.Provider, Model: validated.Model, Cron: validated.Cron,
+	}
+	if validated.Workspace != "" {
+		request.Workspace = &protocol.WorkspaceRef{Path: validated.Workspace}
 	}
 	created, err := r.schedules.CreateSchedule(ctx, request, options)
-	return projectScheduleResult("create schedule", "", created, err)
+	projected, err := projectScheduleResult("create schedule", "", created, err)
+	if err != nil {
+		return schedule.Schedule{}, err
+	}
+	if err := validated.ValidateResult(projected); err != nil {
+		return schedule.Schedule{}, runtimeContractViolation("create schedule returned an invalid acknowledgement: %v", err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) Update(ctx context.Context, patch schedule.Patch) (schedule.Schedule, error) {
@@ -84,19 +101,34 @@ func (r *Runtime) Update(ctx context.Context, patch schedule.Patch) (schedule.Sc
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	request := protocol.UpdateScheduleRequest{
-		ID: patch.ID, ExpectedRevision: patch.ExpectedRevision,
-		Title: clonePointer(patch.Title), Instructions: clonePointer(patch.Instructions),
-		Provider: clonePointer(patch.Provider), Model: clonePointer(patch.Model),
-		Cron: clonePointer(patch.Cron), Enabled: clonePointer(patch.Enabled),
+	validated := patch
+	if path, bound := patch.Workspace.Binding(); bound {
+		resolved, err := r.Resolve(ctx, workspace.ResolveRequest{Path: path})
+		if err != nil {
+			return schedule.Schedule{}, fmt.Errorf("update schedule workspace: %w", err)
+		}
+		validated.Workspace = schedule.BindWorkspace(resolved.Path)
 	}
-	if workspace, bound := patch.Workspace.Binding(); bound {
-		request.Workspace = &protocol.WorkspaceRef{Path: workspace}
-	} else if patch.Workspace.UsesDefault() {
+	request := protocol.UpdateScheduleRequest{
+		ID: validated.ID, ExpectedRevision: validated.ExpectedRevision,
+		Title: clonePointer(validated.Title), Instructions: clonePointer(validated.Instructions),
+		Provider: clonePointer(validated.Provider), Model: clonePointer(validated.Model),
+		Cron: clonePointer(validated.Cron), Enabled: clonePointer(validated.Enabled),
+	}
+	if path, bound := validated.Workspace.Binding(); bound {
+		request.Workspace = &protocol.WorkspaceRef{Path: path}
+	} else if validated.Workspace.UsesDefault() {
 		request.WorkspaceMode = protocol.ScheduleWorkspaceDefault
 	}
 	updated, err := r.schedules.UpdateSchedule(ctx, request, options)
-	return projectScheduleResult("update schedule", patch.ID, updated, err)
+	projected, err := projectScheduleResult("update schedule", validated.ID, updated, err)
+	if err != nil {
+		return schedule.Schedule{}, err
+	}
+	if err := validated.ValidateResult(projected); err != nil {
+		return schedule.Schedule{}, runtimeContractViolation("update schedule returned an invalid acknowledgement: %v", err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) Delete(ctx context.Context, id string) error {

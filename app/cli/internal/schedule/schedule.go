@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -38,6 +39,9 @@ func (scheduled Schedule) Validate() error {
 	if err := validateModelSelection(scheduled.Provider, scheduled.Model); err != nil {
 		return fmt.Errorf("schedule %s: %w", scheduled.ID, err)
 	}
+	if err := validateWorkspace(scheduled.Workspace); err != nil {
+		return fmt.Errorf("schedule %s: %w", scheduled.ID, err)
+	}
 	if scheduled.CreatedAt.IsZero() || scheduled.Revision == 0 {
 		return fmt.Errorf("schedule %s has incomplete persistence metadata", scheduled.ID)
 	}
@@ -64,7 +68,51 @@ func (candidate Candidate) Validate() error {
 	if err := validateInstructionsAndCron(candidate.Instructions, candidate.Cron); err != nil {
 		return fmt.Errorf("schedule candidate: %w", err)
 	}
-	return validateModelSelection(candidate.Provider, candidate.Model)
+	if err := validateModelSelection(candidate.Provider, candidate.Model); err != nil {
+		return err
+	}
+	if err := validateWorkspace(candidate.Workspace); err != nil {
+		return fmt.Errorf("schedule candidate: %w", err)
+	}
+	return nil
+}
+
+func (candidate Candidate) ValidateResult(result Schedule) error {
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.Title != candidate.Title {
+		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, candidate.Title))
+	}
+	if result.Instructions != candidate.Instructions {
+		problems = append(problems, fmt.Errorf("runtime returned instructions %q, want %q", result.Instructions, candidate.Instructions))
+	}
+	if candidate.Workspace != "" && result.Workspace != candidate.Workspace {
+		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace, candidate.Workspace))
+	}
+	if result.Provider != candidate.Provider || result.Model != candidate.Model {
+		problems = append(problems, fmt.Errorf(
+			"runtime returned model %q/%q, want %q/%q",
+			result.Provider, result.Model, candidate.Provider, candidate.Model,
+		))
+	}
+	if result.Cron != candidate.Cron {
+		problems = append(problems, fmt.Errorf("runtime returned cron %q, want %q", result.Cron, candidate.Cron))
+	}
+	if !result.Enabled {
+		problems = append(problems, errors.New("runtime returned a disabled new schedule"))
+	}
+	if result.LastRunAt != nil {
+		problems = append(problems, errors.New("runtime returned prior run state for a new schedule"))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("schedule candidate: %w", err)
+	}
+	return nil
 }
 
 // WorkspaceChange is a three-state schedule binding update. Its zero value
@@ -108,6 +156,9 @@ func (change WorkspaceChange) validate() error {
 	case workspaceBound:
 		if change.path == "" {
 			return errors.New("schedule workspace binding is empty")
+		}
+		if err := validateWorkspace(change.path); err != nil {
+			return fmt.Errorf("schedule workspace binding: %w", err)
 		}
 	default:
 		return errors.New("schedule workspace change mode is invalid")
@@ -159,6 +210,49 @@ func (patch Patch) Validate() error {
 	return nil
 }
 
+func (patch Patch) ValidateResult(result Schedule) error {
+	if err := patch.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.ID != patch.ID {
+		problems = append(problems, fmt.Errorf("runtime returned schedule %q, want %q", result.ID, patch.ID))
+	}
+	if result.Revision <= patch.ExpectedRevision {
+		problems = append(problems, fmt.Errorf("runtime returned revision %d after expected revision %d", result.Revision, patch.ExpectedRevision))
+	}
+	if patch.Title != nil && result.Title != *patch.Title {
+		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, *patch.Title))
+	}
+	if patch.Instructions != nil && result.Instructions != *patch.Instructions {
+		problems = append(problems, fmt.Errorf("runtime returned instructions %q, want %q", result.Instructions, *patch.Instructions))
+	}
+	if path, bound := patch.Workspace.Binding(); bound && result.Workspace != path {
+		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace, path))
+	} else if patch.Workspace.UsesDefault() && result.Workspace != "" {
+		problems = append(problems, fmt.Errorf("runtime kept workspace %q after restoring the default", result.Workspace))
+	}
+	if patch.Provider != nil && (result.Provider != *patch.Provider || result.Model != *patch.Model) {
+		problems = append(problems, fmt.Errorf(
+			"runtime returned model %q/%q, want %q/%q",
+			result.Provider, result.Model, *patch.Provider, *patch.Model,
+		))
+	}
+	if patch.Cron != nil && result.Cron != *patch.Cron {
+		problems = append(problems, fmt.Errorf("runtime returned cron %q, want %q", result.Cron, *patch.Cron))
+	}
+	if patch.Enabled != nil && result.Enabled != *patch.Enabled {
+		problems = append(problems, fmt.Errorf("runtime returned enabled %t, want %t", result.Enabled, *patch.Enabled))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("schedule patch: %w", err)
+	}
+	return nil
+}
+
 func (patch Patch) HasChanges() bool {
 	return patch.Title != nil || patch.Instructions != nil || patch.Workspace.Changed() ||
 		patch.Provider != nil || patch.Model != nil || patch.Cron != nil || patch.Enabled != nil
@@ -199,6 +293,16 @@ func validateInstructionsAndCron(instructions, cron string) error {
 func validateModelSelection(provider, model string) error {
 	if (strings.TrimSpace(provider) == "") != (strings.TrimSpace(model) == "") {
 		return errors.New("schedule provider and model must both be set or both be empty")
+	}
+	if provider != strings.TrimSpace(provider) || model != strings.TrimSpace(model) {
+		return errors.New("schedule provider and model must not have surrounding whitespace")
+	}
+	return nil
+}
+
+func validateWorkspace(path string) error {
+	if path != "" && !filepath.IsAbs(path) {
+		return errors.New("workspace path is not absolute")
 	}
 	return nil
 }
