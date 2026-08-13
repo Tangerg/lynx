@@ -924,6 +924,93 @@ describe("useAgentSession durable recovery", () => {
     expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)).toBeNull();
   });
 
+  it("replaces a non-cooperative reconnect opening after the live stream drops", async () => {
+    let restarted = false;
+    let resolveReconnect!: (stream: {
+      result: { runId: string; segmentId: string };
+      events: AsyncIterable<RunEvent>;
+    }) => void;
+    const reconnectOpening = new Promise<{
+      result: { runId: string; segmentId: string };
+      events: AsyncIterable<RunEvent>;
+    }>((resolve) => {
+      resolveReconnect = resolve;
+    });
+    const closeReconnect = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    let subscribeCalls = 0;
+    const subscribe = vi.fn(() => {
+      subscribeCalls += 1;
+      if (subscribeCalls === 1) {
+        return Promise.resolve({
+          result: { runId: "run_reconnect", segmentId: "seg_reconnect" },
+          events: {
+            [Symbol.asyncIterator]: () =>
+              ({
+                next: vi.fn(async () => ({ value: undefined, done: true }) as const),
+              }) as AsyncIterator<RunEvent>,
+          },
+        });
+      }
+      return reconnectOpening;
+    });
+    const runs = vi.fn(() =>
+      autoPage(
+        restarted
+          ? []
+          : [
+              runRef({
+                id: "run_reconnect",
+                sessionId: RID,
+                status: "running",
+                activeSegmentId: "seg_reconnect",
+              }),
+            ],
+      ),
+    );
+    const plan = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        type: "plan",
+        sessionId: RID,
+        revision: restarted ? 2 : 1,
+        plan: [],
+      }),
+    );
+    setContainer({
+      client: () =>
+        ({
+          items: { list: vi.fn(() => autoPage([])) },
+          runs: { list: runs, subscribe },
+          interrupts: { list: vi.fn(() => autoPage([])) },
+          plan: { get: plan },
+        }) as unknown as LyraClient,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+    restarted = true;
+    await expect(
+      useAgentStore.getState().sessions[RID]!.synchronize!("replace-live"),
+    ).resolves.toBe(true);
+
+    const view = useAgentStore.getState().sessions[RID]!.view;
+    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(selectCurrentRootRun(view)).toBeNull();
+
+    resolveReconnect({
+      result: { runId: "run_reconnect", segmentId: "seg_reconnect" },
+      events: {
+        [Symbol.asyncIterator]: () =>
+          ({
+            next: vi.fn(),
+            return: closeReconnect,
+          }) as AsyncIterator<RunEvent>,
+      },
+    });
+    await waitFor(() => expect(closeReconnect).toHaveBeenCalledOnce());
+    expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)).toBeNull();
+  });
+
   it("treats a run that finishes between snapshot and subscribe as synchronized", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const subscribe = vi.fn().mockRejectedValue(

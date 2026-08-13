@@ -2,6 +2,7 @@ import type { LyraClient } from "@/rpc";
 import { asRunId, asSegmentId, RpcConnectionError } from "@/rpc";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import type { RunStream, RunStreamPosition } from "./agentRunPump";
+import { retireRunStream, settleRunStreamOpening } from "./runStreamOpening";
 
 interface RunStreamReattachOptions {
   sessionId: string;
@@ -10,7 +11,7 @@ interface RunStreamReattachOptions {
   /** Rebuild the complete durable projection when the replay window no longer
    *  reaches this client's cursor. Missed deltas are gone, but their completed
    *  items and lifecycle facts remain queryable. */
-  recoverProjection: () => Promise<void>;
+  recoverProjection: (signal: AbortSignal) => Promise<void>;
 }
 
 /**
@@ -42,10 +43,15 @@ export function createRunStreamReattach({
       segmentId: asSegmentId(position.segmentId),
     };
     const recoverAndTail = async (): Promise<RunStream | null> => {
-      await recoverProjection();
+      await recoverProjection(signal);
       if (isCancelled() || signal.aborted) return null;
       try {
-        const tail = await client().runs.subscribe(target, signal);
+        const tail = await settleRunStreamOpening(client().runs.subscribe(target, signal), signal);
+        if (!tail) return null;
+        if (isCancelled() || signal.aborted) {
+          retireRunStream(tail);
+          return null;
+        }
         return { result: brandAck(tail.result), events: tail.events };
       } catch (tailErr) {
         if (
@@ -61,14 +67,22 @@ export function createRunStreamReattach({
 
     if (position.recovery === "cold") return recoverAndTail();
     try {
-      const stream = await client().runs.subscribe(target, signal, {
-        ...(position.lastEventId ? { lastEventId: position.lastEventId } : {}),
-      });
+      const stream = await settleRunStreamOpening(
+        client().runs.subscribe(target, signal, {
+          ...(position.lastEventId ? { lastEventId: position.lastEventId } : {}),
+        }),
+        signal,
+      );
+      if (!stream) return null;
+      if (isCancelled() || signal.aborted) {
+        retireRunStream(stream);
+        return null;
+      }
       return { result: brandAck(stream.result), events: stream.events };
     } catch (err) {
       if (isCancelled() || signal.aborted) return null;
       if (agentRuntime().isRunGone(err)) {
-        await recoverProjection();
+        await recoverProjection(signal);
         return null;
       }
       if (err instanceof RpcConnectionError) return null;

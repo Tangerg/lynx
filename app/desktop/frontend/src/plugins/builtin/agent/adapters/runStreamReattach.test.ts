@@ -30,7 +30,7 @@ function runClient(subscribe: LyraClient["runs"]["subscribe"]): Pick<LyraClient,
 describe("run stream reattach", () => {
   it("rebuilds the durable projection before tailing after a protocol violation", async () => {
     const order: string[] = [];
-    const recoverProjection = vi.fn(async () => {
+    const recoverProjection = vi.fn(async (_signal: AbortSignal) => {
       order.push("recover");
     });
     const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>(async () => {
@@ -52,7 +52,7 @@ describe("run stream reattach", () => {
   });
 
   it("replays from the last folded event while the cursor remains trustworthy", async () => {
-    const recoverProjection = vi.fn(async () => {});
+    const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
     const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>(async () => emptyStream());
     const reattach = createRunStreamReattach({
       sessionId: "ses_1",
@@ -71,7 +71,7 @@ describe("run stream reattach", () => {
   });
 
   it("rebuilds durable state when the addressed run finishes before replay attach", async () => {
-    const recoverProjection = vi.fn(async () => {});
+    const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
     const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>().mockRejectedValue(
       new RpcError({
         code: -32002,
@@ -93,7 +93,7 @@ describe("run stream reattach", () => {
 
   it("does not warn when a cold projection read proves the run already moved", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const recoverProjection = vi.fn(async () => {});
+    const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
     const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>().mockRejectedValue(
       new RpcError({
         code: -32002,
@@ -116,7 +116,7 @@ describe("run stream reattach", () => {
 
   it("does not diagnose a disappeared Runtime as a reattach failure", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const recoverProjection = vi.fn(async () => {});
+    const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
     const subscribe = vi
       .fn<LyraClient["runs"]["subscribe"]>()
       .mockRejectedValue(new RpcConnectionError("fetch failed"));

@@ -4,8 +4,7 @@ import type { AgentRunView, AgentSessionView } from "@/plugins/sdk/types/agentSe
 import { refreshAgentSessionProjection } from "../application/session/refreshSessionProjection";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import type { RunStream } from "./agentRunPump";
-
-const ABORTED = Symbol("agent-session-reattach.aborted");
+import { retireRunStream, settleRunStreamOpening } from "./runStreamOpening";
 
 interface AgentSessionRecoveryOptions {
   client: Pick<LyraClient, "runs">;
@@ -72,8 +71,8 @@ async function attachRootRun(
         { runId: asRunId(run.id), segmentId: asSegmentId(segmentId) },
         controller.signal,
       );
-      const opened = await settleBeforeAbort(opening, controller.signal, disposeRunStream);
-      if (opened === ABORTED) return;
+      const opened = await settleRunStreamOpening(opening, controller.signal);
+      if (!opened) return;
       stream = opened;
     } catch (error) {
       if (options.isCancelled() || controller.signal.aborted) return;
@@ -88,7 +87,10 @@ async function attachRootRun(
       console.warn("[agent] run reattach failed:", options.sessionId, error);
       return;
     }
-    if (options.isCancelled() || controller.signal.aborted) return;
+    if (options.isCancelled() || controller.signal.aborted) {
+      retireRunStream(stream);
+      return;
+    }
     await options.pump(
       {
         result: {
@@ -102,50 +104,5 @@ async function attachRootRun(
     );
   } finally {
     options.signal.removeEventListener("abort", abort);
-  }
-}
-
-function settleBeforeAbort<T>(
-  operation: Promise<T>,
-  signal: AbortSignal,
-  disposeLateValue: (value: T) => void,
-): Promise<T | typeof ABORTED> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const onAbort = () => {
-      if (settled) return;
-      settled = true;
-      signal.removeEventListener("abort", onAbort);
-      resolve(ABORTED);
-    };
-    if (signal.aborted) onAbort();
-    else signal.addEventListener("abort", onAbort, { once: true });
-    operation.then(
-      (value) => {
-        if (settled) {
-          disposeLateValue(value);
-          return;
-        }
-        settled = true;
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener("abort", onAbort);
-        reject(error);
-      },
-    );
-  });
-}
-
-function disposeRunStream(stream: Awaited<ReturnType<LyraClient["runs"]["subscribe"]>>): void {
-  try {
-    const closing = stream.events[Symbol.asyncIterator]().return?.();
-    if (closing) void Promise.resolve(closing).catch(() => undefined);
-  } catch {
-    // The reattach generation is already fenced. Abort remains authoritative
-    // when a foreign iterable cannot be constructed or closed.
   }
 }
