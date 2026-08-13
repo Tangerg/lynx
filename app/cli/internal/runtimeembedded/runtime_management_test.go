@@ -206,9 +206,12 @@ func TestModelConfigurationAdapterPreservesRoleAndSecretMutationSemantics(t *tes
 }
 
 type goalBindingStub struct {
-	t       *testing.T
-	current *protocol.Goal
-	last    string
+	t            *testing.T
+	current      *protocol.Goal
+	startResult  *protocol.Goal
+	stopResult   *protocol.Goal
+	resumeResult *protocol.Goal
+	last         string
 }
 
 func (stub *goalBindingStub) GetGoal(context.Context, protocol.GoalRequest, embedded.CallOptions) (*protocol.Goal, error) {
@@ -220,12 +223,18 @@ func (stub *goalBindingStub) StartGoal(_ context.Context, request protocol.Start
 		stub.t.Fatalf("start goal request = %+v, options = %+v", request, options)
 	}
 	stub.last = "start"
+	if stub.startResult != nil {
+		return stub.startResult, nil
+	}
 	stub.current = activeProtocolGoal()
 	return stub.current, nil
 }
 
 func (stub *goalBindingStub) StopGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error) {
 	stub.last = "stop"
+	if stub.stopResult != nil {
+		return stub.stopResult, nil
+	}
 	stopped := *stub.current
 	stopped.Status = protocol.GoalPaused
 	stopped.Reason = &protocol.GoalReason{Code: protocol.GoalReasonStoppedByUser}
@@ -235,6 +244,9 @@ func (stub *goalBindingStub) StopGoal(context.Context, protocol.GoalRequest, emb
 
 func (stub *goalBindingStub) ResumeGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error) {
 	stub.last = "resume"
+	if stub.resumeResult != nil {
+		return stub.resumeResult, nil
+	}
 	resumed := *stub.current
 	resumed.Status = protocol.GoalActive
 	resumed.Reason = nil
@@ -283,4 +295,55 @@ func TestGoalAdapterRejectsAResponseForAnotherSession(t *testing.T) {
 
 	_, _, err := runtime.GetGoal(t.Context(), "ses_other")
 	requireRuntimeContractViolation(t, err)
+}
+
+func TestGoalAdapterRejectsMutationAcknowledgementDrift(t *testing.T) {
+	t.Parallel()
+	paused := *activeProtocolGoal()
+	paused.Status = protocol.GoalPaused
+	paused.Reason = &protocol.GoalReason{Code: protocol.GoalReasonStoppedByUser}
+	tests := []struct {
+		name   string
+		stub   *goalBindingStub
+		invoke func(*Runtime) error
+	}{
+		{
+			name: "start fields",
+			stub: &goalBindingStub{startResult: func() *protocol.Goal {
+				result := *activeProtocolGoal()
+				result.Objective = "ignored"
+				return &result
+			}()},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.StartGoal(t.Context(), goal.Start{
+					SessionID: "ses_1", Objective: "finish", Budget: goal.Budget{MaxRuns: 3},
+				})
+				return err
+			},
+		},
+		{
+			name: "stop remains active",
+			stub: &goalBindingStub{stopResult: activeProtocolGoal()},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.StopGoal(t.Context(), "ses_1")
+				return err
+			},
+		},
+		{
+			name: "resume remains paused",
+			stub: &goalBindingStub{resumeResult: &paused},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.ResumeGoal(t.Context(), "ses_1")
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			test.stub.t = t
+			runtime := &Runtime{goals: test.stub, meta: requestMeta("test")}
+			requireRuntimeContractViolation(t, test.invoke(runtime))
+		})
+	}
 }

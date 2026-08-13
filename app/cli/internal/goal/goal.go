@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -63,8 +64,9 @@ type Budget struct {
 }
 
 func (budget Budget) Validate() error {
-	if budget.MaxRuns < 0 || budget.MaxCostUSD < 0 || budget.MaxSteps < 0 {
-		return errors.New("goal budget contains a negative limit")
+	if budget.MaxRuns < 0 || budget.MaxCostUSD < 0 || budget.MaxSteps < 0 ||
+		math.IsNaN(budget.MaxCostUSD) || math.IsInf(budget.MaxCostUSD, 0) {
+		return errors.New("goal budget contains a non-finite or negative limit")
 	}
 	return nil
 }
@@ -76,8 +78,9 @@ type Usage struct {
 }
 
 func (usage Usage) Validate() error {
-	if usage.Runs < 0 || usage.CostUSD < 0 || usage.Steps < 0 {
-		return errors.New("goal usage contains a negative value")
+	if usage.Runs < 0 || usage.CostUSD < 0 || usage.Steps < 0 ||
+		math.IsNaN(usage.CostUSD) || math.IsInf(usage.CostUSD, 0) {
+		return errors.New("goal usage contains a non-finite or negative value")
 	}
 	return nil
 }
@@ -117,6 +120,8 @@ func (goal Goal) Validate() error {
 	}
 	if (goal.Provider == "") != (goal.Model == "") {
 		problems = append(problems, errors.New("provider and model must both be set or both be empty"))
+	} else if goal.Provider != strings.TrimSpace(goal.Provider) || goal.Model != strings.TrimSpace(goal.Model) {
+		problems = append(problems, errors.New("provider and model must not have surrounding whitespace"))
 	}
 	problems = append(problems, goal.Budget.Validate(), goal.Used.Validate())
 	if err := errors.Join(problems...); err != nil {
@@ -143,7 +148,47 @@ func (start Start) Validate() error {
 	if (start.Provider == "") != (start.Model == "") {
 		return errors.New("start goal: provider and model must both be set or both be empty")
 	}
+	if start.Provider != strings.TrimSpace(start.Provider) || start.Model != strings.TrimSpace(start.Model) {
+		return errors.New("start goal: provider and model must not have surrounding whitespace")
+	}
 	if err := start.Budget.Validate(); err != nil {
+		return fmt.Errorf("start goal: %w", err)
+	}
+	return nil
+}
+
+// ValidateResult verifies that a successful start acknowledgement represents
+// the fresh objective incarnation requested by the caller.
+func (start Start) ValidateResult(result Goal) error {
+	if err := start.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.SessionID != start.SessionID {
+		problems = append(problems, fmt.Errorf("runtime returned session %q, want %q", result.SessionID, start.SessionID))
+	}
+	if result.Objective != start.Objective {
+		problems = append(problems, fmt.Errorf("runtime returned objective %q, want %q", result.Objective, start.Objective))
+	}
+	if result.Status != Active {
+		problems = append(problems, fmt.Errorf("runtime returned status %q, want %q", result.Status, Active))
+	}
+	if result.Provider != start.Provider || result.Model != start.Model {
+		problems = append(problems, fmt.Errorf(
+			"runtime returned model %q/%q, want %q/%q",
+			result.Provider, result.Model, start.Provider, start.Model,
+		))
+	}
+	if result.Budget != start.Budget {
+		problems = append(problems, fmt.Errorf("runtime returned budget %+v, want %+v", result.Budget, start.Budget))
+	}
+	if result.Used != (Usage{}) {
+		problems = append(problems, fmt.Errorf("runtime returned non-zero usage %+v for a new goal", result.Used))
+	}
+	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("start goal: %w", err)
 	}
 	return nil

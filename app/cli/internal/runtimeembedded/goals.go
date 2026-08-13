@@ -48,15 +48,40 @@ func (r *Runtime) StartGoal(ctx context.Context, start goal.Start) (goal.Goal, e
 		Provider: start.Provider, Model: start.Model,
 		Budget: protocol.GoalBudget{MaxRuns: start.Budget.MaxRuns, MaxCostUSD: start.Budget.MaxCostUSD, MaxSteps: start.Budget.MaxSteps},
 	}, options)
-	return projectGoalResult("start goal", start.SessionID, result, err)
+	projected, err := projectGoalResult("start goal", start.SessionID, result, err)
+	if err != nil {
+		return goal.Goal{}, err
+	}
+	if err := start.ValidateResult(projected); err != nil {
+		return goal.Goal{}, runtimeContractViolation("start goal returned an invalid acknowledgement: %v", err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) StopGoal(ctx context.Context, sessionID string) (goal.Goal, error) {
-	return r.changeGoal(ctx, "stop goal", sessionID, r.goals.StopGoal)
+	projected, err := r.changeGoal(ctx, "stop goal", sessionID, r.goals.StopGoal)
+	if err != nil {
+		return goal.Goal{}, err
+	}
+	if projected.Status == goal.Active {
+		return goal.Goal{}, runtimeContractViolation("stop goal returned an active acknowledgement")
+	}
+	return projected, nil
 }
 
 func (r *Runtime) ResumeGoal(ctx context.Context, sessionID string) (goal.Goal, error) {
-	return r.changeGoal(ctx, "resume goal", sessionID, r.goals.ResumeGoal)
+	projected, err := r.changeGoal(ctx, "resume goal", sessionID, r.goals.ResumeGoal)
+	if err != nil {
+		return goal.Goal{}, err
+	}
+	if projected.Status != goal.Active {
+		return goal.Goal{}, runtimeContractViolation(
+			"resume goal returned status %q, want %q",
+			projected.Status,
+			goal.Active,
+		)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) changeGoal(

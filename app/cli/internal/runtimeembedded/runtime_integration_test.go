@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
+	"github.com/Tangerg/lynx/app/cli/internal/goal"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
@@ -35,11 +36,44 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	forked := requireSessionMutation(t, runtime, created, t.TempDir())
 	requireSessionPortability(t, runtime, forked.ID)
 	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace.Path)
+	requireGoalMutationLifecycle(t, runtime, created.ID)
 	requireContextManagement(t, runtime, created.Workspace.Path)
 	requireAuxiliaryCapabilities(t, runtime, created.ID, created.Workspace.Path)
 	requireExternalAuthoredInvalidations(t, runtime, created.Workspace.Path)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
+}
+
+func requireGoalMutationLifecycle(t *testing.T, runtime *Runtime, sessionID string) {
+	t.Helper()
+	start := goal.Start{
+		SessionID: sessionID, Objective: "verify embedded goal lifecycle",
+		Provider: "missing", Model: "missing", Budget: goal.Budget{MaxRuns: 3},
+	}
+	started, err := runtime.StartGoal(t.Context(), start)
+	if err != nil {
+		t.Fatalf("StartGoal: %v", err)
+	}
+	if err := start.ValidateResult(started); err != nil {
+		t.Fatalf("started goal: %v", err)
+	}
+	stopped, err := runtime.StopGoal(t.Context(), sessionID)
+	if err != nil {
+		t.Fatalf("StopGoal: %v", err)
+	}
+	if stopped.Status == goal.Active {
+		t.Fatalf("stopped goal remained active: %+v", stopped)
+	}
+	resumed, err := runtime.ResumeGoal(t.Context(), sessionID)
+	if err != nil {
+		t.Fatalf("ResumeGoal: %v", err)
+	}
+	if resumed.Status != goal.Active {
+		t.Fatalf("resumed goal = %+v", resumed)
+	}
+	if _, err := runtime.StopGoal(t.Context(), sessionID); err != nil {
+		t.Fatalf("final StopGoal: %v", err)
+	}
 }
 
 func requireExternalAuthoredInvalidations(t *testing.T, runtime *Runtime, workspace string) {
