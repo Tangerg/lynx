@@ -109,7 +109,14 @@ func (adapter *knowledgeAdapter) Save(ctx context.Context, update knowledge.Upda
 	if entry.Scope != target.Scope || entry.Content != update.Content {
 		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned a mismatched entry")
 	}
-	return entry, nil
+	authoritative, err := adapter.Document(ctx, target)
+	if err != nil {
+		return knowledge.Entry{}, err
+	}
+	if authoritative.Content != update.Content {
+		return knowledge.Entry{}, errors.New("verify knowledge update: authoritative document did not converge")
+	}
+	return authoritative, nil
 }
 
 func projectKnowledgeEntry(value protocol.KnowledgeEntry) knowledge.Entry {

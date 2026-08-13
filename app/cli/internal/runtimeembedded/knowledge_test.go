@@ -12,11 +12,13 @@ import (
 )
 
 type knowledgeBindingStub struct {
-	t       *testing.T
-	updates []protocol.UpdateKnowledgeRequest
-	updated time.Time
-	listed  *protocol.Page[protocol.KnowledgeEntry]
-	nilList bool
+	t          *testing.T
+	updates    []protocol.UpdateKnowledgeRequest
+	updated    time.Time
+	listed     *protocol.Page[protocol.KnowledgeEntry]
+	nilList    bool
+	dropUpdate bool
+	getCalls   int
 }
 
 func (stub *knowledgeBindingStub) ListKnowledge(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.KnowledgeEntry], error) {
@@ -61,12 +63,24 @@ func TestKnowledgeAdapterRejectsUnaddressableCatalogs(t *testing.T) {
 
 func (stub *knowledgeBindingStub) GetKnowledge(_ context.Context, request protocol.GetKnowledgeRequest, options embedded.CallOptions) (*protocol.KnowledgeEntry, error) {
 	stub.assertMeta(options.RequestMeta)
+	stub.getCalls++
 	if request.Scope == protocol.KnowledgeScopeHome {
 		if request.Workspace != nil {
 			stub.t.Fatalf("home get leaked workspace: %+v", request)
 		}
 	} else if request.Workspace == nil || request.Workspace.Path != "/workspace" {
 		stub.t.Fatalf("workspace get request = %+v", request)
+	}
+	if !stub.dropUpdate {
+		for index := len(stub.updates) - 1; index >= 0; index-- {
+			update := stub.updates[index]
+			if update.Scope == request.Scope {
+				return &protocol.KnowledgeEntry{
+					Scope: request.Scope, Content: update.Content,
+					Revision: "rev-updated", UpdatedAt: stub.updated,
+				}, nil
+			}
+		}
 	}
 	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: "document", Revision: "rev-document"}, nil
 }
@@ -115,5 +129,24 @@ func TestKnowledgeAdapterKeepsCascadeScopeAndVerbatimContent(t *testing.T) {
 	if len(stub.updates) != 1 || stub.updates[0].Workspace != nil || stub.updates[0].Content != "line one\nline two\n" ||
 		stub.updates[0].ExpectedRevision != "rev-home" {
 		t.Fatalf("updates = %+v", stub.updates)
+	}
+}
+
+func TestKnowledgeAdapterDoesNotAcceptAnUpdateBeforeTheAuthoritativeReadConverges(t *testing.T) {
+	stub := &knowledgeBindingStub{t: t, updated: time.Now(), dropUpdate: true}
+	adapter := &knowledgeAdapter{runtime: &Runtime{knowledge: stub, meta: requestMeta("test")}}
+	target, err := knowledge.NewTarget(knowledge.ProjectRoot, "/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = adapter.Save(t.Context(), knowledge.Update{
+		Target: target, ExpectedRevision: "rev-document", Content: "replacement",
+	})
+	if err == nil {
+		t.Fatal("unconverged knowledge update was accepted")
+	}
+	if stub.getCalls != 1 {
+		t.Fatalf("authoritative reads = %d, want 1", stub.getCalls)
 	}
 }
