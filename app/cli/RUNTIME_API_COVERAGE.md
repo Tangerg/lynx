@@ -7,8 +7,10 @@ protocol DTOs remain confined to `internal/runtimeembedded`; every other package
 uses a CLI-owned domain model and a consumer-owned port.
 
 Baseline date: 2026-08-12
-Runtime API inventory: 87 exported methods
-Production API consumption: 87 methods
+Runtime API inventory: 88 exported methods
+Reviewed API consumption decisions: 88 methods
+Direct production calls: 85 methods
+Aggregate-materialized response contracts: 3 methods
 Queued API consumption: 0 methods
 
 `internal/runtimeembedded` reflects the public method set in tests and assigns
@@ -20,8 +22,8 @@ this ledger and its production consumer are reviewed together.
 
 Status meanings:
 
-- `complete`: a production CLI path calls the method, projects the result, and
-  has deterministic acceptance evidence.
+- `complete`: a production CLI path calls the method, or a declared aggregate
+  materializes its response contract, and deterministic acceptance evidence exists.
 - `partial`: the context is wired, but one or more methods, topics, or user
   surfaces in the row remain.
 - `queued`: the runtime exposes the method, but this CLI has no production
@@ -35,17 +37,18 @@ Every protocol method that returns `Page` but accepts no continuation cursor is
 guarded by one anti-corruption invariant: a non-empty `NextCursor` fails closed
 instead of presenting a silently truncated catalog. Cursor-capable methods
 either expose deliberate user paging (sessions) or exhaust and cycle-check the
-runtime cursor inside the adapter (snapshots, schedules, and workspace files).
+runtime cursor inside the adapter (schedules and workspace files). Cold recovery
+uses the complete, non-paginated `sessions.snapshot` material response.
 
 | Bounded context | Exported embedded methods | Status | Current consumption and remaining work |
 | --- | --- | --- | --- |
 | Runtime lifecycle and discovery | `Discover`, `Close` | complete | Open validates protocol, run stream vocabulary, replay scope, plan recovery, topics, and closes process-owned state. |
 | Runtime invalidations | `SubscribeRuntime` | complete | One logical attach-first observer partitions subscriptions within the negotiated topic/watch limits and consumes every advertised topic: `files.changed`, `skills.changed`, `mcp.changed`, `schedules.changed`, `sessions.changed`, `runs.changed`, `state.changed`, `goals.changed`, `interrupts.changed`, `knowledge.changed`, and `hooks.changed`. Partitioning preserves each workspace watch beside the file, knowledge, and hook topics whose observation it scopes, and assigns file projection ownership to one stream. File events re-read workspace changes; session/run/state/interrupt events re-read the authoritative session without taking ownership from an active stream; all other events refresh only their open projection. Reconnects and sequence gaps resync the affected subscription scope. |
-| Sessions | `CreateSession`, `DeleteSession`, `ForkSession`, `GetSession`, `ListSessions`, `UpdateSession` | complete | Interactive session center, switching, creation, rename, favorite, fork, delete, and cold snapshot recovery. |
+| Sessions | `CreateSession`, `DeleteSession`, `ForkSession`, `GetSession`, `GetSessionSnapshot`, `ListSessions`, `UpdateSession` | complete | Interactive session center, switching, creation, rename, favorite, fork, delete, and cold recovery. Identical metadata projections bracket one transactional `sessions.snapshot`, which replaces the former four-resource cold read without a fallback. |
 | Session portability and rewind | `ExportSession`, `ImportSession`, `RollbackSession` | complete | Runtime-authored Markdown/JSON exports, opaque JSON round-trip import, conflict-safe artifact files, authoritative rollback preview, destructive confirmation, change-before-commit rejection, and cold snapshot reinstall. |
-| Runs | `CancelRun`, `GetRun`, `ListRuns`, `ResumeRun`, `StartRun`, `SubscribeRun` | complete | Core streaming, reconnect/replay, recovery, cancellation, HITL resume, and timeline. `GetRun`/`ListRuns` are consumed by the cold session projection. |
+| Runs | `CancelRun`, `GetRun`, `ListRuns`, `ResumeRun`, `StartRun`, `SubscribeRun` | complete | Core streaming, reconnect/replay, recovery, cancellation, HITL resume, and timeline. Run catalogs support commands and completion; the complete cold projection is materialized by `GetSessionSnapshot`. |
 | Run steering | `SteerRun` | complete | `/steer` binds text and staged attachments to the exact observed run/segment; stale segments fail closed and refused attachments return to the live draft. Queued follow-ups remain a distinct interaction. |
-| Run resources | `GetPlan`, `ListInterrupts`, `ListItems` | complete | Folded into the authoritative cold snapshot and recovery/HITL projections. |
+| Run resources | `GetPlan`, `ListInterrupts`, `ListItems` | complete | These three direct queries are deliberately not called by CLI cold recovery. Their response contracts are aggregate-materialized by `GetSessionSnapshot`, and the executable inventory records that distinct consumption mode so the ledger cannot claim direct calls that no longer exist. |
 | Models | `ListModels` | complete | Provider-qualified model picker and run options. |
 | Model roles | `GetEmbeddingRole`, `GetUtilityRole`, `SetEmbeddingRole`, `SetUtilityRole` | complete | `/roles`, `/utility`, and `/embedding` inspect and mutate the two auxiliary roles without conflating them with the primary run model. |
 | Providers | `ListProviders`, `TestProvider`, `UpdateProvider` | complete | `/providers`, `/provider-test`, and `/provider-config` expose status, endpoint/key changes, structured diagnostics, resize-safe editing, and masked write-only secret handling. |

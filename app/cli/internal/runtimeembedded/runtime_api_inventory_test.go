@@ -18,7 +18,9 @@ func TestRuntimeAPIInventoryHasNoUnreviewedMethods(t *testing.T) {
 	covered := runtimeAPIConsumptionByMethod()
 	validModes := []runtimeConsumptionMode{
 		consumedByLifecycle, consumedByCoreFlow, consumedByCommand, consumedBySideChannel,
+		materializedByAggregate,
 	}
+	var materialized []string
 	for method, consumption := range covered {
 		if consumption.Area == "" || consumption.Entry == "" {
 			t.Fatalf("runtime method %s has no concrete product consumption path: %+v", method, consumption)
@@ -26,6 +28,13 @@ func TestRuntimeAPIInventoryHasNoUnreviewedMethods(t *testing.T) {
 		if !slices.Contains(validModes, consumption.Mode) {
 			t.Fatalf("runtime method %s has invalid consumption mode %q", method, consumption.Mode)
 		}
+		if consumption.Mode == materializedByAggregate {
+			materialized = append(materialized, method)
+		}
+	}
+	slices.Sort(materialized)
+	if want := []string{"GetPlan", "ListInterrupts", "ListItems"}; !slices.Equal(materialized, want) {
+		t.Fatalf("aggregate-materialized runtime methods = %v, want %v", materialized, want)
 	}
 
 	runtimeType := reflect.TypeFor[*embedded.Runtime]()
@@ -229,10 +238,11 @@ func compatibleDiscovery() *protocol.DiscoverResponse {
 type runtimeConsumptionMode string
 
 const (
-	consumedByLifecycle   runtimeConsumptionMode = "lifecycle"
-	consumedByCoreFlow    runtimeConsumptionMode = "core-flow"
-	consumedByCommand     runtimeConsumptionMode = "command"
-	consumedBySideChannel runtimeConsumptionMode = "side-channel"
+	consumedByLifecycle     runtimeConsumptionMode = "lifecycle"
+	consumedByCoreFlow      runtimeConsumptionMode = "core-flow"
+	consumedByCommand       runtimeConsumptionMode = "command"
+	consumedBySideChannel   runtimeConsumptionMode = "side-channel"
+	materializedByAggregate runtimeConsumptionMode = "aggregate-materialized"
 )
 
 type runtimeAPIConsumption struct {
@@ -309,15 +319,21 @@ func runtimeAPIConsumptionByMethod() map[string]runtimeAPIConsumption {
 	sideChannel := func(area, entry string) runtimeAPIConsumption {
 		return runtimeAPIConsumption{Area: area, Mode: consumedBySideChannel, Entry: entry}
 	}
+	materialized := func(area, entry string) runtimeAPIConsumption {
+		return runtimeAPIConsumption{Area: area, Mode: materializedByAggregate, Entry: entry}
+	}
 	return map[string]runtimeAPIConsumption{
 		"Discover": lifecycle("lifecycle", "startup negotiation, capability gates, TUI status, and runtime info"),
 		"Close":    lifecycle("lifecycle", "process-owned backend shutdown"),
 
-		"CreateSession":   flow("sessions", "interactive and one-shot session opening"),
-		"DeleteSession":   command("sessions", "sessions delete"),
-		"ExportSession":   command("sessions", "TUI /export"),
-		"ForkSession":     command("sessions", "sessions fork and TUI /fork"),
-		"GetSession":      flow("sessions", "cold restore, recovery, and sessions show"),
+		"CreateSession": flow("sessions", "interactive and one-shot session opening"),
+		"DeleteSession": command("sessions", "sessions delete"),
+		"ExportSession": command("sessions", "TUI /export"),
+		"ForkSession":   command("sessions", "sessions fork and TUI /fork"),
+		"GetSession":    flow("sessions", "cold restore, recovery, and sessions show"),
+		"GetSessionSnapshot": flow(
+			"sessions", "transactional Items, Runs, Interrupts, and Plan cold restore",
+		),
 		"ImportSession":   command("sessions", "TUI /import"),
 		"ListSessions":    command("sessions", "sessions ls, completion, and session picker"),
 		"RollbackSession": command("sessions", "TUI /rollback"),
@@ -325,15 +341,15 @@ func runtimeAPIConsumptionByMethod() map[string]runtimeAPIConsumption {
 
 		"CancelRun":    command("runs", "run cleanup, TUI stop, and runs cancel"),
 		"GetRun":       command("runs", "runs show"),
-		"ListRuns":     command("runs", "runs ls/completion and cold session projection"),
+		"ListRuns":     command("runs", "runs ls and completion; cold material projection comes from sessions.snapshot"),
 		"ResumeRun":    flow("runs", "HITL continuation"),
 		"StartRun":     flow("runs", "interactive and one-shot execution"),
 		"SteerRun":     command("runs", "TUI /steer"),
 		"SubscribeRun": flow("runs", "stream recovery and reattachment"),
 
-		"GetPlan":        flow("run resources", "authoritative cold session projection"),
-		"ListInterrupts": flow("run resources", "HITL cold restore"),
-		"ListItems":      flow("run resources", "authoritative transcript restore"),
+		"GetPlan":        materialized("run resources", "response contract materialized atomically by sessions.snapshot"),
+		"ListInterrupts": materialized("run resources", "response contract materialized atomically by sessions.snapshot"),
+		"ListItems":      materialized("run resources", "response contract materialized atomically by sessions.snapshot"),
 
 		"SubscribeRuntime": sideChannel("runtime events", "TUI invalidation and workspace file-change monitor"),
 

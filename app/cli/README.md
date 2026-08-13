@@ -81,7 +81,7 @@ Architecture tests prevent the domain from importing Cobra, Viper, oolong, rende
 
 [`internal/runtimeembedded`](internal/runtimeembedded) implements the consumer-owned agent, workspace, and changefeed ports against `app/runtime/embedded` and `app/runtime/protocol`. [`internal/backend`](internal/backend) assembles those ports for the composition root; use cases still receive only the capability they consume. The boundary preserves these contracts:
 
-- assemble cold snapshots from session metadata, every durable Item (including its `runId` and running/completed/incomplete lifecycle), root Runs, the revisioned Plan state, and the complete pending Interrupt set;
+- bind identical session metadata projections around one transactional `sessions.snapshot` read of every durable Item (including its `runId` and running/completed/incomplete lifecycle), negotiated root/child Runs, revisioned Plan state, and complete pending Interrupt set;
 - give every mutation a cryptographically strong idempotency key and return the Segment stream opened by `runs.start` or `runs.resume` atomically;
 - subscribe to the exact `runId` + `segmentId`, carrying the opaque event checkpoint through transport metadata without parsing or ordering it;
 - map waiting, finished, stale-segment, invalid-cursor, and replay-unavailable errors by identity so the client can switch to cold recovery;
@@ -103,7 +103,7 @@ Architecture tests prevent the domain from importing Cobra, Viper, oolong, rende
 
 `main.go` is the composition root. It installs a lazy process-level owner; command help and static completion do not open databases or model clients. Protocol DTOs, request metadata, replay options, inline media, tool-result JSON, capability negotiation, and structured runtime errors are all confined to the adapter. The command tree, TUI, renderers, attachment handling, and extension system depend only on the CLI projection.
 
-[`RUNTIME_API_COVERAGE.md`](RUNTIME_API_COVERAGE.md) inventories all 87 exported embedded methods and records the production surface and acceptance evidence required before each bounded context is marked complete. A reflection-based contract test fails whenever that public method set drifts, so a new backend API cannot remain silently unreviewed.
+[`RUNTIME_API_COVERAGE.md`](RUNTIME_API_COVERAGE.md) inventories all 88 exported embedded methods and records the production surface and acceptance evidence required before each bounded context is marked complete. A reflection-based contract test fails whenever that public method set drifts, so a new backend API cannot remain silently unreviewed.
 
 ## Configuration
 

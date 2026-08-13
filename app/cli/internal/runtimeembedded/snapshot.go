@@ -1,6 +1,7 @@
 package runtimeembedded
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"reflect"
@@ -15,9 +16,7 @@ import (
 
 type snapshotBinding interface {
 	GetSession(context.Context, protocol.GetSessionRequest, embedded.CallOptions) (*protocol.Session, error)
-	GetPlan(context.Context, protocol.GetPlanRequest, embedded.CallOptions) (*protocol.StateSnapshot, error)
-	ListItems(context.Context, protocol.ListItemsRequest, embedded.CallOptions) (*protocol.ListItemsResponse, error)
-	ListInterrupts(context.Context, protocol.ListInterruptsRequest, embedded.CallOptions) (*protocol.Page[protocol.PendingInterruptSet], error)
+	GetSessionSnapshot(context.Context, protocol.GetSessionSnapshotRequest, embedded.CallOptions) (*protocol.SessionSnapshot, error)
 }
 
 const snapshotStabilityAttempts = 8
@@ -30,22 +29,26 @@ type coldRead struct {
 	interrupts []protocol.PendingInterruptSet
 }
 
-// GetSession builds one stable cold projection from independently paginated
-// runtime resources. Two equal lifecycle reads are required because the public
-// protocol intentionally exposes resources rather than a binding-specific
-// transaction handle.
+// GetSession binds independently owned Session metadata to one transactionally
+// coherent material snapshot. Identical metadata projections around the read
+// prove that its lifecycle cannot belong to a different Session generation.
 func (r *Runtime) GetSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
-	previous, err := r.readCold(ctx, sessionID)
+	previous, err := r.readSession(ctx, sessionID)
 	if err != nil {
 		return agent.SessionSnapshot{}, err
 	}
 	for range snapshotStabilityAttempts {
-		current, err := r.readCold(ctx, sessionID)
+		material, err := r.readMaterialSnapshot(ctx, sessionID)
 		if err != nil {
 			return agent.SessionSnapshot{}, err
 		}
-		if coldReadsAgree(previous, current) {
-			projected, err := projectSnapshot(current)
+		current, err := r.readSession(ctx, sessionID)
+		if err != nil {
+			return agent.SessionSnapshot{}, err
+		}
+		if reflect.DeepEqual(previous, current) {
+			material.session = current
+			projected, err := projectSnapshot(material)
 			if err != nil {
 				return agent.SessionSnapshot{}, runtimeContractViolation("get session projection is invalid: %v", err)
 			}
@@ -56,146 +59,37 @@ func (r *Runtime) GetSession(ctx context.Context, sessionID string) (agent.Sessi
 	return agent.SessionSnapshot{}, fmt.Errorf("%w: session %s changed throughout cold recovery", agent.ErrDisconnected, sessionID)
 }
 
-func (r *Runtime) readCold(ctx context.Context, sessionID string) (coldRead, error) {
+func (r *Runtime) readSession(ctx context.Context, sessionID string) (protocol.Session, error) {
 	session, err := r.snapshot.GetSession(ctx, protocol.GetSessionRequest{SessionID: sessionID}, r.callOptions())
+	if err != nil {
+		return protocol.Session{}, classifyError(err)
+	}
+	if session == nil {
+		return protocol.Session{}, runtimeContractViolation("get session returned nil")
+	}
+	return *session, nil
+}
+
+func (r *Runtime) readMaterialSnapshot(ctx context.Context, sessionID string) (coldRead, error) {
+	snapshot, err := r.snapshot.GetSessionSnapshot(ctx, protocol.GetSessionSnapshotRequest{
+		SessionID: sessionID, IncludeDescendants: r.profile.Supports(runtimeprofile.FeatureSubagents),
+	}, r.callOptions())
 	if err != nil {
 		return coldRead{}, classifyError(err)
 	}
-	if session == nil {
-		return coldRead{}, runtimeContractViolation("get session returned nil")
+	if snapshot == nil {
+		return coldRead{}, runtimeContractViolation("get session snapshot returned nil")
 	}
-	runs, err := r.listAllRuns(ctx, sessionID)
-	if err != nil {
-		return coldRead{}, err
+	planEnabled := r.profile.Supports(runtimeprofile.FeaturePlan)
+	if planEnabled && snapshot.State == nil {
+		return coldRead{}, runtimeContractViolation("get session snapshot omitted state while the plan feature is enabled")
 	}
-	items, err := r.listAllItems(ctx, sessionID)
-	if err != nil {
-		return coldRead{}, err
+	if !planEnabled && snapshot.State != nil {
+		return coldRead{}, runtimeContractViolation("get session snapshot returned state while the plan feature is disabled")
 	}
-	plan, err := r.readPlan(ctx, sessionID)
-	if err != nil {
-		return coldRead{}, err
-	}
-	interrupts, err := r.listAllInterrupts(ctx, sessionID)
-	if err != nil {
-		return coldRead{}, err
-	}
-	return coldRead{session: *session, runs: runs, items: items, plan: plan, interrupts: interrupts}, nil
-}
-
-func (r *Runtime) readPlan(ctx context.Context, sessionID string) (*protocol.StateSnapshot, error) {
-	if !r.profile.Supports(runtimeprofile.FeaturePlan) {
-		return nil, nil
-	}
-	plan, err := r.snapshot.GetPlan(ctx, protocol.GetPlanRequest{SessionID: sessionID}, r.callOptions())
-	if err != nil {
-		return nil, classifyError(err)
-	}
-	if plan == nil {
-		return nil, runtimeContractViolation("get plan returned nil while the plan feature is enabled")
-	}
-	return plan, nil
-}
-
-func (r *Runtime) listAllRuns(ctx context.Context, sessionID string) ([]protocol.RunRef, error) {
-	var values []protocol.RunRef
-	cursors := newCursorTraversal("list runs", "")
-	for {
-		cursor := cursors.Current()
-		page, err := r.runCatalog.ListRuns(ctx, protocol.ListRunsRequest{
-			SessionID:          sessionID,
-			IncludeDescendants: r.profile.Supports(runtimeprofile.FeatureSubagents),
-			PageQuery:          protocol.PageQuery{Limit: 100, Cursor: cursor},
-		}, r.callOptions())
-		if err != nil {
-			return nil, classifyError(err)
-		}
-		if page == nil {
-			return nil, runtimeContractViolation("list runs returned a nil page")
-		}
-		values = append(values, page.Data...)
-		more, err := cursors.Advance(page.NextCursor)
-		if err != nil {
-			return nil, err
-		}
-		if !more {
-			return values, nil
-		}
-	}
-}
-
-func (r *Runtime) listAllItems(ctx context.Context, sessionID string) ([]protocol.Item, error) {
-	var values []protocol.Item
-	cursors := newCursorTraversal("list items", "")
-	for {
-		cursor := cursors.Current()
-		page, err := r.snapshot.ListItems(ctx, protocol.ListItemsRequest{
-			Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: sessionID},
-			Order: protocol.ItemOrderAsc, PageQuery: protocol.PageQuery{Limit: 200, Cursor: cursor},
-		}, r.callOptions())
-		if err != nil {
-			return nil, classifyError(err)
-		}
-		if page == nil {
-			return nil, runtimeContractViolation("list items returned a nil page")
-		}
-		values = append(values, page.Data...)
-		more, err := cursors.Advance(page.NextCursor)
-		if err != nil {
-			return nil, err
-		}
-		if !more {
-			return values, nil
-		}
-	}
-}
-
-func (r *Runtime) listAllInterrupts(ctx context.Context, sessionID string) ([]protocol.PendingInterruptSet, error) {
-	var values []protocol.PendingInterruptSet
-	cursors := newCursorTraversal("list interrupts", "")
-	for {
-		cursor := cursors.Current()
-		page, err := r.snapshot.ListInterrupts(ctx, protocol.ListInterruptsRequest{
-			SessionID: sessionID, PageQuery: protocol.PageQuery{Limit: 100, Cursor: cursor},
-		}, r.callOptions())
-		if err != nil {
-			return nil, classifyError(err)
-		}
-		if page == nil {
-			return nil, runtimeContractViolation("list interrupts returned a nil page")
-		}
-		values = append(values, page.Data...)
-		more, err := cursors.Advance(page.NextCursor)
-		if err != nil {
-			return nil, err
-		}
-		if !more {
-			return values, nil
-		}
-	}
-}
-
-func coldReadsAgree(first, second coldRead) bool {
-	if !reflect.DeepEqual(first.session, second.session) ||
-		!reflect.DeepEqual(first.items, second.items) ||
-		!reflect.DeepEqual(first.plan, second.plan) ||
-		!reflect.DeepEqual(first.interrupts, second.interrupts) ||
-		len(first.runs) != len(second.runs) {
-		return false
-	}
-	for index := range first.runs {
-		if !sameRunLifecycle(first.runs[index], second.runs[index]) {
-			return false
-		}
-	}
-	return true
-}
-
-func sameRunLifecycle(first, second protocol.RunRef) bool {
-	return reflect.DeepEqual(first.RunSummary, second.RunSummary) &&
-		first.ActiveSegmentID == second.ActiveSegmentID &&
-		reflect.DeepEqual(first.Limits, second.Limits) &&
-		reflect.DeepEqual(first.ProtocolProfile, second.ProtocolProfile)
+	return coldRead{
+		runs: snapshot.Runs, items: snapshot.Items, plan: snapshot.State, interrupts: snapshot.Interrupts,
+	}, nil
 }
 
 func projectSnapshot(read coldRead) (agent.SessionSnapshot, error) {
@@ -211,8 +105,12 @@ func projectSnapshot(read coldRead) (agent.SessionSnapshot, error) {
 		}
 		snapshot.Transcript = append(snapshot.Transcript, block)
 	}
-	snapshot.Runs = make([]agent.Run, 0, len(read.runs))
-	for _, value := range slices.Backward(read.runs) {
+	orderedRuns := slices.Clone(read.runs)
+	slices.SortFunc(orderedRuns, func(first, second protocol.RunRef) int {
+		return cmp.Or(first.CreatedAt.Compare(second.CreatedAt), cmp.Compare(first.ID, second.ID))
+	})
+	snapshot.Runs = make([]agent.Run, 0, len(orderedRuns))
+	for _, value := range orderedRuns {
 		run, err := projectRun(value)
 		if err != nil {
 			return agent.SessionSnapshot{}, err
