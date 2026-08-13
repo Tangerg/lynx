@@ -131,6 +131,15 @@ export async function initializeDesktopHost(): Promise<void> {
   desktopBootstrap = await instance.desktop.bootstrap();
 }
 
+/** Begin final application teardown. The composition root only closes the
+ * client it created; gateways injected by an embedding test remain externally
+ * owned. Calling this from beforeunload is useful even though browsers do not
+ * await it: LyraClient releases its journal lease synchronously before joining
+ * the HTTP receive loop. */
+export function disposeContainer(): Promise<void> {
+  return defaultOwner.dispose();
+}
+
 /** Test seam — restore every gateway to its default wiring. Call from
  *  `afterEach` so one test's stubs don't bleed into the next. */
 export async function resetContainer(): Promise<void> {

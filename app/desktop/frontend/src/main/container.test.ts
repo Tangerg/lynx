@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DesktopHostClient, LyraClient } from "@/rpc";
-import { getContainer, initializeDesktopHost, resetContainer, setContainer } from "./container";
+import {
+  disposeContainer,
+  getContainer,
+  initializeDesktopHost,
+  resetContainer,
+  setContainer,
+} from "./container";
 
 describe("main/container", () => {
   afterEach(resetContainer);
@@ -36,6 +42,25 @@ describe("main/container", () => {
 
     expect(closeFirst).toHaveBeenCalledOnce();
     expect(getContainer().client()).not.toBe(first);
+  });
+
+  it("joins the owned client during final application teardown", async () => {
+    const client = getContainer().client();
+    const close = vi.spyOn(client, "close");
+
+    await disposeContainer();
+
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("does not close a client injected by an external owner", async () => {
+    const close = vi.fn(async () => {});
+    const external = { close } as unknown as LyraClient;
+    setContainer({ client: () => external });
+
+    await disposeContainer();
+
+    expect(close).not.toHaveBeenCalled();
   });
 
   it("closes and rebuilds the shared client after a local token hot swap", async () => {

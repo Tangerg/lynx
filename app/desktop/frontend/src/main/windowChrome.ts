@@ -42,6 +42,8 @@ export async function applyWindowChrome(): Promise<void> {
 
 /** Keeps the geometry current for as long as the window lives. Resize is the one event
  *  every fullscreen transition and display change has in common. */
-export function watchWindowChrome(): void {
-  addEventListener("resize", () => void applyWindowChrome());
+export function watchWindowChrome(): () => void {
+  const refresh = () => void applyWindowChrome();
+  addEventListener("resize", refresh);
+  return () => removeEventListener("resize", refresh);
 }

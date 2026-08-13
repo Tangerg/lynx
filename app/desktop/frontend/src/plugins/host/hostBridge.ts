@@ -35,6 +35,17 @@ export interface LyraHostBridge {
 
 let bridgeInstalled = false;
 let beforeUnloadHandler: (() => void) | null = null;
+let hostTeardown: (() => void) | null = null;
+
+/** Install the application composition root's final synchronous teardown.
+ * Plugin handlers run first; the host owner then starts closing infrastructure
+ * without asking plugin or product layers to know about it. */
+export function configureHostTeardown(teardown: () => void): () => void {
+  hostTeardown = teardown;
+  return () => {
+    if (hostTeardown === teardown) hostTeardown = null;
+  };
+}
 
 export function publishHostBridge(): void {
   if (typeof window === "undefined") return;
@@ -55,6 +66,7 @@ export function publishHostBridge(): void {
     for (const o of lookupExtensionOwnedEntries(BEFORE_UNLOAD_HANDLER)) {
       safeCall(() => o.item(), `[plugin] ${o.pluginName} onBeforeUnload threw:`);
     }
+    if (hostTeardown) safeCall(hostTeardown, "[desktop] host teardown threw:");
   };
   window.addEventListener("beforeunload", beforeUnloadHandler);
 }
@@ -65,4 +77,5 @@ disposeOnHmr(() => {
     beforeUnloadHandler = null;
   }
   bridgeInstalled = false;
+  hostTeardown = null;
 });

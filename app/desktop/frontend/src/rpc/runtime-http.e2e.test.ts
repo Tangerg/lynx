@@ -597,6 +597,64 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let providerGate: ProviderGate | undefined;
   let client: LyraClient | undefined;
   let processOutput = "";
+  let runtimeExecutable = "";
+  let runtimePort = 0;
+
+  const runtimeEnvironment = () => ({
+    ...process.env,
+    HOME: runtimeHome,
+    LYRA_HOME: runtimeData,
+    LYRA_PROVIDER: "openai-compatible",
+    LYRA_MODEL: "e2e-model",
+    LYRA_APIKEY: "e2e-placeholder-key",
+    LYRA_BASEURL: providerBaseUrl,
+    OPENAI_COMPATIBLE_API_KEY: "e2e-placeholder-key",
+    OPENAI_API_KEY: "",
+    LYRA_SERVER_LISTEN: `127.0.0.1:${runtimePort}`,
+    LYRA_SERVER_NOLOCALTOKEN: "true",
+    LYRA_MCP_SERVERS: "",
+    LYRA_A2A_AGENTS: "",
+    OTEL_SDK_DISABLED: "true",
+  });
+
+  const startRuntimeProcess = async () => {
+    const { spawn } = await import("node:child_process");
+    processOutput = "";
+    runtime = spawn(runtimeExecutable, [], {
+      cwd: root,
+      env: runtimeEnvironment(),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    runtime.stdout?.on("data", (chunk: Buffer) => {
+      processOutput += chunk.toString();
+    });
+    runtime.stderr?.on("data", (chunk: Buffer) => {
+      processOutput += chunk.toString();
+    });
+    await waitUntilReady(baseUrl, () => processOutput);
+  };
+
+  const stopRuntimeProcess = async () => {
+    const child = runtime;
+    if (!child || child.exitCode !== null) return;
+    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+    child.kill("SIGTERM");
+    try {
+      await within(exited, "Runtime graceful shutdown");
+    } catch {
+      if (child.exitCode === null) child.kill("SIGKILL");
+      await within(exited, "Runtime forced shutdown");
+    }
+  };
+
+  const createRuntimeClient = () =>
+    createLyraClient(createHttpTransport({ baseUrl, fetch: isolatedFetch }), {
+      requestMeta: () => ({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "runtime-http-e2e", version: "1" },
+        clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+      }),
+    });
 
   beforeAll(async () => {
     environmentRoot = await mkdtemp(join(tmpdir(), "lyra-runtime-e2e-"));
@@ -712,67 +770,20 @@ for await (const line of lines) {
     }
     providerBaseUrl = `http://127.0.0.1:${providerAddress.port}`;
 
-    const executable = join(environmentRoot, "lyra-e2e");
-    await execFileAsync("go", ["build", "-o", executable, "./cmd/lyra"], {
+    runtimeExecutable = join(environmentRoot, "lyra-e2e");
+    await execFileAsync("go", ["build", "-o", runtimeExecutable, "./cmd/lyra"], {
       cwd: runtimeDirectory,
     });
 
-    const port = await unusedLoopbackPort();
-    baseUrl = `http://127.0.0.1:${port}`;
-    const { spawn } = await import("node:child_process");
-    runtime = spawn(executable, [], {
-      cwd: root,
-      env: {
-        ...process.env,
-        HOME: runtimeHome,
-        LYRA_HOME: runtimeData,
-        LYRA_PROVIDER: "openai-compatible",
-        LYRA_MODEL: "e2e-model",
-        LYRA_APIKEY: "e2e-placeholder-key",
-        LYRA_BASEURL: providerBaseUrl,
-        OPENAI_COMPATIBLE_API_KEY: "e2e-placeholder-key",
-        OPENAI_API_KEY: "",
-        LYRA_SERVER_LISTEN: `127.0.0.1:${port}`,
-        LYRA_SERVER_NOLOCALTOKEN: "true",
-        LYRA_MCP_SERVERS: "",
-        LYRA_A2A_AGENTS: "",
-        OTEL_SDK_DISABLED: "true",
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    runtime.stdout?.on("data", (chunk: Buffer) => {
-      processOutput += chunk.toString();
-    });
-    runtime.stderr?.on("data", (chunk: Buffer) => {
-      processOutput += chunk.toString();
-    });
-    await waitUntilReady(baseUrl, () => processOutput);
-
-    client = createLyraClient(createHttpTransport({ baseUrl, fetch: isolatedFetch }), {
-      requestMeta: () => ({
-        protocolVersion: PROTOCOL_VERSION,
-        clientInfo: { name: "runtime-http-e2e", version: "1" },
-        clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
-      }),
-    });
+    runtimePort = await unusedLoopbackPort();
+    baseUrl = `http://127.0.0.1:${runtimePort}`;
+    await startRuntimeProcess();
+    client = createRuntimeClient();
   }, 60_000);
 
   afterAll(async () => {
     await client?.close();
-    if (runtime?.exitCode === null) {
-      runtime.kill("SIGTERM");
-      await new Promise<void>((resolve) => {
-        const onExit = () => finish();
-        const timer = setTimeout(() => finish(), 5_000);
-        const finish = () => {
-          clearTimeout(timer);
-          runtime?.off("exit", onExit);
-          resolve();
-        };
-        runtime?.once("exit", onExit);
-      });
-      if (runtime.exitCode === null) runtime.kill("SIGKILL");
-    }
+    await stopRuntimeProcess();
     if (provider?.listening) {
       await new Promise<void>((resolve, reject) =>
         provider?.close((error) => (error ? reject(error) : resolve())),
@@ -3969,5 +3980,46 @@ for await (const line of lines) {
       (error: unknown) =>
         error instanceof RpcError && errorType(error.data) === "path_outside_root",
     );
+  }, 30_000);
+
+  it("reopens durable reads and event reconciliation after a Runtime process restart", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const beforeRestart = await client.runtime.discover();
+    const durable = await client.sessions.create({ title: "HTTP restart durability" });
+    await client.close();
+    client = undefined;
+    await stopRuntimeProcess();
+
+    await startRuntimeProcess();
+    client = createRuntimeClient();
+
+    await expect(client.runtime.discover()).resolves.toMatchObject({
+      capabilities: {
+        limits: {
+          idempotency: {
+            namespace: beforeRestart.capabilities.limits.idempotency.namespace,
+          },
+        },
+      },
+    });
+    await expect(client.sessions.get(asSessionId(durable.id))).resolves.toMatchObject({
+      id: durable.id,
+      title: durable.title,
+    });
+
+    const controller = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["sessions.changed"] },
+      controller.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+    const created = await client.sessions.create({ title: "HTTP restart event" });
+    await expect(nextRuntimeEvent(events, "sessions.changed")).resolves.toMatchObject({
+      type: "sessions.changed",
+      sessionIds: [created.id],
+    });
+    controller.abort();
+    await events.return?.();
   }, 30_000);
 });

@@ -1,7 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { initializeDesktopHost } from "./main/container";
+import { disposeContainer, initializeDesktopHost } from "./main/container";
 import { applyWindowChrome, watchWindowChrome } from "./main/windowChrome";
+import { configureHostTeardown, publishHostBridge } from "./plugins/host/hostBridge";
 // Fonts: the native OS stack (SF Pro / PingFang on macOS) — see globals.css
 // --font-sans. No bundled webfont; the system face is the premium, native
 // default, loads instantly, and renders mixed CJK best.
@@ -19,6 +20,17 @@ import "./styles/globals.css";
 // agent subscribe, ref-counted plugin loader, etc.) for true double-invoke
 // safety.
 
+let stopWatchingWindowChrome = () => {};
+configureHostTeardown(() => {
+  stopWatchingWindowChrome();
+  void disposeContainer().catch((error: unknown) => {
+    console.error("[desktop] teardown failed:", error);
+  });
+});
+// Install the bridge and its one beforeunload listener before asynchronous
+// bootstrap. PluginProvider republishes the same idempotent bridge after mount.
+publishHostBridge();
+
 async function start(): Promise<void> {
   try {
     await initializeDesktopHost();
@@ -28,7 +40,7 @@ async function start(): Promise<void> {
   // Before the first render: the header's height comes from the window frame, and
   // laying it out at the declared height first would move every row on screen once.
   await applyWindowChrome();
-  watchWindowChrome();
+  stopWatchingWindowChrome = watchWindowChrome();
   const container = document.getElementById("root");
   createRoot(container!).render(<App />);
 }
