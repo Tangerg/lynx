@@ -231,11 +231,15 @@ func (i *Instance) Close() error {
 	if !i.stopping {
 		i.stopping = true
 		i.service.Close()
+		i.endpoint.BeginShutdown()
 		i.stopRuntime()
 	}
 
 	waitContext, cancel := context.WithTimeout(context.Background(), instanceShutdownTimeout)
 	defer cancel()
+	if err := i.endpoint.AwaitShutdown(waitContext); err != nil {
+		return err
+	}
 	select {
 	case <-i.schedulerDone:
 	case <-waitContext.Done():

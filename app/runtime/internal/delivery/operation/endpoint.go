@@ -32,7 +32,7 @@ type Result struct {
 type Endpoint struct {
 	service     Service
 	idempotency *replayStore
-	lifetime    context.Context
+	invocations *invocationGroup
 }
 
 // Config supplies durable operation mechanisms. A nil IdempotencyStore selects
@@ -55,13 +55,39 @@ func New(service Service, config Config) *Endpoint {
 	if lifetime == nil {
 		lifetime = context.Background()
 	}
-	return &Endpoint{service: service, idempotency: newReplayStore(store), lifetime: lifetime}
+	return &Endpoint{
+		service:     service,
+		idempotency: newReplayStore(store),
+		invocations: newInvocationGroup(lifetime),
+	}
+}
+
+// BeginShutdown rejects new calls and cancels every accepted call or stream.
+// The Runtime owner follows it with AwaitShutdown before closing dependencies.
+func (e *Endpoint) BeginShutdown() {
+	if e == nil || e.invocations == nil {
+		return
+	}
+	e.invocations.BeginShutdown()
+}
+
+// AwaitShutdown waits until every accepted call or stream source has returned.
+// It does not begin shutdown so process owners can broadcast all cancellation
+// signals before joining any one component.
+func (e *Endpoint) AwaitShutdown(ctx context.Context) error {
+	if e == nil || e.invocations == nil {
+		return nil
+	}
+	return e.invocations.AwaitShutdown(ctx)
 }
 
 // Invoke validates and executes the named operation through the catalog's
 // capability, idempotency and safe-problem policies.
 func (e *Endpoint) Invoke(ctx context.Context, name string, parameters any, options Options) Result {
-	ctx, release := bindLifetime(ctx, e.lifetime)
+	ctx, release, admitted := e.invocations.Attach(ctx)
+	if !admitted {
+		return failed(ProjectError(context.Canceled))
+	}
 	method, ok := contract.lookup(name)
 	if !ok {
 		release()
@@ -100,29 +126,8 @@ func (e *Endpoint) Invoke(ctx context.Context, name string, parameters any, opti
 		release()
 		return result
 	}
-	result.Events = releaseAfterEvents(result.Events, release)
+	result.Events = ownStream(ctx, result.Events, release)
 	return result
-}
-
-func bindLifetime(call, lifetime context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(call)
-	stop := context.AfterFunc(lifetime, cancel)
-	select {
-	case <-lifetime.Done():
-		cancel()
-	default:
-	}
-	return ctx, func() {
-		stop()
-		cancel()
-	}
-}
-
-func releaseAfterEvents(events iter.Seq2[any, error], release context.CancelFunc) iter.Seq2[any, error] {
-	return func(yield func(any, error) bool) {
-		defer release()
-		events(yield)
-	}
 }
 
 func (e *Endpoint) execute(ctx context.Context, method *Method, parameters any) Result {

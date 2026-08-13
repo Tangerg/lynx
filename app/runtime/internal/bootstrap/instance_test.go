@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -160,5 +161,110 @@ func TestInstanceCloseRetainsLeaseUntilHostJoins(t *testing.T) {
 	}
 	if err := next.release(); err != nil {
 		t.Fatalf("release next lease: %v", err)
+	}
+}
+
+type blockingInstanceOperationService struct {
+	operation.Service
+	started  chan struct{}
+	canceled chan struct{}
+	release  chan struct{}
+	startOne sync.Once
+}
+
+func (s *blockingInstanceOperationService) Discover(ctx context.Context) (*protocol.DiscoverResponse, error) {
+	s.startOne.Do(func() { close(s.started) })
+	<-ctx.Done()
+	close(s.canceled)
+	<-s.release
+	return nil, ctx.Err()
+}
+
+func TestInstanceCloseJoinsAcceptedOperationsBeforeClosingResources(t *testing.T) {
+	directory := t.TempDir()
+	lease, err := acquireDataDirectoryLease(directory)
+	if err != nil {
+		t.Fatalf("acquire lease: %v", err)
+	}
+	runtimeContext, stopRuntime := context.WithCancel(context.Background())
+	service := &blockingInstanceOperationService{
+		started:  make(chan struct{}),
+		canceled: make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	endpoint := operation.New(service, operation.Config{Lifetime: runtimeContext})
+	schedulerDone := make(chan struct{})
+	close(schedulerDone)
+	resourceClosed := make(chan struct{})
+	instance := &Instance{
+		endpoint: endpoint,
+		service:  &runtimeserver.Server{},
+		host: &Host{lifetime: &hostLifetime{hostResources: []ShutdownResource{
+			shutdownResourceFunc(func(context.Context) error {
+				close(resourceClosed)
+				return nil
+			}),
+		}}},
+		lease:         lease,
+		stopRuntime:   stopRuntime,
+		schedulerDone: schedulerDone,
+	}
+
+	callDone := make(chan struct{})
+	go func() {
+		defer close(callDone)
+		endpoint.Invoke(t.Context(), "runtime.discover", struct{}{}, operation.Options{})
+	}()
+	select {
+	case <-service.started:
+	case <-time.After(time.Second):
+		t.Fatal("operation did not start")
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- instance.Close() }()
+	select {
+	case <-service.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("operation did not observe Close cancellation")
+	}
+
+	var resourceClosedEarly, closeReturnedEarly bool
+	select {
+	case <-resourceClosed:
+		resourceClosedEarly = true
+	case <-time.After(50 * time.Millisecond):
+	}
+	select {
+	case <-closeDone:
+		closeReturnedEarly = true
+	default:
+	}
+
+	close(service.release)
+	select {
+	case <-callDone:
+	case <-time.After(time.Second):
+		t.Fatal("released operation did not return")
+	}
+	if !resourceClosedEarly {
+		select {
+		case <-resourceClosed:
+		case <-time.After(time.Second):
+			t.Fatal("resource was not closed after the operation returned")
+		}
+	}
+	if !closeReturnedEarly {
+		select {
+		case err := <-closeDone:
+			if err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("Close did not return after the operation released")
+		}
+	}
+	if resourceClosedEarly || closeReturnedEarly {
+		t.Fatalf("Close crossed an active operation: resourceClosed=%t closeReturned=%t", resourceClosedEarly, closeReturnedEarly)
 	}
 }
