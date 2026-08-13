@@ -102,6 +102,7 @@ func (p *picker[T]) Draw(frame headless.Frame) {
 
 func (p *picker[T]) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() {
+		p.pointerGesture.cancel()
 		if p.handleKey(key, event) {
 			return true
 		}
@@ -140,9 +141,12 @@ func (p *picker[T]) handleKey(key input.Key, event input.Event) bool {
 
 func (p *picker[T]) handleMouse(mouse input.Mouse) bool {
 	areas := p.areas.Value()
-	if p.pointerGesture.active && (mouse.Action == input.MouseDrag || mouse.Action == input.MouseUp) {
-		mouse.Pos = mouse.Pos.Sub(areas.list.Min)
-		return p.handleListMouse(mouse)
+	if p.pointerGesture.active {
+		if mouse.Action == input.MouseDrag || mouse.Action == input.MouseUp {
+			mouse.Pos = mouse.Pos.Sub(areas.list.Min)
+			return p.handleListMouse(mouse)
+		}
+		p.pointerGesture.cancel()
 	}
 	if mouse.Action == input.MouseDown {
 		p.pointerGesture.cancel()
