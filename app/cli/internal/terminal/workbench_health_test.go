@@ -39,3 +39,22 @@ func TestWorkbenchProblemsArePrioritizedAndClearedIndependently(t *testing.T) {
 		t.Fatalf("workbench problem replaced the underlying runtime status with %q", got)
 	}
 }
+
+func TestEnteringASessionDropsOnlyProjectionOwnedWorkbenchProblems(t *testing.T) {
+	health := workbenchHealth{}
+	health.update(workbenchCancellationOwnership, errors.New("old cancellation"))
+	health.update(workbenchResumeOutbox, errors.New("old resume"))
+	health.update(workbenchRunOutbox, errors.New("old run"))
+	health.update(workbenchDraft, errors.New("old draft"))
+	health.update(workbenchHistory, errors.New("history unavailable"))
+
+	health.enterSession()
+	if got := health.problem(); got != "workbench: history unavailable" {
+		t.Fatalf("health after session replacement = %q", got)
+	}
+	for concern := range workbenchSessionConcernCount {
+		if problem := health.problems[concern]; problem != "" {
+			t.Errorf("session concern %d retained %q", concern, problem)
+		}
+	}
+}

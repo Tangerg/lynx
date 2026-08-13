@@ -279,7 +279,7 @@ func (a *app) retryAuthoringSettlement(slot operationSlot, settle func() error, 
 	}
 	sessionID := a.session.ID
 	dispatcher := a.loop.Dispatcher()
-	a.operations.GoSession(slot, false, func(ctx context.Context, lease operationLease) {
+	a.operations.GoSessionSettlement(slot, false, func(ctx context.Context, lease operationLease) {
 		for failures := 1; ; failures++ {
 			if err := retry.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
 				return

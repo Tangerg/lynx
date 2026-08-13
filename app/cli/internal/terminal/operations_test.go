@@ -133,3 +133,25 @@ func TestOperationOwnerDerivesRunAdmissionFromTheCurrentLease(t *testing.T) {
 		t.Fatal("retired mutation kept run admission blocked")
 	}
 }
+
+func TestSessionSettlementOwnsRunAdmissionUntilItsExactLeaseEnds(t *testing.T) {
+	owner := newOperationOwner(t.Context())
+	t.Cleanup(owner.Close)
+
+	done := make(chan struct{})
+	if !owner.GoSessionSettlement("outbox", false, func(ctx context.Context, _ operationLease) {
+		defer close(done)
+		<-ctx.Done()
+	}) {
+		t.Fatal("session settlement was rejected")
+	}
+	if !owner.BlocksRunAdmission() {
+		t.Fatal("unsettled session ownership did not block a later run")
+	}
+
+	owner.CancelScope(sessionOperationScope)
+	<-done
+	if owner.BlocksRunAdmission() {
+		t.Fatal("replaced session retained the old settlement boundary")
+	}
+}

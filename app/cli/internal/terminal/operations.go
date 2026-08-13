@@ -102,6 +102,20 @@ func (o *operationOwner) GoSession(slot operationSlot, replace bool, work func(c
 	return o.goWithPolicy(operationPolicy{scope: sessionOperationScope}, slot, replace, work)
 }
 
+// GoSessionSettlement owns recovery of an accepted command whose local durable
+// ownership has not settled yet. A later Run must not cross that boundary: the
+// old command still occupies the session's single authoring outbox until this
+// lease is released or the whole session projection is replaced.
+func (o *operationOwner) GoSessionSettlement(
+	slot operationSlot,
+	replace bool,
+	work func(context.Context, operationLease),
+) bool {
+	return o.goWithPolicy(operationPolicy{
+		scope: sessionOperationScope, runAdmission: runAdmissionAfterSettlement,
+	}, slot, replace, work)
+}
+
 func (o *operationOwner) goWithPolicy(
 	policy operationPolicy,
 	slot operationSlot,

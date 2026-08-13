@@ -515,6 +515,8 @@ func (installation sessionInstallation) apply(a *app) {
 	a.draftState.Reset(a.session.ID, installation.draft)
 	a.activity.Reset()
 	a.status.Reset(a.options)
+	a.workbenchHealth.enterSession()
+	a.status.setProblem(a.workbenchHealth.problem())
 	a.header.SetUsage(installation.projection.conversation.Usage())
 	a.prompt.SetOptions(a.options)
 	a.prompt.SetBusy(installation.projection.conversation.Busy())

@@ -9,6 +9,7 @@ const (
 	workbenchDraft
 	workbenchHistory
 	workbenchConcernCount
+	workbenchSessionConcernCount = workbenchHistory
 )
 
 type workbenchHealth struct {
@@ -34,6 +35,16 @@ func (health workbenchHealth) problem() string {
 		}
 	}
 	return ""
+}
+
+// enterSession drops failures owned by the previous authoring projection while
+// retaining application-wide workbench health such as prompt-history writes.
+// Destination outboxes are reconciled after installation and report their own
+// failures, so carrying source-session errors would misidentify the new owner.
+func (health *workbenchHealth) enterSession() {
+	for concern := range workbenchSessionConcernCount {
+		health.problems[concern] = ""
+	}
 }
 
 func (a *app) reportWorkbenchIssue(concern workbenchConcern, err error) {
