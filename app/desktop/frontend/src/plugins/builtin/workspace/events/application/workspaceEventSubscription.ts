@@ -83,7 +83,7 @@ export function startWorkspaceEventSubscription(
     if (ports.canSubscribe()) {
       if (loopAbort) return;
       loopAbort = new AbortController();
-      ports.loop.start(loopAbort.signal);
+      void ports.loop.start(loopAbort.signal);
       return;
     }
     loopAbort?.abort();

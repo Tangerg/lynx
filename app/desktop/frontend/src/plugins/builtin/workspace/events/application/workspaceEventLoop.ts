@@ -3,6 +3,7 @@ import type { WorkspaceEventLike } from "../domain/eventInvalidation";
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_CAP_MS = 30_000;
 const RETARGET = Symbol("workspace-events.retarget");
+const ABORTED = Symbol("workspace-events.aborted");
 
 export interface WorkspaceEventLoopDeps {
   subscribe(input: {
@@ -15,7 +16,7 @@ export interface WorkspaceEventLoopDeps {
 }
 
 export interface WorkspaceEventLoop {
-  start(signal: AbortSignal): void;
+  start(signal: AbortSignal): Promise<void>;
   retarget(target: WorkspaceWatchTarget): void;
 }
 
@@ -52,7 +53,7 @@ export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): Workspac
       const abortCohort = () => cohort.abort(signal.reason);
       if (signal.aborted) abortCohort();
       else signal.addEventListener("abort", abortCohort, { once: true });
-      void subscribeLoop(
+      return subscribeLoop(
         deps,
         cohort.signal,
         () => watchTarget,
@@ -88,21 +89,40 @@ async function subscribeLoop(
     signal.addEventListener("abort", onOuterAbort, { once: true });
     let failure: unknown;
     try {
-      const events = await deps.subscribe({ target: watchTarget(), signal: iter.signal });
+      const opening = deps.subscribe({ target: watchTarget(), signal: iter.signal });
+      const events = await settleBeforeAbort(opening, iter.signal, disposeIterable);
+      if (events === ABORTED) continue;
       // A transport may resolve its opening promise at the same instant a
       // retarget abort wins. Do not publish the stale subscription's initial
       // resync or any already-buffered event into the new workspace target.
       if (iter.signal.aborted) continue;
-      attempt = 0;
-      deps.invalidateAll();
-      let lastSequence = 0;
-      for await (const ev of events) {
-        if (iter.signal.aborted) break;
-        if (ev.sequence !== lastSequence + 1) {
-          deps.invalidateAll();
+      const iterator = events[Symbol.asyncIterator]();
+      let iteratorDone = false;
+      try {
+        attempt = 0;
+        deps.invalidateAll();
+        let lastSequence = 0;
+        while (!iter.signal.aborted) {
+          const pendingNext = Promise.resolve(iterator.next());
+          const next = await settleBeforeAbort(pendingNext, iter.signal);
+          if (next === ABORTED) {
+            const lateNext = await settleWithinTurn(pendingNext);
+            if (lateNext.status === "fulfilled" && lateNext.value.done) iteratorDone = true;
+            break;
+          }
+          if (next.done) {
+            iteratorDone = true;
+            break;
+          }
+          const ev = next.value;
+          if (ev.sequence !== lastSequence + 1) {
+            deps.invalidateAll();
+          }
+          lastSequence = ev.sequence;
+          deps.handleEvent(ev);
         }
-        lastSequence = ev.sequence;
-        deps.handleEvent(ev);
+      } finally {
+        if (!iteratorDone) await disposeIterator(iterator);
       }
     } catch (error) {
       if (!signal.aborted && iter.signal.reason !== RETARGET) failure = error;
@@ -133,6 +153,90 @@ async function subscribeLoop(
     }
     attempt += 1;
   }
+}
+
+/**
+ * Settle an asynchronous boundary without making progress depend on the
+ * dependency observing its AbortSignal. The losing operation stays observed so
+ * a late rejection cannot become unhandled; a late resource may additionally
+ * be retired by its owning callback.
+ */
+function settleBeforeAbort<T>(
+  operation: Promise<T>,
+  signal: AbortSignal,
+  disposeLateValue?: (value: T) => void,
+): Promise<T | typeof ABORTED> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      resolve(ABORTED);
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+
+    void operation.then(
+      (value) => {
+        if (settled) {
+          disposeLateValue?.(value);
+          return;
+        }
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function disposeIterable<T>(iterable: AsyncIterable<T>): void {
+  try {
+    void disposeIterator(iterable[Symbol.asyncIterator]());
+  } catch {
+    // The subscription was already superseded, so its signal remains the
+    // authoritative teardown path when constructing its iterator fails.
+  }
+}
+
+async function disposeIterator<T>(iterator: AsyncIterator<T>): Promise<void> {
+  try {
+    const closing = iterator.return?.();
+    if (!closing) return;
+    // Cooperative async generators often finish one or two microtasks after
+    // their signal fires. Join that ordinary path, but yield after one task so
+    // a broken `return()` cannot hold the replacement subscription hostage.
+    await settleWithinTurn(Promise.resolve(closing));
+  } catch {
+    // Cancellation must not let a broken retiring iterator block its successor.
+  }
+}
+
+type TurnSettlement<T> =
+  { status: "fulfilled"; value: T } | { status: "rejected" } | { status: "pending" };
+
+function settleWithinTurn<T>(operation: Promise<T>): Promise<TurnSettlement<T>> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: TurnSettlement<T>) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ status: "pending" }), 0);
+    void operation.then(
+      (value) => finish({ status: "fulfilled", value }),
+      () => finish({ status: "rejected" }),
+    );
+  });
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {

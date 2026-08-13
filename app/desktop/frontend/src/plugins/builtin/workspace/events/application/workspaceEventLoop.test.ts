@@ -31,9 +31,10 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    loop.start(controller.signal);
+    const run = loop.start(controller.signal);
     await done;
     controller.abort();
+    await run;
 
     expect(handled).toEqual([1, 3]);
     expect(invalidateAll).toHaveBeenCalledTimes(2); // subscribe + detected gap
@@ -60,9 +61,10 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    loop.start(controller.signal);
+    const run = loop.start(controller.signal);
     await received;
     controller.abort();
+    await run;
 
     expect(invalidateAll).toHaveBeenCalledTimes(2); // subscribe + missing sequence 1
   });
@@ -91,7 +93,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    loop.start(outer.signal);
+    const run = loop.start(outer.signal);
     await reached;
 
     reached = new Promise<void>((resolve) => {
@@ -106,6 +108,7 @@ describe("workspace event loop", () => {
     loop.retarget({ type: "workspace" });
     await reached;
     outer.abort();
+    await run;
 
     expect(subscribed).toEqual([
       { type: "none" },
@@ -126,7 +129,7 @@ describe("workspace event loop", () => {
       reportDisconnect,
     });
 
-    loop.start(outer.signal);
+    const run = loop.start(outer.signal);
     await vi.advanceTimersByTimeAsync(0);
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(reportDisconnect).toHaveBeenCalledOnce();
@@ -143,6 +146,7 @@ describe("workspace event loop", () => {
 
     outer.abort();
     await vi.advanceTimersByTimeAsync(0);
+    await run;
   });
 
   it("reports a clean remote stream end as a connection signal", async () => {
@@ -160,13 +164,14 @@ describe("workspace event loop", () => {
       reportDisconnect,
     });
 
-    loop.start(outer.signal);
+    const run = loop.start(outer.signal);
     await vi.advanceTimersByTimeAsync(0);
 
     expect(reportDisconnect).toHaveBeenCalledOnce();
     expect(reportDisconnect).toHaveBeenCalledWith(undefined);
     outer.abort();
     await vi.advanceTimersByTimeAsync(0);
+    await run;
   });
 
   it("cancels an in-flight subscription opening before retargeting", async () => {
@@ -200,11 +205,111 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    loop.start(outer.signal);
+    const run = loop.start(outer.signal);
     await Promise.resolve();
     loop.retarget({ type: "workspace", cwd: "/new-repo" });
     await newSubscription;
     outer.abort();
+    await run;
+
+    expect(subscribed).toEqual([{ type: "none" }, { type: "workspace", cwd: "/new-repo" }]);
+  });
+
+  it("retargets without waiting for an opening that ignores cancellation", async () => {
+    const outer = new AbortController();
+    const subscribed: Array<{ type: "none" } | { type: "workspace"; cwd?: string }> = [];
+    let resolveOld!: (events: AsyncIterable<{ type: "resync"; sequence: number }>) => void;
+    const oldOpening = new Promise<AsyncIterable<{ type: "resync"; sequence: number }>>(
+      (resolve) => {
+        resolveOld = resolve;
+      },
+    );
+    const closeOld = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ target, signal }) {
+        subscribed.push(target);
+        if (subscribed.length === 1) return oldOpening;
+        return (async function* () {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) resolve();
+            else signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+          yield* [];
+        })();
+      },
+      handleEvent: vi.fn(),
+      invalidateAll: vi.fn(),
+      reportDisconnect: vi.fn(),
+    });
+
+    const run = loop.start(outer.signal);
+    await vi.waitFor(() => expect(subscribed).toHaveLength(1));
+    loop.retarget({ type: "workspace", cwd: "/new-repo" });
+    try {
+      await vi.waitFor(() => expect(subscribed).toHaveLength(2), { timeout: 100 });
+      resolveOld({
+        [Symbol.asyncIterator]: () => ({
+          next: async () => ({ value: undefined, done: true }) as const,
+          return: closeOld,
+        }),
+      });
+      await vi.waitFor(() => expect(closeOld).toHaveBeenCalledOnce());
+    } finally {
+      outer.abort();
+      resolveOld(
+        (async function* () {
+          yield* [];
+        })(),
+      );
+      await run;
+    }
+
+    expect(subscribed).toEqual([{ type: "none" }, { type: "workspace", cwd: "/new-repo" }]);
+  });
+
+  it("retargets when the active iterator ignores cancellation", async () => {
+    const outer = new AbortController();
+    const subscribed: Array<{ type: "none" } | { type: "workspace"; cwd?: string }> = [];
+    let releaseNext!: (result: IteratorResult<{ type: "resync"; sequence: number }>) => void;
+    const closeOld = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ target, signal }) {
+        subscribed.push(target);
+        if (subscribed.length === 1) {
+          return {
+            [Symbol.asyncIterator]: () => ({
+              next: () =>
+                new Promise<IteratorResult<{ type: "resync"; sequence: number }>>((resolve) => {
+                  releaseNext = resolve;
+                }),
+              return: closeOld,
+            }),
+          };
+        }
+        return (async function* () {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) resolve();
+            else signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+          yield* [];
+        })();
+      },
+      handleEvent: vi.fn(),
+      invalidateAll: vi.fn(),
+      reportDisconnect: vi.fn(),
+    });
+
+    const run = loop.start(outer.signal);
+    await vi.waitFor(() => expect(releaseNext).toBeTypeOf("function"));
+    loop.retarget({ type: "workspace", cwd: "/new-repo" });
+    try {
+      await vi.waitFor(() => expect(subscribed).toHaveLength(2), { timeout: 100 });
+      expect(closeOld).toHaveBeenCalledOnce();
+    } finally {
+      releaseNext({ value: undefined, done: true });
+      outer.abort();
+      await run;
+    }
 
     expect(subscribed).toEqual([{ type: "none" }, { type: "workspace", cwd: "/new-repo" }]);
   });
@@ -243,7 +348,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    loop.start(outer.signal);
+    const run = loop.start(outer.signal);
     await Promise.resolve();
     loop.retarget({ type: "workspace", cwd: "/new-repo" });
     resolveOld(
@@ -254,6 +359,7 @@ describe("workspace event loop", () => {
     await newSubscription;
     await vi.waitFor(() => expect(handled).toEqual([1]));
     outer.abort();
+    await run;
 
     expect(subscribed).toEqual([{ type: "none" }, { type: "workspace", cwd: "/new-repo" }]);
     expect(invalidateAll).toHaveBeenCalledTimes(1);
@@ -284,14 +390,15 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    loop.start(first.signal);
+    const firstRun = loop.start(first.signal);
     await Promise.resolve();
     first.abort();
-    loop.start(second.signal);
+    const secondRun = loop.start(second.signal);
     await secondOpened;
     loop.retarget({ type: "workspace", cwd: "/recovered" });
     await vi.waitFor(() => expect(subscribed).toContain("/recovered"));
     second.abort();
+    await Promise.all([firstRun, secondRun]);
 
     expect(subscribed).toEqual(["none", "none", "/recovered"]);
   });
@@ -321,14 +428,15 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    loop.start(first.signal);
+    const firstRun = loop.start(first.signal);
     await vi.waitFor(() => expect(subscriptionSignals).toHaveLength(1));
-    loop.start(second.signal);
+    const secondRun = loop.start(second.signal);
     await twice;
 
     expect(first.signal.aborted).toBe(false);
     expect(subscriptionSignals[0]?.aborted).toBe(true);
     expect(subscriptionSignals[1]?.aborted).toBe(false);
     second.abort();
+    await Promise.all([firstRun, secondRun]);
   });
 });

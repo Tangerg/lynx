@@ -23,7 +23,7 @@ function subscriptionPorts(
   patch: Partial<WorkspaceEventSubscriptionPorts> = {},
 ): WorkspaceEventSubscriptionPorts {
   const loop: WorkspaceEventLoop = {
-    start: vi.fn(),
+    start: vi.fn(async () => {}),
     retarget: vi.fn(),
   };
   return {
@@ -79,7 +79,9 @@ describe("startWorkspaceEventSubscription", () => {
         return vi.fn();
       },
       loop: {
-        start: vi.fn((signal) => signals.push(signal)),
+        start: vi.fn(async (signal) => {
+          signals.push(signal);
+        }),
         retarget: vi.fn(),
       },
     });
@@ -370,7 +372,7 @@ describe("startWorkspaceEventSubscription", () => {
       deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
     let loopSignal: AbortSignal | undefined;
     const loop: WorkspaceEventLoop = {
-      start: vi.fn((signal) => {
+      start: vi.fn(async (signal) => {
         loopSignal = signal;
       }),
       retarget: vi.fn(),
