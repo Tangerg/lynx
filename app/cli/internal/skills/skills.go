@@ -80,6 +80,38 @@ func (skill Managed) Validate() error {
 	return skill.Lifecycle.Validate()
 }
 
+// ValidateLifecycleAcknowledgement proves that an authoritative managed-skill
+// catalog reflects the requested lifecycle for exactly one named skill.
+func ValidateLifecycleAcknowledgement(catalog []Managed, name string, lifecycle Lifecycle) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("managed skill acknowledgement name is empty")
+	}
+	if err := lifecycle.Validate(); err != nil {
+		return err
+	}
+	found := false
+	for index, skill := range catalog {
+		if err := skill.Validate(); err != nil {
+			return fmt.Errorf("managed skill acknowledgement item %d: %w", index+1, err)
+		}
+		if skill.Name != name {
+			continue
+		}
+		if found {
+			return fmt.Errorf("managed skill acknowledgement repeats %q", name)
+		}
+		found = true
+		if skill.Lifecycle != lifecycle {
+			return fmt.Errorf("managed skill %q lifecycle is %q, want %q", name, skill.Lifecycle, lifecycle)
+		}
+	}
+	if !found {
+		return fmt.Errorf("managed skill %q is missing after lifecycle change", name)
+	}
+	return nil
+}
+
 type Proposal struct {
 	Name          string
 	Revision      string
@@ -137,6 +169,24 @@ func (reference ProposalReference) Validate() error {
 	}
 	if err := validateProposalIdentity(reference.Name, reference.Revision, reference.Scope); err != nil {
 		return fmt.Errorf("skill proposal reference: %w", err)
+	}
+	return nil
+}
+
+// ValidateDecisionAcknowledgement proves that the exact immutable proposal
+// reviewed by Approve or Reject is no longer pending. Other revisions of the
+// same skill remain independent proposals.
+func (reference ProposalReference) ValidateDecisionAcknowledgement(pending []Proposal) error {
+	if err := reference.Validate(); err != nil {
+		return err
+	}
+	for index, proposal := range pending {
+		if err := proposal.Validate(); err != nil {
+			return fmt.Errorf("skill proposal acknowledgement item %d: %w", index+1, err)
+		}
+		if proposal.Name == reference.Name && proposal.Scope == reference.Scope && proposal.Revision == reference.Revision {
+			return fmt.Errorf("skill proposal %s remains pending after decision", proposal.Key())
+		}
 	}
 	return nil
 }

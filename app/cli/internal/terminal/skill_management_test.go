@@ -31,12 +31,14 @@ func TestResolveSkillProposalRequiresRevisionWhenNamesAreNotUnique(t *testing.T)
 }
 
 type skillServiceStub struct {
-	mu         sync.Mutex
-	discovered []skills.Discovered
-	managed    []skills.Managed
-	proposals  []skills.Proposal
-	reads      atomic.Int32
-	decisions  chan skillDecision
+	mu              sync.Mutex
+	discovered      []skills.Discovered
+	managed         []skills.Managed
+	proposals       []skills.Proposal
+	reads           atomic.Int32
+	decisions       chan skillDecision
+	ignoreLifecycle bool
+	ignoreDecision  bool
 }
 
 type skillDecision struct {
@@ -109,7 +111,9 @@ func (service *skillServiceStub) setLifecycle(name string, lifecycle skills.Life
 	defer service.mu.Unlock()
 	for index := range service.managed {
 		if service.managed[index].Name == name {
-			service.managed[index].Lifecycle = lifecycle
+			if !service.ignoreLifecycle {
+				service.managed[index].Lifecycle = lifecycle
+			}
 			return nil
 		}
 	}
@@ -132,7 +136,9 @@ func (service *skillServiceStub) decide(reference skills.ProposalReference, appr
 	defer service.mu.Unlock()
 	for index, proposal := range service.proposals {
 		if proposal.Name == reference.Name && proposal.Scope == reference.Scope && proposal.Revision == reference.Revision {
-			service.proposals = append(service.proposals[:index], service.proposals[index+1:]...)
+			if !service.ignoreDecision {
+				service.proposals = append(service.proposals[:index], service.proposals[index+1:]...)
+			}
 			service.decisions <- skillDecision{approve: approve, reference: reference}
 			return nil
 		}
@@ -192,6 +198,37 @@ func TestSkillCatalogLifecycleAndProposalReviewCommands(t *testing.T) {
 	if rejected.approve || rejected.reference.Name != "cleanup" {
 		t.Fatalf("rejected decision = %+v", rejected)
 	}
+	stop()
+}
+
+func TestSkillLifecycleDoesNotReportSuccessWhenManagedCatalogIsUnchanged(t *testing.T) {
+	service := newSkillServiceStub()
+	service.ignoreLifecycle = true
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Skills: service})
+	host.Shows(t, "Ask lyra")
+	host.Type("/skill-archive review")
+	host.Press(input.Enter)
+	host.Shows(t, "archiving skill failed: verify skill lifecycle")
+	host.Hides(t, "archiving skill complete")
+	stop()
+}
+
+func TestSkillProposalDoesNotReportSuccessWhenReviewedRevisionRemainsPending(t *testing.T) {
+	service := newSkillServiceStub()
+	service.ignoreDecision = true
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Skills: service})
+	host.Shows(t, "Ask lyra")
+	host.Type("/skill-approve user/release-checks")
+	host.Press(input.Enter)
+	host.Shows(t, "Approve Skill proposal")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	decision := awaitValue(t, service.decisions, "ignored skill proposal decision")
+	if !decision.approve {
+		t.Fatal("skill proposal approval was sent as rejection")
+	}
+	host.Shows(t, "approving skill proposal failed: verify skill proposal decision")
+	host.Hides(t, "approving skill proposal complete")
 	stop()
 }
 
