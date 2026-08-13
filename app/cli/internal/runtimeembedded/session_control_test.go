@@ -3,10 +3,12 @@ package runtimeembedded
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -14,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type sessionBindingStub struct {
@@ -147,15 +150,22 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 			t.Fatalf("import request = %+v, options = %+v", request, options)
 		}
 		return &protocol.ImportSessionResponse{Session: &protocol.Session{
-			ID: request.Artifact.Session.ID, Status: protocol.SessionStatusIdle,
+			ID: request.Artifact.Session.ID, Title: request.Artifact.Session.Title,
+			Status: protocol.SessionStatusIdle, Model: "target-default",
 			Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
+			CreatedAt: request.Artifact.Session.CreatedAt, UpdatedAt: request.Artifact.Session.UpdatedAt.Add(time.Second),
+			Favorite: request.Artifact.Session.Favorite,
 		}}, nil
 	}
 	runtime := &Runtime{
-		sessions: stub, meta: requestMeta("test"),
+		sessions: stub,
+		workspaces: &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+			Ref: protocol.WorkspaceRef{Path: "/workspace"}, ProjectRoot: "/workspace", Availability: protocol.WorkspaceAvailable,
+		}},
+		meta:    requestMeta("test"),
 		profile: sessionControlProfile(runtimeprofile.FeatureSessionExport),
 	}
-	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","title":"Session","workspace":{"path":"/workspace"},"model":"","createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
+	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","title":"Session","workspace":{"path":"/workspace/alias"},"model":"","createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
 	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(artifactJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +182,70 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 	}
 	if _, err := runtime.ImportSession(t.Context(), sessiontransfer.ImportRequest{Artifact: unknown}); err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("unknown artifact field error = %v", err)
+	}
+}
+
+func TestSessionImportRejectsAcknowledgementDrift(t *testing.T) {
+	t.Parallel()
+	createdAt := time.Date(2026, time.August, 14, 8, 0, 0, 0, time.UTC)
+	updatedAt := createdAt.Add(time.Hour)
+	artifact := protocol.SessionArtifact{
+		Version: protocol.SessionArtifactVersion,
+		Session: protocol.ArtifactSession{
+			ID: "ses_1", Title: "Imported", Workspace: protocol.WorkspaceRef{Path: "/workspace"},
+			Model: "deep", CreatedAt: createdAt, UpdatedAt: updatedAt, Favorite: true,
+		},
+	}
+	body, err := json.Marshal(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedWorkspace := workspace.Workspace{Path: "/workspace", ProjectRoot: "/workspace", Availability: workspace.Available}
+	valid := protocol.Session{
+		ID: artifact.Session.ID, Title: artifact.Session.Title, Status: protocol.SessionStatusIdle,
+		Model:     artifact.Session.Model,
+		Workspace: testProtocolWorkspace(artifact.Session.Workspace.Path, artifact.Session.Workspace.Path, protocol.WorkspaceAvailable),
+		CreatedAt: artifact.Session.CreatedAt, UpdatedAt: artifact.Session.UpdatedAt.Add(time.Second),
+		Favorite: artifact.Session.Favorite, Revision: 1,
+	}
+	tests := []struct {
+		name   string
+		mutate func(*protocol.Session)
+	}{
+		{name: "title", mutate: func(result *protocol.Session) { result.Title = "ignored" }},
+		{name: "workspace", mutate: func(result *protocol.Session) { result.Workspace.Ref.Path = "/other" }},
+		{name: "workspace project root", mutate: func(result *protocol.Session) { result.Workspace.ProjectRoot = "/other" }},
+		{name: "workspace availability", mutate: func(result *protocol.Session) { result.Workspace.Availability = protocol.WorkspaceMissing }},
+		{name: "model", mutate: func(result *protocol.Session) { result.Model = "shallow" }},
+		{name: "favorite", mutate: func(result *protocol.Session) { result.Favorite = false }},
+		{name: "created time", mutate: func(result *protocol.Session) { result.CreatedAt = result.CreatedAt.Add(time.Second) }},
+		{name: "updated time moves backward", mutate: func(result *protocol.Session) { result.UpdatedAt = artifact.Session.UpdatedAt.Add(-time.Second) }},
+		{name: "status", mutate: func(result *protocol.Session) { result.Status = protocol.SessionStatusRunning }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			result := valid
+			test.mutate(&result)
+			stub := sessionBindingStub{imported: func(context.Context, protocol.ImportSessionRequest, embedded.CommandOptions) (*protocol.ImportSessionResponse, error) {
+				return &protocol.ImportSessionResponse{Session: &result}, nil
+			}}
+			runtime := &Runtime{
+				sessions: stub,
+				workspaces: &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+					Ref: protocol.WorkspaceRef{Path: resolvedWorkspace.Path}, ProjectRoot: resolvedWorkspace.ProjectRoot,
+					Availability: protocol.WorkspaceAvailable,
+				}},
+				meta:    requestMeta("test"),
+				profile: sessionControlProfile(runtimeprofile.FeatureSessionExport),
+			}
+			_, err := runtime.ImportSession(t.Context(), sessiontransfer.ImportRequest{Artifact: document})
+			requireRuntimeContractViolation(t, err)
+		})
 	}
 }
 

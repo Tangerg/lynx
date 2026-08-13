@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type sessionBinding interface {
@@ -166,6 +167,10 @@ func (r *Runtime) ImportSession(ctx context.Context, request sessiontransfer.Imp
 	if err := protocol.ValidateWireTree(artifact); err != nil {
 		return agent.Session{}, fmt.Errorf("import session: %w", err)
 	}
+	resolvedWorkspace, err := r.Resolve(ctx, workspace.ResolveRequest{Path: artifact.Session.Workspace.Path})
+	if err != nil {
+		return agent.Session{}, fmt.Errorf("import session workspace: %w", err)
+	}
 	options, err := r.commandOptions()
 	if err != nil {
 		return agent.Session{}, err
@@ -177,7 +182,46 @@ func (r *Runtime) ImportSession(ctx context.Context, request sessiontransfer.Imp
 	if response == nil || response.Session == nil {
 		return agent.Session{}, runtimeContractViolation("import session returned an incomplete result")
 	}
-	return projectSessionResult("import session", artifact.Session.ID, response.Session, nil)
+	projected, err := projectSessionResult("import session", artifact.Session.ID, response.Session, nil)
+	if err != nil {
+		return agent.Session{}, err
+	}
+	if err := validateImportedSession(artifact.Session, resolvedWorkspace, projected); err != nil {
+		return agent.Session{}, runtimeContractViolation("import session returned an invalid acknowledgement: %v", err)
+	}
+	return projected, nil
+}
+
+func validateImportedSession(archived protocol.ArtifactSession, resolvedWorkspace workspace.Workspace, result agent.Session) error {
+	var problems []error
+	if result.Title != archived.Title {
+		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, archived.Title))
+	}
+	if result.Workspace != resolvedWorkspace {
+		problems = append(problems, fmt.Errorf("runtime returned workspace %+v, want resolved workspace %+v", result.Workspace, resolvedWorkspace))
+	}
+	// An empty archived model means the target Runtime's default. The live
+	// Session projection resolves that default, so only an explicit archived
+	// selection has an exact acknowledgement value.
+	if archived.Model != "" && result.Model != archived.Model {
+		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", result.Model, archived.Model))
+	}
+	if result.Favorite != archived.Favorite {
+		problems = append(problems, fmt.Errorf("runtime returned favorite %t, want %t", result.Favorite, archived.Favorite))
+	}
+	if !result.CreatedAt.Equal(archived.CreatedAt) {
+		problems = append(problems, fmt.Errorf("runtime returned created time %s, want %s", result.CreatedAt, archived.CreatedAt))
+	}
+	// A new import retains the archived update time. Importing over an existing
+	// identity records the restore commit in the target Runtime's revision space,
+	// so its update time may advance but must never move behind the archive.
+	if result.UpdatedAt.Before(archived.UpdatedAt) {
+		problems = append(problems, fmt.Errorf("runtime returned updated time %s before archived time %s", result.UpdatedAt, archived.UpdatedAt))
+	}
+	if result.Status != agent.SessionIdle {
+		problems = append(problems, fmt.Errorf("runtime returned status %q, want %q", result.Status, agent.SessionIdle))
+	}
+	return errors.Join(problems...)
 }
 
 func requireJSONEnd(decoder *json.Decoder) error {
