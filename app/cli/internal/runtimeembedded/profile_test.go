@@ -56,6 +56,7 @@ func TestRuntimeProfileProjectionPreservesCompleteDiscovery(t *testing.T) {
 	}
 	limits := profile.Limits
 	if limits.MaxConcurrentRuns != 4 || limits.IdempotencyRetentionSeconds != 600 ||
+		limits.IdempotencyNamespace != "idp_test" ||
 		limits.RunReplay.MaxEvents != 1024 || limits.RunReplay.MaxBytes != 1<<20 ||
 		limits.MCPAuthorizationRetentionSeconds != 600 ||
 		limits.RuntimeSubscription.MaxTopics != 32 || limits.RuntimeSubscription.MaxWatches != 32 {

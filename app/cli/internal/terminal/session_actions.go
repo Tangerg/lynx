@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -13,9 +12,10 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/lynx/app/cli/internal/sessionrollback"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 type sessionImport struct {
@@ -114,96 +114,24 @@ func (a *app) prepareSessionRollback(argument string) error {
 }
 
 type rollbackPreview struct {
-	request         agent.RollbackSession
-	sessionRevision uint64
-	keptIDs         []string
-	droppedIDs      []string
-	openingText     string
-	openingImages   int
+	request    agent.RollbackSession
+	settlement sessionrollback.Preview
 }
 
 func previewRollback(snapshot agent.SessionSnapshot, request agent.RollbackSession) (rollbackPreview, error) {
-	if err := snapshot.Validate(); err != nil {
-		return rollbackPreview{}, fmt.Errorf("preview rollback: %w", err)
-	}
-	if snapshot.Session.ID != request.SessionID {
-		return rollbackPreview{}, errors.New("preview rollback: runtime returned another session")
-	}
-	boundary := -1
-	if request.ToRunID != "" {
-		boundary = slices.IndexFunc(snapshot.Runs, func(run agent.Run) bool { return run.ID == request.ToRunID })
-		if boundary < 0 {
-			return rollbackPreview{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, request.ToRunID)
-		}
-	}
-	allIDs := make([]string, len(snapshot.Runs))
-	for index, run := range snapshot.Runs {
-		allIDs[index] = run.ID
-	}
-	preview := rollbackPreview{
-		request: request, sessionRevision: snapshot.Session.Revision,
-		keptIDs: slices.Clone(allIDs[:boundary+1]),
-	}
-	if request.Scope != agent.RestoreFiles {
-		preview.droppedIDs = slices.Clone(allIDs[boundary+1:])
-		preview.openingText, preview.openingImages = rollbackOpeningInput(snapshot.Transcript, preview.droppedIDs)
-	}
-	return preview, nil
-}
-
-func rollbackOpeningInput(transcript []agent.Block, droppedIDs []string) (string, int) {
-	for _, runID := range droppedIDs {
-		for _, block := range transcript {
-			if block.RunID != runID || block.Kind != agent.BlockUser {
-				continue
-			}
-			images := 0
-			for _, attachment := range block.Attachments {
-				if attachment.Kind == agent.AttachmentImage {
-					images++
-				}
-			}
-			if strings.TrimSpace(block.Text) != "" || images > 0 {
-				return block.Text, images
-			}
-		}
-	}
-	return "", 0
+	settlement, err := sessionrollback.PreviewSession(snapshot, request)
+	return rollbackPreview{request: request, settlement: settlement}, err
 }
 
 func (preview rollbackPreview) ValidateCommit(snapshot agent.SessionSnapshot) error {
-	current, err := previewRollback(snapshot, preview.request)
-	if err != nil {
-		return err
-	}
-	if current.sessionRevision != preview.sessionRevision || !slices.Equal(current.droppedIDs, preview.droppedIDs) {
-		return errors.New("session changed after the rollback preview; review the action again")
-	}
-	return nil
+	return preview.settlement.ValidateCommit(snapshot)
 }
 
 // ValidateApplied proves a history rollback committed when its command result
 // was lost behind a post-commit cleanup error. Files-only rollback has no
 // observable session projection change and therefore cannot use this proof.
 func (preview rollbackPreview) ValidateApplied(snapshot agent.SessionSnapshot) error {
-	if preview.request.Scope == agent.RestoreFiles {
-		return errors.New("files-only rollback has no authoritative session outcome")
-	}
-	if err := snapshot.Validate(); err != nil {
-		return fmt.Errorf("read rollback outcome: %w", err)
-	}
-	if snapshot.Session.ID != preview.request.SessionID {
-		return errors.New("read rollback outcome: runtime returned another session")
-	}
-	remaining := make([]string, len(snapshot.Runs))
-	for index, run := range snapshot.Runs {
-		remaining[index] = run.ID
-	}
-	if len(preview.droppedIDs) == 0 || snapshot.Session.Revision <= preview.sessionRevision ||
-		!slices.Equal(remaining, preview.keptIDs) {
-		return errors.New("authoritative session does not prove the rollback committed")
-	}
-	return nil
+	return preview.settlement.ValidateApplied(snapshot)
 }
 
 func (preview rollbackPreview) Description() string {
@@ -214,96 +142,108 @@ func (preview rollbackPreview) Description() string {
 	if preview.request.Scope == agent.RestoreFiles {
 		return fmt.Sprintf("Restore files to %s while keeping chat history?", boundary)
 	}
-	return fmt.Sprintf("Restore %s to %s and remove %d later root runs?", preview.request.Scope, boundary, len(preview.droppedIDs))
+	return fmt.Sprintf("Restore %s to %s and remove %d later runs?", preview.request.Scope, boundary, preview.settlement.DroppedCount())
 }
 
-type rollbackInstallation struct {
-	result        agent.RollbackResult
-	snapshot      agent.SessionSnapshot
-	droppedCount  int
-	openingText   string
-	openingImages int
-	cleanupErr    error
+type rollbackSettlement struct {
+	result sessionrollback.Result
+	err    error
 }
 
 func (a *app) rollbackSession(preview rollbackPreview) {
-	request := preview.request
-	commandID, err := agent.NewCommandID()
-	if err != nil {
-		a.message("rollback session failed: create command identity: " + err.Error())
-		return
-	}
-	request.CommandID = commandID
 	runSessionChange(a, "rolling back session",
-		func(ctx context.Context) (rollbackInstallation, error) {
-			latest, err := a.runtime.GetSession(ctx, request.SessionID)
-			if err != nil {
-				return rollbackInstallation{}, err
+		func(ctx context.Context) (rollbackSettlement, error) {
+			result, err := sessionrollback.Execute(
+				ctx, a.runtime, a.workbench, preview.settlement,
+				rollbackReplayWindow(a.runtimeProfile), runtimeRecoveryBackoff,
+			)
+			if result.Pending.CommandID == "" {
+				return rollbackSettlement{}, err
 			}
-			if err := preview.ValidateCommit(latest); err != nil {
-				return rollbackInstallation{}, err
-			}
-			result, rollbackErr := mutation.Confirm(ctx, runtimeRecoveryBackoff, func(ctx context.Context) (agent.RollbackResult, error) {
-				return a.runtime.RollbackSession(ctx, request)
-			})
-			snapshot, err := a.readSessionAfterMutation(ctx, request.SessionID)
-			if err != nil {
-				return rollbackInstallation{}, errors.Join(rollbackErr, err)
-			}
-			if rollbackErr != nil {
-				if outcomeErr := preview.ValidateApplied(snapshot); outcomeErr != nil {
-					return rollbackInstallation{}, errors.Join(rollbackErr, outcomeErr)
-				}
-				return rollbackInstallation{
-					result: agent.RollbackResult{Session: snapshot.Session}, snapshot: snapshot,
-					droppedCount: len(preview.droppedIDs), openingText: preview.openingText,
-					openingImages: preview.openingImages, cleanupErr: rollbackErr,
-				}, nil
-			}
-			installation := rollbackInstallation{
-				result: result, snapshot: snapshot, droppedCount: len(result.Dropped),
-			}
-			if input, ok := result.FirstOpeningInput(); ok {
-				installation.openingText, installation.openingImages = input.OpeningText()
-			}
-			return installation, nil
+			return rollbackSettlement{result: result, err: err}, nil
 		},
-		func(installation rollbackInstallation) error {
-			if installation.result.Session.ID != installation.snapshot.Session.ID {
-				return errors.New("rollback result and authoritative session disagree")
-			}
-			if err := a.installSnapshot(installation.snapshot); err != nil {
-				return err
-			}
-			if strings.TrimSpace(installation.openingText) != "" {
-				if err := a.recoverDraft(agent.Message{Text: installation.openingText}); err != nil {
-					label := fmt.Sprintf("rolled back %d runs; restored text was not saved: %v", installation.droppedCount, err)
-					if installation.openingImages > 0 {
-						label += fmt.Sprintf("; %d inline images must be reattached", installation.openingImages)
-					}
-					if installation.cleanupErr != nil {
-						label += "; runtime cleanup warning: " + installation.cleanupErr.Error()
-					}
-					a.message(label)
-					return nil
-				}
-			}
-			if installation.openingImages > 0 {
-				label := fmt.Sprintf("rolled back %d runs; restored text, but %d inline images must be reattached", installation.droppedCount, installation.openingImages)
-				if installation.cleanupErr != nil {
-					label += "; runtime cleanup warning: " + installation.cleanupErr.Error()
-				}
-				a.message(label)
-				return nil
-			}
-			label := fmt.Sprintf("rolled back session · %d runs removed", installation.droppedCount)
-			if installation.cleanupErr != nil {
-				label += "; runtime cleanup warning: " + installation.cleanupErr.Error()
-			}
-			a.message(label)
-			return nil
+		func(settlement rollbackSettlement) error {
+			return a.applyRollbackSettlement(settlement)
 		},
 	)
+}
+
+func (a *app) applyRollbackSettlement(settlement rollbackSettlement) error {
+	result := settlement.result
+	switch result.Outcome {
+	case sessionrollback.Rejected:
+		if err := sessionrollback.Reject(a.workbench, result); err != nil {
+			a.message("rollback session failed; local intent cleanup failed: " + errors.Join(settlement.err, err).Error())
+			return nil
+		}
+		a.message("rollback session failed: " + settlement.err.Error())
+		return nil
+	case sessionrollback.Unknown:
+		a.message("rollback outcome is unknown; it will be reconciled on restart: " + settlement.err.Error())
+		return nil
+	case sessionrollback.Confirmed:
+	default:
+		return errors.New("rollback settlement returned an invalid outcome")
+	}
+
+	confirmationErr := sessionrollback.Confirm(a.workbench, result)
+	installation, err := a.prepareSessionInstallation(result.Snapshot)
+	if err != nil {
+		return errors.Join(confirmationErr, err)
+	}
+	installation.apply(a)
+	recovery := installation.rollbackRecovery
+	if confirmationErr != nil {
+		current, _, draftErr := a.currentDraft()
+		if draftErr != nil {
+			return errors.Join(confirmationErr, draftErr)
+		}
+		recovered, merged := workbench.MergeSessionRollbackDraft(current, result.Pending)
+		recovery = &workbench.SessionRollbackRecovery{
+			Draft: recovered, DroppedCount: len(result.Pending.BeforeRunIDs) - len(result.Pending.AfterRunIDs),
+			OpeningImages: result.Pending.OpeningImages, Merged: merged,
+		}
+		if persistErr := a.recoverDraft(recovered); persistErr != nil {
+			label := fmt.Sprintf("rolled back %d runs; restored text was not saved: %v", recovery.DroppedCount, persistErr)
+			label = appendRollbackWarnings(label, recovery.OpeningImages, settlement.err, confirmationErr)
+			a.message(label)
+			return nil
+		}
+	}
+	if recovery == nil {
+		return errors.New("confirmed rollback did not produce local recovery state")
+	}
+	label := fmt.Sprintf("rolled back session · %d runs removed", recovery.DroppedCount)
+	if recovery.Merged {
+		label += "; restored opening text before the newer draft"
+	}
+	label = appendRollbackWarnings(label, recovery.OpeningImages, settlement.err, confirmationErr)
+	a.message(label)
+	return nil
+}
+
+func appendRollbackWarnings(label string, images int, cleanupErr, journalErr error) string {
+	if images > 0 {
+		label += fmt.Sprintf("; %d inline images must be reattached", images)
+	}
+	if cleanupErr != nil {
+		label += "; runtime cleanup warning: " + cleanupErr.Error()
+	}
+	if journalErr != nil {
+		label += "; local recovery journal warning: " + journalErr.Error()
+	}
+	return label
+}
+
+func (a *app) reportSessionRollbackRecovery(recovery workbench.SessionRollbackRecovery) {
+	label := fmt.Sprintf("recovered rollback input · %d runs removed", recovery.DroppedCount)
+	if recovery.Merged {
+		label += "; restored opening text before the newer draft"
+	}
+	if recovery.OpeningImages > 0 {
+		label += fmt.Sprintf("; %d inline images must be reattached", recovery.OpeningImages)
+	}
+	a.message(label)
 }
 
 func parseRollbackArgument(sessionID, argument string) (agent.RollbackSession, error) {

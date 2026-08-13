@@ -62,6 +62,7 @@ var layers = []struct {
 	{"internal/sessionartifact/", "sessionartifact"},
 	{"internal/sessiontransfer/", "sessiontransfer"},
 	{"internal/sessiondeletion/", "sessiondeletion"},
+	{"internal/sessionrollback/", "sessionrollback"},
 	{"internal/workbench/", "workbench"},
 	{"internal/oneshot/", "oneshot"},
 	{"internal/agent/", "agent"},
@@ -98,6 +99,7 @@ var allowed = map[string][]string{
 	"settings":         {"agent"},
 	"session":          {"agent"},
 	"sessiondeletion":  {"agent", "mutation", "retry", "workbench"},
+	"sessionrollback":  {"agent", "mutation", "retry", "workbench"},
 	"mutation":         {"agent", "retry"},
 	"retry":            nil,
 	"oneshot":          {"agent", "mutation", "reconnect", "retry", "runrecovery"},
@@ -117,7 +119,7 @@ var allowed = map[string][]string{
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "agentmemory", "attachment", "authoringcontext", "changefeed", "codebase", "diagnostictool", "extensions", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "promptqueue", "reconnect", "retry", "runrecovery", "runtimeprofile", "schedule", "session", "sessionartifact", "sessiondeletion", "sessiontransfer", "settings", "skills", "usage", "workbench", "workspace"},
+	"terminal": {"agent", "agentmemory", "attachment", "authoringcontext", "changefeed", "codebase", "diagnostictool", "extensions", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "promptqueue", "reconnect", "retry", "runrecovery", "runtimeprofile", "schedule", "session", "sessionartifact", "sessiondeletion", "sessionrollback", "sessiontransfer", "settings", "skills", "usage", "workbench", "workspace"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"agent", "attachment", "backend", "extensions", "failure", "mutation", "oneshot", "render", "retry", "runtimeprofile", "session", "sessiondeletion", "settings", "sideload", "terminal", "workbench"},
 	"arch":     nil,
@@ -188,7 +190,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "codebase", "diagnostictool", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "retry", "runtimeprofile", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiondeletion", "sessiontransfer", "workbench", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "codebase", "diagnostictool", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "retry", "runtimeprofile", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiondeletion", "sessionrollback", "sessiontransfer", "workbench", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/core/program"
@@ -31,6 +32,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiondeletion"
+	"github.com/Tangerg/lynx/app/cli/internal/sessionrollback"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/skills"
@@ -118,6 +120,9 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 				settings:    prepared.settings, keyBindings: prepared.keyBindings, queue: queue,
 				workbench: prepared.workbench, initialDraft: prepared.draft, editor: prepared.editor,
 			})
+			if prepared.rollbackRecovery != nil {
+				active.reportSessionRollbackRecovery(*prepared.rollbackRecovery)
+			}
 			return headless.NewRoot(active)
 		},
 		Terminal: term.Config{Probe: true, Mouse: prepared.settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
@@ -130,14 +135,15 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 }
 
 type preparedSession struct {
-	opened         agent.SessionSnapshot
-	runtimeProfile *runtimeprofile.Profile
-	attachments    *attachment.Resolver
-	keyBindings    keyBindings
-	settings       settings.Config
-	workbench      *workbench.Store
-	draft          agent.Message
-	editor         *draftEditor
+	opened           agent.SessionSnapshot
+	runtimeProfile   *runtimeprofile.Profile
+	attachments      *attachment.Resolver
+	keyBindings      keyBindings
+	settings         settings.Config
+	workbench        *workbench.Store
+	draft            agent.Message
+	editor           *draftEditor
+	rollbackRecovery *workbench.SessionRollbackRecovery
 }
 
 func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
@@ -170,12 +176,21 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err := sessiondeletion.Recover(ctx, cfg.Runtime, authoring, runtimeRecoveryBackoff); err != nil {
 		return preparedSession{}, fmt.Errorf("recover session deletions: %w", err)
 	}
+	if err := sessionrollback.Recover(
+		ctx, cfg.Runtime, authoring, rollbackReplayWindow(profile), runtimeRecoveryBackoff,
+	); err != nil {
+		return preparedSession{}, fmt.Errorf("recover session rollbacks: %w", err)
+	}
 	opened, err := session.Open(ctx, cfg.Runtime, cfg.SessionID, cfg.Workspace)
 	if err != nil {
 		return preparedSession{}, err
 	}
 	if err := authoring.ActivateSessionState(opened.Session.ID); err != nil {
 		return preparedSession{}, fmt.Errorf("activate session authoring state: %w", err)
+	}
+	recovery, recovered, err := authoring.ConsumeConfirmedSessionRollback(opened.Session.ID)
+	if err != nil {
+		return preparedSession{}, fmt.Errorf("recover session rollback input: %w", err)
 	}
 	attachments, err := attachment.New(opened.Session.Workspace.Path)
 	if err != nil {
@@ -198,7 +213,28 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	return preparedSession{
 		opened: opened, runtimeProfile: profile, attachments: attachments, keyBindings: bindings, settings: configured,
 		workbench: authoring, draft: draft, editor: editor,
+		rollbackRecovery: optionalRollbackRecovery(recovery, recovered),
 	}, nil
+}
+
+func rollbackReplayWindow(profile *runtimeprofile.Profile) sessionrollback.ReplayWindow {
+	if profile == nil {
+		return sessionrollback.ReplayWindow{}
+	}
+	return sessionrollback.ReplayWindow{
+		Namespace: profile.Limits.IdempotencyNamespace,
+		Retention: time.Duration(profile.Limits.IdempotencyRetentionSeconds) * time.Second,
+	}
+}
+
+func optionalRollbackRecovery(
+	recovery workbench.SessionRollbackRecovery,
+	present bool,
+) *workbench.SessionRollbackRecovery {
+	if !present {
+		return nil
+	}
+	return &recovery
 }
 
 func requireLoadedPlugin(results []extensions.LifecycleResult, id string) error {

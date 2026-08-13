@@ -31,6 +31,7 @@ func projectRuntimeProfile(
 		Limits: runtimeprofile.Limits{
 			MaxConcurrentRuns:           discovery.Capabilities.Limits.MaxConcurrentRuns,
 			IdempotencyRetentionSeconds: discovery.Capabilities.Limits.Idempotency.RetentionSeconds,
+			IdempotencyNamespace:        discovery.Capabilities.Limits.Idempotency.Namespace,
 			RunReplay: runtimeprofile.ReplayLimits{
 				Scope:     string(discovery.Capabilities.Limits.RunReplay.Scope),
 				MaxEvents: discovery.Capabilities.Limits.RunReplay.MaxEvents,

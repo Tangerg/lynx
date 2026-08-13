@@ -84,7 +84,7 @@ func validProfile() Profile {
 			FeatureSchedules: {Stability: Experimental},
 		},
 		Limits: Limits{
-			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600,
+			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600, IdempotencyNamespace: "idp_test",
 			RunReplay:                        ReplayLimits{Scope: "runtimeInstanceRootSegment", MaxEvents: 1024, MaxBytes: 1 << 20},
 			MCPAuthorizationRetentionSeconds: 600,
 			RuntimeSubscription:              SubscriptionLimits{MaxTopics: 16, MaxWatches: 32},

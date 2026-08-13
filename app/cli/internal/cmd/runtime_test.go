@@ -82,7 +82,7 @@ func commandRuntimeProfile() runtimeprofile.Profile {
 			},
 		},
 		Limits: runtimeprofile.Limits{
-			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600,
+			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600, IdempotencyNamespace: "idp_test",
 			RunReplay:                        runtimeprofile.ReplayLimits{Scope: "runtimeInstanceRootSegment", MaxEvents: 1024, MaxBytes: 1 << 20},
 			MCPAuthorizationRetentionSeconds: 600,
 			RuntimeSubscription:              runtimeprofile.SubscriptionLimits{MaxTopics: 16, MaxWatches: 32},

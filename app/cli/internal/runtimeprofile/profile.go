@@ -103,6 +103,7 @@ type SubscriptionLimits struct {
 type Limits struct {
 	MaxConcurrentRuns                int                `json:"maxConcurrentRuns"`
 	IdempotencyRetentionSeconds      int                `json:"idempotencyRetentionSeconds"`
+	IdempotencyNamespace             string             `json:"idempotencyNamespace"`
 	RunReplay                        ReplayLimits       `json:"runReplay"`
 	MCPAuthorizationRetentionSeconds int                `json:"mcpAuthorizationRetentionSeconds"`
 	RuntimeSubscription              SubscriptionLimits `json:"runtimeSubscription"`
@@ -188,6 +189,9 @@ func (limits Limits) validate() error {
 	}
 	if limits.IdempotencyRetentionSeconds <= 0 || limits.MCPAuthorizationRetentionSeconds <= 0 {
 		return errors.New("runtime limits require positive retention periods")
+	}
+	if strings.TrimSpace(limits.IdempotencyNamespace) == "" {
+		return errors.New("runtime limits require an idempotency namespace")
 	}
 	if strings.TrimSpace(limits.RunReplay.Scope) == "" || limits.RunReplay.MaxEvents <= 0 || limits.RunReplay.MaxBytes <= 0 {
 		return errors.New("runtime replay limits are incomplete")

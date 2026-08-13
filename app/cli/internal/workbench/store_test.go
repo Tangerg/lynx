@@ -491,6 +491,110 @@ func TestStoreRejectsOnlyTheExactPreparedSessionDeletion(t *testing.T) {
 	}
 }
 
+func TestStorePersistsAndAtomicallyConsumesSessionRollbackRecovery(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	if err := store.SaveDraft(sessionID, agent.Message{Text: "new thought"}); err != nil {
+		t.Fatal(err)
+	}
+	pending := PendingSessionRollback{
+		Phase:     SessionRollbackPrepared,
+		CommandID: agent.CommandID("cli_66666666666666666666666666666666"),
+		SessionID: sessionID, ToRunID: "run_1", Scope: agent.RestoreHistory,
+		BeforeRevision: 7, BeforeRunIDs: []string{"run_1", "run_2"}, AfterRunIDs: []string{"run_1"},
+		OpeningText: "restored opening", OpeningImages: 2,
+		StagedAt: time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC),
+	}
+	if err := store.StageSessionRollback(pending); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, exists := reopened.PendingSessionRollback(sessionID)
+	if !exists || !pendingSessionRollbackEqual(stored, pending) {
+		t.Fatalf("prepared rollback = %+v, present %t", stored, exists)
+	}
+	if err := reopened.ConfirmSessionRollback(sessionID, pending.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	recovery, found, err := reopened.ConsumeConfirmedSessionRollback(sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || !recovery.Merged || recovery.DroppedCount != 1 || recovery.OpeningImages != 2 ||
+		recovery.Draft.Text != "restored opening\n\nnew thought" {
+		t.Fatalf("rollback recovery = %+v, present %t", recovery, found)
+	}
+
+	reopened, err = Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending := reopened.PendingSessionRollbacks(); len(pending) != 0 {
+		t.Fatalf("consumed rollback journals = %+v", pending)
+	}
+	if draft, found, err := reopened.Draft(sessionID); err != nil || !found || !draft.Equal(recovery.Draft) {
+		t.Fatalf("recovered draft = %+v, present %t, err %v", draft, found, err)
+	}
+}
+
+func TestStoreDoesNotDuplicateAnEditedRecoveredRollbackDraft(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending := PendingSessionRollback{
+		Phase:     SessionRollbackPrepared,
+		CommandID: agent.CommandID("cli_77777777777777777777777777777777"),
+		SessionID: "session", Scope: agent.RestoreHistory,
+		BeforeRevision: 2, BeforeRunIDs: []string{"run_1"}, OpeningText: "opening",
+		StagedAt: time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC),
+	}
+	if err := store.StageSessionRollback(pending); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDraft(pending.SessionID, agent.Message{Text: "opening!"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ConfirmSessionRollback(pending.SessionID, pending.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	recovery, found, err := store.ConsumeConfirmedSessionRollback(pending.SessionID)
+	if err != nil || !found || recovery.Merged || recovery.Draft.Text != "opening!" {
+		t.Fatalf("edited recovery = %+v, present %t, err %v", recovery, found, err)
+	}
+}
+
+func TestRetiringSessionStateAlsoRetiresItsRollbackJournal(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending := PendingSessionRollback{
+		Phase:     SessionRollbackPrepared,
+		CommandID: agent.CommandID("cli_88888888888888888888888888888888"),
+		SessionID: "session", Scope: agent.RestoreHistory,
+		BeforeRevision: 2, BeforeRunIDs: []string{"run_1"},
+		StagedAt: time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC),
+	}
+	if err := store.StageSessionRollback(pending); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RetireSessionState(pending.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	if rollbacks := store.PendingSessionRollbacks(); len(rollbacks) != 0 {
+		t.Fatalf("retired rollback journals = %+v", rollbacks)
+	}
+}
+
 func TestStoreDoesNotDeduplicateChangedAttachmentMetadata(t *testing.T) {
 	store, err := Open("", Config{})
 	if err != nil {

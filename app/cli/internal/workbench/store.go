@@ -93,10 +93,11 @@ type historyEntry struct {
 }
 
 type sessionState struct {
-	SessionID     string         `json:"sessionId"`
-	Draft         agent.Message  `json:"draft"`
-	PendingRuns   []PendingRun   `json:"pendingRuns"`
-	PendingResume *PendingResume `json:"pendingResume,omitempty"`
+	SessionID       string                  `json:"sessionId"`
+	Draft           agent.Message           `json:"draft"`
+	PendingRuns     []PendingRun            `json:"pendingRuns"`
+	PendingResume   *PendingResume          `json:"pendingResume,omitempty"`
+	PendingRollback *PendingSessionRollback `json:"pendingRollback,omitempty"`
 }
 
 // SessionDeletionPhase separates an unacknowledged runtime mutation from a
@@ -393,6 +394,7 @@ type Store struct {
 	workspaces       []Workspace
 	pendingRuns      map[string][]PendingRun
 	pendingResumes   map[string]PendingResume
+	pendingRollbacks map[string]PendingSessionRollback
 	sessionDeletions map[string]PendingSessionDeletion
 }
 
@@ -409,6 +411,7 @@ func Open(directory string, config Config) (*Store, error) {
 		drafts:           make(map[string]agent.Message),
 		pendingRuns:      make(map[string][]PendingRun),
 		pendingResumes:   make(map[string]PendingResume),
+		pendingRollbacks: make(map[string]PendingSessionRollback),
 		sessionDeletions: make(map[string]PendingSessionDeletion),
 	}
 	if store.now == nil {
@@ -935,10 +938,10 @@ func (s *Store) DiscardDraft(sessionID string) error {
 }
 
 // RetireSessionState atomically removes every authoring concern owned by one
-// session: its draft, pending run commands, and pending HITL command. Session
-// deletion cannot safely compose the three narrower mutations because each
-// rewrites the same durable aggregate and a failure between them would expose a
-// partially retired session after restart.
+// session: its draft, pending run commands, pending HITL command, and rollback
+// journal. Session deletion cannot safely compose the narrower mutations
+// because each rewrites the same durable aggregate and a failure between them
+// would expose a partially retired session after restart.
 func (s *Store) RetireSessionState(sessionID string) error {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
@@ -965,6 +968,7 @@ func (s *Store) retireSessionStateLocked(sessionID string, pending PendingSessio
 	delete(s.drafts, sessionID)
 	delete(s.pendingRuns, sessionID)
 	delete(s.pendingResumes, sessionID)
+	delete(s.pendingRollbacks, sessionID)
 	if err := s.remove(s.sessionStateName(sessionID)); err != nil {
 		return nil
 	}
@@ -1248,6 +1252,16 @@ func (s *Store) loadSessionStates() error {
 			}
 			s.pendingResumes[state.SessionID] = clonePendingResume(*state.PendingResume)
 		}
+		if state.PendingRollback != nil {
+			pending := state.PendingRollback.clone()
+			if err := pending.Validate(); err != nil {
+				return fmt.Errorf("state %s pending rollback: %w", entry.Name(), err)
+			}
+			if pending.SessionID != state.SessionID {
+				return fmt.Errorf("state %s pending rollback belongs to another session", entry.Name())
+			}
+			s.pendingRollbacks[state.SessionID] = pending
+		}
 	}
 	return nil
 }
@@ -1295,6 +1309,20 @@ func (s *Store) saveSessionStateWithResume(
 	pending []PendingRun,
 	resume *PendingResume,
 ) error {
+	rollback, exists := s.pendingRollbacks[strings.TrimSpace(sessionID)]
+	if !exists {
+		return s.saveSessionStateRecord(sessionID, draft, pending, resume, nil)
+	}
+	return s.saveSessionStateRecord(sessionID, draft, pending, resume, &rollback)
+}
+
+func (s *Store) saveSessionStateRecord(
+	sessionID string,
+	draft agent.Message,
+	pending []PendingRun,
+	resume *PendingResume,
+	rollback *PendingSessionRollback,
+) error {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return errors.New("session id is empty")
@@ -1303,7 +1331,7 @@ func (s *Store) saveSessionStateWithResume(
 		return errors.New("session authoring state has been retired")
 	}
 	name := s.sessionStateName(sessionID)
-	if messageEmpty(draft) && len(pending) == 0 && resume == nil {
+	if messageEmpty(draft) && len(pending) == 0 && resume == nil && rollback == nil {
 		if s.directory == "" {
 			return nil
 		}
@@ -1319,6 +1347,10 @@ func (s *Store) saveSessionStateWithResume(
 	if resume != nil {
 		cloned := clonePendingResume(*resume)
 		state.PendingResume = &cloned
+	}
+	if rollback != nil {
+		cloned := rollback.clone()
+		state.PendingRollback = &cloned
 	}
 	return s.save(name, state)
 }

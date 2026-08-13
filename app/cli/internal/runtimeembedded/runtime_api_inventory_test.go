@@ -215,7 +215,7 @@ func compatibleDiscovery() *protocol.DiscoverResponse {
 			},
 			Limits: protocol.RuntimeLimits{
 				MaxConcurrentRuns: 4,
-				Idempotency:       protocol.IdempotencyLimits{RetentionSeconds: 600},
+				Idempotency:       protocol.IdempotencyLimits{RetentionSeconds: 600, Namespace: "idp_test"},
 				RunReplay: protocol.RunReplayLimits{
 					Scope: protocol.ReplayScopeRuntimeInstanceRootSegment, MaxEvents: 1024, MaxBytes: 1 << 20,
 				},

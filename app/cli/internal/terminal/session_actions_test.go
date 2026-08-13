@@ -329,8 +329,12 @@ func TestRollbackPreviewProvesOnlyTheExactHistoryOutcome(t *testing.T) {
 	if err := preview.ValidateApplied(wrong); err == nil {
 		t.Fatal("rollback outcome with a surviving dropped run was accepted")
 	}
-	files := preview
-	files.request.Scope = agent.RestoreFiles
+	files, err := previewRollback(before, agent.RollbackSession{
+		SessionID: before.Session.ID, ToRunID: before.Runs[0].ID, Scope: agent.RestoreFiles,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := files.ValidateApplied(after); err == nil {
 		t.Fatal("files-only rollback was inferred from a session projection")
 	}
@@ -362,6 +366,25 @@ type blockedRollbackRuntime struct {
 
 	entered chan struct{}
 	release chan struct{}
+}
+
+type committedThenCanceledRollbackRuntime struct {
+	*mock.Runtime
+
+	committed chan struct{}
+	once      sync.Once
+}
+
+func (runtime *committedThenCanceledRollbackRuntime) RollbackSession(
+	ctx context.Context,
+	request agent.RollbackSession,
+) (agent.RollbackResult, error) {
+	if _, err := runtime.Runtime.RollbackSession(ctx, request); err != nil {
+		return agent.RollbackResult{}, err
+	}
+	runtime.once.Do(func() { close(runtime.committed) })
+	<-ctx.Done()
+	return agent.RollbackResult{}, context.Cause(ctx)
 }
 
 type postCommitRollbackRuntime struct {
@@ -408,6 +431,62 @@ func TestRollbackConvergesPostCommitFailureAndRestoresOpeningInput(t *testing.T)
 		t.Fatalf("rollback request = %+v", request)
 	}
 	stop()
+}
+
+func TestRollbackPreservesDraftAuthoredWhileTheRuntimeSettles(t *testing.T) {
+	backend := &blockedRollbackRuntime{
+		Runtime: mock.New(), entered: make(chan struct{}, 1), release: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("/rollback all history")
+	host.Press(input.Enter)
+	host.Shows(t, "Rollback session")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	awaitSignal(t, backend.entered, "rollback runtime call")
+	host.Shows(t, "rolling back session")
+	host.Type("new thought")
+	host.Shows(t, "new thought")
+	close(backend.release)
+	host.Shows(t, "Why is the cache expiry test flaky?")
+	host.Shows(t, "new thought")
+	awaitStoredDraft(t, stateDirectory, "ses_demo_1", agent.Message{
+		Text: "Why is the cache expiry test flaky?\n\nnew thought",
+	})
+	stop()
+}
+
+func TestRestartRecoversCommittedRollbackAndOpeningInput(t *testing.T) {
+	stateDirectory := t.TempDir()
+	underlying := mock.New()
+	backend := &committedThenCanceledRollbackRuntime{
+		Runtime: underlying, committed: make(chan struct{}),
+	}
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("/rollback all history")
+	host.Press(input.Enter)
+	host.Shows(t, "Rollback session")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	awaitSignal(t, backend.committed, "durable runtime rollback")
+	stop()
+
+	restarted, stopRestarted := runUIWithState(
+		t, underlying, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory,
+	)
+	restarted.Shows(t, "Why is the cache expiry test flaky?")
+	restarted.Shows(t, "recovered rollback input · 1 runs removed")
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending := reopened.PendingSessionRollbacks(); len(pending) != 0 {
+		t.Fatalf("settled rollback journals = %+v", pending)
+	}
+	stopRestarted()
 }
 
 func (runtime *blockedRollbackRuntime) RollbackSession(ctx context.Context, request agent.RollbackSession) (agent.RollbackResult, error) {

@@ -430,10 +430,11 @@ func (transition sessionDraftTransition) resolve(
 }
 
 type sessionInstallation struct {
-	snapshot    agent.SessionSnapshot
-	attachments *attachment.Resolver
-	projection  sessionProjection
-	draft       agent.Message
+	snapshot         agent.SessionSnapshot
+	attachments      *attachment.Resolver
+	projection       sessionProjection
+	draft            agent.Message
+	rollbackRecovery *workbench.SessionRollbackRecovery
 }
 
 func (a *app) prepareSessionInstallation(snapshot agent.SessionSnapshot) (sessionInstallation, error) {
@@ -445,39 +446,52 @@ func (a *app) prepareSessionInstallation(snapshot agent.SessionSnapshot) (sessio
 	if err != nil {
 		return sessionInstallation{}, fmt.Errorf("install session: %w", err)
 	}
-	draft, err := a.prepareDestinationDraft(snapshot.Session)
+	draft, recovery, err := a.prepareDestinationDraft(snapshot.Session)
 	if err != nil {
 		projection.close()
 		return sessionInstallation{}, err
 	}
 	return sessionInstallation{
 		snapshot: snapshot, attachments: attachments, projection: projection, draft: draft,
+		rollbackRecovery: recovery,
 	}, nil
 }
 
-func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, error) {
+func (a *app) prepareDestinationDraft(
+	session agent.Session,
+) (agent.Message, *workbench.SessionRollbackRecovery, error) {
 	current, _, err := a.currentDraft()
 	if err != nil {
-		return agent.Message{}, err
+		return agent.Message{}, nil, err
 	}
 	if err := a.saveDraft(current); err != nil {
-		return agent.Message{}, fmt.Errorf("save source session draft: %w", err)
+		return agent.Message{}, nil, fmt.Errorf("save source session draft: %w", err)
 	}
 	if err := a.workbench.ActivateSessionState(session.ID); err != nil {
-		return agent.Message{}, fmt.Errorf("activate destination session state: %w", err)
+		return agent.Message{}, nil, fmt.Errorf("activate destination session state: %w", err)
 	}
 	draft, _, err := a.workbench.Draft(session.ID)
 	if err != nil {
-		return agent.Message{}, fmt.Errorf("load session draft: %w", err)
+		return agent.Message{}, nil, fmt.Errorf("load session draft: %w", err)
 	}
 	if err := a.workbench.RememberWorkspace(session.Workspace.Path); err != nil {
-		return agent.Message{}, fmt.Errorf("remember workspace: %w", err)
+		return agent.Message{}, nil, fmt.Errorf("remember workspace: %w", err)
 	}
 	transition := a.sessionDraftTransition
-	if transition == nil {
-		return draft, nil
+	if transition != nil {
+		draft, err = transition.resolve(a.workbench, session.ID, draft, current)
+		if err != nil {
+			return agent.Message{}, nil, err
+		}
 	}
-	return transition.resolve(a.workbench, session.ID, draft, current)
+	recovery, recovered, err := a.workbench.ConsumeConfirmedSessionRollback(session.ID)
+	if err != nil {
+		return agent.Message{}, nil, fmt.Errorf("recover session rollback input: %w", err)
+	}
+	if recovered {
+		draft = recovery.Draft
+	}
+	return draft, optionalRollbackRecovery(recovery, recovered), nil
 }
 
 func (a *app) retireSessionState(sessionID string) (int, error) {
@@ -563,6 +577,9 @@ func (a *app) installSnapshot(snapshot agent.SessionSnapshot) error {
 		return err
 	}
 	installation.apply(a)
+	if installation.rollbackRecovery != nil {
+		a.reportSessionRollbackRecovery(*installation.rollbackRecovery)
+	}
 	return nil
 }
 
