@@ -64,6 +64,14 @@ const req = (id: string, method: WireMethodName): TransportRequest => ({
   params: {},
 });
 
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 describe("HTTPTransport — streamable HTTP", () => {
   it("streaming method: POST response stream yields the call response then its events", async () => {
     const responseFrame = frame({ jsonrpc: "2.0", id: "1", result: { runId: "run_01" } }); // no SSE id
@@ -215,6 +223,66 @@ describe("HTTPTransport — streamable HTTP", () => {
     await transport.close();
     await expect(sending).rejects.toThrow("fetch failed: aborted");
     expect(requestSignal?.aborted).toBe(true);
+  });
+
+  it("does not report closed until an in-flight request releases after abort", async () => {
+    const aborted = deferred();
+    const release = deferred();
+    const fetchStub = ((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => {
+            aborted.resolve();
+            void release.promise.then(() => reject(new DOMException("aborted", "AbortError")));
+          },
+          { once: true },
+        );
+      })) as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    const sending = transport.send(req("2", "sessions.get")).catch((error: unknown) => error);
+    let closed = false;
+    const closing = transport.close().then(() => {
+      closed = true;
+    });
+
+    await aborted.promise;
+    await Promise.resolve();
+    expect(closed).toBe(false);
+
+    release.resolve();
+    await closing;
+    await expect(sending).resolves.toBeInstanceOf(RpcConnectionError);
+  });
+
+  it("does not report closed until an active stream reader releases", async () => {
+    const cancelStarted = deferred();
+    const release = deferred();
+    const body = new ReadableStream<Uint8Array>({
+      pull: () => new Promise<void>(() => undefined),
+      async cancel() {
+        cancelStarted.resolve();
+        await release.promise;
+      },
+    });
+    const fetchStub = (async () =>
+      new Response(body, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })) as unknown as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    await transport.send(req("1", "runs.start"));
+    let closed = false;
+    const closing = transport.close().then(() => {
+      closed = true;
+    });
+
+    await cancelStarted.promise;
+    await Promise.resolve();
+    expect(closed).toBe(false);
+
+    release.resolve();
+    await closing;
   });
 
   it("non-2xx surfaces structured transport diagnostics", async () => {

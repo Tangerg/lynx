@@ -88,6 +88,9 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   const closeController = new AbortController();
   // Active SSE body readers — close() cancels in-flight streams through these.
   const readers = new Set<ReadableStreamDefaultReader<Uint8Array>>();
+  const activeSends = new Set<Promise<void>>();
+  const activeDrains = new Set<Promise<void>>();
+  let closePromise: Promise<void> | undefined;
 
   function requestHeaders(extra: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
@@ -186,7 +189,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     });
   }
 
-  async function send(
+  async function sendRequest(
     msg: TransportRequest,
     signal?: AbortSignal,
     options: TransportSendOptions = {},
@@ -288,7 +291,12 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       // A stream may drain for minutes; that wall-clock belongs to the run,
       // not the HTTP request span. The reader remains bound to requestSignal.
       endSpan(span);
-      void drainStream(res.body, rpcId, method, metadata, requestSignal);
+      const draining = drainStream(res.body, rpcId, method, metadata, requestSignal);
+      activeDrains.add(draining);
+      void draining.then(
+        () => activeDrains.delete(draining),
+        () => activeDrains.delete(draining),
+      );
       return;
     }
 
@@ -338,17 +346,44 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     endSpan(span);
   }
 
+  function send(
+    msg: TransportRequest,
+    signal?: AbortSignal,
+    options?: TransportSendOptions,
+  ): Promise<void> {
+    const sending = sendRequest(msg, signal, options);
+    activeSends.add(sending);
+    void sending.then(
+      () => activeSends.delete(sending),
+      () => activeSends.delete(sending),
+    );
+    return sending;
+  }
+
   function recv(): AsyncIterable<TransportEvent> {
     // RpcClient calls recv() once and consumes the iterator for the transport's
     // life; every inbound message arrives via a POST response (see send()).
     return channel.iterator();
   }
 
-  async function close(): Promise<void> {
+  async function closeOwnedResources(): Promise<void> {
     channel.close();
     closeController.abort();
-    for (const reader of readers) void reader.cancel().catch(() => {});
+    const cancelReaders = () => [...readers].map((reader) => reader.cancel());
+
+    // Calls already past admission may still be unwinding a fetch/body read.
+    // Join them before taking the final reader snapshot: a fetch implementation
+    // that resolves concurrently with abort can otherwise install a new drain
+    // after close has already returned.
+    await Promise.allSettled([...activeSends, ...cancelReaders()]);
+    await Promise.allSettled(cancelReaders());
+    await Promise.allSettled([...activeDrains]);
     readers.clear();
+  }
+
+  function close(): Promise<void> {
+    closePromise ??= closeOwnedResources();
+    return closePromise;
   }
 
   return { send, recv, close };

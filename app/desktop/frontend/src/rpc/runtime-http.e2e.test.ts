@@ -29,7 +29,12 @@ import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { errorType } from "./types";
 import { createSidecarClient } from "./sidecar";
 import { createHttpTransport } from "./transports/http";
-import { PROTOCOL_VERSION, type RunEvent, type RuntimeEvent } from "./wire.generated";
+import {
+  PROTOCOL_VERSION,
+  type RequestMeta,
+  type RunEvent,
+  type RuntimeEvent,
+} from "./wire.generated";
 
 const execFileAsync = promisify(execFile);
 const runtimeDirectory = resolve(process.cwd(), "../../runtime");
@@ -112,6 +117,70 @@ async function requestJson(request: IncomingMessage): Promise<FakeChatRequest> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as FakeChatRequest;
+}
+
+type UnaryCutpoint = "beforeCommit" | "afterCommit";
+
+function faultUnaryResponse(
+  method: string,
+  cutpoint: UnaryCutpoint,
+): { attempts: () => number; fetch: typeof fetch } {
+  let attempts = 0;
+  let injected = false;
+  const faultFetch: typeof fetch = async (input, init) => {
+    const body =
+      typeof init?.body === "string" ? (JSON.parse(init.body) as { method?: string }) : {};
+    if (body.method !== method) return globalThis.fetch(input, init);
+    attempts += 1;
+    if (injected) return globalThis.fetch(input, init);
+    injected = true;
+    if (cutpoint === "beforeCommit") {
+      throw new Error("injected disconnect before Runtime admission");
+    }
+
+    const committed = await globalThis.fetch(input, init);
+    await committed.arrayBuffer();
+    const lostBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("injected response body loss after Runtime commit"));
+      },
+    });
+    return new Response(lostBody, {
+      headers: committed.headers,
+      status: committed.status,
+      statusText: committed.statusText,
+    });
+  };
+  return { attempts: () => attempts, fetch: faultFetch };
+}
+
+function faultStreamOpening(method: string): { attempts: () => number; fetch: typeof fetch } {
+  let attempts = 0;
+  let injected = false;
+  const faultFetch: typeof fetch = async (input, init) => {
+    const body =
+      typeof init?.body === "string" ? (JSON.parse(init.body) as { method?: string }) : {};
+    if (body.method !== method) return globalThis.fetch(input, init);
+    attempts += 1;
+    const committed = await globalThis.fetch(input, init);
+    if (injected) return committed;
+    injected = true;
+    if (!(committed.headers.get("Content-Type") ?? "").includes("text/event-stream")) {
+      throw new Error(`expected ${method} to return an event stream`);
+    }
+    await committed.body?.cancel("injected opening response loss after Runtime commit");
+    const lostBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("injected opening response loss after Runtime commit"));
+      },
+    });
+    return new Response(lostBody, {
+      headers: committed.headers,
+      status: committed.status,
+      statusText: committed.statusText,
+    });
+  };
+  return { attempts: () => attempts, fetch: faultFetch };
 }
 
 function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolCall } {
@@ -696,6 +765,235 @@ for await (const line of lines) {
 
     streamController.abort();
     await events.return?.();
+  }, 30_000);
+
+  it("converges unary mutations across pre-admission and post-commit disconnects", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const requestMeta = (): RequestMeta => ({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: "runtime-http-cutpoint-e2e", version: "1" },
+      clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+    });
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["sessions.changed"] },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+    const createdIds: string[] = [];
+
+    try {
+      for (const cutpoint of ["beforeCommit", "afterCommit"] as const) {
+        const fault = faultUnaryResponse("sessions.create", cutpoint);
+        const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+          requestMeta,
+        });
+        try {
+          const created = await faultClient.sessions.create({
+            workspace: { path: root },
+            title: `HTTP ${cutpoint} replay`,
+          });
+          createdIds.push(created.id);
+          expect(fault.attempts()).toBe(2);
+          await expect(client.sessions.get(asSessionId(created.id))).resolves.toEqual(created);
+          await expect(nextRuntimeEvent(events, "sessions.changed")).resolves.toMatchObject({
+            type: "sessions.changed",
+            sessionIds: [created.id],
+          });
+        } finally {
+          await faultClient.close();
+        }
+      }
+
+      const sessions = await client.sessions.list().autoPagingToArray();
+      for (const id of createdIds) {
+        expect(sessions.filter((session) => session.id === id)).toHaveLength(1);
+      }
+
+      const deletedId = createdIds.pop();
+      if (!deletedId) throw new Error("post-commit Session was not created");
+      const fault = faultUnaryResponse("sessions.delete", "afterCommit");
+      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+        requestMeta,
+      });
+      try {
+        await faultClient.sessions.delete(asSessionId(deletedId));
+        expect(fault.attempts()).toBe(2);
+      } finally {
+        await faultClient.close();
+      }
+      await expect(nextRuntimeEvent(events, "sessions.changed")).resolves.toMatchObject({
+        type: "sessions.changed",
+        sessionIds: [deletedId],
+      });
+      await expect(client.sessions.get(asSessionId(deletedId))).rejects.toSatisfy(
+        (error: unknown) =>
+          error instanceof RpcError && errorType(error.data) === "session_not_found",
+      );
+    } finally {
+      for (const id of createdIds) await client.sessions.delete(asSessionId(id));
+      streamController.abort();
+      await events.return?.();
+    }
+  }, 30_000);
+
+  it("reattaches one committed Run after its streaming acknowledgement is lost", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP streaming replay cutpoint",
+    });
+    const gate = createProviderGate("E2E_RUN_REPLAY_CUTPOINT");
+    providerGate = gate;
+    const fault = faultStreamOpening("runs.start");
+    const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+      requestMeta: (): RequestMeta => ({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "runtime-http-stream-cutpoint-e2e", version: "1" },
+        clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+      }),
+    });
+
+    try {
+      const opening = faultClient.runs.start({
+        sessionId: asSessionId(session.id),
+        input: [{ type: "text", text: "E2E_RUN_REPLAY_CUTPOINT finish exactly once." }],
+      });
+      await within(gate.arrived.promise, "the replay-cutpoint model request");
+      const started = await opening;
+      expect(fault.attempts()).toBe(2);
+
+      gate.release.resolve();
+      const events = await collectRunEvents(started.events);
+      expect(events.at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "completed" },
+      });
+      const runs = await client.runs
+        .list({ sessionId: asSessionId(session.id) })
+        .autoPagingToArray();
+      expect(runs).toHaveLength(1);
+      expect(runs[0]).toMatchObject({
+        id: started.result.runId,
+        sessionId: session.id,
+        status: "finished",
+        outcome: { type: "completed" },
+      });
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+      await faultClient.close();
+      await client.sessions.delete(asSessionId(session.id));
+    }
+  }, 30_000);
+
+  it("reconciles Schedule response and acknowledgement cutpoints through cold reads", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const requestMeta = (): RequestMeta => ({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: "runtime-http-schedule-cutpoint-e2e", version: "1" },
+      clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+    });
+    const callAfterCommitLoss = async <T>(
+      method: string,
+      call: (faultClient: LyraClient) => Promise<T>,
+    ): Promise<T> => {
+      const fault = faultUnaryResponse(method, "afterCommit");
+      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+        requestMeta,
+      });
+      try {
+        const value = await call(faultClient);
+        expect(fault.attempts()).toBe(2);
+        return value;
+      } finally {
+        await faultClient.close();
+      }
+    };
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["schedules.changed"] },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+    let scheduleId: string | undefined;
+
+    try {
+      const created = await callAfterCommitLoss("schedules.create", (faultClient) =>
+        faultClient.schedules.create({
+          cron: "0 0 1 1 *",
+          instructions: "Exercise post-commit Schedule replay.",
+          title: "HTTP Schedule replay cutpoint",
+          workspace: { path: root },
+        }),
+      );
+      scheduleId = created.id;
+      await expect(nextRuntimeEvent(events, "schedules.changed")).resolves.toMatchObject({
+        type: "schedules.changed",
+        scheduleIds: [created.id],
+      });
+      await expect(client.schedules.list()).resolves.toMatchObject({
+        data: [expect.objectContaining({ id: created.id, revision: created.revision })],
+      });
+
+      const fired = await callAfterCommitLoss("schedules.runNow", (faultClient) =>
+        faultClient.schedules.runNow(created.id),
+      );
+      await expect(nextRuntimeEvent(events, "schedules.changed")).resolves.toMatchObject({
+        type: "schedules.changed",
+        scheduleIds: [created.id],
+      });
+      let firedRun = await client.runs.get(asRunId(fired.runId));
+      for (let attempt = 0; attempt < 100 && firedRun.status !== "finished"; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        firedRun = await client.runs.get(asRunId(fired.runId));
+      }
+      expect(firedRun).toMatchObject({
+        id: fired.runId,
+        sessionId: fired.sessionId,
+        status: "finished",
+      });
+
+      const current = (await client.schedules.list()).data.find(
+        (schedule) => schedule.id === created.id,
+      );
+      if (!current) throw new Error("Schedule disappeared before replayed update");
+      const updated = await callAfterCommitLoss("schedules.update", (faultClient) =>
+        faultClient.schedules.update({
+          id: created.id,
+          enabled: false,
+          expectedRevision: current.revision,
+          title: "HTTP Schedule replay cutpoint updated",
+          workspaceMode: "default",
+        }),
+      );
+      await expect(nextRuntimeEvent(events, "schedules.changed")).resolves.toMatchObject({
+        type: "schedules.changed",
+        scheduleIds: [created.id],
+      });
+      await expect(client.schedules.list()).resolves.toMatchObject({
+        data: [
+          expect.objectContaining({ id: created.id, revision: updated.revision, enabled: false }),
+        ],
+      });
+
+      await callAfterCommitLoss("schedules.delete", (faultClient) =>
+        faultClient.schedules.delete(created.id),
+      );
+      scheduleId = undefined;
+      await expect(nextRuntimeEvent(events, "schedules.changed")).resolves.toMatchObject({
+        type: "schedules.changed",
+        scheduleIds: [created.id],
+      });
+      await expect(client.schedules.list()).resolves.toMatchObject({ data: [] });
+    } finally {
+      if (scheduleId) await client.schedules.delete(scheduleId).catch(() => undefined);
+      streamController.abort();
+      await events.return?.();
+    }
   }, 30_000);
 
   it("isolates concurrent runtime subscriptions on one HTTP client", async () => {
