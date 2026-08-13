@@ -36,6 +36,7 @@ export {
   MutationJournalCapacityError,
   MutationJournalError,
   MutationJournalOwnershipError,
+  MutationJournalScopeUnavailableError,
   MutationJournalStorageError,
 } from "./mutationJournal";
 export type {

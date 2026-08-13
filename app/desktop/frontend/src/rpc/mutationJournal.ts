@@ -37,6 +37,9 @@ export interface MutationJournalScope {
 
 export interface MutationReservation {
   readonly idempotencyKey: string;
+  /** Prove that this exact journal generation still owns the Runtime store
+   * before each transport attempt, including automatic recovery replays. */
+  authorizeAttempt(): void;
   track<T>(mutation: MutationPromise<T>): MutationPromise<T>;
 }
 
@@ -64,6 +67,10 @@ export class MutationJournalStorageError extends MutationJournalError {
 
 export class MutationJournalOwnershipError extends MutationJournalError {
   override readonly name = "MutationJournalOwnershipError";
+}
+
+export class MutationJournalScopeUnavailableError extends MutationJournalError {
+  override readonly name = "MutationJournalScopeUnavailableError";
 }
 
 export class MutationJournalCapacityError extends MutationJournalError {
@@ -647,6 +654,53 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
     PROCESS_CLAIMABLE.delete(upperBound.idempotencyKey);
   };
 
+  const authorizeAttempt = (reserved: JournalEntry) => {
+    assertOpen();
+    const currentScope = options.scope();
+    if (!validScope(currentScope)) {
+      throw new MutationJournalScopeUnavailableError(
+        "Runtime mutation store identity is temporarily unavailable",
+      );
+    }
+    if (
+      normalizedEndpoint(currentScope.endpoint) !== reserved.endpoint ||
+      currentScope.namespace !== reserved.namespace
+    ) {
+      throw new MutationJournalOwnershipError(
+        "Runtime mutation identity belongs to a replaced Runtime store",
+      );
+    }
+    const currentTime = now();
+    const effectiveExpiry = Math.min(
+      reserved.expiresAt,
+      reserved.createdAt + currentScope.retentionSeconds * 1_000,
+    );
+    if (effectiveExpiry <= currentTime) {
+      throw new MutationJournalError("Runtime mutation identity expired before delivery");
+    }
+
+    const claimOwner = activeClaims.get(reserved.idempotencyKey);
+    const current = readEntry(reserved.idempotencyKey);
+    if (!current) {
+      // Generation zero is removed after a definitive response. Its settled
+      // MutationPromise may still explicitly replay against the same Runtime
+      // cache, but an active identity must never disappear before delivery.
+      if (claimOwner === journalInstance) {
+        throw journalError("Runtime mutation identity disappeared before delivery");
+      }
+      return;
+    }
+    if (
+      !sameGeneration(current, reserved) ||
+      current.owner !== PROCESS_OWNER ||
+      claimOwner !== journalInstance
+    ) {
+      throw new MutationJournalOwnershipError(
+        "Runtime mutation identity is owned by a successor Desktop client",
+      );
+    }
+  };
+
   const lifecycleFor = (reserved: JournalEntry): MutationLifecycle => {
     let activeAttempts = 0;
     let definitiveOutcome = false;
@@ -738,7 +792,12 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         startHeartbeat();
       },
       resolve: () => finish(true),
-      reject: (error) => finish(!mutationSettlementIsUnknown(error)),
+      reject: (error) =>
+        finish(
+          !mutationSettlementIsUnknown(error) &&
+            !(error instanceof MutationJournalStorageError) &&
+            !(error instanceof MutationJournalScopeUnavailableError),
+        ),
     };
   };
 
@@ -906,6 +965,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       const lifecycle = lifecycleFor(entry);
       return {
         idempotencyKey: entry.idempotencyKey,
+        authorizeAttempt: () => authorizeAttempt(entry),
         track: (mutation) => trackedMutation(mutation, lifecycle),
       };
     },

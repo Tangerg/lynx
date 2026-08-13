@@ -3,7 +3,12 @@ import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
 import { RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
-import { createMutationJournal, type MutationJournalStorage } from "./mutationJournal";
+import {
+  createMutationJournal,
+  MutationJournalOwnershipError,
+  MutationJournalScopeUnavailableError,
+  type MutationJournalStorage,
+} from "./mutationJournal";
 import type { Item, RunEvent, StreamEvent } from "./wire.generated";
 import { RUN_EVENT_METHOD, RUNTIME_EVENT_METHOD } from "./stream";
 import { createMemoryTransport } from "./transports/memory";
@@ -164,6 +169,100 @@ describe("methods factory", () => {
     expect(keys[0]).toBeTruthy();
     expect(keys[1]).toBe(keys[0]);
     expect(keys[2]).not.toBe(keys[1]);
+  });
+
+  it("does not replay an old mutation identity into a replaced Runtime store", async () => {
+    const values = new Map<string, unknown>();
+    const storage: MutationJournalStorage = {
+      get: (key) => {
+        const value = values.get(key);
+        return value === undefined ? undefined : structuredClone(value);
+      },
+      set: (key, value) => values.set(key, structuredClone(value)),
+      remove: (key) => void values.delete(key),
+      keys: () => [...values.keys()],
+    };
+    let namespace = "idp_runtime_store_a";
+    const persistentJournal = createMutationJournal({
+      storage,
+      scope: () => ({
+        endpoint: "http://127.0.0.1:17171",
+        namespace,
+        retentionSeconds: 86_400,
+      }),
+    });
+    const call = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        namespace = "idp_runtime_store_b";
+        throw new RpcTransportError("old Runtime response lost");
+      })
+      .mockResolvedValue({ sessionId: "ses_2", runId: "run_2" });
+    const methods = createMethods({ call } as unknown as RpcClient, {
+      mutationJournal: persistentJournal,
+    });
+
+    const retired = methods.schedules.runNow("schedule_1");
+    await expect(retired).rejects.toBeInstanceOf(MutationJournalOwnershipError);
+    expect(call).toHaveBeenCalledOnce();
+
+    await expect(retired.retry()).rejects.toBeInstanceOf(MutationJournalOwnershipError);
+    expect(call).toHaveBeenCalledOnce();
+
+    const replacement = methods.schedules.runNow("schedule_1");
+    await expect(replacement).resolves.toMatchObject({ runId: "run_2" });
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(call.mock.calls[1]?.[2]?.idempotencyKey).not.toBe(retired.idempotencyKey);
+    persistentJournal.dispose();
+  });
+
+  it("retains an unknown mutation while the Runtime store identity is unavailable", async () => {
+    const values = new Map<string, unknown>();
+    const storage: MutationJournalStorage = {
+      get: (key) => values.get(key),
+      set: (key, value) => values.set(key, structuredClone(value)),
+      remove: (key) => void values.delete(key),
+      keys: () => [...values.keys()],
+    };
+    let scopeAvailable = true;
+    const persistentJournal = createMutationJournal({
+      storage,
+      scope: () =>
+        scopeAvailable
+          ? {
+              endpoint: "http://127.0.0.1:17171",
+              namespace: "idp_runtime_store",
+              retentionSeconds: 86_400,
+            }
+          : null,
+    });
+    const call = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        scopeAvailable = false;
+        throw new RpcTransportError("Runtime discovery withdrawn");
+      })
+      .mockResolvedValue({ sessionId: "ses_1", runId: "run_1" });
+    const methods = createMethods({ call } as unknown as RpcClient, {
+      mutationJournal: persistentJournal,
+    });
+
+    const pending = methods.schedules.runNow("schedule_1");
+    await expect(pending).rejects.toBeInstanceOf(MutationJournalScopeUnavailableError);
+    expect(call).toHaveBeenCalledOnce();
+    const originalKey = pending.idempotencyKey;
+    expect(
+      [...values.values()].some(
+        (value) => (value as { idempotencyKey?: string }).idempotencyKey === originalKey,
+      ),
+    ).toBe(true);
+
+    scopeAvailable = true;
+    const replay = pending.retry();
+    await expect(replay).resolves.toMatchObject({ runId: "run_1" });
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(call.mock.calls[1]?.[2]?.idempotencyKey).toBe(originalKey);
+    persistentJournal.dispose();
   });
 
   it("restores a persisted unary mutation key after a Desktop process loss", async () => {

@@ -597,9 +597,14 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         retry: { enumerable: true, value: retry },
       }) as MutationPromise<Result>;
     }
-    const mutation = createMutationPromise(execute, requestedKey ?? reservation?.idempotencyKey, {
-      signal,
-    });
+    const mutation = createMutationPromise(
+      (idempotencyKey, attempt) => {
+        reservation?.authorizeAttempt();
+        return execute(idempotencyKey, attempt);
+      },
+      requestedKey ?? reservation?.idempotencyKey,
+      { signal },
+    );
     return reservation?.track(mutation) ?? mutation;
   };
 
