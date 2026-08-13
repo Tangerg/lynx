@@ -320,6 +320,8 @@ describe("persistent mutation journal", () => {
     const failure = new RpcTransportError("response lost");
 
     await expect(opening(ambiguous, () => Promise.reject(failure))).rejects.toBe(failure);
+    const liveTwin = journal({ storage, scope: () => scope }).reserve("goals.stop", params)!;
+    expect(liveTwin.idempotencyKey).not.toBe(ambiguous.idempotencyKey);
     expect(created.reserve("goals.stop", params)?.idempotencyKey).toBe(ambiguous.idempotencyKey);
 
     const definitive = created.reserve("goals.resume", params)!;
@@ -893,6 +895,70 @@ describe("persistent mutation journal", () => {
       first.dispose();
       replacement.dispose();
     }
+  });
+
+  it("generation-fences a same-renderer replacement that takes over during settlement", async () => {
+    const backing = new MemoryStorage();
+    const params = { sessionId: "ses_same_renderer_interleave" };
+    let armReplacement = false;
+    let replacementInjected = false;
+    let retired: MutationJournal | undefined;
+    let replacement: MutationJournal | undefined;
+    let inherited: ReturnType<MutationJournal["reserve"]>;
+    const storage: MutationJournalStorage = {
+      get(key) {
+        const value = backing.get(key);
+        if (armReplacement && !replacementInjected && key.startsWith("entry:")) {
+          replacementInjected = true;
+          retired!.dispose();
+          inherited = replacement!.reserve("goals.resume", params);
+        }
+        return value;
+      },
+      set: (key, value) => backing.set(key, value),
+      remove: (key) => backing.remove(key),
+      keys: () => backing.keys(),
+    };
+    retired = journal({ storage, scope: () => scope });
+    replacement = journal({ storage, scope: () => scope });
+    let settleRetired!: (value: string) => void;
+
+    const original = retired.reserve("goals.resume", params)!;
+    const pending = original.track(
+      createMutationPromise(
+        () =>
+          new Promise<string>((resolve) => {
+            settleRetired = resolve;
+          }),
+        original.idempotencyKey,
+      ),
+    );
+    await vi.waitFor(() => expect(settleRetired).toBeTypeOf("function"));
+    armReplacement = true;
+
+    settleRetired("retired success");
+    await expect(pending).resolves.toBe("retired success");
+
+    expect(inherited?.idempotencyKey).toBe(original.idempotencyKey);
+    expect(persistedEntry(backing, original.idempotencyKey)).toMatchObject({
+      generation: 1,
+      claimable: false,
+      settled: false,
+    });
+
+    await expect(
+      inherited!.track(
+        createMutationPromise(
+          () => Promise.resolve("replacement success"),
+          inherited!.idempotencyKey,
+        ),
+      ),
+    ).resolves.toBe("replacement success");
+    expect(persistedEntry(backing, original.idempotencyKey)).toMatchObject({
+      generation: 1,
+      claimable: false,
+      settled: true,
+    });
   });
 
   it("keeps a successor settlement fenced against an older renderer's later failure", async () => {

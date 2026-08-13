@@ -286,7 +286,11 @@ describe("methods factory", () => {
 
     settleReplacement({ sessionId: "ses_1", runId: "run_1" });
     await expect(replay).resolves.toMatchObject({ runId: "run_1" });
-    expect([...values.keys()].some((key) => key.startsWith("entry:"))).toBe(false);
+    const entryRecords = [...values.entries()]
+      .filter(([key]) => key.startsWith("entry:"))
+      .map(([, value]) => value as { generation: number; settled: boolean })
+      .toSorted((left, right) => right.generation - left.generation);
+    expect(entryRecords[0]).toMatchObject({ generation: 1, settled: true });
     replacementJournal.dispose();
   });
 

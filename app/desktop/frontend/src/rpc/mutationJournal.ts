@@ -619,9 +619,15 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
     persistValue(options.storage, entryKey(entry), entry);
   };
 
+  const releaseClaimIfOwned = (idempotencyKey: string) => {
+    if (activeClaims.get(idempotencyKey) === journalInstance) {
+      activeClaims.delete(idempotencyKey);
+    }
+  };
+
   const removeEntry = (entry: JournalEntry) => {
     removeValue(options.storage, entryKey(entry));
-    activeClaims.delete(entry.idempotencyKey);
+    releaseClaimIfOwned(entry.idempotencyKey);
     PROCESS_CLAIMABLE.delete(entry.idempotencyKey);
   };
 
@@ -656,7 +662,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
 
       const current = readEntry(reserved.idempotencyKey);
       if (current && (!sameGeneration(current, reserved) || current.owner !== PROCESS_OWNER)) {
-        activeClaims.delete(reserved.idempotencyKey);
+        releaseClaimIfOwned(reserved.idempotencyKey);
         definitiveOutcome = false;
         return;
       }
@@ -671,7 +677,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
             if (current.generation === 0) removeEntry(current);
             else {
               persistEntry({ ...current, claimable: false, settled: true });
-              activeClaims.delete(current.idempotencyKey);
+              releaseClaimIfOwned(current.idempotencyKey);
               PROCESS_CLAIMABLE.delete(current.idempotencyKey);
             }
           } catch (error) {
@@ -809,7 +815,9 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       entry ??= matching.find(
         (candidate) =>
           candidate.owner === PROCESS_OWNER &&
-          (candidate.claimable || PROCESS_CLAIMABLE.has(candidate.idempotencyKey)),
+          (candidate.claimable || PROCESS_CLAIMABLE.has(candidate.idempotencyKey)) &&
+          (activeClaims.get(candidate.idempotencyKey) === undefined ||
+            activeClaims.get(candidate.idempotencyKey) === journalInstance),
       );
       if (!entry) {
         const abandoned = matching.find(
@@ -843,7 +851,10 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
 
       let createdGeneration = false;
       if (entry) {
-        if (entry.owner === PROCESS_OWNER) {
+        if (
+          entry.owner === PROCESS_OWNER &&
+          activeClaims.get(entry.idempotencyKey) === journalInstance
+        ) {
           entry = { ...entry, claimable: false };
         } else {
           entry = {
