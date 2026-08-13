@@ -188,7 +188,10 @@ func (r *Runtime) commandOptions() (embedded.CommandOptions, error) {
 	if err != nil {
 		return embedded.CommandOptions{}, err
 	}
-	return embedded.CommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: key}, nil
+	return embedded.CommandOptions{
+		RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: key,
+		IdempotencyNamespace: r.profile.Limits.IdempotencyNamespace,
+	}, nil
 }
 
 func (r *Runtime) commandOptionsFor(commandID agent.CommandID) (embedded.CommandOptions, error) {
@@ -198,7 +201,10 @@ func (r *Runtime) commandOptionsFor(commandID agent.CommandID) (embedded.Command
 	if err := commandID.Validate(); err != nil {
 		return embedded.CommandOptions{}, err
 	}
-	return embedded.CommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: string(commandID)}, nil
+	return embedded.CommandOptions{
+		RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: string(commandID),
+		IdempotencyNamespace: r.profile.Limits.IdempotencyNamespace,
+	}, nil
 }
 
 func (r *Runtime) runCommandOptions() (embedded.RunCommandOptions, error) {
@@ -206,7 +212,10 @@ func (r *Runtime) runCommandOptions() (embedded.RunCommandOptions, error) {
 	if err != nil {
 		return embedded.RunCommandOptions{}, err
 	}
-	return embedded.RunCommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: key}, nil
+	return embedded.RunCommandOptions{
+		RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: key,
+		IdempotencyNamespace: r.profile.Limits.IdempotencyNamespace,
+	}, nil
 }
 
 func (r *Runtime) runCommandOptionsFor(commandID agent.CommandID) (embedded.RunCommandOptions, error) {
@@ -216,7 +225,10 @@ func (r *Runtime) runCommandOptionsFor(commandID agent.CommandID) (embedded.RunC
 	if err := commandID.Validate(); err != nil {
 		return embedded.RunCommandOptions{}, err
 	}
-	return embedded.RunCommandOptions{RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: string(commandID)}, nil
+	return embedded.RunCommandOptions{
+		RequestMeta: cloneRequestMeta(r.meta), IdempotencyKey: string(commandID),
+		IdempotencyNamespace: r.profile.Limits.IdempotencyNamespace,
+	}, nil
 }
 
 func (r *Runtime) subscriptionOptions(afterEventID string) embedded.RunSubscriptionOptions {

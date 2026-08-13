@@ -266,6 +266,21 @@ func runOperation[T any](a *app, slot operationSlot, replace bool, work func(con
 	return runOwnedOperation(a, operationPolicy{scope: sessionOperationScope}, slot, replace, work, apply)
 }
 
+// runSessionSettlement owns a session command whose durable acknowledgement
+// boundary orders subsequent Run admission. Prompts may be authored and queued
+// while it settles, but dispatch cannot overtake the command journal.
+func runSessionSettlement[T any](
+	a *app,
+	slot operationSlot,
+	replace bool,
+	work func(context.Context) (T, error),
+	apply func(T, error),
+) bool {
+	return runOwnedOperation(a, operationPolicy{
+		scope: sessionOperationScope, runAdmission: runAdmissionAfterSettlement,
+	}, slot, replace, work, apply)
+}
+
 // runApplicationOperation owns work whose domain lifetime is independent of a
 // chat session. It survives projection replacement but is still canceled and
 // joined when the terminal closes. Callers must keep apply safe when any

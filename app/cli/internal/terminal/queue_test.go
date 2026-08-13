@@ -542,7 +542,7 @@ func TestDurableQueueKeepsTheOpeningCommandAheadOfPriorityEdits(t *testing.T) {
 	if !ok || dispatching.CommandID != commands[0].CommandID {
 		t.Fatalf("opening reservation = %+v, %t", dispatching, ok)
 	}
-	if err := store.MarkPendingRunDispatching("session", dispatching.CommandID); err != nil {
+	if err := store.MarkPendingRunDispatching("session", dispatching.CommandID, workbench.ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
 	secondID := queue.Snapshot("session").Entries[1].ID
@@ -600,7 +600,7 @@ func TestQueueMutationRollbackPreservesTheDispatchReservation(t *testing.T) {
 	if !ok {
 		t.Fatal("queue did not reserve its first entry")
 	}
-	if err := store.MarkPendingRunDispatching("session", dispatching.CommandID); err != nil {
+	if err := store.MarkPendingRunDispatching("session", dispatching.CommandID, workbench.ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
 	before := queue.State("session")

@@ -36,6 +36,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/skills"
+	"github.com/Tangerg/lynx/app/cli/internal/steering"
 	"github.com/Tangerg/lynx/app/cli/internal/usage"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -173,8 +174,15 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("open CLI workbench: %w", err)
 	}
-	if err := sessiondeletion.Recover(ctx, cfg.Runtime, authoring, runtimeRecoveryBackoff); err != nil {
+	if err := sessiondeletion.Recover(
+		ctx, cfg.Runtime, authoring, deletionReplayWindow(profile), runtimeRecoveryBackoff,
+	); err != nil {
 		return preparedSession{}, fmt.Errorf("recover session deletions: %w", err)
+	}
+	if err := steering.Recover(
+		ctx, cfg.Runtime, authoring, steeringReplayWindow(profile), runtimeRecoveryBackoff,
+	); err != nil {
+		return preparedSession{}, fmt.Errorf("recover steer commands: %w", err)
 	}
 	if err := sessionrollback.Recover(
 		ctx, cfg.Runtime, authoring, rollbackReplayWindow(profile), runtimeRecoveryBackoff,
@@ -222,6 +230,45 @@ func rollbackReplayWindow(profile *runtimeprofile.Profile) sessionrollback.Repla
 		return sessionrollback.ReplayWindow{}
 	}
 	return sessionrollback.ReplayWindow{
+		Namespace: profile.Limits.IdempotencyNamespace,
+		Retention: time.Duration(profile.Limits.IdempotencyRetentionSeconds) * time.Second,
+	}
+}
+
+func deletionReplayWindow(profile *runtimeprofile.Profile) sessiondeletion.ReplayWindow {
+	if profile == nil {
+		return sessiondeletion.ReplayWindow{}
+	}
+	return sessiondeletion.ReplayWindow{
+		Namespace: profile.Limits.IdempotencyNamespace,
+		Retention: time.Duration(profile.Limits.IdempotencyRetentionSeconds) * time.Second,
+	}
+}
+
+func commandReplayGuard(profile *runtimeprofile.Profile) workbench.ReplayGuard {
+	if profile == nil {
+		return workbench.ReplayGuard{}
+	}
+	return workbench.ReplayGuard{
+		Namespace: profile.Limits.IdempotencyNamespace,
+		Until: time.Now().UTC().Add(
+			time.Duration(profile.Limits.IdempotencyRetentionSeconds) * time.Second,
+		),
+	}
+}
+
+func commandReplaySafe(guard workbench.ReplayGuard, profile *runtimeprofile.Profile) bool {
+	if profile == nil {
+		return guard.Empty()
+	}
+	return guard.Namespace == profile.Limits.IdempotencyNamespace && !time.Now().UTC().After(guard.Until)
+}
+
+func steeringReplayWindow(profile *runtimeprofile.Profile) steering.ReplayWindow {
+	if profile == nil {
+		return steering.ReplayWindow{}
+	}
+	return steering.ReplayWindow{
 		Namespace: profile.Limits.IdempotencyNamespace,
 		Retention: time.Duration(profile.Limits.IdempotencyRetentionSeconds) * time.Second,
 	}

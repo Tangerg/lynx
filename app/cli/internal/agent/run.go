@@ -111,6 +111,16 @@ type SteerRun struct {
 	Message   Message
 }
 
+func (r SteerRun) Clone() SteerRun {
+	r.Message = r.Message.Clone()
+	return r
+}
+
+func (r SteerRun) Equal(other SteerRun) bool {
+	return r.CommandID == other.CommandID && r.RunID == other.RunID &&
+		r.SegmentID == other.SegmentID && r.Message.Equal(other.Message)
+}
+
 func (m Message) Clone() Message {
 	m.Text = strings.Clone(m.Text)
 	m.Attachments = slices.Clone(m.Attachments)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/mutation"
@@ -17,6 +18,33 @@ import (
 type runtime interface {
 	DeleteSession(context.Context, agent.DeleteSession) error
 	GetSession(context.Context, string) (agent.SessionSnapshot, error)
+}
+
+// ReplayWindow identifies the runtime command store and conservative replay
+// interval advertised when a deletion intent is first staged.
+type ReplayWindow struct {
+	Namespace string
+	Retention time.Duration
+	Now       func() time.Time
+}
+
+func (window ReplayWindow) now() time.Time {
+	if window.Now == nil {
+		return time.Now().UTC()
+	}
+	return window.Now().UTC()
+}
+
+func (window ReplayWindow) guard() (workbench.ReplayGuard, error) {
+	if strings.TrimSpace(window.Namespace) == "" && window.Retention == 0 {
+		return workbench.ReplayGuard{}, nil
+	}
+	if strings.TrimSpace(window.Namespace) == "" || window.Retention <= 0 {
+		return workbench.ReplayGuard{}, errors.New("session deletion replay guarantee is incomplete")
+	}
+	return workbench.ReplayGuard{
+		Namespace: strings.TrimSpace(window.Namespace), Until: window.now().Add(window.Retention),
+	}, nil
 }
 
 // Outcome distinguishes an authoritative confirmation from a definitive
@@ -43,6 +71,7 @@ func Execute(
 	runtime runtime,
 	authoring *workbench.Store,
 	sessionID string,
+	window ReplayWindow,
 	backoff retry.Backoff,
 ) (Result, error) {
 	if authoring == nil {
@@ -60,9 +89,20 @@ func Execute(
 			return Result{}, fmt.Errorf("create session deletion identity: %w", err)
 		}
 		request = agent.DeleteSession{CommandID: commandID, SessionID: sessionID}
-		if err := authoring.StageSessionDeletion(request); err != nil {
+		replay, err := window.guard()
+		if err != nil {
+			return Result{}, err
+		}
+		if err := authoring.StageSessionDeletion(request, replay); err != nil {
 			return Result{}, fmt.Errorf("stage session deletion: %w", err)
 		}
+		pending, exists = authoring.PendingSessionDeletion(sessionID)
+		if !exists {
+			return Result{}, errors.New("staged session deletion is absent")
+		}
+	}
+	if !replaySafe(pending.Replay, window) {
+		return Result{Request: request, Outcome: Unknown}, errors.New("session deletion replay guarantee expired or belongs to another runtime")
 	}
 	outcome, err := Settle(ctx, runtime, request, backoff)
 	return Result{Request: request, Outcome: outcome}, err
@@ -82,6 +122,9 @@ func Settle(
 	})
 	if err == nil || errors.Is(err, agent.ErrSessionNotFound) {
 		return Confirmed, nil
+	}
+	if mutation.OutcomeUnknown(err) {
+		return Unknown, fmt.Errorf("delete session outcome is unknown: %w", err)
 	}
 	_, readErr := runtime.GetSession(ctx, request.SessionID)
 	if errors.Is(readErr, agent.ErrSessionNotFound) {
@@ -112,7 +155,13 @@ func Reject(authoring *workbench.Store, result Result) error {
 }
 
 // Recover settles every journal before any session draft is made visible.
-func Recover(ctx context.Context, runtime runtime, authoring *workbench.Store, backoff retry.Backoff) error {
+func Recover(
+	ctx context.Context,
+	runtime runtime,
+	authoring *workbench.Store,
+	window ReplayWindow,
+	backoff retry.Backoff,
+) error {
 	for _, pending := range authoring.PendingSessionDeletions() {
 		if pending.Phase == workbench.SessionDeletionConfirmed {
 			if err := authoring.RetireSessionState(pending.SessionID); err != nil {
@@ -121,6 +170,12 @@ func Recover(ctx context.Context, runtime runtime, authoring *workbench.Store, b
 			continue
 		}
 		result := Result{Request: pending.Request()}
+		if !replaySafe(pending.Replay, window) {
+			return fmt.Errorf(
+				"recover session deletion %s: replay guarantee expired or belongs to another runtime",
+				pending.SessionID,
+			)
+		}
 		outcome, err := Settle(ctx, runtime, result.Request, backoff)
 		result.Outcome = outcome
 		switch outcome {
@@ -137,4 +192,12 @@ func Recover(ctx context.Context, runtime runtime, authoring *workbench.Store, b
 		}
 	}
 	return nil
+}
+
+func replaySafe(guard workbench.ReplayGuard, window ReplayWindow) bool {
+	if strings.TrimSpace(window.Namespace) == "" && window.Retention == 0 {
+		return guard.Empty()
+	}
+	return strings.TrimSpace(window.Namespace) != "" && guard.Namespace == strings.TrimSpace(window.Namespace) &&
+		!window.now().After(guard.Until)
 }

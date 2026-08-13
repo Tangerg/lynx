@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
+	steeringoutbox "github.com/Tangerg/lynx/app/cli/internal/steering"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 func (a *app) steerRun(instruction string) error {
@@ -37,64 +38,120 @@ func (a *app) steerRun(instruction string) error {
 		return err
 	}
 
-	// The command text has already been removed. Retire the staged attachments
-	// durably before the runtime can accept them; a refused steer recovers them
-	// without overwriting text entered while the call is in flight.
-	if err := a.commitDraft(agent.Message{}); err != nil {
-		return fmt.Errorf("steer blocked: clear session draft: %w", err)
+	// Reconstruct the parsed command as a durable ownership precondition. If the
+	// process stops before staging, restart restores the command for retry. The
+	// following aggregate replacement then transfers it and its attachments into
+	// the steer journal atomically.
+	sourceDraft := agent.Message{Text: "/steer " + instruction, Attachments: slices.Clone(draft.Attachments)}
+	if err := a.saveDraft(sourceDraft); err != nil {
+		a.reportWorkbenchIssue(workbenchDraft, err)
+		return fmt.Errorf("steer blocked: save command draft: %w", err)
 	}
-	started := runOperation(a, steerRunOperation, false,
-		func(ctx context.Context) (struct{}, error) {
-			return mutation.Confirm(ctx, runtimeRecoveryBackoff, func(ctx context.Context) (struct{}, error) {
-				return struct{}{}, a.runtime.SteerRun(ctx, request)
-			})
+	a.reportWorkbenchIssue(workbenchDraft, nil)
+	pending, err := steeringoutbox.Stage(
+		a.workbench, a.session.ID, request, sourceDraft, steeringReplayWindow(a.runtimeProfile),
+	)
+	if err != nil {
+		a.reportWorkbenchIssue(workbenchSteerOutbox, fmt.Errorf("save steer command journal: %w", err))
+		a.restoreComposer(sourceDraft)
+		a.draftState.Reset(a.session.ID, sourceDraft)
+		return err
+	}
+	a.reportWorkbenchIssue(workbenchSteerOutbox, nil)
+	a.restoreComposer(agent.Message{})
+	a.draftState.Reset(a.session.ID, agent.Message{})
+	started := runSessionSettlement(a, steerRunOperation, false,
+		func(ctx context.Context) (steeringoutbox.Result, error) {
+			return steeringoutbox.Deliver(ctx, a.runtime, pending, runtimeRecoveryBackoff)
 		},
-		func(_ struct{}, err error) {
-			if err != nil {
-				if restoreErr := a.restoreSteerAttachments(message.Attachments); restoreErr != nil {
-					a.message("steer run failed; restored attachments were not saved: " + restoreErr.Error())
-					return
-				}
-				a.message("steer run failed: " + err.Error())
-				return
-			}
-			if err := a.rememberPrompt(message); err != nil {
-				a.message("steer accepted; save prompt history failed: " + err.Error())
-				return
-			}
-			a.message("steer accepted for " + shortIdentity(runID))
+		func(result steeringoutbox.Result, deliveryErr error) {
+			a.settleSteer(result, deliveryErr, runID)
 		},
 	)
 	if !started {
-		if err := a.restoreSteerAttachments(message.Attachments); err != nil {
+		recovered, err := a.rejectSteer(pending)
+		if err != nil {
+			a.restoreComposer(workbenchMergeSteerAttachments(a, message.Attachments))
 			return fmt.Errorf("another steer operation is already running; restore attachments: %w", err)
 		}
+		a.restoreComposer(recovered)
+		a.draftState.Reset(a.session.ID, recovered)
 		return errors.New("another steer operation is already running")
 	}
 	return nil
 }
 
-func (a *app) restoreSteerAttachments(rejected []agent.Attachment) error {
-	if len(rejected) == 0 {
-		return nil
+func (a *app) settleSteer(result steeringoutbox.Result, deliveryErr error, runID string) {
+	switch result.Outcome {
+	case steeringoutbox.Confirmed:
+		if err := a.acknowledgeSteer(result.Pending); err != nil {
+			a.message("steer accepted; local settlement pending: " + err.Error())
+			return
+		}
+		a.message("steer accepted for " + shortIdentity(runID))
+	case steeringoutbox.Rejected:
+		recovered, err := a.rejectSteer(result.Pending)
+		if err != nil {
+			a.restoreComposer(workbenchMergeSteerAttachments(a, result.Pending.Command.Message.Attachments))
+			a.message("steer run failed; restored attachments were not saved: " + err.Error())
+			return
+		}
+		a.restoreComposer(recovered)
+		a.draftState.Reset(a.session.ID, recovered)
+		a.message("steer run failed: " + deliveryErr.Error())
+	case steeringoutbox.Unknown:
+		a.message("steer outcome is unknown; it will be reconciled on restart: " + deliveryErr.Error())
+	default:
+		a.message("steer settlement returned an invalid outcome")
 	}
+}
+
+func (a *app) acknowledgeSteer(pending workbench.PendingSteer) error {
 	current, _, err := a.currentDraft()
 	if err != nil {
-		return fmt.Errorf("read composer for attachment recovery: %w", err)
+		return fmt.Errorf("read composer for steer settlement: %w", err)
 	}
-	seen := make(map[string]struct{}, len(current.Attachments)+len(rejected))
-	for _, attachment := range current.Attachments {
-		seen[attachment.ID] = struct{}{}
+	if err := a.saveDraft(current); err != nil {
+		a.reportWorkbenchIssue(workbenchDraft, err)
+		return fmt.Errorf("save current session draft: %w", err)
 	}
-	for _, attachment := range rejected {
-		if _, duplicate := seen[attachment.ID]; duplicate {
-			continue
-		}
-		current.Attachments = append(current.Attachments, attachment)
-		seen[attachment.ID] = struct{}{}
+	a.reportWorkbenchIssue(workbenchDraft, nil)
+	if err := a.workbench.AcknowledgePendingSteer(a.session.ID, pending.Command.CommandID); err != nil {
+		a.history.Load(a.workbench.History())
+		a.reportWorkbenchIssue(workbenchSteerOutbox, fmt.Errorf("settle accepted steer command: %w", err))
+		return fmt.Errorf("retire accepted steer command: %w", err)
 	}
-	if err := a.recoverDraft(current); err != nil {
-		return fmt.Errorf("save restored attachments: %w", err)
-	}
+	a.history.Add(pending.Command.Message)
+	a.reportWorkbenchIssue(workbenchSteerOutbox, nil)
+	a.reportWorkbenchIssue(workbenchHistory, nil)
 	return nil
+}
+
+func (a *app) rejectSteer(pending workbench.PendingSteer) (agent.Message, error) {
+	current, _, err := a.currentDraft()
+	if err != nil {
+		return agent.Message{}, fmt.Errorf("read composer for attachment recovery: %w", err)
+	}
+	if err := a.saveDraft(current); err != nil {
+		a.reportWorkbenchIssue(workbenchDraft, err)
+		return agent.Message{}, fmt.Errorf("save current session draft: %w", err)
+	}
+	a.reportWorkbenchIssue(workbenchDraft, nil)
+	recovered, err := a.workbench.RejectPendingSteer(
+		a.session.ID, pending.Command.CommandID, current,
+	)
+	if err != nil {
+		a.reportWorkbenchIssue(workbenchSteerOutbox, fmt.Errorf("settle rejected steer command: %w", err))
+		return agent.Message{}, fmt.Errorf("save restored attachments: %w", err)
+	}
+	a.reportWorkbenchIssue(workbenchSteerOutbox, nil)
+	return recovered, nil
+}
+
+func workbenchMergeSteerAttachments(a *app, rejected []agent.Attachment) agent.Message {
+	current, _, err := a.currentDraft()
+	if err != nil {
+		return agent.Message{Attachments: slices.Clone(rejected)}
+	}
+	return workbench.MergeSteerAttachments(current, rejected)
 }

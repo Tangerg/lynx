@@ -180,7 +180,7 @@ func (s *Store) StageSessionRollback(pending PendingSessionRollback) error {
 	}
 	if err := s.saveSessionStateRecord(
 		pending.SessionID, s.drafts[pending.SessionID], s.pendingRuns[pending.SessionID],
-		s.pendingResumePointer(pending.SessionID), &pending,
+		s.pendingResumePointer(pending.SessionID), &pending, s.pendingSteerPointer(pending.SessionID),
 	); err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func (s *Store) ConfirmSessionRollback(sessionID string, commandID agent.Command
 	pending.Phase = SessionRollbackConfirmed
 	if err := s.saveSessionStateRecord(
 		sessionID, s.drafts[sessionID], s.pendingRuns[sessionID],
-		s.pendingResumePointer(sessionID), &pending,
+		s.pendingResumePointer(sessionID), &pending, s.pendingSteerPointer(sessionID),
 	); err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (s *Store) RejectSessionRollback(sessionID string, commandID agent.CommandI
 	}
 	if err := s.saveSessionStateRecord(
 		sessionID, s.drafts[sessionID], s.pendingRuns[sessionID],
-		s.pendingResumePointer(sessionID), nil,
+		s.pendingResumePointer(sessionID), nil, s.pendingSteerPointer(sessionID),
 	); err != nil {
 		return err
 	}
@@ -250,6 +250,7 @@ func (s *Store) ConsumeConfirmedSessionRollback(sessionID string) (SessionRollba
 	draft, merged := MergeSessionRollbackDraft(s.drafts[sessionID], pending)
 	if err := s.saveSessionStateRecord(
 		sessionID, draft, s.pendingRuns[sessionID], s.pendingResumePointer(sessionID), nil,
+		s.pendingSteerPointer(sessionID),
 	); err != nil {
 		return SessionRollbackRecovery{}, false, err
 	}

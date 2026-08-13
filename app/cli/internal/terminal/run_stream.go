@@ -68,7 +68,9 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 		return false
 	}
 	if a.workbench != nil {
-		if err := a.workbench.MarkPendingRunDispatching(input.SessionID, input.CommandID); err != nil {
+		if err := a.workbench.MarkPendingRunDispatching(
+			input.SessionID, input.CommandID, commandReplayGuard(a.runtimeProfile),
+		); err != nil {
 			rollbackErr := a.conversation.CancelStarting()
 			a.message("run start blocked: save dispatching run: " + err.Error())
 			if rollbackErr != nil {
@@ -139,7 +141,7 @@ func (a *app) acceptStartedRun(input agent.StartRun, opened agent.SegmentStream)
 func (a *app) requeueDefinitivelyRefusedStart(input agent.StartRun, failure error) error {
 	callFailure, refused := errors.AsType[*startRunCallError](failure)
 	_, dispatchingPresent := a.queue.Dispatching(input.SessionID)
-	if !refused || mutation.AcknowledgementUncertain(callFailure.err) || !dispatchingPresent {
+	if !refused || mutation.OutcomeUnknown(callFailure.err) || !dispatchingPresent {
 		return nil
 	}
 	var replacement agent.CommandID
@@ -789,7 +791,9 @@ func (a *app) stageOpeningCancellation() (workbench.PendingRun, bool, error) {
 	if a.workbench == nil {
 		return workbench.PendingRun{}, false, errors.New("CLI workbench is unavailable")
 	}
-	if _, err := a.workbench.MarkPendingRunCanceling(a.session.ID, entry.CommandID); err != nil {
+	if _, err := a.workbench.MarkPendingRunCanceling(
+		a.session.ID, entry.CommandID, commandReplayGuard(a.runtimeProfile),
+	); err != nil {
 		return workbench.PendingRun{}, false, err
 	}
 	pending, ok := pendingRunByCommandID(a.workbench.PendingRuns(a.session.ID), entry.CommandID)
@@ -813,7 +817,7 @@ func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
 			}
 			opened, accepted := observedSegmentStream(opened, err)
 			if !accepted {
-				if mutation.AcknowledgementUncertain(err) {
+				if mutation.OutcomeUnknown(err) {
 					a.fail(fmt.Errorf("reconcile canceled start: %w", err))
 					return
 				}
@@ -1082,7 +1086,7 @@ func (a *app) cancelOpeningRunNow(ownerCtx context.Context, pending workbench.Pe
 	opened, err := openStartRunWithBackoff(ctx, a.runtime, pending.Command, runtimeRecoveryBackoff)
 	opened, accepted := observedSegmentStream(opened, err)
 	if !accepted {
-		if !mutation.AcknowledgementUncertain(err) {
+		if !mutation.OutcomeUnknown(err) {
 			return a.retireCanceledStart(pending)
 		}
 		return fmt.Errorf("reconcile run start during terminal close: %w", err)

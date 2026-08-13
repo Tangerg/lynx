@@ -145,14 +145,18 @@ func (stub sessionCatalogStub) DeleteSession(_ context.Context, request protocol
 func TestDeleteSessionUsesTheDurableMutationIdentity(t *testing.T) {
 	t.Parallel()
 	commandID := agent.CommandID("cli_11111111111111111111111111111111")
+	const namespace = "idp_test"
 	called := false
 	runtime := &Runtime{sessionCatalog: sessionCatalogStub{delete: func(request protocol.DeleteSessionRequest, options embedded.CommandOptions) error {
 		called = true
-		if request.SessionID != "ses_1" || options.IdempotencyKey != string(commandID) {
+		if request.SessionID != "ses_1" || options.IdempotencyKey != string(commandID) ||
+			options.IdempotencyNamespace != namespace {
 			t.Fatalf("delete request = %+v, options = %+v", request, options)
 		}
 		return nil
-	}}, meta: requestMeta("test")}
+	}}, meta: requestMeta("test"), profile: runtimeprofile.Profile{
+		Limits: runtimeprofile.Limits{IdempotencyNamespace: namespace},
+	}}
 	if err := runtime.DeleteSession(t.Context(), agent.DeleteSession{CommandID: commandID, SessionID: "ses_1"}); err != nil {
 		t.Fatal(err)
 	}

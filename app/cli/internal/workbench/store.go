@@ -98,6 +98,7 @@ type sessionState struct {
 	PendingRuns     []PendingRun            `json:"pendingRuns"`
 	PendingResume   *PendingResume          `json:"pendingResume,omitempty"`
 	PendingRollback *PendingSessionRollback `json:"pendingRollback,omitempty"`
+	PendingSteer    *PendingSteer           `json:"pendingSteer,omitempty"`
 }
 
 // SessionDeletionPhase separates an unacknowledged runtime mutation from a
@@ -117,6 +118,7 @@ type PendingSessionDeletion struct {
 	Phase     SessionDeletionPhase `json:"phase"`
 	CommandID agent.CommandID      `json:"commandId,omitempty"`
 	SessionID string               `json:"sessionId"`
+	Replay    ReplayGuard          `json:"replay"`
 }
 
 func (pending PendingSessionDeletion) validate() error {
@@ -136,6 +138,9 @@ func (pending PendingSessionDeletion) validate() error {
 		}
 	default:
 		return fmt.Errorf("session deletion phase %q is invalid", pending.Phase)
+	}
+	if err := pending.Replay.Validate(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -158,7 +163,9 @@ const (
 type PendingRun struct {
 	State           PendingRunState `json:"state"`
 	Command         agent.StartRun  `json:"command"`
+	Replay          ReplayGuard     `json:"replay"`
 	CancelCommandID agent.CommandID `json:"cancelCommandId,omitempty"`
+	CancelReplay    ReplayGuard     `json:"cancelReplay"`
 }
 
 // PendingResume is a HITL decision whose command may already have reached the
@@ -167,10 +174,14 @@ type PendingRun struct {
 type PendingResume struct {
 	Command      agent.ResumeRun     `json:"-"`
 	Interactions []agent.Interaction `json:"interactions"`
+	Replay       ReplayGuard         `json:"replay"`
 }
 
 func (pending PendingResume) validate() error {
 	if err := pending.Command.Validate(); err != nil {
+		return err
+	}
+	if err := pending.Replay.Validate(); err != nil {
 		return err
 	}
 	if pending.Command.CommandID == "" {
@@ -204,6 +215,7 @@ type pendingResumeJSON struct {
 	RunID        string                   `json:"runId"`
 	Message      *agent.Message           `json:"message,omitempty"`
 	Interactions []pendingInteractionJSON `json:"interactions"`
+	Replay       ReplayGuard              `json:"replay"`
 }
 
 type pendingInteractionJSON struct {
@@ -223,6 +235,7 @@ func (pending PendingResume) MarshalJSON() ([]byte, error) {
 		RunID:        pending.Command.RunID,
 		Message:      pending.Command.Message,
 		Interactions: make([]pendingInteractionJSON, len(pending.Interactions)),
+		Replay:       pending.Replay,
 	}
 	for index, interaction := range pending.Interactions {
 		answer := pending.Command.Answers[index].Answer
@@ -255,6 +268,7 @@ func (pending *PendingResume) UnmarshalJSON(encoded []byte) error {
 			Answers: make([]agent.InterruptAnswer, len(wire.Interactions)),
 		},
 		Interactions: make([]agent.Interaction, len(wire.Interactions)),
+		Replay:       wire.Replay,
 	}
 	for index, item := range wire.Interactions {
 		switch item.Kind {
@@ -295,6 +309,12 @@ func (pending PendingRun) validate(sessionID string) error {
 	if pending.Command.CommandID == "" {
 		return errors.New("command id is empty")
 	}
+	if err := pending.Replay.Validate(); err != nil {
+		return err
+	}
+	if err := pending.CancelReplay.Validate(); err != nil {
+		return err
+	}
 	switch pending.State {
 	case PendingRunCanceling:
 		if err := pending.CancelCommandID.Validate(); err != nil {
@@ -305,16 +325,23 @@ func (pending PendingRun) validate(sessionID string) error {
 			return errors.New("non-canceling run carries a cancel command")
 		}
 	}
+	if pending.State == PendingRunQueued && (!pending.Replay.Empty() || !pending.CancelReplay.Empty()) {
+		return errors.New("queued run carries a runtime replay guard")
+	}
 	if pending.Command.SessionID != sessionID {
 		return fmt.Errorf("command belongs to session %s", pending.Command.SessionID)
 	}
 	return nil
 }
 
-func (pending *PendingRun) beginDispatch() error {
+func (pending *PendingRun) beginDispatch(replay ReplayGuard) error {
+	if err := replay.Validate(); err != nil {
+		return err
+	}
 	switch pending.State {
 	case PendingRunQueued:
 		pending.State = PendingRunDispatching
+		pending.Replay = replay
 		return nil
 	case PendingRunDispatching, PendingRunCanceling:
 		return nil
@@ -323,7 +350,13 @@ func (pending *PendingRun) beginDispatch() error {
 	}
 }
 
-func (pending *PendingRun) beginCancellation(newCommandID func() (agent.CommandID, error)) (agent.CommandID, error) {
+func (pending *PendingRun) beginCancellation(
+	replay ReplayGuard,
+	newCommandID func() (agent.CommandID, error),
+) (agent.CommandID, error) {
+	if err := replay.Validate(); err != nil {
+		return "", err
+	}
 	switch pending.State {
 	case PendingRunDispatching:
 		cancelCommandID, err := newCommandID()
@@ -332,6 +365,7 @@ func (pending *PendingRun) beginCancellation(newCommandID func() (agent.CommandI
 		}
 		pending.State = PendingRunCanceling
 		pending.CancelCommandID = cancelCommandID
+		pending.CancelReplay = replay
 		return cancelCommandID, nil
 	case PendingRunCanceling:
 		return pending.CancelCommandID, nil
@@ -351,6 +385,8 @@ func (pending *PendingRun) requeue(newCommandID func() (agent.CommandID, error))
 	pending.State = PendingRunQueued
 	pending.Command.CommandID = replacement
 	pending.CancelCommandID = ""
+	pending.Replay = ReplayGuard{}
+	pending.CancelReplay = ReplayGuard{}
 	return replacement, nil
 }
 
@@ -395,6 +431,7 @@ type Store struct {
 	pendingRuns      map[string][]PendingRun
 	pendingResumes   map[string]PendingResume
 	pendingRollbacks map[string]PendingSessionRollback
+	pendingSteers    map[string]PendingSteer
 	sessionDeletions map[string]PendingSessionDeletion
 }
 
@@ -412,6 +449,7 @@ func Open(directory string, config Config) (*Store, error) {
 		pendingRuns:      make(map[string][]PendingRun),
 		pendingResumes:   make(map[string]PendingResume),
 		pendingRollbacks: make(map[string]PendingSessionRollback),
+		pendingSteers:    make(map[string]PendingSteer),
 		sessionDeletions: make(map[string]PendingSessionDeletion),
 	}
 	if store.now == nil {
@@ -502,7 +540,9 @@ func (s *Store) PendingSessionDeletion(sessionID string) (PendingSessionDeletion
 // StageSessionDeletion durably owns a runtime mutation before it can leave the
 // process. Repeating the exact command is idempotent; another identity cannot
 // replace an outcome whose acknowledgement is still unknown.
-func (s *Store) StageSessionDeletion(request agent.DeleteSession) error {
+// StageSessionDeletion durably owns a deletion and the exact runtime
+// store that may replay it after process restart.
+func (s *Store) StageSessionDeletion(request agent.DeleteSession, replay ReplayGuard) error {
 	request.SessionID = strings.TrimSpace(request.SessionID)
 	if err := request.Validate(); err != nil {
 		return err
@@ -510,8 +550,12 @@ func (s *Store) StageSessionDeletion(request agent.DeleteSession) error {
 	if request.CommandID == "" {
 		return errors.New("stage session deletion: command id is empty")
 	}
+	if err := replay.Validate(); err != nil {
+		return err
+	}
 	pending := PendingSessionDeletion{
 		Phase: SessionDeletionPrepared, CommandID: request.CommandID, SessionID: request.SessionID,
+		Replay: replay,
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -731,7 +775,11 @@ func (s *Store) SavePendingRuns(sessionID string, commands []PendingRun) error {
 	return nil
 }
 
-func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.CommandID) error {
+func (s *Store) MarkPendingRunDispatching(
+	sessionID string,
+	commandID agent.CommandID,
+	replay ReplayGuard,
+) error {
 	if err := commandID.Validate(); err != nil {
 		return err
 	}
@@ -743,7 +791,7 @@ func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.Comm
 		return errors.New("pending run is absent")
 	}
 	next := clonePendingRuns(s.pendingRuns)
-	if err := next[sessionID][index].beginDispatch(); err != nil {
+	if err := next[sessionID][index].beginDispatch(replay); err != nil {
 		return err
 	}
 	if next[sessionID][index].State == s.pendingRuns[sessionID][index].State {
@@ -761,7 +809,11 @@ func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.Comm
 
 // MarkPendingRunCanceling durably records that a command with an uncertain
 // acknowledgement must be canceled as soon as its run identity is recovered.
-func (s *Store) MarkPendingRunCanceling(sessionID string, commandID agent.CommandID) (agent.CommandID, error) {
+func (s *Store) MarkPendingRunCanceling(
+	sessionID string,
+	commandID agent.CommandID,
+	replay ReplayGuard,
+) (agent.CommandID, error) {
 	if err := commandID.Validate(); err != nil {
 		return "", err
 	}
@@ -776,7 +828,7 @@ func (s *Store) MarkPendingRunCanceling(sessionID string, commandID agent.Comman
 		return s.pendingRuns[sessionID][index].CancelCommandID, nil
 	}
 	next := clonePendingRuns(s.pendingRuns)
-	cancelCommandID, err := next[sessionID][index].beginCancellation(agent.NewCommandID)
+	cancelCommandID, err := next[sessionID][index].beginCancellation(replay, agent.NewCommandID)
 	if err != nil {
 		return "", err
 	}
@@ -938,10 +990,10 @@ func (s *Store) DiscardDraft(sessionID string) error {
 }
 
 // RetireSessionState atomically removes every authoring concern owned by one
-// session: its draft, pending run commands, pending HITL command, and rollback
-// journal. Session deletion cannot safely compose the narrower mutations
-// because each rewrites the same durable aggregate and a failure between them
-// would expose a partially retired session after restart.
+// session: its draft, pending run commands, pending HITL and steer commands,
+// and rollback journal. Session deletion cannot safely compose the narrower
+// mutations because each rewrites the same durable aggregate. A failure between
+// them would expose a partially retired session after restart.
 func (s *Store) RetireSessionState(sessionID string) error {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
@@ -969,6 +1021,7 @@ func (s *Store) retireSessionStateLocked(sessionID string, pending PendingSessio
 	delete(s.pendingRuns, sessionID)
 	delete(s.pendingResumes, sessionID)
 	delete(s.pendingRollbacks, sessionID)
+	delete(s.pendingSteers, sessionID)
 	if err := s.remove(s.sessionStateName(sessionID)); err != nil {
 		return nil
 	}
@@ -1262,6 +1315,13 @@ func (s *Store) loadSessionStates() error {
 			}
 			s.pendingRollbacks[state.SessionID] = pending
 		}
+		if state.PendingSteer != nil {
+			pending := state.PendingSteer.clone()
+			if err := pending.validate(state.SessionID); err != nil {
+				return fmt.Errorf("state %s pending steer: %w", entry.Name(), err)
+			}
+			s.pendingSteers[state.SessionID] = pending
+		}
 	}
 	return nil
 }
@@ -1309,11 +1369,18 @@ func (s *Store) saveSessionStateWithResume(
 	pending []PendingRun,
 	resume *PendingResume,
 ) error {
-	rollback, exists := s.pendingRollbacks[strings.TrimSpace(sessionID)]
-	if !exists {
-		return s.saveSessionStateRecord(sessionID, draft, pending, resume, nil)
+	sessionID = strings.TrimSpace(sessionID)
+	var rollback *PendingSessionRollback
+	if pendingRollback, exists := s.pendingRollbacks[sessionID]; exists {
+		cloned := pendingRollback.clone()
+		rollback = &cloned
 	}
-	return s.saveSessionStateRecord(sessionID, draft, pending, resume, &rollback)
+	var steer *PendingSteer
+	if pendingSteer, exists := s.pendingSteers[sessionID]; exists {
+		cloned := pendingSteer.clone()
+		steer = &cloned
+	}
+	return s.saveSessionStateRecord(sessionID, draft, pending, resume, rollback, steer)
 }
 
 func (s *Store) saveSessionStateRecord(
@@ -1322,6 +1389,7 @@ func (s *Store) saveSessionStateRecord(
 	pending []PendingRun,
 	resume *PendingResume,
 	rollback *PendingSessionRollback,
+	steer *PendingSteer,
 ) error {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
@@ -1331,7 +1399,7 @@ func (s *Store) saveSessionStateRecord(
 		return errors.New("session authoring state has been retired")
 	}
 	name := s.sessionStateName(sessionID)
-	if messageEmpty(draft) && len(pending) == 0 && resume == nil && rollback == nil {
+	if messageEmpty(draft) && len(pending) == 0 && resume == nil && rollback == nil && steer == nil {
 		if s.directory == "" {
 			return nil
 		}
@@ -1351,6 +1419,10 @@ func (s *Store) saveSessionStateRecord(
 	if rollback != nil {
 		cloned := rollback.clone()
 		state.PendingRollback = &cloned
+	}
+	if steer != nil {
+		cloned := steer.clone()
+		state.PendingSteer = &cloned
 	}
 	return s.save(name, state)
 }
@@ -1527,12 +1599,14 @@ func clonePendingRun(command PendingRun) PendingRun {
 }
 
 func pendingRunEqual(left, right PendingRun) bool {
-	return left.State == right.State && left.CancelCommandID == right.CancelCommandID &&
+	return left.State == right.State && left.Replay == right.Replay &&
+		left.CancelCommandID == right.CancelCommandID && left.CancelReplay == right.CancelReplay &&
 		left.Command.Equal(right.Command)
 }
 
 func pendingResumeEqual(left, right PendingResume) bool {
-	return left.Command.Equal(right.Command) && agent.InteractionsEqual(left.Interactions, right.Interactions)
+	return left.Command.Equal(right.Command) && left.Replay == right.Replay &&
+		agent.InteractionsEqual(left.Interactions, right.Interactions)
 }
 
 func clonePendingResume(pending PendingResume) PendingResume {

@@ -318,6 +318,17 @@ func (a *app) restorePendingRuns() {
 	if len(pending) == 0 {
 		return
 	}
+	if pending[0].State == workbench.PendingRunDispatching &&
+		!commandReplaySafe(pending[0].Replay, a.runtimeProfile) {
+		a.fail(errors.New("recover pending run: replay guarantee expired or belongs to another runtime"))
+		return
+	}
+	if pending[0].State == workbench.PendingRunCanceling &&
+		(!commandReplaySafe(pending[0].Replay, a.runtimeProfile) ||
+			!commandReplaySafe(pending[0].CancelReplay, a.runtimeProfile)) {
+		a.fail(errors.New("recover pending run cancellation: replay guarantee expired or belongs to another runtime"))
+		return
+	}
 	if err := a.restorePendingQueue(pending); err != nil {
 		a.fail(err)
 		return
@@ -345,6 +356,10 @@ func (a *app) restorePendingResume() {
 	}
 	pending, ok := a.workbench.PendingResume(a.session.ID)
 	if !ok {
+		return
+	}
+	if !commandReplaySafe(pending.Replay, a.runtimeProfile) {
+		a.fail(errors.New("recover interaction decisions: replay guarantee expired or belongs to another runtime"))
 		return
 	}
 	if a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != pending.Command.RunID ||

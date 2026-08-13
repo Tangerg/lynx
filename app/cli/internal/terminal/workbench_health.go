@@ -6,6 +6,7 @@ const (
 	workbenchCancellationOwnership workbenchConcern = iota
 	workbenchResumeOutbox
 	workbenchRunOutbox
+	workbenchSteerOutbox
 	workbenchDraft
 	workbenchHistory
 	workbenchConcernCount

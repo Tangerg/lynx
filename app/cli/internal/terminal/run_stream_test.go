@@ -577,7 +577,7 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	stageDispatchingRun(t, store, command)
-	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, workbench.ReplayGuard{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ func TestCanceledStartRetainsOwnershipUntilDurableSettlementRecovers(t *testing.
 		t.Fatal(err)
 	}
 	stageDispatchingRun(t, store, command)
-	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, workbench.ReplayGuard{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -693,7 +693,7 @@ func TestLaunchCancelsAnAcceptedRunWithAnInvalidRecoveredReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	stageDispatchingRun(t, store, command)
-	if _, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID); err != nil {
+	if _, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, workbench.ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
 	runtime := &invalidAcceptedStartRuntime{Runtime: base}
@@ -724,8 +724,96 @@ func stageDispatchingRun(t *testing.T, store *workbench.Store, command agent.Sta
 	if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID, workbench.ReplayGuard{}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLaunchDoesNotReplayRunOrResumeOwnershipIntoAnotherRuntimeStore(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		stage func(*testing.T, *workbench.Store)
+		want  string
+	}{
+		{
+			name: "run start",
+			stage: func(t *testing.T, store *workbench.Store) {
+				command := agent.StartRun{
+					CommandID: "cli_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", SessionID: "ses_demo_1",
+					Message: agent.Message{Text: "do not replay across stores"},
+				}
+				if err := store.StagePendingRun(workbench.PendingRun{
+					State: workbench.PendingRunQueued, Command: command,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID, workbench.ReplayGuard{
+					Namespace: "runtime-a", Until: time.Now().UTC().Add(time.Hour),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: "recover pending run: replay guarantee expired or belongs to another runtime",
+		},
+		{
+			name: "interaction resume",
+			stage: func(t *testing.T, store *workbench.Store) {
+				approval := agent.Approval{
+					RunID: "run_waiting", ItemID: "approval_1", Title: "Proceed?",
+					Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+				}
+				pending := workbench.PendingResume{
+					Command: agent.ResumeRun{
+						CommandID: "cli_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", RunID: approval.RunID,
+						Answers: []agent.InterruptAnswer{{
+							ItemID: approval.ItemID, Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
+						}},
+					},
+					Interactions: []agent.Interaction{approval},
+					Replay: workbench.ReplayGuard{
+						Namespace: "runtime-a", Until: time.Now().UTC().Add(time.Hour),
+					},
+				}
+				if err := store.StagePendingResume("ses_demo_1", pending); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: "recover interaction decisions: replay guarantee expired or belongs to another runtime",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stateDirectory := t.TempDir()
+			store, err := workbench.Open(stateDirectory, workbench.Config{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.stage(t, store)
+			base := mock.New()
+			runtime := &recordingRuntime{Runtime: base}
+			profile := steerReplayTestProfile("/tmp/lyra-cli-test")
+			profile.Limits.IdempotencyNamespace = "runtime-b"
+			host, stop := runUIFromConfig(t, Config{
+				Runtime: runtime, RuntimeProfile: &profile, SessionID: "ses_demo_1",
+				Workspace: "/tmp/lyra-cli-test", StateDirectory: stateDirectory,
+			})
+			host.Shows(t, test.want)
+			if runtime.startCount() != 0 {
+				t.Fatalf("cross-store recovery opened %d runs", runtime.startCount())
+			}
+			reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.name == "run start" && len(reopened.PendingRuns("ses_demo_1")) != 1 {
+				t.Fatal("cross-store recovery retired pending run ownership")
+			}
+			if test.name == "interaction resume" {
+				if _, found := reopened.PendingResume("ses_demo_1"); !found {
+					t.Fatal("cross-store recovery retired pending resume ownership")
+				}
+			}
+			stop()
+		})
 	}
 }
 

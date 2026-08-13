@@ -273,7 +273,7 @@ func newSessionsDeleteCommand(provider runtimeProvider, stateDirectory string) *
 			if !yes {
 				return errors.New("refusing to delete without --yes")
 			}
-			runtime, err := provider.Open(cmd)
+			services, err := provider.OpenServices(cmd)
 			if err != nil {
 				return err
 			}
@@ -281,9 +281,11 @@ func newSessionsDeleteCommand(provider runtimeProvider, stateDirectory string) *
 			if err != nil {
 				return fmt.Errorf("open CLI workbench: %w", err)
 			}
-			result, err := sessiondeletion.Execute(cmd.Context(), runtime, authoring, args[0], retry.Backoff{
-				Base: 50 * time.Millisecond, Maximum: time.Second,
-			})
+			result, err := sessiondeletion.Execute(
+				cmd.Context(), services.Agent, authoring, args[0],
+				commandDeletionReplayWindow(services.RuntimeProfile),
+				retry.Backoff{Base: 50 * time.Millisecond, Maximum: time.Second},
+			)
 			switch result.Outcome {
 			case sessiondeletion.Rejected:
 				if rejectErr := sessiondeletion.Reject(authoring, result); rejectErr != nil {
@@ -306,6 +308,16 @@ func newSessionsDeleteCommand(provider runtimeProvider, stateDirectory string) *
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Confirm deletion")
 	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
+}
+
+func commandDeletionReplayWindow(profile *runtimeprofile.Profile) sessiondeletion.ReplayWindow {
+	if profile == nil {
+		return sessiondeletion.ReplayWindow{}
+	}
+	return sessiondeletion.ReplayWindow{
+		Namespace: profile.Limits.IdempotencyNamespace,
+		Retention: time.Duration(profile.Limits.IdempotencyRetentionSeconds) * time.Second,
+	}
 }
 
 func completeFirstSessionArgument(provider runtimeProvider) cobra.CompletionFunc {

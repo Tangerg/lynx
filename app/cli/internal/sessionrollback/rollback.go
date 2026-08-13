@@ -232,6 +232,10 @@ func Settle(
 	rollbackResult, rollbackErr := mutation.Confirm(ctx, backoff, func(ctx context.Context) (agent.RollbackResult, error) {
 		return runtime.RollbackSession(ctx, pending.Request())
 	})
+	if errors.Is(rollbackErr, agent.ErrCommandStoreMismatch) {
+		result.Outcome = Unknown
+		return result, fmt.Errorf("rollback session outcome is unknown: %w", rollbackErr)
+	}
 	after, readErr := runtime.GetSession(ctx, pending.SessionID)
 	if readErr != nil {
 		result.Outcome = Unknown
@@ -254,7 +258,7 @@ func Settle(
 		result.Outcome = Confirmed
 		return result, rollbackErr
 	}
-	if pending.Scope == agent.RestoreHistory && !mutation.AcknowledgementUncertain(rollbackErr) {
+	if pending.Scope == agent.RestoreHistory && !mutation.OutcomeUnknown(rollbackErr) {
 		if err := validateBefore(pending, after); err == nil {
 			result.Outcome = Rejected
 			return result, rollbackErr

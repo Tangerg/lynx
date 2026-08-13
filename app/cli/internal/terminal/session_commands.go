@@ -184,7 +184,9 @@ func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session
 func (a *app) deleteSessionFromCenter(id string) {
 	started := runApplicationOperation(a, sessionCenterOperation, false,
 		func(ctx context.Context) (sessiondeletion.Result, error) {
-			return sessiondeletion.Execute(ctx, a.runtime, a.workbench, id, runtimeRecoveryBackoff)
+			return sessiondeletion.Execute(
+				ctx, a.runtime, a.workbench, id, deletionReplayWindow(a.runtimeProfile), runtimeRecoveryBackoff,
+			)
 		},
 		func(result sessiondeletion.Result, err error) {
 			switch result.Outcome {

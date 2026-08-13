@@ -334,7 +334,9 @@ func (a *app) resumeInteractions() {
 	}
 	command := agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers}
 	if a.workbench != nil {
-		pending := workbench.PendingResume{Command: command.Clone(), Interactions: review.Items()}
+		pending := workbench.PendingResume{
+			Command: command.Clone(), Interactions: review.Items(), Replay: commandReplayGuard(a.runtimeProfile),
+		}
 		if err := a.workbench.StagePendingResume(a.session.ID, pending); err != nil {
 			failure := fmt.Errorf("resume blocked: save interaction decisions: %w", err)
 			review.ReportSubmissionFailure(failure)
@@ -449,7 +451,7 @@ func (a *app) retireAcknowledgedResume(commandID agent.CommandID) error {
 
 func (a *app) restoreRejectedInteractionReview(review *interactionReview, command agent.ResumeRun, failure error) error {
 	callFailure, refused := errors.AsType[*resumeRunCallError](failure)
-	if !refused || mutation.AcknowledgementUncertain(callFailure.err) || a.interactionReview != review ||
+	if !refused || mutation.OutcomeUnknown(callFailure.err) || a.interactionReview != review ||
 		a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != command.RunID {
 		return failure
 	}

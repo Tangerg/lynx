@@ -45,6 +45,7 @@ func TestEnteringASessionDropsOnlyProjectionOwnedWorkbenchProblems(t *testing.T)
 	health.update(workbenchCancellationOwnership, errors.New("old cancellation"))
 	health.update(workbenchResumeOutbox, errors.New("old resume"))
 	health.update(workbenchRunOutbox, errors.New("old run"))
+	health.update(workbenchSteerOutbox, errors.New("old steer"))
 	health.update(workbenchDraft, errors.New("old draft"))
 	health.update(workbenchHistory, errors.New("history unavailable"))
 

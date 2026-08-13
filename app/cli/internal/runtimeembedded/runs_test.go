@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type runBindingStub struct {
@@ -109,22 +110,23 @@ func TestStartRunMapsOptionsAndProjectsAtomicStream(t *testing.T) {
 
 func TestRunMutationsPreserveCallerCommandIdentity(t *testing.T) {
 	commandID := agent.CommandID("cli_0123456789abcdef0123456789abcdef")
+	const namespace = "idp_test"
 	stub := runBindingStub{}
 	stub.start = func(_ context.Context, request protocol.StartRunRequest, options embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
-		if options.IdempotencyKey != string(commandID) {
-			t.Fatalf("start idempotency key = %q", options.IdempotencyKey)
+		if options.IdempotencyKey != string(commandID) || options.IdempotencyNamespace != namespace {
+			t.Fatalf("start idempotency options = %+v", options)
 		}
 		return &protocol.StartRunResponse{RunID: "run_1", SegmentID: "seg_1", UserItemID: "item_1"}, func(func(protocol.RunEvent, error) bool) {}, nil
 	}
 	stub.resume = func(_ context.Context, request protocol.ResumeRunRequest, options embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
-		if options.IdempotencyKey != string(commandID) {
-			t.Fatalf("resume idempotency key = %q", options.IdempotencyKey)
+		if options.IdempotencyKey != string(commandID) || options.IdempotencyNamespace != namespace {
+			t.Fatalf("resume idempotency options = %+v", options)
 		}
 		return &protocol.ResumeRunResponse{RunID: request.RunID, SegmentID: "seg_2"}, func(func(protocol.RunEvent, error) bool) {}, nil
 	}
 	stub.cancel = func(_ context.Context, request protocol.CancelRunRequest, options embedded.CommandOptions) (*protocol.CancelRunResponse, error) {
-		if options.IdempotencyKey != string(commandID) {
-			t.Fatalf("cancel idempotency key = %q", options.IdempotencyKey)
+		if options.IdempotencyKey != string(commandID) || options.IdempotencyNamespace != namespace {
+			t.Fatalf("cancel idempotency options = %+v", options)
 		}
 		return &protocol.CancelRunResponse{Type: protocol.CancelRunRoot, Run: protocol.RunRef{
 			RunSummary:      protocol.RunSummary{ID: request.RunID, SessionID: "ses_1", Status: protocol.RunStatusFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCanceled}},
@@ -132,12 +134,15 @@ func TestRunMutationsPreserveCallerCommandIdentity(t *testing.T) {
 		}}, nil
 	}
 	stub.steer = func(_ context.Context, _ protocol.SteerRunRequest, options embedded.CommandOptions) error {
-		if options.IdempotencyKey != string(commandID) {
-			t.Fatalf("steer idempotency key = %q", options.IdempotencyKey)
+		if options.IdempotencyKey != string(commandID) || options.IdempotencyNamespace != namespace {
+			t.Fatalf("steer idempotency options = %+v", options)
 		}
 		return nil
 	}
-	runtime := &Runtime{runs: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		runs: stub, meta: requestMeta("test"),
+		profile: runtimeprofile.Profile{Limits: runtimeprofile.Limits{IdempotencyNamespace: namespace}},
+	}
 	if _, err := runtime.StartRun(t.Context(), agent.StartRun{CommandID: commandID, SessionID: "ses_1", Message: agent.Message{Text: "start"}}); err != nil {
 		t.Fatal(err)
 	}

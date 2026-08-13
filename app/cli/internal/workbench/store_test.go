@@ -443,7 +443,7 @@ func TestStoreRecoversPreparedSessionDeletionWithStableIdentity(t *testing.T) {
 	if err := store.SaveDraft(sessionID, agent.Message{Text: "owned until runtime confirmation"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StageSessionDeletion(request); err != nil {
+	if err := store.StageSessionDeletion(request, ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -477,7 +477,7 @@ func TestStoreRejectsOnlyTheExactPreparedSessionDeletion(t *testing.T) {
 	request := agent.DeleteSession{
 		CommandID: agent.CommandID("cli_44444444444444444444444444444444"), SessionID: "session",
 	}
-	if err := store.StageSessionDeletion(request); err != nil {
+	if err := store.StageSessionDeletion(request, ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.RejectSessionDeletion(request.SessionID, agent.CommandID("cli_55555555555555555555555555555555")); err == nil {
@@ -868,7 +868,7 @@ func TestPendingRunStateMachineRejectsUndeliveredSettlement(t *testing.T) {
 	if _, err := store.RequeuePendingRun(command.SessionID, command.CommandID); err == nil {
 		t.Fatal("queued run was reidentified before delivery")
 	}
-	if _, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID); err == nil {
+	if _, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, ReplayGuard{}); err == nil {
 		t.Fatal("queued run entered cancellation before delivery")
 	}
 	pending := store.PendingRuns(command.SessionID)
@@ -879,10 +879,10 @@ func TestPendingRunStateMachineRejectsUndeliveredSettlement(t *testing.T) {
 		t.Fatalf("invalid acknowledgement committed history: %+v", history)
 	}
 
-	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID, ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID, ReplayGuard{}); err != nil {
 		t.Fatalf("idempotent dispatch returned %v", err)
 	}
 	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err != nil {
@@ -906,7 +906,7 @@ func TestCancelingPendingRunCannotReturnToQueuedDelivery(t *testing.T) {
 		SessionID: "ses_1", Message: agent.Message{Text: "canceling delivery"},
 	}
 	stageDispatchingPendingRun(t, store, command)
-	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, ReplayGuard{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -933,11 +933,11 @@ func TestCancelingDispatchPersistsBothMutationIdentities(t *testing.T) {
 		SessionID: "ses_1", Message: agent.Message{Text: "cancel this uncertain start"},
 	}
 	stageDispatchingPendingRun(t, store, command)
-	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, ReplayGuard{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replayed, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID); err != nil || replayed != cancelID {
+	if replayed, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, ReplayGuard{}); err != nil || replayed != cancelID {
 		t.Fatalf("idempotent cancel transition = %q, %v; want %q", replayed, err, cancelID)
 	}
 	reopened, err := Open(directory, Config{})
@@ -969,7 +969,7 @@ func TestPendingRunSequenceKeepsTheOnlyDeliveryStateAtTheFIFOBoundary(t *testing
 	if err := store.SavePendingRuns("ses_1", commands); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkPendingRunDispatching("ses_1", commands[1].Command.CommandID); err == nil {
+	if err := store.MarkPendingRunDispatching("ses_1", commands[1].Command.CommandID, ReplayGuard{}); err == nil {
 		t.Fatal("non-front command entered dispatching state")
 	}
 	if got := store.PendingRuns("ses_1"); len(got) != 2 || got[0].State != PendingRunQueued || got[1].State != PendingRunQueued {
@@ -1010,7 +1010,7 @@ func TestInvalidPendingRunTransitionsDoNotAllocateMutationIdentity(t *testing.T)
 		allocations++
 		return agent.CommandID("cli_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"), nil
 	}
-	if _, err := pending.beginCancellation(allocate); err == nil {
+	if _, err := pending.beginCancellation(ReplayGuard{}, allocate); err == nil {
 		t.Fatal("queued run began cancellation")
 	}
 	if _, err := pending.requeue(allocate); err == nil {
@@ -1029,7 +1029,7 @@ func stageDispatchingPendingRun(t *testing.T, store *Store, command agent.StartR
 	if err := store.StagePendingRun(PendingRun{State: PendingRunQueued, Command: command}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID, ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
 }

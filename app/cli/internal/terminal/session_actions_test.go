@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
@@ -233,7 +234,7 @@ func TestStartupReplaysPreparedSessionDeletionBeforeLoadingDrafts(t *testing.T) 
 	request := agent.DeleteSession{
 		CommandID: agent.CommandID("cli_66666666666666666666666666666666"), SessionID: target.ID,
 	}
-	if err := store.StageSessionDeletion(request); err != nil {
+	if err := store.StageSessionDeletion(request, workbench.ReplayGuard{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -686,6 +687,42 @@ type uncertainSteeringRuntime struct {
 	requests []agent.SteerRun
 }
 
+type committedThenCanceledSteeringRuntime struct {
+	*mock.Runtime
+
+	committed chan agent.SteerRun
+}
+
+func (runtime *committedThenCanceledSteeringRuntime) SteerRun(
+	ctx context.Context,
+	request agent.SteerRun,
+) error {
+	if err := runtime.Runtime.SteerRun(ctx, request); err != nil {
+		return err
+	}
+	select {
+	case runtime.committed <- request.Clone():
+	default:
+	}
+	<-ctx.Done()
+	return context.Cause(ctx)
+}
+
+type cachedSteeringRuntime struct {
+	*mock.Runtime
+
+	accepted agent.SteerRun
+	attempts []agent.SteerRun
+}
+
+func (runtime *cachedSteeringRuntime) SteerRun(_ context.Context, request agent.SteerRun) error {
+	runtime.attempts = append(runtime.attempts, request.Clone())
+	if !request.Equal(runtime.accepted) {
+		return errors.New("replayed steer does not match the accepted command")
+	}
+	return nil
+}
+
 func (runtime *uncertainSteeringRuntime) SteerRun(ctx context.Context, request agent.SteerRun) error {
 	runtime.mu.Lock()
 	runtime.requests = append(runtime.requests, request)
@@ -792,14 +829,13 @@ func TestSteerReportsWhenRejectedAttachmentsCannotBePersisted(t *testing.T) {
 	})
 	restoreWrites := blockSessionStateWrites(t, stateDirectory, sessionID)
 	close(backend.release)
-	host.Shows(t, "workbench:")
+	host.Shows(t, "workbench: settle rejected steer command")
 	host.Shows(t, "@notes.txt")
 
 	restoreWrites()
 	host.Type("x")
 	staged.Text = "x"
 	awaitStoredDraft(t, stateDirectory, sessionID, staged)
-	host.Shows(t, "steer run failed; restored attachments were not saved")
 	stop()
 }
 
@@ -827,4 +863,92 @@ func TestSteerConfirmsATimedOutAcknowledgementWithOneIdentity(t *testing.T) {
 		t.Fatalf("steer confirmation attempts = %+v", attempts)
 	}
 	stop()
+}
+
+func TestRestartSettlesAcceptedSteerWithoutReturningItsAttachments(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "thinking", Kind: agent.BlockReasoning}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	runtime := &committedThenCanceledSteeringRuntime{
+		Runtime: base, committed: make(chan agent.SteerRun, 1),
+	}
+	workspace := t.TempDir()
+	stateDirectory := t.TempDir()
+	attachmentPath := filepath.Join(workspace, "notes.txt")
+	if err := os.WriteFile(attachmentPath, []byte("notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	profile := steerReplayTestProfile(workspace)
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: runtime, RuntimeProfile: &profile, Workspace: workspace,
+		StateDirectory: stateDirectory,
+	})
+	host.Shows(t, "Ask lyra")
+	sessionID := firstRuntimeSession(t, base)
+	host.Type("start long work")
+	host.Press(input.Enter)
+	host.Shows(t, "thinking")
+	host.Type("/attach notes.txt")
+	host.Press(input.Enter)
+	host.Shows(t, "attached notes.txt")
+	host.Type("/steer focus on parsing")
+	host.Press(input.Enter)
+	accepted := awaitSignalValue(t, runtime.committed, "accepted steer before acknowledgement")
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending, found := store.PendingSteer(sessionID)
+	if !found || !pending.Command.Equal(accepted) {
+		t.Fatalf("durable steer = %+v, found %t", pending, found)
+	}
+	stop()
+
+	replay := &cachedSteeringRuntime{Runtime: base, accepted: accepted}
+	restarted, stopRestarted := runUIFromConfig(t, Config{
+		Runtime: replay, RuntimeProfile: &profile, Workspace: workspace,
+		SessionID: sessionID, StateDirectory: stateDirectory,
+	})
+	restarted.Shows(t, "focus on parsing")
+	if len(replay.attempts) != 1 || !replay.attempts[0].Equal(accepted) {
+		t.Fatalf("restart steer attempts = %+v", replay.attempts)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, found := reopened.PendingSteer(sessionID); found {
+		t.Fatalf("settled steer remains durable: %+v", durable)
+	}
+	history := reopened.History()
+	if len(history) < 2 || !history[len(history)-1].Equal(accepted.Message) {
+		t.Fatalf("restart history = %+v", history)
+	}
+	restarted.Type("/attachments")
+	restarted.Press(input.Enter)
+	restarted.Shows(t, "the composer has no attachments")
+	stopRestarted()
+}
+
+func steerReplayTestProfile(workspace string) runtimeprofile.Profile {
+	return runtimeprofile.Profile{
+		Protocol: runtimeprofile.Protocol{Current: "2.0", MinSupported: "2.0"},
+		Server: runtimeprofile.Server{
+			Name: "steer-test", Version: "1.0.0", DefaultWorkspace: workspace, Home: workspace,
+		},
+		Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{},
+		Limits: runtimeprofile.Limits{
+			MaxConcurrentRuns: 1, IdempotencyRetentionSeconds: 600,
+			IdempotencyNamespace: "steer-test-runtime",
+			RunReplay: runtimeprofile.ReplayLimits{
+				Scope: "runtimeInstanceRootSegment", MaxEvents: 128, MaxBytes: 1 << 20,
+			},
+			MCPAuthorizationRetentionSeconds: 600,
+			RuntimeSubscription:              runtimeprofile.SubscriptionLimits{MaxTopics: 1, MaxWatches: 1},
+		},
+	}
 }

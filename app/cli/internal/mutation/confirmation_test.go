@@ -27,6 +27,23 @@ func TestAcknowledgementUncertainIncludesMutationTimeouts(t *testing.T) {
 			t.Fatalf("AcknowledgementUncertain(%v) = true", err)
 		}
 	}
+	if AcknowledgementUncertain(agent.ErrCommandStoreMismatch) {
+		t.Fatal("a runtime-store mismatch must not be retried against the same store")
+	}
+	if !OutcomeUnknown(agent.ErrCommandStoreMismatch) {
+		t.Fatal("a runtime-store mismatch discarded an unknown prior-store outcome")
+	}
+}
+
+func TestConfirmStopsAtARuntimeStoreMismatch(t *testing.T) {
+	attempts := 0
+	_, err := Confirm(t.Context(), retry.Backoff{}, func(context.Context) (struct{}, error) {
+		attempts++
+		return struct{}{}, agent.ErrCommandStoreMismatch
+	})
+	if !errors.Is(err, agent.ErrCommandStoreMismatch) || attempts != 1 {
+		t.Fatalf("confirmation error = %v after %d attempts", err, attempts)
+	}
 }
 
 func TestConfirmRetriesAnUncertainMutationWithTheSameOwner(t *testing.T) {

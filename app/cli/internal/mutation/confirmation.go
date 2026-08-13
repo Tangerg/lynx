@@ -19,6 +19,14 @@ func AcknowledgementUncertain(err error) bool {
 		errors.Is(err, context.DeadlineExceeded)
 }
 
+// OutcomeUnknown includes failures which cannot be retried against the current
+// runtime but still do not prove that an earlier attempt was refused. A store
+// mismatch is fenced before current-store admission; it says nothing about the
+// same command's outcome in the store that originally owned it.
+func OutcomeUnknown(err error) bool {
+	return AcknowledgementUncertain(err) || errors.Is(err, agent.ErrCommandStoreMismatch)
+}
+
 // Confirm retries one idempotent mutation until its acknowledgement is
 // observed, a definitive refusal arrives, or the owning context ends. The
 // attempt closure must capture and reuse the same mutation identity.

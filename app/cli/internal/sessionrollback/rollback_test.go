@@ -238,3 +238,31 @@ func TestRecoverRetiresADefinitivelyRejectedHistoryRollback(t *testing.T) {
 		t.Fatalf("rejected rollback journals = %+v", pending)
 	}
 }
+
+func TestRecoverPreservesHistoryRollbackRejectedByAnotherRuntimeStore(t *testing.T) {
+	underlying, preview := rollbackFixture(t, agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	})
+	window := ReplayWindow{Now: func() time.Time {
+		return time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC)
+	}}
+	pending := preview.journal(
+		agent.CommandID("cli_55555555555555555555555555555555"), window, window.now(),
+	)
+	store, err := workbench.Open(t.TempDir(), workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StageSessionRollback(pending); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &recordingRuntime{Runtime: underlying, reject: agent.ErrCommandStoreMismatch}
+	err = Recover(t.Context(), runtime, store, window, retry.Backoff{})
+	if !errors.Is(err, agent.ErrCommandStoreMismatch) {
+		t.Fatalf("store mismatch recovery error = %v", err)
+	}
+	stored, exists := store.PendingSessionRollback(pending.SessionID)
+	if !exists || stored.CommandID != pending.CommandID || stored.Phase != workbench.SessionRollbackPrepared {
+		t.Fatalf("preserved rollback = %+v, present %t", stored, exists)
+	}
+}
