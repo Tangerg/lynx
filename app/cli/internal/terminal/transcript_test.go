@@ -569,6 +569,13 @@ func TestToolClickRequiresAnUninterruptedLeftButtonGesture(t *testing.T) {
 				view.Focus(true)
 			},
 		},
+		{
+			name: "keyboard navigation",
+			interrupt: func(_ *transcriptView, root *headless.Root) {
+				root.Handle(input.Key{Code: input.Down})
+				root.Handle(input.Key{Code: input.Up})
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

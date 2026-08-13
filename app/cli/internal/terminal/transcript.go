@@ -239,13 +239,16 @@ func (c *transcriptView) Draw(frame headless.Frame) {
 func (c *transcriptView) SetEntrance(entrance grid.Drawable) { c.entrance = entrance }
 
 func (c *transcriptView) Handle(event input.Event) bool {
-	if key, ok := event.(input.Key); ok && key.Down() && c.focused {
-		if key.Code == input.Esc && c.selection.Active() {
-			c.selection.Clear()
-			return true
-		}
-		if _, handled := c.matcher.Handle(c.keys, key, c.Do); handled {
-			return true
+	if key, ok := event.(input.Key); ok && key.Down() {
+		c.pointerGesture.cancel()
+		if c.focused {
+			if key.Code == input.Esc && c.selection.Active() {
+				c.selection.Clear()
+				return true
+			}
+			if _, handled := c.matcher.Handle(c.keys, key, c.Do); handled {
+				return true
+			}
 		}
 	}
 	handled := c.view.Handle(event)
