@@ -40,6 +40,21 @@ type claimLostOnceStore struct {
 	once    sync.Once
 }
 
+type competingCompletionStore struct {
+	backing        *memoryIdempotencyStore
+	durablePayload []byte
+	durableErr     error
+	once           sync.Once
+}
+
+type cancellationAwareCompletionStore struct {
+	idempotency.Store
+	attempts atomic.Int32
+	entered  chan struct{}
+	release  chan struct{}
+	once     sync.Once
+}
+
 func (s *claimLostOnceStore) Claim(
 	ctx context.Context,
 	key string,
@@ -60,6 +75,44 @@ func (s *claimLostOnceStore) Complete(ctx context.Context, record idempotency.Re
 		return idempotency.ErrClaimLost
 	}
 	return s.backing.Complete(ctx, record)
+}
+
+func (s *competingCompletionStore) Claim(
+	ctx context.Context,
+	key string,
+	fingerprint string,
+) (idempotency.Record, bool, error) {
+	return s.backing.Claim(ctx, key, fingerprint)
+}
+
+func (s *competingCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
+	intercepted := false
+	s.once.Do(func() {
+		intercepted = true
+		durable := record
+		durable.Payload = s.durablePayload
+		s.durableErr = s.backing.Complete(ctx, durable)
+	})
+	if intercepted {
+		if s.durableErr != nil {
+			return s.durableErr
+		}
+		return errors.New("completion acknowledgement was lost")
+	}
+	return s.backing.Complete(ctx, record)
+}
+
+func (s *cancellationAwareCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
+	if s.attempts.Add(1) == 1 {
+		return errors.New("temporary completion failure")
+	}
+	s.once.Do(func() { close(s.entered) })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.release:
+		return s.Store.Complete(ctx, record)
+	}
 }
 
 func (s *flakyCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
@@ -116,6 +169,116 @@ func TestCompletionFailureRetriesWithoutRepeatingCommand(t *testing.T) {
 	}
 }
 
+func TestAwaitShutdownFlushesKnownCompletionBeforeStoreClosure(t *testing.T) {
+	service := &countingCancelService{}
+	backing := newMemoryIdempotencyStore()
+	store := &flakyCompletionStore{Store: backing}
+	store.failures.Store(1)
+	endpoint := New(service, Config{IdempotencyStore: store})
+	options := Options{IdempotencyKey: "flush-on-shutdown"}
+	request := protocol.CancelRunRequest{RunID: "run_1"}
+
+	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
+		t.Context(), endpoint, "runs.cancel", request, options,
+	)
+	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
+		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
+	}
+	endpoint.BeginShutdown()
+	if err := endpoint.AwaitShutdown(t.Context()); err != nil {
+		t.Fatalf("AwaitShutdown: %v", err)
+	}
+
+	reopenedService := &countingCancelService{}
+	reopened := New(reopenedService, Config{IdempotencyStore: backing})
+	response, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
+		t.Context(), reopened, "runs.cancel", request, options,
+	)
+	if err != nil || response.Run.ID != "run_1" {
+		t.Fatalf("replay after graceful shutdown = (%+v, %v)", response, err)
+	}
+	if calls := service.calls.Load(); calls != 1 {
+		t.Fatalf("original CancelRun calls = %d, want 1", calls)
+	}
+	if calls := reopenedService.calls.Load(); calls != 0 {
+		t.Fatalf("reopened CancelRun calls = %d, want 0", calls)
+	}
+}
+
+func TestAwaitShutdownKeepsFailedPendingCompletionForRetry(t *testing.T) {
+	service := &countingCancelService{}
+	backing := newMemoryIdempotencyStore()
+	store := &flakyCompletionStore{Store: backing}
+	store.failures.Store(2)
+	endpoint := New(service, Config{IdempotencyStore: store})
+	options := Options{IdempotencyKey: "retry-shutdown-flush"}
+	request := protocol.CancelRunRequest{RunID: "run_1"}
+
+	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
+		t.Context(), endpoint, "runs.cancel", request, options,
+	)
+	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
+		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
+	}
+	endpoint.BeginShutdown()
+	if err := endpoint.AwaitShutdown(t.Context()); err == nil {
+		t.Fatal("first AwaitShutdown succeeded while completion persistence failed")
+	}
+	if err := endpoint.AwaitShutdown(t.Context()); err != nil {
+		t.Fatalf("retry AwaitShutdown: %v", err)
+	}
+
+	reopenedService := &countingCancelService{}
+	reopened := New(reopenedService, Config{IdempotencyStore: backing})
+	if _, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
+		t.Context(), reopened, "runs.cancel", request, options,
+	); err != nil {
+		t.Fatalf("replay after retried shutdown flush: %v", err)
+	}
+	if calls := reopenedService.calls.Load(); calls != 0 {
+		t.Fatalf("reopened CancelRun calls = %d, want 0", calls)
+	}
+}
+
+func TestAwaitShutdownFlushHonorsOwnerCancellation(t *testing.T) {
+	backing := newMemoryIdempotencyStore()
+	store := &cancellationAwareCompletionStore{
+		Store: backing, entered: make(chan struct{}), release: make(chan struct{}),
+	}
+	endpoint := New(&countingCancelService{}, Config{IdempotencyStore: store})
+	options := Options{IdempotencyKey: "cancel-shutdown-flush"}
+	request := protocol.CancelRunRequest{RunID: "run_1"}
+
+	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
+		t.Context(), endpoint, "runs.cancel", request, options,
+	)
+	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
+		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
+	}
+	endpoint.BeginShutdown()
+	waitCtx, cancelWait := context.WithCancel(t.Context())
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- endpoint.AwaitShutdown(waitCtx) }()
+	select {
+	case <-store.entered:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown flush did not enter completion store")
+	}
+	cancelWait()
+	select {
+	case err := <-waitErr:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("AwaitShutdown cancellation = %v, want context canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("AwaitShutdown did not propagate owner cancellation")
+	}
+	close(store.release)
+	if err := endpoint.AwaitShutdown(t.Context()); err != nil {
+		t.Fatalf("retry AwaitShutdown: %v", err)
+	}
+}
+
 func TestLostCompletionClaimIsReacquiredWithoutRepeatingCommand(t *testing.T) {
 	service := &countingCancelService{}
 	store := &claimLostOnceStore{backing: newMemoryIdempotencyStore()}
@@ -152,6 +315,48 @@ func TestLostCompletionClaimIsReacquiredWithoutRepeatingCommand(t *testing.T) {
 	close(errCh)
 	for err := range errCh {
 		t.Errorf("recovered replay: %v", err)
+	}
+	if calls := service.calls.Load(); calls != 1 {
+		t.Fatalf("CancelRun calls = %d, want 1", calls)
+	}
+}
+
+func TestPendingCompletionReplaysDurableFirstResult(t *testing.T) {
+	durableFinishedAt := time.Date(2026, 8, 11, 2, 0, 0, 0, time.UTC)
+	durableOutcome := protocol.RunOutcome{Type: protocol.OutcomeCanceled}
+	durablePayload, err := encodeStoredOutcome(Result{Value: &protocol.CancelRunResponse{
+		Type: protocol.CancelRunRoot,
+		Run: protocol.RunRef{RunSummary: protocol.RunSummary{
+			ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusFinished,
+			Outcome: &durableOutcome, FinishedAt: durableFinishedAt,
+		}},
+	}})
+	if err != nil {
+		t.Fatalf("encode durable outcome: %v", err)
+	}
+	service := &countingCancelService{}
+	store := &competingCompletionStore{
+		backing:        newMemoryIdempotencyStore(),
+		durablePayload: durablePayload,
+	}
+	endpoint := New(service, Config{IdempotencyStore: store})
+	options := Options{IdempotencyKey: "durable-first-result"}
+	request := protocol.CancelRunRequest{RunID: "run_1"}
+
+	_, err = Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
+		t.Context(), endpoint, "runs.cancel", request, options,
+	)
+	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
+		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
+	}
+	response, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
+		t.Context(), endpoint, "runs.cancel", request, options,
+	)
+	if err != nil {
+		t.Fatalf("replay durable first result: %v", err)
+	}
+	if !response.Run.FinishedAt.Equal(durableFinishedAt) {
+		t.Fatalf("replayed FinishedAt = %v, want durable %v", response.Run.FinishedAt, durableFinishedAt)
 	}
 	if calls := service.calls.Load(); calls != 1 {
 		t.Fatalf("CancelRun calls = %d, want 1", calls)

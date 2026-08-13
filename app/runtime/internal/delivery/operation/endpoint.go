@@ -71,14 +71,18 @@ func (e *Endpoint) BeginShutdown() {
 	e.invocations.BeginShutdown()
 }
 
-// AwaitShutdown waits until every accepted call or stream source has returned.
-// It does not begin shutdown so process owners can broadcast all cancellation
+// AwaitShutdown waits until every accepted call or stream source has returned,
+// then persists every known idempotency outcome before its Store can close. It
+// does not begin shutdown so process owners can broadcast all cancellation
 // signals before joining any one component.
 func (e *Endpoint) AwaitShutdown(ctx context.Context) error {
 	if e == nil || e.invocations == nil {
 		return nil
 	}
-	return e.invocations.AwaitShutdown(ctx)
+	if err := e.invocations.AwaitShutdown(ctx); err != nil {
+		return err
+	}
+	return e.idempotency.flushPending(ctx)
 }
 
 // Invoke validates and executes the named operation through the catalog's

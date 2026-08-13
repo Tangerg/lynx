@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"sort"
 	"sync"
 	"time"
 
@@ -93,7 +94,7 @@ func (r *replayStore) invoke(
 		return failed(ProjectError(fmt.Errorf("idempotency: encode operation outcome: %w", err)))
 	}
 	record = idempotency.Record{Key: key, Fingerprint: fingerprint, Payload: payload}
-	if err := r.complete(ctx, record); err != nil {
+	if err := r.completeDetached(ctx, record); err != nil {
 		if errors.Is(err, idempotency.ErrKeyConflict) {
 			return failed(NewFailure(protocol.ErrIdempotencyConflict, "idempotency key is already bound to another operation"))
 		}
@@ -200,8 +201,12 @@ func operationFingerprint(name string, parameters any) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func (r *replayStore) complete(ctx context.Context, record idempotency.Record) error {
-	writeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStoreWriteTimeout)
+func (r *replayStore) completeDetached(ctx context.Context, record idempotency.Record) error {
+	return r.completeWithin(context.WithoutCancel(ctx), record)
+}
+
+func (r *replayStore) completeWithin(ctx context.Context, record idempotency.Record) error {
+	writeContext, cancel := context.WithTimeout(ctx, idempotencyStoreWriteTimeout)
 	defer cancel()
 	return r.store.Complete(writeContext, record)
 }
@@ -216,25 +221,72 @@ func (r *replayStore) settlePendingCompletion(
 	ctx context.Context,
 	pending idempotency.Record,
 ) ([]byte, error) {
-	if err := r.complete(ctx, pending); err == nil {
-		return pending.Payload, nil
-	} else if !errors.Is(err, idempotency.ErrClaimLost) {
+	return r.settlePendingCompletionWithin(context.WithoutCancel(ctx), pending)
+}
+
+func (r *replayStore) settlePendingCompletionWithin(
+	ctx context.Context,
+	pending idempotency.Record,
+) ([]byte, error) {
+	if err := r.completeWithin(ctx, pending); err != nil && !errors.Is(err, idempotency.ErrClaimLost) {
 		return nil, err
 	}
 
-	writeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStoreWriteTimeout)
-	record, claimed, err := r.store.Claim(writeContext, pending.Key, pending.Fingerprint)
-	cancel()
+	record, claimed, err := r.claimWithin(ctx, pending.Key, pending.Fingerprint)
 	if err != nil {
 		return nil, err
 	}
 	if !claimed && len(record.Payload) != 0 {
 		return record.Payload, nil
 	}
-	if err := r.complete(ctx, pending); err != nil {
+	if err := r.completeWithin(ctx, pending); err != nil {
 		return nil, err
 	}
-	return pending.Payload, nil
+	record, claimed, err = r.claimWithin(ctx, pending.Key, pending.Fingerprint)
+	if err != nil {
+		return nil, err
+	}
+	if claimed || len(record.Payload) == 0 {
+		return nil, idempotency.ErrClaimLost
+	}
+	return record.Payload, nil
+}
+
+func (r *replayStore) claimWithin(
+	ctx context.Context,
+	key string,
+	fingerprint string,
+) (idempotency.Record, bool, error) {
+	writeContext, cancel := context.WithTimeout(ctx, idempotencyStoreWriteTimeout)
+	defer cancel()
+	return r.store.Claim(writeContext, key, fingerprint)
+}
+
+// flushPending persists every business outcome already known to this Endpoint.
+// It runs only after admission is closed and all accepted invocations have
+// returned, so no new pending record can appear while the process owner is
+// deciding whether dependencies are safe to close. Failed records stay in the
+// map so a later Close can retry without executing their commands again.
+func (r *replayStore) flushPending(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var errs []error
+	for _, key := range r.pendingKeys() {
+		lock := r.lock(key)
+		lock.Lock()
+		pending, ok := r.pendingCompletion(key)
+		if ok {
+			_, err := r.settlePendingCompletionWithin(ctx, pending)
+			if err == nil {
+				r.forgetPendingCompletion(key, pending.Fingerprint)
+			} else {
+				errs = append(errs, fmt.Errorf("idempotency: flush pending outcome: %w", err))
+			}
+		}
+		lock.Unlock()
+	}
+	return errors.Join(errs...)
 }
 
 func (r *replayStore) persistenceFailure(err error) *Failure {
@@ -265,6 +317,17 @@ func (r *replayStore) forgetPendingCompletion(key, fingerprint string) {
 		delete(r.pending, key)
 	}
 	r.pendingMu.Unlock()
+}
+
+func (r *replayStore) pendingKeys() []string {
+	r.pendingMu.Lock()
+	keys := make([]string, 0, len(r.pending))
+	for key := range r.pending {
+		keys = append(keys, key)
+	}
+	r.pendingMu.Unlock()
+	sort.Strings(keys)
+	return keys
 }
 
 func (r *replayStore) lock(key string) *sync.Mutex {
