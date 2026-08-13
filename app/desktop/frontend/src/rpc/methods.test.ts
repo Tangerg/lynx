@@ -130,6 +130,20 @@ describe("methods factory", () => {
     expect(call).toHaveBeenCalledWith("workspaces.list", {}, { signal });
   });
 
+  it("forwards cancellation through a bound workspace change read", async () => {
+    const call = vi.fn().mockResolvedValue({ data: [] });
+    const methods = createMethods({ call } as unknown as RpcClient);
+    const signal = new AbortController().signal;
+
+    await methods.workspace({ path: "/repo" }).changes.list(signal);
+
+    expect(call).toHaveBeenCalledWith(
+      "workspace.changes.list",
+      { workspace: { path: "/repo" } },
+      { signal },
+    );
+  });
+
   it("forwards cancellation when reading a session", async () => {
     const call = vi.fn().mockResolvedValue({ id: "ses_1" });
     const methods = createMethods({ call } as unknown as RpcClient);

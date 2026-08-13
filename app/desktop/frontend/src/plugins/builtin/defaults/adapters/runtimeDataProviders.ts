@@ -105,9 +105,9 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_FILES_CHANGED_KEY,
-    fetcher: async (params) => {
+    fetcher: async (params, signal) => {
       const resources = await workspace(optionalParams<WorkspaceFileChangesQuery>(params)?.cwd);
-      return (await pageData(resources.changes.list())).map(toWorkspaceFileChangeSummary);
+      return (await pageData(resources.changes.list(signal))).map(toWorkspaceFileChangeSummary);
     },
   });
   contribute({

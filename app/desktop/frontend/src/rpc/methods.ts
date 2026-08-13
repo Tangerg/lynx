@@ -182,7 +182,7 @@ export interface WorkspaceMethods {
   /** The immutable resource identity bound to every operation below. */
   readonly ref: Readonly<WorkspaceRef>;
   changes: {
-    list: () => Promise<Page<WorkspaceFileChange>>;
+    list: (signal?: AbortSignal) => Promise<Page<WorkspaceFileChange>>;
   };
   diff: {
     get: (params?: Omit<GetDiffRequest, "workspace">) => Promise<Diff>;
@@ -491,7 +491,8 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
   return {
     ref: workspace,
     changes: {
-      list: () => call("workspace.changes.list", { workspace }),
+      list: (signal) =>
+        call("workspace.changes.list", { workspace }, signal ? { signal } : undefined),
     },
     diff: {
       get: (params) => call("workspace.diff.get", { ...params, workspace }),
