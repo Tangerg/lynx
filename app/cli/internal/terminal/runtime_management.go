@@ -576,6 +576,7 @@ func (a *app) ResumeGoal() error {
 }
 
 func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, error)) error {
+	presentation := a.sessionContext
 	a.status.note(label)
 	sessionID := a.session.ID
 	work := func(ctx context.Context) (goal.Goal, error) {
@@ -588,14 +589,16 @@ func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, 
 		}
 		return change(ctx)
 	}
-	started := runOperation(a, goalOperation, false, work, func(current goal.Goal, err error) {
+	started := runApplicationOperation(a, goalOperation, false, work, func(current goal.Goal, err error) {
 		if err != nil {
 			a.message(label + " failed: " + err.Error())
 			return
 		}
-		a.setRuntimeReader(runtimeReaderGoal)
-		a.workspaceReader = workspaceReaderNone
-		a.openReaderDocument(goalDocument(current, true))
+		if a.sessionContext == presentation {
+			a.setRuntimeReader(runtimeReaderGoal)
+			a.workspaceReader = workspaceReaderNone
+			a.openReaderDocument(goalDocument(current, true))
+		}
 		a.status.note("goal · " + string(current.Status))
 	})
 	if !started {

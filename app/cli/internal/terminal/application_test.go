@@ -1589,7 +1589,7 @@ func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("keep running until the terminal closes")
 	host.Press(input.Enter)
-	host.Shows(t, "keep running until")
+	host.Shows(t, "working")
 	started := backend.startInput()
 	if started.SessionID == "" {
 		t.Fatal("run did not start")

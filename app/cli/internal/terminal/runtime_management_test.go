@@ -688,6 +688,75 @@ func TestReaderRefreshDoesNotCancelAGoalLifecycleCommand(t *testing.T) {
 	stop()
 }
 
+func TestGoalMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	backend := mock.New()
+	base := new(goalServiceStub)
+	base.set(goal.Goal{SessionID: "ses_demo_1", Objective: "finish safely", Status: goal.Active})
+	service := &blockingGoalMutationService{
+		goalServiceStub: base,
+		started:         make(chan struct{}, 1), release: make(chan struct{}), canceled: make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", Goals: service, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/goal-stop")
+	host.Press(input.Enter)
+	awaitSignal(t, service.started, "goal stop mutation")
+	title := "Projection changed during goal mutation"
+	installChangedSessionProjection(t, backend, source, "ses_demo_1", title)
+	host.Shows(t, title)
+	select {
+	case <-service.canceled:
+		t.Fatal("session projection replacement canceled the goal mutation")
+	default:
+	}
+	release()
+	host.Shows(t, "stoppedByUser")
+	if writes := base.writes.Load(); writes != 1 {
+		t.Fatalf("goal lifecycle writes = %d, want 1", writes)
+	}
+	stop()
+}
+
+func TestGoalMutationDoesNotInstallAReaderAfterSessionSwitch(t *testing.T) {
+	base := new(goalServiceStub)
+	base.set(goal.Goal{SessionID: "ses_demo_1", Objective: "finish safely", Status: goal.Active})
+	service := &blockingGoalMutationService{
+		goalServiceStub: base,
+		started:         make(chan struct{}, 1), release: make(chan struct{}), canceled: make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), SessionID: "ses_demo_1", Goals: service})
+	host.Shows(t, "Ask lyra")
+	host.Type("/goal-stop")
+	host.Press(input.Enter)
+	awaitSignal(t, service.started, "goal stop mutation")
+	host.Type("/new")
+	host.Press(input.Enter)
+	host.Shows(t, "session · Untitled session")
+	select {
+	case <-service.canceled:
+		t.Fatal("session switch canceled the admitted goal mutation")
+	default:
+	}
+	release()
+	host.Shows(t, "goal · paused")
+	host.Hides(t, "Session goal")
+	if writes := base.writes.Load(); writes != 1 {
+		t.Fatalf("goal lifecycle writes = %d, want 1", writes)
+	}
+	stop()
+}
+
 func runUIWithRuntimeServices(t *testing.T, config Config) (*programtest.Host, func()) {
 	t.Helper()
 	if config.SessionID == "" && config.Workspace == "" {
