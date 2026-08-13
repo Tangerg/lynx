@@ -67,6 +67,19 @@ func TestStatusProgressIncludesRuntimeActivityStepAndContext(t *testing.T) {
 	}
 }
 
+func TestStatusKeepsAnUnresolvedWorkbenchProblemAboveRunProgress(t *testing.T) {
+	status := newStatusView(kit.Dark(), kit.Unicode(), settings.Default().RunOptions())
+	status.setProblem("workbench: state could not be committed")
+	status.active("working")
+	if got := drawStatic(t, status, 72, 1); !strings.Contains(got, "state could not be committed") || strings.Contains(got, "working") {
+		t.Fatalf("workbench problem did not dominate progress:\n%s", got)
+	}
+	status.setProblem("")
+	if got := drawStatic(t, status, 72, 1); !strings.Contains(got, "working") {
+		t.Fatalf("cleared workbench problem did not restore progress:\n%s", got)
+	}
+}
+
 func TestActivityViewCentersACompactWindowOnTheActiveStep(t *testing.T) {
 	activity := newActivityView(kit.Dark(), kit.Unicode())
 	activity.Set([]agent.PlanItem{

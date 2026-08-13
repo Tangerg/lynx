@@ -351,16 +351,16 @@ func (a *app) deliverInteractionResume(review *interactionReview, command agent.
 
 func (a *app) settleAcknowledgedResume(commandID agent.CommandID) {
 	if err := a.retireAcknowledgedResume(commandID); err != nil {
-		a.reportWorkbenchError(err)
+		a.reportWorkbenchIssue(workbenchResumeOutbox, err)
 		a.message("could not settle acknowledged interaction decisions: " + err.Error())
 		a.retryAuthoringSettlement(
 			resumeSettlementOperation,
 			func() error { return a.retireAcknowledgedResume(commandID) },
-			func() { a.reportWorkbenchError(nil) },
+			func() { a.reportWorkbenchIssue(workbenchResumeOutbox, nil) },
 		)
 		return
 	}
-	a.reportWorkbenchError(nil)
+	a.reportWorkbenchIssue(workbenchResumeOutbox, nil)
 }
 
 func (a *app) retireAcknowledgedResume(commandID agent.CommandID) error {

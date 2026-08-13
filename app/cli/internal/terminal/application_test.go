@@ -757,11 +757,12 @@ func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{
-			Interactions: []agent.Interaction{agent.Approval{
-				ItemID: "approval", Title: "Persist settlement",
-				Tool: &agent.ToolCall{
-					Kind: agent.ToolShell, Name: "shell", Command: "true", Status: agent.ToolRunning,
-				},
+			Interactions: []agent.Interaction{agent.Question{
+				ItemID: "question", Title: "Persist settlement",
+				Fields: []agent.QuestionField{{
+					Prompt: "Continue?", Kind: agent.QuestionSingle,
+					Options: []agent.QuestionOption{{Label: "Continue"}, {Label: "Stop"}},
+				}},
 			}},
 			Continue: func([]agent.InterruptAnswer) []mock.Step {
 				return []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
@@ -778,7 +779,7 @@ func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("recover an accepted approval settlement")
 	host.Press(input.Enter)
-	host.Shows(t, "Tool approval")
+	host.Shows(t, "Persist settlement")
 	host.Press(input.Enter)
 	pending := awaitSignalValue(t, runtime.started, "accepted resume held before returning its receipt")
 
@@ -800,7 +801,7 @@ func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	}
 
 	close(runtime.release)
-	host.Shows(t, "could not settle acknowledged interaction decisions")
+	host.Shows(t, "workbench:")
 	if attempts := runtime.resumeAttempts(); len(attempts) != 1 || attempts[0].CommandID != pending.CommandID {
 		t.Fatalf("accepted resume attempts = %+v, want one command %s", attempts, pending.CommandID)
 	}
@@ -826,6 +827,55 @@ func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 		t.Fatalf("local settlement replayed the accepted resume: %+v", attempts)
 	}
 	stop()
+}
+
+func TestClosingDuringAnAcceptedResumeCancelsTheRunAndRetiresTheDecision(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval", Title: "Close during resume",
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "true", Status: agent.ToolRunning,
+				},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
+					Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+				}}}
+			},
+		}
+	}
+	runtime := &blockingAcceptedResumeRuntime{
+		Runtime: base, started: make(chan agent.ResumeRun, 1), release: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("close after the runtime accepts a decision")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	pending := awaitSignalValue(t, runtime.started, "accepted resume held before terminal close")
+	stop()
+
+	if attempts := runtime.resumeAttempts(); len(attempts) != 1 || attempts[0].CommandID != pending.CommandID {
+		t.Fatalf("terminal-close resume attempts = %+v, want one command %s", attempts, pending.CommandID)
+	}
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); active {
+		t.Fatalf("terminal close left the resumed run active: %+v", snapshot.Runs)
+	}
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, exists := store.PendingResume("ses_demo_1"); exists {
+		t.Fatalf("terminal close left an accepted resume durable: %+v", durable)
+	}
 }
 
 func TestMisdirectedAcceptedResumeReceiptCancelsAndSettlesTheRequestedRun(t *testing.T) {
@@ -2402,7 +2452,10 @@ func TestSessionChangeDoesNotInstallAfterAnInFlightDraftSaveFailure(t *testing.T
 	host.Shows(t, "saved before transition plus input during transition")
 	host.Shows(t, "workbench:")
 	close(backend.releaseChange)
-	host.Shows(t, "failed: save source")
+	host.Until(t, "failed session transition to settle", func() bool {
+		page, err := base.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
+		return err == nil && len(page.Items) == 4 && host.Repaint()
+	})
 	host.Shows(t, "saved before transition plus input during transition")
 	host.Shows(t, "Flaky cache expiry test")
 	page, err := base.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
@@ -2898,7 +2951,8 @@ func TestSessionChangeStopsBeforeMutationWhenTheSourceDraftCannotBeSaved(t *test
 	host.Type("start a new session")
 	host.Shows(t, "/new")
 	host.Press(input.Enter)
-	host.Shows(t, "session change blocked: save session draft")
+	host.Hides(t, "Commands")
+	host.Shows(t, "workbench:")
 	host.Shows(t, "durable prefix plus unsaved input")
 	after, err := backend.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	if err != nil {
@@ -2949,7 +3003,7 @@ func TestPromptSubmissionStopsBeforeRuntimeWhenTheOutboxCannotBeSaved(t *testing
 	}
 
 	host.Press(input.Enter)
-	host.Shows(t, "prompt submission blocked: save pending run")
+	host.Shows(t, "workbench:")
 	host.Shows(t, "must remain editable")
 	if got := backend.startCount(); got != 0 {
 		t.Fatalf("runtime started %d runs after draft retirement failed", got)

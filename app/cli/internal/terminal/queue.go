@@ -203,7 +203,7 @@ func (a *app) retireQueuedCommand(sessionID string, commandID agent.CommandID) e
 		return err
 	}
 	a.history.Add(entry.Message)
-	a.reportWorkbenchError(nil)
+	a.reportWorkbenchIssue(workbenchRunOutbox, nil)
 	a.syncQueue()
 	return nil
 }
@@ -235,7 +235,7 @@ func (a *app) reportQueuedDispatchSettlementFailure(err error) {
 	if errors.Is(err, errQueuedPromptCanceling) {
 		return
 	}
-	a.reportWorkbenchError(err)
+	a.reportWorkbenchIssue(workbenchRunOutbox, err)
 	a.message("could not settle acknowledged run start: " + err.Error())
 	a.retryQueuedDispatchSettlement()
 }

@@ -169,7 +169,7 @@ type app struct {
 	attachments         *attachment.Resolver
 	attachmentElements  map[uint64]agent.Attachment
 	history             promptHistory
-	workbenchProblem    string
+	workbenchHealth     workbenchHealth
 	sessionInvalidated  bool
 	commandSeq          uint64
 	commandOperations   map[uint64]commandOperation
@@ -286,7 +286,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 			if a.closed || !a.drafts.Current(result.revision) {
 				return
 			}
-			a.reportWorkbenchError(result.err)
+			a.reportWorkbenchIssue(workbenchDraft, result.err)
 		})
 	})
 	a.transcript.images = newTerminalImagePresenter(loop.Images())
@@ -803,11 +803,11 @@ func (a *app) dispatchPrompt(message agent.Message) {
 		return
 	}
 	if err := a.commitPromptSubmission(commandID, message); err != nil {
-		a.reportWorkbenchError(err)
+		a.reportWorkbenchIssue(workbenchRunOutbox, err)
 		a.message("prompt submission blocked: " + err.Error())
 		return
 	}
-	a.reportWorkbenchError(nil)
+	a.reportWorkbenchIssue(workbenchRunOutbox, nil)
 	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 		a.enqueueFollowUp(commandID, message)
 		return

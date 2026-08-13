@@ -728,7 +728,7 @@ func TestAcceptedStartRetainsTheFIFOBoundaryUntilDurableSettlementRecovers(t *te
 	}
 
 	close(gate.release)
-	host.Shows(t, "retrying local settlement")
+	host.Shows(t, "workbench:")
 	host.Shows(t, "FIRST_SETTLEMENT_RAN")
 	if got := len(gate.startInputs()); got != 1 {
 		t.Fatalf("second command crossed the failed settlement boundary: %d starts", got)
@@ -800,7 +800,7 @@ func TestAcceptedStartSettlementRecoveryRestoresTheTerminalStatusWithoutAFollowU
 	}
 
 	close(gate.release)
-	host.Shows(t, "retrying local settlement")
+	host.Shows(t, "workbench:")
 	host.Shows(t, "ONLY_SETTLEMENT_RAN")
 	if err := os.Remove(blocker); err != nil {
 		t.Fatal(err)
@@ -812,7 +812,7 @@ func TestAcceptedStartSettlementRecoveryRestoresTheTerminalStatusWithoutAFollowU
 		t.Fatal(err)
 	}
 	host.Shows(t, "complete")
-	host.Hides(t, "retrying local settlement")
+	host.Hides(t, "workbench:")
 	stop()
 }
 

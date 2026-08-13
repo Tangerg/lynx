@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -237,6 +238,92 @@ func approvalRulesDocument(rules []agent.ApprovalRule) readerDocument {
 		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s:%s", rule.ID, rule.Scope, rule.Decision, rule.Tool, subject))
 	}
 	return paragraphDocument("Approval rules", fmt.Sprintf("%d remembered", len(rules)), lines)
+}
+
+func (a *app) PrepareDeleteApprovalRule(identity string) error {
+	identity = strings.TrimSpace(identity)
+	if identity == "" {
+		return errors.New("usage: /rule-delete <rule-id>")
+	}
+	sessionID := a.session.ID
+	a.status.note("loading approval rule to forget")
+	if !runOperation(a, approvalRuleOperation, false,
+		func(ctx context.Context) (agent.ApprovalRule, error) {
+			rules, err := a.runtime.ListApprovalRules(ctx, sessionID)
+			if err != nil {
+				return agent.ApprovalRule{}, err
+			}
+			if err := agent.ValidateApprovalRules(rules); err != nil {
+				return agent.ApprovalRule{}, fmt.Errorf("runtime approval rules: %w", err)
+			}
+			return resolveApprovalRule(rules, identity)
+		},
+		func(rule agent.ApprovalRule, err error) {
+			if err != nil {
+				a.message("load approval rule failed: " + err.Error())
+				return
+			}
+			subject := rule.Subject
+			if subject == "" {
+				subject = "*"
+			}
+			a.confirmAction(
+				"Forget approval rule",
+				"Forget "+rule.ID+" ("+rule.Tool+":"+subject+")?",
+				"Forget permanently",
+				func() { a.deleteApprovalRule(sessionID, rule.ID) },
+			)
+		},
+	) {
+		return errors.New("another approval operation is running")
+	}
+	return nil
+}
+
+func resolveApprovalRule(rules []agent.ApprovalRule, identity string) (agent.ApprovalRule, error) {
+	for _, rule := range rules {
+		if rule.ID == identity {
+			return rule, nil
+		}
+	}
+	var matches []agent.ApprovalRule
+	for _, rule := range rules {
+		if strings.HasPrefix(rule.ID, identity) {
+			matches = append(matches, rule)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return agent.ApprovalRule{}, errors.New("approval rule not found: " + identity)
+	case 1:
+		return matches[0], nil
+	default:
+		return agent.ApprovalRule{}, errors.New("approval rule identity is ambiguous; use the full id")
+	}
+}
+
+func (a *app) deleteApprovalRule(sessionID, id string) {
+	a.status.note("forgetting approval rule " + id)
+	if !runOperation(a, approvalRuleOperation, false,
+		func(ctx context.Context) (string, error) {
+			if err := a.runtime.DeleteApprovalRule(ctx, id); err != nil {
+				return "", err
+			}
+			return id, nil
+		},
+		func(deleted string, err error) {
+			if err != nil {
+				a.message("forget approval rule failed: " + err.Error())
+				return
+			}
+			a.status.note("approval rule forgotten · " + deleted)
+			if a.session.ID == sessionID {
+				a.ShowApprovalRules()
+			}
+		},
+	) {
+		a.message("another approval operation is running")
+	}
 }
 
 func (a *app) syncOptions(message string) {

@@ -21,6 +21,7 @@ const (
 	sessionCenterOperation        operationSlot = "session-center"
 	sessionChangeOperation        operationSlot = "session-change"
 	sessionOutputOperation        operationSlot = "session-output"
+	approvalRuleOperation         operationSlot = "approval-rule"
 	cancelRunOperation            operationSlot = "cancel-run"
 	steerRunOperation             operationSlot = "steer-run"
 	workspaceQueryOperation       operationSlot = "workspace-query"

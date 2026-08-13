@@ -320,12 +320,12 @@ func (a *app) resetComposer() {
 func (a *app) rememberPrompt(message agent.Message) error {
 	if a.workbench != nil {
 		if err := a.workbench.Remember(message); err != nil {
-			a.reportWorkbenchError(err)
+			a.reportWorkbenchIssue(workbenchHistory, err)
 			return err
 		}
 	}
 	a.history.Add(message)
-	a.reportWorkbenchError(nil)
+	a.reportWorkbenchIssue(workbenchHistory, nil)
 	return nil
 }
 
@@ -335,7 +335,7 @@ func (a *app) persistDraft() error {
 	if err == nil {
 		err = a.saveDraft(message)
 	}
-	a.reportWorkbenchError(err)
+	a.reportWorkbenchIssue(workbenchDraft, err)
 	return err
 }
 
@@ -351,7 +351,7 @@ func (a *app) scheduleDraftPersistence() {
 		a.stopDraftSave = nil
 		message, _, err := a.currentDraft()
 		if err != nil {
-			a.reportWorkbenchError(err)
+			a.reportWorkbenchIssue(workbenchDraft, err)
 			return
 		}
 		if a.draftState.Observe(a.session.ID, message) {
@@ -375,21 +375,6 @@ func (a *app) saveDraft(message agent.Message) error {
 	a.cancelScheduledDraftSave()
 	a.draftState.Reset(a.session.ID, message)
 	return a.drafts.Flush(a.session.ID, message)
-}
-
-func (a *app) reportWorkbenchError(err error) {
-	if err == nil {
-		a.workbenchProblem = ""
-		return
-	}
-	problem := "workbench: " + err.Error()
-	if problem == a.workbenchProblem {
-		return
-	}
-	a.workbenchProblem = problem
-	if !a.closed {
-		a.message(problem)
-	}
 }
 
 func (a *app) restoreComposer(message agent.Message) {

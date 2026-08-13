@@ -42,9 +42,10 @@ type runtimeSubscriptionRegistration struct {
 type mutableRuntimeCatalog struct {
 	agent.Runtime
 
-	mu     sync.Mutex
-	models []agent.Model
-	rules  []agent.ApprovalRule
+	mu      sync.Mutex
+	models  []agent.Model
+	rules   []agent.ApprovalRule
+	deleted chan string
 }
 
 func (catalog *mutableRuntimeCatalog) ListModels(context.Context) ([]agent.Model, error) {
@@ -57,6 +58,16 @@ func (catalog *mutableRuntimeCatalog) ListApprovalRules(context.Context, string)
 	catalog.mu.Lock()
 	defer catalog.mu.Unlock()
 	return slices.Clone(catalog.rules), nil
+}
+
+func (catalog *mutableRuntimeCatalog) DeleteApprovalRule(_ context.Context, id string) error {
+	catalog.mu.Lock()
+	catalog.rules = slices.DeleteFunc(catalog.rules, func(rule agent.ApprovalRule) bool { return rule.ID == id })
+	catalog.mu.Unlock()
+	if catalog.deleted != nil {
+		catalog.deleted <- id
+	}
+	return nil
 }
 
 func (catalog *mutableRuntimeCatalog) setModels(models ...agent.Model) {
@@ -295,6 +306,49 @@ func TestRuntimeResourceInvalidationsRefreshTheOpenProjection(t *testing.T) {
 		host.Hides(t, "files      12")
 		stop()
 	})
+}
+
+func TestApprovalRuleDeletionResolvesAUniquePrefixAndSurvivesResize(t *testing.T) {
+	catalog := &mutableRuntimeCatalog{Runtime: mock.New(), deleted: make(chan string, 1)}
+	catalog.setRules(agent.ApprovalRule{
+		ID: "rule_external_123", Scope: agent.RememberGlobal, Tool: "shell",
+		Subject: "go test ./...", Decision: agent.ApprovalRuleAllow,
+	})
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: catalog})
+	host.Shows(t, "Ask lyra")
+	host.Type("/rules")
+	host.Press(input.Enter)
+	host.Shows(t, "rule_external_123")
+	host.Press(input.Esc)
+	host.Shows(t, "Ask lyra")
+	host.Type("/rule-delete rule_ext")
+	host.Press(input.Enter)
+	host.Shows(t, "Forget approval rule")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("approval-rule deletion confirmation did not survive a minimal viewport")
+	}
+	host.Shows(t, "rule_external_123")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if id := awaitValue(t, catalog.deleted, "approval rule deletion"); id != "rule_external_123" {
+		t.Fatalf("deleted approval rule = %q", id)
+	}
+	host.Shows(t, "No remembered approval rules")
+	stop()
+}
+
+func TestResolveApprovalRuleRequiresAnUnambiguousIdentity(t *testing.T) {
+	t.Parallel()
+	rules := []agent.ApprovalRule{{ID: "rule_alpha"}, {ID: "rule_alpine"}}
+	if rule, err := resolveApprovalRule(rules, "rule_alpha"); err != nil || rule.ID != "rule_alpha" {
+		t.Fatalf("exact rule = (%+v, %v)", rule, err)
+	}
+	if _, err := resolveApprovalRule(rules, "rule_al"); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("ambiguous rule error = %v", err)
+	}
+	if _, err := resolveApprovalRule(rules, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("missing rule error = %v", err)
+	}
 }
 
 func runtimeResourceChangeSource(topic changefeed.Topic) *runtimeChangeSourceStub {

@@ -284,11 +284,11 @@ func runSessionChangeWithDraftDisposition[T any](
 		return
 	}
 	if err := a.saveDraft(baseline); err != nil {
-		a.reportWorkbenchError(err)
+		a.reportWorkbenchIssue(workbenchDraft, err)
 		a.message("session change blocked: save session draft: " + err.Error())
 		return
 	}
-	a.reportWorkbenchError(nil)
+	a.reportWorkbenchIssue(workbenchDraft, nil)
 	a.sessionDraftTransition = &sessionDraftTransition{
 		sourceSessionID: a.session.ID,
 		baseline:        baseline,

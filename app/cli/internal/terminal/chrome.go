@@ -225,6 +225,7 @@ type statusView struct {
 	theme   kit.Theme
 	glyphs  kit.Glyphs
 	doing   string
+	problem string
 	elapsed string
 	usage   agent.Usage
 	outcome agent.Outcome
@@ -238,8 +239,8 @@ func newStatusView(theme kit.Theme, glyphs kit.Glyphs, options agent.RunOptions)
 }
 
 func (s *statusView) Reset(options agent.RunOptions) {
-	theme, glyphs := s.theme, s.glyphs
-	*s = statusView{theme: theme, glyphs: glyphs, doing: "ready", options: options}
+	theme, glyphs, problem := s.theme, s.glyphs, s.problem
+	*s = statusView{theme: theme, glyphs: glyphs, doing: "ready", problem: problem, options: options}
 }
 
 func (s *statusView) Measure(int) int { return 1 }
@@ -247,6 +248,10 @@ func (s *statusView) Measure(int) int { return 1 }
 func (s *statusView) Draw(view grid.View) {
 	width, height := view.Size()
 	if width <= 0 || height <= 0 {
+		return
+	}
+	if s.problem != "" {
+		kit.Label{Text: s.problem, Style: s.theme.Danger, Ellipsis: s.glyphs.Ellipsis}.Draw(view)
 		return
 	}
 	if s.busy {
@@ -279,6 +284,8 @@ func (s *statusView) Draw(view grid.View) {
 }
 
 func (s *statusView) setOptions(options agent.RunOptions) { s.options = options }
+
+func (s *statusView) setProblem(problem string) { s.problem = strings.TrimSpace(problem) }
 
 func optionsLabel(options agent.RunOptions) string {
 	parts := []string{modelLabel(options)}
