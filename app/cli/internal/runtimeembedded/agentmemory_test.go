@@ -12,11 +12,13 @@ import (
 )
 
 type agentMemoryBindingStub struct {
-	t       *testing.T
-	actions []string
-	now     time.Time
-	listed  *protocol.AgentMemoryList
-	nilList bool
+	t            *testing.T
+	actions      []string
+	now          time.Time
+	listed       *protocol.AgentMemoryList
+	nilList      bool
+	updateResult *protocol.AgentMemoryItem
+	addResult    *protocol.AgentMemoryItem
 }
 
 func (stub *agentMemoryBindingStub) ListAgentMemory(_ context.Context, request protocol.AgentMemoryListRequest, options embedded.CallOptions) (*protocol.AgentMemoryList, error) {
@@ -67,7 +69,15 @@ func TestAgentMemoryAdapterRejectsBrokenRuntimeProjections(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			stub := &agentMemoryBindingStub{t: t, now: now, listed: test.listed, nilList: test.nilList}
-			adapter := &agentMemoryAdapter{runtime: &Runtime{agentMemory: stub, meta: requestMeta("test")}}
+			adapter := &agentMemoryAdapter{runtime: &Runtime{
+				agentMemory: stub,
+				workspaces: &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+					Ref:          protocol.WorkspaceRef{Path: "/workspace"},
+					ProjectRoot:  "/workspace",
+					Availability: protocol.WorkspaceAvailable,
+				}},
+				meta: requestMeta("test"),
+			}}
 			target, err := agentmemory.NewTarget(agentmemory.Project, "/workspace")
 			if err != nil {
 				t.Fatal(err)
@@ -93,6 +103,9 @@ func (stub *agentMemoryBindingStub) UpdateAgentMemory(_ context.Context, request
 		stub.t.Fatalf("update request = %+v", request)
 	}
 	stub.actions = append(stub.actions, "update:"+request.ID)
+	if stub.updateResult != nil {
+		return stub.updateResult, nil
+	}
 	return stub.item(request.ID, protocol.AgentMemoryScopeProject, "edited", true), nil
 }
 
@@ -108,6 +121,9 @@ func (stub *agentMemoryBindingStub) AddAgentMemory(_ context.Context, request pr
 		stub.t.Fatalf("add request = %+v", request)
 	}
 	stub.actions = append(stub.actions, "add:user")
+	if stub.addResult != nil {
+		return stub.addResult, nil
+	}
 	return stub.item("mem_2", request.Scope, request.Content, false), nil
 }
 
@@ -135,7 +151,15 @@ func (stub *agentMemoryBindingStub) assertCommand(options embedded.CommandOption
 
 func TestAgentMemoryAdapterPreservesTargetReviewAndMutationSemantics(t *testing.T) {
 	stub := &agentMemoryBindingStub{t: t, now: time.Now()}
-	adapter := &agentMemoryAdapter{runtime: &Runtime{agentMemory: stub, meta: requestMeta("test")}}
+	adapter := &agentMemoryAdapter{runtime: &Runtime{
+		agentMemory: stub,
+		workspaces: &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+			Ref:          protocol.WorkspaceRef{Path: "/workspace"},
+			ProjectRoot:  "/workspace",
+			Availability: protocol.WorkspaceAvailable,
+		}},
+		meta: requestMeta("test"),
+	}}
 	project, err := agentmemory.NewTarget(agentmemory.Project, "/workspace")
 	if err != nil {
 		t.Fatal(err)
@@ -186,4 +210,54 @@ func TestAgentMemoryMutationRejectsIdentityDrift(t *testing.T) {
 	}
 	_, err := projectAgentMemoryResult("update agent memory", "mem_1", "", &result, nil)
 	requireRuntimeContractViolation(t, err)
+}
+
+func TestAgentMemoryAdapterRejectsMutationAcknowledgementDrift(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	wrongUpdate := protocol.AgentMemoryItem{
+		ID: "mem_1", Scope: protocol.AgentMemoryScopeProject, Content: "ignored",
+		Origin: protocol.AgentMemoryOriginUser, Status: protocol.AgentMemoryStatusActive, Pinned: true,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	wrongAdd := protocol.AgentMemoryItem{
+		ID: "mem_2", Scope: protocol.AgentMemoryScopeUser, Content: "ignored",
+		Origin: protocol.AgentMemoryOriginUser, Status: protocol.AgentMemoryStatusActive,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	tests := []struct {
+		name   string
+		stub   *agentMemoryBindingStub
+		invoke func(*agentMemoryAdapter) error
+	}{
+		{
+			name: "update content",
+			stub: &agentMemoryBindingStub{updateResult: &wrongUpdate},
+			invoke: func(adapter *agentMemoryAdapter) error {
+				content, pinned := "edited", true
+				_, err := adapter.Update(t.Context(), agentmemory.Patch{ID: "mem_1", Content: &content, Pinned: &pinned})
+				return err
+			},
+		},
+		{
+			name: "add content",
+			stub: &agentMemoryBindingStub{addResult: &wrongAdd},
+			invoke: func(adapter *agentMemoryAdapter) error {
+				target, err := agentmemory.NewTarget(agentmemory.User, "")
+				if err != nil {
+					return err
+				}
+				_, err = adapter.Add(t.Context(), target, "authored")
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			test.stub.t, test.stub.now = t, now
+			adapter := &agentMemoryAdapter{runtime: &Runtime{agentMemory: test.stub, meta: requestMeta("test")}}
+			requireRuntimeContractViolation(t, test.invoke(adapter))
+		})
+	}
 }

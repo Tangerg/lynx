@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -52,6 +53,9 @@ func (target Target) Validate() error {
 	case Project:
 		if target.Workspace == "" {
 			return errors.New("project agent memory requires a workspace")
+		}
+		if !filepath.IsAbs(target.Workspace) {
+			return errors.New("project agent memory workspace is not absolute")
 		}
 	case User:
 		if target.Workspace != "" {
@@ -161,6 +165,59 @@ func (patch Patch) Validate() error {
 	}
 	if patch.Content != nil && strings.TrimSpace(*patch.Content) == "" {
 		return errors.New("agent memory content is empty")
+	}
+	return nil
+}
+
+func (patch Patch) ValidateResult(result Item) error {
+	if err := patch.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.ID != patch.ID {
+		problems = append(problems, fmt.Errorf("runtime returned item %q, want %q", result.ID, patch.ID))
+	}
+	if patch.Content != nil && result.Content != strings.TrimSpace(*patch.Content) {
+		problems = append(problems, fmt.Errorf("runtime returned content %q, want %q", result.Content, strings.TrimSpace(*patch.Content)))
+	}
+	if patch.Pinned != nil && result.Pinned != *patch.Pinned {
+		problems = append(problems, fmt.Errorf("runtime returned pinned %t, want %t", result.Pinned, *patch.Pinned))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("agent memory patch: %w", err)
+	}
+	return nil
+}
+
+func (target Target) ValidateAddResult(content string, result Item) error {
+	if err := target.Validate(); err != nil {
+		return err
+	}
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return errors.New("add agent memory: content is empty")
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.Scope != target.Scope {
+		problems = append(problems, fmt.Errorf("runtime returned %s scope, want %s", result.Scope, target.Scope))
+	}
+	if result.Content != content {
+		problems = append(problems, fmt.Errorf("runtime returned content %q, want %q", result.Content, content))
+	}
+	if result.Origin != Authored || result.Status != Active {
+		problems = append(problems, fmt.Errorf(
+			"runtime returned %s/%s provenance, want %s/%s",
+			result.Origin, result.Status, Authored, Active,
+		))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("add agent memory: %w", err)
 	}
 	return nil
 }

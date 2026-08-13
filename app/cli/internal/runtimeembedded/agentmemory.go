@@ -3,12 +3,14 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type agentMemoryBinding interface {
@@ -25,12 +27,13 @@ var _ agentmemory.Service = (*agentMemoryAdapter)(nil)
 
 func (adapter *agentMemoryAdapter) Items(ctx context.Context, target agentmemory.Target) ([]agentmemory.Item, error) {
 	r := adapter.runtime
-	if err := target.Validate(); err != nil {
+	validated, err := adapter.resolveTarget(ctx, target)
+	if err != nil {
 		return nil, err
 	}
-	request := protocol.AgentMemoryListRequest{Scope: protocol.AgentMemoryScope(target.Scope)}
-	if target.Scope == agentmemory.Project {
-		request.Workspace = &protocol.WorkspaceRef{Path: target.Workspace}
+	request := protocol.AgentMemoryListRequest{Scope: protocol.AgentMemoryScope(validated.Scope)}
+	if validated.Scope == agentmemory.Project {
+		request.Workspace = &protocol.WorkspaceRef{Path: validated.Workspace}
 	}
 	result, err := r.agentMemory.ListAgentMemory(ctx, request, r.callOptions())
 	if err != nil {
@@ -46,8 +49,8 @@ func (adapter *agentMemoryAdapter) Items(ctx context.Context, target agentmemory
 		if err := item.Validate(); err != nil {
 			return nil, runtimeContractViolation("list agent memory item %d is invalid: %v", index+1, err)
 		}
-		if item.Scope != target.Scope {
-			return nil, runtimeContractViolation("list agent memory item %s belongs to %s, want %s", item.ID, item.Scope, target.Scope)
+		if item.Scope != validated.Scope {
+			return nil, runtimeContractViolation("list agent memory item %s belongs to %s, want %s", item.ID, item.Scope, validated.Scope)
 		}
 		if _, duplicate := seen[item.ID]; duplicate {
 			return nil, runtimeContractViolation("list agent memory repeats %q", item.ID)
@@ -81,14 +84,26 @@ func (adapter *agentMemoryAdapter) Update(ctx context.Context, patch agentmemory
 	if err := patch.Validate(); err != nil {
 		return agentmemory.Item{}, err
 	}
+	validated := patch
+	if patch.Content != nil {
+		content := strings.TrimSpace(*patch.Content)
+		validated.Content = &content
+	}
 	options, err := r.commandOptions()
 	if err != nil {
 		return agentmemory.Item{}, err
 	}
 	result, err := r.agentMemory.UpdateAgentMemory(ctx, protocol.AgentMemoryUpdateRequest{
-		ID: patch.ID, Content: clonePointer(patch.Content), Pinned: clonePointer(patch.Pinned),
+		ID: validated.ID, Content: clonePointer(validated.Content), Pinned: clonePointer(validated.Pinned),
 	}, options)
-	return projectAgentMemoryResult("update agent memory", patch.ID, "", result, err)
+	item, err := projectAgentMemoryResult("update agent memory", validated.ID, "", result, err)
+	if err != nil {
+		return agentmemory.Item{}, err
+	}
+	if err := validated.ValidateResult(item); err != nil {
+		return agentmemory.Item{}, runtimeContractViolation("update agent memory returned an invalid acknowledgement: %v", err)
+	}
+	return item, nil
 }
 
 func (adapter *agentMemoryAdapter) Delete(ctx context.Context, id string) error {
@@ -106,29 +121,45 @@ func (adapter *agentMemoryAdapter) Delete(ctx context.Context, id string) error 
 
 func (adapter *agentMemoryAdapter) Add(ctx context.Context, target agentmemory.Target, content string) (agentmemory.Item, error) {
 	r := adapter.runtime
-	if err := target.Validate(); err != nil {
+	validated, err := adapter.resolveTarget(ctx, target)
+	if err != nil {
 		return agentmemory.Item{}, err
 	}
-	if strings.TrimSpace(content) == "" {
+	content = strings.TrimSpace(content)
+	if content == "" {
 		return agentmemory.Item{}, errors.New("add agent memory: content is empty")
 	}
 	options, err := r.commandOptions()
 	if err != nil {
 		return agentmemory.Item{}, err
 	}
-	request := protocol.AgentMemoryAddRequest{Scope: protocol.AgentMemoryScope(target.Scope), Content: content}
-	if target.Scope == agentmemory.Project {
-		request.Workspace = &protocol.WorkspaceRef{Path: target.Workspace}
+	request := protocol.AgentMemoryAddRequest{Scope: protocol.AgentMemoryScope(validated.Scope), Content: content}
+	if validated.Scope == agentmemory.Project {
+		request.Workspace = &protocol.WorkspaceRef{Path: validated.Workspace}
 	}
 	result, err := r.agentMemory.AddAgentMemory(ctx, request, options)
-	item, err := projectAgentMemoryResult("add agent memory", "", target.Scope, result, err)
+	item, err := projectAgentMemoryResult("add agent memory", "", validated.Scope, result, err)
 	if err != nil {
 		return agentmemory.Item{}, err
 	}
-	if item.Scope != target.Scope {
-		return agentmemory.Item{}, runtimeContractViolation("add agent memory returned %s scope, want %s", item.Scope, target.Scope)
+	if err := validated.ValidateAddResult(content, item); err != nil {
+		return agentmemory.Item{}, runtimeContractViolation("add agent memory returned an invalid acknowledgement: %v", err)
 	}
 	return item, nil
+}
+
+func (adapter *agentMemoryAdapter) resolveTarget(ctx context.Context, target agentmemory.Target) (agentmemory.Target, error) {
+	if err := target.Validate(); err != nil {
+		return agentmemory.Target{}, err
+	}
+	if target.Scope != agentmemory.Project {
+		return target, nil
+	}
+	resolved, err := adapter.runtime.Resolve(ctx, workspace.ResolveRequest{Path: target.Workspace})
+	if err != nil {
+		return agentmemory.Target{}, fmt.Errorf("resolve agent memory workspace: %w", err)
+	}
+	return agentmemory.NewTarget(target.Scope, resolved.Path)
 }
 
 func projectAgentMemoryResult(
