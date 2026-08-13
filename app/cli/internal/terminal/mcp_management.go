@@ -195,8 +195,9 @@ func (a *app) EditMCPServer(serverName string) error {
 	if serverName == "" {
 		return errors.New("usage: /mcp-edit <server>")
 	}
+	presentation := a.sessionContext
 	a.status.note("loading MCP server " + serverName)
-	started := runOperation(a, mcpOperation, false,
+	started := runApplicationOperation(a, mcpOperation, false,
 		func(ctx context.Context) (mcp.Server, error) {
 			servers, err := a.mcp.Servers(ctx)
 			if err != nil {
@@ -212,6 +213,10 @@ func (a *app) EditMCPServer(serverName string) error {
 		func(server mcp.Server, err error) {
 			if err != nil {
 				a.message("load MCP server failed: " + err.Error())
+				return
+			}
+			if presentation != a.sessionContext {
+				a.message("MCP server loaded after the active session changed; reopen the editor to continue")
 				return
 			}
 			a.openMCPServerForm(mcpFormUpdate, server)
@@ -234,10 +239,15 @@ func (a *app) updateMCPServer(update mcp.ServerUpdate) {
 }
 
 func (a *app) runMCPServerOperation(label string, change func(context.Context) (mcp.Server, error)) {
+	presentation := a.sessionContext
 	a.status.note(label)
-	started := runOperation(a, mcpOperation, false, change, func(server mcp.Server, err error) {
+	started := runApplicationOperation(a, mcpOperation, false, change, func(server mcp.Server, err error) {
 		if err != nil {
 			a.message(label + " failed: " + err.Error())
+			return
+		}
+		a.message(label + " complete")
+		if presentation != a.sessionContext {
 			return
 		}
 		a.setRuntimeReader(runtimeReaderMCPServers)
@@ -253,7 +263,7 @@ func (a *app) runMCPServerOperation(label string, change func(context.Context) (
 func (a *app) probeMCPServer(candidate mcp.Candidate) {
 	label := "testing MCP candidate " + candidate.Name
 	a.status.note(label)
-	started := runOperation(a, mcpOperation, false,
+	started := runApplicationOperation(a, mcpOperation, false,
 		func(ctx context.Context) (mcp.TestResult, error) { return a.mcp.TestServer(ctx, candidate) },
 		func(result mcp.TestResult, err error) {
 			if err != nil {
@@ -304,7 +314,7 @@ func (a *app) ReconnectMCPServer(server string) error {
 
 func (a *app) runMCPAck(label string, command func(context.Context) error) {
 	a.status.note(label)
-	started := runOperation(a, mcpOperation, false,
+	started := runApplicationOperation(a, mcpOperation, false,
 		func(ctx context.Context) (struct{}, error) { return struct{}{}, command(ctx) },
 		func(_ struct{}, err error) {
 			if err != nil {
@@ -327,6 +337,7 @@ func (a *app) AuthorizeMCPServer(server string) error {
 	if server == "" {
 		return errors.New("usage: /mcp-auth <server>")
 	}
+	presentation := a.sessionContext
 	a.status.note("starting MCP authorization " + server)
 	started := runApplicationOperation(a, mcpAuthorizationOperation, false,
 		func(ctx context.Context) (mcp.AuthorizationAttempt, error) {
@@ -337,10 +348,12 @@ func (a *app) AuthorizeMCPServer(server string) error {
 				a.message("start MCP authorization failed: " + err.Error())
 				return
 			}
-			a.mcpAuthorizationID = attempt.ID
-			a.setRuntimeReader(runtimeReaderMCPAuthorization)
-			a.workspaceReader = workspaceReaderNone
-			a.openReaderDocument(mcpAuthorizationDocument(attempt))
+			if presentation == a.sessionContext {
+				a.mcpAuthorizationID = attempt.ID
+				a.setRuntimeReader(runtimeReaderMCPAuthorization)
+				a.workspaceReader = workspaceReaderNone
+				a.openReaderDocument(mcpAuthorizationDocument(attempt))
+			}
 			if attempt.Pending() {
 				a.pollMCPAuthorization(attempt)
 			}

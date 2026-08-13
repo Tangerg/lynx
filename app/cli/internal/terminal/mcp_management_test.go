@@ -40,6 +40,30 @@ type blockingMCPAuthorizationService struct {
 	canceled chan struct{}
 }
 
+type blockingMCPReconnectService struct {
+	*mcpServiceStub
+	started  chan string
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingMCPReconnectService) ReconnectServer(ctx context.Context, server string) error {
+	select {
+	case service.started <- server:
+	default:
+	}
+	select {
+	case <-service.release:
+		return service.mcpServiceStub.ReconnectServer(ctx, server)
+	case <-ctx.Done():
+		select {
+		case service.canceled <- struct{}{}:
+		default:
+		}
+		return context.Cause(ctx)
+	}
+}
+
 func (service *blockingMCPAuthorizationService) GetAuthorization(
 	ctx context.Context,
 	reference mcp.AuthorizationReference,
@@ -272,6 +296,68 @@ func TestMCPAuthorizationOutlivesSameSessionProjectionReplacement(t *testing.T) 
 	host.Shows(t, "MCP authorization succeeded · docs")
 	if service.authReads.Load() == 0 {
 		t.Fatal("MCP authorization did not resume after the session projection replacement")
+	}
+	stop()
+}
+
+func TestMCPLifecycleMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	baseService := newMCPServiceStub()
+	service := &blockingMCPReconnectService{
+		mcpServiceStub: baseService,
+		started:        make(chan string, 1),
+		release:        make(chan struct{}),
+		canceled:       make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+
+	backend := mock.New()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", MCP: service, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/mcp-reconnect docs")
+	host.Press(input.Enter)
+	if server := awaitValue(t, service.started, "MCP reconnect mutation"); server != "docs" {
+		t.Fatalf("reconnect server = %q, want docs", server)
+	}
+
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	title := "MCP lifecycle refresh installed"
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	host.Shows(t, title)
+	select {
+	case <-service.canceled:
+		t.Fatal("same-session projection replacement canceled the application-owned MCP mutation")
+	default:
+	}
+
+	release()
+	host.Shows(t, "requesting MCP reconnect docs accepted")
+	if server := awaitValue(t, service.reconnected, "completed MCP reconnect mutation"); server != "docs" {
+		t.Fatalf("reconnected server = %q, want docs", server)
 	}
 	stop()
 }
