@@ -304,10 +304,7 @@ func (a *app) installSessionMetadata(session agent.Session) {
 // dismissInteractionProjection drops only the obsolete terminal-side answer
 // draft. It never answers or cancels the runtime interaction.
 func (a *app) dismissInteractionProjection() {
-	a.approval = nil
-	a.approvalOverride = nil
-	a.approvalSections = nil
-	a.dismissApprovalEditor()
+	a.clearApprovalProjection()
 	a.questionnaire = nil
 	a.interactionReview = nil
 	if a.approvalDialog != nil {
@@ -315,8 +312,10 @@ func (a *app) dismissInteractionProjection() {
 	}
 	if a.questionDialog != nil {
 		a.questionDialog.Dismiss()
+		a.questionDialog = nil
 	}
 	if a.reviewDialog != nil {
 		a.reviewDialog.Dismiss()
+		a.reviewDialog = nil
 	}
 }

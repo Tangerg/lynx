@@ -51,6 +51,9 @@ func (a *app) loadSessionPage(cursor string, appendPage bool) {
 			return page, nil
 		},
 		func(page agent.SessionPage, err error) {
+			if appendPage && !a.sessionDialog.Open() {
+				return
+			}
 			if err != nil {
 				a.message("could not load sessions: " + err.Error())
 				return
@@ -59,7 +62,7 @@ func (a *app) loadSessionPage(cursor string, appendPage bool) {
 				a.message("could not load sessions: " + err.Error())
 				return
 			}
-			if !a.sessionDialog.Open() {
+			if !appendPage {
 				a.sessionDialog.Show()
 			}
 			a.status.note("choose a session")
@@ -80,24 +83,35 @@ func (a *app) openSessionRename(session agent.Session) {
 	field.Editor().Clipboard = a.loop.Clipboard()
 	form := headless.NewForm(field)
 	form.Keys = headless.DefaultFormKeys()
+	var dialog *kit.Dialog
 	form.Done = func() {
-		a.sessionRenameDialog.Dismiss()
+		if a.sessionRenameDialog != dialog {
+			return
+		}
+		dialog.Dismiss()
+		a.sessionRenameDialog = nil
 		trimmed := strings.TrimSpace(title)
 		a.updateSessionFromCenter(session.ID, "renaming session", func(latest agent.Session) agent.UpdateSession {
 			return agent.UpdateSession{SessionID: latest.ID, Title: &trimmed, ExpectedRevision: latest.Revision}
 		})
 	}
-	form.GaveUp = func() { a.sessionRenameDialog.Dismiss() }
+	form.GaveUp = func() {
+		if a.sessionRenameDialog == dialog {
+			dialog.Dismiss()
+			a.sessionRenameDialog = nil
+		}
+	}
 	dressed := kit.NewForm(kit.FormConfig{
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.sessionRenameDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: "Rename session", Body: dressed,
 		Where: layout.Placement{Width: 68, Height: 7},
 	})
-	a.sessionRenameDialog.Show()
+	a.sessionRenameDialog = dialog
+	dialog.Show()
 }
 
 func (a *app) openSessionDelete(session agent.Session) {
@@ -110,23 +124,34 @@ func (a *app) openSessionDelete(session agent.Session) {
 	choice.SetOptions([]headless.Option[string]{{Label: "Cancel", Value: "cancel"}, {Label: "Delete permanently", Value: "delete"}})
 	form := headless.NewForm(choice)
 	form.Keys = headless.DefaultFormKeys()
+	var dialog *kit.Dialog
 	form.Done = func() {
-		a.sessionDeleteDialog.Dismiss()
+		if a.sessionDeleteDialog != dialog {
+			return
+		}
+		dialog.Dismiss()
+		a.sessionDeleteDialog = nil
 		if decision == "delete" {
 			a.deleteSessionFromCenter(session.ID)
 		}
 	}
-	form.GaveUp = func() { a.sessionDeleteDialog.Dismiss() }
+	form.GaveUp = func() {
+		if a.sessionDeleteDialog == dialog {
+			dialog.Dismiss()
+			a.sessionDeleteDialog = nil
+		}
+	}
 	dressed := kit.NewForm(kit.FormConfig{
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.sessionDeleteDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: "Delete session", Body: dressed,
 		Where: layout.Placement{Width: 68, Height: 8},
 	})
-	a.sessionDeleteDialog.Show()
+	a.sessionDeleteDialog = dialog
+	dialog.Show()
 }
 
 func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session) agent.UpdateSession) {
@@ -469,19 +494,13 @@ func (a *app) readSessionAfterMutation(ctx context.Context, sessionID string) (a
 func (installation sessionInstallation) apply(a *app) {
 	previousSessionID := a.session.ID
 	previousWorkspace := a.session.Workspace
-	a.dismissInteractionProjection()
-	if installation.snapshot.Session.ID != previousSessionID || installation.snapshot.Session.Workspace != previousWorkspace {
-		a.dismissContextEditor()
-	}
+	a.prepareSessionProjectionReplacement(installation.snapshot.Session, installation.projection.conversation)
 	a.cancelPluginCommands()
 	a.operations.CancelScope(sessionOperationScope)
 	a.dropStream()
 	a.completion.Dismiss()
 	previousTranscript := a.transcript
 	a.setActiveSession(installation.snapshot.Session)
-	if installation.snapshot.Session.ID != previousSessionID {
-		a.queueDialog.Dismiss()
-	}
 	a.queue.ReleaseDispatch(previousSessionID)
 	a.openingRunID = ""
 	a.conversation = installation.projection.conversation

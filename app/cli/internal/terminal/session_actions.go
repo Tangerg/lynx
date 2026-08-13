@@ -232,9 +232,8 @@ func parseRollbackArgument(sessionID, argument string) (agent.RollbackSession, e
 }
 
 func (a *app) confirmAction(title, question, action string, confirm func()) {
-	if a.confirmationDialog != nil {
-		a.confirmationDialog.Dismiss()
-	}
+	a.dismissConfirmation()
+	generation := a.sessionContext
 	decision := "cancel"
 	choice := &headless.Select[string]{Label: question, Value: headless.Bind(&decision), Rows: 2}
 	choice.SetOptions([]headless.Option[string]{
@@ -243,15 +242,17 @@ func (a *app) confirmAction(title, question, action string, confirm func()) {
 	})
 	form := headless.NewForm(choice)
 	form.Keys = headless.DefaultFormKeys()
+	var dialog *kit.Dialog
 	dismiss := func() {
-		if a.confirmationDialog != nil {
-			a.confirmationDialog.Dismiss()
+		if a.confirmationDialog == dialog {
+			dialog.Dismiss()
 			a.confirmationDialog = nil
 		}
 	}
 	form.Done = func() {
+		current := a.confirmationDialog == dialog
 		dismiss()
-		if decision == "confirm" {
+		if current && decision == "confirm" && generation == a.sessionContext {
 			confirm()
 		}
 	}
@@ -260,9 +261,17 @@ func (a *app) confirmAction(title, question, action string, confirm func()) {
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.confirmationDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: title, Body: body, Where: layout.Placement{Width: 78, Height: 9},
 	})
-	a.confirmationDialog.Show()
+	a.confirmationDialog = dialog
+	dialog.Show()
+}
+
+func (a *app) dismissConfirmation() {
+	if a.confirmationDialog != nil {
+		a.confirmationDialog.Dismiss()
+		a.confirmationDialog = nil
+	}
 }

@@ -22,6 +22,7 @@ type sessionCenterPane struct {
 	items       []agent.Session
 	cursor      string
 	seenCursors map[string]struct{}
+	active      func() bool
 
 	loadMore       func()
 	toggleFavorite func(agent.Session)
@@ -150,6 +151,9 @@ func (c *sessionCenterPane) drawPreview(view grid.View) {
 }
 
 func (c *sessionCenterPane) Handle(event input.Event) bool {
+	if c.active != nil && !c.active() {
+		return true
+	}
 	if key, ok := event.(input.Key); ok && key.Down() && key.Mods == input.Alt {
 		session, selected := c.picker.Current()
 		switch key.Rune {

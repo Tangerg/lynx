@@ -29,6 +29,9 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 		},
 		func(model agent.Model) string { return model.Provider + "/" + model.ID },
 		func(model agent.Model) {
+			if !a.modelDialog.Open() {
+				return
+			}
 			a.modelDialog.Dismiss()
 			a.selectSessionModel(model)
 		},
@@ -43,6 +46,9 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 		approvalModeTitle,
 		approvalModeDetail,
 		func(mode agent.ApprovalMode) {
+			if !a.approvalModeDialog.Open() {
+				return
+			}
 			a.approvalModeDialog.Dismiss()
 			a.setApprovalMode(mode)
 		},

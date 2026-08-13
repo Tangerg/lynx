@@ -114,6 +114,9 @@ func (p *timelinePane) Focus(has bool) { p.picker.Focus(has) }
 func (a *app) buildTimeline(theme kit.Theme, glyphs kit.Glyphs) {
 	a.timeline = newTimelinePane(theme, glyphs,
 		func(entry timelineEntry) {
+			if !a.timelineDialog.Open() {
+				return
+			}
 			a.timelineDialog.Dismiss()
 			if !a.transcript.JumpToRun(entry.Run.ID) {
 				a.message("that run no longer has retained transcript output")
@@ -122,6 +125,9 @@ func (a *app) buildTimeline(theme kit.Theme, glyphs kit.Glyphs) {
 			a.shell.focus(transcriptPaneKey)
 		},
 		func(entry timelineEntry) {
+			if !a.timelineDialog.Open() {
+				return
+			}
 			a.timelineDialog.Dismiss()
 			a.forkSessionFromRun(entry.Run.ID)
 		},

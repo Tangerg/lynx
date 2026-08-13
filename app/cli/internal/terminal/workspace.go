@@ -40,6 +40,9 @@ func (a *app) buildWorkspacePicker(theme kit.Theme, glyphs kit.Glyphs) {
 			return compactRelativeAge(choice.workspace.LastOpened)
 		},
 		func(choice workspaceChoice) {
+			if !a.workspaceDialog.Open() {
+				return
+			}
 			a.workspaceDialog.Dismiss()
 			if !choice.available {
 				a.message("workspace is no longer available · " + choice.workspace.Path)

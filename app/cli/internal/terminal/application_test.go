@@ -3520,6 +3520,7 @@ func TestMultiInteractionReviewSupportsBackEditAndOneFinalResume(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "Review interactions")
 	host.Press(input.Enter)
+	host.Press(input.Enter)
 	host.Shows(t, "complete")
 	provided := <-answers
 	if len(provided) != 2 {

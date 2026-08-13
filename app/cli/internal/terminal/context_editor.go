@@ -128,7 +128,7 @@ func (a *app) openContextEditor(request contextEditorRequest) *contextEditorSess
 	}
 	editor.cancel = session.Dismiss
 	editor.save = func(value string) error {
-		if editor.saving {
+		if editor.saving || session.closed || a.activeContextEditor != session {
 			return nil
 		}
 		editor.saving = true
@@ -137,6 +137,9 @@ func (a *app) openContextEditor(request contextEditorRequest) *contextEditorSess
 			dialog.Controller().SetDescription("Saving…")
 		}
 		complete := func(err error) bool {
+			if session.closed || a.activeContextEditor != session {
+				return false
+			}
 			editor.saving = false
 			if err != nil {
 				editor.problem, editor.failed = err.Error(), true

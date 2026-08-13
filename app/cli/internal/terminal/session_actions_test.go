@@ -245,6 +245,55 @@ func TestImportRequiresConfirmationAndInstallsTheAuthoritativeSession(t *testing
 	stop()
 }
 
+func TestConfirmationRejectsCallbacksFromAReplacedPresentation(t *testing.T) {
+	transcript := testTranscriptView(t)
+	application := &app{transcript: transcript}
+	application.stack.SetBase(transcript)
+	oldCalls, currentCalls := 0, 0
+	application.confirmAction("Old confirmation", "Run the old action?", "Run old", func() { oldCalls++ })
+	drawRoot(t, &application.stack, 96, 28)
+
+	application.confirmAction("Current confirmation", "Run the current action?", "Run current", func() { currentCalls++ })
+	application.stack.Handle(input.Key{Code: input.Down})
+	application.stack.Handle(input.Key{Code: input.Enter})
+	if oldCalls != 0 || currentCalls != 0 {
+		t.Fatalf("stale presented confirmation executed callbacks: old=%d current=%d", oldCalls, currentCalls)
+	}
+	if application.confirmationDialog == nil || !application.confirmationDialog.Open() {
+		t.Fatal("stale presented confirmation dismissed its replacement")
+	}
+
+	drawRoot(t, &application.stack, 96, 28)
+	application.stack.Handle(input.Key{Code: input.Down})
+	application.stack.Handle(input.Key{Code: input.Enter})
+	if oldCalls != 0 || currentCalls != 1 {
+		t.Fatalf("current confirmation callbacks: old=%d current=%d", oldCalls, currentCalls)
+	}
+}
+
+func TestProjectionRetirementRejectsAPresentedConfirmationCallback(t *testing.T) {
+	transcript := testTranscriptView(t)
+	operations := newOperationOwner(t.Context())
+	t.Cleanup(operations.Close)
+	application := &app{
+		transcript: transcript, operations: operations,
+	}
+	application.stack.SetBase(transcript)
+	calls := 0
+	application.confirmAction("Retired confirmation", "Run the retired action?", "Run", func() { calls++ })
+	drawRoot(t, application, 96, 28)
+
+	application.retireSessionContext()
+	application.stack.Handle(input.Key{Code: input.Down})
+	application.stack.Handle(input.Key{Code: input.Enter})
+	if calls != 0 {
+		t.Fatalf("retired projection confirmation executed %d callbacks", calls)
+	}
+	if application.confirmationDialog != nil || !application.stack.Empty() {
+		t.Fatal("retired projection left its confirmation open")
+	}
+}
+
 type steeringRuntime struct {
 	*mock.Runtime
 

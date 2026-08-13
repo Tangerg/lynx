@@ -96,6 +96,7 @@ func (a *app) openScheduleForm(mode scheduleFormMode, scheduled schedule.Schedul
 		a.scheduleDialog.Dismiss()
 		a.scheduleDialog = nil
 	}
+	generation := a.sessionContext
 	draft := newScheduleFormDraft(mode, scheduled, a.session.Workspace.Path)
 	textField := func(label, placeholder string, value *string, check func(string) error) *headless.Text {
 		field := &headless.Text{Label: label, Placeholder: placeholder, Value: headless.Bind(value), Check: check}
@@ -119,13 +120,17 @@ func (a *app) openScheduleForm(mode scheduleFormMode, scheduled schedule.Schedul
 	}
 	form := headless.NewForm(fields...)
 	form.Keys = headless.DefaultFormKeys()
+	var dialog *kit.Dialog
 	dismiss := func() {
-		if a.scheduleDialog != nil {
-			a.scheduleDialog.Dismiss()
+		if a.scheduleDialog == dialog {
+			dialog.Dismiss()
 			a.scheduleDialog = nil
 		}
 	}
 	form.Done = func() {
+		if a.scheduleDialog != dialog || generation != a.sessionContext {
+			return
+		}
 		switch mode {
 		case scheduleFormCreate:
 			candidate, err := draft.candidate()
@@ -158,12 +163,13 @@ func (a *app) openScheduleForm(mode scheduleFormMode, scheduled schedule.Schedul
 	if mode == scheduleFormUpdate {
 		title = "Edit scheduled run · " + scheduled.ID
 	}
-	a.scheduleDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: title, Body: body,
 		Where: layout.Placement{Width: 88, Height: formDialogHeight(body.Measure(84), len(fields), 24)},
 	})
-	a.scheduleDialog.Show()
+	a.scheduleDialog = dialog
+	dialog.Show()
 }
 
 func validateCronShape(value string) error {

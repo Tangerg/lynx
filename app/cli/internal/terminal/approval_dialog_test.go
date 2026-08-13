@@ -5,9 +5,84 @@ import (
 	"testing"
 
 	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/program"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
+
+func TestApprovalPaneRoutesInputToTheLastPresentedForm(t *testing.T) {
+	transcript := testTranscriptView(t)
+	pane := approvalPane{
+		theme: transcript.theme, glyphs: transcript.glyphs,
+		detail: kit.NewParagraph("", transcript.theme.Text),
+	}
+	pane.view = kit.Transcript{
+		Content: &pane.preview, Scroll: &pane.scroll,
+		Theme: transcript.theme, Glyphs: transcript.glyphs,
+	}
+	form := func(done func()) *kit.Form {
+		choice := "only"
+		selectField := &headless.Select[string]{Value: headless.Bind(&choice), Rows: 1}
+		selectField.SetOptions([]headless.Option[string]{{Label: "Only", Value: "only"}})
+		controller := headless.NewForm(selectField)
+		controller.Done = done
+		return kit.NewForm(kit.FormConfig{Theme: transcript.theme, Glyphs: transcript.glyphs, Controller: controller})
+	}
+	oldCalls, currentCalls := 0, 0
+	pane.form = form(func() { oldCalls++ })
+	pane.Focus(true)
+	root := headless.NewRoot(&pane)
+	surface := grid.NewSurface(80, 20)
+	root.Draw(surface.View())
+
+	pane.form = form(func() { currentCalls++ })
+	root.Handle(input.Key{Code: input.Enter})
+	if oldCalls != 1 || currentCalls != 0 {
+		t.Fatalf("stale frame routed to old=%d current=%d forms", oldCalls, currentCalls)
+	}
+
+	root.Draw(surface.View())
+	root.Handle(input.Key{Code: input.Enter})
+	if oldCalls != 1 || currentCalls != 1 {
+		t.Fatalf("current frame routed to old=%d current=%d forms", oldCalls, currentCalls)
+	}
+}
+
+func TestReplacedApprovalFormCannotMutateTheCurrentDraft(t *testing.T) {
+	transcript := testTranscriptView(t)
+	application := &app{loop: &program.Runtime{}, transcript: transcript}
+	application.approvalPane = approvalPane{
+		theme: transcript.theme, glyphs: transcript.glyphs,
+		detail: kit.NewParagraph("", transcript.theme.Text),
+	}
+	application.approvalPane.view = kit.Transcript{
+		Content: &application.approvalPane.preview, Scroll: &application.approvalPane.scroll,
+		Theme: transcript.theme, Glyphs: transcript.glyphs,
+	}
+	application.interactionReview = &interactionReview{}
+	application.approval = &agent.Approval{}
+	application.setApprovalForm(approvalAllowOnce)
+	retired := application.approvalDraft
+	application.approvalPane.Focus(true)
+	root := headless.NewRoot(&application.approvalPane)
+	surface := grid.NewSurface(80, 20)
+	root.Draw(surface.View())
+
+	application.interactionReview = &interactionReview{}
+	application.approval = &agent.Approval{}
+	application.approvalDraft = &approvalDecisionDraft{}
+	application.setApprovalForm(approvalAllowOnce)
+	root.Handle(input.Key{Code: input.Down})
+	if retired.choice != approvalDenyOnce {
+		t.Fatalf("retired draft choice = %q, want deny once", retired.choice)
+	}
+	if current := application.approvalDraft.choice; current != approvalAllowOnce {
+		t.Fatalf("current draft choice = %q after stale input, want allow once", current)
+	}
+}
 
 func TestApprovalChoiceMapsEveryDecisionAndRememberScope(t *testing.T) {
 	tests := []struct {

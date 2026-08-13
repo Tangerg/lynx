@@ -189,7 +189,11 @@ func (a *app) showMCPFormStep(flow *mcpFormFlow) {
 	flow.secretFields = append(flow.secretFields, secretFields...)
 	form := headless.NewForm(fields...)
 	form.Keys = headless.DefaultFormKeys()
+	var dialog *kit.Dialog
 	form.Done = func() {
+		if a.mcpDialog != dialog {
+			return
+		}
 		if flow.advance() {
 			a.showMCPFormStep(flow)
 			return
@@ -197,6 +201,9 @@ func (a *app) showMCPFormStep(flow *mcpFormFlow) {
 		a.submitMCPForm(flow)
 	}
 	form.GaveUp = func() {
+		if a.mcpDialog != dialog {
+			return
+		}
 		if flow.back() {
 			a.showMCPFormStep(flow)
 			return
@@ -216,13 +223,14 @@ func (a *app) showMCPFormStep(flow *mcpFormFlow) {
 	}
 	step, total, label := flow.progress()
 	title += fmt.Sprintf(" · %d/%d", step, total)
-	a.mcpDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: title, Body: body,
 		Where: layout.Placement{Width: 92, Height: formDialogHeight(body.Measure(88), len(fields), 24)},
 	})
-	a.mcpDialog.Controller().SetDescription(label)
-	a.mcpDialog.Show()
+	dialog.Controller().SetDescription(label)
+	a.mcpDialog = dialog
+	dialog.Show()
 }
 
 func (a *app) submitMCPForm(flow *mcpFormFlow) {

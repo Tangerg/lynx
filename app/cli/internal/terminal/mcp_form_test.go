@@ -5,9 +5,39 @@ import (
 	"testing"
 
 	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/program"
 
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 )
+
+func TestMCPFormRejectsSubmissionFromAReplacedStepPresentation(t *testing.T) {
+	transcript := testTranscriptView(t)
+	application := &app{loop: &program.Runtime{}, transcript: transcript}
+	application.stack.SetBase(transcript)
+	flow := newMCPFormFlow(mcpFormCreate, mcp.Server{})
+	flow.draft.name = "docs"
+	flow.draft.transport = string(mcp.StreamableHTTP)
+	application.showMCPFormStep(flow)
+	drawRoot(t, &application.stack, 96, 28)
+
+	oldDialog := application.mcpDialog
+	application.showMCPFormStep(flow)
+	application.stack.Handle(input.Key{Code: input.Enter})
+	if flow.step != mcpFormGeneral {
+		t.Fatalf("stale form advanced to step %d", flow.step)
+	}
+	if application.mcpDialog == oldDialog || !application.mcpDialog.Open() {
+		t.Fatal("stale form replaced or dismissed the current dialog")
+	}
+
+	drawRoot(t, &application.stack, 96, 28)
+	application.stack.Handle(input.Key{Code: input.Enter})
+	if flow.step != mcpFormHTTP {
+		t.Fatalf("current form advanced to step %d, want HTTP", flow.step)
+	}
+	application.closeMCPForm(flow)
+}
 
 func TestMCPFormFlowRoutesOnlyThroughRelevantConnection(t *testing.T) {
 	t.Parallel()

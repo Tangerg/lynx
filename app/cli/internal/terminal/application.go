@@ -120,8 +120,7 @@ type app struct {
 	editor         promptEditor
 
 	approval            *agent.Approval
-	approvalChoice      approvalAction
-	approvalReason      string
+	approvalDraft       *approvalDecisionDraft
 	approvalArguments   string
 	approvalOverride    *agent.ToolArgumentOverride
 	approvalSections    []ToolSection
@@ -170,6 +169,7 @@ type app struct {
 	attachmentElements  map[uint64]agent.Attachment
 	history             promptHistory
 	workbenchHealth     workbenchHealth
+	sessionContext      sessionContextEpoch
 	sessionInvalidated  bool
 	commandSeq          uint64
 	commandOperations   map[uint64]commandOperation
@@ -530,6 +530,7 @@ func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Sessions · Center", Body: a.sessionCenter,
 		Where: layout.Placement{Width: 96, Height: 24},
 	})
+	a.sessionCenter.active = a.sessionDialog.Open
 	a.sessionCenter.picker.cancel = a.sessionDialog.Dismiss
 }
 
@@ -615,6 +616,7 @@ func (a *app) reconcileRunSnapshot(snapshot agent.SessionSnapshot, stream agent.
 		return fmt.Errorf("reconcile run snapshot: %w", err)
 	}
 
+	a.prepareSessionProjectionReplacement(snapshot.Session, projection.conversation)
 	previousTranscript := a.transcript
 	a.setActiveSession(snapshot.Session)
 	a.conversation = projection.conversation
@@ -634,7 +636,9 @@ func (a *app) reconcileRunSnapshot(snapshot agent.SessionSnapshot, stream agent.
 		a.status.active("reconnected")
 	case agent.ConversationWaiting:
 		a.following = false
-		a.openInteractions(projection.conversation.Interactions())
+		if a.interactionReview == nil {
+			a.openInteractions(projection.conversation.Interactions())
+		}
 		a.status.note("waiting for your answers")
 	case agent.ConversationIdle:
 		a.following = false
@@ -660,7 +664,9 @@ func (a *app) restoreActivity(snapshot agent.SessionSnapshot) {
 	a.prompt.SetBusy(a.conversation.Busy())
 	switch a.conversation.Phase() {
 	case agent.ConversationWaiting:
-		a.openInteractions(a.conversation.Interactions())
+		if a.interactionReview == nil {
+			a.openInteractions(a.conversation.Interactions())
+		}
 		a.status.note("waiting for your answers")
 	case agent.ConversationRunning:
 		if _, ok := snapshot.ActiveRun(); !ok {

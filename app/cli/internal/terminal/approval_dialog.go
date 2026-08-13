@@ -21,22 +21,46 @@ import (
 )
 
 type approvalPane struct {
-	theme   kit.Theme
-	glyphs  kit.Glyphs
-	title   string
-	detail  *kit.Paragraph
-	preview headless.Transcript
-	scroll  headless.Scroll
-	view    kit.Transcript
-	form    *kit.Form
+	theme         kit.Theme
+	glyphs        kit.Glyphs
+	title         string
+	detail        *kit.Paragraph
+	preview       headless.Transcript
+	scroll        headless.Scroll
+	view          kit.Transcript
+	form          *kit.Form
+	presentedForm headless.Snapshot[*kit.Form]
+}
+
+type approvalDecisionDraft struct {
+	choice approvalAction
+	reason string
+}
+
+func (draft approvalDecisionDraft) answer(action approvalAction, override *agent.ToolArgumentOverride) (agent.ApprovalAnswer, bool) {
+	decision, ok := action.Answer()
+	if !ok {
+		return agent.ApprovalAnswer{}, false
+	}
+	if decision.Decision == agent.ApprovalDeny {
+		decision.Reason = strings.TrimSpace(draft.reason)
+		if decision.Reason == "" {
+			decision.Reason = "denied by the user in the terminal"
+		}
+	} else {
+		decision.ArgumentOverride = override.Clone()
+	}
+	return decision, true
 }
 
 func (p *approvalPane) Draw(frame headless.Frame) {
 	width, height := frame.Size()
-	if width <= 0 || height <= 0 || p.form == nil {
+	form := p.form
+	p.presentedForm.Stage(frame, form)
+	if width <= 0 || height <= 0 || form == nil {
 		return
 	}
-	formRows := min(p.form.Measure(width), max(height-1, 0))
+	formRows := min(form.Measure(width), max(height-1, 0))
 	detailRows := min(p.detail.Measure(width), min(4, max(height-formRows-1, 0)))
 	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		{Size: layout.Fixed(1)},
@@ -47,11 +71,11 @@ func (p *approvalPane) Draw(frame headless.Frame) {
 	kit.Label{Text: p.title, Style: p.theme.Strong, Ellipsis: "…"}.Draw(rows[0].View)
 	p.detail.Draw(rows[1].View)
 	p.view.Draw(rows[2])
-	p.form.Draw(rows[3])
+	form.Draw(rows[3])
 }
 
 func (p *approvalPane) Handle(event input.Event) bool {
-	if p.form != nil && p.form.Handle(event) {
+	if form := p.presentedForm.Value(); form != nil && form.Handle(event) {
 		return true
 	}
 	return p.view.Handle(event)
@@ -80,22 +104,37 @@ func (a *app) buildApprovalDialog(theme kit.Theme, glyphs kit.Glyphs) {
 }
 
 func (a *app) setApprovalForm(initial approvalAction) {
+	review := a.interactionReview
+	approval := a.approval
+	draft := a.approvalDraft
+	if draft == nil {
+		draft = &approvalDecisionDraft{}
+		a.approvalDraft = draft
+	}
 	rememberable := a.approval == nil || a.approval.Rememberable
-	a.approvalChoice = initial.Normalize(rememberable)
+	draft.choice = initial.Normalize(rememberable)
 	choice := &headless.Select[approvalAction]{
-		Label: "How should lyra proceed?", Value: headless.Bind(&a.approvalChoice), Rows: 3,
+		Label: "How should lyra proceed?", Value: headless.Bind(&draft.choice), Rows: 3,
 	}
 	choice.SetOptions(approvalOptions(rememberable))
 	reason := &headless.Text{
 		Label: "Denial feedback (optional)", Placeholder: "Explain what should change before retrying",
-		Value: headless.Bind(&a.approvalReason),
+		Value: headless.Bind(&draft.reason),
 	}
 	reason.Editor().Clipboard = a.loop.Clipboard()
 	keys := headless.DefaultFormKeys()
 	a.approvalForm = headless.NewForm(choice, reason)
 	a.approvalForm.Keys = keys
-	a.approvalForm.Done = func() { a.answerApproval(a.approvalChoice) }
-	a.approvalForm.GaveUp = a.backOrCancelApproval
+	a.approvalForm.Done = func() {
+		if a.interactionReview == review && a.approval == approval && a.approvalDraft == draft {
+			a.answerApproval(draft.choice)
+		}
+	}
+	a.approvalForm.GaveUp = func() {
+		if a.interactionReview == review && a.approval == approval && a.approvalDraft == draft {
+			a.backOrCancelApproval()
+		}
+	}
 	dressed := kit.NewForm(kit.FormConfig{
 		Theme: a.approvalPane.theme, Glyphs: a.approvalPane.glyphs, Controller: a.approvalForm,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
@@ -106,13 +145,13 @@ func (a *app) setApprovalForm(initial approvalAction) {
 func (a *app) openApproval(approval agent.Approval) {
 	cloned := approval.Clone()
 	a.approval = &cloned
-	a.approvalReason = ""
+	a.approvalDraft = &approvalDecisionDraft{}
 	a.approvalArguments = editableApprovalArguments(approval.Tool)
 	a.approvalOverride = nil
 	initial := defaultApprovalAction(a.settings.Approval.Remember.Scope())
 	if answer, ok := a.interactionReview.CurrentAnswer().(agent.ApprovalAnswer); ok {
 		initial = approvalActionFromAnswer(answer)
-		a.approvalReason = answer.Reason
+		a.approvalDraft.reason = answer.Reason
 		if answer.ArgumentOverride != nil {
 			a.approvalOverride = answer.ArgumentOverride.Clone()
 			a.approvalArguments = formatToolArguments(a.approvalOverride.JSON())
@@ -209,25 +248,18 @@ func (a *app) openCurrentInteraction() {
 
 func (a *app) answerApproval(action approvalAction) {
 	approval := a.approval
-	if approval == nil {
+	draft := a.approvalDraft
+	if approval == nil || draft == nil {
 		return
 	}
 	if action == approvalEditArgs {
 		a.openApprovalArgumentEditor()
 		return
 	}
-	decision, ok := action.Answer()
+	decision, ok := draft.answer(action, a.approvalOverride)
 	if !ok {
 		a.fail(fmt.Errorf("approval action %q is unsupported", action))
 		return
-	}
-	if decision.Decision == agent.ApprovalDeny {
-		decision.Reason = strings.TrimSpace(a.approvalReason)
-		if decision.Reason == "" {
-			decision.Reason = "denied by the user in the terminal"
-		}
-	} else {
-		decision.ArgumentOverride = a.approvalOverride.Clone()
 	}
 	a.submitApproval(decision)
 }
@@ -240,10 +272,7 @@ func (a *app) submitApproval(decision agent.ApprovalAnswer) {
 		a.fail(fmt.Errorf("record approval: %w", err))
 		return
 	}
-	a.approval = nil
-	a.approvalOverride = nil
-	a.approvalSections = nil
-	a.dismissApprovalEditor()
+	a.clearApprovalProjection()
 	a.approvalDialog.Dismiss()
 	a.advanceInteractionReview()
 }
@@ -271,18 +300,17 @@ func (a *app) backInteraction() bool {
 		return false
 	}
 	if a.approval != nil {
-		a.approval = nil
-		a.approvalOverride = nil
-		a.approvalSections = nil
-		a.dismissApprovalEditor()
+		a.clearApprovalProjection()
 		a.approvalDialog.Dismiss()
 	}
 	if a.questionnaire != nil {
 		a.questionnaire = nil
 		a.questionDialog.Dismiss()
+		a.questionDialog = nil
 	}
 	if a.reviewDialog != nil {
 		a.reviewDialog.Dismiss()
+		a.reviewDialog = nil
 	}
 	a.openCurrentInteraction()
 	return true
@@ -407,18 +435,27 @@ func (a *app) restoreRejectedInteractionReview(review *interactionReview, comman
 }
 
 func (a *app) abortInteractions(reason string) {
-	a.approval = nil
-	a.approvalOverride = nil
-	a.approvalSections = nil
-	a.dismissApprovalEditor()
+	a.clearApprovalProjection()
 	a.questionnaire = nil
 	a.interactionReview = nil
 	if a.reviewDialog != nil {
 		a.reviewDialog.Dismiss()
+		a.reviewDialog = nil
 	}
 	if runID := a.conversation.RunID(); runID != "" {
 		a.cancelRuntime(agent.CancelRun{RunID: runID, Reason: reason})
 	}
+}
+
+func (a *app) clearApprovalProjection() {
+	a.approval = nil
+	a.approvalDraft = nil
+	a.approvalArguments = ""
+	a.approvalOverride = nil
+	a.approvalSections = nil
+	a.dismissApprovalEditor()
+	a.approvalForm = nil
+	a.approvalPane.form = nil
 }
 
 func nonEmptyStrings(values []string) []string {

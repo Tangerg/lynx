@@ -56,10 +56,15 @@ func (a *app) openInteractionSummary() {
 	})
 	form := headless.NewForm(choice)
 	form.Keys = headless.DefaultFormKeys()
+	var dialog *kit.Dialog
 	settled := false
 	form.Done = func() {
+		if settled || a.interactionReview != review || a.reviewDialog != dialog {
+			return
+		}
 		settled = true
-		a.reviewDialog.Dismiss()
+		dialog.Dismiss()
+		a.reviewDialog = nil
 		switch decision {
 		case "submit":
 			a.resumeInteractions()
@@ -70,11 +75,12 @@ func (a *app) openInteractionSummary() {
 		}
 	}
 	form.GaveUp = func() {
-		if settled {
+		if settled || a.interactionReview != review || a.reviewDialog != dialog {
 			return
 		}
 		settled = true
-		a.reviewDialog.Dismiss()
+		dialog.Dismiss()
+		a.reviewDialog = nil
 		if !a.backInteraction() {
 			a.abortInteractions("interactions canceled during terminal review")
 		}
@@ -87,12 +93,13 @@ func (a *app) openInteractionSummary() {
 	viewport := headless.NewViewport(headless.Static{Of: summary})
 	viewport.Scroll().Wheel(a.loop.Environment().Wheel())
 	pane := &interactionSummaryPane{viewport: viewport, form: dressed}
-	a.reviewDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: "Review interactions", Body: pane,
 		Where: layout.Placement{Width: 88, Height: 22},
 	})
-	a.reviewDialog.Show()
+	a.reviewDialog = dialog
+	dialog.Show()
 }
 
 func interactionSummary(review *interactionReview) string {

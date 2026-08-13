@@ -27,6 +27,9 @@ func (a *app) buildCommandPalette(theme kit.Theme, glyphs kit.Glyphs) {
 			return detail
 		},
 		func(item commandPaletteItem) {
+			if !a.commandDialog.Open() {
+				return
+			}
 			command := item.command
 			a.commandDialog.Dismiss()
 			if !item.availability.Enabled {
@@ -98,6 +101,9 @@ func (a *app) buildSearchDialog(theme kit.Theme, glyphs kit.Glyphs) {
 	form := headless.NewForm(field)
 	form.Keys = keys
 	form.Done = func() {
+		if !a.searchDialog.Open() {
+			return
+		}
 		a.searchDialog.Dismiss()
 		a.Find(a.searchQuery)
 	}

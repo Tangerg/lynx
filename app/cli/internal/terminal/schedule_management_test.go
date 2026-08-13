@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Tangerg/oolong/core/input"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
@@ -191,6 +193,48 @@ func TestScheduleCreateFormSurvivesExtremeResize(t *testing.T) {
 	if created.Instructions != "audit the repository" || created.Cron != "0 9 * * 1-5" || created.Workspace == "" ||
 		created.Provider != "deepseek" || created.Model != "deepseek-v4-flash" {
 		t.Fatalf("created schedule candidate = %+v", created)
+	}
+	stop()
+}
+
+func TestWorkspaceReplacementRetiresAPresentedScheduleForm(t *testing.T) {
+	backend := mock.New()
+	service := newScheduleServiceStub()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, Schedules: service, Changes: source, SessionID: "ses_demo_1",
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime invalidation subscription")
+	host.Type("/schedule-create")
+	host.Press(input.Enter)
+	host.Shows(t, "Create scheduled run")
+
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacementWorkspace := filepath.Join(t.TempDir(), "replacement")
+	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Workspace: &replacementWorkspace,
+		ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "workspace replacement invalidation")
+	host.Hides(t, "Create scheduled run")
+	host.Press(input.Enter)
+	select {
+	case candidate := <-service.created:
+		t.Fatalf("retired schedule form created %+v", candidate)
+	default:
 	}
 	stop()
 }

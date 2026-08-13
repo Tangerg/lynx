@@ -316,18 +316,28 @@ func (r *questionResponse) choosesCustom() bool {
 
 func (a *app) showQuestionDialog(review *questionnaire, fields []headless.Field) {
 	form := headless.NewForm(fields...)
-	form.Done = a.advanceQuestionnaire
-	form.GaveUp = a.backOrCancelQuestionnaire
+	var dialog *kit.Dialog
+	form.Done = func() {
+		if a.questionnaire == review && a.questionDialog == dialog {
+			a.advanceQuestionnaire()
+		}
+	}
+	form.GaveUp = func() {
+		if a.questionnaire == review && a.questionDialog == dialog {
+			a.backOrCancelQuestionnaire()
+		}
+	}
 	dressed := kit.NewForm(kit.FormConfig{
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
 		Title: review.question.Detail, Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.questionDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: review.Title(), Body: dressed,
 		Where: layout.Placement{Width: 88, Height: formDialogHeight(dressed.Measure(80), len(fields), 18)},
 	})
-	a.questionDialog.Show()
+	a.questionDialog = dialog
+	dialog.Show()
 }
 
 func (a *app) advanceQuestionnaire() {
@@ -336,6 +346,7 @@ func (a *app) advanceQuestionnaire() {
 		return
 	}
 	a.questionDialog.Dismiss()
+	a.questionDialog = nil
 	if review.Advance() {
 		a.openQuestionField()
 		return
@@ -349,6 +360,7 @@ func (a *app) backOrCancelQuestionnaire() {
 		return
 	}
 	a.questionDialog.Dismiss()
+	a.questionDialog = nil
 	if review.Back() {
 		a.openQuestionField()
 		return
@@ -363,6 +375,7 @@ func (a *app) finishQuestionnaire(canceled bool) {
 	}
 	if a.questionDialog != nil {
 		a.questionDialog.Dismiss()
+		a.questionDialog = nil
 	}
 	if canceled {
 		a.questionnaire = nil

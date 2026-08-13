@@ -15,20 +15,21 @@ func (a *app) buildReader(theme kit.Theme, glyphs kit.Glyphs) {
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Reader", Body: a.reader,
 		Where: layout.Placement{},
 	})
-	a.reader.dismiss = func() {
-		a.operations.Cancel(readerDocumentOperation)
-		a.workspaceReader = workspaceReaderNone
-		a.setRuntimeReader(runtimeReaderNone)
-		a.reader.CloseDocument()
-		a.readerDialog.Dismiss()
+	a.reader.dismiss = a.dismissReader
+	a.reader.openSearch = func() {
+		if a.readerDialog.Open() {
+			a.showReaderSearchDialog()
+		}
 	}
-	a.reader.openSearch = a.showReaderSearchDialog
 	a.reader.onCopied = func() { a.status.note("copied reader text") }
 
 	field := &headless.Text{Label: "Find in the reader", Placeholder: "text", Value: headless.Bind(&a.readerSearchQuery), Check: requiredText}
 	form := headless.NewForm(field)
 	form.Keys = headless.DefaultFormKeys()
 	form.Done = func() {
+		if !a.readerDialog.Open() || !a.readerSearchDialog.Open() {
+			return
+		}
 		a.readerSearchDialog.Dismiss()
 		a.reader.Find(a.readerSearchQuery)
 	}
@@ -42,6 +43,21 @@ func (a *app) buildReader(theme kit.Theme, glyphs kit.Glyphs) {
 		Where: layout.Placement{Width: 68, Height: 7},
 	})
 	a.listenForReaderSearch()
+}
+
+func (a *app) dismissReader() {
+	a.operations.Cancel(readerDocumentOperation)
+	a.workspaceReader = workspaceReaderNone
+	a.setRuntimeReader(runtimeReaderNone)
+	if a.reader != nil {
+		a.reader.CloseDocument()
+	}
+	if a.readerSearchDialog != nil {
+		a.readerSearchDialog.Dismiss()
+	}
+	if a.readerDialog != nil {
+		a.readerDialog.Dismiss()
+	}
 }
 
 func (a *app) OpenReader() {

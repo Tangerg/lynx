@@ -397,15 +397,23 @@ func (a *app) openProviderConfig(provider modelconfig.Provider) {
 	keyField.Editor().Clipboard = a.loop.Clipboard()
 	form := headless.NewForm(baseChoice, baseField, keyChoice, keyField)
 	form.Keys = headless.DefaultFormKeys()
-	dismiss := func() {
+	var dialog *kit.Dialog
+	clearKey := func() {
 		apiKey = ""
 		keyField.Editor().SetText("")
-		if a.providerDialog != nil {
-			a.providerDialog.Dismiss()
+	}
+	dismiss := func() {
+		clearKey()
+		if a.providerDialog == dialog {
+			dialog.Dismiss()
 			a.providerDialog = nil
 		}
 	}
 	form.Done = func() {
+		if a.providerDialog != dialog {
+			clearKey()
+			return
+		}
 		update := providerUpdate(provider.ID, baseMode, baseURL, keyMode, apiKey)
 		dismiss()
 		if update.BaseURL == nil && update.APIKey == nil {
@@ -419,12 +427,13 @@ func (a *app) openProviderConfig(provider modelconfig.Provider) {
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.providerDialog = kit.NewDialog(kit.DialogConfig{
+	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: "Configure provider · " + provider.ID, Body: dressed,
 		Where: layout.Placement{Width: 82, Height: 18},
 	})
-	a.providerDialog.Show()
+	a.providerDialog = dialog
+	dialog.Show()
 }
 
 func providerUpdate(providerID, baseMode, baseURL, keyMode, apiKey string) modelconfig.UpdateProvider {

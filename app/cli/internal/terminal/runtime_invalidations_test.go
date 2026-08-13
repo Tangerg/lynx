@@ -83,10 +83,11 @@ func (catalog *mutableRuntimeCatalog) setRules(rules ...agent.ApprovalRule) {
 }
 
 type mutableCodebaseService struct {
-	mu       sync.Mutex
-	status   codebase.Status
-	hits     []codebase.Hit
-	searches []codebase.Query
+	mu        sync.Mutex
+	status    codebase.Status
+	hits      []codebase.Hit
+	searches  []codebase.Query
+	reindexes atomic.Int32
 }
 
 func (service *mutableCodebaseService) Status(context.Context, string) (codebase.Status, error) {
@@ -102,7 +103,8 @@ func (service *mutableCodebaseService) Search(_ context.Context, query codebase.
 	return slices.Clone(service.hits), nil
 }
 
-func (*mutableCodebaseService) Reindex(context.Context, string) (codebase.ReindexOperation, error) {
+func (service *mutableCodebaseService) Reindex(context.Context, string) (codebase.ReindexOperation, error) {
+	service.reindexes.Add(1)
 	return codebase.ReindexOperation{ID: "op_test"}, nil
 }
 
@@ -349,6 +351,47 @@ func TestResolveApprovalRuleRequiresAnUnambiguousIdentity(t *testing.T) {
 	if _, err := resolveApprovalRule(rules, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("missing rule error = %v", err)
 	}
+}
+
+func TestWorkspaceReplacementRetiresThePreviousProjectionConfirmation(t *testing.T) {
+	backend := mock.New()
+	index := &mutableCodebaseService{}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, Codebase: index, Changes: source, SessionID: "ses_demo_1",
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime invalidation subscription")
+	host.Type("/codebase-reindex")
+	host.Press(input.Enter)
+	host.Shows(t, "Reindex codebase")
+
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacementWorkspace := t.TempDir()
+	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Workspace: &replacementWorkspace,
+		ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "workspace replacement invalidation")
+	host.Hides(t, "Reindex codebase")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if calls := index.reindexes.Load(); calls != 0 {
+		t.Fatalf("retired projection confirmation started %d reindexes", calls)
+	}
+	stop()
 }
 
 func runtimeResourceChangeSource(topic changefeed.Topic) *runtimeChangeSourceStub {
@@ -1399,6 +1442,9 @@ func TestMatchingInterruptInvalidationPreservesTheOpenApproval(t *testing.T) {
 	host.Type("test after the side-channel update")
 	host.Press(input.Enter)
 	host.Shows(t, "Tool approval")
+	host.Press(input.Down)
+	host.Press(input.Tab)
+	host.Type("PRESERVED_INVALIDATION_FEEDBACK")
 	drainSignals(backend.readSignal)
 	source.events <- changefeed.Event{
 		Type: changefeed.EventType(changefeed.InterruptsChanged), Sequence: 1,
@@ -1407,10 +1453,16 @@ func TestMatchingInterruptInvalidationPreservesTheOpenApproval(t *testing.T) {
 	awaitSignal(t, source.applied, "interrupts.changed delivery")
 	awaitSignal(t, backend.readSignal, "interrupts.changed authoritative read")
 	host.Shows(t, "Tool approval")
+	host.Shows(t, "PRESERVED_INVALIDATION_FEEDBACK")
 	host.Press(input.Enter)
 	host.Shows(t, "complete")
-	if provided := <-answers; len(provided) != 1 {
+	provided := <-answers
+	if len(provided) != 1 {
 		t.Fatalf("approval responses = %+v", provided)
+	}
+	answer, ok := provided[0].Answer.(agent.ApprovalAnswer)
+	if !ok || answer.Decision != agent.ApprovalDeny || answer.Reason != "PRESERVED_INVALIDATION_FEEDBACK" {
+		t.Fatalf("preserved approval answer = %#v", provided[0].Answer)
 	}
 	stop()
 }
