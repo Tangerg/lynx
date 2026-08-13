@@ -298,7 +298,10 @@ func TestInteractiveBinarySurvivesResizeAndApprovalRoundTrip(t *testing.T) {
 	quitInteractiveSession(t, session)
 }
 
-const mixedInteractionPTYScenario = "mixed-interaction-contract"
+const (
+	mixedInteractionPTYScenario = "mixed-interaction-contract"
+	cancelReentryPTYScenario    = "cancel-reentry-contract"
+)
 
 func TestInteractiveTerminalCompletesMixedInteractionReviewThroughPTY(t *testing.T) {
 	if !ptytest.Supported() {
@@ -367,36 +370,90 @@ func TestMixedInteractionPTYRuntime(t *testing.T) {
 	}
 }
 
+func TestInteractiveTerminalCanStartANewRunAfterCancelingInteractionReview(t *testing.T) {
+	if !ptytest.Supported() {
+		t.Skip("no pty on this platform")
+	}
+	size := ptytest.Size{Cols: 96, Rows: 28}
+	session, err := ptytest.Start(t.Context(), ptytest.Config{
+		Size: size,
+		Env: terminalTestEnvironment(t, map[string]string{
+			"TERM": "xterm-256color", "COLORTERM": "truecolor", "LANG": "en_US.UTF-8",
+			"LYRA_PTY_TEST_SCENARIO": cancelReentryPTYScenario,
+		}),
+	}, os.Args[0], "-test.run=^TestCancelReentryPTYRuntime$")
+	if errors.Is(err, ptytest.ErrUnsupported) {
+		t.Skip("no pty on this platform")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	waitForVisibleTerminalText(t, session, size, "Ask lyra")
+	writeTerminalInput(t, session, "cancel interaction review\r")
+	waitForVisibleTerminalText(t, session, size, "Run contract checks", "Allow once")
+	writeTerminalInput(t, session, "\r")
+	waitForVisibleTerminalText(t, session, size, "Describe intent")
+	writeTerminalInput(t, session, "cancel safely\r")
+	waitForVisibleTerminalText(t, session, size, "Choose platform", "Linux")
+	writeTerminalInput(t, session, "\r")
+	waitForVisibleTerminalText(t, session, size, "Choose checks", "Unit")
+	writeTerminalInput(t, session, " \r")
+	waitForVisibleTerminalText(t, session, size, "Review interactions")
+	writeTerminalInput(t, session, "\x1b[B\x1b[B\r")
+	waitForVisibleTerminalText(t, session, size, "canceled", "Ask lyra")
+
+	writeTerminalInput(t, session, "run after cancellation\r")
+	waitForVisibleTerminalText(t, session, size, "PTY cancellation reentry accepted", "complete")
+	if bytes.Contains(session.Transcript().Bytes(), []byte("PTY cancellation contract violated")) {
+		t.Fatal("canceling the interaction review resumed the rejected decisions")
+	}
+	quitInteractiveSession(t, session)
+}
+
+// TestCancelReentryPTYRuntime is launched as the child process above.
+func TestCancelReentryPTYRuntime(t *testing.T) {
+	if os.Getenv("LYRA_PTY_TEST_SCENARIO") != cancelReentryPTYScenario {
+		return
+	}
+	backend := mock.New()
+	backend.Instant = true
+	runs := 0
+	backend.Script = func(string) mock.Script {
+		runs++
+		if runs == 1 {
+			return cancelReentryPTYScript()
+		}
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockCompleted{Block: agent.Block{
+				ID: "reentry", Kind: agent.BlockNotice, Text: "PTY cancellation reentry accepted",
+			}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	if err := terminal.Run(t.Context(), terminal.Config{Runtime: backend, Workspace: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func cancelReentryPTYScript() mock.Script {
+	return mock.Script{
+		Interactions: mixedInteractionPTYInteractions(),
+		Continue: func([]agent.InterruptAnswer) []mock.Step {
+			return []mock.Step{
+				{Event: agent.BlockCompleted{Block: agent.Block{
+					ID: "violation", Kind: agent.BlockError, Text: "PTY cancellation contract violated",
+				}}},
+				{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeFailed}}},
+			}
+		},
+	}
+}
+
 func mixedInteractionPTYScript() mock.Script {
 	return mock.Script{
-		Interactions: []agent.Interaction{
-			agent.Approval{
-				ItemID: "approval", Title: "Run contract checks", Rememberable: true,
-				RuleHint: "shell:go test ./...",
-				Tool: &agent.ToolCall{
-					Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning,
-					ArgumentsJSON: []byte(`{"command":"go test ./...","count":1}`),
-				},
-			},
-			agent.Question{
-				ItemID: "intent", Title: "Describe intent",
-				Fields: []agent.QuestionField{{Prompt: "Intent", Kind: agent.QuestionText}},
-			},
-			agent.Question{
-				ItemID: "platform", Title: "Choose platform",
-				Fields: []agent.QuestionField{{
-					Prompt: "Platform", Kind: agent.QuestionSingle,
-					Options: []agent.QuestionOption{{Label: "Linux"}, {Label: "Darwin"}},
-				}},
-			},
-			agent.Question{
-				ItemID: "checks", Title: "Choose checks",
-				Fields: []agent.QuestionField{{
-					Prompt: "Checks", Kind: agent.QuestionMulti,
-					Options: []agent.QuestionOption{{Label: "Unit"}, {Label: "Integration"}},
-				}},
-			},
-		},
+		Interactions: mixedInteractionPTYInteractions(),
 		Continue: func(provided []agent.InterruptAnswer) []mock.Step {
 			result := "PTY HITL contract rejected"
 			if mixedInteractionPTYAnswersMatch(provided) {
@@ -406,6 +463,37 @@ func mixedInteractionPTYScript() mock.Script {
 				{Event: agent.BlockCompleted{Block: agent.Block{ID: "result", Kind: agent.BlockNotice, Text: result}}},
 				{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 			}
+		},
+	}
+}
+
+func mixedInteractionPTYInteractions() []agent.Interaction {
+	return []agent.Interaction{
+		agent.Approval{
+			ItemID: "approval", Title: "Run contract checks", Rememberable: true,
+			RuleHint: "shell:go test ./...",
+			Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning,
+				ArgumentsJSON: []byte(`{"command":"go test ./...","count":1}`),
+			},
+		},
+		agent.Question{
+			ItemID: "intent", Title: "Describe intent",
+			Fields: []agent.QuestionField{{Prompt: "Intent", Kind: agent.QuestionText}},
+		},
+		agent.Question{
+			ItemID: "platform", Title: "Choose platform",
+			Fields: []agent.QuestionField{{
+				Prompt: "Platform", Kind: agent.QuestionSingle,
+				Options: []agent.QuestionOption{{Label: "Linux"}, {Label: "Darwin"}},
+			}},
+		},
+		agent.Question{
+			ItemID: "checks", Title: "Choose checks",
+			Fields: []agent.QuestionField{{
+				Prompt: "Checks", Kind: agent.QuestionMulti,
+				Options: []agent.QuestionOption{{Label: "Unit"}, {Label: "Integration"}},
+			}},
 		},
 	}
 }
