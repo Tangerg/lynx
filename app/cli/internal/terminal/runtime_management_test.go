@@ -143,6 +143,33 @@ type modelConfigServiceStub struct {
 	updates   chan modelconfig.UpdateProvider
 }
 
+type blockingProviderUpdateService struct {
+	*modelConfigServiceStub
+	started  chan modelconfig.UpdateProvider
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingProviderUpdateService) UpdateProvider(
+	ctx context.Context,
+	update modelconfig.UpdateProvider,
+) (modelconfig.Provider, error) {
+	select {
+	case service.started <- update:
+	default:
+	}
+	select {
+	case <-service.release:
+		return service.modelConfigServiceStub.UpdateProvider(ctx, update)
+	case <-ctx.Done():
+		select {
+		case service.canceled <- struct{}{}:
+		default:
+		}
+		return modelconfig.Provider{}, context.Cause(ctx)
+	}
+}
+
 func newModelConfigServiceStub() *modelConfigServiceStub {
 	return &modelConfigServiceStub{
 		roles: modelconfig.Roles{
@@ -243,6 +270,77 @@ func TestProviderConfigurationMasksSecretsAndPreservesExplicitChanges(t *testing
 	update := <-models.updates
 	if update.BaseURL != nil || update.APIKey == nil || update.APIKey.Kind != modelconfig.SetValue || update.APIKey.Value != secret {
 		t.Fatalf("provider update = %+v", update)
+	}
+	stop()
+}
+
+func TestProviderMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	baseService := newModelConfigServiceStub()
+	service := &blockingProviderUpdateService{
+		modelConfigServiceStub: baseService,
+		started:                make(chan modelconfig.UpdateProvider, 1),
+		release:                make(chan struct{}),
+		canceled:               make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+
+	backend := mock.New()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", ModelConfig: service, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/provider-config deepseek")
+	host.Press(input.Enter)
+	host.Shows(t, "Configure provider · deepseek")
+	host.Press(input.Tab)
+	host.Press(input.Tab)
+	host.Press(input.Down)
+	host.Press(input.Tab)
+	host.Type("ROTATED_PROVIDER_KEY")
+	host.Press(input.Enter)
+	update := awaitValue(t, service.started, "provider update mutation")
+	if update.Provider != "deepseek" || update.APIKey == nil || update.APIKey.Kind != modelconfig.SetValue {
+		t.Fatalf("provider update = %+v", update)
+	}
+
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	title := "Provider refresh installed"
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	host.Shows(t, title)
+	select {
+	case <-service.canceled:
+		t.Fatal("same-session projection replacement canceled the application-owned provider mutation")
+	default:
+	}
+
+	release()
+	host.Shows(t, "provider updated · deepseek")
+	completed := awaitValue(t, service.updates, "completed provider update mutation")
+	if completed.APIKey == nil || completed.APIKey.Value != "ROTATED_PROVIDER_KEY" {
+		t.Fatalf("completed provider update = %+v", completed)
 	}
 	stop()
 }

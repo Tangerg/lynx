@@ -28,6 +28,30 @@ type scheduleServiceStub struct {
 	now       time.Time
 }
 
+type blockingScheduleRunService struct {
+	*scheduleServiceStub
+	started  chan string
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingScheduleRunService) RunNow(ctx context.Context, id string) (schedule.RunHandle, error) {
+	select {
+	case service.started <- id:
+	default:
+	}
+	select {
+	case <-service.release:
+		return service.scheduleServiceStub.RunNow(ctx, id)
+	case <-ctx.Done():
+		select {
+		case service.canceled <- struct{}{}:
+		default:
+		}
+		return schedule.RunHandle{}, context.Cause(ctx)
+	}
+}
+
 func newScheduleServiceStub() *scheduleServiceStub {
 	now := time.Date(2026, time.August, 12, 10, 0, 0, 0, time.UTC)
 	next := now.Add(time.Hour)
@@ -235,6 +259,68 @@ func TestWorkspaceReplacementRetiresAPresentedScheduleForm(t *testing.T) {
 	case candidate := <-service.created:
 		t.Fatalf("retired schedule form created %+v", candidate)
 	default:
+	}
+	stop()
+}
+
+func TestScheduleMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	baseService := newScheduleServiceStub()
+	service := &blockingScheduleRunService{
+		scheduleServiceStub: baseService,
+		started:             make(chan string, 1),
+		release:             make(chan struct{}),
+		canceled:            make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+
+	backend := mock.New()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", Schedules: service, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/schedule-run sch_review")
+	host.Press(input.Enter)
+	if id := awaitValue(t, service.started, "schedule run mutation"); id != "sch_review" {
+		t.Fatalf("schedule run id = %q, want sch_review", id)
+	}
+
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	title := "Schedule refresh installed"
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	host.Shows(t, title)
+	select {
+	case <-service.canceled:
+		t.Fatal("same-session projection replacement canceled the application-owned schedule mutation")
+	default:
+	}
+
+	release()
+	host.Shows(t, "schedule started · session ses_scheduled · run run_scheduled")
+	if id := awaitValue(t, service.run, "completed schedule run mutation"); id != "sch_review" {
+		t.Fatalf("completed schedule id = %q, want sch_review", id)
 	}
 	stop()
 }

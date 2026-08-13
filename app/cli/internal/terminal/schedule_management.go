@@ -121,7 +121,7 @@ func (a *app) PrepareDeleteSchedule(identity string) error {
 func (a *app) RunScheduleNow(identity string) error {
 	return a.loadSchedule(identity, "loading schedule to run", func(scheduled schedule.Schedule) {
 		a.status.note("running schedule " + scheduled.ID)
-		started := runOperation(a, scheduleOperation, false,
+		started := runApplicationOperation(a, scheduleOperation, false,
 			func(ctx context.Context) (schedule.RunHandle, error) { return a.schedules.RunNow(ctx, scheduled.ID) },
 			func(handle schedule.RunHandle, err error) {
 				if err != nil {
@@ -191,16 +191,16 @@ func resolveSchedule(schedules []schedule.Schedule, identity string) (schedule.S
 }
 
 func (a *app) createSchedule(candidate schedule.Candidate) {
+	presentation := a.sessionContext
 	a.status.note("creating schedule")
-	started := runOperation(a, scheduleOperation, false,
+	started := runApplicationOperation(a, scheduleOperation, false,
 		func(ctx context.Context) (schedule.Schedule, error) { return a.schedules.Create(ctx, candidate) },
 		func(created schedule.Schedule, err error) {
 			if err != nil {
 				a.message("create schedule failed: " + err.Error())
 				return
 			}
-			a.message("schedule created · " + created.ID)
-			a.ShowSchedules()
+			a.reportScheduleMutation("schedule created · "+created.ID, presentation)
 		},
 	)
 	if !started {
@@ -209,16 +209,16 @@ func (a *app) createSchedule(candidate schedule.Candidate) {
 }
 
 func (a *app) updateSchedule(patch schedule.Patch, label string) {
+	presentation := a.sessionContext
 	a.status.note(label)
-	started := runOperation(a, scheduleOperation, false,
+	started := runApplicationOperation(a, scheduleOperation, false,
 		func(ctx context.Context) (schedule.Schedule, error) { return a.schedules.Update(ctx, patch) },
 		func(updated schedule.Schedule, err error) {
 			if err != nil {
 				a.message(label + " failed: " + err.Error())
 				return
 			}
-			a.message("schedule updated · " + updated.ID)
-			a.ShowSchedules()
+			a.reportScheduleMutation("schedule updated · "+updated.ID, presentation)
 		},
 	)
 	if !started {
@@ -227,19 +227,26 @@ func (a *app) updateSchedule(patch schedule.Patch, label string) {
 }
 
 func (a *app) deleteSchedule(id string) {
+	presentation := a.sessionContext
 	a.status.note("deleting schedule " + id)
-	started := runOperation(a, scheduleOperation, false,
+	started := runApplicationOperation(a, scheduleOperation, false,
 		func(ctx context.Context) (string, error) { return id, a.schedules.Delete(ctx, id) },
 		func(deleted string, err error) {
 			if err != nil {
 				a.message("delete schedule failed: " + err.Error())
 				return
 			}
-			a.message("schedule deleted · " + deleted)
-			a.ShowSchedules()
+			a.reportScheduleMutation("schedule deleted · "+deleted, presentation)
 		},
 	)
 	if !started {
 		a.message("another schedule operation is running")
+	}
+}
+
+func (a *app) reportScheduleMutation(message string, presentation sessionContextEpoch) {
+	a.message(message)
+	if presentation == a.sessionContext {
+		a.ShowSchedules()
 	}
 }

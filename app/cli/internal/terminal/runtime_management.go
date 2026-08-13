@@ -210,7 +210,7 @@ func (a *app) SetModelRole(kind modelconfig.RoleKind, argument string) error {
 		return err
 	}
 	a.status.note("updating " + string(kind) + " model role")
-	started := runOperation(a, modelConfigOperation, false,
+	started := runApplicationOperation(a, modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Role, error) { return a.modelConfig.SetRole(ctx, role) },
 		func(updated modelconfig.Role, err error) {
 			if err != nil {
@@ -295,7 +295,7 @@ func (a *app) TestConfiguredProvider(providerID string) error {
 		return errors.New("usage: /provider-test <provider>")
 	}
 	a.status.note("testing provider " + providerID)
-	started := runOperation(a, modelConfigOperation, false,
+	started := runApplicationOperation(a, modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.TestResult, error) {
 			return a.modelConfig.TestProvider(ctx, providerID)
 		},
@@ -325,8 +325,9 @@ func (a *app) ConfigureProvider(providerID string) error {
 	if providerID == "" {
 		return errors.New("usage: /provider-config <provider>")
 	}
+	presentation := a.sessionContext
 	a.status.note("loading provider " + providerID)
-	started := runOperation(a, modelConfigOperation, false,
+	started := runApplicationOperation(a, modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Provider, error) {
 			providers, err := a.modelConfig.Providers(ctx)
 			if err != nil {
@@ -342,6 +343,10 @@ func (a *app) ConfigureProvider(providerID string) error {
 		func(provider modelconfig.Provider, err error) {
 			if err != nil {
 				a.message("configure provider failed: " + err.Error())
+				return
+			}
+			if presentation != a.sessionContext {
+				a.message("provider loaded after the active session changed; reopen configuration to continue")
 				return
 			}
 			a.openProviderConfig(provider)
@@ -456,7 +461,7 @@ func valueChange(mode, value string) *modelconfig.ValueChange {
 
 func (a *app) updateProvider(update modelconfig.UpdateProvider) {
 	a.status.note("updating provider " + update.Provider)
-	started := runOperation(a, modelConfigOperation, false,
+	started := runApplicationOperation(a, modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Provider, error) {
 			return a.modelConfig.UpdateProvider(ctx, update)
 		},
