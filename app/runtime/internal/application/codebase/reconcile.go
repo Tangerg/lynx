@@ -7,12 +7,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
 
-func (ix *Indexer) corpusFor(ctx context.Context, cwd string, emb Embedder, modelID string) ([]codebaseindex.Chunk, error) {
+func (ix *Indexer) corpusFor(ctx context.Context, cwd string, emb Embedder, modelID string, indexing func()) ([]codebaseindex.Chunk, error) {
 	lock := ix.cwdLock(cwd)
 	lock.Lock()
 	defer lock.Unlock()
 	if !ix.fresh(cwd, modelID) {
-		if err := ix.reconcile(ctx, cwd, emb, modelID, false); err != nil {
+		if err := ix.reconcile(ctx, cwd, emb, modelID, false, indexing); err != nil {
 			return nil, err
 		}
 	}
@@ -34,14 +34,17 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 	lock := ix.cwdLock(cwd)
 	lock.Lock()
 	defer lock.Unlock()
-	return ix.reconcile(ctx, cwd, emb, emb.ID(), true)
+	return ix.reconcile(ctx, cwd, emb, emb.ID(), true, nil)
 }
 
 // reconcile is the build pass (run under the cwd lock): wipe on model change /
 // force, discover files, re-embed only changed/new ones (by content hash), drop
 // removed ones, then reload the in-memory corpus + persist meta.
-func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, modelID string, force bool) error {
+func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, modelID string, force bool, indexing func()) error {
 	ix.markIndexing(cwd, modelID)
+	if indexing != nil {
+		indexing()
+	}
 
 	meta, _, err := ix.store.Meta(ctx, cwd)
 	if err != nil {

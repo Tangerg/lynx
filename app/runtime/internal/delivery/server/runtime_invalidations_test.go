@@ -22,6 +22,7 @@ func TestEveryInvalidationResourceIsPublishable(t *testing.T) {
 		invalidation.Schedules,
 		invalidation.Knowledge,
 		invalidation.Hooks,
+		invalidation.Skills,
 		invalidation.Models,
 		invalidation.Approvals,
 		invalidation.AgentMemory,

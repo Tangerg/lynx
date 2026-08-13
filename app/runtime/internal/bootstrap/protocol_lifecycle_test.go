@@ -472,7 +472,6 @@ func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 		Runs:                   stack.Runs,
 		FileChanges:            stack.FileChanges,
 		MCPStatusChanges:       stack.MCPStatusChanges,
-		SkillChanges:           stack.SkillChanges,
 		ScheduleFires:          stack.ScheduleFires,
 		Invalidations:          stack.Invalidations,
 		Queries:                stack.Queries,

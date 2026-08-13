@@ -41,8 +41,9 @@ func (ix *Indexer) resolveEmbedder(ctx context.Context) (Embedder, error) {
 }
 
 // Search embeds the query and returns the topK most-similar chunks, building or
-// refreshing the index first.
-func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]codebaseindex.Hit, error) {
+// refreshing the index first. indexing is called synchronously after the status
+// becomes indexing and before reconciliation mutates the stored corpus.
+func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int, indexing func()) ([]codebaseindex.Hit, error) {
 	if topK <= 0 {
 		topK = defaultTopK
 	}
@@ -50,7 +51,7 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]c
 	if err != nil {
 		return nil, err
 	}
-	chunks, err := ix.corpusFor(ctx, cwd, emb, emb.ID())
+	chunks, err := ix.corpusFor(ctx, cwd, emb, emb.ID(), indexing)
 	if err != nil {
 		return nil, err
 	}

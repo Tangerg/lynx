@@ -44,7 +44,7 @@ type RootResolver interface {
 
 // Index is the semantic-index capability these use cases consume.
 type Index interface {
-	Search(ctx context.Context, cwd, query string, topK int) ([]codebaseindex.Hit, error)
+	Search(ctx context.Context, cwd, query string, topK int, indexing func()) ([]codebaseindex.Hit, error)
 	Reindex(ctx context.Context, cwd string) error
 	Status(ctx context.Context, cwd string) (codebaseindex.Status, error)
 	Available(ctx context.Context) (bool, error)
@@ -94,7 +94,8 @@ func (c *Coordinator) AwaitShutdown(ctx context.Context) error {
 // Available reports whether semantic-index use cases are wired in this runtime.
 func (c *Coordinator) Available() bool { return c != nil && c.index != nil }
 
-// Search returns semantic search hits for cwd, building the index when needed.
+// Search returns semantic search hits for cwd, publishing both state transitions
+// when the query first has to reconcile the index.
 func (c *Coordinator) Search(ctx context.Context, cwd, query string, limit int) ([]codebaseindex.Hit, error) {
 	if !c.Available() {
 		return nil, ErrUnavailable
@@ -103,7 +104,15 @@ func (c *Coordinator) Search(ctx context.Context, cwd, query string, limit int) 
 	if err != nil {
 		return nil, err
 	}
-	return c.index.Search(ctx, root, query, limit)
+	indexing := false
+	hits, err := c.index.Search(ctx, root, query, limit, func() {
+		indexing = true
+		c.invalidate()
+	})
+	if indexing {
+		c.invalidate()
+	}
+	return hits, err
 }
 
 // Status returns cwd's current semantic-index state and any in-flight rebuild.
@@ -119,7 +128,11 @@ func (c *Coordinator) Status(ctx context.Context, cwd string) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	return Status{Index: status, OperationID: c.activeOperation(root)}, nil
+	operationID := c.activeOperation(root)
+	if operationID != "" {
+		status.State = codebaseindex.StateIndexing
+	}
+	return Status{Index: status, OperationID: operationID}, nil
 }
 
 // StartReindex starts a full rebuild for cwd that outlives the request context,
@@ -154,10 +167,10 @@ func (c *Coordinator) StartReindex(ctx context.Context, cwd string) (string, err
 		release()
 		return operationID, nil
 	}
-	// Publish while the operation is already visible through Status, but before
-	// the worker can settle it. This preserves start-before-finish ordering even
-	// when an index rebuild completes immediately.
-	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Codebase})
+	// The Coordinator owns the transient operation. Once it is registered,
+	// Status projects indexing even before the worker acquires the index lock.
+	// Publish that readable fact before the worker can settle it.
+	c.invalidate()
 	go func() {
 		defer release()
 		defer c.finishOperation(root, operationID)
@@ -168,6 +181,10 @@ func (c *Coordinator) StartReindex(ctx context.Context, cwd string) (string, err
 		}
 	}()
 	return operationID, nil
+}
+
+func (c *Coordinator) invalidate() {
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Codebase})
 }
 
 func (c *Coordinator) activeOperation(root string) string {
@@ -202,5 +219,5 @@ func (c *Coordinator) finishOperation(root, operationID string) {
 	}
 	delete(c.active, root)
 	c.activeMu.Unlock()
-	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Codebase})
+	c.invalidate()
 }

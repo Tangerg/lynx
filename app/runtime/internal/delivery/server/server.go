@@ -29,7 +29,6 @@ type Config struct {
 
 	FileChanges      notificationSource[workspaceapp.FileChangeNotice]
 	MCPStatusChanges notificationSource[mcpapp.ServerStatus]
-	SkillChanges     notificationSource[struct{}]
 
 	// ServerInfo identifies this runtime on the wire. Name and Version receive
 	// development defaults when absent.
@@ -101,7 +100,7 @@ type Server struct {
 	idempotency              protocol.IdempotencyLimits
 	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits
 
-	// workspaceHub fans non-run change signals (files/skills/mcp/schedule/session) out to
+	// workspaceHub fans non-run change signals out to
 	// runtime.subscribe streams (AUX_API §3). It is ephemeral, lossy, and scoped
 	// to this process; run streams have their own durable replay contract.
 	workspaceHub *workspaceHub
@@ -271,9 +270,6 @@ func (s *Server) observeNotificationSources(cfg Config) {
 	}
 	if cfg.MCPStatusChanges != nil {
 		s.observeMCPStatusChanges(cfg.MCPStatusChanges)
-	}
-	if cfg.SkillChanges != nil {
-		s.observeSkillChanges(cfg.SkillChanges)
 	}
 	if cfg.ScheduleFires != nil {
 		s.observeScheduleFires(cfg.ScheduleFires)

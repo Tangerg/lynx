@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
@@ -40,11 +41,11 @@ type Skills struct {
 	catalog       SkillCatalog
 	curator       SkillCurator
 	proposals     SkillProposals
-	skillsChanged func(struct{})
+	invalidations invalidation.Publish
 }
 
-func NewSkills(scope *Scope, catalog SkillCatalog, curator SkillCurator, proposals SkillProposals, changed func(struct{})) *Skills {
-	return &Skills{scope: scope, catalog: catalog, curator: curator, proposals: proposals, skillsChanged: changed}
+func NewSkills(scope *Scope, catalog SkillCatalog, curator SkillCurator, proposals SkillProposals, invalidations invalidation.Publish) *Skills {
+	return &Skills{scope: scope, catalog: catalog, curator: curator, proposals: proposals, invalidations: invalidations}
 }
 
 // List enumerates the Skills visible from cwd.
@@ -153,7 +154,5 @@ func (s *Skills) RejectProposal(ctx context.Context, cwd string, ref skills.Prop
 }
 
 func (s *Skills) notifySkillsChanged() {
-	if s.skillsChanged != nil {
-		s.skillsChanged(struct{}{})
-	}
+	s.invalidations.Notify(invalidation.Notice{Resource: invalidation.Skills})
 }

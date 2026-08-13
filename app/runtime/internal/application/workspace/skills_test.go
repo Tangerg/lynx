@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
@@ -50,8 +51,10 @@ func TestManagedSkillsWithoutCuratorReportUnavailable(t *testing.T) {
 func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	curator := &fakeSkillCurator{}
 	proposals := &fakeSkillProposals{}
-	notifications := 0
-	c := NewSkills(NewScope("", "", testPaths{}), nil, curator, proposals, func(struct{}) { notifications++ })
+	var notices []invalidation.Notice
+	c := NewSkills(NewScope("", "", testPaths{}), nil, curator, proposals, func(notice invalidation.Notice) {
+		notices = append(notices, notice)
+	})
 
 	if err := c.Archive(context.Background(), "lint"); err != nil {
 		t.Fatal(err)
@@ -67,8 +70,16 @@ func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	if err := c.ApproveProposal(context.Background(), "/repo", ref); err != nil {
 		t.Fatal(err)
 	}
-	if notifications != 4 {
-		t.Fatalf("notifications = %d, want 4", notifications)
+	if err := c.RejectProposal(context.Background(), "/repo", ref); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 5 {
+		t.Fatalf("notifications = %d, want 5", len(notices))
+	}
+	for _, notice := range notices {
+		if notice.Resource != invalidation.Skills {
+			t.Fatalf("notice = %+v, want Skills", notice)
+		}
 	}
 
 	curator.archiveErr = errors.New("disk unavailable")
@@ -79,8 +90,12 @@ func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	if err := c.ApproveProposal(context.Background(), "/repo", ref); err == nil {
 		t.Fatal("ApproveProposal error = nil, want failure")
 	}
-	if notifications != 4 {
-		t.Fatalf("failed mutation notifications = %d, want 4", notifications)
+	proposals.rejectErr = errors.New("disk unavailable")
+	if err := c.RejectProposal(context.Background(), "/repo", ref); err == nil {
+		t.Fatal("RejectProposal error = nil, want failure")
+	}
+	if len(notices) != 5 {
+		t.Fatalf("failed mutation notifications = %d, want 5", len(notices))
 	}
 }
 

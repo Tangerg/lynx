@@ -107,8 +107,9 @@
   客户端收到后调对应读方法重取（`state.changed` 带 `key`，指向该 key 声明的 `recoveryMethod`，`API.md §5.3`）。
 - **每个 topic 都有生产者**：discovery 里出现的 topic，runtime 一定会在对应提交之后发它。一个"名字在、流是静的"
   topic 比没有更糟——第二个窗口会安静地过时，并且察觉不到。
-- **配置与后台任务有专用信号**：成功的 `knowledge.update` / `hooks.setTrust`、provider/role、approval policy、agent-memory
-  review mutation 分别发布所属 topic；codebase rebuild 在 operation 可读后与 settle 后各发布一次 `codebase.changed`。外部进程新增、
+- **配置与后台任务有专用信号**：成功的 Skill library/proposal、`knowledge.update` / `hooks.setTrust`、provider/role、approval policy、agent-memory
+  review mutation 分别经同一 Application invalidation vocabulary 发布所属 topic；显式 codebase rebuild 在 operation 可读后与 settle 后各发布一次
+  `codebase.changed`，首次或过期的 `codebase.search` 隐式 reconcile 也在 indexing 与 settle 各发布一次。外部进程新增、
   替换、删除已订阅作用域的 `LYRA.md` / `.lyra/hooks.json` 也发对应信号。客户端只重读所属资源；事件不携带业务值，也不把
   workspace 观测或 Runtime wire 细节泄露到 Agent。
 
@@ -175,7 +176,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 ### 4.3 `sessions.export` / `sessions.import`
 
-同一份 `SessionArtifact`（**version 17**）的两端：终态 run + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
+同一份 `SessionArtifact`（**version 18**）的两端：终态 run + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
 会话级 state 的语义值。`format:"md"` 是人读转录（**不可再导入**）。
 
 - **只带终态 run**：live 与 interrupted 的 executor 状态是进程本地的，不可移植。

@@ -506,7 +506,7 @@
 - transcript 的 ToolCall Item 以 occurrence/`startedAt` 和 `FinishedAt` 表达可见 lifecycle；Reducer 另在真实 executor start/finish 边界计算可选 exact execution duration。审批和其他执行前等待只增长 lifecycle，不增长 execution；recovery 无法证明该区间时保持 unknown，不用 lifecycle 猜测；
 - reducer 在收到 `ToolCallFinished` 时立即盖章，而不是等并发调用按模型顺序 flush 时才计时，因此 transcript 顺序仍按模型调用顺序，耗时却保留真实完成边界；取消、挂起、重启恢复和不可恢复的 parked Run 也在各自终止事务中补齐同一事实；
 - ToolCall 领域 invariant 明确为：running 只有 lifecycle start，completed/incomplete 必须有不早于 start 的 finish；execution duration 若存在则非负且不超过 lifecycle。其他 Item 禁止携带 ToolCall timing。实时 DTO 与 artifact DTO 的存在性规则、非负约束由同一 contract registry 生成；
-- artifact 当前为 v17：导入区分 lifecycle timing 与可选 execution duration，不为缺失事实猜测执行边界，也不保留兼容字段；
+- artifact 当前为 v18：导入区分 lifecycle timing 与可选 execution duration，并保存 Question 的唯一已接受答案；不为缺失事实猜测执行边界，也不保留兼容字段；
 - 时间事实停留在 transcript / runs / delivery：通用 Agent ToolCall 协议仍只表达模型请求，没有被 app/runtime 的持久化生命周期污染。本轮只更新服务端 Go 契约；桌面 TypeScript 与 canonical samples 继续留给约定的前端专项。
 
 ### 批次 10b

@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
+func TestSkillInvalidationPublishesWorkspaceRefresh(t *testing.T) {
 	s := &Server{workspaceHub: newWorkspaceHub()}
-	notifier := new(testNotification[struct{}])
-	s.observeSkillChanges(notifier)
+	notifier := new(testNotification[invalidation.Notice])
+	s.observeInvalidations(notifier)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -22,7 +23,7 @@ func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 	events := drainSeq(ctx, seq)
-	notifier.Publish(struct{}{})
+	notifier.Publish(invalidation.Notice{Resource: invalidation.Skills})
 
 	select {
 	case event := <-events:

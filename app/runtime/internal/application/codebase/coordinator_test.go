@@ -18,7 +18,9 @@ type codebaseIndex struct {
 	reindex         func(context.Context, string) error
 	reindexed       chan codebaseReindexCall
 	hits            []codebaseindex.Hit
+	searchErr       error
 	status          codebaseindex.Status
+	searchIndexing  bool
 
 	searchRoot  string
 	searchQuery string
@@ -55,11 +57,20 @@ func (i *codebaseIndex) Reindex(ctx context.Context, root string) error {
 	return nil
 }
 
-func (i *codebaseIndex) Search(_ context.Context, root, query string, limit int) ([]codebaseindex.Hit, error) {
+func (i *codebaseIndex) Search(_ context.Context, root, query string, limit int, indexing func()) ([]codebaseindex.Hit, error) {
 	i.searchRoot = root
 	i.searchQuery = query
 	i.searchLimit = limit
-	return i.hits, nil
+	if i.searchIndexing {
+		i.status.State = codebaseindex.StateIndexing
+		indexing()
+		if i.searchErr == nil {
+			i.status.State = codebaseindex.StateReady
+		} else {
+			i.status.State = codebaseindex.StateError
+		}
+	}
+	return i.hits, i.searchErr
 }
 
 func (i *codebaseIndex) Status(_ context.Context, root string) (codebaseindex.Status, error) {
@@ -98,6 +109,58 @@ func TestSearchUsesSearchPort(t *testing.T) {
 	}
 	if idx.searchRoot != "/repo" || idx.searchQuery != "runtime facade" || idx.searchLimit != 4 {
 		t.Fatalf("search root=%q query=%q limit=%d", idx.searchRoot, idx.searchQuery, idx.searchLimit)
+	}
+}
+
+func TestSearchPublishesReconciliationStateTransitions(t *testing.T) {
+	idx := &codebaseIndex{searchIndexing: true}
+	var c *Coordinator
+	var states []codebaseindex.State
+	c = New(idx, staticRootResolver{}, func(notice invalidation.Notice) {
+		if notice.Resource != invalidation.Codebase {
+			t.Fatalf("notice = %+v, want Codebase", notice)
+		}
+		status, err := c.Status(t.Context(), "/repo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		states = append(states, status.Index.State)
+	})
+
+	if _, err := c.Search(t.Context(), "/repo", "runtime facade", 4); err != nil {
+		t.Fatal(err)
+	}
+	if len(states) != 2 || states[0] != codebaseindex.StateIndexing || states[1] != codebaseindex.StateReady {
+		t.Fatalf("published states = %v, want [indexing ready]", states)
+	}
+
+	idx.searchIndexing = false
+	if _, err := c.Search(t.Context(), "/repo", "cached", 4); err != nil {
+		t.Fatal(err)
+	}
+	if len(states) != 2 {
+		t.Fatalf("cached search published %d states, want 2", len(states))
+	}
+}
+
+func TestSearchPublishesFailedReconciliation(t *testing.T) {
+	wantErr := errors.New("embedding failed")
+	idx := &codebaseIndex{searchIndexing: true, searchErr: wantErr}
+	var states []codebaseindex.State
+	var c *Coordinator
+	c = New(idx, staticRootResolver{}, func(invalidation.Notice) {
+		status, err := c.Status(t.Context(), "/repo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		states = append(states, status.Index.State)
+	})
+
+	if _, err := c.Search(t.Context(), "/repo", "runtime facade", 4); !errors.Is(err, wantErr) {
+		t.Fatalf("Search error = %v, want %v", err, wantErr)
+	}
+	if len(states) != 2 || states[0] != codebaseindex.StateIndexing || states[1] != codebaseindex.StateError {
+		t.Fatalf("published states = %v, want [indexing error]", states)
 	}
 }
 

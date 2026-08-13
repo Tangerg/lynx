@@ -88,15 +88,12 @@ type Stack struct {
 	// MCPStatusChanges bridges the MCP coordinator's connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
 	MCPStatusChanges NotificationSource[mcpapp.ServerStatus]
-	// SkillChanges bridges committed skill-library mutations to the delivery
-	// workspace hub. Delivery maps the nudge to a skills.changed event.
-	SkillChanges NotificationSource[struct{}]
 	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
 	ScheduleFires NotificationSource[string]
-	// Invalidations bridges every committed session / run / interrupt / goal / state change
-	// to the delivery hub, which names each one's topic. Same seam as the nudges
-	// above; the producers are the use cases that committed the write.
+	// Invalidations bridges committed read-model changes to the delivery hub,
+	// which alone names each wire topic. Producers are the use cases that own the
+	// mutation; Bootstrap only connects their shared application vocabulary.
 	Invalidations    NotificationSource[invalidation.Notice]
 	ScheduleFiring   *schedules.Firing
 	IdempotencyStore idempotency.Store
@@ -260,9 +257,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	workspaceKnowledge := workspace.NewKnowledge(
 		workspaceScope, workspacepath.Resolver{}, cfg.KnowledgeStore, workspaceAuthoredWatch, applicationInvalidations.Publish,
 	)
-	// One signal covers every committed Skill-library mutation, including
-	// proposal submission and review decisions.
-	skillChanges := &notification.Relay[struct{}]{}
 	skillStore := skillauthoring.NewStore(cfg.SkillsUserDir, skills.ScopeUser)
 	var skillCurator workspace.SkillCurator
 	if skillStore.Enabled() {
@@ -273,7 +267,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		promptsource.NewWorkspaceSkills(cfg.SkillsUserDir),
 		skillCurator,
 		skillproposal.NewLibraries(skillStore),
-		skillChanges.Publish,
+		applicationInvalidations.Publish,
 	)
 	toolRuntime, err := buildTools(ctx, cfg, approvalPolicy, mcpConnectionSettings, modelServices.agentMemorySearch, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, workspaceSkills)
 	lifetime.toolResources = slices.Clone(toolRuntime.closers)
@@ -603,7 +597,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Runs:             runCoordinator,
 			FileChanges:      fileChanges,
 			MCPStatusChanges: mcpStatusChanges,
-			SkillChanges:     skillChanges,
 			ScheduleFires:    scheduleFires,
 			Invalidations:    applicationInvalidations,
 			ScheduleFiring:   scheduleFiring,

@@ -176,7 +176,7 @@ func TestSearchFindsRelevantFile(t *testing.T) {
 
 	ix := NewIndex(newMemStore(), func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil }, src)
 
-	hits, err := ix.Search(context.Background(), cwd, "login user password", 1)
+	hits, err := ix.Search(context.Background(), cwd, "login user password", 1, nil)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -187,6 +187,37 @@ func TestSearchFindsRelevantFile(t *testing.T) {
 	st, _ := ix.Status(context.Background(), cwd)
 	if st.State != StateReady || st.ChunkCount == 0 {
 		t.Errorf("status = %+v, want ready with chunks", st)
+	}
+}
+
+func TestSearchAnnouncesReconciliationAfterIndexingStateIsVisible(t *testing.T) {
+	cwd := t.TempDir()
+	src := newMemSource()
+	src.add("auth.go", "h1", "authenticate login user")
+	ix := NewIndex(newMemStore(), func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil }, src)
+
+	announced := 0
+	if _, err := ix.Search(t.Context(), cwd, "login", 1, func() {
+		announced++
+		status, statusErr := ix.Status(t.Context(), cwd)
+		if statusErr != nil {
+			t.Fatal(statusErr)
+		}
+		if status.State != codebaseindex.StateIndexing {
+			t.Fatalf("status at announcement = %+v, want indexing", status)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if announced != 1 {
+		t.Fatalf("announcements = %d, want 1", announced)
+	}
+
+	if _, err := ix.Search(t.Context(), cwd, "login", 1, func() { announced++ }); err != nil {
+		t.Fatal(err)
+	}
+	if announced != 1 {
+		t.Fatalf("fresh cache announcements = %d, want 1", announced)
 	}
 }
 
@@ -201,7 +232,7 @@ func TestNoEmbeddingModel(t *testing.T) {
 	if available {
 		t.Error("Available = true with no embedder")
 	}
-	if _, err = ix.Search(context.Background(), t.TempDir(), "x", 1); err != ErrNoEmbeddingModel {
+	if _, err = ix.Search(context.Background(), t.TempDir(), "x", 1, nil); err != ErrNoEmbeddingModel {
 		t.Errorf("Search err = %v, want ErrNoEmbeddingModel", err)
 	}
 }
@@ -242,14 +273,14 @@ func TestIncrementalReindex(t *testing.T) {
 	store := newMemStore()
 	ix := NewIndex(store, func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil }, src)
 
-	if _, err := ix.Search(context.Background(), cwd, "alpha", 1); err != nil {
+	if _, err := ix.Search(context.Background(), cwd, "alpha", 1, nil); err != nil {
 		t.Fatalf("initial Search: %v", err)
 	}
 	src.add("b.go", "h2", "bravo gadget engine piston")
 	if err := ix.Reindex(context.Background(), cwd); err != nil {
 		t.Fatalf("Reindex: %v", err)
 	}
-	hits, err := ix.Search(context.Background(), cwd, "gadget", 1)
+	hits, err := ix.Search(context.Background(), cwd, "gadget", 1, nil)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -273,7 +304,7 @@ func TestSearchKeepsCorpusAndQueryOnOneEmbedder(t *testing.T) {
 	b := &switchTestEmbedder{id: "fake:b", dim: 3}
 	resolver := &switchTestResolver{embedder: a}
 	ix := NewIndex(newMemStore(), resolver.resolve, src)
-	if _, err := ix.Search(t.Context(), cwd, "preflight", 1); err != nil {
+	if _, err := ix.Search(t.Context(), cwd, "preflight", 1, nil); err != nil {
 		t.Fatalf("initial Search: %v", err)
 	}
 
@@ -283,7 +314,7 @@ func TestSearchKeepsCorpusAndQueryOnOneEmbedder(t *testing.T) {
 	}
 	searchDone := make(chan result, 1)
 	go func() {
-		hits, err := ix.Search(t.Context(), cwd, "query", 1)
+		hits, err := ix.Search(t.Context(), cwd, "query", 1, nil)
 		searchDone <- result{hits: hits, err: err}
 	}()
 	<-queryStarted

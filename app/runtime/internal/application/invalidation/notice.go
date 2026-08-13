@@ -32,6 +32,8 @@ const (
 	Knowledge
 	// Hooks — a project's lifecycle-hook trust decision changed.
 	Hooks
+	// Skills — the managed Skill library or proposal collection changed.
+	Skills
 	// Models — provider configuration or a utility/embedding model role changed.
 	Models
 	// Approvals — the default approval mode or remembered approval rules changed.

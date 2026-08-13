@@ -710,7 +710,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的会话 state 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v17）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v18）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 会话级 state 的**语义值**（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
   确定性拒绝、**不迁移**；未广告的 state key 在任何写入之前拒绝。

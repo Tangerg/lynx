@@ -34,7 +34,7 @@ func (i *fakeCodebaseIndex) Reindex(_ context.Context, root string) error {
 	return nil
 }
 
-func (i *fakeCodebaseIndex) Search(_ context.Context, root, query string, limit int) ([]codebaseindex.Hit, error) {
+func (i *fakeCodebaseIndex) Search(_ context.Context, root, query string, limit int, _ func()) ([]codebaseindex.Hit, error) {
 	i.searchRoot = root
 	i.searchQuery = query
 	i.searchLimit = limit

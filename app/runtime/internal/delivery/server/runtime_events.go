@@ -25,12 +25,6 @@ func (s *Server) observeMCPStatusChanges(source notificationSource[mcpapp.Server
 	})
 }
 
-func (s *Server) observeSkillChanges(source notificationSource[struct{}]) {
-	source.Observe(func(struct{}) {
-		s.workspaceHub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
-	})
-}
-
 func (s *Server) observeScheduleFires(source notificationSource[string]) {
 	source.Observe(func(scheduleID string) {
 		s.workspaceHub.publish(protocol.RuntimeEvent{
@@ -77,6 +71,8 @@ func runtimeEventFor(notice invalidation.Notice) (protocol.RuntimeEvent, bool) {
 		return protocol.RuntimeEvent{Type: protocol.RuntimeKnowledgeChanged}, true
 	case invalidation.Hooks:
 		return protocol.RuntimeEvent{Type: protocol.RuntimeHooksChanged}, true
+	case invalidation.Skills:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged}, true
 	case invalidation.Models:
 		return protocol.RuntimeEvent{Type: protocol.RuntimeModelsChanged}, true
 	case invalidation.Approvals:
