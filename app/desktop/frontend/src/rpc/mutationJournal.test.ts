@@ -52,9 +52,25 @@ class MemoryStorage implements MutationJournalStorage {
   }
 
   entryValues(): Array<Record<string, unknown>> {
-    return [...this.values.entries()]
+    const current = new Map<string, Record<string, unknown>>();
+    for (const [, value] of [...this.values.entries()]
       .filter(([key]) => key.startsWith("entry:"))
-      .map(([, value]) => value as Record<string, unknown>);
+      .map(([key, value]) => [key, value as Record<string, unknown>] as const)) {
+      const idempotencyKey = String(value.idempotencyKey);
+      const existing = current.get(idempotencyKey);
+      const generation = Number(value.generation ?? 0);
+      const existingGeneration = Number(existing?.generation ?? 0);
+      const generationId = String(value.generationId ?? "");
+      const existingGenerationId = String(existing?.generationId ?? "");
+      if (
+        !existing ||
+        generation > existingGeneration ||
+        (generation === existingGeneration && generationId > existingGenerationId)
+      ) {
+        current.set(idempotencyKey, value);
+      }
+    }
+    return [...current.values()].filter((entry) => entry.settled !== true);
   }
 }
 
@@ -85,9 +101,30 @@ function opening(
 }
 
 function persistedEntry(storage: MemoryStorage, idempotencyKey: string): Record<string, unknown> {
-  const entry = storage.get(`entry:${encodeURIComponent(idempotencyKey)}`);
+  const entry = storage.get(persistedEntryKey(storage, idempotencyKey));
   expect(entry).toBeDefined();
   return entry as Record<string, unknown>;
+}
+
+function persistedEntryKey(storage: MemoryStorage, idempotencyKey: string): string {
+  const candidates = [...storage.values.entries()]
+    .filter(
+      ([key, value]) =>
+        key.startsWith("entry:") &&
+        (value as Record<string, unknown> | undefined)?.idempotencyKey === idempotencyKey,
+    )
+    .toSorted(([, left], [, right]) => {
+      const leftEntry = left as Record<string, unknown>;
+      const rightEntry = right as Record<string, unknown>;
+      const generation = Number(rightEntry.generation ?? 0) - Number(leftEntry.generation ?? 0);
+      if (generation !== 0) return generation;
+      const leftId = String(leftEntry.generationId ?? "");
+      const rightId = String(rightEntry.generationId ?? "");
+      if (leftId === rightId) return 0;
+      return leftId < rightId ? 1 : -1;
+    });
+  expect(candidates[0]).toBeDefined();
+  return candidates[0]![0];
 }
 
 describe("persistent mutation journal", () => {
@@ -126,7 +163,7 @@ describe("persistent mutation journal", () => {
 
     const persisted = persistedEntry(crashImage, original.idempotencyKey);
     persisted.owner = "previous-process";
-    crashImage.set(`entry:${encodeURIComponent(original.idempotencyKey)}`, persisted);
+    crashImage.set(persistedEntryKey(crashImage, original.idempotencyKey), persisted);
 
     const restarted = journal({ storage: crashImage, scope: () => scope });
     const replay = restarted.reserve("schedules.runNow", { id: "schedule_1" })!;
@@ -145,7 +182,7 @@ describe("persistent mutation journal", () => {
     )!;
     const persisted = persistedEntry(storage, first.idempotencyKey);
     persisted.owner = "other-window";
-    storage.set(`entry:${encodeURIComponent(first.idempotencyKey)}`, persisted);
+    storage.set(persistedEntryKey(storage, first.idempotencyKey), persisted);
     storage.set("owner:other-window", {
       version: 1,
       owner: "other-window",
@@ -174,7 +211,7 @@ describe("persistent mutation journal", () => {
     )!;
     const persisted = persistedEntry(backing, original.idempotencyKey);
     persisted.owner = "renewing-renderer";
-    backing.set(`entry:${encodeURIComponent(original.idempotencyKey)}`, persisted);
+    backing.set(persistedEntryKey(backing, original.idempotencyKey), persisted);
     const expiredLeaseKey = "owner:renewing-renderer:expired-generation";
     const renewedLeaseKey = "owner:renewing-renderer:renewed-generation";
     backing.set(expiredLeaseKey, {
@@ -262,7 +299,7 @@ describe("persistent mutation journal", () => {
     const successor = persistedEntry(storage, reservation.idempotencyKey);
     successor.owner = "successor-renderer";
     successor.claimable = false;
-    storage.set(`entry:${encodeURIComponent(reservation.idempotencyKey)}`, successor);
+    storage.set(persistedEntryKey(storage, reservation.idempotencyKey), successor);
 
     const failure = new RpcTransportError("retired response lost");
     rejectRetired[0]!(failure);
@@ -458,6 +495,53 @@ describe("persistent mutation journal", () => {
     expect(expiredByShrink.idempotencyKey).not.toBe(otherEndpoint.idempotencyKey);
   });
 
+  it("does not let stale retention cleanup delete a generation appended after its snapshot", () => {
+    const backing = new MemoryStorage();
+    let currentTime = 1_000;
+    let retentionSeconds = 86_400;
+    let armed = false;
+    let keyReads = 0;
+    let successor: Record<string, unknown> | undefined;
+    const storage: MutationJournalStorage = {
+      get: (key) => backing.get(key),
+      set: (key, value) => backing.set(key, value),
+      remove: (key) => backing.remove(key),
+      keys() {
+        if (armed && ++keyReads === 3) {
+          const next = successor!;
+          const key = `entry:${encodeURIComponent(String(next.idempotencyKey))}:${String(next.generation)}:${encodeURIComponent(String(next.generationId))}`;
+          backing.set(key, next);
+        }
+        return backing.keys();
+      },
+    };
+    const created = journal({
+      storage,
+      scope: () => ({ ...scope, retentionSeconds }),
+      now: () => currentTime,
+    });
+    const original = created.reserve("sessions.create", { title: "first" })!;
+    const originalEntry = persistedEntry(backing, original.idempotencyKey);
+    successor = {
+      ...originalEntry,
+      generation: Number(originalEntry.generation) + 1,
+      generationId: "successor-generation",
+      owner: "successor-renderer",
+      claimable: false,
+    };
+    currentTime = 2_001;
+    retentionSeconds = 1;
+    armed = true;
+
+    created.reserve("sessions.create", { title: "unrelated" });
+
+    expect(persistedEntry(backing, original.idempotencyKey)).toMatchObject({
+      generation: 1,
+      generationId: "successor-generation",
+      owner: "successor-renderer",
+    });
+  });
+
   it("migrates the shipped v1 snapshot once without discarding unresolved identities", () => {
     const legacyKey = "legacy-idempotency-key";
     const storage = new MemoryStorage({
@@ -481,9 +565,40 @@ describe("persistent mutation journal", () => {
 
     expect(storage.get("legacy:v1")).toBeUndefined();
     expect(persistedEntry(storage, legacyKey)).toMatchObject({
-      version: 2,
+      version: 3,
       salt: "legacy-salt",
       idempotencyKey: legacyKey,
+    });
+  });
+
+  it("migrates shipped v2 entry records into immutable generation zero", () => {
+    const storage = new MemoryStorage();
+    const idempotencyKey = "shipped-v2-key";
+    storage.set(`entry:${encodeURIComponent(idempotencyKey)}`, {
+      version: 2,
+      salt: "shipped-v2-salt",
+      endpoint: "http://127.0.0.1:17171",
+      namespace: "idp_store_a",
+      fingerprint: "0".repeat(32),
+      idempotencyKey,
+      owner: "old-process",
+      claimable: false,
+      createdAt: 1_000,
+      expiresAt: 86_401_000,
+    });
+
+    journal({ storage, scope: () => scope, now: () => 2_000 }).reserve("sessions.delete", {
+      sessionId: "other",
+    });
+
+    expect(storage.get(`entry:${encodeURIComponent(idempotencyKey)}`)).toBeUndefined();
+    expect(persistedEntry(storage, idempotencyKey)).toMatchObject({
+      version: 3,
+      salt: "shipped-v2-salt",
+      generation: 0,
+      generationId: "shipped-v2-salt",
+      settled: false,
+      idempotencyKey,
     });
   });
 
@@ -653,6 +768,196 @@ describe("persistent mutation journal", () => {
         ),
       ).resolves.toBe("successor replay");
       expect(storage.entryValues()).toEqual([]);
+    } finally {
+      first.dispose();
+      second.dispose();
+    }
+  });
+
+  it("does not let closing overwrite a successor that takes over after the owner read", async () => {
+    const backing = new MemoryStorage();
+    let currentTime = 1_000;
+    let armTakeover = false;
+    let takeoverInjected = false;
+    let replacement: MutationJournal | undefined;
+    let inherited: ReturnType<MutationJournal["reserve"]>;
+    const params = { sessionId: "ses_close_interleave" };
+    const firstStorage: MutationJournalStorage = {
+      get(key) {
+        const value = backing.get(key);
+        if (armTakeover && !takeoverInjected && key.startsWith("entry:")) {
+          takeoverInjected = true;
+          inherited = replacement!.reserve("goals.resume", params);
+        }
+        return value;
+      },
+      set: (key, value) => backing.set(key, value),
+      remove: (key) => backing.remove(key),
+      keys: () => backing.keys(),
+    };
+    vi.resetModules();
+    const firstContext = await import("./mutationJournal");
+    const first = firstContext.createMutationJournal({
+      storage: firstStorage,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+    vi.resetModules();
+    const secondContext = await import("./mutationJournal");
+    replacement = secondContext.createMutationJournal({
+      storage: backing,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+
+    try {
+      const original = first.reserve("goals.resume", params)!;
+      const originalOwner = persistedEntry(backing, original.idempotencyKey).owner;
+      currentTime = 31_001;
+      armTakeover = true;
+
+      first.dispose();
+
+      expect(inherited?.idempotencyKey).toBe(original.idempotencyKey);
+      expect(persistedEntry(backing, original.idempotencyKey)).toMatchObject({
+        idempotencyKey: original.idempotencyKey,
+        claimable: false,
+      });
+      expect(persistedEntry(backing, original.idempotencyKey).owner).not.toBe(originalOwner);
+    } finally {
+      replacement.dispose();
+    }
+  });
+
+  it("does not let a late success delete a successor that takes over after the owner read", async () => {
+    const backing = new MemoryStorage();
+    let currentTime = 1_000;
+    let armTakeover = false;
+    let takeoverInjected = false;
+    let replacement: MutationJournal | undefined;
+    let inherited: ReturnType<MutationJournal["reserve"]>;
+    const params = { sessionId: "ses_settlement_interleave" };
+    const firstStorage: MutationJournalStorage = {
+      get(key) {
+        const value = backing.get(key);
+        if (armTakeover && !takeoverInjected && key.startsWith("entry:")) {
+          takeoverInjected = true;
+          inherited = replacement!.reserve("goals.resume", params);
+        }
+        return value;
+      },
+      set: (key, value) => backing.set(key, value),
+      remove: (key) => backing.remove(key),
+      keys: () => backing.keys(),
+    };
+    vi.resetModules();
+    const firstContext = await import("./mutationJournal");
+    const first = firstContext.createMutationJournal({
+      storage: firstStorage,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+    vi.resetModules();
+    const secondContext = await import("./mutationJournal");
+    replacement = secondContext.createMutationJournal({
+      storage: backing,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+    let settleRetired!: (value: string) => void;
+
+    try {
+      const original = first.reserve("goals.resume", params)!;
+      const retired = original.track(
+        createMutationPromise(
+          () =>
+            new Promise<string>((resolve) => {
+              settleRetired = resolve;
+            }),
+          original.idempotencyKey,
+        ),
+      );
+      await vi.waitFor(() => expect(settleRetired).toBeTypeOf("function"));
+      currentTime = 31_001;
+      armTakeover = true;
+
+      settleRetired("late retired success");
+      await expect(retired).resolves.toBe("late retired success");
+
+      expect(inherited?.idempotencyKey).toBe(original.idempotencyKey);
+      expect(persistedEntry(backing, original.idempotencyKey)).toMatchObject({
+        idempotencyKey: original.idempotencyKey,
+        claimable: false,
+      });
+    } finally {
+      first.dispose();
+      replacement.dispose();
+    }
+  });
+
+  it("keeps a successor settlement fenced against an older renderer's later failure", async () => {
+    const storage = new MemoryStorage();
+    let currentTime = 1_000;
+    vi.resetModules();
+    const firstContext = await import("./mutationJournal");
+    const first = firstContext.createMutationJournal({
+      storage,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+    vi.resetModules();
+    const secondContext = await import("./mutationJournal");
+    const second = secondContext.createMutationJournal({
+      storage,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+    const params = { sessionId: "ses_settled_fence" };
+    const rejectRetired: Array<(error: unknown) => void> = [];
+
+    try {
+      const original = first.reserve("goals.resume", params)!;
+      const retired = original.track(
+        createMutationPromise(
+          () =>
+            new Promise<string>((_resolve, reject) => {
+              rejectRetired.push(reject);
+            }),
+          original.idempotencyKey,
+        ),
+      );
+      await vi.waitFor(() => expect(rejectRetired).toHaveLength(1));
+      currentTime = 31_001;
+      const inherited = second.reserve("goals.resume", params)!;
+
+      await expect(
+        inherited.track(
+          createMutationPromise(
+            () => Promise.resolve("successor settled"),
+            inherited.idempotencyKey,
+          ),
+        ),
+      ).resolves.toBe("successor settled");
+      expect(persistedEntry(storage, inherited.idempotencyKey)).toMatchObject({
+        generation: 1,
+        settled: true,
+        claimable: false,
+      });
+
+      const lostResponse = new RpcTransportError("retired response lost");
+      rejectRetired[0]!(lostResponse);
+      await vi.waitFor(() => expect(rejectRetired).toHaveLength(2));
+      rejectRetired[1]!(lostResponse);
+      await expect(retired).rejects.toBe(lostResponse);
+      first.dispose();
+      expect(persistedEntry(storage, inherited.idempotencyKey)).toMatchObject({
+        generation: 1,
+        settled: true,
+        claimable: false,
+      });
+
+      const fresh = second.reserve("goals.resume", params)!;
+      expect(fresh.idempotencyKey).not.toBe(inherited.idempotencyKey);
     } finally {
       first.dispose();
       second.dispose();

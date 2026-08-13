@@ -1,6 +1,7 @@
 import { mutationSettlementIsUnknown, type MutationPromise } from "./mutation";
 
-const JOURNAL_VERSION = 2;
+const JOURNAL_VERSION = 3;
+const LEGACY_ENTRY_VERSION = 2;
 const LEGACY_JOURNAL_VERSION = 1;
 const OWNER_RECORD_VERSION = 2;
 const LEGACY_OWNER_RECORD_VERSION = 1;
@@ -81,6 +82,9 @@ function activeProcessClaims(storage: MutationJournalStorage): Map<string, strin
 interface JournalEntry {
   version: typeof JOURNAL_VERSION;
   salt: string;
+  generation: number;
+  generationId: string;
+  settled: boolean;
   endpoint: string;
   namespace: string;
   fingerprint: string;
@@ -89,6 +93,11 @@ interface JournalEntry {
   claimable: boolean;
   createdAt: number;
   expiresAt: number;
+}
+
+interface LegacyV2JournalEntry extends LegacyJournalEntry {
+  version: typeof LEGACY_ENTRY_VERSION;
+  salt: string;
 }
 
 interface LegacyJournalEntry {
@@ -151,10 +160,26 @@ function validLegacyEntry(value: unknown): value is LegacyJournalEntry {
   );
 }
 
+function validLegacyV2Entry(value: unknown): value is LegacyV2JournalEntry {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entry = value as Partial<LegacyV2JournalEntry>;
+  return (
+    entry.version === LEGACY_ENTRY_VERSION && validText(entry.salt, 255) && validLegacyEntry(entry)
+  );
+}
+
 function validEntry(value: unknown): value is JournalEntry {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const entry = value as Partial<JournalEntry>;
-  return entry.version === JOURNAL_VERSION && validText(entry.salt, 255) && validLegacyEntry(entry);
+  return (
+    entry.version === JOURNAL_VERSION &&
+    validText(entry.salt, 255) &&
+    Number.isInteger(entry.generation) &&
+    (entry.generation ?? -1) >= 0 &&
+    validText(entry.generationId, 255) &&
+    typeof entry.settled === "boolean" &&
+    validLegacyEntry(entry)
+  );
 }
 
 function validOwnerLeaseBase(value: unknown): value is OwnerLeaseBase {
@@ -184,8 +209,14 @@ function validOwnerLease(value: unknown): value is OwnerLease {
   );
 }
 
-function entryKey(idempotencyKey: string): string {
+function legacyEntryKey(idempotencyKey: string): string {
   return `${ENTRY_PREFIX}${encodeURIComponent(idempotencyKey)}`;
+}
+
+function entryKey(
+  entry: Pick<JournalEntry, "idempotencyKey" | "generation" | "generationId">,
+): string {
+  return `${legacyEntryKey(entry.idempotencyKey)}:${entry.generation}:${encodeURIComponent(entry.generationId)}`;
 }
 
 function legacyOwnerKey(owner: string): string {
@@ -248,16 +279,45 @@ function removeValue(storage: MutationJournalStorage, key: string): void {
   }
 }
 
-function loadEntries(storage: MutationJournalStorage): JournalEntry[] {
+function loadEntryRecords(storage: MutationJournalStorage): JournalEntry[] {
   return readKeys(storage)
     .filter((key) => key.startsWith(ENTRY_PREFIX))
     .map((key) => {
       const value = readValue(storage, key);
-      if (!validEntry(value) || entryKey(value.idempotencyKey) !== key) {
+      if (!validEntry(value) || entryKey(value) !== key) {
         throw journalError(`Runtime mutation journal entry is corrupted: ${key}`);
       }
       return value;
     });
+}
+
+function compareGenerationId(left: string, right: string): number {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+function newerEntry(left: JournalEntry, right: JournalEntry): JournalEntry {
+  if (left.generation !== right.generation) {
+    return left.generation > right.generation ? left : right;
+  }
+  return compareGenerationId(left.generationId, right.generationId) >= 0 ? left : right;
+}
+
+function generationAtMost(candidate: JournalEntry, upperBound: JournalEntry): boolean {
+  return (
+    candidate.generation < upperBound.generation ||
+    (candidate.generation === upperBound.generation &&
+      compareGenerationId(candidate.generationId, upperBound.generationId) <= 0)
+  );
+}
+
+function loadEntries(storage: MutationJournalStorage): JournalEntry[] {
+  const current = new Map<string, JournalEntry>();
+  for (const entry of loadEntryRecords(storage)) {
+    const existing = current.get(entry.idempotencyKey);
+    current.set(entry.idempotencyKey, existing ? newerEntry(existing, entry) : entry);
+  }
+  return [...current.values()];
 }
 
 function loadOwnerLeases(storage: MutationJournalStorage, currentTime: number): OwnerLeaseBase[] {
@@ -294,7 +354,7 @@ function ownerCohort(
 }
 
 function sameMigratedEntry(
-  current: JournalEntry,
+  current: LegacyV2JournalEntry,
   legacy: LegacyJournalEntry,
   salt: string,
 ): boolean {
@@ -327,21 +387,50 @@ function migrateLegacySnapshot(storage: MutationJournalStorage): void {
   }
 
   for (const legacy of snapshot.entries) {
-    const key = entryKey(legacy.idempotencyKey);
+    const key = legacyEntryKey(legacy.idempotencyKey);
     const existing = readValue(storage, key);
     if (existing !== undefined) {
-      if (!validEntry(existing) || !sameMigratedEntry(existing, legacy, snapshot.salt)) {
+      if (!validLegacyV2Entry(existing) || !sameMigratedEntry(existing, legacy, snapshot.salt)) {
         throw journalError(`Legacy Runtime mutation journal conflicts with ${key}`);
       }
       continue;
     }
     persistValue(storage, key, {
-      version: JOURNAL_VERSION,
+      version: LEGACY_ENTRY_VERSION,
       salt: snapshot.salt,
       ...legacy,
-    } satisfies JournalEntry);
+    } satisfies LegacyV2JournalEntry);
   }
   removeValue(storage, LEGACY_KEY);
+}
+
+function migrateLegacyV2Entries(storage: MutationJournalStorage): void {
+  for (const key of readKeys(storage).filter((candidate) => candidate.startsWith(ENTRY_PREFIX))) {
+    const value = readValue(storage, key);
+    if (validEntry(value) && entryKey(value) === key) continue;
+    if (!validLegacyV2Entry(value) || legacyEntryKey(value.idempotencyKey) !== key) {
+      throw journalError(`Runtime mutation journal entry is corrupted: ${key}`);
+    }
+    const migrated: JournalEntry = {
+      ...value,
+      version: JOURNAL_VERSION,
+      generation: 0,
+      generationId: value.salt,
+      settled: false,
+    };
+    const target = entryKey(migrated);
+    const existing = readValue(storage, target);
+    if (
+      existing !== undefined &&
+      (!validEntry(existing) ||
+        entryKey(existing) !== target ||
+        canonicalJSON(existing) !== canonicalJSON(migrated))
+    ) {
+      throw journalError(`Runtime mutation journal migration conflicts with ${target}`);
+    }
+    if (existing === undefined) persistValue(storage, target, migrated);
+    removeValue(storage, key);
+  }
 }
 
 /** Canonical JSON is used only as transient hash input. Request bodies, prompts,
@@ -448,18 +537,19 @@ function trackedMutation<T>(
 /**
  * Retain unresolved mutation identities across Desktop process restarts.
  *
- * Each entry and owner lease is an independent verified record. That prevents
- * one renderer from overwriting another renderer's journal. An owner whose
- * lease may still be alive blocks a same-shaped command in another renderer;
- * after the lease expires, the oldest live renderer claims the original key.
- * The transport is never opened until that durable ownership transition has
- * succeeded.
+ * Each owner lease and mutation generation is an independent verified record.
+ * A takeover appends a higher generation, so a closing or late-settling
+ * renderer can only rewrite its obsolete record. Definitively settled takeover
+ * generations remain as fences until retention expiry. An owner whose lease may
+ * still be alive blocks a same-shaped command in another renderer; after the
+ * lease expires, the oldest live renderer claims the original key. The
+ * transport is never opened until that durable ownership transition succeeds.
  */
 export function createMutationJournal(options: MutationJournalOptions): MutationJournal {
   const now = options.now ?? Date.now;
   const journalInstance = crypto.randomUUID();
   const activeClaims = activeProcessClaims(options.storage);
-  const unconfirmedUnsent = new Set<string>();
+  const unconfirmedUnsent = new Map<string, JournalEntry>();
   const leaseIds = new Set<string>();
   let leaseId: string | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -503,26 +593,52 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
   const prepare = (currentTime: number) => {
     assertOpen();
     migrateLegacySnapshot(options.storage);
+    migrateLegacyV2Entries(options.storage);
     refreshOwner(currentTime);
   };
 
-  const readEntry = (key: string): JournalEntry | undefined => {
-    const value = readValue(options.storage, entryKey(key));
+  const readEntryRecord = (entry: JournalEntry): JournalEntry | undefined => {
+    const key = entryKey(entry);
+    const value = readValue(options.storage, key);
     if (value === undefined) return undefined;
-    if (!validEntry(value) || value.idempotencyKey !== key) {
-      throw journalError(`Runtime mutation journal entry is corrupted: ${entryKey(key)}`);
+    if (!validEntry(value) || entryKey(value) !== key) {
+      throw journalError(`Runtime mutation journal entry is corrupted: ${key}`);
     }
     return value;
   };
 
+  const readEntry = (idempotencyKey: string): JournalEntry | undefined =>
+    loadEntries(options.storage).find((entry) => entry.idempotencyKey === idempotencyKey);
+
+  const sameGeneration = (left: JournalEntry, right: JournalEntry): boolean =>
+    left.idempotencyKey === right.idempotencyKey &&
+    left.generation === right.generation &&
+    left.generationId === right.generationId;
+
   const persistEntry = (entry: JournalEntry) => {
-    persistValue(options.storage, entryKey(entry.idempotencyKey), entry);
+    persistValue(options.storage, entryKey(entry), entry);
   };
 
   const removeEntry = (entry: JournalEntry) => {
-    removeValue(options.storage, entryKey(entry.idempotencyKey));
+    removeValue(options.storage, entryKey(entry));
     activeClaims.delete(entry.idempotencyKey);
     PROCESS_CLAIMABLE.delete(entry.idempotencyKey);
+  };
+
+  const removeIdentityThrough = (upperBound: JournalEntry) => {
+    const claimedBy = activeClaims.get(upperBound.idempotencyKey);
+    for (const entry of loadEntryRecords(options.storage)) {
+      if (
+        entry.idempotencyKey === upperBound.idempotencyKey &&
+        generationAtMost(entry, upperBound)
+      ) {
+        removeValue(options.storage, entryKey(entry));
+      }
+    }
+    if (activeClaims.get(upperBound.idempotencyKey) === claimedBy) {
+      activeClaims.delete(upperBound.idempotencyKey);
+    }
+    PROCESS_CLAIMABLE.delete(upperBound.idempotencyKey);
   };
 
   const lifecycleFor = (reserved: JournalEntry): MutationLifecycle => {
@@ -539,7 +655,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       }
 
       const current = readEntry(reserved.idempotencyKey);
-      if (current && current.owner !== PROCESS_OWNER) {
+      if (current && (!sameGeneration(current, reserved) || current.owner !== PROCESS_OWNER)) {
         activeClaims.delete(reserved.idempotencyKey);
         definitiveOutcome = false;
         return;
@@ -547,7 +663,17 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       if (definitiveOutcome) {
         if (current) {
           try {
-            removeEntry(current);
+            // Generation zero has no predecessor to suppress. A takeover owns
+            // a distinct immutable key, so removing this exact record cannot
+            // delete a successor that appeared after the read. Later
+            // generations retain a settled fence until retention expiry: an
+            // older suspended renderer may still rewrite only its own record.
+            if (current.generation === 0) removeEntry(current);
+            else {
+              persistEntry({ ...current, claimable: false, settled: true });
+              activeClaims.delete(current.idempotencyKey);
+              PROCESS_CLAIMABLE.delete(current.idempotencyKey);
+            }
           } catch (error) {
             PROCESS_CLAIMABLE.add(reserved.idempotencyKey);
             throw error;
@@ -587,11 +713,16 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
           }
           return;
         }
-        if (claimOwner !== journalInstance || current.owner !== PROCESS_OWNER) {
+        if (
+          !sameGeneration(current, reserved) ||
+          claimOwner !== journalInstance ||
+          current.owner !== PROCESS_OWNER
+        ) {
           throw new MutationJournalOwnershipError(
             "Runtime mutation identity is owned by a successor Desktop client",
           );
         }
+        if (current.settled) return;
         if (current.expiresAt <= currentTime) {
           throw new MutationJournalError("Runtime mutation identity expired before retry");
         }
@@ -625,9 +756,21 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
             entry.namespace === scope.namespace &&
             entry.createdAt + retentionMs <= currentTime);
         const replacedStore = entry.endpoint === endpoint && entry.namespace !== scope.namespace;
-        if (expired || replacedStore) removeEntry(entry);
+        if (expired || replacedStore) removeIdentityThrough(entry);
       }
-      entries = loadEntries(options.storage);
+      const currentEntries = loadEntries(options.storage);
+      const settledPreferred =
+        preferredKey === undefined
+          ? undefined
+          : currentEntries.find(
+              (candidate) => candidate.idempotencyKey === preferredKey && candidate.settled,
+            );
+      if (settledPreferred) {
+        throw new MutationJournalOwnershipError(
+          "Runtime mutation identity candidate already has a definitive settlement",
+        );
+      }
+      entries = currentEntries.filter((entry) => !entry.settled);
 
       const owners = ownerCohort(options.storage, currentTime);
       const canonical = `${method}\u0000${canonicalJSON(params)}`;
@@ -698,9 +841,21 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         }
       }
 
-      let createdFresh = false;
+      let createdGeneration = false;
       if (entry) {
-        entry = { ...entry, owner: PROCESS_OWNER, claimable: false };
+        if (entry.owner === PROCESS_OWNER) {
+          entry = { ...entry, claimable: false };
+        } else {
+          entry = {
+            ...entry,
+            generation: entry.generation + 1,
+            generationId: crypto.randomUUID(),
+            owner: PROCESS_OWNER,
+            claimable: false,
+            settled: false,
+          };
+          createdGeneration = true;
+        }
       } else {
         if (entries.length >= MAX_ENTRIES) {
           throw new MutationJournalCapacityError("Runtime mutation journal capacity is exhausted");
@@ -709,6 +864,9 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         entry = {
           version: JOURNAL_VERSION,
           salt,
+          generation: 0,
+          generationId: crypto.randomUUID(),
+          settled: false,
           endpoint,
           namespace: scope.namespace,
           fingerprint: fingerprint(`${salt}\u0000${canonical}`),
@@ -718,7 +876,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
           createdAt: currentTime,
           expiresAt: currentTime + retentionMs,
         };
-        createdFresh = true;
+        createdGeneration = true;
       }
       try {
         persistEntry(entry);
@@ -726,7 +884,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         // No reservation was returned, so this newly-created command cannot
         // have reached the transport. Remember it only to preserve its exact
         // key for retry and to remove a write-that-landed during disposal.
-        if (createdFresh) unconfirmedUnsent.add(entry.idempotencyKey);
+        if (createdGeneration) unconfirmedUnsent.set(entry.idempotencyKey, entry);
         throw error;
       }
       unconfirmedUnsent.delete(entry.idempotencyKey);
@@ -745,9 +903,11 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       if (heartbeat !== undefined) clearInterval(heartbeat);
       heartbeat = undefined;
       let failure: unknown;
-      for (const idempotencyKey of unconfirmedUnsent) {
+      for (const [idempotencyKey, entry] of unconfirmedUnsent) {
         try {
-          removeValue(options.storage, entryKey(idempotencyKey));
+          const current = readEntryRecord(entry);
+          if (current && sameGeneration(current, entry))
+            removeValue(options.storage, entryKey(entry));
           unconfirmedUnsent.delete(idempotencyKey);
           PROCESS_CLAIMABLE.delete(idempotencyKey);
         } catch (error) {
@@ -758,7 +918,12 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         if (owner !== journalInstance) continue;
         try {
           const current = readEntry(idempotencyKey);
-          if (current?.owner === PROCESS_OWNER && !current.claimable) {
+          if (
+            current?.owner === PROCESS_OWNER &&
+            activeClaims.get(idempotencyKey) === journalInstance &&
+            !current.claimable &&
+            !current.settled
+          ) {
             persistEntry({ ...current, claimable: true });
           }
           PROCESS_CLAIMABLE.delete(idempotencyKey);
