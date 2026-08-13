@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { createLyraClient } from "@/rpc";
+import { createLyraClient, RpcTransportError } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
 import { createHost } from "@/plugins/sdk/host";
@@ -12,6 +12,18 @@ import { contributeRuntimePendingWork } from "./runtimePendingWorkProvider";
 
 let disposables: Disposable[] = [];
 let clients: Array<ReturnType<typeof createLyraClient>> = [];
+
+async function waitForInterruptRequest(
+  transport: ReturnType<typeof createMemoryTransport>,
+  index: number,
+) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const request = transport.outbox().filter(({ method }) => method === "interrupts.list")[index];
+    if (request) return request;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`timeout waiting for interrupts.list request ${index + 1}`);
+}
 
 beforeEach(() => {
   usePluginStore.getState().resetForTest();
@@ -79,5 +91,50 @@ describe("Agent-owned Runtime pending-work provider", () => {
         waitingSince: "2026-08-12T08:00:00.000Z",
       },
     ]);
+  });
+
+  it("cancels a pending continuation page with the query generation", async () => {
+    const transport = createMemoryTransport();
+    const client = createLyraClient(transport);
+    clients.push(client);
+    setContainer({ client: () => client });
+    contributeRuntimePendingWork(createHost("agent-provider-cancellation-test", disposables));
+
+    const fetcher = lookupDataProvider<PendingWorkItem[]>(PENDING_WORK_KEY);
+    expect(fetcher).toBeDefined();
+    const controller = new AbortController();
+    const pending = fetcher!(undefined, controller.signal);
+    const first = await waitForRequest(transport, "interrupts.list");
+    respondSuccess(transport, first.id, { data: [], nextCursor: "cursor_2" });
+    const second = await waitForInterruptRequest(transport, 1);
+    expect(second.params).toEqual({ cursor: "cursor_2" });
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let settleTimeout!: (value: "pending") => void;
+    const timeoutPromise = new Promise<"pending">((resolve) => {
+      settleTimeout = resolve;
+      timeout = setTimeout(() => resolve("pending"), 50);
+    });
+    const settlement = Promise.race([
+      pending.then(
+        () => "resolved" as const,
+        (error: unknown) => (error instanceof RpcTransportError ? "aborted" : "rejected"),
+      ),
+      timeoutPromise,
+    ]);
+    controller.abort();
+    const outcome = await settlement;
+    if (timeout) {
+      clearTimeout(timeout);
+      settleTimeout("pending");
+      await timeoutPromise;
+    }
+    if (outcome === "pending") {
+      respondSuccess(transport, second.id, { data: [] });
+      await pending;
+    }
+
+    expect(outcome).toBe("aborted");
+    expect(transport.outbox()).toHaveLength(2);
   });
 });

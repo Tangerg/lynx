@@ -9,9 +9,9 @@ import { runtimePendingInterruptSet } from "./runtimeAgentFacts";
 export function contributeRuntimePendingWork(host: ContributingHost): void {
   host.extensions.contribute(DATA_PROVIDER, {
     key: PENDING_WORK_KEY,
-    fetcher: async () =>
+    fetcher: async (_params, signal) =>
       pendingWorkItems(
-        (await getContainer().client().interrupts.list().autoPagingToArray()).map(
+        (await getContainer().client().interrupts.list(undefined, signal).autoPagingToArray()).map(
           runtimePendingInterruptSet,
         ),
       ),
