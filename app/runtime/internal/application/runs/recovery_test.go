@@ -215,6 +215,91 @@ func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 	}
 }
 
+func TestRecoveryDoesNotMoveDurableTimeBackwardWhenTheClockRegresses(t *testing.T) {
+	base := time.Date(2026, 8, 1, 1, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		updatedAt time.Time
+		itemAt    time.Time
+		modelAt   time.Time
+		toolAt    time.Time
+		want      time.Time
+	}{
+		{name: "Run update", updatedAt: base.Add(2 * time.Minute), want: base.Add(2 * time.Minute)},
+		{name: "Transcript Item", itemAt: base.Add(3 * time.Minute), want: base.Add(3 * time.Minute)},
+		{name: "model attempt", modelAt: base.Add(4 * time.Minute), want: base.Add(4 * time.Minute)},
+		{name: "Tool attempt", toolAt: base.Add(5 * time.Minute), want: base.Add(5 * time.Minute)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			updatedAt := test.updatedAt
+			if updatedAt.IsZero() {
+				updatedAt = base
+			}
+			active := runfixture.MustRestore(rundomain.Snapshot{
+				ID: "run", SessionID: "session", State: rundomain.Running,
+				ActiveSegmentID: "segment", CreatedAt: base, UpdatedAt: updatedAt,
+				MessageMark: rundomain.UnknownMessageMark,
+			})
+			store := &recoveryStoreStub{
+				runs:         []rundomain.Run{active},
+				transcripts:  map[string][]transcript.Item{},
+				messageMarks: map[string]int{"session": 0},
+			}
+			if !test.itemAt.IsZero() {
+				store.transcripts["session"] = []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
+					ID: "item", SessionID: "session", RunID: active.ID(),
+					Kind: transcript.ToolCall, Status: transcript.ItemRunning,
+					OccurredAt: test.itemAt,
+					Tool:       &transcript.ToolInvocation{Name: "shell"},
+				})}
+			}
+			if !test.modelAt.IsZero() {
+				store.models = []OpenModelInvocation{{
+					SessionID: "session", RunID: active.ID(), SegmentID: "segment",
+					CallID: "model", StartedAt: test.modelAt,
+				}}
+			}
+			if !test.toolAt.IsZero() {
+				store.tools = []OpenToolInvocation{{
+					SessionID: "session", RunID: active.ID(), SegmentID: "segment",
+					CallID: "tool", ItemID: "tool_item", StartedAt: test.toolAt,
+				}}
+			}
+
+			recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(
+				func(context.Context, WaitingContinuation) (bool, error) { return false, nil },
+			))
+			if err != nil {
+				t.Fatalf("NewRecovery: %v", err)
+			}
+			recovery.now = func() time.Time { return base.Add(-time.Minute) }
+
+			if _, err := recovery.Reconcile(t.Context()); err != nil {
+				t.Fatalf("Reconcile with regressed clock: %v", err)
+			}
+			if got := store.commit.LostRuns[0].FinishedAt(); !got.Equal(test.want) {
+				t.Fatalf("lost Run finish = %v, want durable high watermark %v", got, test.want)
+			}
+			for _, invocation := range store.commit.ModelInvocations {
+				if !invocation.FinishedAt.Equal(test.want) {
+					t.Fatalf("model finish = %v, want %v", invocation.FinishedAt, test.want)
+				}
+			}
+			for _, invocation := range store.commit.ToolInvocations {
+				if !invocation.FinishedAt.Equal(test.want) {
+					t.Fatalf("Tool finish = %v, want %v", invocation.FinishedAt, test.want)
+				}
+			}
+			for _, replacement := range store.commit.ItemReplacements {
+				if !replacement.Replacement.FinishedAt().Equal(test.want) {
+					t.Fatalf("Item finish = %v, want %v", replacement.Replacement.FinishedAt(), test.want)
+				}
+			}
+		})
+	}
+}
+
 func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 	createdAt := time.Date(2026, 8, 1, 1, 30, 0, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)

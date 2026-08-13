@@ -582,6 +582,19 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 		// would teach the client a lie about the run.
 		return liveSegment{}, fmt.Errorf("runs: run %q is running segment %q with no live stream", runID, segmentID)
 	}
+	if live.record.SegmentID != segmentID {
+		// The durable read and process-local lookup straddled a park/resume
+		// boundary. Never retarget an old subscription or steer to the replacement
+		// Segment: the caller did not name it and may not have observed its HITL
+		// continuation yet.
+		return liveSegment{}, fmt.Errorf(
+			"%w: run %q replaced segment %q with %q while it was addressed",
+			ErrStaleSegment,
+			runID,
+			segmentID,
+			live.record.SegmentID,
+		)
+	}
 	return live, nil
 }
 

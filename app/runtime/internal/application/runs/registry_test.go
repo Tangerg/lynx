@@ -19,12 +19,31 @@ func TestRegistryRemovesCompletedRun(t *testing.T) {
 		t.Fatalf("entry = %+v, ok=%v", e, ok)
 	}
 
-	closed, ok := r.Remove("run_1")
+	closed, ok := r.RemoveSegment("run_1", "")
 	if !ok || closed.owner != owner {
 		t.Fatalf("removed entry = %+v, ok=%v", closed, ok)
 	}
 	if _, ok := r.Get("run_1"); ok {
 		t.Fatal("removed run remains live")
+	}
+}
+
+func TestRegistryOldSegmentCannotRemoveItsReplacement(t *testing.T) {
+	var registry registry
+	oldOwner := &runTreeOwner{}
+	newOwner := &runTreeOwner{}
+	registry.Open(Record{ID: "run_1", SegmentID: "segment_old"}, oldOwner)
+	registry.Open(Record{ID: "run_1", SegmentID: "segment_new"}, newOwner)
+
+	if removed, ok := registry.RemoveSegment("run_1", "segment_old"); ok {
+		t.Fatalf("old Segment removed replacement: %+v", removed)
+	}
+	live, ok := registry.Get("run_1")
+	if !ok || live.record.SegmentID != "segment_new" || live.owner != newOwner {
+		t.Fatalf("replacement after old removal = %+v, found=%t", live, ok)
+	}
+	if removed, ok := registry.RemoveSegment("run_1", "segment_new"); !ok || removed.owner != newOwner {
+		t.Fatalf("exact replacement removal = %+v, found=%t", removed, ok)
 	}
 }
 

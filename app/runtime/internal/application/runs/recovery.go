@@ -207,8 +207,6 @@ func newRecoveryPlanner(ctx context.Context, recovery *Recovery) (*recoveryPlann
 	if err != nil {
 		return nil, fmt.Errorf("runs: load open Tool invocations for recovery: %w", err)
 	}
-	finishedAt := recovery.now().UTC()
-
 	pendingByRun := make(map[string]Pending, len(pending))
 	checkpointOwners := make(map[string]string, len(pending))
 	for _, open := range pending {
@@ -246,22 +244,53 @@ func newRecoveryPlanner(ctx context.Context, recovery *Recovery) (*recoveryPlann
 		sessions:      make(map[string]session.Session),
 		conversations: make(map[string]recoveryConversationSnapshot),
 		preserved:     make(map[string]struct{}, len(trees)),
-		finishedAt:    finishedAt,
+		finishedAt:    recovery.now().UTC(),
+	}
+	// Recovery is a new durable observation in the same timelines as every
+	// fact it closes. Wall time can move backward across a reboot, so derive the
+	// observation timestamp from the complete boot snapshot instead of allowing
+	// a regressed clock to make otherwise-recoverable state permanently invalid.
+	for _, active := range active {
+		planner.observeTime(active.UpdatedAt())
+	}
+	for _, open := range pending {
+		planner.observeTime(open.CreatedAt)
+	}
+	for _, invocation := range modelInvocations {
+		planner.observeTime(invocation.StartedAt)
+	}
+	for _, invocation := range toolInvocations {
+		planner.observeTime(invocation.StartedAt)
+	}
+	// Every active tree's Transcript is required by planTree anyway. Preload it
+	// before constructing any terminal facts so a later Item in one tree cannot
+	// advance the shared recovery timestamp after another tree was planned.
+	for _, tree := range trees {
+		if _, err := planner.transcript(tree.root.SessionID()); err != nil {
+			return nil, err
+		}
 	}
 	for _, invocation := range modelInvocations {
 		planner.commit.ModelInvocations = append(planner.commit.ModelInvocations, ModelInvocationRecovery{
 			SessionID: invocation.SessionID, RunID: invocation.RunID, SegmentID: invocation.SegmentID,
-			CallID: invocation.CallID, StartedAt: invocation.StartedAt, FinishedAt: finishedAt,
+			CallID: invocation.CallID, StartedAt: invocation.StartedAt, FinishedAt: planner.finishedAt,
 		})
 	}
 	for _, invocation := range toolInvocations {
 		planner.commit.ToolInvocations = append(planner.commit.ToolInvocations, ToolInvocationRecovery{
 			SessionID: invocation.SessionID, RunID: invocation.RunID, SegmentID: invocation.SegmentID,
 			CallID: invocation.CallID, ItemID: invocation.ItemID,
-			StartedAt: invocation.StartedAt, FinishedAt: finishedAt,
+			StartedAt: invocation.StartedAt, FinishedAt: planner.finishedAt,
 		})
 	}
 	return planner, nil
+}
+
+func (planner *recoveryPlanner) observeTime(value time.Time) {
+	value = value.UTC()
+	if value.After(planner.finishedAt) {
+		planner.finishedAt = value
+	}
 }
 
 func (planner *recoveryPlanner) plan() (RecoveryCommit, int, error) {
@@ -404,6 +433,10 @@ func (planner *recoveryPlanner) transcript(sessionID string) ([]transcript.Item,
 	items, err := planner.store.ListTranscript(planner.ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("runs: load recovery transcript for Session %q: %w", sessionID, err)
+	}
+	for _, item := range items {
+		planner.observeTime(item.OccurredAt())
+		planner.observeTime(item.FinishedAt())
 	}
 	planner.transcripts[sessionID] = items
 	return items, nil

@@ -18,6 +18,20 @@ type fakeRunProjection struct {
 	err  error
 }
 
+type racingRunProjection struct {
+	value        run.Run
+	beforeReturn func()
+}
+
+func (projection *racingRunProjection) Run(context.Context, string) (run.Run, bool, error) {
+	if projection.beforeReturn != nil {
+		projection.beforeReturn()
+	}
+	return projection.value, true, nil
+}
+
+func (*racingRunProjection) Tree(context.Context, string) ([]run.Run, error) { return nil, nil }
+
 func (f *fakeRunProjection) Run(_ context.Context, runID string) (run.Run, bool, error) {
 	if f.err != nil {
 		return run.Run{}, false, f.err
@@ -129,6 +143,40 @@ func TestSubscribeReportsAnUnknownRunAsNotFound(t *testing.T) {
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: "run_missing", SegmentID: testSegmentID})
 	if !errors.Is(err, ErrRunNotFound) {
 		t.Fatalf("Subscribe err = %v, want ErrRunNotFound", err)
+	}
+}
+
+func TestSubscribeDoesNotRetargetAnOldSegmentToARacingResume(t *testing.T) {
+	projection := &racingRunProjection{value: runRecord(run.Running, "segment_old", "")}
+	coordinator := NewCoordinator(Dependencies{Runs: projection})
+	oldHub := newJournal(streamScope{
+		Epoch: coordinator.epoch, RunID: testRunID, SegmentID: "segment_old",
+	}, coordinator.retention)
+	newHub := newJournal(streamScope{
+		Epoch: coordinator.epoch, RunID: testRunID, SegmentID: "segment_new",
+	}, coordinator.retention)
+	coordinator.registry.Open(
+		Record{ID: testRunID, SegmentID: "segment_old", SessionID: "ses_1", ExecutorID: "executor_old"},
+		&runTreeOwner{hub: oldHub},
+	)
+	projection.beforeReturn = func() {
+		coordinator.registry.Open(
+			Record{ID: testRunID, SegmentID: "segment_new", SessionID: "ses_1", ExecutorID: "executor_new"},
+			&runTreeOwner{hub: newHub},
+		)
+	}
+
+	_, err := coordinator.Subscribe(t.Context(), SubscribeRequest{
+		RunID: testRunID, SegmentID: "segment_old",
+	})
+	if !errors.Is(err, ErrStaleSegment) {
+		t.Fatalf("Subscribe across racing resume = %v, want ErrStaleSegment", err)
+	}
+	newHub.mu.Lock()
+	newSubscribers := len(newHub.subs)
+	newHub.mu.Unlock()
+	if newSubscribers != 0 {
+		t.Fatalf("old subscribe attached to replacement Segment: subscribers=%d", newSubscribers)
 	}
 }
 

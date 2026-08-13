@@ -646,7 +646,7 @@ func (p *segmentPump) finishBoundary() {
 	// Closing the journal is the externally observable completion boundary. The
 	// synchronous maintenance fence and admission claim must be gone first.
 	p.owner.hub.close()
-	p.coordinator.registry.Remove(p.spec.RunID)
+	p.coordinator.registry.RemoveSegment(p.spec.RunID, p.spec.SegmentID)
 }
 
 func engineEventEndsSegment(event ExecutionFact) bool {

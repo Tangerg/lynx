@@ -49,14 +49,18 @@ func (r *registry) Open(record Record, owner *runTreeOwner) {
 	r.mu.Unlock()
 }
 
-// Remove drops one completed segment and returns its former live state.
-func (r *registry) Remove(id string) (segment liveSegment, ok bool) {
+// RemoveSegment drops one exact completed segment and returns its former live
+// state. A Run can resume onto a replacement Segment as soon as terminal
+// maintenance releases admission; an older pump must never delete that newer
+// registry entry merely because both Segments share the same Run ID.
+func (r *registry) RemoveSegment(id, segmentID string) (segment liveSegment, ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	segment, ok = r.runs[id]
-	if ok {
-		delete(r.runs, id)
+	if !ok || segment.record.SegmentID != segmentID {
+		return liveSegment{}, false
 	}
+	delete(r.runs, id)
 	return segment, ok
 }
 
