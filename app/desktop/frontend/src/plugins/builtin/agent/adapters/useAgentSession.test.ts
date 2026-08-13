@@ -1011,6 +1011,92 @@ describe("useAgentSession durable recovery", () => {
     expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)).toBeNull();
   });
 
+  it("replaces a non-cooperative exact Run read after the live stream finishes", async () => {
+    let restarted = false;
+    let resolveExactRead!: (run: RunRef) => void;
+    const exactRead = new Promise<RunRef>((resolve) => {
+      resolveExactRead = resolve;
+    });
+    const get = vi.fn(() => exactRead);
+    const subscribe = vi.fn(() =>
+      Promise.resolve({
+        result: { runId: "run_exact_read", segmentId: "seg_exact_read" },
+        events: (async function* () {
+          yield {
+            eventId: "evt_exact_terminal",
+            runId: "run_exact_read",
+            segmentId: "seg_exact_read",
+            timestamp: "2026-08-13T00:00:01.000Z",
+            event: {
+              type: "segment.finished",
+              outcome: { type: "completed" },
+              metrics: { steps: 1, activeDurationMillis: 1 },
+            },
+          } as RunEvent;
+        })(),
+      }),
+    );
+    const runs = vi.fn(() =>
+      autoPage(
+        restarted
+          ? []
+          : [
+              runRef({
+                id: "run_exact_read",
+                sessionId: RID,
+                status: "running",
+                activeSegmentId: "seg_exact_read",
+              }),
+            ],
+      ),
+    );
+    const plan = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        type: "plan",
+        sessionId: RID,
+        revision: restarted ? 2 : 1,
+        plan: [],
+      }),
+    );
+    setContainer({
+      client: () =>
+        ({
+          items: { list: vi.fn(() => autoPage([])) },
+          runs: { get, list: runs, subscribe },
+          interrupts: { list: vi.fn(() => autoPage([])) },
+          plan: { get: plan },
+        }) as unknown as LyraClient,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() => expect(get).toHaveBeenCalledOnce());
+    restarted = true;
+    await expect(
+      useAgentStore.getState().sessions[RID]!.synchronize!("replace-live"),
+    ).resolves.toBe(true);
+
+    const view = useAgentStore.getState().sessions[RID]!.view;
+    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(selectCurrentRootRun(view)).toBeNull();
+    expect(JSON.stringify(view)).not.toContain("run_exact_read");
+
+    resolveExactRead(
+      runRef({
+        id: "run_exact_read",
+        sessionId: RID,
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "completed" },
+        finishedAt: "2026-08-13T00:00:01.000Z",
+      }),
+    );
+    await Promise.resolve();
+    expect(JSON.stringify(useAgentStore.getState().sessions[RID]!.view)).not.toContain(
+      "run_exact_read",
+    );
+  });
+
   it("treats a run that finishes between snapshot and subscribe as synchronized", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const subscribe = vi.fn().mockRejectedValue(

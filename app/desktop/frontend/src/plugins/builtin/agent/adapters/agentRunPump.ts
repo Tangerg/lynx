@@ -126,7 +126,8 @@ export function createAgentRunPump({
           let snapshot: RunRef | undefined;
           if (readRunSnapshot && !isCancelled() && !signal.aborted) {
             try {
-              snapshot = await readRunSnapshot(runId, signal);
+              const read = await settleBeforeAbort(readRunSnapshot(runId, signal), signal);
+              if (read !== ABORTED) snapshot = read;
             } catch (error) {
               if (!isCancelled() && !signal.aborted && !(error instanceof RpcConnectionError)) {
                 console.warn("[agent] exact run read failed:", sessionId, runId, error);
@@ -138,7 +139,7 @@ export function createAgentRunPump({
           // Its stream owns the projection now, so the older RunRef cannot be
           // folded and the older finally cannot publish an idle boundary.
           if (currentPumpSequence === pumpSequence) {
-            if (snapshot) applyRunSnapshot?.(snapshot);
+            if (snapshot && !isCancelled() && !signal.aborted) applyRunSnapshot?.(snapshot);
             currentRunId = null;
             currentSegmentId = null;
             onIdle?.();

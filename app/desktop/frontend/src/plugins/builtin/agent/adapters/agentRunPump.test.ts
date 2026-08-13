@@ -218,6 +218,39 @@ describe("agent run pump reattach", () => {
     await newer;
   });
 
+  it("releases live ownership and ignores a late exact read after abort", async () => {
+    const exactRead = deferred<RunRef>();
+    const applyRunSnapshot = vi.fn();
+    const onIdle = vi.fn();
+    const readRunSnapshot = vi.fn(() => exactRead.promise);
+    const pump = createAgentRunPump({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      readEpoch: () => 0,
+      applyEvents: vi.fn(),
+      readRunSnapshot,
+      applyRunSnapshot,
+      onIdle,
+    });
+    const controller = new AbortController();
+    const running = pump.pump(
+      streamOf([frame("evt_terminal_before_abort", finished)]),
+      controller.signal,
+    );
+    await vi.waitFor(() => expect(readRunSnapshot).toHaveBeenCalledOnce());
+
+    controller.abort();
+    await running;
+
+    expect(pump.isActive()).toBe(false);
+    expect(onIdle).toHaveBeenCalledOnce();
+    expect(applyRunSnapshot).not.toHaveBeenCalled();
+
+    exactRead.resolve(terminalRun());
+    await Promise.resolve();
+    expect(applyRunSnapshot).not.toHaveBeenCalled();
+  });
+
   it("keeps its own cursor across a replaying reattach", async () => {
     // The ack of a reattach reports the head as of that attach, which is AHEAD of the
     // cursor being replayed from. Adopting it would skip the replay.
