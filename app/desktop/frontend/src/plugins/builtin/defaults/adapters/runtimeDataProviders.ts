@@ -93,8 +93,10 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
 
   contribute({
     key: AGENT_SESSIONS_KEY,
-    fetcher: async () =>
-      (await client().sessions.list().autoPagingToArray()).map(toAgentSessionSummary),
+    fetcher: async (_params, signal) =>
+      (await client().sessions.list(undefined, signal).autoPagingToArray()).map(
+        toAgentSessionSummary,
+      ),
   });
   contribute({
     key: WORKSPACE_PROJECTS_KEY,

@@ -533,13 +533,16 @@ describe("methods factory", () => {
 
   it("sessions.list sends sessions.list with optional query and returns a Page", async () => {
     const t = createMemoryTransport();
+    const send = vi.spyOn(t, "send");
     const client = createRpcClient(t);
     const methods = createMethods(client);
+    const signal = new AbortController().signal;
 
-    const promise = methods.sessions.list({ limit: 10 });
+    const promise = methods.sessions.list({ limit: 10 }, signal);
     const req = await waitForRequest(t, "sessions.list");
     expect(req.method).toBe("sessions.list");
     expect(req.params).toEqual({ limit: 10 });
+    expect(send.mock.calls[0]?.[1]).toBe(signal);
 
     t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { data: [] } } as RpcMessage);
     await expect(promise).resolves.toEqual({ data: [] });

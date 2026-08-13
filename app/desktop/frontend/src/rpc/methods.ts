@@ -241,7 +241,7 @@ export interface Methods {
     discover: (signal?: AbortSignal) => Promise<DiscoverResponse>;
   };
   sessions: {
-    list: (query?: PageQuery) => AutoPagingPromise<Page<Session>>;
+    list: (query?: PageQuery, signal?: AbortSignal) => AutoPagingPromise<Page<Session>>;
     get: (sessionId: SessionId, signal?: AbortSignal) => Promise<Session>;
     create: (params?: CreateSessionRequest, signal?: AbortSignal) => MutationPromise<Session>;
     update: (params: UpdateSessionRequest) => MutationPromise<Session>;
@@ -676,7 +676,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       discover: (signal) => call("runtime.discover", {}, { signal }),
     },
     sessions: {
-      list: (query) => call("sessions.list", query ?? {}),
+      list: (query, signal) => call("sessions.list", query ?? {}, { signal }),
       get: (sessionId, signal) => call("sessions.get", { sessionId }, { signal }),
       create: (params, signal) => call("sessions.create", params ?? {}, { signal }),
       update: (params) => call("sessions.update", params),
