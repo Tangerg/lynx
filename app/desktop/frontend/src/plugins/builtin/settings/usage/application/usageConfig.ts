@@ -27,7 +27,7 @@ export function usageTokens(bucket: { inputTokens?: number; outputTokens?: numbe
 export function useUsageReport(sinceDays: number) {
   return useQuery({
     queryKey: [USAGE_SUMMARY_KEY, sinceDays],
-    queryFn: () => usageGateway().loadSummary(sinceDays),
+    queryFn: ({ signal }) => usageGateway().loadSummary(sinceDays, signal),
     placeholderData: keepPreviousData,
   });
 }

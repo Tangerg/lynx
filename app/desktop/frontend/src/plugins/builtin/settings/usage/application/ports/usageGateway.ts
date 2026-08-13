@@ -23,7 +23,7 @@ export interface UsageSummaryReadModel {
 }
 
 export interface UsageGateway {
-  loadSummary(sinceDays: number): Promise<UsageSummaryReadModel>;
+  loadSummary(sinceDays: number, signal?: AbortSignal): Promise<UsageSummaryReadModel>;
 }
 
 const port = createSingletonPort<UsageGateway>("Usage gateway is not configured");

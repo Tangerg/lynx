@@ -402,8 +402,8 @@ export interface Methods {
   };
   // Read-only spend reporting aggregated from the durable run history (§7.7).
   usage: {
-    session: (sessionId: SessionId) => Promise<Usage>;
-    summary: (params?: UsageSummaryRequest) => Promise<UsageSummary>;
+    session: (sessionId: SessionId, signal?: AbortSignal) => Promise<Usage>;
+    summary: (params?: UsageSummaryRequest, signal?: AbortSignal) => Promise<UsageSummary>;
   };
   // agentMemory.* (§7.7, capability-gated): the HITL review surface over the
   // agent's self-maintained memory — list active + pending items (pending
@@ -826,8 +826,8 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       invoke: (params) => call("tools.invoke", params),
     },
     usage: {
-      session: (sessionId) => call("usage.session", { sessionId }),
-      summary: (params) => call("usage.summary", params ?? {}),
+      session: (sessionId, signal) => call("usage.session", { sessionId }, { signal }),
+      summary: (params, signal) => call("usage.summary", params ?? {}, { signal }),
     },
     agentMemory: {
       list: (params) => call("agentMemory.list", params ?? {}),

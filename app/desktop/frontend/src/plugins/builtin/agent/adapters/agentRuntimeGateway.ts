@@ -79,8 +79,8 @@ const gateway: AgentRuntimeGateway = {
       throw error;
     }
   },
-  loadSessionUsage(sessionId) {
-    return getContainer().client().usage.session(asSessionId(sessionId));
+  loadSessionUsage(sessionId, signal) {
+    return getContainer().client().usage.session(asSessionId(sessionId), signal);
   },
   async rollbackSession(input) {
     const response = await getContainer()

@@ -45,7 +45,7 @@ export interface AgentRuntimeGateway {
     sessionId: string,
     signal?: AbortSignal,
   ): Promise<AgentSessionSnapshot | null>;
-  loadSessionUsage(sessionId: string): Promise<AgentSessionUsage>;
+  loadSessionUsage(sessionId: string, signal?: AbortSignal): Promise<AgentSessionUsage>;
   rollbackSession(input: {
     sessionId: string;
     toRunId?: string;
