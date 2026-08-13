@@ -8,18 +8,24 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 type steerRuntimeStub struct {
-	requests []agent.SteerRun
-	err      error
+	requests     []agent.SteerRun
+	err          error
+	afterRequest func()
 }
 
 func (runtime *steerRuntimeStub) SteerRun(_ context.Context, request agent.SteerRun) error {
 	runtime.requests = append(runtime.requests, request.Clone())
-	return runtime.err
+	err := runtime.err
+	if runtime.afterRequest != nil {
+		runtime.afterRequest()
+	}
+	return err
 }
 
 func TestRecoverReplaysAndAcknowledgesTheExactDurableSteer(t *testing.T) {
@@ -79,14 +85,34 @@ func TestRecoverRefusesToGuessAtOrAfterTheReplayDeadline(t *testing.T) {
 }
 
 func TestDeliverPreservesACommandRejectedByAnotherRuntimeStore(t *testing.T) {
-	_, pending, _ := stagedSteer(t)
+	_, pending, window := stagedSteer(t)
 	runtime := &steerRuntimeStub{err: agent.ErrCommandStoreMismatch}
-	result, err := Deliver(t.Context(), runtime, pending, retry.Backoff{})
+	window.Now = func() time.Time { return pending.StagedAt.Add(time.Minute) }
+	result, err := Deliver(t.Context(), runtime, pending, window, retry.Backoff{})
 	if !errors.Is(err, agent.ErrCommandStoreMismatch) || result.Outcome != Unknown {
 		t.Fatalf("store mismatch settlement = outcome %v, error %v", result.Outcome, err)
 	}
 	if len(runtime.requests) != 1 {
 		t.Fatalf("store mismatch attempts = %+v", runtime.requests)
+	}
+}
+
+func TestRecoverStopsRetryingWhenTheReplayGuaranteeExpires(t *testing.T) {
+	store, pending, window := stagedSteer(t)
+	now := pending.ReplayUntil.Add(-time.Nanosecond)
+	window.Now = func() time.Time { return now }
+	runtime := new(steerRuntimeStub)
+	runtime.err = agent.ErrDisconnected
+	runtime.afterRequest = func() {
+		now = pending.ReplayUntil
+		runtime.err = nil
+	}
+	err := Recover(t.Context(), runtime, store, window, retry.Backoff{})
+	if !errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
+		t.Fatalf("recovery error = %v", err)
+	}
+	if len(runtime.requests) != 1 {
+		t.Fatalf("expired command reached runtime %d times", len(runtime.requests))
 	}
 }
 

@@ -91,6 +91,7 @@ func Deliver(
 	ctx context.Context,
 	runtime runtime,
 	pending workbench.PendingSteer,
+	window ReplayWindow,
 	backoff retry.Backoff,
 ) (Result, error) {
 	result := Result{Pending: pending}
@@ -100,7 +101,17 @@ func Deliver(
 	if err := pending.Validate(); err != nil {
 		return result, err
 	}
-	_, err := mutation.Confirm(ctx, backoff, func(ctx context.Context) (struct{}, error) {
+	var admit mutation.Admission
+	if pending.ReplayNamespace != "" || !pending.ReplayUntil.IsZero() ||
+		window.Namespace != "" || window.Retention != 0 {
+		admit = func() error {
+			if !replaySafe(pending, window) {
+				return mutation.ErrReplayGuaranteeUnavailable
+			}
+			return nil
+		}
+	}
+	_, err := mutation.ConfirmAdmitted(ctx, backoff, admit, func(ctx context.Context) (struct{}, error) {
 		return struct{}{}, runtime.SteerRun(ctx, pending.Command)
 	})
 	if err == nil {
@@ -135,7 +146,7 @@ func Recover(
 				pending.SessionID,
 			)
 		}
-		result, err := Deliver(ctx, runtime, pending, backoff)
+		result, err := Deliver(ctx, runtime, pending, window, backoff)
 		switch result.Outcome {
 		case Confirmed:
 			if acknowledgeErr := authoring.AcknowledgePendingSteer(

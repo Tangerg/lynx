@@ -229,9 +229,23 @@ func Settle(
 		return result, errors.New("file rollback replay guarantee expired or belongs to another runtime")
 	}
 
-	rollbackResult, rollbackErr := mutation.Confirm(ctx, backoff, func(ctx context.Context) (agent.RollbackResult, error) {
-		return runtime.RollbackSession(ctx, pending.Request())
-	})
+	var rollbackResult agent.RollbackResult
+	var rollbackErr error
+	if pending.Scope == agent.RestoreHistory {
+		// History rollback has an authoritative before/after projection. One call
+		// followed by another read converges an uncertain acknowledgement without
+		// blindly replaying beyond an unrecorded command-store deadline.
+		rollbackResult, rollbackErr = runtime.RollbackSession(ctx, pending.Request())
+	} else {
+		rollbackResult, rollbackErr = mutation.ConfirmAdmitted(ctx, backoff, func() error {
+			if !replaySafe(pending, window) {
+				return mutation.ErrReplayGuaranteeUnavailable
+			}
+			return nil
+		}, func(ctx context.Context) (agent.RollbackResult, error) {
+			return runtime.RollbackSession(ctx, pending.Request())
+		})
+	}
 	if errors.Is(rollbackErr, agent.ErrCommandStoreMismatch) {
 		result.Outcome = Unknown
 		return result, fmt.Errorf("rollback session outcome is unknown: %w", rollbackErr)

@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/runrecovery"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -67,9 +68,10 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 		a.fail(err)
 		return false
 	}
+	replay := commandReplayGuard(a.runtimeProfile)
 	if a.workbench != nil {
 		if err := a.workbench.MarkPendingRunDispatching(
-			input.SessionID, input.CommandID, commandReplayGuard(a.runtimeProfile),
+			input.SessionID, input.CommandID, replay,
 		); err != nil {
 			rollbackErr := a.conversation.CancelStarting()
 			a.message("run start blocked: save dispatching run: " + err.Error())
@@ -78,6 +80,12 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 			}
 			return false
 		}
+		pending, ok := pendingRunByCommandID(a.workbench.PendingRuns(input.SessionID), input.CommandID)
+		if !ok {
+			a.fail(errors.New("dispatching run disappeared from the durable outbox"))
+			return false
+		}
+		replay = pending.Replay
 	}
 	a.transcript.Follow()
 	a.activity.Reset()
@@ -87,7 +95,9 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 	a.executionClock.start(0, time.Now())
 	a.syncAnimation()
 	a.followOpening(func(ctx context.Context) (agent.SegmentStream, error) {
-		opened, err := openStartRun(ctx, a.runtime, input, reconnect.Policy{})
+		opened, err := openStartRun(
+			ctx, a.runtime, input, reconnect.Policy{}, commandReplayAdmission(replay, a.runtimeProfile),
+		)
 		if err != nil {
 			if _, accepted := agent.AcceptedMutationReceipt(err); accepted {
 				return agent.SegmentStream{}, err
@@ -163,8 +173,19 @@ func (a *app) requeueDefinitivelyRefusedStart(input agent.StartRun, failure erro
 	return nil
 }
 
-func openStartRun(ctx context.Context, runtime agent.RunLifecycle, command agent.StartRun, policy reconnect.Policy) (agent.SegmentStream, error) {
+func openStartRun(
+	ctx context.Context,
+	runtime agent.RunLifecycle,
+	command agent.StartRun,
+	policy reconnect.Policy,
+	admit mutation.Admission,
+) (agent.SegmentStream, error) {
 	for attempt := 1; ; attempt++ {
+		if admit != nil {
+			if err := admit(); err != nil {
+				return agent.SegmentStream{}, err
+			}
+		}
 		opened, err := runtime.StartRun(ctx, command)
 		if err == nil {
 			return opened, nil
@@ -806,7 +827,9 @@ func (a *app) stageOpeningCancellation() (workbench.PendingRun, bool, error) {
 func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
 	dispatcher := a.loop.Dispatcher()
 	a.operations.GoSession(pendingRunRecoveryOperation, false, func(ctx context.Context, lease operationLease) {
-		opened, err := openStartRunWithBackoff(ctx, a.runtime, pending.Command, runtimeRecoveryBackoff)
+		opened, err := openStartRunWithBackoff(
+			ctx, a.runtime, pending.Command, pending.Replay, a.runtimeProfile, runtimeRecoveryBackoff,
+		)
 		if context.Cause(ctx) != nil {
 			return
 		}
@@ -851,11 +874,16 @@ func openStartRunWithBackoff(
 	ctx context.Context,
 	runtime agent.RunLifecycle,
 	command agent.StartRun,
+	replay workbench.ReplayGuard,
+	profile *runtimeprofile.Profile,
 	backoff retry.Backoff,
 ) (agent.SegmentStream, error) {
-	return mutation.Confirm(ctx, backoff, func(ctx context.Context) (agent.SegmentStream, error) {
-		return runtime.StartRun(ctx, command)
-	})
+	return mutation.ConfirmAdmitted(
+		ctx, backoff, commandReplayAdmission(replay, profile),
+		func(ctx context.Context) (agent.SegmentStream, error) {
+			return runtime.StartRun(ctx, command)
+		},
+	)
 }
 
 func observedSegmentStream(stream agent.SegmentStream, err error) (agent.SegmentStream, bool) {
@@ -908,6 +936,7 @@ type pendingCancellation struct {
 	request          agent.CancelRun
 	openingCommandID agent.CommandID
 	policy           cancellationResultPolicy
+	replay           workbench.ReplayGuard
 }
 
 func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancellationResultPolicy) {
@@ -919,8 +948,12 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 		}
 		target.CommandID = commandID
 	}
+	replay := commandReplayGuard(a.runtimeProfile)
+	if current := a.pendingCancel; current != nil && current.request.CommandID == target.CommandID {
+		replay = current.replay
+	}
 	pending := pendingCancellation{
-		request: target, openingCommandID: a.openingCommandForRun(target.RunID), policy: policy,
+		request: target, openingCommandID: a.openingCommandForRun(target.RunID), policy: policy, replay: replay,
 	}
 	if pending.openingCommandID == "" && a.pendingCancel != nil && a.pendingCancel.request.RunID == target.RunID {
 		pending.openingCommandID = a.pendingCancel.openingCommandID
@@ -930,12 +963,13 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 		if len(outbox) > 0 && outbox[0].State == workbench.PendingRunCanceling &&
 			outbox[0].CancelCommandID == target.CommandID {
 			pending.openingCommandID = outbox[0].Command.CommandID
+			pending.replay = outbox[0].CancelReplay
 		}
 	}
 	a.pendingCancel = &pending
 	dispatcher := a.loop.Dispatcher()
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
-		settled, err := a.cancelRootRun(ownerCtx, target)
+		settled, err := a.cancelRootRun(ownerCtx, target, pending.replay)
 		_ = post(ownerCtx, dispatcher, func() {
 			a.handleRuntimeCancellation(lease, pending, settled, err)
 		})
@@ -945,12 +979,19 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 // cancelRootRun makes cancellation idempotent at the terminal boundary. A run
 // may finish between the user's gesture and the control request; in that case
 // the durable run projection is the successful settlement of the same intent.
-func (a *app) cancelRootRun(ctx context.Context, target agent.CancelRun) (agent.Run, error) {
-	result, err := mutation.Confirm(ctx, runtimeRecoveryBackoff, func(ctx context.Context) (agent.RunCancellation, error) {
-		attemptCtx, cancel := context.WithTimeout(ctx, runtimeControlTimeout)
-		defer cancel()
-		return a.runtime.CancelRun(attemptCtx, target)
-	})
+func (a *app) cancelRootRun(
+	ctx context.Context,
+	target agent.CancelRun,
+	replay workbench.ReplayGuard,
+) (agent.Run, error) {
+	result, err := mutation.ConfirmAdmitted(
+		ctx, runtimeRecoveryBackoff, commandReplayAdmission(replay, a.runtimeProfile),
+		func(ctx context.Context) (agent.RunCancellation, error) {
+			attemptCtx, cancel := context.WithTimeout(ctx, runtimeControlTimeout)
+			defer cancel()
+			return a.runtime.CancelRun(attemptCtx, target)
+		},
+	)
 	if err == nil {
 		if err := result.ValidateTarget(target.RunID); err != nil {
 			return agent.Run{}, fmt.Errorf("cancel run: %w", err)
@@ -1055,19 +1096,27 @@ func (a *app) retireCanceledRuntimeOwnership(runID string, openingCommandID agen
 	return err
 }
 
-func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) error {
+func (a *app) cancelRuntimeNow(
+	ownerCtx context.Context,
+	target agent.CancelRun,
+	replay workbench.ReplayGuard,
+) error {
 	if target.CommandID == "" {
 		commandID, err := agent.NewCommandID()
 		if err != nil {
 			return fmt.Errorf("prepare terminal-close cancellation: %w", err)
 		}
 		target.CommandID = commandID
+		replay = commandReplayGuard(a.runtimeProfile)
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
 	defer cancel()
-	result, err := mutation.Confirm(ctx, runtimeRecoveryBackoff, func(ctx context.Context) (agent.RunCancellation, error) {
-		return a.runtime.CancelRun(ctx, target)
-	})
+	result, err := mutation.ConfirmAdmitted(
+		ctx, runtimeRecoveryBackoff, commandReplayAdmission(replay, a.runtimeProfile),
+		func(ctx context.Context) (agent.RunCancellation, error) {
+			return a.runtime.CancelRun(ctx, target)
+		},
+	)
 	if errors.Is(err, agent.ErrRunFinished) {
 		return nil
 	}
@@ -1083,7 +1132,9 @@ func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun)
 func (a *app) cancelOpeningRunNow(ownerCtx context.Context, pending workbench.PendingRun) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
 	defer cancel()
-	opened, err := openStartRunWithBackoff(ctx, a.runtime, pending.Command, runtimeRecoveryBackoff)
+	opened, err := openStartRunWithBackoff(
+		ctx, a.runtime, pending.Command, pending.Replay, a.runtimeProfile, runtimeRecoveryBackoff,
+	)
 	opened, accepted := observedSegmentStream(opened, err)
 	if !accepted {
 		if !mutation.OutcomeUnknown(err) {
@@ -1103,7 +1154,7 @@ func (a *app) cancelOpeningRunNow(ownerCtx context.Context, pending workbench.Pe
 		CommandID: pending.CancelCommandID,
 		RunID:     opened.RunID,
 		Reason:    "terminal closed during start delivery",
-	})
+	}, pending.CancelReplay)
 	if cancelErr != nil {
 		return errors.Join(err, validationErr, fmt.Errorf("cancel run opened during terminal close: %w", cancelErr))
 	}

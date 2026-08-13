@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 )
 
 type invalidOpeningRuntime struct{ *mock.Runtime }
@@ -180,6 +181,29 @@ func (r *recordingRenderer) Reconcile(snapshot agent.SessionSnapshot) error {
 }
 
 func (*recordingRenderer) Close() error { return nil }
+
+func TestOpenRunChecksReplayAdmissionBeforeEveryAttempt(t *testing.T) {
+	base := mock.New()
+	runtime := &uncertainAcknowledgementRuntime{Runtime: base}
+	admissions := 0
+	_, err := openRun(t.Context(), runtime, agent.StartRun{
+		CommandID: "cli_dddddddddddddddddddddddddddddddd", SessionID: "ses_demo_1",
+		Message: agent.Message{Text: "admit every attempt"},
+	}, func() error {
+		admissions++
+		if admissions > 1 {
+			return mutation.ErrReplayGuaranteeUnavailable
+		}
+		return nil
+	})
+	if !errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
+		t.Fatalf("open run error = %v", err)
+	}
+	starts, _ := runtime.attempts()
+	if admissions != 2 || len(starts) != 1 {
+		t.Fatalf("open run admissions=%d attempts=%d", admissions, len(starts))
+	}
+}
 
 func TestExecuteDrivesApprovalAcrossSegments(t *testing.T) {
 	runtime := mock.New()

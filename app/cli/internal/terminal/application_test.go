@@ -1635,7 +1635,7 @@ func TestCancelRootRunConfirmsATimedOutAcknowledgement(t *testing.T) {
 	commandID := agent.CommandID("cli_11111111111111111111111111111111")
 	settled, err := application.cancelRootRun(t.Context(), agent.CancelRun{
 		CommandID: commandID, RunID: opened.RunID, Reason: "test",
-	})
+	}, workbench.ReplayGuard{})
 	if err != nil {
 		t.Fatal(err)
 	}

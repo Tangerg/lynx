@@ -62,7 +62,9 @@ func (a *app) steerRun(instruction string) error {
 	a.draftState.Reset(a.session.ID, agent.Message{})
 	started := runSessionSettlement(a, steerRunOperation, false,
 		func(ctx context.Context) (steeringoutbox.Result, error) {
-			return steeringoutbox.Deliver(ctx, a.runtime, pending, runtimeRecoveryBackoff)
+			return steeringoutbox.Deliver(
+				ctx, a.runtime, pending, steeringReplayWindow(a.runtimeProfile), runtimeRecoveryBackoff,
+			)
 		},
 		func(result steeringoutbox.Result, deliveryErr error) {
 			a.settleSteer(result, deliveryErr, runID)

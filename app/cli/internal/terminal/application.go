@@ -379,7 +379,7 @@ func (a *app) restorePendingResume() {
 	}
 	a.dismissInteractionProjection()
 	a.interactionReview = review
-	a.deliverInteractionResume(review, pending.Command.Clone())
+	a.deliverInteractionResume(review, pending.Command.Clone(), pending.Replay)
 }
 
 func sameInteractions(left, right []agent.Interaction) bool {
@@ -435,7 +435,9 @@ func (a *app) reconcilePendingRun(pending workbench.PendingRun) {
 	activeRunID := a.conversation.RunID()
 	dispatcher := a.loop.Dispatcher()
 	a.operations.GoSession(pendingRunRecoveryOperation, false, func(ctx context.Context, lease operationLease) {
-		opened, err := openStartRunWithBackoff(ctx, a.runtime, command, runtimeRecoveryBackoff)
+		opened, err := openStartRunWithBackoff(
+			ctx, a.runtime, command, pending.Replay, a.runtimeProfile, runtimeRecoveryBackoff,
+		)
 		if context.Cause(ctx) != nil {
 			return
 		}
@@ -744,12 +746,15 @@ func (a *app) Close(ctx context.Context) error {
 		target           agent.CancelRun
 		openingCommandID agent.CommandID
 		cancelRuntime    bool
+		cancelReplay     workbench.ReplayGuard
 	)
 	if a.pendingCancel != nil {
 		target, openingCommandID, cancelRuntime = a.pendingCancel.request, a.pendingCancel.openingCommandID, true
+		cancelReplay = a.pendingCancel.replay
 	} else {
 		target, cancelRuntime = a.activeCancellation()
 		openingCommandID = a.openingCommandForRun(target.RunID)
+		cancelReplay = commandReplayGuard(a.runtimeProfile)
 	}
 	var (
 		pendingStart  workbench.PendingRun
@@ -769,7 +774,7 @@ func (a *app) Close(ctx context.Context) error {
 	// finishes first, then the last visible composer state is written last.
 	closeErr = errors.Join(closeErr, a.persistDraft(), a.drafts.Close())
 	if cancelRuntime {
-		if err := a.cancelRuntimeNow(ctx, target); err == nil {
+		if err := a.cancelRuntimeNow(ctx, target, cancelReplay); err == nil {
 			closeErr = errors.Join(closeErr, a.retireCanceledRuntimeOwnership(target.RunID, openingCommandID))
 		} else {
 			closeErr = errors.Join(closeErr, err)

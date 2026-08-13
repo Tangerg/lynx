@@ -104,7 +104,7 @@ func Execute(
 	if !replaySafe(pending.Replay, window) {
 		return Result{Request: request, Outcome: Unknown}, errors.New("session deletion replay guarantee expired or belongs to another runtime")
 	}
-	outcome, err := Settle(ctx, runtime, request, backoff)
+	outcome, err := Settle(ctx, runtime, request, pending.Replay, window, backoff)
 	return Result{Request: request, Outcome: outcome}, err
 }
 
@@ -115,9 +115,16 @@ func Settle(
 	ctx context.Context,
 	runtime runtime,
 	request agent.DeleteSession,
+	replay workbench.ReplayGuard,
+	window ReplayWindow,
 	backoff retry.Backoff,
 ) (Outcome, error) {
-	_, err := mutation.Confirm(ctx, backoff, func(ctx context.Context) (struct{}, error) {
+	_, err := mutation.ConfirmAdmitted(ctx, backoff, func() error {
+		if !replaySafe(replay, window) {
+			return mutation.ErrReplayGuaranteeUnavailable
+		}
+		return nil
+	}, func(ctx context.Context) (struct{}, error) {
 		return struct{}{}, runtime.DeleteSession(ctx, request)
 	})
 	if err == nil || errors.Is(err, agent.ErrSessionNotFound) {
@@ -176,7 +183,7 @@ func Recover(
 				pending.SessionID,
 			)
 		}
-		outcome, err := Settle(ctx, runtime, result.Request, backoff)
+		outcome, err := Settle(ctx, runtime, result.Request, pending.Replay, window, backoff)
 		result.Outcome = outcome
 		switch outcome {
 		case Confirmed:

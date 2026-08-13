@@ -36,12 +36,12 @@ type Invocation struct {
 	Start             agent.StartRun
 	ApproveAll        bool
 	ReconnectAttempts int
+	ReplayRetention   time.Duration
 }
 
 // Execute drives one stable Run across as many Segments as its interrupts
-// require. The embedded adapter gives controls stable runtime identities, but
-// this use case deliberately does not repeat user intent after an ambiguous
-// return; it rebinds an acknowledged segment stream and otherwise cold-recovers.
+// require. Ambiguous mutation acknowledgements reuse the same command identity
+// only while the runtime's advertised replay retention still owns it.
 func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	if invocation.Runtime == nil {
 		return errors.New("one-shot run requires a runtime")
@@ -60,7 +60,9 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	}
 	defer func() { runErr = errors.Join(runErr, invocation.Renderer.Close()) }()
 
-	opened, err := openRun(ctx, invocation.Runtime, invocation.Start)
+	opened, err := openRun(
+		ctx, invocation.Runtime, invocation.Start, replayAdmission(invocation.ReplayRetention),
+	)
 	if err != nil {
 		if receipt, accepted := agent.AcceptedMutationReceipt(err); accepted {
 			opened = receipt
@@ -71,7 +73,7 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	cancelOnExit := true
 	var watcher *cancellationWatcher
 	if opened.RunID != "" {
-		watcher = watchCancellation(ctx, invocation.Runtime, opened.RunID)
+		watcher = watchCancellation(ctx, invocation.Runtime, opened.RunID, invocation.ReplayRetention)
 		defer func() { runErr = errors.Join(runErr, watcher.Finish(cancelOnExit)) }()
 	}
 	if err != nil {
@@ -101,10 +103,23 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	return err
 }
 
-func openRun(ctx context.Context, runtime Runtime, command agent.StartRun) (agent.SegmentStream, error) {
-	return mutation.Confirm(ctx, acknowledgementBackoff, func(ctx context.Context) (agent.SegmentStream, error) {
-		return runtime.StartRun(ctx, command)
-	})
+func openRun(
+	ctx context.Context,
+	runtime Runtime,
+	command agent.StartRun,
+	admit mutation.Admission,
+) (agent.SegmentStream, error) {
+	return mutation.ConfirmAdmitted(
+		ctx, acknowledgementBackoff, admit,
+		func(ctx context.Context) (agent.SegmentStream, error) { return runtime.StartRun(ctx, command) },
+	)
+}
+
+func replayAdmission(retention time.Duration) mutation.Admission {
+	if retention <= 0 {
+		return nil
+	}
+	return mutation.ReplayUntil(time.Now().UTC().Add(retention), nil)
 }
 
 type cancellationWatcher struct {
@@ -112,7 +127,12 @@ type cancellationWatcher struct {
 	result chan error
 }
 
-func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, runID string) *cancellationWatcher {
+func watchCancellation(
+	ctx context.Context,
+	runtime agent.RunLifecycle,
+	runID string,
+	replayRetention time.Duration,
+) *cancellationWatcher {
 	watcher := &cancellationWatcher{exit: make(chan bool, 1), result: make(chan error, 1)}
 	go func() {
 		shouldCancel := true
@@ -124,7 +144,7 @@ func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, runID st
 			watcher.result <- nil
 			return
 		}
-		watcher.result <- cancelAbandonedRun(ctx, runtime, runID)
+		watcher.result <- cancelAbandonedRun(ctx, runtime, runID, replayRetention)
 	}()
 	return watcher
 }
@@ -134,18 +154,26 @@ func (w *cancellationWatcher) Finish(cancelRun bool) error {
 	return <-w.result
 }
 
-func cancelAbandonedRun(ctx context.Context, runtime agent.RunLifecycle, runID string) error {
+func cancelAbandonedRun(
+	ctx context.Context,
+	runtime agent.RunLifecycle,
+	runID string,
+	replayRetention time.Duration,
+) error {
 	commandID, err := agent.NewCommandID()
 	if err != nil {
 		return fmt.Errorf("prepare abandoned run cancellation: %w", err)
 	}
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancellationTimeout)
 	defer cancel()
-	result, err := mutation.Confirm(cancelCtx, acknowledgementBackoff, func(ctx context.Context) (agent.RunCancellation, error) {
-		return runtime.CancelRun(ctx, agent.CancelRun{
-			CommandID: commandID, RunID: runID, Reason: "CLI execution ended before the run settled",
-		})
-	})
+	result, err := mutation.ConfirmAdmitted(
+		cancelCtx, acknowledgementBackoff, replayAdmission(replayRetention),
+		func(ctx context.Context) (agent.RunCancellation, error) {
+			return runtime.CancelRun(ctx, agent.CancelRun{
+				CommandID: commandID, RunID: runID, Reason: "CLI execution ended before the run settled",
+			})
+		},
+	)
 	if errors.Is(err, agent.ErrRunFinished) {
 		return nil
 	}
@@ -222,9 +250,12 @@ func (d *executionDriver) resume(ctx context.Context, interactions []agent.Inter
 		return err
 	}
 	command := agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers}
-	continued, err := mutation.Confirm(ctx, acknowledgementBackoff, func(ctx context.Context) (agent.SegmentStream, error) {
-		return d.invocation.Runtime.ResumeRun(ctx, command)
-	})
+	continued, err := mutation.ConfirmAdmitted(
+		ctx, acknowledgementBackoff, replayAdmission(d.invocation.ReplayRetention),
+		func(ctx context.Context) (agent.SegmentStream, error) {
+			return d.invocation.Runtime.ResumeRun(ctx, command)
+		},
+	)
 	if err != nil {
 		return err
 	}

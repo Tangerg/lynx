@@ -182,18 +182,19 @@ func newRunsCancelCommand(provider runtimeProvider) *cobra.Command {
 			if !yes {
 				return errors.New("refusing to cancel a run without --yes")
 			}
-			runtime, err := provider.Open(cmd)
+			services, err := provider.OpenServices(cmd)
 			if err != nil {
 				return err
 			}
+			runtime := services.Agent
 			commandID, err := agent.NewCommandID()
 			if err != nil {
 				return fmt.Errorf("prepare run cancellation: %w", err)
 			}
 			request := agent.CancelRun{CommandID: commandID, RunID: args[0], Reason: reason}
-			result, err := mutation.Confirm(cmd.Context(), retry.Backoff{
+			result, err := mutation.ConfirmAdmitted(cmd.Context(), retry.Backoff{
 				Base: 50 * time.Millisecond, Maximum: time.Second,
-			}, func(ctx context.Context) (agent.RunCancellation, error) {
+			}, replayAdmission(runtimeReplayRetention(services.RuntimeProfile)), func(ctx context.Context) (agent.RunCancellation, error) {
 				return runtime.CancelRun(ctx, request)
 			})
 			if err != nil {
@@ -216,6 +217,13 @@ func newRunsCancelCommand(provider runtimeProvider) *cobra.Command {
 	command.Flags().BoolVar(&asJSON, "json", false, "Write the cancellation result as JSON")
 	command.ValidArgsFunction = completeFirstRunArgument(provider)
 	return command
+}
+
+func replayAdmission(retention time.Duration) mutation.Admission {
+	if retention <= 0 {
+		return nil
+	}
+	return mutation.ReplayUntil(time.Now().UTC().Add(retention), nil)
 }
 
 func parseRunStatuses(names []string) ([]agent.RunStatus, error) {

@@ -27,6 +27,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
@@ -270,6 +271,18 @@ func commandReplaySafeAt(
 		return guard.Empty()
 	}
 	return guard.Namespace == profile.Limits.IdempotencyNamespace && now.Before(guard.Until)
+}
+
+func commandReplayAdmission(
+	guard workbench.ReplayGuard,
+	profile *runtimeprofile.Profile,
+) mutation.Admission {
+	return func() error {
+		if !commandReplaySafe(guard, profile) {
+			return mutation.ErrReplayGuaranteeUnavailable
+		}
+		return nil
+	}
 }
 
 func steeringReplayWindow(profile *runtimeprofile.Profile) steering.ReplayWindow {

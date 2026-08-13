@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/oneshot"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 )
 
@@ -75,10 +77,11 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 	if err != nil {
 		return err
 	}
-	runtime, err := provider.Open(cmd)
+	services, err := provider.OpenServices(cmd)
 	if err != nil {
 		return err
 	}
+	runtime := services.Agent
 	opened, err := session.Open(cmd.Context(), runtime, f.sessionID, workspacePath)
 	if err != nil {
 		return err
@@ -93,7 +96,15 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 		},
 		ApproveAll:        f.approveAll,
 		ReconnectAttempts: config.UI.ReconnectAttempts,
+		ReplayRetention:   runtimeReplayRetention(services.RuntimeProfile),
 	})
+}
+
+func runtimeReplayRetention(profile *runtimeprofile.Profile) time.Duration {
+	if profile == nil {
+		return 0
+	}
+	return time.Duration(profile.Limits.IdempotencyRetentionSeconds) * time.Second
 }
 
 type outputFormat string

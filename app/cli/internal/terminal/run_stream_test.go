@@ -16,6 +16,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -28,11 +29,12 @@ type sessionReadFailureRuntime struct {
 type replayingStartRuntime struct {
 	*mock.Runtime
 
-	mu       sync.Mutex
-	attempts int
-	inputs   []agent.StartRun
-	stream   agent.SegmentStream
-	failure  error
+	mu         sync.Mutex
+	attempts   int
+	inputs     []agent.StartRun
+	stream     agent.SegmentStream
+	failure    error
+	afterFirst func()
 }
 
 type idempotentStartRuntime struct {
@@ -204,6 +206,9 @@ func (runtime *replayingStartRuntime) StartRun(ctx context.Context, input agent.
 		runtime.mu.Lock()
 		runtime.stream = opened
 		runtime.mu.Unlock()
+		if runtime.afterFirst != nil {
+			runtime.afterFirst()
+		}
 		failure := runtime.failure
 		if failure == nil {
 			failure = agent.ErrDisconnected
@@ -736,6 +741,29 @@ func TestCommandReplayGuaranteeExpiresAtItsDeadline(t *testing.T) {
 	guard := workbench.ReplayGuard{Namespace: "runtime-a", Until: deadline}
 	if commandReplaySafeAt(guard, &profile, deadline) {
 		t.Fatal("run command replay remained safe at its retention deadline")
+	}
+}
+
+func TestRecoveredStartStopsBeforeRetryingOutsideItsReplayStore(t *testing.T) {
+	base := mock.New()
+	profile := steerReplayTestProfile("/tmp/lyra-cli-test")
+	profile.Limits.IdempotencyNamespace = "runtime-a"
+	runtime := &replayingStartRuntime{Runtime: base}
+	runtime.afterFirst = func() { profile.Limits.IdempotencyNamespace = "runtime-b" }
+	command := agent.StartRun{
+		CommandID: "cli_cccccccccccccccccccccccccccccccc", SessionID: "ses_demo_1",
+		Message: agent.Message{Text: "do not replay outside the owning store"},
+	}
+	_, err := openStartRunWithBackoff(
+		t.Context(), runtime, command,
+		workbench.ReplayGuard{Namespace: "runtime-a", Until: time.Now().UTC().Add(time.Hour)},
+		&profile, runtimeRecoveryBackoff,
+	)
+	if !errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
+		t.Fatalf("recovered start error = %v", err)
+	}
+	if attempts := runtime.startAttempts(); len(attempts) != 1 {
+		t.Fatalf("unowned start reached runtime %d times", len(attempts))
 	}
 }
 

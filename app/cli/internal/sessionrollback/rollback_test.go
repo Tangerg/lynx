@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
@@ -17,9 +18,10 @@ import (
 type recordingRuntime struct {
 	*mock.Runtime
 
-	calls   int
-	request agent.RollbackSession
-	reject  error
+	calls     int
+	request   agent.RollbackSession
+	reject    error
+	afterCall func()
 }
 
 func (runtime *recordingRuntime) RollbackSession(
@@ -28,10 +30,47 @@ func (runtime *recordingRuntime) RollbackSession(
 ) (agent.RollbackResult, error) {
 	runtime.calls++
 	runtime.request = request
-	if runtime.reject != nil {
-		return agent.RollbackResult{}, runtime.reject
+	reject := runtime.reject
+	if runtime.afterCall != nil {
+		runtime.afterCall()
+	}
+	if reject != nil {
+		return agent.RollbackResult{}, reject
 	}
 	return runtime.Runtime.RollbackSession(ctx, request)
+}
+
+func TestFileRollbackStopsRetryingWhenReplayExpires(t *testing.T) {
+	underlying := mock.New()
+	snapshot, err := underlying.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := PreviewSession(snapshot, agent.RollbackSession{
+		SessionID: snapshot.Session.ID, ToRunID: snapshot.Runs[0].ID, Scope: agent.RestoreFiles,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stagedAt := time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC)
+	window := ReplayWindow{Namespace: "idp_original", Retention: time.Minute}
+	pending := preview.journal(
+		agent.CommandID("cli_99999999999999999999999999999999"), window, stagedAt,
+	)
+	now := pending.ReplayUntil.Add(-time.Nanosecond)
+	window.Now = func() time.Time { return now }
+	runtime := &recordingRuntime{Runtime: underlying, reject: agent.ErrDisconnected}
+	runtime.afterCall = func() {
+		now = pending.ReplayUntil
+		runtime.reject = nil
+	}
+	result, err := Settle(t.Context(), runtime, pending, window, retry.Backoff{})
+	if result.Outcome != Unknown || !errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
+		t.Fatalf("settlement = outcome %v, error %v", result.Outcome, err)
+	}
+	if runtime.calls != 1 {
+		t.Fatalf("expired rollback reached runtime %d times", runtime.calls)
+	}
 }
 
 func rollbackFixture(t *testing.T, request agent.RollbackSession) (*mock.Runtime, Preview) {

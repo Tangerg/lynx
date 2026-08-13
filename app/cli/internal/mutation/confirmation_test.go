@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
@@ -70,5 +71,43 @@ func TestConfirmStopsAtOwnerCancellation(t *testing.T) {
 	})
 	if !errors.Is(err, context.Canceled) || attempts != 1 {
 		t.Fatalf("confirmation error = %v after %d attempts", err, attempts)
+	}
+}
+
+func TestConfirmAdmittedFencesEveryRuntimeAttempt(t *testing.T) {
+	replayable := true
+	attempts := 0
+	_, err := ConfirmAdmitted(
+		t.Context(), retry.Backoff{},
+		func() error {
+			if !replayable {
+				return ErrReplayGuaranteeUnavailable
+			}
+			return nil
+		},
+		func(context.Context) (struct{}, error) {
+			attempts++
+			replayable = false
+			return struct{}{}, agent.ErrDisconnected
+		},
+	)
+	if !errors.Is(err, ErrReplayGuaranteeUnavailable) || !OutcomeUnknown(err) {
+		t.Fatalf("confirmation error = %v, unknown = %t", err, OutcomeUnknown(err))
+	}
+	if attempts != 1 {
+		t.Fatalf("expired command reached runtime %d times", attempts)
+	}
+}
+
+func TestReplayAdmissionExpiresAtItsDeadline(t *testing.T) {
+	deadline := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	for _, offset := range []time.Duration{-time.Nanosecond, 0, time.Nanosecond} {
+		err := ReplayUntil(deadline, func() time.Time { return deadline.Add(offset) })()
+		if offset < 0 && err != nil {
+			t.Fatalf("admission before deadline = %v", err)
+		}
+		if offset >= 0 && !errors.Is(err, ErrReplayGuaranteeUnavailable) {
+			t.Fatalf("admission at offset %s = %v", offset, err)
+		}
 	}
 }

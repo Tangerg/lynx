@@ -333,9 +333,10 @@ func (a *app) resumeInteractions() {
 		return
 	}
 	command := agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers}
+	replay := commandReplayGuard(a.runtimeProfile)
 	if a.workbench != nil {
 		pending := workbench.PendingResume{
-			Command: command.Clone(), Interactions: review.Items(), Replay: commandReplayGuard(a.runtimeProfile),
+			Command: command.Clone(), Interactions: review.Items(), Replay: replay,
 		}
 		if err := a.workbench.StagePendingResume(a.session.ID, pending); err != nil {
 			failure := fmt.Errorf("resume blocked: save interaction decisions: %w", err)
@@ -348,7 +349,7 @@ func (a *app) resumeInteractions() {
 			return
 		}
 	}
-	a.deliverInteractionResume(review, command)
+	a.deliverInteractionResume(review, command, replay)
 }
 
 // reopenCompletedInteractionReview restores the UI owner of a completed HITL
@@ -374,10 +375,17 @@ func (a *app) reopenCompletedInteractionReview(review *interactionReview) error 
 	return nil
 }
 
-func (a *app) deliverInteractionResume(review *interactionReview, command agent.ResumeRun) {
+func (a *app) deliverInteractionResume(
+	review *interactionReview,
+	command agent.ResumeRun,
+	replay workbench.ReplayGuard,
+) {
 	a.status.active("resuming")
 	a.syncAnimation()
 	a.followOpening(func(ctx context.Context) (agent.SegmentStream, error) {
+		if err := commandReplayAdmission(replay, a.runtimeProfile)(); err != nil {
+			return agent.SegmentStream{}, &resumeRunCallError{err: err}
+		}
 		stream, err := a.runtime.ResumeRun(ctx, command)
 		if err != nil {
 			if _, accepted := agent.AcceptedMutationReceipt(err); accepted {
