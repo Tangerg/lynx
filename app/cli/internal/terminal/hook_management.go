@@ -103,8 +103,9 @@ func (a *app) PrepareHookTrust(trusted bool) error {
 }
 
 func (a *app) setHookTrust(workspace, projectRoot string, trusted bool) {
+	presentation := a.sessionContext
 	a.status.note("updating project hook trust")
-	if !runOperation(a, hookOperation, false,
+	if !runApplicationOperation(a, hookOperation, false,
 		func(ctx context.Context) (hookpolicy.Catalog, error) {
 			if err := a.hooks.SetProjectTrust(ctx, projectRoot, trusted); err != nil {
 				return hookpolicy.Catalog{}, err
@@ -116,8 +117,10 @@ func (a *app) setHookTrust(workspace, projectRoot string, trusted bool) {
 				a.message("update project hook trust failed: " + err.Error())
 				return
 			}
-			a.setRuntimeReader(runtimeReaderHooks)
-			a.openReaderDocument(hooksDocument(workspace, catalog))
+			if a.sessionContext == presentation {
+				a.setRuntimeReader(runtimeReaderHooks)
+				a.openReaderDocument(hooksDocument(workspace, catalog))
+			}
 			a.status.note("project hook trust updated")
 		},
 	) {

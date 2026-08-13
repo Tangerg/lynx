@@ -39,6 +39,35 @@ type runtimeSubscriptionRegistration struct {
 	events       chan changefeed.Event
 }
 
+func installChangedSessionProjection(
+	t *testing.T,
+	runtime agent.Runtime,
+	source *runtimeChangeSourceStub,
+	sessionID string,
+	title string,
+) {
+	t.Helper()
+	if _, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: sessionID, Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: sessionID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{sessionID},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+}
+
 type mutableRuntimeCatalog struct {
 	agent.Runtime
 

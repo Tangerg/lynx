@@ -104,8 +104,9 @@ func (a *app) PrepareCodebaseReindex() error {
 }
 
 func (a *app) reindexCodebase(workspace string) {
+	presentation := a.sessionContext
 	a.status.note("starting codebase reindex")
-	if !runOperation(a, codebaseOperation, false,
+	if !runApplicationOperation(a, codebaseOperation, false,
 		func(ctx context.Context) (codebaseReindexResult, error) {
 			operation, err := a.codebase.Reindex(ctx, workspace)
 			if err != nil {
@@ -119,10 +120,12 @@ func (a *app) reindexCodebase(workspace string) {
 				a.message("start codebase reindex failed: " + err.Error())
 				return
 			}
-			document := codebaseStatusDocument(workspace, result.status)
-			document.Detail = "operation " + result.operation.ID + " · " + workspace
-			a.setRuntimeReader(runtimeReaderCodebaseStatus)
-			a.openReaderDocument(document)
+			if a.sessionContext == presentation {
+				document := codebaseStatusDocument(workspace, result.status)
+				document.Detail = "operation " + result.operation.ID + " · " + workspace
+				a.setRuntimeReader(runtimeReaderCodebaseStatus)
+				a.openReaderDocument(document)
+			}
 			a.status.note("codebase reindex admitted · " + result.operation.ID)
 		},
 	) {

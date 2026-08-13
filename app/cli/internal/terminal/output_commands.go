@@ -57,7 +57,7 @@ func (a *app) exportSession(argument string) error {
 	}
 	sessionID, workspace := a.session.ID, a.session.Workspace.Path
 	title := a.session.Title
-	started := runOperation(a, sessionOutputOperation, false,
+	started := runApplicationOperation(a, sessionOutputOperation, false,
 		func(ctx context.Context) (sessionOutputResult, error) {
 			document, err := a.transfers.ExportSession(ctx, sessiontransfer.ExportRequest{SessionID: sessionID, Format: format})
 			if err != nil {

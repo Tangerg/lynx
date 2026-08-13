@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/oolong/core/input"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
@@ -63,6 +64,27 @@ type codebaseServiceStub struct {
 	reindexed chan string
 }
 
+type blockingCodebaseReindexService struct {
+	codebase.Service
+	started  chan string
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingCodebaseReindexService) Reindex(
+	ctx context.Context,
+	workspace string,
+) (codebase.ReindexOperation, error) {
+	service.started <- workspace
+	select {
+	case <-service.release:
+		return service.Service.Reindex(ctx, workspace)
+	case <-ctx.Done():
+		close(service.canceled)
+		return codebase.ReindexOperation{}, context.Cause(ctx)
+	}
+}
+
 func (*codebaseServiceStub) Status(context.Context, string) (codebase.Status, error) {
 	now := time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC)
 	return codebase.Status{State: codebase.Ready, ModelID: "embed/model", FileCount: 12, ChunkCount: 24, IndexedAt: &now}, nil
@@ -105,6 +127,76 @@ func TestCodebaseStatusSearchAndResizeSafeReindexConfirmation(t *testing.T) {
 		t.Fatalf("reindexed workspace = %q", got)
 	}
 	host.Shows(t, "operation op_reindex")
+	stop()
+}
+
+func TestCodebaseReindexOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	backend := mock.New()
+	base := &codebaseServiceStub{reindexed: make(chan string, 1)}
+	index := &blockingCodebaseReindexService{
+		Service: base, started: make(chan string, 1), release: make(chan struct{}), canceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(index.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", Codebase: index, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/codebase-reindex")
+	host.Press(input.Enter)
+	host.Shows(t, "Reindex codebase")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	workspace := awaitValue(t, index.started, "codebase reindex mutation")
+	title := "Projection changed during codebase reindex"
+	installChangedSessionProjection(t, backend, source, "ses_demo_1", title)
+	host.Shows(t, title)
+	select {
+	case <-index.canceled:
+		t.Fatal("session projection replacement canceled the codebase reindex")
+	default:
+	}
+	release()
+	if got := awaitValue(t, base.reindexed, "committed codebase reindex"); got != workspace {
+		t.Fatalf("reindexed workspace = %q, want %q", got, workspace)
+	}
+	host.Shows(t, "operation op_reindex")
+	stop()
+}
+
+func TestCodebaseReindexDoesNotInstallAReaderAfterSessionSwitch(t *testing.T) {
+	base := &codebaseServiceStub{reindexed: make(chan string, 1)}
+	index := &blockingCodebaseReindexService{
+		Service: base, started: make(chan string, 1), release: make(chan struct{}), canceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(index.release) })
+	t.Cleanup(release)
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), SessionID: "ses_demo_1", Codebase: index})
+	host.Shows(t, "Ask lyra")
+	host.Type("/codebase-reindex")
+	host.Press(input.Enter)
+	host.Shows(t, "Reindex codebase")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	awaitValue(t, index.started, "codebase reindex mutation")
+	host.Hides(t, "Reindex codebase")
+	host.Type("/new")
+	host.Press(input.Enter)
+	host.Shows(t, "session · Untitled session")
+	select {
+	case <-index.canceled:
+		t.Fatal("session switch canceled the admitted codebase reindex")
+	default:
+	}
+	release()
+	awaitValue(t, base.reindexed, "committed codebase reindex")
+	host.Shows(t, "codebase reindex admitted · op_reindex")
+	host.Hides(t, "Codebase index")
 	stop()
 }
 
@@ -171,6 +263,24 @@ type hookServiceStub struct {
 	mu      sync.Mutex
 	trusted bool
 	changed chan bool
+}
+
+type blockingHookTrustService struct {
+	hookpolicy.Service
+	started  chan bool
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingHookTrustService) SetProjectTrust(ctx context.Context, projectRoot string, trusted bool) error {
+	service.started <- trusted
+	select {
+	case <-service.release:
+		return service.Service.SetProjectTrust(ctx, projectRoot, trusted)
+	case <-ctx.Done():
+		close(service.canceled)
+		return context.Cause(ctx)
+	}
 }
 
 func (service *hookServiceStub) Catalog(context.Context, string) (hookpolicy.Catalog, error) {
@@ -243,7 +353,76 @@ func TestHookChangeConvergesTheOpenAuditProjection(t *testing.T) {
 	stop()
 }
 
+func TestHookTrustMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	backend := mock.New()
+	base := &hookServiceStub{changed: make(chan bool, 1)}
+	hooks := &blockingHookTrustService{
+		Service: base, started: make(chan bool, 1), release: make(chan struct{}), canceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(hooks.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", Hooks: hooks, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/hooks-trust")
+	host.Press(input.Enter)
+	host.Shows(t, "Trust project hooks")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if trusted := awaitValue(t, hooks.started, "hook trust mutation"); !trusted {
+		t.Fatal("hook trust mutation revoked trust")
+	}
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	select {
+	case <-hooks.canceled:
+		t.Fatal("session projection replacement canceled the hook trust mutation")
+	default:
+	}
+	release()
+	if trusted := awaitValue(t, base.changed, "hook trust change"); !trusted {
+		t.Fatal("project trust was not enabled")
+	}
+	catalog, err := base.Catalog(t.Context(), "/tmp/demo/store")
+	if err != nil || !catalog.ProjectTrusted {
+		t.Fatalf("hook catalog after trust = (%+v, %v)", catalog, err)
+	}
+	stop()
+}
+
 type feedbackServiceStub struct{ recorded chan feedback.Signal }
+
+type blockingFeedbackService struct {
+	feedback.Service
+	started  chan feedback.Signal
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingFeedbackService) Record(ctx context.Context, signal feedback.Signal) error {
+	service.started <- signal
+	select {
+	case <-service.release:
+		return service.Service.Record(ctx, signal)
+	case <-ctx.Done():
+		close(service.canceled)
+		return context.Cause(ctx)
+	}
+}
 
 func (service *feedbackServiceStub) Record(_ context.Context, signal feedback.Signal) error {
 	service.recorded <- signal
@@ -263,5 +442,40 @@ func TestFeedbackTargetsLatestDurableAssistantItem(t *testing.T) {
 		t.Fatalf("feedback signal = %+v", signal)
 	}
 	host.Shows(t, "feedback recorded · positive")
+	stop()
+}
+
+func TestFeedbackMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	backend := mock.New()
+	base := &feedbackServiceStub{recorded: make(chan feedback.Signal, 1)}
+	feedbacks := &blockingFeedbackService{
+		Service: base, started: make(chan feedback.Signal, 1), release: make(chan struct{}), canceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(feedbacks.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", Feedback: feedbacks, Changes: source,
+	})
+	host.Shows(t, "The fixed sleep races the janitor")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/feedback positive durable signal")
+	host.Press(input.Enter)
+	signal := awaitValue(t, feedbacks.started, "feedback mutation")
+	title := "Projection changed during feedback"
+	installChangedSessionProjection(t, backend, source, "ses_demo_1", title)
+	host.Shows(t, title)
+	select {
+	case <-feedbacks.canceled:
+		t.Fatal("session projection replacement canceled feedback")
+	default:
+	}
+	release()
+	if recorded := awaitValue(t, base.recorded, "committed feedback"); recorded != signal {
+		t.Fatalf("recorded feedback = %+v, want %+v", recorded, signal)
+	}
 	stop()
 }

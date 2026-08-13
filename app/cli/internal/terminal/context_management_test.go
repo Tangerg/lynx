@@ -25,6 +25,49 @@ type agentMemoryServiceStub struct {
 	review  chan agentmemory.ReviewDecision
 }
 
+type blockingAgentMemoryReviewService struct {
+	agentmemory.Service
+	started  chan agentmemory.ReviewDecision
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+type blockingAgentMemoryUpdateService struct {
+	agentmemory.Service
+	started  chan agentmemory.Patch
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingAgentMemoryUpdateService) Update(
+	ctx context.Context,
+	patch agentmemory.Patch,
+) (agentmemory.Item, error) {
+	service.started <- patch
+	select {
+	case <-service.release:
+		return service.Service.Update(ctx, patch)
+	case <-ctx.Done():
+		close(service.canceled)
+		return agentmemory.Item{}, context.Cause(ctx)
+	}
+}
+
+func (service *blockingAgentMemoryReviewService) Review(
+	ctx context.Context,
+	id string,
+	decision agentmemory.ReviewDecision,
+) error {
+	service.started <- decision
+	select {
+	case <-service.release:
+		return service.Service.Review(ctx, id, decision)
+	case <-ctx.Done():
+		close(service.canceled)
+		return context.Cause(ctx)
+	}
+}
+
 func newAgentMemoryServiceStub() *agentMemoryServiceStub {
 	now := time.Now()
 	return &agentMemoryServiceStub{
@@ -287,6 +330,94 @@ func TestPendingAgentMemoryReviewRequiresResizeSafeConfirmation(t *testing.T) {
 	stop()
 }
 
+func TestAgentMemoryReviewOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	backend := mock.New()
+	base := newAgentMemoryServiceStub()
+	memory := &blockingAgentMemoryReviewService{
+		Service: base, started: make(chan agentmemory.ReviewDecision, 1),
+		release: make(chan struct{}), canceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(memory.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", AgentMemory: memory, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/memory-approve project mem_pending")
+	host.Press(input.Enter)
+	host.Shows(t, "Approve agent memory")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if decision := awaitValue(t, memory.started, "agent memory review"); decision != agentmemory.Approve {
+		t.Fatalf("review decision = %q", decision)
+	}
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	select {
+	case <-memory.canceled:
+		t.Fatal("session projection replacement canceled the agent memory review")
+	default:
+	}
+	release()
+	if decision := awaitValue(t, base.review, "committed agent memory review"); decision != agentmemory.Approve {
+		t.Fatalf("committed review decision = %q", decision)
+	}
+	items, err := base.Items(t.Context(), agentmemory.Target{Scope: agentmemory.Project, Workspace: "/tmp/demo/store"})
+	if err != nil || len(items) != 1 || items[0].Status != agentmemory.Active {
+		t.Fatalf("project memory after review = (%+v, %v)", items, err)
+	}
+	stop()
+}
+
+func TestAgentMemoryUpdateDoesNotInstallAReaderAfterSessionSwitch(t *testing.T) {
+	base := newAgentMemoryServiceStub()
+	memory := &blockingAgentMemoryUpdateService{
+		Service: base, started: make(chan agentmemory.Patch, 1),
+		release: make(chan struct{}), canceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(memory.release) })
+	t.Cleanup(release)
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), SessionID: "ses_demo_1", AgentMemory: memory,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/memory-unpin user mem_user")
+	host.Press(input.Enter)
+	patch := awaitValue(t, memory.started, "agent memory update")
+	if patch.ID != "mem_user" || patch.Pinned == nil || *patch.Pinned {
+		t.Fatalf("agent memory patch = %+v", patch)
+	}
+	host.Type("/new")
+	host.Press(input.Enter)
+	host.Shows(t, "session · Untitled session")
+	select {
+	case <-memory.canceled:
+		t.Fatal("session switch canceled the agent memory update")
+	default:
+	}
+	release()
+	host.Shows(t, "agent memory updated · mem_user")
+	host.Hides(t, "Agent memory · user")
+	items, err := base.Items(t.Context(), agentmemory.Target{Scope: agentmemory.User})
+	if err != nil || len(items) != 1 || items[0].Pinned {
+		t.Fatalf("user memory after update = (%+v, %v)", items, err)
+	}
+	stop()
+}
+
 func TestAgentMemoryEditPinAndDeleteRoundTripThroughAuthoritativeReads(t *testing.T) {
 	memory := newAgentMemoryServiceStub()
 	host, stop := runUIWithRuntimeServices(t, Config{
@@ -508,9 +639,10 @@ func TestKnowledgeEditorDoesNotLoseEditsMadeWhileSaving(t *testing.T) {
 	stop()
 }
 
-func TestKnowledgeEditorCanRetryAfterSameSessionProjectionCancelsItsSave(t *testing.T) {
+func TestKnowledgeEditorSaveOutlivesSameSessionProjectionReplacement(t *testing.T) {
 	knowledgeStore := newKnowledgeServiceStub()
-	knowledgeStore.blockNext = make(chan struct{})
+	release := make(chan struct{})
+	knowledgeStore.blockNext = release
 	knowledgeStore.started = make(chan string, 1)
 	source := &runtimeChangeSourceStub{
 		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
@@ -542,11 +674,11 @@ func TestKnowledgeEditorCanRetryAfterSameSessionProjectionCancelsItsSave(t *test
 		SessionIDs: []string{"ses_demo_1"},
 	}
 	awaitValue(t, source.applied, "same-session invalidation")
-	host.Shows(t, "Save interrupted by session refresh. Draft remains unsaved.")
 	host.Shows(t, "draft survives projection refresh")
-	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
-	if got := awaitValue(t, knowledgeStore.saved, "retried knowledge save"); got != "draft survives projection refresh" {
-		t.Fatalf("retried save content = %q", got)
+	host.Hides(t, "Save interrupted")
+	close(release)
+	if got := awaitValue(t, knowledgeStore.saved, "knowledge save after projection replacement"); got != "draft survives projection refresh" {
+		t.Fatalf("saved content = %q", got)
 	}
 	host.Shows(t, "LYRA.md · projectRoot")
 	stop()

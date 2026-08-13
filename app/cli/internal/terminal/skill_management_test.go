@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/oolong/core/input"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/skills"
@@ -41,6 +42,27 @@ type skillServiceStub struct {
 type skillDecision struct {
 	approve   bool
 	reference skills.ProposalReference
+}
+
+type blockingSkillArchiveService struct {
+	skills.Service
+	started   chan string
+	release   chan struct{}
+	canceled  chan struct{}
+	committed chan error
+}
+
+func (service *blockingSkillArchiveService) Archive(ctx context.Context, name string) error {
+	service.started <- name
+	select {
+	case <-service.release:
+		err := service.Service.Archive(ctx, name)
+		service.committed <- err
+		return err
+	case <-ctx.Done():
+		close(service.canceled)
+		return context.Cause(ctx)
+	}
 }
 
 func newSkillServiceStub() *skillServiceStub {
@@ -197,6 +219,55 @@ func TestSkillsChangedRefetchesOnlyAnOpenSkillProjection(t *testing.T) {
 	host.Shows(t, "Release with verified artifacts")
 	if service.reads.Load() <= baseline {
 		t.Fatal("skills.changed did not refetch the open Skill projection")
+	}
+	stop()
+}
+
+func TestSkillLifecycleMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	backend := mock.New()
+	base := newSkillServiceStub()
+	service := &blockingSkillArchiveService{
+		Service: base, started: make(chan string, 1), release: make(chan struct{}), canceled: make(chan struct{}),
+		committed: make(chan error, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", Skills: service, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/skill-archive review")
+	host.Press(input.Enter)
+	if got := awaitValue(t, service.started, "skill archive mutation"); got != "review" {
+		t.Fatalf("archived skill = %q", got)
+	}
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	select {
+	case <-service.canceled:
+		t.Fatal("session projection replacement canceled the skill mutation")
+	default:
+	}
+	release()
+	if err := awaitValue(t, service.committed, "committed skill archive"); err != nil {
+		t.Fatal(err)
+	}
+	managed, err := base.Managed(t.Context())
+	if err != nil || len(managed) != 1 || managed[0].Lifecycle != skills.Archived {
+		t.Fatalf("managed skills after archive = (%+v, %v)", managed, err)
 	}
 	stop()
 }

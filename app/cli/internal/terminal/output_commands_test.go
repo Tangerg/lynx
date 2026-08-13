@@ -15,6 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
 
@@ -42,6 +43,27 @@ func (h *copyTestHost) Copy(value string) bool {
 }
 
 type outputTransferStub struct{}
+
+type blockingOutputTransfer struct {
+	sessiontransfer.Service
+	started  chan sessiontransfer.ExportRequest
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingOutputTransfer) ExportSession(
+	ctx context.Context,
+	request sessiontransfer.ExportRequest,
+) (sessiontransfer.Document, error) {
+	service.started <- request
+	select {
+	case <-service.release:
+		return service.Service.ExportSession(ctx, request)
+	case <-ctx.Done():
+		close(service.canceled)
+		return sessiontransfer.Document{}, context.Cause(ctx)
+	}
+}
 
 func (outputTransferStub) ExportSession(_ context.Context, request sessiontransfer.ExportRequest) (sessiontransfer.Document, error) {
 	if err := request.Validate(); err != nil {
@@ -111,6 +133,65 @@ func TestCopyLastAndExportCommandsUseTheDurableSessionSnapshot(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "stable answer") {
 		t.Fatalf("export does not contain the durable assistant response:\n%s", data)
+	}
+	stop()
+}
+
+func TestSessionExportOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	workspace := t.TempDir()
+	backend := mock.New()
+	session, err := backend.CreateSession(t.Context(), agent.CreateSession{
+		Title: "Export ownership", Workspace: workspace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.Instant = true
+	backend.Script = stableCompletedScript
+	opened, err := backend.StartRun(t.Context(), agent.StartRun{
+		SessionID: session.ID, Message: agent.Message{Text: "create export history"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range opened.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+	transfer := &blockingOutputTransfer{
+		Service: outputTransferStub{}, started: make(chan sessiontransfer.ExportRequest, 1),
+		release: make(chan struct{}), canceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(transfer.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: session.ID, Transfers: transfer, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/export markdown owned.md")
+	host.Press(input.Enter)
+	request := awaitValue(t, transfer.started, "session export")
+	if request.SessionID != session.ID {
+		t.Fatalf("export session = %q, want %q", request.SessionID, session.ID)
+	}
+	title := "Projection changed during export"
+	installChangedSessionProjection(t, backend, source, session.ID, title)
+	host.Shows(t, "session refreshed after runtime change")
+	select {
+	case <-transfer.canceled:
+		t.Fatal("session projection replacement canceled the export")
+	default:
+	}
+	release()
+	host.Shows(t, "exported session")
+	if _, err := os.Stat(filepath.Join(workspace, "owned.md")); err != nil {
+		t.Fatal(err)
 	}
 	stop()
 }

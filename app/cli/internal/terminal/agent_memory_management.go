@@ -262,8 +262,9 @@ func parseAgentMemoryIdentity(argument, workspace string) (agentmemory.Target, s
 }
 
 func (a *app) addAgentMemory(target agentmemory.Target, content string, complete func(error) bool) error {
+	presentation := a.sessionContext
 	a.status.note("adding agent memory")
-	if !runOperation(a, agentMemoryOperation, false,
+	if !runApplicationOperation(a, agentMemoryOperation, false,
 		func(ctx context.Context) (agentmemory.Item, error) { return a.agentMemory.Add(ctx, target, content) },
 		func(item agentmemory.Item, err error) {
 			if err != nil {
@@ -278,7 +279,7 @@ func (a *app) addAgentMemory(target agentmemory.Target, content string, complete
 				closed = complete(nil)
 			}
 			a.message("agent memory added · " + item.ID)
-			if closed {
+			if closed && a.sessionContext == presentation {
 				a.showAgentMemory(target)
 			}
 		},
@@ -289,8 +290,9 @@ func (a *app) addAgentMemory(target agentmemory.Target, content string, complete
 }
 
 func (a *app) updateAgentMemory(target agentmemory.Target, patch agentmemory.Patch, label string, complete func(error) bool) error {
+	presentation := a.sessionContext
 	a.status.note(label)
-	if !runOperation(a, agentMemoryOperation, false,
+	if !runApplicationOperation(a, agentMemoryOperation, false,
 		func(ctx context.Context) (agentmemory.Item, error) { return a.agentMemory.Update(ctx, patch) },
 		func(item agentmemory.Item, err error) {
 			if err != nil {
@@ -305,7 +307,7 @@ func (a *app) updateAgentMemory(target agentmemory.Target, patch agentmemory.Pat
 				closed = complete(nil)
 			}
 			a.message("agent memory updated · " + item.ID)
-			if closed {
+			if closed && a.sessionContext == presentation {
 				a.showAgentMemory(target)
 			}
 		},
@@ -316,9 +318,10 @@ func (a *app) updateAgentMemory(target agentmemory.Target, patch agentmemory.Pat
 }
 
 func (a *app) reviewAgentMemory(target agentmemory.Target, id string, decision agentmemory.ReviewDecision) {
+	presentation := a.sessionContext
 	label := string(decision) + " agent memory " + id
 	a.status.note(label)
-	if !runOperation(a, agentMemoryOperation, false,
+	if !runApplicationOperation(a, agentMemoryOperation, false,
 		func(ctx context.Context) (string, error) { return id, a.agentMemory.Review(ctx, id, decision) },
 		func(reviewed string, err error) {
 			if err != nil {
@@ -330,7 +333,9 @@ func (a *app) reviewAgentMemory(target agentmemory.Target, id string, decision a
 				outcome = "approved"
 			}
 			a.message("agent memory " + outcome + " · " + reviewed)
-			a.showAgentMemory(target)
+			if a.sessionContext == presentation {
+				a.showAgentMemory(target)
+			}
 		},
 	) {
 		a.message("another agent memory operation is running")
@@ -338,8 +343,9 @@ func (a *app) reviewAgentMemory(target agentmemory.Target, id string, decision a
 }
 
 func (a *app) deleteAgentMemory(target agentmemory.Target, id string) {
+	presentation := a.sessionContext
 	a.status.note("deleting agent memory " + id)
-	if !runOperation(a, agentMemoryOperation, false,
+	if !runApplicationOperation(a, agentMemoryOperation, false,
 		func(ctx context.Context) (string, error) { return id, a.agentMemory.Delete(ctx, id) },
 		func(deleted string, err error) {
 			if err != nil {
@@ -347,7 +353,9 @@ func (a *app) deleteAgentMemory(target agentmemory.Target, id string) {
 				return
 			}
 			a.message("agent memory deleted · " + deleted)
-			a.showAgentMemory(target)
+			if a.sessionContext == presentation {
+				a.showAgentMemory(target)
+			}
 		},
 	) {
 		a.message("another agent memory operation is running")
