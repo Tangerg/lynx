@@ -96,3 +96,19 @@ func TestClassifyErrorProjectsUnmappedRuntimeProblem(t *testing.T) {
 		t.Fatalf("unmapped runtime problem = (%+v, %v), err=%v", problem, ok, err)
 	}
 }
+
+func TestClassifyErrorRejectsMalformedRuntimeProblem(t *testing.T) {
+	t.Parallel()
+	source := runtimeProblemError{
+		cause: errors.New("malformed provider cause"),
+		data:  protocol.ProblemData{Type: protocol.ProblemRateLimited, RetryAfterSeconds: -1},
+	}
+	err := classifyError(source)
+	requireRuntimeContractViolation(t, err)
+	if problem, ok := failure.FromError(err); ok {
+		t.Fatalf("malformed runtime failure crossed the adapter boundary: %+v", problem)
+	}
+	if !errors.Is(err, source.cause) {
+		t.Fatalf("contract violation lost the runtime cause: %v", err)
+	}
+}

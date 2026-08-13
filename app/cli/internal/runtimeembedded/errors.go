@@ -81,6 +81,12 @@ func classifyError(err error) error {
 	if source, ok := errors.AsType[protocol.ProblemError](err); ok {
 		data := source.Problem()
 		problem = projectRuntimeProblem(&data)
+		if validationErr := problem.Validate(); validationErr != nil {
+			return errors.Join(
+				runtimeContractViolation("runtime problem is invalid: %v", validationErr),
+				err,
+			)
+		}
 	}
 	if kind == nil && problem == nil {
 		return err
