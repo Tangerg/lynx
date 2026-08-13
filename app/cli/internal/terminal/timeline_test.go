@@ -4,6 +4,11 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
@@ -26,5 +31,29 @@ func TestTimelineGroupsDescendantsBeneathNewestRoots(t *testing.T) {
 		entries[1].RootPosition != 2 || entries[1].Depth != 1 || entries[2].Depth != 2 ||
 		entries[3].RootPosition != 1 || entries[3].Depth != 0 {
 		t.Fatalf("timeline entries = %+v", entries)
+	}
+}
+
+func TestTimelineCommandInterruptsAPendingPickerClick(t *testing.T) {
+	jumped, forked := 0, 0
+	pane := newTimelinePane(kit.Dark(), kit.Unicode(),
+		func(timelineEntry) { jumped++ },
+		func(timelineEntry) { forked++ },
+	)
+	pane.SetRuns([]agent.Run{{ID: "one"}, {ID: "two"}})
+	pane.Focus(true)
+	root := headless.NewRoot(pane)
+	root.Draw(grid.NewSurface(80, 20).View())
+	first := pickerPoint(pane.picker, 0)
+
+	root.Handle(input.Mouse{Pos: first, Action: input.MouseDown, Button: input.ButtonLeft})
+	root.Handle(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
+	root.Handle(input.Mouse{Pos: first, Action: input.MouseUp, Button: input.ButtonLeft})
+
+	if forked != 1 {
+		t.Fatalf("fork command ran %d times, want 1", forked)
+	}
+	if jumped != 0 {
+		t.Fatalf("release after fork jumped %d times", jumped)
 	}
 }

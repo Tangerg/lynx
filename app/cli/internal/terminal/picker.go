@@ -79,6 +79,8 @@ func (p *picker[T]) SetItems(items []T) {
 
 func (p *picker[T]) Current() (T, bool) { return p.items.Current() }
 
+func (p *picker[T]) interruptPointerGesture() { p.pointerGesture.cancel() }
+
 func (p *picker[T]) Reset() {
 	p.query.Reset()
 	p.items.SetPattern("")

@@ -58,3 +58,30 @@ func TestSessionCenterRejectsCursorCyclesAcrossUserLoadedPages(t *testing.T) {
 		t.Fatalf("SetPage cycle error = %v", err)
 	}
 }
+
+func TestSessionCenterCommandInterruptsAPendingPickerClick(t *testing.T) {
+	opened, loaded := 0, 0
+	center := newSessionCenterPane(kit.Dark(), kit.Unicode(), func(agent.Session) { opened++ })
+	center.loadMore = func() { loaded++ }
+	if err := center.SetPage(agent.SessionPage{
+		Items:      []agent.Session{{ID: "one"}, {ID: "two"}},
+		NextCursor: "next",
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	center.Focus(true)
+	root := headless.NewRoot(center)
+	root.Draw(grid.NewSurface(80, 20).View())
+	second := pickerPoint(center.picker, 1)
+
+	root.Handle(input.Mouse{Pos: second, Action: input.MouseDown, Button: input.ButtonLeft})
+	root.Handle(input.Key{Code: input.Character, Rune: 'l', Mods: input.Alt})
+	root.Handle(input.Mouse{Pos: second, Action: input.MouseUp, Button: input.ButtonLeft})
+
+	if loaded != 1 {
+		t.Fatalf("load-more command ran %d times, want 1", loaded)
+	}
+	if opened != 0 {
+		t.Fatalf("release after load-more opened %d sessions", opened)
+	}
+}

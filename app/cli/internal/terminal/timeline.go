@@ -101,6 +101,7 @@ func (p *timelinePane) Draw(frame headless.Frame) {
 
 func (p *timelinePane) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && key.Mods == input.Alt && key.Rune == 'f' {
+		p.picker.interruptPointerGesture()
 		if entry, selected := p.picker.Current(); selected && p.fork != nil {
 			p.fork(entry)
 		}

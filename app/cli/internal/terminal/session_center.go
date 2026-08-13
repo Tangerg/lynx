@@ -150,6 +150,7 @@ func (c *sessionCenterPane) drawPreview(view grid.View) {
 
 func (c *sessionCenterPane) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && key.Mods == input.Alt {
+		c.picker.interruptPointerGesture()
 		session, selected := c.picker.Current()
 		switch key.Rune {
 		case 'l':
