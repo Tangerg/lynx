@@ -816,8 +816,8 @@ func (a *app) dispatchPrompt(message agent.Message) {
 		return
 	}
 	a.reportWorkbenchIssue(workbenchRunOutbox, nil)
-	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
-		a.enqueueFollowUp(commandID, message)
+	if a.conversation.Busy() || a.following || a.pendingCancel != nil || a.operations.BlocksRunAdmission() {
+		a.enqueueDeferredPrompt(commandID, message)
 		return
 	}
 	_, err = a.queue.EnqueueCommand(commandID, a.session.ID, message, a.options)

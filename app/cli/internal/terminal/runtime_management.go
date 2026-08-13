@@ -210,7 +210,7 @@ func (a *app) SetModelRole(kind modelconfig.RoleKind, argument string) error {
 		return err
 	}
 	a.status.note("updating " + string(kind) + " model role")
-	started := runApplicationOperation(a, modelConfigOperation, false,
+	started := runAdmissionMutation(a, modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Role, error) { return a.modelConfig.SetRole(ctx, role) },
 		func(updated modelconfig.Role, err error) {
 			if err != nil {
@@ -461,7 +461,7 @@ func valueChange(mode, value string) *modelconfig.ValueChange {
 
 func (a *app) updateProvider(update modelconfig.UpdateProvider) {
 	a.status.note("updating provider " + update.Provider)
-	started := runApplicationOperation(a, modelConfigOperation, false,
+	started := runAdmissionMutation(a, modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Provider, error) {
 			return a.modelConfig.UpdateProvider(ctx, update)
 		},
@@ -589,7 +589,7 @@ func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, 
 		}
 		return change(ctx)
 	}
-	started := runApplicationOperation(a, goalOperation, false, work, func(current goal.Goal, err error) {
+	started := runAdmissionMutation(a, goalOperation, false, work, func(current goal.Goal, err error) {
 		if err != nil {
 			a.message(label + " failed: " + err.Error())
 			return

@@ -106,7 +106,7 @@ func (a *app) PrepareCodebaseReindex() error {
 func (a *app) reindexCodebase(workspace string) {
 	presentation := a.sessionContext
 	a.status.note("starting codebase reindex")
-	if !runApplicationOperation(a, codebaseOperation, false,
+	if !runAdmissionMutation(a, codebaseOperation, false,
 		func(ctx context.Context) (codebaseReindexResult, error) {
 			operation, err := a.codebase.Reindex(ctx, workspace)
 			if err != nil {

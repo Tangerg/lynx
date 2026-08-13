@@ -148,7 +148,7 @@ func (a *app) saveKnowledge(current *knowledge.Entry, target knowledge.Target, c
 		return err
 	}
 	a.status.note("saving " + string(target.Scope) + " LYRA.md")
-	if !runApplicationOperation(a, knowledgeOperation, false,
+	if !runAdmissionMutation(a, knowledgeOperation, false,
 		func(ctx context.Context) (knowledge.Entry, error) { return a.knowledge.Save(ctx, update) },
 		func(saved knowledge.Entry, err error) {
 			if err != nil {

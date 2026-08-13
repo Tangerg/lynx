@@ -53,6 +53,7 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | INPUT-03 | Session draft | No durable draft | Text and attachment identities restore per session | done |
 | INPUT-04 | Prompt stash | No stash | Stash, list, apply and delete are explicit CLI-owned operations | done |
 | INPUT-05 | External editor | No round trip | Configured editor round trip preserves the original draft on failure | done |
+| INPUT-06 | Run admission ordering | Async runtime mutations could race the next prompt | Run-affecting mutations own an explicit admission barrier; prompts persist behind it and drain automatically | done |
 | SESSION-01 | Session switch/create/rename/fork | Implemented | Existing behavior remains authoritative | done |
 | SESSION-02 | Paginated session center | First page only | Cursor pagination, grouping, preview, favorite, rename and delete | done |
 | SESSION-03 | Current-session timeline | No dedicated surface | Jump to retained entries and fork from an existing root run | done |

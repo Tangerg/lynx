@@ -157,7 +157,7 @@ func (a *app) changeSkillLifecycle(
 		return errors.New("a skill name is required")
 	}
 	a.status.note(status + " " + name)
-	started := runApplicationOperation(a, skillOperation, false,
+	started := runAdmissionMutation(a, skillOperation, false,
 		func(ctx context.Context) (string, error) { return name, change(ctx, name) },
 		func(changed string, err error) {
 			if err != nil {
@@ -251,7 +251,7 @@ func (a *app) decideSkillProposal(reference skills.ProposalReference, approve bo
 		decide = a.skills.Approve
 	}
 	a.status.note(verb + " skill proposal " + reference.Name)
-	started := runApplicationOperation(a, skillOperation, false,
+	started := runAdmissionMutation(a, skillOperation, false,
 		func(ctx context.Context) (skills.ProposalReference, error) { return reference, decide(ctx, reference) },
 		func(reviewed skills.ProposalReference, err error) {
 			if err != nil {

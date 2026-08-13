@@ -105,7 +105,7 @@ func (a *app) PrepareHookTrust(trusted bool) error {
 func (a *app) setHookTrust(workspace, projectRoot string, trusted bool) {
 	presentation := a.sessionContext
 	a.status.note("updating project hook trust")
-	if !runApplicationOperation(a, hookOperation, false,
+	if !runAdmissionMutation(a, hookOperation, false,
 		func(ctx context.Context) (hookpolicy.Catalog, error) {
 			if err := a.hooks.SetProjectTrust(ctx, projectRoot, trusted); err != nil {
 				return hookpolicy.Catalog{}, err

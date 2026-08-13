@@ -55,9 +55,18 @@ const (
 	sessionOperationScope
 )
 
+type runAdmissionPolicy uint8
+
+const runAdmissionAfterSettlement runAdmissionPolicy = 1
+
+type operationPolicy struct {
+	scope        operationScope
+	runAdmission runAdmissionPolicy
+}
+
 type ownedOperation struct {
 	id     uint64
-	scope  operationScope
+	policy operationPolicy
 	cancel context.CancelFunc
 }
 
@@ -83,17 +92,22 @@ func newOperationOwner(parent context.Context) *operationOwner {
 // Go starts work in slot. A replaceable operation cancels the previous owner;
 // an exclusive operation is rejected while the slot is occupied.
 func (o *operationOwner) Go(slot operationSlot, replace bool, work func(context.Context, operationLease)) bool {
-	return o.goScoped(applicationOperationScope, slot, replace, work)
+	return o.goWithPolicy(operationPolicy{scope: applicationOperationScope}, slot, replace, work)
 }
 
 // GoSession starts work owned by the current terminal session projection. A
 // successful projection replacement cancels all work in this scope before the
 // new session becomes visible, so a late result cannot bleed into it.
 func (o *operationOwner) GoSession(slot operationSlot, replace bool, work func(context.Context, operationLease)) bool {
-	return o.goScoped(sessionOperationScope, slot, replace, work)
+	return o.goWithPolicy(operationPolicy{scope: sessionOperationScope}, slot, replace, work)
 }
 
-func (o *operationOwner) goScoped(scope operationScope, slot operationSlot, replace bool, work func(context.Context, operationLease)) bool {
+func (o *operationOwner) goWithPolicy(
+	policy operationPolicy,
+	slot operationSlot,
+	replace bool,
+	work func(context.Context, operationLease),
+) bool {
 	o.mu.Lock()
 	if o.closed {
 		o.mu.Unlock()
@@ -109,7 +123,7 @@ func (o *operationOwner) goScoped(scope operationScope, slot operationSlot, repl
 	ctx, cancel := context.WithCancel(o.ctx)
 	o.next++
 	lease := operationLease{slot: slot, id: o.next}
-	o.active[slot] = ownedOperation{id: lease.id, scope: scope, cancel: cancel}
+	o.active[slot] = ownedOperation{id: lease.id, policy: policy, cancel: cancel}
 	o.wg.Go(func() {
 		defer o.release(lease, cancel)
 		work(ctx, lease)
@@ -132,6 +146,24 @@ func (o *operationOwner) Active(slot operationSlot) bool {
 	return !o.closed && ok
 }
 
+// BlocksRunAdmission reports whether an admitted runtime mutation must settle
+// before the next queued prompt may become a Run. The policy belongs to the
+// operation rather than to call sites that happen to initiate runs, so every
+// dispatch path observes the same ordering boundary.
+func (o *operationOwner) BlocksRunAdmission() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.closed {
+		return false
+	}
+	for _, operation := range o.active {
+		if operation.policy.runAdmission == runAdmissionAfterSettlement {
+			return true
+		}
+	}
+	return false
+}
+
 func (o *operationOwner) Cancel(slot operationSlot) {
 	o.mu.Lock()
 	active, ok := o.active[slot]
@@ -151,7 +183,7 @@ func (o *operationOwner) CancelScope(scope operationScope) {
 	o.mu.Lock()
 	operations := make([]ownedOperation, 0, len(o.active))
 	for slot, operation := range o.active {
-		if operation.scope != scope {
+		if operation.policy.scope != scope {
 			continue
 		}
 		delete(o.active, slot)
@@ -217,7 +249,7 @@ func (o *operationOwner) release(lease operationLease, cancel context.CancelFunc
 // session projection. Most commands belong here because their result is
 // interpreted against the session and workspace that launched them.
 func runOperation[T any](a *app, slot operationSlot, replace bool, work func(context.Context) (T, error), apply func(T, error)) bool {
-	return runOwnedOperation(a, sessionOperationScope, slot, replace, work, apply)
+	return runOwnedOperation(a, operationPolicy{scope: sessionOperationScope}, slot, replace, work, apply)
 }
 
 // runApplicationOperation owns work whose domain lifetime is independent of a
@@ -225,19 +257,36 @@ func runOperation[T any](a *app, slot operationSlot, replace bool, work func(con
 // joined when the terminal closes. Callers must keep apply safe when any
 // session-scoped presentation they opened has since been dismissed.
 func runApplicationOperation[T any](a *app, slot operationSlot, replace bool, work func(context.Context) (T, error), apply func(T, error)) bool {
-	return runOwnedOperation(a, applicationOperationScope, slot, replace, work, apply)
+	return runOwnedOperation(a, operationPolicy{scope: applicationOperationScope}, slot, replace, work, apply)
+}
+
+// runAdmissionMutation owns an application-level mutation whose settled
+// state is an input to subsequently admitted Runs. Prompts may still be queued
+// while it is active, but queue dispatch waits until apply has observed the
+// mutation result, so a Run cannot race stale approval, provider, tool, or
+// authored-context state.
+func runAdmissionMutation[T any](
+	a *app,
+	slot operationSlot,
+	replace bool,
+	work func(context.Context) (T, error),
+	apply func(T, error),
+) bool {
+	return runOwnedOperation(a, operationPolicy{
+		scope: applicationOperationScope, runAdmission: runAdmissionAfterSettlement,
+	}, slot, replace, work, apply)
 }
 
 func runOwnedOperation[T any](
 	a *app,
-	scope operationScope,
+	policy operationPolicy,
 	slot operationSlot,
 	replace bool,
 	work func(context.Context) (T, error),
 	apply func(T, error),
 ) bool {
 	dispatcher := a.loop.Dispatcher()
-	return a.operations.goScoped(scope, slot, replace, func(ctx context.Context, lease operationLease) {
+	return a.operations.goWithPolicy(policy, slot, replace, func(ctx context.Context, lease operationLease) {
 		result, err := work(ctx)
 		if context.Cause(ctx) != nil {
 			return
@@ -247,6 +296,9 @@ func runOwnedOperation[T any](
 				return
 			}
 			apply(result, err)
+			if policy.runAdmission == runAdmissionAfterSettlement {
+				a.drainQueue()
+			}
 		})
 	})
 }

@@ -97,3 +97,39 @@ func TestOperationOwnerCancelsOnlyTheRequestedScope(t *testing.T) {
 		t.Fatal("application operation was retired with the session scope")
 	}
 }
+
+func TestOperationOwnerDerivesRunAdmissionFromTheCurrentLease(t *testing.T) {
+	owner := newOperationOwner(t.Context())
+	t.Cleanup(owner.Close)
+
+	concurrentDone := make(chan struct{})
+	if !owner.Go("query", false, func(ctx context.Context, _ operationLease) {
+		defer close(concurrentDone)
+		<-ctx.Done()
+	}) {
+		t.Fatal("concurrent operation was rejected")
+	}
+	if owner.BlocksRunAdmission() {
+		t.Fatal("ordinary application work blocked run admission")
+	}
+	owner.Cancel("query")
+	<-concurrentDone
+
+	blockingDone := make(chan struct{})
+	if !owner.goWithPolicy(operationPolicy{
+		scope: applicationOperationScope, runAdmission: runAdmissionAfterSettlement,
+	}, "mutation", false, func(ctx context.Context, _ operationLease) {
+		defer close(blockingDone)
+		<-ctx.Done()
+	}) {
+		t.Fatal("run-prerequisite mutation was rejected")
+	}
+	if !owner.BlocksRunAdmission() {
+		t.Fatal("run-prerequisite mutation did not block run admission")
+	}
+	owner.Cancel("mutation")
+	<-blockingDone
+	if owner.BlocksRunAdmission() {
+		t.Fatal("retired mutation kept run admission blocked")
+	}
+}

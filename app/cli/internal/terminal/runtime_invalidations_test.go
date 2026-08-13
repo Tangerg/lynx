@@ -466,6 +466,7 @@ func TestApprovalModeMutationOutlivesSameSessionProjectionReplacement(t *testing
 	host.Press(input.Enter)
 	host.Shows(t, "Runtime approval mode")
 	host.Press(input.Enter)
+	host.Hides(t, "Runtime approval mode")
 	if mode := awaitValue(t, runtime.started, "approval mode mutation"); mode != agent.ApprovalModeSafe {
 		t.Fatalf("approval mode mutation = %q, want safe", mode)
 	}
@@ -502,6 +503,43 @@ func TestApprovalModeMutationOutlivesSameSessionProjectionReplacement(t *testing
 	mode, err := base.GetApprovalMode(t.Context())
 	if err != nil || mode != agent.ApprovalModeSafe {
 		t.Fatalf("approval mode after mutation = (%q, %v)", mode, err)
+	}
+	stop()
+}
+
+func TestRunAdmissionWaitsForApprovalModeMutationSettlement(t *testing.T) {
+	base := mock.New()
+	recorder := &recordingRuntime{Runtime: base}
+	runtime := &blockingApprovalModeRuntime{
+		Runtime: recorder, started: make(chan agent.ApprovalMode, 1),
+		release: make(chan struct{}), canceled: make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(runtime.release) })
+	t.Cleanup(release)
+
+	host, stop := runUIWith(t, runtime)
+	host.Shows(t, "Ask lyra")
+	host.Type("/approval")
+	host.Press(input.Enter)
+	host.Shows(t, "Runtime approval mode")
+	host.Press(input.Enter)
+	host.Hides(t, "Runtime approval mode")
+	if mode := awaitValue(t, runtime.started, "approval mode mutation"); mode != agent.ApprovalModeSafe {
+		t.Fatalf("approval mode mutation = %q, want safe", mode)
+	}
+
+	host.Type("pending-policy")
+	host.Shows(t, "pending-policy")
+	host.Press(input.Enter)
+	host.Shows(t, "queued behind runtime change · 1 waiting")
+	if got := recorder.startCount(); got != 0 {
+		t.Fatalf("run started before approval mode settlement: %d starts", got)
+	}
+
+	release()
+	host.Shows(t, "Reproduce the flake")
+	if got := recorder.startCount(); got != 1 {
+		t.Fatalf("run starts after approval mode settlement = %d, want 1", got)
 	}
 	stop()
 }

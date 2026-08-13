@@ -241,7 +241,7 @@ func (a *app) updateMCPServer(update mcp.ServerUpdate) {
 func (a *app) runMCPServerOperation(label string, change func(context.Context) (mcp.Server, error)) {
 	presentation := a.sessionContext
 	a.status.note(label)
-	started := runApplicationOperation(a, mcpOperation, false, change, func(server mcp.Server, err error) {
+	started := runAdmissionMutation(a, mcpOperation, false, change, func(server mcp.Server, err error) {
 		if err != nil {
 			a.message(label + " failed: " + err.Error())
 			return
@@ -314,7 +314,7 @@ func (a *app) ReconnectMCPServer(server string) error {
 
 func (a *app) runMCPAck(label string, command func(context.Context) error) {
 	a.status.note(label)
-	started := runApplicationOperation(a, mcpOperation, false,
+	started := runAdmissionMutation(a, mcpOperation, false,
 		func(ctx context.Context) (struct{}, error) { return struct{}{}, command(ctx) },
 		func(_ struct{}, err error) {
 			if err != nil {
@@ -339,7 +339,7 @@ func (a *app) AuthorizeMCPServer(server string) error {
 	}
 	presentation := a.sessionContext
 	a.status.note("starting MCP authorization " + server)
-	started := runApplicationOperation(a, mcpAuthorizationOperation, false,
+	started := runAdmissionMutation(a, mcpAuthorizationOperation, false,
 		func(ctx context.Context) (mcp.AuthorizationAttempt, error) {
 			return a.mcp.StartAuthorization(ctx, server)
 		},

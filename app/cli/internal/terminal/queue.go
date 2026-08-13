@@ -107,7 +107,7 @@ func countedNoun(count int, noun string) string {
 	return fmt.Sprintf("%d %ss", count, noun)
 }
 
-func (a *app) enqueueFollowUp(commandID agent.CommandID, message agent.Message) {
+func (a *app) enqueueDeferredPrompt(commandID agent.CommandID, message agent.Message) {
 	_, err := a.queue.EnqueueCommand(commandID, a.session.ID, message, a.options)
 	if err != nil {
 		a.message(err.Error())
@@ -117,7 +117,11 @@ func (a *app) enqueueFollowUp(commandID agent.CommandID, message agent.Message) 
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
 	snapshot := a.syncQueue()
-	a.message(fmt.Sprintf("queued follow-up · %d waiting", len(snapshot.Entries)))
+	label := "queued follow-up"
+	if !a.conversation.Busy() && !a.following && a.pendingCancel == nil && a.operations.BlocksRunAdmission() {
+		label = "queued behind runtime change"
+	}
+	a.message(fmt.Sprintf("%s · %d waiting", label, len(snapshot.Entries)))
 }
 
 func (a *app) drainQueue() bool {
@@ -126,7 +130,8 @@ func (a *app) drainQueue() bool {
 	}
 	if _, dispatching := a.queue.Dispatching(a.session.ID); dispatching {
 		if a.conversation.Busy() || a.following || a.pendingCancel != nil || a.openingRunID == "" ||
-			a.operations.Active(sessionChangeOperation) || a.operations.Active(pendingRunRecoveryOperation) {
+			a.operations.Active(sessionChangeOperation) || a.operations.Active(pendingRunRecoveryOperation) ||
+			a.operations.BlocksRunAdmission() {
 			return false
 		}
 		if err := a.attemptQueuedDispatchSettlement(); err != nil {
@@ -136,7 +141,8 @@ func (a *app) drainQueue() bool {
 		a.openingRunID = ""
 	}
 	if a.conversation.Busy() || a.following || a.pendingCancel != nil ||
-		a.operations.Active(sessionChangeOperation) || a.operations.Active(pendingRunRecoveryOperation) {
+		a.operations.Active(sessionChangeOperation) || a.operations.Active(pendingRunRecoveryOperation) ||
+		a.operations.BlocksRunAdmission() {
 		return false
 	}
 	entry, ok := a.queue.BeginDispatch(a.session.ID)
@@ -521,6 +527,9 @@ func (a *app) sendQueuedNow(id uint64) error {
 	}
 	if a.operations.Active(sessionChangeOperation) {
 		return errors.New("wait for the current session change to finish")
+	}
+	if !a.conversation.Busy() && !a.following && a.pendingCancel == nil && a.operations.BlocksRunAdmission() {
+		return errors.New("wait for the pending runtime change before sending a queued prompt")
 	}
 	if err := a.commitQueueMutation(func() error {
 		return a.queue.Promote(a.session.ID, id)
