@@ -12,6 +12,9 @@ import (
 )
 
 func (a *app) stashPrompt() error {
+	if a.workbench == nil {
+		return errors.New("prompt stashes are unavailable")
+	}
 	message, present, err := a.currentDraft()
 	if err != nil {
 		return err
@@ -19,13 +22,20 @@ func (a *app) stashPrompt() error {
 	if !present {
 		return errors.New("the composer has no prompt to stash")
 	}
-	stash, err := a.workbench.StashPrompt(message)
+	// Flush the exact visible value first, serializing this transfer after every
+	// autosave. The store can then move that durable draft into the stash
+	// collection without racing an older writer that would resurrect it.
+	if err := a.saveDraft(message); err != nil {
+		a.reportWorkbenchIssue(workbenchDraft, err)
+		return fmt.Errorf("save session draft before stashing: %w", err)
+	}
+	stash, err := a.workbench.StashDraft(a.session.ID, message)
+	a.reportWorkbenchIssue(workbenchDraft, err)
 	if err != nil {
-		return err
+		return fmt.Errorf("stash session draft: %w", err)
 	}
-	if err := a.commitDraft(agent.Message{}); err != nil {
-		return fmt.Errorf("prompt stash saved, but clear session draft: %w", err)
-	}
+	a.draftState.Reset(a.session.ID, agent.Message{})
+	a.restoreComposer(agent.Message{})
 	a.message("stashed prompt · " + stash.ID)
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -113,6 +114,196 @@ func TestStorePreservesCachedDraftWhenDurableDeletionFails(t *testing.T) {
 	}
 	if !ok || got.Text != want.Text {
 		t.Fatalf("cached draft after failed deletion = %+v, %v; want %+v, true", got, ok, want)
+	}
+}
+
+func TestStoreRollsBackAStashWhenDraftRetirementFails(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{
+		StashLimit: 1, Random: bytes.NewReader([]byte("12345678abcdefgh")),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.StashPrompt(agent.Message{Text: "older stash"}); err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	draft := agent.Message{Text: "draft must keep one owner"}
+	if err := store.SaveDraft(sessionID, draft); err != nil {
+		t.Fatal(err)
+	}
+	draftPath := store.path(store.sessionStateName(sessionID))
+	if err := os.Remove(draftPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(draftPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block deletion"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.StashDraft(sessionID, draft); err == nil {
+		t.Fatal("stash transaction unexpectedly retired the blocked draft")
+	}
+	if stashes := store.Stashes(); len(stashes) != 1 || stashes[0].Message.Text != "older stash" {
+		t.Fatalf("stashes after rollback = %+v, want the pre-transaction collection", stashes)
+	}
+	if got, found, err := store.Draft(sessionID); err != nil || !found || !got.Equal(draft) {
+		t.Fatalf("draft after failed stash = %+v, %t, %v", got, found, err)
+	}
+}
+
+func TestStoreStashesDraftWithoutRetiringSessionOutboxes(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	pending := PendingRun{
+		State: PendingRunQueued,
+		Command: agent.StartRun{
+			CommandID: agent.CommandID("cli_11111111111111111111111111111111"),
+			SessionID: sessionID, Message: agent.Message{Text: "pending run"},
+		},
+	}
+	if err := store.StagePendingRun(pending); err != nil {
+		t.Fatal(err)
+	}
+	approval := agent.Approval{
+		RunID: "run_waiting", ItemID: "approval", Title: "Approve",
+		Tool: &agent.ToolCall{Kind: agent.ToolRead, Name: "read", Path: "README.md", Status: agent.ToolRunning},
+	}
+	resume := PendingResume{
+		Command: agent.ResumeRun{
+			CommandID: agent.CommandID("cli_22222222222222222222222222222222"), RunID: approval.RunID,
+			Answers: []agent.InterruptAnswer{{ItemID: approval.ItemID, Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny}}},
+		},
+		Interactions: []agent.Interaction{approval},
+	}
+	if err := store.StagePendingResume(sessionID, resume); err != nil {
+		t.Fatal(err)
+	}
+	draft := agent.Message{Text: "stash only this draft"}
+	if err := store.SaveDraft(sessionID, draft); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.StashDraft(sessionID, draft); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := reopened.Draft(sessionID); err != nil || found {
+		t.Fatalf("draft after stash = found %t, error %v", found, err)
+	}
+	if stashes := reopened.Stashes(); len(stashes) != 1 || !stashes[0].Message.Equal(draft) {
+		t.Fatalf("stashes = %+v", stashes)
+	}
+	if runs := reopened.PendingRuns(sessionID); len(runs) != 1 || runs[0].Command.CommandID != pending.Command.CommandID {
+		t.Fatalf("pending runs after stash = %+v", runs)
+	}
+	if got, found := reopened.PendingResume(sessionID); !found || got.Command.CommandID != resume.Command.CommandID {
+		t.Fatalf("pending resume after stash = %+v, %t", got, found)
+	}
+}
+
+func TestStoreCompletesInterruptedStashTransfersOnOpen(t *testing.T) {
+	for _, phase := range []string{"intent saved", "stash saved", "source retired"} {
+		t.Run(phase, func(t *testing.T) {
+			directory := t.TempDir()
+			store, err := Open(directory, Config{StashLimit: 2})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.StashPrompt(agent.Message{Text: "older stash"}); err != nil {
+				t.Fatal(err)
+			}
+			const sessionID = "session"
+			draft := agent.Message{Text: "restart-safe draft transfer"}
+			if err := store.SaveDraft(sessionID, draft); err != nil {
+				t.Fatal(err)
+			}
+			transfer := stashTransfer{
+				SessionID: sessionID, Draft: draft,
+				Stash: Stash{
+					ID: "0123456789abcdef", CreatedAt: time.Date(2026, 8, 13, 20, 0, 0, 0, time.UTC),
+					Message: draft,
+				},
+			}
+			if err := store.save(stashTransferName, transfer); err != nil {
+				t.Fatal(err)
+			}
+			if phase == "stash saved" || phase == "source retired" {
+				next := tailStashes(append(slices.Clone(store.stashes), transfer.Stash), store.stashLimit)
+				if err := store.save("stashes.json", next); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if phase == "source retired" {
+				if err := store.saveSessionState(sessionID, agent.Message{}, nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			reopened, err := Open(directory, Config{StashLimit: 2})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, found, err := reopened.Draft(sessionID); err != nil || found {
+				t.Fatalf("draft after recovery = found %t, error %v", found, err)
+			}
+			stashes := reopened.Stashes()
+			if len(stashes) != 2 || stashes[0].ID != transfer.Stash.ID || !stashes[0].Message.Equal(draft) {
+				t.Fatalf("stashes after recovery = %+v", stashes)
+			}
+			settled, err := Open(directory, Config{StashLimit: 2})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stashes := settled.Stashes(); len(stashes) != 2 || stashes[0].ID != transfer.Stash.ID {
+				t.Fatalf("stashes after idempotent reopen = %+v", stashes)
+			}
+		})
+	}
+}
+
+func TestStoreDoesNotReplayAStashTransferOverANewerDraft(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	old := agent.Message{Text: "old transfer source"}
+	if err := store.SaveDraft(sessionID, old); err != nil {
+		t.Fatal(err)
+	}
+	transfer := stashTransfer{
+		SessionID: sessionID, Draft: old,
+		Stash: Stash{ID: "0123456789abcdef", CreatedAt: time.Now().UTC(), Message: old},
+	}
+	if err := store.save(stashTransferName, transfer); err != nil {
+		t.Fatal(err)
+	}
+	newer := agent.Message{Text: "new owner"}
+	if err := store.SaveDraft(sessionID, newer); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft, found, err := reopened.Draft(sessionID); err != nil || !found || !draft.Equal(newer) {
+		t.Fatalf("newer draft after recovery = %+v, %t, %v", draft, found, err)
+	}
+	if stashes := reopened.Stashes(); len(stashes) != 0 {
+		t.Fatalf("superseded transfer created stashes = %+v", stashes)
 	}
 }
 

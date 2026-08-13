@@ -3297,8 +3297,24 @@ func TestStashKeepsTheComposerWhenDraftRetirementFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if stashes := store.Stashes(); len(stashes) != 0 {
+		t.Fatalf("stashes after failed transaction = %+v", stashes)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("stash current prompt")
+	host.Press(input.Enter)
+	host.Shows(t, "stashed prompt")
+	store, err = workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if stashes := store.Stashes(); len(stashes) != 1 || stashes[0].Message.Text != "draft remains visible" {
-		t.Fatalf("stashes after partial commit = %+v", stashes)
+		t.Fatalf("stashes after retry = %+v", stashes)
+	}
+	if draft, found, err := store.Draft("ses_demo_1"); err != nil || found {
+		t.Fatalf("draft after successful retry = %+v, %t, %v", draft, found, err)
 	}
 	stop()
 }

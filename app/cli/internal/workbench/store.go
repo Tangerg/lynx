@@ -27,6 +27,7 @@ const (
 	defaultHistoryLimit = 1000
 	defaultStashLimit   = 100
 	defaultWorkspaceCap = 50
+	stashTransferName   = "stash-transfer.json"
 )
 
 // Config controls bounded state and supplies deterministic identity sources to
@@ -44,6 +45,35 @@ type Stash struct {
 	ID        string        `json:"id"`
 	CreatedAt time.Time     `json:"createdAt"`
 	Message   agent.Message `json:"message"`
+}
+
+// stashTransfer is the durable intent for the only workbench mutation that
+// spans the global stash catalog and one session aggregate. Recovery uses the
+// draft value as an ownership precondition: it completes an interrupted move
+// only while that exact draft still occupies the source session.
+type stashTransfer struct {
+	SessionID string        `json:"sessionId"`
+	Draft     agent.Message `json:"draft"`
+	Stash     Stash         `json:"stash"`
+}
+
+func (transfer stashTransfer) validate() error {
+	if strings.TrimSpace(transfer.SessionID) == "" {
+		return errors.New("stash transfer session id is empty")
+	}
+	if messageEmpty(transfer.Draft) || messageEmpty(transfer.Stash.Message) {
+		return errors.New("stash transfer prompt is empty")
+	}
+	identity, err := hex.DecodeString(transfer.Stash.ID)
+	if err != nil || len(identity) != 8 || transfer.Stash.CreatedAt.IsZero() ||
+		!transfer.Stash.Message.Equal(transfer.Draft) {
+		return errors.New("stash transfer identity or prompt is inconsistent")
+	}
+	return nil
+}
+
+func stashEqual(left, right Stash) bool {
+	return left.ID == right.ID && left.CreatedAt.Equal(right.CreatedAt) && left.Message.Equal(right.Message)
 }
 
 // Workspace is one recently used authoring root.
@@ -367,6 +397,9 @@ func Open(directory string, config Config) (*Store, error) {
 	store.history = store.trimHistory(store.history)
 	store.stashes = tailStashes(store.stashes, store.stashLimit)
 	store.workspaces = slices.Clone(store.workspaces[:min(len(store.workspaces), store.workspaceLimit)])
+	if err := store.recoverStashTransfer(); err != nil {
+		return nil, fmt.Errorf("recover prompt stash transfer: %w", err)
+	}
 	return store, nil
 }
 
@@ -768,6 +801,114 @@ func (s *Store) StashPrompt(message agent.Message) (Stash, error) {
 	return cloneStash(stash), nil
 }
 
+// StashDraft transfers one session draft into the bounded stash collection.
+// A durable intent makes the cross-file move restart-safe; synchronous failure
+// restores the complete pre-transaction stash collection so capacity eviction
+// cannot turn compensation into data loss.
+func (s *Store) StashDraft(sessionID string, message agent.Message) (Stash, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	message = message.Clone()
+	if sessionID == "" {
+		return Stash{}, errors.New("session id is empty")
+	}
+	if messageEmpty(message) {
+		return Stash{}, errors.New("cannot stash an empty prompt")
+	}
+	identity := make([]byte, 8)
+	if _, err := io.ReadFull(s.random, identity); err != nil {
+		return Stash{}, fmt.Errorf("create stash id: %w", err)
+	}
+	stash := Stash{ID: hex.EncodeToString(identity), CreatedAt: s.now().UTC(), Message: message}
+	transfer := stashTransfer{SessionID: sessionID, Draft: message, Stash: stash}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, present := s.drafts[sessionID]
+	if !present || !current.Equal(message) {
+		return Stash{}, errors.New("session draft changed before it could be stashed")
+	}
+	previous := slices.Clone(s.stashes)
+	next := tailStashes(append(slices.Clone(s.stashes), stash), s.stashLimit)
+	if err := s.save(stashTransferName, transfer); err != nil {
+		return Stash{}, fmt.Errorf("save stash transfer: %w", err)
+	}
+	if err := s.save("stashes.json", next); err != nil {
+		_ = s.remove(stashTransferName)
+		return Stash{}, err
+	}
+	if err := s.saveSessionState(sessionID, agent.Message{}, s.pendingRuns[sessionID]); err != nil {
+		rollbackErr := s.save("stashes.json", previous)
+		if rollbackErr != nil {
+			s.stashes = next
+			return Stash{}, errors.Join(
+				fmt.Errorf("clear session draft: %w", err),
+				fmt.Errorf("restore prompt stashes: %w", rollbackErr),
+			)
+		}
+		if cleanupErr := s.remove(stashTransferName); cleanupErr != nil {
+			// Re-publish the intended stash so a surviving journal always describes
+			// a forward-recoverable state rather than reviving a rolled-back move.
+			if restoreErr := s.save("stashes.json", next); restoreErr != nil {
+				return Stash{}, errors.Join(
+					fmt.Errorf("clear session draft: %w", err),
+					fmt.Errorf("remove stash transfer: %w", cleanupErr),
+					fmt.Errorf("restore recoverable stash: %w", restoreErr),
+				)
+			}
+			s.stashes = next
+			return Stash{}, errors.Join(
+				fmt.Errorf("clear session draft: %w", err),
+				fmt.Errorf("remove stash transfer: %w", cleanupErr),
+			)
+		}
+		return Stash{}, fmt.Errorf("clear session draft: %w", err)
+	}
+	s.stashes = next
+	delete(s.drafts, sessionID)
+	// Once the source draft is absent, the transfer is committed. A stale
+	// journal is harmless: recovery sees no matching source owner and only
+	// retries this cleanup.
+	_ = s.remove(stashTransferName)
+	return cloneStash(stash), nil
+}
+
+func (s *Store) recoverStashTransfer() error {
+	var transfer stashTransfer
+	if err := s.loadOptional(stashTransferName, &transfer); err != nil {
+		return err
+	}
+	if transfer.SessionID == "" {
+		return nil
+	}
+	if err := transfer.validate(); err != nil {
+		return err
+	}
+	current, present := s.drafts[transfer.SessionID]
+	if present && current.Equal(transfer.Draft) {
+		index := slices.IndexFunc(s.stashes, func(stash Stash) bool { return stash.ID == transfer.Stash.ID })
+		switch {
+		case index >= 0 && !stashEqual(s.stashes[index], transfer.Stash):
+			return errors.New("stash transfer identity belongs to another prompt")
+		case index < 0:
+			next := tailStashes(append(slices.Clone(s.stashes), transfer.Stash), s.stashLimit)
+			if err := s.save("stashes.json", next); err != nil {
+				return fmt.Errorf("save recovered prompt stash: %w", err)
+			}
+			s.stashes = next
+		}
+		if err := s.saveSessionState(transfer.SessionID, agent.Message{}, s.pendingRuns[transfer.SessionID]); err != nil {
+			return fmt.Errorf("retire recovered session draft: %w", err)
+		}
+		delete(s.drafts, transfer.SessionID)
+	}
+	// The move is already complete when the source is absent, and a newer draft
+	// means the old intent no longer owns that session value. Either state makes
+	// replay unnecessary; cleanup is best-effort because the journal is
+	// idempotent under both conditions.
+	_ = s.remove(stashTransferName)
+	return nil
+}
+
 // Stashes returns newest prompts first.
 func (s *Store) Stashes() []Stash {
 	s.mu.Lock()
@@ -991,6 +1132,17 @@ func (s *Store) save(name string, value any) error {
 	}
 	removeTemporary = false
 	return nil
+}
+
+func (s *Store) remove(name string) error {
+	if s.directory == "" {
+		return nil
+	}
+	err := os.Remove(s.path(name))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 func (s *Store) path(name string) string { return pathologize.Join(s.directory, name) }
