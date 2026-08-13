@@ -295,4 +295,40 @@ describe("workspace event loop", () => {
 
     expect(subscribed).toEqual(["none", "none", "/recovered"]);
   });
+
+  it("atomically replaces the active generation even when its caller did not abort", async () => {
+    const first = new AbortController();
+    const second = new AbortController();
+    const subscriptionSignals: AbortSignal[] = [];
+    let openedTwice!: () => void;
+    const twice = new Promise<void>((resolve) => {
+      openedTwice = resolve;
+    });
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ signal }) {
+        subscriptionSignals.push(signal);
+        if (subscriptionSignals.length === 2) openedTwice();
+        return (async function* () {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) resolve();
+            else signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+          yield* [];
+        })();
+      },
+      handleEvent: vi.fn(),
+      invalidateAll: vi.fn(),
+      reportDisconnect: vi.fn(),
+    });
+
+    loop.start(first.signal);
+    await vi.waitFor(() => expect(subscriptionSignals).toHaveLength(1));
+    loop.start(second.signal);
+    await twice;
+
+    expect(first.signal.aborted).toBe(false);
+    expect(subscriptionSignals[0]?.aborted).toBe(true);
+    expect(subscriptionSignals[1]?.aborted).toBe(false);
+    second.abort();
+  });
 });

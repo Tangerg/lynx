@@ -36,19 +36,35 @@ function sameTarget(left: WorkspaceWatchTarget, right: WorkspaceWatchTarget): bo
 export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): WorkspaceEventLoop {
   let watchTarget: WorkspaceWatchTarget = { type: "none" };
   let iterAbort: AbortController | null = null;
+  let generationAbort: AbortController | null = null;
   let generation = 0;
 
   return {
     start(signal) {
+      // The loop itself owns the one active subscription generation. Callers
+      // normally withdraw capability before restarting, but correctness must
+      // not depend on that ordering: a repeated start atomically supersedes
+      // the prior generation even if its caller forgot to abort its signal.
+      generationAbort?.abort();
+      const cohort = new AbortController();
+      generationAbort = cohort;
       const ownGeneration = ++generation;
+      const abortCohort = () => cohort.abort(signal.reason);
+      if (signal.aborted) abortCohort();
+      else signal.addEventListener("abort", abortCohort, { once: true });
       void subscribeLoop(
         deps,
-        signal,
+        cohort.signal,
         () => watchTarget,
         (next) => {
           if (generation === ownGeneration) iterAbort = next;
         },
-      );
+      ).finally(() => {
+        signal.removeEventListener("abort", abortCohort);
+        if (generation !== ownGeneration) return;
+        iterAbort = null;
+        generationAbort = null;
+      });
     },
     retarget(target) {
       if (sameTarget(target, watchTarget)) return;
