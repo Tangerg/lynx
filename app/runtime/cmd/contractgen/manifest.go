@@ -49,14 +49,15 @@ type httpEndpointEntry struct {
 }
 
 type methodEntry struct {
-	Name        string   `json:"name"`
-	Kind        string   `json:"kind"`
-	Operation   string   `json:"operation"`
-	Idempotency string   `json:"idempotency"`
-	Pagination  string   `json:"pagination"`
-	Errors      []string `json:"errors,omitempty"`
-	Features    []string `json:"features,omitempty"`
-	Stability   string   `json:"stability"`
+	Name         string   `json:"name"`
+	Kind         string   `json:"kind"`
+	Operation    string   `json:"operation"`
+	Idempotency  string   `json:"idempotency"`
+	Pagination   string   `json:"pagination"`
+	Errors       []string `json:"errors,omitempty"`
+	Features     []string `json:"features,omitempty"`
+	Materializes []string `json:"materializes,omitempty"`
+	Stability    string   `json:"stability"`
 }
 
 // errorRegistry is the single source for business error identity (contract §11.4
@@ -247,14 +248,15 @@ func methods(registry *operation.Registry) []methodEntry {
 	out := make([]methodEntry, 0, len(metas))
 	for _, meta := range metas {
 		out = append(out, methodEntry{
-			Name:        meta.Name,
-			Kind:        meta.Kind.String(),
-			Operation:   meta.Operation.String(),
-			Idempotency: meta.Idempotency.String(),
-			Pagination:  meta.Pagination.String(),
-			Errors:      meta.ProblemTypes(),
-			Features:    meta.Features(),
-			Stability:   string(meta.Stability),
+			Name:         meta.Name,
+			Kind:         meta.Kind.String(),
+			Operation:    meta.Operation.String(),
+			Idempotency:  meta.Idempotency.String(),
+			Pagination:   meta.Pagination.String(),
+			Errors:       meta.ProblemTypes(),
+			Features:     meta.Features(),
+			Materializes: slices.Clone(meta.Materializes),
+			Stability:    string(meta.Stability),
 		})
 	}
 	return out

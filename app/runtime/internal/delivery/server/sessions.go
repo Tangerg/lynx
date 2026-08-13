@@ -53,6 +53,53 @@ func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 	return &out, nil
 }
 
+// GetSessionSnapshot projects one Application-owned storage snapshot into the
+// complete material read used by mounted clients. Capability checks apply to
+// the snapshot as a whole, so no response can silently trim a waiting set or a
+// child Run that the caller could not fold.
+func (s *Server) GetSessionSnapshot(ctx context.Context, in protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error) {
+	snapshot, err := s.sessions.MaterialSnapshot(ctx, in.SessionID)
+	if err != nil {
+		return nil, wireSessionErr(err)
+	}
+	caller, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, pending := range snapshot.Interrupts {
+		if gap := pending.Capabilities.MissingFrom(caller); !gap.IsEmpty() {
+			return nil, capabilityGap(gap)
+		}
+	}
+	out := &protocol.SessionSnapshot{
+		Items:      make([]protocol.Item, 0, len(snapshot.Items)),
+		Runs:       make([]protocol.RunRef, 0, len(snapshot.Runs)),
+		Interrupts: make([]protocol.PendingInterruptSet, 0, len(snapshot.Interrupts)),
+	}
+	for _, item := range snapshot.Items {
+		out.Items = append(out.Items, presentItem(item))
+	}
+	for _, record := range snapshot.Runs {
+		if !in.IncludeDescendants && record.Lineage().IsChild() {
+			continue
+		}
+		out.Runs = append(out.Runs, presentRun(record))
+	}
+	for _, pending := range snapshot.Interrupts {
+		out.Interrupts = append(out.Interrupts, protocol.PendingInterruptSet{
+			RootRunID:  pending.RootRunID,
+			SessionID:  pending.SessionID,
+			Interrupts: presentInterrupts(pending.Interrupts),
+			CreatedAt:  pending.CreatedAt,
+		})
+	}
+	if s.features.plan {
+		state := presentPlanState(in.SessionID, snapshot.Plan)
+		out.State = &state
+	}
+	return out, nil
+}
+
 func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
 	// Workspace defaults to the serve directory when the
 	// client omits it — cold-start zero friction (API.md §7.2 / §0.2).

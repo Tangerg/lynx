@@ -27,10 +27,6 @@ import { selectCurrentRootRun } from "../application/view/runTree";
 const SID = "ses_dbl";
 const SID_B = "ses_next";
 
-function autoPage<T>(data: T[]) {
-  return { autoPagingToArray: vi.fn().mockResolvedValue(data) };
-}
-
 function parkUntilAborted(signal: AbortSignal): Promise<never> {
   return new Promise<never>((_resolve, reject) => {
     if (signal.aborted) {
@@ -81,17 +77,19 @@ describe("useAgentSession driver lifecycle", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: {
-            get: vi.fn().mockResolvedValue({
-              type: "plan",
-              sessionId: SID,
-              revision: 0,
-              plan: [],
+          sessions: {
+            snapshot: vi.fn().mockResolvedValue({
+              items: [],
+              runs: [],
+              interrupts: [],
+              state: {
+                type: "plan",
+                sessionId: SID,
+                revision: 0,
+                plan: [],
+              },
             }),
           },
-          runs: { list: vi.fn(() => autoPage([])) },
         }) as unknown as LyraClient,
     });
 
@@ -249,19 +247,16 @@ describe("useAgentSession run timing guards", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: {
-            get: vi.fn().mockResolvedValue({
-              type: "plan",
-              sessionId: SID,
-              revision: 0,
-              plan: [],
+          sessions: {
+            snapshot: vi.fn().mockResolvedValue({
+              items: [],
+              runs: [canceledRun],
+              interrupts: [],
+              state: { type: "plan", sessionId: SID, revision: 0, plan: [] },
             }),
           },
           runs: {
             cancel,
-            list: vi.fn(() => autoPage([canceledRun])),
           },
         }) as unknown as LyraClient,
     });
@@ -368,19 +363,16 @@ describe("useAgentSession run timing guards", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: {
-            get: vi.fn().mockResolvedValue({
-              type: "plan",
-              sessionId: SID,
-              revision: 0,
-              plan: [],
+          sessions: {
+            snapshot: vi.fn().mockResolvedValue({
+              items: [],
+              runs: [terminal],
+              interrupts: [],
+              state: { type: "plan", sessionId: SID, revision: 0, plan: [] },
             }),
           },
           runs: {
             cancel,
-            list: vi.fn(() => autoPage([terminal])),
           },
         }) as unknown as LyraClient,
     });
@@ -404,9 +396,8 @@ describe("useAgentSession run timing guards", () => {
   });
 });
 
-// Durable recovery (§10.2): opening a NON-draft session must rebuild unresolved
-// HITL cards from interrupts.list and reattach to a still-running run via
-// runs.subscribe — the two paths that make a reload survivable.
+// Durable recovery (§10.2): opening a NON-draft session must rebuild one coherent
+// material snapshot and reattach to a still-running run via runs.subscribe.
 describe("useAgentSession durable recovery", () => {
   const RID = "ses_recover";
 
@@ -417,12 +408,27 @@ describe("useAgentSession durable recovery", () => {
     payload: { tool: { name: "shell", arguments: { command: "rm -rf build" } } },
   };
 
+  function materialSnapshot(overrides: Record<string, unknown> = {}) {
+    return {
+      items: [],
+      runs: [],
+      interrupts: [],
+      state: {
+        type: "plan",
+        sessionId: RID,
+        revision: 0,
+        plan: [],
+        updatedAt: "2026-07-29T00:00:00Z",
+      },
+      ...overrides,
+    };
+  }
+
   function stubClient(
-    overrides: Record<string, unknown> = {},
-    interruptOverrides: Record<string, unknown> = {},
-    items: unknown[] = [],
+    runOverrides: Record<string, unknown> = {},
+    snapshotOverrides: Record<string, unknown> = {},
   ) {
-    const listItems = vi.fn(() => autoPage(items));
+    const readSnapshot = vi.fn().mockResolvedValue(materialSnapshot(snapshotOverrides));
     const subscribe = vi.fn((_params: unknown, signal: AbortSignal) =>
       Promise.resolve({
         result: { runId: "run_live", segmentId: "seg_live" },
@@ -434,28 +440,14 @@ describe("useAgentSession durable recovery", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: listItems },
-          plan: {
-            get: vi.fn().mockResolvedValue({
-              type: "plan",
-              sessionId: RID,
-              revision: 0,
-              plan: [],
-              updatedAt: "2026-07-29T00:00:00Z",
-            }),
-          },
-          interrupts: {
-            list: vi.fn(() => autoPage([])),
-            ...(interruptOverrides as object),
-          },
+          sessions: { snapshot: readSnapshot },
           runs: {
-            list: vi.fn(() => autoPage([])),
             subscribe,
-            ...(overrides as object),
+            ...(runOverrides as object),
           },
         }) as unknown as LyraClient,
     });
-    return { listItems, subscribe };
+    return { readSnapshot, subscribe };
   }
 
   beforeEach(() => {
@@ -471,20 +463,18 @@ describe("useAgentSession durable recovery", () => {
     resetContainer();
   });
 
-  it("rebuilds pending approval cards from interrupts.list", async () => {
+  it("rebuilds pending approval cards from the material snapshot", async () => {
     stubClient(
       {},
       {
-        list: vi.fn(() =>
-          autoPage([
-            {
-              rootRunId: "run_int",
-              sessionId: RID,
-              interrupts: [approvalInterrupt],
-              createdAt: "2026-06-11T00:00:00Z",
-            },
-          ]),
-        ),
+        interrupts: [
+          {
+            rootRunId: "run_int",
+            sessionId: RID,
+            interrupts: [approvalInterrupt],
+            createdAt: "2026-06-11T00:00:00Z",
+          },
+        ],
       },
     );
     const { driver } = parkedDriver();
@@ -507,12 +497,12 @@ describe("useAgentSession durable recovery", () => {
       draftSessionIds: new Set([RID]),
       freshDraftSessionIds: new Set(),
     });
-    const { listItems } = stubClient();
+    const { readSnapshot } = stubClient();
     const { driver } = parkedDriver();
 
     renderHook(() => useAgentSession(() => driver, RID));
 
-    await waitFor(() => expect(listItems).toHaveBeenCalledOnce());
+    await waitFor(() => expect(readSnapshot).toHaveBeenCalledOnce());
     expect(useAgentSessionStore.getState().draftSessionIds.has(RID)).toBe(true);
   });
 
@@ -522,33 +512,31 @@ describe("useAgentSession durable recovery", () => {
       freshDraftSessionIds: new Set(),
     });
     stubClient(
-      {
-        list: vi.fn(() =>
-          autoPage([
-            {
-              id: "run_used_draft",
-              sessionId: RID,
-              status: "finished",
-              outcome: { type: "completed" },
-              createdAt: "2026-08-12T00:00:00Z",
-              finishedAt: "2026-08-12T00:00:01Z",
-              metrics: { steps: 1, activeDurationMillis: 1 },
-              protocolProfile: { interruptTypes: [], requiredFeatures: [] },
-            },
-          ]),
-        ),
-      },
       {},
-      [
-        {
-          id: "item_used_draft",
-          runId: "run_used_draft",
-          status: "completed",
-          createdAt: "2026-08-12T00:00:00Z",
-          type: "userMessage",
-          content: [{ type: "text", text: "used elsewhere" }],
-        },
-      ],
+      {
+        runs: [
+          {
+            id: "run_used_draft",
+            sessionId: RID,
+            status: "finished",
+            outcome: { type: "completed" },
+            createdAt: "2026-08-12T00:00:00Z",
+            finishedAt: "2026-08-12T00:00:01Z",
+            metrics: { steps: 1, activeDurationMillis: 1 },
+            protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+          },
+        ],
+        items: [
+          {
+            id: "item_used_draft",
+            runId: "run_used_draft",
+            status: "completed",
+            createdAt: "2026-08-12T00:00:00Z",
+            type: "userMessage",
+            content: [{ type: "text", text: "used elsewhere" }],
+          },
+        ],
+      },
     );
     const { driver } = parkedDriver();
 
@@ -561,9 +549,10 @@ describe("useAgentSession durable recovery", () => {
   });
 
   it("reattaches to a still-running root run via runs.subscribe", async () => {
-    const { subscribe } = stubClient({
-      list: vi.fn(() =>
-        autoPage([
+    const { subscribe } = stubClient(
+      {},
+      {
+        runs: [
           {
             id: "run_sub",
             sessionId: RID,
@@ -586,9 +575,9 @@ describe("useAgentSession durable recovery", () => {
             metrics: { steps: 0, activeDurationMillis: 0 },
             protocolProfile: { interruptTypes: [], requiredFeatures: [] },
           },
-        ]),
-      ),
-    });
+        ],
+      },
+    );
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
 
@@ -609,74 +598,68 @@ describe("useAgentSession durable recovery", () => {
     let restarted = false;
     const closeOldStream = vi.fn(async () => ({ value: undefined, done: true }) as const);
     let releaseOldNext!: (result: IteratorResult<RunEvent>) => void;
-    const items = vi.fn(() =>
-      autoPage(
-        restarted
-          ? [
-              {
-                id: "item_after_restart",
-                runId: "run_after_restart",
-                type: "toolCall",
-                status: "running",
-                startedAt: "2026-08-13T00:00:01.000Z",
-                tool: { name: "shell", arguments: { command: "npm test" } },
-              },
-            ]
-          : [],
-      ),
-    );
-    const runs = vi.fn(() =>
-      autoPage([
-        restarted
-          ? runRef({
-              id: "run_after_restart",
-              sessionId: RID,
-              status: "waiting",
-              activeSegmentId: undefined,
-            })
-          : runRef({
-              id: "run_before_restart",
-              sessionId: RID,
-              activeSegmentId: "seg_before_restart",
-            }),
-      ]),
-    );
-    const interrupts = vi.fn(() =>
-      autoPage(
-        restarted
-          ? [
-              {
-                rootRunId: "run_after_restart",
-                sessionId: RID,
-                createdAt: "2026-08-13T00:00:02.000Z",
-                interrupts: [
-                  {
-                    type: "approval",
-                    itemId: "item_after_restart",
-                    runId: "run_after_restart",
-                    payload: {
-                      tool: { name: "shell", arguments: { command: "npm test" } },
+    const readSnapshot = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        materialSnapshot({
+          items: restarted
+            ? [
+                {
+                  id: "item_after_restart",
+                  runId: "run_after_restart",
+                  type: "toolCall",
+                  status: "running",
+                  startedAt: "2026-08-13T00:00:01.000Z",
+                  tool: { name: "shell", arguments: { command: "npm test" } },
+                },
+              ]
+            : [],
+          runs: [
+            restarted
+              ? runRef({
+                  id: "run_after_restart",
+                  sessionId: RID,
+                  status: "waiting",
+                  activeSegmentId: undefined,
+                })
+              : runRef({
+                  id: "run_before_restart",
+                  sessionId: RID,
+                  activeSegmentId: "seg_before_restart",
+                }),
+          ],
+          interrupts: restarted
+            ? [
+                {
+                  rootRunId: "run_after_restart",
+                  sessionId: RID,
+                  createdAt: "2026-08-13T00:00:02.000Z",
+                  interrupts: [
+                    {
+                      type: "approval",
+                      itemId: "item_after_restart",
+                      runId: "run_after_restart",
+                      payload: {
+                        tool: { name: "shell", arguments: { command: "npm test" } },
+                      },
                     },
-                  },
-                ],
+                  ],
+                },
+              ]
+            : [],
+          state: {
+            type: "plan",
+            sessionId: RID,
+            revision: restarted ? 2 : 1,
+            plan: [
+              {
+                id: restarted ? "step_after_restart" : "step_before_restart",
+                description: restarted ? "Approve resumed tool" : "Run old generation",
+                status: "in_progress",
               },
-            ]
-          : [],
-      ),
-    );
-    const plan = vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        type: "plan",
-        sessionId: RID,
-        revision: restarted ? 2 : 1,
-        plan: [
-          {
-            id: restarted ? "step_after_restart" : "step_before_restart",
-            text: restarted ? "Approve resumed tool" : "Run old generation",
-            status: "active",
+            ],
           },
-        ],
-      }),
+        }),
+      ),
     );
     const subscribe = vi.fn(() =>
       Promise.resolve({
@@ -695,10 +678,8 @@ describe("useAgentSession durable recovery", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: items },
-          runs: { list: runs, subscribe },
-          interrupts: { list: interrupts },
-          plan: { get: plan },
+          sessions: { snapshot: readSnapshot },
+          runs: { subscribe },
         }) as unknown as LyraClient,
     });
     const { driver } = parkedDriver();
@@ -725,10 +706,7 @@ describe("useAgentSession durable recovery", () => {
       name: "shell",
       status: "requires-action",
     });
-    expect(items).toHaveBeenCalledTimes(2);
-    expect(runs).toHaveBeenCalledTimes(2);
-    expect(interrupts).toHaveBeenCalledTimes(2);
-    expect(plan).toHaveBeenCalledTimes(2);
+    expect(readSnapshot).toHaveBeenCalledTimes(2);
 
     releaseOldNext({ value: undefined as never, done: true });
   });
@@ -736,44 +714,37 @@ describe("useAgentSession durable recovery", () => {
   it("replaces a non-cooperative durable snapshot before folding the restarted Runtime", async () => {
     let restarted = false;
     let firstSignal: AbortSignal | undefined;
-    let releaseOldItems!: (items: unknown[]) => void;
-    const oldItems = new Promise<unknown[]>((resolve) => {
-      releaseOldItems = resolve;
+    let releaseOldSnapshot!: (snapshot: ReturnType<typeof materialSnapshot>) => void;
+    const oldSnapshot = new Promise<ReturnType<typeof materialSnapshot>>((resolve) => {
+      releaseOldSnapshot = resolve;
     });
-    const items = vi.fn((_query: unknown, signal?: AbortSignal) => {
-      if (!restarted) {
-        firstSignal = signal;
-        return { autoPagingToArray: vi.fn(() => oldItems) };
-      }
-      return autoPage([
-        {
-          id: "item_restarted_tool",
-          runId: "run_restarted_waiting",
-          type: "toolCall",
-          status: "running",
-          startedAt: "2026-08-13T00:00:01.000Z",
-          tool: { name: "shell", arguments: { command: "npm test" } },
-        },
-      ]);
-    });
-    const runs = vi.fn(() =>
-      autoPage(
-        restarted
-          ? [
+    const readSnapshot = vi.fn(
+      (_sessionId: unknown, _includeDescendants: unknown, signal?: AbortSignal) => {
+        if (!restarted) {
+          firstSignal = signal;
+          return oldSnapshot;
+        }
+        return Promise.resolve(
+          materialSnapshot({
+            items: [
+              {
+                id: "item_restarted_tool",
+                runId: "run_restarted_waiting",
+                type: "toolCall",
+                status: "running",
+                startedAt: "2026-08-13T00:00:01.000Z",
+                tool: { name: "shell", arguments: { command: "npm test" } },
+              },
+            ],
+            runs: [
               runRef({
                 id: "run_restarted_waiting",
                 sessionId: RID,
                 status: "waiting",
                 activeSegmentId: undefined,
               }),
-            ]
-          : [],
-      ),
-    );
-    const interrupts = vi.fn(() =>
-      autoPage(
-        restarted
-          ? [
+            ],
+            interrupts: [
               {
                 rootRunId: "run_restarted_waiting",
                 sessionId: RID,
@@ -789,31 +760,27 @@ describe("useAgentSession durable recovery", () => {
                   },
                 ],
               },
-            ]
-          : [],
-      ),
-    );
-    const plan = vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        type: "plan",
-        sessionId: RID,
-        revision: restarted ? 2 : 1,
-        plan: [
-          {
-            id: restarted ? "step_restarted" : "step_retired",
-            description: restarted ? "Approve recovered tool" : "Retired Runtime plan",
-            status: "in_progress",
-          },
-        ],
-      }),
+            ],
+            state: {
+              type: "plan",
+              sessionId: RID,
+              revision: 2,
+              plan: [
+                {
+                  id: "step_restarted",
+                  description: "Approve recovered tool",
+                  status: "in_progress",
+                },
+              ],
+            },
+          }),
+        );
+      },
     );
     setContainer({
       client: () =>
         ({
-          items: { list: items },
-          runs: { list: runs },
-          interrupts: { list: interrupts },
-          plan: { get: plan },
+          sessions: { snapshot: readSnapshot },
         }) as unknown as LyraClient,
     });
     const { driver } = parkedDriver();
@@ -837,16 +804,20 @@ describe("useAgentSession durable recovery", () => {
       status: "requires-action",
     });
 
-    releaseOldItems([
-      {
-        id: "item_from_retired_runtime",
-        runId: "run_retired",
-        status: "completed",
-        createdAt: "2026-08-13T00:00:00.000Z",
-        type: "agentMessage",
-        content: [{ type: "text", text: "must stay retired" }],
-      },
-    ]);
+    releaseOldSnapshot(
+      materialSnapshot({
+        items: [
+          {
+            id: "item_from_retired_runtime",
+            runId: "run_retired",
+            status: "completed",
+            createdAt: "2026-08-13T00:00:00.000Z",
+            type: "agentMessage",
+            content: [{ type: "text", text: "must stay retired" }],
+          },
+        ],
+      }),
+    );
     await Promise.resolve();
     expect(JSON.stringify(useAgentStore.getState().sessions[RID]!.view)).not.toContain(
       "must stay retired",
@@ -867,35 +838,33 @@ describe("useAgentSession durable recovery", () => {
     });
     const closeOldStream = vi.fn(async () => ({ value: undefined, done: true }) as const);
     const subscribe = vi.fn(() => oldOpening);
-    const runs = vi.fn(() =>
-      autoPage(
-        restarted
-          ? []
-          : [
-              runRef({
-                id: "run_retired_opening",
-                sessionId: RID,
-                status: "running",
-                activeSegmentId: "seg_retired_opening",
-              }),
-            ],
+    const readSnapshot = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        materialSnapshot({
+          runs: restarted
+            ? []
+            : [
+                runRef({
+                  id: "run_retired_opening",
+                  sessionId: RID,
+                  status: "running",
+                  activeSegmentId: "seg_retired_opening",
+                }),
+              ],
+          state: {
+            type: "plan",
+            sessionId: RID,
+            revision: restarted ? 2 : 1,
+            plan: [],
+          },
+        }),
       ),
-    );
-    const plan = vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        type: "plan",
-        sessionId: RID,
-        revision: restarted ? 2 : 1,
-        plan: [],
-      }),
     );
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
-          runs: { list: runs, subscribe },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: { get: plan },
+          sessions: { snapshot: readSnapshot },
+          runs: { subscribe },
         }) as unknown as LyraClient,
     });
     const { driver } = parkedDriver();
@@ -953,35 +922,33 @@ describe("useAgentSession durable recovery", () => {
       }
       return reconnectOpening;
     });
-    const runs = vi.fn(() =>
-      autoPage(
-        restarted
-          ? []
-          : [
-              runRef({
-                id: "run_reconnect",
-                sessionId: RID,
-                status: "running",
-                activeSegmentId: "seg_reconnect",
-              }),
-            ],
+    const readSnapshot = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        materialSnapshot({
+          runs: restarted
+            ? []
+            : [
+                runRef({
+                  id: "run_reconnect",
+                  sessionId: RID,
+                  status: "running",
+                  activeSegmentId: "seg_reconnect",
+                }),
+              ],
+          state: {
+            type: "plan",
+            sessionId: RID,
+            revision: restarted ? 2 : 1,
+            plan: [],
+          },
+        }),
       ),
-    );
-    const plan = vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        type: "plan",
-        sessionId: RID,
-        revision: restarted ? 2 : 1,
-        plan: [],
-      }),
     );
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
-          runs: { list: runs, subscribe },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: { get: plan },
+          sessions: { snapshot: readSnapshot },
+          runs: { subscribe },
         }) as unknown as LyraClient,
     });
     const { driver } = parkedDriver();
@@ -1036,35 +1003,33 @@ describe("useAgentSession durable recovery", () => {
         })(),
       }),
     );
-    const runs = vi.fn(() =>
-      autoPage(
-        restarted
-          ? []
-          : [
-              runRef({
-                id: "run_exact_read",
-                sessionId: RID,
-                status: "running",
-                activeSegmentId: "seg_exact_read",
-              }),
-            ],
+    const readSnapshot = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        materialSnapshot({
+          runs: restarted
+            ? []
+            : [
+                runRef({
+                  id: "run_exact_read",
+                  sessionId: RID,
+                  status: "running",
+                  activeSegmentId: "seg_exact_read",
+                }),
+              ],
+          state: {
+            type: "plan",
+            sessionId: RID,
+            revision: restarted ? 2 : 1,
+            plan: [],
+          },
+        }),
       ),
-    );
-    const plan = vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        type: "plan",
-        sessionId: RID,
-        revision: restarted ? 2 : 1,
-        plan: [],
-      }),
     );
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
-          runs: { get, list: runs, subscribe },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: { get: plan },
+          sessions: { snapshot: readSnapshot },
+          runs: { get, subscribe },
         }) as unknown as LyraClient,
     });
     const { driver } = parkedDriver();
@@ -1118,13 +1083,16 @@ describe("useAgentSession durable recovery", () => {
       outcome: { type: "completed" },
       finishedAt: "2026-07-29T00:00:01Z",
     });
-    const list = vi
+    const readSnapshot = vi
       .fn()
-      .mockImplementationOnce(() => autoPage([running]))
-      .mockImplementation(() => autoPage([finished]));
-    stubClient({
-      list,
-      subscribe,
+      .mockResolvedValueOnce(materialSnapshot({ runs: [running] }))
+      .mockResolvedValue(materialSnapshot({ runs: [finished] }));
+    setContainer({
+      client: () =>
+        ({
+          sessions: { snapshot: readSnapshot },
+          runs: { subscribe },
+        }) as unknown as LyraClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
@@ -1135,7 +1103,7 @@ describe("useAgentSession durable recovery", () => {
       ).toMatchObject({ status: "finished", outcome: { type: "completed" } });
     });
 
-    expect(list).toHaveBeenCalledTimes(2);
+    expect(readSnapshot).toHaveBeenCalledTimes(2);
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(warning).not.toHaveBeenCalled();
   });
@@ -1177,23 +1145,18 @@ describe("useAgentSession durable recovery", () => {
       canceled = true;
       return { type: "child", run: childAfter, rootRun: rootAfter };
     });
+    const readSnapshot = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        materialSnapshot({
+          runs: canceled ? [rootAfter, childAfter] : [rootBefore, childBefore],
+        }),
+      ),
+    );
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: {
-            get: vi.fn().mockResolvedValue({
-              type: "plan",
-              sessionId: RID,
-              revision: 0,
-              plan: [],
-            }),
-          },
+          sessions: { snapshot: readSnapshot },
           runs: {
-            list: vi.fn(() =>
-              autoPage(canceled ? [rootAfter, childAfter] : [rootBefore, childBefore]),
-            ),
             subscribe,
             cancel,
           },

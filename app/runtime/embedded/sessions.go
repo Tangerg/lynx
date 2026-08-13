@@ -16,6 +16,11 @@ func (r *Runtime) GetSession(ctx context.Context, request protocol.GetSessionReq
 	return invoke[protocol.GetSessionRequest, *protocol.Session](ctx, r, "sessions.get", request, callOptions(options))
 }
 
+// GetSessionSnapshot returns one transactionally coherent mounted-session read.
+func (r *Runtime) GetSessionSnapshot(ctx context.Context, request protocol.GetSessionSnapshotRequest, options CallOptions) (*protocol.SessionSnapshot, error) {
+	return invoke[protocol.GetSessionSnapshotRequest, *protocol.SessionSnapshot](ctx, r, "sessions.snapshot", request, callOptions(options))
+}
+
 // CreateSession creates a Session.
 func (r *Runtime) CreateSession(ctx context.Context, request protocol.CreateSessionRequest, options CommandOptions) (*protocol.Session, error) {
 	return invoke[protocol.CreateSessionRequest, *protocol.Session](ctx, r, "sessions.create", request, commandOptions(options))

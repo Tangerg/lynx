@@ -61,6 +61,7 @@ type Transactor func(context.Context, func(context.Context) error) error
 // this adapter assigns neither revision nor update time.
 type planProjection interface {
 	List(ctx context.Context, sessionID string) ([]plan.Step, error)
+	State(ctx context.Context, sessionID string) (plan.State, error)
 	Save(ctx context.Context, sessionID string, expectedRevision uint64, replacement plan.State) error
 	DeleteSession(ctx context.Context, sessionID string) error
 }
@@ -102,7 +103,42 @@ func NewSessionStores(cfg SessionStoresConfig) *SessionStores {
 }
 
 var _ sessions.SnapshotReader = (*SessionStores)(nil)
+var _ sessions.MaterialSnapshotReader = (*SessionStores)(nil)
 var _ sessions.WriteSets = (*SessionStores)(nil)
+
+func (s *SessionStores) ReadMaterialSnapshot(ctx context.Context, sessionID string) (sessions.MaterialSnapshot, error) {
+	var snapshot sessions.MaterialSnapshot
+	err := s.tx(ctx, func(ctx context.Context) error {
+		ses, err := s.sessions.Get(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		items, err := s.transcript.List(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		runs, err := s.runs.ListRuns(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		interrupts, err := s.interrupts.List(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		var state plan.State
+		if s.plan != nil {
+			state, err = s.plan.State(ctx, sessionID)
+			if err != nil {
+				return err
+			}
+		}
+		snapshot = sessions.MaterialSnapshot{
+			Session: ses, Items: items, Runs: runs, Interrupts: interrupts, Plan: state,
+		}
+		return nil
+	})
+	return snapshot, err
+}
 
 func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error) {
 	var snapshot sessions.Snapshot

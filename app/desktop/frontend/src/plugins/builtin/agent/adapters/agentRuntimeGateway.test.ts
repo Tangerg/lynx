@@ -15,10 +15,6 @@ import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 
 let uninstall: (() => void) | undefined;
 
-function autoPage<T>(data: T[]) {
-  return { autoPagingToArray: vi.fn().mockResolvedValue(data) };
-}
-
 afterEach(() => {
   uninstall?.();
   uninstall = undefined;
@@ -127,38 +123,32 @@ describe("agentRuntimeGateway", () => {
     ] satisfies Parameters<Methods["runs"]["steer"]>[2]);
   });
 
-  it.each([
-    { supported: false, expected: undefined },
-    { supported: true, expected: true },
-  ])(
-    "queries descendants explicitly when subagents supported=$supported",
-    async ({ supported, expected }) => {
+  it.each([{ supported: false }, { supported: true }])(
+    "reads one coherent snapshot with descendants supported=$supported",
+    async ({ supported }) => {
       vi.spyOn(runtimeCapabilities, "runtimeCapability").mockReturnValue(supported);
-      const listRuns = vi.fn(() => autoPage([]));
+      const readSnapshot = vi.fn().mockResolvedValue({
+        items: [],
+        runs: [],
+        interrupts: [],
+        state: {
+          type: "plan",
+          sessionId: "ses_1",
+          revision: 4,
+          plan: [{ id: "step_1", description: "Verify boundaries", status: "in_progress" }],
+        },
+      });
       setContainer({
         client: () =>
           ({
-            items: { list: vi.fn(() => autoPage([])) },
-            runs: { list: listRuns },
-            interrupts: { list: vi.fn(() => autoPage([])) },
-            plan: {
-              get: vi.fn().mockResolvedValue({
-                type: "plan",
-                sessionId: "ses_1",
-                revision: 4,
-                plan: [{ id: "step_1", description: "Verify boundaries", status: "in_progress" }],
-              }),
-            },
+            sessions: { snapshot: readSnapshot },
           }) as unknown as LyraClient,
       });
       uninstall = installAgentRuntimeGateway();
 
       const snapshot = await agentRuntime().loadSessionSnapshot("ses_1");
 
-      expect(listRuns).toHaveBeenCalledWith({
-        sessionId: asSessionId("ses_1"),
-        ...(expected ? { includeDescendants: expected } : {}),
-      });
+      expect(readSnapshot).toHaveBeenCalledWith(asSessionId("ses_1"), supported, undefined);
       expect(snapshot?.state).toEqual({
         type: "plan",
         revision: 4,
@@ -176,14 +166,7 @@ describe("agentRuntimeGateway", () => {
     setContainer({
       client: () =>
         ({
-          items: {
-            list: vi.fn(() => ({
-              autoPagingToArray: vi.fn().mockRejectedValue(missing),
-            })),
-          },
-          runs: { list: vi.fn(() => autoPage([])) },
-          interrupts: { list: vi.fn(() => autoPage([])) },
-          plan: { get: vi.fn().mockRejectedValue(missing) },
+          sessions: { snapshot: vi.fn().mockRejectedValue(missing) },
         }) as unknown as LyraClient,
     });
     uninstall = installAgentRuntimeGateway();

@@ -1,0 +1,124 @@
+package server
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
+)
+
+func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	s.features.plan = true
+	putTestSession(t, rt)
+
+	createdAt := time.Date(2026, 8, 14, 2, 0, 0, 0, time.UTC)
+	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}
+	if err := rt.runs.Admit(t.Context(), run.Draft{
+		SegmentID: "seg_waiting", RunID: "run_waiting", SessionID: "ses_1",
+		Capabilities: capabilities, CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("admit waiting Run: %v", err)
+	}
+	if err := rt.runs.Suspend(t.Context(), runfixture.MustRestore(run.Snapshot{
+		ID: "run_waiting", SessionID: "ses_1", State: run.Waiting,
+		Capabilities: capabilities, CreatedAt: createdAt, UpdatedAt: createdAt,
+		MessageMark: run.UnknownMessageMark,
+	})); err != nil {
+		t.Fatalf("suspend waiting Run: %v", err)
+	}
+	question := transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	if err := rt.hist.AppendItem(t.Context(), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_question", RunID: "run_waiting", SessionID: "ses_1",
+		Kind: transcript.QuestionItem, OccurredAt: createdAt, Question: &question,
+	})); err != nil {
+		t.Fatalf("append question Item: %v", err)
+	}
+	if err := rt.interrupts.Open(t.Context(), serverPending(
+		"run_waiting", "ses_1", "exec_waiting", "member_waiting",
+		[]transcript.Interrupt{{
+			ItemID: "item_question", Kind: interrupt.Question, Question: &question,
+		}},
+		createdAt,
+	)); err != nil {
+		t.Fatalf("open interrupt: %v", err)
+	}
+	state, err := (plan.State{}).Replace([]plan.Step{{
+		Description: "Answer the question", Status: plan.StatusInProgress,
+	}}, createdAt)
+	if err != nil {
+		t.Fatalf("prepare Plan: %v", err)
+	}
+	if err := rt.plan.Save(t.Context(), "ses_1", 0, state); err != nil {
+		t.Fatalf("save Plan: %v", err)
+	}
+
+	ctx := withClientCapabilities(protocol.ClientCapabilities{
+		InterruptTypes: []protocol.InterruptType{protocol.InterruptQuestion},
+	})
+	snapshot, err := s.GetSessionSnapshot(ctx, protocol.GetSessionSnapshotRequest{
+		SessionID: "ses_1",
+	})
+	if err != nil {
+		t.Fatalf("GetSessionSnapshot: %v", err)
+	}
+	if len(snapshot.Items) != 1 || snapshot.Items[0].ID != "item_question" {
+		t.Fatalf("Items = %+v, want the question Item", snapshot.Items)
+	}
+	if len(snapshot.Runs) != 1 || snapshot.Runs[0].ID != "run_waiting" || snapshot.Runs[0].Status != protocol.RunStatusWaiting {
+		t.Fatalf("Runs = %+v, want the waiting Run", snapshot.Runs)
+	}
+	if len(snapshot.Interrupts) != 1 || snapshot.Interrupts[0].RootRunID != "run_waiting" {
+		t.Fatalf("Interrupts = %+v, want the open waiting set", snapshot.Interrupts)
+	}
+	if snapshot.State == nil || snapshot.State.Revision != 1 || len(snapshot.State.Plan) != 1 {
+		t.Fatalf("State = %+v, want Plan revision 1", snapshot.State)
+	}
+}
+
+func TestGetSessionSnapshotKeepsCapabilityAndExistenceRefusals(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putTestSession(t, rt)
+	createdAt := time.Date(2026, 8, 14, 3, 0, 0, 0, time.UTC)
+	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}
+	if err := rt.runs.Admit(t.Context(), run.Draft{
+		SegmentID: "seg_waiting", RunID: "run_waiting", SessionID: "ses_1",
+		Capabilities: capabilities, CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("admit waiting Run: %v", err)
+	}
+	if err := rt.runs.Suspend(t.Context(), runfixture.MustRestore(run.Snapshot{
+		ID: "run_waiting", SessionID: "ses_1", State: run.Waiting,
+		Capabilities: capabilities, CreatedAt: createdAt, UpdatedAt: createdAt,
+		MessageMark: run.UnknownMessageMark,
+	})); err != nil {
+		t.Fatalf("suspend waiting Run: %v", err)
+	}
+	if err := rt.interrupts.Open(t.Context(), serverPending(
+		"run_waiting", "ses_1", "exec_waiting", "member_waiting", nil, createdAt,
+	)); err != nil {
+		t.Fatalf("open interrupt: %v", err)
+	}
+
+	_, err := s.GetSessionSnapshot(t.Context(), protocol.GetSessionSnapshotRequest{SessionID: "ses_1"})
+	assertInterruptCapabilityGap(t, err)
+
+	_, err = s.GetSessionSnapshot(t.Context(), protocol.GetSessionSnapshotRequest{SessionID: "ses_missing"})
+	if !errors.Is(err, protocol.ErrSessionNotFound) {
+		t.Fatalf("missing Session error = %v, want session_not_found", err)
+	}
+}
+
+func assertInterruptCapabilityGap(t *testing.T, err error) {
+	t.Helper()
+	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+		t.Fatalf("snapshot capability error = %v, want capability_not_negotiated", err)
+	}
+}

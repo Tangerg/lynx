@@ -20,6 +20,19 @@ func registerSessions(registry *Registry) {
 		return service.GetSession(ctx, request.SessionID)
 	})
 
+	Query(registry, MethodMeta{
+		Name:         "sessions.snapshot",
+		Errors:       []string{protocol.ErrSessionNotFound.Error()},
+		Materializes: []string{"items.list", "runs.list", "interrupts.list", "plan.get"},
+		CapabilityRules: []CapabilityRule{{
+			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
+			Requires: []string{protocol.FeatureSubagents},
+		}},
+		Stability: stable,
+	}, func(service Service, ctx context.Context, request protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error) {
+		return service.GetSessionSnapshot(ctx, request)
+	})
+
 	Command(registry, MethodMeta{
 		Name:      "sessions.create",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},

@@ -16,6 +16,7 @@ type Service interface {
 	Discover(context.Context) (*protocol.DiscoverResponse, error)
 	ListSessions(context.Context, protocol.PageQuery) (*protocol.Page[protocol.Session], error)
 	GetSession(context.Context, string) (*protocol.Session, error)
+	GetSessionSnapshot(context.Context, protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error)
 	CreateSession(context.Context, protocol.CreateSessionRequest) (*protocol.Session, error)
 	UpdateSession(context.Context, protocol.UpdateSessionRequest) (*protocol.Session, error)
 	DeleteSession(context.Context, string) error

@@ -113,6 +113,7 @@ export type WireTypeName =
   | "GetPlanRequest"
   | "GetRunRequest"
   | "GetSessionRequest"
+  | "GetSessionSnapshotRequest"
   | "Goal"
   | "GoalBudget"
   | "GoalReason"
@@ -269,6 +270,7 @@ export type WireTypeName =
   | "ServerInfo"
   | "Session"
   | "SessionArtifact"
+  | "SessionSnapshot"
   | "SessionStatus"
   | "SessionUsageRequest"
   | "SetApprovalModeRequest"
@@ -1053,6 +1055,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["runId"]),
   GetSessionRequest: object({
     sessionId: allOf([text(), minLength(1)]),
+  }, ["sessionId"]),
+  GetSessionSnapshotRequest: object({
+    includeDescendants: flag(),
+    sessionId: text(),
   }, ["sessionId"]),
   Goal: object({
     budget: ref(() => CHECKS.GoalBudget),
@@ -2975,6 +2981,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
     version: allOf([integer(), minimum(18), maximum(18)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
+  SessionSnapshot: object({
+    interrupts: array(ref(() => CHECKS.PendingInterruptSet)),
+    items: array(ref(() => CHECKS.Item)),
+    runs: array(ref(() => CHECKS.RunRef)),
+    state: ref(() => CHECKS.StateSnapshot),
+  }, ["interrupts", "items", "runs"]),
   SessionStatus: enumOf(["running", "waiting", "idle"]),
   SessionUsageRequest: object({
     sessionId: allOf([text(), minLength(1)]),
@@ -3340,6 +3352,7 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "runtime.discover": ref(() => CHECKS.DiscoverResponse),
   "sessions.list": ref(() => CHECKS.PageOfSession),
   "sessions.get": ref(() => CHECKS.Session),
+  "sessions.snapshot": ref(() => CHECKS.SessionSnapshot),
   "sessions.create": ref(() => CHECKS.Session),
   "sessions.update": ref(() => CHECKS.Session),
   "sessions.delete": object({}, []),

@@ -32,6 +32,24 @@ type GetSessionRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
+// GetSessionSnapshotRequest identifies the coherent mounted-session projection
+// returned by sessions.snapshot. IncludeDescendants has the same capability
+// semantics as runs.list.
+type GetSessionSnapshotRequest struct {
+	SessionID          string `json:"sessionId"`
+	IncludeDescendants bool   `json:"includeDescendants,omitempty"`
+}
+
+// SessionSnapshot is one transactionally coherent material read of the facts a
+// live client folds together. State is absent when this Runtime does not expose
+// the Plan capability.
+type SessionSnapshot struct {
+	Items      []Item                `json:"items"`
+	Runs       []RunRef              `json:"runs"`
+	Interrupts []PendingInterruptSet `json:"interrupts"`
+	State      *StateSnapshot        `json:"state,omitempty"`
+}
+
 // DeleteSessionRequest identifies the session removed by sessions.delete.
 type DeleteSessionRequest struct {
 	SessionID string `json:"sessionId"`

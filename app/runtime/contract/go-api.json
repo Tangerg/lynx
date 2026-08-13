@@ -223,6 +223,10 @@
               "signature": "func(ctx context.Context, request protocol.GetSessionRequest, options CallOptions) (*protocol.Session, error)"
             },
             {
+              "name": "GetSessionSnapshot",
+              "signature": "func(ctx context.Context, request protocol.GetSessionSnapshotRequest, options CallOptions) (*protocol.SessionSnapshot, error)"
+            },
+            {
               "name": "GetSessionUsage",
               "signature": "func(ctx context.Context, request protocol.SessionUsageRequest, options CallOptions) (*protocol.Usage, error)"
             },
@@ -4247,6 +4251,22 @@
           ]
         },
         {
+          "name": "GetSessionSnapshotRequest",
+          "kind": "struct",
+          "fields": [
+            {
+              "name": "SessionID",
+              "type": "string",
+              "tag": "json:\"sessionId\""
+            },
+            {
+              "name": "IncludeDescendants",
+              "type": "bool",
+              "tag": "json:\"includeDescendants,omitempty\""
+            }
+          ]
+        },
+        {
           "name": "Goal",
           "kind": "struct",
           "fields": [
@@ -7192,6 +7212,32 @@
             {
               "name": "ValidateWire",
               "signature": "func() error"
+            }
+          ]
+        },
+        {
+          "name": "SessionSnapshot",
+          "kind": "struct",
+          "fields": [
+            {
+              "name": "Items",
+              "type": "[]Item",
+              "tag": "json:\"items\""
+            },
+            {
+              "name": "Runs",
+              "type": "[]RunRef",
+              "tag": "json:\"runs\""
+            },
+            {
+              "name": "Interrupts",
+              "type": "[]PendingInterruptSet",
+              "tag": "json:\"interrupts\""
+            },
+            {
+              "name": "State",
+              "type": "*StateSnapshot",
+              "tag": "json:\"state,omitempty\""
             }
           ]
         },

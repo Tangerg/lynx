@@ -7,7 +7,7 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-13, during the P58 external-mutation audit.
+> Desktop generated consumer: 2026-08-14, during the P83-22 material-snapshot audit.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
@@ -88,6 +88,15 @@ connection; they do not copy sidecar/discovery retry policy. Workspace target
 identity changes revoke the old watch immediately, while a projection update for
 the same active Session keeps the existing watch until a different target is
 resolved, preventing duplicate subscriptions during cache catch-up.
+
+P83-22 adds the stable query `sessions.snapshot`. A mounted Session consumer must
+use this single transactionally coherent response for complete Items, durable
+Runs, open Interrupt sets, and optional Plan state; it must not reconstruct that
+material view with parallel `items.list` / `runs.list` / `interrupts.list` /
+`plan.get` calls or retain that four-read path as a fallback. `includeDescendants`
+has the same `features.subagents` gate as `runs.list`. Goal remains an independent
+resource read (`goals.get`) because its lifecycle and frontend cache owner are
+separate from the Agent material projection.
 
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;

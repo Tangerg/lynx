@@ -23,12 +23,12 @@ func reference(m manifest) string {
 		m.Protocol.Current, m.Protocol.MinSupported, len(m.Methods))
 
 	b.WriteString("## Methods\n\n")
-	b.WriteString("| method | operation | response | retry | pagination | features | documented errors |\n")
-	b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("| method | operation | response | retry | pagination | materializes | features | documented errors |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, method := range m.Methods {
-		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s | %s | %s |\n",
+		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s | %s | %s | %s |\n",
 			method.Name, method.Operation, method.Kind, method.Idempotency,
-			method.Pagination, code(method.Features), code(method.Errors))
+			method.Pagination, code(method.Materializes), code(method.Features), code(method.Errors))
 	}
 
 	b.WriteString("\n## HTTP endpoints\n\n")

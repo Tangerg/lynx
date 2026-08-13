@@ -151,6 +151,84 @@
       }
     },
     {
+      "name": "sessions.snapshot",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "includeDescendants",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/SessionSnapshot"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "query",
+      "x-lyra-idempotency": "none",
+      "x-lyra-pagination": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "subagents"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "when": [
+            {
+              "field": "includeDescendants",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "subagents"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GetSessionSnapshotRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "sessions.create",
       "paramStructure": "by-name",
       "params": [

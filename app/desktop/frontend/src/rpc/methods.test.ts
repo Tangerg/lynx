@@ -168,6 +168,26 @@ describe("methods factory", () => {
     expect(call).toHaveBeenCalledWith("sessions.get", { sessionId: "ses_1" }, { signal });
   });
 
+  it.each([
+    { includeDescendants: false, expected: {} },
+    { includeDescendants: true, expected: { includeDescendants: true } },
+  ])(
+    "forwards cancellation through a coherent session snapshot with descendants=$includeDescendants",
+    async ({ includeDescendants, expected }) => {
+      const call = vi.fn().mockResolvedValue({ items: [], runs: [], interrupts: [] });
+      const methods = createMethods({ call } as unknown as RpcClient);
+      const signal = new AbortController().signal;
+
+      await methods.sessions.snapshot(asSessionId("ses_1"), includeDescendants, signal);
+
+      expect(call).toHaveBeenCalledWith(
+        "sessions.snapshot",
+        { sessionId: "ses_1", ...expected },
+        { signal },
+      );
+    },
+  );
+
   it("forwards cancellation when reading a Goal", async () => {
     const call = vi.fn().mockResolvedValue(null);
     const methods = createMethods({ call } as unknown as RpcClient);

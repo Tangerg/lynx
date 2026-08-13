@@ -180,6 +180,13 @@ type MethodMeta struct {
 
 	CapabilityRules []CapabilityRule
 
+	// Materializes names independently callable query fact families this query
+	// returns together. It does not alias their request filters or pagination:
+	// clients still call those methods for standalone browsing. The metadata lets
+	// consumer gates distinguish a deliberately server-composed product read from
+	// an orphaned backend capability without forcing redundant network calls.
+	Materializes []string
+
 	Stability protocol.Stability
 
 	// Params, Result and Event are the Go types of the method's wire frames, filled
@@ -326,6 +333,17 @@ func (m MethodMeta) validateProblems() error {
 }
 
 func (m MethodMeta) validateOperationPolicy() error {
+	if len(m.Materializes) > 0 && m.Operation != OperationQuery {
+		return fmt.Errorf("%s: only a query may materialize other query facts", m.Name)
+	}
+	for index, name := range m.Materializes {
+		if name == m.Name {
+			return fmt.Errorf("%s: a query cannot materialize itself", m.Name)
+		}
+		if slices.Contains(m.Materializes[:index], name) {
+			return fmt.Errorf("%s: materialized query %q is declared twice", m.Name, name)
+		}
+	}
 	switch m.Operation {
 	case OperationQuery:
 		if m.Kind != KindUnary || m.Idempotency != IdempotencyNone {

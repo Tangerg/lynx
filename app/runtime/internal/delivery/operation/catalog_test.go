@@ -50,6 +50,24 @@ func TestCapabilityRulesNameAPublishedFeature(t *testing.T) {
 	}
 }
 
+func TestMaterializedQueriesNameIndependentQueryFacts(t *testing.T) {
+	t.Parallel()
+
+	registry := Contract()
+	for _, meta := range registry.Metas() {
+		for _, name := range meta.Materializes {
+			materialized, found := registry.Lookup(name)
+			if !found {
+				t.Errorf("%s materializes unregistered query %q", meta.Name, name)
+				continue
+			}
+			if materialized.Operation != OperationQuery {
+				t.Errorf("%s materializes %s, which is a %s", meta.Name, name, materialized.Operation)
+			}
+		}
+	}
+}
+
 func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 	t.Parallel()
 

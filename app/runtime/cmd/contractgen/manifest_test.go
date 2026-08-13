@@ -95,6 +95,22 @@ func TestGeneratedMethodsPublishDerivedPagination(t *testing.T) {
 	}
 }
 
+func TestGeneratedMethodsPublishMaterializedQueryFacts(t *testing.T) {
+	t.Parallel()
+
+	manifest := build(newSchemaSet(dispatch.WireShapes()))
+	index := slices.IndexFunc(manifest.Methods, func(method methodEntry) bool {
+		return method.Name == "sessions.snapshot"
+	})
+	if index < 0 {
+		t.Fatal("sessions.snapshot is absent from the manifest")
+	}
+	want := []string{"items.list", "runs.list", "interrupts.list", "plan.get"}
+	if got := manifest.Methods[index].Materializes; !slices.Equal(got, want) {
+		t.Fatalf("sessions.snapshot materializes = %v, want %v", got, want)
+	}
+}
+
 func TestManifestPublishesImplementedHTTPEndpoints(t *testing.T) {
 	t.Parallel()
 

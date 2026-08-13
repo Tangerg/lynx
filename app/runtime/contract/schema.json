@@ -2379,6 +2379,20 @@
         "sessionId"
       ]
     },
+    "GetSessionSnapshotRequest": {
+      "type": "object",
+      "properties": {
+        "includeDescendants": {
+          "type": "boolean"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
     "Goal": {
       "type": "object",
       "properties": {
@@ -7822,6 +7836,37 @@
         "session",
         "toolResults",
         "version"
+      ]
+    },
+    "SessionSnapshot": {
+      "type": "object",
+      "properties": {
+        "interrupts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PendingInterruptSet"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Item"
+          }
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunRef"
+          }
+        },
+        "state": {
+          "$ref": "#/$defs/StateSnapshot"
+        }
+      },
+      "required": [
+        "interrupts",
+        "items",
+        "runs"
       ]
     },
     "SessionStatus": {

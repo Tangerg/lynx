@@ -119,6 +119,13 @@ type SnapshotReader interface {
 	ReadSnapshot(ctx context.Context, sessionID string) (Snapshot, error)
 }
 
+// MaterialSnapshotReader returns the live Session read model from one storage
+// transaction. Unlike the portable archive snapshot, it includes active Runs,
+// open interrupts, and the Plan's ordering metadata.
+type MaterialSnapshotReader interface {
+	ReadMaterialSnapshot(ctx context.Context, sessionID string) (MaterialSnapshot, error)
+}
+
 // Forgetter releases process-local executor state after a session is
 // removed from durable storage.
 type Forgetter interface {
@@ -216,6 +223,7 @@ type Coordinator struct {
 	boundaries        PlanBoundaries
 	planReplacements  PlanReplacements
 	snapshots         SnapshotReader
+	materialSnapshots MaterialSnapshotReader
 	writes            WriteSets
 	forgetter         Forgetter
 	executionReleaser ExecutionReleaser
@@ -260,6 +268,7 @@ type Dependencies struct {
 	Boundaries        PlanBoundaries
 	PlanReplacements  PlanReplacements
 	Snapshots         SnapshotReader
+	MaterialSnapshots MaterialSnapshotReader
 	Writes            WriteSets
 	Forgetter         Forgetter
 	ExecutionReleaser ExecutionReleaser
@@ -301,6 +310,7 @@ func New(deps Dependencies) *Coordinator {
 		boundaries:        deps.Boundaries,
 		planReplacements:  deps.PlanReplacements,
 		snapshots:         deps.Snapshots,
+		materialSnapshots: deps.MaterialSnapshots,
 		writes:            deps.Writes,
 		forgetter:         deps.Forgetter,
 		executionReleaser: deps.ExecutionReleaser,

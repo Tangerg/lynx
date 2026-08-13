@@ -524,6 +524,44 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 	}, nil
 }
 
+func (s stubLifecycleStores) ReadMaterialSnapshot(ctx context.Context, id string) (sessions.MaterialSnapshot, error) {
+	ses, err := s.rt.sess.Get(ctx, id)
+	if err != nil {
+		return sessions.MaterialSnapshot{}, err
+	}
+	var items []transcript.Item
+	if s.rt.hist != nil {
+		items, err = s.rt.hist.List(ctx, id)
+		if err != nil {
+			return sessions.MaterialSnapshot{}, err
+		}
+	}
+	var records []run.Run
+	if s.rt.runs != nil {
+		records, err = s.rt.runs.ListRuns(ctx, id)
+		if err != nil {
+			return sessions.MaterialSnapshot{}, err
+		}
+	}
+	var pending []runs.Pending
+	if s.rt.interrupts != nil {
+		pending, err = s.rt.interrupts.List(ctx, id)
+		if err != nil {
+			return sessions.MaterialSnapshot{}, err
+		}
+	}
+	var state plan.State
+	if s.rt.plan != nil {
+		state, err = s.rt.plan.State(ctx, id)
+		if err != nil {
+			return sessions.MaterialSnapshot{}, err
+		}
+	}
+	return sessions.MaterialSnapshot{
+		Session: ses, Items: items, Runs: records, Interrupts: pending, Plan: state,
+	}, nil
+}
+
 func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
 	child := plan.Child
 	if err := child.Validate(); err != nil {
@@ -765,6 +803,7 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		Boundaries:        s.plan,
 		PlanReplacements:  planapp.New(planapp.Dependencies{Store: s.plan, Now: time.Now}),
 		Snapshots:         stores,
+		MaterialSnapshots: stores,
 		Writes:            stores,
 		Forgetter:         s,
 		ExecutionReleaser: stubExecutionReleaser{rt: s},

@@ -80,6 +80,7 @@ import type {
   StateSnapshot,
   Session,
   SessionArtifact,
+  SessionSnapshot,
   Skill,
   ManagedSkill,
   SkillProposal,
@@ -246,6 +247,14 @@ export interface Methods {
   sessions: {
     list: (query?: PageQuery, signal?: AbortSignal) => AutoPagingPromise<Page<Session>>;
     get: (sessionId: SessionId, signal?: AbortSignal) => Promise<Session>;
+    // One transactionally coherent material read for a mounted Session. This is
+    // deliberately distinct from the independently pageable resource methods:
+    // a recovery fold must not combine facts from different database snapshots.
+    snapshot: (
+      sessionId: SessionId,
+      includeDescendants?: boolean,
+      signal?: AbortSignal,
+    ) => Promise<SessionSnapshot>;
     create: (params?: CreateSessionRequest, signal?: AbortSignal) => MutationPromise<Session>;
     update: (params: UpdateSessionRequest) => MutationPromise<Session>;
     delete: (sessionId: SessionId) => MutationPromise<void>;
@@ -683,6 +692,12 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     sessions: {
       list: (query, signal) => call("sessions.list", query ?? {}, { signal }),
       get: (sessionId, signal) => call("sessions.get", { sessionId }, { signal }),
+      snapshot: (sessionId, includeDescendants, signal) =>
+        call(
+          "sessions.snapshot",
+          { sessionId, ...(includeDescendants ? { includeDescendants: true } : {}) },
+          { signal },
+        ),
       create: (params, signal) => call("sessions.create", params ?? {}, { signal }),
       update: (params) => call("sessions.update", params),
       delete: (sessionId) => call("sessions.delete", { sessionId }),

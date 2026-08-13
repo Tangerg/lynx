@@ -13,6 +13,12 @@ const sidecarMatch =
     script,
   );
 if (!sidecarMatch) throw new Error("checkSidecarConsumers helper was not found");
+const materializedMatch =
+  /function creditMaterializedOperationConsumers\(methods, consumersByOperation, targetErrors\) \{[\s\S]*?\n\}/.exec(
+    script,
+  );
+if (!materializedMatch)
+  throw new Error("creditMaterializedOperationConsumers helper was not found");
 
 function discardedResult(sourceText) {
   const dir = mkdtempSync(join(tmpdir(), "api-result-consumer-"));
@@ -95,4 +101,33 @@ test("fails a manifest sidecar with no product callsite", () => {
   assert.deepEqual(errors, [
     "readiness has no non-test frontend consumer (the SidecarClient implementation and tests do not count)",
   ]);
+});
+
+test("credits query facts only when their server composite has a product callsite", () => {
+  const creditMaterializedOperationConsumers = Function(
+    `return (${materializedMatch[0].replace(
+      /^function creditMaterializedOperationConsumers/,
+      "function",
+    )})`,
+  )();
+  const methods = [
+    { name: "items.list" },
+    { name: "runs.list" },
+    { name: "sessions.snapshot", materializes: ["items.list", "runs.list"] },
+  ];
+  const consumers = new Map([
+    ["items.list", new Set()],
+    ["runs.list", new Set()],
+    ["sessions.snapshot", new Set(["agentRuntimeGateway.ts:1"])],
+  ]);
+  const errors = [];
+
+  const credited = creditMaterializedOperationConsumers(methods, consumers, errors);
+
+  assert.deepEqual([...credited], ["items.list", "runs.list"]);
+  assert.deepEqual(
+    [...consumers.get("items.list")],
+    ["agentRuntimeGateway.ts:1 (materialized by sessions.snapshot)"],
+  );
+  assert.deepEqual(errors, []);
 });

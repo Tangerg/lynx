@@ -4160,18 +4160,17 @@ for await (const line of lines) {
           },
         },
       });
-      await expect(client.plan.get(asSessionId(planSession.id))).resolves.toMatchObject({
-        type: "plan",
-        revision: 1,
-        plan: [
-          { description: "Inspect the runtime contract", status: "completed" },
-          { description: "Verify frontend reconciliation", status: "in_progress" },
-        ],
-      });
-      await expect(
-        client.items.list({ scope: { type: "run", runId: planned.result.runId } }),
-      ).resolves.toMatchObject({
-        data: expect.arrayContaining([
+      const planSnapshot = await client.sessions.snapshot(asSessionId(planSession.id));
+      expect(planSnapshot).toMatchObject({
+        state: {
+          type: "plan",
+          revision: 1,
+          plan: [
+            { description: "Inspect the runtime contract", status: "completed" },
+            { description: "Verify frontend reconciliation", status: "in_progress" },
+          ],
+        },
+        items: expect.arrayContaining([
           expect.objectContaining({
             type: "toolCall",
             status: "completed",
@@ -4183,9 +4182,9 @@ for await (const line of lines) {
         status: "paused",
         reason: { code: "awaitingInput" },
       });
-      await expect(client.runs.get(waitingRunId)).resolves.toMatchObject({ status: "waiting" });
-      await expect(client.interrupts.list({ rootRunId: waitingRunId })).resolves.toMatchObject({
-        data: [
+      await expect(client.sessions.snapshot(goalSessionId)).resolves.toMatchObject({
+        runs: [expect.objectContaining({ id: waitingRunId, status: "waiting" })],
+        interrupts: [
           expect.objectContaining({
             interrupts: [expect.objectContaining({ itemId: question.itemId, type: "question" })],
           }),

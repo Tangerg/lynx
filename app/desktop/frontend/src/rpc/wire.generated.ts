@@ -554,6 +554,11 @@ export interface GetSessionRequest {
   sessionId: string;
 }
 
+export interface GetSessionSnapshotRequest {
+  includeDescendants?: boolean;
+  sessionId: string;
+}
+
 export interface Goal {
   budget: GoalBudget;
   createdAt: string;
@@ -1380,6 +1385,13 @@ export interface SessionArtifact {
   states?: ArtifactState[];
   toolResults: ArtifactToolResult[];
   version: number;
+}
+
+export interface SessionSnapshot {
+  interrupts: PendingInterruptSet[];
+  items: Item[];
+  runs: RunRef[];
+  state?: StateSnapshot;
 }
 
 export type SessionStatus = "running" | "waiting" | "idle";

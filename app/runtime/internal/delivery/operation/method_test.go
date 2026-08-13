@@ -30,6 +30,16 @@ func TestRegistryViewsAreSnapshots(t *testing.T) {
 		slices.Equal(got.CapabilityRules[0].Requires, []string{protocol.FeatureKnowledge}) {
 		t.Fatalf("catalog exposed mutable storage: %+v", got)
 	}
+
+	snapshot, ok := Contract().Lookup("sessions.snapshot")
+	if !ok || len(snapshot.Materializes) == 0 {
+		t.Fatal("sessions.snapshot is missing materialized-query metadata")
+	}
+	snapshot.Materializes[0] = "corrupted.query"
+	fresh, _ := Contract().Lookup("sessions.snapshot")
+	if fresh.Materializes[0] == "corrupted.query" {
+		t.Fatalf("catalog exposed mutable Materializes storage: %+v", fresh.Materializes)
+	}
 }
 
 func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testing.T) {
@@ -53,6 +63,12 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 		{name: "pagination disagrees with shapes", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationNone }, want: []string{"runs.list", "shapes derive cursor"}},
 		{name: "stability", mutate: func(meta *MethodMeta) { meta.Stability = protocol.Stability("accidental") }, want: []string{"runs.list", `"accidental"`, "stability"}},
 		{name: "condition operator", mutate: func(meta *MethodMeta) { meta.CapabilityRules[0].When[0].Operator = ConditionOperator(255) }, want: []string{"runs.list", "includeDescendants", "ConditionOperator(255)"}},
+		{name: "materializes itself", mutate: func(meta *MethodMeta) { meta.Materializes = []string{meta.Name} }, want: []string{"runs.list", "cannot materialize itself"}},
+		{name: "repeated materialized query", mutate: func(meta *MethodMeta) { meta.Materializes = []string{"items.list", "items.list"} }, want: []string{"runs.list", "items.list", "declared twice"}},
+		{name: "command materialization", mutate: func(meta *MethodMeta) {
+			meta.Materializes = []string{"items.list"}
+			meta.Operation = OperationCommand
+		}, want: []string{"runs.list", "only a query"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -386,6 +386,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Boundaries:        cfg.PlanStore,
 		PlanReplacements:  planCoordinator,
 		Snapshots:         sessionStores,
+		MaterialSnapshots: sessionStores,
 		Writes:            sessionStores,
 		Forgetter:         workingContexts,
 		ExecutionReleaser: interactionExecutor,

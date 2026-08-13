@@ -51,28 +51,12 @@ const gateway: AgentRuntimeGateway = {
     const sid = asSessionId(sessionId);
     const includeDescendants = runtimeCapability("subagents");
     try {
-      const itemQuery = { scope: { type: "session" as const, sessionId: sid } };
-      const runQuery = {
-        sessionId: sid,
-        ...(includeDescendants ? { includeDescendants: true } : {}),
-      };
-      const interruptQuery = { sessionId: sid };
-      const itemPage = signal ? client.items.list(itemQuery, signal) : client.items.list(itemQuery);
-      const runPage = signal ? client.runs.list(runQuery, signal) : client.runs.list(runQuery);
-      const interruptPage = signal
-        ? client.interrupts.list(interruptQuery, signal)
-        : client.interrupts.list(interruptQuery);
-      const [items, runs, pendingInterruptSets, state] = await Promise.all([
-        itemPage.autoPagingToArray(),
-        runPage.autoPagingToArray(),
-        interruptPage.autoPagingToArray(),
-        loadOptionalSessionState(sessionId, signal),
-      ]);
+      const snapshot = await client.sessions.snapshot(sid, includeDescendants, signal);
       return {
-        items: items.map(runtimeItem),
-        runs: runs.map(runtimeRunFact),
-        pendingInterruptSets: pendingInterruptSets.map(runtimePendingInterruptSet),
-        ...(state ? { state } : {}),
+        items: snapshot.items.map(runtimeItem),
+        runs: snapshot.runs.map(runtimeRunFact),
+        pendingInterruptSets: snapshot.interrupts.map(runtimePendingInterruptSet),
+        ...(snapshot.state ? { state: runtimePlanState(snapshot.state) } : {}),
       };
     } catch (error) {
       if (isErrorType(error, "session_not_found")) return null;
@@ -122,17 +106,6 @@ const gateway: AgentRuntimeGateway = {
     await getContainer().client().approval.forgetRule(id);
   },
 };
-
-async function loadOptionalSessionState(sessionId: string, signal?: AbortSignal) {
-  try {
-    const plan = getContainer().client().plan;
-    const sid = asSessionId(sessionId);
-    return runtimePlanState(await (signal ? plan.get(sid, signal) : plan.get(sid)));
-  } catch (error) {
-    if (isErrorType(error, "capability_not_negotiated")) return undefined;
-    throw error;
-  }
-}
 
 export function installAgentRuntimeGateway(): () => void {
   return configureAgentRuntimeGateway(gateway);

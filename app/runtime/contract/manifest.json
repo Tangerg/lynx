@@ -53,6 +53,27 @@
       "stability": "stable"
     },
     {
+      "name": "sessions.snapshot",
+      "kind": "unary",
+      "operation": "query",
+      "idempotency": "none",
+      "pagination": "none",
+      "errors": [
+        "session_not_found",
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "subagents"
+      ],
+      "materializes": [
+        "items.list",
+        "runs.list",
+        "interrupts.list",
+        "plan.get"
+      ],
+      "stability": "stable"
+    },
+    {
       "name": "sessions.create",
       "kind": "unary",
       "operation": "command",
@@ -1234,6 +1255,7 @@
           "sessions.export",
           "sessions.import",
           "sessions.rollback",
+          "sessions.snapshot",
           "sessions.update",
           "skills.discovered.list",
           "skills.library.archive",
@@ -1470,6 +1492,7 @@
           "sessions.fork",
           "sessions.get",
           "sessions.rollback",
+          "sessions.snapshot",
           "sessions.update",
           "usage.session"
         ]
@@ -1551,6 +1574,22 @@
     ]
   },
   "capabilityPolicy": [
+    {
+      "method": "sessions.snapshot",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "includeDescendants",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "subagents"
+          ]
+        }
+      ]
+    },
     {
       "method": "sessions.update",
       "rules": [

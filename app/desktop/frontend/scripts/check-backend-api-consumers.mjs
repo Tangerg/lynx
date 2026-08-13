@@ -103,6 +103,17 @@ for (const [wrapper, locations] of consumerCalls) {
   }
 }
 
+const directlyConsumedOperations = new Set(
+  [...operationConsumers]
+    .filter(([, consumers]) => consumers.size > 0)
+    .map(([operation]) => operation),
+);
+const materializedOperations = creditMaterializedOperationConsumers(
+  manifest.methods,
+  operationConsumers,
+  errors,
+);
+
 for (const [operation, consumers] of operationConsumers) {
   if (consumers.size === 0) {
     errors.push(
@@ -120,8 +131,29 @@ const callCount =
   [...consumerCalls.values()].reduce((total, locations) => total + locations.size, 0) +
   [...sidecarConsumerCalls.values()].reduce((total, locations) => total + locations.size, 0);
 console.log(
-  `check-backend-api-consumers: ${operations.size}/${operations.size} Runtime operations, ${sidecarEndpoints.size}/${sidecarEndpoints.size} HTTP sidecars, and ${runtimeTopics.size}/${runtimeTopics.size} event types have product consumers (${callCount} typed call sites)`,
+  `check-backend-api-consumers: ${operations.size}/${operations.size} Runtime operation fact families have product coverage (${directlyConsumedOperations.size} direct operations, ${materializedOperations.size} materialized through server composites), ${sidecarEndpoints.size}/${sidecarEndpoints.size} HTTP sidecars, and ${runtimeTopics.size}/${runtimeTopics.size} event types have product consumers (${callCount} typed call sites)`,
 );
+
+function creditMaterializedOperationConsumers(methods, consumersByOperation, targetErrors) {
+  const credited = new Set();
+  for (const method of methods) {
+    if (!method.materializes?.length) continue;
+    const compositeConsumers = consumersByOperation.get(method.name);
+    if (!compositeConsumers?.size) continue;
+    for (const materialized of method.materializes) {
+      const target = consumersByOperation.get(materialized);
+      if (!target) {
+        targetErrors.push(`${method.name} materializes non-manifest operation ${materialized}`);
+        continue;
+      }
+      if (target.size === 0) credited.add(materialized);
+      for (const location of compositeConsumers) {
+        target.add(`${location} (materialized by ${method.name})`);
+      }
+    }
+  }
+  return credited;
+}
 
 function mappedSidecarMethods() {
   let declaration;

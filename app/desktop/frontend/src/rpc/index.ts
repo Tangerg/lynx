@@ -88,6 +88,7 @@ export type {
   ExportSessionRequest,
   ExportSessionResponse,
   SessionArtifact,
+  SessionSnapshot,
   ImportSessionResponse,
   // Runs
   RunRef,

@@ -276,8 +276,8 @@ runs.start ──▶ segment.started ──▶ (item.started → item.delta* →
    `segmentId`），又一段 `segment.started → items → …`。**所以一个"对话回合"= 一个 Run 的若干 Segment**。
 5. **收尾**：某一段以 `segment.finished{ outcome: completed | error | maxSteps | maxBudget | canceled }` 终结整个
    Run，Run 转 `finished` 并带同名 `RunOutcome`。
-6. **历史 vs 实时**：重开会话用 `items.list` 重建（§10）；实时流内按 `eventId` 排序（§5）。两套各自权威，靠 item id
-   关联。
+6. **历史 vs 实时**：挂载/重开会话用 `sessions.snapshot` 重建完整 material view，独立历史浏览用
+   `items.list`（§10）；实时流内按 `eventId` 排序（§5）。两套各自权威，靠 item id 关联。
 
 ### 3.2 Minimal Profile（最小可用客户端）
 
@@ -703,9 +703,13 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 
 ### 7.2 sessions.\*
 
-`list` / `get` / `create` / `update` / `delete` / `fork` / `rollback` / `export` / `import`。
+`list` / `get` / `snapshot` / `create` / `update` / `delete` / `fork` / `rollback` / `export` / `import`。
 
 - **`create` 的 `workspace` 缺省 = `ServerInfo.defaultWorkspace`**（冷启动零摩擦），返回完整 `WorkspaceInfo`。
+- **`snapshot` 是挂载恢复的原子 material read**：Runtime 在一个存储事务内读取完整 Items、Runs、open
+  Interrupt sets 与当前 Plan state，客户端不能再把四次独立查询的不同提交点拼成一个从未存在过的视图。
+  `includeDescendants:true` 与 `runs.list` 一样要求 `features.subagents`；未提供 Plan 能力的 composition 省略
+  `state`。它不是通用 `expand[]`，也不替代下面各资源的分页/筛选接口。
 - **`update` 是条件写**：必带 `expectedRevision`（§4.1）。改 `workspace` 需 `features.relocate`。
 - **`fork` 在一个 run 边界切开**：`fromRunId` 之前（含）的历史进新会话，之后的不进。会话级 state 也按同一个边界
   走 —— fork 出来的会话拿到的是**那一刻**的任务清单，不是现在的。
@@ -755,7 +759,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 
 ### 7.4 items.\*
 
-`items.list` 是持久化历史的唯一读。
+`items.list` 是持久化历史的独立、可分页资源读；`sessions.snapshot` 只在挂载恢复用例中内嵌同一完整历史。
 
 - **`scope` 是 typed union**：`{type:"session", sessionId}` 或 `{type:"run", runId, includeDescendants?}`。一个
   松对象同时带两个 id，就得由服务端猜客户端想要哪个 —— 那是服务端在替客户端做决定。session scope 永远返回
@@ -991,8 +995,8 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
    TRANSPORT §9.2）；
 2. 带上最后一个**折叠成功**的事件 id（`Last-Event-Id`）让 server 重放 replayable 缺口。**cursor 只由折叠推进** ——
    不要用 ack 回来的 `headEventId` 覆盖自己的位置（§7.3）；
-3. `replay_unavailable` 时改走冷路径：`items.list` 补历史 + 各 state key 的 `recoveryMethod` 补状态，然后
-   tail 重接（不带 cursor = 只订将来）；
+3. `replay_unavailable` 时，已挂载 Session 改走 `sessions.snapshot` 一次补齐 material view；只持有单个 Run
+   的通用消费者仍可用 `items.list` + 各 state key 的 `recoveryMethod`，然后 tail 重接（不带 cursor = 只订将来）；
 4. 按 `itemId` 与 `eventId` 去重。**non-replayable preview 不重放**（§5.2 保证正确）。
 
 一个 Run **活得比它的流长**：流在没有本段终态的情况下结束，是**连接掉了**，不是 run 结束了——服务端那边它还在跑。
@@ -1000,11 +1004,12 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ### 10.2 进程/客户端重启恢复
 
-1. `sessions.list` / `sessions.get`；
-2. `items.list` 拉持久化历史（页级 `runs` 顺带把树连上）；
-3. `runs.list{statuses:["running"]}` 拿在跑的、`interrupts.list` 拿待解的；
-4. 各 state key 的 `recoveryMethod` 拉当前状态（§5.3）；
-5. `runs.resume` 应答 interrupt（payload 自包含，无需额外 join，§4.8）。
+1. 完成 discovery，并在读取前建立所需 `runtime.subscribe` generation；
+2. `sessions.list` / `sessions.get` 对账身份；
+3. 对每个已挂载 Session 调一次 `sessions.snapshot`，在同一数据库提交点恢复 Items、Runs、HITL 与 Plan；
+4. Goal 与其他独立 capability resource 继续调用各自 recovery query（例如 `goals.get`）：它们拥有不同生命周期，
+   不能仅为减少请求数而塞进 Agent material view；
+5. 折叠读取期间到达的失效事件并按需重读；`runs.resume` 应答 interrupt（payload 自包含，无需额外 join，§4.8）。
 
 ### 10.3 还原 Run 树
 
@@ -1012,8 +1017,9 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 `parentRunId` 把子 Run 嵌到父 toolCall Item 下（子树需 `features.subagents`）。续段（resume）不产生独立 Run ——
 一个 Run 的停车-续跑各段共享同一 `runId`（§0.3），无需串链。
 
-三个 run 视图职责不重叠：`runs.list`（全历史 + 状态过滤）/ `interrupts.list`（待解集）/ `items.list.runs`
-（这一页的历史结构）。
+三个独立 run 视图职责不重叠：`runs.list`（全历史 + 状态过滤）/ `interrupts.list`（待解集）/
+`items.list.runs`（这一页的历史结构）。`sessions.snapshot` 是明确的挂载恢复 join，在一次事务中组合这些事实，
+不是第四个可筛选资源目录。
 
 ---
 

@@ -44,6 +44,7 @@ import type {
   GetPlanRequest,
   GetRunRequest,
   GetSessionRequest,
+  GetSessionSnapshotRequest,
   Goal,
   GoalRequest,
   GrepRequest,
@@ -103,6 +104,7 @@ import type {
   RuntimeSubscribeResponse,
   Schedule,
   Session,
+  SessionSnapshot,
   SessionUsageRequest,
   SetApprovalModeRequest,
   SetHookTrustRequest,
@@ -161,6 +163,7 @@ const METHOD_NAMES = [
   "runtime.discover",
   "sessions.list",
   "sessions.get",
+  "sessions.snapshot",
   "sessions.create",
   "sessions.update",
   "sessions.delete",
@@ -270,6 +273,7 @@ const VALUE_METHOD_NAMES = [
   "runtime.discover",
   "sessions.list",
   "sessions.get",
+  "sessions.snapshot",
   "sessions.create",
   "sessions.update",
   "sessions.fork",
@@ -375,6 +379,12 @@ export const WIRE_METHOD_POLICY = {
     pagination: "cursor",
   },
   "sessions.get": {
+    operation: "query",
+    response: "unary",
+    idempotency: "none",
+    pagination: "none",
+  },
+  "sessions.snapshot": {
     operation: "query",
     response: "unary",
     idempotency: "none",
@@ -923,6 +933,9 @@ export interface WireCapabilityRule {
 export const WIRE_CAPABILITY_POLICY: {
   readonly [M in WireMethodName]?: readonly WireCapabilityRule[];
 } = {
+  "sessions.snapshot": [
+    { when: [{ field: "includeDescendants", operator: "present" }], requires: ["subagents"] },
+  ],
   "sessions.update": [
     { when: [{ field: "workspace", operator: "present" }], requires: ["relocate"] },
   ],
@@ -1069,6 +1082,7 @@ export interface WireShapes {
   "runtime.discover": { params: Record<string, never>; result: DiscoverResponse };
   "sessions.list": { params: PageQuery; result: PageOfSession };
   "sessions.get": { params: GetSessionRequest; result: Session };
+  "sessions.snapshot": { params: GetSessionSnapshotRequest; result: SessionSnapshot };
   "sessions.create": { params: CreateSessionRequest; result: Session };
   "sessions.update": { params: UpdateSessionRequest; result: Session };
   "sessions.delete": { params: DeleteSessionRequest };

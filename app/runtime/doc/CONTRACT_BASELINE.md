@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `20daa146962ce91418b1a854800310d3ec03f9ec35806893668c2fd898f449c9` |
-| `contract/openrpc.json` | `f27ac7f699d43b146b47882a33b74da987404f00475c56bc5b76d1c0aad2f3b2` |
-| `contract/schema.json` | `65baec040af1766357cd630e8264b22a1899d9e981bddce26406ae4cba3ce61e` |
-| `contract/go-api.json` | `8eea741aaf0e5d0a2d89536480d16000bb9d73032c13702eaf93c068a53aadd6` |
+| `contract/manifest.json` | `58f50b7736895892ba1e2797d686abbc3dc1deb7b61fa6a5c8da6728d980c4c4` |
+| `contract/openrpc.json` | `153b26e538f0c1ad44f0a7b78732e5b93699779cd0cd54084626c3a082eff0cd` |
+| `contract/schema.json` | `4be543ca07b37090e09d399af177812c7b74f7b4851e8db5d8db9271acbdb3a4` |
+| `contract/go-api.json` | `b71a8c318e870faa45685d8ec69f1745b95ce79e59d08961f51c53b9c55c2f2a` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -51,6 +51,14 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 本文件不复制 method、field、error 或 example catalog。
 
 当前协议版本为 `2026-08-13`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+
+`sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
+Session/Item/Run/open Interrupt/Plan 的跨投影关系，Persistence 在一个 SQLite transaction 内读取全部事实，Delivery
+按调用方 capability 原样投影或整体拒绝，不能裁剪 waiting set。Desktop 只走这一路恢复 HITL、Plan、Run/Tool；
+独立分页资源接口继续存在，Goal 继续由 `goals.get` 的独立生命周期 owner 读取。该 additive method 不改变
+`protocolVersion`、Artifact version 或 SQLite epoch，也不授权旧四读 fallback。
+`manifest.methods[].materializes` 只声明复合 query 原子承载的独立事实族，供合同审计和 consumer gate 区分
+服务端组合读取与孤儿能力；它不继承目标 query 的筛选/分页语义，也不建立 alias 或客户端 fallback。
 
 Goal read model 的 `status:"completing"` 精确表示模型已声明 objective 成功、但 owning Run 的最终记账与条件清除尚未完成。它保持目标占位且不可 stop/resume/start；下一次 `goals.changed` 后读取 `null` 才表示 settlement owner 已释放。Domain `complete`、Application drive 与公共 `completing` 分属各层，不互相泄露类型。
 
