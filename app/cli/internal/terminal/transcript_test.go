@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"fmt"
 	"image"
 	"strings"
 	"testing"
@@ -130,6 +131,63 @@ func TestTranscriptNavigationUsesRetainedBlockAndSearchCoordinates(t *testing.T)
 	}
 	if !view.StepMatch(1) || view.current != 0 {
 		t.Fatalf("next search match = %d, want wrapped index 0", view.current)
+	}
+}
+
+func TestStreamingSearchRefreshPreservesTheCurrentMatch(t *testing.T) {
+	view := testTranscriptView(t)
+	for _, body := range []string{"needle one", "needle two", "needle three"} {
+		view.Append(&kit.Message{Theme: view.theme, Speaker: "test", Body: body})
+	}
+	drawRoot(t, view, 48, 8)
+	view.Find("needle")
+	acceptSearchResult(t, view)
+	for range 2 {
+		if !view.StepMatch(1) {
+			t.Fatal("could not advance the active search match")
+		}
+	}
+	if view.current != 2 {
+		t.Fatalf("current match = %d, want 2", view.current)
+	}
+	want := view.searchCursor
+
+	view.Append(&kit.Message{Theme: view.theme, Speaker: "test", Body: "streamed tail without the query"})
+	acceptSearchResult(t, view)
+	if view.current != 2 || !view.searchCursor.present || view.searchCursor.blockID != want.blockID ||
+		view.searchCursor.rowOffset != want.rowOffset || view.searchCursor.column != want.column {
+		t.Fatalf("search cursor after refresh = index %d cursor %+v, want index 2 cursor %+v", view.current, view.searchCursor, want)
+	}
+}
+
+func TestInterleavedStreamSearchRefreshTracksTheStableMatchBlock(t *testing.T) {
+	view := testTranscriptView(t)
+	started := agent.Block{ID: "earlier", Kind: agent.BlockAssistant}
+	if err := view.Apply(agent.BlockStarted{Block: started}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := view.Apply(agent.BlockDelta{BlockID: started.ID, Text: "earlier stream\n\n"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{"needle one", "needle two", "needle three"} {
+		view.Append(&kit.Message{Theme: view.theme, Speaker: "test", Body: body})
+	}
+	drawRoot(t, view, 48, 8)
+	view.Find("needle")
+	acceptSearchResult(t, view)
+	if !view.StepMatch(1) || view.current != 1 {
+		t.Fatalf("current match = %d, want 1", view.current)
+	}
+	wantBlock := view.searchCursor.blockID
+
+	// The still-live block precedes the selected match and introduces a new match,
+	// shifting every later result index. The cursor follows the retained BlockID.
+	if err := view.Apply(agent.BlockDelta{BlockID: started.ID, Text: "needle from earlier stream\n\n"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	acceptSearchResult(t, view)
+	if view.current != 2 || !view.searchCursor.present || view.searchCursor.blockID != wantBlock {
+		t.Fatalf("interleaved refresh = index %d cursor %+v, want index 2 block %d", view.current, view.searchCursor, wantBlock)
 	}
 }
 
@@ -335,6 +393,45 @@ func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testi
 	}
 }
 
+func TestCompletingASelectedToolThatLosesDetailsKeepsItsHeaderVisible(t *testing.T) {
+	view := testTranscriptView(t)
+	tool := beginTestTool(view, agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning})
+	toolID := view.toolViews[0].id
+	tool.SetExpanded(true)
+	if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: strings.Repeat("partial output\n", 20)}, nil); err != nil {
+		t.Fatal(err)
+	}
+	viewport := scrollBelowSelectedToolHeader(t, view, toolID)
+
+	completed := agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolOK}
+	if err := view.Apply(agent.BlockCompleted{Block: agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	viewport.root.Draw(viewport.surface.View())
+	if tool.Expanded() {
+		t.Fatal("completed detail-free tool remained expanded")
+	}
+	viewport.requireHeaderVisible(t)
+}
+
+func TestCancelingASelectedEmptyToolKeepsItsHeaderVisible(t *testing.T) {
+	view := testTranscriptView(t)
+	tool := beginTestTool(view, agent.ToolCall{Kind: agent.ToolShell, Command: "pending command", Status: agent.ToolRunning})
+	toolID := view.toolViews[0].id
+	tool.SetExpanded(true)
+	view.content.Changed(toolID)
+	viewport := scrollBelowSelectedToolHeader(t, view, toolID)
+
+	if err := view.Apply(agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCanceled}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	viewport.root.Draw(viewport.surface.View())
+	if tool.Expanded() {
+		t.Fatal("canceled detail-free tool remained expanded")
+	}
+	viewport.requireHeaderVisible(t)
+}
+
 func TestCanceledRunSettlesEveryLiveTranscriptBlock(t *testing.T) {
 	view := testTranscriptView(t)
 	if err := view.Apply(agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}, nil); err != nil {
@@ -454,6 +551,62 @@ func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 	}
 }
 
+func TestToolClickTargetsTheLastCompleteTranscriptFrame(t *testing.T) {
+	view := testTranscriptView(t)
+	first := appendTestTool(view, "first", strings.Repeat("FIRST_DETAIL\n", 8))
+	second := appendTestTool(view, "second", "SECOND_DETAIL")
+	root := headless.NewRoot(view)
+	surface := grid.NewSurface(48, 12)
+	root.Draw(surface.View())
+	secondTop := -1
+	for _, placement := range view.presentedBlocks.Value().blocks {
+		if placement.blockID == view.toolViews[1].id {
+			secondTop = placement.top
+			break
+		}
+	}
+	row := secondTop - view.content.StartRow() - view.scroll.Offset()
+	if secondTop < 0 || row < 0 || row >= 12 {
+		t.Fatalf("second tool header is not visible: top %d row %d", secondTop, row)
+	}
+
+	// The semantic layout grows before the replacement frame is committed. The
+	// visible second header must retain its prior stable identity.
+	first.SetExpanded(true)
+	view.content.Changed(view.toolViews[0].id)
+	if !root.Handle(input.Mouse{Pos: image.Pt(0, row), Action: input.MouseDown, Button: input.ButtonLeft}) ||
+		!root.Handle(input.Mouse{Pos: image.Pt(0, row), Action: input.MouseUp, Button: input.ButtonLeft}) {
+		t.Fatal("visible second tool header click was not handled")
+	}
+	if !second.Expanded() {
+		t.Fatal("old frame click did not expand the visibly targeted second tool")
+	}
+	if !first.Expanded() {
+		t.Fatal("old frame click toggled the semantically reflowed first tool")
+	}
+}
+
+func TestToolClickRejectsAFrameFromBeforeTranscriptReset(t *testing.T) {
+	view := testTranscriptView(t)
+	appendTestTool(view, "old", "OLD_DETAIL")
+	root := headless.NewRoot(view)
+	surface := grid.NewSurface(48, 8)
+	root.Draw(surface.View())
+
+	view.Reset()
+	replacement := appendTestTool(view, "replacement", "REPLACEMENT_DETAIL")
+	if !root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseDown, Button: input.ButtonLeft}) {
+		t.Fatal("stale-frame press was not settled by the transcript")
+	}
+	if view.selection.Active() {
+		t.Fatal("stale-frame press selected replacement content")
+	}
+	root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseUp, Button: input.ButtonLeft})
+	if replacement.Expanded() {
+		t.Fatal("stale-frame click expanded a replacement tool that reused the old BlockID")
+	}
+}
+
 func TestDraggingFromAToolHeaderCopiesWithoutToggling(t *testing.T) {
 	clipboard := new(recordingClipboard)
 	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.New("github-dark"), 24, false, clipboard)
@@ -562,6 +715,32 @@ func TestTranscriptFocusSelectsAndOperatesOnOneEntry(t *testing.T) {
 	}
 }
 
+func TestCollapsingASelectedToolKeepsItsHeaderVisible(t *testing.T) {
+	tests := []struct {
+		name     string
+		collapse func(*transcriptView) bool
+	}{
+		{name: "selected disclosure", collapse: func(view *transcriptView) bool { return view.Do(headless.Collapse) }},
+		{name: "global disclosures", collapse: func(view *transcriptView) bool { view.ToggleDetails(); return true }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			view := testTranscriptView(t)
+			tool := appendTestTool(view, "selected", strings.Repeat("detail line\n", 16))
+			toolID := view.toolViews[0].id
+			tool.SetExpanded(true)
+			view.content.Changed(toolID)
+			viewport := scrollBelowSelectedToolHeader(t, view, toolID)
+
+			if !test.collapse(view) {
+				t.Fatal("tool collapse was not handled")
+			}
+			viewport.root.Draw(viewport.surface.View())
+			viewport.requireHeaderVisible(t)
+		})
+	}
+}
+
 func TestFocusedTranscriptCopiesTheSelectedBlock(t *testing.T) {
 	clipboard := new(recordingClipboard)
 	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.New("github-dark"), 24, false, clipboard)
@@ -623,6 +802,57 @@ func testTranscriptView(t *testing.T) *transcriptView {
 	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.New("github-dark"), 24, false, nil)
 	t.Cleanup(view.Close)
 	return view
+}
+
+func acceptSearchResult(t *testing.T, view *transcriptView) {
+	t.Helper()
+	select {
+	case result := <-view.SearchResults():
+		accepted, _ := view.AcceptSearch(result)
+		if !accepted {
+			t.Fatalf("transcript rejected search result for %q", result.Query)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("transcript search did not finish")
+	}
+}
+
+const testTranscriptWindowRows = 6
+
+type selectedToolViewport struct {
+	view    *transcriptView
+	root    *headless.Root
+	surface *grid.Surface
+	header  int
+}
+
+func scrollBelowSelectedToolHeader(t *testing.T, view *transcriptView, toolID headless.BlockID) selectedToolViewport {
+	t.Helper()
+	for index := range 16 {
+		view.Append(&kit.Message{Theme: view.theme, Speaker: "lyra", Body: fmt.Sprintf("later block %d", index)})
+	}
+	root := headless.NewRoot(view)
+	surface := grid.NewSurface(48, testTranscriptWindowRows)
+	root.Draw(surface.View())
+	view.Focus(true)
+	view.selectEntry(toolID, true)
+	root.Draw(surface.View())
+	view.Scroll(scrollPageDown)
+	root.Draw(surface.View())
+	header, _, ok := view.content.Extent(toolID)
+	if !ok || header >= view.content.StartRow()+view.scroll.Offset() {
+		t.Fatal("test did not scroll below the selected tool header")
+	}
+	return selectedToolViewport{view: view, root: root, surface: surface, header: header}
+}
+
+func (viewport selectedToolViewport) requireHeaderVisible(t *testing.T) {
+	t.Helper()
+	from := viewport.view.content.StartRow() + viewport.view.scroll.Offset()
+	if viewport.header < from || viewport.header >= from+testTranscriptWindowRows {
+		t.Fatalf("selected header row %d is outside visible range [%d,%d)",
+			viewport.header, from, from+testTranscriptWindowRows)
+	}
 }
 
 func appendTestTool(view *transcriptView, id, output string) *toolBlock {

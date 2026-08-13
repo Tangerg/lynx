@@ -3,6 +3,7 @@ package terminal
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -10,6 +11,7 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
+	"github.com/Tangerg/oolong/core/layout"
 	"github.com/Tangerg/oolong/highlight"
 	"github.com/Tangerg/oolong/markdown"
 
@@ -34,6 +36,7 @@ type transcriptView struct {
 	announceSearch  bool
 	matches         []headless.Match
 	current         int
+	searchCursor    transcriptSearchCursor
 	retain          int
 	details         bool
 	clipboard       headless.Clipboard
@@ -57,6 +60,8 @@ type transcriptView struct {
 	runLineages     map[string]agent.RunLineage
 	activeToolGroup *trackedToolGroup
 	images          *terminalImagePresenter
+	contentEpoch    uint64
+	presentedBlocks headless.Snapshot[transcriptBlockPresentation]
 }
 
 type transcriptSelection struct {
@@ -64,6 +69,23 @@ type transcriptSelection struct {
 	Readable   bool
 	Expandable bool
 	Expanded   bool
+}
+
+type transcriptBlockPlacement struct {
+	blockID     headless.BlockID
+	top, height int
+}
+
+type transcriptBlockPresentation struct {
+	epoch  uint64
+	blocks []transcriptBlockPlacement
+}
+
+type transcriptSearchCursor struct {
+	blockID           headless.BlockID
+	rowOffset, column int
+	index             int
+	present           bool
 }
 
 const transcriptPrompt keymap.Action = "prompt"
@@ -121,12 +143,21 @@ func (c *transcriptView) ToggleDetails() {
 		expand = !c.details
 	}
 	c.details = expand
+	selectedChanged := false
 	for _, tracked := range c.toolViews {
 		if tracked.id < first || tracked.id >= end || !tracked.block.Expandable() {
 			continue
 		}
+		before := tracked.block.Expanded()
 		tracked.block.SetExpanded(c.details)
+		if tracked.block.Expanded() == before {
+			continue
+		}
+		selectedChanged = selectedChanged || c.focused && tracked.id == c.selected
 		c.content.Changed(tracked.id)
+	}
+	if selectedChanged {
+		c.revealSelected()
 	}
 	c.refreshSearch()
 	c.announceSelection()
@@ -169,6 +200,10 @@ func newTranscriptView(
 }
 
 func (c *transcriptView) Draw(frame headless.Frame) {
+	width, _ := frame.Size()
+	c.presentedBlocks.Stage(frame, transcriptBlockPresentation{
+		epoch: c.contentEpoch, blocks: c.projectBlockPlacements(width),
+	})
 	c.view.Matches, c.view.Current = c.matches, c.current
 	c.view.Draw(frame)
 	if c.content.Len() == 0 && c.entrance != nil {
@@ -283,29 +318,73 @@ func (c *transcriptView) handleMouse(mouse input.Mouse) {
 	case input.MouseDown:
 		c.dragged = false
 		point, _ := c.selection.Range()
-		id, offset, ok := c.content.At(point.Row)
+		presented := c.presentedBlocks.Value()
+		if presented.epoch != c.contentEpoch {
+			// The transcript widget has already translated the press through its last
+			// complete frame. Cancel the resulting selection when that frame belonged
+			// to content Reset has replaced; BlockIDs restart from zero and must not
+			// transfer a gesture to their new owners.
+			c.selection.Clear()
+			c.pressedHeader = false
+			return
+		}
+		id, offset, ok := presentedBlockAt(presented.blocks, point.Row)
 		if !ok {
 			c.pressedHeader = false
 			return
 		}
-		c.selectPointerEntry(id)
+		if !c.selectPointerEntry(id) {
+			c.pressedHeader = false
+			return
+		}
 		c.pressed, c.pressedHeader = id, offset == 0 && c.tool(id) != nil
 	case input.MouseDrag:
 		c.dragged = true
 	case input.MouseUp:
 		start, end := c.selection.Range()
-		id, offset, ok := c.content.At(end.Row)
 		click := !c.dragged && start == end
 		if click {
 			c.selection.Clear()
 		}
-		if click && ok && id == c.pressed && offset == 0 && c.pressedHeader {
+		if click && c.pressedHeader && c.hasSelected && c.selected == c.pressed {
 			c.toggleSelected()
 		} else if !click {
 			c.copySelection()
 		}
 		c.pressedHeader, c.dragged = false, false
 	}
+}
+
+// projectBlockPlacements records stable block identities alongside the exact row
+// layout being drawn. Semantic transcript content may change before the next frame;
+// pointer input must still target what the last complete frame showed, not whatever
+// now happens to occupy the same row number.
+func (c *transcriptView) projectBlockPlacements(width int) []transcriptBlockPlacement {
+	placements := make([]transcriptBlockPlacement, 0, c.content.Len())
+	top := c.content.StartRow()
+	first := c.content.FirstBlock()
+	for index := range c.content.Len() {
+		id := first + blockOffset(index)
+		height := 0
+		if width == c.content.Width() {
+			_, height, _ = c.content.Extent(id)
+		} else if entry := c.entries[id]; entry != nil && width > 0 {
+			height = max(entry.Measure(width), 0)
+		}
+		placements = append(placements, transcriptBlockPlacement{blockID: id, top: top, height: height})
+		top = layout.Sum(top, height)
+	}
+	return placements
+}
+
+func presentedBlockAt(placements []transcriptBlockPlacement, row int) (headless.BlockID, int, bool) {
+	index := sort.Search(len(placements), func(index int) bool {
+		return layout.Sum(placements[index].top, placements[index].height) > row
+	})
+	if index >= len(placements) || row < placements[index].top || placements[index].height <= 0 {
+		return 0, 0, false
+	}
+	return placements[index].blockID, row - placements[index].top, true
 }
 
 func (c *transcriptView) ensureSelection() {
@@ -358,8 +437,12 @@ func (c *transcriptView) selectEntry(id headless.BlockID, reveal bool) {
 	c.setSelectedEntry(id, reveal, true)
 }
 
-func (c *transcriptView) selectPointerEntry(id headless.BlockID) {
+func (c *transcriptView) selectPointerEntry(id headless.BlockID) bool {
+	if _, ok := c.entries[id]; !ok {
+		return false
+	}
 	c.setSelectedEntry(id, false, false)
+	return true
 }
 
 func (c *transcriptView) setSelectedEntry(id headless.BlockID, reveal, clearTextSelection bool) {
@@ -404,31 +487,31 @@ func (c *transcriptView) tool(id headless.BlockID) toolDisclosure {
 }
 
 func (c *transcriptView) toggleSelected() bool {
-	tool := c.tool(c.selected)
-	if !c.hasSelected || tool == nil || !tool.Expandable() {
-		return true
-	}
-	expanded := tool.ToggleExpanded()
-	c.content.Changed(c.selected)
-	if expanded {
-		c.revealSelected()
-	}
-	c.refreshSearch()
-	c.announceSelection()
-	return true
+	return c.mutateSelectedDisclosure(func(tool toolDisclosure) {
+		tool.ToggleExpanded()
+	})
 }
 
 func (c *transcriptView) setSelectedExpanded(expanded bool) bool {
+	return c.mutateSelectedDisclosure(func(tool toolDisclosure) {
+		tool.SetExpanded(expanded)
+	})
+}
+
+// mutateSelectedDisclosure owns the layout invariant for keyboard-operated tool
+// details. Both expansion and collapse can move the selected entry relative to
+// the viewport, so every actual height change remeasures and reveals the same
+// stable block identity before another command can target it.
+func (c *transcriptView) mutateSelectedDisclosure(mutate func(toolDisclosure)) bool {
 	tool := c.tool(c.selected)
 	if !c.hasSelected || tool == nil || !tool.Expandable() {
 		return true
 	}
-	if tool.Expanded() != expanded {
-		tool.SetExpanded(expanded)
+	before := tool.Expanded()
+	mutate(tool)
+	if tool.Expanded() != before {
 		c.content.Changed(c.selected)
-		if expanded {
-			c.revealSelected()
-		}
+		c.revealSelected()
 		c.refreshSearch()
 	}
 	c.announceSelection()
@@ -718,9 +801,12 @@ func (c *transcriptView) completeLiveTool(block agent.Block) bool {
 	if !ok {
 		return false
 	}
+	selectedCollapsed := false
 	for _, tracked := range live.blocks {
-		tracked.block.Update(block)
-		c.content.Changed(tracked.id)
+		selectedCollapsed = c.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Update(block) }) || selectedCollapsed
+	}
+	if selectedCollapsed {
+		c.revealSelected()
 	}
 	if live.group != nil {
 		c.finishToolGroupIfReady(live.group)
@@ -748,10 +834,10 @@ func (c *transcriptView) settleLive(outcome agent.Outcome) {
 	if outcome.Status == agent.OutcomeCanceled {
 		toolStatus = agent.ToolCanceled
 	}
+	selectedCollapsed := false
 	for id, live := range c.tools {
 		for _, tracked := range live.blocks {
-			tracked.block.Finish(toolStatus)
-			c.content.Changed(tracked.id)
+			selectedCollapsed = c.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Finish(toolStatus) }) || selectedCollapsed
 		}
 		if live.group != nil {
 			c.finishToolGroupIfReady(live.group)
@@ -761,6 +847,9 @@ func (c *transcriptView) settleLive(outcome agent.Outcome) {
 			}
 		}
 		delete(c.tools, id)
+	}
+	if selectedCollapsed {
+		c.revealSelected()
 	}
 	c.sealToolGroup()
 	c.refreshSearch()
@@ -780,13 +869,13 @@ func (c *transcriptView) settleRun(runID string, outcome agent.Outcome) {
 	if outcome.Status == agent.OutcomeCanceled {
 		toolStatus = agent.ToolCanceled
 	}
+	selectedCollapsed := false
 	for id, live := range c.tools {
 		if live.runID != runID {
 			continue
 		}
 		for _, tracked := range live.blocks {
-			tracked.block.Finish(toolStatus)
-			c.content.Changed(tracked.id)
+			selectedCollapsed = c.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Finish(toolStatus) }) || selectedCollapsed
 		}
 		if live.group != nil {
 			c.finishToolGroupIfReady(live.group)
@@ -797,11 +886,21 @@ func (c *transcriptView) settleRun(runID string, outcome agent.Outcome) {
 		}
 		delete(c.tools, id)
 	}
+	if selectedCollapsed {
+		c.revealSelected()
+	}
 	if c.activeToolGroup != nil && c.activeToolGroup.runID == runID {
 		c.sealToolGroup()
 	}
 	c.refreshSearch()
 	c.announceSelection()
+}
+
+func (c *transcriptView) mutateTrackedTool(tracked trackedTool, mutate func(mutableToolBlock)) bool {
+	before := tracked.block.Expanded()
+	mutate(tracked.block)
+	c.content.Changed(tracked.id)
+	return c.focused && tracked.id == c.selected && before && !tracked.block.Expanded()
 }
 
 func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions.Registry) error {
@@ -1016,6 +1115,7 @@ func (c *transcriptView) DiscardExcess() {
 
 func (c *transcriptView) Reset() {
 	c.entrance = nil
+	c.contentEpoch++
 	c.content = headless.Transcript{}
 	c.scroll = headless.Scroll{}
 	c.scroll.Wheel(c.wheel)
@@ -1029,6 +1129,7 @@ func (c *transcriptView) Reset() {
 	}
 	clear(c.textStreams)
 	c.query, c.matches, c.current, c.announceSearch = "", nil, -1, false
+	c.searchCursor = transcriptSearchCursor{}
 	clear(c.tools)
 	clear(c.entries)
 	clear(c.runEntries)
@@ -1107,6 +1208,7 @@ func (c *transcriptView) Find(query string) {
 	c.query = strings.TrimSpace(query)
 	c.announceSearch = c.query != ""
 	c.matches, c.current = nil, -1
+	c.searchCursor = transcriptSearchCursor{}
 	c.search.Submit(&c.content, c.query, false)
 }
 
@@ -1122,11 +1224,14 @@ func (c *transcriptView) AcceptSearch(result headless.Result) (accepted, announc
 	if result.Query != c.query {
 		return false, false
 	}
+	next := c.searchMatchIndex(result.Matches)
 	c.matches = result.Matches
 	if len(c.matches) > 0 {
-		c.current = 0
+		c.current = next
+		c.rememberSearchCursor()
 	} else {
 		c.current = -1
+		c.searchCursor = transcriptSearchCursor{}
 	}
 	announce, c.announceSearch = c.announceSearch, false
 	return true, announce
@@ -1140,7 +1245,63 @@ func (c *transcriptView) StepMatch(delta int) bool {
 	if c.current < 0 {
 		c.current += len(c.matches)
 	}
+	c.rememberSearchCursor()
 	return true
+}
+
+func (c *transcriptView) searchMatchIndex(matches []headless.Match) int {
+	if len(matches) == 0 || !c.searchCursor.present {
+		return 0
+	}
+	best := -1
+	var bestRowDistance, bestColumnDistance uint
+	for index, match := range matches {
+		id, offset, ok := c.content.At(match.Row)
+		if !ok || id != c.searchCursor.blockID {
+			continue
+		}
+		col := 0
+		if len(match.Spans) > 0 {
+			col = match.Spans[0].Col
+		}
+		rowDistance := unsignedDistance(offset, c.searchCursor.rowOffset)
+		columnDistance := unsignedDistance(col, c.searchCursor.column)
+		if best < 0 || rowDistance < bestRowDistance ||
+			(rowDistance == bestRowDistance && columnDistance < bestColumnDistance) {
+			best, bestRowDistance, bestColumnDistance = index, rowDistance, columnDistance
+		}
+	}
+	if best >= 0 {
+		return best
+	}
+	return min(c.searchCursor.index, len(matches)-1)
+}
+
+func (c *transcriptView) rememberSearchCursor() {
+	if c.current < 0 || c.current >= len(c.matches) {
+		c.searchCursor = transcriptSearchCursor{}
+		return
+	}
+	match := c.matches[c.current]
+	id, offset, ok := c.content.At(match.Row)
+	if !ok {
+		c.searchCursor = transcriptSearchCursor{}
+		return
+	}
+	col := 0
+	if len(match.Spans) > 0 {
+		col = match.Spans[0].Col
+	}
+	c.searchCursor = transcriptSearchCursor{
+		blockID: id, rowOffset: offset, column: col, index: c.current, present: true,
+	}
+}
+
+func unsignedDistance(left, right int) uint {
+	if left < right {
+		left, right = right, left
+	}
+	return uint(left) - uint(right)
 }
 
 func (c *transcriptView) lookFor(kind agent.BlockKind) markdown.Look {
