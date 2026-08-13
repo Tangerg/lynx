@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"fmt"
+	"image"
 	"strings"
 	"testing"
 	"time"
@@ -108,7 +109,7 @@ func TestReaderSearchStepsAcrossFullContent(t *testing.T) {
 	}
 }
 
-func TestReaderCopiesSelectionOnlyOnLeftButtonRelease(t *testing.T) {
+func TestReaderCopiesOnlyAnUninterruptedOwnedSelectionGesture(t *testing.T) {
 	clipboard := new(recordingClipboard)
 	reader := newReaderPane(kit.Dark(), kit.Unicode(), highlight.New("github-dark"), input.Wheel{}, clipboard)
 	t.Cleanup(reader.Shutdown)
@@ -116,19 +117,42 @@ func TestReaderCopiesSelectionOnlyOnLeftButtonRelease(t *testing.T) {
 		Title:    "pointer ownership",
 		Sections: []ToolSection{{Style: toolSectionParagraph, Text: "copy only from the owned gesture"}},
 	}})
-	headless.NewRoot(reader).Draw(grid.NewSurface(60, 10).View())
-	row := reader.content.StartRow()
-	reader.selection.Begin(headless.Point{Row: row})
-	reader.selection.Extend(headless.Point{Row: row, Col: 3})
-	reader.selection.Done()
-
-	reader.Handle(input.Mouse{Action: input.MouseUp, Button: input.ButtonRight})
-	if clipboard.text != "" {
-		t.Fatalf("right-button release copied %q", clipboard.text)
-	}
-	reader.Handle(input.Mouse{Action: input.MouseUp, Button: input.ButtonLeft})
+	root := headless.NewRoot(reader)
+	root.Draw(grid.NewSurface(60, 10).View())
+	start, end := image.Pt(0, 1), image.Pt(3, 1)
+	root.Handle(input.Mouse{Pos: start, Action: input.MouseDown, Button: input.ButtonLeft})
+	root.Handle(input.Mouse{Pos: end, Action: input.MouseDrag, Button: input.ButtonLeft})
+	root.Handle(input.Mouse{Pos: end, Action: input.MouseUp, Button: input.ButtonLeft})
 	if clipboard.text == "" {
-		t.Fatal("left-button release did not copy the active selection")
+		t.Fatal("owned selection gesture did not copy")
+	}
+
+	interruptions := []struct {
+		name  string
+		begin bool
+		run   func()
+	}{
+		{name: "unowned release", run: func() {}},
+		{name: "keyboard", begin: true, run: func() {
+			root.Handle(input.Key{Code: input.F3})
+		}},
+		{name: "different button", begin: true, run: func() {
+			root.Handle(input.Mouse{Pos: end, Action: input.MouseUp, Button: input.ButtonRight})
+		}},
+	}
+	for _, interruption := range interruptions {
+		t.Run(interruption.name, func(t *testing.T) {
+			clipboard.text = ""
+			if interruption.begin {
+				root.Handle(input.Mouse{Pos: start, Action: input.MouseDown, Button: input.ButtonLeft})
+				root.Handle(input.Mouse{Pos: end, Action: input.MouseDrag, Button: input.ButtonLeft})
+			}
+			interruption.run()
+			root.Handle(input.Mouse{Pos: end, Action: input.MouseUp, Button: input.ButtonLeft})
+			if clipboard.text != "" {
+				t.Fatalf("interrupted selection copied %q", clipboard.text)
+			}
+		})
 	}
 }
 

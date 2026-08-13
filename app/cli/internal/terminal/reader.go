@@ -37,6 +37,20 @@ type readerTarget struct {
 	source   readerDocumentSource
 }
 
+type readerSelectionGesture struct {
+	active bool
+}
+
+func (gesture *readerSelectionGesture) begin() { gesture.active = true }
+
+func (gesture *readerSelectionGesture) release() bool {
+	owned := gesture.active
+	gesture.cancel()
+	return owned
+}
+
+func (gesture *readerSelectionGesture) cancel() { gesture.active = false }
+
 // readerPane owns one modal reading session: full semantic content, search,
 // selection, scrolling, and an optional live tool subscription.
 type readerPane struct {
@@ -47,17 +61,18 @@ type readerPane struct {
 	clipboard headless.Clipboard
 	keys      *keymap.Map
 
-	content   headless.Transcript
-	scroll    headless.Scroll
-	selection headless.Selection
-	view      kit.Transcript
-	search    *headless.Search
-	matches   []headless.Match
-	current   int
-	query     string
-	problem   string
-	title     string
-	detail    string
+	content          headless.Transcript
+	scroll           headless.Scroll
+	selection        headless.Selection
+	view             kit.Transcript
+	selectionGesture readerSelectionGesture
+	search           *headless.Search
+	matches          []headless.Match
+	current          int
+	query            string
+	problem          string
+	title            string
+	detail           string
 
 	dismiss         func()
 	openSearch      func()
@@ -127,6 +142,7 @@ func (r *readerPane) replace(document readerDocument, preserveScroll, follow boo
 }
 
 func (r *readerPane) resetContent(preserveScroll bool) {
+	r.interruptSelectionGesture()
 	r.content = headless.Transcript{}
 	if !preserveScroll {
 		r.scroll = headless.Scroll{}
@@ -179,6 +195,7 @@ func (r *readerPane) footer(window int) string {
 
 func (r *readerPane) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() {
+		r.interruptSelectionGesture()
 		action, _ := r.keys.Action(key.Chord())
 		switch action {
 		case readerFind:
@@ -202,12 +219,41 @@ func (r *readerPane) Handle(event input.Event) bool {
 			return true
 		}
 	}
+	switch event.(type) {
+	case input.Paste, input.FocusOut:
+		r.interruptSelectionGesture()
+	}
 	handled := r.view.Handle(event)
-	if mouse, ok := event.(input.Mouse); ok && mouse.Action == input.MouseUp &&
-		mouse.Button == input.ButtonLeft && r.selection.Active() {
-		r.copy()
+	if mouse, ok := event.(input.Mouse); ok {
+		switch mouse.Action {
+		case input.MouseDown:
+			if mouse.Button == input.ButtonLeft && handled {
+				r.selectionGesture.begin()
+			} else {
+				r.interruptSelectionGesture()
+			}
+		case input.MouseDrag:
+			if mouse.Button != input.ButtonLeft {
+				r.interruptSelectionGesture()
+			}
+		case input.MouseUp:
+			owned := mouse.Button == input.ButtonLeft && r.selectionGesture.release()
+			if mouse.Button != input.ButtonLeft {
+				r.interruptSelectionGesture()
+			}
+			if owned && r.selection.Active() {
+				r.copy()
+			}
+		case input.WheelUp, input.WheelDown:
+			r.interruptSelectionGesture()
+		}
 	}
 	return handled
+}
+
+func (r *readerPane) interruptSelectionGesture() {
+	r.selectionGesture.cancel()
+	r.selection.Done()
 }
 
 func (r *readerPane) Closed() { r.CloseDocument() }
@@ -270,6 +316,7 @@ func (r *readerPane) CloseDocument() {
 	if r == nil {
 		return
 	}
+	r.interruptSelectionGesture()
 	release := r.releaseSource
 	r.releaseSource = nil
 	r.observingSource = false
