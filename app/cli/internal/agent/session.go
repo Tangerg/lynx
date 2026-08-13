@@ -30,6 +30,14 @@ type Session struct {
 	Revision  uint64
 }
 
+// Equal reports whether two session projections carry the same durable state.
+func (s Session) Equal(other Session) bool {
+	return s.ID == other.ID && s.Title == other.Title && s.Status == other.Status &&
+		s.Model == other.Model && s.Workspace == other.Workspace &&
+		s.CreatedAt.Equal(other.CreatedAt) && s.UpdatedAt.Equal(other.UpdatedAt) &&
+		s.Favorite == other.Favorite && s.Revision == other.Revision
+}
+
 func (s Session) Validate() error {
 	var problems []error
 	if strings.TrimSpace(s.ID) == "" {

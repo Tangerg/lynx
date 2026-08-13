@@ -262,8 +262,12 @@ func (a *app) refreshInvalidatedSession(settleAfter bool) {
 				a.sessionInvalidated = true
 				return
 			}
-			if a.conversation.MatchesSnapshot(snapshot) && a.session.Workspace == snapshot.Session.Workspace {
-				a.installSessionMetadata(snapshot.Session)
+			conversationMatches := a.conversation.MatchesSnapshot(snapshot)
+			sessionMatches := a.session.Equal(snapshot.Session)
+			if conversationMatches && a.session.Workspace == snapshot.Session.Workspace {
+				if !sessionMatches {
+					a.installSessionMetadata(snapshot.Session)
+				}
 			} else {
 				if err := a.installSnapshot(snapshot); err != nil {
 					a.message("refresh session after runtime change failed: " + err.Error())
@@ -274,7 +278,9 @@ func (a *app) refreshInvalidatedSession(settleAfter bool) {
 				a.finishFollowing()
 				return
 			}
-			a.message("session refreshed after runtime change")
+			if !conversationMatches || !sessionMatches {
+				a.message("session refreshed after runtime change")
+			}
 		},
 	)
 	if !started {

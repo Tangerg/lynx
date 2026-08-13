@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
@@ -29,6 +30,26 @@ func TestSessionQueryNormalizesLocalFilterIdentity(t *testing.T) {
 		if _, err := query.Normalize(); err == nil {
 			t.Fatalf("Normalize accepted %+v", query)
 		}
+	}
+}
+
+func TestSessionEqualityUsesDurableTimeSemantics(t *testing.T) {
+	created := time.Date(2026, time.August, 13, 8, 30, 0, 0, time.FixedZone("source", 8*60*60))
+	updated := created.Add(time.Minute)
+	session := Session{
+		ID: "ses_1", Title: "Review", Status: SessionIdle, Model: "deepseek-v4-flash",
+		Workspace: testWorkspace("/tmp/demo"), CreatedAt: created, UpdatedAt: updated,
+		Favorite: true, Revision: 3,
+	}
+	equivalent := session
+	equivalent.CreatedAt = created.UTC()
+	equivalent.UpdatedAt = updated.UTC()
+	if !session.Equal(equivalent) {
+		t.Fatal("equal instants with different locations changed session identity")
+	}
+	equivalent.Revision++
+	if session.Equal(equivalent) {
+		t.Fatal("a durable session revision change compared equal")
 	}
 }
 
