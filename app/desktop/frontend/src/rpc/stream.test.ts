@@ -131,6 +131,32 @@ describe("streamRunEvents — tree membership (bound)", () => {
     expect(activeCount()).toBe(0);
   });
 
+  it("releases transport listeners on root finish before consumption starts", async () => {
+    const { client, emit, activeCount } = fakeClient();
+    const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
+    stream.bind("run_root", "seg_root");
+
+    emit(
+      evt("run_root", "seg_root", "evt_finish", {
+        type: "segment.finished",
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMillis: 0 },
+      }),
+    );
+
+    // A terminal source must release its RpcClient registrations immediately;
+    // cleanup cannot depend on a consumer eventually asking for `done`.
+    expect(activeCount()).toBe(0);
+    expect(stream.requestSignal.aborted).toBe(true);
+
+    // Teardown must not discard an already-buffered terminal event. A late
+    // consumer still observes the complete stream.
+    const collected: string[] = [];
+    for await (const event of stream.events) collected.push(event.event.type);
+    expect(collected).toEqual(["segment.finished"]);
+  });
+
   it("admits a subagent run spawned by an item seen on the tree", async () => {
     const { client, emit } = fakeClient();
     const stream = streamRunEvents(client);
@@ -372,9 +398,46 @@ describe("streamRunEvents — deferred bind lifecycle", () => {
 
     expect(collected).toEqual(["segment.started", "item.started", "segment.finished"]);
   });
+
+  it("releases transport listeners when the buffered head is already terminal", async () => {
+    const { client, emit, activeCount } = fakeClient();
+    const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
+
+    emit(rootStarted());
+    emit(
+      evt("run_root", "seg_root", "evt_finish", {
+        type: "segment.finished",
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMillis: 0 },
+      }),
+    );
+    stream.bind("run_root", "seg_root");
+
+    expect(activeCount()).toBe(0);
+    expect(stream.requestSignal.aborted).toBe(true);
+
+    const collected: string[] = [];
+    for await (const event of stream.events) collected.push(event.event.type);
+    expect(collected).toEqual(["segment.started", "segment.finished"]);
+  });
 });
 
 describe("streamRuntimeEvents — response-stream ownership", () => {
+  it("releases transport listeners on clean stream end without a consumer", async () => {
+    const { client, emitDown, activeCount } = fakeClient();
+    const stream = streamRuntimeEvents(client);
+    stream.bindRequest("rpc_runtime");
+
+    emitDown("rpc_runtime", "runtime.subscribe");
+
+    expect(activeCount()).toBe(0);
+    expect(stream.requestSignal.aborted).toBe(true);
+    await expect(stream.events[Symbol.asyncIterator]().next()).resolves.toMatchObject({
+      done: true,
+    });
+  });
+
   it("isolates concurrent subscriptions on the same RpcClient", async () => {
     const { client, emitRuntime, emitDown, activeCount } = fakeClient();
     const sessions = streamRuntimeEvents(client);

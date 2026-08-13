@@ -127,17 +127,40 @@ function iterableOf<T>(channel: PushPullChannel<T>, cleanup: () => void): AsyncI
   };
 }
 
-/** Tie a channel's lifetime to a subscription + an optional AbortSignal.
- *  Returns an idempotent cleanup that unsubscribes + detaches the listener. */
-function bindLifecycle<T>(
+interface StreamLifecycle {
+  /** Release transport registrations without discarding buffered channel values. */
+  cleanup(): void;
+  /** Source-side successful termination. */
+  close(): void;
+  /** Source-side failed termination. */
+  fail(error: unknown): void;
+  /** Attach registrations after they have been created. */
+  bind(unsub: () => void): void;
+}
+
+/** Own a channel's transport registrations and cancellation signal.
+ *
+ * Source termination must release registrations immediately, even when no
+ * consumer ever asks the AsyncIterator for `done`. Binding is deliberately
+ * deferred until both registrations exist; if an already-aborted signal or a
+ * synchronous source callback terminates first, cleanup is remembered and
+ * performed as soon as the registrations are attached. */
+function createStreamLifecycle<T>(
   channel: PushPullChannel<T>,
-  unsub: () => void,
   lifetime: StreamLifetime,
-): () => void {
+): StreamLifecycle {
   const signal = lifetime.signal;
+  let bound = false;
+  let cleanupRequested = false;
   let cleaned = false;
+  let unsub: () => void = () => undefined;
+
   const cleanup = () => {
     if (cleaned) return;
+    if (!bound) {
+      cleanupRequested = true;
+      return;
+    }
     cleaned = true;
     unsub();
     signal.removeEventListener("abort", onAbort);
@@ -147,9 +170,27 @@ function bindLifecycle<T>(
     channel.close();
     cleanup();
   };
+
   if (signal.aborted) onAbort();
   else signal.addEventListener("abort", onAbort, { once: true });
-  return cleanup;
+
+  return {
+    cleanup,
+    close: () => {
+      channel.close();
+      cleanup();
+    },
+    fail: (error) => {
+      channel.fail(error);
+      cleanup();
+    },
+    bind: (nextUnsub) => {
+      if (bound) throw new Error("stream lifecycle is already bound");
+      bound = true;
+      unsub = nextUnsub;
+      if (cleanupRequested) cleanup();
+    },
+  };
 }
 
 interface StreamLifetime {
@@ -171,16 +212,16 @@ function createStreamLifetime(parent?: AbortSignal): StreamLifetime {
 // Run-event streams
 // ---------------------------------------------------------------------------
 
-/** Push an event into the stream if it belongs to the tree; close on root finish. */
-function feedRunEvent(tree: RunTree, channel: PushPullChannel<RunEvent>, ev: RunEvent): void {
+/** Push an event into the stream if it belongs to the tree; report root finish. */
+function feedRunEvent(tree: RunTree, channel: PushPullChannel<RunEvent>, ev: RunEvent): boolean {
   // Membership FIRST, dedupe second: eventId is only monotonic/unique within
   // THIS root run stream — a foreign run's event may carry an equal id and
   // must not poison the seen-set (admit's bookkeeping is idempotent, so a
   // re-delivered duplicate passing through it is harmless).
-  if (!tree.admit(ev)) return;
-  if (tree.alreadySeen(ev.eventId)) return;
+  if (!tree.admit(ev)) return false;
+  if (tree.alreadySeen(ev.eventId)) return false;
   channel.push(ev);
-  if (tree.isRootFinish(ev)) channel.close();
+  return tree.isRootFinish(ev);
 }
 
 /** A run-event stream plus its teardown. `dispose` exists for the case where
@@ -219,42 +260,43 @@ export function streamRunEvents(
   const buffer: RunEvent[] = [];
   let ownerRequestRpcId: RpcId | undefined;
   let tree: RunTree | null = null;
+  const lifecycle = createStreamLifecycle(channel, lifetime);
 
   const unsubEvents = client.subscribe(RUN_EVENT_METHOD, {
     next(event, requestRpcId) {
       if (channel.closed || requestRpcId !== ownerRequestRpcId) return;
       if (tree === null) buffer.push(event);
-      else feedRunEvent(tree, channel, event);
+      else if (feedRunEvent(tree, channel, event)) lifecycle.close();
     },
     error: (error, requestRpcId) => {
       if (requestRpcId !== undefined && requestRpcId !== ownerRequestRpcId) return;
-      channel.fail(error);
-      lifetime.abort();
+      lifecycle.fail(error);
     },
   });
   const unsubDown = client.onStreamEnd((event) => {
     if (channel.closed || event.requestRpcId !== ownerRequestRpcId) return;
-    if (event.error) channel.fail(event.error);
-    else channel.close();
+    if (event.error) lifecycle.fail(event.error);
+    else lifecycle.close();
   });
 
   const bind = (rootRunId: string, rootSegmentId: string): void => {
     if (tree !== null) return;
     tree = new RunTree(rootRunId, rootSegmentId);
-    for (const ev of buffer) feedRunEvent(tree, channel, ev);
+    for (const ev of buffer) {
+      if (feedRunEvent(tree, channel, ev)) {
+        lifecycle.close();
+        break;
+      }
+    }
     buffer.length = 0;
   };
 
-  const cleanup = bindLifecycle(
-    channel,
-    () => {
-      unsubEvents();
-      unsubDown();
-    },
-    lifetime,
-  );
+  lifecycle.bind(() => {
+    unsubEvents();
+    unsubDown();
+  });
   return {
-    events: iterableOf(channel, cleanup),
+    events: iterableOf(channel, lifecycle.cleanup),
     requestSignal: lifetime.signal,
     bindRequest: (requestRpcId) => {
       if (ownerRequestRpcId !== undefined) {
@@ -263,10 +305,7 @@ export function streamRunEvents(
       ownerRequestRpcId = requestRpcId;
     },
     bind,
-    dispose: () => {
-      channel.close();
-      cleanup();
-    },
+    dispose: lifecycle.close,
   };
 }
 
@@ -292,6 +331,7 @@ export function streamRuntimeEvents(
   const lifetime = createStreamLifetime(signal);
   const channel = createPushPullChannel<RuntimeEvent>();
   let ownerRequestRpcId: RpcId | undefined;
+  const lifecycle = createStreamLifecycle(channel, lifetime);
   const unsubEvents = client.subscribe(RUNTIME_EVENT_METHOD, {
     next(params, requestRpcId) {
       if (channel.closed || requestRpcId !== ownerRequestRpcId) return;
@@ -299,8 +339,7 @@ export function streamRuntimeEvents(
     },
     error: (error, requestRpcId) => {
       if (requestRpcId !== undefined && requestRpcId !== ownerRequestRpcId) return;
-      channel.fail(error);
-      lifetime.abort();
+      lifecycle.fail(error);
     },
   });
   const unsubDown = client.onStreamEnd((event) => {
@@ -308,19 +347,15 @@ export function streamRuntimeEvents(
     if (event.method !== RUNTIME_SUBSCRIBE_METHOD || event.requestRpcId !== ownerRequestRpcId) {
       return;
     }
-    if (event.error) channel.fail(event.error);
-    else channel.close();
+    if (event.error) lifecycle.fail(event.error);
+    else lifecycle.close();
   });
-  const cleanup = bindLifecycle(
-    channel,
-    () => {
-      unsubEvents();
-      unsubDown();
-    },
-    lifetime,
-  );
+  lifecycle.bind(() => {
+    unsubEvents();
+    unsubDown();
+  });
   return {
-    events: iterableOf(channel, cleanup),
+    events: iterableOf(channel, lifecycle.cleanup),
     requestSignal: lifetime.signal,
     bindRequest: (requestRpcId) => {
       if (ownerRequestRpcId !== undefined) {
@@ -328,9 +363,6 @@ export function streamRuntimeEvents(
       }
       ownerRequestRpcId = requestRpcId;
     },
-    dispose: () => {
-      channel.close();
-      cleanup();
-    },
+    dispose: lifecycle.close,
   };
 }
