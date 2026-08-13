@@ -324,13 +324,13 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_LIST_FILES_KEY,
-    fetcher: async (params) => {
+    fetcher: async (params, signal) => {
       const { cwd, ...query } = requiredParams<WorkspaceListFilesQuery>(
         WORKSPACE_LIST_FILES_KEY,
         params,
       );
       const resources = await workspace(cwd);
-      return (await resources.files.list(query).autoPagingToArray()).map((e) => ({
+      return (await resources.files.list(query, signal).autoPagingToArray()).map((e) => ({
         path: e.path,
         name: e.name,
         type: e.type,

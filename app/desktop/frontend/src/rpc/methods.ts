@@ -190,7 +190,10 @@ export interface WorkspaceMethods {
   files: {
     head: (params: Omit<GetFileHeadRequest, "workspace">) => Promise<FileHead>;
     search: (params: Omit<GrepRequest, "workspace">) => Promise<GrepResult>;
-    list: (params?: Omit<ListFilesRequest, "workspace">) => AutoPagingPromise<Page<FileEntry>>;
+    list: (
+      params?: Omit<ListFilesRequest, "workspace">,
+      signal?: AbortSignal,
+    ) => AutoPagingPromise<Page<FileEntry>>;
     read: (params: Omit<ReadFileRequest, "workspace">) => Promise<FileContent>;
   };
   recipes: {
@@ -500,7 +503,8 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
     files: {
       head: (params) => call("workspace.files.head", { ...params, workspace }),
       search: (params) => call("workspace.files.search", { ...params, workspace }),
-      list: (params) => call("workspace.files.list", { ...params, workspace }),
+      list: (params, signal) =>
+        call("workspace.files.list", { ...params, workspace }, signal ? { signal } : undefined),
       read: (params) => call("workspace.files.read", { ...params, workspace }),
     },
     recipes: {

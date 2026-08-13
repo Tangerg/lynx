@@ -144,6 +144,20 @@ describe("methods factory", () => {
     );
   });
 
+  it("forwards cancellation through bound workspace file pagination", async () => {
+    const call = vi.fn().mockResolvedValue({ data: [] });
+    const methods = createMethods({ call } as unknown as RpcClient);
+    const signal = new AbortController().signal;
+
+    await methods.workspace({ path: "/repo" }).files.list({ path: "src" }, signal);
+
+    expect(call).toHaveBeenCalledWith(
+      "workspace.files.list",
+      { path: "src", workspace: { path: "/repo" } },
+      { signal },
+    );
+  });
+
   it("forwards cancellation when reading a session", async () => {
     const call = vi.fn().mockResolvedValue({ id: "ses_1" });
     const methods = createMethods({ call } as unknown as RpcClient);
