@@ -482,13 +482,29 @@ func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 			)
 		}
 	}
-	reductions, err := route.reducer.reduce(executionFact)
+	projecting := route.reducer
+	terminalFact := engineEventEndsSegment(executionFact)
+	if terminalFact {
+		projecting = route.reducer.clone()
+		if projecting == nil {
+			return false, fmt.Errorf("runs: run %q has no cloneable terminal reducer", route.runID)
+		}
+	}
+	reductions, err := projecting.reduce(executionFact)
 	if err != nil {
 		return false, err
 	}
-	publication, err := p.publisher.publish(p.ownerCtx, route, reductions)
+	var publication reductionPublication
+	if terminalFact {
+		publication, err = p.publisher.publishTerminalAtomically(p.ownerCtx, route, reductions)
+	} else {
+		publication, err = p.publisher.publish(p.ownerCtx, route, reductions)
+	}
 	if err != nil {
 		return false, err
+	}
+	if terminalFact {
+		route.reducer = projecting
 	}
 	if !publication.published {
 		return false, nil
@@ -594,7 +610,7 @@ func (p *segmentPump) synthesizeRoute(ctx context.Context, route *executorRoute)
 		p.fail(err)
 		return false
 	}
-	publication, err := p.publisher.publish(ctx, route, reductions)
+	publication, err := p.publisher.publishTerminalAtomically(ctx, route, reductions)
 	if err != nil {
 		p.fail(err)
 		return false

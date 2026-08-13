@@ -317,9 +317,9 @@ type EventCommit struct {
 	// Transcript remain separate projections: the former feeds later model
 	// calls, while the latter owns user-visible Run history.
 	ConversationMessages []corechat.Message
-	// ModelInvocations and Progress are application observations committed in
-	// the same transaction as the semantic Transcript Items derived from one
-	// authoritative executor fact.
+	// ModelInvocations, ToolInvocations, and Progress are application
+	// observations committed in the same transaction as the semantic Transcript
+	// Items derived from one authoritative executor fact.
 	ModelInvocations []ModelInvocationCommit
 	ToolInvocations  []ToolInvocationCommit
 	Progress         *RunProgressCommit
@@ -393,6 +393,10 @@ func (c EventCommit) validateItems() error {
 }
 
 func (c EventCommit) validateInvocations() error {
+	items := make(map[string]transcript.Item, len(c.Items))
+	for _, item := range c.Items {
+		items[item.ID()] = item
+	}
 	seenInvocations := make(map[string]struct{}, len(c.ModelInvocations))
 	for index, invocation := range c.ModelInvocations {
 		if err := invocation.validate(); err != nil {
@@ -417,6 +421,33 @@ func (c EventCommit) validateInvocations() error {
 		}
 		seenTools[invocation.CallID] = struct{}{}
 		seenToolItems[invocation.ItemID] = struct{}{}
+		item, present := items[invocation.ItemID]
+		if !present || item.Kind() != transcript.ToolCall {
+			return fmt.Errorf(
+				"runs: event commit Tool invocation %q has no matching Tool Item",
+				invocation.CallID,
+			)
+		}
+		switch invocation.State {
+		case ToolInvocationStarted:
+			if item.Status() != transcript.ItemRunning {
+				return fmt.Errorf("runs: started Tool invocation %q Item is not running", invocation.CallID)
+			}
+		case ToolInvocationCompleted:
+			switch item.Status() {
+			case transcript.ItemCompleted:
+			case transcript.ItemIncomplete:
+				if _, failed := item.Failure(); !failed {
+					return fmt.Errorf("runs: completed Tool invocation %q has an unclassified incomplete Item", invocation.CallID)
+				}
+			default:
+				return fmt.Errorf("runs: completed Tool invocation %q Item is not terminal", invocation.CallID)
+			}
+		case ToolInvocationIncomplete:
+			if item.Status() != transcript.ItemIncomplete && item.Status() != transcript.ItemRunning {
+				return fmt.Errorf("runs: incomplete Tool invocation %q Item is neither incomplete nor parked", invocation.CallID)
+			}
+		}
 	}
 	return nil
 }

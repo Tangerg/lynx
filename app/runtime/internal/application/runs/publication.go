@@ -48,6 +48,14 @@ func (p treePublisher) publish(
 			route.runID,
 		)
 	}
+	for index, reduced := range batch.events {
+		if reduced.Event.Terminal() {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: terminal reduction[%d] requires atomic publication",
+				index,
+			)
+		}
+	}
 	publication := reductionPublication{published: true}
 	goalCharged := false
 	for _, reduced := range batch.events {
@@ -181,41 +189,9 @@ func (p treePublisher) publishTerminalAtomically(
 	if err := validateRouteReductionBatch(route, p.rootSpec.SessionID, batch); err != nil {
 		return reductionPublication{}, err
 	}
-	combined := EventCommit{RunID: route.runID, SessionID: p.rootSpec.SessionID}
-	terminalEvents := 0
-	for _, reduced := range batch.events {
-		if reduced.Commit != nil {
-			combined.Items = append(combined.Items, reduced.Commit.Items...)
-			combined.ConversationMessages = appendClonedMessages(
-				combined.ConversationMessages,
-				reduced.Commit.ConversationMessages...,
-			)
-			combined.ModelInvocations = append(
-				combined.ModelInvocations,
-				reduced.Commit.ModelInvocations...,
-			)
-			combined.ToolInvocations = append(
-				combined.ToolInvocations,
-				reduced.Commit.ToolInvocations...,
-			)
-			if reduced.Commit.Progress != nil {
-				if combined.Progress != nil {
-					return reductionPublication{}, errors.New("runs: atomic terminal batch repeats Run progress")
-				}
-				progress := *reduced.Commit.Progress
-				combined.Progress = &progress
-			}
-			if reduced.Commit.State == StateTerminalize {
-				terminalEvents++
-				combined.State = reduced.Commit.State
-				combined.Outcome = reduced.Commit.Outcome
-				combined.Run = reduced.Commit.Run
-				combined.GoalRun = reduced.Commit.GoalRun
-			}
-		}
-	}
-	if terminalEvents != 1 || combined.Run == nil {
-		return reductionPublication{}, fmt.Errorf("runs: atomic terminal batch has %d terminal commits", terminalEvents)
+	combined, err := combineTerminalEventCommit(batch)
+	if err != nil {
+		return reductionPublication{}, err
 	}
 	if route.member.ParentID == "" {
 		combined.ObsoleteCheckpointRootID = route.member.MemberID
@@ -226,10 +202,13 @@ func (p treePublisher) publishTerminalAtomically(
 	if err := p.coordinator.events.CommitEvent(ctx, combined); err != nil {
 		return reductionPublication{}, fmt.Errorf("runs: commit atomic terminal: %w", err)
 	}
-	p.owner.recordTerminalRun(*combined.Run)
+	// The database owns one indivisible write-set, while the live tree still
+	// applies its facts in causal reduction order. Register Item closures before
+	// the terminal Run so process-local ownership observes the same ordering.
 	for _, item := range combined.Items {
 		p.owner.recordChildCancellationItem(route.runID, item)
 	}
+	p.owner.recordTerminalRun(*combined.Run)
 	for _, reduced := range batch.events {
 		p.append(route, reduced)
 	}
@@ -238,6 +217,61 @@ func (p treePublisher) publishTerminalAtomically(
 		p.coordinator.publishGoalMoved(p.rootSpec.SessionID)
 	}
 	return reductionPublication{published: true, finished: true}, nil
+}
+
+// combineTerminalEventCommit materializes the one write-set that the reducer
+// batch represents. Item closures may be projected on events that precede the
+// terminal Run event, but they are not independent persistence boundaries:
+// terminal state, invocation journals, transcript Items, and accounting either
+// all commit or all roll back.
+func combineTerminalEventCommit(batch reductionBatch) (EventCommit, error) {
+	combined := EventCommit{}
+	envelopeSet := false
+	terminalCommits := 0
+	for index, reduced := range batch.events {
+		commit := reduced.Commit
+		if commit == nil {
+			continue
+		}
+		if !envelopeSet {
+			combined.RunID = commit.RunID
+			combined.SessionID = commit.SessionID
+			envelopeSet = true
+		} else if commit.RunID != combined.RunID || commit.SessionID != combined.SessionID {
+			return EventCommit{}, fmt.Errorf(
+				"runs: atomic terminal event[%d] changes commit ownership",
+				index,
+			)
+		}
+		combined.Items = append(combined.Items, commit.Items...)
+		combined.ConversationMessages = appendClonedMessages(
+			combined.ConversationMessages,
+			commit.ConversationMessages...,
+		)
+		combined.ModelInvocations = append(combined.ModelInvocations, commit.ModelInvocations...)
+		combined.ToolInvocations = append(combined.ToolInvocations, commit.ToolInvocations...)
+		if commit.Progress != nil {
+			if combined.Progress != nil {
+				return EventCommit{}, errors.New("runs: atomic terminal batch repeats Run progress")
+			}
+			progress := *commit.Progress
+			combined.Progress = &progress
+		}
+		if commit.State == StateTerminalize {
+			terminalCommits++
+			combined.State = commit.State
+			combined.Outcome = commit.Outcome
+			combined.Run = commit.Run
+			combined.GoalRun = commit.GoalRun
+		}
+	}
+	if terminalCommits != 1 || combined.Run == nil {
+		return EventCommit{}, fmt.Errorf(
+			"runs: atomic terminal batch has %d terminal commits",
+			terminalCommits,
+		)
+	}
+	return combined, nil
 }
 
 type treeBarrierReduction struct {

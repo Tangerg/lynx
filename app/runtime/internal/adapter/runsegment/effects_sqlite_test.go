@@ -298,9 +298,17 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 		{CallID: "tool_first", ItemID: "item_first", SegmentID: "seg_tools", State: runs.ToolInvocationStarted, StartedAt: startedAt},
 		{CallID: "tool_second", ItemID: "item_second", SegmentID: "seg_tools", State: runs.ToolInvocationStarted, StartedAt: startedAt},
 	}
-	for _, start := range starts {
+	for index, start := range starts {
+		name := []string{"first", "second"}[index]
+		running := itemfixture.MustRestore(itemfixture.Input{
+			SessionID: "ses_tools", RunID: "run_tools", ID: start.ItemID,
+			OccurredAt: startedAt, Status: transcript.ItemRunning, Kind: transcript.ToolCall,
+			Tool:        &transcript.ToolInvocation{Name: name, Arguments: tool.Arguments{}},
+			SafetyClass: tool.SafetyClassSafe,
+		})
 		if err := effects.CommitEvent(ctx, runs.EventCommit{
-			RunID: "run_tools", SessionID: "ses_tools", ToolInvocations: []runs.ToolInvocationCommit{start},
+			RunID: "run_tools", SessionID: "ses_tools", Items: []transcript.Item{running},
+			ToolInvocations: []runs.ToolInvocationCommit{start},
 		}); err != nil {
 			t.Fatalf("commit Tool start %q: %v", start.CallID, err)
 		}
@@ -333,8 +341,10 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 	if err == nil {
 		t.Fatal("canonical Tool batch with a stale segment fence succeeded")
 	}
-	if recorded, err := history.List(ctx, "ses_tools"); err != nil || len(recorded) != 0 {
-		t.Fatalf("history after rollback = %#v err=%v, want empty", recorded, err)
+	if recorded, err := history.List(ctx, "ses_tools"); err != nil || len(recorded) != 2 ||
+		recorded[0].ID() != "item_first" || recorded[0].Status() != transcript.ItemRunning ||
+		recorded[1].ID() != "item_second" || recorded[1].Status() != transcript.ItemRunning {
+		t.Fatalf("history after rollback = %#v err=%v, want the two committed running Items", recorded, err)
 	}
 	for _, callID := range []string{"tool_first", "tool_second"} {
 		var state string

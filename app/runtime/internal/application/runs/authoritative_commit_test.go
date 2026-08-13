@@ -317,3 +317,58 @@ func TestConcurrentToolBatchFailurePublishesOnlyIncompleteRunLost(t *testing.T) 
 		}
 	}
 }
+
+func TestTerminalTransactionFailurePreservesRunningToolsForAtomicRecovery(t *testing.T) {
+	member := ExecutorMember{MemberID: "member_root"}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Member: member, Payload: ToolCallStarted{
+			CallID: "tool_first", SourceCallID: "provider_first",
+			ModelCallSequence: 1, ToolCallIndex: 0, ToolName: "first", Arguments: `{}`,
+		}},
+		{Member: member, Payload: ToolCallStarted{
+			CallID: "tool_second", SourceCallID: "provider_second",
+			ModelCallSequence: 1, ToolCallIndex: 1, ToolName: "second", Arguments: `{}`,
+		}},
+		{Member: member, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+	}}
+	writeFailure := errors.New("terminal transaction unavailable")
+	effects := &fakeEffects{commitErr: writeFailure, commitErrAt: 3}
+	coordinator := testCoordinator(executor, effects)
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+
+	commits := effects.commitSnapshot()
+	if len(commits) != 3 {
+		t.Fatalf("committed write-sets = %d, want two starts + recovered terminal", len(commits))
+	}
+	terminal := commits[2]
+	if terminal.State != StateTerminalize || terminal.Outcome != run.OutcomeFailed || terminal.Run == nil ||
+		!runHasFailureKind(*terminal.Run, run.FailureInternal) {
+		t.Fatalf("recovered terminal = %#v, want internal failure", terminal)
+	}
+	if len(terminal.Items) != 2 || len(terminal.ToolInvocations) != 2 {
+		t.Fatalf("recovered Tool write-set = items %#v invocations %#v", terminal.Items, terminal.ToolInvocations)
+	}
+	for index := range terminal.Items {
+		if terminal.Items[index].Status() != transcript.ItemIncomplete ||
+			terminal.ToolInvocations[index].State != ToolInvocationIncomplete {
+			t.Fatalf("recovered Tool[%d] = item %#v journal %#v", index, terminal.Items[index], terminal.ToolInvocations[index])
+		}
+	}
+	terminalEvents := 0
+	for _, event := range events {
+		if finished, ok := event.Payload.(SegmentFinished); ok {
+			terminalEvents++
+			if !runHasFailureKind(finished.Run, run.FailureInternal) {
+				t.Fatalf("published terminal = %#v, want recovered internal failure", finished.Run)
+			}
+		}
+	}
+	if terminalEvents != 1 {
+		t.Fatalf("published terminal events = %d, want exactly one recovered boundary", terminalEvents)
+	}
+}

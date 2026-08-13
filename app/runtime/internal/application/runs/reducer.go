@@ -49,6 +49,7 @@ type reductionBatch struct {
 // before Run events are projected into their durable publication shape.
 type factReduction struct {
 	events               []RunEvent
+	items                []transcript.Item
 	parkItems            []transcript.Item
 	conversationMessages []corechat.Message
 	modelInvocations     []ModelInvocationCommit
@@ -330,6 +331,9 @@ func (r *reducer) projectFact(reduced factReduction) (reductionBatch, error) {
 			return reductionBatch{}, err
 		}
 	}
+	if err := r.attachDurableItems(&batch, reduced.items); err != nil {
+		return reductionBatch{}, err
+	}
 	if err := r.attachDurableObservation(
 		&batch,
 		reduced.conversationMessages,
@@ -559,8 +563,16 @@ func (r *reducer) startToolCall(started ToolCallStarted) (factReduction, error) 
 	if err != nil {
 		return factReduction{}, fmt.Errorf("%w: tool call start: %w", errExecutorContract, err)
 	}
-	reduced := factReduction{events: events}
-	if ref := r.tools[started.CallID]; ref != nil && ref.modelCallSequence > 0 {
+	ref := r.tools[started.CallID]
+	if ref == nil {
+		return factReduction{}, fmt.Errorf("%w: started Tool %q has no open projection", errReducerInvariant, started.CallID)
+	}
+	running, err := r.runningToolItem(ref)
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: started Tool %q projection: %w", errReducerInvariant, started.CallID, err)
+	}
+	reduced := factReduction{events: events, items: []transcript.Item{running}}
+	if ref.modelCallSequence > 0 {
 		if err := r.trackStartedToolCall(started); err != nil {
 			return factReduction{}, fmt.Errorf("%w: track started Tool context: %w", errReducerInvariant, err)
 		}
@@ -676,6 +688,21 @@ func (r *reducer) attachDurableObservation(
 		cloned := *progress
 		commit.Progress = &cloned
 	}
+	return validateReductionBatch(*batch)
+}
+
+func (r *reducer) attachDurableItems(batch *reductionBatch, items []transcript.Item) error {
+	if len(items) == 0 {
+		return nil
+	}
+	if batch == nil || len(batch.events) == 0 || batch.parkCommit != nil {
+		return fmt.Errorf("%w: durable Items have no ordinary reduction", errReducerInvariant)
+	}
+	last := &batch.events[len(batch.events)-1]
+	if last.Commit == nil {
+		last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
+	}
+	last.Commit.Items = append(last.Commit.Items, items...)
 	return validateReductionBatch(*batch)
 }
 
@@ -970,14 +997,6 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		if err := e.Item.validate(); err != nil {
 			return reduction{}, fmt.Errorf("%w: Item start: %v", errReducerInvariant, err)
 		}
-		if e.Item.Kind == transcript.ToolCall {
-			// A Tool may cross the process boundary as soon as its start receipt is
-			// acknowledged. Persist its running Item in the same authoritative
-			// transaction as ToolInvocationStarted so crash recovery can always
-			// resolve the journal's ItemID. Transient model/reasoning starts remain
-			// stream-only and are persisted only after their complete value exists.
-			commit.Items = []transcript.Item{*e.Item.durable}
-		}
 	case SegmentStarted, SegmentProgressed, ItemChanged, StateSnapshot:
 		// These events have no standalone EventCommit. SegmentStarted carries a Run
 		// for the stream, but the Run's durable opening IS its admission (or its
@@ -1038,7 +1057,17 @@ func validateReductionBatch(batch reductionBatch) error {
 	if terminalAt < 0 {
 		return nil
 	}
-	return validateTerminalReduction(batch.events[terminalAt])
+	if err := validateTerminalReduction(batch.events[terminalAt]); err != nil {
+		return err
+	}
+	combined, err := combineTerminalEventCommit(batch)
+	if err != nil {
+		return fmt.Errorf("%w: %w", errReducerInvariant, err)
+	}
+	if err := combined.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", errReducerInvariant, err)
+	}
+	return nil
 }
 
 // lifecycleReductions counts the events that move the segment's lifecycle: its
@@ -1126,9 +1155,6 @@ func validateTerminalReduction(reduced reduction) error {
 		return fmt.Errorf("%w: terminal event commit has no terminal run", errReducerInvariant)
 	case commit.GoalRun != nil && (commit.GoalRun.RunID != commit.RunID || commit.GoalRun.SessionID != commit.SessionID || commit.GoalRun.Outcome != commit.Outcome):
 		return fmt.Errorf("%w: terminal event commit has an inconsistent Goal Run", errReducerInvariant)
-	}
-	if err := commit.Validate(); err != nil {
-		return fmt.Errorf("%w: %w", errReducerInvariant, err)
 	}
 	wantState, ok := run.Running.Terminate(commit.Outcome)
 	committedOutcome, terminal := commit.Run.Outcome()
