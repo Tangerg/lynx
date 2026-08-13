@@ -38,6 +38,7 @@ type contextEditorRequest struct {
 
 type contextEditorSession struct {
 	dialog    *kit.Dialog
+	editor    *contextEditor
 	dismissed func()
 	closed    bool
 }
@@ -53,6 +54,16 @@ func (session *contextEditorSession) Dismiss() {
 	if session.dismissed != nil {
 		session.dismissed()
 	}
+}
+
+func (session *contextEditorSession) interruptSave(problem string) bool {
+	if session == nil || session.closed || !session.editor.interruptSave(problem) {
+		return false
+	}
+	if session.dialog != nil {
+		session.dialog.Controller().SetDescription(problem)
+	}
+	return true
 }
 
 func newContextEditor(theme kit.Theme, clipboard headless.Clipboard, content, placeholder string) *contextEditor {
@@ -111,13 +122,22 @@ func (editor *contextEditor) Handle(event input.Event) bool {
 
 func (editor *contextEditor) Focus(has bool) { editor.composer.Focus(has) }
 
+func (editor *contextEditor) interruptSave(problem string) bool {
+	if editor == nil || !editor.saving {
+		return false
+	}
+	editor.saving = false
+	editor.problem, editor.failed = problem, true
+	return true
+}
+
 func (a *app) openContextEditor(request contextEditorRequest) *contextEditorSession {
 	if a.activeContextEditor != nil {
 		a.activeContextEditor.Dismiss()
 	}
 	editor := newContextEditor(a.transcript.theme, a.loop.Clipboard(), request.Content, request.Placeholder)
 	var dialog *kit.Dialog
-	session := &contextEditorSession{}
+	session := &contextEditorSession{editor: editor}
 	session.dismissed = func() {
 		if a.activeContextEditor == session {
 			a.activeContextEditor = nil
@@ -180,6 +200,12 @@ func (a *app) openContextEditor(request contextEditorRequest) *contextEditorSess
 func (a *app) dismissContextEditor() {
 	if a.activeContextEditor != nil {
 		a.activeContextEditor.Dismiss()
+	}
+}
+
+func (a *app) interruptContextEditorSave(problem string) {
+	if a.activeContextEditor != nil {
+		a.activeContextEditor.interruptSave(problem)
 	}
 }
 

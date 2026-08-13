@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/oolong/core/input"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
@@ -502,6 +503,50 @@ func TestKnowledgeEditorDoesNotLoseEditsMadeWhileSaving(t *testing.T) {
 	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
 	if got := awaitValue(t, knowledgeStore.saved, "second knowledge save"); got != "first draft with newer edits" {
 		t.Fatalf("second saved content = %q", got)
+	}
+	host.Shows(t, "LYRA.md · projectRoot")
+	stop()
+}
+
+func TestKnowledgeEditorCanRetryAfterSameSessionProjectionCancelsItsSave(t *testing.T) {
+	knowledgeStore := newKnowledgeServiceStub()
+	knowledgeStore.blockNext = make(chan struct{})
+	knowledgeStore.started = make(chan string, 1)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	backend := mock.New()
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", Knowledge: knowledgeStore, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/knowledge-edit projectRoot")
+	host.Press(input.Enter)
+	host.Shows(t, "Edit LYRA.md · projectRoot")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("draft survives projection refresh")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	if got := awaitValue(t, knowledgeStore.started, "blocked knowledge save"); got != "draft survives projection refresh" {
+		t.Fatalf("blocked save content = %q", got)
+	}
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	host.Shows(t, "Save interrupted by session refresh. Draft remains unsaved.")
+	host.Shows(t, "draft survives projection refresh")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	if got := awaitValue(t, knowledgeStore.saved, "retried knowledge save"); got != "draft survives projection refresh" {
+		t.Fatalf("retried save content = %q", got)
 	}
 	host.Shows(t, "LYRA.md · projectRoot")
 	stop()

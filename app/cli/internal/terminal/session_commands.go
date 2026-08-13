@@ -496,6 +496,7 @@ func (installation sessionInstallation) apply(a *app) {
 	previousWorkspace := a.session.Workspace
 	a.prepareSessionProjectionReplacement(installation.snapshot.Session, installation.projection.conversation)
 	a.cancelPluginCommands()
+	a.interruptContextEditorSave("Save interrupted by session refresh. Draft remains unsaved.")
 	a.operations.CancelScope(sessionOperationScope)
 	a.dropStream()
 	a.completion.Dismiss()
