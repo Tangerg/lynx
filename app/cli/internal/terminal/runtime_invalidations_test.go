@@ -37,6 +37,7 @@ type runtimeChangeSourceStub struct {
 type runtimeSubscriptionRegistration struct {
 	subscription changefeed.Subscription
 	events       chan changefeed.Event
+	applied      chan changefeed.Event
 }
 
 func installChangedSessionProjection(
@@ -737,6 +738,7 @@ func (stub *partitionedRuntimeChangeSourceStub) Subscribe(
 	registration := runtimeSubscriptionRegistration{
 		subscription: subscription,
 		events:       make(chan changefeed.Event, 4),
+		applied:      make(chan changefeed.Event, 4),
 	}
 	select {
 	case stub.registrations <- registration:
@@ -748,6 +750,11 @@ func (stub *partitionedRuntimeChangeSourceStub) Subscribe(
 			select {
 			case event := <-registration.events:
 				if !yield(event, nil) {
+					return
+				}
+				select {
+				case registration.applied <- event:
+				case <-ctx.Done():
 					return
 				}
 			case <-ctx.Done():
@@ -1129,8 +1136,10 @@ func TestRuntimeChangeMonitorPreservesAuthoredWorkspaceScopeAcrossPartitions(t *
 	if fileReads.Load() != 1 {
 		t.Fatalf("initial file reads = %d, want one projection owner", fileReads.Load())
 	}
+	fileRegistrations := make([]runtimeSubscriptionRegistration, 0, len(registrations))
 	for _, registration := range registrations {
 		if containsTopic(registration.subscription.Topics, changefeed.FilesChanged) {
+			fileRegistrations = append(fileRegistrations, registration)
 			registration.events <- changefeed.Event{
 				Type: changefeed.EventType(changefeed.FilesChanged), Sequence: 1,
 				WatchID: workspaceWatchID, Workspace: "/workspace", Paths: []string{"main.go"},
@@ -1138,7 +1147,9 @@ func TestRuntimeChangeMonitorPreservesAuthoredWorkspaceScopeAcrossPartitions(t *
 		}
 	}
 	awaitSignal(t, fileRefreshes, "owned changed-file refresh")
-	time.Sleep(25 * time.Millisecond)
+	for _, registration := range fileRegistrations {
+		awaitValue(t, registration.applied, "partitioned files.changed delivery")
+	}
 	if fileReads.Load() != 2 {
 		t.Fatalf("file reads after duplicate partition events = %d, want one owner refresh", fileReads.Load())
 	}

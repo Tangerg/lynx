@@ -865,14 +865,14 @@ func TestAcceptedQuestionResumeSettlementRetriesTheExactDurableDecision(t *testi
 	if err := os.Rename(backupPath, statePath); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(time.Second)
-	store, err := workbench.Open(stateDirectory, workbench.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if durable, exists := store.PendingResume("ses_demo_1"); exists {
-		t.Fatalf("accepted resume remains durable after retry: %+v", durable)
-	}
+	host.Until(t, "the accepted resume to settle locally", func() bool {
+		store, openErr := workbench.Open(stateDirectory, workbench.Config{})
+		if openErr != nil {
+			return false
+		}
+		_, exists := store.PendingResume("ses_demo_1")
+		return !exists && host.Repaint()
+	})
 	if attempts := runtime.resumeAttempts(); len(attempts) != 1 {
 		t.Fatalf("local settlement replayed the accepted resume: %+v", attempts)
 	}
