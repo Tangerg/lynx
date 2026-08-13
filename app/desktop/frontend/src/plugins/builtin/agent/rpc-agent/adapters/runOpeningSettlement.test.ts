@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcTransportError, type MutationAttemptOptions, type MutationPromise } from "@/rpc";
-import { settleRunOpening } from "./runOpeningSettlement";
+import { createRunOpeningSettler, settleRunOpening } from "./runOpeningSettlement";
 
 afterEach(() => vi.useRealTimers());
 
@@ -66,7 +66,7 @@ describe("run opening settlement", () => {
     );
 
     parent.abort();
-    await expect(opening).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(opening).rejects.toMatchObject({ name: "AbortError" });
     expect(execute).toHaveBeenCalledOnce();
   });
 
@@ -86,8 +86,83 @@ describe("run opening settlement", () => {
     );
 
     await vi.advanceTimersByTimeAsync(2_000);
-    await expect(settlement).resolves.toBeInstanceOf(RpcTransportError);
+    await expect(settlement).resolves.toMatchObject({ name: "TimeoutError" });
     expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("settles its finite budget even when the transport ignores cancellation", async () => {
+    vi.useFakeTimers();
+    const never = new Promise<string>(() => {});
+    let mutation!: MutationPromise<string>;
+    mutation = Object.assign(never, {
+      idempotencyKey: "run-opening",
+      retry: vi.fn(() => mutation),
+    });
+
+    const opening = settleRunOpening(() => mutation, undefined, 1_000);
+    const settlement = opening.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await expect(settlement).resolves.toMatchObject({ name: "TimeoutError" });
+    expect(mutation.retry).toHaveBeenCalledOnce();
+  });
+
+  it("replays a retained opening after bounded settlement returned to the product", async () => {
+    vi.useFakeTimers();
+    const never = new Promise<string>(() => {});
+    const retry = vi.fn(() =>
+      retry.mock.calls.length === 2
+        ? replayableMutation(async () => "accepted", new AbortController().signal)
+        : (Object.assign(never, {
+            idempotencyKey: "run-opening",
+            retry,
+          }) as MutationPromise<string>),
+    );
+    const open = vi.fn(
+      () =>
+        Object.assign(never, {
+          idempotencyKey: "run-opening",
+          retry,
+        }) as MutationPromise<string>,
+    );
+    const settler = createRunOpeningSettler();
+
+    const first = settler.settle("runs.resume:run_1", open, undefined, 1_000);
+    const firstFailure = first.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await expect(firstFailure).resolves.toMatchObject({ name: "TimeoutError" });
+
+    await expect(settler.settle("runs.resume:run_1", open, undefined, 1_000)).resolves.toBe(
+      "accepted",
+    );
+    expect(open).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains a parent-canceled opening for a later owner without retrying immediately", async () => {
+    const firstOwner = new AbortController();
+    const retry = vi.fn(() =>
+      replayableMutation(async () => "accepted", new AbortController().signal),
+    );
+    const open = vi.fn(
+      (signal: AbortSignal) =>
+        Object.assign(rejectWhenAborted(signal), {
+          idempotencyKey: "run-opening",
+          retry,
+        }) as MutationPromise<string>,
+    );
+    const settler = createRunOpeningSettler();
+
+    const first = settler.settle("runs.start:ses_1", open, firstOwner.signal, 1_000);
+    firstOwner.abort();
+    await expect(first).rejects.toBeDefined();
+    expect(retry).not.toHaveBeenCalled();
+
+    await expect(
+      settler.settle("runs.start:ses_1", open, new AbortController().signal, 1_000),
+    ).resolves.toBe("accepted");
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(retry).toHaveBeenCalledOnce();
   });
 });
 

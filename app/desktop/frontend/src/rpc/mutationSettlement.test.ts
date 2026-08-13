@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { RpcTransportError } from "./errors";
 import type { MutationPromise } from "./mutation";
-import { settleUnaryMutation } from "./mutationSettlement";
+import { createUnaryMutationSettler, settleUnaryMutation } from "./mutationSettlement";
 
 afterEach(() => vi.useRealTimers());
 
@@ -51,5 +52,73 @@ describe("settleUnaryMutation", () => {
     await expect(settlement).resolves.toMatchObject({ name: "TimeoutError" });
     expect(open).toHaveBeenCalledOnce();
     expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("reuses the retained mutation after an unknown timeout settlement", async () => {
+    vi.useFakeTimers();
+    const never = new Promise<string>(() => {});
+    const retry = vi.fn(() =>
+      retry.mock.calls.length === 2
+        ? resolvedMutation("committed")
+        : Object.assign(never, { idempotencyKey: "same-key", retry }),
+    );
+    const open = vi.fn(
+      () => Object.assign(never, { idempotencyKey: "same-key", retry }) as MutationPromise<string>,
+    );
+    const settler = createUnaryMutationSettler();
+
+    const first = settler.settle("goals.stop:ses_1", open, 10);
+    const firstFailure = first.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(20);
+    await expect(firstFailure).resolves.toMatchObject({ name: "TimeoutError" });
+
+    await expect(settler.settle("goals.stop:ses_1", open, 10)).resolves.toBe("committed");
+    expect(open).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains protocol-ambiguous transport failures without retaining definitive failures", async () => {
+    const transportFailure = new RpcTransportError("response body lost");
+    const retry = vi.fn(() => resolvedMutation("replayed"));
+    const ambiguousOpen = vi.fn(
+      () =>
+        Object.assign(Promise.reject(transportFailure), {
+          idempotencyKey: "same-key",
+          retry,
+        }) as MutationPromise<string>,
+    );
+    const settler = createUnaryMutationSettler();
+
+    await expect(settler.settle("sessions.create:/repo", ambiguousOpen)).rejects.toBe(
+      transportFailure,
+    );
+    await expect(settler.settle("sessions.create:/repo", ambiguousOpen)).resolves.toBe("replayed");
+    expect(ambiguousOpen).toHaveBeenCalledOnce();
+
+    const refusal = new Error("definitive refusal");
+    const definitiveOpen = vi
+      .fn()
+      .mockReturnValueOnce(
+        Object.assign(Promise.reject(refusal), {
+          idempotencyKey: "first-key",
+          retry: vi.fn(),
+        }),
+      )
+      .mockReturnValueOnce(resolvedMutation("new-command"));
+
+    await expect(settler.settle("goals.resume:ses_1", definitiveOpen)).rejects.toBe(refusal);
+    await expect(settler.settle("goals.resume:ses_1", definitiveOpen)).resolves.toBe("new-command");
+    expect(definitiveOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not merge fresh same-shaped calls that may be distinct product intents", async () => {
+    const open = vi.fn(() => resolvedMutation("committed"));
+    const settler = createUnaryMutationSettler();
+
+    const first = settler.settle("goals.start:ses_1", open);
+    const second = settler.settle("goals.start:ses_1", open);
+
+    await expect(Promise.all([first, second])).resolves.toEqual(["committed", "committed"]);
+    expect(open).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import { asSessionId, settleUnaryMutation, type Goal } from "@/rpc";
+import { asSessionId, createUnaryMutationSettler, type Goal } from "@/rpc";
 import type { ContributingHost } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
@@ -14,6 +14,12 @@ import {
   type GoalReadModel,
   type GoalState,
 } from "../application/goalQueries";
+
+const goalMutationSettler = createUnaryMutationSettler();
+
+function goalMutationIdentity(method: "start" | "stop" | "resume", input: unknown): string {
+  return JSON.stringify([`goals.${method}`, input]);
+}
 
 export function toGoalReadModel(goal: Goal): GoalReadModel {
   return {
@@ -45,22 +51,24 @@ export function toGoalCommandReceipt(goal: Pick<Goal, "sessionId">): GoalCommand
 const gateway: GoalCommandsGateway = {
   async start(input) {
     const client = getContainer().client();
-    const goal = await settleUnaryMutation((signal) =>
+    const goal = await goalMutationSettler.settle(goalMutationIdentity("start", input), (signal) =>
       client.goals.start({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
     );
     return toGoalCommandReceipt(goal);
   },
   async stop(sessionId) {
     const client = getContainer().client();
-    const goal = await settleUnaryMutation((signal) =>
-      client.goals.stop(asSessionId(sessionId), signal),
+    const goal = await goalMutationSettler.settle(
+      goalMutationIdentity("stop", sessionId),
+      (signal) => client.goals.stop(asSessionId(sessionId), signal),
     );
     return toGoalCommandReceipt(goal);
   },
   async resume(sessionId) {
     const client = getContainer().client();
-    const goal = await settleUnaryMutation((signal) =>
-      client.goals.resume(asSessionId(sessionId), signal),
+    const goal = await goalMutationSettler.settle(
+      goalMutationIdentity("resume", sessionId),
+      (signal) => client.goals.resume(asSessionId(sessionId), signal),
     );
     return toGoalCommandReceipt(goal);
   },

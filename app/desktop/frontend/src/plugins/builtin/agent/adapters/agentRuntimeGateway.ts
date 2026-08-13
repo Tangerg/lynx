@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import { asRunId, asSegmentId, asSessionId, isErrorType, settleUnaryMutation } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, createUnaryMutationSettler, isErrorType } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import { agentInputToContentBlocks, contentBlocksToAgentInput } from "./wireInput";
@@ -7,11 +7,15 @@ import { runtimePlanState } from "./runtimePlanState";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
 
+const sessionMutationSettler = createUnaryMutationSettler();
+
 const gateway: AgentRuntimeGateway = {
   async createSession(input) {
     const client = getContainer().client();
-    const session = await settleUnaryMutation((signal) =>
-      client.sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, signal),
+    const session = await sessionMutationSettler.settle(
+      JSON.stringify(["sessions.create", input.cwd ?? null]),
+      (signal) =>
+        client.sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, signal),
     );
     return { id: session.id };
   },

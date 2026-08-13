@@ -1,7 +1,13 @@
 import { getContainer } from "@/main/container";
 import { asItemId, asRunId, asSegmentId, asSessionId, type StartRunResponse } from "@/rpc";
 import type { RpcRunsGateway } from "../application/rpcAgentDriver";
-import { settleRunOpening } from "./runOpeningSettlement";
+import { createRunOpeningSettler } from "./runOpeningSettlement";
+
+const runOpeningSettler = createRunOpeningSettler();
+
+function runOpeningIdentity(method: "start" | "resume", params: unknown): string {
+  return JSON.stringify([`runs.${method}`, params]);
+}
 
 /**
  * The runs gateway the RPC agent source drives, bound to the live client.
@@ -17,7 +23,8 @@ export function runtimeRunsGateway(): RpcRunsGateway {
   return {
     start: async ({ sessionId, ...params }, signal) => {
       const client = getContainer().client();
-      const { result, events } = await settleRunOpening(
+      const { result, events } = await runOpeningSettler.settle(
+        runOpeningIdentity("start", { sessionId, ...params }),
         (attemptSignal) =>
           client.runs.start({ ...params, sessionId: asSessionId(sessionId) }, attemptSignal),
         signal,
@@ -26,7 +33,8 @@ export function runtimeRunsGateway(): RpcRunsGateway {
     },
     resume: async (params, signal) => {
       const client = getContainer().client();
-      const { result, events } = await settleRunOpening(
+      const { result, events } = await runOpeningSettler.settle(
+        runOpeningIdentity("resume", params),
         (attemptSignal) => client.runs.resume(params, attemptSignal),
         signal,
       );

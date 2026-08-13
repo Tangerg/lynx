@@ -1,6 +1,23 @@
-import type { MutationPromise } from "./mutation";
+import { mutationSettlementIsUnknown, type MutationPromise } from "./mutation";
 
 export const UNARY_MUTATION_ATTEMPT_TIMEOUT_MS = 30_000;
+
+interface PendingUnaryMutation<T> {
+  mutation: MutationPromise<T>;
+}
+
+export interface UnaryMutationSettler {
+  /**
+   * Settle one product command. `identity` names the command while its outcome
+   * remains unknown; a later call with the same identity replays the retained
+   * MutationPromise instead of opening a second logical mutation.
+   */
+  settle<T>(
+    identity: string,
+    open: (signal: AbortSignal) => MutationPromise<T>,
+    timeoutMs?: number,
+  ): Promise<T>;
+}
 
 interface UnaryMutationAttempt {
   signal: AbortSignal;
@@ -46,6 +63,123 @@ function createUnaryMutationAttempt(timeoutMs: number): UnaryMutationAttempt {
   };
 }
 
+function driveUnaryMutation<T>(
+  mutation: MutationPromise<T>,
+  first: UnaryMutationAttempt,
+  timeoutMs: number,
+  markUnknown: () => void,
+  replaceMutation: (mutation: MutationPromise<T>) => void,
+): Promise<T> {
+  return (async () => {
+    try {
+      const value = await first.wait(mutation);
+      first.accept();
+      return value;
+    } catch (error) {
+      const timedOut = first.deadlineExpired();
+      first.dispose();
+      if (!timedOut) {
+        if (mutationSettlementIsUnknown(error)) markUnknown();
+        throw error;
+      }
+    }
+
+    const retry = createUnaryMutationAttempt(timeoutMs);
+    const replay = mutation.retry({ signal: retry.signal });
+    replaceMutation(replay);
+    try {
+      const value = await retry.wait(replay);
+      retry.accept();
+      return value;
+    } catch (error) {
+      if (retry.deadlineExpired() || mutationSettlementIsUnknown(error)) markUnknown();
+      retry.dispose();
+      throw error;
+    }
+  })();
+}
+
+/**
+ * Own unresolved unary mutation identities for one Runtime adapter. Product
+ * layers choose a semantic identity; transport/idempotency handles remain here.
+ * A component unmount or bounded settlement failure therefore cannot turn the
+ * next explicit retry into a new Runtime command.
+ */
+export function createUnaryMutationSettler(): UnaryMutationSettler {
+  const pending = new Map<string, PendingUnaryMutation<unknown>[]>();
+  const replaying = new Map<string, Promise<unknown>>();
+
+  const retain = (identity: string, record: PendingUnaryMutation<unknown>) => {
+    const queue = pending.get(identity) ?? [];
+    queue.push(record);
+    pending.set(identity, queue);
+  };
+
+  const take = <T>(identity: string): PendingUnaryMutation<T> | undefined => {
+    const queue = pending.get(identity);
+    const record = queue?.shift() as PendingUnaryMutation<T> | undefined;
+    if (queue?.length === 0) pending.delete(identity);
+    return record;
+  };
+
+  return {
+    settle<T>(
+      identity: string,
+      open: (signal: AbortSignal) => MutationPromise<T>,
+      timeoutMs: number = UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
+    ): Promise<T> {
+      const activeReplay = replaying.get(identity) as Promise<T> | undefined;
+      if (activeReplay) return activeReplay;
+
+      // Only a command that already returned settlement-unknown may be reused.
+      // Two fresh same-shaped calls can still be separate product intents; their
+      // application owner, not the transport adapter, decides whether to join.
+      const retained = take<T>(identity);
+
+      const first = createUnaryMutationAttempt(timeoutMs);
+      let mutation: MutationPromise<T>;
+      try {
+        mutation = retained
+          ? retained.mutation.retry({ signal: first.signal })
+          : open(first.signal);
+      } catch (error) {
+        first.dispose();
+        if (retained) retain(identity, retained as PendingUnaryMutation<unknown>);
+        return Promise.reject(error);
+      }
+
+      const record = retained ?? { mutation };
+      record.mutation = mutation;
+
+      let unknown = false;
+      const settlement = driveUnaryMutation(
+        mutation,
+        first,
+        timeoutMs,
+        () => {
+          unknown = true;
+        },
+        (replay) => {
+          record.mutation = replay;
+        },
+      );
+      const tracked = settlement
+        .then(
+          (value) => value,
+          (error: unknown) => {
+            if (unknown) retain(identity, record as PendingUnaryMutation<unknown>);
+            throw error;
+          },
+        )
+        .finally(() => {
+          if (replaying.get(identity) === tracked) replaying.delete(identity);
+        });
+      if (retained) replaying.set(identity, tracked as Promise<unknown>);
+      return tracked;
+    },
+  };
+}
+
 /**
  * Give one replayable unary command a finite product deadline. Runtime owns
  * same-key idempotency; this transport helper owns two bounded delivery
@@ -55,32 +189,5 @@ export async function settleUnaryMutation<T>(
   open: (signal: AbortSignal) => MutationPromise<T>,
   timeoutMs: number = UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
 ): Promise<T> {
-  const first = createUnaryMutationAttempt(timeoutMs);
-  let mutation: MutationPromise<T>;
-  try {
-    mutation = open(first.signal);
-  } catch (error) {
-    first.dispose();
-    throw error;
-  }
-
-  try {
-    const value = await first.wait(mutation);
-    first.accept();
-    return value;
-  } catch (error) {
-    const timedOut = first.deadlineExpired();
-    first.dispose();
-    if (!timedOut) throw error;
-  }
-
-  const retry = createUnaryMutationAttempt(timeoutMs);
-  try {
-    const value = await retry.wait(mutation.retry({ signal: retry.signal }));
-    retry.accept();
-    return value;
-  } catch (error) {
-    retry.dispose();
-    throw error;
-  }
+  return createUnaryMutationSettler().settle("unscoped", open, timeoutMs);
 }

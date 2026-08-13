@@ -1,4 +1,4 @@
-import { isErrorType, RpcTransportError } from "./errors";
+import { isErrorType, RpcProtocolError, RpcTransportError } from "./errors";
 
 export interface MutationAttemptOptions {
   /** Cancellation belongs to one delivery attempt, not the logical mutation.
@@ -22,6 +22,15 @@ function retryableTransportFailure(error: unknown): error is RpcTransportError {
   // transport failures have ambiguous settlement; ordinary 4xx responses are
   // definitive admission refusals and should return immediately.
   return error.status === undefined || error.status === 408 || (error.status ?? 0) >= 500;
+}
+
+/** Whether a failed attempt still leaves business commit unknown to the client.
+ * Product settlement owners retain the MutationPromise only for these failures;
+ * a typed business refusal is a complete response and may release the identity. */
+export function mutationSettlementIsUnknown(error: unknown): boolean {
+  if (error instanceof RpcProtocolError) return true;
+  if (retryableTransportFailure(error)) return true;
+  return isErrorType(error, "idempotency_in_progress");
 }
 
 function abortReason(signal: AbortSignal): unknown {
