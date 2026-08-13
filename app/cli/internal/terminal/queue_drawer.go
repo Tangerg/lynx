@@ -43,6 +43,34 @@ type queuePresentation struct {
 	editorArea image.Rectangle
 }
 
+type queuePointerGesture struct {
+	target  queueTarget
+	active  bool
+	dragged bool
+}
+
+func (gesture *queuePointerGesture) begin(target queueTarget) {
+	*gesture = queuePointerGesture{target: target, active: true}
+}
+
+func (gesture *queuePointerGesture) drag(target queueTarget) bool {
+	if !gesture.active {
+		return false
+	}
+	if target != gesture.target {
+		gesture.dragged = true
+	}
+	return true
+}
+
+func (gesture *queuePointerGesture) release(target queueTarget) bool {
+	commit := gesture.active && !gesture.dragged && target.kind != queueTargetNone && target == gesture.target
+	gesture.cancel()
+	return commit
+}
+
+func (gesture *queuePointerGesture) cancel() { *gesture = queuePointerGesture{} }
+
 type queueDrawerActions struct {
 	BeginEdit  func(promptqueue.Entry) error
 	SaveEdit   func(promptqueue.Entry, agent.Message, bool) error
@@ -72,10 +100,9 @@ type queueDrawer struct {
 	editor         kit.Composer
 	focused        bool
 
-	hovered queueTarget
-	pressed queueTarget
-	dragged bool
-	notice  string
+	hovered        queueTarget
+	pointerGesture queuePointerGesture
+	notice         string
 
 	lifecycle    presentationLease
 	presentation headless.Snapshot[queuePresentation]
@@ -94,6 +121,8 @@ func newQueueDrawer(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map, clipbo
 func (q *queueDrawer) SetActions(actions queueDrawerActions) { q.actions = actions }
 
 func (q *queueDrawer) Set(snapshot promptqueue.Snapshot) {
+	q.hovered = queueTarget{}
+	q.pointerGesture.cancel()
 	q.lifecycle.renew()
 	q.snapshot = snapshot
 	entries := snapshot.Entries
@@ -128,6 +157,7 @@ func (q *queueDrawer) Handle(event input.Event) bool {
 		return true
 	}
 	if key, ok := event.(input.Key); ok && key.Down() {
+		q.pointerGesture.cancel()
 		return q.handleKey(key)
 	}
 	if mouse, ok := event.(input.Mouse); ok {
@@ -227,14 +257,17 @@ func (q *queueDrawer) handleEditKey(key input.Key) bool {
 
 func (q *queueDrawer) handleMouse(mouse input.Mouse) bool {
 	if q.Editing() {
+		q.pointerGesture.cancel()
 		handled, delivered := q.editorRegion.Handle(mouse)
 		return handled || delivered
 	}
 	switch mouse.Action {
 	case input.WheelUp:
+		q.pointerGesture.cancel()
 		q.moveSelection(-1)
 		return true
 	case input.WheelDown:
+		q.pointerGesture.cancel()
 		q.moveSelection(1)
 		return true
 	}
@@ -243,21 +276,27 @@ func (q *queueDrawer) handleMouse(mouse input.Mouse) bool {
 	case input.MouseMove:
 		q.hovered = target
 	case input.MouseDown:
+		q.pointerGesture.cancel()
 		if mouse.Button != input.ButtonLeft {
 			return false
 		}
-		q.hovered, q.pressed, q.dragged = target, target, false
-	case input.MouseDrag:
 		q.hovered = target
-		if target != q.pressed {
-			q.dragged = true
+		if target.kind != queueTargetNone {
+			q.pointerGesture.begin(target)
 		}
+	case input.MouseDrag:
+		if mouse.Button != input.ButtonLeft || !q.pointerGesture.drag(target) {
+			q.pointerGesture.cancel()
+			return false
+		}
+		q.hovered = target
 	case input.MouseUp:
 		if mouse.Button != input.ButtonLeft {
+			q.pointerGesture.cancel()
 			return false
 		}
-		commit := target.kind != queueTargetNone && target == q.pressed && !q.dragged
-		q.hovered, q.pressed, q.dragged = target, queueTarget{}, false
+		commit := q.pointerGesture.release(target)
+		q.hovered = target
 		if commit {
 			q.activate(target)
 		}
@@ -267,13 +306,18 @@ func (q *queueDrawer) handleMouse(mouse input.Mouse) bool {
 
 func (q *queueDrawer) Focus(has bool) {
 	q.focused = has
+	if !has {
+		q.hovered = queueTarget{}
+		q.pointerGesture.cancel()
+	}
 	q.editor.Focus(has && q.Editing())
 }
 
 func (q *queueDrawer) Closed() {
 	q.focused = false
 	_ = q.releaseEdit()
-	q.hovered, q.pressed, q.dragged = queueTarget{}, queueTarget{}, false
+	q.hovered = queueTarget{}
+	q.pointerGesture.cancel()
 }
 
 func (q *queueDrawer) selectedEntry() (promptqueue.Entry, bool) {

@@ -459,6 +459,67 @@ func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testin
 	}
 }
 
+func TestQueueDrawerCancelsAStalePointerGesture(t *testing.T) {
+	tests := []struct {
+		name      string
+		interrupt func(*queueDrawer, *headless.Root, *promptqueue.Queue, image.Point)
+	}{
+		{
+			name: "different button release",
+			interrupt: func(_ *queueDrawer, root *headless.Root, _ *promptqueue.Queue, point image.Point) {
+				root.Handle(input.Mouse{Pos: point, Action: input.MouseUp, Button: input.ButtonRight})
+			},
+		},
+		{
+			name: "different button press",
+			interrupt: func(_ *queueDrawer, root *headless.Root, _ *promptqueue.Queue, point image.Point) {
+				root.Handle(input.Mouse{Pos: point, Action: input.MouseDown, Button: input.ButtonRight})
+			},
+		},
+		{
+			name: "focus loss",
+			interrupt: func(drawer *queueDrawer, _ *headless.Root, _ *promptqueue.Queue, _ image.Point) {
+				drawer.Focus(false)
+				drawer.Focus(true)
+			},
+		},
+		{
+			name: "snapshot replacement",
+			interrupt: func(drawer *queueDrawer, root *headless.Root, queue *promptqueue.Queue, _ image.Point) {
+				drawer.Set(queue.Snapshot("session"))
+				root.Draw(grid.NewSurface(80, 5).View())
+			},
+		},
+		{
+			name: "keyboard navigation",
+			interrupt: func(drawer *queueDrawer, _ *headless.Root, _ *promptqueue.Queue, _ image.Point) {
+				drawer.Handle(input.Key{Code: input.Down})
+			},
+		},
+		{
+			name: "wheel navigation",
+			interrupt: func(_ *queueDrawer, root *headless.Root, _ *promptqueue.Queue, point image.Point) {
+				root.Handle(input.Mouse{Pos: point, Action: input.WheelDown})
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			drawer, queue := testQueueDrawer(t, agent.Message{Text: "first"}, agent.Message{Text: "second"})
+			root, _, _ := drawQueueDrawer(t, drawer, 80, 5)
+			firstID := queue.Snapshot("session").Entries[0].ID
+			remove := queueDrawerHit(t, drawer, queueTarget{kind: queueTargetRemove, id: firstID})
+
+			root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseDown, Button: input.ButtonLeft})
+			test.interrupt(drawer, root, queue, remove.area.Min)
+			root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseUp, Button: input.ButtonLeft})
+			if got := len(queue.Snapshot("session").Entries); got != 2 {
+				t.Fatalf("stale pointer gesture left %d entries", got)
+			}
+		})
+	}
+}
+
 func TestDurableQueueKeepsTheOpeningCommandAheadOfPriorityEdits(t *testing.T) {
 	store, err := workbench.Open("", workbench.Config{})
 	if err != nil {

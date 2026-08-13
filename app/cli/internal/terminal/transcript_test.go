@@ -674,6 +674,28 @@ func TestDraggingFromAToolHeaderCopiesWithoutToggling(t *testing.T) {
 	}
 }
 
+func TestTranscriptIgnoresAnUnownedPointerRelease(t *testing.T) {
+	clipboard := new(recordingClipboard)
+	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.New("github-dark"), 24, false, clipboard)
+	t.Cleanup(view.Close)
+	appendTestTool(view, "drag", "DRAG_DETAIL")
+	root := headless.NewRoot(view)
+	root.Draw(grid.NewSurface(48, 8).View())
+
+	root.Handle(input.Mouse{Pos: image.Pt(4, 0), Action: input.MouseDown, Button: input.ButtonLeft})
+	root.Handle(input.Mouse{Pos: image.Pt(9, 0), Action: input.MouseDrag, Button: input.ButtonLeft})
+	root.Handle(input.Mouse{Pos: image.Pt(9, 0), Action: input.MouseUp, Button: input.ButtonLeft})
+	if clipboard.text == "" || !view.selection.Active() {
+		t.Fatal("test did not create and copy a transcript selection")
+	}
+
+	clipboard.text = ""
+	root.Handle(input.Mouse{Pos: image.Pt(9, 0), Action: input.MouseUp, Button: input.ButtonLeft})
+	if clipboard.text != "" {
+		t.Fatalf("unowned pointer release copied %q", clipboard.text)
+	}
+}
+
 func TestEscapeClearsATranscriptTextSelectionBeforeOtherActions(t *testing.T) {
 	view := testTranscriptView(t)
 	appendTestTool(view, "selection", "SELECTION_DETAIL")
