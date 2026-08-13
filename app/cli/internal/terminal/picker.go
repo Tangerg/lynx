@@ -27,14 +27,43 @@ type picker[T any] struct {
 	cancel func()
 	areas  headless.Snapshot[pickerAreas]
 
-	pressed int
-	dragged bool
+	pointerGesture pickerPointerGesture
 }
 
 type pickerAreas struct{ query, list image.Rectangle }
 
+type pickerPointerGesture struct {
+	index   int
+	active  bool
+	dragged bool
+}
+
+func (gesture *pickerPointerGesture) begin(index int) {
+	*gesture = pickerPointerGesture{index: index, active: true}
+}
+
+func (gesture *pickerPointerGesture) drag() bool {
+	if !gesture.active {
+		return false
+	}
+	gesture.dragged = true
+	return true
+}
+
+func (gesture *pickerPointerGesture) release(index int) (pressed int, commit bool) {
+	if !gesture.active {
+		return -1, false
+	}
+	pressed = gesture.index
+	commit = !gesture.dragged && index == pressed
+	gesture.cancel()
+	return pressed, commit
+}
+
+func (gesture *pickerPointerGesture) cancel() { *gesture = pickerPointerGesture{} }
+
 func newPicker[T any](theme kit.Theme, glyphs kit.Glyphs, placeholder string, label, detail func(T) string, pick func(T)) *picker[T] {
-	p := &picker[T]{theme: theme, glyphs: glyphs, label: label, detail: detail, pick: pick, pressed: -1}
+	p := &picker[T]{theme: theme, glyphs: glyphs, label: label, detail: detail, pick: pick}
 	p.query = kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 1}
 	p.query.Editor().Placeholder = placeholder
 	p.items = &headless.Filter[T]{Row: p.row}
@@ -43,6 +72,7 @@ func newPicker[T any](theme kit.Theme, glyphs kit.Glyphs, placeholder string, la
 }
 
 func (p *picker[T]) SetItems(items []T) {
+	p.pointerGesture.cancel()
 	p.items.SetItems(items)
 	p.items.SetPattern(p.query.Text())
 }
@@ -53,7 +83,7 @@ func (p *picker[T]) Reset() {
 	p.query.Reset()
 	p.items.SetPattern("")
 	p.items.Select(0)
-	p.pressed, p.dragged = -1, false
+	p.pointerGesture.cancel()
 }
 
 func (p *picker[T]) Draw(frame headless.Frame) {
@@ -80,6 +110,7 @@ func (p *picker[T]) Handle(event input.Event) bool {
 		return p.handleMouse(mouse)
 	}
 	if p.query.Handle(event) {
+		p.pointerGesture.cancel()
 		p.items.SetPattern(p.query.Text())
 		return true
 	}
@@ -109,13 +140,15 @@ func (p *picker[T]) handleKey(key input.Key, event input.Event) bool {
 
 func (p *picker[T]) handleMouse(mouse input.Mouse) bool {
 	areas := p.areas.Value()
-	if p.pressed >= 0 && (mouse.Action == input.MouseDrag || mouse.Action == input.MouseUp) {
+	if p.pointerGesture.active && (mouse.Action == input.MouseDrag || mouse.Action == input.MouseUp) {
 		mouse.Pos = mouse.Pos.Sub(areas.list.Min)
 		return p.handleListMouse(mouse)
 	}
+	if mouse.Action == input.MouseDown {
+		p.pointerGesture.cancel()
+	}
 	switch {
 	case mouse.Pos.In(areas.query):
-		p.pressed, p.dragged = -1, false
 		mouse.Pos = mouse.Pos.Sub(areas.query.Min)
 		if p.query.Handle(mouse) {
 			p.items.SetPattern(p.query.Text())
@@ -132,23 +165,24 @@ func (p *picker[T]) handleListMouse(mouse input.Mouse) bool {
 	switch mouse.Action {
 	case input.MouseDown:
 		if mouse.Button != input.ButtonLeft || !p.items.Handle(mouse) {
+			p.pointerGesture.cancel()
 			return false
 		}
-		p.pressed, p.dragged = p.items.Selected(), false
+		p.pointerGesture.begin(p.items.Selected())
 		return true
 	case input.MouseDrag:
-		if p.pressed < 0 {
+		if mouse.Button != input.ButtonLeft || !p.pointerGesture.drag() {
+			p.pointerGesture.cancel()
 			return false
 		}
-		p.dragged = true
 		p.items.Handle(mouse)
 		return true
 	case input.MouseUp:
-		if mouse.Button != input.ButtonLeft || p.pressed < 0 {
+		if mouse.Button != input.ButtonLeft || !p.pointerGesture.active {
+			p.pointerGesture.cancel()
 			return false
 		}
-		pressed, commit := p.pressed, !p.dragged && p.listIndexAt(mouse.Pos.Y) == p.pressed
-		p.pressed, p.dragged = -1, false
+		pressed, commit := p.pointerGesture.release(p.listIndexAt(mouse.Pos.Y))
 		if commit && p.items.Selected() == pressed {
 			if item, ok := p.items.Current(); ok && p.pick != nil {
 				p.pick(item)
@@ -171,7 +205,12 @@ func (p *picker[T]) listIndexAt(row int) int {
 	return index
 }
 
-func (p *picker[T]) Focus(has bool) { p.query.Focus(has) }
+func (p *picker[T]) Focus(has bool) {
+	if !has {
+		p.pointerGesture.cancel()
+	}
+	p.query.Focus(has)
+}
 
 func (p *picker[T]) row(view grid.View, _ int, item T, _ fuzzy.Match, selected bool) {
 	width, _ := view.Size()

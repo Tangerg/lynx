@@ -45,9 +45,7 @@ type transcriptView struct {
 	selected        headless.BlockID
 	hasSelected     bool
 	entries         map[headless.BlockID]*transcriptEntry
-	pressed         headless.BlockID
-	pressedHeader   bool
-	dragged         bool
+	pointerGesture  transcriptPointerGesture
 	onFocusChange   func(bool)
 	onSelection     func(transcriptSelection)
 	onCopy          func(string)
@@ -80,6 +78,31 @@ type transcriptBlockPresentation struct {
 	epoch  uint64
 	blocks []transcriptBlockPlacement
 }
+
+type transcriptPointerGesture struct {
+	target  headless.BlockID
+	header  bool
+	dragged bool
+}
+
+func (gesture *transcriptPointerGesture) begin(target headless.BlockID, header bool) {
+	*gesture = transcriptPointerGesture{target: target, header: header}
+}
+
+func (gesture *transcriptPointerGesture) drag() { gesture.dragged = true }
+
+func (gesture *transcriptPointerGesture) release(
+	selected headless.BlockID,
+	selectedPresent bool,
+	selectionCollapsed bool,
+) (click, activate bool) {
+	click = !gesture.dragged && selectionCollapsed
+	activate = click && selectedPresent && gesture.header && gesture.target == selected
+	gesture.cancel()
+	return click, activate
+}
+
+func (gesture *transcriptPointerGesture) cancel() { *gesture = transcriptPointerGesture{} }
 
 type transcriptSearchCursor struct {
 	blockID           headless.BlockID
@@ -227,8 +250,12 @@ func (c *transcriptView) Handle(event input.Event) bool {
 	}
 	handled := c.view.Handle(event)
 	mouse, ok := event.(input.Mouse)
-	if !handled || !ok {
+	if !ok {
 		return handled
+	}
+	if !handled {
+		c.cancelPointerGesture(mouse)
+		return false
 	}
 	c.handleMouse(mouse)
 	return true
@@ -241,6 +268,7 @@ func (c *transcriptView) Focus(has bool) {
 	c.focused = has
 	if !has {
 		c.matcher.Clear()
+		c.pointerGesture.cancel()
 	}
 	if has {
 		c.ensureSelection()
@@ -311,12 +339,12 @@ func transcriptKeys() *keymap.Map {
 }
 
 func (c *transcriptView) handleMouse(mouse input.Mouse) {
-	if mouse.Button != input.ButtonLeft && mouse.Action != input.MouseUp {
+	if mouse.Button != input.ButtonLeft {
+		c.cancelPointerGesture(mouse)
 		return
 	}
 	switch mouse.Action {
 	case input.MouseDown:
-		c.dragged = false
 		point, _ := c.selection.Range()
 		presented := c.presentedBlocks.Value()
 		if presented.epoch != c.contentEpoch {
@@ -325,33 +353,39 @@ func (c *transcriptView) handleMouse(mouse input.Mouse) {
 			// to content Reset has replaced; BlockIDs restart from zero and must not
 			// transfer a gesture to their new owners.
 			c.selection.Clear()
-			c.pressedHeader = false
+			c.pointerGesture.cancel()
 			return
 		}
 		id, offset, ok := presentedBlockAt(presented.blocks, point.Row)
 		if !ok {
-			c.pressedHeader = false
+			c.pointerGesture.cancel()
 			return
 		}
 		if !c.selectPointerEntry(id) {
-			c.pressedHeader = false
+			c.pointerGesture.cancel()
 			return
 		}
-		c.pressed, c.pressedHeader = id, offset == 0 && c.tool(id) != nil
+		c.pointerGesture.begin(id, offset == 0 && c.tool(id) != nil)
 	case input.MouseDrag:
-		c.dragged = true
+		c.pointerGesture.drag()
 	case input.MouseUp:
 		start, end := c.selection.Range()
-		click := !c.dragged && start == end
+		click, activate := c.pointerGesture.release(c.selected, c.hasSelected, start == end)
 		if click {
 			c.selection.Clear()
 		}
-		if click && c.pressedHeader && c.hasSelected && c.selected == c.pressed {
+		if activate {
 			c.toggleSelected()
 		} else if !click {
 			c.copySelection()
 		}
-		c.pressedHeader, c.dragged = false, false
+	}
+}
+
+func (c *transcriptView) cancelPointerGesture(mouse input.Mouse) {
+	switch mouse.Action {
+	case input.MouseDown, input.MouseUp, input.MouseDrag:
+		c.pointerGesture.cancel()
 	}
 }
 
@@ -1135,7 +1169,8 @@ func (c *transcriptView) Reset() {
 	clear(c.runEntries)
 	clear(c.runLineages)
 	c.activeToolGroup = nil
-	c.hasSelected, c.pressedHeader, c.dragged = false, false, false
+	c.hasSelected = false
+	c.pointerGesture.cancel()
 	c.toolViews = nil
 	c.search.Submit(&c.content, "", false)
 }

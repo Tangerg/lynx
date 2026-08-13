@@ -59,6 +59,61 @@ func TestPickerDragChangesSelectionWithoutActivation(t *testing.T) {
 	}
 }
 
+func TestPickerCancelsAStalePointerGesture(t *testing.T) {
+	tests := []struct {
+		name      string
+		interrupt func(*picker[string], *headless.Root, image.Point)
+	}{
+		{
+			name: "different button release",
+			interrupt: func(_ *picker[string], root *headless.Root, point image.Point) {
+				root.Handle(input.Mouse{Pos: point, Action: input.MouseUp, Button: input.ButtonRight})
+			},
+		},
+		{
+			name: "different button press",
+			interrupt: func(_ *picker[string], root *headless.Root, point image.Point) {
+				root.Handle(input.Mouse{Pos: point, Action: input.MouseDown, Button: input.ButtonRight})
+			},
+		},
+		{
+			name: "focus loss",
+			interrupt: func(picker *picker[string], _ *headless.Root, _ image.Point) {
+				picker.Focus(false)
+				picker.Focus(true)
+			},
+		},
+		{
+			name: "catalog replacement",
+			interrupt: func(picker *picker[string], _ *headless.Root, _ image.Point) {
+				picker.SetItems([]string{"replacement first", "replacement second", "replacement third"})
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			picked := ""
+			picker := newPicker(kit.Dark(), kit.Unicode(), "search",
+				func(value string) string { return value },
+				func(string) string { return "" },
+				func(value string) { picked = value },
+			)
+			picker.SetItems([]string{"first", "second", "third"})
+			picker.Focus(true)
+			root := headless.NewRoot(picker)
+			root.Draw(grid.NewSurface(40, 7).View())
+			second := pickerPoint(picker, 1)
+
+			root.Handle(input.Mouse{Pos: second, Action: input.MouseDown, Button: input.ButtonLeft})
+			test.interrupt(picker, root, second)
+			root.Handle(input.Mouse{Pos: second, Action: input.MouseUp, Button: input.ButtonLeft})
+			if picked != "" {
+				t.Fatalf("stale pointer gesture picked %q", picked)
+			}
+		})
+	}
+}
+
 func pickerPoint[T any](picker *picker[T], row int) image.Point {
 	area := picker.areas.Value().list
 	return image.Pt(area.Min.X+1, area.Min.Y+row)

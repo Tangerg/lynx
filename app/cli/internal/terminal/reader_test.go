@@ -107,3 +107,27 @@ func TestReaderSearchStepsAcrossFullContent(t *testing.T) {
 		t.Fatalf("next search match = %d, want 1", reader.current)
 	}
 }
+
+func TestReaderCopiesSelectionOnlyOnLeftButtonRelease(t *testing.T) {
+	clipboard := new(recordingClipboard)
+	reader := newReaderPane(kit.Dark(), kit.Unicode(), highlight.New("github-dark"), input.Wheel{}, clipboard)
+	t.Cleanup(reader.Shutdown)
+	reader.Open(readerTarget{document: readerDocument{
+		Title:    "pointer ownership",
+		Sections: []ToolSection{{Style: toolSectionParagraph, Text: "copy only from the owned gesture"}},
+	}})
+	headless.NewRoot(reader).Draw(grid.NewSurface(60, 10).View())
+	row := reader.content.StartRow()
+	reader.selection.Begin(headless.Point{Row: row})
+	reader.selection.Extend(headless.Point{Row: row, Col: 3})
+	reader.selection.Done()
+
+	reader.Handle(input.Mouse{Action: input.MouseUp, Button: input.ButtonRight})
+	if clipboard.text != "" {
+		t.Fatalf("right-button release copied %q", clipboard.text)
+	}
+	reader.Handle(input.Mouse{Action: input.MouseUp, Button: input.ButtonLeft})
+	if clipboard.text == "" {
+		t.Fatal("left-button release did not copy the active selection")
+	}
+}

@@ -551,6 +551,46 @@ func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 	}
 }
 
+func TestToolClickRequiresAnUninterruptedLeftButtonGesture(t *testing.T) {
+	tests := []struct {
+		name      string
+		interrupt func(*transcriptView, *headless.Root)
+	}{
+		{
+			name: "different button release",
+			interrupt: func(_ *transcriptView, root *headless.Root) {
+				root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseUp, Button: input.ButtonRight})
+			},
+		},
+		{
+			name: "focus loss",
+			interrupt: func(view *transcriptView, _ *headless.Root) {
+				view.Focus(false)
+				view.Focus(true)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			view := testTranscriptView(t)
+			tool := appendTestTool(view, "guarded", "GUARDED_DETAIL")
+			view.Focus(true)
+			root := headless.NewRoot(view)
+			surface := grid.NewSurface(48, 8)
+			root.Draw(surface.View())
+
+			if !root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseDown, Button: input.ButtonLeft}) {
+				t.Fatal("tool header press was not handled")
+			}
+			test.interrupt(view, root)
+			root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseUp, Button: input.ButtonLeft})
+			if tool.Expanded() {
+				t.Fatal("interrupted pointer gesture expanded the tool")
+			}
+		})
+	}
+}
+
 func TestToolClickTargetsTheLastCompleteTranscriptFrame(t *testing.T) {
 	view := testTranscriptView(t)
 	first := appendTestTool(view, "first", strings.Repeat("FIRST_DETAIL\n", 8))

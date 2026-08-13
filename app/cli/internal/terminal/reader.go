@@ -201,7 +201,8 @@ func (r *readerPane) Handle(event input.Event) bool {
 		}
 	}
 	handled := r.view.Handle(event)
-	if mouse, ok := event.(input.Mouse); ok && mouse.Action == input.MouseUp && r.selection.Active() {
+	if mouse, ok := event.(input.Mouse); ok && mouse.Action == input.MouseUp &&
+		mouse.Button == input.ButtonLeft && r.selection.Active() {
 		r.copy()
 	}
 	return handled
