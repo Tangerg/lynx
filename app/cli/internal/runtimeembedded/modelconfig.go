@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -136,7 +137,45 @@ func (r *Runtime) UpdateProvider(ctx context.Context, update modelconfig.UpdateP
 	if provider.ID != update.Provider {
 		return modelconfig.Provider{}, runtimeContractViolation("update provider returned id %q for %q", provider.ID, update.Provider)
 	}
+	if err := validateProviderUpdate(update, provider); err != nil {
+		return modelconfig.Provider{}, runtimeContractViolation("update provider returned an invalid acknowledgement: %v", err)
+	}
 	return provider, nil
+}
+
+func validateProviderUpdate(update modelconfig.UpdateProvider, result modelconfig.Provider) error {
+	var problems []error
+	if change := update.BaseURL; change != nil {
+		want := change.Value
+		if change.Kind == modelconfig.ClearValue {
+			want = ""
+		}
+		if result.BaseURL != want {
+			problems = append(problems, fmt.Errorf("runtime returned base URL %q, want %q", result.BaseURL, want))
+		}
+	}
+	if change := update.APIKey; change != nil {
+		switch change.Kind {
+		case modelconfig.SetValue:
+			if result.APIKeyMasked == "" || result.KeySource != modelconfig.KeyStored {
+				problems = append(problems, fmt.Errorf(
+					"runtime returned API key mask %q from %q after setting a stored key",
+					result.APIKeyMasked,
+					result.KeySource,
+				))
+			}
+			if result.APIKeyMasked == change.Value && change.Value != "****" {
+				problems = append(problems, errors.New("runtime exposed the raw API key instead of a mask"))
+			}
+		case modelconfig.ClearValue:
+			// Clearing a stored key may reveal a read-only environment fallback,
+			// but the effective credential must no longer claim stored ownership.
+			if result.KeySource == modelconfig.KeyStored {
+				problems = append(problems, errors.New("runtime still reports a stored API key after clearing it"))
+			}
+		}
+	}
+	return errors.Join(problems...)
 }
 
 func (r *Runtime) TestProvider(ctx context.Context, providerID string) (modelconfig.TestResult, error) {

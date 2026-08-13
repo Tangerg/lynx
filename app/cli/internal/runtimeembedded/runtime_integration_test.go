@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
+	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	workspaceapi "github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -37,6 +38,7 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	forked := requireSessionMutation(t, runtime, created, t.TempDir())
 	requireSessionPortability(t, runtime, forked.ID)
 	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace.Path)
+	requireProviderMutationLifecycle(t, runtime)
 	requireGoalMutationLifecycle(t, runtime, created.ID)
 	requireContextManagement(t, runtime, created.Workspace.Path)
 	requireAuxiliaryCapabilities(t, runtime, created.ID, created.Workspace.Path)
@@ -327,9 +329,36 @@ func configureIntegrationRuntime(t *testing.T) {
 	t.Helper()
 	t.Setenv("LYRA_PROVIDER", "anthropic")
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	t.Setenv("DEEPSEEK_API_KEY", "integration-env-key")
 	t.Setenv("LYRA_MCP_SERVERS", "")
 	t.Setenv("LYRA_A2A_AGENTS", "")
 	t.Setenv("LYRA_A2A_RPC_ORIGINS", "")
+}
+
+func requireProviderMutationLifecycle(t *testing.T, runtime *Runtime) {
+	t.Helper()
+	setBaseURL := modelconfig.ValueChange{Kind: modelconfig.SetValue, Value: "https://provider.integration.test"}
+	setAPIKey := modelconfig.ValueChange{Kind: modelconfig.SetValue, Value: "integration-stored-key"}
+	configured, err := runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{
+		Provider: "deepseek", BaseURL: &setBaseURL, APIKey: &setAPIKey,
+	})
+	if err != nil {
+		t.Fatalf("configure provider: %v", err)
+	}
+	if configured.BaseURL != setBaseURL.Value || configured.APIKeyMasked == "" || configured.KeySource != modelconfig.KeyStored {
+		t.Fatalf("configured provider = %+v", configured)
+	}
+
+	clear := modelconfig.ValueChange{Kind: modelconfig.ClearValue}
+	fallback, err := runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{
+		Provider: "deepseek", BaseURL: &clear, APIKey: &clear,
+	})
+	if err != nil {
+		t.Fatalf("clear provider: %v", err)
+	}
+	if fallback.BaseURL != "" || fallback.APIKeyMasked == "" || fallback.KeySource != modelconfig.KeyEnv {
+		t.Fatalf("provider environment fallback = %+v", fallback)
+	}
 }
 
 func openIntegrationRuntime(t *testing.T, workspace string) *Runtime {

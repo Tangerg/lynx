@@ -138,6 +138,77 @@ func TestModelConfigurationRejectsMutationIdentityDrift(t *testing.T) {
 	requireRuntimeContractViolation(t, err)
 }
 
+func TestProviderUpdateRejectsAcknowledgementDrift(t *testing.T) {
+	t.Parallel()
+	setBaseURL := modelconfig.ValueChange{Kind: modelconfig.SetValue, Value: "https://new.example"}
+	setAPIKey := modelconfig.ValueChange{Kind: modelconfig.SetValue, Value: "stored-secret"}
+	update := modelconfig.UpdateProvider{Provider: "deepseek", BaseURL: &setBaseURL, APIKey: &setAPIKey}
+	valid := protocol.Provider{
+		ID: "deepseek", BaseURL: setBaseURL.Value, APIKeyMasked: "st****et",
+		KeySource: protocol.ProviderKeySourceStored,
+	}
+	tests := []struct {
+		name   string
+		mutate func(*protocol.Provider)
+	}{
+		{name: "base URL", mutate: func(result *protocol.Provider) { result.BaseURL = "https://old.example" }},
+		{name: "missing key", mutate: func(result *protocol.Provider) { result.APIKeyMasked, result.KeySource = "", "" }},
+		{name: "environment key", mutate: func(result *protocol.Provider) { result.KeySource = protocol.ProviderKeySourceEnv }},
+		{name: "raw key", mutate: func(result *protocol.Provider) { result.APIKeyMasked = setAPIKey.Value }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			result := valid
+			test.mutate(&result)
+			stub := &modelConfigBindingStub{
+				providerReply: &result,
+				updated:       func(protocol.UpdateProviderRequest, embedded.CommandOptions) {},
+			}
+			runtime := &Runtime{modelConfig: stub, meta: requestMeta("test")}
+			_, err := runtime.UpdateProvider(t.Context(), update)
+			requireRuntimeContractViolation(t, err)
+		})
+	}
+}
+
+func TestProviderUpdateAcceptsClearWithEnvironmentFallback(t *testing.T) {
+	t.Parallel()
+	clear := modelconfig.ValueChange{Kind: modelconfig.ClearValue}
+	result := protocol.Provider{
+		ID: "deepseek", APIKeyMasked: "en****ey", KeySource: protocol.ProviderKeySourceEnv,
+	}
+	stub := &modelConfigBindingStub{
+		providerReply: &result,
+		updated:       func(protocol.UpdateProviderRequest, embedded.CommandOptions) {},
+	}
+	runtime := &Runtime{modelConfig: stub, meta: requestMeta("test")}
+	if _, err := runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{
+		Provider: "deepseek", BaseURL: &clear, APIKey: &clear,
+	}); err != nil {
+		t.Fatalf("UpdateProvider clear with environment fallback: %v", err)
+	}
+
+	result.BaseURL = "https://still-configured.example"
+	if _, err := runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{
+		Provider: "deepseek", BaseURL: &clear,
+	}); err == nil {
+		t.Fatal("UpdateProvider accepted a base URL after clear")
+	} else {
+		requireRuntimeContractViolation(t, err)
+	}
+
+	result.BaseURL = ""
+	result.KeySource = protocol.ProviderKeySourceStored
+	if _, err := runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{
+		Provider: "deepseek", APIKey: &clear,
+	}); err == nil {
+		t.Fatal("UpdateProvider accepted a stored key after clear")
+	} else {
+		requireRuntimeContractViolation(t, err)
+	}
+}
+
 func (*modelConfigBindingStub) TestProvider(_ context.Context, request protocol.TestProviderRequest, _ embedded.CallOptions) (*protocol.ProviderTestResult, error) {
 	return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
 		Type: protocol.ProblemProviderUnavailable, Detail: request.Provider,
