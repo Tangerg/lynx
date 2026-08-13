@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -213,14 +214,16 @@ func TestAuthoringContextAdapterProjectsDocumentsAndRecipes(t *testing.T) {
 }
 
 type hookBindingStub struct {
-	t       *testing.T
-	result  *protocol.HooksListResult
-	trusted *bool
+	t           *testing.T
+	workspace   string
+	projectRoot string
+	result      *protocol.HooksListResult
+	trusted     *bool
 }
 
 func (stub *hookBindingStub) ListHooks(_ context.Context, request protocol.ListHooksRequest, options embedded.CallOptions) (*protocol.HooksListResult, error) {
 	assertCallMeta(stub.t, options.RequestMeta)
-	if request.Workspace.Path != "/workspace" {
+	if request.Workspace.Path != stub.workspace {
 		stub.t.Fatalf("hooks request = %+v", request)
 	}
 	return stub.result, nil
@@ -228,7 +231,7 @@ func (stub *hookBindingStub) ListHooks(_ context.Context, request protocol.ListH
 
 func (stub *hookBindingStub) SetHookTrust(_ context.Context, request protocol.SetHookTrustRequest, options embedded.CommandOptions) error {
 	assertCommandMeta(stub.t, options)
-	if request.ProjectRoot != "/workspace" {
+	if request.ProjectRoot != stub.projectRoot {
 		stub.t.Fatalf("hook trust request = %+v", request)
 	}
 	stub.trusted = new(request.Trusted)
@@ -236,16 +239,18 @@ func (stub *hookBindingStub) SetHookTrust(_ context.Context, request protocol.Se
 }
 
 func TestHookAndFeedbackAdaptersPreserveGovernanceAndTargeting(t *testing.T) {
-	hooks := &hookBindingStub{t: t, result: &protocol.HooksListResult{
-		ProjectRoot: "/workspace", ProjectTrusted: false,
-		Hooks: []protocol.HookInfo{{Event: protocol.HookEventPreToolUse, Matcher: "shell*", Command: "check", Scope: protocol.HookScopeProject, Source: "/workspace/.lyra/hooks.json"}},
+	projectRoot := t.TempDir()
+	workspace := filepath.Join(projectRoot, "nested")
+	hooks := &hookBindingStub{t: t, workspace: workspace, projectRoot: projectRoot, result: &protocol.HooksListResult{
+		ProjectRoot: projectRoot, ProjectTrusted: false,
+		Hooks: []protocol.HookInfo{{Event: protocol.HookEventPreToolUse, Matcher: "shell*", Command: "check", Scope: protocol.HookScopeProject, Source: filepath.Join(workspace, ".lyra", "hooks.json")}},
 	}}
 	hookAdapter := &hookAdapter{runtime: &Runtime{hooks: hooks, meta: requestMeta("test")}}
-	catalog, err := hookAdapter.Catalog(t.Context(), "/workspace")
+	catalog, err := hookAdapter.Catalog(t.Context(), workspace)
 	if err != nil || len(catalog.Hooks) != 1 || catalog.Hooks[0].Active {
 		t.Fatalf("Catalog = (%+v, %v)", catalog, err)
 	}
-	if err := hookAdapter.SetProjectTrust(t.Context(), "/workspace", true); err != nil || hooks.trusted == nil || !*hooks.trusted {
+	if err := hookAdapter.SetProjectTrust(t.Context(), projectRoot, true); err != nil || hooks.trusted == nil || !*hooks.trusted {
 		t.Fatalf("SetProjectTrust = %v, trusted %v", err, hooks.trusted)
 	}
 
@@ -255,6 +260,14 @@ func TestHookAndFeedbackAdaptersPreserveGovernanceAndTargeting(t *testing.T) {
 	if err := feedbackAdapter.Record(t.Context(), signal); err != nil || feedbacks.recorded != signal {
 		t.Fatalf("Record = %v, recorded %+v", err, feedbacks.recorded)
 	}
+}
+
+func TestHookAdapterRejectsCatalogForAnotherProject(t *testing.T) {
+	workspace := t.TempDir()
+	hooks := &hookBindingStub{t: t, workspace: workspace, result: &protocol.HooksListResult{ProjectRoot: t.TempDir()}}
+	adapter := &hookAdapter{runtime: &Runtime{hooks: hooks, meta: requestMeta("test")}}
+	_, err := adapter.Catalog(t.Context(), workspace)
+	requireRuntimeContractViolation(t, err)
 }
 
 type feedbackBindingStub struct {

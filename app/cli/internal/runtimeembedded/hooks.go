@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -26,6 +27,9 @@ func (adapter *hookAdapter) Catalog(ctx context.Context, workspace string) (hook
 	if workspace == "" {
 		return hookpolicy.Catalog{}, errors.New("list hooks: workspace is empty")
 	}
+	if !filepath.IsAbs(workspace) {
+		return hookpolicy.Catalog{}, errors.New("list hooks: workspace is not absolute")
+	}
 	result, err := r.hooks.ListHooks(ctx, protocol.ListHooksRequest{
 		Workspace: protocol.WorkspaceRef{Path: workspace},
 	}, r.callOptions())
@@ -34,6 +38,13 @@ func (adapter *hookAdapter) Catalog(ctx context.Context, workspace string) (hook
 	}
 	if result == nil {
 		return hookpolicy.Catalog{}, runtimeContractViolation("list hooks returned nil")
+	}
+	if !hookProjectRootContainsWorkspace(result.ProjectRoot, workspace) {
+		return hookpolicy.Catalog{}, runtimeContractViolation(
+			"list hooks for workspace %q returned unrelated project root %q",
+			workspace,
+			result.ProjectRoot,
+		)
 	}
 	catalog := hookpolicy.Catalog{
 		ProjectRoot: result.ProjectRoot, ProjectTrusted: result.ProjectTrusted,
@@ -50,6 +61,18 @@ func (adapter *hookAdapter) Catalog(ctx context.Context, workspace string) (hook
 		return hookpolicy.Catalog{}, runtimeContractViolation("list hooks returned an invalid catalog: %v", err)
 	}
 	return catalog, nil
+}
+
+func hookProjectRootContainsWorkspace(projectRoot, workspace string) bool {
+	projectRoot = strings.TrimSpace(projectRoot)
+	if projectRoot == "" || !filepath.IsAbs(projectRoot) {
+		return false
+	}
+	relative, err := filepath.Rel(filepath.Clean(projectRoot), filepath.Clean(workspace))
+	if err != nil || filepath.IsAbs(relative) {
+		return false
+	}
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func (adapter *hookAdapter) SetProjectTrust(ctx context.Context, projectRoot string, trusted bool) error {
