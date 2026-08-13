@@ -110,7 +110,14 @@ func (a *app) setHookTrust(workspace, projectRoot string, trusted bool) {
 			if err := a.hooks.SetProjectTrust(ctx, projectRoot, trusted); err != nil {
 				return hookpolicy.Catalog{}, err
 			}
-			return a.hooks.Catalog(ctx, workspace)
+			catalog, err := a.hooks.Catalog(ctx, workspace)
+			if err != nil {
+				return hookpolicy.Catalog{}, err
+			}
+			if err := catalog.ValidateTrustAcknowledgement(projectRoot, trusted); err != nil {
+				return hookpolicy.Catalog{}, fmt.Errorf("verify project hook trust: %w", err)
+			}
+			return catalog, nil
 		},
 		func(catalog hookpolicy.Catalog, err error) {
 			if err != nil {

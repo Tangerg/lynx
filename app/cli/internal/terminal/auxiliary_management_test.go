@@ -260,9 +260,10 @@ func TestRecipeInvocationPrefersLongestCompleteNameAndSupportsUniquePrefix(t *te
 }
 
 type hookServiceStub struct {
-	mu      sync.Mutex
-	trusted bool
-	changed chan bool
+	mu          sync.Mutex
+	trusted     bool
+	ignoreTrust bool
+	changed     chan bool
 }
 
 type blockingHookTrustService struct {
@@ -294,7 +295,9 @@ func (service *hookServiceStub) Catalog(context.Context, string) (hookpolicy.Cat
 
 func (service *hookServiceStub) SetProjectTrust(_ context.Context, _ string, trusted bool) error {
 	service.mu.Lock()
-	service.trusted = trusted
+	if !service.ignoreTrust {
+		service.trusted = trusted
+	}
 	service.mu.Unlock()
 	service.changed <- trusted
 	return nil
@@ -322,6 +325,23 @@ func TestHookAuditAndTrustRequireResizeSafeConfirmation(t *testing.T) {
 		t.Fatal("project trust was not enabled")
 	}
 	host.Shows(t, "project trust true")
+	stop()
+}
+
+func TestHookTrustDoesNotReportSuccessWhenAuthoritativeCatalogIsUnchanged(t *testing.T) {
+	hooks := &hookServiceStub{ignoreTrust: true, changed: make(chan bool, 1)}
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Workspace: "/workspace", Hooks: hooks})
+	host.Shows(t, "Ask lyra")
+	host.Type("/hooks-trust")
+	host.Press(input.Enter)
+	host.Shows(t, "Trust project hooks")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if trusted := awaitValue(t, hooks.changed, "ignored hook trust change"); !trusted {
+		t.Fatal("hook trust request revoked trust")
+	}
+	host.Shows(t, "update project hook trust failed: verify project hook trust")
+	host.Hides(t, "project hook trust updated")
 	stop()
 }
 

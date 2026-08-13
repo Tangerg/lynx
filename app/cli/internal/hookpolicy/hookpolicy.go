@@ -115,6 +115,21 @@ func (catalog Catalog) Validate() error {
 	return nil
 }
 
+// ValidateTrustAcknowledgement proves that an authoritative catalog read after
+// SetProjectTrust describes the exact project and trust decision requested.
+func (catalog Catalog) ValidateTrustAcknowledgement(projectRoot string, trusted bool) error {
+	if err := catalog.Validate(); err != nil {
+		return err
+	}
+	if catalog.ProjectRoot != projectRoot {
+		return fmt.Errorf("project hook root is %q, want %q", catalog.ProjectRoot, projectRoot)
+	}
+	if catalog.ProjectTrusted != trusted {
+		return fmt.Errorf("project hook trust is %t, want %t", catalog.ProjectTrusted, trusted)
+	}
+	return nil
+}
+
 type Service interface {
 	Catalog(context.Context, string) (Catalog, error)
 	SetProjectTrust(context.Context, string, bool) error
