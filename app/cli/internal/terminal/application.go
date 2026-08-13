@@ -530,7 +530,10 @@ func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Sessions · Center", Body: a.sessionCenter,
 		Where: layout.Placement{Width: 96, Height: 24},
 	})
-	a.sessionCenter.picker.cancel = a.sessionDialog.Dismiss
+	a.sessionCenter.picker.cancel = func() {
+		a.operations.Cancel(pickerCatalogOperation)
+		a.sessionDialog.Dismiss()
+	}
 }
 
 func (a *app) restore(snapshot agent.SessionSnapshot) {

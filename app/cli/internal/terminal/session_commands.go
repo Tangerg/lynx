@@ -155,7 +155,7 @@ func (a *app) openSessionDelete(session agent.Session) {
 }
 
 func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session) agent.UpdateSession) {
-	started := runOperation(a, sessionCenterOperation, false,
+	started := runApplicationOperation(a, sessionCenterOperation, false,
 		func(ctx context.Context) (agent.Session, error) {
 			latest, err := a.runtime.GetSession(ctx, id)
 			if err != nil {
@@ -181,7 +181,7 @@ func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session
 }
 
 func (a *app) deleteSessionFromCenter(id string) {
-	started := runOperation(a, sessionCenterOperation, false,
+	started := runApplicationOperation(a, sessionCenterOperation, false,
 		func(ctx context.Context) (struct{}, error) {
 			return struct{}{}, a.runtime.DeleteSession(ctx, agent.DeleteSession{SessionID: id})
 		},
@@ -299,6 +299,10 @@ func runSessionChangeWithDraftDisposition[T any](
 	}
 	if a.operations.Active(sessionChangeOperation) {
 		a.message("wait for the current session change to finish")
+		return
+	}
+	if a.operations.Active(sessionCenterOperation) {
+		a.message("wait for the current session action to finish")
 		return
 	}
 	a.operations.Cancel(pickerCatalogOperation)

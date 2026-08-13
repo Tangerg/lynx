@@ -55,6 +55,58 @@ type blockingApprovalModeRuntime struct {
 	canceled chan struct{}
 }
 
+type blockingSessionDeleteRuntime struct {
+	agent.Runtime
+	started  chan agent.DeleteSession
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+type blockingSessionCatalogRuntime struct {
+	agent.Runtime
+	calls           atomic.Uint64
+	refreshStarted  chan struct{}
+	releaseRefresh  chan struct{}
+	refreshCanceled chan struct{}
+}
+
+func (runtime *blockingSessionCatalogRuntime) ListSessions(
+	ctx context.Context,
+	query agent.SessionQuery,
+) (agent.SessionPage, error) {
+	if runtime.calls.Add(1) != 2 {
+		return runtime.Runtime.ListSessions(ctx, query)
+	}
+	close(runtime.refreshStarted)
+	select {
+	case <-runtime.releaseRefresh:
+		return runtime.Runtime.ListSessions(ctx, query)
+	case <-ctx.Done():
+		close(runtime.refreshCanceled)
+		return agent.SessionPage{}, context.Cause(ctx)
+	}
+}
+
+func (runtime *blockingSessionDeleteRuntime) DeleteSession(
+	ctx context.Context,
+	request agent.DeleteSession,
+) error {
+	select {
+	case runtime.started <- request:
+	default:
+	}
+	select {
+	case <-runtime.release:
+		return runtime.Runtime.DeleteSession(ctx, request)
+	case <-ctx.Done():
+		select {
+		case runtime.canceled <- struct{}{}:
+		default:
+		}
+		return context.Cause(ctx)
+	}
+}
+
 func (runtime *blockingApprovalModeRuntime) SetApprovalMode(
 	ctx context.Context,
 	mode agent.ApprovalMode,
@@ -422,6 +474,113 @@ func TestApprovalModeMutationOutlivesSameSessionProjectionReplacement(t *testing
 	if err != nil || mode != agent.ApprovalModeSafe {
 		t.Fatalf("approval mode after mutation = (%q, %v)", mode, err)
 	}
+	stop()
+}
+
+func TestSessionCenterMutationOutlivesCurrentSessionProjectionReplacement(t *testing.T) {
+	base := mock.New()
+	current, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := base.CreateSession(t.Context(), agent.CreateSession{
+		Title: "Catalog deletion target", Workspace: current.Session.Workspace.Path,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &blockingSessionDeleteRuntime{
+		Runtime: base, started: make(chan agent.DeleteSession, 1),
+		release: make(chan struct{}), canceled: make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(runtime.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeChanges(t, runtime, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions · Center")
+	host.Type(target.Title)
+	host.Shows(t, target.Title)
+	host.Send(input.Key{Code: input.Character, Rune: 'd', Mods: input.Alt})
+	host.Shows(t, "Delete session")
+	host.Press(input.Down)
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	request := awaitValue(t, runtime.started, "session deletion mutation")
+	if request.SessionID != target.ID {
+		t.Fatalf("delete session request = %+v, want %s", request, target.ID)
+	}
+	host.Hides(t, "Delete session")
+	host.Press(input.Enter)
+	host.Shows(t, "wait for the current session action to finish")
+
+	if _, err := base.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	title := "Session catalog refresh installed"
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := base.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	host.Shows(t, title)
+	select {
+	case <-runtime.canceled:
+		t.Fatal("current-session projection replacement canceled the target-session mutation")
+	default:
+	}
+
+	release()
+	host.Shows(t, "deleted session")
+	if _, err := base.GetSession(t.Context(), target.ID); !errors.Is(err, agent.ErrSessionNotFound) {
+		t.Fatalf("deleted session read error = %v", err)
+	}
+	stop()
+}
+
+func TestDismissingSessionCenterCancelsCatalogRefresh(t *testing.T) {
+	base := mock.New()
+	runtime := &blockingSessionCatalogRuntime{
+		Runtime: base, refreshStarted: make(chan struct{}), releaseRefresh: make(chan struct{}),
+		refreshCanceled: make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(runtime.releaseRefresh) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeChanges(t, runtime, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions · Center")
+
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+	}
+	awaitValue(t, source.applied, "session catalog invalidation")
+	awaitValue(t, runtime.refreshStarted, "session catalog refresh")
+	host.Press(input.Esc)
+	host.Hides(t, "Sessions · Center")
+	awaitValue(t, runtime.refreshCanceled, "canceled session catalog refresh")
+	host.Hides(t, "Sessions · Center")
 	stop()
 }
 
