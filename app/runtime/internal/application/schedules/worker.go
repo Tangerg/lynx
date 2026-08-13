@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -56,14 +57,15 @@ type WorkerStore interface {
 // ([schedule.Schedule] / [schedule.NextRun]); the periodic scan and side-effecting
 // firing are the application's.
 type Worker struct {
-	schedules  WorkerStore
-	runStarter ScheduledRunStarter
-	now        func() time.Time
+	schedules     WorkerStore
+	runStarter    ScheduledRunStarter
+	now           func() time.Time
+	invalidations invalidation.Publish
 }
 
 // NewWorker wires a scheduled-run worker.
-func NewWorker(schedules WorkerStore, runStarter ScheduledRunStarter) Worker {
-	return Worker{schedules: schedules, runStarter: runStarter, now: time.Now}
+func NewWorker(schedules WorkerStore, runStarter ScheduledRunStarter, invalidations invalidation.Publish) Worker {
+	return Worker{schedules: schedules, runStarter: runStarter, now: time.Now, invalidations: invalidations}
 }
 
 // Run starts the scheduled-run loop until ctx is canceled.
@@ -115,7 +117,7 @@ func (w Worker) fireDue(ctx context.Context, now time.Time) {
 		recordWorkerError(ctx, "pending query failed", err)
 		return
 	}
-	batch := occurrenceBatch{ctx: ctx, runStarter: w.runStarter}
+	batch := occurrenceBatch{ctx: ctx, runStarter: w.runStarter, invalidations: w.invalidations}
 	if !batch.dispatchAll(occurrences) || batch.full() {
 		return
 	}
@@ -139,9 +141,10 @@ func (w Worker) fireDue(ctx context.Context, now time.Time) {
 }
 
 type occurrenceBatch struct {
-	ctx        context.Context
-	runStarter ScheduledRunStarter
-	dispatched int
+	ctx           context.Context
+	runStarter    ScheduledRunStarter
+	dispatched    int
+	invalidations invalidation.Publish
 }
 
 func (batch *occurrenceBatch) remaining() int { return workerBatchSize - batch.dispatched }
@@ -163,6 +166,9 @@ func (batch *occurrenceBatch) dispatch(occurrence schedule.Occurrence) bool {
 	}
 	batch.dispatched++
 	_, err := Fire(batch.ctx, batch.runStarter, occurrence)
+	if err == nil {
+		batch.invalidations.Notify(invalidation.ForSchedules(occurrence.Schedule.ID))
+	}
 	if err != nil && batch.ctx.Err() != nil && errors.Is(err, batch.ctx.Err()) {
 		return false
 	}
@@ -203,6 +209,12 @@ func (w Worker) claimDueOccurrence(
 			fmt.Errorf("schedule %s: %w", scheduled.ID, err),
 		)
 		return schedule.Occurrence{}, false
+	}
+	if claimed {
+		// Claim advances NextRunAt before Run admission. Publish that committed
+		// cursor even when the following start fails; a later pending retry that is
+		// accepted publishes again for LastRunAt.
+		w.invalidations.Notify(invalidation.ForSchedules(scheduled.ID))
 	}
 	return occurrence, claimed
 }

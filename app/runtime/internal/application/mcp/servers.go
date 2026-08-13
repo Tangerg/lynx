@@ -102,18 +102,46 @@ func (c *Coordinator) commitServer(write *mutationScope, srv mcpserver.Server) (
 	}
 	reconcileCtx, cancel := context.WithTimeout(write.ownerCtx, reconcileTimeout)
 	defer cancel()
-	if err := c.applyRegistryChange(reconcileCtx, srv); err != nil {
-		return Server{}, err
+	reconcileErr := c.applyRegistryChange(reconcileCtx, srv)
+	// Make the committed descriptor and its first live state one ordered fact.
+	// Enabled servers enter connecting here; their detached dial suppresses its
+	// own duplicate connecting event and only publishes the status port's terminal
+	// projection. Disabled or unreconciled servers install an unknown tombstone
+	// so a stale live entry cannot resurrect the previous connection.
+	status := ServerStatus{Name: srv.Name}
+	shouldRedial := srv.Enabled && reconcileErr == nil && c.connectionLifecycle != nil
+	if shouldRedial {
+		status.Known = true
+		status.State = mcpserver.ConnectionConnecting
 	}
-	var event statusEvent
-	if !srv.Enabled {
-		event = c.prepareStatus(ServerStatus{Name: srv.Name})
-	}
+	event := c.prepareStatus(status)
 	write.unlock()
-	if srv.Enabled {
-		c.redialServer(write.ownerCtx, srv)
-	} else {
-		c.publishStatus(event)
+	var redialErr error
+	var startDial chan struct{}
+	if shouldRedial {
+		startDial = make(chan struct{})
+		// Admit the dial before invoking the event sink. A sink may synchronously
+		// reconfigure this server; that newer dial must supersede this one rather
+		// than having this older dispatch happen after the callback returns. The
+		// gate prevents the admitted task from settling before that callback gets
+		// its chance to supersede it.
+		redialErr = c.redialServer(write.ownerCtx, srv, startDial)
+		if redialErr != nil {
+			// Admission can race component shutdown. Reuse this mutation's reserved
+			// sequence for the truthful disconnected projection instead of
+			// publishing a connecting state that no task can ever settle.
+			event.status = ServerStatus{Name: srv.Name}
+		}
+	}
+	c.publishStatus(event)
+	if startDial != nil {
+		close(startDial)
+	}
+	if reconcileErr != nil {
+		return Server{}, reconcileErr
+	}
+	if redialErr != nil {
+		return Server{}, redialErr
 	}
 	status, ok := c.statusesByName()[srv.Name]
 	if ok {
@@ -149,10 +177,7 @@ func (c *Coordinator) DeleteServer(ctx context.Context, name string) error {
 		projectionErr = c.connectionLifecycle.Detach(name)
 	}
 	policyErr := c.refreshToolPolicy(reconcileCtx)
-	var event statusEvent
-	if policyErr == nil {
-		event = c.prepareStatus(ServerStatus{Name: name})
-	}
+	event := c.prepareStatus(ServerStatus{Name: name})
 	write.unlock()
 	c.publishStatus(event)
 	return errors.Join(projectionErr, policyErr)
@@ -249,13 +274,13 @@ func (c *Coordinator) applyRegistryChange(ctx context.Context, srv mcpserver.Ser
 // just-committed descriptor); a concurrent reconfigure supersedes a stale dial
 // through per-server generation. A dial failure does not fail the originating
 // call; status surfaces it and it remains reconnectable.
-func (c *Coordinator) redialServer(ctx context.Context, srv mcpserver.Server) {
+func (c *Coordinator) redialServer(ctx context.Context, srv mcpserver.Server, start <-chan struct{}) error {
 	if c.connectionLifecycle == nil {
-		return
+		return errConnectionUnavailable
 	}
-	_ = c.dispatchConnection(ctx, srv.Name, func(dialCtx context.Context) error {
+	return c.dispatchConnection(ctx, srv.Name, func(dialCtx context.Context) error {
 		return c.connectionLifecycle.Configure(dialCtx, srv)
-	}, nil)
+	}, false, start, nil)
 }
 
 // TestServer dials srv with a throwaway client and proves its tools list — a

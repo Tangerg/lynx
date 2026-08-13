@@ -39,7 +39,7 @@ func (c *Coordinator) startConnection(ctx context.Context, name string, dial fun
 	if _, err := c.connectionTarget(ctx, name); err != nil {
 		return err
 	}
-	return c.dispatchConnection(ctx, name, dial, nil)
+	return c.dispatchConnection(ctx, name, dial, true, nil, nil)
 }
 
 func (c *Coordinator) connectionTarget(ctx context.Context, name string) (mcpserver.Server, error) {
@@ -87,6 +87,8 @@ func (c *Coordinator) dispatchConnection(
 	ctx context.Context,
 	name string,
 	connect func(context.Context) error,
+	publishConnecting bool,
+	start <-chan struct{},
 	completed func(connectionOutcome),
 ) error {
 	ownerCtx, releaseOwner, ok := c.tasks.Attach(ctx)
@@ -101,6 +103,13 @@ func (c *Coordinator) dispatchConnection(
 		}
 		defer releaseOwner()
 		defer c.clearDial(name, operation)
+		if start != nil {
+			select {
+			case <-start:
+			case <-ctx.Done():
+				return
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			return
 		}
@@ -120,11 +129,14 @@ func (c *Coordinator) dispatchConnection(
 			c.mutationMu.Unlock()
 			return
 		}
-		connecting := c.prepareStatus(ServerStatus{
-			Name:  name,
-			Known: true,
-			State: mcpserver.ConnectionConnecting,
-		})
+		var connecting statusEvent
+		if publishConnecting {
+			connecting = c.prepareStatus(ServerStatus{
+				Name:  name,
+				Known: true,
+				State: mcpserver.ConnectionConnecting,
+			})
+		}
 		c.mutationMu.Unlock()
 		c.publishStatus(connecting)
 
@@ -140,7 +152,7 @@ func (c *Coordinator) dispatchConnection(
 			return
 		}
 
-		status := c.ServerStatus(ctx, name)
+		status := c.liveStatus(name)
 		c.mutationMu.Lock()
 		srv, ok, err = c.registry.Get(ctx, name)
 		if err != nil {

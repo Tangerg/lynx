@@ -34,6 +34,8 @@ const (
 	Hooks
 	// Skills — the managed Skill library or proposal collection changed.
 	Skills
+	// MCP — an MCP server's durable configuration or live projection changed.
+	MCP
 	// Models — provider configuration or a utility/embedding model role changed.
 	Models
 	// Approvals — the default approval mode or remembered approval rules changed.
@@ -52,6 +54,7 @@ type Notice struct {
 	SessionIDs  []string
 	RunIDs      []string
 	ScheduleIDs []string
+	ServerIDs   []string
 }
 
 // InSession is the notice for a resource that moved inside one session, optionally
@@ -69,6 +72,11 @@ func InSessions(resource Resource, ids ...string) Notice {
 // ForSchedules is the notice for committed changes to editable schedules.
 func ForSchedules(ids ...string) Notice {
 	return Notice{Resource: Schedules, ScheduleIDs: ids}
+}
+
+// ForMCP is the notice for MCP registry and live-connection changes.
+func ForMCP(ids ...string) Notice {
+	return Notice{Resource: MCP, ServerIDs: ids}
 }
 
 func sessionIDs(id string) []string {

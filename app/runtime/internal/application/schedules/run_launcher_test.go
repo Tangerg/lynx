@@ -22,8 +22,7 @@ func (f *fakeRunStarter) Start(ctx context.Context, cmd runs.StartCommand) (runs
 
 func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	runStarter := &fakeRunStarter{canceled: make(chan struct{})}
-	var firedScheduleID string
-	launcher := NewRunLauncher(runStarter, "/default", func(id string) { firedScheduleID = id })
+	launcher := NewRunLauncher(runStarter, "/default")
 
 	startedRun, err := launcher.StartScheduledRun(context.Background(), schedule.Occurrence{Schedule: schedule.Schedule{
 		ID: "sch_1", Instructions: "summarize", ModelSelection: mustScheduleSelection("p", "m"),
@@ -31,8 +30,8 @@ func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartScheduledRun: %v", err)
 	}
-	if startedRun.SessionID != "ses_scheduled" || startedRun.RunID != "run_scheduled" || firedScheduleID != "sch_1" {
-		t.Fatalf("started Run=%+v fired schedule=%q", startedRun, firedScheduleID)
+	if startedRun.SessionID != "ses_scheduled" || startedRun.RunID != "run_scheduled" {
+		t.Fatalf("started Run=%+v", startedRun)
 	}
 	if runStarter.cmd.DefaultWorkspacePath != "/default" || runStarter.cmd.NewSessionTitle != "" {
 		t.Fatalf("command defaults = %+v", runStarter.cmd)

@@ -2,7 +2,6 @@ package server
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -13,22 +12,6 @@ func (s *Server) observeFileChanges(source notificationSource[workspaceapp.FileC
 			Type:      protocol.RuntimeFilesChanged,
 			Workspace: workspaceRefFromPath(change.CWD),
 			Paths:     change.Paths,
-		})
-	})
-}
-
-func (s *Server) observeMCPStatusChanges(source notificationSource[mcpapp.ServerStatus]) {
-	source.Observe(func(status mcpapp.ServerStatus) {
-		s.workspaceHub.publish(protocol.RuntimeEvent{
-			Type: protocol.RuntimeMCPChanged, ServerIDs: []string{status.Name},
-		})
-	})
-}
-
-func (s *Server) observeScheduleFires(source notificationSource[string]) {
-	source.Observe(func(scheduleID string) {
-		s.workspaceHub.publish(protocol.RuntimeEvent{
-			Type: protocol.RuntimeSchedulesChanged, ScheduleIDs: []string{scheduleID},
 		})
 	})
 }
@@ -73,6 +56,10 @@ func runtimeEventFor(notice invalidation.Notice) (protocol.RuntimeEvent, bool) {
 		return protocol.RuntimeEvent{Type: protocol.RuntimeHooksChanged}, true
 	case invalidation.Skills:
 		return protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged}, true
+	case invalidation.MCP:
+		return protocol.RuntimeEvent{
+			Type: protocol.RuntimeMCPChanged, ServerIDs: notice.ServerIDs,
+		}, true
 	case invalidation.Models:
 		return protocol.RuntimeEvent{Type: protocol.RuntimeModelsChanged}, true
 	case invalidation.Approvals:

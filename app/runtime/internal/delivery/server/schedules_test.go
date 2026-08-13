@@ -82,7 +82,7 @@ func serverWithSchedules(reg *fakeScheduleRegistry) *Server {
 		Store: reg,
 		Paths: workspacepath.Resolver{},
 	})
-	s.scheduleFiring = schedules.NewFiring(reg, schedules.NewRunLauncher(s.runs, s.serverInfo.DefaultWorkspace.Path, nil))
+	s.scheduleFiring = schedules.NewFiring(reg, schedules.NewRunLauncher(s.runs, s.serverInfo.DefaultWorkspace.Path), nil)
 	s.features.schedules = true
 	return s
 }

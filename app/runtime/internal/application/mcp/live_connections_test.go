@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
@@ -43,7 +44,7 @@ func TestDeleteServerPublishesRemovalAfterProjectionFailure(t *testing.T) {
 	}
 	notified := make(chan string, 1)
 	cfg := configWithPorts(ports)
-	cfg.StatusChanged = func(status ServerStatus) { notified <- status.Name }
+	cfg.Invalidations = func(notice invalidation.Notice) { notified <- notice.ServerIDs[0] }
 	c := New(cfg)
 
 	if err := c.DeleteServer(t.Context(), "fs"); !errors.Is(err, projectionErr) {
@@ -63,13 +64,15 @@ func TestDeleteServerPublishesRemovalAfterProjectionFailure(t *testing.T) {
 func TestReconnectServerUsesPort(t *testing.T) {
 	ports := &fakePorts{statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}}}
 	settled := make(chan string, 1)
+	var c *Coordinator
 	cfg := configWithPorts(ports)
-	cfg.StatusChanged = func(status ServerStatus) {
+	cfg.Invalidations = func(notice invalidation.Notice) {
+		status := c.ServerStatus(t.Context(), notice.ServerIDs[0])
 		if status.State != mcpserver.ConnectionConnecting {
 			settled <- status.Name
 		}
 	}
-	c := New(cfg)
+	c = New(cfg)
 	defer requireCoordinatorShutdown(t, c)
 
 	if err := c.ReconnectServer(context.Background(), "fs"); err != nil {
@@ -192,7 +195,8 @@ func TestStatusCallbackMayReenterMutationWithoutDeadlock(t *testing.T) {
 		ConnectionLifecycle: ports,
 	}
 	var c *Coordinator
-	cfg.StatusChanged = func(status ServerStatus) {
+	cfg.Invalidations = func(notice invalidation.Notice) {
+		status := c.ServerStatus(t.Context(), notice.ServerIDs[0])
 		statuses <- status
 		if status.State == mcpserver.ConnectionConnecting {
 			// A status consumer is application-external code. It may synchronously
@@ -224,6 +228,42 @@ func TestStatusCallbackMayReenterMutationWithoutDeadlock(t *testing.T) {
 	server, ok, err := registry.Get(context.Background(), name)
 	if err != nil || !ok || server.Enabled {
 		t.Fatalf("durable server after reentrant disable = (%+v, %v, %v)", server, ok, err)
+	}
+}
+
+func TestConnectionInvalidationReadsConnectingThenSettled(t *testing.T) {
+	const name = "fs"
+	ports := &fakePorts{statuses: []mcpserver.ConnectionStatus{{Name: name, State: mcpserver.ConnectionConnected, ToolCount: 1}}}
+	var c *Coordinator
+	states := make(chan mcpserver.ConnectionState, 2)
+	cfg := configWithPorts(ports)
+	cfg.Invalidations = func(notice invalidation.Notice) {
+		if notice.Resource != invalidation.MCP || len(notice.ServerIDs) != 1 || notice.ServerIDs[0] != name {
+			t.Fatalf("notice = %+v, want MCP/fs", notice)
+		}
+		states <- c.ServerStatus(t.Context(), name).State
+	}
+	c = New(cfg)
+
+	if err := c.ReconnectServer(t.Context(), name); err != nil {
+		t.Fatal(err)
+	}
+	got := []mcpserver.ConnectionState{<-states, <-states}
+	if !slices.Equal(got, []mcpserver.ConnectionState{
+		mcpserver.ConnectionConnecting,
+		mcpserver.ConnectionConnected,
+	}) {
+		t.Fatalf("readable states at invalidation = %v, want [connecting connected]", got)
+	}
+	requireCoordinatorShutdown(t, c)
+
+	// The terminal overlay is only a publication handoff. A later passive live
+	// transition must remain visible even though no new connection command wrote
+	// the application overlay.
+	ports.statuses[0].State = mcpserver.ConnectionFailed
+	ports.statuses[0].ToolCount = 0
+	if status := c.ServerStatus(t.Context(), name); status.State != mcpserver.ConnectionFailed {
+		t.Fatalf("passive live status = %+v, want failed", status)
 	}
 }
 

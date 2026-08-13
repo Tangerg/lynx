@@ -85,12 +85,6 @@ type Stack struct {
 	// FileChanges carries committed workspace mutation scopes to protocol
 	// subscribers without exposing a wire event to the producer.
 	FileChanges NotificationSource[workspace.FileChangeNotice]
-	// MCPStatusChanges bridges the MCP coordinator's connection transitions
-	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
-	MCPStatusChanges NotificationSource[mcpapp.ServerStatus]
-	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
-	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
-	ScheduleFires NotificationSource[string]
 	// Invalidations bridges committed read-model changes to the delivery hub,
 	// which alone names each wire topic. Producers are the use cases that own the
 	// mutation; Bootstrap only connects their shared application vocabulary.
@@ -342,9 +336,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 
 	fileChanges := &notification.Relay[workspace.FileChangeNotice]{}
-	// mcpStatusChanges bridges the MCP coordinator's reconnect/authorize
-	// transitions to the delivery workspace stream the Server observes.
-	mcpStatusChanges := &notification.Relay[mcpapp.ServerStatus]{}
 	admissionGate := &sessionadmission.Gate{}
 	sessionStores := persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions:            cfg.SessionStore,
@@ -497,10 +488,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 	runCoordinator := runs.NewCoordinator(runDependencies)
 	lifetime.runCoordinator = runCoordinator
-	scheduleFires := &notification.Relay[string]{}
 	scheduleFiring := schedules.NewFiring(
 		cfg.ScheduleStore,
-		schedules.NewRunLauncher(runCoordinator, cfg.DefaultWorkspacePath, scheduleFires.Publish),
+		schedules.NewRunLauncher(runCoordinator, cfg.DefaultWorkspacePath),
+		applicationInvalidations.Publish,
 	)
 
 	approvalCoordinator := approvals.New(approvalPolicy, cfg.SessionStore)
@@ -514,7 +505,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ConnectionControl:   toolRuntime.mcp,
 		ConnectionLifecycle: toolRuntime.mcp,
 		Policy:              mcpConnectionSettings.policy,
-		StatusChanged:       mcpStatusChanges.Publish,
+		Invalidations:       applicationInvalidations.Publish,
 	})
 	lifetime.mcpCoordinator = mcpCoordinator
 
@@ -596,8 +587,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Codebase:         codebaseCoordinator,
 			Runs:             runCoordinator,
 			FileChanges:      fileChanges,
-			MCPStatusChanges: mcpStatusChanges,
-			ScheduleFires:    scheduleFires,
 			Invalidations:    applicationInvalidations,
 			ScheduleFiring:   scheduleFiring,
 			IdempotencyStore: cfg.IdempotencyStore,

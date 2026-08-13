@@ -3,9 +3,11 @@ package schedules
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -75,7 +77,10 @@ func TestWorkerFireDueLeavesFailedOccurrenceDue(t *testing.T) {
 	prev := now.Add(-time.Minute)
 	store := &workerStore{due: []schedule.Schedule{{ID: "sch_1", Cron: "* * * * *", NextRunAt: prev}}}
 	runner := &recordingScheduledRunStarter{startErr: errors.New("boom")}
-	w := NewWorker(store, runner)
+	var notices []invalidation.Notice
+	w := NewWorker(store, runner, func(notice invalidation.Notice) {
+		notices = append(notices, notice)
+	})
 
 	// The durable due row is intentionally presented again on the next scan: a
 	// rejected run must never be recorded as fired, even after a process restart.
@@ -87,6 +92,9 @@ func TestWorkerFireDueLeavesFailedOccurrenceDue(t *testing.T) {
 	if len(store.claims) != 1 {
 		t.Fatalf("claims = %d, want one durable occurrence", len(store.claims))
 	}
+	if len(notices) != 1 || !slices.Equal(notices[0].ScheduleIDs, []string{"sch_1"}) {
+		t.Fatalf("claim invalidations = %+v, want one cursor change", notices)
+	}
 }
 
 func TestWorkerFireDueDisablesCorruptCron(t *testing.T) {
@@ -94,7 +102,7 @@ func TestWorkerFireDueDisablesCorruptCron(t *testing.T) {
 	store := &workerStore{due: []schedule.Schedule{{ID: "sch_bad", Cron: "not cron", NextRunAt: now}}}
 	runner := &recordingScheduledRunStarter{}
 
-	NewWorker(store, runner).fireDue(context.Background(), now)
+	NewWorker(store, runner, nil).fireDue(context.Background(), now)
 
 	if len(runner.startedSchedules) != 1 {
 		t.Fatalf("started = %d, want 1", len(runner.startedSchedules))
@@ -108,7 +116,7 @@ func TestWorkerFireDueStopsOnDueError(t *testing.T) {
 	store := &workerStore{dueErr: errors.New("db down")}
 	runner := &recordingScheduledRunStarter{}
 
-	NewWorker(store, runner).fireDue(context.Background(), time.Now())
+	NewWorker(store, runner, nil).fireDue(context.Background(), time.Now())
 
 	if len(runner.startedSchedules) != 0 || len(store.claims) != 0 {
 		t.Fatalf("started=%d claims=%d, want none", len(runner.startedSchedules), len(store.claims))
@@ -124,7 +132,7 @@ func TestWorkerFireDueDoesNotConsumeCancellationAbortedFiring(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: false}
 
-	NewWorker(store, &runner).fireDue(ctx, now)
+	NewWorker(store, &runner, nil).fireDue(ctx, now)
 
 	if len(runner.startedScheduleIDs) != 1 || runner.startedScheduleIDs[0] != "sch_1" {
 		t.Fatalf("started = %v, want only sch_1", runner.startedScheduleIDs)
@@ -143,7 +151,7 @@ func TestWorkerFireDuePersistsAcceptedFiringAfterCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: true}
 
-	NewWorker(store, &runner).fireDue(ctx, now)
+	NewWorker(store, &runner, nil).fireDue(ctx, now)
 
 	if len(runner.startedScheduleIDs) != 1 || runner.startedScheduleIDs[0] != "sch_1" {
 		t.Fatalf("started = %v, want only sch_1", runner.startedScheduleIDs)
@@ -162,7 +170,7 @@ func TestWorkerRunScansImmediately(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: true}
-	worker := NewWorker(store, &runner)
+	worker := NewWorker(store, &runner, nil)
 	worker.now = func() time.Time { return now }
 
 	done := make(chan struct{})

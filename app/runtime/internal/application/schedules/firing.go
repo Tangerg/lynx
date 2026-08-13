@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -25,21 +26,25 @@ type FiringStore interface {
 // It is constructed with a complete ScheduledRunStarter, so callers cannot observe an
 // incompletely wired scheduler.
 type Firing struct {
-	runNowStore RunNowStore
-	workerStore WorkerStore
-	runStarter  ScheduledRunStarter
-	now         func() time.Time
-	enabled     bool
+	runNowStore   RunNowStore
+	workerStore   WorkerStore
+	runStarter    ScheduledRunStarter
+	now           func() time.Time
+	enabled       bool
+	invalidations invalidation.Publish
 }
 
 // NewFiring builds the schedule execution use case. A nil store behaves as
 // the unavailable scheduling capability.
-func NewFiring(store FiringStore, runStarter ScheduledRunStarter) *Firing {
+func NewFiring(store FiringStore, runStarter ScheduledRunStarter, invalidations invalidation.Publish) *Firing {
 	enabled := store != nil
 	if store == nil {
 		store = disabledFiringStore{}
 	}
-	return &Firing{runNowStore: store, workerStore: store, runStarter: runStarter, now: time.Now, enabled: enabled}
+	return &Firing{
+		runNowStore: store, workerStore: store, runStarter: runStarter,
+		now: time.Now, enabled: enabled, invalidations: invalidations,
+	}
 }
 
 // Available reports whether schedule-firing use cases are wired.
@@ -63,12 +68,13 @@ func (f *Firing) RunNow(ctx context.Context, id string) (StartedRun, error) {
 	if err := f.runNowStore.RecordRun(writeCtx, id, f.now().UTC()); err != nil {
 		return StartedRun{}, fmt.Errorf("schedules: record run-now for %q: %w", id, err)
 	}
+	f.invalidations.Notify(invalidation.ForSchedules(id))
 	return startedRun, nil
 }
 
 // RunWorker starts the due-schedule scanner until ctx is canceled.
 func (f *Firing) RunWorker(ctx context.Context) {
-	NewWorker(f.workerStore, f.runStarter).Run(ctx)
+	NewWorker(f.workerStore, f.runStarter, f.invalidations).Run(ctx)
 }
 
 type disabledFiringStore struct{}

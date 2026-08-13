@@ -19,13 +19,11 @@ type RunStarter interface {
 type RunLauncher struct {
 	runs                 RunStarter
 	defaultWorkspacePath string
-	notifyFired          func(scheduleID string)
 }
 
-// NewRunLauncher builds the scheduled-run execution strategy. notifyFired is an
-// optional outward notification emitted after the run is accepted.
-func NewRunLauncher(runStarter RunStarter, defaultWorkspacePath string, notifyFired func(string)) RunLauncher {
-	return RunLauncher{runs: runStarter, defaultWorkspacePath: defaultWorkspacePath, notifyFired: notifyFired}
+// NewRunLauncher builds the scheduled-run execution strategy.
+func NewRunLauncher(runStarter RunStarter, defaultWorkspacePath string) RunLauncher {
+	return RunLauncher{runs: runStarter, defaultWorkspacePath: defaultWorkspacePath}
 }
 
 // StartScheduledRun starts one schedule through the shared Run entry point, then
@@ -49,9 +47,6 @@ func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.
 	cancel()
 	if err != nil {
 		return StartedRun{}, err
-	}
-	if l.notifyFired != nil {
-		l.notifyFired(scheduled.ID)
 	}
 	return StartedRun{SessionID: result.SessionID, RunID: result.RunID}, nil
 }

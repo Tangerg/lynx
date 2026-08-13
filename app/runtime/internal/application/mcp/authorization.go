@@ -58,7 +58,7 @@ func (c *Coordinator) CreateAuthorizationAttempt(ctx context.Context, server str
 	attempt := c.authorizationAttempts.create(server)
 	err = c.dispatchConnection(ctx, server, func(ctx context.Context) error {
 		return c.connectionControl.Authorize(ctx, server)
-	}, func(outcome connectionOutcome) {
+	}, true, nil, func(outcome connectionOutcome) {
 		c.authorizationAttempts.settle(attempt.ID, authorizationAttemptStatus(outcome))
 	})
 	if err != nil {

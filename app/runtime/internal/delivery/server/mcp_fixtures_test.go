@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -125,9 +126,9 @@ func serverWithMCP(cfg mcpapp.Config) *Server {
 		policy := mcpserver.NewToolPolicy(nil)
 		cfg.Policy = mcpapp.NewToolPolicyState(policy)
 	}
-	mcpStatus := &testNotification[mcpapp.ServerStatus]{}
-	cfg.StatusChanged = mcpStatus.Publish
+	mcpInvalidations := &testNotification[invalidation.Notice]{}
+	cfg.Invalidations = mcpInvalidations.Publish
 	s := &Server{mcp: mcpapp.New(cfg), workspaceHub: newWorkspaceHub()}
-	s.observeMCPStatusChanges(mcpStatus)
+	s.observeInvalidations(mcpInvalidations)
 	return s
 }

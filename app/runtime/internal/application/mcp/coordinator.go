@@ -6,6 +6,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -64,7 +65,10 @@ type Coordinator struct {
 	dials                 map[string]*activeDial
 	statusSequence        uint64
 	statusQueue           *statusQueue
+	statusMu              sync.RWMutex
+	statusOverrides       map[string]ServerStatus
 	authorizationAttempts *authorizationAttemptStore
+	invalidations         invalidation.Publish
 
 	// tasks is this component's context for post-commit reconcile: MCP registry
 	// mutations outlive the request but are canceled and joined by the
@@ -80,9 +84,8 @@ type Config struct {
 	ConnectionControl   ConnectionControl
 	ConnectionLifecycle ConnectionLifecycle
 	Policy              *ToolPolicyState
-	// StatusChanged publishes safe connection status read models. nil disables
-	// notification.
-	StatusChanged func(status ServerStatus)
+	// Invalidations publishes post-commit registry and live-connection changes.
+	Invalidations invalidation.Publish
 }
 
 // New returns a Coordinator over cfg.
@@ -90,7 +93,7 @@ func New(cfg Config) *Coordinator {
 	if cfg.Policy == nil {
 		cfg.Policy = NewToolPolicyState(mcpserver.ToolPolicy{})
 	}
-	return &Coordinator{
+	coordinator := &Coordinator{
 		registry:              cfg.Registry,
 		statusReader:          cfg.StatusReader,
 		toolCatalog:           cfg.ToolCatalog,
@@ -98,9 +101,12 @@ func New(cfg Config) *Coordinator {
 		connectionLifecycle:   cfg.ConnectionLifecycle,
 		policy:                cfg.Policy,
 		dials:                 make(map[string]*activeDial),
-		statusQueue:           newStatusQueue(cfg.StatusChanged),
+		statusOverrides:       make(map[string]ServerStatus),
 		authorizationAttempts: newAuthorizationAttemptStore(),
+		invalidations:         cfg.Invalidations,
 	}
+	coordinator.statusQueue = newStatusQueue(coordinator.acceptStatus)
+	return coordinator
 }
 
 // activeDial is the cancellation handle for one server's current connection

@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
@@ -27,8 +26,7 @@ type Config struct {
 	Usage     usageUseCases
 	Feedback  feedbackUseCases
 
-	FileChanges      notificationSource[workspaceapp.FileChangeNotice]
-	MCPStatusChanges notificationSource[mcpapp.ServerStatus]
+	FileChanges notificationSource[workspaceapp.FileChangeNotice]
 
 	// ServerInfo identifies this runtime on the wire. Name and Version receive
 	// development defaults when absent.
@@ -39,7 +37,6 @@ type Config struct {
 	Schedules      scheduleManagementUseCases
 	ScheduleFiring scheduleFiringUseCases
 	Invalidations  notificationSource[invalidation.Notice]
-	ScheduleFires  notificationSource[string]
 
 	// Goals exposes the autonomous Goal use cases. nil
 	// makes goals.* report capability_not_negotiated.
@@ -267,12 +264,6 @@ func newServer(cfg Config, facts contractFacts) *Server {
 func (s *Server) observeNotificationSources(cfg Config) {
 	if cfg.FileChanges != nil {
 		s.observeFileChanges(cfg.FileChanges)
-	}
-	if cfg.MCPStatusChanges != nil {
-		s.observeMCPStatusChanges(cfg.MCPStatusChanges)
-	}
-	if cfg.ScheduleFires != nil {
-		s.observeScheduleFires(cfg.ScheduleFires)
 	}
 	if cfg.Invalidations != nil {
 		s.observeInvalidations(cfg.Invalidations)

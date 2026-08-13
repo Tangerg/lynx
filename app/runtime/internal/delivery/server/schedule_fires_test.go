@@ -3,17 +3,18 @@ package server
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-func TestScheduleFireNotificationProjectsToARuntimeSignal(t *testing.T) {
-	notifier := &testNotification[string]{}
+func TestScheduleInvalidationProjectsToARuntimeSignal(t *testing.T) {
+	notifier := &testNotification[invalidation.Notice]{}
 	s := &Server{workspaceHub: newWorkspaceHub()}
-	s.observeScheduleFires(notifier)
+	s.observeInvalidations(notifier)
 	events, unsubscribe := s.workspaceHub.subscribe()
 	defer unsubscribe()
 
-	notifier.Publish("sch_1")
+	notifier.Publish(invalidation.ForSchedules("sch_1"))
 	got := <-events
 	if got.Type != protocol.RuntimeSchedulesChanged || len(got.ScheduleIDs) != 1 || got.ScheduleIDs[0] != "sch_1" {
 		t.Fatalf("runtime event = %+v", got)

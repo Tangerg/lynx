@@ -3,9 +3,11 @@ package schedules
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
@@ -25,7 +27,7 @@ func TestNilRegistryDisablesCRUD(t *testing.T) {
 	if err := c.Delete(ctx, "sch_1"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("Delete err = %v, want ErrUnavailable", err)
 	}
-	if _, err := NewFiring(nil, nil).RunNow(ctx, "sch_1"); !errors.Is(err, ErrUnavailable) {
+	if _, err := NewFiring(nil, nil, nil).RunNow(ctx, "sch_1"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("RunNow err = %v, want ErrUnavailable", err)
 	}
 }
@@ -35,7 +37,10 @@ func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 	store := &runNowStore{schedule: schedule.Schedule{ID: "sch_1", Instructions: "review"}}
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: true}
-	firing := NewFiring(store, &runner)
+	var notices []invalidation.Notice
+	firing := NewFiring(store, &runner, func(notice invalidation.Notice) {
+		notices = append(notices, notice)
+	})
 	firing.now = func() time.Time { return now }
 
 	if _, err := firing.RunNow(ctx, "sch_1"); err != nil {
@@ -47,19 +52,42 @@ func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 	if store.recordCtxErr != nil {
 		t.Fatalf("record context error = %v, want live post-accept context", store.recordCtxErr)
 	}
+	if len(notices) != 1 || notices[0].Resource != invalidation.Schedules ||
+		!slices.Equal(notices[0].ScheduleIDs, []string{"sch_1"}) {
+		t.Fatalf("post-record invalidations = %+v, want schedules/sch_1", notices)
+	}
 }
 
 func TestRunNowDoesNotRecordCancellationAbortedRun(t *testing.T) {
 	store := &runNowStore{schedule: schedule.Schedule{ID: "sch_1", Instructions: "review"}}
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: false}
-	firing := NewFiring(store, &runner)
+	firing := NewFiring(store, &runner, nil)
 
 	if _, err := firing.RunNow(ctx, "sch_1"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("RunNow error = %v, want context.Canceled", err)
 	}
 	if store.recordedID != "" {
 		t.Fatalf("recorded id = %q, want none", store.recordedID)
+	}
+}
+
+func TestRunNowRecordFailureDoesNotPublishSchedule(t *testing.T) {
+	store := &runNowStore{
+		schedule:  schedule.Schedule{ID: "sch_1", Instructions: "review"},
+		recordErr: errors.New("record failed"),
+	}
+	runner := &cancelingScheduledRunStarter{cancel: func() {}, succeed: true}
+	var notices []invalidation.Notice
+	firing := NewFiring(store, runner, func(notice invalidation.Notice) {
+		notices = append(notices, notice)
+	})
+
+	if _, err := firing.RunNow(t.Context(), "sch_1"); err == nil {
+		t.Fatal("RunNow error = nil, want record failure")
+	}
+	if len(notices) != 0 {
+		t.Fatalf("failed record invalidations = %+v, want none", notices)
 	}
 }
 
@@ -177,6 +205,7 @@ type runNowStore struct {
 	recordedID   string
 	recordedAt   time.Time
 	recordCtxErr error
+	recordErr    error
 }
 
 func (r *runNowStore) ListPage(ctx context.Context, _ time.Time, _ string, _ int) ([]schedule.Schedule, error) {
@@ -205,13 +234,13 @@ func (r *runNowStore) Pending(context.Context, int) ([]schedule.Occurrence, erro
 }
 func (r *runNowStore) RecordRun(ctx context.Context, id string, at time.Time) error {
 	r.recordedID, r.recordedAt, r.recordCtxErr = id, at, ctx.Err()
-	return nil
+	return r.recordErr
 }
 
 // TestRunWorkerNoOpWithoutScheduling ensures a disabled schedule capability
 // returns at once rather than entering a scan loop.
 func TestRunWorkerNoOpWithoutWorker(t *testing.T) {
-	firing := NewFiring(nil, nil)
+	firing := NewFiring(nil, nil, nil)
 	done := make(chan struct{})
 	go func() {
 		firing.RunWorker(context.Background())
