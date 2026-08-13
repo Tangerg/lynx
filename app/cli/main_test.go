@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"maps"
@@ -737,6 +738,62 @@ func buildTestBinary(t *testing.T) string {
 		t.Fatalf("build lyra: %v\n%s", err, output)
 	}
 	return binary
+}
+
+func TestEmbeddedBinaryOpensAnIsolatedRuntimeAndReleasesItsLease(t *testing.T) {
+	binary := buildTestBinary(t)
+	lyraHome := t.TempDir()
+	environment := terminalTestEnvironment(t, map[string]string{
+		"LYRA_HOME": lyraHome, "LYRA_RUNTIME": "embedded",
+		"LYRA_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": "test-key",
+		"LYRA_MCP_SERVERS": "", "LYRA_A2A_AGENTS": "", "LYRA_A2A_RPC_ORIGINS": "",
+	})
+
+	profileOutput := runTestBinary(t, binary, environment, "runtime", "info", "--json")
+	var profile struct {
+		Protocol struct {
+			Current      string `json:"current"`
+			MinSupported string `json:"minSupported"`
+		} `json:"protocol"`
+		Server struct {
+			Name string `json:"name"`
+		} `json:"server"`
+		RuntimeTopics []string `json:"runtimeTopics"`
+	}
+	if err := json.Unmarshal(profileOutput, &profile); err != nil {
+		t.Fatalf("decode embedded runtime profile: %v\n%s", err, profileOutput)
+	}
+	if profile.Protocol.Current == "" || profile.Protocol.Current != profile.Protocol.MinSupported ||
+		profile.Server.Name == "" || len(profile.RuntimeTopics) == 0 {
+		t.Fatalf("incomplete embedded runtime profile: %+v", profile)
+	}
+	if info, err := os.Stat(filepath.Join(lyraHome, "runtime", "lyra.db")); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("embedded runtime database = (%v, %v), want regular file", info, err)
+	}
+
+	// A second process opening the same store proves the first process completed
+	// owner teardown and released the embedded runtime's exclusive lease.
+	sessionsOutput := runTestBinary(t, binary, environment, "sessions", "ls", "--json")
+	var sessions struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(sessionsOutput, &sessions); err != nil {
+		t.Fatalf("decode embedded session page: %v\n%s", err, sessionsOutput)
+	}
+	if len(sessions.Items) != 0 {
+		t.Fatalf("fresh embedded runtime sessions = %d, want 0", len(sessions.Items))
+	}
+}
+
+func runTestBinary(t *testing.T, binary string, environment []string, arguments ...string) []byte {
+	t.Helper()
+	command := exec.CommandContext(t.Context(), binary, arguments...)
+	command.Env = environment
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run %s: %v\n%s", strings.Join(arguments, " "), err, output)
+	}
+	return output
 }
 
 func TestHeadlessBinaryReturnsConventionalSignalExitCodes(t *testing.T) {
