@@ -213,11 +213,30 @@ func (o *operationOwner) release(lease operationLease, cancel context.CancelFunc
 }
 
 // runOperation owns a user-initiated task for the lifetime of the current
-// session projection. Process-lifetime workers such as event subscriptions and
-// search listeners use operationOwner.Go directly and carry their own guards.
+// session projection. Most commands belong here because their result is
+// interpreted against the session and workspace that launched them.
 func runOperation[T any](a *app, slot operationSlot, replace bool, work func(context.Context) (T, error), apply func(T, error)) bool {
+	return runOwnedOperation(a, sessionOperationScope, slot, replace, work, apply)
+}
+
+// runApplicationOperation owns work whose domain lifetime is independent of a
+// chat session. It survives projection replacement but is still canceled and
+// joined when the terminal closes. Callers must keep apply safe when any
+// session-scoped presentation they opened has since been dismissed.
+func runApplicationOperation[T any](a *app, slot operationSlot, replace bool, work func(context.Context) (T, error), apply func(T, error)) bool {
+	return runOwnedOperation(a, applicationOperationScope, slot, replace, work, apply)
+}
+
+func runOwnedOperation[T any](
+	a *app,
+	scope operationScope,
+	slot operationSlot,
+	replace bool,
+	work func(context.Context) (T, error),
+	apply func(T, error),
+) bool {
 	dispatcher := a.loop.Dispatcher()
-	return a.operations.GoSession(slot, replace, func(ctx context.Context, lease operationLease) {
+	return a.operations.goScoped(scope, slot, replace, func(ctx context.Context, lease operationLease) {
 		result, err := work(ctx)
 		if context.Cause(ctx) != nil {
 			return

@@ -33,6 +33,33 @@ type mcpServiceStub struct {
 	now         time.Time
 }
 
+type blockingMCPAuthorizationService struct {
+	*mcpServiceStub
+	started  chan struct{}
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingMCPAuthorizationService) GetAuthorization(
+	ctx context.Context,
+	reference mcp.AuthorizationReference,
+) (mcp.AuthorizationAttempt, error) {
+	select {
+	case service.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-service.release:
+		return service.mcpServiceStub.GetAuthorization(ctx, reference)
+	case <-ctx.Done():
+		select {
+		case service.canceled <- struct{}{}:
+		default:
+		}
+		return mcp.AuthorizationAttempt{}, context.Cause(ctx)
+	}
+}
+
 func newMCPServiceStub() *mcpServiceStub {
 	count := 1
 	return &mcpServiceStub{
@@ -185,6 +212,68 @@ func TestMCPAuthorizationObserverRecoversTransientReadsAndStopsOnAuthoritativeAb
 	if reads := service.authReads.Load(); reads != 1 {
 		t.Fatalf("permanent failure reads = %d, want no retry", reads)
 	}
+}
+
+func TestMCPAuthorizationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	baseService := newMCPServiceStub()
+	service := &blockingMCPAuthorizationService{
+		mcpServiceStub: baseService,
+		started:        make(chan struct{}, 1),
+		release:        make(chan struct{}),
+		canceled:       make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+
+	backend := mock.New()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", MCP: service, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/mcp-auth docs")
+	host.Press(input.Enter)
+	host.Shows(t, "status   pending")
+	awaitValue(t, service.started, "MCP authorization observation")
+
+	if _, err := backend.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	title := "Authorization refresh installed"
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	host.Press(input.Esc)
+	host.Shows(t, title)
+	select {
+	case <-service.canceled:
+		t.Fatal("same-session projection replacement canceled the application-owned MCP authorization")
+	default:
+	}
+
+	release()
+	host.Shows(t, "MCP authorization succeeded · docs")
+	if service.authReads.Load() == 0 {
+		t.Fatal("MCP authorization did not resume after the session projection replacement")
+	}
+	stop()
 }
 
 func TestMCPReadersFormsAndLifecycleCommands(t *testing.T) {

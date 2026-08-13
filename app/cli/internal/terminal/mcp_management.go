@@ -328,7 +328,7 @@ func (a *app) AuthorizeMCPServer(server string) error {
 		return errors.New("usage: /mcp-auth <server>")
 	}
 	a.status.note("starting MCP authorization " + server)
-	started := runOperation(a, mcpAuthorizationOperation, false,
+	started := runApplicationOperation(a, mcpAuthorizationOperation, false,
 		func(ctx context.Context) (mcp.AuthorizationAttempt, error) {
 			return a.mcp.StartAuthorization(ctx, server)
 		},
@@ -356,7 +356,7 @@ func (a *app) pollMCPAuthorization(initial mcp.AuthorizationAttempt) {
 	observer := mcpAuthorizationObserver{
 		service: a.mcp, pollInterval: mcpAuthorizationPollInterval, recovery: runtimeRecoveryBackoff,
 	}
-	started := runOperation(a, mcpAuthorizationOperation, false,
+	started := runApplicationOperation(a, mcpAuthorizationOperation, false,
 		func(ctx context.Context) (mcp.AuthorizationAttempt, error) {
 			return observer.observe(ctx, initial)
 		},
