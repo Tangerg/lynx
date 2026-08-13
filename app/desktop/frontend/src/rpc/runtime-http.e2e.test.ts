@@ -996,6 +996,539 @@ for await (const line of lines) {
     }
   }, 30_000);
 
+  it("keeps one Goal drive across lost start, stop and resume responses", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const requestMeta = (): RequestMeta => ({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: "runtime-http-goal-cutpoint-e2e", version: "1" },
+      clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+    });
+    const callAfterCommitLoss = async <T>(
+      method: string,
+      call: (faultClient: LyraClient) => Promise<T>,
+    ): Promise<T> => {
+      const fault = faultUnaryResponse(method, "afterCommit");
+      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+        requestMeta,
+      });
+      try {
+        const value = await call(faultClient);
+        expect(fault.attempts()).toBe(2);
+        return value;
+      } finally {
+        await faultClient.close();
+      }
+    };
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP Goal replay cutpoints",
+    });
+    const sessionId = asSessionId(session.id);
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["goals.changed"] },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+    const firstGate = createProviderGate("E2E_GOAL_REPLAY_CUTPOINT");
+    let resumedGate: ProviderGate | undefined;
+    providerGate = firstGate;
+
+    try {
+      await expect(
+        callAfterCommitLoss("goals.start", (faultClient) =>
+          faultClient.goals.start({
+            sessionId,
+            objective: "E2E_GOAL_REPLAY_CUTPOINT preserve one drive per command.",
+            budget: { maxRuns: 3 },
+          }),
+        ),
+      ).resolves.toMatchObject({ status: "active", used: { runs: 0 } });
+      await within(firstGate.arrived.promise, "the replayed Goal's first model request");
+      await expect(nextRuntimeEvent(events, "goals.changed")).resolves.toMatchObject({
+        type: "goals.changed",
+        sessionIds: [session.id],
+      });
+      await expect(client.goals.get(sessionId)).resolves.toMatchObject({
+        status: "active",
+        used: { runs: 0 },
+      });
+      await expect(client.runs.list({ sessionId })).resolves.toMatchObject({
+        data: [expect.objectContaining({ status: "running" })],
+      });
+
+      await expect(
+        callAfterCommitLoss("goals.stop", (faultClient) => faultClient.goals.stop(sessionId)),
+      ).resolves.toMatchObject({
+        status: "paused",
+        reason: { code: "stoppedByUser" },
+        used: { runs: 1 },
+      });
+      await within(
+        firstGate.closed.promise,
+        "the replay-stopped Goal provider connection to close",
+      );
+      firstGate.release.resolve();
+      providerGate = undefined;
+      await expect(nextRuntimeEvent(events, "goals.changed")).resolves.toMatchObject({
+        type: "goals.changed",
+        sessionIds: [session.id],
+      });
+      await expect(client.goals.get(sessionId)).resolves.toMatchObject({
+        status: "paused",
+        reason: { code: "stoppedByUser" },
+        used: { runs: 1 },
+      });
+      await expect(client.runs.list({ sessionId })).resolves.toMatchObject({
+        data: [
+          expect.objectContaining({
+            status: "finished",
+            outcome: expect.objectContaining({ type: "canceled" }),
+          }),
+        ],
+      });
+
+      resumedGate = createProviderGate("E2E_GOAL_REPLAY_CUTPOINT");
+      providerGate = resumedGate;
+      await expect(
+        callAfterCommitLoss("goals.resume", (faultClient) => faultClient.goals.resume(sessionId)),
+      ).resolves.toMatchObject({ status: "active", used: { runs: 1 } });
+      await within(resumedGate.arrived.promise, "the replayed Goal's resumed model request");
+      await expect(nextRuntimeEvent(events, "goals.changed")).resolves.toMatchObject({
+        type: "goals.changed",
+        sessionIds: [session.id],
+      });
+      await expect(client.goals.get(sessionId)).resolves.toMatchObject({
+        status: "active",
+        used: { runs: 1 },
+      });
+      const resumedRuns = await client.runs.list({ sessionId });
+      expect(resumedRuns.data).toHaveLength(2);
+      expect(resumedRuns.data.filter((run) => run.status === "running")).toHaveLength(1);
+      expect(resumedRuns.data.filter((run) => run.outcome?.type === "canceled")).toHaveLength(1);
+
+      await expect(client.goals.stop(sessionId)).resolves.toMatchObject({
+        status: "paused",
+        used: { runs: 2 },
+      });
+      await within(resumedGate.closed.promise, "the cleanup Goal provider connection to close");
+    } finally {
+      firstGate.release.resolve();
+      resumedGate?.release.resolve();
+      providerGate = undefined;
+      streamController.abort();
+      await events.return?.();
+    }
+  }, 30_000);
+
+  it("consumes one durable HITL answer when the resume stream acknowledgement is lost", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP HITL resume replay cutpoint",
+    });
+    const sessionId = asSessionId(session.id);
+    const started = await client.runs.start({
+      sessionId,
+      input: [{ type: "text", text: "E2E_HITL ask before replaying the answer." }],
+    });
+    const runId = asRunId(started.result.runId);
+    const startEvents = await collectRunEvents(started.events);
+    expect(startEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "interrupt" },
+    });
+    const pending = await client.interrupts.list({ rootRunId: runId });
+    const question = pending.data[0]?.interrupts[0];
+    if (!question || question.type !== "question") {
+      throw new Error("Runtime did not persist the replay-cutpoint question");
+    }
+
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["interrupts.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+    const fault = faultStreamOpening("runs.resume");
+    const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+      requestMeta: (): RequestMeta => ({
+        protocolVersion: PROTOCOL_VERSION,
+        clientInfo: { name: "runtime-http-hitl-resume-cutpoint-e2e", version: "1" },
+        clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+      }),
+    });
+
+    try {
+      const resumed = await faultClient.runs.resume({
+        runId,
+        responses: [
+          {
+            itemId: question.itemId,
+            response: { type: "answer", answers: [["Yes"]] },
+          },
+        ],
+      });
+      expect(fault.attempts()).toBe(2);
+      expect(resumed.result.runId).toBe(started.result.runId);
+      expect(resumed.result.segmentId).not.toBe(started.result.segmentId);
+      const resumeEvents = await collectRunEvents(resumed.events);
+      expect(resumeEvents.at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "completed" },
+      });
+      await expect(nextRuntimeEvent(runtimeEvents, "interrupts.changed")).resolves.toMatchObject({
+        type: "interrupts.changed",
+        runIds: [runId],
+        sessionIds: [session.id],
+      });
+      await expect(client.interrupts.list({ rootRunId: runId })).resolves.toMatchObject({
+        data: [],
+      });
+      const items = await client.items.list({ scope: { type: "run", runId } }).autoPagingToArray();
+      expect(
+        items.filter(
+          (item) =>
+            item.type === "question" &&
+            item.status === "completed" &&
+            JSON.stringify(item.question?.answers) === JSON.stringify([["Yes"]]),
+        ),
+      ).toHaveLength(1);
+      await expect(client.runs.list({ sessionId })).resolves.toMatchObject({
+        data: [
+          expect.objectContaining({
+            id: runId,
+            status: "finished",
+            outcome: { type: "completed" },
+          }),
+        ],
+      });
+    } finally {
+      await faultClient.close();
+      streamController.abort();
+      await runtimeEvents.return?.();
+    }
+  }, 30_000);
+
+  it("reconciles provider and model-role commits after their responses are lost", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const requestMeta = (): RequestMeta => ({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: "runtime-http-model-config-cutpoint-e2e", version: "1" },
+      clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+    });
+    const callAfterCommitLoss = async <T>(
+      method: string,
+      call: (faultClient: LyraClient) => Promise<T>,
+    ): Promise<T> => {
+      const fault = faultUnaryResponse(method, "afterCommit");
+      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+        requestMeta,
+      });
+      try {
+        const value = await call(faultClient);
+        expect(fault.attempts()).toBe(2);
+        return value;
+      } finally {
+        await faultClient.close();
+      }
+    };
+    const originalUtility = await client.models.getUtilityRole();
+    const originalEmbedding = await client.models.getEmbeddingRole();
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["models.changed"] },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+
+    try {
+      const provider = await callAfterCommitLoss("providers.update", (faultClient) =>
+        faultClient.providers.update({
+          provider: "openai",
+          apiKey: { type: "set", value: "cutpoint-provider-secret" },
+          baseUrl: { type: "set", value: providerBaseUrl },
+        }),
+      );
+      expect(provider).toMatchObject({ id: "openai", keySource: "stored" });
+      expect(provider.apiKeyMasked).not.toContain("cutpoint-provider-secret");
+      await expect(nextRuntimeEvent(events, "models.changed")).resolves.toMatchObject({
+        type: "models.changed",
+      });
+      await expect(client.providers.list()).resolves.toMatchObject({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            id: "openai",
+            apiKeyMasked: provider.apiKeyMasked,
+            keySource: "stored",
+          }),
+        ]),
+      });
+
+      await expect(
+        callAfterCommitLoss("models.setUtilityRole", (faultClient) =>
+          faultClient.models.setUtilityRole({ provider: "openai", model: "e2e-model" }),
+        ),
+      ).resolves.toEqual({ provider: "openai", model: "e2e-model" });
+      await expect(nextRuntimeEvent(events, "models.changed")).resolves.toMatchObject({
+        type: "models.changed",
+      });
+      await expect(client.models.getUtilityRole()).resolves.toEqual({
+        provider: "openai",
+        model: "e2e-model",
+      });
+
+      await expect(
+        callAfterCommitLoss("models.setEmbeddingRole", (faultClient) =>
+          faultClient.models.setEmbeddingRole({ provider: "openai", model: "e2e-embedding" }),
+        ),
+      ).resolves.toEqual({ provider: "openai", model: "e2e-embedding" });
+      await expect(nextRuntimeEvent(events, "models.changed")).resolves.toMatchObject({
+        type: "models.changed",
+      });
+      await expect(client.models.getEmbeddingRole()).resolves.toEqual({
+        provider: "openai",
+        model: "e2e-embedding",
+      });
+    } finally {
+      await client.models.setUtilityRole(originalUtility);
+      await client.models.setEmbeddingRole(originalEmbedding);
+      await client.providers.update({
+        provider: "openai",
+        apiKey: { type: "clear" },
+        baseUrl: { type: "clear" },
+      });
+      streamController.abort();
+      await events.return?.();
+    }
+  }, 30_000);
+
+  it("reconciles Knowledge and Agent Memory mutations after their responses are lost", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const requestMeta = (): RequestMeta => ({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: "runtime-http-workspace-state-cutpoint-e2e", version: "1" },
+      clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+    });
+    const callAfterCommitLoss = async <T>(
+      method: string,
+      call: (faultClient: LyraClient) => Promise<T>,
+    ): Promise<T> => {
+      const fault = faultUnaryResponse(method, "afterCommit");
+      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+        requestMeta,
+      });
+      try {
+        const value = await call(faultClient);
+        expect(fault.attempts()).toBe(2);
+        return value;
+      } finally {
+        await faultClient.close();
+      }
+    };
+    const workspaceRoot = join(root, "workspace-state-replay-cutpoints");
+    await mkdir(workspaceRoot);
+    const workspace = client.workspace({ path: workspaceRoot });
+    const initialKnowledge = await workspace.knowledge.get("cwd");
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["knowledge.changed", "agentMemory.changed"] },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+    let knowledgeRevision = initialKnowledge.revision;
+    let memoryId: string | undefined;
+
+    try {
+      const saved = await callAfterCommitLoss("knowledge.update", (faultClient) =>
+        faultClient.workspace({ path: workspaceRoot }).knowledge.update({
+          scope: "cwd",
+          content: "knowledge replay cutpoint\n",
+          expectedRevision: initialKnowledge.revision,
+        }),
+      );
+      knowledgeRevision = saved.revision;
+      await expect(nextRuntimeEvent(events, "knowledge.changed")).resolves.toMatchObject({
+        type: "knowledge.changed",
+      });
+      await expect(workspace.knowledge.get("cwd")).resolves.toMatchObject({
+        scope: "cwd",
+        content: "knowledge replay cutpoint\n",
+        revision: saved.revision,
+      });
+
+      const added = await callAfterCommitLoss("agentMemory.add", (faultClient) =>
+        faultClient.agentMemory.add({
+          scope: "project",
+          workspace: { path: workspaceRoot },
+          content: "agent-memory replay cutpoint",
+        }),
+      );
+      memoryId = added.id;
+      await expect(nextRuntimeEvent(events, "agentMemory.changed")).resolves.toMatchObject({
+        type: "agentMemory.changed",
+      });
+      await expect(workspace.agentMemory.list()).resolves.toMatchObject({
+        items: [expect.objectContaining({ id: added.id, content: "agent-memory replay cutpoint" })],
+      });
+
+      const updated = await callAfterCommitLoss("agentMemory.update", (faultClient) =>
+        faultClient.agentMemory.update({
+          id: added.id,
+          content: "agent-memory replay cutpoint updated",
+          pinned: true,
+        }),
+      );
+      await expect(nextRuntimeEvent(events, "agentMemory.changed")).resolves.toMatchObject({
+        type: "agentMemory.changed",
+      });
+      await expect(workspace.agentMemory.list()).resolves.toMatchObject({
+        items: [
+          expect.objectContaining({
+            id: added.id,
+            content: "agent-memory replay cutpoint updated",
+            pinned: true,
+            updatedAt: updated.updatedAt,
+          }),
+        ],
+      });
+
+      await callAfterCommitLoss("agentMemory.delete", (faultClient) =>
+        faultClient.agentMemory.delete(added.id),
+      );
+      memoryId = undefined;
+      await expect(nextRuntimeEvent(events, "agentMemory.changed")).resolves.toMatchObject({
+        type: "agentMemory.changed",
+      });
+      expect((await workspace.agentMemory.list()).items).toEqual([]);
+    } finally {
+      if (memoryId) await client.agentMemory.delete(memoryId).catch(() => undefined);
+      await workspace.knowledge
+        .update({ scope: "cwd", content: "", expectedRevision: knowledgeRevision })
+        .catch(() => undefined);
+      streamController.abort();
+      await events.return?.();
+    }
+  }, 30_000);
+
+  it("reconciles MCP and managed-Skill moves after their responses are lost", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const requestMeta = (): RequestMeta => ({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: "runtime-http-resource-cutpoint-e2e", version: "1" },
+      clientCapabilities: { features: {}, interruptTypes: ["approval", "question"] },
+    });
+    const callAfterCommitLoss = async <T>(
+      method: string,
+      call: (faultClient: LyraClient) => Promise<T>,
+    ): Promise<T> => {
+      const fault = faultUnaryResponse(method, "afterCommit");
+      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+        requestMeta,
+      });
+      try {
+        const value = await call(faultClient);
+        expect(fault.attempts()).toBe(2);
+        return value;
+      } finally {
+        await faultClient.close();
+      }
+    };
+    const server = "http-e2e-replay-cutpoint";
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["mcp.changed", "skills.changed"] },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+
+    try {
+      await expect(
+        callAfterCommitLoss("mcp.servers.create", (faultClient) =>
+          faultClient.mcp.create({
+            connection: { type: "stdio", command: "runtime-http-e2e-replay-cutpoint" },
+            description: "MCP replay cutpoint",
+            enabled: false,
+            name: server,
+          }),
+        ),
+      ).resolves.toMatchObject({ name: server, status: { type: "disabled" } });
+      await expect(nextRuntimeEvent(events, "mcp.changed")).resolves.toMatchObject({
+        type: "mcp.changed",
+        serverIds: [server],
+      });
+      expect((await client.mcp.list()).data.filter((entry) => entry.name === server)).toHaveLength(
+        1,
+      );
+
+      await expect(
+        callAfterCommitLoss("mcp.servers.update", (faultClient) =>
+          faultClient.mcp.update({
+            server,
+            description: "MCP replay cutpoint updated",
+          }),
+        ),
+      ).resolves.toMatchObject({
+        name: server,
+        description: "MCP replay cutpoint updated",
+        status: { type: "disabled" },
+      });
+      await expect(nextRuntimeEvent(events, "mcp.changed")).resolves.toMatchObject({
+        type: "mcp.changed",
+        serverIds: [server],
+      });
+
+      await callAfterCommitLoss("mcp.servers.delete", (faultClient) =>
+        faultClient.mcp.delete(server),
+      );
+      await expect(nextRuntimeEvent(events, "mcp.changed")).resolves.toMatchObject({
+        type: "mcp.changed",
+        serverIds: [server],
+      });
+      expect((await client.mcp.list()).data.some((entry) => entry.name === server)).toBe(false);
+
+      await callAfterCommitLoss("skills.library.archive", (faultClient) =>
+        faultClient.skills.archive(managedSkillName),
+      );
+      await expect(nextRuntimeEvent(events, "skills.changed")).resolves.toMatchObject({
+        type: "skills.changed",
+      });
+      await expect(client.skills.listLibrary()).resolves.toMatchObject({
+        data: [expect.objectContaining({ name: managedSkillName, lifecycle: "archived" })],
+      });
+      await expect(client.workspace({ path: root }).skills.listDiscovered()).resolves.toMatchObject(
+        {
+          data: [],
+        },
+      );
+
+      await callAfterCommitLoss("skills.library.restore", (faultClient) =>
+        faultClient.skills.restore(managedSkillName),
+      );
+      await expect(nextRuntimeEvent(events, "skills.changed")).resolves.toMatchObject({
+        type: "skills.changed",
+      });
+      await expect(client.skills.listLibrary()).resolves.toMatchObject({
+        data: [expect.objectContaining({ name: managedSkillName, lifecycle: "active" })],
+      });
+    } finally {
+      await client.mcp.delete(server).catch(() => undefined);
+      const managed = (await client.skills.listLibrary()).data.find(
+        (skill) => skill.name === managedSkillName,
+      );
+      if (managed?.lifecycle === "archived") {
+        await client.skills.restore(managedSkillName).catch(() => undefined);
+      }
+      streamController.abort();
+      await events.return?.();
+    }
+  }, 30_000);
+
   it("isolates concurrent runtime subscriptions on one HTTP client", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 

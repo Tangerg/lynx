@@ -3,6 +3,7 @@ import { createRpcClient } from "./client";
 import { RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
+import type { Transport } from "./transport";
 import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION, RPC_METHOD_NOT_FOUND } from "./types";
 import session from "./samples/session.json";
@@ -240,6 +241,60 @@ describe("RpcClient", () => {
     await expect(client.call("sessions.get", { sessionId: "ses_01" })).rejects.toBeInstanceOf(
       RpcTransportError,
     );
+  });
+
+  it("keeps concurrent close callers joined to the same transport teardown", async () => {
+    const inner = createMemoryTransport();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const close = vi.fn(async () => {
+      await held;
+      await inner.close();
+    });
+    const client = createRpcClient({ ...inner, close });
+
+    const first = client.close();
+    let secondSettled = false;
+    const second = client.close().then(() => {
+      secondSettled = true;
+    });
+    await Promise.resolve();
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(secondSettled).toBe(false);
+
+    release();
+    await Promise.all([first, second]);
+  });
+
+  it("still tears down the transport after its receive stream ended", async () => {
+    let endReceive!: () => void;
+    const receiveEnded = new Promise<void>((resolve) => {
+      endReceive = resolve;
+    });
+    const close = vi.fn(async () => undefined);
+    const transport: Transport = {
+      send: vi.fn(async () => undefined),
+      recv: () =>
+        (async function* () {
+          await receiveEnded;
+          yield* [];
+        })(),
+      close,
+    };
+    const client = createRpcClient(transport);
+
+    endReceive();
+    await vi.waitFor(() =>
+      expect(client.call("sessions.get", { sessionId: "ses_01" })).rejects.toBeInstanceOf(
+        RpcTransportError,
+      ),
+    );
+    await client.close();
+
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it("rejects in-flight calls when the transport stream ends cleanly", async () => {

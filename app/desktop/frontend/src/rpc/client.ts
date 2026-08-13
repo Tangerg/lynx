@@ -108,6 +108,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
   const subscribers = new Map<WireNotificationName, Set<NotificationObserver>>();
   const streamEndHandlers = new Set<StreamEndHandler>();
   let closed = false;
+  let closePromise: Promise<void> | undefined;
 
   function failAllPending(failure: RpcTransportError): void {
     for (const { reject } of pending.values()) reject(failure);
@@ -362,11 +363,15 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
     return () => streamEndHandlers.delete(handler);
   }
 
-  async function close(): Promise<void> {
-    if (closed) return;
-    closed = true;
-    failConnection(new RpcTransportError("client closed"));
-    await transport.close();
+  function close(): Promise<void> {
+    closePromise ??= (async () => {
+      // `closed` is the request-admission / correlation state and can already
+      // be true because recv() ended. Transport ownership is independent: the
+      // public close contract must still run and join its one teardown.
+      if (!closed) failConnection(new RpcTransportError("client closed"));
+      await transport.close();
+    })();
+    return closePromise;
   }
 
   return { call, subscribe, onStreamEnd, close };
