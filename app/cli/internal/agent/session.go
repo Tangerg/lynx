@@ -416,6 +416,36 @@ type CreateSession struct {
 	Workspace string
 }
 
+func (create CreateSession) Validate() error {
+	if create.Title != "" && strings.TrimSpace(create.Title) == "" {
+		return errors.New("session create: title is empty")
+	}
+	if err := (workspace.ResolveRequest{Path: strings.TrimSpace(create.Workspace)}).Validate(); err != nil {
+		return fmt.Errorf("session create: %w", err)
+	}
+	return nil
+}
+
+func (create CreateSession) ValidateResult(result Session) error {
+	if err := create.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if title := strings.TrimSpace(create.Title); title != "" && result.Title != title {
+		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, title))
+	}
+	if path := strings.TrimSpace(create.Workspace); path != "" && result.Workspace.Path != path {
+		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace.Path, path))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("session create: %w", err)
+	}
+	return nil
+}
+
 type UpdateSession struct {
 	SessionID        string
 	Title            *string
@@ -480,6 +510,39 @@ type ForkSession struct {
 	SessionID string
 	FromRunID string
 	Title     string
+}
+
+func (fork ForkSession) Validate() error {
+	if strings.TrimSpace(fork.SessionID) == "" {
+		return errors.New("session fork: session id is empty")
+	}
+	if fork.FromRunID != "" && strings.TrimSpace(fork.FromRunID) == "" {
+		return errors.New("session fork: run id is empty")
+	}
+	if fork.Title != "" && strings.TrimSpace(fork.Title) == "" {
+		return errors.New("session fork: title is empty")
+	}
+	return nil
+}
+
+func (fork ForkSession) ValidateResult(result Session) error {
+	if err := fork.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.ID == strings.TrimSpace(fork.SessionID) {
+		problems = append(problems, fmt.Errorf("runtime returned source session %q", result.ID))
+	}
+	if title := strings.TrimSpace(fork.Title); title != "" && result.Title != title {
+		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, title))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("session fork: %w", err)
+	}
+	return nil
 }
 
 // DeleteSession identifies one idempotent session-deletion intent. CommandID

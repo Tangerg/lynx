@@ -15,7 +15,9 @@ import (
 
 type sessionCatalogStub struct {
 	pages  map[string]*protocol.Page[protocol.Session]
+	create func(protocol.CreateSessionRequest) (*protocol.Session, error)
 	update func(protocol.UpdateSessionRequest) (*protocol.Session, error)
+	fork   func(protocol.ForkSessionRequest) (*protocol.Session, error)
 	delete func(protocol.DeleteSessionRequest, embedded.CommandOptions) error
 }
 
@@ -29,7 +31,10 @@ func (stub sessionCatalogStub) ListSessions(_ context.Context, query protocol.Pa
 	return stub.pages[query.Cursor], nil
 }
 
-func (sessionCatalogStub) CreateSession(context.Context, protocol.CreateSessionRequest, embedded.CommandOptions) (*protocol.Session, error) {
+func (stub sessionCatalogStub) CreateSession(_ context.Context, request protocol.CreateSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
+	if stub.create != nil {
+		return stub.create(request)
+	}
 	return nil, errors.New("unexpected CreateSession")
 }
 
@@ -40,8 +45,89 @@ func (stub sessionCatalogStub) UpdateSession(_ context.Context, request protocol
 	return nil, errors.New("unexpected UpdateSession")
 }
 
-func (sessionCatalogStub) ForkSession(context.Context, protocol.ForkSessionRequest, embedded.CommandOptions) (*protocol.Session, error) {
+func (stub sessionCatalogStub) ForkSession(_ context.Context, request protocol.ForkSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
+	if stub.fork != nil {
+		return stub.fork(request)
+	}
 	return nil, errors.New("unexpected ForkSession")
+}
+
+func TestCreateAndForkSessionRejectAcknowledgementDrift(t *testing.T) {
+	t.Parallel()
+	base := protocol.Session{
+		ID: "ses_new", Title: "Requested", Status: protocol.SessionStatusIdle,
+		Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
+		Revision:  1,
+	}
+	tests := []struct {
+		name    string
+		invoke  func(*Runtime) error
+		binding sessionCatalogStub
+	}{
+		{
+			name: "create title",
+			binding: sessionCatalogStub{create: func(protocol.CreateSessionRequest) (*protocol.Session, error) {
+				result := base
+				result.Title = "Ignored"
+				return &result, nil
+			}},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.CreateSession(t.Context(), agent.CreateSession{Title: base.Title, Workspace: "/workspace"})
+				return err
+			},
+		},
+		{
+			name: "create workspace",
+			binding: sessionCatalogStub{create: func(protocol.CreateSessionRequest) (*protocol.Session, error) {
+				result := base
+				result.Workspace = testProtocolWorkspace("/other", "/other", protocol.WorkspaceAvailable)
+				return &result, nil
+			}},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.CreateSession(t.Context(), agent.CreateSession{Title: base.Title, Workspace: "/workspace"})
+				return err
+			},
+		},
+		{
+			name: "fork title",
+			binding: sessionCatalogStub{fork: func(protocol.ForkSessionRequest) (*protocol.Session, error) {
+				result := base
+				result.Title = "Ignored"
+				return &result, nil
+			}},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: "ses_source", Title: base.Title})
+				return err
+			},
+		},
+		{
+			name: "fork source identity",
+			binding: sessionCatalogStub{fork: func(request protocol.ForkSessionRequest) (*protocol.Session, error) {
+				result := base
+				result.ID = request.SessionID
+				return &result, nil
+			}},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: "ses_source", Title: base.Title})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			runtime := &Runtime{
+				sessionCatalog: test.binding,
+				workspaces: &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+					Ref:          protocol.WorkspaceRef{Path: "/workspace"},
+					ProjectRoot:  "/workspace",
+					Availability: protocol.WorkspaceAvailable,
+				}},
+				meta: requestMeta("test"),
+			}
+			requireRuntimeContractViolation(t, test.invoke(runtime))
+		})
+	}
 }
 
 func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
@@ -59,7 +145,13 @@ func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
 		}, nil
 	}}
 	runtime := &Runtime{
-		sessionCatalog: stub, meta: requestMeta("test"),
+		sessionCatalog: stub,
+		workspaces: &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+			Ref:          protocol.WorkspaceRef{Path: workspace},
+			ProjectRoot:  "/workspace",
+			Availability: protocol.WorkspaceAvailable,
+		}},
+		meta: requestMeta("test"),
 		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
 			runtimeprofile.FeatureRelocate: {Enabled: true, Stability: runtimeprofile.Stable},
 		}},
@@ -92,6 +184,103 @@ func TestUpdateSessionRejectsWorkspaceWithoutRelocateCapability(t *testing.T) {
 	}
 	if called {
 		t.Fatal("workspace update reached the binding without relocate capability")
+	}
+}
+
+func TestUpdateSessionRejectsAcknowledgementsThatDidNotApplyTheMutation(t *testing.T) {
+	t.Parallel()
+	workspace, model, title, favorite := "/workspace/new", "deep", "Renamed", true
+	request := agent.UpdateSession{
+		SessionID: "ses_1", Title: &title, Workspace: &workspace, Model: &model,
+		Favorite: &favorite, ExpectedRevision: 7,
+	}
+	valid := protocol.Session{
+		ID: request.SessionID, Title: title, Status: protocol.SessionStatusIdle, Model: model,
+		Workspace: testProtocolWorkspace(workspace, "/workspace", protocol.WorkspaceAvailable),
+		Favorite:  favorite, Revision: 8,
+	}
+	tests := []struct {
+		name   string
+		mutate func(*protocol.Session)
+	}{
+		{name: "stale revision", mutate: func(session *protocol.Session) { session.Revision = 7 }},
+		{name: "title", mutate: func(session *protocol.Session) { session.Title = "Old" }},
+		{name: "workspace", mutate: func(session *protocol.Session) { session.Workspace.Ref.Path = "/workspace/old" }},
+		{name: "model", mutate: func(session *protocol.Session) { session.Model = "shallow" }},
+		{name: "favorite", mutate: func(session *protocol.Session) { session.Favorite = false }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			result := valid
+			test.mutate(&result)
+			runtime := &Runtime{
+				sessionCatalog: sessionCatalogStub{update: func(protocol.UpdateSessionRequest) (*protocol.Session, error) {
+					return &result, nil
+				}},
+				workspaces: &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+					Ref:          protocol.WorkspaceRef{Path: workspace},
+					ProjectRoot:  workspace,
+					Availability: protocol.WorkspaceAvailable,
+				}},
+				meta: requestMeta("test"),
+				profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+					runtimeprofile.FeatureRelocate: {Enabled: true, Stability: runtimeprofile.Stable},
+				}},
+			}
+			_, err := runtime.UpdateSession(t.Context(), request)
+			requireRuntimeContractViolation(t, err)
+		})
+	}
+}
+
+func TestSessionMutationsUseResolvedWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+	const requested = "/workspace/alias"
+	const canonical = "/workspace/canonical"
+	resolved := &workspaceBindingStub{resolved: &protocol.WorkspaceInfo{
+		Ref:          protocol.WorkspaceRef{Path: canonical},
+		ProjectRoot:  canonical,
+		Availability: protocol.WorkspaceAvailable,
+	}}
+	result := protocol.Session{
+		ID: "ses_1", Title: "Requested", Status: protocol.SessionStatusIdle,
+		Workspace: testProtocolWorkspace(canonical, canonical, protocol.WorkspaceAvailable),
+		Revision:  1,
+	}
+	catalog := sessionCatalogStub{
+		create: func(request protocol.CreateSessionRequest) (*protocol.Session, error) {
+			if request.Workspace == nil || request.Workspace.Path != canonical {
+				t.Fatalf("create workspace = %+v, want %q", request.Workspace, canonical)
+			}
+			created := result
+			return &created, nil
+		},
+		update: func(request protocol.UpdateSessionRequest) (*protocol.Session, error) {
+			if request.Workspace == nil || request.Workspace.Path != canonical {
+				t.Fatalf("update workspace = %+v, want %q", request.Workspace, canonical)
+			}
+			updated := result
+			updated.Revision = 2
+			return &updated, nil
+		},
+	}
+	runtime := &Runtime{
+		sessionCatalog: catalog, workspaces: resolved, meta: requestMeta("test"),
+		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeatureRelocate: {Enabled: true, Stability: runtimeprofile.Stable},
+		}},
+	}
+	if _, err := runtime.CreateSession(t.Context(), agent.CreateSession{
+		Title: result.Title, Workspace: requested,
+	}); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	requestedWorkspace := requested
+	if _, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: result.ID, Workspace: &requestedWorkspace, ExpectedRevision: 1,
+	}); err != nil {
+		t.Fatalf("UpdateSession: %v", err)
 	}
 }
 

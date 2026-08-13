@@ -150,6 +150,43 @@ func TestSessionUpdateResultMustFulfillTheCommand(t *testing.T) {
 	}
 }
 
+func TestSessionCreationAndForkResultsMustFulfillTheCommand(t *testing.T) {
+	created := Session{
+		ID: "ses_new", Title: "Requested", Status: SessionIdle,
+		Workspace: testWorkspace("/workspace"), Revision: 1,
+	}
+	create := CreateSession{Title: created.Title, Workspace: created.Workspace.Path}
+	if err := create.ValidateResult(created); err != nil {
+		t.Fatalf("valid create result: %v", err)
+	}
+	wrongCreate := created
+	wrongCreate.Workspace = testWorkspace("/other")
+	if err := create.ValidateResult(wrongCreate); err == nil || !strings.Contains(err.Error(), "workspace") {
+		t.Fatalf("create result error = %v", err)
+	}
+
+	fork := ForkSession{SessionID: "ses_source", Title: created.Title}
+	if err := fork.ValidateResult(created); err != nil {
+		t.Fatalf("valid fork result: %v", err)
+	}
+	wrongFork := created
+	wrongFork.ID = fork.SessionID
+	if err := fork.ValidateResult(wrongFork); err == nil || !strings.Contains(err.Error(), "source session") {
+		t.Fatalf("fork result error = %v", err)
+	}
+
+	for _, invalid := range []interface{ Validate() error }{
+		CreateSession{Workspace: "relative"},
+		CreateSession{Title: "   "},
+		ForkSession{},
+		ForkSession{SessionID: "ses_source", FromRunID: "   "},
+	} {
+		if err := invalid.Validate(); err == nil {
+			t.Fatalf("invalid session mutation %#v was accepted", invalid)
+		}
+	}
+}
+
 func TestSessionSnapshotRestoresAChildOwnedInterrupt(t *testing.T) {
 	root := Run{ID: "run_root", SessionID: "ses_1", Status: RunStatusWaiting}
 	child := Run{
