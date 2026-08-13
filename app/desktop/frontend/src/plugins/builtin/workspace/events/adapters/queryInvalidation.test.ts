@@ -33,6 +33,7 @@ vi.mock("@/plugins/builtin/settings/providers/public/queries", () => ({
 }));
 
 import { invalidateWorkspaceEvent, invalidateWorkspaceEverything } from "./queryInvalidation";
+import { createWorkspaceEventLoop } from "../application/workspaceEventLoop";
 
 beforeEach(() => {
   invalidateQueries.mockClear();
@@ -134,5 +135,56 @@ describe("workspace session projection invalidation", () => {
       { queryKey: ["goal", { sessionId: "ses_a" }], exact: true },
       { queryKey: ["goal", { sessionId: "ses_b" }], exact: true },
     ]);
+  });
+
+  it("keeps Goal and mounted HITL/Plan/Run/Tool on one monotonic recovery boundary", async () => {
+    const controller = new AbortController();
+    let receivedLatest!: () => void;
+    const latest = new Promise<void>((resolve) => {
+      receivedLatest = resolve;
+    });
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ signal }) {
+        return (async function* () {
+          yield { type: "goals.changed", sequence: 1, sessionIds: ["ses_a"] } as const;
+          yield { type: "runs.changed", sequence: 3, sessionIds: ["ses_a"] } as const;
+          // The missing HITL signal arrives after its gap was already covered
+          // by the authoritative replacement snapshot.
+          yield { type: "interrupts.changed", sequence: 2, sessionIds: ["ses_a"] } as const;
+          yield { type: "state.changed", sequence: 4, sessionIds: ["ses_a"] } as const;
+          await new Promise<void>((resolve) => {
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+        })();
+      },
+      handleEvent(event) {
+        invalidateWorkspaceEvent(event);
+        if (event.sequence === 4) receivedLatest();
+      },
+      invalidateAll: invalidateWorkspaceEverything,
+      reportDisconnect: vi.fn(),
+    });
+
+    const run = loop.start(controller.signal);
+    await latest;
+    controller.abort();
+    await run;
+
+    expect(synchronizeMountedAgentSessions.mock.calls).toEqual([
+      [{ ownership: "replace-live" }],
+      [{ ownership: "replace-live" }],
+      [{ sessionIds: ["ses_a"] }],
+      [{ sessionIds: ["ses_a"] }],
+    ]);
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["goal", { sessionId: "ses_a" }],
+      exact: true,
+    });
+    expect(invalidateQueries.mock.calls.filter(([options]) => options === undefined)).toHaveLength(
+      2,
+    );
+    expect(
+      invalidateQueries.mock.calls.some(([options]) => options?.queryKey?.[0] === "pending-work"),
+    ).toBe(false);
   });
 });

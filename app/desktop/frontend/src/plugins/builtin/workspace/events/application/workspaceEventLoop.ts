@@ -115,7 +115,12 @@ async function subscribeLoop(
             break;
           }
           const ev = next.value;
-          if (ev.sequence !== lastSequence + 1) {
+          // Sequence belongs to this subscription generation. Once a forward
+          // gap has forced an authoritative resync, a duplicated or delayed
+          // lower frame is already covered by that snapshot and must not move
+          // the watermark backwards or replace every mounted read model again.
+          if (ev.sequence <= lastSequence) continue;
+          if (ev.sequence > lastSequence + 1) {
             deps.invalidateAll();
           }
           lastSequence = ev.sequence;

@@ -69,6 +69,82 @@ describe("workspace event loop", () => {
     expect(invalidateAll).toHaveBeenCalledTimes(2); // subscribe + missing sequence 1
   });
 
+  it("drops a duplicated frame without replacing every read model again", async () => {
+    const controller = new AbortController();
+    const invalidateAll = vi.fn();
+    const handled: Array<{ type: string; sequence: number }> = [];
+    let received!: () => void;
+    const done = new Promise<void>((resolve) => {
+      received = resolve;
+    });
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ signal }) {
+        return (async function* () {
+          yield { type: "skills.changed", sequence: 1 } as const;
+          yield { type: "goals.changed", sequence: 1 } as const;
+          yield { type: "runs.changed", sequence: 2 } as const;
+          await new Promise<void>((resolve) => {
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+        })();
+      },
+      handleEvent(event) {
+        handled.push({ type: event.type, sequence: event.sequence });
+        if (event.sequence === 2) received();
+      },
+      invalidateAll,
+      reportDisconnect: vi.fn(),
+    });
+
+    const run = loop.start(controller.signal);
+    await done;
+    controller.abort();
+    await run;
+
+    expect(handled).toEqual([
+      { type: "skills.changed", sequence: 1 },
+      { type: "runs.changed", sequence: 2 },
+    ]);
+    expect(invalidateAll).toHaveBeenCalledOnce();
+  });
+
+  it("keeps its watermark monotonic when a missing frame arrives after the gap", async () => {
+    const controller = new AbortController();
+    const invalidateAll = vi.fn();
+    const handled: number[] = [];
+    let received!: () => void;
+    const done = new Promise<void>((resolve) => {
+      received = resolve;
+    });
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ signal }) {
+        return (async function* () {
+          yield { type: "skills.changed", sequence: 1 } as const;
+          yield { type: "runs.changed", sequence: 3 } as const;
+          yield { type: "goals.changed", sequence: 2 } as const;
+          yield { type: "interrupts.changed", sequence: 4 } as const;
+          await new Promise<void>((resolve) => {
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+        })();
+      },
+      handleEvent(event) {
+        handled.push(event.sequence);
+        if (event.sequence === 4) received();
+      },
+      invalidateAll,
+      reportDisconnect: vi.fn(),
+    });
+
+    const run = loop.start(controller.signal);
+    await done;
+    controller.abort();
+    await run;
+
+    expect(handled).toEqual([1, 3, 4]);
+    expect(invalidateAll).toHaveBeenCalledTimes(2); // subscribe + the forward gap
+  });
+
   it("keeps unresolved identity distinct from the default workspace", async () => {
     const outer = new AbortController();
     const subscribed: Array<{ type: "none" } | { type: "workspace"; cwd?: string }> = [];
