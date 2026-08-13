@@ -41,6 +41,29 @@ type idempotentStartRuntime struct {
 	inputs   []agent.StartRun
 }
 
+type heldCancellationResultRuntime struct {
+	*idempotentStartRuntime
+	settled chan struct{}
+	release chan struct{}
+}
+
+func (runtime *heldCancellationResultRuntime) CancelRun(
+	ctx context.Context,
+	input agent.CancelRun,
+) (agent.RunCancellation, error) {
+	result, err := runtime.Runtime.CancelRun(ctx, input)
+	select {
+	case runtime.settled <- struct{}{}:
+	default:
+	}
+	select {
+	case <-runtime.release:
+		return result, err
+	case <-ctx.Done():
+		return agent.RunCancellation{}, context.Cause(ctx)
+	}
+}
+
 type activeConflictRuntime struct {
 	agent.Runtime
 	attempted chan agent.StartRun
@@ -535,7 +558,14 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 		CommandID: agent.CommandID("cli_77777777777777777777777777777777"),
 		SessionID: "ses_demo_1", Message: agent.Message{Text: "cancel after restart"},
 	}
-	runtime := &idempotentStartRuntime{Runtime: base}
+	idempotent := &idempotentStartRuntime{Runtime: base}
+	runtime := &heldCancellationResultRuntime{
+		idempotentStartRuntime: idempotent,
+		settled:                make(chan struct{}, 1),
+		release:                make(chan struct{}),
+	}
+	release := sync.OnceFunc(func() { close(runtime.release) })
+	t.Cleanup(release)
 	if _, err := runtime.StartRun(t.Context(), command); err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +581,9 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 	}
 
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
-	host.Shows(t, "canceled")
+	awaitSignal(t, runtime.settled, "runtime cancellation settlement")
+	host.Shows(t, "canceling")
+	release()
 	host.Until(t, "the canceled opening command to leave the durable outbox", func() bool {
 		reopened, openErr := workbench.Open(stateDirectory, workbench.Config{})
 		return openErr == nil && len(reopened.PendingRuns(command.SessionID)) == 0 && host.Repaint()

@@ -663,7 +663,6 @@ func (a *app) noteBlockStarted(block agent.Block) {
 }
 
 func (a *app) noteRunFinished() {
-	a.pendingCancel = nil
 	a.status.note("finishing run")
 	a.header.SetUsage(a.conversation.Usage())
 }
@@ -921,7 +920,7 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
 		settled, err := a.cancelRootRun(ownerCtx, target)
 		_ = post(ownerCtx, dispatcher, func() {
-			a.handleRuntimeCancellation(lease, settled, err, policy)
+			a.handleRuntimeCancellation(lease, pending, settled, err)
 		})
 	})
 }
@@ -957,7 +956,12 @@ func (a *app) cancelRootRun(ctx context.Context, target agent.CancelRun) (agent.
 	return settled, nil
 }
 
-func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run, err error, policy cancellationResultPolicy) {
+func (a *app) handleRuntimeCancellation(
+	lease operationLease,
+	pending pendingCancellation,
+	settled agent.Run,
+	err error,
+) {
 	if !a.operations.Current(lease) || a.closed {
 		return
 	}
@@ -968,25 +972,22 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 		a.message("could not cancel run: " + err.Error())
 		return
 	}
-	if a.pendingCancel != nil {
-		if retireErr := a.retireCanceledRuntimeOwnership(
-			a.pendingCancel.request.RunID,
-			a.pendingCancel.openingCommandID,
-		); retireErr != nil {
-			a.message("could not retire canceled runtime ownership: " + retireErr.Error())
-			a.retryCanceledRuntimeOwnership(a.pendingCancel.request.RunID, a.pendingCancel.openingCommandID)
-		}
+	if retireErr := a.retireCanceledRuntimeOwnership(pending.request.RunID, pending.openingCommandID); retireErr != nil {
+		a.message("could not retire canceled runtime ownership: " + retireErr.Error())
+		a.retryCanceledRuntimeOwnership(pending.request.RunID, pending.openingCommandID)
 	}
-	a.pendingCancel = nil
+	if current := a.pendingCancel; current != nil && current.request.CommandID == pending.request.CommandID {
+		a.pendingCancel = nil
+	}
 	a.openingRunID = ""
 	a.dropStream()
-	if policy == preserveProjectionFailure {
+	if pending.policy == preserveProjectionFailure {
 		a.prompt.SetBusy(false)
 		a.syncAnimation()
 		a.drainQueue()
 		return
 	}
-	if policy == preserveProjectionAndReportCanceled {
+	if pending.policy == preserveProjectionAndReportCanceled {
 		a.status.note("canceled")
 		a.prompt.SetBusy(false)
 		a.syncAnimation()

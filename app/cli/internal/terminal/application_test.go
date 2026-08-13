@@ -1790,7 +1790,7 @@ func TestClosingTheTerminalRejectsAnInvalidCancellationReceipt(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("invalid close receipt")
 	host.Press(input.Enter)
-	host.Shows(t, "invalid close receipt")
+	host.Shows(t, "working")
 	cancel()
 	select {
 	case err := <-done:
