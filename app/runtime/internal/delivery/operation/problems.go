@@ -45,6 +45,7 @@ var problemSpecs = mustProblemSpecs([]problemSpec{
 	declaredProblem(protocol.ErrVcsUnavailable, protocol.RecoveryPromptUser),
 	frameworkProblem(protocol.ErrInvalidProtocolVersion, protocol.RecoveryPromptUser),
 	frameworkProblem(protocol.ErrIdempotencyConflict, protocol.RecoveryPromptUser),
+	frameworkProblem(protocol.ErrIdempotencyStoreMismatch, protocol.RecoveryColdRecover),
 	declaredProblem(protocol.ErrProviderError, protocol.RecoveryPromptUser),
 	retryingProblem(protocol.ErrIdempotencyInProgress, 1),
 })

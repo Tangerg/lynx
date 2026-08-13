@@ -150,8 +150,9 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 
 	runtimeContext, stopRuntime := context.WithCancel(context.Background())
 	endpoint := operation.New(service, operation.Config{
-		IdempotencyStore: host.Stack.IdempotencyStore,
-		Lifetime:         runtimeContext,
+		IdempotencyStore:     host.Stack.IdempotencyStore,
+		IdempotencyNamespace: idempotencyNamespace,
+		Lifetime:             runtimeContext,
 	})
 	schedulerDone := make(chan struct{})
 	go func() {

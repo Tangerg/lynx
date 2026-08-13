@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `f8d7269db11a659653315d2bcaa84a7c2cb60f7e75057068574a42026c527063` |
+| `contract/manifest.json` | `20daa146962ce91418b1a854800310d3ec03f9ec35806893668c2fd898f449c9` |
 | `contract/openrpc.json` | `f27ac7f699d43b146b47882a33b74da987404f00475c56bc5b76d1c0aad2f3b2` |
-| `contract/schema.json` | `d10adabac35fd4f953cfdc2654bad72ea44f81460ff545dc3f5cedd1fe000372` |
-| `contract/go-api.json` | `18031cd1f41722469601b81892bad4d1ae1a1d9bd448468a8285638c2860a46c` |
+| `contract/schema.json` | `65baec040af1766357cd630e8264b22a1899d9e981bddce26406ae4cba3ce61e` |
+| `contract/go-api.json` | `8eea741aaf0e5d0a2d89536480d16000bb9d73032c13702eaf93c068a53aadd6` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 

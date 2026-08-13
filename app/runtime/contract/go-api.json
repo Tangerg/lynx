@@ -45,6 +45,10 @@
             {
               "name": "IdempotencyKey",
               "type": "string"
+            },
+            {
+              "name": "IdempotencyNamespace",
+              "type": "string"
             }
           ]
         },
@@ -80,6 +84,10 @@
             },
             {
               "name": "IdempotencyKey",
+              "type": "string"
+            },
+            {
+              "name": "IdempotencyNamespace",
               "type": "string"
             },
             {
@@ -2001,6 +2009,10 @@
         },
         {
           "name": "ErrIdempotencyInProgress",
+          "type": "error"
+        },
+        {
+          "name": "ErrIdempotencyStoreMismatch",
           "type": "error"
         },
         {

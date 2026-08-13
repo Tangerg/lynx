@@ -59,6 +59,9 @@ export interface RpcClientOptions {
 export interface RpcCallOptions {
   signal?: AbortSignal;
   idempotencyKey?: string;
+  /** Expected durable replay store. Runtime refuses the key before business
+   * admission if this no longer matches discovery. */
+  idempotencyNamespace?: string;
   /** Resume a stream from the last event this client folded (§5.5). The runtime
    *  replays from just after it, or refuses when the cursor is not addressable —
    *  which is the caller's signal to rebuild from a cold read instead. */
@@ -326,6 +329,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       transport
         .send(req, signal, {
           idempotencyKey: callOptions.idempotencyKey,
+          idempotencyNamespace: callOptions.idempotencyNamespace,
           lastEventId: callOptions.lastEventId,
         })
         .catch((err) => {

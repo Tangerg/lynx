@@ -5018,6 +5018,20 @@
             "requiredCapabilities": false,
             "retryAfterSeconds": false,
             "type": {
+              "const": "idempotency_store_mismatch"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
               "const": "internal_error"
             }
           },

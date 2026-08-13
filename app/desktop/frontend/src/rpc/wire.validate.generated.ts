@@ -1912,6 +1912,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         errors: absent(),
         requiredCapabilities: absent(),
         retryAfterSeconds: absent(),
+        type: literal("idempotency_store_mismatch"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        errors: absent(),
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
         type: literal("internal_error"),
       }, ["type"]),
       fields({

@@ -569,7 +569,10 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
   const openMutation = <M extends WireMethodName, Result>(
     method: M,
     params: WireParams<M>,
-    execute: (idempotencyKey: string, attempt: { signal?: AbortSignal }) => Promise<Result>,
+    execute: (
+      idempotencyKey: string,
+      attempt: { signal?: AbortSignal; idempotencyNamespace?: string },
+    ) => Promise<Result>,
     signal?: AbortSignal,
     requestedKey?: string,
     journalKey?: string,
@@ -599,8 +602,8 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     }
     const mutation = createMutationPromise(
       (idempotencyKey, attempt) => {
-        reservation?.authorizeAttempt();
-        return execute(idempotencyKey, attempt);
+        const idempotencyNamespace = reservation?.authorizeAttempt();
+        return execute(idempotencyKey, { ...attempt, idempotencyNamespace });
       },
       requestedKey ?? reservation?.idempotencyKey,
       { signal },
@@ -625,6 +628,9 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
           ...stableCallOptions,
           ...(attempt.signal ? { signal: attempt.signal } : {}),
           idempotencyKey,
+          ...(attempt.idempotencyNamespace
+            ? { idempotencyNamespace: attempt.idempotencyNamespace }
+            : {}),
         }),
       signal,
       idempotencyKey,
@@ -694,6 +700,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
               perform("runs.start", params, {
                 signal: stream.requestSignal,
                 idempotencyKey,
+                idempotencyNamespace: attempt.idempotencyNamespace,
                 onRequestRpcId: stream.bindRequest,
               }),
             );
@@ -713,6 +720,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
               perform("runs.resume", params, {
                 signal: stream.requestSignal,
                 idempotencyKey,
+                idempotencyNamespace: attempt.idempotencyNamespace,
                 onRequestRpcId: stream.bindRequest,
               }),
             );

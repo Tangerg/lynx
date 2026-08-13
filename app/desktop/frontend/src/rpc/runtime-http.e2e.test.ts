@@ -849,6 +849,31 @@ for await (const line of lines) {
     });
     expect(discovery.capabilities.streamingMethods).toContain("runtime.subscribe");
 
+    const staleStoreTitle = "must not enter replacement Runtime";
+    const staleStoreResponse = await isolatedFetch(`${baseUrl}/v2/rpc`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "stale-store-session-create",
+        "Idempotency-Namespace": "idp_00000000000000000000000000000000",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "stale-store-fence",
+        method: "sessions.create",
+        params: { workspace: { path: root }, title: staleStoreTitle },
+      }),
+    });
+    expect(staleStoreResponse.status).toBe(200);
+    await expect(staleStoreResponse.json()).resolves.toMatchObject({
+      error: { data: { type: "idempotency_store_mismatch" } },
+    });
+    const sessionsAfterStoreMismatch = await client.sessions.list();
+    expect(
+      sessionsAfterStoreMismatch.data.some((session) => session.title === staleStoreTitle),
+    ).toBe(false);
+
     const streamController = new AbortController();
     const subscription = await client.runtimeEvents.subscribe(
       { topics: ["sessions.changed"] },

@@ -48,8 +48,9 @@ func (r *Router) Dispatch(ctx context.Context, message transport.Message) Result
 	requestCopy := *request
 	request = &requestCopy
 	options := operation.Options{
-		IdempotencyKey: transport.IdempotencyKeyFrom(ctx),
-		AfterEventID:   transport.LastEventIDFrom(ctx),
+		IdempotencyKey:       transport.IdempotencyKeyFrom(ctx),
+		IdempotencyNamespace: transport.IdempotencyNamespaceFrom(ctx),
+		AfterEventID:         transport.LastEventIDFrom(ctx),
 	}
 	metadata, metadataError := extractRequestMeta(request)
 	if metadataError != nil {

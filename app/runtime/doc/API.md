@@ -687,7 +687,8 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 > **幂等**：写方法登记幂等类别（`replayResponse` / `replayRunStream`），客户端带 `Idempotency-Key`
 > （TRANSPORT §2）重试即安全；同 key 不同 params 返回 `idempotency_conflict`，首个执行未完成返回
 > `idempotency_in_progress`。discovery 的 `limits.idempotency` 同时发布 retention 与 durable store 的 opaque `namespace`；跨
-> client process 恢复 key 必须绑定该 namespace，不能只凭 endpoint 推断 store 身份。**幂等重放不返回一个"新的" ack**：重试
+> client process 恢复 key 必须以 `Idempotency-Namespace` 绑定该 namespace，不能只凭 endpoint 推断 store 身份；服务端在业务
+> admission 前拒绝不匹配的 store identity 并返回 `idempotency_store_mismatch`。**幂等重放不返回一个"新的" ack**：重试
 > `runs.start` 拿回的是同一个 run 的 ack。
 
 ### 7.1 runtime.\*

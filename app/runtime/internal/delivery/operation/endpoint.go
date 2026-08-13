@@ -13,9 +13,10 @@ import (
 // Options carries binding-neutral per-call metadata. Bindings translate their
 // native representation into this value before invoking the Endpoint.
 type Options struct {
-	RequestMeta    protocol.RequestMeta
-	IdempotencyKey string
-	AfterEventID   string
+	RequestMeta          protocol.RequestMeta
+	IdempotencyKey       string
+	IdempotencyNamespace string
+	AfterEventID         string
 }
 
 // Result is the binding-neutral outcome of one operation. Value and Events are
@@ -30,15 +31,17 @@ type Result struct {
 // Endpoint executes the one Runtime operation catalog independently of any
 // transport envelope.
 type Endpoint struct {
-	service     Service
-	idempotency *replayStore
-	invocations *invocationGroup
+	service              Service
+	idempotency          *replayStore
+	idempotencyNamespace string
+	invocations          *invocationGroup
 }
 
 // Config supplies durable operation mechanisms. A nil IdempotencyStore selects
 // a Runtime-instance-local store, useful for tests and non-durable hosts.
 type Config struct {
-	IdempotencyStore idempotency.Store
+	IdempotencyStore     idempotency.Store
+	IdempotencyNamespace string
 	// Lifetime ends every in-flight operation and stream owned by this Runtime
 	// instance. A nil Lifetime keeps the endpoint alive until each caller's
 	// context ends, which is useful for focused tests.
@@ -56,9 +59,10 @@ func New(service Service, config Config) *Endpoint {
 		lifetime = context.Background()
 	}
 	return &Endpoint{
-		service:     service,
-		idempotency: newReplayStore(store),
-		invocations: newInvocationGroup(lifetime),
+		service:              service,
+		idempotency:          newReplayStore(store),
+		idempotencyNamespace: config.IdempotencyNamespace,
+		invocations:          newInvocationGroup(lifetime),
 	}
 }
 
@@ -100,6 +104,15 @@ func (e *Endpoint) Invoke(ctx context.Context, name string, parameters any, opti
 	if err := validateOptions(options); err != nil {
 		release()
 		return failed(err)
+	}
+	if options.IdempotencyKey != "" && method.Meta.Idempotency.Replays() &&
+		options.IdempotencyNamespace != "" &&
+		options.IdempotencyNamespace != e.idempotencyNamespace {
+		release()
+		return failed(NewFailure(
+			protocol.ErrIdempotencyStoreMismatch,
+			"idempotency namespace does not identify this Runtime store",
+		))
 	}
 	if reflect.TypeOf(parameters) != method.Meta.Params {
 		release()

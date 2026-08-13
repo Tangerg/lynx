@@ -38,8 +38,8 @@ export interface MutationJournalScope {
 export interface MutationReservation {
   readonly idempotencyKey: string;
   /** Prove that this exact journal generation still owns the Runtime store
-   * before each transport attempt, including automatic recovery replays. */
-  authorizeAttempt(): void;
+   * before each transport attempt, then return that store's opaque namespace. */
+  authorizeAttempt(): string;
   track<T>(mutation: MutationPromise<T>): MutationPromise<T>;
 }
 
@@ -688,7 +688,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       if (claimOwner === journalInstance) {
         throw journalError("Runtime mutation identity disappeared before delivery");
       }
-      return;
+      return reserved.namespace;
     }
     if (
       !sameGeneration(current, reserved) ||
@@ -699,6 +699,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         "Runtime mutation identity is owned by a successor Desktop client",
       );
     }
+    return reserved.namespace;
   };
 
   const lifecycleFor = (reserved: JournalEntry): MutationLifecycle => {

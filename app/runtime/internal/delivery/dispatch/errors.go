@@ -47,6 +47,7 @@ var rpcCodeSpecs = mustRPCCodeSpecs([]rpcCodeSpec{
 	{protocol.ErrIdempotencyConflict.Error(), codeIdempotencyConflict},
 	{protocol.ErrProviderError.Error(), codeProviderError},
 	{protocol.ErrIdempotencyInProgress.Error(), codeIdempotencyInProgress},
+	{protocol.ErrIdempotencyStoreMismatch.Error(), codeIdempotencyStoreMismatch},
 })
 
 func ProblemCodes() map[string]int {

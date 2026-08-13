@@ -217,7 +217,8 @@ var (
 	// race the in-progress history append is refused (AUX_API §4.1 — rollback).
 	ErrSessionBusy = errors.New("session_busy")
 	// ErrRevisionConflict: a conditional mutation used a stale resource revision.
-	ErrRevisionConflict      = errors.New("revision_conflict")
-	ErrIdempotencyConflict   = errors.New("idempotency_conflict")
-	ErrIdempotencyInProgress = errors.New("idempotency_in_progress")
+	ErrRevisionConflict         = errors.New("revision_conflict")
+	ErrIdempotencyConflict      = errors.New("idempotency_conflict")
+	ErrIdempotencyInProgress    = errors.New("idempotency_in_progress")
+	ErrIdempotencyStoreMismatch = errors.New("idempotency_store_mismatch")
 )

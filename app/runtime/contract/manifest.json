@@ -1266,6 +1266,11 @@
         "retryAfterSeconds": 1
       },
       {
+        "type": "idempotency_store_mismatch",
+        "code": -32033,
+        "recoveryAction": "coldRecover"
+      },
+      {
         "type": "internal_error",
         "code": -32603,
         "recoveryAction": "stop"
@@ -2251,6 +2256,13 @@
           "required": [
             "retryAfterSeconds"
           ],
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "idempotency_store_mismatch",
           "optional": [
             "detail",
             "docUrl"

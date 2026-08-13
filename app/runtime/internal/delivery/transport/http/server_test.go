@@ -237,6 +237,34 @@ func TestIdempotencyKeyReplaysMutationAndRejectsReuse(t *testing.T) {
 	}
 }
 
+func TestIdempotencyNamespaceMismatchIsRefusedBeforeMutation(t *testing.T) {
+	ts, api := newTestServer(t)
+	defer ts.Close()
+
+	req, err := netHTTP.NewRequest(
+		netHTTP.MethodPost,
+		ts.URL+"/v2/rpc",
+		bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"runs.cancel","params":{"runId":"run_1"}}`),
+	)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "cancel-once")
+	req.Header.Set("Idempotency-Namespace", "idp_replaced_store")
+	resp, err := netHTTP.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post request: %v", err)
+	}
+	defer resp.Body.Close()
+	if code := decodeErrorCode(t, resp); code != -32033 {
+		t.Fatalf("mismatch code = %d, want -32033", code)
+	}
+	if len(api.canceledRuns) != 0 {
+		t.Fatalf("mismatched request executed: canceled runs = %v", api.canceledRuns)
+	}
+}
+
 // TestRPCUsesEnvelopeMethod confirms the endpoint needs no URL method segment.
 func TestRPCUsesEnvelopeMethod(t *testing.T) {
 	ts, _ := newTestServer(t)

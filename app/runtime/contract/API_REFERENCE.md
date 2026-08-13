@@ -151,6 +151,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `denied_by_user` | — | `detail`, `docUrl` |
 | `idempotency_conflict` | — | `detail`, `docUrl` |
 | `idempotency_in_progress` | `retryAfterSeconds` | `detail`, `docUrl` |
+| `idempotency_store_mismatch` | — | `detail`, `docUrl` |
 | `internal_error` | — | `detail`, `docUrl` |
 | `interrupt_not_open` | — | `detail`, `docUrl` |
 | `invalid_api_key` | — | `detail`, `docUrl` |

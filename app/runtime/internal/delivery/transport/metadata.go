@@ -12,6 +12,7 @@ import "context"
 type lastEventIDKey struct{}
 
 type idempotencyKey struct{}
+type idempotencyNamespace struct{}
 
 // WithLastEventID returns ctx carrying the streaming reconnect cursor.
 func WithLastEventID(ctx context.Context, id string) context.Context {
@@ -39,4 +40,18 @@ func WithIdempotencyKey(ctx context.Context, key string) context.Context {
 func IdempotencyKeyFrom(ctx context.Context) string {
 	key, _ := ctx.Value(idempotencyKey{}).(string)
 	return key
+}
+
+// WithIdempotencyNamespace carries the caller's expected durable replay-store
+// identity beside its idempotency key.
+func WithIdempotencyNamespace(ctx context.Context, namespace string) context.Context {
+	if namespace == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, idempotencyNamespace{}, namespace)
+}
+
+func IdempotencyNamespaceFrom(ctx context.Context) string {
+	namespace, _ := ctx.Value(idempotencyNamespace{}).(string)
+	return namespace
 }

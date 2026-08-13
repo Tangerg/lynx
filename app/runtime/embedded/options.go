@@ -12,16 +12,18 @@ type CallOptions struct {
 
 // CommandOptions describes one mutation and its optional stable retry identity.
 type CommandOptions struct {
-	RequestMeta    protocol.RequestMeta
-	IdempotencyKey string
+	RequestMeta          protocol.RequestMeta
+	IdempotencyKey       string
+	IdempotencyNamespace string
 }
 
 // RunCommandOptions describes a Run-opening command. AfterEventID applies only
 // when an idempotent retry reattaches to the Run opened by the first attempt.
 type RunCommandOptions struct {
-	RequestMeta    protocol.RequestMeta
-	IdempotencyKey string
-	AfterEventID   string
+	RequestMeta          protocol.RequestMeta
+	IdempotencyKey       string
+	IdempotencyNamespace string
+	AfterEventID         string
 }
 
 // RunSubscriptionOptions identifies the last Run event already consumed.
@@ -41,16 +43,18 @@ func callOptions(options CallOptions) operation.Options {
 
 func commandOptions(options CommandOptions) operation.Options {
 	return operation.Options{
-		RequestMeta:    currentRequestMeta(options.RequestMeta),
-		IdempotencyKey: options.IdempotencyKey,
+		RequestMeta:          currentRequestMeta(options.RequestMeta),
+		IdempotencyKey:       options.IdempotencyKey,
+		IdempotencyNamespace: options.IdempotencyNamespace,
 	}
 }
 
 func runCommandOptions(options RunCommandOptions) operation.Options {
 	return operation.Options{
-		RequestMeta:    currentRequestMeta(options.RequestMeta),
-		IdempotencyKey: options.IdempotencyKey,
-		AfterEventID:   options.AfterEventID,
+		RequestMeta:          currentRequestMeta(options.RequestMeta),
+		IdempotencyKey:       options.IdempotencyKey,
+		IdempotencyNamespace: options.IdempotencyNamespace,
+		AfterEventID:         options.AfterEventID,
 	}
 }
 

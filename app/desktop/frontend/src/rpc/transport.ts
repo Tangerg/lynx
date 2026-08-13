@@ -55,6 +55,9 @@ export interface Transport {
 
 export interface TransportSendOptions {
   idempotencyKey?: string;
+  /** Opaque durable replay-store identity, carried as
+   * `Idempotency-Namespace` beside the key. */
+  idempotencyNamespace?: string;
   /** Stream resume cursor, carried as `Last-Event-Id` (TRANSPORT §9.2). Transport
    *  metadata, never request params. */
   lastEventId?: string;

@@ -166,7 +166,7 @@ describe("HTTPTransport — streamable HTTP", () => {
     await transport.close();
   });
 
-  it("sends the logical mutation idempotency key as transport metadata", async () => {
+  it("sends the logical mutation identity and Runtime store as transport metadata", async () => {
     const fetchStub = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       jsonResponse({ jsonrpc: "2.0", id: "2", result: { id: "ses_1" } }),
     );
@@ -175,12 +175,14 @@ describe("HTTPTransport — streamable HTTP", () => {
 
     await transport.send(req("2", "sessions.create"), undefined, {
       idempotencyKey: "operation-key-1",
+      idempotencyNamespace: "idp_store_a",
     });
     await it.next();
     await transport.close();
 
     const headers = fetchStub.mock.calls[0]?.[1]?.headers as Record<string, string>;
     expect(headers["Idempotency-Key"]).toBe("operation-key-1");
+    expect(headers["Idempotency-Namespace"]).toBe("idp_store_a");
   });
 
   it("rejects a no-content response for a call", async () => {

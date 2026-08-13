@@ -122,6 +122,34 @@ func (s *flakyCompletionStore) Complete(ctx context.Context, record idempotency.
 	return s.Store.Complete(ctx, record)
 }
 
+func TestEndpointRejectsIdempotencyStoreMismatchBeforeBusinessAdmission(t *testing.T) {
+	service := &countingCancelService{}
+	endpoint := New(service, Config{IdempotencyNamespace: "idp_store_b"})
+	request := protocol.CancelRunRequest{RunID: "run_1"}
+
+	refused := endpoint.Invoke(t.Context(), "runs.cancel", request, Options{
+		IdempotencyKey:       "cancel-once",
+		IdempotencyNamespace: "idp_store_a",
+	})
+	if !errors.Is(refused.Failure, protocol.ErrIdempotencyStoreMismatch) {
+		t.Fatalf("mismatch error = %v, want idempotency_store_mismatch", refused.Failure)
+	}
+	if got := service.calls.Load(); got != 0 {
+		t.Fatalf("business calls after mismatch = %d, want 0", got)
+	}
+
+	accepted := endpoint.Invoke(t.Context(), "runs.cancel", request, Options{
+		IdempotencyKey:       "cancel-once",
+		IdempotencyNamespace: "idp_store_b",
+	})
+	if accepted.Failure != nil {
+		t.Fatalf("matching namespace error = %v", accepted.Failure)
+	}
+	if got := service.calls.Load(); got != 1 {
+		t.Fatalf("business calls after match = %d, want 1", got)
+	}
+}
+
 func TestOperationFingerprintUsesTypedSemanticValue(t *testing.T) {
 	t.Parallel()
 

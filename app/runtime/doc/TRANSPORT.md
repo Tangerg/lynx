@@ -41,13 +41,14 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 | 本地门禁 token   | `Authorization: Bearer <token>`                                               |
 | 流重放游标       | `Last-Event-Id`（仅 `runs.subscribe` 续流，§9.2）                             |
 | 幂等键           | `Idempotency-Key`（有副作用的调用，§6.2 / §10）                               |
+| 幂等 store fence | `Idempotency-Namespace`（discovery 发布的 opaque store identity，§6.2 / §10） |
 
 规则与易错点：
 
 - `workspace` 是**资源身份**（业务）→ **进 params**，**永不**走带外 directory header。
 - `sessionId` / `runId` = 业务 → 进 params。
 - 协议版本 / clientInfo / clientCapabilities = 请求自描述 → `params._meta`。
-- trace / 门禁 token / `Last-Event-Id` = 传输上下文 → 带外。
+- trace / 门禁 token / `Last-Event-Id` / idempotency identity = 传输上下文 → 带外。
 - **不再有连接 id**：streamable HTTP 下事件属于"开它的那条 POST 流"，无需带外路由键（§6 / §8）。
 - **JSON-RPC envelope `id` 必须是 string**（硬约束）。虽然 JSON-RPC 2.0 本身也允许 number id，本协议**只接受字符串 id**
   —— number / boolean / array / object / explicit `null` id 都在 SDK decode 前被拒为 `400 invalid_request`；通知必须省略 `id`。
@@ -130,6 +131,7 @@ POST /v2/rpc
 Content-Type: application/json
 Accept: application/json, text/event-stream
 Idempotency-Key: 80bcab0c-77f5-4778-9934-fd8621683188
+Idempotency-Namespace: idp_0123456789abcdef0123456789abcdef
 traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 Authorization: Bearer <local-token>
 ```
@@ -156,7 +158,9 @@ body：
 }
 ```
 
-`Idempotency-Key` 是传输元数据，不进入 params。服务端先原子 claim key，再执行并持久化第一份响应；同 key + 同请求在完成后
+`Idempotency-Key` 与 `Idempotency-Namespace` 是传输元数据，不进入 params。携带 namespace 时，服务端在 claim key 与业务
+admission 之前先与当前 durable store identity 比较；不匹配返回 `idempotency_store_mismatch`，不得触发 handler。随后服务端
+原子 claim key，再执行并持久化第一份响应；同 key + 同请求在完成后
 重放，首个执行未完成时返回 `idempotency_in_progress`，同 key + 不同请求返回 `idempotency_conflict`。因此并发请求不能越过
 缓存重复落业务写入。流式 run 的重放会订阅既有 run；run 已结束时返回缓存成功响应并立即结束流，由客户端按正常断流恢复
 路径重拉持久化状态。业务响应已生成但缓存 `Complete` 暂时失败时，服务端保留该响应并返回 `idempotency_in_progress`；后续
@@ -374,8 +378,9 @@ server **必须**通过 authoritative 的 `item.completed` / `state.snapshot` �
 
 ## 10. 创建请求重试
 
-有副作用的调用应携带稳定的 `Idempotency-Key`，直到取得确定结果后才生成新 key。跨进程恢复还必须验证 discovery 发布的
-idempotency namespace 与保存记录一致，并处于 retention window 内。只读调用可按其业务语义重试。
+有副作用的调用应携带稳定的 `Idempotency-Key`，直到取得确定结果后才生成新 key。跨进程恢复还必须把 discovery 发布的
+idempotency namespace 作为 `Idempotency-Namespace` 随每次 attempt 发送，并处于 retention window 内；客户端发送前校验与
+服务端 admission fence 缺一不可。只读调用可按其业务语义重试。
 
 ## 11. 本地门禁 token
 
@@ -441,7 +446,7 @@ loopback HTTP 应限制 origin。
 - 放行内置客户端 origin；
 - 放行显式配置的开发 origin；
 - 启用本地门禁 token 时拒绝通配 origin；
-- 允许 header：`Content-Type`、`Authorization`、`Idempotency-Key`、`Last-Event-Id`、`traceparent`、`tracestate`、`baggage`；
+- 允许 header：`Content-Type`、`Authorization`、`Idempotency-Key`、`Idempotency-Namespace`、`Last-Event-Id`、`traceparent`、`tracestate`、`baggage`；
 - expose header：`X-Method`、`X-Server`、`traceparent`。
 
 ## 14. 压缩与 buffering

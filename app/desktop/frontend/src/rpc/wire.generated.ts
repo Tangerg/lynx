@@ -992,6 +992,7 @@ export type ProblemData =
   | { type: "denied_by_user"; detail?: string; docUrl?: string }
   | { type: "idempotency_conflict"; detail?: string; docUrl?: string }
   | { type: "idempotency_in_progress"; detail?: string; docUrl?: string; retryAfterSeconds: number }
+  | { type: "idempotency_store_mismatch"; detail?: string; docUrl?: string }
   | { type: "internal_error"; detail?: string; docUrl?: string }
   | { type: "interrupt_not_open"; detail?: string; docUrl?: string }
   | { type: "invalid_api_key"; detail?: string; docUrl?: string }

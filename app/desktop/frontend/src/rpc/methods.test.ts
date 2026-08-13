@@ -205,6 +205,7 @@ describe("methods factory", () => {
     const retired = methods.schedules.runNow("schedule_1");
     await expect(retired).rejects.toBeInstanceOf(MutationJournalOwnershipError);
     expect(call).toHaveBeenCalledOnce();
+    expect(call.mock.calls[0]?.[2]?.idempotencyNamespace).toBe("idp_runtime_store_a");
 
     await expect(retired.retry()).rejects.toBeInstanceOf(MutationJournalOwnershipError);
     expect(call).toHaveBeenCalledOnce();
@@ -213,6 +214,7 @@ describe("methods factory", () => {
     await expect(replacement).resolves.toMatchObject({ runId: "run_2" });
     expect(call).toHaveBeenCalledTimes(2);
     expect(call.mock.calls[1]?.[2]?.idempotencyKey).not.toBe(retired.idempotencyKey);
+    expect(call.mock.calls[1]?.[2]?.idempotencyNamespace).toBe("idp_runtime_store_b");
     persistentJournal.dispose();
   });
 
@@ -262,6 +264,7 @@ describe("methods factory", () => {
     await expect(replay).resolves.toMatchObject({ runId: "run_1" });
     expect(call).toHaveBeenCalledTimes(2);
     expect(call.mock.calls[1]?.[2]?.idempotencyKey).toBe(originalKey);
+    expect(call.mock.calls[1]?.[2]?.idempotencyNamespace).toBe("idp_runtime_store");
     persistentJournal.dispose();
   });
 
