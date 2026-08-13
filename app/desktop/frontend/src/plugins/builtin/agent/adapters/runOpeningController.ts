@@ -23,6 +23,8 @@ export interface RunOpeningController {
     onResult?: (result: Result) => void,
     onStartError?: () => boolean | void,
   ) => void;
+  /** Supersede the current opening/stream generation synchronously. */
+  retire: () => void;
 }
 
 export function createRunOpeningController({
@@ -36,10 +38,12 @@ export function createRunOpeningController({
 }: RunOpeningControllerOptions): RunOpeningController {
   let starting = false;
   let beginSeq = 0;
+  let endActiveSpan: (() => void) | null = null;
 
   return {
     isStarting: () => starting,
     begin(run, onResult, onStartError) {
+      endActiveSpan?.();
       starting = true;
       const beginId = ++beginSeq;
       markInteracted();
@@ -48,6 +52,14 @@ export function createRunOpeningController({
       setAbortController(ctrl);
       const span = startRunSpan({ "lyra.session_id": sessionId });
       let failure: unknown;
+      let spanEnded = false;
+      const finishSpan = () => {
+        if (spanEnded) return;
+        spanEnded = true;
+        if (endActiveSpan === finishSpan) endActiveSpan = null;
+        endSpan(span, failure);
+      };
+      endActiveSpan = finishSpan;
       let opening: ReturnType<typeof run>;
       try {
         opening = withSpan(span, () => run(ctrl.signal));
@@ -57,7 +69,10 @@ export function createRunOpeningController({
       void opening
         .then(
           async (stream) => {
-            if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
+            if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) {
+              disposeIterable(stream.events);
+              return;
+            }
             try {
               onResult?.(stream.result);
               span.setAttribute("lyra.run_id", stream.result.runId);
@@ -83,8 +98,24 @@ export function createRunOpeningController({
         )
         .finally(() => {
           if (beginId === beginSeq) starting = false;
-          endSpan(span, failure);
+          finishSpan();
         });
     },
+    retire() {
+      beginSeq += 1;
+      starting = false;
+      abortCurrent();
+      endActiveSpan?.();
+    },
   };
+}
+
+function disposeIterable<T>(iterable: AsyncIterable<T>): void {
+  try {
+    const closing = iterable[Symbol.asyncIterator]().return?.();
+    if (closing) void Promise.resolve(closing).catch(() => undefined);
+  } catch {
+    // The generation is already fenced. Abort remains the authoritative
+    // teardown path when a foreign iterator cannot be constructed or closed.
+  }
 }

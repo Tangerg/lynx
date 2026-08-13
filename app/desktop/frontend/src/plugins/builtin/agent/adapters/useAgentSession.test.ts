@@ -605,6 +605,134 @@ describe("useAgentSession durable recovery", () => {
     expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)?.id).toBe("run_live");
   });
 
+  it("replaces a non-cooperative live generation before Runtime restart reconciliation", async () => {
+    let restarted = false;
+    const closeOldStream = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    let releaseOldNext!: (result: IteratorResult<RunEvent>) => void;
+    const items = vi.fn(() =>
+      autoPage(
+        restarted
+          ? [
+              {
+                id: "item_after_restart",
+                runId: "run_after_restart",
+                type: "toolCall",
+                status: "running",
+                startedAt: "2026-08-13T00:00:01.000Z",
+                tool: { name: "shell", arguments: { command: "npm test" } },
+              },
+            ]
+          : [],
+      ),
+    );
+    const runs = vi.fn(() =>
+      autoPage([
+        restarted
+          ? runRef({
+              id: "run_after_restart",
+              sessionId: RID,
+              status: "waiting",
+              activeSegmentId: undefined,
+            })
+          : runRef({
+              id: "run_before_restart",
+              sessionId: RID,
+              activeSegmentId: "seg_before_restart",
+            }),
+      ]),
+    );
+    const interrupts = vi.fn(() =>
+      autoPage(
+        restarted
+          ? [
+              {
+                rootRunId: "run_after_restart",
+                sessionId: RID,
+                createdAt: "2026-08-13T00:00:02.000Z",
+                interrupts: [
+                  {
+                    type: "approval",
+                    itemId: "item_after_restart",
+                    runId: "run_after_restart",
+                    payload: {
+                      tool: { name: "shell", arguments: { command: "npm test" } },
+                    },
+                  },
+                ],
+              },
+            ]
+          : [],
+      ),
+    );
+    const plan = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        type: "plan",
+        sessionId: RID,
+        revision: restarted ? 2 : 1,
+        plan: [
+          {
+            id: restarted ? "step_after_restart" : "step_before_restart",
+            text: restarted ? "Approve resumed tool" : "Run old generation",
+            status: "active",
+          },
+        ],
+      }),
+    );
+    const subscribe = vi.fn(() =>
+      Promise.resolve({
+        result: { runId: "run_before_restart", segmentId: "seg_before_restart" },
+        events: {
+          [Symbol.asyncIterator]: () => ({
+            next: () =>
+              new Promise<IteratorResult<RunEvent>>((resolve) => {
+                releaseOldNext = resolve;
+              }),
+            return: closeOldStream,
+          }),
+        },
+      }),
+    );
+    setContainer({
+      client: () =>
+        ({
+          items: { list: items },
+          runs: { list: runs, subscribe },
+          interrupts: { list: interrupts },
+          plan: { get: plan },
+        }) as unknown as LyraClient,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() => expect(releaseOldNext).toBeTypeOf("function"));
+    expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)?.id).toBe(
+      "run_before_restart",
+    );
+
+    restarted = true;
+    const synchronization = useAgentStore.getState().sessions[RID]!.synchronize!("replace-live");
+    await expect(synchronization).resolves.toBe(true);
+
+    const view = useAgentStore.getState().sessions[RID]!.view;
+    expect(closeOldStream).toHaveBeenCalledOnce();
+    expect(selectCurrentRootRun(view)).toMatchObject({
+      id: "run_after_restart",
+      status: "waiting",
+    });
+    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(view.pendingInterrupts).toHaveLength(1);
+    expect(view.toolCalls.item_after_restart).toMatchObject({
+      name: "shell",
+      status: "requires-action",
+    });
+    expect(items).toHaveBeenCalledTimes(2);
+    expect(runs).toHaveBeenCalledTimes(2);
+    expect(interrupts).toHaveBeenCalledTimes(2);
+    expect(plan).toHaveBeenCalledTimes(2);
+
+    releaseOldNext({ value: undefined as never, done: true });
+  });
+
   it("treats a run that finishes between snapshot and subscribe as synchronized", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const subscribe = vi.fn().mockRejectedValue(

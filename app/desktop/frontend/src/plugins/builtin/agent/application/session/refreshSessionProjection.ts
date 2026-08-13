@@ -1,4 +1,5 @@
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
+import type { SessionProjectionSynchronizationOwnership } from "../ports/sessionView";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionView } from "../ports/sessionView";
 import { projectAgentSessionSnapshot } from "./sessionSnapshot";
@@ -45,16 +46,25 @@ export async function revalidateAgentSessionProjection(
   };
 }
 
-export function synchronizeMountedAgentSessions(sessionIds?: readonly string[]): void {
+export interface MountedAgentSessionSynchronization {
+  sessionIds?: readonly string[];
+  /** A global reconciliation boundary supersedes any live stream from the
+   * previous Runtime/event generation before reading durable truth. */
+  ownership?: SessionProjectionSynchronizationOwnership;
+}
+
+export function synchronizeMountedAgentSessions(
+  request: MountedAgentSessionSynchronization = {},
+): void {
   const sessions = agentSessionView().getSessions();
   const mountedIds = Object.keys(sessions);
-  const requested = sessionIds ? new Set(sessionIds) : null;
+  const requested = request.sessionIds ? new Set(request.sessionIds) : null;
   const targets = requested
     ? mountedIds.filter((sessionId) => requested.has(sessionId))
     : mountedIds;
   for (const sessionId of targets) {
     const synchronize = sessions[sessionId]?.synchronize;
-    if (synchronize) void synchronize();
+    if (synchronize) void synchronize(request.ownership);
     else void refreshAgentSessionProjection(sessionId);
   }
 }

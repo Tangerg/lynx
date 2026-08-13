@@ -49,7 +49,9 @@ describe("workspace session projection invalidation", () => {
         sessionIds: ["ses_a", "ses_b"],
       });
 
-      expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith(["ses_a", "ses_b"]);
+      expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
+        sessionIds: ["ses_a", "ses_b"],
+      });
     },
   );
 
@@ -70,7 +72,9 @@ describe("workspace session projection invalidation", () => {
     invalidateWorkspaceEverything();
 
     expect(invalidateQueries).toHaveBeenCalledWith();
-    expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith();
+    expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
+      ownership: "replace-live",
+    });
   });
 
   it("refreshes every read affected by external settings mutations", () => {

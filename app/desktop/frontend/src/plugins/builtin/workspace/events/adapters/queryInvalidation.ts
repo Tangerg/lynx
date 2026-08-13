@@ -87,14 +87,15 @@ export function invalidateWorkspaceTargets(
   if (targets.includes("all")) {
     void queryClient.invalidateQueries();
     // The material session projection is not a query-cache entry. A global
-    // resync therefore invokes its authoritative synchronization explicitly.
-    synchronizeMountedAgentSessions();
+    // resync therefore replaces any prior live-stream generation before its
+    // authoritative synchronization.
+    synchronizeMountedAgentSessions({ ownership: "replace-live" });
     return;
   }
   for (const target of targets) {
     if (target === "all") continue;
     if (target === "agentSessionProjection") {
-      synchronizeMountedAgentSessions(sessionIds);
+      synchronizeMountedAgentSessions({ sessionIds });
       continue;
     }
     if (target === "goal" && sessionIds?.length) {
@@ -116,5 +117,5 @@ export function invalidateWorkspaceEvent(ev: WorkspaceEventLike): void {
 
 export function invalidateWorkspaceEverything(): void {
   void queryClient.invalidateQueries();
-  synchronizeMountedAgentSessions();
+  synchronizeMountedAgentSessions({ ownership: "replace-live" });
 }

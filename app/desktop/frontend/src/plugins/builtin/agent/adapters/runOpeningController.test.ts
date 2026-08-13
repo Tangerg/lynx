@@ -8,6 +8,47 @@ afterEach(() => {
 });
 
 describe("run opening controller", () => {
+  it("retires an opening that ignores cancellation and disposes its late stream", async () => {
+    const opening = deferred<{
+      result: { runId: ReturnType<typeof asRunId>; segmentId: ReturnType<typeof asSegmentId> };
+      events: AsyncIterable<RunEvent>;
+    }>();
+    const abortCurrent = vi.fn();
+    const close = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    const onResult = vi.fn();
+    const pump = vi.fn();
+    const controller = createRunOpeningController({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      markInteracted: vi.fn(),
+      setAbortController: vi.fn(),
+      abortCurrent,
+      pump,
+      setStartError: vi.fn(),
+    });
+
+    controller.begin(() => opening.promise, onResult);
+    expect(controller.isStarting()).toBe(true);
+    controller.retire();
+
+    expect(controller.isStarting()).toBe(false);
+    expect(abortCurrent).toHaveBeenCalledTimes(2); // begin's predecessor + retire
+
+    opening.resolve({
+      result: { runId: asRunId("run_late"), segmentId: asSegmentId("seg_late") },
+      events: {
+        [Symbol.asyncIterator]: () => ({
+          next: async () => ({ value: undefined, done: true }) as const,
+          return: close,
+        }),
+      },
+    });
+
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(onResult).not.toHaveBeenCalled();
+    expect(pump).not.toHaveBeenCalled();
+  });
+
   it("suppresses a rejected opening already superseded by authoritative projection", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const setStartError = vi.fn<(problem: AgentProblem) => void>();
@@ -97,3 +138,11 @@ describe("run opening controller", () => {
 });
 
 async function* emptyEvents(): AsyncIterable<RunEvent> {}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}

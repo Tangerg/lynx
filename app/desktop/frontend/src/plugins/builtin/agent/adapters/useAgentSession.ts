@@ -231,10 +231,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().setSend(sessionId, send);
     store().setStop(sessionId, stop);
     store().setResume(sessionId, resume);
-    store().setSynchronize(
-      sessionId,
-      () => projectionSynchronization?.request() ?? Promise.resolve(false),
-    );
+    store().setSynchronize(sessionId, (ownership) => {
+      if (ownership === "replace-live") runOpening.retire();
+      return projectionSynchronization?.request() ?? Promise.resolve(false);
+    });
     store().setCancelRun(sessionId, cancelRun);
 
     // A message typed on the welcome screen (no active session) was queued
@@ -246,6 +246,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
 
     return () => {
       cancelled = true;
+      runOpening.retire();
       projectionSynchronization?.dispose();
       runPump.dispose();
       abort?.abort();

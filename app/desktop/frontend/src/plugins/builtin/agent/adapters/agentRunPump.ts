@@ -11,6 +11,8 @@ import {
 import { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
 import { createRunEventBatcher } from "./runEventBatcher";
 
+const ABORTED = Symbol("agent-run-pump.aborted");
+
 /** What a stream's opening ack tells the pump. headEventId exists only on a
  *  reattach: a start or resume stream begins at the beginning of its segment, so
  *  there is no earlier position to name. */
@@ -162,11 +164,25 @@ export function createAgentRunPump({
   ): Promise<{ finished: boolean; position: RunStreamPosition }> {
     let position = from;
     let finished = false;
+    const iterator = events[Symbol.asyncIterator]();
+    let iteratorDone = false;
     try {
-      for await (const ev of events) {
+      while (!signal.aborted && !isCancelled()) {
+        const pendingNext = Promise.resolve(iterator.next());
+        const next = await settleBeforeAbort(pendingNext, signal);
+        if (next === ABORTED) {
+          const lateNext = await settleWithinTurn(pendingNext);
+          if (lateNext.status === "fulfilled" && lateNext.value.done) iteratorDone = true;
+          return { finished: true, position };
+        }
+        if (next.done) {
+          iteratorDone = true;
+          break;
+        }
         // An aborted request or a torn-down session is a deliberate stop, not a gap
         // to recover: nothing is reattached after it.
         if (isCancelled() || signal.aborted) return { finished: true, position };
+        const ev = next.value;
         eventBatcher.enqueue(ev);
         position = { ...position, lastEventId: ev.eventId };
         // A descendant subagent's terminal rides this same stream; only the root
@@ -181,7 +197,71 @@ export function createAgentRunPump({
       }
       if (!isCancelled() && !signal.aborted && !(err instanceof RpcConnectionError))
         console.warn("[agent] run stream ended early:", sessionId, err);
+    } finally {
+      if (!iteratorDone) await disposeIterator(iterator);
     }
     return { finished, position };
   }
+}
+
+/** Settle a foreign async boundary without depending on AbortSignal support. */
+function settleBeforeAbort<T>(
+  operation: Promise<T>,
+  signal: AbortSignal,
+): Promise<T | typeof ABORTED> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      resolve(ABORTED);
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+
+    void operation.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function disposeIterator<T>(iterator: AsyncIterator<T>): Promise<void> {
+  try {
+    const closing = iterator.return?.();
+    if (closing) await settleWithinTurn(Promise.resolve(closing));
+  } catch {
+    // A retiring foreign iterator cannot keep the replacement generation open.
+  }
+}
+
+type TurnSettlement<T> =
+  { status: "fulfilled"; value: T } | { status: "rejected" } | { status: "pending" };
+
+function settleWithinTurn<T>(operation: Promise<T>): Promise<TurnSettlement<T>> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: TurnSettlement<T>) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ status: "pending" }), 0);
+    void operation.then(
+      (value) => finish({ status: "fulfilled", value }),
+      () => finish({ status: "rejected" }),
+    );
+  });
 }

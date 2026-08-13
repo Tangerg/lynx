@@ -22,10 +22,13 @@ export type ResolvePatch = {
 };
 
 export type StopCurrentRootRunAction = () => boolean;
+export type SessionProjectionSynchronizationOwnership = "after-live" | "replace-live";
 /** Request the mounted Session's single projection owner to reconcile durable
  * facts. True means an authoritative snapshot committed; false means the read
  * was superseded, unavailable, or failed and the caller may retry. */
-export type SynchronizeSessionAction = () => Promise<boolean>;
+export type SynchronizeSessionAction = (
+  ownership?: SessionProjectionSynchronizationOwnership,
+) => Promise<boolean>;
 export type CancelRunAction = (runId: string) => void;
 export type SendAgentInputAction = (input: AgentInput, options?: AgentRunStartOptions) => boolean;
 export type InterruptResumePayload =

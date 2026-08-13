@@ -254,6 +254,44 @@ describe("agent run pump reattach", () => {
     expect(positions).toHaveLength(0);
   });
 
+  it("releases live ownership when an iterator ignores cancellation", async () => {
+    let releaseNext!: (result: IteratorResult<RunEvent>) => void;
+    const close = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    const onIdle = vi.fn();
+    const pump = createAgentRunPump({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      readEpoch: () => 0,
+      applyEvents: vi.fn(),
+      onIdle,
+    });
+    const controller = new AbortController();
+    const running = pump.pump(
+      {
+        result: { runId: RUN, segmentId: SEGMENT },
+        events: {
+          [Symbol.asyncIterator]: () => ({
+            next: () =>
+              new Promise<IteratorResult<RunEvent>>((resolve) => {
+                releaseNext = resolve;
+              }),
+            return: close,
+          }),
+        },
+      },
+      controller.signal,
+    );
+    await vi.waitFor(() => expect(releaseNext).toBeTypeOf("function"));
+
+    controller.abort();
+    await running;
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(onIdle).toHaveBeenCalledOnce();
+    expect(pump.isActive()).toBe(false);
+    releaseNext({ value: undefined as never, done: true });
+  });
+
   it("does not let an older pump clear a newer segment for the same run", async () => {
     const pump = createAgentRunPump({
       sessionId: "ses_1",
