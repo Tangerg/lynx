@@ -18,6 +18,7 @@ const (
 	readerSearchOperation         operationSlot = "reader-search"
 	readerDocumentOperation       operationSlot = "reader-document"
 	pickerCatalogOperation        operationSlot = "picker-catalog"
+	approvalModeOperation         operationSlot = "approval-mode"
 	sessionCenterOperation        operationSlot = "session-center"
 	sessionChangeOperation        operationSlot = "session-change"
 	sessionOutputOperation        operationSlot = "session-output"

@@ -48,6 +48,33 @@ type mutableRuntimeCatalog struct {
 	deleted chan string
 }
 
+type blockingApprovalModeRuntime struct {
+	agent.Runtime
+	started  chan agent.ApprovalMode
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (runtime *blockingApprovalModeRuntime) SetApprovalMode(
+	ctx context.Context,
+	mode agent.ApprovalMode,
+) (agent.ApprovalMode, error) {
+	select {
+	case runtime.started <- mode:
+	default:
+	}
+	select {
+	case <-runtime.release:
+		return runtime.Runtime.SetApprovalMode(ctx, mode)
+	case <-ctx.Done():
+		select {
+		case runtime.canceled <- struct{}{}:
+		default:
+		}
+		return "", context.Cause(ctx)
+	}
+}
+
 func (catalog *mutableRuntimeCatalog) ListModels(context.Context) ([]agent.Model, error) {
 	catalog.mu.Lock()
 	defer catalog.mu.Unlock()
@@ -336,6 +363,65 @@ func TestApprovalRuleDeletionResolvesAUniquePrefixAndSurvivesResize(t *testing.T
 		t.Fatalf("deleted approval rule = %q", id)
 	}
 	host.Shows(t, "No remembered approval rules")
+	stop()
+}
+
+func TestApprovalModeMutationOutlivesSameSessionProjectionReplacement(t *testing.T) {
+	base := mock.New()
+	runtime := &blockingApprovalModeRuntime{
+		Runtime: base, started: make(chan agent.ApprovalMode, 1),
+		release: make(chan struct{}), canceled: make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(runtime.release) })
+	t.Cleanup(release)
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeChanges(t, runtime, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "runtime change subscription")
+	host.Type("/approval")
+	host.Press(input.Enter)
+	host.Shows(t, "Runtime approval mode")
+	host.Press(input.Enter)
+	if mode := awaitValue(t, runtime.started, "approval mode mutation"); mode != agent.ApprovalModeSafe {
+		t.Fatalf("approval mode mutation = %q, want safe", mode)
+	}
+
+	if _, err := base.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	title := "Approval refresh installed"
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := base.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitValue(t, source.applied, "same-session invalidation")
+	host.Shows(t, title)
+	select {
+	case <-runtime.canceled:
+		t.Fatal("same-session projection replacement canceled the application-owned approval mode mutation")
+	default:
+	}
+
+	release()
+	host.Shows(t, "approval mode · safe")
+	mode, err := base.GetApprovalMode(t.Context())
+	if err != nil || mode != agent.ApprovalModeSafe {
+		t.Fatalf("approval mode after mutation = (%q, %v)", mode, err)
+	}
 	stop()
 }
 

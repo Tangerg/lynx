@@ -124,7 +124,7 @@ func (a *app) ChooseApprovalMode() {
 }
 
 func (a *app) setApprovalMode(mode agent.ApprovalMode) {
-	runOperation(a, pickerCatalogOperation, true,
+	runApplicationOperation(a, approvalModeOperation, true,
 		func(ctx context.Context) (agent.ApprovalMode, error) { return a.runtime.SetApprovalMode(ctx, mode) },
 		func(applied agent.ApprovalMode, err error) {
 			if err != nil {
@@ -310,7 +310,7 @@ func resolveApprovalRule(rules []agent.ApprovalRule, identity string) (agent.App
 
 func (a *app) deleteApprovalRule(sessionID, id string) {
 	a.status.note("forgetting approval rule " + id)
-	if !runOperation(a, approvalRuleOperation, false,
+	if !runApplicationOperation(a, approvalRuleOperation, false,
 		func(ctx context.Context) (string, error) {
 			if err := a.runtime.DeleteApprovalRule(ctx, id); err != nil {
 				return "", err
