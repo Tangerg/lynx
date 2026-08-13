@@ -65,11 +65,12 @@ func (r *replayStore) invoke(
 		if pending.Fingerprint != fingerprint {
 			return failed(NewFailure(protocol.ErrIdempotencyConflict, "idempotency key is already bound to another operation"))
 		}
-		if err := r.complete(ctx, pending); err != nil {
+		payload, err := r.settlePendingCompletion(ctx, pending)
+		if err != nil {
 			return failed(r.persistenceFailure(err))
 		}
 		r.forgetPendingCompletion(key, fingerprint)
-		return r.replay(ctx, method, pending.Payload, service)
+		return r.replay(ctx, method, payload, service)
 	}
 
 	record, claimed, err := r.store.Claim(ctx, key, fingerprint)
@@ -203,6 +204,37 @@ func (r *replayStore) complete(ctx context.Context, record idempotency.Record) e
 	writeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStoreWriteTimeout)
 	defer cancel()
 	return r.store.Complete(writeContext, record)
+}
+
+// settlePendingCompletion persists a known business outcome without ever
+// executing the command again. A claim can disappear between the business
+// commit and receipt completion (expiry, external cleanup, or a recovered
+// store); in that case reacquire the same fingerprint and attach the outcome to
+// the fresh claim. If another owner already completed it, its durable first
+// result wins and is replayed.
+func (r *replayStore) settlePendingCompletion(
+	ctx context.Context,
+	pending idempotency.Record,
+) ([]byte, error) {
+	if err := r.complete(ctx, pending); err == nil {
+		return pending.Payload, nil
+	} else if !errors.Is(err, idempotency.ErrClaimLost) {
+		return nil, err
+	}
+
+	writeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStoreWriteTimeout)
+	record, claimed, err := r.store.Claim(writeContext, pending.Key, pending.Fingerprint)
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	if !claimed && len(record.Payload) != 0 {
+		return record.Payload, nil
+	}
+	if err := r.complete(ctx, pending); err != nil {
+		return nil, err
+	}
+	return pending.Payload, nil
 }
 
 func (r *replayStore) persistenceFailure(err error) *Failure {

@@ -292,7 +292,7 @@ func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
 	}
 }
 
-func TestConfiguredSessionOutlivesHandshakeScope(t *testing.T) {
+func TestConfiguredSessionOutlivesRequestScope(t *testing.T) {
 	remote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v1"}, nil)
 	addRemoteTool(t, remote, "read")
 	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
@@ -301,52 +301,30 @@ func TestConfiguredSessionOutlivesHandshakeScope(t *testing.T) {
 	))
 	t.Cleanup(httpServer.Close)
 
-	tests := []struct {
-		name    string
-		timeout time.Duration
-		after   func(context.CancelFunc)
-	}{
-		{
-			name:  "request cancellation",
-			after: func(cancel context.CancelFunc) { cancel() },
-		},
-		{
-			name:    "configured handshake timeout",
-			timeout: 20 * time.Millisecond,
-			after: func(context.CancelFunc) {
-				time.Sleep(40 * time.Millisecond)
-			},
-		},
+	connections, _, err := Dial(t.Context(), nil, nil)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			connections, _, err := Dial(t.Context(), nil, nil)
-			if err != nil {
-				t.Fatalf("Dial: %v", err)
-			}
-			t.Cleanup(func() {
-				if err := connections.Shutdown(context.WithoutCancel(t.Context())); err != nil {
-					t.Errorf("Shutdown: %v", err)
-				}
-			})
+	t.Cleanup(func() {
+		if err := connections.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			t.Errorf("Shutdown: %v", err)
+		}
+	})
 
-			requestCtx, cancelRequest := context.WithCancel(t.Context())
-			if err := connections.Configure(requestCtx, ServerConfig{
-				Name: "dynamic", Transport: TransportHTTP, Endpoint: httpServer.URL, Timeout: tt.timeout,
-			}); err != nil {
-				t.Fatalf("Configure: %v", err)
-			}
-			tt.after(cancelRequest)
-			defer cancelRequest()
+	requestCtx, cancelRequest := context.WithCancel(t.Context())
+	if err := connections.Configure(requestCtx, ServerConfig{
+		Name: "dynamic", Transport: TransportHTTP, Endpoint: httpServer.URL,
+	}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
+	cancelRequest()
 
-			tools, err := connections.Tools(t.Context(), "dynamic")
-			if err != nil {
-				t.Fatalf("Tools after handshake scope ended: %v", err)
-			}
-			if len(tools) != 1 || tools[0].Name != "read" {
-				t.Fatalf("Tools after handshake scope ended = %+v, want dynamic/read", tools)
-			}
-		})
+	tools, err := connections.Tools(t.Context(), "dynamic")
+	if err != nil {
+		t.Fatalf("Tools after request scope ended: %v", err)
+	}
+	if len(tools) != 1 || tools[0].Name != "read" {
+		t.Fatalf("Tools after request scope ended = %+v, want dynamic/read", tools)
 	}
 }
 

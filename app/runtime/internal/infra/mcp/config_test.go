@@ -7,10 +7,54 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConnectSessionLifetimeDoesNotInheritHandshakeDeadline(t *testing.T) {
+	var lifetime context.Context
+	session, cancel, err := connectSession(t.Context(), time.Hour, func(ctx context.Context) (*sdkmcp.ClientSession, error) {
+		lifetime = ctx
+		return new(sdkmcp.ClientSession), nil
+	})
+	if err != nil || session == nil {
+		t.Fatalf("connectSession = (%v, %v), want session", session, err)
+	}
+	if _, hasDeadline := lifetime.Deadline(); hasDeadline {
+		t.Fatal("live session lifetime inherited the handshake deadline")
+	}
+	select {
+	case <-lifetime.Done():
+		t.Fatalf("live session lifetime ended after handshake: %v", lifetime.Err())
+	default:
+	}
+	cancel()
+	select {
+	case <-lifetime.Done():
+	case <-time.After(time.Second):
+		t.Fatal("session owner cancellation did not end the live lifetime")
+	}
+}
+
+func TestConnectSessionHandshakeTimeoutCancelsInFlightConnect(t *testing.T) {
+	started := make(chan struct{})
+	_, _, err := connectSession(t.Context(), 20*time.Millisecond, func(ctx context.Context) (*sdkmcp.ClientSession, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	select {
+	case <-started:
+	default:
+		t.Fatal("connect callback did not start")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("connectSession error = %v, want canceled handshake transport", err)
+	}
+}
 
 func TestServerConfigValidate(t *testing.T) {
 	cases := []struct {
