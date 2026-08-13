@@ -330,7 +330,7 @@ export interface Methods {
   };
   workspaces: {
     resolve: (ref?: WorkspaceRef, signal?: AbortSignal) => Promise<WorkspaceInfo>;
-    list: () => Promise<Page<WorkspaceSummary>>;
+    list: (signal?: AbortSignal) => Promise<Page<WorkspaceSummary>>;
     /** Resolve the runtime default when omitted, then bind a scoped client. */
     open: (ref?: WorkspaceRef) => Promise<WorkspaceMethods>;
   };
@@ -778,7 +778,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     },
     workspaces: {
       resolve: (ref, signal) => call("workspaces.resolve", ref ? { ref } : {}, { signal }),
-      list: () => call("workspaces.list", {}),
+      list: (signal) => call("workspaces.list", {}, { signal }),
       open: openWorkspace,
     },
     workspace: (ref) => bindWorkspace(call, ref),

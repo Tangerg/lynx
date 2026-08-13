@@ -1,6 +1,37 @@
-import { describe, expect, it } from "vitest";
-import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
-import { workspaceProjectRevision } from "./projectIndexRefresh";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { queryClient } from "@/lib/queryClient";
+import {
+  AGENT_SESSIONS_KEY,
+  type AgentSessionSummary,
+} from "@/plugins/builtin/agent/public/session";
+import {
+  WORKSPACE_PROJECTS_KEY,
+  useWorkspaceProjects,
+} from "@/plugins/builtin/workspace/public/queries";
+import { createHost } from "@/plugins/sdk/host";
+import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
+import { usePluginStore } from "@/plugins/sdk/registry";
+import type { Disposable } from "@/plugins/sdk";
+import { installProjectIndexRefresh, workspaceProjectRevision } from "./projectIndexRefresh";
+
+let disposables: Disposable[] = [];
+let disposeRefresh: (() => void) | undefined;
+let unmountHook: (() => void) | undefined;
+
+function wrapper({ children }: { children: ReactNode }) {
+  return createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary {
   return {
@@ -14,6 +45,23 @@ function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary 
     ...patch,
   };
 }
+
+beforeEach(() => {
+  queryClient.clear();
+  usePluginStore.getState().resetForTest();
+  disposables = [];
+});
+
+afterEach(() => {
+  unmountHook?.();
+  unmountHook = undefined;
+  disposeRefresh?.();
+  disposeRefresh = undefined;
+  queryClient.clear();
+  for (const disposable of disposables.reverse()) disposable.dispose();
+  usePluginStore.getState().resetForTest();
+  vi.restoreAllMocks();
+});
 
 describe("workspaceProjectRevision", () => {
   it("tracks only the Session facts that determine workspaces.list", () => {
@@ -29,5 +77,42 @@ describe("workspaceProjectRevision", () => {
       baseline,
     );
     expect(workspaceProjectRevision([session({ id: "ses_2" })])).not.toBe(baseline);
+  });
+
+  it("replaces an initial project read after its Session projection commits", async () => {
+    const retired = deferred<Array<{ id: string; name: string; sessionCount: number }>>();
+    let retiredSignal: AbortSignal | undefined;
+    let calls = 0;
+    const fetcher = vi.fn((_params?: unknown, signal?: AbortSignal) => {
+      calls += 1;
+      if (calls === 1) {
+        retiredSignal = signal;
+        return retired.promise;
+      }
+      return Promise.resolve([{ id: "/successor", name: "successor", sessionCount: 1 }]);
+    });
+    createHost("project-generation-test", disposables).extensions.contribute(DATA_PROVIDER, {
+      key: WORKSPACE_PROJECTS_KEY,
+      fetcher,
+    });
+    disposeRefresh = installProjectIndexRefresh();
+    const hook = renderHook(() => useWorkspaceProjects(), { wrapper });
+    unmountHook = hook.unmount;
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+
+    act(() => {
+      queryClient.setQueryData([AGENT_SESSIONS_KEY], [session({ id: "ses_committed" })]);
+    });
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(hook.result.current.data?.[0]?.id).toBe("/successor"));
+    expect(retiredSignal?.aborted).toBe(true);
+
+    retired.resolve([{ id: "/retired", name: "retired", sessionCount: 0 }]);
+    await act(async () => Promise.resolve());
+    expect(hook.result.current.data?.[0]?.id).toBe("/successor");
+    await expect(hook.result.current.promise).rejects.toThrow(
+      "experimental_prefetchInRender feature flag is not enabled",
+    );
   });
 });

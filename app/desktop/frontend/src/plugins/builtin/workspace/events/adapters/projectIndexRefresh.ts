@@ -1,9 +1,9 @@
-import { queryClient } from "@/lib/queryClient";
 import {
   subscribeAgentSessionProjection,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
 import { WORKSPACE_PROJECTS_KEY } from "@/plugins/builtin/workspace/public/queries";
+import { replaceCachedRead } from "./queryInvalidation";
 
 /**
  * Keep the project index fresh when the Session facts it is derived from move.
@@ -22,7 +22,7 @@ import { WORKSPACE_PROJECTS_KEY } from "@/plugins/builtin/workspace/public/queri
  */
 export function installProjectIndexRefresh(): () => void {
   return subscribeAgentSessionProjection(workspaceProjectRevision, () => {
-    void queryClient.invalidateQueries({ queryKey: [WORKSPACE_PROJECTS_KEY] });
+    replaceCachedRead({ queryKey: [WORKSPACE_PROJECTS_KEY] });
   });
 }
 

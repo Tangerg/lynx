@@ -122,7 +122,10 @@ function replaceWorkspaceReadModels(): void {
   synchronizeMountedAgentSessions({ ownership: "replace-live" });
 }
 
-function replaceCachedRead(options?: { queryKey: readonly unknown[]; exact?: boolean }): void {
+export function replaceCachedRead(options?: {
+  queryKey: readonly unknown[];
+  exact?: boolean;
+}): void {
   // A query with no cached value normally reuses its in-flight Promise when it
   // is invalidated. Both a committed change event and a Runtime replacement
   // must retire that writer before starting the successor read; late settlement

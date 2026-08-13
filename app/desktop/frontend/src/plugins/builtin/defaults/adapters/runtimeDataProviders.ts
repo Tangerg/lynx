@@ -100,8 +100,8 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_PROJECTS_KEY,
-    fetcher: async () =>
-      (await pageData(client().workspaces.list())).map(toWorkspaceProjectSummary),
+    fetcher: async (_params, signal) =>
+      (await pageData(client().workspaces.list(signal))).map(toWorkspaceProjectSummary),
   });
   contribute({
     key: WORKSPACE_FILES_CHANGED_KEY,
