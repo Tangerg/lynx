@@ -3,7 +3,9 @@ package embedded
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -91,29 +93,27 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 		t.Fatalf("idempotency conflict error = %v", err)
 	}
 
-	if _, err := Open(t.Context(), config); !errors.Is(err, ErrDataDirectoryInUse) {
-		t.Fatalf("second Open error = %v, want ErrDataDirectoryInUse", err)
+	second, err := Open(t.Context(), config)
+	if err != nil {
+		t.Fatalf("second Open sharing data directory: %v", err)
 	}
 
-	_, events, err := runtime.SubscribeRuntime(t.Context(), protocol.RuntimeSubscribeRequest{
+	_, events, err := second.SubscribeRuntime(t.Context(), protocol.RuntimeSubscribeRequest{
 		Topics: []protocol.RuntimeTopic{protocol.TopicSessionsChanged},
 	}, SubscriptionOptions{})
 	if err != nil {
 		t.Fatalf("SubscribeRuntime: %v", err)
 	}
 	streamDone := make(chan struct{})
-	eventReceived := make(chan struct{})
+	eventReceived := make(chan protocol.RuntimeEvent, 1)
 	go func() {
 		defer close(streamDone)
-		received := false
-		for _, err := range events {
+		for event, err := range events {
 			if err != nil {
 				return
 			}
-			if !received {
-				close(eventReceived)
-				received = true
-			}
+			eventReceived <- event
+			return
 		}
 	}()
 	if _, err := runtime.CreateSession(t.Context(), protocol.CreateSessionRequest{
@@ -122,12 +122,23 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 	}, CommandOptions{IdempotencyKey: "create-notification"}); err != nil {
 		t.Fatalf("CreateSession for notification: %v", err)
 	}
-	<-eventReceived
+	select {
+	case event := <-eventReceived:
+		if event.Type != protocol.RuntimeResync ||
+			!slices.Equal(event.Topics, []protocol.RuntimeTopic{protocol.TopicSessionsChanged}) {
+			t.Fatalf("cross-Runtime event = %+v, want scoped resync", event)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("peer Runtime commit produced no scoped resync")
+	}
+	if err := second.Close(); err != nil {
+		t.Fatalf("close second Runtime: %v", err)
+	}
+	<-streamDone
 
 	if err := runtime.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	<-streamDone
 	if _, err := runtime.Discover(t.Context(), CallOptions{}); !errors.Is(err, ErrClosed) {
 		t.Fatalf("Discover after Close error = %v, want ErrClosed", err)
 	}

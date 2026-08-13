@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runtimeownership"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
@@ -27,17 +29,17 @@ type InstanceConfig struct {
 	ServerInfo           protocol.ServerInfo
 }
 
-// Instance owns one complete Runtime: its operation endpoint, scheduler,
-// application Host, persistence graph and canonical data-directory lease.
+// Instance owns one complete Runtime: its operation endpoint, workers,
+// application Host and persistence graph.
 type Instance struct {
-	endpoint   *operation.Endpoint
-	serverInfo protocol.ServerInfo
-	service    *runtimeserver.Server
-	host       *Host
-	lease      *dataDirectoryLease
-
-	stopRuntime   context.CancelFunc
-	schedulerDone <-chan struct{}
+	endpoint            *operation.Endpoint
+	serverInfo          protocol.ServerInfo
+	service             *runtimeserver.Server
+	host                *Host
+	stopRuntime         context.CancelFunc
+	schedulerDone       <-chan struct{}
+	databaseChangesDone <-chan struct{}
+	recoveryDone        <-chan struct{}
 
 	closeMu  sync.Mutex
 	stopping bool
@@ -46,25 +48,27 @@ type Instance struct {
 
 const instanceShutdownTimeout = 10 * time.Second
 
-// OpenInstance acquires the canonical data directory, opens persistence,
-// assembles and recovers the application Host, constructs the one operation
-// endpoint, then starts Runtime-owned workers. Every failed step rolls back in
-// reverse order and releases the directory lease last.
+const ownershipRecoveryInterval = time.Second
+
+// OpenInstance serializes canonical data-directory setup, opens persistence,
+// then releases that setup boundary before assembling and recovering one Host.
+// Runtime processes may subsequently share the directory; finer application
+// ownership prevents conflicting execution and recovery.
 func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ config.Settings, err error) {
 	if err := cfg.validate(); err != nil {
 		return nil, config.Settings{}, err
 	}
-	lease, err := acquireDataDirectoryLease(cfg.DataDirectory)
+	setup, err := runtimeownership.PrepareDataDirectory(ctx, cfg.DataDirectory)
 	if err != nil {
 		return nil, config.Settings{}, err
 	}
-	leaseOwned := true
+	setupOwned := true
 	defer func() {
-		if leaseOwned {
-			err = errors.Join(err, lease.release())
+		if setupOwned {
+			err = errors.Join(err, setup.Release())
 		}
 	}()
-	cfg.DataDirectory = lease.directory
+	cfg.DataDirectory = setup.Directory
 
 	buildID := cfg.BuildID
 	if buildID == "" {
@@ -111,9 +115,20 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 	if err = SeedMCPServers(ctx, stores.MCPServers, mcpServers); err != nil {
 		return nil, config.Settings{}, err
 	}
+	if err = setup.Release(); err != nil {
+		return nil, config.Settings{}, err
+	}
+	setupOwned = false
 
 	hookResolver := NewHookResolver(cfg.UserHome, stores.Trust)
 	assemblyConfig := ComposeConfig(settings, stores, client, providers, hookResolver, buildID)
+	ownership, err := runtimeownership.New(stores.DataDirectory)
+	if err != nil {
+		return nil, config.Settings{}, err
+	}
+	assemblyConfig.SessionOwnership = ownership
+	assemblyConfig.GoalDriveOwnership = ownership
+	assemblyConfig.RecoveryOwnership = ownership
 	assemblyConfig.UserHome = cfg.UserHome
 	assemblyConfig.DefaultWorkspacePath = cfg.DefaultWorkspacePath
 	assembly := NewAssembly(assemblyConfig)
@@ -154,23 +169,35 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 		IdempotencyNamespace: idempotencyNamespace,
 		Lifetime:             runtimeContext,
 	})
+	databaseChangesDone, err := stores.StartExternalChangeObserver(runtimeContext, func() {
+		host.Stack.PublishInvalidation.Notify(invalidation.Notice{Resource: invalidation.Resync})
+	})
+	if err != nil {
+		stopRuntime()
+		return nil, config.Settings{}, err
+	}
 	schedulerDone := make(chan struct{})
 	go func() {
 		defer close(schedulerDone)
 		host.Stack.ScheduleFiring.RunWorker(runtimeContext)
 	}()
+	recoveryDone := make(chan struct{})
+	go func() {
+		defer close(recoveryDone)
+		runOwnershipRecovery(runtimeContext, host.Stack)
+	}()
 
 	instance := &Instance{
-		endpoint:      endpoint,
-		serverInfo:    serverInfo,
-		service:       service,
-		host:          host,
-		lease:         lease,
-		stopRuntime:   stopRuntime,
-		schedulerDone: schedulerDone,
+		endpoint:            endpoint,
+		serverInfo:          serverInfo,
+		service:             service,
+		host:                host,
+		stopRuntime:         stopRuntime,
+		schedulerDone:       schedulerDone,
+		databaseChangesDone: databaseChangesDone,
+		recoveryDone:        recoveryDone,
 	}
 	hostOwned = false
-	leaseOwned = false
 	return instance, settings, nil
 }
 
@@ -219,8 +246,8 @@ func (i *Instance) ServerInfo() protocol.ServerInfo {
 }
 
 // Close stops admissions, cancels instance-owned operations and workers, joins
-// the application Host, then releases the canonical data-directory lease. A
-// timed-out dependency remains owned and a later Close resumes teardown.
+// the application Host. A timed-out dependency remains owned and a later Close
+// resumes teardown.
 func (i *Instance) Close() error {
 	if i == nil {
 		return nil
@@ -247,12 +274,43 @@ func (i *Instance) Close() error {
 	case <-waitContext.Done():
 		return waitContext.Err()
 	}
-	if err := i.host.Close(); err != nil {
-		return err
+	if i.databaseChangesDone != nil {
+		select {
+		case <-i.databaseChangesDone:
+		case <-waitContext.Done():
+			return waitContext.Err()
+		}
 	}
-	if err := i.lease.release(); err != nil {
+	if i.recoveryDone != nil {
+		select {
+		case <-i.recoveryDone:
+		case <-waitContext.Done():
+			return waitContext.Err()
+		}
+	}
+	if err := i.host.Close(); err != nil {
 		return err
 	}
 	i.closed = true
 	return nil
+}
+
+// runOwnershipRecovery detects process death by attempting the same kernel
+// leases held by live Run and Goal owners. A contended lease is definitive
+// liveness evidence and the recovery use cases skip that Session; an abandoned
+// owner becomes recoverable immediately after the OS releases its descriptors,
+// without clocks, heartbeats, or lease-expiry guesses.
+func runOwnershipRecovery(ctx context.Context, stack Stack) {
+	ticker := time.NewTicker(ownershipRecoveryInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if stack.OwnershipRecovery != nil {
+				_, _ = stack.OwnershipRecovery.Reconcile(ctx)
+			}
+		}
+	}
 }

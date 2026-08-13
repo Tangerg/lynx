@@ -121,11 +121,16 @@ into the matching option; it does not create a generic header bag. Stable
 operation failures support `errors.Is` against protocol sentinels and
 `errors.As` to `protocol.ProblemError`.
 
-Only one HTTP or embedded owner may open a canonical data directory. If CLI,
-desktop, or another process must operate the same durable Runtime concurrently,
-they must share one host over IPC rather than bypassing the lease. TUI code may
-consume the CLI-owned narrow port and protocol values; it does not open a second
-Runtime.
+An HTTP or embedded Runtime may share one canonical private data directory with
+another Runtime process. A client still binds to exactly one Runtime instance;
+CLI and desktop may each embed their own instance. Concurrent writes to the same
+Session fail with `session_busy`, active Runs may share one physical working tree,
+and rollback/restore wait for exclusive working-tree ownership. Commits made by
+the peer Runtime produce a scoped Runtime resync so mounted read models reload
+durable state. All sharers must run a build that accepts the same persistence and
+checkpoint contracts; there is no compatibility reader or global-directory
+single-instance fallback. TUI code may consume the CLI-owned narrow port and
+protocol values rather than opening an unnecessary third Runtime.
 
 No CLI or TUI source is changed by P19. Absence from this list is not evidence
 that an in-tree or out-of-tree consumer is compatible.

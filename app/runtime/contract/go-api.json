@@ -11,10 +11,6 @@
         {
           "name": "ErrClosed",
           "type": "error"
-        },
-        {
-          "name": "ErrDataDirectoryInUse",
-          "type": "error"
         }
       ],
       "functions": [

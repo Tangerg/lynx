@@ -34,6 +34,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/ownershiprecovery"
 	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -80,19 +81,21 @@ type Stack struct {
 	// AgentMemory is the HITL review use-case coordinator over the agent's
 	// self-maintained memory (agentMemory.*). It may hold a disabled store, so
 	// Delivery can truthfully negotiate the capability without a domain-port leak.
-	AgentMemory *agentmemoryapp.Coordinator
-	Runs        *runs.Coordinator
+	AgentMemory       *agentmemoryapp.Coordinator
+	Runs              *runs.Coordinator
+	OwnershipRecovery *ownershiprecovery.Coordinator
 	// FileChanges carries committed workspace mutation scopes to protocol
 	// subscribers without exposing a wire event to the producer.
 	FileChanges NotificationSource[workspace.FileChangeNotice]
 	// Invalidations bridges committed read-model changes to the delivery hub,
 	// which alone names each wire topic. Producers are the use cases that own the
 	// mutation; Bootstrap only connects their shared application vocabulary.
-	Invalidations    NotificationSource[invalidation.Notice]
-	ScheduleFiring   *schedules.Firing
-	IdempotencyStore idempotency.Store
-	GitAvailable     bool
-	PlanEnabled      bool
+	Invalidations       NotificationSource[invalidation.Notice]
+	PublishInvalidation invalidation.Publish
+	ScheduleFiring      *schedules.Firing
+	IdempotencyStore    idempotency.Store
+	GitAvailable        bool
+	PlanEnabled         bool
 }
 
 type toolEnvironmentBuilder func(
@@ -349,7 +352,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 
 	fileChanges := &notification.Relay[workspace.FileChangeNotice]{}
-	admissionGate := &sessionadmission.Gate{}
+	admissionGate := sessionadmission.New(cfg.SessionOwnership)
 	sessionStores := persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions:            cfg.SessionStore,
 		Transcript:          cfg.TranscriptStore,
@@ -528,7 +531,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// nil store → nil driver → goals.* report capability_not_negotiated.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriver(goalStore, runCoordinator, cfg.SessionStore, goalMutations, builtin.RunInstructions)
+		goalDriver = goals.NewDriver(
+			goalStore,
+			runCoordinator,
+			cfg.SessionStore,
+			goalMutations,
+			cfg.GoalDriveOwnership,
+			builtin.RunInstructions,
+		)
 		lifetime.goalDriver = goalDriver
 		// create_goal is the only Goal tool that needs the Driver. Inject the
 		// generic tool after Runs and the Driver exist. This must precede Run
@@ -559,19 +569,20 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime: boot recovery persistence: %w", err)
 	}
-	bootRecovery, err := runs.NewRecovery(recoveryPersistence, interactionExecutor)
+	bootRecovery, err := runs.NewRecovery(recoveryPersistence, interactionExecutor, admissionGate)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: boot recovery: %w", err)
 	}
-	if _, err := bootRecovery.Reconcile(ctx); err != nil {
-		return nil, fmt.Errorf("runtime: reconcile abandoned Runs: %w", err)
-	}
-	// Reconcile Runs before Goals so an autonomous goal left active by a crashed
-	// process degrades to paused rather than silently resuming and burning budget.
+	var goalRecovery ownershiprecovery.Goals
 	if goalDriver != nil {
-		if err := goalDriver.Reconcile(ctx); err != nil {
-			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
-		}
+		goalRecovery = goalDriver
+	}
+	ownershipRecovery, err := ownershiprecovery.New(bootRecovery, goalRecovery, cfg.RecoveryOwnership)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: ownership recovery: %w", err)
+	}
+	if err := ownershipRecovery.ReconcileStartup(ctx); err != nil {
+		return nil, fmt.Errorf("runtime: reconcile abandoned ownership: %w", err)
 	}
 	workspaceFiles := workspace.NewFiles(workspaceScope, checkpointstore.FileBrowser{})
 	workspaceVCS := workspace.NewVCS(workspaceScope, checkpointstore.VCS{})
@@ -590,17 +601,19 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	lifetime.codebaseCoordinator = codebaseCoordinator
 	host := &Host{
 		Stack: Stack{
-			Sessions:         sessionCoordinator,
-			MCP:              mcpCoordinator,
-			Approvals:        approvalCoordinator,
-			Models:           modelCoordinator,
-			Tools:            toolCoordinator,
-			Codebase:         codebaseCoordinator,
-			Runs:             runCoordinator,
-			FileChanges:      fileChanges,
-			Invalidations:    applicationInvalidations,
-			ScheduleFiring:   scheduleFiring,
-			IdempotencyStore: cfg.IdempotencyStore,
+			Sessions:            sessionCoordinator,
+			MCP:                 mcpCoordinator,
+			Approvals:           approvalCoordinator,
+			Models:              modelCoordinator,
+			Tools:               toolCoordinator,
+			Codebase:            codebaseCoordinator,
+			Runs:                runCoordinator,
+			OwnershipRecovery:   ownershipRecovery,
+			FileChanges:         fileChanges,
+			Invalidations:       applicationInvalidations,
+			PublishInvalidation: applicationInvalidations.Publish,
+			ScheduleFiring:      scheduleFiring,
+			IdempotencyStore:    cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{
 				Transcript: cfg.TranscriptStore,
 				Interrupts: cfg.InterruptStore,

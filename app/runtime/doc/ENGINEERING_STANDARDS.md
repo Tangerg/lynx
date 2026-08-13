@@ -138,8 +138,10 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 所有 closers 只有一个 owner，逆序、幂等关闭；
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
 - optional capability 只在真实配置关闭时为 nil/absent，不通过半可用对象推迟错误。
-- HTTP host 与 embedded 共用同一 Runtime instance builder；数据目录独占、恢复、后台任务与资源关闭不能各装配一套。
-- 数据目录锁必须早于 Store/recovery，且在全部资源成功关闭后最后释放；失败 Open 要逆序回滚，失败 Close 保留所有权并允许重试。
+- HTTP host 与 embedded 共用同一 Runtime instance builder；共享目录 setup、所有权恢复、后台任务与资源关闭不能各装配一套。
+- canonical data directory 必须是 `0700` 私有目录；setup lease 只包围 store 打开与 schema/config seeding，不能扩张为 Runtime 全生命周期单实例锁。失败 Open 要逆序回滚，失败 Close 保留未关闭资源并允许重试。
+- 每次 Session mutation/Run 必须取得跨进程 Session writer lease；Run 同时取得 physical working tree shared lease，rollback/restore 等破坏性操作取得 exclusive lease。Goal drive 和恢复器必须竞争同一 owner identity；恢复先选举一个跨进程 sweep winner并固定 Run-before-Goal 顺序，startup 必须等待 winner 后复核，存活期可以非阻塞跳过，cleanup 只能作用于已取得的 Session。
+- 不用 heartbeat/TTL 推断本机 owner 死亡；以 OS advisory lease 的持有/释放为真相。来自其他 SQLite connection 的提交必须触发 read-model resync，消费者收到后重读 durable projection。
 
 ### 3.7 公共 Go binding
 

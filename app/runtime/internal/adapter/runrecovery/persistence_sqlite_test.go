@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -24,6 +25,13 @@ import (
 
 type alwaysResumable struct{}
 
+func newTestRecovery(
+	store runs.RecoveryStore,
+	resumability runs.WaitingExecutionResumability,
+) (*runs.Recovery, error) {
+	return runs.NewRecovery(store, resumability, new(sessionadmission.Gate))
+}
+
 func (alwaysResumable) CanResumeWaitingExecution(
 	context.Context,
 	runs.WaitingContinuation,
@@ -37,10 +45,10 @@ func (record goalRunRecorderFunc) RecordRun(ctx context.Context, value goal.RunR
 	return record(ctx, value)
 }
 
-type childRunStartReservationsFunc func(context.Context) error
+type childRunStartReservationsFunc func(context.Context, string) error
 
-func (cleanup childRunStartReservationsFunc) DeleteAll(ctx context.Context) error {
-	return cleanup(ctx)
+func (cleanup childRunStartReservationsFunc) DeleteSession(ctx context.Context, sessionID string) error {
+	return cleanup(ctx, sessionID)
 }
 
 func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
@@ -133,7 +141,7 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		t.Fatalf("New persistence: %v", err)
 	}
 	checkpointProbes := 0
-	recovery, err := runs.NewRecovery(store, waitingExecutionResumabilityFunc(func(
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(
 		context.Context,
 		runs.WaitingContinuation,
 	) (bool, error) {
@@ -174,12 +182,9 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	}
 }
 
-// TestRecoveryReclaimsChildStartsFromTheDeadProcess proves boot reconciliation
-// also owns invisible child-start cleanup. A process can die after Reserve and
-// before either conclusion, including before any child Run becomes public; an
-// empty public recovery plan must still retire that dead process's callback
-// ledger rather than leaking it forever.
-func TestRecoveryReclaimsChildStartsFromTheDeadProcess(t *testing.T) {
+// TestRecoveryCleanupIsScopedToClaimedSessions proves one Runtime never sweeps
+// another live Runtime's callback or checkpoint facts from the shared DB.
+func TestRecoveryCleanupIsScopedToClaimedSessions(t *testing.T) {
 	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -209,7 +214,7 @@ func TestRecoveryReclaimsChildStartsFromTheDeadProcess(t *testing.T) {
 		ExecutorCheckpoints: checkpointStore,
 		ModelInvocations:    sqlite.NewModelInvocationStore(db),
 		ToolInvocations:     sqlite.NewToolInvocationStore(db),
-		ChildRunStarts: childRunStartReservationsFunc(func(context.Context) error {
+		ChildRunStarts: childRunStartReservationsFunc(func(context.Context, string) error {
 			return cleanupFailure
 		}),
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
@@ -219,7 +224,11 @@ func TestRecoveryReclaimsChildStartsFromTheDeadProcess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New failing persistence: %v", err)
 	}
-	if err := failingStore.CommitRecovery(ctx, runs.RecoveryCommit{}); !errors.Is(err, cleanupFailure) {
+	commit := runs.RecoveryCommit{
+		RecoveredSessionIDs:        []string{"session_abandoned"},
+		DeleteCheckpointSessionIDs: []string{"session_abandoned"},
+	}
+	if err := failingStore.CommitRecovery(ctx, commit); !errors.Is(err, cleanupFailure) {
 		t.Fatalf("failed CommitRecovery = %v, want %v", err, cleanupFailure)
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); err != nil {
@@ -241,7 +250,7 @@ func TestRecoveryReclaimsChildStartsFromTheDeadProcess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New persistence: %v", err)
 	}
-	if err := store.CommitRecovery(ctx, runs.RecoveryCommit{}); err != nil {
+	if err := store.CommitRecovery(ctx, commit); err != nil {
 		t.Fatalf("CommitRecovery: %v", err)
 	}
 	var remaining int
@@ -371,7 +380,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New failing persistence: %v", err)
 	}
-	failingRecovery, err := runs.NewRecovery(failingPersistence, alwaysResumable{})
+	failingRecovery, err := newTestRecovery(failingPersistence, alwaysResumable{})
 	if err != nil {
 		t.Fatalf("New failing Recovery: %v", err)
 	}
@@ -419,7 +428,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New persistence: %v", err)
 	}
-	recovery, err := runs.NewRecovery(persistence, alwaysResumable{})
+	recovery, err := newTestRecovery(persistence, alwaysResumable{})
 	if err != nil {
 		t.Fatalf("NewRecovery: %v", err)
 	}
@@ -552,7 +561,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New persistence: %v", err)
 	}
-	recovery, err := runs.NewRecovery(persistence, alwaysResumable{})
+	recovery, err := newTestRecovery(persistence, alwaysResumable{})
 	if err != nil {
 		t.Fatalf("NewRecovery: %v", err)
 	}

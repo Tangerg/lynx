@@ -56,6 +56,17 @@ func TryFile(file *os.File) (*Lease, error) {
 	return tryFile(file)
 }
 
+// TrySharedFile shared-locks the first byte of an already-open regular file.
+// Multiple shared holders may coexist, while an exclusive [TryFile] holder
+// excludes them. The caller retains ownership of the file descriptor and
+// closes it after the lease is released.
+func TrySharedFile(file *os.File) (*Lease, error) {
+	if file == nil {
+		return nil, errors.New("advisory lock: file is required")
+	}
+	return trySharedFile(file)
+}
+
 // TryDirectory acquires a non-blocking exclusive lease for the physical
 // directory identity. It creates no files in the target tree.
 func TryDirectory(directory string) (*Lease, error) {

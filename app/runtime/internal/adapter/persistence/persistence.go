@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
@@ -66,6 +67,46 @@ type Config struct {
 	DefaultWorkspacePath string
 }
 
+const externalChangePollInterval = 100 * time.Millisecond
+
+// StartExternalChangeObserver reports commits made through a different SQLite
+// connection. PRAGMA data_version deliberately ignores commits on this
+// Bundle's own connection, whose use cases already publish precise notices.
+// The baseline is read before this method returns, so a caller can expose its
+// Runtime without leaving an unobserved startup window. Cancel ctx and wait on
+// the returned channel to join the observer.
+func (b *Bundle) StartExternalChangeObserver(ctx context.Context, notify func()) (<-chan struct{}, error) {
+	if b == nil || b.db == nil || notify == nil {
+		return nil, errors.New("persistence: external change observer requires a Bundle and callback")
+	}
+	var previous int64
+	if err := b.db.QueryRowContext(ctx, `PRAGMA data_version`).Scan(&previous); err != nil {
+		return nil, fmt.Errorf("persistence: read external change baseline: %w", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(externalChangePollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				var current int64
+				if err := b.db.QueryRowContext(ctx, `PRAGMA data_version`).Scan(&current); err != nil {
+					continue
+				}
+				if current != previous {
+					previous = current
+					notify()
+				}
+			}
+		}
+	}()
+	return done, nil
+}
+
 // Open wires the persistence backends. The returned bundle owns the shared
 // SQLite handle and must be closed when the runtime process stops.
 func Open(ctx context.Context, config Config) (*Bundle, error) {
@@ -81,8 +122,11 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 	if !filepath.IsAbs(config.DefaultWorkspacePath) {
 		return nil, errors.New("persistence: default workspace path must be absolute")
 	}
-	if err := os.MkdirAll(config.DataDirectory, 0o755); err != nil {
+	if err := os.MkdirAll(config.DataDirectory, 0o700); err != nil {
 		return nil, fmt.Errorf("persistence: create data directory %q: %w", config.DataDirectory, err)
+	}
+	if err := os.Chmod(config.DataDirectory, 0o700); err != nil {
+		return nil, fmt.Errorf("persistence: protect data directory %q: %w", config.DataDirectory, err)
 	}
 	db, err := sqlitestore.Open(ctx, filepath.Join(config.DataDirectory, "lyra.db"))
 	if err != nil {

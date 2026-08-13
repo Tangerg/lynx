@@ -12,7 +12,15 @@ import (
 )
 
 func tryFile(file *os.File) (*Lease, error) {
-	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+	return tryFileMode(file, unix.LOCK_EX)
+}
+
+func trySharedFile(file *os.File) (*Lease, error) {
+	return tryFileMode(file, unix.LOCK_SH)
+}
+
+func tryFileMode(file *os.File, mode int) (*Lease, error) {
+	if err := unix.Flock(int(file.Fd()), mode|unix.LOCK_NB); err != nil {
 		if isContention(err) {
 			return nil, ErrContended
 		}

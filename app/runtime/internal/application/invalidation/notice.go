@@ -16,8 +16,12 @@ package invalidation
 type Resource uint8
 
 const (
+	// Resync means a different Runtime process committed to the shared durable
+	// store. The observer cannot recover the original use-case scope from
+	// SQLite's commit counter, so every subscribed read model must be re-read.
+	Resync Resource = iota + 1
 	// Sessions — a session was created, renamed, deleted, or its lifecycle moved.
-	Sessions Resource = iota + 1
+	Sessions
 	// Runs — a run's lifecycle position changed (started, parked, resumed, ended).
 	Runs
 	// Interrupts — a waiting set opened, was answered, or was dropped.

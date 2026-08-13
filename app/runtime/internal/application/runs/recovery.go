@@ -43,9 +43,16 @@ type WaitingExecutionResumability interface {
 	CanResumeWaitingExecution(ctx context.Context, continuation WaitingContinuation) (bool, error)
 }
 
-// RecoveryCommit is the complete atomic write-set for boot reconciliation.
-// LostRuns are ordered child-before-parent. PreservedCheckpointRootIDs is the
-// exact owner set; every other checkpoint aggregate is deleted.
+// RecoveryAdmissions provides the same per-Session writer boundary used by
+// live Run and Session mutations. Recovery skips a Session when another
+// Runtime process still owns it; such a Run is live, not abandoned.
+type RecoveryAdmissions interface {
+	AcquireSession(sessionID string) (release func(), ok bool)
+}
+
+// RecoveryCommit is the complete atomic write-set for one ownership-scoped
+// reconciliation. LostRuns are ordered child-before-parent. Checkpoint and
+// callback cleanup names only Sessions whose writer lease was acquired.
 type RecoveryCommit struct {
 	LostRuns                   []rundomain.Run
 	ItemReplacements           []ItemReplacement
@@ -55,6 +62,12 @@ type RecoveryCommit struct {
 	GoalRuns                   []goal.RunRecord
 	DeleteInterrupts           []InterruptOwner
 	PreservedCheckpointRootIDs []string
+	// RecoveredSessionIDs is the exact set whose abandoned callback ledger
+	// may be retired. It never names a Session whose writer lease was contended.
+	RecoveredSessionIDs []string
+	// DeleteCheckpointSessionIDs names recovered lost trees. A preserved waiting
+	// tree is intentionally absent so its opaque checkpoint remains available.
+	DeleteCheckpointSessionIDs []string
 }
 
 // OpenModelInvocation is an operational provider attempt that crossed the
@@ -123,17 +136,17 @@ type InterruptOwner struct {
 }
 
 // Recovery owns the application policy that reconciles Run trees abandoned by
-// a previous process. Construction happens before new Run admission, so its
-// read/validate phase observes an exclusive boot snapshot; CommitRecovery still
-// applies the resulting write-set atomically and Run transitions remain CAS
-// guarded by storage.
+// a dead Runtime process. Each pass claims Session writer ownership before
+// re-reading candidates; CommitRecovery applies the resulting write-set
+// atomically and Run transitions remain CAS guarded by storage.
 type Recovery struct {
 	store        RecoveryStore
 	resumability WaitingExecutionResumability
+	admissions   RecoveryAdmissions
 	now          func() time.Time
 }
 
-// recoveryPlanner owns one boot reconciliation snapshot and the caches needed
+// recoveryPlanner owns one ownership-scoped reconciliation snapshot and the caches needed
 // to derive its atomic write-set. It is intentionally Application-private:
 // deciding whether an opaque checkpoint preserves a product Run is a recovery
 // policy, not a Run aggregate or executor concern.
@@ -158,22 +171,34 @@ type recoveryConversationSnapshot struct {
 	count   int
 }
 
-// NewRecovery constructs the boot recovery use case.
-func NewRecovery(store RecoveryStore, resumability WaitingExecutionResumability) (*Recovery, error) {
+// NewRecovery constructs the Run ownership recovery use case.
+func NewRecovery(
+	store RecoveryStore,
+	resumability WaitingExecutionResumability,
+	admissions RecoveryAdmissions,
+) (*Recovery, error) {
 	if store == nil {
 		return nil, errors.New("runs: recovery store is required")
 	}
 	if resumability == nil {
 		return nil, errors.New("runs: waiting execution resumability is required")
 	}
-	return &Recovery{store: store, resumability: resumability, now: time.Now}, nil
+	if admissions == nil {
+		return nil, errors.New("runs: recovery admissions are required")
+	}
+	return &Recovery{store: store, resumability: resumability, admissions: admissions, now: time.Now}, nil
 }
 
 // Reconcile preserves only complete waiting trees whose durable hand-off
 // and opaque executor checkpoint remain coherent. Every other non-terminal tree
 // is recovered as run_lost in one application transaction.
 func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
-	planner, err := newRecoveryPlanner(ctx, r)
+	active, claimed, release, err := r.claimAbandonedSessions(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+	planner, err := newRecoveryPlanner(ctx, r, active, claimed)
 	if err != nil {
 		return 0, err
 	}
@@ -182,18 +207,63 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	if err := r.store.CommitRecovery(ctx, commit); err != nil {
-		return 0, fmt.Errorf("runs: commit boot recovery: %w", err)
+		return 0, fmt.Errorf("runs: commit ownership recovery: %w", err)
 	}
 	return reconciled, nil
 }
 
-func newRecoveryPlanner(ctx context.Context, recovery *Recovery) (*recoveryPlanner, error) {
+func (r *Recovery) claimAbandonedSessions(
+	ctx context.Context,
+) ([]rundomain.Run, map[string]struct{}, func(), error) {
+	candidates, err := r.store.ListNonTerminalRuns(ctx)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("runs: load recovery candidates: %w", err)
+	}
+	ids := make([]string, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if _, ok := seen[candidate.SessionID()]; ok {
+			continue
+		}
+		seen[candidate.SessionID()] = struct{}{}
+		ids = append(ids, candidate.SessionID())
+	}
+	slices.Sort(ids)
+	claimed := make(map[string]struct{}, len(ids))
+	releases := make([]func(), 0, len(ids))
+	for _, sessionID := range ids {
+		if release, ok := r.admissions.AcquireSession(sessionID); ok {
+			claimed[sessionID] = struct{}{}
+			releases = append(releases, release)
+		}
+	}
+	releaseAll := func() {
+		for index := len(releases) - 1; index >= 0; index-- {
+			releases[index]()
+		}
+	}
+	current, err := r.store.ListNonTerminalRuns(ctx)
+	if err != nil {
+		releaseAll()
+		return nil, nil, nil, fmt.Errorf("runs: reload claimed recovery Runs: %w", err)
+	}
+	active := make([]rundomain.Run, 0, len(current))
+	for _, candidate := range current {
+		if _, ok := claimed[candidate.SessionID()]; ok {
+			active = append(active, candidate)
+		}
+	}
+	return active, claimed, releaseAll, nil
+}
+
+func newRecoveryPlanner(
+	ctx context.Context,
+	recovery *Recovery,
+	active []rundomain.Run,
+	claimed map[string]struct{},
+) (*recoveryPlanner, error) {
 	if recovery == nil {
 		return nil, errors.New("runs: recovery use case is required")
-	}
-	active, err := recovery.store.ListNonTerminalRuns(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("runs: load non-terminal Runs for recovery: %w", err)
 	}
 	pending, err := recovery.store.ListPendingInterrupts(ctx)
 	if err != nil {
@@ -207,6 +277,22 @@ func newRecoveryPlanner(ctx context.Context, recovery *Recovery) (*recoveryPlann
 	if err != nil {
 		return nil, fmt.Errorf("runs: load open Tool invocations for recovery: %w", err)
 	}
+	activeRoots := make(map[string]struct{}, len(active))
+	for _, value := range active {
+		activeRoots[value.Lineage().TreeRootID(value.ID())] = struct{}{}
+	}
+	pending = slices.DeleteFunc(pending, func(open Pending) bool {
+		_, ok := activeRoots[open.RootRunID]
+		return !ok
+	})
+	modelInvocations = slices.DeleteFunc(modelInvocations, func(open OpenModelInvocation) bool {
+		_, ok := claimed[open.SessionID]
+		return !ok
+	})
+	toolInvocations = slices.DeleteFunc(toolInvocations, func(open OpenToolInvocation) bool {
+		_, ok := claimed[open.SessionID]
+		return !ok
+	})
 	pendingByRun := make(map[string]Pending, len(pending))
 	checkpointOwners := make(map[string]string, len(pending))
 	for _, open := range pending {
@@ -246,6 +332,10 @@ func newRecoveryPlanner(ctx context.Context, recovery *Recovery) (*recoveryPlann
 		preserved:     make(map[string]struct{}, len(trees)),
 		finishedAt:    recovery.now().UTC(),
 	}
+	for sessionID := range claimed {
+		planner.commit.RecoveredSessionIDs = append(planner.commit.RecoveredSessionIDs, sessionID)
+	}
+	slices.Sort(planner.commit.RecoveredSessionIDs)
 	// Recovery is a new durable observation in the same timelines as every
 	// fact it closes. Wall time can move backward across a reboot, so derive the
 	// observation timestamp from the complete boot snapshot instead of allowing
@@ -322,6 +412,7 @@ func (planner *recoveryPlanner) plan() (RecoveryCommit, int, error) {
 	slices.SortFunc(planner.commit.ModelInvocations, compareModelInvocationRecoveries)
 	slices.SortFunc(planner.commit.ToolInvocations, compareToolInvocationRecoveries)
 	slices.Sort(planner.commit.PreservedCheckpointRootIDs)
+	slices.Sort(planner.commit.DeleteCheckpointSessionIDs)
 	if err := planner.commit.Validate(); err != nil {
 		return RecoveryCommit{}, 0, err
 	}
@@ -415,6 +506,10 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 		SessionID: tree.root.SessionID(),
 		RootRunID: tree.root.ID(),
 	})
+	planner.commit.DeleteCheckpointSessionIDs = append(
+		planner.commit.DeleteCheckpointSessionIDs,
+		tree.root.SessionID(),
+	)
 	if tree.root.GoalIncarnationID() != "" {
 		record, err := recoveredGoalRun(tree.root.ID(), lostRuns)
 		if err != nil {

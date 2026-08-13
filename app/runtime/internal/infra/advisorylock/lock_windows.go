@@ -13,10 +13,22 @@ import (
 )
 
 func tryFile(file *os.File) (*Lease, error) {
+	return tryFileMode(file, true)
+}
+
+func trySharedFile(file *os.File) (*Lease, error) {
+	return tryFileMode(file, false)
+}
+
+func tryFileMode(file *os.File, exclusive bool) (*Lease, error) {
 	var overlapped windows.Overlapped
+	flags := uint32(windows.LOCKFILE_FAIL_IMMEDIATELY)
+	if exclusive {
+		flags |= windows.LOCKFILE_EXCLUSIVE_LOCK
+	}
 	err := windows.LockFileEx(
 		windows.Handle(file.Fd()),
-		windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY,
+		flags,
 		0, 1, 0, &overlapped,
 	)
 	if err != nil {

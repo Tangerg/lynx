@@ -396,3 +396,12 @@
 - 决策：Domain 保留 `StatusComplete` 作为 objective 已完成、等待 owner settlement 的内部事实；Delivery 在公共 Goal read model 中将它投影为 `status:"completing"`。该词描述消费者此刻能做什么，而不复制 Domain transition 名。`completing` 保持 Goal 占位但不可 stop/resume/start；最终 accounting 与条件清除仍只由 Application drive 拥有，下一次 invalidation 后读取 `null`。
 - 决策：生成的 Go/JSON Schema/TypeScript enum、Desktop vendored binding 与 Goal context 自有 read model 原子同步。Desktop banner 本地化显示收尾状态且不暴露 lifecycle command；组件不 import Runtime client，gateway/provider 边界不改变。不得以吞掉读取错误、投影为 active、提前返回 null 或客户端重试延迟掩盖该状态。
 - 后果：`goals.changed → goals.get` 在完成窗口内保持闭合，客户端不会提前开放 fresh Goal launcher 或错误地恢复/停止终态目标。Runtime Domain/Application/Delivery、Desktop context 与 Agent Framework 的抽象边界保持不变。
+
+## ADR-RT-059：多个内嵌 Runtime 共享数据库时按业务身份分配所有权
+
+- 状态：已接受并实施，P84 完成；取代 ADR-RT-053 的 data-directory 全生命周期独占结论，并把 ADR-RT-055 的 Goal drive process-local 所有权扩展为跨进程单 owner；不改变 Goal incarnation 的领域语义。
+- 背景：产品部署是 CLI 与 Desktop 各自内嵌一个 Runtime，一个 client 只请求一个 Runtime，但二者可能同时打开用户私有目录中的同一 SQLite 数据库并操作相同 cwd。以整个 data directory 为进程级独占单位会迫使本地应用引入无必要的常驻宿主/IPC；仅删除该锁又会让 Session Run、Goal drive、恢复器和破坏性 workspace mutation 在两个进程中各自认为自己是唯一 owner。
+- 决策：canonical data directory 强制为 `0700`，只在 store/schema/config seeding 期间持有短期 setup lease，之后允许少量同版本 Runtime instance 共享 SQLite WAL。Application 仍决定冲突语义；`adapter/runtimeownership` 只把 identity 映射到 OS advisory lease。每个 Session 同时只有一个 mutation/Run writer；active Run 同时持有 physical working-tree shared lease，rollback/restore 等破坏性 mutation 取得 exclusive lease；Goal autonomous drive 同一 Session 只有一个进程 owner。业务冲突继续投影既有 `session_busy`，不保留 `embedded.ErrDataDirectoryInUse` 或单宿主 fallback。
+- 决策：内核 lease 是本机进程存活的唯一真相，进程退出或强杀后自动释放；不增加 heartbeat、TTL、owner row 或 wall-clock expiry。boot 与存活期 recovery 先竞争全局 sweep lease，单一 winner 固定先结算 Run/Goal accounting、再处理 Goal lifecycle；新 Runtime 在服务 admission 前等待当前 winner并再做一轮复核，存活期则非阻塞跳过。每个策略随后仍竞争目标 Session/Goal 的同一 live-owner lease并重读权威 facts。只有实际接管的 Session 可以进入 checkpoint/child-reservation cleanup，禁止全库 sweep。Schedule firing 和 HITL answer 继续使用既有数据库 claim/事务单赢家，不复制成文件锁。
+- 决策：进程内 invalidation 仍发布精确 topic；Persistence 观察 connection-local `PRAGMA data_version`，只在另一个 SQLite connection commit 时向本 Runtime 发布覆盖全部 topic 的 scoped `resync`。消费者收到后重读 durable projection；不建立跨进程事件日志或假装复制细粒度因果事件。
+- 后果：CLI 与 Desktop 可各自嵌入 Runtime、共享用户数据库，并在不同 Session 或同 cwd 的非破坏性 Run 上并存；同 Session 写入、Goal drive 和 workspace rollback/restore 仍 fail closed。强杀 owner 后存活 Runtime 无需重启即可接管恢复。该修订没有新增协议 wire 或 SQLite epoch，也没有把 Runtime、RPC、持久化、ownership lease 或 Desktop 抽象泄露进 Agent Framework。

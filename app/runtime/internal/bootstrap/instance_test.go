@@ -75,8 +75,20 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	if namespace == "" {
 		t.Fatal("runtime.discover omitted idempotency namespace")
 	}
-	if _, _, err := OpenInstance(t.Context(), cfg); !errors.Is(err, ErrDataDirectoryInUse) {
-		t.Fatalf("second OpenInstance error = %v, want ErrDataDirectoryInUse", err)
+	second, _, err := OpenInstance(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("second OpenInstance sharing data directory: %v", err)
+	}
+	secondResult := second.Endpoint().Invoke(t.Context(), "runtime.discover", struct{}{}, operation.Options{})
+	if secondResult.Failure != nil {
+		t.Fatalf("second runtime.discover: %v", secondResult.Failure)
+	}
+	secondDiscovery, ok := secondResult.Value.(*protocol.DiscoverResponse)
+	if !ok || secondDiscovery.Capabilities.Limits.Idempotency.Namespace != namespace {
+		t.Fatalf("second idempotency namespace = %+v, want %q", secondResult.Value, namespace)
+	}
+	if err := second.Close(); err != nil {
+		t.Fatalf("close second instance: %v", err)
 	}
 
 	if err := instance.Close(); err != nil {
@@ -99,18 +111,12 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	}
 }
 
-func TestInstanceCloseReleasesDataDirectoryLastAndIsIdempotent(t *testing.T) {
-	directory := t.TempDir()
-	lease, err := acquireDataDirectoryLease(directory)
-	if err != nil {
-		t.Fatalf("acquire lease: %v", err)
-	}
+func TestInstanceCloseIsIdempotent(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
 	instance := &Instance{
 		service:       &runtimeserver.Server{},
 		host:          &Host{},
-		lease:         lease,
 		stopRuntime:   func() {},
 		schedulerDone: done,
 	}
@@ -120,22 +126,9 @@ func TestInstanceCloseReleasesDataDirectoryLastAndIsIdempotent(t *testing.T) {
 	if err := instance.Close(); err != nil {
 		t.Fatalf("Close again: %v", err)
 	}
-
-	next, err := acquireDataDirectoryLease(directory)
-	if err != nil {
-		t.Fatalf("acquire after Close: %v", err)
-	}
-	if err := next.release(); err != nil {
-		t.Fatalf("release next lease: %v", err)
-	}
 }
 
-func TestInstanceCloseRetainsLeaseUntilHostJoins(t *testing.T) {
-	directory := t.TempDir()
-	lease, err := acquireDataDirectoryLease(directory)
-	if err != nil {
-		t.Fatalf("acquire lease: %v", err)
-	}
+func TestInstanceCloseRetainsResourcesUntilHostJoins(t *testing.T) {
 	ready := false
 	host := &Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
@@ -152,27 +145,15 @@ func TestInstanceCloseRetainsLeaseUntilHostJoins(t *testing.T) {
 	instance := &Instance{
 		service:       &runtimeserver.Server{},
 		host:          host,
-		lease:         lease,
 		stopRuntime:   func() {},
 		schedulerDone: done,
 	}
 	if err := instance.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("first Close error = %v, want deadline exceeded", err)
 	}
-	if _, err := acquireDataDirectoryLease(directory); !errors.Is(err, ErrDataDirectoryInUse) {
-		t.Fatalf("lease after incomplete Close = %v, want ErrDataDirectoryInUse", err)
-	}
-
 	ready = true
 	if err := instance.Close(); err != nil {
 		t.Fatalf("retry Close: %v", err)
-	}
-	next, err := acquireDataDirectoryLease(directory)
-	if err != nil {
-		t.Fatalf("acquire after retry Close: %v", err)
-	}
-	if err := next.release(); err != nil {
-		t.Fatalf("release next lease: %v", err)
 	}
 }
 
@@ -193,11 +174,6 @@ func (s *blockingInstanceOperationService) Discover(ctx context.Context) (*proto
 }
 
 func TestInstanceCloseJoinsAcceptedOperationsBeforeClosingResources(t *testing.T) {
-	directory := t.TempDir()
-	lease, err := acquireDataDirectoryLease(directory)
-	if err != nil {
-		t.Fatalf("acquire lease: %v", err)
-	}
 	runtimeContext, stopRuntime := context.WithCancel(context.Background())
 	service := &blockingInstanceOperationService{
 		started:  make(chan struct{}),
@@ -217,7 +193,6 @@ func TestInstanceCloseJoinsAcceptedOperationsBeforeClosingResources(t *testing.T
 				return nil
 			}),
 		}}},
-		lease:         lease,
 		stopRuntime:   stopRuntime,
 		schedulerDone: schedulerDone,
 	}

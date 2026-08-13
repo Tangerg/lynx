@@ -19,15 +19,12 @@ var (
 	// ErrClosed is returned when an operation starts after Runtime shutdown has
 	// begun. An already-returned stream ends through its iterator instead.
 	ErrClosed = errors.New("embedded: runtime is closed")
-	// ErrDataDirectoryInUse means another Runtime instance or process owns the
-	// same canonical data directory.
-	ErrDataDirectoryInUse = errors.New("embedded: data directory is already in use")
 )
 
 // Config identifies the host paths used by one embedded Runtime.
 type Config struct {
 	// DataDirectory holds Runtime durability and must be absolute. It is required
-	// and exclusively owned until Close succeeds.
+	// and may be shared by other Runtime processes using the same storage epoch.
 	DataDirectory string
 	// DefaultWorkspacePath is used when a request omits its workspace. Empty uses
 	// UserHomePath.
@@ -65,9 +62,6 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		},
 	})
 	if err != nil {
-		if errors.Is(err, bootstrap.ErrDataDirectoryInUse) {
-			return nil, fmt.Errorf("%w: %s", ErrDataDirectoryInUse, resolved.DataDirectory)
-		}
 		return nil, err
 	}
 	return &Runtime{instance: instance}, nil
@@ -137,8 +131,8 @@ func (r *Runtime) endpoint() (*operation.Endpoint, error) {
 }
 
 // Close stops new calls, ends subscriptions, joins Runtime-owned workers and
-// closes resources before releasing the data-directory lease. If Close returns
-// an error, call it again to resume the incomplete teardown.
+// closes resources. If Close returns an error, call it again to resume the
+// incomplete teardown.
 func (r *Runtime) Close() error {
 	if r == nil {
 		return nil

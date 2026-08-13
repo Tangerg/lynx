@@ -293,7 +293,7 @@ Delivery 只依赖公共 Protocol、Application 和必要的 Domain projection v
 
 ### 6.6 Bootstrap、Config、Embedded 与 Cmd
 
-私有 Runtime instance builder 是唯一组合根：创建 concrete dependency、组装 consumer port、取得数据目录独占权、执行恢复、启动有 owner 的后台任务并按逆序关闭资源。HTTP executable 和公共 `embedded.Open` 都只能调用它，不得各自复制装配图。
+私有 Runtime instance builder 是唯一组合根：创建 concrete dependency、组装 consumer port、在短期 setup lease 内打开并初始化共享数据目录、执行有所有权判断的恢复、启动有 owner 的后台任务并按逆序关闭资源。HTTP executable 和公共 `embedded.Open` 都只能调用它，不得各自复制装配图；多个进程可各自持有一个完整 Runtime instance 并共享同一私有数据目录。
 
 Bootstrap 不提供业务 API，不成为 service locator，不让运行时对象反向取得完整 Stack。公共 `embedded.Runtime` 只持有私有 instance 与 operation endpoint，提供完整 `Open/Close` 和类型化方法，不泄露内部资源。Config 只解析外部设置和完成静态验证，不执行业务选择。Cmd 只负责进程参数、BuildID、信号、HTTP listener 与 Runtime 生命周期。
 
@@ -486,7 +486,10 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 - 慢 Delivery subscriber 不得阻塞或改变 Run 终态；
 - cancel、terminal、waiting 和 resume 的线性化点必须有行为测试；
 - Engine 使用 Run-owned lifecycle context，不使用短命 Delivery request context；请求返回或连接断开不得隐式取消仍在执行的 Run；
+- 同一共享数据目录内，每个 Session 同时只有一个 mutation/Run writer；Run 对 physical working tree 持共享 lease，rollback/restore 等破坏性工作树变更持独占 lease；Goal autonomous drive 同一 Session 只有一个进程 owner；这些 kernel lease 在进程死亡时释放，不使用 heartbeat、TTL 或时钟猜测；
+- boot 与存活期 recovery 先由跨进程 sweep lease 选出单一执行者，并固定 Run-before-Goal 顺序；新 Runtime 在开始服务前等待当前 winner 并完成自己的复核，存活期 sweep 则非阻塞跳过。Run recovery 仍只在取得目标 Session lease 后接管，Goal recovery 仍竞争 live drive lease，cleanup 必须按已接管 Session 精确执行，禁止对共享数据库做全局 callback/checkpoint sweep；
 - Application process-local wake-only fan-out 不保存产品状态：observation 只在活跃 waiter 存在时持有 generation 并提供显式 disposer，通知只关闭当代 channel，消费者醒来后重读 durable projection；
+- 另一个 Runtime connection 的 SQLite commit 通过 `data_version` 触发全量 read-model resync；该信号只要求消费者重读 durable projection，不复制产品状态或伪造细粒度事件；
 - 不使用 `time.Sleep` 证明并发正确性；使用 channel、明确 barrier 或 `testing/synctest`。
 
 Agent Framework Event/Delta listener 都是 observation/wake-up 边界，不是 Application durable commit callback。listener failure/panic 不会回滚 Framework 状态，因此 Application 不能仅因“收到一个 Event”就假定产品事实已经可靠提交。per-Run pump 必须通过 Agent Framework public Process status/result、Strategy public helper 和 quiescent complete-tree capture 对账 waiting/terminal；Event 丢失后仍能在下一次 wake、control 或 recovery reconciliation 收敛。terminal truth 最终来自 `Process.Await`/`Result`，不是 Event payload。
@@ -502,7 +505,7 @@ Runtime Protocol 是外部语义契约，机器真相源在 `contract/`。重构
 - transport metadata 不进入 JSON-RPC body；
 - HTTP/SSE 与 embedded 都驱动同一 binding-neutral operation 和 Application use case；binding 只投影 metadata、options 与结果流，不得复制业务路径。
 - embedded 不经过 JSON-RPC/SSE 编解码，但必须遵守同一严格验证、capability、idempotency、replay cursor 与 problem 语义。
-- 同一 data directory 只有一个 Runtime owner；独占锁早于 store/recovery，成功关闭时最后释放。
+- 同一 canonical data directory 可以由少量 embedded/HTTP Runtime 同时打开；目录 setup 只在 schema/config seeding 期间串行。冲突操作由 Session writer、working-tree shared/exclusive lease、Goal drive 和数据库事务共同 fail closed，跨进程提交通过既有 resync event 促使消费者重读。
 
 ## 13. 目标目录
 

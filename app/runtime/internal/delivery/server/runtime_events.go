@@ -26,6 +26,8 @@ func (s *Server) observeInvalidations(source notificationSource[invalidation.Not
 
 func runtimeEventFor(notice invalidation.Notice) (protocol.RuntimeEvent, bool) {
 	switch notice.Resource {
+	case invalidation.Resync:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeResync, Topics: protocol.RuntimeTopics()}, true
 	case invalidation.Sessions:
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeSessionsChanged, SessionIDs: notice.SessionIDs,

@@ -24,13 +24,14 @@ const (
 	goalRunCleanupTimeout = 5 * time.Second
 )
 
-// goalDrive is one process-local drive of an active Goal incarnation. The
-// durable Goal remains authoritative; this value owns only its goroutine,
-// cancellation boundary, and completion result.
+// goalDrive is the local execution of one cross-process-owned active Goal
+// incarnation. The durable Goal remains authoritative; this value owns its
+// lease, goroutine, cancellation boundary, and completion result.
 type goalDrive struct {
 	incarnationID string
 	cancel        context.CancelFunc
 	done          chan struct{}
+	lease         DriveLease
 	err           error
 }
 
@@ -73,29 +74,43 @@ func (d *goalDrive) quiesce() {
 // Callers hold this session's mutation lock; BeginShutdown holds the admission
 // write lock, which linearizes the durable active transition with task-group
 // admission.
-func (d *Driver) launchLocked(parent context.Context, sessionID, incarnationID string) bool {
+func (d *Driver) launchLocked(
+	parent context.Context,
+	sessionID, incarnationID string,
+	lease DriveLease,
+) error {
+	if lease == nil {
+		var acquired bool
+		lease, acquired = d.tryDriveLease(sessionID)
+		if !acquired {
+			return ErrGoalOwned
+		}
+	}
 	owner, release, ok := d.tasks.Attach(parent)
 	if !ok {
-		return false
+		lease.Release()
+		return ErrClosed
 	}
 	ctx, cancel := context.WithCancel(owner)
 	drive := &goalDrive{
 		incarnationID: incarnationID,
 		cancel:        cancel,
 		done:          make(chan struct{}),
+		lease:         lease,
 	}
 
 	d.mutations.launch(sessionID, drive)
 
 	go func() {
 		defer release()
+		defer drive.lease.Release()
 		drive.err = d.drive(ctx, sessionID, incarnationID)
 		close(drive.done)
 		if drive.err == nil {
 			d.mutations.forget(sessionID, drive)
 		}
 	}()
-	return true
+	return nil
 }
 
 // ensureDriveLocked restores the in-process side of an authoritative active
@@ -119,8 +134,11 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, incarnationID
 			return nil
 		}
 	}
-	if !d.launchLocked(ctx, sessionID, incarnationID) {
-		panic("goals: command crossed the shutdown admission boundary")
+	if err := d.launchLocked(ctx, sessionID, incarnationID, nil); err != nil {
+		if errors.Is(err, ErrGoalOwned) {
+			return nil
+		}
+		return err
 	}
 	return nil
 }

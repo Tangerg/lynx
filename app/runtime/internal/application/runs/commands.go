@@ -20,8 +20,8 @@ var (
 	// new run segment.
 	ErrSessionBusy = errors.New("runs: session busy")
 	// ErrRunAdmissionBusy is the retryable subset of ErrSessionBusy: the
-	// process-local admission gate observed a current session or working-tree
-	// owner. A caller may wait on WaitSessionStartable and retry. Other busy
+	// admission gate observed a current Session or working-tree owner. A caller
+	// may wait on WaitSessionStartable and retry. Other busy
 	// outcomes (for example a durable conflict) are not implicitly retryable.
 	ErrRunAdmissionBusy = fmt.Errorf("%w: run admission busy", ErrSessionBusy)
 	// ErrIsolationUnavailable reports that an isolated session cannot run because

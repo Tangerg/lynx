@@ -11,6 +11,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/ownershiprecovery"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -25,6 +27,16 @@ import (
 type Config struct {
 	// BuildID identifies the running executable at durable executor boundaries.
 	BuildID string
+
+	// SessionOwnership extends Run/session lifecycle and destructive working-tree
+	// admission across Runtime processes sharing one data directory.
+	SessionOwnership sessionadmission.Ownership
+	// GoalDriveOwnership elects one autonomous Goal driver per Session across
+	// those Runtime processes.
+	GoalDriveOwnership goals.DriveOwnership
+	// RecoveryOwnership elects one process to reconcile abandoned Runs before
+	// Goals, preserving their accounting order across shared Runtime instances.
+	RecoveryOwnership ownershiprecovery.Ownership
 
 	// ChatClient is the default model client. Explicit per-Run selections resolve
 	// through ProviderRegistry; utility roles fall back to this client.

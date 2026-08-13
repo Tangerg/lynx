@@ -48,7 +48,7 @@ type GoalRunRecorder interface {
 
 type ExecutorCheckpointStore interface {
 	LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error)
-	DeleteUnownedCheckpoints(ctx context.Context, keepRootIDs []string) error
+	DeleteSessionCheckpoints(ctx context.Context, sessionID string) error
 }
 
 type ModelInvocationStore interface {
@@ -77,10 +77,10 @@ type ToolInvocationStore interface {
 
 // ChildRunStartReservations owns the process-scoped callback ledger behind
 // child admission. Its rows are not recovery facts: callbacks die with the
-// process, so boot reconciliation retires the complete prior-process ledger in
+// process, so reconciliation retires the claimed Session's abandoned ledger in
 // the same transaction as the public Run repair.
 type ChildRunStartReservations interface {
-	DeleteAll(ctx context.Context) error
+	DeleteSession(ctx context.Context, sessionID string) error
 }
 
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
@@ -312,11 +312,19 @@ func (p *Persistence) CommitRecovery(ctx context.Context, commit runs.RecoveryCo
 				return fmt.Errorf("runrecovery: delete interrupt for root Run %q: %w", owner.RootRunID, err)
 			}
 		}
-		if err := p.executorCheckpoints.DeleteUnownedCheckpoints(ctx, commit.PreservedCheckpointRootIDs); err != nil {
-			return fmt.Errorf("runrecovery: delete unowned executor checkpoints: %w", err)
+		for _, sessionID := range commit.DeleteCheckpointSessionIDs {
+			if err := p.executorCheckpoints.DeleteSessionCheckpoints(ctx, sessionID); err != nil {
+				return fmt.Errorf("runrecovery: delete executor checkpoints for Session %q: %w", sessionID, err)
+			}
 		}
-		if err := p.childRunStarts.DeleteAll(ctx); err != nil {
-			return fmt.Errorf("runrecovery: delete prior-process child Run start reservations: %w", err)
+		for _, sessionID := range commit.RecoveredSessionIDs {
+			if err := p.childRunStarts.DeleteSession(ctx, sessionID); err != nil {
+				return fmt.Errorf(
+					"runrecovery: delete child Run start reservations for Session %q: %w",
+					sessionID,
+					err,
+				)
+			}
 		}
 		return nil
 	})

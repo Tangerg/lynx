@@ -84,7 +84,7 @@ func mapGoalErr(err error, method string) error {
 	switch {
 	case errors.Is(err, goals.ErrUnavailable):
 		return capabilityNotNegotiated(method)
-	case errors.Is(err, goals.ErrGoalActive):
+	case errors.Is(err, goals.ErrGoalActive), errors.Is(err, goals.ErrGoalOwned):
 		return fmt.Errorf("%w: a goal is already active for this session — stop it first", protocol.ErrSessionBusy)
 	case errors.Is(err, goals.ErrNoGoal):
 		return fmt.Errorf("%w: no goal for this session", protocol.ErrInvalidParams)

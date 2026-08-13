@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	interruptdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -20,6 +21,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
+
+func newTestRecovery(
+	store RecoveryStore,
+	resumability WaitingExecutionResumability,
+) (*Recovery, error) {
+	return NewRecovery(store, resumability, new(sessionadmission.Gate))
+}
 
 type recoveryStoreStub struct {
 	runs         []rundomain.Run
@@ -136,6 +144,72 @@ func (validate waitingExecutionResumabilityFunc) CanResumeWaitingExecution(
 	return validate(ctx, continuation)
 }
 
+type selectiveRecoveryAdmissions struct {
+	busy     map[string]bool
+	released map[string]int
+}
+
+func (a *selectiveRecoveryAdmissions) AcquireSession(sessionID string) (func(), bool) {
+	if a.busy[sessionID] {
+		return nil, false
+	}
+	return func() { a.released[sessionID]++ }, true
+}
+
+func TestRecoverySkipsFactsOwnedByAnotherRuntime(t *testing.T) {
+	createdAt := time.Date(2026, 8, 14, 1, 0, 0, 0, time.UTC)
+	recoverable := runfixture.MustRestore(rundomain.Snapshot{
+		ID: "run_recoverable", SessionID: "session_recoverable", State: rundomain.Running,
+		ActiveSegmentID: "segment_recoverable", CreatedAt: createdAt,
+		MessageMark: rundomain.UnknownMessageMark,
+	})
+	foreign := runfixture.MustRestore(rundomain.Snapshot{
+		ID: "run_foreign", SessionID: "session_foreign", State: rundomain.Running,
+		ActiveSegmentID: "segment_foreign", CreatedAt: createdAt,
+		MessageMark: rundomain.UnknownMessageMark,
+	})
+	store := &recoveryStoreStub{
+		runs: []rundomain.Run{recoverable, foreign},
+		models: []OpenModelInvocation{
+			{SessionID: recoverable.SessionID(), RunID: recoverable.ID(), SegmentID: "segment_recoverable", CallID: "call_recoverable", StartedAt: createdAt},
+			{SessionID: foreign.SessionID(), RunID: foreign.ID(), SegmentID: "segment_foreign", CallID: "call_foreign", StartedAt: createdAt},
+		},
+		transcripts:  map[string][]transcript.Item{},
+		messageMarks: map[string]int{},
+	}
+	admissions := &selectiveRecoveryAdmissions{
+		busy: map[string]bool{foreign.SessionID(): true}, released: map[string]int{},
+	}
+	recovery, err := NewRecovery(
+		store,
+		waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+			return true, nil
+		}),
+		admissions,
+	)
+	if err != nil {
+		t.Fatalf("NewRecovery: %v", err)
+	}
+	recovery.now = func() time.Time { return createdAt.Add(time.Minute) }
+	reconciled, err := recovery.Reconcile(t.Context())
+	if err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if reconciled != 1 || len(store.commit.LostRuns) != 1 || store.commit.LostRuns[0].ID() != recoverable.ID() {
+		t.Fatalf("recovery touched wrong Runs: reconciled=%d lost=%+v", reconciled, store.commit.LostRuns)
+	}
+	if len(store.commit.ModelInvocations) != 1 || store.commit.ModelInvocations[0].RunID != recoverable.ID() {
+		t.Fatalf("recovery touched foreign invocation: %+v", store.commit.ModelInvocations)
+	}
+	if !reflect.DeepEqual(store.commit.RecoveredSessionIDs, []string{recoverable.SessionID()}) ||
+		!reflect.DeepEqual(store.commit.DeleteCheckpointSessionIDs, []string{recoverable.SessionID()}) {
+		t.Fatalf("recovery cleanup scope = sessions:%v checkpoints:%v", store.commit.RecoveredSessionIDs, store.commit.DeleteCheckpointSessionIDs)
+	}
+	if admissions.released[recoverable.SessionID()] != 1 || admissions.released[foreign.SessionID()] != 0 {
+		t.Fatalf("recovery releases = %+v", admissions.released)
+	}
+}
+
 func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 	createdAt := time.Date(2026, 8, 1, 1, 0, 0, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
@@ -166,7 +240,7 @@ func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 		messageMarks: map[string]int{root.SessionID(): 7},
 	}
 	checkpointCalls := 0
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		checkpointCalls++
 		return true, nil
 	}))
@@ -267,7 +341,7 @@ func TestRecoveryDoesNotMoveDurableTimeBackwardWhenTheClockRegresses(t *testing.
 				}}
 			}
 
-			recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(
+			recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(
 				func(context.Context, WaitingContinuation) (bool, error) { return false, nil },
 			))
 			if err != nil {
@@ -316,7 +390,7 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 		transcripts:  map[string][]transcript.Item{run.SessionID(): nil},
 		messageMarks: map[string]int{run.SessionID(): 2},
 	}
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		return false, nil
 	}))
 	if err != nil {
@@ -375,7 +449,7 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 		messageMarks: map[string]int{run.SessionID(): 3},
 	}
 	var validated WaitingContinuation
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(_ context.Context, continuation WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(_ context.Context, continuation WaitingContinuation) (bool, error) {
 		validated = continuation
 		return true, nil
 	}))
@@ -428,7 +502,7 @@ func TestRecoveryPreservesQuestionToolWhileItsCheckpointIsResumable(t *testing.T
 		transcripts: map[string][]transcript.Item{run.SessionID(): {questionItem, toolItem}},
 	}
 	checkpointCalls := 0
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		checkpointCalls++
 		return true, nil
 	}))
@@ -459,7 +533,7 @@ func TestRecoveryMarksIsolatedParkLostWithoutProbingExecutorCheckpoint(t *testin
 		},
 	}
 	checkpointCalls := 0
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		checkpointCalls++
 		return true, nil
 	}))
@@ -484,7 +558,7 @@ func TestRecoveryTreatsUnavailableExecutorCheckpointAsResourceLoss(t *testing.T)
 		transcripts:  map[string][]transcript.Item{run.SessionID(): {item}},
 		messageMarks: map[string]int{run.SessionID(): 5},
 	}
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		return false, nil
 	}))
 	if err != nil {
@@ -511,7 +585,7 @@ func TestRecoveryTreatsInvalidExecutorCheckpointAsResourceLoss(t *testing.T) {
 		checkpointErr: fmt.Errorf("corrupt durable policy: %w", ErrInvalidExecutorCheckpoint),
 	}
 	checkpointCalls := 0
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		checkpointCalls++
 		return true, nil
 	}))
@@ -557,7 +631,7 @@ func TestRecoveryAtomicallyClosesLostQuestionToolContext(t *testing.T) {
 			run.SessionID(): len(conversation),
 		},
 	}
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		return false, nil
 	}))
 	if err != nil {
@@ -605,7 +679,7 @@ func TestRecoveryValidationFailureDoesNotCommitPartialRepair(t *testing.T) {
 		transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 	}
 	want := errors.New("checkpoint backend unavailable")
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		return false, want
 	}))
 	if err != nil {
@@ -629,7 +703,7 @@ func TestRecoveryRejectsCrossSessionPendingWithoutCommit(t *testing.T) {
 		transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 	}
 	checkpointCalls := 0
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		checkpointCalls++
 		return true, nil
 	}))
@@ -688,7 +762,7 @@ func TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint(t *testing
 				transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 			}
 			checkpointCalls := 0
-			recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+			recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 				checkpointCalls++
 				return true, nil
 			}))
@@ -747,7 +821,7 @@ func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T)
 		transcripts: map[string][]transcript.Item{root.SessionID(): {item}},
 	}
 	checkpointCalls := 0
-	recovery, err := NewRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 		checkpointCalls++
 		return true, nil
 	}))

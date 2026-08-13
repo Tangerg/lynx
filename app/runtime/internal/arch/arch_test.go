@@ -495,7 +495,7 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "application", "integrations"):                       "MCP application ownership belongs to application/mcp",
 		filepath.Join("internal", "application", "contract"):                           "published invariant metadata belongs to cmd/contractgen",
 		filepath.Join("internal", "application", "invariant"):                          "published invariant metadata belongs to cmd/contractgen, not a production Application package",
-		filepath.Join("internal", "application", "admission"):                          "process-local Session and working-tree admission belongs to application/sessionadmission",
+		filepath.Join("internal", "application", "admission"):                          "Session and working-tree admission belongs to application/sessionadmission",
 		filepath.Join("internal", "application", "change"):                             "post-commit read-again notices belong to application/invalidation",
 		filepath.Join("internal", "application", "approvals", "approvaltest"):          "single-consumer test fixtures belong beside their test",
 		filepath.Join("internal", "opaquetoken"):                                       "application continuation framing belongs to application/opaquetoken",
@@ -1017,10 +1017,9 @@ func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 	allowed := map[string]map[string]bool{
-		"Host":               {"Close": true},
-		"Instance":           {"Close": true, "Endpoint": true, "ServerInfo": true},
-		"InstanceConfig":     {"validate": true},
-		"dataDirectoryLease": {"release": true},
+		"Host":           {"Close": true},
+		"Instance":       {"Close": true, "Endpoint": true, "ServerInfo": true},
+		"InstanceConfig": {"validate": true},
 	}
 	walkErr := filepath.WalkDir(filepath.Join(root, "internal", "bootstrap"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

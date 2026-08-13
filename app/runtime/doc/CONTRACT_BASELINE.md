@@ -38,7 +38,7 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 | `contract/manifest.json` | `58f50b7736895892ba1e2797d686abbc3dc1deb7b61fa6a5c8da6728d980c4c4` |
 | `contract/openrpc.json` | `153b26e538f0c1ad44f0a7b78732e5b93699779cd0cd54084626c3a082eff0cd` |
 | `contract/schema.json` | `4be543ca07b37090e09d399af177812c7b74f7b4851e8db5d8db9271acbdb3a4` |
-| `contract/go-api.json` | `b71a8c318e870faa45685d8ec69f1745b95ce79e59d08961f51c53b9c55c2f2a` |
+| `contract/go-api.json` | `86cded7b620a346d5b5aa4f6f9f96ff84099d86984cf5361aa62e091f7249dc9` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -71,13 +71,16 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 新 revision。
 这些 topic 是失效事实，不携带配置值。Provider/model role、approval policy、agent-memory review 与 codebase rebuild 同样在所属 Application use case 提交后发布专用失效事实；Delivery 才将中性 notice 映射为 wire topic，Desktop Workspace events Adapter 再映射到各 context 公开 query identity，Agent Framework 零感知。
 
-公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。
+公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。同一 canonical data directory 可由另一个 embedded/HTTP Runtime 同时打开，因此旧的 `embedded.ErrDataDirectoryInUse` 已 breaking 删除；实际冲突在对应 Session operation 上投影既有 `session_busy`。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。
 
 ## 3. 持久化 Baseline 1
 
 ### 3.1 SQLite
 
 - 当前 `schemaEpoch = 70`；
+- 数据目录为 `0700` 私有目录，可由少量同版本 Runtime 进程共享；schema/config setup 使用短期跨进程 lease，Runtime lifecycle 不拥有目录全局独占权；
+- SQLite 事务与既有 uniqueness/CAS 继续拥有 durable winner。活跃 Session writer、physical working-tree shared/exclusive operation、Goal drive 与 ordered recovery sweep 使用 OS advisory lease；进程死亡由内核释放。单一 recovery winner 固定 Run-before-Goal 并只清理成功接管的 Session，不使用 TTL、heartbeat、全局 checkpoint/callback sweep 或兼容双路径；
+- 其他 SQLite connection 的 commit 只触发全量 read-model resync，细粒度本地 invalidation 仍由提交用例发布；本次不改变 SQLite epoch、Artifact、checkpoint 或 protocol wire shape；
 - `runtime_identity` 的单例 opaque namespace 与同一 durable idempotency replay store 共存亡；保留数据库重启不变，删除/重建同路径数据库必须变化，且不暴露数据库路径；
 - Goal aggregate 与 Goal terminal ledger 使用 `incarnation_id`，Run/Interrupt provenance 使用 `goal_incarnation_id`；已退休的 `lease_id`/`goal_lease_id` 列不存在且不双读；
 - Goal aggregate 还持久化 fresh Start 时协商并冻结的 canonical Run capabilities；Goal Resume 的调用方能力必须覆盖该集合，自治 Run 与 Goal 内 `create_goal` 都继承相同集合；

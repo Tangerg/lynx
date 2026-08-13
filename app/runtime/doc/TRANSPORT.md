@@ -84,7 +84,7 @@ transport **不**配对 request/response id —— 那是上层 RPC client 的�
 
 embedded 不公开 protocol method-group interface、Router、Host、Store、Engine、Application concrete、context private key、JSON-RPC numeric code 或 transport problem。消费方在自身边界定义所需窄接口。
 
-同一 data directory 只允许一个 Runtime owner。HTTP executable 与 embedded 共用同一 advisory lock、recovery、workers 和 reverse-order shutdown；若需要多个进程/客户端同时共享同一 Runtime，应由一个独立宿主进程持有目录并通过 HTTP/IPC 服务，而不是同时 embedded 打开。
+HTTP executable 与 embedded 共用同一 instance builder、setup lease、ownership-aware recovery、workers 和 reverse-order shutdown。同一 canonical data directory 可以由少量 Runtime 进程共同打开；客户端仍只绑定一个 Runtime。冲突的同 Session writer/Goal drive 返回 `session_busy`，active Run 对 physical working tree 使用 shared lease，rollback/restore 使用 exclusive lease。另一个 SQLite connection 的提交通过 `runtime.subscribe` 既有 `resync` 语义促使客户端重读；不新增跨进程事件总线、TTL lease 或兼容宿主路径。
 
 ## 5. 为什么没有 IPC transport（设计裁决）
 

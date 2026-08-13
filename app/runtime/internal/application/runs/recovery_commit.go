@@ -99,6 +99,12 @@ func (commit RecoveryCommit) Validate() error {
 	if err := validateCanonicalIdentities("preserved checkpoint root", commit.PreservedCheckpointRootIDs); err != nil {
 		return err
 	}
+	if err := validateCanonicalIdentities("recovered Session", commit.RecoveredSessionIDs); err != nil {
+		return err
+	}
+	if err := validateCanonicalIdentities("checkpoint deletion Session", commit.DeleteCheckpointSessionIDs); err != nil {
+		return err
+	}
 	return nil
 }
 

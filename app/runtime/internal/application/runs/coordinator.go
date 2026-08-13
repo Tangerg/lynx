@@ -174,7 +174,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 func (c *Coordinator) ReplayRetention() Retention { return c.retention }
 
 // WaitSessionStartable lets an application-owned continuation wait until both
-// the process-local admission gate and the durable Session Run projection are
+// the live admission gate and the durable Session Run projection are
 // free before attempting its own Start. It does not reserve either resource;
 // Start remains the authority that acquires them.
 func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string) error {

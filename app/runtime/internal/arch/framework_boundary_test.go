@@ -356,10 +356,11 @@ func TestWaitingCheckpointPersistenceBelongsToApplicationTransactions(t *testing
 	}
 }
 
-// TestBootRecoveryPolicyBelongsToApplication prevents SQLite from regaining
-// executor callbacks or Run lifecycle decisions. Storage exposes facts, the
-// Application derives one RecoveryCommit, and the driven adapter applies it.
-func TestBootRecoveryPolicyBelongsToApplication(t *testing.T) {
+// TestOwnershipRecoveryPolicyBelongsToApplication prevents SQLite from
+// regaining executor callbacks or Run lifecycle decisions. Storage exposes
+// facts, Application derives one RecoveryCommit and orders Run before Goal
+// reconciliation, and the driven adapter applies it.
+func TestOwnershipRecoveryPolicyBelongsToApplication(t *testing.T) {
 	root := moduleRoot(t)
 	sqlitePath := filepath.Join(root, "internal", "infra", "sqlite", "recovery_projection.go")
 	sqliteFile, err := parser.ParseFile(token.NewFileSet(), sqlitePath, nil, 0)
@@ -392,7 +393,11 @@ func TestBootRecoveryPolicyBelongsToApplication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read bootstrap: %v", err)
 	}
-	for _, required := range []string{"runs.NewRecovery", "bootRecovery.Reconcile"} {
+	for _, required := range []string{
+		"runs.NewRecovery",
+		"ownershiprecovery.New",
+		"ownershipRecovery.Reconcile",
+	} {
 		if !strings.Contains(string(bootstrapSource), required) {
 			t.Errorf("bootstrap does not drive application recovery through %q", required)
 		}

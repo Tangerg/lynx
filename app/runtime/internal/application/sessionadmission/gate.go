@@ -1,5 +1,6 @@
-// Package sessionadmission owns the process-local session admission facts shared by
-// Run execution and destructive Session lifecycle operations.
+// Package sessionadmission owns the session admission facts shared by Run
+// execution and destructive Session lifecycle operations. A configured
+// Ownership extends the same invariants across Runtime processes.
 package sessionadmission
 
 import (
@@ -19,16 +20,36 @@ type Gate struct {
 	treeMutations map[string]struct{}
 	changed       chan struct{}
 	nextID        uint64
+	ownership     Ownership
 }
+
+// Lease is a held cross-process ownership claim.
+type Lease interface {
+	Release()
+}
+
+// Ownership maps product identities to non-blocking cross-process leases.
+// Implementations live outside Application and must fail closed.
+type Ownership interface {
+	TrySession(sessionID string) (Lease, bool)
+	TryWorkingTree(cwd string, shared bool) (Lease, bool)
+}
+
+// New constructs a Gate whose single-writer and working-tree invariants span
+// every Runtime process sharing the ownership backend. A nil owner keeps the
+// zero-value process-local behavior used by isolated tests.
+func New(ownership Ownership) *Gate { return &Gate{ownership: ownership} }
 
 type liveRun struct {
 	sessionID string
 	cwd       string
+	leases    []Lease
 }
 
 type pendingRun struct {
 	sessionID string
 	cwd       string
+	leases    []Lease
 }
 
 // RunAdmission owns a fresh run's session and working-tree reservation until
@@ -77,14 +98,16 @@ func (a RunAdmission) Release() {
 	a.lease.once.Do(func() {
 		g := a.lease.gate
 		g.mu.Lock()
-		defer g.mu.Unlock()
 		pending, ok := g.pending[a.lease.id]
 		if !ok {
+			g.mu.Unlock()
 			return
 		}
 		delete(g.pending, a.lease.id)
 		g.releaseTreeRunLocked(pending.cwd)
 		g.notifyLocked()
+		g.mu.Unlock()
+		releaseLeases(pending.leases)
 	})
 }
 
@@ -96,7 +119,18 @@ func (g *Gate) AcquireSession(sessionID string) (release func(), ok bool) {
 	if g.activeSessionLocked(sessionID) {
 		return nil, false
 	}
-	return g.addClaimLocked(sessionID), true
+	lease, ok := g.trySessionLease(sessionID)
+	if !ok {
+		return nil, false
+	}
+	releaseLocal := g.addClaimLocked(sessionID)
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			releaseLocal()
+			lease.Release()
+		})
+	}, true
 }
 
 // AcquireRun atomically reserves a fresh run's session and working tree. The
@@ -109,15 +143,27 @@ func (g *Gate) AcquireRun(sessionID, cwd string) (RunAdmission, bool) {
 	if g.activeSessionLocked(sessionID) {
 		return RunAdmission{}, false
 	}
+	sessionLease, ok := g.trySessionLease(sessionID)
+	if !ok {
+		return RunAdmission{}, false
+	}
+	leases := []Lease{sessionLease}
 	if cwd != "" {
 		if _, busy := g.treeMutations[cwd]; busy {
+			releaseLeases(leases)
 			return RunAdmission{}, false
 		}
+		treeLease, acquired := g.tryWorkingTreeLease(cwd, true)
+		if !acquired {
+			releaseLeases(leases)
+			return RunAdmission{}, false
+		}
+		leases = append(leases, treeLease)
 		g.addTreeRunLocked(cwd)
 	}
 	g.nextID++
 	id := g.nextID
-	g.pending[id] = pendingRun{sessionID: sessionID, cwd: cwd}
+	g.pending[id] = pendingRun{sessionID: sessionID, cwd: cwd, leases: leases}
 	return RunAdmission{lease: &runAdmissionLease{gate: g, id: id}}, true
 }
 
@@ -139,6 +185,7 @@ func (g *Gate) BeginMaintenance(runID string) (release func(), ok bool) {
 		once.Do(func() {
 			releaseTree()
 			releaseSession()
+			releaseLeases(run.leases)
 		})
 	}, true
 }
@@ -156,8 +203,43 @@ func (g *Gate) AcquireWorkingTreeMutation(cwd string) (release func(), ok bool) 
 	if _, busy := g.treeMutations[cwd]; busy || g.treeRuns[cwd] > 0 || g.hasLiveRunOnTreeLocked(cwd) {
 		return nil, false
 	}
+	lease, ok := g.tryWorkingTreeLease(cwd, false)
+	if !ok {
+		return nil, false
+	}
 	g.treeMutations[cwd] = struct{}{}
-	return g.releaseTreeMutation(cwd), true
+	releaseLocal := g.releaseTreeMutation(cwd)
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			releaseLocal()
+			lease.Release()
+		})
+	}, true
+}
+
+func (g *Gate) trySessionLease(sessionID string) (Lease, bool) {
+	if g.ownership == nil {
+		return noopLease{}, true
+	}
+	return g.ownership.TrySession(sessionID)
+}
+
+func (g *Gate) tryWorkingTreeLease(cwd string, shared bool) (Lease, bool) {
+	if g.ownership == nil {
+		return noopLease{}, true
+	}
+	return g.ownership.TryWorkingTree(cwd, shared)
+}
+
+type noopLease struct{}
+
+func (noopLease) Release() {}
+
+func releaseLeases(leases []Lease) {
+	for index := len(leases) - 1; index >= 0; index-- {
+		leases[index].Release()
+	}
 }
 
 // ActiveSessions snapshots every session with a pending or live Run, or a held
