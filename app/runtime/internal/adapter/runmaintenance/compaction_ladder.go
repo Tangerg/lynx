@@ -37,10 +37,17 @@ const (
 // full detail. Copy-on-write: unchanged messages are shared, so a no-op trim
 // allocates nothing.
 func (c *Compactor) trimForBudget(msgs []chat.Message) ([]chat.Message, bool) {
-	boundary := len(msgs) - c.keepRecent
+	return trimForBudgetBefore(msgs, len(msgs)-c.keepRecent)
+}
+
+// trimForBudgetBefore applies the deterministic rung only to the portion a
+// following summary is allowed to replace. Computing the safe turn boundary
+// first prevents an expanded recent window from being silently trimmed.
+func trimForBudgetBefore(msgs []chat.Message, boundary int) ([]chat.Message, bool) {
 	if boundary <= 0 {
 		return msgs, false
 	}
+	boundary = min(boundary, len(msgs))
 	out := msgs
 	changed := false
 	for i := range boundary {

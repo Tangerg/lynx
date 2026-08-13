@@ -178,25 +178,66 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 }
 
 func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compactionPlan {
-	if !c.shouldCompact(messages, maxTokens) || len(messages) <= c.keepRecent {
+	if !c.shouldCompact(messages, maxTokens) || len(messages) == 0 {
 		return compactionPlan{}
 	}
-	trimmed, changed := c.trimForBudget(messages)
+	cutoff := c.summaryCutoff(messages)
+	if cutoff == 0 {
+		return compactionPlan{}
+	}
+	trimmed, changed := trimForBudgetBefore(messages, cutoff)
 	if changed && !c.shouldCompact(trimmed, maxTokens) {
 		return compactionPlan{action: trimCompaction, trimmed: trimmed}
 	}
-
-	cutoff := len(messages) - c.keepRecent
-	for cutoff < len(messages) && messages[cutoff].Role != chat.RoleUser {
-		cutoff++
-	}
-	if cutoff == len(messages) {
-		return compactionPlan{}
+	// KeepRecent is a preference, not a license to preserve a suffix that is
+	// already over budget by itself. In that case the preferred prefix summary
+	// cannot converge: every later pass would keep the same oversized turn.
+	// Widen the deterministic rung first; only summarize the complete, finished
+	// history when cheap trimming still cannot make it executable.
+	if c.shouldCompact(trimmed[cutoff:], maxTokens) {
+		cutoff = len(messages)
+		trimmed, changed = trimForBudgetBefore(messages, cutoff)
+		if changed && !c.shouldCompact(trimmed, maxTokens) {
+			return compactionPlan{action: trimCompaction, trimmed: trimmed}
+		}
 	}
 	return compactionPlan{
 		action:         summarizeCompaction,
 		messagesBefore: len(messages),
-		older:          messages[:cutoff],
-		recent:         messages[cutoff:],
+		older:          trimmed[:cutoff],
+		recent:         trimmed[cutoff:],
 	}
+}
+
+// summaryCutoff returns a complete-turn boundary near the configured recent
+// window. The preferred boundary is the first User message at or after the
+// naive cutoff. If the cutoff landed inside the final turn, there is no later
+// User message; retain that whole turn by moving back to its opening User
+// message. When one oversized turn is the entire history, summarize the whole
+// completed history rather than leaving an over-budget context permanently
+// uncompacted.
+func (c *Compactor) summaryCutoff(messages []chat.Message) int {
+	desired := max(0, len(messages)-c.keepRecent)
+	hasOpeningUser := false
+	for index := desired; index < len(messages); index++ {
+		if messages[index].Role == chat.RoleUser {
+			if index > 0 {
+				return index
+			}
+			hasOpeningUser = true
+		}
+	}
+	for index := min(desired-1, len(messages)-1); index >= 0; index-- {
+		if messages[index].Role == chat.RoleUser {
+			if index > 0 {
+				return index
+			}
+			hasOpeningUser = true
+			break
+		}
+	}
+	if hasOpeningUser {
+		return len(messages)
+	}
+	return 0
 }

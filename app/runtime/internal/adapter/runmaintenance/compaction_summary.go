@@ -2,6 +2,7 @@ package runmaintenance
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/Tangerg/lynx/chatclient"
@@ -38,6 +39,8 @@ Remaining work + open questions — concrete and ordered.
 Do NOT echo this instruction or restate the raw transcript; the agent receives
 your sections verbatim.`
 
+var errEmptyCompactionSummary = errors.New("compactor: summary is empty")
+
 // summarize asks the LLM to fold the older messages into a single
 // system message of bullet points. Failure aborts compaction —
 // keeping the existing history is always preferable to losing it
@@ -53,7 +56,11 @@ func (c *Compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Me
 	if err != nil {
 		return chat.Message{}, err
 	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return chat.Message{}, errEmptyCompactionSummary
+	}
 
-	body := "[Earlier conversation summary]\n" + strings.TrimSpace(text)
+	body := "[Earlier conversation summary]\n" + text
 	return chat.NewSystemMessage(body), nil
 }

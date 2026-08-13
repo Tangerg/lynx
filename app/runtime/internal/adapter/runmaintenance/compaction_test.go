@@ -3,8 +3,10 @@ package runmaintenance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -140,6 +142,37 @@ func TestCompactor_CutBoundary(t *testing.T) {
 	}
 }
 
+func TestCompactor_CutBoundaryKeepsFinalTurnWithoutLaterUser(t *testing.T) {
+	store := inmemory.New()
+	const sessID = "sess-final-turn-boundary"
+	msgs := []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("q1")),
+		chat.NewAssistantMessage(chat.NewTextPart("a1")),
+		chat.NewUserMessage(chat.NewTextPart("q2")),
+		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "c2", Name: "shell", Arguments: `{}`})),
+		chat.NewToolMessage(chat.ToolResult{ID: "c2", Name: "shell", Result: "ok"}),
+		chat.NewAssistantMessage(chat.NewTextPart("done")),
+	}
+	for _, message := range msgs {
+		_ = store.Write(t.Context(), sessID, message)
+	}
+	client, _ := chatclient.New(newTextStubModel("SUMMARY"), chatclient.Config{})
+	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
+
+	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Compacted {
+		t.Fatal("a cutoff inside the final turn must compact at that turn's opening user boundary")
+	}
+	after, _ := store.Read(t.Context(), sessID)
+	if len(after) != 5 || after[1].Role != chat.RoleUser || after[1].Text() != "q2" {
+		t.Fatalf("post-compact history = %#v, want summary followed by the complete final turn", after)
+	}
+	assertNoOrphanToolParts(t, after)
+}
+
 // TestCompactor_PreservesToolPairsAcrossCutoffs is the general invariant lock
 // behind the specific DeepSeek 400 regression ([TestCompactor_CutBoundary]):
 // no matter where the naive cutoff lands, a surviving tool-result must keep its
@@ -242,17 +275,17 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	const sessID = "sess-tokens"
 
 	big := strings.Repeat("x", 50_000) // ~12.5k estimated tokens
-	huge := chat.NewToolMessage(chat.ToolResult{ID: "c1", Name: "read", Result: big})
 	_ = store.Write(context.Background(), sessID,
-		chat.NewUserMessage(chat.NewTextPart("read the file")),
-		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "c1", Name: "read", Arguments: `{}`})),
-		huge,
+		chat.NewUserMessage(chat.NewTextPart("explain the data")),
+		chat.NewAssistantMessage(chat.NewTextPart(big)),
 		chat.NewUserMessage(chat.NewTextPart("now summarize")),
+		chat.NewAssistantMessage(chat.NewTextPart("ready")),
 	)
 
 	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
-	// Message bound far out of reach; token bound below the tool result —
-	// so only the token trigger can fire.
+	// Message bound far out of reach; token bound below the ordinary assistant
+	// body, which the Tool-specific deterministic rung cannot trim. Only the
+	// token trigger can reach the summary rung.
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
 	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
 	if err != nil {
@@ -263,11 +296,10 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	}
 }
 
-// TestCompactor_TokenTriggerShortHistory is the regression for the negative-cutoff
-// panic: the token trigger fires on a conversation with FEWER messages than
-// keepRecent (a couple of huge tool results). cutoff = len-keepRecent would be
-// negative; CompactIfNeeded must skip cleanly (nothing older to summarize), not
-// panic with an out-of-range index.
+// TestCompactor_TokenTriggerShortHistory proves KeepRecent is a preference, not
+// an escape from the token budget. A single completed turn smaller than the
+// configured message window still has to shed an oversized Tool result; here
+// the deterministic rung is sufficient, so no LLM summary is needed.
 func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 	store := inmemory.New()
 	const sessID = "sess-short"
@@ -281,14 +313,72 @@ func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 		huge,
 	)
 
-	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
+	model := newTextStubModel("BULLETS")
+	client, _ := chatclient.New(model, chatclient.Config{})
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6})
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil) // must not panic
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Compacted {
-		t.Fatal("expected no compaction when the whole history is within keepRecent")
+		t.Fatal("a deterministic trim must not report an LLM compaction boundary")
+	}
+	if model.calls != 0 {
+		t.Fatalf("short-history trim made %d LLM call(s), want zero", model.calls)
+	}
+	after, _ := store.Read(t.Context(), sessID)
+	if len(after) != 3 {
+		t.Fatalf("post-trim messages = %d, want 3", len(after))
+	}
+	trimmed := after[2].Parts[0].ToolResult.Result
+	if len(trimmed) >= len(big) || !strings.Contains(trimmed, "trimmed on compaction") {
+		t.Fatalf("short-history Tool result was not trimmed: len=%d", len(trimmed))
+	}
+}
+
+func TestCompactorShortHistoryKeepsLatestCompleteTurn(t *testing.T) {
+	store := inmemory.New()
+	const sessID = "sess-short-multiple-turns"
+	_ = store.Write(t.Context(), sessID,
+		chat.NewUserMessage(chat.NewTextPart("q1")),
+		chat.NewAssistantMessage(chat.NewTextPart(strings.Repeat("x", 50_000))),
+		chat.NewUserMessage(chat.NewTextPart("q2")),
+		chat.NewAssistantMessage(chat.NewTextPart("done")),
+	)
+	client, _ := chatclient.New(newTextStubModel("SUMMARY"), chatclient.Config{})
+	c := NewCompactor(store, constClient(client), nil, CompactionConfig{
+		MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6,
+	})
+
+	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Compacted {
+		t.Fatal("an over-budget history must compact even when its message count is below KeepRecent")
+	}
+	after, _ := store.Read(t.Context(), sessID)
+	if len(after) != 3 || after[1].Role != chat.RoleUser || after[1].Text() != "q2" || after[2].Text() != "done" {
+		t.Fatalf("post-compact history = %#v, want summary plus the latest complete turn", after)
+	}
+}
+
+func TestCompactorRejectsEmptySummaryWithoutReplacingHistory(t *testing.T) {
+	store := inmemory.New()
+	const sessID = "sess-empty-summary"
+	for index := range 6 {
+		_ = store.Write(t.Context(), sessID, chat.NewUserMessage(chat.NewTextPart(fmt.Sprintf("message-%d", index))))
+	}
+	before, _ := store.Read(t.Context(), sessID)
+	client, _ := chatclient.New(newTextStubModel(" \n\t "), chatclient.Config{})
+	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
+
+	if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil); !errors.Is(err, errEmptyCompactionSummary) {
+		t.Fatalf("empty summary error = %v, want %v", err, errEmptyCompactionSummary)
+	}
+	after, _ := store.Read(t.Context(), sessID)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("empty summary replaced history:\nbefore=%#v\nafter=%#v", before, after)
 	}
 }
 
@@ -392,6 +482,45 @@ func TestCompactor_LadderTrimsUnderBudgetSkippingLLM(t *testing.T) {
 	}
 	if after[5].Text() != "done" {
 		t.Fatalf("recent message was altered: %q", after[5].Text())
+	}
+	assertNoOrphanToolParts(t, after)
+}
+
+func TestCompactorLadderWidensWhenRecentTurnAloneExceedsBudget(t *testing.T) {
+	store := inmemory.New()
+	const sessID = "sess-ladder-oversized-recent"
+	big := strings.Repeat("z", 50_000)
+	_ = store.Write(t.Context(), sessID,
+		chat.NewUserMessage(chat.NewTextPart("q1")),
+		chat.NewAssistantMessage(chat.NewTextPart("a1")),
+		chat.NewUserMessage(chat.NewTextPart("q2")),
+		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "c2", Name: "read", Arguments: `{}`})),
+		chat.NewToolMessage(chat.ToolResult{ID: "c2", Name: "read", Result: big}),
+		chat.NewAssistantMessage(chat.NewTextPart("done")),
+	)
+	model := newTextStubModel("SUMMARY")
+	client, _ := chatclient.New(model, chatclient.Config{})
+	c := NewCompactor(store, constClient(client), nil, CompactionConfig{
+		MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2,
+	})
+
+	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Compacted {
+		t.Fatal("an all-history deterministic trim must not report an LLM compaction boundary")
+	}
+	if model.calls != 0 {
+		t.Fatalf("all-history deterministic trim made %d LLM call(s), want zero", model.calls)
+	}
+	after, _ := store.Read(t.Context(), sessID)
+	trimmed := after[4].Parts[0].ToolResult.Result
+	if len(trimmed) >= len(big) || !strings.Contains(trimmed, "trimmed on compaction") {
+		t.Fatalf("oversized recent Tool result was not trimmed: len=%d", len(trimmed))
+	}
+	if c.shouldCompact(after, 10_000) {
+		t.Fatal("deterministic compaction left the history over budget")
 	}
 	assertNoOrphanToolParts(t, after)
 }
