@@ -165,5 +165,5 @@ func Recover(
 func replaySafe(pending workbench.PendingSteer, window ReplayWindow) bool {
 	return strings.TrimSpace(window.Namespace) != "" &&
 		strings.TrimSpace(window.Namespace) == pending.ReplayNamespace &&
-		!window.now().After(pending.ReplayUntil)
+		window.now().Before(pending.ReplayUntil)
 }

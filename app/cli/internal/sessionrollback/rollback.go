@@ -346,7 +346,7 @@ func runIDs(snapshot agent.SessionSnapshot) []string {
 func replaySafe(pending workbench.PendingSessionRollback, window ReplayWindow) bool {
 	return strings.TrimSpace(window.Namespace) != "" &&
 		strings.TrimSpace(window.Namespace) == pending.ReplayNamespace &&
-		!window.now().After(pending.ReplayUntil)
+		window.now().Before(pending.ReplayUntil)
 }
 
 // Confirm upgrades the exact prepared journal after its result reaches the

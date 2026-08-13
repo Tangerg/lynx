@@ -50,6 +50,18 @@ func TestRecoverDoesNotReplayADeletionIntoAnotherRuntimeStore(t *testing.T) {
 	}
 }
 
+func TestDeletionReplayGuaranteeExpiresAtItsDeadline(t *testing.T) {
+	deadline := time.Date(2026, 8, 13, 10, 1, 0, 0, time.UTC)
+	guard := workbench.ReplayGuard{Namespace: "runtime-a", Until: deadline}
+	window := ReplayWindow{
+		Namespace: "runtime-a", Retention: time.Minute,
+		Now: func() time.Time { return deadline },
+	}
+	if replaySafe(guard, window) {
+		t.Fatal("deletion replay remained safe at its retention deadline")
+	}
+}
+
 func (runtime *deletionRuntimeStub) GetSession(context.Context, string) (agent.SessionSnapshot, error) {
 	runtime.reads++
 	return agent.SessionSnapshot{}, nil

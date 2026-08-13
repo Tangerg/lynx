@@ -258,10 +258,18 @@ func commandReplayGuard(profile *runtimeprofile.Profile) workbench.ReplayGuard {
 }
 
 func commandReplaySafe(guard workbench.ReplayGuard, profile *runtimeprofile.Profile) bool {
+	return commandReplaySafeAt(guard, profile, time.Now().UTC())
+}
+
+func commandReplaySafeAt(
+	guard workbench.ReplayGuard,
+	profile *runtimeprofile.Profile,
+	now time.Time,
+) bool {
 	if profile == nil {
 		return guard.Empty()
 	}
-	return guard.Namespace == profile.Limits.IdempotencyNamespace && !time.Now().UTC().After(guard.Until)
+	return guard.Namespace == profile.Limits.IdempotencyNamespace && now.Before(guard.Until)
 }
 
 func steeringReplayWindow(profile *runtimeprofile.Profile) steering.ReplayWindow {

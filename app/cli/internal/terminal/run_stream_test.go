@@ -729,6 +729,16 @@ func stageDispatchingRun(t *testing.T, store *workbench.Store, command agent.Sta
 	}
 }
 
+func TestCommandReplayGuaranteeExpiresAtItsDeadline(t *testing.T) {
+	deadline := time.Date(2026, 8, 13, 10, 1, 0, 0, time.UTC)
+	profile := steerReplayTestProfile("/workspace")
+	profile.Limits.IdempotencyNamespace = "runtime-a"
+	guard := workbench.ReplayGuard{Namespace: "runtime-a", Until: deadline}
+	if commandReplaySafeAt(guard, &profile, deadline) {
+		t.Fatal("run command replay remained safe at its retention deadline")
+	}
+}
+
 func TestLaunchDoesNotReplayRunOrResumeOwnershipIntoAnotherRuntimeStore(t *testing.T) {
 	for _, test := range []struct {
 		name  string

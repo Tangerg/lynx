@@ -164,6 +164,12 @@ func TestRecoverRefusesUnprovenFileRollbackReplay(t *testing.T) {
 			}},
 		},
 		{
+			name: "replay deadline reached",
+			current: ReplayWindow{Namespace: "idp_original", Retention: time.Minute, Now: func() time.Time {
+				return time.Date(2026, 8, 13, 10, 1, 0, 0, time.UTC)
+			}},
+		},
+		{
 			name: "expired replay window",
 			current: ReplayWindow{Namespace: "idp_original", Retention: time.Minute, Now: func() time.Time {
 				return time.Date(2026, 8, 13, 10, 2, 0, 0, time.UTC)

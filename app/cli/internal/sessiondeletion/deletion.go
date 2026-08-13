@@ -199,5 +199,5 @@ func replaySafe(guard workbench.ReplayGuard, window ReplayWindow) bool {
 		return guard.Empty()
 	}
 	return strings.TrimSpace(window.Namespace) != "" && guard.Namespace == strings.TrimSpace(window.Namespace) &&
-		!window.now().After(guard.Until)
+		window.now().Before(guard.Until)
 }

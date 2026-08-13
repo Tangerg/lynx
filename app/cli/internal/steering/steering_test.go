@@ -58,19 +58,23 @@ func TestRecoverReturnsAttachmentsAfterAReplayableRefusal(t *testing.T) {
 	}
 }
 
-func TestRecoverRefusesToGuessAfterTheReplayGuaranteeExpires(t *testing.T) {
-	store, pending, window := stagedSteer(t)
-	runtime := new(steerRuntimeStub)
-	window.Now = func() time.Time { return pending.ReplayUntil.Add(time.Nanosecond) }
-	err := Recover(t.Context(), runtime, store, window, retry.Backoff{})
-	if err == nil {
-		t.Fatal("expired replay unexpectedly succeeded")
-	}
-	if len(runtime.requests) != 0 {
-		t.Fatalf("expired replay reached runtime: %+v", runtime.requests)
-	}
-	if durable, found := store.PendingSteer(pending.SessionID); !found || !durable.Command.Equal(pending.Command) {
-		t.Fatalf("expired pending steer = %+v, found %t", durable, found)
+func TestRecoverRefusesToGuessAtOrAfterTheReplayDeadline(t *testing.T) {
+	for _, offset := range []time.Duration{0, time.Nanosecond} {
+		t.Run(offset.String(), func(t *testing.T) {
+			store, pending, window := stagedSteer(t)
+			runtime := new(steerRuntimeStub)
+			window.Now = func() time.Time { return pending.ReplayUntil.Add(offset) }
+			err := Recover(t.Context(), runtime, store, window, retry.Backoff{})
+			if err == nil {
+				t.Fatal("expired replay unexpectedly succeeded")
+			}
+			if len(runtime.requests) != 0 {
+				t.Fatalf("expired replay reached runtime: %+v", runtime.requests)
+			}
+			if durable, found := store.PendingSteer(pending.SessionID); !found || !durable.Command.Equal(pending.Command) {
+				t.Fatalf("expired pending steer = %+v, found %t", durable, found)
+			}
+		})
 	}
 }
 
