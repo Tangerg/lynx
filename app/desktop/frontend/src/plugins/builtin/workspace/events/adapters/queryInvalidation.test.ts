@@ -53,7 +53,7 @@ describe("workspace session projection invalidation", () => {
     },
   );
 
-  it("refreshes every usage projection and agent memory after a Run moves", () => {
+  it("refreshes every usage projection after a Run moves", () => {
     invalidateWorkspaceEvent({
       type: "runs.changed",
       sequence: 1,
@@ -63,7 +63,6 @@ describe("workspace session projection invalidation", () => {
     expect(invalidateQueries.mock.calls.map(([options]) => options.queryKey[0])).toEqual([
       "agent-session-usage",
       "usage-summary",
-      "agent-memory",
     ]);
   });
 

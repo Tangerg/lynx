@@ -46,7 +46,7 @@ func (s *AgentMemoryStore) reconcileItems(ctx context.Context, project string, c
 		if err != nil {
 			return err
 		}
-		if err := s.insertItem(ctx, item); err != nil {
+		if _, err := s.insertItem(ctx, item); err != nil {
 			return err
 		}
 	}
@@ -87,20 +87,25 @@ func (s *AgentMemoryStore) autoItems(ctx context.Context, project string) ([]age
 // insertItem writes a constructed item. OR IGNORE: a pinned or user item may
 // already hold this content under the unique (scope, project, digest) index —
 // keep it, don't duplicate.
-func (s *AgentMemoryStore) insertItem(ctx context.Context, item agentmemory.Item) error {
+func (s *AgentMemoryStore) insertItem(ctx context.Context, item agentmemory.Item) (bool, error) {
 	if err := item.Validate(); err != nil {
-		return fmt.Errorf("sqlite: insert invalid agent memory item: %w", err)
+		return false, fmt.Errorf("sqlite: insert invalid agent memory item: %w", err)
 	}
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+	result, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR IGNORE INTO agent_memory_items(
 			id, scope, project, content, digest, origin, status, pinned, session_id, day, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		item.ID, item.Scope.String(), item.Project, item.Content, agentmemory.Digest(item.Content),
 		item.Origin.String(), item.Status.String(), boolToInt(item.Pinned), item.SessionID, item.Day,
-		item.CreatedAt.UTC().UnixNano(), item.UpdatedAt.UTC().UnixNano()); err != nil {
-		return fmt.Errorf("sqlite: insert agent memory item: %w", err)
+		item.CreatedAt.UTC().UnixNano(), item.UpdatedAt.UTC().UnixNano())
+	if err != nil {
+		return false, fmt.Errorf("sqlite: insert agent memory item: %w", err)
 	}
-	return nil
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("sqlite: inspect agent memory insert: %w", err)
+	}
+	return inserted == 1, nil
 }
 
 const agentMemoryItemColumns = `id, scope, project, content, origin, status, pinned, session_id, day, created_at, updated_at`
@@ -381,23 +386,24 @@ func (s *AgentMemoryStore) Delete(ctx context.Context, id string) error {
 
 // Add stores a user-authored active item. A digest collision with an existing
 // item returns that item unchanged rather than creating a duplicate.
-func (s *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, project, content string, now time.Time) (agentmemory.Item, error) {
+func (s *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, project, content string, now time.Time) (agentmemory.Item, bool, error) {
 	if strings.TrimSpace(content) == "" {
-		return agentmemory.Item{}, errors.New("sqlite: agent memory content is required")
+		return agentmemory.Item{}, false, errors.New("sqlite: agent memory content is required")
 	}
 	id, err := newMemoryID()
 	if err != nil {
-		return agentmemory.Item{}, err
+		return agentmemory.Item{}, false, err
 	}
 	item, err := agentmemory.NewUserItem(id, scope, project, content, now)
 	if err != nil {
-		return agentmemory.Item{}, err
+		return agentmemory.Item{}, false, err
 	}
-	if err := s.insertItem(ctx, item); err != nil {
-		return agentmemory.Item{}, err
+	created, err := s.insertItem(ctx, item)
+	if err != nil {
+		return agentmemory.Item{}, false, err
 	}
 	stored, _, err := s.itemByDigest(ctx, scope, project, agentmemory.Digest(item.Content))
-	return stored, err
+	return stored, created, err
 }
 
 func (s *AgentMemoryStore) itemByDigest(ctx context.Context, scope agentmemory.Scope, project, digest string) (agentmemory.Item, bool, error) {

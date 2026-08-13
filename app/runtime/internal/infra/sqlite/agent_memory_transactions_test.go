@@ -20,7 +20,7 @@ func TestAgentMemoryQueriesJoinCallerTransaction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
-	if _, err := store.Add(ctx, agentmemory.ScopeProject, "/repo", "remember this", time.Now()); err != nil {
+	if _, _, err := store.Add(ctx, agentmemory.ScopeProject, "/repo", "remember this", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	queries := []struct {

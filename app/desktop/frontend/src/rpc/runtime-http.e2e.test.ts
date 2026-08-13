@@ -2580,7 +2580,16 @@ for await (const line of lines) {
     const workspaceRoot = join(root, "workspace-agent-memory");
     await mkdir(workspaceRoot);
     const workspace = client.workspace({ path: workspaceRoot });
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["agentMemory.changed", "sessions.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
     const project = await workspace.agentMemory.add("project memory marker");
+    await expect(nextRuntimeEvent(runtimeEvents, "agentMemory.changed")).resolves.toMatchObject({
+      type: "agentMemory.changed",
+    });
     expect(project).toMatchObject({
       scope: "project",
       content: "project memory marker",
@@ -2591,9 +2600,26 @@ for await (const line of lines) {
     const duplicate = await workspace.agentMemory.add("project memory marker");
     expect(duplicate.id).toBe(project.id);
 
+    // The duplicate is a successful cold read of the existing item, not a
+    // mutation. A following Session mutation must therefore be the next queued
+    // event; this also proves the stream does not rely on a timing-based absence
+    // assertion.
+    const orderingMarker = await client.sessions.create({
+      workspace: { path: workspaceRoot },
+      title: "Agent memory duplicate ordering marker",
+    });
+    const next = await within(runtimeEvents.next(), "event after duplicate agent-memory add");
+    expect(next).toMatchObject({
+      done: false,
+      value: { type: "sessions.changed", sessionIds: expect.arrayContaining([orderingMarker.id]) },
+    });
+
     const user = await client.agentMemory.add({
       scope: "user",
       content: "user memory marker",
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "agentMemory.changed")).resolves.toMatchObject({
+      type: "agentMemory.changed",
     });
     expect(user).toMatchObject({ scope: "user", origin: "user", status: "active" });
     await expect(workspace.agentMemory.list()).resolves.toMatchObject({
@@ -2607,6 +2633,9 @@ for await (const line of lines) {
       id: project.id,
       content: "project memory marker updated",
       pinned: true,
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "agentMemory.changed")).resolves.toMatchObject({
+      type: "agentMemory.changed",
     });
     expect(updated).toMatchObject({
       id: project.id,
@@ -2627,13 +2656,21 @@ for await (const line of lines) {
     );
 
     await client.agentMemory.delete(project.id);
+    await expect(nextRuntimeEvent(runtimeEvents, "agentMemory.changed")).resolves.toMatchObject({
+      type: "agentMemory.changed",
+    });
     await client.agentMemory.delete(user.id);
+    await expect(nextRuntimeEvent(runtimeEvents, "agentMemory.changed")).resolves.toMatchObject({
+      type: "agentMemory.changed",
+    });
     expect((await workspace.agentMemory.list()).items.some((item) => item.id === project.id)).toBe(
       false,
     );
     expect(
       (await client.agentMemory.list({ scope: "user" })).items.some((item) => item.id === user.id),
     ).toBe(false);
+    streamController.abort();
+    await runtimeEvents.return?.();
   }, 30_000);
 
   it("aggregates durable usage and accepts write-only feedback", async () => {

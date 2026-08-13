@@ -80,7 +80,6 @@ describe("workspaceInvalidations", () => {
     expect(workspaceInvalidations({ type: "runs.changed", sequence: 1 })).toEqual([
       "sessionUsage",
       "usageSummary",
-      "agentMemory",
       "agentSessionProjection",
     ]);
     expect(workspaceInvalidations({ type: "interrupts.changed", sequence: 2 })).toEqual([

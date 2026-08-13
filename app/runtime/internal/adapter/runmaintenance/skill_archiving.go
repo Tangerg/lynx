@@ -30,10 +30,11 @@ func (c SkillArchiveConfig) normalized() SkillArchiveConfig {
 	return c
 }
 
-// idleSkillStore archives agent-authored Skills idle beyond archiveAfter and
-// returns the names it archived.
-type idleSkillStore interface {
-	SweepIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error)
+// idleSkillArchiver is the Application capability consumed by this scheduling
+// adapter. It keeps the persistence mechanism and invalidation semantics out of
+// Run maintenance.
+type idleSkillArchiver interface {
+	ArchiveIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error)
 }
 
 // IdleSkillArchiver archives inactive agent-authored Skills at Run boundaries,
@@ -41,7 +42,7 @@ type idleSkillStore interface {
 // user-scoped, so the check is process-wide rather than per Session. The first
 // Run after start performs a check, avoiding a startup-time filesystem mutation.
 type IdleSkillArchiver struct {
-	store  idleSkillStore
+	skills idleSkillArchiver
 	config SkillArchiveConfig
 	now    func() time.Time
 
@@ -49,10 +50,11 @@ type IdleSkillArchiver struct {
 	lastCheck time.Time
 }
 
-// NewIdleSkillArchiver builds an archiver over the managed Skill store.
-func NewIdleSkillArchiver(store idleSkillStore, config SkillArchiveConfig) *IdleSkillArchiver {
+// NewIdleSkillArchiver builds a Run-boundary scheduler over the Application's
+// automatic Skill-curation capability.
+func NewIdleSkillArchiver(skills idleSkillArchiver, config SkillArchiveConfig) *IdleSkillArchiver {
 	return &IdleSkillArchiver{
-		store:  store,
+		skills: skills,
 		config: config.normalized(),
 		now:    time.Now,
 	}
@@ -60,9 +62,9 @@ func NewIdleSkillArchiver(store idleSkillStore, config SkillArchiveConfig) *Idle
 
 // ArchiveIfDue archives eligible Skills unless the previous check occurred
 // within CheckInterval. The rate-limit window advances even when nothing is
-// archived, so a busy Session does not query the store after every Run.
+// archived, so a busy Session does not evaluate the library after every Run.
 func (a *IdleSkillArchiver) ArchiveIfDue(ctx context.Context) error {
-	if a == nil || a.store == nil {
+	if a == nil || a.skills == nil {
 		return nil
 	}
 	now := a.now()
@@ -73,7 +75,7 @@ func (a *IdleSkillArchiver) ArchiveIfDue(ctx context.Context) error {
 	}
 	a.lastCheck = now
 	a.mu.Unlock()
-	archived, err := a.store.SweepIdle(ctx, now, a.config.ArchiveAfter)
+	archived, err := a.skills.ArchiveIdle(ctx, now, a.config.ArchiveAfter)
 	recordArchivedIdleSkills(ctx, len(archived))
 	return err
 }

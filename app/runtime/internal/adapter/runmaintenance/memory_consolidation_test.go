@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 
+	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
@@ -52,6 +53,7 @@ func memoryConsolidationFixture(t *testing.T, replies ...scriptedReply) (*Memory
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	memory := sqlite.NewAgentMemoryStore(db)
+	memoryCuration := agentmemoryapp.NewCuration(agentmemoryapp.CurationConfig{Store: memory})
 	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
 		chat.NewUserMessage(chat.NewTextPart("first")),
@@ -66,7 +68,7 @@ func memoryConsolidationFixture(t *testing.T, replies ...scriptedReply) (*Memory
 	if err != nil {
 		t.Fatal(err)
 	}
-	consolidator := NewMemoryConsolidator(messages, memory, func(context.Context) *chatclient.Client { return client }, nil, MemoryCurationConfig{MinPendingFacts: 1})
+	consolidator := NewMemoryConsolidator(messages, memoryCuration, func(context.Context) *chatclient.Client { return client }, nil, MemoryCurationConfig{MinPendingFacts: 1})
 	consolidator.now = func() time.Time { return time.Date(2026, 7, 19, 9, 30, 0, 0, time.FixedZone("CST", 8*60*60)) }
 	return consolidator, memory, model
 }

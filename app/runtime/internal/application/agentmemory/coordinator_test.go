@@ -18,6 +18,7 @@ type fakeStore struct {
 	pinned      *bool
 	decision    domain.ReviewDecision
 	err         error
+	addCreated  bool
 }
 
 func (s *fakeStore) List(_ context.Context, scope domain.Scope, project string) ([]domain.Item, error) {
@@ -37,8 +38,8 @@ func (s *fakeStore) Update(_ context.Context, _ string, content *string, pinned 
 
 func (s *fakeStore) Delete(context.Context, string) error { return s.err }
 
-func (s *fakeStore) Add(context.Context, domain.Scope, string, string, time.Time) (domain.Item, error) {
-	return domain.Item{}, s.err
+func (s *fakeStore) Add(context.Context, domain.Scope, string, string, time.Time) (domain.Item, bool, error) {
+	return domain.Item{}, s.addCreated, s.err
 }
 
 type rootResolver struct {
@@ -114,8 +115,9 @@ func TestDisabledCoordinatorFailsExplicitly(t *testing.T) {
 
 func TestCommittedAgentMemoryMutationsPublishInvalidations(t *testing.T) {
 	var notices []invalidation.Notice
+	store := &fakeStore{addCreated: true}
 	c := New(Config{
-		Store: &fakeStore{},
+		Store: store,
 		Roots: rootResolver{root: "/repo"},
 		Invalidations: func(notice invalidation.Notice) {
 			notices = append(notices, notice)
@@ -137,6 +139,13 @@ func TestCommittedAgentMemoryMutationsPublishInvalidations(t *testing.T) {
 	}
 	if len(notices) != 4 {
 		t.Fatalf("notices = %+v, want four", notices)
+	}
+	store.addCreated = false
+	if _, err := c.Add(t.Context(), domain.ScopeProject, "/repo", "new"); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 4 {
+		t.Fatalf("duplicate Add published notices = %+v", notices)
 	}
 	for _, notice := range notices {
 		if notice.Resource != invalidation.AgentMemory {

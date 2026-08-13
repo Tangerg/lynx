@@ -243,6 +243,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Invalidations: applicationInvalidations.Publish,
 	})
 	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
+	agentMemoryCoordinator := agentmemoryapp.New(agentmemoryapp.Config{
+		Store:         cfg.AgentMemoryStore,
+		Roots:         workspaceScope,
+		Invalidations: applicationInvalidations.Publish,
+	})
+	agentMemoryCuration := agentmemoryapp.NewCuration(agentmemoryapp.CurationConfig{
+		Store: cfg.AgentMemoryStore, Invalidations: applicationInvalidations.Publish,
+	})
 	authoredWatcher, err := checkpointstore.NewAuthoredWatcher(cfg.KnowledgeDirectory, cfg.UserHome)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: build authored resource watcher: %w", err)
@@ -253,8 +261,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	)
 	skillStore := skillauthoring.NewStore(cfg.SkillsUserDir, skills.ScopeUser)
 	var skillCurator workspace.SkillCurator
+	var idleSkillSweeper workspace.IdleSkillSweeper
 	if skillStore.Enabled() {
 		skillCurator = skillStore
+		idleSkillSweeper = skillStore
 	}
 	workspaceSkills := workspace.NewSkills(
 		workspaceScope,
@@ -263,6 +273,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		skillproposal.NewLibraries(skillStore),
 		applicationInvalidations.Publish,
 	)
+	skillMaintenance := workspace.NewSkillMaintenance(idleSkillSweeper, applicationInvalidations.Publish)
 	toolRuntime, err := buildTools(ctx, cfg, approvalPolicy, mcpConnectionSettings, modelServices.agentMemorySearch, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, workspaceSkills)
 	lifetime.toolResources = slices.Clone(toolRuntime.closers)
 	if err != nil {
@@ -279,7 +290,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, fmt.Errorf("runtime: Tool authorizer: %w", err)
 	}
 	runMaintenance := buildRunMaintenance(
-		cfg, conversationServices, toolRuntime.tools.Shells, skillStore, workspaceSkills,
+		cfg, conversationServices, toolRuntime.tools.Shells, workspaceSkills,
+		skillMaintenance, agentMemoryCuration,
 		modelServices.utilityClient, modelServices.liveEmbedder.ResolveMemory,
 	)
 	interactionConfig := agentexec.InteractionExecutorConfig{
@@ -572,11 +584,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		modelServices.codebaseIndex, workspaceScope, applicationInvalidations.Publish,
 	)
 	lifetime.codebaseCoordinator = codebaseCoordinator
-	agentMemoryCoordinator := agentmemoryapp.New(agentmemoryapp.Config{
-		Store:         cfg.AgentMemoryStore,
-		Roots:         workspaceScope,
-		Invalidations: applicationInvalidations.Publish,
-	})
 	host := &Host{
 		Stack: Stack{
 			Sessions:         sessionCoordinator,

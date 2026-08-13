@@ -1,5 +1,5 @@
-// Package agentmemory owns the human-in-the-loop use cases for agent-maintained
-// memory. It translates workspace-scoped requests into durable memory actions.
+// Package agentmemory owns review, curation, and search use cases for
+// agent-maintained memory.
 package agentmemory
 
 import (
@@ -11,8 +11,8 @@ import (
 	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
-// ErrUnavailable reports that no review store is wired for this runtime.
-var ErrUnavailable = errors.New("agentmemory: review unavailable")
+// ErrUnavailable reports that a requested agent-memory capability is not wired.
+var ErrUnavailable = errors.New("agentmemory: unavailable")
 
 // RootResolver is the narrow workspace dependency this use case consumes.
 // Its implementation belongs to the workspace application component; the
@@ -28,12 +28,12 @@ type Store interface {
 	Review(ctx context.Context, id string, decision domain.ReviewDecision, now time.Time) error
 	Update(ctx context.Context, id string, content *string, pinned *bool, now time.Time) (domain.Item, error)
 	Delete(ctx context.Context, id string) error
-	Add(ctx context.Context, scope domain.Scope, project, content string, now time.Time) (domain.Item, error)
+	Add(ctx context.Context, scope domain.Scope, project, content string, now time.Time) (item domain.Item, created bool, err error)
 }
 
-// Config bundles the use case's driven ports. Store may be nil to represent a
-// deliberately disabled capability. Roots is required only for project-scoped
-// requests; a missing resolver reports an explicit unavailable error.
+// Config bundles the review use case's driven ports. Store may be nil to
+// disable review. Roots is required only for project-scoped requests; a
+// missing resolver reports an explicit unavailable error.
 type Config struct {
 	Store         Store
 	Roots         RootResolver
@@ -49,8 +49,8 @@ type Coordinator struct {
 	invalidations invalidation.Publish
 }
 
-// New builds the review coordinator. A nil store is a valid disabled runtime
-// state so capability negotiation can remain truthful.
+// New builds the coordinator. Nil stores are valid disabled states so
+// capability negotiation and optional maintenance remain truthful.
 func New(cfg Config) *Coordinator {
 	now := cfg.Now
 	if now == nil {
@@ -124,11 +124,13 @@ func (c *Coordinator) Add(ctx context.Context, scope domain.Scope, cwd, content 
 	if err != nil {
 		return domain.Item{}, err
 	}
-	item, err := c.store.Add(ctx, scope, project, content, c.now())
+	item, created, err := c.store.Add(ctx, scope, project, content, c.now())
 	if err != nil {
 		return domain.Item{}, err
 	}
-	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.AgentMemory})
+	if created {
+		c.invalidations.Notify(invalidation.Notice{Resource: invalidation.AgentMemory})
+	}
 	return item, nil
 }
 

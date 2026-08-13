@@ -56,7 +56,7 @@ type agentMemory interface {
 	AppendLedger(ctx context.Context, batch agentmemory.FactBatch) ([]agentmemory.LedgerFact, error)
 	PendingLedger(ctx context.Context, project string, watermark int64, limit int) ([]agentmemory.LedgerFact, error)
 	State(ctx context.Context, project string) (agentmemory.State, error)
-	Reconcile(ctx context.Context, project string, expectedWatermark, through int64, contents []string, now time.Time) (bool, error)
+	PublishGeneration(ctx context.Context, project string, expectedWatermark, through int64, contents []string, now time.Time) (bool, error)
 	Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
 	UnembeddedItems(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
 	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
@@ -154,7 +154,7 @@ func (c *MemoryConsolidator) maybeCurate(ctx context.Context, project string, no
 		return fmt.Errorf("memory curation: generated %d estimated tokens; limit is %d", tokens, c.config.MaxTokens)
 	}
 	through := pending[len(pending)-1].Sequence
-	published, err := c.memory.Reconcile(ctx, project, state.Watermark, through, parseMemoryFacts(content), now)
+	published, err := c.memory.PublishGeneration(ctx, project, state.Watermark, through, parseMemoryFacts(content), now)
 	if err != nil {
 		return fmt.Errorf("memory curation: reconcile through watermark %d: %w", through, err)
 	}

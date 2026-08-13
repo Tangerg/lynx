@@ -12,15 +12,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
 func buildRunMaintenance(
 	cfg Config,
 	conversationServices conversationEnvironment,
 	shells *exec.Shells,
-	skillStore *skillauthoring.Store,
-	skillProposals *workspace.Skills,
+	skills *workspace.Skills,
+	skillMaintenance *workspace.SkillMaintenance,
+	memoryCuration *agentmemory.Curation,
 	resolveUtility func(context.Context) *chatclient.Client,
 	embedder func(context.Context) (agentmemory.Embedder, error),
 ) agentexec.RunMaintenance {
@@ -38,20 +38,20 @@ func buildRunMaintenance(
 		runmaintenance.CompactionConfig{ContextWindow: window},
 	)
 	var consolidator *runmaintenance.MemoryConsolidator
-	if cfg.AgentMemoryStore != nil {
-		consolidator = runmaintenance.NewMemoryConsolidator(conversationServices.store, cfg.AgentMemoryStore, resolveUtility, embedder, runmaintenance.MemoryCurationConfig{})
+	if memoryCuration.Available() {
+		consolidator = runmaintenance.NewMemoryConsolidator(conversationServices.store, memoryCuration, resolveUtility, embedder, runmaintenance.MemoryCurationConfig{})
 	}
 	var skillMiner *runmaintenance.SkillProposalMiner
 	var skillArchiver *runmaintenance.IdleSkillArchiver
-	if skillStore.Enabled() {
+	if skillMaintenance.Available() {
 		skillMiner = runmaintenance.NewSkillProposalMiner(
 			conversationServices.store,
-			skillProposals,
+			skills,
 			skillspec.Dir(cfg.SkillsUserDir),
 			resolveUtility,
 			runmaintenance.SkillMiningConfig{},
 		)
-		skillArchiver = runmaintenance.NewIdleSkillArchiver(skillStore, runmaintenance.SkillArchiveConfig{})
+		skillArchiver = runmaintenance.NewIdleSkillArchiver(skillMaintenance, runmaintenance.SkillArchiveConfig{})
 	}
 	return runmaintenance.NewPipeline(compactor, consolidator, skillMiner, skillArchiver)
 }

@@ -214,9 +214,15 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
 
-	item, err := store.Add(t.Context(), agentmemory.ScopeProject, "/repo", "always run make lint", now)
-	if err != nil || item.ID == "" || item.Origin != agentmemory.OriginUser || item.Status != agentmemory.StatusActive {
-		t.Fatalf("add = (%+v, %v)", item, err)
+	item, created, err := store.Add(t.Context(), agentmemory.ScopeProject, "/repo", "always run make lint", now)
+	if err != nil || !created || item.ID == "" || item.Origin != agentmemory.OriginUser || item.Status != agentmemory.StatusActive {
+		t.Fatalf("add = (%+v, %t, %v)", item, created, err)
+	}
+	duplicate, duplicateCreated, err := store.Add(
+		t.Context(), agentmemory.ScopeProject, "/repo", "always run make lint", now.Add(time.Second),
+	)
+	if err != nil || duplicateCreated || duplicate.ID != item.ID {
+		t.Fatalf("duplicate add = (%+v, %t, %v), want original item without insertion", duplicate, duplicateCreated, err)
 	}
 	if err := store.SetEmbeddings(t.Context(), map[string][]float32{item.ID: {1, 2, 3}}); err != nil {
 		t.Fatal(err)
@@ -344,5 +350,39 @@ func TestAgentMemoryConcurrentAppendDeduplicates(t *testing.T) {
 	pending, err := store.PendingLedger(t.Context(), "/repo", 0, 10)
 	if err != nil || len(pending) != 1 {
 		t.Fatalf("concurrent pending = (%+v, %v), want one fact", pending, err)
+	}
+}
+
+func TestAgentMemoryConcurrentAddReportsOneCreation(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	var created atomic.Int32
+	var ids sync.Map
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Go(func() {
+			item, inserted, err := store.Add(
+				t.Context(), agentmemory.ScopeProject, "/repo", "same memory", time.Now(),
+			)
+			if err != nil {
+				t.Errorf("Add: %v", err)
+				return
+			}
+			ids.Store(item.ID, struct{}{})
+			if inserted {
+				created.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if got := created.Load(); got != 1 {
+		t.Fatalf("created results = %d, want 1", got)
+	}
+	var distinct int
+	ids.Range(func(_, _ any) bool {
+		distinct++
+		return true
+	})
+	if distinct != 1 {
+		t.Fatalf("distinct item ids = %d, want 1", distinct)
 	}
 }

@@ -98,16 +98,15 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "sessions.changed":
       return ["sessions"];
     case "runs.changed":
-      // Completed Runs can also commit agent-memory maintenance before this
-      // signal is published. Both usage.session and usage.summary are projections
-      // of those durable Run rows: refreshing only the active Session's chip leaves
+      // Both usage.session and usage.summary are projections of durable Run
+      // rows: refreshing only the active Session's chip leaves
       // an already-mounted cross-session Usage pane stale after a scheduler,
       // autonomous Goal, or second client finishes a Run. The Runtime publishes
       // sessions.changed separately for the Session list and interrupts.changed
       // separately for pending human work; invalidating those here as well
       // duplicates every lifecycle read and reintroduces races between two
       // refetches of the same resource.
-      return ["sessionUsage", "usageSummary", "agentMemory", "agentSessionProjection"];
+      return ["sessionUsage", "usageSummary", "agentSessionProjection"];
     case "interrupts.changed":
       return ["agentSessionProjection", "pendingWork"];
     case "goals.changed":
