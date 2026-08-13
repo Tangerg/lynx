@@ -104,7 +104,10 @@ func (a *app) openInteractionSummary() {
 
 func interactionSummary(review *interactionReview) string {
 	items, answers := review.Items(), review.Answers()
-	lines := make([]string, 0, len(items)+1)
+	lines := make([]string, 0, len(items)+2)
+	if failure := review.SubmissionFailure(); failure != "" {
+		lines = append(lines, failure)
+	}
 	lines = append(lines, "Nothing is sent to the runtime until you submit this review.")
 	for index, item := range items {
 		lines = append(lines, fmt.Sprintf("%d. %s", index+1, summarizeInteraction(item, answers[index])))

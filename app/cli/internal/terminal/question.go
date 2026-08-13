@@ -329,7 +329,10 @@ func (a *app) showQuestionDialog(review *questionnaire, fields []headless.Field)
 	}
 	dressed := kit.NewForm(kit.FormConfig{
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
-		Title: review.question.Detail, Hints: []keymap.Action{headless.Submit, headless.Cancel},
+		Title: strings.Join(nonEmptyStrings([]string{
+			a.interactionReview.SubmissionFailure(), review.question.Detail,
+		}), "\n"),
+		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
 	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,

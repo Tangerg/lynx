@@ -1750,7 +1750,7 @@ func TestClosingTheTerminalPropagatesRuntimeCancellationFailure(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("keep running until close fails")
 	host.Press(input.Enter)
-	host.Shows(t, "keep running until")
+	host.Shows(t, "working")
 	cancel()
 	select {
 	case err := <-done:

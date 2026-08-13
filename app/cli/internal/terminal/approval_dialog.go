@@ -171,7 +171,7 @@ func (a *app) openApproval(approval agent.Approval) {
 		}
 	}
 	a.approvalSections = slices.Clone(presentation.Sections)
-	details := []string{approval.Detail, presentation.Label}
+	details := []string{a.interactionReview.SubmissionFailure(), approval.Detail, presentation.Label}
 	if approval.Risk != "" {
 		details = append(details, "risk: "+string(approval.Risk))
 	}
@@ -336,11 +336,40 @@ func (a *app) resumeInteractions() {
 	if a.workbench != nil {
 		pending := workbench.PendingResume{Command: command.Clone(), Interactions: review.Items()}
 		if err := a.workbench.StagePendingResume(a.session.ID, pending); err != nil {
-			a.message("resume blocked: save interaction decisions: " + err.Error())
+			failure := fmt.Errorf("resume blocked: save interaction decisions: %w", err)
+			review.ReportSubmissionFailure(failure)
+			a.message(failure.Error())
+			a.status.note("resume blocked · review preserved")
+			if reopenErr := a.reopenCompletedInteractionReview(review); reopenErr != nil {
+				a.fail(errors.Join(failure, reopenErr))
+			}
 			return
 		}
 	}
 	a.deliverInteractionResume(review, command)
+}
+
+// reopenCompletedInteractionReview restores the UI owner of a completed HITL
+// draft when the draft could not be durably staged or its delivery was
+// definitively refused. A multi-item draft returns to its review summary; a
+// single-item draft returns to the answered interaction so the user can retry
+// or revise it.
+func (a *app) reopenCompletedInteractionReview(review *interactionReview) error {
+	if review == nil || a.interactionReview != review {
+		return errors.New("completed interaction review is no longer active")
+	}
+	if !review.completed() {
+		return errors.New("interaction review is not complete")
+	}
+	if review.Reviewing() {
+		a.openInteractionSummary()
+		return nil
+	}
+	if !review.Back() {
+		return errors.New("interaction review cannot return to its submitted answer")
+	}
+	a.openCurrentInteraction()
+	return nil
 }
 
 func (a *app) deliverInteractionResume(review *interactionReview, command agent.ResumeRun) {
@@ -423,14 +452,10 @@ func (a *app) restoreRejectedInteractionReview(review *interactionReview, comman
 		return nil
 	}
 	a.status.note("resume refused · review preserved")
-	if review.Reviewing() {
-		a.openInteractionSummary()
-		return nil
+	review.ReportSubmissionFailure(fmt.Errorf("resume refused: %w", callFailure.err))
+	if err := a.reopenCompletedInteractionReview(review); err != nil {
+		return errors.Join(failure, err)
 	}
-	if !review.Back() {
-		return errors.Join(failure, errors.New("interaction review cannot return to its submitted answer"))
-	}
-	a.openCurrentInteraction()
 	return nil
 }
 

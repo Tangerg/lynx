@@ -12,9 +12,10 @@ import (
 // batch. Runtime interactions remain immutable; only the answers and cursor
 // change until the user commits the complete batch once.
 type interactionReview struct {
-	items   []agent.Interaction
-	answers []agent.Answer
-	current int
+	items             []agent.Interaction
+	answers           []agent.Answer
+	current           int
+	submissionFailure string
 }
 
 func newInteractionReview(items []agent.Interaction) (*interactionReview, error) {
@@ -93,8 +94,26 @@ func (r *interactionReview) Back() bool {
 	return true
 }
 
+func (r *interactionReview) completed() bool {
+	return r != nil && len(r.items) > 0 && r.current == len(r.items)
+}
+
+func (r *interactionReview) ReportSubmissionFailure(err error) {
+	if r == nil || err == nil {
+		return
+	}
+	r.submissionFailure = err.Error()
+}
+
+func (r *interactionReview) SubmissionFailure() string {
+	if r == nil {
+		return ""
+	}
+	return r.submissionFailure
+}
+
 func (r *interactionReview) Reviewing() bool {
-	return r != nil && len(r.items) > 1 && r.current == len(r.items)
+	return r != nil && len(r.items) > 1 && r.completed()
 }
 
 func (r *interactionReview) Position() (current, total int) {

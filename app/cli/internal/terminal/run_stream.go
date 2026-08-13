@@ -713,6 +713,7 @@ func (a *app) fail(err error) {
 		return
 	}
 	a.following = false
+	a.dismissInteractionProjection()
 	a.conversation.Failed(err)
 	a.transcript.settleLive(a.conversation.Outcome())
 	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
