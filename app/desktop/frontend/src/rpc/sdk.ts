@@ -44,17 +44,38 @@ export interface LyraClient extends Methods {
 /** Build a Lyra Runtime Protocol client over the given transport. */
 export function createLyraClient(transport: Transport, opts?: LyraClientOptions): LyraClient {
   const rpc = createRpcClient(transport, { requestMeta: opts?.requestMeta });
+  let closePromise: Promise<void> | undefined;
+  const close = (): Promise<void> => {
+    closePromise ??= (async () => {
+      let journalFailure: unknown;
+      try {
+        opts?.mutationJournal?.dispose();
+      } catch (error) {
+        journalFailure = error;
+      }
+      let transportFailure: unknown;
+      try {
+        await rpc.close();
+      } catch (error) {
+        transportFailure = error;
+      }
+      if (journalFailure !== undefined && transportFailure !== undefined) {
+        throw new AggregateError(
+          [journalFailure, transportFailure],
+          "Runtime client ownership and transport cleanup both failed",
+        );
+      }
+      if (journalFailure !== undefined) throw journalFailure;
+      if (transportFailure !== undefined) throw transportFailure;
+    })();
+    return closePromise;
+  };
   return Object.assign(
     createMethods(rpc, {
       capabilities: opts?.capabilities,
       requestMeta: opts?.requestMeta,
       mutationJournal: opts?.mutationJournal,
     }),
-    {
-      close: async () => {
-        opts?.mutationJournal?.dispose();
-        await rpc.close();
-      },
-    },
+    { close },
   );
 }

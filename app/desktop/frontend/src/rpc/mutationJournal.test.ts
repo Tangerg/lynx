@@ -165,6 +165,65 @@ describe("persistent mutation journal", () => {
     );
   });
 
+  it("hands unresolved identities to a replacement client and fences the retired settlement", async () => {
+    const storage = new MemoryStorage();
+    const params = { sessionId: "ses_1" };
+    const retired = journal({ storage, scope: () => scope });
+    const original = retired.reserve("goals.resume", params)!;
+    let resolveRetired!: (value: string) => void;
+    const retiredMutation = opening(
+      original,
+      () =>
+        new Promise<string>((resolve) => {
+          resolveRetired = resolve;
+        }),
+    );
+    await vi.waitFor(() => expect(resolveRetired).toBeTypeOf("function"));
+
+    retired.dispose();
+    const replacement = journal({ storage, scope: () => scope });
+    const inherited = replacement.reserve("goals.resume", params)!;
+    expect(inherited.idempotencyKey).toBe(original.idempotencyKey);
+    expect(persistedEntry(storage, original.idempotencyKey)).toMatchObject({ claimable: false });
+
+    resolveRetired("retired response");
+    await expect(retiredMutation).resolves.toBe("retired response");
+    expect(persistedEntry(storage, original.idempotencyKey)).toMatchObject({
+      idempotencyKey: original.idempotencyKey,
+      claimable: false,
+    });
+  });
+
+  it("does not let a superseded renderer rewrite its successor's journal entry", async () => {
+    const storage = new MemoryStorage();
+    const created = journal({ storage, scope: () => scope });
+    const reservation = created.reserve("sessions.delete", { sessionId: "ses_1" })!;
+    const rejectRetired: Array<(error: unknown) => void> = [];
+    const retiredMutation = opening(
+      reservation,
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectRetired.push(reject);
+        }),
+    );
+    await vi.waitFor(() => expect(rejectRetired).toHaveLength(1));
+
+    const successor = persistedEntry(storage, reservation.idempotencyKey);
+    successor.owner = "successor-renderer";
+    successor.claimable = false;
+    storage.set(`entry:${encodeURIComponent(reservation.idempotencyKey)}`, successor);
+
+    const failure = new RpcTransportError("retired response lost");
+    rejectRetired[0]!(failure);
+    await vi.waitFor(() => expect(rejectRetired).toHaveLength(2));
+    rejectRetired[1]!(failure);
+    await expect(retiredMutation).rejects.toBe(failure);
+    expect(persistedEntry(storage, reservation.idempotencyKey)).toMatchObject({
+      owner: "successor-renderer",
+      claimable: false,
+    });
+  });
+
   it("removes determinate outcomes and retains ambiguous ones for explicit retry", async () => {
     const storage = new MemoryStorage();
     const created = journal({ storage, scope: () => scope });
@@ -231,6 +290,57 @@ describe("persistent mutation journal", () => {
     expect(recovered.idempotencyKey).toBe(reservation.idempotencyKey);
     await expect(recovered).resolves.toBe("stopped");
     expect(execute).toHaveBeenCalledTimes(3);
+  });
+
+  it("recovers an entry whose durable write reported failure without exposing it to a twin", () => {
+    const backing = new MemoryStorage();
+    let throwAfterEntryWrite = true;
+    const storage: MutationJournalStorage = {
+      get: (key) => backing.get(key),
+      set: (key, value) => {
+        backing.set(key, value);
+        if (throwAfterEntryWrite && key.startsWith("entry:")) {
+          throwAfterEntryWrite = false;
+          throw new Error("write confirmation failed");
+        }
+      },
+      remove: (key) => backing.remove(key),
+      keys: () => backing.keys(),
+    };
+    const created = journal({ storage, scope: () => scope });
+    const params = { sessionId: "ses_1" };
+
+    expect(() => created.reserve("goals.stop", params, "stable-key")).toThrow(
+      MutationJournalStorageError,
+    );
+    expect(backing.entryValues()).toHaveLength(1);
+    expect(created.reserve("goals.stop", params, "stable-key")?.idempotencyKey).toBe("stable-key");
+    expect(created.reserve("goals.stop", params, "twin-key")?.idempotencyKey).toBe("twin-key");
+  });
+
+  it("removes a confirmed-unsent entry when its journal is disposed", () => {
+    const backing = new MemoryStorage();
+    let throwAfterEntryWrite = true;
+    const storage: MutationJournalStorage = {
+      get: (key) => backing.get(key),
+      set: (key, value) => {
+        backing.set(key, value);
+        if (throwAfterEntryWrite && key.startsWith("entry:")) {
+          throwAfterEntryWrite = false;
+          throw new Error("write confirmation failed");
+        }
+      },
+      remove: (key) => backing.remove(key),
+      keys: () => backing.keys(),
+    };
+    const created = journal({ storage, scope: () => scope });
+
+    expect(() => created.reserve("goals.stop", { sessionId: "ses_1" }, "unsent-key")).toThrow(
+      MutationJournalStorageError,
+    );
+    expect(backing.entryValues()).toHaveLength(1);
+    created.dispose();
+    expect(backing.entryValues()).toHaveLength(0);
   });
 
   it("fails the business result when cleanup is not durable and reuses its key after recovery", async () => {
@@ -374,7 +484,49 @@ describe("persistent mutation journal", () => {
 
     created.dispose();
     await vi.advanceTimersByTimeAsync(20_000);
-    expect((storage.get(ownerKey!) as { expiresAt: number }).expiresAt).toBe(refreshedExpiry);
+    expect(storage.get(ownerKey!)).toBeUndefined();
+  });
+
+  it("keeps the process lease until the last journal sharing that storage retires", () => {
+    const storage = new MemoryStorage();
+    const first = journal({ storage, scope: () => scope });
+    const second = journal({ storage, scope: () => scope });
+    first.reserve("sessions.delete", { sessionId: "ses_1" });
+    second.reserve("sessions.delete", { sessionId: "ses_2" });
+    const ownerKey = storage.keys().find((key) => key.startsWith("owner:"));
+    expect(ownerKey).toBeDefined();
+
+    first.dispose();
+    expect(storage.get(ownerKey!)).toBeDefined();
+
+    second.dispose();
+    expect(storage.get(ownerKey!)).toBeUndefined();
+  });
+
+  it("hands off through process memory when disposal persistence fails", () => {
+    const storage = new MemoryStorage();
+    const firstStorage: MutationJournalStorage = {
+      get: (key) => storage.get(key),
+      set: (key, value) => storage.set(key, value),
+      remove: (key) => storage.remove(key),
+      keys: () => storage.keys(),
+    };
+    const first = journal({ storage: firstStorage, scope: () => scope });
+    const original = first.reserve("goals.stop", { sessionId: "ses_1" })!;
+    storage.failSet = true;
+    expect(() => first.dispose()).toThrow(MutationJournalStorageError);
+
+    storage.failSet = false;
+    const replacementStorage: MutationJournalStorage = {
+      get: (key) => storage.get(key),
+      set: (key, value) => storage.set(key, value),
+      remove: (key) => storage.remove(key),
+      keys: () => storage.keys(),
+    };
+    const replacement = journal({ storage: replacementStorage, scope: () => scope });
+    expect(replacement.reserve("goals.stop", { sessionId: "ses_1" })?.idempotencyKey).toBe(
+      original.idempotencyKey,
+    );
   });
 
   it("fails closed on malformed state, unavailable storage, and exhausted capacity", () => {

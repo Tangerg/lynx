@@ -14,6 +14,8 @@ const PROCESS_STARTED_AT =
   typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)
     ? performance.timeOrigin
     : Date.now();
+const ACTIVE_PROCESS_CLAIMS = new WeakMap<MutationJournalStorage, Map<string, string>>();
+const PROCESS_CLAIMABLE = new Set<string>();
 
 export interface MutationJournalStorage {
   get(key: string): unknown;
@@ -37,7 +39,10 @@ export interface MutationReservation {
 }
 
 export interface MutationJournal {
-  reserve(method: string, params: unknown): MutationReservation | undefined;
+  /** Reserve a durable identity. `preferredKey` is an opaque candidate owned by
+   * this invocation; it lets a retry recover a write whose confirmation failed
+   * without making that unconfirmed record claimable by a same-shaped twin. */
+  reserve(method: string, params: unknown, preferredKey?: string): MutationReservation | undefined;
   dispose(): void;
 }
 
@@ -61,6 +66,15 @@ export class MutationJournalOwnershipError extends MutationJournalError {
 
 export class MutationJournalCapacityError extends MutationJournalError {
   override readonly name = "MutationJournalCapacityError";
+}
+
+function activeProcessClaims(storage: MutationJournalStorage): Map<string, string> {
+  let claims = ACTIVE_PROCESS_CLAIMS.get(storage);
+  if (!claims) {
+    claims = new Map();
+    ACTIVE_PROCESS_CLAIMS.set(storage, claims);
+  }
+  return claims;
 }
 
 interface JournalEntry {
@@ -399,7 +413,9 @@ function trackedMutation<T>(
  */
 export function createMutationJournal(options: MutationJournalOptions): MutationJournal {
   const now = options.now ?? Date.now;
-  const claimableAfterFailure = new Set<string>();
+  const journalInstance = crypto.randomUUID();
+  const activeClaims = activeProcessClaims(options.storage);
+  const unconfirmedUnsent = new Set<string>();
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
 
@@ -450,26 +466,35 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
 
   const removeEntry = (entry: JournalEntry) => {
     removeValue(options.storage, entryKey(entry.idempotencyKey));
-    claimableAfterFailure.delete(entry.idempotencyKey);
+    activeClaims.delete(entry.idempotencyKey);
+    PROCESS_CLAIMABLE.delete(entry.idempotencyKey);
   };
 
   const lifecycleFor = (reserved: JournalEntry): MutationLifecycle => {
     let activeAttempts = 0;
     let definitiveOutcome = false;
 
-    const currentOrReserved = (): JournalEntry => readEntry(reserved.idempotencyKey) ?? reserved;
     const finish = (definitive: boolean) => {
       activeAttempts = Math.max(0, activeAttempts - 1);
       definitiveOutcome ||= definitive;
       if (activeAttempts > 0) return;
+      if (activeClaims.get(reserved.idempotencyKey) !== journalInstance) {
+        definitiveOutcome = false;
+        return;
+      }
 
       const current = readEntry(reserved.idempotencyKey);
+      if (current && current.owner !== PROCESS_OWNER) {
+        activeClaims.delete(reserved.idempotencyKey);
+        definitiveOutcome = false;
+        return;
+      }
       if (definitiveOutcome) {
         if (current) {
           try {
             removeEntry(current);
           } catch (error) {
-            claimableAfterFailure.add(reserved.idempotencyKey);
+            PROCESS_CLAIMABLE.add(reserved.idempotencyKey);
             throw error;
           }
         }
@@ -477,15 +502,15 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         return;
       }
       if (!current) {
-        claimableAfterFailure.add(reserved.idempotencyKey);
+        PROCESS_CLAIMABLE.add(reserved.idempotencyKey);
         throw journalError("Runtime mutation identity disappeared before settlement");
       }
       const claimable = { ...current, owner: PROCESS_OWNER, claimable: true };
       try {
         persistEntry(claimable);
-        claimableAfterFailure.delete(reserved.idempotencyKey);
+        PROCESS_CLAIMABLE.delete(reserved.idempotencyKey);
       } catch (error) {
-        claimableAfterFailure.add(reserved.idempotencyKey);
+        PROCESS_CLAIMABLE.add(reserved.idempotencyKey);
         throw error;
       }
     };
@@ -497,12 +522,26 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       claim: () => {
         const currentTime = now();
         prepare(currentTime);
-        const current = currentOrReserved();
+        const claimOwner = activeClaims.get(reserved.idempotencyKey);
+        const current = readEntry(reserved.idempotencyKey);
+        if (!current) {
+          if (claimOwner !== undefined && claimOwner !== journalInstance) {
+            throw new MutationJournalOwnershipError(
+              "Runtime mutation identity is owned by a successor Desktop client",
+            );
+          }
+          return;
+        }
+        if (claimOwner !== journalInstance || current.owner !== PROCESS_OWNER) {
+          throw new MutationJournalOwnershipError(
+            "Runtime mutation identity is owned by a successor Desktop client",
+          );
+        }
         if (current.expiresAt <= currentTime) {
           throw new MutationJournalError("Runtime mutation identity expired before retry");
         }
         persistEntry({ ...current, owner: PROCESS_OWNER, claimable: false });
-        claimableAfterFailure.delete(reserved.idempotencyKey);
+        PROCESS_CLAIMABLE.delete(reserved.idempotencyKey);
         if (activeAttempts === 0) definitiveOutcome = false;
         startHeartbeat();
       },
@@ -512,9 +551,12 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
   };
 
   return {
-    reserve(method, params) {
+    reserve(method, params, preferredKey) {
       const scope = options.scope();
       if (!validScope(scope)) return undefined;
+      if (preferredKey !== undefined && !validText(preferredKey, 255)) {
+        throw new MutationJournalError("Runtime mutation identity candidate is invalid");
+      }
       const endpoint = normalizedEndpoint(scope.endpoint);
       const currentTime = now();
       const retentionMs = scope.retentionSeconds * 1_000;
@@ -547,10 +589,33 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         )
         .toSorted((left, right) => left.createdAt - right.createdAt);
 
+      const preferredEntry =
+        preferredKey === undefined
+          ? undefined
+          : entries.find((candidate) => candidate.idempotencyKey === preferredKey);
+      if (preferredEntry && !matching.includes(preferredEntry)) {
+        throw new MutationJournalOwnershipError(
+          "Runtime mutation identity candidate belongs to a different command",
+        );
+      }
+      if (
+        preferredEntry?.owner === PROCESS_OWNER &&
+        activeClaims.get(preferredEntry.idempotencyKey) !== undefined &&
+        activeClaims.get(preferredEntry.idempotencyKey) !== journalInstance
+      ) {
+        throw new MutationJournalOwnershipError(
+          "Runtime mutation identity is owned by a successor Desktop client",
+        );
+      }
+
       let entry = matching.find(
         (candidate) =>
+          candidate.idempotencyKey === preferredKey && candidate.owner === PROCESS_OWNER,
+      );
+      entry ??= matching.find(
+        (candidate) =>
           candidate.owner === PROCESS_OWNER &&
-          (candidate.claimable || claimableAfterFailure.has(candidate.idempotencyKey)),
+          (candidate.claimable || PROCESS_CLAIMABLE.has(candidate.idempotencyKey)),
       );
       if (!entry) {
         entry = matching.find(
@@ -570,6 +635,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
         }
       }
 
+      let createdFresh = false;
       if (entry) {
         entry = { ...entry, owner: PROCESS_OWNER, claimable: false };
       } else {
@@ -583,15 +649,26 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
           endpoint,
           namespace: scope.namespace,
           fingerprint: fingerprint(`${salt}\u0000${canonical}`),
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey: preferredKey ?? crypto.randomUUID(),
           owner: PROCESS_OWNER,
           claimable: false,
           createdAt: currentTime,
           expiresAt: currentTime + retentionMs,
         };
+        createdFresh = true;
       }
-      persistEntry(entry);
-      claimableAfterFailure.delete(entry.idempotencyKey);
+      try {
+        persistEntry(entry);
+      } catch (error) {
+        // No reservation was returned, so this newly-created command cannot
+        // have reached the transport. Remember it only to preserve its exact
+        // key for retry and to remove a write-that-landed during disposal.
+        if (createdFresh) unconfirmedUnsent.add(entry.idempotencyKey);
+        throw error;
+      }
+      unconfirmedUnsent.delete(entry.idempotencyKey);
+      activeClaims.set(entry.idempotencyKey, journalInstance);
+      PROCESS_CLAIMABLE.delete(entry.idempotencyKey);
       startHeartbeat();
 
       const lifecycle = lifecycleFor(entry);
@@ -602,9 +679,47 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
     },
     dispose() {
       if (disposed) return;
-      disposed = true;
       if (heartbeat !== undefined) clearInterval(heartbeat);
       heartbeat = undefined;
+      let failure: unknown;
+      for (const idempotencyKey of unconfirmedUnsent) {
+        try {
+          removeValue(options.storage, entryKey(idempotencyKey));
+          unconfirmedUnsent.delete(idempotencyKey);
+          PROCESS_CLAIMABLE.delete(idempotencyKey);
+        } catch (error) {
+          failure ??= error;
+        }
+      }
+      for (const [idempotencyKey, owner] of activeClaims) {
+        if (owner !== journalInstance) continue;
+        try {
+          const current = readEntry(idempotencyKey);
+          if (current?.owner === PROCESS_OWNER && !current.claimable) {
+            persistEntry({ ...current, claimable: true });
+          }
+          PROCESS_CLAIMABLE.delete(idempotencyKey);
+        } catch (error) {
+          // Persistence may have failed after the write reached the host. Keep
+          // the identity recoverable by a replacement adapter in this process;
+          // a real process restart falls back to the durable owner lease.
+          PROCESS_CLAIMABLE.add(idempotencyKey);
+          failure ??= error;
+        } finally {
+          if (activeClaims.get(idempotencyKey) === journalInstance) {
+            activeClaims.delete(idempotencyKey);
+          }
+        }
+      }
+      if (activeClaims.size === 0) {
+        try {
+          removeValue(options.storage, ownerKey(PROCESS_OWNER));
+        } catch (error) {
+          failure ??= error;
+        }
+      }
+      disposed = true;
+      if (failure !== undefined) throw failure;
     },
   };
 }

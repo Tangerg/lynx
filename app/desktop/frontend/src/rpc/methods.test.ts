@@ -233,6 +233,63 @@ describe("methods factory", () => {
     restartedJournal.dispose();
   });
 
+  it("replays the same mutation identity after a client hot-swap", async () => {
+    const values = new Map<string, unknown>();
+    const storage: MutationJournalStorage = {
+      get: (key) => {
+        const value = values.get(key);
+        return value === undefined ? undefined : structuredClone(value);
+      },
+      set: (key, value) => values.set(key, structuredClone(value)),
+      remove: (key) => void values.delete(key),
+      keys: () => [...values.keys()],
+    };
+    const scope = () => ({
+      endpoint: "http://127.0.0.1:17171",
+      namespace: "idp_runtime_store",
+      retentionSeconds: 86_400,
+    });
+    let settleRetired!: (value: { sessionId: string; runId: string }) => void;
+    const retiredCall = vi.fn(
+      (_method: string, _params: unknown, _options?: RpcCallOptions) =>
+        new Promise<{ sessionId: string; runId: string }>((resolve) => {
+          settleRetired = resolve;
+        }),
+    );
+    const retiredJournal = createMutationJournal({ storage, scope });
+    const retiredMethods = createMethods({ call: retiredCall } as unknown as RpcClient, {
+      mutationJournal: retiredJournal,
+    });
+    const retired = retiredMethods.schedules.runNow("schedule_1");
+    await vi.waitFor(() => expect(retiredCall).toHaveBeenCalledOnce());
+
+    retiredJournal.dispose();
+    let settleReplacement!: (value: { sessionId: string; runId: string }) => void;
+    const replacementCall = vi.fn(
+      (_method: string, _params: unknown, _options?: RpcCallOptions) =>
+        new Promise<{ sessionId: string; runId: string }>((resolve) => {
+          settleReplacement = resolve;
+        }),
+    );
+    const replacementJournal = createMutationJournal({ storage, scope });
+    const replacementMethods = createMethods({ call: replacementCall } as unknown as RpcClient, {
+      mutationJournal: replacementJournal,
+    });
+    const replay = replacementMethods.schedules.runNow("schedule_1");
+    await vi.waitFor(() => expect(replacementCall).toHaveBeenCalledOnce());
+
+    const retiredKey = retiredCall.mock.calls[0]?.[2]?.idempotencyKey;
+    expect(replacementCall.mock.calls[0]?.[2]?.idempotencyKey).toBe(retiredKey);
+    settleRetired({ sessionId: "ses_1", runId: "run_1" });
+    await expect(retired).resolves.toMatchObject({ runId: "run_1" });
+    expect([...values.keys()].some((key) => key.startsWith("entry:"))).toBe(true);
+
+    settleReplacement({ sessionId: "ses_1", runId: "run_1" });
+    await expect(replay).resolves.toMatchObject({ runId: "run_1" });
+    expect([...values.keys()].some((key) => key.startsWith("entry:"))).toBe(false);
+    replacementJournal.dispose();
+  });
+
   it("does not open the transport until mutation identity persistence recovers", async () => {
     let failWrites = true;
     const values = new Map<string, unknown>();
@@ -263,7 +320,9 @@ describe("methods factory", () => {
     expect(call).not.toHaveBeenCalled();
 
     failWrites = false;
-    await expect(failed.retry()).resolves.toMatchObject({ runId: "run_1" });
+    const recovered = failed.retry();
+    expect(recovered.idempotencyKey).toBe(failed.idempotencyKey);
+    await expect(recovered).resolves.toMatchObject({ runId: "run_1" });
     expect(call).toHaveBeenCalledOnce();
     persistentJournal.dispose();
   });

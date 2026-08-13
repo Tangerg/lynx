@@ -19,6 +19,80 @@ describe("createLyraClient", () => {
     expect(dispose).toHaveBeenCalledOnce();
   });
 
+  it("still closes the transport when journal ownership cleanup fails", async () => {
+    const transport = createMemoryTransport();
+    const closeTransport = vi.spyOn(transport, "close");
+    const failure = new Error("journal cleanup failed");
+    const client = createLyraClient(transport, {
+      mutationJournal: {
+        reserve: () => undefined,
+        dispose: () => {
+          throw failure;
+        },
+      },
+    });
+
+    await expect(client.close()).rejects.toBe(failure);
+    expect(closeTransport).toHaveBeenCalledOnce();
+  });
+
+  it("preserves both journal and transport cleanup failures", async () => {
+    const transport = createMemoryTransport();
+    const journalFailure = new Error("journal cleanup failed");
+    const transportFailure = new Error("transport cleanup failed");
+    vi.spyOn(transport, "close").mockRejectedValue(transportFailure);
+    const client = createLyraClient(transport, {
+      mutationJournal: {
+        reserve: () => undefined,
+        dispose: () => {
+          throw journalFailure;
+        },
+      },
+    });
+
+    const failure = await client.close().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect((failure as AggregateError).errors).toEqual([journalFailure, transportFailure]);
+  });
+
+  it("shares one cleanup settlement across concurrent close callers", async () => {
+    const transport = createMemoryTransport();
+    const journalFailure = new Error("journal cleanup failed");
+    const transportFailure = new Error("transport cleanup failed");
+    let rejectTransport!: (error: unknown) => void;
+    const closeTransport = vi.spyOn(transport, "close").mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectTransport = reject;
+        }),
+    );
+    let disposed = false;
+    const dispose = vi.fn(() => {
+      if (disposed) return;
+      disposed = true;
+      throw journalFailure;
+    });
+    const client = createLyraClient(transport, {
+      mutationJournal: { reserve: () => undefined, dispose },
+    });
+
+    const first = client.close();
+    const second = client.close();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(closeTransport).toHaveBeenCalledOnce();
+    rejectTransport(transportFailure);
+
+    const [firstResult, secondResult] = await Promise.allSettled([first, second]);
+    if (firstResult.status !== "rejected" || secondResult.status !== "rejected") {
+      throw new Error("concurrent close unexpectedly resolved");
+    }
+    expect(secondResult.reason).toBe(firstResult.reason);
+    expect((firstResult.reason as AggregateError).errors).toEqual([
+      journalFailure,
+      transportFailure,
+    ]);
+  });
+
   it("attaches request metadata to typed calls", async () => {
     const transport = createMemoryTransport();
     const client = createLyraClient(transport, {

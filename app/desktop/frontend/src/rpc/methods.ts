@@ -572,12 +572,17 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     execute: (idempotencyKey: string, attempt: { signal?: AbortSignal }) => Promise<Result>,
     signal?: AbortSignal,
     requestedKey?: string,
+    journalKey?: string,
   ): MutationPromise<Result> => {
+    const preferredJournalKey = journalKey ?? crypto.randomUUID();
     let reservation: ReturnType<MutationJournal["reserve"]>;
     try {
-      reservation = requestedKey ? undefined : options.mutationJournal?.reserve(method, params);
+      reservation =
+        requestedKey !== undefined
+          ? undefined
+          : options.mutationJournal?.reserve(method, params, preferredJournalKey);
     } catch (error) {
-      const failedKey = requestedKey ?? crypto.randomUUID();
+      const failedKey = requestedKey ?? preferredJournalKey;
       const retry = (retryOptions?: { signal?: AbortSignal }): MutationPromise<Result> =>
         openMutation(
           method,
@@ -585,6 +590,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
           execute,
           retryOptions === undefined ? signal : retryOptions.signal,
           requestedKey,
+          preferredJournalKey,
         );
       return Object.defineProperties(Promise.reject(error), {
         idempotencyKey: { enumerable: true, value: failedKey },
