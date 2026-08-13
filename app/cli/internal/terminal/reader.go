@@ -59,10 +59,11 @@ type readerPane struct {
 	title     string
 	detail    string
 
-	dismiss     func()
-	openSearch  func()
-	onCopied    func()
-	releaseTool func()
+	dismiss         func()
+	openSearch      func()
+	onCopied        func()
+	releaseSource   func()
+	observingSource bool
 }
 
 func newReaderPane(theme kit.Theme, glyphs kit.Glyphs, syntax highlight.Renderer, wheel input.Wheel, clipboard headless.Clipboard) *readerPane {
@@ -85,8 +86,9 @@ func (r *readerPane) Open(target readerTarget) {
 	r.query, r.problem, r.matches, r.current = "", "", nil, -1
 	r.search.Submit(&r.content, "", false)
 	if target.source != nil {
+		r.observingSource = true
 		initial := true
-		r.releaseTool = target.source.Observe(func(document readerDocument) {
+		r.releaseSource = target.source.Observe(func(document readerDocument) {
 			follow := r.scroll.AtBottom()
 			r.replace(document, !initial, follow)
 			initial = false
@@ -247,6 +249,10 @@ func (r *readerPane) StepMatch(delta int) bool {
 
 func (r *readerPane) SearchResults() <-chan headless.Result { return r.search.Results() }
 
+func (r *readerPane) ObservingSource() bool {
+	return r != nil && r.observingSource
+}
+
 func (r *readerPane) copy() {
 	value := r.selection.Text(&r.content)
 	if value == "" {
@@ -261,9 +267,14 @@ func (r *readerPane) copy() {
 }
 
 func (r *readerPane) CloseDocument() {
-	if r.releaseTool != nil {
-		r.releaseTool()
-		r.releaseTool = nil
+	if r == nil {
+		return
+	}
+	release := r.releaseSource
+	r.releaseSource = nil
+	r.observingSource = false
+	if release != nil {
+		release()
 	}
 }
 

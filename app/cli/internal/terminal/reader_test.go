@@ -131,3 +131,51 @@ func TestReaderCopiesSelectionOnlyOnLeftButtonRelease(t *testing.T) {
 		t.Fatal("left-button release did not copy the active selection")
 	}
 }
+
+type readerDocumentSourceProbe struct {
+	released int
+}
+
+func (source *readerDocumentSourceProbe) Observe(observer func(readerDocument)) func() {
+	observer(readerDocument{Title: "live transcript tool"})
+	return func() { source.released++ }
+}
+
+func TestSameSessionProjectionReplacementRetiresALiveTranscriptReader(t *testing.T) {
+	reader := newReaderPane(kit.Dark(), kit.Unicode(), highlight.New("github-dark"), input.Wheel{}, nil)
+	t.Cleanup(reader.Shutdown)
+	source := new(readerDocumentSourceProbe)
+	reader.Open(readerTarget{source: source})
+
+	operations := newOperationOwner(t.Context())
+	t.Cleanup(operations.Close)
+	application := &app{
+		operations:   operations,
+		session:      agent.Session{ID: "session"},
+		conversation: agent.NewConversation(),
+		reader:       reader,
+	}
+	application.prepareSessionProjectionReplacement(agent.Session{ID: "session"}, agent.NewConversation())
+
+	if source.released != 1 {
+		t.Fatalf("live reader source released %d times, want 1", source.released)
+	}
+}
+
+func TestSameSessionProjectionReplacementPreservesAStaticReader(t *testing.T) {
+	reader := newReaderPane(kit.Dark(), kit.Unicode(), highlight.New("github-dark"), input.Wheel{}, nil)
+	t.Cleanup(reader.Shutdown)
+	reader.Open(readerTarget{document: readerDocument{Title: "authoritative runtime document"}})
+
+	application := &app{
+		session:       agent.Session{ID: "session"},
+		conversation:  agent.NewConversation(),
+		reader:        reader,
+		runtimeReader: runtimeReaderGoal,
+	}
+	application.prepareSessionProjectionReplacement(agent.Session{ID: "session"}, agent.NewConversation())
+
+	if application.runtimeReader != runtimeReaderGoal {
+		t.Fatalf("runtime reader mode = %d, want the static reader preserved", application.runtimeReader)
+	}
+}

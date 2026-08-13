@@ -19,6 +19,9 @@ func (a *app) prepareSessionProjectionReplacement(next agent.Session, conversati
 		a.retireSessionContext()
 		return
 	}
+	if a.reader.ObservingSource() {
+		a.dismissReader()
+	}
 	if !a.canPreserveInteractionProjection(conversation) {
 		a.dismissInteractionProjection()
 	}
