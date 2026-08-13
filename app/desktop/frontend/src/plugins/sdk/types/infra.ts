@@ -65,8 +65,10 @@ export interface DataProviderSpec<T = unknown, P = unknown> {
   key: string;
   /** Async fetcher. Throw for failure; TanStack-Query handles the rest.
    *  Parameterized resources (grep / file-head) receive the consumer hook's
-   *  params object; list resources ignore the argument. */
-  fetcher: (params?: P) => Promise<T>;
+   *  params object; list resources ignore the argument. Query-owned reads also
+   *  receive their generation signal so a replaced Runtime cannot retain the
+   *  cache writer or an underlying transport resource. */
+  fetcher: (params?: P, signal?: AbortSignal) => Promise<T>;
 }
 
 export interface AgentRunStartOptions {

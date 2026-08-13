@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { invalidateQueries, synchronizeMountedAgentSessions } = vi.hoisted(() => ({
+const { cancelQueries, invalidateQueries, synchronizeMountedAgentSessions } = vi.hoisted(() => ({
+  cancelQueries: vi.fn(),
   invalidateQueries: vi.fn(),
   synchronizeMountedAgentSessions: vi.fn(),
 }));
 
 vi.mock("@/lib/queryClient", () => ({
-  queryClient: { invalidateQueries },
+  queryClient: { cancelQueries, invalidateQueries },
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
@@ -36,6 +37,7 @@ import { invalidateWorkspaceEvent, invalidateWorkspaceEverything } from "./query
 import { createWorkspaceEventLoop } from "../application/workspaceEventLoop";
 
 beforeEach(() => {
+  cancelQueries.mockClear();
   invalidateQueries.mockClear();
   synchronizeMountedAgentSessions.mockClear();
 });
@@ -72,6 +74,7 @@ describe("workspace session projection invalidation", () => {
   it("synchronizes every mounted session after a lossy resync", () => {
     invalidateWorkspaceEverything();
 
+    expect(cancelQueries).toHaveBeenCalledOnce();
     expect(invalidateQueries).toHaveBeenCalledWith();
     expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
       ownership: "replace-live",
@@ -183,6 +186,7 @@ describe("workspace session projection invalidation", () => {
     expect(invalidateQueries.mock.calls.filter(([options]) => options === undefined)).toHaveLength(
       2,
     );
+    expect(cancelQueries).toHaveBeenCalledTimes(2);
     expect(
       invalidateQueries.mock.calls.some(([options]) => options?.queryKey?.[0] === "pending-work"),
     ).toBe(false);

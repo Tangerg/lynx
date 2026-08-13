@@ -427,7 +427,7 @@ export interface Methods {
   // resume re-activates a paused/blocked goal. Omitting provider/model runs the
   // loop on the runtime default.
   goals: {
-    get: (sessionId: SessionId) => Promise<Goal | null>;
+    get: (sessionId: SessionId, signal?: AbortSignal) => Promise<Goal | null>;
     start: (
       params: {
         sessionId: SessionId;
@@ -841,7 +841,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       add: (params) => call("agentMemory.add", params),
     },
     goals: {
-      get: (sessionId) => call("goals.get", { sessionId }),
+      get: (sessionId, signal) => call("goals.get", { sessionId }, { signal }),
       start: (params, signal) => call("goals.start", params, { signal }),
       stop: (sessionId, signal) => call("goals.stop", { sessionId }, { signal }),
       resume: (sessionId, signal) => call("goals.resume", { sessionId }, { signal }),

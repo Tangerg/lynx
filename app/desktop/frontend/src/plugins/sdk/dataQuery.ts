@@ -13,13 +13,16 @@ const STATIC_QUERY_OPTIONS = {
   refetchOnWindowFocus: false as const,
 };
 
-function resolve<T, P = void>(key: string, params?: P): () => Promise<T> {
-  return () => {
+function resolve<T, P = void>(
+  key: string,
+  params?: P,
+): (context: { signal: AbortSignal }) => Promise<T> {
+  return ({ signal }) => {
     const fetcher = lookupDataProvider<T, P>(key);
     if (!fetcher) {
       return Promise.reject(new Error(`No data provider registered for key "${key}"`));
     }
-    return fetcher(params);
+    return fetcher(params, signal);
   };
 }
 

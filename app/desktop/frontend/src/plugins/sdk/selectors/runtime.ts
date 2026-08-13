@@ -40,9 +40,9 @@ export function resolveAgentRunStartOptions(): AgentRunStartOptions {
  */
 export function lookupDataProvider<T = unknown, P = unknown>(
   key: string,
-): ((params?: P) => Promise<T>) | undefined {
+): ((params?: P, signal?: AbortSignal) => Promise<T>) | undefined {
   const spec = lookupExtensionByKey(DATA_PROVIDER, key);
-  return spec ? (spec.fetcher as (params?: P) => Promise<T>) : undefined;
+  return spec ? (spec.fetcher as (params?: P, signal?: AbortSignal) => Promise<T>) : undefined;
 }
 
 /**

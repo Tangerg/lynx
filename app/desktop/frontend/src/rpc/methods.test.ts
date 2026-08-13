@@ -130,6 +130,16 @@ describe("methods factory", () => {
     expect(call).toHaveBeenCalledWith("sessions.get", { sessionId: "ses_1" }, { signal });
   });
 
+  it("forwards cancellation when reading a Goal", async () => {
+    const call = vi.fn().mockResolvedValue(null);
+    const methods = createMethods({ call } as unknown as RpcClient);
+    const signal = new AbortController().signal;
+
+    await methods.goals.get(asSessionId("ses_1"), signal);
+
+    expect(call).toHaveBeenCalledWith("goals.get", { sessionId: "ses_1" }, { signal });
+  });
+
   it("retries default workspace resolution after a transient failure", async () => {
     const call = vi
       .fn()

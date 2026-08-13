@@ -77,13 +77,13 @@ const gateway: GoalCommandsGateway = {
 export function installGoalRuntimeAdapter(host: ContributingHost): () => void {
   host.extensions.contribute(DATA_PROVIDER, {
     key: GOAL_KEY,
-    fetcher: async (params) => {
+    fetcher: async (params, signal) => {
       const query = params as GoalQuery | undefined;
       if (!query) throw new Error(`Data provider "${GOAL_KEY}" requires parameters`);
       if (!runtimeCapability("goals")) {
         return { available: false, goal: null } satisfies GoalState;
       }
-      const goal = await getContainer().client().goals.get(asSessionId(query.sessionId));
+      const goal = await getContainer().client().goals.get(asSessionId(query.sessionId), signal);
       return {
         available: true,
         goal: goal ? toGoalReadModel(goal) : null,

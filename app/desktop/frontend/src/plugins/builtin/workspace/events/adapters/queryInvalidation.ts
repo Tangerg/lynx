@@ -85,11 +85,7 @@ export function invalidateWorkspaceTargets(
   sessionIds?: readonly string[],
 ): void {
   if (targets.includes("all")) {
-    void queryClient.invalidateQueries();
-    // The material session projection is not a query-cache entry. A global
-    // resync therefore replaces any prior live-stream generation before its
-    // authoritative synchronization.
-    synchronizeMountedAgentSessions({ ownership: "replace-live" });
+    replaceWorkspaceReadModels();
     return;
   }
   for (const target of targets) {
@@ -116,6 +112,17 @@ export function invalidateWorkspaceEvent(ev: WorkspaceEventLike): void {
 }
 
 export function invalidateWorkspaceEverything(): void {
+  replaceWorkspaceReadModels();
+}
+
+function replaceWorkspaceReadModels(): void {
+  // A query with no cached value normally reuses its in-flight Promise when it
+  // is invalidated. A Runtime generation replacement must instead retire that
+  // writer before starting the successor read; late settlement remains owned
+  // by TanStack Query's canceled retryer and cannot populate the cache.
+  void queryClient.cancelQueries();
   void queryClient.invalidateQueries();
+  // The material session projection is not a query-cache entry. Replace its
+  // live generation on the same boundary as Goal and every other cached read.
   synchronizeMountedAgentSessions({ ownership: "replace-live" });
 }
