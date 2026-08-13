@@ -327,7 +327,7 @@ func TestStoreDoesNotRewriteAnAlreadyEmptyDraft(t *testing.T) {
 	}
 }
 
-func TestStoreRetiresCompleteSessionStateAtomically(t *testing.T) {
+func TestStoreRetiresCompleteSessionStateBehindADurableTombstone(t *testing.T) {
 	directory := t.TempDir()
 	store, err := Open(directory, Config{})
 	if err != nil {
@@ -376,17 +376,34 @@ func TestStoreRetiresCompleteSessionStateAtomically(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := store.RetireSessionState(sessionID); err == nil {
-		t.Fatal("durable session retirement unexpectedly succeeded")
+	if err := store.RetireSessionState(sessionID); err != nil {
+		t.Fatal(err)
 	}
-	if got, found, err := store.Draft(sessionID); err != nil || !found || !got.Equal(draft) {
-		t.Fatalf("cached draft after failed retirement = %+v, %v, %v", got, found, err)
+	if got, found, err := store.Draft(sessionID); err != nil || found {
+		t.Fatalf("retired draft = %+v, %v, %v", got, found, err)
 	}
-	if got := store.PendingRuns(sessionID); len(got) != 1 || got[0].Command.CommandID != command.Command.CommandID {
-		t.Fatalf("cached runs after failed retirement = %+v", got)
+	if got := store.PendingRuns(sessionID); len(got) != 0 {
+		t.Fatalf("retired runs remain = %+v", got)
 	}
-	if got, found := store.PendingResume(sessionID); !found || got.Command.CommandID != resume.Command.CommandID {
-		t.Fatalf("cached resume after failed retirement = %+v, %v", got, found)
+	if got, found := store.PendingResume(sessionID); found {
+		t.Fatalf("retired resume remains = %+v", got)
+	}
+	if deletions := store.PendingSessionDeletions(); len(deletions) != 1 ||
+		deletions[0].SessionID != sessionID || deletions[0].Phase != SessionDeletionConfirmed {
+		t.Fatalf("session deletion tombstones = %+v", deletions)
+	}
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, found, err := reopened.Draft(sessionID); err != nil || found || len(reopened.PendingRuns(sessionID)) != 0 {
+		t.Fatalf("reopened retired state has draft=%+v found=%v runs=%+v error=%v", got, found, reopened.PendingRuns(sessionID), err)
+	}
+	if pending, found := reopened.PendingResume(sessionID); found {
+		t.Fatalf("reopened retired resume = %+v", pending)
+	}
+	if deletions := reopened.PendingSessionDeletions(); len(deletions) != 1 || deletions[0].Phase != SessionDeletionConfirmed {
+		t.Fatalf("reopened deletion tombstones = %+v", deletions)
 	}
 
 	if err := os.Remove(blocker); err != nil {
@@ -398,19 +415,7 @@ func TestStoreRetiresCompleteSessionStateAtomically(t *testing.T) {
 	if err := os.Rename(backupPath, statePath); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.RetireSessionState(sessionID); err != nil {
-		t.Fatal(err)
-	}
-	if _, found, err := store.Draft(sessionID); err != nil || found {
-		t.Fatalf("retired draft remains, found %v, error %v", found, err)
-	}
-	if got := store.PendingRuns(sessionID); len(got) != 0 {
-		t.Fatalf("retired runs remain = %+v", got)
-	}
-	if got, found := store.PendingResume(sessionID); found {
-		t.Fatalf("retired resume remains = %+v", got)
-	}
-	reopened, err := Open(directory, Config{})
+	reopened, err = Open(directory, Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,6 +424,70 @@ func TestStoreRetiresCompleteSessionStateAtomically(t *testing.T) {
 	}
 	if pending, found := reopened.PendingResume(sessionID); found {
 		t.Fatalf("reopened retired resume = %+v", pending)
+	}
+	if deletions := reopened.PendingSessionDeletions(); len(deletions) != 0 {
+		t.Fatalf("cleaned deletion tombstones = %+v", deletions)
+	}
+}
+
+func TestStoreRecoversPreparedSessionDeletionWithStableIdentity(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	request := agent.DeleteSession{
+		CommandID: agent.CommandID("cli_33333333333333333333333333333333"), SessionID: sessionID,
+	}
+	if err := store.SaveDraft(sessionID, agent.Message{Text: "owned until runtime confirmation"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StageSessionDeletion(request); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deletions := reopened.PendingSessionDeletions()
+	if len(deletions) != 1 || deletions[0].Phase != SessionDeletionPrepared || deletions[0].Request() != request {
+		t.Fatalf("prepared deletion = %+v", deletions)
+	}
+	if draft, found, err := reopened.Draft(sessionID); err != nil || !found || draft.Text != "owned until runtime confirmation" {
+		t.Fatalf("prepared deletion draft = %+v, %t, %v", draft, found, err)
+	}
+	if err := reopened.ConfirmSessionDeletion(sessionID, request.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if draft, found, err := reopened.Draft(sessionID); err != nil || found {
+		t.Fatalf("confirmed deletion draft = %+v, %t, %v", draft, found, err)
+	}
+	if deletions := reopened.PendingSessionDeletions(); len(deletions) != 0 {
+		t.Fatalf("settled deletions = %+v", deletions)
+	}
+}
+
+func TestStoreRejectsOnlyTheExactPreparedSessionDeletion(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := agent.DeleteSession{
+		CommandID: agent.CommandID("cli_44444444444444444444444444444444"), SessionID: "session",
+	}
+	if err := store.StageSessionDeletion(request); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RejectSessionDeletion(request.SessionID, agent.CommandID("cli_55555555555555555555555555555555")); err == nil {
+		t.Fatal("stale rejection removed another deletion intent")
+	}
+	if err := store.RejectSessionDeletion(request.SessionID, request.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if deletions := store.PendingSessionDeletions(); len(deletions) != 0 {
+		t.Fatalf("rejected deletions = %+v", deletions)
 	}
 }
 

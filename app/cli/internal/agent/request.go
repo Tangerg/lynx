@@ -30,6 +30,22 @@ func (r StartRun) Validate() error {
 	return nil
 }
 
+func (r DeleteSession) Validate() error {
+	var problems []error
+	if r.CommandID != "" {
+		if err := r.CommandID.Validate(); err != nil {
+			problems = append(problems, err)
+		}
+	}
+	if strings.TrimSpace(r.SessionID) == "" {
+		problems = append(problems, errors.New("session id is empty"))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("delete session: %w", err)
+	}
+	return nil
+}
+
 func (m Message) Validate() error {
 	if strings.TrimSpace(m.Text) == "" && len(m.Attachments) == 0 {
 		return errors.New("message is empty")

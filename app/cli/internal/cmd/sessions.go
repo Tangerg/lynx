@@ -12,11 +12,14 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiondeletion"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
-func newSessionsCommand(provider runtimeProvider) *cobra.Command {
+func newSessionsCommand(provider runtimeProvider, stateDirectory string) *cobra.Command {
 	sessions := &cobra.Command{
 		Use:     "sessions",
 		Short:   "Inspect and manage sessions",
@@ -29,7 +32,7 @@ func newSessionsCommand(provider runtimeProvider) *cobra.Command {
 		newSessionsUpdateCommand(provider),
 		newSessionsRenameCommand(provider),
 		newSessionsForkCommand(provider),
-		newSessionsDeleteCommand(provider),
+		newSessionsDeleteCommand(provider, stateDirectory),
 	)
 	return sessions
 }
@@ -256,7 +259,7 @@ func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 	return cmd
 }
 
-func newSessionsDeleteCommand(provider runtimeProvider) *cobra.Command {
+func newSessionsDeleteCommand(provider runtimeProvider, stateDirectory string) *cobra.Command {
 	var (
 		yes bool
 	)
@@ -274,8 +277,27 @@ func newSessionsDeleteCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := runtime.DeleteSession(cmd.Context(), agent.DeleteSession{SessionID: args[0]}); err != nil {
+			authoring, err := workbench.Open(stateDirectory, workbench.Config{})
+			if err != nil {
+				return fmt.Errorf("open CLI workbench: %w", err)
+			}
+			result, err := sessiondeletion.Execute(cmd.Context(), runtime, authoring, args[0], retry.Backoff{
+				Base: 50 * time.Millisecond, Maximum: time.Second,
+			})
+			switch result.Outcome {
+			case sessiondeletion.Rejected:
+				if rejectErr := sessiondeletion.Reject(authoring, result); rejectErr != nil {
+					return errors.Join(err, rejectErr)
+				}
 				return err
+			case sessiondeletion.Unknown:
+				if result.Request.CommandID == "" {
+					return err
+				}
+				return fmt.Errorf("delete session outcome is unknown; retry the same command to reconcile it: %w", err)
+			}
+			if err := sessiondeletion.Confirm(authoring, result); err != nil {
+				return fmt.Errorf("retire deleted session state: %w", err)
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), args[0])
 			return err

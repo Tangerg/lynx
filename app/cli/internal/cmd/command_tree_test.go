@@ -22,7 +22,21 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/backend"
 	"github.com/Tangerg/lynx/app/cli/internal/failure"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
+
+type postCommitDeleteRuntime struct {
+	agent.Runtime
+	request agent.DeleteSession
+}
+
+func (runtime *postCommitDeleteRuntime) DeleteSession(ctx context.Context, request agent.DeleteSession) error {
+	if err := runtime.Runtime.DeleteSession(ctx, request); err != nil {
+		return err
+	}
+	runtime.request = request
+	return errors.New("runtime cleanup failed after durable deletion")
+}
 
 // executeCommand runs the CLI in memory and returns stdout, stderr and the command error.
 // Nothing here touches the process's own streams, which is what lets the tests
@@ -796,6 +810,47 @@ func requireSessionDelete(t *testing.T, runtime agent.Runtime, id string) {
 	}
 	if _, _, err := executeCommand(t, runtime, "", "sessions", "rm", "--yes", id); err != nil {
 		t.Fatalf("sessions rm --yes: %v", err)
+	}
+}
+
+func TestSessionsDeleteConvergesPostCommitFailureAndRetiresWorkbenchState(t *testing.T) {
+	base := instantRuntime()
+	target := firstSession(t, base)
+	stateDirectory := t.TempDir()
+	authoring, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := authoring.SaveDraft(target, agent.Message{Text: "must be retired"}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &postCommitDeleteRuntime{Runtime: base}
+	var output bytes.Buffer
+	root := NewRoot(Dependencies{
+		OpenRuntime:    func(context.Context) (backend.Services, error) { return backend.AgentOnly(runtime), nil },
+		StateDirectory: stateDirectory,
+	})
+	root.SetOut(&output)
+	root.SetErr(io.Discard)
+	root.SetArgs([]string{"sessions", "delete", "--yes", target})
+	if err := root.ExecuteContext(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(output.String()) != target {
+		t.Fatalf("delete output = %q", output.String())
+	}
+	if runtime.request.SessionID != target || runtime.request.CommandID == "" {
+		t.Fatalf("delete request = %+v", runtime.request)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft, found, err := reopened.Draft(target); err != nil || found {
+		t.Fatalf("deleted session draft = %+v, %t, %v", draft, found, err)
+	}
+	if pending := reopened.PendingSessionDeletions(); len(pending) != 0 {
+		t.Fatalf("settled deletions = %+v", pending)
 	}
 }
 

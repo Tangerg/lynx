@@ -107,7 +107,7 @@ func NewRoot(dependencies Dependencies) *cobra.Command {
 		&cobra.Group{ID: "manage", Title: "Manage:"},
 		&cobra.Group{ID: "setup", Title: "Setup:"},
 	)
-	addRootCommands(root, provider, v)
+	addRootCommands(root, provider, v, dependencies.StateDirectory)
 	return root
 }
 
@@ -149,10 +149,10 @@ func newRootCommand(v *viper.Viper, provider runtimeProvider, stateDirectory str
 	}
 }
 
-func addRootCommands(root *cobra.Command, provider runtimeProvider, v *viper.Viper) {
+func addRootCommands(root *cobra.Command, provider runtimeProvider, v *viper.Viper, stateDirectory string) {
 	run := newRunCommand(provider, v)
 	run.GroupID = "work"
-	sessions := newSessionsCommand(provider)
+	sessions := newSessionsCommand(provider, stateDirectory)
 	sessions.GroupID = "manage"
 	runs := newRunsCommand(provider)
 	runs.GroupID = "manage"

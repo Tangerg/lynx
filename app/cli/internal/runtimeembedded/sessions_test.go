@@ -16,6 +16,7 @@ import (
 type sessionCatalogStub struct {
 	pages  map[string]*protocol.Page[protocol.Session]
 	update func(protocol.UpdateSessionRequest) (*protocol.Session, error)
+	delete func(protocol.DeleteSessionRequest, embedded.CommandOptions) error
 }
 
 func testProtocolWorkspace(path, projectRoot string, availability protocol.WorkspaceAvailability) protocol.WorkspaceInfo {
@@ -134,8 +135,30 @@ func TestProjectSessionRejectsIncompleteWorkspaceIdentity(t *testing.T) {
 	}
 }
 
-func (sessionCatalogStub) DeleteSession(context.Context, protocol.DeleteSessionRequest, embedded.CommandOptions) error {
+func (stub sessionCatalogStub) DeleteSession(_ context.Context, request protocol.DeleteSessionRequest, options embedded.CommandOptions) error {
+	if stub.delete != nil {
+		return stub.delete(request, options)
+	}
 	return errors.New("unexpected DeleteSession")
+}
+
+func TestDeleteSessionUsesTheDurableMutationIdentity(t *testing.T) {
+	t.Parallel()
+	commandID := agent.CommandID("cli_11111111111111111111111111111111")
+	called := false
+	runtime := &Runtime{sessionCatalog: sessionCatalogStub{delete: func(request protocol.DeleteSessionRequest, options embedded.CommandOptions) error {
+		called = true
+		if request.SessionID != "ses_1" || options.IdempotencyKey != string(commandID) {
+			t.Fatalf("delete request = %+v, options = %+v", request, options)
+		}
+		return nil
+	}}, meta: requestMeta("test")}
+	if err := runtime.DeleteSession(t.Context(), agent.DeleteSession{CommandID: commandID, SessionID: "ses_1"}); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("delete session did not reach the runtime binding")
+	}
 }
 
 func TestFilteredSessionCatalogRejectsMultiStepCursorCycle(t *testing.T) {

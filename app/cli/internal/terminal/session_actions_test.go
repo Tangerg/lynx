@@ -21,6 +21,35 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
+type postCommitSessionDeleteRuntime struct {
+	agent.Runtime
+	mu      sync.Mutex
+	request agent.DeleteSession
+	calls   int
+	deleted chan struct{}
+}
+
+func (runtime *postCommitSessionDeleteRuntime) DeleteSession(ctx context.Context, request agent.DeleteSession) error {
+	if err := runtime.Runtime.DeleteSession(ctx, request); err != nil {
+		return err
+	}
+	runtime.mu.Lock()
+	runtime.request = request
+	runtime.calls++
+	runtime.mu.Unlock()
+	select {
+	case runtime.deleted <- struct{}{}:
+	default:
+	}
+	return errors.New("runtime cleanup failed after durable deletion")
+}
+
+func (runtime *postCommitSessionDeleteRuntime) deletion() (agent.DeleteSession, int) {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return runtime.request, runtime.calls
+}
+
 func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
 	store, err := workbench.Open("", workbench.Config{})
 	if err != nil {
@@ -83,7 +112,7 @@ func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
 	}
 }
 
-func TestRetiringSessionStateKeepsTheQueueWhenDurableRetirementFails(t *testing.T) {
+func TestRetiringSessionStateClearsTheQueueAfterDurableTombstone(t *testing.T) {
 	directory := t.TempDir()
 	store, err := workbench.Open(directory, workbench.Config{})
 	if err != nil {
@@ -94,7 +123,7 @@ func TestRetiringSessionStateKeepsTheQueueWhenDurableRetirementFails(t *testing.
 		t.Fatal(err)
 	}
 	queue := promptqueue.New()
-	queued, err := queue.Enqueue(sessionID, agent.Message{Text: "keep queued prompt"})
+	_, err = queue.Enqueue(sessionID, agent.Message{Text: "keep queued prompt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,17 +144,116 @@ func TestRetiringSessionStateKeepsTheQueueWhenDurableRetirementFails(t *testing.
 
 	application := &app{workbench: store, queue: queue}
 	discarded, err := application.retireSessionState(sessionID)
-	if err == nil {
-		t.Fatal("session retirement unexpectedly succeeded")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if discarded != 0 {
-		t.Fatalf("failed retirement reported %d discarded prompts", discarded)
+	if discarded != 1 {
+		t.Fatalf("retirement reported %d discarded prompts", discarded)
 	}
-	if got := queue.Snapshot(sessionID).Entries; len(got) != 1 || got[0].ID != queued.ID {
-		t.Fatalf("failed retirement changed queue = %+v", got)
+	if got := queue.Snapshot(sessionID).Entries; len(got) != 0 {
+		t.Fatalf("retirement left queue = %+v", got)
 	}
-	if draft, found, draftErr := store.Draft(sessionID); draftErr != nil || !found || draft.Text != "keep authoring state" {
-		t.Fatalf("failed retirement changed draft = %+v, %v, %v", draft, found, draftErr)
+	if draft, found, draftErr := store.Draft(sessionID); draftErr != nil || found {
+		t.Fatalf("retirement left draft = %+v, %v, %v", draft, found, draftErr)
+	}
+	if deletions := store.PendingSessionDeletions(); len(deletions) != 1 ||
+		deletions[0].SessionID != sessionID || deletions[0].Phase != workbench.SessionDeletionConfirmed {
+		t.Fatalf("retirement tombstone = %+v", deletions)
+	}
+}
+
+func TestSessionCenterConvergesPostCommitDeleteFailureAndRetiresLocalState(t *testing.T) {
+	base := mock.New()
+	workspace := t.TempDir()
+	target, err := base.CreateSession(t.Context(), agent.CreateSession{Title: "Post-commit delete target", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDraft(target.ID, agent.Message{Text: "must not survive deletion"}); err != nil {
+		t.Fatal(err)
+	}
+	backend := &postCommitSessionDeleteRuntime{Runtime: base, deleted: make(chan struct{}, 1)}
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", StateDirectory: stateDirectory,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions · Center")
+	host.Type(target.Title)
+	host.Shows(t, target.Title)
+	host.Send(input.Key{Code: input.Character, Rune: 'd', Mods: input.Alt})
+	host.Shows(t, "Delete session")
+	for range 2 {
+		host.Press(input.Down)
+	}
+	host.Press(input.Enter)
+	awaitSignal(t, backend.deleted, "post-commit session deletion")
+	host.Shows(t, "No loaded sessions")
+	stop()
+
+	request, calls := backend.deletion()
+	if calls != 1 || request.SessionID != target.ID || request.CommandID == "" {
+		t.Fatalf("runtime deletion = %+v, calls %d", request, calls)
+	}
+	if _, err := base.GetSession(t.Context(), target.ID); !errors.Is(err, agent.ErrSessionNotFound) {
+		t.Fatalf("deleted session read = %v", err)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft, found, err := reopened.Draft(target.ID); err != nil || found {
+		t.Fatalf("deleted session draft = %+v, %t, %v", draft, found, err)
+	}
+	if pending := reopened.PendingSessionDeletions(); len(pending) != 0 {
+		t.Fatalf("settled session deletions = %+v", pending)
+	}
+}
+
+func TestStartupReplaysPreparedSessionDeletionBeforeLoadingDrafts(t *testing.T) {
+	backend := mock.New()
+	workspace := t.TempDir()
+	target, err := backend.CreateSession(t.Context(), agent.CreateSession{Title: "Interrupted delete target", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDraft(target.ID, agent.Message{Text: "orphaned draft"}); err != nil {
+		t.Fatal(err)
+	}
+	request := agent.DeleteSession{
+		CommandID: agent.CommandID("cli_66666666666666666666666666666666"), SessionID: target.ID,
+	}
+	if err := store.StageSessionDeletion(request); err != nil {
+		t.Fatal(err)
+	}
+
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: backend, SessionID: "ses_demo_1", StateDirectory: stateDirectory,
+	})
+	host.Shows(t, "Ask lyra")
+	stop()
+	if _, err := backend.GetSession(t.Context(), target.ID); !errors.Is(err, agent.ErrSessionNotFound) {
+		t.Fatalf("recovered deletion read = %v", err)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft, found, err := reopened.Draft(target.ID); err != nil || found {
+		t.Fatalf("recovered deletion draft = %+v, %t, %v", draft, found, err)
+	}
+	if pending := reopened.PendingSessionDeletions(); len(pending) != 0 {
+		t.Fatalf("recovered deletion journals = %+v", pending)
 	}
 }
 

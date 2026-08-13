@@ -17,6 +17,18 @@ func TestStartRunValidation(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionValidatesItsOptionalMutationIdentity(t *testing.T) {
+	if err := (DeleteSession{SessionID: "ses_1"}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := (DeleteSession{CommandID: CommandID("invalid"), SessionID: "ses_1"}).Validate(); err == nil {
+		t.Fatal("invalid deletion command identity was accepted")
+	}
+	if err := (DeleteSession{}).Validate(); err == nil {
+		t.Fatal("empty deletion target was accepted")
+	}
+}
+
 func TestStartRunEqualUsesTheCompleteMutationFingerprint(t *testing.T) {
 	request := StartRun{
 		CommandID: CommandID("cli_11111111111111111111111111111111"), SessionID: "ses_1",

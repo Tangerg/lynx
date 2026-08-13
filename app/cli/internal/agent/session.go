@@ -482,7 +482,13 @@ type ForkSession struct {
 	Title     string
 }
 
-type DeleteSession struct{ SessionID string }
+// DeleteSession identifies one idempotent session-deletion intent. CommandID
+// is optional for one-shot callers; durable clients set it so an interrupted
+// acknowledgement can be recovered without issuing a second mutation.
+type DeleteSession struct {
+	CommandID CommandID
+	SessionID string
+}
 
 func cloneBlocks(blocks []Block) []Block {
 	out := make([]Block, len(blocks))

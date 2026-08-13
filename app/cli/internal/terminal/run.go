@@ -30,6 +30,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiondeletion"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/skills"
@@ -162,17 +163,23 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, err
 	}
+	authoring, err := workbench.Open(cfg.StateDirectory, workbench.Config{})
+	if err != nil {
+		return preparedSession{}, fmt.Errorf("open CLI workbench: %w", err)
+	}
+	if err := sessiondeletion.Recover(ctx, cfg.Runtime, authoring, runtimeRecoveryBackoff); err != nil {
+		return preparedSession{}, fmt.Errorf("recover session deletions: %w", err)
+	}
 	opened, err := session.Open(ctx, cfg.Runtime, cfg.SessionID, cfg.Workspace)
 	if err != nil {
 		return preparedSession{}, err
 	}
+	if err := authoring.ActivateSessionState(opened.Session.ID); err != nil {
+		return preparedSession{}, fmt.Errorf("activate session authoring state: %w", err)
+	}
 	attachments, err := attachment.New(opened.Session.Workspace.Path)
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
-	}
-	authoring, err := workbench.Open(cfg.StateDirectory, workbench.Config{})
-	if err != nil {
-		return preparedSession{}, fmt.Errorf("open CLI workbench: %w", err)
 	}
 	if err := authoring.RememberWorkspace(opened.Session.Workspace.Path); err != nil {
 		return preparedSession{}, fmt.Errorf("remember workspace: %w", err)

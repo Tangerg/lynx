@@ -212,7 +212,10 @@ func projectSessionResult(operation, expectedID string, result *protocol.Session
 }
 
 func (r *Runtime) DeleteSession(ctx context.Context, input agent.DeleteSession) error {
-	options, err := r.commandOptions()
+	if err := input.Validate(); err != nil {
+		return err
+	}
+	options, err := r.commandOptionsFor(input.CommandID)
 	if err != nil {
 		return err
 	}

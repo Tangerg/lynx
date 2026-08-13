@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiondeletion"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -182,19 +183,34 @@ func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session
 
 func (a *app) deleteSessionFromCenter(id string) {
 	started := runApplicationOperation(a, sessionCenterOperation, false,
-		func(ctx context.Context) (struct{}, error) {
-			return struct{}{}, a.runtime.DeleteSession(ctx, agent.DeleteSession{SessionID: id})
+		func(ctx context.Context) (sessiondeletion.Result, error) {
+			return sessiondeletion.Execute(ctx, a.runtime, a.workbench, id, runtimeRecoveryBackoff)
 		},
-		func(_ struct{}, err error) {
-			if err != nil {
+		func(result sessiondeletion.Result, err error) {
+			switch result.Outcome {
+			case sessiondeletion.Rejected:
+				if rejectErr := sessiondeletion.Reject(a.workbench, result); rejectErr != nil {
+					a.message("delete session failed; local intent cleanup failed: " + errors.Join(err, rejectErr).Error())
+					return
+				}
 				a.message("delete session failed: " + err.Error())
 				return
+			case sessiondeletion.Unknown:
+				if result.Request.CommandID == "" {
+					a.message("delete session failed: " + err.Error())
+					return
+				}
+				a.message("delete session outcome is unknown; it will be reconciled on restart: " + err.Error())
+				return
 			}
-			a.sessionCenter.Remove(id)
-			if _, err := a.retireSessionState(id); err != nil {
+			if err := sessiondeletion.Confirm(a.workbench, result); err != nil {
 				a.message("deleted session; local state cleanup failed: " + err.Error())
 				return
 			}
+			if a.queue != nil {
+				a.queue.Clear(result.Request.SessionID)
+			}
+			a.sessionCenter.Remove(id)
 			a.message("deleted session")
 		},
 	)
@@ -446,6 +462,9 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 	}
 	if err := a.saveDraft(current); err != nil {
 		return agent.Message{}, fmt.Errorf("save source session draft: %w", err)
+	}
+	if err := a.workbench.ActivateSessionState(session.ID); err != nil {
+		return agent.Message{}, fmt.Errorf("activate destination session state: %w", err)
 	}
 	draft, _, err := a.workbench.Draft(session.ID)
 	if err != nil {

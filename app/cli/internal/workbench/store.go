@@ -23,11 +23,12 @@ import (
 )
 
 const (
-	formatVersion       = 1
-	defaultHistoryLimit = 1000
-	defaultStashLimit   = 100
-	defaultWorkspaceCap = 50
-	stashTransferName   = "stash-transfer.json"
+	formatVersion        = 1
+	defaultHistoryLimit  = 1000
+	defaultStashLimit    = 100
+	defaultWorkspaceCap  = 50
+	stashTransferName    = "stash-transfer.json"
+	sessionDeletionsName = "session-deletions.json"
 )
 
 // Config controls bounded state and supplies deterministic identity sources to
@@ -96,6 +97,51 @@ type sessionState struct {
 	Draft         agent.Message  `json:"draft"`
 	PendingRuns   []PendingRun   `json:"pendingRuns"`
 	PendingResume *PendingResume `json:"pendingResume,omitempty"`
+}
+
+// SessionDeletionPhase separates an unacknowledged runtime mutation from a
+// confirmed local tombstone. A confirmed record makes an obsolete session
+// aggregate unreachable even when its physical file cannot yet be removed.
+type SessionDeletionPhase string
+
+const (
+	SessionDeletionPrepared  SessionDeletionPhase = "prepared"
+	SessionDeletionConfirmed SessionDeletionPhase = "confirmed"
+)
+
+// PendingSessionDeletion is the durable journal for one session deletion.
+// Prepared records retain the stable runtime command identity; confirmed
+// records remain only while obsolete CLI-local state still needs cleanup.
+type PendingSessionDeletion struct {
+	Phase     SessionDeletionPhase `json:"phase"`
+	CommandID agent.CommandID      `json:"commandId,omitempty"`
+	SessionID string               `json:"sessionId"`
+}
+
+func (pending PendingSessionDeletion) validate() error {
+	if strings.TrimSpace(pending.SessionID) == "" {
+		return errors.New("session deletion id is empty")
+	}
+	switch pending.Phase {
+	case SessionDeletionPrepared:
+		if err := pending.CommandID.Validate(); err != nil {
+			return fmt.Errorf("session deletion command: %w", err)
+		}
+	case SessionDeletionConfirmed:
+		if pending.CommandID != "" {
+			if err := pending.CommandID.Validate(); err != nil {
+				return fmt.Errorf("session deletion command: %w", err)
+			}
+		}
+	default:
+		return fmt.Errorf("session deletion phase %q is invalid", pending.Phase)
+	}
+	return nil
+}
+
+// Request reconstructs the exact runtime mutation owned by a prepared record.
+func (pending PendingSessionDeletion) Request() agent.DeleteSession {
+	return agent.DeleteSession{CommandID: pending.CommandID, SessionID: pending.SessionID}
 }
 
 type PendingRunState string
@@ -334,34 +380,36 @@ func validatePendingRunSequence(sessionID string, pending []PendingRun) error {
 // Store is the aggregate root for CLI authoring state. Every mutating method
 // updates memory only after its durable replacement succeeds.
 type Store struct {
-	mu             sync.Mutex
-	directory      string
-	historyLimit   int
-	stashLimit     int
-	workspaceLimit int
-	now            func() time.Time
-	random         io.Reader
-	history        []historyEntry
-	drafts         map[string]agent.Message
-	stashes        []Stash
-	workspaces     []Workspace
-	pendingRuns    map[string][]PendingRun
-	pendingResumes map[string]PendingResume
+	mu               sync.Mutex
+	directory        string
+	historyLimit     int
+	stashLimit       int
+	workspaceLimit   int
+	now              func() time.Time
+	random           io.Reader
+	history          []historyEntry
+	drafts           map[string]agent.Message
+	stashes          []Stash
+	workspaces       []Workspace
+	pendingRuns      map[string][]PendingRun
+	pendingResumes   map[string]PendingResume
+	sessionDeletions map[string]PendingSessionDeletion
 }
 
 // Open loads a file-backed store. An empty directory creates a memory-only
 // store, which keeps embedders and in-memory tests explicit.
 func Open(directory string, config Config) (*Store, error) {
 	store := &Store{
-		directory:      strings.TrimSpace(directory),
-		historyLimit:   positiveOr(config.HistoryLimit, defaultHistoryLimit),
-		stashLimit:     positiveOr(config.StashLimit, defaultStashLimit),
-		workspaceLimit: positiveOr(config.WorkspaceLimit, defaultWorkspaceCap),
-		now:            config.Now,
-		random:         config.Random,
-		drafts:         make(map[string]agent.Message),
-		pendingRuns:    make(map[string][]PendingRun),
-		pendingResumes: make(map[string]PendingResume),
+		directory:        strings.TrimSpace(directory),
+		historyLimit:     positiveOr(config.HistoryLimit, defaultHistoryLimit),
+		stashLimit:       positiveOr(config.StashLimit, defaultStashLimit),
+		workspaceLimit:   positiveOr(config.WorkspaceLimit, defaultWorkspaceCap),
+		now:              config.Now,
+		random:           config.Random,
+		drafts:           make(map[string]agent.Message),
+		pendingRuns:      make(map[string][]PendingRun),
+		pendingResumes:   make(map[string]PendingResume),
+		sessionDeletions: make(map[string]PendingSessionDeletion),
 	}
 	if store.now == nil {
 		store.now = time.Now
@@ -391,9 +439,24 @@ func Open(directory string, config Config) (*Store, error) {
 	if err := store.loadOptional("workspaces.json", &store.workspaces); err != nil {
 		return nil, fmt.Errorf("load recent workspaces: %w", err)
 	}
+	var deletions []PendingSessionDeletion
+	if err := store.loadOptional(sessionDeletionsName, &deletions); err != nil {
+		return nil, fmt.Errorf("load session deletions: %w", err)
+	}
+	for index, pending := range deletions {
+		pending.SessionID = strings.TrimSpace(pending.SessionID)
+		if err := pending.validate(); err != nil {
+			return nil, fmt.Errorf("load session deletion %d: %w", index+1, err)
+		}
+		if _, duplicate := store.sessionDeletions[pending.SessionID]; duplicate {
+			return nil, fmt.Errorf("load session deletions: session %q appears more than once", pending.SessionID)
+		}
+		store.sessionDeletions[pending.SessionID] = pending
+	}
 	if err := store.loadSessionStates(); err != nil {
 		return nil, fmt.Errorf("load session authoring state: %w", err)
 	}
+	store.recoverConfirmedSessionDeletions()
 	store.history = store.trimHistory(store.history)
 	store.stashes = tailStashes(store.stashes, store.stashLimit)
 	store.workspaces = slices.Clone(store.workspaces[:min(len(store.workspaces), store.workspaceLimit)])
@@ -416,6 +479,119 @@ func (s *Store) PendingResume(sessionID string) (PendingResume, bool) {
 	defer s.mu.Unlock()
 	pending, ok := s.pendingResumes[strings.TrimSpace(sessionID)]
 	return clonePendingResume(pending), ok
+}
+
+// PendingSessionDeletions returns deletion journals in stable session order.
+func (s *Store) PendingSessionDeletions() []PendingSessionDeletion {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return sortedSessionDeletions(s.sessionDeletions)
+}
+
+// PendingSessionDeletion returns the journal for one session, when present.
+func (s *Store) PendingSessionDeletion(sessionID string) (PendingSessionDeletion, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, ok := s.sessionDeletions[strings.TrimSpace(sessionID)]
+	return pending, ok
+}
+
+// StageSessionDeletion durably owns a runtime mutation before it can leave the
+// process. Repeating the exact command is idempotent; another identity cannot
+// replace an outcome whose acknowledgement is still unknown.
+func (s *Store) StageSessionDeletion(request agent.DeleteSession) error {
+	request.SessionID = strings.TrimSpace(request.SessionID)
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	if request.CommandID == "" {
+		return errors.New("stage session deletion: command id is empty")
+	}
+	pending := PendingSessionDeletion{
+		Phase: SessionDeletionPrepared, CommandID: request.CommandID, SessionID: request.SessionID,
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if current, exists := s.sessionDeletions[request.SessionID]; exists {
+		if current == pending {
+			return nil
+		}
+		return errors.New("another session deletion is already pending")
+	}
+	next := cloneSessionDeletions(s.sessionDeletions)
+	next[request.SessionID] = pending
+	if err := s.save(sessionDeletionsName, sortedSessionDeletions(next)); err != nil {
+		return err
+	}
+	s.sessionDeletions = next
+	return nil
+}
+
+// RejectSessionDeletion retires a prepared journal after the runtime
+// definitively reports that the session still exists and was not deleted.
+func (s *Store) RejectSessionDeletion(sessionID string, commandID agent.CommandID) error {
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, exists := s.sessionDeletions[sessionID]
+	if !exists {
+		return nil
+	}
+	if pending.Phase != SessionDeletionPrepared || pending.CommandID != commandID {
+		return errors.New("session deletion journal does not match the rejected command")
+	}
+	next := cloneSessionDeletions(s.sessionDeletions)
+	delete(next, sessionID)
+	if err := s.save(sessionDeletionsName, sortedSessionDeletions(next)); err != nil {
+		return err
+	}
+	s.sessionDeletions = next
+	return nil
+}
+
+// ConfirmSessionDeletion converts the exact prepared command into a durable
+// local tombstone, then retires all CLI-owned state. Once the tombstone is
+// durable, physical cleanup is best-effort: an undeletable old aggregate can
+// no longer be observed and will be retried on the next Open.
+func (s *Store) ConfirmSessionDeletion(sessionID string, commandID agent.CommandID) error {
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, exists := s.sessionDeletions[sessionID]
+	if !exists || pending.Phase != SessionDeletionPrepared || pending.CommandID != commandID {
+		return errors.New("session deletion journal does not match the confirmed command")
+	}
+	return s.retireSessionStateLocked(sessionID, pending)
+}
+
+// ActivateSessionState establishes that the runtime once again owns this
+// identity before authoring state is loaded for it. A confirmed deletion must
+// finish removing its old aggregate and tombstone first, preventing a later
+// import with the same session ID from inheriting obsolete local state.
+func (s *Store) ActivateSessionState(sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("session id is empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, exists := s.sessionDeletions[sessionID]
+	if !exists {
+		return nil
+	}
+	if pending.Phase == SessionDeletionPrepared {
+		return errors.New("session deletion acknowledgement is still pending")
+	}
+	if err := s.remove(s.sessionStateName(sessionID)); err != nil {
+		return fmt.Errorf("remove retired session state: %w", err)
+	}
+	next := cloneSessionDeletions(s.sessionDeletions)
+	delete(next, sessionID)
+	if err := s.save(sessionDeletionsName, sortedSessionDeletions(next)); err != nil {
+		return fmt.Errorf("clear retired session tombstone: %w", err)
+	}
+	s.sessionDeletions = next
+	return nil
 }
 
 // StagePendingResume transfers a completed interaction review into the durable
@@ -770,12 +946,34 @@ func (s *Store) RetireSessionState(sessionID string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.saveSessionStateWithResume(sessionID, agent.Message{}, nil, nil); err != nil {
-		return err
+	pending := s.sessionDeletions[sessionID]
+	return s.retireSessionStateLocked(sessionID, pending)
+}
+
+func (s *Store) retireSessionStateLocked(sessionID string, pending PendingSessionDeletion) error {
+	confirmed := PendingSessionDeletion{
+		Phase: SessionDeletionConfirmed, CommandID: pending.CommandID, SessionID: sessionID,
+	}
+	if pending.Phase != SessionDeletionConfirmed {
+		next := cloneSessionDeletions(s.sessionDeletions)
+		next[sessionID] = confirmed
+		if err := s.save(sessionDeletionsName, sortedSessionDeletions(next)); err != nil {
+			return fmt.Errorf("save retired session tombstone: %w", err)
+		}
+		s.sessionDeletions = next
 	}
 	delete(s.drafts, sessionID)
 	delete(s.pendingRuns, sessionID)
 	delete(s.pendingResumes, sessionID)
+	if err := s.remove(s.sessionStateName(sessionID)); err != nil {
+		return nil
+	}
+	next := cloneSessionDeletions(s.sessionDeletions)
+	delete(next, sessionID)
+	if err := s.save(sessionDeletionsName, sortedSessionDeletions(next)); err != nil {
+		return nil
+	}
+	s.sessionDeletions = next
 	return nil
 }
 
@@ -1024,6 +1222,9 @@ func (s *Store) loadSessionStates() error {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
+		if s.confirmedSessionStateFile(entry.Name()) {
+			continue
+		}
 		var state sessionState
 		if err := s.load(filepath.Join("sessions", entry.Name()), &state); err != nil {
 			return fmt.Errorf("load %s: %w", entry.Name(), err)
@@ -1051,6 +1252,35 @@ func (s *Store) loadSessionStates() error {
 	return nil
 }
 
+func (s *Store) confirmedSessionStateFile(name string) bool {
+	for sessionID, pending := range s.sessionDeletions {
+		if pending.Phase == SessionDeletionConfirmed && filepath.Base(s.sessionStateName(sessionID)) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// recoverConfirmedSessionDeletions performs cleanup which is no longer on the
+// correctness path. Failures deliberately leave the tombstone in place; the
+// obsolete aggregate remains unreachable and a later Open retries it.
+func (s *Store) recoverConfirmedSessionDeletions() {
+	for _, pending := range sortedSessionDeletions(s.sessionDeletions) {
+		if pending.Phase != SessionDeletionConfirmed {
+			continue
+		}
+		if err := s.remove(s.sessionStateName(pending.SessionID)); err != nil {
+			continue
+		}
+		next := cloneSessionDeletions(s.sessionDeletions)
+		delete(next, pending.SessionID)
+		if err := s.save(sessionDeletionsName, sortedSessionDeletions(next)); err != nil {
+			continue
+		}
+		s.sessionDeletions = next
+	}
+}
+
 func (s *Store) saveSessionState(sessionID string, draft agent.Message, pending []PendingRun) error {
 	resume, ok := s.pendingResumes[sessionID]
 	if !ok {
@@ -1068,6 +1298,9 @@ func (s *Store) saveSessionStateWithResume(
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return errors.New("session id is empty")
+	}
+	if pending, exists := s.sessionDeletions[sessionID]; exists && pending.Phase == SessionDeletionConfirmed {
+		return errors.New("session authoring state has been retired")
 	}
 	name := s.sessionStateName(sessionID)
 	if messageEmpty(draft) && len(pending) == 0 && resume == nil {
@@ -1283,6 +1516,25 @@ func pendingRunIndex(commands []PendingRun, commandID agent.CommandID) int {
 func cloneStash(stash Stash) Stash {
 	stash.Message = stash.Message.Clone()
 	return stash
+}
+
+func cloneSessionDeletions(source map[string]PendingSessionDeletion) map[string]PendingSessionDeletion {
+	cloned := make(map[string]PendingSessionDeletion, len(source))
+	for sessionID, pending := range source {
+		cloned[sessionID] = pending
+	}
+	return cloned
+}
+
+func sortedSessionDeletions(source map[string]PendingSessionDeletion) []PendingSessionDeletion {
+	deletions := make([]PendingSessionDeletion, 0, len(source))
+	for _, pending := range source {
+		deletions = append(deletions, pending)
+	}
+	slices.SortFunc(deletions, func(left, right PendingSessionDeletion) int {
+		return strings.Compare(left.SessionID, right.SessionID)
+	})
+	return deletions
 }
 
 func messageEmpty(message agent.Message) bool {
