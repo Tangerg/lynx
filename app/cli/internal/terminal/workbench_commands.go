@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/oolong/components/kit"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -22,8 +23,9 @@ func (a *app) stashPrompt() error {
 	if err != nil {
 		return err
 	}
-	a.resetComposer()
-	_ = a.persistDraft()
+	if err := a.commitDraft(agent.Message{}); err != nil {
+		return fmt.Errorf("prompt stash saved, but clear session draft: %w", err)
+	}
 	a.message("stashed prompt · " + stash.ID)
 	return nil
 }
@@ -51,8 +53,9 @@ func (a *app) applyPromptStash(identity string) error {
 	if err != nil {
 		return err
 	}
-	a.restoreComposer(stash.Message)
-	_ = a.persistDraft()
+	if err := a.commitDraft(stash.Message); err != nil {
+		return fmt.Errorf("apply prompt stash: save session draft: %w", err)
+	}
 	a.message("applied prompt stash · " + stash.ID)
 	return nil
 }

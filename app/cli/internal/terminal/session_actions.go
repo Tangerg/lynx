@@ -197,8 +197,14 @@ func (a *app) rollbackSession(preview rollbackPreview) {
 			if input, ok := installation.result.FirstOpeningInput(); ok {
 				text, images := input.OpeningText()
 				if strings.TrimSpace(text) != "" {
-					a.restoreComposer(agent.Message{Text: text})
-					_ = a.persistDraft()
+					if err := a.recoverDraft(agent.Message{Text: text}); err != nil {
+						label := fmt.Sprintf("rolled back %d runs; restored text was not saved: %v", len(installation.result.Dropped), err)
+						if images > 0 {
+							label += fmt.Sprintf("; %d inline images must be reattached", images)
+						}
+						a.message(label)
+						return nil
+					}
 				}
 				if images > 0 {
 					a.message(fmt.Sprintf("rolled back %d runs; restored text, but %d inline images must be reattached", len(installation.result.Dropped), images))

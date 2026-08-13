@@ -2,6 +2,8 @@ package terminal
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -132,6 +134,56 @@ func runUIWithState(t *testing.T, backend agent.Runtime, workspace, sessionID, s
 	}
 	t.Cleanup(stop)
 	return host, stop
+}
+
+func blockSessionStateWrites(t *testing.T, stateDirectory, sessionID string) func() {
+	t.Helper()
+	sessionsPath := filepath.Join(stateDirectory, "sessions")
+	if err := os.MkdirAll(sessionsPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(strings.TrimSpace(sessionID)))
+	statePath := filepath.Join(sessionsPath, hex.EncodeToString(digest[:16])+".json")
+	backupPath := statePath + ".writable"
+	hadState := false
+	if _, err := os.Stat(statePath); err == nil {
+		hadState = true
+		if err := os.Rename(statePath, backupPath); err != nil {
+			t.Fatal(err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blockerPath := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blockerPath, []byte("block session state writes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	blocked := true
+	restore := func() {
+		t.Helper()
+		if !blocked {
+			return
+		}
+		blocked = false
+		if err := os.Remove(blockerPath); err != nil {
+			t.Error(err)
+			return
+		}
+		if err := os.Remove(statePath); err != nil {
+			t.Error(err)
+			return
+		}
+		if hadState {
+			if err := os.Rename(backupPath, statePath); err != nil {
+				t.Error(err)
+			}
+		}
+	}
+	t.Cleanup(restore)
+	return restore
 }
 
 type delayedFirstRuntime struct {
@@ -1479,6 +1531,30 @@ func TestCtrlCClearsTheDraftBeforeCancelingAnActiveRun(t *testing.T) {
 	stop()
 }
 
+func TestDraftClearWaitsForDurableRetirement(t *testing.T) {
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, mock.New(), "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("clear only after commit")
+	awaitStoredDraft(t, stateDirectory, "ses_demo_1", agent.Message{Text: "clear only after commit"})
+	restoreWrites := blockSessionStateWrites(t, stateDirectory, "ses_demo_1")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	host.Shows(t, "workbench:")
+	host.Shows(t, "clear only after commit")
+	host.Hides(t, "draft cleared; repeat ctrl+c to cancel")
+
+	restoreWrites()
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	host.Hides(t, "clear only after commit")
+	host.Shows(t, "draft cleared; repeat ctrl+c to cancel")
+	host.Until(t, "the cleared draft to remain retired", func() bool {
+		_, found, err := storedDraft(stateDirectory, "ses_demo_1")
+		return err == nil && !found
+	})
+	stop()
+}
+
 func TestCancellationFailureLeavesTheRunRetryable(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
@@ -1939,6 +2015,7 @@ func TestClosingTheTerminalPropagatesFinalDraftPersistenceFailure(t *testing.T) 
 		t.Fatal(err)
 	}
 	host.Type("draft whose final flush must fail")
+	host.Shows(t, "draft whose final flush must fail")
 	cancel()
 	select {
 	case err := <-done:
@@ -3199,6 +3276,62 @@ func TestPromptStashCanBeListedAppliedAndDeleted(t *testing.T) {
 	stop()
 }
 
+func TestStashKeepsTheComposerWhenDraftRetirementFails(t *testing.T) {
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, mock.New(), "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("draft remains visible")
+	awaitStoredDraft(t, stateDirectory, "ses_demo_1", agent.Message{Text: "draft remains visible"})
+	restoreWrites := blockSessionStateWrites(t, stateDirectory, "ses_demo_1")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("stash current prompt")
+	host.Press(input.Enter)
+	host.Shows(t, "workbench:")
+	host.Shows(t, "draft remains visible")
+	host.Hides(t, "stashed prompt ·")
+
+	restoreWrites()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stashes := store.Stashes(); len(stashes) != 1 || stashes[0].Message.Text != "draft remains visible" {
+		t.Fatalf("stashes after partial commit = %+v", stashes)
+	}
+	stop()
+}
+
+func TestApplyingStashDoesNotExposeAnUndurableDraft(t *testing.T) {
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stash, err := store.StashPrompt(agent.Message{Text: "recoverable stash"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithState(t, mock.New(), "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	restoreWrites := blockSessionStateWrites(t, stateDirectory, "ses_demo_1")
+
+	host.Type("/stash-apply " + stash.ID)
+	host.Press(input.Enter)
+	host.Shows(t, "workbench:")
+	host.Hides(t, "applied prompt stash")
+	host.Hides(t, "recoverable stash")
+
+	restoreWrites()
+	host.Type("/stash-apply " + stash.ID)
+	host.Press(input.Enter)
+	host.Shows(t, "applied prompt stash")
+	host.Shows(t, "recoverable stash")
+	awaitStoredDraft(t, stateDirectory, "ses_demo_1", agent.Message{Text: "recoverable stash"})
+	stop()
+}
+
 func TestExternalEditorRoundTripReplacesOnlyAfterSuccess(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		t.Setenv("LYRA_EDITOR", `sh -c 'printf "\nrevised externally" >> "$0"'`)
@@ -3224,6 +3357,29 @@ func TestExternalEditorRoundTripReplacesOnlyAfterSuccess(t *testing.T) {
 		host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 		stop()
 	})
+}
+
+func TestExternalEditorKeepsEditedTextWhenDraftPersistenceFails(t *testing.T) {
+	t.Setenv("LYRA_EDITOR", `sh -c 'printf "\nrevised but not durable" >> "$0"'`)
+	stateDirectory := t.TempDir()
+	backend := mock.New()
+	host, stop := runUIWithState(t, backend, t.TempDir(), "", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("original draft")
+	sessionID := firstRuntimeSession(t, backend)
+	awaitStoredDraft(t, stateDirectory, sessionID, agent.Message{Text: "original draft"})
+	restoreWrites := blockSessionStateWrites(t, stateDirectory, sessionID)
+
+	host.Send(input.Key{Code: input.Character, Rune: 'e', Mods: input.Ctrl})
+	host.Shows(t, "workbench:")
+	host.Shows(t, "original draft")
+	host.Shows(t, "revised but not durable")
+	host.Hides(t, "updated prompt from external editor")
+
+	restoreWrites()
+	host.Type("!")
+	awaitStoredDraft(t, stateDirectory, sessionID, agent.Message{Text: "original draft\nrevised but not durable!"})
+	stop()
 }
 
 func TestApprovalDenialSubmitsOptionalUserFeedback(t *testing.T) {

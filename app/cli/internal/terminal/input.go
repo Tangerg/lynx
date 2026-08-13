@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -183,12 +184,10 @@ func (a *app) handleEscape() bool {
 		a.status.note("press Esc again to clear the draft")
 		return true
 	}
-	if err := a.rememberPrompt(message); err != nil {
-		a.message("draft clear blocked: save prompt history: " + err.Error())
+	if err := a.retireDraft(message); err != nil {
+		a.message("draft clear blocked: " + err.Error())
 		return true
 	}
-	a.resetComposer()
-	a.completion.Dismiss()
 	a.status.note("draft cleared")
 	return true
 }
@@ -249,16 +248,25 @@ func (a *app) handleCancelGesture() {
 		return
 	}
 	if hasDraft {
-		if err := a.rememberPrompt(message); err != nil {
-			a.message("draft clear blocked: save prompt history: " + err.Error())
+		if err := a.retireDraft(message); err != nil {
+			a.message("draft clear blocked: " + err.Error())
 			return
 		}
-		a.resetComposer()
-		a.completion.Dismiss()
 		a.message("draft cleared; repeat " + formatKeyBindings(a.applicationKeys, cancelRun, " or ") + " to cancel")
 		return
 	}
 	a.cancel()
+}
+
+func (a *app) retireDraft(message agent.Message) error {
+	if err := a.rememberPrompt(message); err != nil {
+		return fmt.Errorf("save prompt history: %w", err)
+	}
+	if err := a.commitDraft(agent.Message{}); err != nil {
+		return fmt.Errorf("retire session draft: %w", err)
+	}
+	a.completion.Dismiss()
+	return nil
 }
 
 func (a *app) handleSessionAction(action keymap.Action) bool {

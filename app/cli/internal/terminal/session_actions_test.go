@@ -192,6 +192,56 @@ func TestRollbackConfirmationSurvivesExtremeResizeAndRestoresOpeningInput(t *tes
 	stop()
 }
 
+type blockedRollbackRuntime struct {
+	*mock.Runtime
+
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (runtime *blockedRollbackRuntime) RollbackSession(ctx context.Context, request agent.RollbackSession) (agent.RollbackResult, error) {
+	select {
+	case runtime.entered <- struct{}{}:
+	default:
+	}
+	select {
+	case <-runtime.release:
+	case <-ctx.Done():
+		return agent.RollbackResult{}, ctx.Err()
+	}
+	return runtime.Runtime.RollbackSession(ctx, request)
+}
+
+func TestRollbackKeepsRecoveredTextAndReportsItsPersistenceFailure(t *testing.T) {
+	backend := &blockedRollbackRuntime{
+		Runtime: mock.New(), entered: make(chan struct{}, 1), release: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("/rollback all history")
+	host.Press(input.Enter)
+	host.Shows(t, "Rollback session")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	select {
+	case <-backend.entered:
+	case <-time.After(time.Second):
+		t.Fatal("rollback did not reach the runtime")
+	}
+	restoreWrites := blockSessionStateWrites(t, stateDirectory, "ses_demo_1")
+	close(backend.release)
+
+	host.Shows(t, "Why is the cache expiry test flaky?")
+	host.Shows(t, "workbench:")
+	restoreWrites()
+	host.Type("!")
+	awaitStoredDraft(t, stateDirectory, "ses_demo_1", agent.Message{Text: "Why is the cache expiry test flaky?!"})
+	host.Shows(t, "rolled back 1 runs; restored text was not saved")
+	host.Hides(t, "rolled back session · 1 runs removed")
+	stop()
+}
+
 type importingTransfer struct{ runtime *mock.Runtime }
 
 func (transfer importingTransfer) ExportSession(context.Context, sessiontransfer.ExportRequest) (sessiontransfer.Document, error) {
@@ -302,6 +352,28 @@ type steeringRuntime struct {
 	err     error
 }
 
+type blockedSteeringRuntime struct {
+	*mock.Runtime
+
+	entered chan agent.SteerRun
+	release chan struct{}
+	err     error
+}
+
+func (runtime *blockedSteeringRuntime) SteerRun(ctx context.Context, request agent.SteerRun) error {
+	select {
+	case runtime.entered <- request:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-runtime.release:
+		return runtime.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (runtime *steeringRuntime) SteerRun(_ context.Context, request agent.SteerRun) error {
 	runtime.mu.Lock()
 	runtime.request = request
@@ -377,6 +449,67 @@ func TestSteerTargetsTheObservedSegmentAndRestoresAttachmentsOnRefusal(t *testin
 	host.Type("/attachments")
 	host.Press(input.Enter)
 	host.Shows(t, "notes.txt")
+	stop()
+}
+
+func TestSteerReportsWhenRejectedAttachmentsCannotBePersisted(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "thinking", Kind: agent.BlockReasoning}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	backend := &blockedSteeringRuntime{
+		Runtime: base, entered: make(chan agent.SteerRun, 1), release: make(chan struct{}), err: agent.ErrStaleSegment,
+	}
+	workspace := t.TempDir()
+	stateDirectory := t.TempDir()
+	attachmentPath := filepath.Join(workspace, "notes.txt")
+	if err := os.WriteFile(attachmentPath, []byte("notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithState(t, backend, workspace, "", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	sessionID := firstRuntimeSession(t, base)
+	host.Type("start long work")
+	host.Press(input.Enter)
+	host.Shows(t, "thinking")
+	host.Type("/attach notes.txt")
+	host.Press(input.Enter)
+	host.Shows(t, "attached notes.txt")
+	var staged agent.Message
+	host.Until(t, "the attachment draft to become durable", func() bool {
+		var found bool
+		var err error
+		staged, found, err = storedDraft(stateDirectory, sessionID)
+		return err == nil && found && len(staged.Attachments) == 1
+	})
+
+	host.Type("/steer focus on parsing")
+	host.Press(input.Enter)
+	select {
+	case request := <-backend.entered:
+		if request.Message.Text != "focus on parsing" || len(request.Message.Attachments) != 1 {
+			t.Fatalf("steer request = %+v", request)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("steer did not reach the runtime")
+	}
+	host.Until(t, "the accepted steer draft ownership to be retired", func() bool {
+		_, found, err := storedDraft(stateDirectory, sessionID)
+		return err == nil && !found
+	})
+	restoreWrites := blockSessionStateWrites(t, stateDirectory, sessionID)
+	close(backend.release)
+	host.Shows(t, "workbench:")
+	host.Shows(t, "@notes.txt")
+
+	restoreWrites()
+	host.Type("x")
+	staged.Text = "x"
+	awaitStoredDraft(t, stateDirectory, sessionID, staged)
+	host.Shows(t, "steer run failed; restored attachments were not saved")
 	stop()
 }
 

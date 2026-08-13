@@ -116,6 +116,26 @@ func TestStorePreservesCachedDraftWhenDurableDeletionFails(t *testing.T) {
 	}
 }
 
+func TestStoreDoesNotRewriteAnAlreadyEmptyDraft(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	draftPath := store.path(store.sessionStateName(sessionID))
+	if err := os.MkdirAll(draftPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block writes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.SaveDraft(sessionID, agent.Message{}); err != nil {
+		t.Fatalf("saving the already-empty draft rewrote session state: %v", err)
+	}
+}
+
 func TestStoreRetiresCompleteSessionStateAtomically(t *testing.T) {
 	directory := t.TempDir()
 	store, err := Open(directory, Config{})

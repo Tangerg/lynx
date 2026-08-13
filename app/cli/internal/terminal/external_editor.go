@@ -104,8 +104,9 @@ func (a *app) editPromptExternally() error {
 		return err
 	}
 	message.Text = edited
-	a.restoreComposer(message)
-	_ = a.persistDraft()
+	if err := a.recoverDraft(message); err != nil {
+		return fmt.Errorf("prompt updated in external editor, but save session draft: %w", err)
+	}
 	a.message("updated prompt from external editor")
 	return nil
 }

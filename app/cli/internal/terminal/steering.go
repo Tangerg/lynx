@@ -37,10 +37,12 @@ func (a *app) steerRun(instruction string) error {
 		return err
 	}
 
-	// The command text has already been removed. Take ownership of its staged
-	// attachments now so later typing starts a fresh draft; a refused steer merges
-	// them back instead of overwriting text entered while the call was in flight.
-	a.resetComposer()
+	// The command text has already been removed. Retire the staged attachments
+	// durably before the runtime can accept them; a refused steer recovers them
+	// without overwriting text entered while the call is in flight.
+	if err := a.commitDraft(agent.Message{}); err != nil {
+		return fmt.Errorf("steer blocked: clear session draft: %w", err)
+	}
 	started := runOperation(a, steerRunOperation, false,
 		func(ctx context.Context) (struct{}, error) {
 			return mutation.Confirm(ctx, runtimeRecoveryBackoff, func(ctx context.Context) (struct{}, error) {
@@ -49,7 +51,10 @@ func (a *app) steerRun(instruction string) error {
 		},
 		func(_ struct{}, err error) {
 			if err != nil {
-				a.restoreSteerAttachments(message.Attachments)
+				if restoreErr := a.restoreSteerAttachments(message.Attachments); restoreErr != nil {
+					a.message("steer run failed; restored attachments were not saved: " + restoreErr.Error())
+					return
+				}
 				a.message("steer run failed: " + err.Error())
 				return
 			}
@@ -61,20 +66,21 @@ func (a *app) steerRun(instruction string) error {
 		},
 	)
 	if !started {
-		a.restoreSteerAttachments(message.Attachments)
+		if err := a.restoreSteerAttachments(message.Attachments); err != nil {
+			return fmt.Errorf("another steer operation is already running; restore attachments: %w", err)
+		}
 		return errors.New("another steer operation is already running")
 	}
 	return nil
 }
 
-func (a *app) restoreSteerAttachments(rejected []agent.Attachment) {
+func (a *app) restoreSteerAttachments(rejected []agent.Attachment) error {
 	if len(rejected) == 0 {
-		return
+		return nil
 	}
 	current, _, err := a.currentDraft()
 	if err != nil {
-		a.message(fmt.Sprintf("steer attachments could not be restored: %v", err))
-		return
+		return fmt.Errorf("read composer for attachment recovery: %w", err)
 	}
 	seen := make(map[string]struct{}, len(current.Attachments)+len(rejected))
 	for _, attachment := range current.Attachments {
@@ -87,6 +93,8 @@ func (a *app) restoreSteerAttachments(rejected []agent.Attachment) {
 		current.Attachments = append(current.Attachments, attachment)
 		seen[attachment.ID] = struct{}{}
 	}
-	a.restoreComposer(current)
-	_ = a.persistDraft()
+	if err := a.recoverDraft(current); err != nil {
+		return fmt.Errorf("save restored attachments: %w", err)
+	}
+	return nil
 }

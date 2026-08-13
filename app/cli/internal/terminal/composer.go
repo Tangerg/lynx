@@ -385,8 +385,30 @@ func (a *app) saveDraft(message agent.Message) error {
 		return nil
 	}
 	a.cancelScheduledDraftSave()
+	if err := a.drafts.Flush(a.session.ID, message); err != nil {
+		return err
+	}
 	a.draftState.Reset(a.session.ID, message)
-	return a.drafts.Flush(a.session.ID, message)
+	return nil
+}
+
+// commitDraft makes a recoverable value durable before replacing the visible
+// composer. Callers retain their source value when persistence fails.
+func (a *app) commitDraft(message agent.Message) error {
+	err := a.saveDraft(message)
+	a.reportWorkbenchIssue(workbenchDraft, err)
+	if err != nil {
+		return err
+	}
+	a.restoreComposer(message)
+	return nil
+}
+
+// recoverDraft exposes an irreplaceable value before attempting persistence.
+// A failed save must not discard editor output or runtime recovery data.
+func (a *app) recoverDraft(message agent.Message) error {
+	a.restoreComposer(message)
+	return a.persistDraft()
 }
 
 func (a *app) restoreComposer(message agent.Message) {

@@ -703,7 +703,8 @@ func (s *Store) SaveDraft(sessionID string, message agent.Message) error {
 	message = message.Clone()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if current, ok := s.drafts[sessionID]; ok && current.Equal(message) {
+	current, present := s.drafts[sessionID]
+	if (present && current.Equal(message)) || (!present && messageEmpty(message)) {
 		return nil
 	}
 	if err := s.saveSessionState(sessionID, message, s.pendingRuns[sessionID]); err != nil {
