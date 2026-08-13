@@ -138,6 +138,7 @@ func (a *app) insertAttachment(insertion attachmentInsertion) {
 	item := insertion.item
 	element := a.composer.Editor().InsertElement(fileElement, "@"+item.Name)
 	a.attachmentElements[element.ID] = item
+	a.scheduleDraftPersistence()
 	a.message(fmt.Sprintf("attached %s · %s · %d/%d", item.Name, item.MimeType, insertion.count, agent.MaxMessageAttachments))
 }
 
@@ -180,16 +181,22 @@ func (a *app) removeAttachment(argument string) error {
 		return err
 	}
 	a.composer.Editor().RemoveElement(element.ID)
+	a.scheduleDraftPersistence()
 	a.message("detached " + item.Name)
 	return nil
 }
 
 func (a *app) removeAllAttachments(elements []headless.Element) {
+	removed := false
 	for _, element := range elements {
 		if element.Kind != fileElement {
 			continue
 		}
 		a.composer.Editor().RemoveElement(element.ID)
+		removed = true
+	}
+	if removed {
+		a.scheduleDraftPersistence()
 	}
 }
 
@@ -312,6 +319,11 @@ func stripAttachmentElements(lines []string, elements []headless.Element) error 
 }
 
 func (a *app) resetComposer() {
+	a.clearComposer()
+	a.scheduleDraftPersistence()
+}
+
+func (a *app) clearComposer() {
 	a.composer.Reset()
 	clear(a.attachmentElements)
 	a.confirmation.Reset()
@@ -378,12 +390,13 @@ func (a *app) saveDraft(message agent.Message) error {
 }
 
 func (a *app) restoreComposer(message agent.Message) {
-	a.resetComposer()
+	a.clearComposer()
 	for _, item := range message.Attachments {
 		element := a.composer.Editor().InsertElement(fileElement, "@"+item.Name)
 		a.attachmentElements[element.ID] = item
 	}
 	a.composer.Editor().Insert(message.Text)
+	a.scheduleDraftPersistence()
 }
 
 func (a *app) recallPrevious() bool {

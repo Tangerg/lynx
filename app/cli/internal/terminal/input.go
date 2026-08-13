@@ -3,6 +3,7 @@ package terminal
 import (
 	"time"
 
+	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 
@@ -10,7 +11,6 @@ import (
 )
 
 func (a *app) Handle(event input.Event) bool {
-	defer a.scheduleDraftPersistence()
 	a.observeAttention(event)
 	matched, handled := a.matchConfiguredAction(event)
 	if handled {
@@ -95,6 +95,7 @@ func (a *app) handleConfiguredAction(event input.Event, action keymap.Action) bo
 		return true
 	case insertNewline:
 		if a.composer.Editor().Do(action) {
+			a.scheduleDraftPersistence()
 			a.refreshCompletion()
 			return true
 		}
@@ -120,12 +121,14 @@ func (a *app) handleUnboundEvent(event input.Event) bool {
 		return true
 	}
 	handled := a.stack.Handle(event)
+	a.scheduleDraftPersistenceAfter(event, handled)
 	if !handled && isEscapeEvent(event) {
 		return a.handleEscape()
 	}
 	if !handled && a.shell.TranscriptFocused() && isPromptTextEvent(event) {
 		a.shell.FocusPrompt()
 		handled = a.stack.Handle(event)
+		a.scheduleDraftPersistenceAfter(event, handled)
 	}
 	if handled {
 		a.refreshCompletion()
@@ -215,10 +218,13 @@ func isPromptTextEvent(event input.Event) bool {
 		return paste.Text != ""
 	}
 	key, ok := event.(input.Key)
-	if !ok || !key.Down() || key.Code != input.Character {
+	if !ok || !key.Down() || key.Mods&^input.Shift != 0 {
 		return false
 	}
-	return key.Mods == 0 || key.Mods == input.Shift
+	if key.Text != "" {
+		return true
+	}
+	return key.Code == input.Character && key.Rune != 0
 }
 
 func (a *app) handleGlobalAction(action keymap.Action) bool {
@@ -318,6 +324,47 @@ func (a *app) handleHistoryAction(action keymap.Action) bool {
 		if !a.recallNext() {
 			a.composer.Editor().MoveDown()
 		}
+		return true
+	default:
+		return false
+	}
+}
+
+// scheduleDraftPersistenceAfter observes only input that can mutate the main
+// composer. Transcript navigation, pointer motion, focus events, and modal
+// interaction must not keep resetting the autosave debounce for an unchanged
+// draft; doing so could postpone crash recovery state indefinitely.
+func (a *app) scheduleDraftPersistenceAfter(event input.Event, handled bool) {
+	if !handled || !a.shell.PromptFocused() || !draftMutationEvent(event, a.composer.Editor().Keys) {
+		return
+	}
+	a.scheduleDraftPersistence()
+}
+
+func draftMutationEvent(event input.Event, keys *keymap.Map) bool {
+	switch event := event.(type) {
+	case input.Paste:
+		return event.Text != ""
+	case input.Key:
+		if !event.Down() {
+			return false
+		}
+		if keys != nil {
+			if action, bound := keys.Action(event.Chord()); bound {
+				return editorActionMutatesDraft(action)
+			}
+		}
+		return isPromptTextEvent(event)
+	default:
+		return false
+	}
+}
+
+func editorActionMutatesDraft(action keymap.Action) bool {
+	switch action {
+	case headless.DeleteBack, headless.DeleteForward, headless.DeleteWordBack,
+		headless.KillToEnd, headless.KillToStart, headless.Yank, headless.YankPop,
+		headless.InsertNewline, headless.Undo, headless.Redo, headless.Cut, headless.Paste:
 		return true
 	default:
 		return false

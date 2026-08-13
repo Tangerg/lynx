@@ -481,6 +481,7 @@ func (a *app) configureCompletion(appearance terminalAppearance) {
 			}
 			a.completionGate.Reset()
 			a.composer.Editor().Replace(token.Start, token.End, candidate.Text)
+			a.scheduleDraftPersistence()
 		},
 	}
 }

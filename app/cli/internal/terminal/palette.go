@@ -39,6 +39,7 @@ func (a *app) buildCommandPalette(theme kit.Theme, glyphs kit.Glyphs) {
 			if command.Takes {
 				a.composer.Editor().SetText("/" + command.Name + " ")
 				a.composer.Editor().Focus(true)
+				a.scheduleDraftPersistence()
 				return
 			}
 			a.runCommand(command.Name, "")

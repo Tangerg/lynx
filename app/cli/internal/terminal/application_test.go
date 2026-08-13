@@ -3058,7 +3058,13 @@ func TestSessionChangeStopsBeforeMutationWhenTheSourceDraftCannotBeSaved(t *test
 	host.Shows(t, "/new")
 	host.Press(input.Enter)
 	host.Hides(t, "Commands")
-	host.Shows(t, "workbench:")
+	// Round-trip another modal through the event loop before restoring the
+	// filesystem. Status problems deliberately obscure ordinary notifications,
+	// so matching the failure label would not be a valid completion barrier.
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Press(input.Esc)
+	host.Hides(t, "Commands")
 	host.Shows(t, "durable prefix plus unsaved input")
 	after, err := backend.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	if err != nil {
@@ -3129,6 +3135,7 @@ func TestPromptSubmissionStopsBeforeRuntimeWhenTheOutboxCannotBeSaved(t *testing
 
 func TestPromptSubmissionCommitsHistoryOnlyAfterRuntimeAcknowledgement(t *testing.T) {
 	base := mock.New()
+	base.Instant = true
 	backend := &recordingRuntime{Runtime: base}
 	stateDirectory := t.TempDir()
 	store, err := workbench.Open(stateDirectory, workbench.Config{})
