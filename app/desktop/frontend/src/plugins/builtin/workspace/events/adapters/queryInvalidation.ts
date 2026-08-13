@@ -96,14 +96,14 @@ export function invalidateWorkspaceTargets(
     }
     if (target === "goal" && sessionIds?.length) {
       for (const sessionId of new Set(sessionIds)) {
-        void queryClient.invalidateQueries({
+        replaceCachedRead({
           queryKey: [GOAL_KEY, { sessionId }],
           exact: true,
         });
       }
       continue;
     }
-    void queryClient.invalidateQueries({ queryKey: [QUERY_KEYS[target]] });
+    replaceCachedRead({ queryKey: [QUERY_KEYS[target]] });
   }
 }
 
@@ -116,13 +116,23 @@ export function invalidateWorkspaceEverything(): void {
 }
 
 function replaceWorkspaceReadModels(): void {
-  // A query with no cached value normally reuses its in-flight Promise when it
-  // is invalidated. A Runtime generation replacement must instead retire that
-  // writer before starting the successor read; late settlement remains owned
-  // by TanStack Query's canceled retryer and cannot populate the cache.
-  void queryClient.cancelQueries();
-  void queryClient.invalidateQueries();
+  replaceCachedRead();
   // The material session projection is not a query-cache entry. Replace its
   // live generation on the same boundary as Goal and every other cached read.
   synchronizeMountedAgentSessions({ ownership: "replace-live" });
+}
+
+function replaceCachedRead(options?: { queryKey: readonly unknown[]; exact?: boolean }): void {
+  // A query with no cached value normally reuses its in-flight Promise when it
+  // is invalidated. Both a committed change event and a Runtime replacement
+  // must retire that writer before starting the successor read; late settlement
+  // remains owned by TanStack Query's canceled retryer and cannot populate the
+  // cache.
+  if (options) {
+    void queryClient.cancelQueries(options);
+    void queryClient.invalidateQueries(options);
+    return;
+  }
+  void queryClient.cancelQueries();
+  void queryClient.invalidateQueries();
 }

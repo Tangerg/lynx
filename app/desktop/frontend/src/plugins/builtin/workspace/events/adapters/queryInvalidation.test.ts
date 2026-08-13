@@ -69,6 +69,7 @@ describe("workspace session projection invalidation", () => {
       "agent-session-usage",
       "usage-summary",
     ]);
+    expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
   });
 
   it("synchronizes every mounted session after a lossy resync", () => {
@@ -102,6 +103,7 @@ describe("workspace session projection invalidation", () => {
       "agent-memory",
       "codebase-status",
     ]);
+    expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
   });
 
   it("keeps a scoped resync inside the reads named by its topics", () => {
@@ -124,6 +126,7 @@ describe("workspace session projection invalidation", () => {
       "agent-docs",
       "skills",
     ]);
+    expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
     expect(synchronizeMountedAgentSessions).not.toHaveBeenCalled();
   });
 
@@ -138,6 +141,7 @@ describe("workspace session projection invalidation", () => {
       { queryKey: ["goal", { sessionId: "ses_a" }], exact: true },
       { queryKey: ["goal", { sessionId: "ses_b" }], exact: true },
     ]);
+    expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
   });
 
   it("keeps Goal and mounted HITL/Plan/Run/Tool on one monotonic recovery boundary", async () => {
@@ -186,7 +190,7 @@ describe("workspace session projection invalidation", () => {
     expect(invalidateQueries.mock.calls.filter(([options]) => options === undefined)).toHaveLength(
       2,
     );
-    expect(cancelQueries).toHaveBeenCalledTimes(2);
+    expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
     expect(
       invalidateQueries.mock.calls.some(([options]) => options?.queryKey?.[0] === "pending-work"),
     ).toBe(false);

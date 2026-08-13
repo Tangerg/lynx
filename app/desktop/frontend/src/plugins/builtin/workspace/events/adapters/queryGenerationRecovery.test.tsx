@@ -19,7 +19,7 @@ import { createParameterizedDataQuery } from "@/plugins/sdk/dataQuery";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { usePluginStore } from "@/plugins/sdk/registry";
-import { invalidateWorkspaceEverything } from "./queryInvalidation";
+import { invalidateWorkspaceEvent, invalidateWorkspaceEverything } from "./queryInvalidation";
 
 interface GoalState {
   readonly available: boolean;
@@ -94,6 +94,52 @@ describe("workspace Runtime-generation query recovery", () => {
     retired.resolve({ available: true, goal: goal("retired goal") });
     await act(async () => Promise.resolve());
     expect(result.current.data?.goal?.objective).toBe("successor goal");
+    await expect(result.current.promise).rejects.toThrow(
+      "experimental_prefetchInRender feature flag is not enabled",
+    );
+  });
+
+  it("replaces an initial Goal read when its committed change event arrives", async () => {
+    const retired = deferred<GoalState>();
+    let firstSignal: AbortSignal | undefined;
+    let calls = 0;
+    const fetcher = vi.fn((_params?: unknown, signal?: AbortSignal) => {
+      calls += 1;
+      if (calls === 1) {
+        firstSignal = signal;
+        return retired.promise;
+      }
+      return Promise.resolve({ available: true, goal: goal("committed goal") });
+    });
+    await loadPlugin(
+      definePlugin({
+        name: "test.goal-event-generation-recovery",
+        version: "1.0.0",
+        setup({ host }) {
+          host.extensions.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
+        },
+      }),
+    );
+    const { result } = renderHook(() => useGoal({ sessionId: "ses_goal_generation" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+
+    act(() =>
+      invalidateWorkspaceEvent({
+        type: "goals.changed",
+        sequence: 1,
+        sessionIds: ["ses_goal_generation"],
+      }),
+    );
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.data?.goal?.objective).toBe("committed goal"));
+    expect(firstSignal?.aborted).toBe(true);
+
+    retired.resolve({ available: true, goal: goal("pre-event goal") });
+    await act(async () => Promise.resolve());
+    expect(result.current.data?.goal?.objective).toBe("committed goal");
     await expect(result.current.promise).rejects.toThrow(
       "experimental_prefetchInRender feature flag is not enabled",
     );
