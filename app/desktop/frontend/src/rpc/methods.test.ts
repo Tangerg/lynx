@@ -167,12 +167,17 @@ describe("methods factory", () => {
   });
 
   it("restores a persisted unary mutation key after a Desktop process loss", async () => {
-    let snapshot: unknown;
+    const values = new Map<string, unknown>();
     const storage: MutationJournalStorage = {
-      read: () => snapshot,
-      write: (value) => {
-        snapshot = structuredClone(value);
+      get: (key) => {
+        const value = values.get(key);
+        return value === undefined ? undefined : structuredClone(value);
       },
+      set: (key, value) => {
+        values.set(key, structuredClone(value));
+      },
+      remove: (key) => void values.delete(key),
+      keys: () => [...values.keys()],
     };
     const scope = () => ({
       endpoint: "http://127.0.0.1:17171",
@@ -186,8 +191,9 @@ describe("methods factory", () => {
           settleFirst = resolve;
         }),
     );
+    const firstJournal = createMutationJournal({ storage, scope });
     const firstMethods = createMethods({ call: firstCall } as unknown as RpcClient, {
-      mutationJournal: createMutationJournal({ storage, scope }),
+      mutationJournal: firstJournal,
     });
 
     const first = firstMethods.schedules.runNow("schedule_1");
@@ -200,8 +206,11 @@ describe("methods factory", () => {
     // A new OS process gets a new journal owner. Change only that opaque owner
     // in the captured persistence image; method, params, key and Runtime scope
     // remain exactly what the crashed Desktop wrote before sending.
-    const persisted = snapshot as { entries: Array<{ owner: string }> };
-    for (const entry of persisted.entries) entry.owner = "previous-desktop-process";
+    const entryKey = [...values.keys()].find((key) => key.startsWith("entry:"));
+    expect(entryKey).toBeDefined();
+    const persisted = structuredClone(values.get(entryKey!)) as { owner: string };
+    persisted.owner = "previous-desktop-process";
+    values.set(entryKey!, persisted);
 
     const replayCall = vi.fn(
       async (_method: string, _params: unknown, _options?: RpcCallOptions) => ({
@@ -209,8 +218,9 @@ describe("methods factory", () => {
         runId: "run_1",
       }),
     );
+    const restartedJournal = createMutationJournal({ storage, scope });
     const restartedMethods = createMethods({ call: replayCall } as unknown as RpcClient, {
-      mutationJournal: createMutationJournal({ storage, scope }),
+      mutationJournal: restartedJournal,
     });
     await expect(restartedMethods.schedules.runNow("schedule_1")).resolves.toMatchObject({
       runId: "run_1",
@@ -219,6 +229,43 @@ describe("methods factory", () => {
     expect(replayCall.mock.calls[0]?.[2]?.idempotencyKey).toBe(firstKey);
     settleFirst({ sessionId: "ses_1", runId: "run_1" });
     await expect(first).resolves.toMatchObject({ runId: "run_1" });
+    firstJournal.dispose();
+    restartedJournal.dispose();
+  });
+
+  it("does not open the transport until mutation identity persistence recovers", async () => {
+    let failWrites = true;
+    const values = new Map<string, unknown>();
+    const storage: MutationJournalStorage = {
+      get: (key) => values.get(key),
+      set: (key, value) => {
+        if (failWrites) throw new Error("quota exceeded");
+        values.set(key, structuredClone(value));
+      },
+      remove: (key) => void values.delete(key),
+      keys: () => [...values.keys()],
+    };
+    const persistentJournal = createMutationJournal({
+      storage,
+      scope: () => ({
+        endpoint: "http://127.0.0.1:17171",
+        namespace: "idp_runtime_store",
+        retentionSeconds: 86_400,
+      }),
+    });
+    const call = vi.fn().mockResolvedValue({ sessionId: "ses_1", runId: "run_1" });
+    const methods = createMethods({ call } as unknown as RpcClient, {
+      mutationJournal: persistentJournal,
+    });
+
+    const failed = methods.schedules.runNow("schedule_1");
+    await expect(failed).rejects.toThrow("not persisted");
+    expect(call).not.toHaveBeenCalled();
+
+    failWrites = false;
+    await expect(failed.retry()).resolves.toMatchObject({ runId: "run_1" });
+    expect(call).toHaveBeenCalledOnce();
+    persistentJournal.dispose();
   });
 
   it("opens a fresh event stream when replaying an ambiguous run opening", async () => {

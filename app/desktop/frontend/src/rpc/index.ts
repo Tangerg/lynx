@@ -31,7 +31,13 @@ export { PaginationError } from "./pagination";
 export type { AutoPagingPromise, CursorPage, PageItem } from "./pagination";
 export type { MutationAttemptOptions, MutationPromise } from "./mutation";
 export { mutationSettlementIsUnknown } from "./mutation";
-export { createMutationJournal } from "./mutationJournal";
+export {
+  createMutationJournal,
+  MutationJournalCapacityError,
+  MutationJournalError,
+  MutationJournalOwnershipError,
+  MutationJournalStorageError,
+} from "./mutationJournal";
 export type {
   MutationJournal,
   MutationJournalOptions,

@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
-import type { LyraClient } from "@/rpc";
-import { getContainer, resetContainer, setContainer } from "./container";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DesktopHostClient, LyraClient } from "@/rpc";
+import { getContainer, initializeDesktopHost, resetContainer, setContainer } from "./container";
 
 describe("main/container", () => {
   afterEach(() => {
@@ -34,6 +34,29 @@ describe("main/container", () => {
     expect(getContainer().client()).toBe(first);
     resetContainer();
     expect(getContainer().client()).not.toBe(first);
+  });
+
+  it("closes and rebuilds the shared client after a local token hot swap", async () => {
+    const desktop = (localToken: string): DesktopHostClient => ({
+      bootstrap: async () => ({
+        localRuntime: { endpoint: "http://127.0.0.1:17171", localToken },
+        sideloadedPlugins: [],
+        sideloadIssues: [],
+      }),
+      windowChrome: async () => null,
+    });
+    setContainer({ desktop: desktop("token-a") });
+    await initializeDesktopHost();
+    const first = getContainer().client();
+    const closeFirst = vi.spyOn(first, "close");
+
+    setContainer({ desktop: desktop("token-b") });
+    await initializeDesktopHost();
+    const second = getContainer().client();
+
+    expect(second).not.toBe(first);
+    expect(closeFirst).toHaveBeenCalledOnce();
+    expect(getContainer().client()).toBe(second);
   });
 
   it("sidecar() returns a cached client for the active endpoint", () => {

@@ -1,12 +1,25 @@
 import { mutationSettlementIsUnknown, type MutationPromise } from "./mutation";
 
-const JOURNAL_VERSION = 1;
+const JOURNAL_VERSION = 2;
+const LEGACY_JOURNAL_VERSION = 1;
+const OWNER_RECORD_VERSION = 1;
 const MAX_ENTRIES = 256;
+const OWNER_LEASE_MS = 30_000;
+const OWNER_HEARTBEAT_MS = 10_000;
+const ENTRY_PREFIX = "entry:";
+const OWNER_PREFIX = "owner:";
+const LEGACY_KEY = "legacy:v1";
 const PROCESS_OWNER = crypto.randomUUID();
+const PROCESS_STARTED_AT =
+  typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)
+    ? performance.timeOrigin
+    : Date.now();
 
 export interface MutationJournalStorage {
-  read(): unknown;
-  write(snapshot: unknown): void;
+  get(key: string): unknown;
+  set(key: string, value: unknown): void;
+  remove(key: string): void;
+  keys(): string[];
 }
 
 export interface MutationJournalScope {
@@ -25,6 +38,7 @@ export interface MutationReservation {
 
 export interface MutationJournal {
   reserve(method: string, params: unknown): MutationReservation | undefined;
+  dispose(): void;
 }
 
 export interface MutationJournalOptions {
@@ -33,7 +47,25 @@ export interface MutationJournalOptions {
   now?: () => number;
 }
 
+export class MutationJournalError extends Error {
+  override readonly name: string = "MutationJournalError";
+}
+
+export class MutationJournalStorageError extends MutationJournalError {
+  override readonly name = "MutationJournalStorageError";
+}
+
+export class MutationJournalOwnershipError extends MutationJournalError {
+  override readonly name = "MutationJournalOwnershipError";
+}
+
+export class MutationJournalCapacityError extends MutationJournalError {
+  override readonly name = "MutationJournalCapacityError";
+}
+
 interface JournalEntry {
+  version: typeof JOURNAL_VERSION;
+  salt: string;
   endpoint: string;
   namespace: string;
   fingerprint: string;
@@ -44,30 +76,49 @@ interface JournalEntry {
   expiresAt: number;
 }
 
-interface JournalSnapshot {
-  version: typeof JOURNAL_VERSION;
-  salt: string;
-  entries: JournalEntry[];
+interface LegacyJournalEntry {
+  endpoint: string;
+  namespace: string;
+  fingerprint: string;
+  idempotencyKey: string;
+  owner: string;
+  claimable: boolean;
+  createdAt: number;
+  expiresAt: number;
 }
 
-function validEntry(value: unknown): value is JournalEntry {
+interface LegacyJournalSnapshot {
+  version: typeof LEGACY_JOURNAL_VERSION;
+  salt: string;
+  entries: LegacyJournalEntry[];
+}
+
+interface OwnerLease {
+  version: typeof OWNER_RECORD_VERSION;
+  owner: string;
+  startedAt: number;
+  expiresAt: number;
+}
+
+function journalError(message: string, cause?: unknown): MutationJournalStorageError {
+  if (cause instanceof MutationJournalStorageError) return cause;
+  return new MutationJournalStorageError(message, cause === undefined ? undefined : { cause });
+}
+
+function validText(value: unknown, maximum: number): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+
+function validLegacyEntry(value: unknown): value is LegacyJournalEntry {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const entry = value as Partial<JournalEntry>;
+  const entry = value as Partial<LegacyJournalEntry>;
   return (
-    typeof entry.endpoint === "string" &&
-    entry.endpoint.length > 0 &&
-    entry.endpoint.length <= 2_048 &&
-    typeof entry.namespace === "string" &&
-    entry.namespace.length > 0 &&
-    entry.namespace.length <= 255 &&
+    validText(entry.endpoint, 2_048) &&
+    validText(entry.namespace, 255) &&
     typeof entry.fingerprint === "string" &&
     /^[0-9a-f]{32}$/.test(entry.fingerprint) &&
-    typeof entry.idempotencyKey === "string" &&
-    entry.idempotencyKey.length > 0 &&
-    entry.idempotencyKey.length <= 255 &&
-    typeof entry.owner === "string" &&
-    entry.owner.length > 0 &&
-    entry.owner.length <= 255 &&
+    validText(entry.idempotencyKey, 255) &&
+    validText(entry.owner, 255) &&
     typeof entry.claimable === "boolean" &&
     typeof entry.createdAt === "number" &&
     Number.isFinite(entry.createdAt) &&
@@ -77,39 +128,162 @@ function validEntry(value: unknown): value is JournalEntry {
   );
 }
 
-function readSnapshot(storage: MutationJournalStorage): JournalSnapshot {
-  const value = storage.read();
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const snapshot = value as Partial<JournalSnapshot>;
-    if (
-      snapshot.version === JOURNAL_VERSION &&
-      typeof snapshot.salt === "string" &&
-      snapshot.salt.length > 0 &&
-      snapshot.salt.length <= 255 &&
-      Array.isArray(snapshot.entries)
-    ) {
-      return {
-        version: JOURNAL_VERSION,
-        salt: snapshot.salt,
-        entries: snapshot.entries.slice(-MAX_ENTRIES).filter(validEntry),
-      };
-    }
-  }
-  return { version: JOURNAL_VERSION, salt: crypto.randomUUID(), entries: [] };
+function validEntry(value: unknown): value is JournalEntry {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entry = value as Partial<JournalEntry>;
+  return entry.version === JOURNAL_VERSION && validText(entry.salt, 255) && validLegacyEntry(entry);
 }
 
-function normalizeEndpoint(endpoint: string): string {
+function validOwnerLease(value: unknown): value is OwnerLease {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const lease = value as Partial<OwnerLease>;
+  return (
+    lease.version === OWNER_RECORD_VERSION &&
+    validText(lease.owner, 255) &&
+    typeof lease.startedAt === "number" &&
+    Number.isFinite(lease.startedAt) &&
+    typeof lease.expiresAt === "number" &&
+    Number.isFinite(lease.expiresAt)
+  );
+}
+
+function entryKey(idempotencyKey: string): string {
+  return `${ENTRY_PREFIX}${encodeURIComponent(idempotencyKey)}`;
+}
+
+function ownerKey(owner: string): string {
+  return `${OWNER_PREFIX}${encodeURIComponent(owner)}`;
+}
+
+function normalizedEndpoint(endpoint: string): string {
   return endpoint.replace(/\/+$/, "");
 }
 
 function validScope(scope: MutationJournalScope | null | undefined): scope is MutationJournalScope {
+  if (!scope) return false;
+  const endpoint = normalizedEndpoint(scope.endpoint);
   return (
-    !!scope &&
-    normalizeEndpoint(scope.endpoint).length > 0 &&
-    scope.namespace.length > 0 &&
+    endpoint.length > 0 &&
+    endpoint.length <= 2_048 &&
+    validText(scope.namespace, 255) &&
     Number.isInteger(scope.retentionSeconds) &&
     scope.retentionSeconds > 0
   );
+}
+
+function readKeys(storage: MutationJournalStorage): string[] {
+  try {
+    const keys = storage.keys();
+    if (!Array.isArray(keys) || keys.some((key) => typeof key !== "string")) {
+      throw new TypeError("storage returned invalid keys");
+    }
+    return [...new Set(keys)];
+  } catch (error) {
+    throw journalError("Runtime mutation journal keys are unavailable", error);
+  }
+}
+
+function readValue(storage: MutationJournalStorage, key: string): unknown {
+  try {
+    return storage.get(key);
+  } catch (error) {
+    throw journalError(`Runtime mutation journal record is unreadable: ${key}`, error);
+  }
+}
+
+function persistValue(storage: MutationJournalStorage, key: string, value: unknown): void {
+  try {
+    storage.set(key, value);
+  } catch (error) {
+    throw journalError(`Runtime mutation journal record was not persisted: ${key}`, error);
+  }
+}
+
+function removeValue(storage: MutationJournalStorage, key: string): void {
+  try {
+    storage.remove(key);
+  } catch (error) {
+    throw journalError(`Runtime mutation journal record was not removed: ${key}`, error);
+  }
+}
+
+function loadEntries(storage: MutationJournalStorage): JournalEntry[] {
+  return readKeys(storage)
+    .filter((key) => key.startsWith(ENTRY_PREFIX))
+    .map((key) => {
+      const value = readValue(storage, key);
+      if (!validEntry(value) || entryKey(value.idempotencyKey) !== key) {
+        throw journalError(`Runtime mutation journal entry is corrupted: ${key}`);
+      }
+      return value;
+    });
+}
+
+function loadOwnerLeases(storage: MutationJournalStorage, currentTime: number): OwnerLease[] {
+  const active: OwnerLease[] = [];
+  for (const key of readKeys(storage).filter((candidate) => candidate.startsWith(OWNER_PREFIX))) {
+    const value = readValue(storage, key);
+    if (!validOwnerLease(value) || ownerKey(value.owner) !== key) {
+      throw journalError(`Runtime mutation journal owner is corrupted: ${key}`);
+    }
+    if (value.expiresAt <= currentTime) {
+      removeValue(storage, key);
+    } else {
+      active.push(value);
+    }
+  }
+  return active;
+}
+
+function sameMigratedEntry(
+  current: JournalEntry,
+  legacy: LegacyJournalEntry,
+  salt: string,
+): boolean {
+  return (
+    current.salt === salt &&
+    current.endpoint === legacy.endpoint &&
+    current.namespace === legacy.namespace &&
+    current.fingerprint === legacy.fingerprint &&
+    current.idempotencyKey === legacy.idempotencyKey &&
+    current.createdAt === legacy.createdAt &&
+    current.expiresAt === legacy.expiresAt
+  );
+}
+
+function migrateLegacySnapshot(storage: MutationJournalStorage): void {
+  const value = readValue(storage, LEGACY_KEY);
+  if (value === undefined) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw journalError("Legacy Runtime mutation journal is corrupted");
+  }
+  const snapshot = value as Partial<LegacyJournalSnapshot>;
+  if (
+    snapshot.version !== LEGACY_JOURNAL_VERSION ||
+    !validText(snapshot.salt, 255) ||
+    !Array.isArray(snapshot.entries) ||
+    snapshot.entries.length > MAX_ENTRIES ||
+    !snapshot.entries.every(validLegacyEntry)
+  ) {
+    throw journalError("Legacy Runtime mutation journal is corrupted");
+  }
+
+  for (const legacy of snapshot.entries) {
+    const key = entryKey(legacy.idempotencyKey);
+    const existing = readValue(storage, key);
+    if (existing !== undefined) {
+      if (!validEntry(existing) || !sameMigratedEntry(existing, legacy, snapshot.salt)) {
+        throw journalError(`Legacy Runtime mutation journal conflicts with ${key}`);
+      }
+      continue;
+    }
+    persistValue(storage, key, {
+      version: JOURNAL_VERSION,
+      salt: snapshot.salt,
+      ...legacy,
+    } satisfies JournalEntry);
+  }
+  removeValue(storage, LEGACY_KEY);
 }
 
 /** Canonical JSON is used only as transient hash input. Request bodies, prompts,
@@ -165,139 +339,272 @@ function fingerprint(value: string): string {
   return hex(h1) + hex(h2) + hex(h3) + hex(h4);
 }
 
+function rejectedMutation<T>(
+  error: unknown,
+  idempotencyKey: string,
+  retry: (options?: { signal?: AbortSignal }) => MutationPromise<T>,
+): MutationPromise<T> {
+  const rejected = Promise.reject(error);
+  return Object.defineProperties(rejected, {
+    idempotencyKey: { enumerable: true, value: idempotencyKey },
+    retry: { enumerable: true, value: retry },
+  }) as unknown as MutationPromise<T>;
+}
+
+interface MutationLifecycle {
+  begin(): void;
+  claim(): void;
+  resolve(): void;
+  reject(error: unknown): void;
+}
+
 function trackedMutation<T>(
   mutation: MutationPromise<T>,
-  claim: () => void,
-  resolve: () => void,
-  reject: (error: unknown) => void,
+  lifecycle: MutationLifecycle,
 ): MutationPromise<T> {
+  lifecycle.begin();
   const tracked = mutation.then(
     (value) => {
-      resolve();
+      lifecycle.resolve();
       return value;
     },
     (error: unknown) => {
-      reject(error);
+      lifecycle.reject(error);
       throw error;
     },
   );
+  const retry = (options?: { signal?: AbortSignal }): MutationPromise<T> => {
+    try {
+      lifecycle.claim();
+      return trackedMutation(mutation.retry(options), lifecycle);
+    } catch (error) {
+      return rejectedMutation(error, mutation.idempotencyKey, retry);
+    }
+  };
   return Object.defineProperties(tracked, {
     idempotencyKey: { enumerable: true, get: () => mutation.idempotencyKey },
-    retry: {
-      enumerable: true,
-      value: (options?: { signal?: AbortSignal }) => {
-        claim();
-        return trackedMutation(mutation.retry(options), claim, resolve, reject);
-      },
-    },
+    retry: { enumerable: true, value: retry },
   }) as MutationPromise<T>;
 }
 
 /**
  * Retain unresolved mutation identities across Desktop process restarts.
  *
- * Entries are written before the first transport attempt. At construction, old
- * entries become replay candidates; entries opened in this process stay claimed
- * so concurrent same-shaped product intents still receive distinct keys. Only an
- * ambiguous outcome makes an entry claimable again. Endpoint and Runtime-owned
- * namespace must both match before a key can be restored.
+ * Each entry and owner lease is an independent verified record. That prevents
+ * one renderer from overwriting another renderer's journal. An owner whose
+ * lease may still be alive blocks a same-shaped command in another renderer;
+ * after the lease expires, the oldest live renderer claims the original key.
+ * The transport is never opened until that durable ownership transition has
+ * succeeded.
  */
 export function createMutationJournal(options: MutationJournalOptions): MutationJournal {
-  const snapshot = readSnapshot(options.storage);
   const now = options.now ?? Date.now;
-  let entries = snapshot.entries;
-  const available = new Set(
-    entries
-      .filter((entry) => entry.owner !== PROCESS_OWNER || entry.claimable)
-      .map((entry) => entry.idempotencyKey),
-  );
+  const claimableAfterFailure = new Set<string>();
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let disposed = false;
 
-  const save = () => {
-    options.storage.write({ ...snapshot, entries });
+  const assertOpen = () => {
+    if (disposed) throw new MutationJournalError("Runtime mutation journal is closed");
   };
 
-  const remove = (entry: JournalEntry) => {
-    entries = entries.filter((candidate) => candidate !== entry);
-    available.delete(entry.idempotencyKey);
-    save();
+  const refreshOwner = (currentTime: number) => {
+    assertOpen();
+    persistValue(options.storage, ownerKey(PROCESS_OWNER), {
+      version: OWNER_RECORD_VERSION,
+      owner: PROCESS_OWNER,
+      startedAt: PROCESS_STARTED_AT,
+      expiresAt: currentTime + OWNER_LEASE_MS,
+    } satisfies OwnerLease);
+  };
+
+  const startHeartbeat = () => {
+    if (heartbeat !== undefined) return;
+    heartbeat = setInterval(() => {
+      try {
+        refreshOwner(now());
+      } catch {
+        // reserve/claim verify durability synchronously before transport work.
+        // A background heartbeat cannot surface an actionable Promise failure.
+      }
+    }, OWNER_HEARTBEAT_MS);
+  };
+
+  const prepare = (currentTime: number) => {
+    assertOpen();
+    migrateLegacySnapshot(options.storage);
+    refreshOwner(currentTime);
+  };
+
+  const readEntry = (key: string): JournalEntry | undefined => {
+    const value = readValue(options.storage, entryKey(key));
+    if (value === undefined) return undefined;
+    if (!validEntry(value) || value.idempotencyKey !== key) {
+      throw journalError(`Runtime mutation journal entry is corrupted: ${entryKey(key)}`);
+    }
+    return value;
+  };
+
+  const persistEntry = (entry: JournalEntry) => {
+    persistValue(options.storage, entryKey(entry.idempotencyKey), entry);
+  };
+
+  const removeEntry = (entry: JournalEntry) => {
+    removeValue(options.storage, entryKey(entry.idempotencyKey));
+    claimableAfterFailure.delete(entry.idempotencyKey);
+  };
+
+  const lifecycleFor = (reserved: JournalEntry): MutationLifecycle => {
+    let activeAttempts = 0;
+    let definitiveOutcome = false;
+
+    const currentOrReserved = (): JournalEntry => readEntry(reserved.idempotencyKey) ?? reserved;
+    const finish = (definitive: boolean) => {
+      activeAttempts = Math.max(0, activeAttempts - 1);
+      definitiveOutcome ||= definitive;
+      if (activeAttempts > 0) return;
+
+      const current = readEntry(reserved.idempotencyKey);
+      if (definitiveOutcome) {
+        if (current) {
+          try {
+            removeEntry(current);
+          } catch (error) {
+            claimableAfterFailure.add(reserved.idempotencyKey);
+            throw error;
+          }
+        }
+        definitiveOutcome = false;
+        return;
+      }
+      if (!current) {
+        claimableAfterFailure.add(reserved.idempotencyKey);
+        throw journalError("Runtime mutation identity disappeared before settlement");
+      }
+      const claimable = { ...current, owner: PROCESS_OWNER, claimable: true };
+      try {
+        persistEntry(claimable);
+        claimableAfterFailure.delete(reserved.idempotencyKey);
+      } catch (error) {
+        claimableAfterFailure.add(reserved.idempotencyKey);
+        throw error;
+      }
+    };
+
+    return {
+      begin: () => {
+        activeAttempts += 1;
+      },
+      claim: () => {
+        const currentTime = now();
+        prepare(currentTime);
+        const current = currentOrReserved();
+        if (current.expiresAt <= currentTime) {
+          throw new MutationJournalError("Runtime mutation identity expired before retry");
+        }
+        persistEntry({ ...current, owner: PROCESS_OWNER, claimable: false });
+        claimableAfterFailure.delete(reserved.idempotencyKey);
+        if (activeAttempts === 0) definitiveOutcome = false;
+        startHeartbeat();
+      },
+      resolve: () => finish(true),
+      reject: (error) => finish(!mutationSettlementIsUnknown(error)),
+    };
   };
 
   return {
     reserve(method, params) {
       const scope = options.scope();
       if (!validScope(scope)) return undefined;
-      const endpoint = normalizeEndpoint(scope.endpoint);
+      const endpoint = normalizedEndpoint(scope.endpoint);
       const currentTime = now();
       const retentionMs = scope.retentionSeconds * 1_000;
+      prepare(currentTime);
 
-      entries = entries.filter((entry) => {
+      let entries = loadEntries(options.storage);
+      for (const entry of entries) {
         const expired =
           entry.expiresAt <= currentTime ||
           (entry.endpoint === endpoint &&
             entry.namespace === scope.namespace &&
             entry.createdAt + retentionMs <= currentTime);
         const replacedStore = entry.endpoint === endpoint && entry.namespace !== scope.namespace;
-        if (expired || replacedStore) available.delete(entry.idempotencyKey);
-        return !expired && !replacedStore;
-      });
+        if (expired || replacedStore) removeEntry(entry);
+      }
+      entries = loadEntries(options.storage);
 
-      const keyFingerprint = fingerprint(
-        `${snapshot.salt}\u0000${method}\u0000${canonicalJSON(params)}`,
-      );
-      let entry = entries.find(
+      const owners = loadOwnerLeases(options.storage, currentTime);
+      const activeOwners = new Set(owners.map((owner) => owner.owner));
+      const leader = owners.toSorted(
+        (left, right) => left.startedAt - right.startedAt || left.owner.localeCompare(right.owner),
+      )[0]?.owner;
+      const canonical = `${method}\u0000${canonicalJSON(params)}`;
+      const matching = entries
+        .filter(
+          (entry) =>
+            entry.endpoint === endpoint &&
+            entry.namespace === scope.namespace &&
+            entry.fingerprint === fingerprint(`${entry.salt}\u0000${canonical}`),
+        )
+        .toSorted((left, right) => left.createdAt - right.createdAt);
+
+      let entry = matching.find(
         (candidate) =>
-          candidate.endpoint === endpoint &&
-          candidate.namespace === scope.namespace &&
-          candidate.fingerprint === keyFingerprint &&
-          available.has(candidate.idempotencyKey),
+          candidate.owner === PROCESS_OWNER &&
+          (candidate.claimable || claimableAfterFailure.has(candidate.idempotencyKey)),
       );
+      if (!entry) {
+        entry = matching.find(
+          (candidate) => !activeOwners.has(candidate.owner) && leader === PROCESS_OWNER,
+        );
+      }
+      if (!entry) {
+        const uncertainOwner = matching.find(
+          (candidate) =>
+            candidate.owner !== PROCESS_OWNER &&
+            (activeOwners.has(candidate.owner) || leader !== PROCESS_OWNER),
+        );
+        if (uncertainOwner) {
+          throw new MutationJournalOwnershipError(
+            "A matching Runtime mutation is still owned by another live Desktop window",
+          );
+        }
+      }
+
       if (entry) {
-        available.delete(entry.idempotencyKey);
-        entry.owner = PROCESS_OWNER;
-        entry.claimable = false;
+        entry = { ...entry, owner: PROCESS_OWNER, claimable: false };
       } else {
+        if (entries.length >= MAX_ENTRIES) {
+          throw new MutationJournalCapacityError("Runtime mutation journal capacity is exhausted");
+        }
+        const salt = crypto.randomUUID();
         entry = {
+          version: JOURNAL_VERSION,
+          salt,
           endpoint,
           namespace: scope.namespace,
-          fingerprint: keyFingerprint,
+          fingerprint: fingerprint(`${salt}\u0000${canonical}`),
           idempotencyKey: crypto.randomUUID(),
           owner: PROCESS_OWNER,
           claimable: false,
           createdAt: currentTime,
           expiresAt: currentTime + retentionMs,
         };
-        entries.push(entry);
-        if (entries.length > MAX_ENTRIES) {
-          entries = entries
-            .sort((left, right) => left.createdAt - right.createdAt)
-            .slice(-MAX_ENTRIES);
-        }
       }
-      // Persist before any transport work begins. A process loss immediately
-      // after reserve() must leave enough identity to replay safely.
-      save();
+      persistEntry(entry);
+      claimableAfterFailure.delete(entry.idempotencyKey);
+      startHeartbeat();
 
-      const claim = () => {
-        available.delete(entry.idempotencyKey);
-        entry.owner = PROCESS_OWNER;
-        entry.claimable = false;
-        if (!entries.includes(entry)) entries.push(entry);
-        save();
-      };
-      const resolve = () => remove(entry);
-      const reject = (error: unknown) => {
-        if (mutationSettlementIsUnknown(error)) {
-          entry.claimable = true;
-          available.add(entry.idempotencyKey);
-          save();
-          return;
-        }
-        remove(entry);
-      };
+      const lifecycle = lifecycleFor(entry);
       return {
         idempotencyKey: entry.idempotencyKey,
-        track: (mutation) => trackedMutation(mutation, claim, resolve, reject),
+        track: (mutation) => trackedMutation(mutation, lifecycle),
       };
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      if (heartbeat !== undefined) clearInterval(heartbeat);
+      heartbeat = undefined;
     },
   };
 }

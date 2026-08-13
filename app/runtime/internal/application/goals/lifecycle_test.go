@@ -6,7 +6,19 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
+
+type alreadyTerminalRuns struct{}
+
+func (alreadyTerminalRuns) WaitSessionStartable(context.Context, string) error { return nil }
+func (alreadyTerminalRuns) Start(context.Context, runs.StartCommand) (runs.StartResult, error) {
+	return runs.StartResult{}, nil
+}
+func (alreadyTerminalRuns) Cancel(context.Context, runs.CancelCommand) (runs.CancelResult, error) {
+	return runs.CancelResult{}, runs.ErrRunFinished
+}
 
 func TestSessionCommandLocksDoNotCoupleUnrelatedSessions(t *testing.T) {
 	mutations := NewSessionMutations()
@@ -124,6 +136,14 @@ func TestGoalDriveAwaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing
 
 	if err := drive.await(ctx); !errors.Is(err, want) {
 		t.Fatalf("await() = %v, want completed outcome", err)
+	}
+}
+
+func TestGoalRunCleanupAcceptsAnAlreadyTerminalRun(t *testing.T) {
+	driver := &Driver{runs: alreadyTerminalRuns{}}
+
+	if err := driver.cancelRun(t.Context(), "run_1"); err != nil {
+		t.Fatalf("cancelRun after terminal commit: %v", err)
 	}
 }
 

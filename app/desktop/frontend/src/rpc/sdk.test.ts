@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createLyraClient } from "./sdk";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
@@ -7,6 +7,18 @@ import { PROTOCOL_VERSION, type ServerCapabilities } from "./wire.generated";
 import discoverResponse from "./samples/method.discover.resp.json";
 
 describe("createLyraClient", () => {
+  it("disposes journal ownership before closing the transport", async () => {
+    const transport = createMemoryTransport();
+    const dispose = vi.fn();
+    const client = createLyraClient(transport, {
+      mutationJournal: { reserve: () => undefined, dispose },
+    });
+
+    await client.close();
+
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
   it("attaches request metadata to typed calls", async () => {
     const transport = createMemoryTransport();
     const client = createLyraClient(transport, {

@@ -51,7 +51,10 @@ export function createLyraClient(transport: Transport, opts?: LyraClientOptions)
       mutationJournal: opts?.mutationJournal,
     }),
     {
-      close: () => rpc.close(),
+      close: async () => {
+        opts?.mutationJournal?.dispose();
+        await rpc.close();
+      },
     },
   );
 }

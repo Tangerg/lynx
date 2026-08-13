@@ -7,7 +7,7 @@ import { negotiatedCapabilities } from "@/plugins/builtin/runtime/public/capabil
 import { currentRuntimeEndpoint } from "@/plugins/builtin/runtime/public/endpoint";
 import { installedRuntimeMutationJournalStorage } from "@/plugins/builtin/runtime/public/mutationJournal";
 import type { DesktopBootstrap, DesktopHostClient, LyraClient, SidecarClient } from "@/rpc";
-import type { RuntimeMutationSnapshotStorage } from "@/plugins/builtin/runtime/public/mutationJournal";
+import type { RuntimeMutationJournalStorage } from "@/plugins/builtin/runtime/public/mutationJournal";
 import {
   createDesktopHostClient,
   createHttpTransport,
@@ -43,7 +43,7 @@ function localTokenFor(endpoint: string): string | undefined {
 function defaultContainer(): Container {
   let shared: {
     signature: string;
-    storage: RuntimeMutationSnapshotStorage | null;
+    storage: RuntimeMutationJournalStorage | null;
     client: LyraClient;
   } | null = null;
   let sidecar: { endpoint: string; client: SidecarClient } | null = null;
@@ -54,6 +54,7 @@ function defaultContainer(): Container {
       const signature = `${baseUrl}\u0000${localToken ?? ""}`;
       const storage = installedRuntimeMutationJournalStorage();
       if (shared?.signature === signature && shared.storage === storage) return shared.client;
+      if (shared) void shared.client.close().catch(() => undefined);
       const client = createLyraClient(createHttpTransport({ baseUrl, localToken }), {
         requestMeta: runtimeRequestMeta,
         capabilities: negotiatedCapabilities,

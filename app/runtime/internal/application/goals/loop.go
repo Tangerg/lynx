@@ -495,7 +495,13 @@ func (d *Driver) cancelRun(ctx context.Context, runID string) error {
 		RunID:  runID,
 		Reason: "autonomous goal stopped",
 	})
-	if errors.Is(err, runs.ErrRunNotFound) {
+	// Cancellation is cleanup, not a second lifecycle intent. A terminal Run may
+	// commit before its root-boundary event reaches this drive; a concurrent Goal
+	// command then cancels the stream and the Run owner correctly reports
+	// ErrRunFinished. The durable terminal transaction (including Goal accounting)
+	// is already authoritative, so both absent and finished mean there is nothing
+	// left for this cleanup owner to cancel.
+	if errors.Is(err, runs.ErrRunNotFound) || errors.Is(err, runs.ErrRunFinished) {
 		return nil
 	}
 	return err
