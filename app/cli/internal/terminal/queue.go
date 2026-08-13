@@ -317,6 +317,7 @@ func (a *app) finishCanceledRuntimeOwnershipRecovery(runID string) {
 	if a.openingRunID == runID {
 		a.openingRunID = ""
 	}
+	a.reportWorkbenchIssue(workbenchCancellationOwnership, nil)
 	a.finishAuthoringSettlementRecovery()
 }
 

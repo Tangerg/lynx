@@ -973,8 +973,12 @@ func (a *app) handleRuntimeCancellation(
 		return
 	}
 	if retireErr := a.retireCanceledRuntimeOwnership(pending.request.RunID, pending.openingCommandID); retireErr != nil {
-		a.message("could not retire canceled runtime ownership: " + retireErr.Error())
+		failure := fmt.Errorf("retire canceled runtime ownership: %w", retireErr)
+		a.reportWorkbenchIssue(workbenchCancellationOwnership, failure)
+		a.message("could not " + failure.Error())
 		a.retryCanceledRuntimeOwnership(pending.request.RunID, pending.openingCommandID)
+	} else {
+		a.reportWorkbenchIssue(workbenchCancellationOwnership, nil)
 	}
 	if current := a.pendingCancel; current != nil && current.request.CommandID == pending.request.CommandID {
 		a.pendingCancel = nil

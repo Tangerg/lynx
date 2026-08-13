@@ -3,7 +3,8 @@ package terminal
 type workbenchConcern uint8
 
 const (
-	workbenchResumeOutbox workbenchConcern = iota
+	workbenchCancellationOwnership workbenchConcern = iota
+	workbenchResumeOutbox
 	workbenchRunOutbox
 	workbenchDraft
 	workbenchHistory

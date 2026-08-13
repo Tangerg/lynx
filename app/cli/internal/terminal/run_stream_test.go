@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -595,6 +597,79 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 		current, openErr := workbench.Open(stateDirectory, workbench.Config{})
 		return openErr == nil && len(current.PendingRuns(command.SessionID)) == 0 && host.Repaint()
 	})
+	if cancelID == "" {
+		t.Fatal("cancel command identity is empty")
+	}
+	stop()
+}
+
+func TestCanceledStartRetainsOwnershipUntilDurableSettlementRecovers(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		}}}}
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_99999999999999999999999999999999"),
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "recover canceled start ownership"},
+	}
+	runtime := &heldCancellationResultRuntime{
+		idempotentStartRuntime: &idempotentStartRuntime{Runtime: base},
+		settled:                make(chan struct{}, 1),
+		release:                make(chan struct{}),
+	}
+	releaseRuntime := sync.OnceFunc(func() { close(runtime.release) })
+	t.Cleanup(releaseRuntime)
+	if _, err := runtime.StartRun(t.Context(), command); err != nil {
+		t.Fatal(err)
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageDispatchingRun(t, store, command)
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
+	awaitSignal(t, runtime.settled, "runtime cancellation before failed local settlement")
+	states, err := os.ReadDir(filepath.Join(stateDirectory, "sessions"))
+	if err != nil || len(states) != 1 {
+		t.Fatalf("session state files = %d, %v", len(states), err)
+	}
+	statePath := filepath.Join(stateDirectory, "sessions", states[0].Name())
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block canceled ownership settlement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	releaseRuntime()
+	host.Shows(t, "workbench: retire canceled runtime ownership")
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	host.Until(t, "the canceled opening ownership to settle after storage recovers", func() bool {
+		reopened, openErr := workbench.Open(stateDirectory, workbench.Config{})
+		return openErr == nil && len(reopened.PendingRuns(command.SessionID)) == 0 && host.Repaint()
+	})
+	host.Hides(t, "workbench:")
 	if cancelID == "" {
 		t.Fatal("cancel command identity is empty")
 	}

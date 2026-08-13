@@ -16,6 +16,12 @@ func TestWorkbenchProblemsArePrioritizedAndClearedIndependently(t *testing.T) {
 	application.status.active("working")
 	application.reportWorkbenchIssue(workbenchDraft, errors.New("draft could not be saved"))
 	application.reportWorkbenchIssue(workbenchResumeOutbox, errors.New("decision could not be settled"))
+	application.reportWorkbenchIssue(workbenchCancellationOwnership, errors.New("canceled ownership could not be settled"))
+	if got := application.status.problem; got != "workbench: canceled ownership could not be settled" {
+		t.Fatalf("canceled ownership problem was not prioritized; got %q", got)
+	}
+
+	application.reportWorkbenchIssue(workbenchCancellationOwnership, nil)
 	if got := application.status.problem; got != "workbench: decision could not be settled" {
 		t.Fatalf("prioritized workbench problem = %q", got)
 	}
