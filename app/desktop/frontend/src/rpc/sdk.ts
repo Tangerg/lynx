@@ -19,6 +19,7 @@
 
 import { createRpcClient } from "./client";
 import { createMethods, type Methods } from "./methods";
+import type { MutationJournal } from "./mutationJournal";
 import type { RequestMeta, ServerCapabilities } from "./wire.generated";
 import type { Transport } from "./transport";
 
@@ -31,6 +32,8 @@ export interface LyraClientOptions {
    * learn what the negotiation already said.
    */
   capabilities?: () => ServerCapabilities | null | undefined;
+  /** Durable command identity owner supplied by the embedding application. */
+  mutationJournal?: MutationJournal;
 }
 
 export interface LyraClient extends Methods {
@@ -45,6 +48,7 @@ export function createLyraClient(transport: Transport, opts?: LyraClientOptions)
     createMethods(rpc, {
       capabilities: opts?.capabilities,
       requestMeta: opts?.requestMeta,
+      mutationJournal: opts?.mutationJournal,
     }),
     {
       close: () => rpc.close(),

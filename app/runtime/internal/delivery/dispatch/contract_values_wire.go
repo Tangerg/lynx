@@ -471,6 +471,7 @@ func registerRuntimeValues(s *Shapes) {
 		GoType: typeOf[protocol.IdempotencyLimits](),
 		Constraints: []FieldConstraint{
 			{Field: "retentionSeconds", Kind: ConstraintPositive},
+			{Field: "namespace", Kind: ConstraintNonEmpty},
 		},
 	})
 	s.valueConstraint(FieldConstraintSpec{

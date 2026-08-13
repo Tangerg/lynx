@@ -5,11 +5,14 @@
 import { runtimeRequestMeta } from "@/main/runtimeProtocol";
 import { negotiatedCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
 import { currentRuntimeEndpoint } from "@/plugins/builtin/runtime/public/endpoint";
+import { installedRuntimeMutationJournalStorage } from "@/plugins/builtin/runtime/public/mutationJournal";
 import type { DesktopBootstrap, DesktopHostClient, LyraClient, SidecarClient } from "@/rpc";
+import type { RuntimeMutationSnapshotStorage } from "@/plugins/builtin/runtime/public/mutationJournal";
 import {
   createDesktopHostClient,
   createHttpTransport,
   createLyraClient,
+  createMutationJournal,
   createSidecarClient,
 } from "@/rpc";
 
@@ -38,19 +41,39 @@ function localTokenFor(endpoint: string): string | undefined {
 }
 
 function defaultContainer(): Container {
-  let shared: { signature: string; client: LyraClient } | null = null;
+  let shared: {
+    signature: string;
+    storage: RuntimeMutationSnapshotStorage | null;
+    client: LyraClient;
+  } | null = null;
   let sidecar: { endpoint: string; client: SidecarClient } | null = null;
   return {
     client: () => {
       const baseUrl = currentRuntimeEndpoint();
       const localToken = localTokenFor(baseUrl);
       const signature = `${baseUrl}\u0000${localToken ?? ""}`;
-      if (shared?.signature === signature) return shared.client;
+      const storage = installedRuntimeMutationJournalStorage();
+      if (shared?.signature === signature && shared.storage === storage) return shared.client;
       const client = createLyraClient(createHttpTransport({ baseUrl, localToken }), {
         requestMeta: runtimeRequestMeta,
         capabilities: negotiatedCapabilities,
+        mutationJournal: storage
+          ? createMutationJournal({
+              storage,
+              scope: () => {
+                const idempotency = negotiatedCapabilities()?.limits.idempotency;
+                return idempotency
+                  ? {
+                      endpoint: baseUrl,
+                      namespace: idempotency.namespace,
+                      retentionSeconds: idempotency.retentionSeconds,
+                    }
+                  : null;
+              },
+            })
+          : undefined,
       });
-      shared = { signature, client };
+      shared = { signature, storage, client };
       return client;
     },
     sidecar: () => {

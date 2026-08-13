@@ -11,6 +11,7 @@
 import type { RpcCallOptions, RpcClient } from "./client";
 import { RpcError } from "./errors";
 import { createMutationPromise, type MutationPromise } from "./mutation";
+import type { MutationJournal } from "./mutationJournal";
 import { unnegotiated } from "./preflight";
 import type { RunId, SegmentId, SessionId } from "./ids";
 import type {
@@ -472,6 +473,9 @@ export interface MethodsOptions {
    * using the same snapshot for capability preflight and emission.
    */
   requestMeta?: () => RequestMeta | undefined;
+  /** Optional durable owner for unresolved command identities. The RPC SDK
+   * remains storage-agnostic; Desktop supplies the adapter at composition. */
+  mutationJournal?: MutationJournal;
 }
 
 function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
@@ -562,6 +566,20 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     return client.call(method, params, effectiveOptions);
   };
 
+  const openMutation = <M extends WireMethodName, Result>(
+    method: M,
+    params: WireParams<M>,
+    execute: (idempotencyKey: string, attempt: { signal?: AbortSignal }) => Promise<Result>,
+    signal?: AbortSignal,
+    requestedKey?: string,
+  ): MutationPromise<Result> => {
+    const reservation = requestedKey ? undefined : options.mutationJournal?.reserve(method, params);
+    const mutation = createMutationPromise(execute, requestedKey ?? reservation?.idempotencyKey, {
+      signal,
+    });
+    return reservation?.track(mutation) ?? mutation;
+  };
+
   const invoke = (<M extends WireMethodName>(
     method: M,
     params: WireParams<M>,
@@ -570,16 +588,18 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     if (!wireMethodRequiresIdempotency(method)) {
       return perform(method, params, callOptions) as WireInvokeResult<M>;
     }
-    const { signal, ...stableCallOptions } = callOptions ?? {};
-    return createMutationPromise(
+    const { signal, idempotencyKey, ...stableCallOptions } = callOptions ?? {};
+    return openMutation(
+      method,
+      params,
       (idempotencyKey, attempt) =>
         perform(method, params, {
           ...stableCallOptions,
           ...(attempt.signal ? { signal: attempt.signal } : {}),
           idempotencyKey,
         }),
-      callOptions?.idempotencyKey,
-      { signal },
+      signal,
+      idempotencyKey,
     ) as WireInvokeResult<M>;
   }) as WireInvoke;
 
@@ -632,7 +652,9 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     },
     runs: {
       start: (params, signal) =>
-        createMutationPromise(
+        openMutation(
+          "runs.start",
+          params,
           async (idempotencyKey, attempt) => {
             // Subscribe BEFORE the POST, then bind the tree to the runtime-assigned
             // root segmentId. Under streamable HTTP the response + its event frames
@@ -650,11 +672,12 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
             stream.bind(result.runId, result.segmentId);
             return { result, events: stream.events };
           },
-          undefined,
-          { signal },
+          signal,
         ),
       resume: (params, signal) =>
-        createMutationPromise(
+        openMutation(
+          "runs.resume",
+          params,
           async (idempotencyKey, attempt) => {
             // A resume opens a NEW segment of the SAME run — bind the tree to it.
             const stream = streamRunEvents(client, attempt.signal);
@@ -668,8 +691,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
             stream.bind(result.runId, result.segmentId);
             return { result, events: stream.events };
           },
-          undefined,
-          { signal },
+          signal,
         ),
       subscribe: async (params, signal, options) => {
         // Reattach to the segment the caller named; the ack echoes it, and the tree

@@ -636,6 +636,7 @@ export interface HooksListResult {
 }
 
 export interface IdempotencyLimits {
+  namespace: string;
   retentionSeconds: number;
 }
 

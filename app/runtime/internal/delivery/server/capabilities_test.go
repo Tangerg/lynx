@@ -14,7 +14,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	caps := capabilitiesFor(featureAvailability{
 		knowledge: true, git: true, fileWatch: true, plan: true,
 		goals: true, agentMemory: true, schedules: true, codebase: true,
-	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.IdempotencyLimits{RetentionSeconds: 86_400}, protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
+	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.IdempotencyLimits{RetentionSeconds: 86_400, Namespace: "idp_test"}, protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,
@@ -58,6 +58,9 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if got := caps.Limits.Idempotency.RetentionSeconds; got != 86_400 {
 		t.Fatalf("idempotency retention = %d, want 86400", got)
 	}
+	if got := caps.Limits.Idempotency.Namespace; got != "idp_test" {
+		t.Fatalf("idempotency namespace = %q, want idp_test", got)
+	}
 }
 
 // TestCapabilitiesAdvertiseThePublishedVocabulary pins discovery to
@@ -74,7 +77,7 @@ func TestCapabilitiesAdvertiseThePublishedVocabulary(t *testing.T) {
 	caps := capabilitiesFor(
 		featureAvailability{},
 		replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})),
-		protocol.IdempotencyLimits{RetentionSeconds: 86_400},
+		protocol.IdempotencyLimits{RetentionSeconds: 86_400, Namespace: "idp_test"},
 		protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73},
 	)
 	for _, feature := range protocol.FeatureKeys() {

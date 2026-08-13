@@ -71,6 +71,10 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	if !ok || discovery.ServerInfo.Name != "test-runtime" || discovery.ServerInfo.Home != cfg.UserHome {
 		t.Fatalf("runtime.discover result = %+v", result.Value)
 	}
+	namespace := discovery.Capabilities.Limits.Idempotency.Namespace
+	if namespace == "" {
+		t.Fatal("runtime.discover omitted idempotency namespace")
+	}
 	if _, _, err := OpenInstance(t.Context(), cfg); !errors.Is(err, ErrDataDirectoryInUse) {
 		t.Fatalf("second OpenInstance error = %v, want ErrDataDirectoryInUse", err)
 	}
@@ -81,6 +85,14 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	reopened, _, err := OpenInstance(t.Context(), cfg)
 	if err != nil {
 		t.Fatalf("reopen after Close: %v", err)
+	}
+	reopenedResult := reopened.Endpoint().Invoke(t.Context(), "runtime.discover", struct{}{}, operation.Options{})
+	if reopenedResult.Failure != nil {
+		t.Fatalf("runtime.discover after reopen: %v", reopenedResult.Failure)
+	}
+	reopenedDiscovery, ok := reopenedResult.Value.(*protocol.DiscoverResponse)
+	if !ok || reopenedDiscovery.Capabilities.Limits.Idempotency.Namespace != namespace {
+		t.Fatalf("reopened idempotency namespace = %+v, want %q", reopenedResult.Value, namespace)
 	}
 	if err := reopened.Close(); err != nil {
 		t.Fatalf("close reopened instance: %v", err)

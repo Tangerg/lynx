@@ -37,6 +37,9 @@ func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {
 	if bundle.DataDirectory != dataDirectory {
 		t.Fatalf("DataDirectory = %q, want %q", bundle.DataDirectory, dataDirectory)
 	}
+	if bundle.IdempotencyNamespace == "" {
+		t.Fatal("Open returned an empty idempotency namespace")
+	}
 	if _, err := os.Stat(filepath.Join(dataDirectory, "lyra.db")); err != nil {
 		t.Fatalf("data directory does not own lyra.db: %v", err)
 	}

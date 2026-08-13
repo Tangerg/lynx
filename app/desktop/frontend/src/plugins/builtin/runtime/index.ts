@@ -1,6 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { runtimeCapabilities } from "./application/ports/capabilities";
 import { installRuntimeEndpointConfiguration } from "./adapters/runtimeEndpointConfiguration";
+import { installRuntimeMutationJournalStorage } from "./adapters/runtimeMutationJournalStorage";
 import { installRuntimeCapabilityPort } from "./adapters/runtimeCapabilityStore";
 import { createRuntimeServiceController } from "./application/runtimeService";
 import { runtimeServiceInspector } from "./adapters/runtimeServiceInspector";
@@ -14,6 +15,7 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     const disposeEndpoint = installRuntimeEndpointConfiguration(host);
+    const disposeMutationJournal = installRuntimeMutationJournalStorage(host);
     const disposeCapabilities = installRuntimeCapabilityPort();
     const serviceStore = useRuntimeServiceStore.getState();
     serviceStore.clear();
@@ -38,6 +40,7 @@ export default definePlugin({
       disposeServiceStatus();
       capabilities.clear();
       disposeCapabilities();
+      disposeMutationJournal();
       disposeEndpoint();
     };
   },

@@ -182,7 +182,7 @@ const VISUAL_CAPABILITIES: ServerCapabilities = {
   limits: {
     runReplay: { scope: "runtimeInstanceRootSegment", maxEvents: 2_048, maxBytes: 16_777_216 },
     runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
-    idempotency: { retentionSeconds: 86_400 },
+    idempotency: { namespace: "idp_visual_fixture", retentionSeconds: 86_400 },
     mcpAuthorizationAttempts: { retentionSeconds: 600 },
   },
 };

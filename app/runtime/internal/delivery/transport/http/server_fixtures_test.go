@@ -55,7 +55,7 @@ func validTestCapabilities() protocol.ServerCapabilities {
 		StreamingMethods: []string{},
 		Features:         map[string]protocol.FeatureCapability{},
 		Limits: protocol.RuntimeLimits{
-			Idempotency: protocol.IdempotencyLimits{RetentionSeconds: 1},
+			Idempotency: protocol.IdempotencyLimits{RetentionSeconds: 1, Namespace: "idp_test"},
 			RunReplay: protocol.RunReplayLimits{
 				Scope: protocol.ReplayScopeRuntimeInstanceRootSegment, MaxEvents: 1, MaxBytes: 1,
 			},

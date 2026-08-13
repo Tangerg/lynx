@@ -495,6 +495,7 @@ func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 		},
 		IdempotencyLimits: protocol.IdempotencyLimits{
 			RetentionSeconds: int(idempotency.Retention.Seconds()),
+			Namespace:        "idp_protocol_lifecycle_test",
 		},
 	})
 }

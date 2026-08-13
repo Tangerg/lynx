@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 69
+const schemaEpoch = 70
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -511,6 +511,16 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// another pending firing while Run admission is temporarily unavailable.
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_firings_schedule_pending
 			ON schedule_firings(schedule_id) WHERE state = 'pending'`,
+		// The namespace tells reconnecting clients whether a persisted
+		// Idempotency-Key belongs to this exact durable replay store. It is opaque,
+		// contains no path or credential, and survives process restarts while a
+		// deleted/recreated database receives a different identity.
+		`CREATE TABLE IF NOT EXISTS runtime_identity (
+			id                    INTEGER PRIMARY KEY CHECK (id = 1),
+			idempotency_namespace TEXT NOT NULL UNIQUE
+		)`,
+		`INSERT OR IGNORE INTO runtime_identity(id, idempotency_namespace)
+			VALUES (1, 'idp_' || lower(hex(randomblob(16))))`,
 		`CREATE TABLE IF NOT EXISTS idempotency_records (
 			key         TEXT PRIMARY KEY,
 			fingerprint TEXT NOT NULL,

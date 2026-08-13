@@ -3,6 +3,7 @@ import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
 import { RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
+import { createMutationJournal, type MutationJournalStorage } from "./mutationJournal";
 import type { Item, RunEvent, StreamEvent } from "./wire.generated";
 import { RUN_EVENT_METHOD, RUNTIME_EVENT_METHOD } from "./stream";
 import { createMemoryTransport } from "./transports/memory";
@@ -163,6 +164,61 @@ describe("methods factory", () => {
     expect(keys[0]).toBeTruthy();
     expect(keys[1]).toBe(keys[0]);
     expect(keys[2]).not.toBe(keys[1]);
+  });
+
+  it("restores a persisted unary mutation key after a Desktop process loss", async () => {
+    let snapshot: unknown;
+    const storage: MutationJournalStorage = {
+      read: () => snapshot,
+      write: (value) => {
+        snapshot = structuredClone(value);
+      },
+    };
+    const scope = () => ({
+      endpoint: "http://127.0.0.1:17171",
+      namespace: "idp_runtime_store",
+      retentionSeconds: 86_400,
+    });
+    let settleFirst!: (value: { sessionId: string; runId: string }) => void;
+    const firstCall = vi.fn(
+      (_method: string, _params: unknown, _options?: RpcCallOptions) =>
+        new Promise<{ sessionId: string; runId: string }>((resolve) => {
+          settleFirst = resolve;
+        }),
+    );
+    const firstMethods = createMethods({ call: firstCall } as unknown as RpcClient, {
+      mutationJournal: createMutationJournal({ storage, scope }),
+    });
+
+    const first = firstMethods.schedules.runNow("schedule_1");
+    await vi.waitFor(() => expect(firstCall).toHaveBeenCalledOnce());
+    const firstRequest = firstCall.mock.calls[0];
+    expect(firstRequest).toBeDefined();
+    const firstKey = (firstRequest?.[2] as RpcCallOptions | undefined)?.idempotencyKey;
+    expect(firstKey).toBeTruthy();
+
+    // A new OS process gets a new journal owner. Change only that opaque owner
+    // in the captured persistence image; method, params, key and Runtime scope
+    // remain exactly what the crashed Desktop wrote before sending.
+    const persisted = snapshot as { entries: Array<{ owner: string }> };
+    for (const entry of persisted.entries) entry.owner = "previous-desktop-process";
+
+    const replayCall = vi.fn(
+      async (_method: string, _params: unknown, _options?: RpcCallOptions) => ({
+        sessionId: "ses_1",
+        runId: "run_1",
+      }),
+    );
+    const restartedMethods = createMethods({ call: replayCall } as unknown as RpcClient, {
+      mutationJournal: createMutationJournal({ storage, scope }),
+    });
+    await expect(restartedMethods.schedules.runNow("schedule_1")).resolves.toMatchObject({
+      runId: "run_1",
+    });
+
+    expect(replayCall.mock.calls[0]?.[2]?.idempotencyKey).toBe(firstKey);
+    settleFirst({ sessionId: "ses_1", runId: "run_1" });
+    await expect(first).resolves.toMatchObject({ runId: "run_1" });
   });
 
   it("opens a fresh event stream when replaying an ambiguous run opening", async () => {

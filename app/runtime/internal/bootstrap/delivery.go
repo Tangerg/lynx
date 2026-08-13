@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-func newOperationService(stack Stack, info protocol.ServerInfo) (*server.Server, error) {
+func newOperationService(stack Stack, info protocol.ServerInfo, idempotencyNamespace string) (*server.Server, error) {
 	return server.New(server.Config{
 		Sessions:   stack.Sessions,
 		MCP:        stack.MCP,
@@ -17,6 +17,7 @@ func newOperationService(stack Stack, info protocol.ServerInfo) (*server.Server,
 		ServerInfo: info,
 		IdempotencyLimits: protocol.IdempotencyLimits{
 			RetentionSeconds: int(idempotency.Retention.Seconds()),
+			Namespace:        idempotencyNamespace,
 		},
 		Runs:                   stack.Runs,
 		FileChanges:            stack.FileChanges,

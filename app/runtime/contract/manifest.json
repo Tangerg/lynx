@@ -5418,6 +5418,10 @@
         {
           "field": "retentionSeconds",
           "constraint": "positive"
+        },
+        {
+          "field": "namespace",
+          "constraint": "nonEmpty"
         }
       ]
     },

@@ -164,6 +164,12 @@ body：
 claim 时清理过期结果。没有 outcome 的 reservation 不按时间自动释放：进程崩溃后，时间流逝无法证明此前业务写入没有 commit，
 自动释放会让同 key 第二次运行 handler。调用方若明确选择新的逻辑操作，必须使用新 key。
 
+`runtime.discover.capabilities.limits.idempotency.namespace` 是 durable replay store 的 opaque 身份，不是路径或凭证。需要跨客户端
+进程保存未决 key 时，客户端必须同时绑定规范化 endpoint 与该 namespace；同 URL 指向被删除/重建的数据目录时 namespace 会变化，
+旧 key 必须 fail closed，不得投递到新 store。客户端只持久化 method/params 的不可逆匹配指纹、key、scope 与 retention 时间，不能把
+prompt、credential、文件内容或完整 params 写进 retry journal。取得确定 JSON-RPC 结果后立即删除记录；transport/protocol 结算不确定
+时才保留。同进程的两个同形 fresh intent 仍必须获得不同 key，不能因 journal lookup 被合并。
+
 **响应按方法分两种形态**（content negotiation —— client 按响应 `Content-Type` 分支；**哪些方法流式由
 `ServerCapabilities.streamingMethods` 机器可读声明**，见 API.md §9，client 不硬编码方法名）：
 
@@ -368,7 +374,8 @@ server **必须**通过 authoritative 的 `item.completed` / `state.snapshot` �
 
 ## 10. 创建请求重试
 
-有副作用的调用应携带稳定的 `Idempotency-Key`，直到取得确定结果后才生成新 key。只读调用可按其业务语义重试。
+有副作用的调用应携带稳定的 `Idempotency-Key`，直到取得确定结果后才生成新 key。跨进程恢复还必须验证 discovery 发布的
+idempotency namespace 与保存记录一致，并处于 retention window 内。只读调用可按其业务语义重试。
 
 ## 11. 本地门禁 token
 

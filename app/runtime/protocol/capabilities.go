@@ -182,9 +182,12 @@ type RuntimeLimits struct {
 }
 
 // IdempotencyLimits is the replay promise for completed command results.
-// Pending reservations remain bound until an outcome is known.
+// Namespace identifies the exact durable replay store without exposing a path;
+// clients must not restore a persisted key under a different namespace. Pending
+// reservations remain bound until an outcome is known.
 type IdempotencyLimits struct {
-	RetentionSeconds int `json:"retentionSeconds"`
+	RetentionSeconds int    `json:"retentionSeconds"`
+	Namespace        string `json:"namespace"`
 }
 
 // MCPAuthorizationAttemptLimits is the retention promise for terminal

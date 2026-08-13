@@ -133,6 +133,7 @@
     },
     "limits": {
       "idempotency": {
+        "namespace": "idp_0123456789abcdef0123456789abcdef",
         "retentionSeconds": 86400
       },
       "runReplay": {

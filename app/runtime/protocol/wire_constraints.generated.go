@@ -1691,6 +1691,7 @@ func (value RunReplayLimits) ValidateWire() error {
 func (value IdempotencyLimits) ValidateWire() error {
 	return collectWireViolations("IdempotencyLimits",
 		positiveNumber("retentionSeconds", value.RetentionSeconds),
+		requiredText("namespace", value.Namespace),
 	)
 }
 

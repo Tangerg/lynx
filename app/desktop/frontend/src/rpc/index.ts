@@ -31,6 +31,14 @@ export { PaginationError } from "./pagination";
 export type { AutoPagingPromise, CursorPage, PageItem } from "./pagination";
 export type { MutationAttemptOptions, MutationPromise } from "./mutation";
 export { mutationSettlementIsUnknown } from "./mutation";
+export { createMutationJournal } from "./mutationJournal";
+export type {
+  MutationJournal,
+  MutationJournalOptions,
+  MutationJournalScope,
+  MutationJournalStorage,
+  MutationReservation,
+} from "./mutationJournal";
 export {
   createUnaryMutationSettler,
   settleUnaryMutation,
@@ -38,7 +46,13 @@ export {
 } from "./mutationSettlement";
 export type { UnaryMutationSettler } from "./mutationSettlement";
 export { createMethods } from "./methods";
-export type { AgentMemoryTarget, Methods, StreamingResult, WorkspaceMethods } from "./methods";
+export type {
+  AgentMemoryTarget,
+  Methods,
+  MethodsOptions,
+  StreamingResult,
+  WorkspaceMethods,
+} from "./methods";
 export { createLyraClient } from "./sdk";
 export type { LyraClient } from "./sdk";
 export { HTTP_ENDPOINTS, PROTOCOL_VERSION } from "./wire.generated";

@@ -639,6 +639,7 @@ TypeScript validator from this single registry projection.
 | `RunReplayLimits` | `maxEvents` | `positive` |
 | `RunReplayLimits` | `maxBytes` | `positive` |
 | `IdempotencyLimits` | `retentionSeconds` | `positive` |
+| `IdempotencyLimits` | `namespace` | `nonEmpty` |
 | `SubscriptionLimits` | `maxTopics` | `positive` |
 | `SubscriptionLimits` | `maxWatches` | `positive` |
 

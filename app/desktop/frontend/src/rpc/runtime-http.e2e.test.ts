@@ -650,6 +650,14 @@ for await (const line of lines) {
       current: PROTOCOL_VERSION,
       minSupported: PROTOCOL_VERSION,
     });
+    expect(discovery.capabilities.limits.idempotency.namespace).toMatch(/^idp_[0-9a-f]{32}$/);
+    await expect(client.runtime.discover()).resolves.toMatchObject({
+      capabilities: {
+        limits: {
+          idempotency: { namespace: discovery.capabilities.limits.idempotency.namespace },
+        },
+      },
+    });
     expect(discovery.capabilities.streamingMethods).toContain("runtime.subscribe");
 
     const streamController = new AbortController();

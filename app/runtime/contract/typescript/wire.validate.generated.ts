@@ -1120,8 +1120,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     projectTrusted: flag(),
   }, ["hooks", "projectTrusted"]),
   IdempotencyLimits: object({
+    namespace: allOf([text(), minLength(1)]),
     retentionSeconds: allOf([integer(), minimum(1)]),
-  }, ["retentionSeconds"]),
+  }, ["namespace", "retentionSeconds"]),
   ImportSessionRequest: allOf([
     object({
       artifact: ref(() => CHECKS.SessionArtifact),

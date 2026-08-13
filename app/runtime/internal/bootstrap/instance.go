@@ -89,6 +89,7 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 	if err != nil {
 		return nil, config.Settings{}, err
 	}
+	idempotencyNamespace := stores.IdempotencyNamespace
 	storesOwned := true
 	defer func() {
 		if storesOwned {
@@ -142,7 +143,7 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 	}
 	serverInfo.Home = cfg.UserHome
 	serverInfo.DefaultWorkspace = protocol.WorkspaceRef{Path: cfg.DefaultWorkspacePath}
-	service, err := newOperationService(host.Stack, serverInfo)
+	service, err := newOperationService(host.Stack, serverInfo, idempotencyNamespace)
 	if err != nil {
 		return nil, config.Settings{}, err
 	}

@@ -26,7 +26,10 @@ type Bundle struct {
 	closeErr  error
 
 	DataDirectory string
-	Transactor    func(context.Context, func(context.Context) error) error
+	// IdempotencyNamespace identifies the exact durable replay store without
+	// exposing its database path or contents.
+	IdempotencyNamespace string
+	Transactor           func(context.Context, func(context.Context) error) error
 
 	Sessions            *sqlitestore.SessionStore
 	Runs                *sqlitestore.RunStore
@@ -85,13 +88,18 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
+	idempotencyNamespace, err := sqlitestore.IdempotencyNamespace(ctx, db)
+	if err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
 	knowledgeStore, err := knowledgefile.New(config.DataDirectory, config.DefaultWorkspacePath)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("knowledge storage: %w", err), db.Close())
 	}
 	return &Bundle{
-		db:            db,
-		DataDirectory: config.DataDirectory,
+		db:                   db,
+		DataDirectory:        config.DataDirectory,
+		IdempotencyNamespace: idempotencyNamespace,
 		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},

@@ -2,7 +2,9 @@ package sqlite_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -90,5 +92,60 @@ func TestIdempotencyStoreKeepsAbandonedClaimAcrossReopen(t *testing.T) {
 	}
 	if _, _, err := store.Claim(t.Context(), record.Key, "second"); !errors.Is(err, idempotency.ErrKeyConflict) {
 		t.Fatalf("reuse after reopen = %v, want ErrKeyConflict", err)
+	}
+}
+
+func TestIdempotencyNamespaceIdentifiesOneDurableStore(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	openNamespace := func() (*sql.DB, string) {
+		db, err := sqlite.Open(t.Context(), path)
+		if err != nil {
+			t.Fatalf("open: %v", err)
+		}
+		namespace, err := sqlite.IdempotencyNamespace(t.Context(), db)
+		if err != nil {
+			_ = db.Close()
+			t.Fatalf("read namespace: %v", err)
+		}
+		return db, namespace
+	}
+
+	db, first := openNamespace()
+	if err := db.Close(); err != nil {
+		t.Fatalf("close first: %v", err)
+	}
+	db, reopened := openNamespace()
+	if reopened != first {
+		t.Fatalf("reopened namespace = %q, want %q", reopened, first)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close reopened: %v", err)
+	}
+
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if err := os.Remove(path + suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("remove recreated-store fixture %q: %v", path+suffix, err)
+		}
+	}
+	db, replaced := openNamespace()
+	t.Cleanup(func() { _ = db.Close() })
+	if replaced == first {
+		t.Fatalf("replacement store reused namespace %q", replaced)
+	}
+}
+
+func TestIdempotencyNamespaceRejectsCorruptIdentity(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.ExecContext(t.Context(),
+		`UPDATE runtime_identity SET idempotency_namespace = 'not-an-opaque-identity' WHERE id = 1`,
+	); err != nil {
+		t.Fatalf("corrupt namespace fixture: %v", err)
+	}
+	if _, err := sqlite.IdempotencyNamespace(t.Context(), db); err == nil {
+		t.Fatal("read corrupt namespace succeeded")
 	}
 }

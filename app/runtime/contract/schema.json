@@ -2665,12 +2665,17 @@
     "IdempotencyLimits": {
       "type": "object",
       "properties": {
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        },
         "retentionSeconds": {
           "type": "integer",
           "minimum": 1
         }
       },
       "required": [
+        "namespace",
         "retentionSeconds"
       ]
     },

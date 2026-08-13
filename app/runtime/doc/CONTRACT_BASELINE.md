@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `c1f89bf5730719d90f96f99faf6b2b703c8a5f0c2e956b2cfba203c22102c38d` |
+| `contract/manifest.json` | `f8d7269db11a659653315d2bcaa84a7c2cb60f7e75057068574a42026c527063` |
 | `contract/openrpc.json` | `f27ac7f699d43b146b47882a33b74da987404f00475c56bc5b76d1c0aad2f3b2` |
-| `contract/schema.json` | `d1a7a4b8933787aadc7340c02de2d2cd32a373976abb2062f3e144c05bdf1bc1` |
-| `contract/go-api.json` | `35aca78cbadf63c8807b0564c417dba5b93f9f91819b34197ad0111f6e2ade7b` |
+| `contract/schema.json` | `d10adabac35fd4f953cfdc2654bad72ea44f81460ff545dc3f5cedd1fe000372` |
+| `contract/go-api.json` | `18031cd1f41722469601b81892bad4d1ae1a1d9bd448468a8285638c2860a46c` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -69,7 +69,8 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 69`；
+- 当前 `schemaEpoch = 70`；
+- `runtime_identity` 的单例 opaque namespace 与同一 durable idempotency replay store 共存亡；保留数据库重启不变，删除/重建同路径数据库必须变化，且不暴露数据库路径；
 - Goal aggregate 与 Goal terminal ledger 使用 `incarnation_id`，Run/Interrupt provenance 使用 `goal_incarnation_id`；已退休的 `lease_id`/`goal_lease_id` 列不存在且不双读；
 - Goal aggregate 还持久化 fresh Start 时协商并冻结的 canonical Run capabilities；Goal Resume 的调用方能力必须覆盖该集合，自治 Run 与 Goal 内 `create_goal` 都继承相同集合；
 - executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/input-request binding JSON 使用 `memberId`/`requestId`；

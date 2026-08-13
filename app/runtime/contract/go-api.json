@@ -4535,6 +4535,11 @@
               "name": "RetentionSeconds",
               "type": "int",
               "tag": "json:\"retentionSeconds\""
+            },
+            {
+              "name": "Namespace",
+              "type": "string",
+              "tag": "json:\"namespace\""
             }
           ],
           "methods": [
