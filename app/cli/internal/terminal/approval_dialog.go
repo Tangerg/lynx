@@ -459,6 +459,10 @@ func (a *app) retireAcknowledgedResume(commandID agent.CommandID) error {
 
 func (a *app) restoreRejectedInteractionReview(review *interactionReview, command agent.ResumeRun, failure error) error {
 	callFailure, refused := errors.AsType[*resumeRunCallError](failure)
+	if refused && a.workbench != nil && errors.Is(callFailure.err, mutation.ErrReplayGuaranteeUnavailable) {
+		a.reconcileExpiredResume(command)
+		return nil
+	}
 	if !refused || mutation.OutcomeUnknown(callFailure.err) || a.interactionReview != review ||
 		a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != command.RunID {
 		return failure
@@ -480,6 +484,38 @@ func (a *app) restoreRejectedInteractionReview(review *interactionReview, comman
 		return errors.Join(failure, err)
 	}
 	return nil
+}
+
+func (a *app) reconcileExpiredResume(command agent.ResumeRun) {
+	a.following = false
+	a.status.note("resume replay expired · checking runtime state")
+	a.syncAnimation()
+	sessionID := a.session.ID
+	started := runSessionSettlement(
+		a, resumeRecoveryOperation, false,
+		func(ctx context.Context) (agent.SessionSnapshot, error) {
+			return a.readInvalidatedSession(ctx, sessionID)
+		},
+		func(snapshot agent.SessionSnapshot, err error) {
+			if err != nil {
+				a.message("could not reconcile expired interaction delivery: " + err.Error())
+				a.status.note("resume outcome unknown · decisions preserved")
+				return
+			}
+			pending, ok := a.workbench.PendingResume(sessionID)
+			if !ok || pending.Command.CommandID != command.CommandID {
+				return
+			}
+			if err := a.installSnapshot(snapshot); err != nil {
+				a.fail(fmt.Errorf("reconcile expired interaction delivery: %w", err))
+				return
+			}
+			a.restorePendingResume()
+		},
+	)
+	if !started {
+		a.status.note("resume outcome unknown · decisions preserved")
+	}
 }
 
 func (a *app) abortInteractions(reason string) {

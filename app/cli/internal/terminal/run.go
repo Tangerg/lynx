@@ -267,10 +267,18 @@ func commandReplaySafeAt(
 	profile *runtimeprofile.Profile,
 	now time.Time,
 ) bool {
+	return commandReplayStoreMatches(guard, profile) &&
+		(profile == nil || now.Before(guard.Until))
+}
+
+func commandReplayStoreMatches(
+	guard workbench.ReplayGuard,
+	profile *runtimeprofile.Profile,
+) bool {
 	if profile == nil {
 		return guard.Empty()
 	}
-	return guard.Namespace == profile.Limits.IdempotencyNamespace && now.Before(guard.Until)
+	return guard.Namespace == profile.Limits.IdempotencyNamespace
 }
 
 func commandReplayAdmission(

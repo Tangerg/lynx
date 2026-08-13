@@ -47,6 +47,14 @@ func (window ReplayWindow) guard() (workbench.ReplayGuard, error) {
 	}, nil
 }
 
+func (window ReplayWindow) sameStore(guard workbench.ReplayGuard) bool {
+	if strings.TrimSpace(window.Namespace) == "" && window.Retention == 0 {
+		return guard.Empty()
+	}
+	return strings.TrimSpace(window.Namespace) != "" &&
+		guard.Namespace == strings.TrimSpace(window.Namespace)
+}
+
 // Outcome distinguishes an authoritative confirmation from a definitive
 // refusal and an outcome which must remain durable for later recovery.
 type Outcome uint8
@@ -102,7 +110,8 @@ func Execute(
 		}
 	}
 	if !replaySafe(pending.Replay, window) {
-		return Result{Request: request, Outcome: Unknown}, errors.New("session deletion replay guarantee expired or belongs to another runtime")
+		outcome, err := resolveExpired(ctx, runtime, pending.SessionID, pending.Replay, window)
+		return Result{Request: request, Outcome: outcome}, err
 	}
 	outcome, err := Settle(ctx, runtime, request, pending.Replay, window, backoff)
 	return Result{Request: request, Outcome: outcome}, err
@@ -129,6 +138,15 @@ func Settle(
 	})
 	if err == nil || errors.Is(err, agent.ErrSessionNotFound) {
 		return Confirmed, nil
+	}
+	if errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
+		outcome, resolveErr := resolveExpired(ctx, runtime, request.SessionID, replay, window)
+		if outcome != Unknown {
+			return outcome, resolveErr
+		}
+		return Unknown, errors.Join(
+			fmt.Errorf("delete session outcome is unknown: %w", err), resolveErr,
+		)
 	}
 	if mutation.OutcomeUnknown(err) {
 		return Unknown, fmt.Errorf("delete session outcome is unknown: %w", err)
@@ -178,10 +196,21 @@ func Recover(
 		}
 		result := Result{Request: pending.Request()}
 		if !replaySafe(pending.Replay, window) {
-			return fmt.Errorf(
-				"recover session deletion %s: replay guarantee expired or belongs to another runtime",
-				pending.SessionID,
-			)
+			outcome, err := resolveExpired(ctx, runtime, pending.SessionID, pending.Replay, window)
+			result.Outcome = outcome
+			switch outcome {
+			case Confirmed:
+				if confirmErr := Confirm(authoring, result); confirmErr != nil {
+					return confirmErr
+				}
+			case Rejected:
+				if rejectErr := Reject(authoring, result); rejectErr != nil {
+					return rejectErr
+				}
+			case Unknown:
+				return fmt.Errorf("recover session deletion %s: %w", pending.SessionID, err)
+			}
+			continue
 		}
 		outcome, err := Settle(ctx, runtime, result.Request, pending.Replay, window, backoff)
 		result.Outcome = outcome
@@ -199,6 +228,26 @@ func Recover(
 		}
 	}
 	return nil
+}
+
+func resolveExpired(
+	ctx context.Context,
+	runtime runtime,
+	sessionID string,
+	replay workbench.ReplayGuard,
+	window ReplayWindow,
+) (Outcome, error) {
+	if !window.sameStore(replay) {
+		return Unknown, errors.New("session deletion belongs to another runtime")
+	}
+	_, err := runtime.GetSession(ctx, sessionID)
+	if errors.Is(err, agent.ErrSessionNotFound) {
+		return Confirmed, nil
+	}
+	if err != nil {
+		return Unknown, fmt.Errorf("read deletion outcome: %w", err)
+	}
+	return Rejected, nil
 }
 
 func replaySafe(guard workbench.ReplayGuard, window ReplayWindow) bool {

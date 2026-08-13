@@ -702,6 +702,46 @@ func (s *Store) RejectPendingResume(sessionID string, commandID agent.CommandID)
 	return s.retirePendingResume(sessionID, commandID)
 }
 
+// RequeuePendingResume atomically gives a decision a fresh runtime identity
+// after the owning store's authoritative waiting projection proves the old
+// command did not commit before its replay guarantee expired.
+func (s *Store) RequeuePendingResume(
+	sessionID string,
+	commandID agent.CommandID,
+	replay ReplayGuard,
+) (PendingResume, error) {
+	if err := commandID.Validate(); err != nil {
+		return PendingResume{}, err
+	}
+	if err := replay.Validate(); err != nil {
+		return PendingResume{}, err
+	}
+	replacement, err := agent.NewCommandID()
+	if err != nil {
+		return PendingResume{}, err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, exists := s.pendingResumes[sessionID]
+	if !exists || pending.Command.CommandID != commandID {
+		return PendingResume{}, errors.New("pending resume command identity changed")
+	}
+	pending = clonePendingResume(pending)
+	pending.Command.CommandID = replacement
+	pending.Replay = replay
+	if err := pending.validate(); err != nil {
+		return PendingResume{}, err
+	}
+	if err := s.saveSessionStateWithResume(
+		sessionID, s.drafts[sessionID], s.pendingRuns[sessionID], &pending,
+	); err != nil {
+		return PendingResume{}, err
+	}
+	s.pendingResumes[sessionID] = pending
+	return clonePendingResume(pending), nil
+}
+
 // DiscardPendingResume retires terminal authoring state for a session that the
 // runtime has deleted or replaced. It never runs as part of ordinary session
 // navigation, where the outstanding command must remain recoverable.

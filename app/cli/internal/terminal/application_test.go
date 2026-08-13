@@ -251,6 +251,40 @@ type recordingRuntime struct {
 	starts int
 }
 
+type expiringUncommittedResumeRuntime struct {
+	*mock.Runtime
+
+	mu       sync.Mutex
+	attempts []agent.ResumeRun
+}
+
+func (runtime *expiringUncommittedResumeRuntime) ResumeRun(
+	ctx context.Context,
+	input agent.ResumeRun,
+) (agent.SegmentStream, error) {
+	runtime.mu.Lock()
+	runtime.attempts = append(runtime.attempts, input.Clone())
+	attempt := len(runtime.attempts)
+	runtime.mu.Unlock()
+	if attempt == 1 {
+		timer := time.NewTimer(1100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return agent.SegmentStream{}, agent.ErrDisconnected
+		case <-ctx.Done():
+			return agent.SegmentStream{}, context.Cause(ctx)
+		}
+	}
+	return runtime.Runtime.ResumeRun(ctx, input)
+}
+
+func (runtime *expiringUncommittedResumeRuntime) resumeAttempts() []agent.ResumeRun {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return cloneResumeRuns(runtime.attempts)
+}
+
 type blockingSessionChangeRuntime struct {
 	agent.Runtime
 
@@ -1197,6 +1231,209 @@ func TestPendingMixedInteractionResumeSurvivesRestartWithoutLosingAnswers(t *tes
 	if index < 0 || completed.Transcript[index].Tool == nil ||
 		string(completed.Transcript[index].Tool.ArgumentsJSON) != `{"command":"go test -race ./...","count":20}` {
 		t.Fatalf("completed approval after restart = %+v", completed.Transcript)
+	}
+	stop()
+}
+
+func TestLaunchRetiresAnExpiredResumeAlreadyProvenByTheRuntime(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval", Title: "Already accepted",
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{
+					Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+				}}}
+			},
+		}
+	}
+	opened, err := base.StartRun(t.Context(), agent.StartRun{
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "settle before restart"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range opened.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+	waiting, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil || len(waiting.Interactions) != 1 {
+		t.Fatalf("waiting session = %+v, %v", waiting, err)
+	}
+	command := agent.ResumeRun{
+		CommandID: "cli_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", RunID: opened.RunID,
+		Answers: []agent.InterruptAnswer{{
+			ItemID: agent.InteractionItemID(waiting.Interactions[0]),
+			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
+		}},
+	}
+	continued, err := base.ResumeRun(t.Context(), command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range continued.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := steerReplayTestProfile("/tmp/lyra-cli-test")
+	if err := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
+		Command: command, Interactions: waiting.Interactions,
+		Replay: workbench.ReplayGuard{
+			Namespace: profile.Limits.IdempotencyNamespace, Until: time.Now().UTC().Add(-time.Second),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &replayingResumeRuntime{Runtime: base}
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: runtime, RuntimeProfile: &profile, SessionID: "ses_demo_1",
+		Workspace: "/tmp/lyra-cli-test", StateDirectory: stateDirectory,
+	})
+	host.Shows(t, "complete")
+	if attempts := runtime.resumeAttempts(); len(attempts) != 0 {
+		t.Fatalf("authoritatively settled resume was replayed: %+v", attempts)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, found := reopened.PendingResume("ses_demo_1"); found {
+		t.Fatalf("settled resume remains durable: %+v", durable)
+	}
+	stop()
+}
+
+func TestLaunchReidentifiesAnExpiredResumeProvenUncommitted(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval", Title: "Retry safely",
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{
+					Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+				}}}
+			},
+		}
+	}
+	opened, err := base.StartRun(t.Context(), agent.StartRun{
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "retry after retention"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range opened.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+	waiting, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil || len(waiting.Interactions) != 1 {
+		t.Fatalf("waiting session = %+v, %v", waiting, err)
+	}
+	oldCommand := agent.ResumeRun{
+		CommandID: "cli_fefefefefefefefefefefefefefefefe", RunID: opened.RunID,
+		Answers: []agent.InterruptAnswer{{
+			ItemID: agent.InteractionItemID(waiting.Interactions[0]),
+			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
+		}},
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := steerReplayTestProfile("/tmp/lyra-cli-test")
+	if err := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
+		Command: oldCommand, Interactions: waiting.Interactions,
+		Replay: workbench.ReplayGuard{
+			Namespace: profile.Limits.IdempotencyNamespace, Until: time.Now().UTC().Add(-time.Second),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &replayingResumeRuntime{Runtime: base}
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: runtime, RuntimeProfile: &profile, SessionID: "ses_demo_1",
+		Workspace: "/tmp/lyra-cli-test", StateDirectory: stateDirectory,
+	})
+	host.Shows(t, "complete")
+	attempts := runtime.resumeAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == oldCommand.CommandID ||
+		attempts[0].CommandID != attempts[1].CommandID || !attempts[0].Equal(attempts[1]) {
+		t.Fatalf("reidentified resume attempts = %+v", attempts)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, found := reopened.PendingResume("ses_demo_1"); found {
+		t.Fatalf("reidentified resume remains durable: %+v", durable)
+	}
+	stop()
+}
+
+func TestActiveResumeReconcilesWhenReplayExpiresAfterAnUncertainAttempt(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval", Title: "Expire during delivery",
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{
+					Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+				}}}
+			},
+		}
+	}
+	runtime := &expiringUncommittedResumeRuntime{Runtime: base}
+	stateDirectory := t.TempDir()
+	profile := steerReplayTestProfile("/tmp/lyra-cli-test")
+	profile.Limits.IdempotencyRetentionSeconds = 1
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: runtime, RuntimeProfile: &profile, SessionID: "ses_demo_1",
+		Workspace: "/tmp/lyra-cli-test", StateDirectory: stateDirectory,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("expire one resume acknowledgement")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	attempts := runtime.resumeAttempts()
+	valid := len(attempts) >= 2 && attempts[0].CommandID != attempts[1].CommandID
+	for index := 1; valid && index < len(attempts); index++ {
+		candidate := attempts[index].Clone()
+		candidate.CommandID = attempts[0].CommandID
+		valid = attempts[index].CommandID == attempts[1].CommandID && attempts[0].Equal(candidate)
+	}
+	if !valid {
+		t.Fatalf("expired resume attempts = %+v", attempts)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, found := reopened.PendingResume("ses_demo_1"); found {
+		t.Fatalf("reconciled resume remains durable: %+v", durable)
 	}
 	stop()
 }

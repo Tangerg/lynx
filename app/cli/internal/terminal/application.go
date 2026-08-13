@@ -358,8 +358,8 @@ func (a *app) restorePendingResume() {
 	if !ok {
 		return
 	}
-	if !commandReplaySafe(pending.Replay, a.runtimeProfile) {
-		a.fail(errors.New("recover interaction decisions: replay guarantee expired or belongs to another runtime"))
+	if !commandReplayStoreMatches(pending.Replay, a.runtimeProfile) {
+		a.fail(errors.New("recover interaction decisions: command belongs to another runtime"))
 		return
 	}
 	if a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != pending.Command.RunID ||
@@ -371,6 +371,17 @@ func (a *app) restorePendingResume() {
 			a.fail(fmt.Errorf("retire settled interaction decisions: %w", err))
 		}
 		return
+	}
+	if !commandReplaySafe(pending.Replay, a.runtimeProfile) {
+		requeued, err := a.workbench.RequeuePendingResume(
+			a.session.ID, pending.Command.CommandID, commandReplayGuard(a.runtimeProfile),
+		)
+		if err != nil {
+			a.fail(fmt.Errorf("recover interaction decisions: replace expired command: %w", err))
+			return
+		}
+		pending = requeued
+		a.status.note("interaction delivery expired · retrying safely")
 	}
 	review, err := restoreInteractionReview(pending.Interactions, pending.Command.Answers)
 	if err != nil {

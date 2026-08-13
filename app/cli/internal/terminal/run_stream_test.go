@@ -816,7 +816,7 @@ func TestLaunchDoesNotReplayRunOrResumeOwnershipIntoAnotherRuntimeStore(t *testi
 					t.Fatal(err)
 				}
 			},
-			want: "recover interaction decisions: replay guarantee expired or belongs to another runtime",
+			want: "recover interaction decisions: command belongs to another runtime",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
