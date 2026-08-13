@@ -165,6 +165,57 @@ describe("persistent mutation journal", () => {
     );
   });
 
+  it("does not delete a lease renewed by another renderer after the expiry read", () => {
+    const backing = new MemoryStorage();
+    let currentTime = 31_001;
+    const original = journal({ storage: backing, scope: () => scope, now: () => 1_000 }).reserve(
+      "goals.resume",
+      { sessionId: "ses_renewed" },
+    )!;
+    const persisted = persistedEntry(backing, original.idempotencyKey);
+    persisted.owner = "renewing-renderer";
+    backing.set(`entry:${encodeURIComponent(original.idempotencyKey)}`, persisted);
+    const expiredLeaseKey = "owner:renewing-renderer:expired-generation";
+    const renewedLeaseKey = "owner:renewing-renderer:renewed-generation";
+    backing.set(expiredLeaseKey, {
+      version: 2,
+      owner: "renewing-renderer",
+      leaseId: "expired-generation",
+      startedAt: 0,
+      expiresAt: 31_000,
+    });
+    let injectedRenewal = false;
+    const interleaved: MutationJournalStorage = {
+      get(key) {
+        const value = backing.get(key);
+        if (key === expiredLeaseKey && !injectedRenewal) {
+          injectedRenewal = true;
+          backing.set(renewedLeaseKey, {
+            version: 2,
+            owner: "renewing-renderer",
+            leaseId: "renewed-generation",
+            startedAt: 0,
+            expiresAt: 61_001,
+          });
+        }
+        return value;
+      },
+      set: (key, value) => backing.set(key, value),
+      remove: (key) => backing.remove(key),
+      keys: () => backing.keys(),
+    };
+    const contender = journal({ storage: interleaved, scope: () => scope, now: () => currentTime });
+
+    expect(() => contender.reserve("goals.resume", { sessionId: "ses_renewed" })).toThrow(
+      MutationJournalOwnershipError,
+    );
+    expect(backing.get(expiredLeaseKey)).toBeUndefined();
+    expect(backing.get(renewedLeaseKey)).toMatchObject({ expiresAt: 61_001 });
+    expect(persistedEntry(backing, original.idempotencyKey)).toMatchObject({
+      owner: "renewing-renderer",
+    });
+  });
+
   it("hands unresolved identities to a replacement client and fences the retired settlement", async () => {
     const storage = new MemoryStorage();
     const params = { sessionId: "ses_1" };
@@ -474,17 +525,51 @@ describe("persistent mutation journal", () => {
     const storage = new MemoryStorage();
     const created = journal({ storage, scope: () => scope });
     created.reserve("sessions.delete", { sessionId: "ses_1" });
-    const ownerKey = storage.keys().find((key) => key.startsWith("owner:"));
-    expect(ownerKey).toBeDefined();
-    const firstExpiry = (storage.get(ownerKey!) as { expiresAt: number }).expiresAt;
+    const firstOwnerKey = storage.keys().find((key) => key.startsWith("owner:"));
+    expect(firstOwnerKey).toBeDefined();
+    const firstExpiry = (storage.get(firstOwnerKey!) as { expiresAt: number }).expiresAt;
 
     await vi.advanceTimersByTimeAsync(10_000);
-    const refreshedExpiry = (storage.get(ownerKey!) as { expiresAt: number }).expiresAt;
+    const refreshedOwnerKeys = storage.keys().filter((key) => key.startsWith("owner:"));
+    expect(refreshedOwnerKeys).toHaveLength(1);
+    expect(refreshedOwnerKeys).not.toContain(firstOwnerKey);
+    expect(storage.get(firstOwnerKey!)).toBeUndefined();
+    const refreshedOwnerKey = refreshedOwnerKeys[0]!;
+    const refreshedExpiry = (storage.get(refreshedOwnerKey) as { expiresAt: number }).expiresAt;
     expect(refreshedExpiry).toBeGreaterThan(firstExpiry);
 
     created.dispose();
     await vi.advanceTimersByTimeAsync(20_000);
-    expect(storage.get(ownerKey!)).toBeUndefined();
+    expect(storage.get(refreshedOwnerKey)).toBeUndefined();
+    expect(storage.keys().filter((key) => key.startsWith("owner:"))).toEqual([]);
+  });
+
+  it("reclaims every owned generation when a heartbeat could not remove its predecessor", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-13T00:00:00Z"));
+    const backing = new MemoryStorage();
+    let failNextOwnerRemoval = false;
+    const storage: MutationJournalStorage = {
+      get: (key) => backing.get(key),
+      set: (key, value) => backing.set(key, value),
+      remove(key) {
+        if (key.startsWith("owner:") && failNextOwnerRemoval) {
+          failNextOwnerRemoval = false;
+          throw new Error("interrupted generation cleanup");
+        }
+        backing.remove(key);
+      },
+      keys: () => backing.keys(),
+    };
+    const created = journal({ storage, scope: () => scope });
+    created.reserve("sessions.delete", { sessionId: "ses_1" });
+    failNextOwnerRemoval = true;
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(backing.keys().filter((key) => key.startsWith("owner:"))).toHaveLength(2);
+
+    created.dispose();
+    expect(backing.keys().filter((key) => key.startsWith("owner:"))).toEqual([]);
   });
 
   it("keeps the process lease until the last journal sharing that storage retires", () => {
@@ -492,15 +577,86 @@ describe("persistent mutation journal", () => {
     const first = journal({ storage, scope: () => scope });
     const second = journal({ storage, scope: () => scope });
     first.reserve("sessions.delete", { sessionId: "ses_1" });
+    const firstOwnerKey = storage.keys().find((key) => key.startsWith("owner:"));
+    expect(firstOwnerKey).toBeDefined();
     second.reserve("sessions.delete", { sessionId: "ses_2" });
-    const ownerKey = storage.keys().find((key) => key.startsWith("owner:"));
-    expect(ownerKey).toBeDefined();
+    const ownerKeys = storage.keys().filter((key) => key.startsWith("owner:"));
+    expect(ownerKeys).toHaveLength(2);
+    const secondOwnerKey = ownerKeys.find((key) => key !== firstOwnerKey);
+    expect(secondOwnerKey).toBeDefined();
 
     first.dispose();
-    expect(storage.get(ownerKey!)).toBeDefined();
+    expect(storage.get(firstOwnerKey!)).toBeUndefined();
+    expect(storage.get(secondOwnerKey!)).toBeDefined();
 
     second.dispose();
-    expect(storage.get(ownerKey!)).toBeUndefined();
+    expect(storage.get(secondOwnerKey!)).toBeUndefined();
+  });
+
+  it("fences a late settlement after a distinct renderer takes over an expired lease", async () => {
+    const storage = new MemoryStorage();
+    let currentTime = 1_000;
+    vi.resetModules();
+    const firstContext = await import("./mutationJournal");
+    const first = firstContext.createMutationJournal({
+      storage,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+    vi.resetModules();
+    const secondContext = await import("./mutationJournal");
+    const second = secondContext.createMutationJournal({
+      storage,
+      scope: () => scope,
+      now: () => currentTime,
+    });
+    const params = { sessionId: "ses_cross_renderer" };
+    let settleRetired!: (value: string) => void;
+
+    try {
+      const original = first.reserve("goals.resume", params)!;
+      const originalOwner = persistedEntry(storage, original.idempotencyKey).owner;
+      const retired = original.track(
+        createMutationPromise(
+          () =>
+            new Promise<string>((resolve) => {
+              settleRetired = resolve;
+            }),
+          original.idempotencyKey,
+        ),
+      );
+      await vi.waitFor(() => expect(settleRetired).toBeTypeOf("function"));
+
+      expect(() => second.reserve("goals.resume", params)).toThrow(
+        secondContext.MutationJournalOwnershipError,
+      );
+
+      currentTime = 31_001;
+      const inherited = second.reserve("goals.resume", params)!;
+      expect(inherited.idempotencyKey).toBe(original.idempotencyKey);
+      const successor = persistedEntry(storage, inherited.idempotencyKey);
+      expect(successor.owner).not.toBe(originalOwner);
+
+      settleRetired("late retired success");
+      await expect(retired).resolves.toBe("late retired success");
+      expect(persistedEntry(storage, inherited.idempotencyKey)).toMatchObject({
+        owner: successor.owner,
+        claimable: false,
+      });
+
+      await expect(
+        inherited.track(
+          createMutationPromise(
+            () => Promise.resolve("successor replay"),
+            inherited.idempotencyKey,
+          ),
+        ),
+      ).resolves.toBe("successor replay");
+      expect(storage.entryValues()).toEqual([]);
+    } finally {
+      first.dispose();
+      second.dispose();
+    }
   });
 
   it("hands off through process memory when disposal persistence fails", () => {

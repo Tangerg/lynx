@@ -2,7 +2,8 @@ import { mutationSettlementIsUnknown, type MutationPromise } from "./mutation";
 
 const JOURNAL_VERSION = 2;
 const LEGACY_JOURNAL_VERSION = 1;
-const OWNER_RECORD_VERSION = 1;
+const OWNER_RECORD_VERSION = 2;
+const LEGACY_OWNER_RECORD_VERSION = 1;
 const MAX_ENTRIES = 256;
 const OWNER_LEASE_MS = 30_000;
 const OWNER_HEARTBEAT_MS = 10_000;
@@ -107,11 +108,19 @@ interface LegacyJournalSnapshot {
   entries: LegacyJournalEntry[];
 }
 
-interface OwnerLease {
-  version: typeof OWNER_RECORD_VERSION;
+interface OwnerLeaseBase {
   owner: string;
   startedAt: number;
   expiresAt: number;
+}
+
+interface LegacyOwnerLease extends OwnerLeaseBase {
+  version: typeof LEGACY_OWNER_RECORD_VERSION;
+}
+
+interface OwnerLease extends OwnerLeaseBase {
+  version: typeof OWNER_RECORD_VERSION;
+  leaseId: string;
 }
 
 function journalError(message: string, cause?: unknown): MutationJournalStorageError {
@@ -148,11 +157,10 @@ function validEntry(value: unknown): value is JournalEntry {
   return entry.version === JOURNAL_VERSION && validText(entry.salt, 255) && validLegacyEntry(entry);
 }
 
-function validOwnerLease(value: unknown): value is OwnerLease {
+function validOwnerLeaseBase(value: unknown): value is OwnerLeaseBase {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const lease = value as Partial<OwnerLease>;
+  const lease = value as Partial<OwnerLeaseBase>;
   return (
-    lease.version === OWNER_RECORD_VERSION &&
     validText(lease.owner, 255) &&
     typeof lease.startedAt === "number" &&
     Number.isFinite(lease.startedAt) &&
@@ -161,12 +169,31 @@ function validOwnerLease(value: unknown): value is OwnerLease {
   );
 }
 
+function validLegacyOwnerLease(value: unknown): value is LegacyOwnerLease {
+  return (
+    validOwnerLeaseBase(value) &&
+    (value as Partial<LegacyOwnerLease>).version === LEGACY_OWNER_RECORD_VERSION
+  );
+}
+
+function validOwnerLease(value: unknown): value is OwnerLease {
+  return (
+    validOwnerLeaseBase(value) &&
+    (value as Partial<OwnerLease>).version === OWNER_RECORD_VERSION &&
+    validText((value as Partial<OwnerLease>).leaseId, 255)
+  );
+}
+
 function entryKey(idempotencyKey: string): string {
   return `${ENTRY_PREFIX}${encodeURIComponent(idempotencyKey)}`;
 }
 
-function ownerKey(owner: string): string {
+function legacyOwnerKey(owner: string): string {
   return `${OWNER_PREFIX}${encodeURIComponent(owner)}`;
+}
+
+function ownerKey(owner: string, leaseId: string): string {
+  return `${legacyOwnerKey(owner)}:${encodeURIComponent(leaseId)}`;
 }
 
 function normalizedEndpoint(endpoint: string): string {
@@ -233,20 +260,37 @@ function loadEntries(storage: MutationJournalStorage): JournalEntry[] {
     });
 }
 
-function loadOwnerLeases(storage: MutationJournalStorage, currentTime: number): OwnerLease[] {
-  const active: OwnerLease[] = [];
+function loadOwnerLeases(storage: MutationJournalStorage, currentTime: number): OwnerLeaseBase[] {
+  const active: OwnerLeaseBase[] = [];
   for (const key of readKeys(storage).filter((candidate) => candidate.startsWith(OWNER_PREFIX))) {
     const value = readValue(storage, key);
-    if (!validOwnerLease(value) || ownerKey(value.owner) !== key) {
+    if (validOwnerLease(value) && ownerKey(value.owner, value.leaseId) === key) {
+      if (value.expiresAt > currentTime) active.push(value);
+      else removeValue(storage, key);
+      continue;
+    }
+    if (!validLegacyOwnerLease(value) || legacyOwnerKey(value.owner) !== key) {
       throw journalError(`Runtime mutation journal owner is corrupted: ${key}`);
     }
-    if (value.expiresAt <= currentTime) {
-      removeValue(storage, key);
-    } else {
-      active.push(value);
-    }
+    // A shipped v1 lease was renewed in place, so another renderer cannot
+    // compare-and-delete it safely. Keep only those compatibility tombstones;
+    // v2 heartbeats rotate immutable generations and can be reclaimed above.
+    if (value.expiresAt > currentTime) active.push(value);
   }
   return active;
+}
+
+function ownerCohort(
+  storage: MutationJournalStorage,
+  currentTime: number,
+): { active: Set<string>; leader: string | undefined } {
+  const owners = loadOwnerLeases(storage, currentTime);
+  return {
+    active: new Set(owners.map((owner) => owner.owner)),
+    leader: owners.toSorted(
+      (left, right) => left.startedAt - right.startedAt || left.owner.localeCompare(right.owner),
+    )[0]?.owner,
+  };
 }
 
 function sameMigratedEntry(
@@ -416,6 +460,8 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
   const journalInstance = crypto.randomUUID();
   const activeClaims = activeProcessClaims(options.storage);
   const unconfirmedUnsent = new Set<string>();
+  const leaseIds = new Set<string>();
+  let leaseId: string | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
 
@@ -425,12 +471,21 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
 
   const refreshOwner = (currentTime: number) => {
     assertOpen();
-    persistValue(options.storage, ownerKey(PROCESS_OWNER), {
+    const nextLeaseId = crypto.randomUUID();
+    persistValue(options.storage, ownerKey(PROCESS_OWNER, nextLeaseId), {
       version: OWNER_RECORD_VERSION,
       owner: PROCESS_OWNER,
+      leaseId: nextLeaseId,
       startedAt: PROCESS_STARTED_AT,
       expiresAt: currentTime + OWNER_LEASE_MS,
     } satisfies OwnerLease);
+    leaseIds.add(nextLeaseId);
+    const previousLeaseId = leaseId;
+    leaseId = nextLeaseId;
+    if (previousLeaseId !== undefined) {
+      removeValue(options.storage, ownerKey(PROCESS_OWNER, previousLeaseId));
+      leaseIds.delete(previousLeaseId);
+    }
   };
 
   const startHeartbeat = () => {
@@ -574,11 +629,7 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
       }
       entries = loadEntries(options.storage);
 
-      const owners = loadOwnerLeases(options.storage, currentTime);
-      const activeOwners = new Set(owners.map((owner) => owner.owner));
-      const leader = owners.toSorted(
-        (left, right) => left.startedAt - right.startedAt || left.owner.localeCompare(right.owner),
-      )[0]?.owner;
+      const owners = ownerCohort(options.storage, currentTime);
       const canonical = `${method}\u0000${canonicalJSON(params)}`;
       const matching = entries
         .filter(
@@ -618,15 +669,27 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
           (candidate.claimable || PROCESS_CLAIMABLE.has(candidate.idempotencyKey)),
       );
       if (!entry) {
-        entry = matching.find(
-          (candidate) => !activeOwners.has(candidate.owner) && leader === PROCESS_OWNER,
+        const abandoned = matching.find(
+          (candidate) => !owners.active.has(candidate.owner) && owners.leader === PROCESS_OWNER,
         );
+        if (abandoned) {
+          // Stabilize liveness immediately before the owner transition. A
+          // renderer may have renewed after the first snapshot; if so, its
+          // earlier lease keeps the command and this contender must not send.
+          const confirmed = ownerCohort(options.storage, currentTime);
+          if (confirmed.active.has(abandoned.owner) || confirmed.leader !== PROCESS_OWNER) {
+            throw new MutationJournalOwnershipError(
+              "A matching Runtime mutation was renewed by another live Desktop window",
+            );
+          }
+          entry = abandoned;
+        }
       }
       if (!entry) {
         const uncertainOwner = matching.find(
           (candidate) =>
             candidate.owner !== PROCESS_OWNER &&
-            (activeOwners.has(candidate.owner) || leader !== PROCESS_OWNER),
+            (owners.active.has(candidate.owner) || owners.leader !== PROCESS_OWNER),
         );
         if (uncertainOwner) {
           throw new MutationJournalOwnershipError(
@@ -711,13 +774,15 @@ export function createMutationJournal(options: MutationJournalOptions): Mutation
           }
         }
       }
-      if (activeClaims.size === 0) {
+      for (const ownedLeaseId of leaseIds) {
         try {
-          removeValue(options.storage, ownerKey(PROCESS_OWNER));
+          removeValue(options.storage, ownerKey(PROCESS_OWNER, ownedLeaseId));
+          leaseIds.delete(ownedLeaseId);
         } catch (error) {
           failure ??= error;
         }
       }
+      leaseId = undefined;
       disposed = true;
       if (failure !== undefined) throw failure;
     },

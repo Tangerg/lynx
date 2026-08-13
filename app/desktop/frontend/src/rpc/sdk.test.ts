@@ -40,7 +40,11 @@ describe("createLyraClient", () => {
     const transport = createMemoryTransport();
     const journalFailure = new Error("journal cleanup failed");
     const transportFailure = new Error("transport cleanup failed");
-    vi.spyOn(transport, "close").mockRejectedValue(transportFailure);
+    const closeMemoryTransport = transport.close.bind(transport);
+    vi.spyOn(transport, "close").mockImplementation(async () => {
+      await closeMemoryTransport();
+      throw transportFailure;
+    });
     const client = createLyraClient(transport, {
       mutationJournal: {
         reserve: () => undefined,
@@ -60,12 +64,13 @@ describe("createLyraClient", () => {
     const journalFailure = new Error("journal cleanup failed");
     const transportFailure = new Error("transport cleanup failed");
     let rejectTransport!: (error: unknown) => void;
-    const closeTransport = vi.spyOn(transport, "close").mockImplementation(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectTransport = reject;
-        }),
-    );
+    const closeMemoryTransport = transport.close.bind(transport);
+    const closeTransport = vi.spyOn(transport, "close").mockImplementation(async () => {
+      await closeMemoryTransport();
+      await new Promise<void>((_resolve, reject) => {
+        rejectTransport = reject;
+      });
+    });
     let disposed = false;
     const dispose = vi.fn(() => {
       if (disposed) return;
@@ -80,6 +85,7 @@ describe("createLyraClient", () => {
     const second = client.close();
     expect(dispose).toHaveBeenCalledOnce();
     expect(closeTransport).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(rejectTransport).toBeTypeOf("function"));
     rejectTransport(transportFailure);
 
     const [firstResult, secondResult] = await Promise.allSettled([first, second]);
