@@ -360,6 +360,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Plan:                cfg.PlanStore,
 		Approvals:           cfg.ApprovalRuleStore,
 		ToolResults:         cfg.ToolResultStore,
+		ChildRunStarts:      cfg.ChildRunStartStore,
 		Goals:               cfg.GoalStore,
 		Tx:                  persistence.Transactor(cfg.Transactor),
 	})
@@ -551,6 +552,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
 		ModelInvocations:    cfg.ModelInvocationStore,
 		ToolInvocations:     cfg.ToolInvocationStore,
+		ChildRunStarts:      cfg.ChildRunStartStore,
 		Tx:                  runrecovery.Transactor(cfg.Transactor),
 	})
 	if err != nil {

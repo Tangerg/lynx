@@ -30,6 +30,7 @@ type SessionStores struct {
 	plan                planProjection
 	approvals           approvalRuleCleaner
 	toolResults         *sqlitestore.ToolResultStore
+	childRunStarts      childRunStartReservationCleaner
 	goals               goalStore
 	tx                  Transactor
 }
@@ -45,6 +46,7 @@ type SessionStoresConfig struct {
 	Plan                planProjection
 	Approvals           approvalRuleCleaner
 	ToolResults         *sqlitestore.ToolResultStore
+	ChildRunStarts      childRunStartReservationCleaner
 	Goals               goalStore
 	Tx                  Transactor
 }
@@ -67,6 +69,14 @@ type approvalRuleCleaner interface {
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
+// childRunStartReservationCleaner is the Session-lifecycle slice of the
+// adapter-owned callback ledger. The Application supplies the exact Session
+// write-set; this persistence adapter removes its invisible technical rows
+// alongside the public state they cannot outlive.
+type childRunStartReservationCleaner interface {
+	DeleteSession(ctx context.Context, sessionID string) error
+}
+
 type goalStore interface {
 	Clear(ctx context.Context, sessionID string) error
 	RecordRun(ctx context.Context, record goal.RunRecord) error
@@ -85,6 +95,7 @@ func NewSessionStores(cfg SessionStoresConfig) *SessionStores {
 		plan:                cfg.Plan,
 		approvals:           cfg.Approvals,
 		toolResults:         cfg.ToolResults,
+		childRunStarts:      cfg.ChildRunStarts,
 		goals:               cfg.Goals,
 		tx:                  cfg.Tx,
 	}
@@ -190,6 +201,9 @@ func (s *SessionStores) ApplyRollback(ctx context.Context, rollback sessions.Rol
 			if err := s.executorCheckpoints.DeleteCheckpoints(ctx, rollback.SessionID, rollback.CheckpointRootIDs); err != nil {
 				return err
 			}
+		}
+		if err := s.deleteChildRunStarts(ctx, rollback.SessionID); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -377,6 +391,9 @@ func (s *SessionStores) clearSessionOwnedStateExceptPlan(ctx context.Context, se
 			return err
 		}
 	}
+	if err := s.deleteChildRunStarts(ctx, sessionID); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -423,7 +440,20 @@ func (s *SessionStores) clearParkedRunState(ctx context.Context, root rundomain.
 	}
 	// Delete the interrupt before the terminal write: while it exists the Run is
 	// parked on it, and a Run cannot be both finished and waiting.
-	return s.interrupts.Delete(ctx, root.SessionID(), root.ID())
+	if err := s.interrupts.Delete(ctx, root.SessionID(), root.ID()); err != nil {
+		return err
+	}
+	return s.deleteChildRunStarts(ctx, root.SessionID())
+}
+
+func (s *SessionStores) deleteChildRunStarts(ctx context.Context, sessionID string) error {
+	if s.childRunStarts == nil {
+		return errors.New("persistence: child Run start reservation cleanup is unavailable")
+	}
+	if err := s.childRunStarts.DeleteSession(ctx, sessionID); err != nil {
+		return fmt.Errorf("persistence: delete child Run start reservations for Session %q: %w", sessionID, err)
+	}
+	return nil
 }
 
 func (s *SessionStores) terminalizeParkedRuns(ctx context.Context, runs []rundomain.Run) error {

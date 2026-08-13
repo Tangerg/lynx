@@ -75,6 +75,14 @@ type ToolInvocationStore interface {
 	) error
 }
 
+// ChildRunStartReservations owns the process-scoped callback ledger behind
+// child admission. Its rows are not recovery facts: callbacks die with the
+// process, so boot reconciliation retires the complete prior-process ledger in
+// the same transaction as the public Run repair.
+type ChildRunStartReservations interface {
+	DeleteAll(ctx context.Context) error
+}
+
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
 
 type Config struct {
@@ -87,6 +95,7 @@ type Config struct {
 	ExecutorCheckpoints ExecutorCheckpointStore
 	ModelInvocations    ModelInvocationStore
 	ToolInvocations     ToolInvocationStore
+	ChildRunStarts      ChildRunStartReservations
 	Tx                  Transactor
 }
 
@@ -102,6 +111,7 @@ type Persistence struct {
 	executorCheckpoints ExecutorCheckpointStore
 	modelInvocations    ModelInvocationStore
 	toolInvocations     ToolInvocationStore
+	childRunStarts      ChildRunStartReservations
 	tx                  Transactor
 }
 
@@ -123,6 +133,8 @@ func New(config Config) (*Persistence, error) {
 		return nil, errors.New("runrecovery: model invocation store is required")
 	case config.ToolInvocations == nil:
 		return nil, errors.New("runrecovery: Tool invocation store is required")
+	case config.ChildRunStarts == nil:
+		return nil, errors.New("runrecovery: child Run start reservation store is required")
 	case config.Tx == nil:
 		return nil, errors.New("runrecovery: transactor is required")
 	default:
@@ -136,6 +148,7 @@ func New(config Config) (*Persistence, error) {
 			executorCheckpoints: config.ExecutorCheckpoints,
 			modelInvocations:    config.ModelInvocations,
 			toolInvocations:     config.ToolInvocations,
+			childRunStarts:      config.ChildRunStarts,
 			tx:                  config.Tx,
 		}, nil
 	}
@@ -301,6 +314,9 @@ func (p *Persistence) CommitRecovery(ctx context.Context, commit runs.RecoveryCo
 		}
 		if err := p.executorCheckpoints.DeleteUnownedCheckpoints(ctx, commit.PreservedCheckpointRootIDs); err != nil {
 			return fmt.Errorf("runrecovery: delete unowned executor checkpoints: %w", err)
+		}
+		if err := p.childRunStarts.DeleteAll(ctx); err != nil {
+			return fmt.Errorf("runrecovery: delete prior-process child Run start reservations: %w", err)
 		}
 		return nil
 	})

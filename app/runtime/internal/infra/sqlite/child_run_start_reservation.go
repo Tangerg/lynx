@@ -156,6 +156,45 @@ func (store *ChildRunStartReservationStore) Conclude(
 	return true, nil
 }
 
+// DeleteSession removes every callback receipt owned by one Session. Child
+// reservations are meaningful only while that Session's root execution tree is
+// live; root terminalization, rollback/restore, and Session deletion call this
+// inside their existing write-set so no concluded or reserve-before-abort row
+// outlives its owner.
+func (store *ChildRunStartReservationStore) DeleteSession(
+	ctx context.Context,
+	sessionID string,
+) error {
+	if store == nil || store.db == nil {
+		return errors.New("sqlite: child Run start reservation store is unavailable")
+	}
+	if strings.TrimSpace(sessionID) == "" || sessionID != strings.TrimSpace(sessionID) {
+		return fmt.Errorf("%w: session ID", ErrInvalidChildRunStartReservation)
+	}
+	if _, err := conn(ctx, store.db).ExecContext(ctx,
+		`DELETE FROM child_run_start_reservations WHERE session_id = ?`, sessionID,
+	); err != nil {
+		return fmt.Errorf("sqlite: delete Session child Run start reservations: %w", err)
+	}
+	return nil
+}
+
+// DeleteAll retires the callback ledger of the previous Runtime process during
+// boot reconciliation. No executor callback survives a process boundary, even
+// when the corresponding public Run is a coherent parked tree preserved for
+// later restore.
+func (store *ChildRunStartReservationStore) DeleteAll(ctx context.Context) error {
+	if store == nil || store.db == nil {
+		return errors.New("sqlite: child Run start reservation store is unavailable")
+	}
+	if _, err := conn(ctx, store.db).ExecContext(ctx,
+		`DELETE FROM child_run_start_reservations`,
+	); err != nil {
+		return fmt.Errorf("sqlite: delete child Run start reservations: %w", err)
+	}
+	return nil
+}
+
 func (store *ChildRunStartReservationStore) load(
 	ctx context.Context,
 	memberID string,

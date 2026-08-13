@@ -231,8 +231,11 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// child_run_start_reservations are invisible executor/application ACL
 		// records. They allocate product identity after a managed child admission
 		// but before the executor has conclusively initialized. The conclusive
-		// state is retained so an exact callback replay is distinguishable from a
-		// missing reservation; only started rows have a corresponding public Run.
+		// state is retained while the owning root tree is live so an exact callback
+		// replay is distinguishable from a missing reservation; root terminal and
+		// Session lifecycle write-sets delete that Session's rows, while boot
+		// recovery retires the prior process's complete callback ledger. Only
+		// started rows have a corresponding public Run.
 		`CREATE TABLE IF NOT EXISTS child_run_start_reservations (
 			member_id  TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL,

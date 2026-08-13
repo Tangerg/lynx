@@ -186,6 +186,7 @@ type ChildRunStartReservationStore interface {
 		record sqlite.ChildRunStartReservationRecord,
 		conclusion sqlite.ChildRunStartConclusion,
 	) (changed bool, err error)
+	DeleteSession(ctx context.Context, sessionID string) error
 }
 
 // Transactor runs fn inside one storage transaction: every store call made by

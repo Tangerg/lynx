@@ -995,14 +995,16 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 
 func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 	for _, test := range []struct {
-		name       string
-		deleteFail bool
+		name                 string
+		checkpointDeleteFail bool
+		childCleanupFail     bool
 	}{
 		{name: "commit"},
-		{name: "rollback when checkpoint delete fails", deleteFail: true},
+		{name: "rollback when checkpoint delete fails", checkpointDeleteFail: true},
+		{name: "rollback when child-start cleanup fails", childCleanupFail: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := newTerminalCheckpointFixture(t, test.deleteFail)
+			fixture := newTerminalCheckpointFixture(t, test.checkpointDeleteFail, test.childCleanupFail)
 			finished := finishedRunRecord("run_terminal", "ses_terminal", run.OutcomeCompleted)
 			resolved := mustResolveMessageMark(t, *finished, 0)
 			finished = &resolved
@@ -1011,7 +1013,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 				Outcome: run.OutcomeCompleted, Run: finished,
 				ObsoleteCheckpointRootID: fixture.rootMemberID,
 			})
-			if test.deleteFail {
+			if test.checkpointDeleteFail || test.childCleanupFail {
 				assertTerminalCheckpointRollback(t, fixture, err)
 				return
 			}
@@ -1030,7 +1032,11 @@ type terminalCheckpointFixture struct {
 	effects      *Effects
 }
 
-func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) terminalCheckpointFixture {
+func newTerminalCheckpointFixture(
+	t *testing.T,
+	failCheckpointDeletion bool,
+	failChildStartCleanup bool,
+) terminalCheckpointFixture {
 	t.Helper()
 	database, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
@@ -1085,8 +1091,16 @@ func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) ter
 			err:                     errors.New("delete unavailable"),
 		}
 	}
+	childStarts := ChildRunStartReservationStore(sqlite.NewChildRunStartReservationStore(database))
+	if failChildStartCleanup {
+		childStarts = failingChildRunStartReservationStore{
+			ChildRunStartReservationStore: childStarts,
+			err:                           errors.New("child-start cleanup unavailable"),
+		}
+	}
 	effects := New(Config{
 		State: runStore, Interrupts: interruptStore, ExecutorCheckpoints: checkpointDeleter,
+		ChildRunStarts: childStarts,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, database, fn)
 		},
@@ -1095,6 +1109,15 @@ func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) ter
 		ctx: ctx, database: database, runStore: runStore, checkpoints: checkpointStore,
 		pending: pending, rootMemberID: rootMemberID, effects: effects,
 	}
+}
+
+type failingChildRunStartReservationStore struct {
+	ChildRunStartReservationStore
+	err error
+}
+
+func (store failingChildRunStartReservationStore) DeleteSession(context.Context, string) error {
+	return store.err
 }
 
 func assertTerminalCheckpointRollback(t *testing.T, fixture terminalCheckpointFixture, commitError error) {
@@ -1793,6 +1816,71 @@ func TestCommitEventAppendsConversationBeforeResolvingTerminalWatermark(t *testi
 	runs, err := state.ListRuns(ctx, draft.SessionID)
 	if err != nil || len(runs) != 1 || runs[0].MessageMark() != 1 {
 		t.Fatalf("terminal Run = %#v, %v; want watermark 1", runs, err)
+	}
+}
+
+// TestRootTerminalCommitReclaimsChildStartReservations pins the lifetime of
+// the invisible child-start ledger to its active root tree. The rows retain a
+// conclusive callback while the tree is live, but once the root terminal write
+// commits no executor callback can legally replay. Keeping them forever leaks
+// one durable row per delegated child and leaves reserve-before-crash rows
+// unreachable.
+func TestRootTerminalCommitReclaimsChildStartReservations(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	createdAt := time.Unix(1, 0).UTC()
+	state := sqlite.NewRunStore(db)
+	messages := sqlite.NewMessageStore(db)
+	childStarts := sqlite.NewChildRunStartReservationStore(db)
+	draft := run.Draft{
+		RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: createdAt,
+	}
+	if err := state.Admit(ctx, draft); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	for _, record := range []sqlite.ChildRunStartReservationRecord{
+		{MemberID: "member_child_1", SessionID: "ses_1", Payload: []byte(`{"run":"child_1"}`), CreatedAt: createdAt},
+		{MemberID: "member_other", SessionID: "ses_2", Payload: []byte(`{"run":"other"}`), CreatedAt: createdAt},
+	} {
+		if err := childStarts.Reserve(ctx, record); err != nil {
+			t.Fatalf("reserve child start %q: %v", record.MemberID, err)
+		}
+	}
+	effects := New(Config{
+		Interrupts:          persistence.NewInterruptStore(sqlite.NewInterruptStore(db)),
+		Conversation:        messages,
+		State:               state,
+		ExecutorCheckpoints: persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db)),
+		ChildRunStarts:      childStarts,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeCompleted)
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: draft.RunID, SessionID: draft.SessionID,
+		State: runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
+		ObsoleteCheckpointRootID: "member_root_1",
+	}); err != nil {
+		t.Fatalf("CommitEvent: %v", err)
+	}
+	var owned, foreign int
+	if err := db.QueryRowContext(ctx,
+		`SELECT count(*) FROM child_run_start_reservations WHERE session_id = ?`, "ses_1",
+	).Scan(&owned); err != nil {
+		t.Fatalf("count terminal tree reservations: %v", err)
+	}
+	if err := db.QueryRowContext(ctx,
+		`SELECT count(*) FROM child_run_start_reservations WHERE session_id = ?`, "ses_2",
+	).Scan(&foreign); err != nil {
+		t.Fatalf("count foreign reservations: %v", err)
+	}
+	if owned != 0 || foreign != 1 {
+		t.Fatalf("reservations after root terminal = owned:%d foreign:%d, want 0/1", owned, foreign)
 	}
 }
 

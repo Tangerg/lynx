@@ -37,6 +37,12 @@ func (record goalRunRecorderFunc) RecordRun(ctx context.Context, value goal.RunR
 	return record(ctx, value)
 }
 
+type childRunStartReservationsFunc func(context.Context) error
+
+func (cleanup childRunStartReservationsFunc) DeleteAll(ctx context.Context) error {
+	return cleanup(ctx)
+}
+
 func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
@@ -118,6 +124,7 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		GoalRuns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
 		ModelInvocations: sqlite.NewModelInvocationStore(db),
 		ToolInvocations:  sqlite.NewToolInvocationStore(db),
+		ChildRunStarts:   sqlite.NewChildRunStartReservationStore(db),
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -164,6 +171,90 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	}
 	if remaining != 0 {
 		t.Fatalf("hidden resuming rows = %d, want none", remaining)
+	}
+}
+
+// TestRecoveryReclaimsChildStartsFromTheDeadProcess proves boot reconciliation
+// also owns invisible child-start cleanup. A process can die after Reserve and
+// before either conclusion, including before any child Run becomes public; an
+// empty public recovery plan must still retire that dead process's callback
+// ledger rather than leaking it forever.
+func TestRecoveryReclaimsChildStartsFromTheDeadProcess(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	childStarts := sqlite.NewChildRunStartReservationStore(db)
+	if err := childStarts.Reserve(ctx, sqlite.ChildRunStartReservationRecord{
+		MemberID: "member_abandoned", SessionID: "session_abandoned",
+		Payload: []byte(`{"run":"child_abandoned"}`), CreatedAt: time.Unix(1, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("Reserve: %v", err)
+	}
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	checkpoint := runs.ExecutorCheckpoint{
+		RootMemberID: "member_orphan", Payload: []byte(`{"opaque":true}`), BuildID: "build",
+		Scope: runs.ExecutionScope{SessionID: "session_abandoned"},
+	}
+	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
+		t.Fatalf("SaveCheckpoint: %v", err)
+	}
+	cleanupFailure := errors.New("child-start cleanup failed")
+	failingStore, err := New(Config{
+		Sessions: sqlite.NewSessionStore(db), Runs: sqlite.NewRunStore(db),
+		Interrupts: persistence.NewInterruptStore(sqlite.NewInterruptStore(db)),
+		Transcript: sqlite.NewTranscriptStore(db), Messages: sqlite.NewMessageStore(db),
+		ExecutorCheckpoints: checkpointStore,
+		ModelInvocations:    sqlite.NewModelInvocationStore(db),
+		ToolInvocations:     sqlite.NewToolInvocationStore(db),
+		ChildRunStarts: childRunStartReservationsFunc(func(context.Context) error {
+			return cleanupFailure
+		}),
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	if err != nil {
+		t.Fatalf("New failing persistence: %v", err)
+	}
+	if err := failingStore.CommitRecovery(ctx, runs.RecoveryCommit{}); !errors.Is(err, cleanupFailure) {
+		t.Fatalf("failed CommitRecovery = %v, want %v", err, cleanupFailure)
+	}
+	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); err != nil {
+		t.Fatalf("cleanup failure did not roll back preceding checkpoint cleanup: %v", err)
+	}
+
+	store, err := New(Config{
+		Sessions: sqlite.NewSessionStore(db), Runs: sqlite.NewRunStore(db),
+		Interrupts: persistence.NewInterruptStore(sqlite.NewInterruptStore(db)),
+		Transcript: sqlite.NewTranscriptStore(db), Messages: sqlite.NewMessageStore(db),
+		ExecutorCheckpoints: checkpointStore,
+		ModelInvocations:    sqlite.NewModelInvocationStore(db),
+		ToolInvocations:     sqlite.NewToolInvocationStore(db),
+		ChildRunStarts:      childStarts,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	if err != nil {
+		t.Fatalf("New persistence: %v", err)
+	}
+	if err := store.CommitRecovery(ctx, runs.RecoveryCommit{}); err != nil {
+		t.Fatalf("CommitRecovery: %v", err)
+	}
+	var remaining int
+	if err := db.QueryRowContext(ctx,
+		`SELECT count(*) FROM child_run_start_reservations`,
+	).Scan(&remaining); err != nil {
+		t.Fatalf("count child-start reservations: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("child-start reservations after boot recovery = %d, want 0", remaining)
+	}
+	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("orphan checkpoint after successful recovery = %v, want not found", err)
 	}
 }
 
@@ -272,6 +363,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		ExecutorCheckpoints: checkpointStore,
 		ModelInvocations:    modelInvocations,
 		ToolInvocations:     toolInvocations,
+		ChildRunStarts:      sqlite.NewChildRunStartReservationStore(db),
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -319,6 +411,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		ExecutorCheckpoints: checkpointStore,
 		ModelInvocations:    modelInvocations,
 		ToolInvocations:     toolInvocations,
+		ChildRunStarts:      sqlite.NewChildRunStartReservationStore(db),
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -451,6 +544,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		Sessions: sessionStore, Runs: runStore, Interrupts: interruptStore, Transcript: transcriptStore,
 		Messages: sqlite.NewMessageStore(db), GoalRuns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
 		ModelInvocations: sqlite.NewModelInvocationStore(db), ToolInvocations: sqlite.NewToolInvocationStore(db),
+		ChildRunStarts: sqlite.NewChildRunStartReservationStore(db),
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},

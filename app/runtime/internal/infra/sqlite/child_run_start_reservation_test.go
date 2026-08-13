@@ -77,3 +77,49 @@ func TestChildRunStartReservationRejectsMissingAndChangedIdentity(t *testing.T) 
 		t.Fatalf("changed replay = %v, want conflict", err)
 	}
 }
+
+func TestChildRunStartReservationCleanupIsOwnerScopedAndBootWide(t *testing.T) {
+	db, err := storage.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := storage.NewChildRunStartReservationStore(db)
+	for _, record := range []storage.ChildRunStartReservationRecord{
+		{MemberID: "member-a", SessionID: "session-a", Payload: []byte(`{"run":"a"}`), CreatedAt: time.Unix(1, 0)},
+		{MemberID: "member-b", SessionID: "session-b", Payload: []byte(`{"run":"b"}`), CreatedAt: time.Unix(2, 0)},
+	} {
+		if err := store.Reserve(t.Context(), record); err != nil {
+			t.Fatalf("Reserve %q: %v", record.MemberID, err)
+		}
+	}
+	if err := store.DeleteSession(t.Context(), "session-a"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	var sessionA, sessionB int
+	if err := db.QueryRowContext(t.Context(),
+		`SELECT count(*) FROM child_run_start_reservations WHERE session_id = ?`, "session-a",
+	).Scan(&sessionA); err != nil {
+		t.Fatalf("count session-a: %v", err)
+	}
+	if err := db.QueryRowContext(t.Context(),
+		`SELECT count(*) FROM child_run_start_reservations WHERE session_id = ?`, "session-b",
+	).Scan(&sessionB); err != nil {
+		t.Fatalf("count session-b: %v", err)
+	}
+	if sessionA != 0 || sessionB != 1 {
+		t.Fatalf("owner cleanup = session-a:%d session-b:%d, want 0/1", sessionA, sessionB)
+	}
+	if err := store.DeleteAll(t.Context()); err != nil {
+		t.Fatalf("DeleteAll: %v", err)
+	}
+	var remaining int
+	if err := db.QueryRowContext(t.Context(),
+		`SELECT count(*) FROM child_run_start_reservations`,
+	).Scan(&remaining); err != nil {
+		t.Fatalf("count remaining: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("reservations after DeleteAll = %d, want 0", remaining)
+	}
+}

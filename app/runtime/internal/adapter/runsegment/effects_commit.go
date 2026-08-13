@@ -340,6 +340,12 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 		if err := e.interrupts.Delete(ctx, commit.SessionID, commit.RunID); err != nil {
 			return fmt.Errorf("runsegment: delete terminal interrupt for root Run %q: %w", commit.RunID, err)
 		}
+		if e.childRunStarts == nil {
+			return errors.New("runsegment: child Run start persistence is unavailable")
+		}
+		if err := e.childRunStarts.DeleteSession(ctx, commit.SessionID); err != nil {
+			return fmt.Errorf("runsegment: delete terminal child Run start reservations: %w", err)
+		}
 		return nil
 	})
 	if err != nil {

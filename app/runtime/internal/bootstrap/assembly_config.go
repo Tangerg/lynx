@@ -113,8 +113,10 @@ type Config struct {
 	// would violate the restart-safe admission invariant.
 	RunStore *sqlitestore.RunStore
 
-	// Invocation journals and child-start reservations close the
-	// executor's durable side-effect and admission boundaries. Required.
+	// Invocation journals and child-start reservations close the executor's
+	// durable side-effect and admission boundaries. Child-start callback receipts
+	// live only for their active root tree/process and are reclaimed by terminal,
+	// Session lifecycle, and boot-recovery write-sets. Required.
 	ModelInvocationStore *sqlitestore.ModelInvocationStore
 	ToolInvocationStore  *sqlitestore.ToolInvocationStore
 	ChildRunStartStore   *sqlitestore.ChildRunStartReservationStore

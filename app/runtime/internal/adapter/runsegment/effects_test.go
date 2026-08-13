@@ -892,6 +892,8 @@ func (store *fakeChildRunStarts) Conclude(
 	return true, nil
 }
 
+func (*fakeChildRunStarts) DeleteSession(context.Context, string) error { return nil }
+
 type fakeTranscript struct {
 	items []transcript.Item
 }

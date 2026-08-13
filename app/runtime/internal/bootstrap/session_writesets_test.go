@@ -118,6 +118,7 @@ type sessionStores struct {
 	plan        *sqlite.PlanStore
 	approvals   *sqlite.ApprovalRuleStore
 	toolResults *sqlite.ToolResultStore
+	childStarts *sqlite.ChildRunStartReservationStore
 	goals       *sqlite.GoalStore
 }
 
@@ -144,12 +145,13 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *persist
 		plan:        plan,
 		approvals:   approvals,
 		toolResults: sqlite.NewToolResultStore(db),
+		childStarts: sqlite.NewChildRunStartReservationStore(db),
 		goals:       sqlite.NewGoalStore(db),
 	}
 	ss.SessionStores = persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions: ss.sessions, Transcript: ss.transcript, Interrupts: ss.interrupts,
 		Runs: ss.runs, ExecutorCheckpoints: ss.checkpoints, History: ss.history, Plan: ss.plan,
-		Approvals: ss.approvals, ToolResults: ss.toolResults, Goals: ss.goals,
+		Approvals: ss.approvals, ToolResults: ss.toolResults, ChildRunStarts: ss.childStarts, Goals: ss.goals,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -624,6 +626,13 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
 	memberID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
+	childStart := sqlite.ChildRunStartReservationRecord{
+		MemberID: "member_child_start", SessionID: "ses_A",
+		Payload: []byte(`{"run":"child"}`), CreatedAt: parkCreatedAt,
+	}
+	if err := ss.childStarts.Reserve(ctx, childStart); err != nil {
+		t.Fatalf("seed child-start reservation: %v", err)
+	}
 	orphanMemberID := "member_orphan"
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(orphanMemberID, "ses_A")); err != nil {
 		t.Fatalf("seed orphan checkpoint: %v", err)
@@ -653,6 +662,13 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	}
 	if got, err := ss.approvals.Visible(ctx, "ses_A", ""); err != nil || len(got) != 0 {
 		t.Fatalf("session approvals after delete = %+v, %v, want cleared", got, err)
+	}
+	// Reusing the old member identity with a different payload succeeds only if
+	// the deleted Session's invisible child-start row was removed in the same write-set.
+	reusedChildStart := childStart
+	reusedChildStart.Payload = []byte(`{"run":"new-child"}`)
+	if err := ss.childStarts.Reserve(ctx, reusedChildStart); err != nil {
+		t.Fatalf("child-start reservation survived Session delete: %v", err)
 	}
 	// The non-terminal admission row is gone (not just terminal), so a fresh admit
 	// succeeds — proving the delete cascade dropped the runs rows.
