@@ -168,8 +168,14 @@ func (j *journal) appendLocked(charged chargedEvent) {
 		j.retainedBytes += charged.bytes
 		j.evictLocked()
 	}
-	for _, subscriber := range j.subs {
-		subscriber.enqueue(ev, charged.bytes)
+	for id, subscriber := range j.subs {
+		if !subscriber.enqueue(ev, charged.bytes) {
+			// Overflow is a disconnection even when the consumer has not started
+			// ranging and therefore cannot run the sequence's deferred Cancel.
+			// The journal owns this registry, so retire the subscriber here under
+			// the same lock that serialized the publication which disconnected it.
+			delete(j.subs, id)
+		}
 	}
 }
 
@@ -377,29 +383,31 @@ func newJournalSubscriber(backlog []chargedEvent, retention Retention) *journalS
 
 // enqueue queues one event, or drops it when it is non-replayable and the consumer
 // is behind. size is what the journal charged for it, zero for non-replayable
-// events.
+// events. It reports whether the journal should retain this subscription:
+// lossy live-only overflow stays attached, while authoritative overflow aborts
+// and retires it.
 //
 // A replayable event is never dropped: a stream missing one is a stream the
 // client would fold into a wrong state without being able to tell. So a consumer
 // that lets the replay backlog reach the retention window is disconnected
 // instead, and reads the abnormal end of stream as "reconnect and recover".
-func (s *journalSubscriber) enqueue(ev Event, size int) {
+func (s *journalSubscriber) enqueue(ev Event, size int) bool {
 	s.mu.Lock()
 	if s.finishing || s.aborted {
 		s.mu.Unlock()
-		return
+		return false
 	}
 	if !ev.Replayable() {
 		if s.queuedLive >= liveHeadroom {
 			s.mu.Unlock()
-			return
+			return true
 		}
 		s.queuedLive++
 	} else {
 		if s.queuedReplayable >= s.retention.MaxEvents || s.queuedBytes+size > s.retention.MaxBytes {
 			s.mu.Unlock()
 			s.abort()
-			return
+			return false
 		}
 		s.queuedReplayable++
 		s.queuedBytes += size
@@ -413,6 +421,7 @@ func (s *journalSubscriber) enqueue(ev Event, size int) {
 	s.queue = append(s.queue, chargedEvent{event: ev, bytes: size})
 	s.ready.Signal()
 	s.mu.Unlock()
+	return true
 }
 
 // finish marks the stream complete: the subscriber drains its remaining queue in

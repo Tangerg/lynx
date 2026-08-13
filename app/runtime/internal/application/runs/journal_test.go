@@ -338,6 +338,32 @@ func TestJournal_StalledAuthoritativeConsumerIsDisconnected(t *testing.T) {
 	}
 }
 
+// Disconnecting a subscriber is also a journal-ownership transition. A caller
+// may not have started ranging yet (for example while its transport is still
+// writing the stream acknowledgement), so relying on the sequence's deferred
+// Cancel would retain the aborted subscriber for the rest of a long-running
+// Segment and visit it on every later publication.
+func TestJournal_OverflowDetachesBeforeTheConsumerStarts(t *testing.T) {
+	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
+		Retention{MaxEvents: 2, MaxBytes: DefaultRetention().MaxBytes})
+	attached := j.tail()
+	defer attached.Cancel()
+
+	for range 3 {
+		j.append(ev(true))
+	}
+
+	j.mu.Lock()
+	subscribers := len(j.subs)
+	j.mu.Unlock()
+	if subscribers != 0 {
+		t.Fatalf("subscribers after authoritative overflow = %d, want 0", subscribers)
+	}
+	if got := drain(attached.Events); len(got) != 0 {
+		t.Fatalf("aborted subscriber delivered queued events: %v", got)
+	}
+}
+
 // TestJournalCancelUnblocksWaitingSubscriber guards the external cancellation
 // contract: a consumer blocked inside the source cannot stop its own range.
 func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
