@@ -12,7 +12,7 @@ import (
 //
 // The wrapper exists because a goal changes from many places — the lifecycle
 // commands, each autonomous Run's disposition, the model's reported outcome, the
-// boot reconcile — and all of them go through these three writes. Publishing at the
+// boot reconcile — and all of them go through these two writes. Publishing at the
 // write is what makes "a client is told whenever a goal moves" true by construction
 // instead of by every caller remembering; it is also why the 4-second poll this
 // replaces could be deleted rather than merely lengthened.
@@ -41,14 +41,6 @@ func (s notifyingStore) Save(ctx context.Context, g goal.Goal, expected goal.Ver
 		s.publish(g.SessionID)
 	}
 	return saved, applied, err
-}
-
-func (s notifyingStore) Clear(ctx context.Context, sessionID string) error {
-	if err := s.Store.Clear(ctx, sessionID); err != nil {
-		return err
-	}
-	s.publish(sessionID)
-	return nil
 }
 
 func (s notifyingStore) ClearIf(ctx context.Context, sessionID string, expected goal.Version) (bool, error) {

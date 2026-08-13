@@ -16,7 +16,6 @@ type Store interface {
 	// snapshot. Revision on g is ignored: expected is the sole CAS authority.
 	// A lost compare-and-swap returns the zero Goal with applied=false.
 	Save(ctx context.Context, g goal.Goal, expected goal.Version) (saved goal.Goal, applied bool, err error)
-	Clear(ctx context.Context, sessionID string) error
 	ClearIf(ctx context.Context, sessionID string, expected goal.Version) (applied bool, err error)
 	List(ctx context.Context) ([]goal.Goal, error)
 }
@@ -33,4 +32,7 @@ type RunRecorder interface {
 type DurableStore interface {
 	Store
 	RunRecorder
+	// Clear is reserved for the session aggregate's atomic delete write-set.
+	// Goal lifecycle and boot recovery use versioned ClearIf instead.
+	Clear(ctx context.Context, sessionID string) error
 }

@@ -75,6 +75,34 @@ type pauseCompletionRaceStore struct {
 	won atomic.Bool
 }
 
+type conflictingReconcileStore struct {
+	goals.Store
+	rejectSave  bool
+	rejectClear bool
+}
+
+func (s conflictingReconcileStore) Save(
+	context.Context,
+	goal.Goal,
+	goal.Version,
+) (goal.Goal, bool, error) {
+	if s.rejectSave {
+		return goal.Goal{}, false, nil
+	}
+	panic("unexpected Save")
+}
+
+func (s conflictingReconcileStore) ClearIf(
+	context.Context,
+	string,
+	goal.Version,
+) (bool, error) {
+	if s.rejectClear {
+		return false, nil
+	}
+	panic("unexpected ClearIf")
+}
+
 func (s *pauseCompletionRaceStore) Save(
 	ctx context.Context,
 	candidate goal.Goal,
@@ -1409,6 +1437,47 @@ func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {
 	}
 	if g, _, _ := store.Get(context.Background(), "held"); g.Status != goal.StatusPaused || g.Reason != (goal.Reason{Code: goal.ReasonAwaitingInput}) {
 		t.Fatalf("paused goal was disturbed: %+v", g)
+	}
+}
+
+func TestReconcileFailsClosedWhenARecoveryCASDoesNotLand(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		status      goal.Status
+		rejectSave  bool
+		rejectClear bool
+	}{
+		{name: "active pause", status: goal.StatusActive, rejectSave: true},
+		{name: "complete clear", status: goal.StatusComplete, rejectClear: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := newMemStore()
+			now := time.Unix(0, 0)
+			seed, err := goal.New("session", "objective", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "incarnation", now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.status == goal.StatusComplete {
+				seed.Complete(now)
+			}
+			seed, applied, err := store.Save(t.Context(), seed, goal.Version{})
+			if err != nil || !applied {
+				t.Fatalf("seed Goal: applied=%t err=%v", applied, err)
+			}
+			conflicting := conflictingReconcileStore{
+				Store: store, rejectSave: test.rejectSave, rejectClear: test.rejectClear,
+			}
+			d := goals.NewDriver(conflicting, &fakeRuns{t: t, store: store}, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+			cleanupDriver(t, d)
+
+			if err := d.Reconcile(t.Context()); !errors.Is(err, goals.ErrGoalConflict) {
+				t.Fatalf("Reconcile conflict error = %v, want %v", err, goals.ErrGoalConflict)
+			}
+			current, present, err := store.Get(t.Context(), seed.SessionID)
+			if err != nil || !present || current.Version() != seed.Version() || current.Status != test.status {
+				t.Fatalf("conflicting recovery changed Goal: present=%t current=%+v err=%v", present, current, err)
+			}
+		})
 	}
 }
 

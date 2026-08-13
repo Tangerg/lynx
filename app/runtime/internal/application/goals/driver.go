@@ -357,7 +357,10 @@ func (d *Driver) quiesceDrive(ctx context.Context, sessionID string) error {
 // orphan sweep. A live drive cannot survive a restart, so an active Goal becomes
 // paused (resume to continue) rather than being silently resumed and left to
 // burn budget; a goal caught at the transient complete status is cleared. Run
-// once at startup, before any goal can be started, so it needs no CAS.
+// once at startup, before any goal can be started. Every transition still uses
+// the listed snapshot's version and fails closed on a CAS miss: persistence may
+// be shared with another process or faulting, and startup must never report
+// success while an active Goal remains without an in-process drive.
 func (d *Driver) Reconcile(ctx context.Context) error {
 	all, err := d.goals.List(ctx)
 	if err != nil {
@@ -369,8 +372,12 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 			return err
 		}
 		if !exists {
-			if err := d.goals.Clear(ctx, g.SessionID); err != nil {
+			applied, err := d.goals.ClearIf(ctx, g.SessionID, g.Version())
+			if err != nil {
 				return err
+			}
+			if !applied {
+				return ErrGoalConflict
 			}
 			continue
 		}
@@ -378,12 +385,18 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 		case goal.StatusActive:
 			expected := g.Version()
 			g.Pause(goal.ReasonRuntimeRestarted, "", d.now())
-			if _, _, err := d.goals.Save(ctx, g, expected); err != nil {
+			if _, applied, err := d.goals.Save(ctx, g, expected); err != nil {
 				return err
+			} else if !applied {
+				return ErrGoalConflict
 			}
 		case goal.StatusComplete:
-			if err := d.goals.Clear(ctx, g.SessionID); err != nil {
+			applied, err := d.goals.ClearIf(ctx, g.SessionID, g.Version())
+			if err != nil {
 				return err
+			}
+			if !applied {
+				return ErrGoalConflict
 			}
 		}
 	}
