@@ -72,10 +72,11 @@ func installChangedSessionProjection(
 type mutableRuntimeCatalog struct {
 	agent.Runtime
 
-	mu      sync.Mutex
-	models  []agent.Model
-	rules   []agent.ApprovalRule
-	deleted chan string
+	mu                 sync.Mutex
+	models             []agent.Model
+	rules              []agent.ApprovalRule
+	deleted            chan string
+	ignoreRuleDeletion bool
 }
 
 type blockingApprovalModeRuntime struct {
@@ -171,7 +172,9 @@ func (catalog *mutableRuntimeCatalog) ListApprovalRules(context.Context, string)
 
 func (catalog *mutableRuntimeCatalog) DeleteApprovalRule(_ context.Context, id string) error {
 	catalog.mu.Lock()
-	catalog.rules = slices.DeleteFunc(catalog.rules, func(rule agent.ApprovalRule) bool { return rule.ID == id })
+	if !catalog.ignoreRuleDeletion {
+		catalog.rules = slices.DeleteFunc(catalog.rules, func(rule agent.ApprovalRule) bool { return rule.ID == id })
+	}
 	catalog.mu.Unlock()
 	if catalog.deleted != nil {
 		catalog.deleted <- id
@@ -445,6 +448,29 @@ func TestApprovalRuleDeletionResolvesAUniquePrefixAndSurvivesResize(t *testing.T
 		t.Fatalf("deleted approval rule = %q", id)
 	}
 	host.Shows(t, "No remembered approval rules")
+	stop()
+}
+
+func TestApprovalRuleDeletionDoesNotReportSuccessWhenRuleRemains(t *testing.T) {
+	catalog := &mutableRuntimeCatalog{
+		Runtime: mock.New(), deleted: make(chan string, 1), ignoreRuleDeletion: true,
+	}
+	catalog.setRules(agent.ApprovalRule{
+		ID: "rule_external_123", Scope: agent.RememberGlobal, Tool: "shell",
+		Subject: "go test ./...", Decision: agent.ApprovalRuleAllow,
+	})
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: catalog})
+	host.Shows(t, "Ask lyra")
+	host.Type("/rule-delete rule_external_123")
+	host.Press(input.Enter)
+	host.Shows(t, "Forget approval rule")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if id := awaitValue(t, catalog.deleted, "ignored approval rule deletion"); id != "rule_external_123" {
+		t.Fatalf("deleted approval rule = %q", id)
+	}
+	host.Shows(t, "forget approval rule failed: verify approval rule deletion")
+	host.Hides(t, "approval rule forgotten")
 	stop()
 }
 

@@ -178,3 +178,21 @@ func ValidateApprovalRules(rules []ApprovalRule) error {
 	}
 	return nil
 }
+
+// ValidateApprovalRuleDeletion proves that an authoritative rule catalog no
+// longer contains the exact identity passed to DeleteApprovalRule.
+func ValidateApprovalRuleDeletion(rules []ApprovalRule, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("deleted approval rule id is empty")
+	}
+	if err := ValidateApprovalRules(rules); err != nil {
+		return err
+	}
+	for _, rule := range rules {
+		if rule.ID == id {
+			return fmt.Errorf("approval rule %q remains after deletion", id)
+		}
+	}
+	return nil
+}

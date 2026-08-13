@@ -308,23 +308,36 @@ func resolveApprovalRule(rules []agent.ApprovalRule, identity string) (agent.App
 	}
 }
 
+type approvalRuleDeletionResult struct {
+	id    string
+	rules []agent.ApprovalRule
+}
+
 func (a *app) deleteApprovalRule(sessionID, id string) {
 	a.status.note("forgetting approval rule " + id)
 	if !runAdmissionMutation(a, approvalRuleOperation, false,
-		func(ctx context.Context) (string, error) {
+		func(ctx context.Context) (approvalRuleDeletionResult, error) {
 			if err := a.runtime.DeleteApprovalRule(ctx, id); err != nil {
-				return "", err
+				return approvalRuleDeletionResult{}, err
 			}
-			return id, nil
+			rules, err := a.runtime.ListApprovalRules(ctx, sessionID)
+			if err != nil {
+				return approvalRuleDeletionResult{}, err
+			}
+			if err := agent.ValidateApprovalRuleDeletion(rules, id); err != nil {
+				return approvalRuleDeletionResult{}, fmt.Errorf("verify approval rule deletion: %w", err)
+			}
+			return approvalRuleDeletionResult{id: id, rules: rules}, nil
 		},
-		func(deleted string, err error) {
+		func(deleted approvalRuleDeletionResult, err error) {
 			if err != nil {
 				a.message("forget approval rule failed: " + err.Error())
 				return
 			}
-			a.status.note("approval rule forgotten · " + deleted)
+			a.status.note("approval rule forgotten · " + deleted.id)
 			if a.session.ID == sessionID {
-				a.ShowApprovalRules()
+				a.setRuntimeReader(runtimeReaderApprovalRules)
+				a.openReaderDocument(approvalRulesDocument(deleted.rules))
 			}
 		},
 	) {

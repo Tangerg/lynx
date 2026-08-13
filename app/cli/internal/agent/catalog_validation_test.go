@@ -72,3 +72,15 @@ func TestModelRejectsContradictoryCatalogMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestApprovalRulesValidateDeletionAcknowledgement(t *testing.T) {
+	rule := ApprovalRule{
+		ID: "rule_1", Scope: RememberGlobal, Tool: "shell", Decision: ApprovalRuleAllow,
+	}
+	if err := ValidateApprovalRuleDeletion(nil, rule.ID); err != nil {
+		t.Fatalf("deleted rule acknowledgement: %v", err)
+	}
+	if err := ValidateApprovalRuleDeletion([]ApprovalRule{rule}, rule.ID); err == nil {
+		t.Fatal("accepted an approval rule that remained after deletion")
+	}
+}
