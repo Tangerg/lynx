@@ -90,6 +90,74 @@ func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	}
 }
 
+func TestAcceptedQuestionRevealsItsDurableAnswerInPlace(t *testing.T) {
+	view := testTranscriptView(t)
+	registry := new(extensions.Registry)
+	loaded, err := extensions.Load(registry, builtinPlugin())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = loaded.Dispose() })
+	question := agent.Question{
+		RunID: "run_1", ItemID: "question_1", Title: "Deployment target",
+		Fields: []agent.QuestionField{{Prompt: "Which platform?", Kind: agent.QuestionText}},
+	}
+	block := agent.Block{
+		ID: question.ItemID, RunID: question.RunID, Status: agent.BlockStatusCompleted,
+		Kind: agent.BlockQuestion, Question: &question,
+	}
+	if err := view.Apply(agent.BlockCompleted{Block: block}, registry); err != nil {
+		t.Fatal(err)
+	}
+	if drawn := drawRoot(t, view, 48, 6); strings.Contains(drawn, question.Title) {
+		t.Fatalf("pending question leaked an interaction-looking transcript row:\n%s", drawn)
+	}
+	if view.content.Finished(view.content.FirstBlock()) {
+		t.Fatal("pending question was eligible for retention before its answer settled")
+	}
+	accepted, err := question.Accept(agent.QuestionAnswer{Values: [][]string{{"linux"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.Question = &accepted
+	if err := view.acceptQuestions([]agent.Block{block}); err != nil {
+		t.Fatal(err)
+	}
+	drawn := drawRoot(t, view, 48, 6)
+	if !strings.Contains(drawn, question.Title) || !strings.Contains(drawn, "answer · linux") {
+		t.Fatalf("accepted question was not revealed in place:\n%s", drawn)
+	}
+	if !view.content.Finished(view.content.FirstBlock()) || len(view.pendingQuestions) != 0 {
+		t.Fatalf("accepted question remains live: finished=%t pending=%+v", view.content.Finished(view.content.FirstBlock()), view.pendingQuestions)
+	}
+}
+
+func TestColdCanceledQuestionDoesNotPinTranscriptRetention(t *testing.T) {
+	view := testTranscriptView(t)
+	registry := new(extensions.Registry)
+	loaded, err := extensions.Load(registry, builtinPlugin())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = loaded.Dispose() })
+	question := agent.Question{
+		RunID: "run_1", ItemID: "question_1", Title: "Abandoned question",
+		Fields: []agent.QuestionField{{Prompt: "Continue?", Kind: agent.QuestionText}},
+	}
+	if err := view.Apply(agent.BlockCompleted{Block: agent.Block{
+		ID: question.ItemID, RunID: question.RunID, Status: agent.BlockStatusCompleted,
+		Kind: agent.BlockQuestion, Question: &question,
+	}}, registry); err != nil {
+		t.Fatal(err)
+	}
+	if err := view.reconcilePendingQuestions(nil); err != nil {
+		t.Fatal(err)
+	}
+	if !view.content.Finished(view.content.FirstBlock()) || len(view.pendingQuestions) != 0 {
+		t.Fatalf("canceled cold question pins retention: finished=%t pending=%+v", view.content.Finished(view.content.FirstBlock()), view.pendingQuestions)
+	}
+}
+
 func TestTranscriptNavigationUsesRetainedBlockAndSearchCoordinates(t *testing.T) {
 	view := testTranscriptView(t)
 	for _, body := range []string{"discarded needle", "retained middle", "retained needle"} {

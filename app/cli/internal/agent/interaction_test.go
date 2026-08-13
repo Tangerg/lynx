@@ -16,6 +16,26 @@ func TestQuestionAnswerUsesFieldOrder(t *testing.T) {
 	}
 }
 
+func TestQuestionAcceptReturnsAnOwnedDurableFact(t *testing.T) {
+	t.Parallel()
+	question := Question{RunID: "run_1", ItemID: "q_1", Title: "Target", Fields: []QuestionField{{Prompt: "Name", Kind: QuestionText}}}
+	answer := QuestionAnswer{Values: [][]string{{"linux"}}}
+	accepted, err := question.Accept(answer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if question.Answered() || !accepted.Answered() || accepted.Answers[0][0] != "linux" {
+		t.Fatalf("pending = %+v, accepted = %+v", question, accepted)
+	}
+	answer.Values[0][0] = "mutated"
+	if accepted.Answers[0][0] != "linux" {
+		t.Fatal("accepted question aliases the editor's response storage")
+	}
+	if _, err := accepted.Accept(QuestionAnswer{Values: [][]string{{"again"}}}); err == nil {
+		t.Fatal("accepted question accepted a second response")
+	}
+}
+
 func TestApprovalHonorsRememberable(t *testing.T) {
 	approval := runningApproval("a_1", "shell")
 	if err := ValidateAnswer(approval, ApprovalAnswer{Decision: ApprovalApprove, Remember: RememberProject}); err == nil {

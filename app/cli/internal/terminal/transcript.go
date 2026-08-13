@@ -26,40 +26,41 @@ type transcriptView struct {
 	look   markdown.Look
 	syntax highlight.Renderer
 
-	content         headless.Transcript
-	scroll          headless.Scroll
-	selection       headless.Selection
-	sticky          headless.Sticky
-	view            kit.Transcript
-	search          *headless.Search
-	query           string
-	announceSearch  bool
-	matches         []headless.Match
-	current         int
-	searchCursor    transcriptSearchCursor
-	retain          int
-	details         bool
-	clipboard       headless.Clipboard
-	entrance        grid.Drawable
-	focused         bool
-	selected        headless.BlockID
-	hasSelected     bool
-	entries         map[headless.BlockID]*transcriptEntry
-	pointerGesture  transcriptPointerGesture
-	onFocusChange   func(bool)
-	onSelection     func(transcriptSelection)
-	onCopy          func(string)
-	keys            *keymap.Map
-	matcher         keymap.Matcher
-	tools           map[string]liveTool
-	textStreams     map[string]*liveText
-	toolViews       []trackedToolView
-	runEntries      map[string][]headless.BlockID
-	runLineages     map[string]agent.RunLineage
-	activeToolGroup *trackedToolGroup
-	images          *terminalImagePresenter
-	contentEpoch    uint64
-	presentedBlocks headless.Snapshot[transcriptBlockPresentation]
+	content          headless.Transcript
+	scroll           headless.Scroll
+	selection        headless.Selection
+	sticky           headless.Sticky
+	view             kit.Transcript
+	search           *headless.Search
+	query            string
+	announceSearch   bool
+	matches          []headless.Match
+	current          int
+	searchCursor     transcriptSearchCursor
+	retain           int
+	details          bool
+	clipboard        headless.Clipboard
+	entrance         grid.Drawable
+	focused          bool
+	selected         headless.BlockID
+	hasSelected      bool
+	entries          map[headless.BlockID]*transcriptEntry
+	pointerGesture   transcriptPointerGesture
+	onFocusChange    func(bool)
+	onSelection      func(transcriptSelection)
+	onCopy           func(string)
+	keys             *keymap.Map
+	matcher          keymap.Matcher
+	tools            map[string]liveTool
+	textStreams      map[string]*liveText
+	pendingQuestions map[string]trackedQuestion
+	toolViews        []trackedToolView
+	runEntries       map[string][]headless.BlockID
+	runLineages      map[string]agent.RunLineage
+	activeToolGroup  *trackedToolGroup
+	images           *terminalImagePresenter
+	contentEpoch     uint64
+	presentedBlocks  headless.Snapshot[transcriptBlockPresentation]
 }
 
 type transcriptSelection struct {
@@ -208,9 +209,10 @@ func newTranscriptView(
 		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details,
 		clipboard: clipboard, entries: make(map[headless.BlockID]*transcriptEntry),
 		tools: make(map[string]liveTool), textStreams: make(map[string]*liveText),
-		runEntries:  make(map[string][]headless.BlockID),
-		runLineages: make(map[string]agent.RunLineage),
-		keys:        transcriptKeys(),
+		pendingQuestions: make(map[string]trackedQuestion),
+		runEntries:       make(map[string][]headless.BlockID),
+		runLineages:      make(map[string]agent.RunLineage),
+		keys:             transcriptKeys(),
 	}
 	c.scroll.Wheel(wheel)
 	c.scroll.ToBottom()
@@ -885,6 +887,7 @@ func (c *transcriptView) settleLive(outcome agent.Outcome) {
 		}
 		delete(c.tools, id)
 	}
+	c.finishPendingQuestions("")
 	if selectedCollapsed {
 		c.revealSelected()
 	}
@@ -923,6 +926,7 @@ func (c *transcriptView) settleRun(runID string, outcome agent.Outcome) {
 		}
 		delete(c.tools, id)
 	}
+	c.finishPendingQuestions(runID)
 	if selectedCollapsed {
 		c.revealSelected()
 	}
@@ -958,8 +962,20 @@ func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions
 		if isMutable {
 			mutable.SetExpanded(c.details)
 		}
-		id := c.append(item)
+		question, isPendingQuestion := item.(*questionBlock)
+		isPendingQuestion = isPendingQuestion && !question.answered()
+		key := ""
+		if isPendingQuestion {
+			key = transcriptBlockKey(block.RunID, block.ID)
+			if _, exists := c.pendingQuestions[key]; exists {
+				return fmt.Errorf("terminal transcript: question block %s completed twice", block.ID)
+			}
+		}
+		id := c.place(item, !isPendingQuestion)
 		c.trackRunEntry(block.RunID, id)
+		if isPendingQuestion {
+			c.pendingQuestions[key] = trackedQuestion{runID: block.RunID, id: id, block: question}
+		}
 		if isMutable {
 			c.toolViews = append(c.toolViews, trackedToolView{id: id, block: mutable})
 		}
@@ -967,6 +983,7 @@ func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions
 			c.sticky.Add(id)
 		}
 	}
+	c.refreshSearch()
 	return nil
 }
 
@@ -1133,6 +1150,11 @@ func (c *transcriptView) DiscardExcess() {
 			delete(c.entries, id)
 		}
 	}
+	for key, question := range c.pendingQuestions {
+		if question.id < first {
+			delete(c.pendingQuestions, key)
+		}
+	}
 	for runID, ids := range c.runEntries {
 		ids = slices.DeleteFunc(ids, func(id headless.BlockID) bool { return id < first })
 		if len(ids) == 0 {
@@ -1168,6 +1190,7 @@ func (c *transcriptView) Reset() {
 	c.query, c.matches, c.current, c.announceSearch = "", nil, -1, false
 	c.searchCursor = transcriptSearchCursor{}
 	clear(c.tools)
+	clear(c.pendingQuestions)
 	clear(c.entries)
 	clear(c.runEntries)
 	clear(c.runLineages)

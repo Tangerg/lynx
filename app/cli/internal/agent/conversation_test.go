@@ -33,6 +33,20 @@ func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
 	if conversation.Phase() != ConversationWaiting || len(conversation.Interactions()) != 2 || !conversation.Usage().Equal(interruptedUsage) {
 		t.Fatalf("waiting projection = phase %v, interactions %d, usage %+v", conversation.Phase(), len(conversation.Interactions()), conversation.Usage())
 	}
+	acceptedQuestions, err := conversation.RecordAcceptedInteractionAnswers([]InterruptAnswer{
+		{ItemID: approval.ItemID, Answer: ApprovalAnswer{Decision: ApprovalApprove}},
+		{ItemID: question.ItemID, Answer: QuestionAnswer{Values: [][]string{{"A"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(acceptedQuestions) != 1 || acceptedQuestions[0].Question == nil ||
+		!acceptedQuestions[0].Question.Answered() || acceptedQuestions[0].Question.Answers[0][0] != "A" {
+		t.Fatalf("accepted questions = %+v", acceptedQuestions)
+	}
+	if conversation.Phase() != ConversationWaiting || len(conversation.Interactions()) != 2 {
+		t.Fatal("accepted answers released waiting state before the continuation segment")
+	}
 
 	resumed := runningRun("seg_2")
 	resumed.Usage = interruptedUsage

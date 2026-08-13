@@ -582,11 +582,18 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
 	awaitSignal(t, runtime.settled, "runtime cancellation settlement")
-	host.Shows(t, "canceling")
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := reopened.PendingRuns(command.SessionID)
+	if len(held) != 1 || held[0].State != workbench.PendingRunCanceling || held[0].CancelCommandID != cancelID {
+		t.Fatalf("unacknowledged cancellation ownership = %+v", held)
+	}
 	release()
 	host.Until(t, "the canceled opening command to leave the durable outbox", func() bool {
-		reopened, openErr := workbench.Open(stateDirectory, workbench.Config{})
-		return openErr == nil && len(reopened.PendingRuns(command.SessionID)) == 0 && host.Repaint()
+		current, openErr := workbench.Open(stateDirectory, workbench.Config{})
+		return openErr == nil && len(current.PendingRuns(command.SessionID)) == 0 && host.Repaint()
 	})
 	if cancelID == "" {
 		t.Fatal("cancel command identity is empty")

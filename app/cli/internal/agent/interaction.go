@@ -148,6 +148,25 @@ func (q Question) Validate() error {
 // transcript fact rather than a pending interaction.
 func (q Question) Answered() bool { return q.Answers != nil }
 
+// Accept returns the durable transcript form of a pending question after the
+// runtime has accepted its complete ordered response. The pending value is not
+// mutated, so an editor can retain its draft independently from the accepted
+// conversation fact.
+func (q Question) Accept(answer QuestionAnswer) (Question, error) {
+	if q.Answered() {
+		return Question{}, errors.New("question already has accepted answers")
+	}
+	if err := q.Validate(); err != nil {
+		return Question{}, err
+	}
+	if err := validateQuestionAnswer(q, answer); err != nil {
+		return Question{}, err
+	}
+	accepted := q.Clone()
+	accepted.Answers = cloneAnswerValues(answer.Values)
+	return accepted, nil
+}
+
 // Clone returns a question with no mutable field or option storage shared with the caller.
 func (q Question) Clone() Question { return cloneQuestion(q) }
 

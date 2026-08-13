@@ -78,8 +78,24 @@ func TestQuestionPresenterShowsAcceptedTranscriptAnswers(t *testing.T) {
 	if len(rendered) != 1 {
 		t.Fatalf("presented blocks = %d, want 1", len(rendered))
 	}
-	message, ok := rendered[0].(*kit.Message)
-	if !ok || !strings.Contains(message.Body, "answer · linux") {
+	message, ok := rendered[0].(*questionBlock)
+	if !ok || !strings.Contains(message.message.Body, "answer · linux") {
 		t.Fatalf("presented question = %#v", rendered[0])
+	}
+}
+
+func TestPendingQuestionPresenterHasNoVisibleInteractionSurface(t *testing.T) {
+	t.Parallel()
+	question := agent.Question{
+		RunID: "run_1", ItemID: "question_1", Title: "Target",
+		Fields: []agent.QuestionField{{Prompt: "Which platform?", Kind: agent.QuestionText}},
+	}
+	rendered := presentQuestion(BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode()}, agent.Block{Question: &question})
+	block, ok := rendered[0].(*questionBlock)
+	if !ok {
+		t.Fatalf("presented question = %T", rendered[0])
+	}
+	if height := block.Measure(40); height != 0 || len(block.Rows(40)) != 0 {
+		t.Fatalf("pending question occupies %d rows with copyable content %+v", height, block.Rows(40))
 	}
 }

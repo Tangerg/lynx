@@ -551,6 +551,15 @@ func TestRememberedRulesRemoveOnlyMatchedApprovalsFromThePendingSet(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	accepted, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	questionItem, found = snapshotBlock(accepted, opened.RunID, question.ItemID)
+	if !found || questionItem.Question == nil || !questionItem.Question.Answered() ||
+		questionItem.Question.Answers[0][0] != "linux" {
+		t.Fatalf("durable accepted question = %+v", questionItem)
+	}
 	drain(t, continued, conversation)
 	if len(continuedWith) != 2 || continuedWith[0].ItemID != "approval" || continuedWith[1].ItemID != "question" {
 		t.Fatalf("continuation answers = %+v, want the complete fixture-local set", continuedWith)

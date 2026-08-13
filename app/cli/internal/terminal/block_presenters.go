@@ -61,18 +61,7 @@ func presentQuestion(p BlockPresentation, block agent.Block) []headless.Block {
 	if block.Question == nil {
 		return nil
 	}
-	lines := make([]string, 0, len(block.Question.Fields)*2)
-	for index, field := range block.Question.Fields {
-		lines = append(lines, p.Glyphs.Bullet+" "+field.Prompt)
-		if block.Question.Answered() {
-			lines = append(lines, "  answer · "+strings.Join(block.Question.Answers[index], ", "))
-		}
-	}
-	body := strings.Join(lines, "\n")
-	if block.Question.Detail != "" {
-		body = block.Question.Detail + "\n" + body
-	}
-	return []headless.Block{&kit.Message{Theme: p.Theme, Speaker: block.Question.Title, Body: body}}
+	return []headless.Block{newQuestionBlock(p.Theme, p.Glyphs, *block.Question)}
 }
 
 func presentNotice(p BlockPresentation, block agent.Block) []headless.Block {

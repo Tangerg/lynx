@@ -392,6 +392,17 @@ func (a *app) deliverInteractionResume(review *interactionReview, command agent.
 		accepted: func(agent.SegmentStream) {
 			a.interactionReview = nil
 			a.settleAcknowledgedResume(command.CommandID)
+			acceptedQuestions, err := a.conversation.RecordAcceptedInteractionAnswers(command.Answers)
+			if err == nil {
+				err = a.transcript.acceptQuestions(acceptedQuestions)
+			}
+			if err != nil {
+				failure := fmt.Errorf("project accepted interaction answers: %w", err)
+				a.cancelRuntimePreservingFailure(agent.CancelRun{
+					RunID: command.RunID, Reason: "terminal could not project accepted interaction answers",
+				})
+				a.fail(failure)
+			}
 		},
 		rejected: func(failure error) error {
 			if _, accepted := agent.AcceptedMutationReceipt(failure); accepted {

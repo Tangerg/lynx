@@ -140,7 +140,14 @@ func (r *Runtime) activateResumeLocked(ctx context.Context, message *agent.Messa
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
+	answeredQuestions, err := r.acceptedQuestionBlocksLocked(run, prepared.answers)
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
 	r.recordAnswersLocked(run, prepared.answers)
+	for _, block := range answeredQuestions {
+		persistBlock(r.sessions[run.sessionID], run.id, block)
+	}
 	run.interactions = nil
 	run.status = agent.RunStatusRunning
 	segment := r.openSegmentLocked(run)
@@ -149,6 +156,35 @@ func (r *Runtime) activateResumeLocked(ctx context.Context, message *agent.Messa
 	userItemID := r.emitResumeMessageLocked(run, message)
 	r.completeApprovalItemsLocked(run, prepared.answers)
 	return r.bindSegmentLocked(ctx, run, segment, 0, 0, userItemID, fault), nil
+}
+
+// acceptedQuestionBlocksLocked mirrors the production runtime's resume
+// linearization point: accepted answers replace the durable Question items but
+// are not replayed as events on the continuation segment.
+func (r *Runtime) acceptedQuestionBlocksLocked(run *runState, answers []agent.InterruptAnswer) ([]agent.Block, error) {
+	session := r.sessions[run.sessionID]
+	accepted := make([]agent.Block, 0, len(answers))
+	for _, response := range answers {
+		answer, isQuestionAnswer := response.Answer.(agent.QuestionAnswer)
+		if !isQuestionAnswer {
+			continue
+		}
+		question := findQuestion(run.interactions, response.ItemID)
+		if question == nil {
+			return nil, fmt.Errorf("mock: question answer references non-question item %s", response.ItemID)
+		}
+		block, exists := durableBlock(session, run.id, response.ItemID)
+		if !exists || block.Kind != agent.BlockQuestion || block.Question == nil {
+			return nil, fmt.Errorf("mock: question item %s is absent from the durable transcript", response.ItemID)
+		}
+		answered, err := question.Accept(answer)
+		if err != nil {
+			return nil, fmt.Errorf("mock: accept question item %s: %w", response.ItemID, err)
+		}
+		block.Question = &answered
+		accepted = append(accepted, block)
+	}
+	return accepted, nil
 }
 
 func (r *Runtime) recordAnswersLocked(run *runState, answers []agent.InterruptAnswer) {
@@ -220,6 +256,15 @@ func findApproval(interactions []agent.Interaction, id string) *agent.Approval {
 	for _, interaction := range interactions {
 		if approval, ok := interaction.(agent.Approval); ok && approval.ItemID == id {
 			return &approval
+		}
+	}
+	return nil
+}
+
+func findQuestion(interactions []agent.Interaction, id string) *agent.Question {
+	for _, interaction := range interactions {
+		if question, ok := interaction.(agent.Question); ok && question.ItemID == id {
+			return &question
 		}
 	}
 	return nil

@@ -753,7 +753,7 @@ func TestRejectedResumeRetirementFailurePreservesTheDurableDecision(t *testing.T
 	stopSecond()
 }
 
-func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
+func TestAcceptedQuestionResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{
@@ -777,7 +777,7 @@ func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	stateDirectory := t.TempDir()
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
 	host.Shows(t, "Ask lyra")
-	host.Type("recover an accepted approval settlement")
+	host.Type("recover an accepted question settlement")
 	host.Press(input.Enter)
 	host.Shows(t, "Persist settlement")
 	host.Press(input.Enter)
@@ -801,6 +801,7 @@ func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
 	}
 
 	close(runtime.release)
+	host.Shows(t, "answer · Continue")
 	host.Shows(t, "workbench:")
 	if attempts := runtime.resumeAttempts(); len(attempts) != 1 || attempts[0].CommandID != pending.CommandID {
 		t.Fatalf("accepted resume attempts = %+v, want one command %s", attempts, pending.CommandID)

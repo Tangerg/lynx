@@ -559,6 +559,9 @@ func presentSnapshot(view *transcriptView, snapshot agent.SessionSnapshot, regis
 			return fmt.Errorf("restore transcript block %s: %w", block.ID, err)
 		}
 	}
+	if err := view.reconcilePendingQuestions(snapshot.Interactions); err != nil {
+		return fmt.Errorf("restore pending questions: %w", err)
+	}
 	view.SealToolGroups()
 	return nil
 }
