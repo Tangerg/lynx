@@ -72,7 +72,7 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	var watcher *cancellationWatcher
 	if opened.RunID != "" {
 		watcher = watchCancellation(ctx, invocation.Runtime, opened.RunID)
-		defer func() { watcher.Finish(cancelOnExit) }()
+		defer func() { runErr = errors.Join(runErr, watcher.Finish(cancelOnExit)) }()
 	}
 	if err != nil {
 		return err
@@ -108,40 +108,54 @@ func openRun(ctx context.Context, runtime Runtime, command agent.StartRun) (agen
 }
 
 type cancellationWatcher struct {
-	exit chan bool
-	done chan struct{}
+	exit   chan bool
+	result chan error
 }
 
 func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, runID string) *cancellationWatcher {
-	watcher := &cancellationWatcher{exit: make(chan bool, 1), done: make(chan struct{})}
+	watcher := &cancellationWatcher{exit: make(chan bool, 1), result: make(chan error, 1)}
 	go func() {
-		defer close(watcher.done)
 		shouldCancel := true
 		select {
 		case shouldCancel = <-watcher.exit:
 		case <-ctx.Done():
 		}
 		if !shouldCancel {
+			watcher.result <- nil
 			return
 		}
-		commandID, err := agent.NewCommandID()
-		if err != nil {
-			return
-		}
-		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancellationTimeout)
-		defer cancel()
-		_, _ = mutation.Confirm(cancelCtx, acknowledgementBackoff, func(ctx context.Context) (agent.RunCancellation, error) {
-			return runtime.CancelRun(ctx, agent.CancelRun{
-				CommandID: commandID, RunID: runID, Reason: "CLI execution ended before the run settled",
-			})
-		})
+		watcher.result <- cancelAbandonedRun(ctx, runtime, runID)
 	}()
 	return watcher
 }
 
-func (w *cancellationWatcher) Finish(cancelRun bool) {
+func (w *cancellationWatcher) Finish(cancelRun bool) error {
 	w.exit <- cancelRun
-	<-w.done
+	return <-w.result
+}
+
+func cancelAbandonedRun(ctx context.Context, runtime agent.RunLifecycle, runID string) error {
+	commandID, err := agent.NewCommandID()
+	if err != nil {
+		return fmt.Errorf("prepare abandoned run cancellation: %w", err)
+	}
+	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancellationTimeout)
+	defer cancel()
+	result, err := mutation.Confirm(cancelCtx, acknowledgementBackoff, func(ctx context.Context) (agent.RunCancellation, error) {
+		return runtime.CancelRun(ctx, agent.CancelRun{
+			CommandID: commandID, RunID: runID, Reason: "CLI execution ended before the run settled",
+		})
+	})
+	if errors.Is(err, agent.ErrRunFinished) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cancel abandoned run %s: %w", runID, err)
+	}
+	if err := result.ValidateTarget(runID); err != nil {
+		return fmt.Errorf("cancel abandoned run %s: %w", runID, err)
+	}
+	return nil
 }
 
 type disposition uint8
