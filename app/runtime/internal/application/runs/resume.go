@@ -12,7 +12,8 @@ import (
 
 // Resume validates one complete response set, atomically consumes the waiting
 // hand-off and invalidates its checkpoint, stages the exact live/restored tree,
-// then opens the continuation Segment before submitting semantic answers.
+// then durably opens the continuation Segment. That opening accepts the command;
+// semantic answer submission continues behind the Run lifecycle supervisor.
 func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResult, error) {
 	if err := c.requireResumeDependencies(); err != nil {
 		return StartResult{}, err
@@ -100,6 +101,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		Input:             cmd.Input,
 		Continuation:      continuation,
 		admission:         &runAdmission,
+		DetachActivation:  true,
 		BeginExecution: func(beginCtx context.Context) error {
 			return c.continuation.BeginContinuation(
 				beginCtx, ref, claimed.Answers, pending.Capabilities.InterruptKinds,

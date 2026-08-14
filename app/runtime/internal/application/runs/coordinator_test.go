@@ -1222,6 +1222,7 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
+	spec.DetachActivation = true
 	spec.BeginExecution = func(context.Context) error { return errors.New("resume failed") }
 
 	stream, err := coordinator.openSegment(context.Background(), spec)

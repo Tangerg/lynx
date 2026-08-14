@@ -148,7 +148,11 @@ type fakeExecutionPorts struct {
 	continuation      WaitingContinuation
 	rehydrateErr      error
 	resumeCheck       func()
+	resumeStarted     chan<- struct{}
+	resumeRelease     <-chan struct{}
 	activateCheck     func()
+	activateStarted   chan<- struct{}
+	activateRelease   <-chan struct{}
 	activated         bool
 	resumed           bool
 	released          []ExecutorRef
@@ -196,6 +200,12 @@ func (f *fakeExecutionPorts) StageRoot(_ context.Context, req RootExecutionStart
 }
 
 func (f *fakeExecutionPorts) BeginRoot(context.Context, ExecutorRef) error {
+	if f.activateStarted != nil {
+		f.activateStarted <- struct{}{}
+	}
+	if f.activateRelease != nil {
+		<-f.activateRelease
+	}
 	if f.activateCheck != nil {
 		f.activateCheck()
 	}
@@ -255,6 +265,12 @@ func (f *fakeExecutionPorts) BeginContinuation(
 	[]InterruptAnswer,
 	[]interrupt.Kind,
 ) error {
+	if f.resumeStarted != nil {
+		f.resumeStarted <- struct{}{}
+	}
+	if f.resumeRelease != nil {
+		<-f.resumeRelease
+	}
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -522,6 +538,79 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	}
 }
 
+func TestStartSettlesAfterOpeningWithoutWaitingForExecutorActivation(t *testing.T) {
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
+	}
+	activationStarted := make(chan struct{})
+	releaseActivation := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseActivation) }) }
+	defer release()
+	control := &fakeExecutionPorts{
+		startRef:        ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+		activateStarted: activationStarted,
+		activateRelease: releaseActivation,
+	}
+	coordinator := newUseCaseCoordinator(
+		&fakeExecutor{events: []ExecutorPayload{SegmentEnded{Reason: run.OutcomeCompleted}}},
+		control,
+		sessions,
+		effects,
+	)
+	type startResult struct {
+		result StartResult
+		err    error
+	}
+	settled := make(chan startResult, 1)
+	go func() {
+		result, err := coordinator.Start(t.Context(), StartCommand{
+			SessionID:      "ses_1",
+			ModelSelection: mustUseCaseSelection("provider", "model"),
+			Input: []transcript.ContentBlock{{
+				Kind: transcript.TextContent, Text: "hello",
+			}},
+		})
+		settled <- startResult{result: result, err: err}
+	}()
+
+	select {
+	case <-activationStarted:
+	case <-time.After(time.Second):
+		t.Fatal("root activation did not start after the durable opening")
+	}
+
+	var outcome startResult
+	select {
+	case outcome = <-settled:
+	case <-time.After(time.Second):
+		release()
+		outcome = <-settled
+		if outcome.result.Events != nil {
+			consumeEvents(outcome.result.Events)
+		}
+		requireCoordinatorShutdown(t, coordinator)
+		t.Fatal("accepted root start waited for executor activation before settling")
+	}
+	if outcome.err != nil || outcome.result.Events == nil {
+		t.Fatalf("Start = result:%+v err:%v", outcome.result, outcome.err)
+	}
+	if opening := effects.opening(); opening.Admit == nil || opening.Admit.RunID != "run_new" {
+		t.Fatalf("opening = %+v, want durable admission run_new", opening)
+	}
+	if control.activated {
+		t.Fatal("blocked root activation completed before the command settled")
+	}
+
+	release()
+	consumeEvents(outcome.result.Events)
+	if !control.activated {
+		t.Fatal("root did not activate after the command settled")
+	}
+	requireCoordinatorShutdown(t, coordinator)
+}
+
 func TestStartResolvesTheDefaultModelBeforeExecutorAndDurableAdmission(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
@@ -780,6 +869,86 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	if opening := effects.opening(); opening.Resume == nil || opening.Resume.RootRunID != "run_1" {
 		t.Fatalf("opening = %+v, want resume run_1", opening)
 	}
+}
+
+func TestResumeSettlesAfterOpeningWithoutWaitingForExecutorActivation(t *testing.T) {
+	createdAt := time.Date(2026, 8, 15, 2, 0, 0, 0, time.UTC)
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
+		pending: map[string]Pending{
+			"run_1": testApprovalPending("member_1", createdAt),
+		},
+	}
+	activationStarted := make(chan struct{})
+	releaseActivation := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseActivation) }) }
+	defer release()
+	control := &fakeExecutionPorts{
+		prepared:      ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+		resumeStarted: activationStarted,
+		resumeRelease: releaseActivation,
+	}
+	coordinator := newUseCaseCoordinator(
+		&fakeExecutor{events: []ExecutorPayload{SegmentEnded{Reason: run.OutcomeCompleted}}},
+		control,
+		sessions,
+		effects,
+	)
+	type resumeResult struct {
+		result StartResult
+		err    error
+	}
+	settled := make(chan resumeResult, 1)
+	go func() {
+		result, err := coordinator.Resume(t.Context(), ResumeCommand{
+			RunID: "run_1",
+			CallerCapabilities: run.Capabilities{
+				InterruptKinds: []interrupt.Kind{interrupt.Approval},
+			},
+			Responses: []ResumeResponse{{
+				ItemID: "item_1", Kind: ApprovalResponseKind,
+				Approval: &ApprovalResponse{Approved: true},
+			}},
+		})
+		settled <- resumeResult{result: result, err: err}
+	}()
+
+	select {
+	case <-activationStarted:
+	case <-time.After(time.Second):
+		t.Fatal("continuation activation did not start after the durable opening")
+	}
+
+	var outcome resumeResult
+	select {
+	case outcome = <-settled:
+	case <-time.After(time.Second):
+		release()
+		outcome = <-settled
+		if outcome.result.Events != nil {
+			consumeEvents(outcome.result.Events)
+		}
+		requireCoordinatorShutdown(t, coordinator)
+		t.Fatal("accepted HITL resume waited for executor activation before settling")
+	}
+	if outcome.err != nil || outcome.result.Events == nil {
+		t.Fatalf("Resume = result:%+v err:%v", outcome.result, outcome.err)
+	}
+	if opening := effects.opening(); opening.Resume == nil || opening.Resume.RootRunID != "run_1" {
+		t.Fatalf("opening = %+v, want durable resume run_1", opening)
+	}
+	if control.resumed {
+		t.Fatal("blocked executor activation completed before the command settled")
+	}
+
+	release()
+	consumeEvents(outcome.result.Events)
+	if !control.resumed {
+		t.Fatal("continuation did not activate after the command settled")
+	}
+	requireCoordinatorShutdown(t, coordinator)
 }
 
 // TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation proves

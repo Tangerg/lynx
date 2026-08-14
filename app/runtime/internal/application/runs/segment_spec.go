@@ -38,6 +38,12 @@ type segmentSpec struct {
 	admission *sessionadmission.RunAdmission
 	// BeginExecution crosses the executor side-effect boundary after opening commits.
 	BeginExecution func(context.Context) error
+	// DetachActivation is true for root Start/Resume commands whose durable
+	// opening is their acceptance point. Their executor activation remains owned
+	// by the Run lifecycle task but cannot retain the already-committed command
+	// settlement. Composite commands leave this false when BeginExecution also
+	// applies a post-commit Application transformation they must validate inline.
+	DetachActivation bool
 	// CommitOpening is set only when a larger application transaction owns the
 	// opening, such as waiting-subtree cancellation.
 	CommitOpening func(context.Context, OpeningCommit) error

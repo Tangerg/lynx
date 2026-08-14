@@ -53,6 +53,21 @@ func (cleanup childRunStartReservationsFunc) DeleteSession(ctx context.Context, 
 }
 
 func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		openingCommitted bool
+	}{
+		{name: "answer claimed before opening"},
+		{name: "opening committed before activation", openingCommitted: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			testRecoveryMarksClaimedResumeLost(t, test.openingCommitted)
+		})
+	}
+}
+
+func testRecoveryMarksClaimedResumeLost(t *testing.T, openingCommitted bool) {
+	t.Helper()
 	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -113,6 +128,18 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	}
 	if _, found, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || found {
 		t.Fatalf("open Pending after claim = found:%t err:%v", found, err)
+	}
+	if openingCommitted {
+		if err := runStore.Resume(ctx, pending.SessionID, run.ResumeDraft{
+			RunID: pending.RootRunID, SegmentID: "segment_claim_resumed",
+		}, createdAt.Add(3*time.Second)); err != nil {
+			t.Fatalf("commit continuation opening: %v", err)
+		}
+		opened, found, err := runStore.Run(ctx, pending.RootRunID)
+		if err != nil || !found || opened.State() != run.Running ||
+			opened.ActiveSegmentID() != "segment_claim_resumed" {
+			t.Fatalf("opened continuation = found:%t value:%+v err:%v", found, opened, err)
+		}
 	}
 	transcriptStore := sqlite.NewTranscriptStore(db)
 	questionItem, err := transcript.NewQuestion(transcript.ItemIdentity{

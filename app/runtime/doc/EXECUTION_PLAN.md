@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P86 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P87 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -94,6 +94,7 @@
 | P84 | 多个内嵌 Runtime 共享数据库的业务所有权与崩溃接管 | P83 + CLI/Desktop 部署事实、双 Runtime/强杀证据 | 已完成 |
 | P85 | Desktop 工作目录所有权与右侧 Context Dock 命令接线 | P84 + Wails v3 native dialog / Proma 右栏源码对照 | 已完成 |
 | P86 | survivor Run recovery 与已挂载 read model 收敛 | P84 + local commit / data_version 盲区与 claimed-resume 强杀证据 | 已完成 |
+| P87 | Run opening 命令结算与 executor activation 所有权 | P86 + HITL claim/opening 强杀窗口与阻塞 activation 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1480,10 +1481,31 @@
 - Runtime workspace/standalone 全量 test、build、vet，相关 owner race、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、生成物与 diff-check 全绿；Protocol wire、SQLite epoch、Artifact、Desktop Agent inner ring 与 Agent Framework 合同不变；
 - `app/cli` 未修改或暂存，无关工作区改动保持原样。
 
-## 66. 进度记录
+## 66. P87 — Run opening 命令结算与 executor activation 所有权
+
+### 目标
+
+关闭根 Run Start/HITL Resume 已完成 durable opening，Operation/idempotency 却仍同步等待 executor activation 的结算缺口。旧路径在 answer claim、Run `Waiting → Running` 与 opening projections 均已提交后才调用 `BeginContinuation`，若该外部 activation 阻塞，客户端会把已接受命令永久视为未结算，无法得到可重放的 Run/Segment identity；此时重试、断线或强杀恢复面对的业务事实与命令 receipt 不一致。
+
+### 工作项
+
+- [x] P87-01 把根 Start/Resume 的 durable opening 明确为唯一命令 acceptance point；注册 live owner、建立 opening subscription 并发布 committed opening 后，立即返回 Run/Segment identity；
+- [x] P87-02 以 `DetachActivation` 明确标记只有根 Start/Resume 将纯 executor activation 交给既有 Run lifecycle task；activation 失败仍由同一 pump 形成权威 terminal，不新增 goroutine owner、重放路径或临时超时补丁；
+- [x] P87-03 保持 waiting-child cancellation 的 activation 同步，因为该边界还拥有必须在命令返回前验证的 post-commit Application `Apply/Continue`；race 反例证明两种结算策略不能被一个通用异步分支混同；
+- [x] P87-04 用一个客户端各执行一次阻塞 root Start 和 HITL Resume，证明 opening 已提交时 command ack 不等待 activation；以真实 SQLite 分别冻结强杀发生在 answer claim 后、以及 continuation opening 已提交但 activation 尚未完成的 durable shape。
+
+### 验收
+
+- Start/Resume 的 idempotency outcome 可在 opening commit 后立即结算；阻塞 activation 不占有已经接受的 command response，释放后仍沿唯一 lifecycle stream 自然完成；
+- 强杀前若只完成 answer claim，或已完成 Run opening，survivor 均将该无 executor owner 的 Run 收敛为 Lost：accepted Question answer 保留、隐藏 resuming row 清理、Tool/conversation closure 与 P86 scoped invalidation 不变；
+- waiting-child cancellation 的 Apply/Continue/Discard 后置条件、同步错误语义与 race 保持全绿；Protocol wire、SQLite schema、Artifact、Desktop Agent inner ring 与 Agent Framework 合同不变；
+- `app/cli` 未修改或暂存；测试结束无 Runtime、Go test、agent-browser、Chrome/daemon 残留。
+
+## 67. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P87（Run opening command settlement） | 反证发现根 Start/HITL Resume 的 answer claim 与 Run opening 已 durable commit 后，`openSegment` 仍同步等待 executor activation；activation 卡住会让 Operation/idempotency 无法保存或返回已接受的 Run/Segment receipt。Application 现在显式区分结算边界：根 Start/Resume 在 commit、live-owner 注册与 opening publication 后立即结算，activation/pump 由原 Run lifecycle task继续拥有；waiting-child cancellation 保持同步，以保护其 post-commit Apply/Continue 验证。真实 SQLite 同时覆盖 claim-before-opening 与 opening-before-activation 两个强杀 shape，均由 survivor 恢复为 Lost并保留已接受 Question answer。无兼容路径、第二 activation owner 或协议/存储改动 | 单客户端 blocked Start/Resume 交错、detached activation failure、waiting-child cancellation 后置条件及 claimed/opened SQLite recovery 回归通过；runs/runrecovery/runsegment/server/operation 定向 race 全绿；Runtime workspace/standalone 全量 test、build、vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 diff-check 全绿；受影响 package 无 fuzz owner，未使用 agent-browser，进程检查无 Runtime/Go test/Chrome/daemon 残留；`app/cli` 未修改或暂存 |
 | 2026-08-15 | P86（survivor Run recovery read-model 收敛） | 反证发现 survivor 的周期 Run recovery 通过本 Runtime SQLite connection 提交，connection-local `PRAGMA data_version` 不会观察自己的 commit；因此数据库虽已收敛为 RunLost，当前 Runtime 的已挂载 HITL/Plan/Goal/Run/Tool 仍可能无限停在被强杀 owner 的旧投影。Run Recovery Application 现在从原子 `RecoveryCommit` 按 Session 汇总精确 scope，仅在 commit 成功后按 Runs、Interrupts、Sessions、Goals 顺序发布既有 invalidation；Bootstrap 只注入 publisher，不拥有恢复策略。真实 claimed-resume SQLite 回归同时冻结 accepted Question answer、隐藏 resuming row、conversation Tool closure 与 Lost Run 的一致性；事务失败和 live peer owner 均零通知。Protocol、SQLite schema、Artifact、Desktop Agent inner ring 与 Agent Framework 合同未变化 | application/SQLite/bootstrap 定向测试与 runs/runrecovery/ownershiprecovery race 全绿；Runtime `go test ./... -count=1 -timeout=10m`、build、vet、`make check-standalone`、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 diff-check 全绿；受影响 package 无 fuzz owner，未新增无业务意义的并发压力；`app/cli` 未修改或暂存 |
 | 2026-08-15 | P85（Desktop CWD 与右侧 Context Dock 接线） | Wails v3 Desktop Host 新增 native directory picker，严格返回已存在绝对目录；Navigation Application 以独立 port 组合 picker、Session create `{cwd}` 与 focus，取消零写入、失败不回退 home，同一在途用户意图只结算一次。Work Index 新增“打开文件夹”入口并覆盖 8 个 locale。只读对照桌面 Proma 源码后，明确区分额外目录附件与 Session CWD；Lynx 右栏继续使用现有 per-Session Context Dock owner，只新增统一 `view.toggle-dock` 命令及 `Mod+Shift+B`，折叠后不丢标签。Runtime、Protocol、SQLite、Desktop Agent inner ring 与 Go Agent Framework 合同均未变化 | 定向 6 files / 37 tests 与 typecheck 通过；Frontend `npm run check` 及完整 `--detectAsyncLeaks` 均为 288 files / 1784 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites，994 locale keys 在 8 种语言完整；Desktop `go test ./... -count=1`、`go vet ./...`、`go build ./...` 与 diff-check 全绿；`app/cli` 未修改或暂存 |
 | 2026-08-14 | P84（shared embedded Runtime ownership） | 删除 data-directory 全生命周期单实例锁，以短期私有目录 setup lease、per-Session writer、physical working-tree shared/exclusive lease 与 per-Session Goal drive 建立真实业务所有权；跨进程 recovery sweep 只有一个 winner并固定 Run-before-Goal，各策略只接管成功取得 live-owner lease 的 identity并按 Session cleanup，Instance 周期重验让 survivor 在 peer 强杀后继续恢复。另一个 SQLite connection 的 commit 通过 `data_version` 发布 full resync，已挂载 HITL、Plan、Goal、Run/Tool 继续重读 durable truth。公共 `ErrDataDirectoryInUse` breaking 删除，不新增兼容路径、协议 wire、SQLite epoch或 Agent Framework 依赖 | 两个真实 embedded Runtime 同时打开相同目录并共享 idempotency namespace；跨实例 Session commit 触发 scoped `RuntimeResync`；独立子进程持有 Session lease 时 peer fail closed，强杀后 lease 转移连续 5/5；ordered sweep、Goal/Run recovery contention 与 scoped SQLite cleanup 回归通过。`go generate ./...` 零漂移，workspace/`GOWORK=off` 全量 test、build、vet，9 个高风险 package race，staticcheck、deadcode、golangci-lint、tidy-diff、contract/architecture 与 diff-check 全绿；未修改 `app/cli`，未使用 agent-browser |
@@ -1641,6 +1663,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 67. 当前下一步
+## 68. 当前下一步
 
-P86 已补齐 owner Runtime 强杀后 survivor 本地 recovery commit 的精确失效，使已挂载 HITL、Plan、Goal、Run/Tool 在事务提交后重读 durable truth。下一批继续以 1–2 个真实客户端反证 HITL answer claim 到 continuation opening 之间的非合作 begin/强杀交错，以及 renderer replacement 与窗口关闭同时发生时 mutation identity 的 takeover/settlement；`app/cli` 继续只读且不暂存。
+P87 已让根 Start/HITL Resume 在 durable opening 后立即结算，并由唯一 Run lifecycle task继续 activation/pump；强杀落在 claim 或 opening 两侧均由 P86 recovery 收敛。下一批转向 Desktop renderer replacement 与窗口关闭交错，重点反证 mutation journal active claim、successor generation takeover、迟到 settlement 与 Host KV 清理的同一 identity 交接；仍只采用 1–2 个真实客户端，`app/cli` 继续只读且不暂存。

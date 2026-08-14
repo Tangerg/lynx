@@ -12,8 +12,9 @@ import (
 )
 
 // Start validates and resolves the Session, claims the Session and working
-// tree, stages execution, commits the Run opening, and only then begins the
-// executor behind the package's lifecycle supervisor.
+// tree, stages execution, and commits the Run opening. That durable opening is
+// the command's acceptance point; executor activation continues behind the
+// package's lifecycle supervisor and cannot retain the accepted response.
 func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult, error) {
 	if err := c.requireStartDependencies(); err != nil {
 		return StartResult{}, err
@@ -138,6 +139,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		Limits:             cmd.Limits,
 		Capabilities:       cmd.Capabilities,
 		admission:          &runAdmission,
+		DetachActivation:   true,
 		BeginExecution: func(beginCtx context.Context) error {
 			return c.rootStarts.BeginRoot(beginCtx, ref)
 		},

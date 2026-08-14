@@ -211,7 +211,8 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 
 // openSegment attaches an already-staged executor stream, atomically commits
 // admission/resume plus opening projections, registers the live owner, then
-// begins execution and spawns the pump. The Run lifetime is detached
+// activates and pumps according to the command's explicit settlement boundary.
+// The Run lifetime is detached
 // from the request without losing its trace; request cancellation drops only
 // that subscriber.
 func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (iter.Seq[Event], error) {
@@ -234,7 +235,8 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 
 // segmentStartup owns the reversible process-local resources between executor
 // staging and durable Run opening. Once activate registers the tree owner and
-// launches the pump, that pump owns cleanup and task release instead.
+// launches the lifecycle task, that task owns activation, pumping, cleanup and
+// task release instead.
 type segmentStartup struct {
 	coordinator    *Coordinator
 	spec           segmentSpec
@@ -339,9 +341,14 @@ func (startup *segmentStartup) activate(
 	stream := startup.openingStream(requestContext)
 	startup.publishOpenings(openings)
 	startup.markSegmentsStarted()
-	startup.beginExecution()
+	if !startup.spec.DetachActivation {
+		startup.beginExecution()
+	}
 	go func() {
 		defer startup.releaseTask()
+		if startup.spec.DetachActivation {
+			startup.beginExecution()
+		}
 		startup.coordinator.pump(
 			startup.runContext,
 			startup.taskContext,
