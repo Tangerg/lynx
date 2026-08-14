@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P84 已完成；按用户要求停在 shared embedded Runtime ownership 小里程碑
+> 状态：P1–P85 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -92,6 +92,7 @@
 | P56 | HTTP sidecar 合同、Desktop 消费与事件协商收敛 | P55 + sidecar omission / outage recovery / older-topic negotiation 反例 | 已完成 |
 | P57 | Desktop Runtime 冷启动、断线复检与事件流单 owner 收敛 | P56 + cold offline / crash / duplicate subscription 反例 | 已完成 |
 | P84 | 多个内嵌 Runtime 共享数据库的业务所有权与崩溃接管 | P83 + CLI/Desktop 部署事实、双 Runtime/强杀证据 | 已完成 |
+| P85 | Desktop 工作目录所有权与右侧 Context Dock 命令接线 | P84 + Wails v3 native dialog / Proma 右栏源码对照 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1438,10 +1439,31 @@
 - peer commit 触发既有 `RuntimeResync` 并点名完整 topic 闭集，消费者重读 durable projection；Protocol wire、SQLite epoch、Artifact/checkpoint 和 Agent Framework 边界不变；
 - `app/cli` 未修改或暂存；完成本批独立提交、推送后停止。
 
-## 64. 进度记录
+## 64. P85 — Desktop 工作目录所有权与右侧 Context Dock 命令接线
+
+### 目标
+
+关闭 Desktop 新建会话只能隐式落到 home、用户无法在创建前选择 CWD 的产品缺口；同时只读对照桌面 Proma 源码中的右侧文件/改动面板，把 Lynx 已有 Context Dock 的显隐接入统一命令与快捷键体系。目录选择属于 Desktop Host 能力，Session/CWD admission 仍由既有 Agent Application 流程拥有；右栏显隐仍由 Workspace Navigation port 独占，禁止在 Shell、RPC 或 Runtime 中建立第二状态。
+
+### 工作项
+
+- [x] P85-01 由 Wails v3 Desktop Host 提供严格的原生目录选择 binding，取消返回空结果，选择结果规范为存在的绝对目录；Host 未配置、dialog 失败、文件误选均 fail closed；
+- [x] P85-02 Navigation Application 通过独立 picker port 驱动“选择目录 → 创建 Session `{cwd}` → 聚焦”的单一流程；取消零 mutation，重复点击复用同一在途用户意图，失败明确提示且不退回默认 CWD；
+- [x] P85-03 在 Work Index 增加“打开文件夹”入口并覆盖 8 个 locale；Desktop Host generated-name guard、RPC strict validator 与 Browser fallback 同步接线；
+- [x] P85-04 对照 Proma 源码确认“附加文件夹”只是既有 Session 的额外访问范围，不冒充 CWD；为 Lynx 现有右侧 Context Dock 增加 `view.toggle-dock` 命令与 `Mod+Shift+B` 快捷键，折叠/重开保留当前 Session 的原标签集合。
+
+### 验收
+
+- 原生 picker 选择、取消、Host 缺失、dialog error、非目录与 RPC malformed result 均有回归；创建请求精确携带所选绝对 CWD，取消/失败不会创建 home Session；
+- 一客户端重复点击只产生一次 picker 与一次 Session mutation；右栏 toggle 的折叠/恢复不删除 per-Session tab identity；
+- Frontend 完整门禁和异步泄露检测均为 288 files / 1784 tests，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 保持产品消费；Desktop Go test/vet/build 全绿；
+- Runtime/Protocol/SQLite/Agent Framework 合同不变，`app/cli` 未修改或暂存，无关工作区改动保持原样。
+
+## 65. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P85（Desktop CWD 与右侧 Context Dock 接线） | Wails v3 Desktop Host 新增 native directory picker，严格返回已存在绝对目录；Navigation Application 以独立 port 组合 picker、Session create `{cwd}` 与 focus，取消零写入、失败不回退 home，同一在途用户意图只结算一次。Work Index 新增“打开文件夹”入口并覆盖 8 个 locale。只读对照桌面 Proma 源码后，明确区分额外目录附件与 Session CWD；Lynx 右栏继续使用现有 per-Session Context Dock owner，只新增统一 `view.toggle-dock` 命令及 `Mod+Shift+B`，折叠后不丢标签。Runtime、Protocol、SQLite、Desktop Agent inner ring 与 Go Agent Framework 合同均未变化 | 定向 6 files / 37 tests 与 typecheck 通过；Frontend `npm run check` 及完整 `--detectAsyncLeaks` 均为 288 files / 1784 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites，994 locale keys 在 8 种语言完整；Desktop `go test ./... -count=1`、`go vet ./...`、`go build ./...` 与 diff-check 全绿；`app/cli` 未修改或暂存 |
 | 2026-08-14 | P84（shared embedded Runtime ownership） | 删除 data-directory 全生命周期单实例锁，以短期私有目录 setup lease、per-Session writer、physical working-tree shared/exclusive lease 与 per-Session Goal drive 建立真实业务所有权；跨进程 recovery sweep 只有一个 winner并固定 Run-before-Goal，各策略只接管成功取得 live-owner lease 的 identity并按 Session cleanup，Instance 周期重验让 survivor 在 peer 强杀后继续恢复。另一个 SQLite connection 的 commit 通过 `data_version` 发布 full resync，已挂载 HITL、Plan、Goal、Run/Tool 继续重读 durable truth。公共 `ErrDataDirectoryInUse` breaking 删除，不新增兼容路径、协议 wire、SQLite epoch或 Agent Framework 依赖 | 两个真实 embedded Runtime 同时打开相同目录并共享 idempotency namespace；跨实例 Session commit 触发 scoped `RuntimeResync`；独立子进程持有 Session lease 时 peer fail closed，强杀后 lease 转移连续 5/5；ordered sweep、Goal/Run recovery contention 与 scoped SQLite cleanup 回归通过。`go generate ./...` 零漂移，workspace/`GOWORK=off` 全量 test、build、vet，9 个高风险 package race，staticcheck、deadcode、golangci-lint、tidy-diff、contract/architecture 与 diff-check 全绿；未修改 `app/cli`，未使用 agent-browser |
 | 2026-08-14 | P83-22（mounted Session atomic material snapshot） | Desktop 挂载/恢复 Agent Session 原先并行调用 `items.list`、`runs.list`、`interrupts.list` 与 `plan.get`；四个独立 SQLite transaction 即使最终会被事件修正，首次 fold 仍可能组合出数据库中从未共同存在过的 Run/Tool、HITL 与 Plan。现在 Application 定义并校验 Session/Item/Run/open Interrupt/Plan 的 material snapshot 不变量，Persistence 在一个 transaction 中读取全部事实，Delivery 以 `sessions.snapshot` 做 capability-preserving 投影，公开 Go binding、生成合同与 Desktop SDK/Adapter 同步接入并删除旧四读恢复路径。Goal 保持由独立 `goals.get` owner 恢复。Registry 的 `materializes` 元数据让 consumer gate 能区分服务端原子组合与孤儿能力，不要求前端发冗余请求，也不改变独立查询的分页/筛选语义 | 两个真实 SQLite connection 在 WAL 下制造读中途并发提交：旧 snapshot 精确保持 Session/Plan 1/1，下一次读取为 2/2，连续 20/20 稳定；定向 race、生成合同漂移/摘要、Server capability/existence、公开 Go binding 与真实 Runtime SIGKILL 恢复回归通过。Runtime `go test ./... -count=1 -timeout=10m` 全包通过；Frontend `npm run check` 与完整 `--detectAsyncLeaks` 均为 287 files / 1776 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites；未使用 agent-browser |
 | 2026-08-14 | P83-21（active-workspace FileTree pagination retirement） | FileTree 的根目录与每个展开目录都通过参数化 Query 调用 `workspace.files.list().autoPagingToArray()`；cwd/path cache identity 能隔离屏幕值，`files.changed`/global replacement 也能替换 writer，但默认 Data Provider 与 bound paged SDK 丢弃 Query generation signal。旧目录已进入 continuation 后切换 active Session/cwd 时，新树可以显示，旧首页/续页 correlation 与 HTTP fetch 却继续存活；目录多时会按每个展开节点累积。现在 provider 把同一 signal 交给 bound `files.list`，SDK 既有唯一 pagination policy 为首页和全部 cursor continuation 复用同一 call option；一次 generation abort 释放整代分页资源，不增加取消消息或额外 owner。Runtime wire 仍止于 defaults Adapter/SDK，Workspace/Agent Application/Domain、Go Runtime、Protocol、SQLite 与 Agent Framework 合同均未变化 | 一客户端真实挂载 FileTree read：旧 cwd 首页返回 `old-page-2` cursor、第二页悬挂后 active cwd 切到 successor；旧两页共享的 transport signal 立即 aborted，successor 使用独立 active signal并显示新树，随后注入旧第二页也不能覆盖。修复前精确红在旧两页 transport signal 都为 `undefined`；SDK 单测锁定 bound workspace identity、path 参数与 cancellation option。核心交错独立 Vitest 进程连续 20/20 通过，focused 2 files / 30 tests 在 `--detectAsyncLeaks` 下通过；Frontend `npm run check` 与完整 `--detectAsyncLeaks` 均为 287 files / 1774 tests、零泄露，consumer 为 86/86 operations + 3/3 sidecars + 16/16 events / 107 typed call sites；Runtime `go test ./app/runtime/... -count=1 -timeout=10m` 全包通过，未使用 agent-browser |
@@ -1597,6 +1619,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 65. 当前下一步
+## 66. 当前下一步
 
-P84 已让 CLI 与 Desktop 各自内嵌 Runtime、共享用户数据库成为受所有权约束的正式部署模型：目录不再是全局单实例，冲突收敛到 Session/Goal/working-tree identity，恢复只接管已证明无主的状态，peer commit 触发 mounted read model 全量重读。按用户要求在此小里程碑停止，不继续投入前端边角 cancellation。后续若开始新一轮，优先以 1–2 个真实客户端验证 HITL answer claim 到 continuation opening 的强杀窗口，以及同 cwd 上真实 Run 与 rollback/restore 的产品交错；`app/cli` 继续只读且不暂存。
+P85 已让用户在 Desktop 创建 Session 前选择真实 CWD，并把右侧 Context Dock 接入统一命令/快捷键 owner；附件目录与工作目录保持不同语义。下一批继续回到 `app/runtime` 主线，以 1–2 个真实客户端优先反证 HITL answer claim 到 continuation opening 的强杀窗口、Runtime 重启后已挂载 HITL/Plan/Goal/Run/Tool 的统一收敛，以及同 cwd Run 与 rollback/restore 的真实产品交错；`app/cli` 继续只读且不暂存。

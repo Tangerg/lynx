@@ -34,6 +34,7 @@ export const ja: Record<string, string> = {
   "sidebar.action.expand": "サイドバーを展開",
   "sidebar.action.resize": "ワークインデックスの幅を変更",
   "sidebar.action.newSession": "新規セッション",
+  "sidebar.action.openFolder": "フォルダーを開く",
   "sidebar.action.tools": "ツールとプラグイン",
   "sidebar.action.settings": "設定",
 
@@ -713,6 +714,7 @@ export const ja: Record<string, string> = {
   "slash.search": "コードベースでシンボルまたはパターンを検索",
   "slash.plan": "現在の計画を再表示または編集",
   "command.toggleSidebar": "サイドバーレールを切り替え",
+  "command.toggleDock": "右ワークスペースを切り替え",
   "command.toggleTheme": "ダーク/ライトテーマを切り替え",
   "command.newChat": "新しいチャット",
   "command.closeFocused": "パネルまたはチャットを閉じる",
@@ -1050,6 +1052,7 @@ export const ja: Record<string, string> = {
   "rpcError.provider_test_failed":
     "プロバイダーに接続できないか、テストリクエストが拒否されました。",
   "session.error.create": "セッションを作成できませんでした。",
+  "session.error.chooseWorkingDirectory": "フォルダー選択を開けませんでした。",
   "session.error.delete": "セッションを削除できませんでした。",
   "session.error.rename": "セッション名を変更できませんでした。",
   "session.error.fork": "セッションをフォークできませんでした。",

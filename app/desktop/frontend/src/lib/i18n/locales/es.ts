@@ -35,6 +35,7 @@ export const es: Record<string, string> = {
   "sidebar.action.expand": "Expandir barra lateral",
   "sidebar.action.resize": "Cambiar el tamaño del índice de trabajo",
   "sidebar.action.newSession": "Nueva sesión",
+  "sidebar.action.openFolder": "Abrir carpeta",
   "sidebar.action.tools": "Herramientas y complementos",
   "sidebar.action.settings": "Ajustes",
 
@@ -720,6 +721,7 @@ export const es: Record<string, string> = {
   "slash.search": "Buscar un símbolo o patrón en el código",
   "slash.plan": "Reformular o editar el plan actual",
   "command.toggleSidebar": "Alternar barra lateral",
+  "command.toggleDock": "Alternar espacio derecho",
   "command.toggleTheme": "Alternar tema oscuro/claro",
   "command.newChat": "Nuevo chat",
   "command.closeFocused": "Cerrar panel o chat",
@@ -1059,6 +1061,7 @@ export const es: Record<string, string> = {
   "rpcError.provider_test_failed":
     "No se pudo contactar al proveedor, o rechazó la petición de prueba.",
   "session.error.create": "No se pudo crear la sesión.",
+  "session.error.chooseWorkingDirectory": "No se pudo abrir el selector de carpetas.",
   "session.error.delete": "No se pudo borrar la sesión.",
   "session.error.rename": "No se pudo renombrar la sesión.",
   "session.error.fork": "No se pudo bifurcar la sesión.",

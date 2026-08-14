@@ -35,6 +35,7 @@ export const fr: Record<string, string> = {
   "sidebar.action.expand": "Développer la barre",
   "sidebar.action.resize": "Redimensionner l’index de travail",
   "sidebar.action.newSession": "Nouvelle session",
+  "sidebar.action.openFolder": "Ouvrir un dossier",
   "sidebar.action.tools": "Outils et plug-ins",
   "sidebar.action.settings": "Paramètres",
 
@@ -722,6 +723,7 @@ export const fr: Record<string, string> = {
   "slash.search": "Rechercher un symbole ou un motif dans le code",
   "slash.plan": "Reformuler ou modifier le plan actuel",
   "command.toggleSidebar": "Basculer la barre latérale",
+  "command.toggleDock": "Basculer l’espace de droite",
   "command.toggleTheme": "Basculer thème sombre/clair",
   "command.newChat": "Nouveau chat",
   "command.closeFocused": "Fermer le panneau ou le chat",
@@ -1065,6 +1067,7 @@ export const fr: Record<string, string> = {
   "rpcError.provider_test_failed":
     "Le fournisseur était injoignable, ou il a refusé la requête de test.",
   "session.error.create": "Impossible de créer la session.",
+  "session.error.chooseWorkingDirectory": "Impossible d’ouvrir le sélecteur de dossiers.",
   "session.error.delete": "Impossible de supprimer la session.",
   "session.error.rename": "Impossible de renommer la session.",
   "session.error.fork": "Impossible de forker la session.",

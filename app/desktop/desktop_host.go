@@ -53,6 +53,14 @@ type nativeWindow interface {
 	NativeWindow() unsafe.Pointer
 }
 
+// workingDirectoryPicker is owned by the host because choosing a directory is
+// a packaged-application capability, not part of the Runtime Protocol. The Wails
+// adapter satisfies it after the application and its window exist; tests use a
+// small fake without constructing either.
+type workingDirectoryPicker interface {
+	ChooseWorkingDirectory() (string, error)
+}
+
 // DesktopHost is the Wails-owned boundary for capabilities that belong to the
 // packaged application rather than the Runtime Protocol.
 //
@@ -62,8 +70,9 @@ type nativeWindow interface {
 // unexported setter rather than a method that reads like one. `TestDesktopHostBinds`
 // pins the set.
 type DesktopHost struct {
-	localTokenPath string
-	pluginRoot     string
+	localTokenPath         string
+	pluginRoot             string
+	workingDirectoryPicker workingDirectoryPicker
 	// Nil until the window exists. The application is constructed with this service
 	// before it has any window, and `WindowChrome` is only reachable from a frontend
 	// that a window had to load — but nil is answered honestly rather than assumed away.
@@ -82,6 +91,12 @@ func newDesktopHost(home string) *DesktopHost {
 // purpose: see the note on DesktopHost.
 func (h *DesktopHost) useWindow(window nativeWindow) {
 	h.window = window
+}
+
+// useWorkingDirectoryPicker attaches the packaged application's native directory
+// chooser. Unexported on purpose: see the note on DesktopHost.
+func (h *DesktopHost) useWorkingDirectoryPicker(picker workingDirectoryPicker) {
+	h.workingDirectoryPicker = picker
 }
 
 func defaultDesktopHost() (*DesktopHost, error) {
@@ -112,6 +127,34 @@ func (h *DesktopHost) WindowChrome() WindowChrome {
 		ControlsInlineEnd: controlsInlineEnd,
 		Measured:          true,
 	}
+}
+
+// ChooseWorkingDirectory opens the platform directory picker and returns one
+// absolute, existing directory. An empty string is the explicit cancellation
+// result; it is not rewritten to the process working directory.
+func (h *DesktopHost) ChooseWorkingDirectory() (string, error) {
+	if h.workingDirectoryPicker == nil {
+		return "", errors.New("desktop host: working directory picker is not configured")
+	}
+	selected, err := h.workingDirectoryPicker.ChooseWorkingDirectory()
+	if err != nil {
+		return "", fmt.Errorf("desktop host: choose working directory: %w", err)
+	}
+	if selected == "" {
+		return "", nil
+	}
+	absolute, err := filepath.Abs(selected)
+	if err != nil {
+		return "", fmt.Errorf("desktop host: resolve working directory: %w", err)
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return "", fmt.Errorf("desktop host: inspect working directory: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("desktop host: working directory %q is not a directory", absolute)
+	}
+	return filepath.Clean(absolute), nil
 }
 
 // Bootstrap returns the local runtime connection and immutable plugin sources

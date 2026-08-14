@@ -10,6 +10,7 @@ import {
   openWorkspaceViewInDock,
   selectWorkspaceDockView,
   showWorkspaceDock,
+  toggleWorkspaceDock,
 } from "./navigation";
 
 function reset() {
@@ -87,6 +88,18 @@ describe("workspace navigation port", () => {
       dockViewIds: ["explorer"],
       lastViewId: "explorer",
     });
+  });
+
+  it("toggles the visible dock without discarding its session tabs", () => {
+    openWorkspaceViewInDock("diff");
+
+    toggleWorkspaceDock();
+    expect(navigator().get().dock).toBeNull();
+    expect(useContextDockStore.getState().dockViewIds).toEqual(["diff"]);
+
+    toggleWorkspaceDock();
+    expect(navigator().get().dock).toBe("diff");
+    expect(useContextDockStore.getState().dockViewIds).toEqual(["diff"]);
   });
 
   it("closes the active dock tab before the session-level command can run", () => {

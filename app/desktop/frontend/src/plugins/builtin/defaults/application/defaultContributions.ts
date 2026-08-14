@@ -4,6 +4,7 @@ export type CommandRun = CommandSpec["run"];
 
 export interface DefaultCommandRuns {
   toggleSidebar: CommandRun;
+  toggleDock: CommandRun;
   toggleTheme: CommandRun;
   newChat: CommandRun;
   closeFocused: CommandRun;
@@ -83,6 +84,16 @@ export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
       run: runs.toggleSidebar,
     },
     {
+      id: "view.toggle-dock",
+      label: "command.toggleDock",
+      icon: "panel-r",
+      group: "command.group.view",
+      keywords: ["right", "context", "files", "changes", "collapse", "expand"],
+      order: 1,
+      combo: "Mod+Shift+B",
+      run: runs.toggleDock,
+    },
+    {
       id: "settings.toggle-theme",
       label: "command.toggleTheme",
       icon: "moon",
@@ -132,7 +143,7 @@ export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
       icon: "chevron-left",
       group: "command.group.view",
       keywords: ["previous", "return"],
-      order: 1,
+      order: 2,
       combo: "Mod+[",
       run: runs.historyBack,
     },
@@ -142,7 +153,7 @@ export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
       icon: "chevron-right",
       group: "command.group.view",
       keywords: ["next"],
-      order: 2,
+      order: 3,
       combo: "Mod+]",
       run: runs.historyForward,
     },

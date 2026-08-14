@@ -17,7 +17,7 @@ import (
 //
 // Also the reason `useWindow` is unexported. It takes a raw window handle; exported, it
 // would be callable from JavaScript.
-func TestDesktopHostBindsExactlyTwoMethods(t *testing.T) {
+func TestDesktopHostBindsExactlyThreeMethods(t *testing.T) {
 	hostType := reflect.TypeFor[*DesktopHost]()
 
 	exported := make([]string, 0, hostType.NumMethod())
@@ -26,7 +26,7 @@ func TestDesktopHostBindsExactlyTwoMethods(t *testing.T) {
 	}
 	slices.Sort(exported)
 
-	want := []string{"Bootstrap", "WindowChrome"}
+	want := []string{"Bootstrap", "ChooseWorkingDirectory", "WindowChrome"}
 	if !slices.Equal(exported, want) {
 		t.Fatalf("DesktopHost exposes %v over IPC, want exactly %v", exported, want)
 	}
@@ -66,7 +66,7 @@ func TestDesktopHostMethodNamesMatchTheFrontend(t *testing.T) {
 		t.Fatalf("read the frontend's host bridge: %v", err)
 	}
 
-	for _, method := range []string{"Bootstrap", "WindowChrome"} {
+	for _, method := range []string{"Bootstrap", "ChooseWorkingDirectory", "WindowChrome"} {
 		if _, ok := hostType.MethodByName(method); !ok {
 			t.Errorf("DesktopHost has no exported %s method to bind", method)
 			continue

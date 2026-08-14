@@ -55,6 +55,7 @@ describe("defaultStaticCommands", () => {
     const run = () => {};
     const commands = defaultStaticCommands({
       toggleSidebar: run,
+      toggleDock: run,
       toggleTheme: run,
       newChat: run,
       closeFocused: run,
@@ -65,6 +66,7 @@ describe("defaultStaticCommands", () => {
 
     expect(commands.map((command) => command.id)).toEqual([
       "view.toggle-sidebar",
+      "view.toggle-dock",
       "settings.toggle-theme",
       "chat.new",
       "workspace.close-focused",
@@ -74,6 +76,7 @@ describe("defaultStaticCommands", () => {
     ]);
     expect(commands.map((command) => command.combo)).toEqual([
       "Mod+B",
+      "Mod+Shift+B",
       "Mod+Shift+L",
       "Mod+N",
       "Mod+W",
@@ -83,6 +86,7 @@ describe("defaultStaticCommands", () => {
     ]);
     expect(commands.map((command) => command.label)).toEqual([
       "command.toggleSidebar",
+      "command.toggleDock",
       "command.toggleTheme",
       "command.newChat",
       "command.closeFocused",

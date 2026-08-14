@@ -1,12 +1,12 @@
 // Sidebar global actions — the Work Index opens with search and the app-level
 // entry points.
 //
-// Three rows, and none of them is a session: starting work, the unattended work
-// a schedule is running, and what the agent can reach. The list below them is
+// Global entry points for starting work, choosing where it runs, inspecting
+// unattended work, and configuring what the agent can reach. The list below is
 // the work itself, so anything that is merely a way of FINDING that work does
-// not earn a row here — ⌘K is on every surface and needs no signpost in the one
-// place the sessions are already listed. Search is different: it scales beyond
-// the visible fold while keeping the index itself compact.
+// not earn another row here — ⌘K is on every surface and needs no signpost in
+// the one place sessions are already listed. Search is different: it scales
+// beyond the visible fold while keeping the index itself compact.
 
 import { comboGlyph } from "@/lib/combo";
 import { MCP_SERVERS_PANE, SCHEDULES_PANE } from "@/plugins/builtin/settings/public/panes";
@@ -47,6 +47,9 @@ function SidebarActions() {
           hint — and a keyboard user is not looking at the sidebar. */}
         <AgentRow icon="edit" onClick={actions.createSession}>
           {t("sidebar.action.newSession")}
+        </AgentRow>
+        <AgentRow icon="folder-open" onClick={actions.chooseSessionFolder}>
+          {t("sidebar.action.openFolder")}
         </AgentRow>
         <AgentRow icon="clock" onClick={() => openWorkspaceSettingsPane(SCHEDULES_PANE)}>
           {t("settings.pane.schedules")}

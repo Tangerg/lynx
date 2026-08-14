@@ -34,6 +34,7 @@ export const ko: Record<string, string> = {
   "sidebar.action.expand": "사이드바 펼치기",
   "sidebar.action.resize": "작업 인덱스 크기 조절",
   "sidebar.action.newSession": "새 세션",
+  "sidebar.action.openFolder": "폴더 열기",
   "sidebar.action.tools": "도구 및 플러그인",
   "sidebar.action.settings": "설정",
 
@@ -706,6 +707,7 @@ export const ko: Record<string, string> = {
   "slash.search": "코드베이스에서 심볼 또는 패턴 검색",
   "slash.plan": "현재 계획 다시 설명 또는 편집",
   "command.toggleSidebar": "사이드바 레일 전환",
+  "command.toggleDock": "오른쪽 작업 영역 전환",
   "command.toggleTheme": "다크/라이트 테마 전환",
   "command.newChat": "새 채팅",
   "command.closeFocused": "패널 또는 채팅 닫기",
@@ -1033,6 +1035,7 @@ export const ko: Record<string, string> = {
   "rpcError.provider_not_configured": "먼저 API 키를 입력하세요.",
   "rpcError.provider_test_failed": "제공자에 연결할 수 없거나 테스트 요청이 거부됐습니다.",
   "session.error.create": "세션을 만들 수 없습니다.",
+  "session.error.chooseWorkingDirectory": "폴더 선택기를 열 수 없습니다.",
   "session.error.delete": "세션을 삭제할 수 없습니다.",
   "session.error.rename": "세션 이름을 바꿀 수 없습니다.",
   "session.error.fork": "세션을 포크할 수 없습니다.",

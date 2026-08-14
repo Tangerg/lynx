@@ -97,7 +97,12 @@ func main() {
 	// The service is registered before any window exists, so the window it measures is
 	// named here rather than found later. v3 is a multi-window framework: asking the
 	// platform for "the app's window" is a guess that a sheet or a second window wins.
-	host.useWindow(app.Window.NewWithOptions(desktopWindowOptions()))
+	window := app.Window.NewWithOptions(desktopWindowOptions())
+	host.useWindow(window)
+	host.useWorkingDirectoryPicker(wailsWorkingDirectoryPicker{
+		dialogs: app.Dialog,
+		window:  window,
+	})
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}

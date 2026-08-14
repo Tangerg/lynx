@@ -35,6 +35,7 @@ export const de: Record<string, string> = {
   "sidebar.action.expand": "Seitenleiste ausklappen",
   "sidebar.action.resize": "Arbeitsindex skalieren",
   "sidebar.action.newSession": "Neue Sitzung",
+  "sidebar.action.openFolder": "Ordner öffnen",
   "sidebar.action.tools": "Tools & Plug-ins",
   "sidebar.action.settings": "Einstellungen",
 
@@ -723,6 +724,7 @@ export const de: Record<string, string> = {
   "slash.search": "Codebasis nach Symbol oder Muster durchsuchen",
   "slash.plan": "Aktuellen Plan neu formulieren oder bearbeiten",
   "command.toggleSidebar": "Seitenleiste umschalten",
+  "command.toggleDock": "Rechten Arbeitsbereich umschalten",
   "command.toggleTheme": "Dunkles/Helles Theme umschalten",
   "command.newChat": "Neuer Chat",
   "command.closeFocused": "Panel oder Chat schließen",
@@ -1068,6 +1070,7 @@ export const de: Record<string, string> = {
   "rpcError.provider_test_failed":
     "Der Anbieter war nicht erreichbar oder hat die Testanfrage abgelehnt.",
   "session.error.create": "Sitzung konnte nicht erstellt werden.",
+  "session.error.chooseWorkingDirectory": "Ordnerauswahl konnte nicht geöffnet werden.",
   "session.error.delete": "Sitzung konnte nicht gelöscht werden.",
   "session.error.rename": "Sitzung konnte nicht umbenannt werden.",
   "session.error.fork": "Sitzung konnte nicht geforkt werden.",

@@ -91,6 +91,18 @@ export function showWorkspaceDock(): void {
   workspaceNavigation().showDock(DEFAULT_DOCK_VIEW_ID);
 }
 
+/** Toggle the context dock through the same navigation owner as the on-screen
+ * control. The current location, rather than the remembered tab set, decides
+ * whether the dock is visible: collapsing intentionally keeps those tabs for
+ * the next show. */
+export function toggleWorkspaceDock(): void {
+  if (workspaceNavigation().dock().open) {
+    workspaceNavigation().collapseDock();
+  } else {
+    workspaceNavigation().showDock(DEFAULT_DOCK_VIEW_ID);
+  }
+}
+
 export function closeWorkspaceView(id: string): void {
   workspaceNavigation().closeView(id);
 }

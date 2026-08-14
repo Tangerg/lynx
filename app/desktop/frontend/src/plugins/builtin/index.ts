@@ -53,6 +53,7 @@ import nativeShell from "./shell/native-shell";
 import providerSetup from "./shell/provider-setup";
 import { localesPack } from "./i18n";
 import mainRoute from "./shell/main-route";
+import navigationBootstrap from "./navigation/bootstrap";
 import {
   messageCopy,
   messageEdit,
@@ -129,6 +130,7 @@ const protocol: PluginSpec[] = [agentFold];
 const infrastructure: PluginSpec[] = [
   nativeShell,
   observability,
+  navigationBootstrap,
   agentBootstrap,
   runtime,
   workspaceBootstrap,

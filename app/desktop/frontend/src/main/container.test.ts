@@ -70,6 +70,7 @@ describe("main/container", () => {
         sideloadedPlugins: [],
         sideloadIssues: [],
       }),
+      chooseWorkingDirectory: async () => null,
       windowChrome: async () => null,
     });
     setContainer({ desktop: desktop("token-a") });

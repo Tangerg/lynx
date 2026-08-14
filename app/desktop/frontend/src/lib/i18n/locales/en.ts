@@ -36,6 +36,7 @@ export const en: Record<string, string> = {
   "sidebar.action.expand": "Expand sidebar",
   "sidebar.action.resize": "Resize the work index",
   "sidebar.action.newSession": "New session",
+  "sidebar.action.openFolder": "Open folder",
   "sidebar.action.tools": "Tools & plugins",
   "sidebar.action.settings": "Settings",
 
@@ -1013,6 +1014,7 @@ export const en: Record<string, string> = {
 
   // ── Default command palette labels ──
   "command.toggleSidebar": "Toggle sidebar rail",
+  "command.toggleDock": "Toggle right workspace",
   "command.toggleTheme": "Toggle dark/light theme",
   "command.newChat": "New chat",
   "command.closeFocused": "Close panel or chat",
@@ -1085,6 +1087,7 @@ export const en: Record<string, string> = {
   "rpcError.provider_test_failed":
     "The provider couldn't be reached, or it rejected the test request.",
   "session.error.create": "Couldn't create the session.",
+  "session.error.chooseWorkingDirectory": "Couldn't open the folder chooser.",
   "session.error.delete": "Couldn't delete the session.",
   "session.error.rename": "Couldn't rename the session.",
   "session.error.fork": "Couldn't fork the session.",

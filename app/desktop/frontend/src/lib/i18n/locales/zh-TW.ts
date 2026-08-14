@@ -33,6 +33,7 @@ export const zhTW: Record<string, string> = {
   "sidebar.action.expand": "展開側欄",
   "sidebar.action.resize": "調整工作索引寬度",
   "sidebar.action.newSession": "新會話",
+  "sidebar.action.openFolder": "開啟資料夾",
   "sidebar.action.tools": "工具與外掛",
   "sidebar.action.settings": "設定",
 
@@ -719,6 +720,7 @@ export const zhTW: Record<string, string> = {
   "slash.search": "在程式碼庫中搜尋符號或模式",
   "slash.plan": "重述或編輯目前計畫",
   "command.toggleSidebar": "切換側欄收合",
+  "command.toggleDock": "切換右側工作區",
   "command.toggleTheme": "切換深色/淺色佈景",
   "command.newChat": "新增聊天",
   "command.closeFocused": "關閉面板或對話",
@@ -1013,6 +1015,7 @@ export const zhTW: Record<string, string> = {
   "rpcError.provider_not_configured": "請先填寫 API key。",
   "rpcError.provider_test_failed": "供應方連不上，或拒絕了這次測試請求。",
   "session.error.create": "無法建立工作階段。",
+  "session.error.chooseWorkingDirectory": "無法開啟資料夾選擇器。",
   "session.error.delete": "無法刪除工作階段。",
   "session.error.rename": "無法重新命名工作階段。",
   "session.error.fork": "無法複刻工作階段。",

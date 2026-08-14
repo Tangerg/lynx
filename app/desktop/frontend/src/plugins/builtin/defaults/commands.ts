@@ -1,8 +1,8 @@
 // Built-in plugin: the palette's command set.
 //
-// Seven commands, all static. It used to also mint one command per workspace
+// Eight commands, all static. It used to also mint one command per workspace
 // view and one per theme accent, rebuilt reactively off both registries — which
-// put roughly thirty rows in a palette that holds seven actions, and buried them
+// put roughly thirty rows in a palette that holds eight actions, and buried them
 // under twenty-one panels and four colour names.
 //
 // Both had a better home already. Panels belong to the Context Dock's own picker,
@@ -20,6 +20,7 @@ import { closeActiveAgentSession, createSession } from "@/plugins/builtin/agent/
 import {
   closeActiveWorkspaceDockView,
   closeActiveWorkspaceView,
+  toggleWorkspaceDock,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin } from "@/plugins/sdk";
 import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
@@ -47,6 +48,7 @@ export const defaultCommands = definePlugin({
   setup({ host }) {
     for (const command of defaultStaticCommands({
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
+      toggleDock: toggleWorkspaceDock,
       toggleTheme: toggleThemeScheme,
       newChat: openNewChatSession,
       closeFocused: closeFocusedSurface,

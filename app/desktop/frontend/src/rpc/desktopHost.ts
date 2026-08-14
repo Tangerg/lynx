@@ -40,16 +40,16 @@ export interface WindowChrome {
 }
 
 /**
- * The two Go methods this app can reach, by the name the runtime knows them by.
+ * The three Go methods this app can reach, by the name the runtime knows them by.
  *
  * `package.Type.Method`, which for a `main` package is what Go's own reflection reports —
  * so these are the full names, not a shortened form. v3 can generate typed wrappers for
  * them instead; this calls by name deliberately, because a wrapper returns `any` and
- * validates nothing, and everything crossing this boundary is Zod-checked below. Two
- * names against two schemas beats generated shapes that agree with nothing.
+ * validates nothing, and everything crossing this boundary is Zod-checked below.
  */
 const HOST_METHOD = {
   bootstrap: "main.DesktopHost.Bootstrap",
+  chooseWorkingDirectory: "main.DesktopHost.ChooseWorkingDirectory",
   windowChrome: "main.DesktopHost.WindowChrome",
 } as const;
 
@@ -61,6 +61,9 @@ export interface DesktopHostBinding {
 export interface DesktopHostClient {
   /** Returns null in a plain browser where the Wails host is intentionally absent. */
   bootstrap(): Promise<DesktopBootstrap | null>;
+  /** Opens the native directory chooser. `null` means the user cancelled or the
+   *  packaged host is absent (for example, a browser visual fixture). */
+  chooseWorkingDirectory(): Promise<string | null>;
   /** `null` where there is no window to measure. Re-read per layout: the titlebar is
    *  rebuilt entering and leaving fullscreen, and the marks go away with it. */
   windowChrome(): Promise<WindowChrome | null>;
@@ -71,6 +74,8 @@ const WindowChromeSchema = z.object({
   controlsInlineEnd: z.number().nonnegative(),
   measured: z.boolean(),
 });
+
+const WorkingDirectorySchema = z.string();
 
 const DesktopBootstrapSchema = z.object({
   localRuntime: z.object({
@@ -119,6 +124,25 @@ export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHo
         return parsed.data;
       })();
       return pending;
+    },
+    async chooseWorkingDirectory() {
+      const host = binding ?? (await wailsDesktopHostBinding());
+      if (!host) return null;
+      let value: unknown;
+      try {
+        value = await host.call(HOST_METHOD.chooseWorkingDirectory);
+      } catch (error) {
+        throw new RpcTransportError(
+          `desktop host directory selection failed: ${errorMessage(error)}`,
+        );
+      }
+      const parsed = WorkingDirectorySchema.safeParse(value);
+      if (!parsed.success) {
+        throw new RpcTransportError(
+          `desktop host directory selection returned an invalid shape: ${parsed.error.message}`,
+        );
+      }
+      return parsed.data.length > 0 ? parsed.data : null;
     },
     async windowChrome() {
       const host = binding ?? (await wailsDesktopHostBinding());

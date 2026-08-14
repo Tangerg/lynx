@@ -3,10 +3,11 @@ import { RpcTransportError } from "./errors";
 import { createDesktopHostClient, type DesktopHostBinding } from "./desktopHost";
 
 const BOOTSTRAP = "main.DesktopHost.Bootstrap";
+const CHOOSE_WORKING_DIRECTORY = "main.DesktopHost.ChooseWorkingDirectory";
 const WINDOW_CHROME = "main.DesktopHost.WindowChrome";
 
-/** A host that answers both methods, dispatching on the name the client asks for — which
- *  is the thing worth exercising: one call channel, two names. */
+/** A host that answers every method, dispatching on the name the client asks for — which
+ *  is the thing worth exercising: one call channel, three names. */
 function hostBinding(
   answers: Partial<Record<string, () => Promise<unknown>>> = {},
 ): DesktopHostBinding & { call: ReturnType<typeof vi.fn> } {
@@ -16,6 +17,7 @@ function hostBinding(
       sideloadedPlugins: [],
       sideloadIssues: [],
     }),
+    [CHOOSE_WORKING_DIRECTORY]: async () => "/tmp/project",
     [WINDOW_CHROME]: async () => ({
       controlsCentreY: 20,
       controlsInlineEnd: 72,
@@ -63,6 +65,29 @@ describe("DesktopHostClient", () => {
     await expect(client.bootstrap()).rejects.toBeInstanceOf(RpcTransportError);
   });
 
+  it("returns the directory selected by the packaged host", async () => {
+    const binding = hostBinding();
+
+    await expect(createDesktopHostClient(binding).chooseWorkingDirectory()).resolves.toBe(
+      "/tmp/project",
+    );
+    expect(binding.call).toHaveBeenCalledWith(CHOOSE_WORKING_DIRECTORY);
+  });
+
+  it("distinguishes selection cancellation from invalid host responses", async () => {
+    const cancelled = hostBinding({ [CHOOSE_WORKING_DIRECTORY]: async () => "" });
+    await expect(createDesktopHostClient(cancelled).chooseWorkingDirectory()).resolves.toBeNull();
+
+    const malformed = hostBinding({ [CHOOSE_WORKING_DIRECTORY]: async () => ({ path: "/tmp" }) });
+    await expect(
+      createDesktopHostClient(malformed).chooseWorkingDirectory(),
+    ).rejects.toBeInstanceOf(RpcTransportError);
+  });
+
+  it("returns null outside Wails instead of inventing a working directory", async () => {
+    await expect(createDesktopHostClient(undefined).chooseWorkingDirectory()).resolves.toBeNull();
+  });
+
   it("reads the platform's window-control geometry", async () => {
     const binding = hostBinding();
     await expect(createDesktopHostClient(binding).windowChrome()).resolves.toEqual({
@@ -103,7 +128,12 @@ describe("DesktopHostClient", () => {
     const binding = hostBinding();
     const client = createDesktopHostClient(binding);
     await client.bootstrap();
+    await client.chooseWorkingDirectory();
     await client.windowChrome();
-    expect(binding.call.mock.calls.flat()).toEqual([BOOTSTRAP, WINDOW_CHROME]);
+    expect(binding.call.mock.calls.flat()).toEqual([
+      BOOTSTRAP,
+      CHOOSE_WORKING_DIRECTORY,
+      WINDOW_CHROME,
+    ]);
   });
 });

@@ -9,6 +9,7 @@ export const GLOBAL_COMMAND_IDS = [
   "workspace.close-focused",
   "composer.focus",
   "view.toggle-sidebar",
+  "view.toggle-dock",
   "settings.toggle-theme",
   "history.back",
   "history.forward",

@@ -19,6 +19,7 @@ export {
   useActiveWorkspaceFile,
   useActiveWorkspaceViewId,
   showWorkspaceDock,
+  toggleWorkspaceDock,
   useWorkspaceDock,
   useExpandedWorkspaceToolIds,
   useSelectWorkspaceTool,

@@ -33,6 +33,7 @@ export const zh: Record<string, string> = {
   "sidebar.action.expand": "展开边栏",
   "sidebar.action.resize": "调整工作索引宽度",
   "sidebar.action.newSession": "新建会话",
+  "sidebar.action.openFolder": "打开文件夹",
   "sidebar.action.tools": "工具与插件",
   "sidebar.action.settings": "设置",
 
@@ -898,6 +899,7 @@ export const zh: Record<string, string> = {
   "slash.search": "在代码库中搜索符号或模式",
   "slash.plan": "重述或编辑当前计划",
   "command.toggleSidebar": "切换侧栏折叠",
+  "command.toggleDock": "切换右侧工作区",
   "command.toggleTheme": "切换深色/浅色主题",
   "command.newChat": "新建聊天",
   "command.closeFocused": "关闭面板或会话",
@@ -1014,6 +1016,7 @@ export const zh: Record<string, string> = {
   "rpcError.provider_not_configured": "请先填写 API key。",
   "rpcError.provider_test_failed": "供应方连不上，或拒绝了这次测试请求。",
   "session.error.create": "无法创建会话。",
+  "session.error.chooseWorkingDirectory": "无法打开文件夹选择器。",
   "session.error.delete": "无法删除会话。",
   "session.error.rename": "无法重命名会话。",
   "session.error.fork": "无法复刻会话。",
