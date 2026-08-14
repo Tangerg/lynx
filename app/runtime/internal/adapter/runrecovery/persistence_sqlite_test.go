@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -29,7 +30,7 @@ func newTestRecovery(
 	store runs.RecoveryStore,
 	resumability runs.WaitingExecutionResumability,
 ) (*runs.Recovery, error) {
-	return runs.NewRecovery(store, resumability, new(sessionadmission.Gate))
+	return runs.NewRecovery(store, resumability, new(sessionadmission.Gate), nil)
 }
 
 func (alwaysResumable) CanResumeWaitingExecution(
@@ -113,6 +114,21 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	if _, found, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || found {
 		t.Fatalf("open Pending after claim = found:%t err:%v", found, err)
 	}
+	transcriptStore := sqlite.NewTranscriptStore(db)
+	questionItem, err := transcript.NewQuestion(transcript.ItemIdentity{
+		SessionID: pending.SessionID, RunID: request.RunID, ItemID: request.ItemID,
+		OccurredAt: request.ItemOccurredAt,
+	}, *request.Question)
+	if err != nil {
+		t.Fatalf("new Question Item: %v", err)
+	}
+	answeredQuestion, err := questionItem.AnswerQuestion([][]string{{"continue"}})
+	if err != nil {
+		t.Fatalf("answer Question Item: %v", err)
+	}
+	if err := transcriptStore.AppendItem(ctx, answeredQuestion); err != nil {
+		t.Fatalf("seed accepted Question Item: %v", err)
+	}
 
 	messageStore := sqlite.NewMessageStore(db)
 	if err := messageStore.Write(
@@ -128,7 +144,7 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 	store, err := New(Config{
 		Sessions: sessionStore, Runs: runStore, Interrupts: interruptStore,
-		Transcript: sqlite.NewTranscriptStore(db), Messages: messageStore,
+		Transcript: transcriptStore, Messages: messageStore,
 		GoalRuns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
 		ModelInvocations: sqlite.NewModelInvocationStore(db),
 		ToolInvocations:  sqlite.NewToolInvocationStore(db),
@@ -141,13 +157,16 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		t.Fatalf("New persistence: %v", err)
 	}
 	checkpointProbes := 0
-	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(
+	var notices []invalidation.Notice
+	recovery, err := runs.NewRecovery(store, waitingExecutionResumabilityFunc(func(
 		context.Context,
 		runs.WaitingContinuation,
 	) (bool, error) {
 		checkpointProbes++
 		return true, nil
-	}))
+	}), new(sessionadmission.Gate), func(notice invalidation.Notice) {
+		notices = append(notices, notice)
+	})
 	if err != nil {
 		t.Fatalf("NewRecovery: %v", err)
 	}
@@ -179,6 +198,22 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	}
 	if remaining != 0 {
 		t.Fatalf("hidden resuming rows = %d, want none", remaining)
+	}
+	storedQuestion, found, err := transcriptStore.Item(ctx, request.ItemID)
+	if err != nil || !found {
+		t.Fatalf("accepted Question after recovery = found:%t err:%v", found, err)
+	}
+	question, ok := storedQuestion.Question()
+	if !ok || !reflect.DeepEqual(question.Answers, [][]string{{"continue"}}) {
+		t.Fatalf("accepted Question after recovery = %+v, want durable answer", storedQuestion)
+	}
+	wantNotices := []invalidation.Notice{
+		invalidation.InSession(invalidation.Runs, pending.SessionID, pending.RootRunID),
+		invalidation.InSession(invalidation.Interrupts, pending.SessionID, pending.RootRunID),
+		invalidation.InSession(invalidation.Sessions, pending.SessionID),
+	}
+	if !reflect.DeepEqual(notices, wantNotices) {
+		t.Fatalf("recovery notices = %+v, want %+v", notices, wantNotices)
 	}
 }
 

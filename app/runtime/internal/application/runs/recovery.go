@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -140,10 +141,11 @@ type InterruptOwner struct {
 // re-reading candidates; CommitRecovery applies the resulting write-set
 // atomically and Run transitions remain CAS guarded by storage.
 type Recovery struct {
-	store        RecoveryStore
-	resumability WaitingExecutionResumability
-	admissions   RecoveryAdmissions
-	now          func() time.Time
+	store         RecoveryStore
+	resumability  WaitingExecutionResumability
+	admissions    RecoveryAdmissions
+	invalidations invalidation.Publish
+	now           func() time.Time
 }
 
 // recoveryPlanner owns one ownership-scoped reconciliation snapshot and the caches needed
@@ -176,6 +178,7 @@ func NewRecovery(
 	store RecoveryStore,
 	resumability WaitingExecutionResumability,
 	admissions RecoveryAdmissions,
+	invalidations invalidation.Publish,
 ) (*Recovery, error) {
 	if store == nil {
 		return nil, errors.New("runs: recovery store is required")
@@ -186,7 +189,13 @@ func NewRecovery(
 	if admissions == nil {
 		return nil, errors.New("runs: recovery admissions are required")
 	}
-	return &Recovery{store: store, resumability: resumability, admissions: admissions, now: time.Now}, nil
+	return &Recovery{
+		store:         store,
+		resumability:  resumability,
+		admissions:    admissions,
+		invalidations: invalidations,
+		now:           time.Now,
+	}, nil
 }
 
 // Reconcile preserves only complete waiting trees whose durable hand-off
@@ -209,7 +218,68 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 	if err := r.store.CommitRecovery(ctx, commit); err != nil {
 		return 0, fmt.Errorf("runs: commit ownership recovery: %w", err)
 	}
+	r.publishRecoveredReadModels(commit)
 	return reconciled, nil
+}
+
+// publishRecoveredReadModels reports only the durable fact scopes this recovery
+// write-set can change. Periodic survivor recovery commits through this Runtime's
+// own SQLite connection, so PRAGMA data_version deliberately cannot observe it;
+// without an application notice, already-mounted clients would remain pinned to
+// the dead owner's Run/HITL projection even after the database reached RunLost.
+func (r *Recovery) publishRecoveredReadModels(commit RecoveryCommit) {
+	type sessionChanges struct {
+		runIDs  []string
+		rootIDs []string
+		goal    bool
+	}
+	changes := make(map[string]*sessionChanges)
+	for _, lost := range commit.LostRuns {
+		scope := changes[lost.SessionID()]
+		if scope == nil {
+			scope = &sessionChanges{}
+			changes[lost.SessionID()] = scope
+		}
+		scope.runIDs = append(scope.runIDs, lost.ID())
+	}
+	if len(changes) == 0 {
+		return
+	}
+	for _, owner := range commit.DeleteInterrupts {
+		if scope := changes[owner.SessionID]; scope != nil {
+			scope.rootIDs = append(scope.rootIDs, owner.RootRunID)
+		}
+	}
+	for _, record := range commit.GoalRuns {
+		if scope := changes[record.SessionID]; scope != nil {
+			scope.goal = true
+		}
+	}
+	sessionIDs := make([]string, 0, len(changes))
+	for sessionID := range changes {
+		sessionIDs = append(sessionIDs, sessionID)
+	}
+	slices.Sort(sessionIDs)
+	for _, sessionID := range sessionIDs {
+		scope := changes[sessionID]
+		slices.Sort(scope.runIDs)
+		scope.runIDs = slices.Compact(scope.runIDs)
+		slices.Sort(scope.rootIDs)
+		scope.rootIDs = slices.Compact(scope.rootIDs)
+		notices := []invalidation.Notice{
+			invalidation.InSession(invalidation.Runs, sessionID, scope.runIDs...),
+		}
+		if len(scope.rootIDs) > 0 {
+			notices = append(notices,
+				invalidation.InSession(invalidation.Interrupts, sessionID, scope.rootIDs...),
+			)
+		}
+		notices = append(notices, invalidation.InSession(invalidation.Sessions, sessionID))
+		if scope.goal {
+			notices = append(notices, invalidation.InSession(invalidation.Goals, sessionID))
+		}
+		r.invalidations.Notify(notices...)
+	}
 }
 
 func (r *Recovery) claimAbandonedSessions(

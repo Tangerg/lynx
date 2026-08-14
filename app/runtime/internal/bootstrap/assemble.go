@@ -569,7 +569,12 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime: boot recovery persistence: %w", err)
 	}
-	bootRecovery, err := runs.NewRecovery(recoveryPersistence, interactionExecutor, admissionGate)
+	bootRecovery, err := runs.NewRecovery(
+		recoveryPersistence,
+		interactionExecutor,
+		admissionGate,
+		applicationInvalidations.Publish,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: boot recovery: %w", err)
 	}

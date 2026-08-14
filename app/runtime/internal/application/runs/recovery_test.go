@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -26,7 +27,7 @@ func newTestRecovery(
 	store RecoveryStore,
 	resumability WaitingExecutionResumability,
 ) (*Recovery, error) {
-	return NewRecovery(store, resumability, new(sessionadmission.Gate))
+	return NewRecovery(store, resumability, new(sessionadmission.Gate), nil)
 }
 
 type recoveryStoreStub struct {
@@ -180,12 +181,14 @@ func TestRecoverySkipsFactsOwnedByAnotherRuntime(t *testing.T) {
 	admissions := &selectiveRecoveryAdmissions{
 		busy: map[string]bool{foreign.SessionID(): true}, released: map[string]int{},
 	}
+	var notices []invalidation.Notice
 	recovery, err := NewRecovery(
 		store,
 		waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 			return true, nil
 		}),
 		admissions,
+		func(notice invalidation.Notice) { notices = append(notices, notice) },
 	)
 	if err != nil {
 		t.Fatalf("NewRecovery: %v", err)
@@ -207,6 +210,46 @@ func TestRecoverySkipsFactsOwnedByAnotherRuntime(t *testing.T) {
 	}
 	if admissions.released[recoverable.SessionID()] != 1 || admissions.released[foreign.SessionID()] != 0 {
 		t.Fatalf("recovery releases = %+v", admissions.released)
+	}
+	wantNotices := []invalidation.Notice{
+		invalidation.InSession(invalidation.Runs, recoverable.SessionID(), recoverable.ID()),
+		invalidation.InSession(invalidation.Interrupts, recoverable.SessionID(), recoverable.ID()),
+		invalidation.InSession(invalidation.Sessions, recoverable.SessionID()),
+	}
+	if !reflect.DeepEqual(notices, wantNotices) {
+		t.Fatalf("recovery notices = %+v, want %+v", notices, wantNotices)
+	}
+}
+
+func TestRecoveryDoesNotPublishBeforeItsCommitSucceeds(t *testing.T) {
+	createdAt := time.Date(2026, 8, 15, 1, 0, 0, 0, time.UTC)
+	abandoned := runfixture.MustRestore(rundomain.Snapshot{
+		ID: "run_abandoned", SessionID: "session_abandoned", State: rundomain.Running,
+		ActiveSegmentID: "segment_abandoned", CreatedAt: createdAt,
+		MessageMark: rundomain.UnknownMessageMark,
+	})
+	commitErr := errors.New("commit failed")
+	store := &recoveryStoreStub{
+		runs: []rundomain.Run{abandoned}, transcripts: map[string][]transcript.Item{},
+		messageMarks: map[string]int{}, commitErr: commitErr,
+	}
+	var notices []invalidation.Notice
+	recovery, err := NewRecovery(
+		store,
+		waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+			return true, nil
+		}),
+		new(sessionadmission.Gate),
+		func(notice invalidation.Notice) { notices = append(notices, notice) },
+	)
+	if err != nil {
+		t.Fatalf("NewRecovery: %v", err)
+	}
+	if _, err := recovery.Reconcile(t.Context()); !errors.Is(err, commitErr) {
+		t.Fatalf("Reconcile error = %v, want %v", err, commitErr)
+	}
+	if len(notices) != 0 {
+		t.Fatalf("failed recovery published notices: %+v", notices)
 	}
 }
 
@@ -390,9 +433,15 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 		transcripts:  map[string][]transcript.Item{run.SessionID(): nil},
 		messageMarks: map[string]int{run.SessionID(): 2},
 	}
-	recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
-		return false, nil
-	}))
+	var notices []invalidation.Notice
+	recovery, err := NewRecovery(
+		store,
+		waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+			return false, nil
+		}),
+		new(sessionadmission.Gate),
+		func(notice invalidation.Notice) { notices = append(notices, notice) },
+	)
 	if err != nil {
 		t.Fatalf("NewRecovery: %v", err)
 	}
@@ -410,6 +459,15 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 		goalRun.CostUSD != cost || goalRun.Steps != run.Metrics().Steps() ||
 		!goalRun.CompletedAt.Equal(finishedAt) {
 		t.Fatalf("Goal Run = %+v", goalRun)
+	}
+	wantNotices := []invalidation.Notice{
+		invalidation.InSession(invalidation.Runs, run.SessionID(), run.ID()),
+		invalidation.InSession(invalidation.Interrupts, run.SessionID(), run.ID()),
+		invalidation.InSession(invalidation.Sessions, run.SessionID()),
+		invalidation.InSession(invalidation.Goals, run.SessionID()),
+	}
+	if !reflect.DeepEqual(notices, wantNotices) {
+		t.Fatalf("recovery notices = %+v, want %+v", notices, wantNotices)
 	}
 
 	missingCharge := store.commit
