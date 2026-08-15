@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 70
+const schemaEpoch = 71
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -142,6 +142,10 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// finished and atomically rebased by every later compaction — the per-run
 		// rollback/fork watermark fork{fromRunId} truncates to. -1 is
 		// run.UnknownMessageMark: a Run that has not finished has no watermark yet.
+		// terminal_segment_id / terminal_commit_id are a technical receipt for the
+		// one terminal EventCommit that crossed the durable boundary. Restore and
+		// recovery terminal rows leave both empty because they did not execute that
+		// Application write-set.
 		`CREATE TABLE IF NOT EXISTS runs (
 			run_id             TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,
@@ -150,6 +154,8 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			root_run_id        TEXT    NOT NULL DEFAULT '',
 			state              TEXT    NOT NULL,
 			active_segment_id  TEXT    NOT NULL DEFAULT '',
+			terminal_segment_id TEXT   NOT NULL DEFAULT '',
+			terminal_commit_id TEXT    NOT NULL DEFAULT '',
 			outcome            TEXT    NOT NULL DEFAULT '',
 			provider           TEXT    NOT NULL DEFAULT '',
 			model              TEXT    NOT NULL DEFAULT '',
@@ -172,7 +178,11 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 				(spawned_by_item_id != '' AND parent_run_id != '' AND root_run_id != '' AND
 				 parent_run_id != run_id AND root_run_id != run_id)
 			),
-			CHECK (root_run_id = '' OR goal_incarnation_id = '')
+			CHECK (root_run_id = '' OR goal_incarnation_id = ''),
+			CHECK (
+				(terminal_segment_id = '' AND terminal_commit_id = '') OR
+				(state = 'terminal' AND terminal_segment_id != '' AND terminal_commit_id != '')
+			)
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_session_active
 			ON runs(session_id) WHERE state != 'terminal' AND root_run_id = ''`,
@@ -182,6 +192,8 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			ON runs(root_run_id) WHERE root_run_id != ''`,
 		`CREATE INDEX IF NOT EXISTS idx_runs_parent
 			ON runs(parent_run_id) WHERE parent_run_id != ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_terminal_commit
+			ON runs(terminal_commit_id) WHERE terminal_commit_id != ''`,
 		// model_invocations is the provider-attempt journal. It deliberately stores
 		// neither semantic response content nor accounting: those facts belong to
 		// history_items and runs. A surviving started row proves only that the

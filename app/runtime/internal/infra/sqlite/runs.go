@@ -417,7 +417,38 @@ func (s *RunStore) UpdateMetrics(
 // Terminalize ends the exact non-terminal Run that run identifies, recording the
 // outcome the executor reached and the result that explains it.
 func (s *RunStore) Terminalize(ctx context.Context, value rundomain.Run) error {
-	return s.finish(ctx, "terminalize", value, func(current rundomain.Run) (rundomain.Run, error) {
+	return s.terminalize(ctx, value, terminalEventIdentity{})
+}
+
+// TerminalizeEvent ends one exact active Segment and stamps the immutable
+// Application terminal write-set identity into the Run row. The stamp shares
+// the caller's transaction with every projection in that EventCommit.
+func (s *RunStore) TerminalizeEvent(
+	ctx context.Context,
+	value rundomain.Run,
+	segmentID string,
+	commitID string,
+) error {
+	if strings.TrimSpace(segmentID) == "" || segmentID != strings.TrimSpace(segmentID) {
+		return errors.New("sqlite: terminal event Segment ID is required without surrounding whitespace")
+	}
+	if strings.TrimSpace(commitID) == "" || commitID != strings.TrimSpace(commitID) {
+		return errors.New("sqlite: terminal event commit ID is required without surrounding whitespace")
+	}
+	return s.terminalize(ctx, value, terminalEventIdentity{segmentID: segmentID, commitID: commitID})
+}
+
+type terminalEventIdentity struct {
+	segmentID string
+	commitID  string
+}
+
+func (s *RunStore) terminalize(
+	ctx context.Context,
+	value rundomain.Run,
+	identity terminalEventIdentity,
+) error {
+	return s.finish(ctx, "terminalize", value, identity, func(current rundomain.Run) (rundomain.Run, error) {
 		outcome, terminal := value.Outcome()
 		if !terminal {
 			return rundomain.Run{}, errors.New("outcome is required")
@@ -432,6 +463,48 @@ func (s *RunStore) Terminalize(ctx context.Context, value rundomain.Run) error {
 			FinishedAt: value.FinishedAt(), MessageMark: value.MessageMark(),
 		})
 	})
+}
+
+// TerminalEventCommitted proves that this exact immutable EventCommit crossed
+// the durable boundary. It does not infer success from the coarse Run state:
+// another Segment, restored Run, or later terminal attempt has a different or
+// absent marker.
+func (s *RunStore) TerminalEventCommitted(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+	segmentID string,
+	commitID string,
+) (bool, error) {
+	for _, identity := range []struct {
+		name  string
+		value string
+	}{
+		{name: "session", value: sessionID},
+		{name: "Run", value: runID},
+		{name: "Segment", value: segmentID},
+		{name: "commit", value: commitID},
+	} {
+		if strings.TrimSpace(identity.value) == "" || identity.value != strings.TrimSpace(identity.value) {
+			return false, fmt.Errorf("sqlite: terminal event %s ID is required without surrounding whitespace", identity.name)
+		}
+	}
+	var found int
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT count(*)
+		   FROM runs
+		  WHERE session_id = ? AND run_id = ? AND state = ?
+		    AND terminal_segment_id = ? AND terminal_commit_id = ?`,
+		sessionID,
+		runID,
+		runStateTerminal,
+		segmentID,
+		commitID,
+	).Scan(&found)
+	if err != nil {
+		return false, fmt.Errorf("sqlite: verify terminal event commit %q: %w", commitID, err)
+	}
+	return found == 1, nil
 }
 
 // RebaseMessageMark applies an exact Application-decided coordinate rewrite to
@@ -480,7 +553,7 @@ func (s *RunStore) RebaseMessageMark(ctx context.Context, expected, replacement 
 // Running or Waiting, because it describes a Run nobody is driving rather
 // than one the executor finished.
 func (s *RunStore) RecoverLost(ctx context.Context, value rundomain.Run) error {
-	return s.finish(ctx, "recover lost", value, func(current rundomain.Run) (rundomain.Run, error) {
+	return s.finish(ctx, "recover lost", value, terminalEventIdentity{}, func(current rundomain.Run) (rundomain.Run, error) {
 		failure, failed := value.Failure()
 		if !failed {
 			return rundomain.Run{}, errors.New("lost failure is required")
@@ -499,6 +572,7 @@ func (s *RunStore) finish(
 	ctx context.Context,
 	op string,
 	value rundomain.Run,
+	terminalEvent terminalEventIdentity,
 	transition func(rundomain.Run) (rundomain.Run, error),
 ) error {
 	if err := value.Validate(); err != nil {
@@ -525,6 +599,14 @@ func (s *RunStore) finish(
 		if !found || current.SessionID() != value.SessionID() {
 			return fmt.Errorf("sqlite: %s run: active run not found", op)
 		}
+		if terminalEvent.commitID != "" && current.ActiveSegmentID() != terminalEvent.segmentID {
+			return fmt.Errorf(
+				"sqlite: %s run: active Segment is %q, want %q",
+				op,
+				current.ActiveSegmentID(),
+				terminalEvent.segmentID,
+			)
+		}
 		current, err = current.AdvanceMetrics(value.Metrics(), value.FinishedAt())
 		if err != nil {
 			return fmt.Errorf("sqlite: %s run: advance aggregate metrics: %w", op, err)
@@ -537,14 +619,23 @@ func (s *RunStore) finish(
 			return fmt.Errorf("sqlite: %s run: proposed Run differs from the aggregate transition", op)
 		}
 		outcome, _ := value.Outcome()
-		res, err := conn(ctx, s.db).ExecContext(ctx,
+		query :=
 			`UPDATE runs SET
-			   state = ?, active_segment_id = '', outcome = ?, detail = ?, steps = ?, active_duration_ns = ?,
+			   state = ?, active_segment_id = '', terminal_segment_id = ?, terminal_commit_id = ?,
+			   outcome = ?, detail = ?, steps = ?, active_duration_ns = ?,
 			   usage = ?, problem = ?, message_mark = ?, finished_at = ?, updated_at = ?
-			 WHERE session_id = ? AND run_id = ? AND state = ?`,
-			coarseState(next.State()), outcome.String(), value.Detail(), metrics.steps, metrics.durationNs,
+			 WHERE session_id = ? AND run_id = ? AND state = ?`
+		args := []any{
+			coarseState(next.State()), terminalEvent.segmentID, terminalEvent.commitID,
+			outcome.String(), value.Detail(), metrics.steps, metrics.durationNs,
 			metrics.usage, encodedFailure, value.MessageMark(), value.FinishedAt().UTC().UnixNano(),
-			runUpdatedAt(value), value.SessionID(), value.ID(), coarseState(current.State()))
+			runUpdatedAt(value), value.SessionID(), value.ID(), coarseState(current.State()),
+		}
+		if terminalEvent.commitID != "" {
+			query += ` AND active_segment_id = ?`
+			args = append(args, terminalEvent.segmentID)
+		}
+		res, err := conn(ctx, s.db).ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("sqlite: %s run: %w", op, err)
 		}

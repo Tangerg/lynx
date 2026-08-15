@@ -101,11 +101,12 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	effects := testEffects(stores, Config{State: runState, Tx: tx.run})
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
-		RunID:     "run_1",
-		SessionID: "ses_1",
-		SegmentID: "segment_1",
-		State:     runs.StateTerminalize,
-		Outcome:   run.OutcomeCompleted,
+		RunID:            "run_1",
+		SessionID:        "ses_1",
+		SegmentID:        "segment_1",
+		TerminalCommitID: "terminal_commit_1",
+		State:            runs.StateTerminalize,
+		Outcome:          run.OutcomeCompleted,
 		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: time.Unix(1, 0).UTC(),
 		})},
@@ -201,12 +202,13 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 	effects := testEffects(stores, Config{State: runState, Tx: new(fakeTx).run})
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
-		RunID:     "run_1",
-		SessionID: "ses_1",
-		SegmentID: "segment_1",
-		State:     runs.StateTerminalize,
-		Outcome:   run.OutcomeCompleted,
-		Run:       finishedRunRecord("run_1", "ses_1", run.OutcomeCompleted),
+		RunID:            "run_1",
+		SessionID:        "ses_1",
+		SegmentID:        "segment_1",
+		TerminalCommitID: "terminal_commit_1",
+		State:            runs.StateTerminalize,
+		Outcome:          run.OutcomeCompleted,
+		Run:              finishedRunRecord("run_1", "ses_1", run.OutcomeCompleted),
 	})
 	if !errors.Is(err, want) {
 		t.Fatalf("CommitEvent error = %v, want %v", err, want)
@@ -867,6 +869,15 @@ func (r *fakeRunState) Suspend(_ context.Context, run run.Run) error {
 func (r *fakeRunState) Terminalize(_ context.Context, run run.Run) error {
 	r.terminalized = append(r.terminalized, run)
 	return nil
+}
+
+func (r *fakeRunState) TerminalizeEvent(_ context.Context, run run.Run, _, _ string) error {
+	r.terminalized = append(r.terminalized, run)
+	return nil
+}
+
+func (*fakeRunState) TerminalEventCommitted(context.Context, string, string, string, string) (bool, error) {
+	return false, nil
 }
 
 // fakeTx records how many transactions the commit opens and runs the body inline.

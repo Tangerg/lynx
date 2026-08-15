@@ -1610,10 +1610,32 @@
 - 改动止于 Runtime→Agent 防腐层 `adapter/agentexec`，Agent Framework、Application、Domain、Persistence、Protocol、Artifact、SQLite 与 Desktop 合同均不变化；
 - 核心两 Tool交错重复与 race、agentexec 全包 race、Runtime workspace/standalone 全门禁通过；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
 
-## 72. 进度记录
+## 72. P93 — 终态事务成功回执丢失收敛
+
+### 目标
+
+关闭 terminal `EventCommit` 已跨越 SQLite durable COMMIT、调用方却收到错误或在成功回执前被取消时的结算缺口。旧实现会把事务当作失败并盲重试，但 terminal Run 已不再属于 active Segment，精确栅栏会永久拒绝重放；RunLost pump 因而可能无限重试，同进程也不会发布 terminal Run/Goal read-model invalidation。
+
+### 工作项
+
+- [x] P93-01 以单客户端真实 SQLite transaction 包装器在 COMMIT 成功后丢失回执并立即取消请求上下文，冻结“durable terminal 已存在、调用方认为失败”的确定窗口；
+- [x] P93-02 由 Application reducer 为每个不可变 terminal write-set 铸造稳定 identity，并由 combined terminal commit 原样保留；重试同一批次复用 identity，另一 terminal attempt 获得新 identity；
+- [x] P93-03 让 runsegment/SQLite 在原子事务中把 terminal commit identity 与生产它的 Segment 写入 Run 行；Restore/Recovery/direct terminal 不伪造 marker，唯一索引禁止 identity 跨 Run 复用；
+- [x] P93-04 让 terminal `CommitEvent` 在错误后用有界、request-detached context 核验 exact Session/Run/Segment/commit identity；精确成功与精确 replay 收敛为 nil，不再进入 blob compensation 或无限 RunLost 重试；
+- [x] P93-05 冻结另一 Segment、另一 terminal attempt、无 marker terminal 继续失败，精确 replay 不重复追加 conversation，以及 caller 已取消时 reconciliation 仍能完成。
+
+### 验收
+
+- COMMIT 成功后注入错误并取消原请求，`CommitEvent` 仍结算成功；durable Run terminal、conversation watermark 与消息内容一致；
+- 同一 commit identity 重放成功且 conversation 保持单份；不同 Segment、不同 terminal attempt 或 Restore/Recovery terminal 不能冒充原提交；
+- 事务原子性继续证明 terminal marker、Run、Transcript/Conversation/invocation/Goal/checkpoint cleanup 属于同一 write-set；SQLite 唯一 shape 前移为 epoch 71，无 migration/兼容路径；Protocol、Artifact、Desktop 与 Agent Framework 合同不变；
+- 核心场景重复与 race、Runtime workspace/standalone 全门禁通过；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
+
+## 73. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P93（ambiguous terminal commit settlement） | 反证发现 terminal `EventCommit` 的 SQLite transaction 已 durable COMMIT、但 success receipt 丢失或调用方随即取消时，runsegment 仍返回失败；后续 RunLost/terminal replay 被 exact active-Segment fence 永久拒绝，同进程 terminal Run/Goal invalidation 也不会发生。进一步反证否决了仅比较 terminal Run 的初版方案：终态已清空 active Segment，Restore 或另一 Segment 可能产生相同 aggregate，无法证明 Transcript/Conversation/Goal/cleanup 就是本次 write-set。Application reducer 现在为每个不可变 terminal write-set 铸造稳定 identity，runsegment/SQLite 将 identity 与生产 Segment 在同一事务写入 Run 行；错误后只以 exact Session/Run/Segment/commit marker 结算。SQLite 唯一 shape 前移到 epoch 71，无兼容双路径 | 真实 SQLite 在 COMMIT 后注入回执丢失并立即取消 caller：terminal marker、Run 与一条 conversation 原子可读；同一已取消 context 上 exact identity replay 成功且消息不重复，另一 terminal identity 失败。核心场景 20×、race 5× 与受影响包定向测试全绿；Runtime workspace/standalone 全门禁与资源清理在本批提交前完成，受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P92（concurrent Tool Effect boundary arbitration） | P91 的单 Tool HostFailure 反例扩展到一个真实窗口中的两个 Tool 后，发现 index 1 外部写已经发生并等待 canonical result prefix，index 0 自动审批拒绝投影失败却把整批结算为 definite internal；真实 pump 还会让 sibling receipt 与 Dispatcher 互相等待。`dispatchAttempt` 现在统一拥有 Effect 级外部边界和失败 arbitration：Host projection failure 会阻止尚未跨界的 sibling，并通过独立 failure context 退休已跨界 sibling 的 post-external projection wait；只要任一外部调用发生，wrapper 就走既有 unknown-effect/RunLost，单 Tool 零外部调用仍保持 P91 definite internal。另补 accepted root cancellation 与迟到 model-start receipt 交错，取消 terminal 保持优先且 provider 零调用。无 Agent Framework、Application/Domain/Persistence、Protocol、SQLite 或 Desktop 变化 | 两 Tool / window 2 的 pending canonical receipt 红测修复前稳定得到零 unknown并超时，修复后外部 Tool 恰好一次、唯一 unknown、零 SegmentEnded；核心场景 20×、race 5× 与 agentexec 全包普通/race 全绿。Runtime workspace/standalone test/build/vet/staticcheck/deadcode/lint/tidy/generate/diff-check及资源清理在本批提交前完成；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P91（Interaction Host pre-call failure settlement） | 反证发现 Runtime 在模型/Tool 外部调用前提交 ModelCallStarted、ToolCallStarted、自动审批拒绝结果或 applied steer 失败时，Agent Dispatcher 只能返回普通 error：模型路径被误报 provider unavailable，Tool/denial 路径更把 Host 持久化失败写进模型上下文并开始下一 turn。Agent Interaction 现以中性 `HostFailure`、protocol v5 互斥 `host_error` definite settlement 和稳定 `interaction.host.failed` 终止；Runtime 只在 `adapter/agentexec` 标记 pre-call 权威提交失败并投影为 internal failure。调用后结果不明仍走既有 attempt tracker，普通 provider/Tool error 不变。Agent ADR-A2-076 / Baseline 22 已先以 canonical commit `a9f35b30656a` 发布，Runtime standalone 绑定其唯一 pseudo-version，无 replace、shim 或双路径 | 单客户端 Model/Tool/approval-denial/steer 四类失败注入证明外部调用零发生、unknown effect 为零、后续模型 turn 为零，核心场景 10× 与 Agent/Runtime adapter race 全绿；Agent standalone build/vet/staticcheck/test/Interaction race/lint/tidy-diff 与 public/private baseline 全绿。Runtime workspace/standalone 全包 test、external-consumer、build、vet、受影响 adapter/architecture race、staticcheck、deadcode、golangci-lint（0 issues）、tidy、generate 与 diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P90（EventCommit Segment generation admission） | 反证发现 HITL Resume 用 `seg_new` 替换活动代际后，旧 `seg_old` 的迟到 `EventCommit` 仍只按 Run/Session 提交。Model/Tool invocation 与 Progress 虽各自携带 Segment，纯 Transcript/Conversation 没有 fence；terminal aggregate 又已清空 active Segment，因此旧终态在累计 metrics 与时间可重放时会从当前 `seg_new` aggregate 推导出完全相等的 terminal Run，错误结束恢复后的对话。Application 现在让每个 EventCommit 以 Run/Session/Segment 共同拥有完整写集，Reducer、authoritative combine、route 与 child opening 都保持同代；runsegment 在原事务的任何 projection 写入前要求 SQLite 中该 Run 仍为精确 Running Segment。waiting cancellation 继续走其 Waiting aggregate 专用事务，不伪造 live Segment。无 schema、wire、compat 或双路径 | 单客户端真实 SQLite `seg_old → Waiting → seg_new` 回归分别注入旧 terminal 与 item/message-only write-set：两者均 fail closed，Run 保持 running `seg_new`，Transcript/Conversation 零写入；Application 锁定 Model/Tool/Progress 与 combined terminal 混代拒绝。核心场景连续 10×、Runtime `go test ./... -count=1`、standalone tidy/build/vet/test、受影响 5 包 race、staticcheck、`deadcode -test`、golangci-lint（0 issues）、`go generate ./...` 与 diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |

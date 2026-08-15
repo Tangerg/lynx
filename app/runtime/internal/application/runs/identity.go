@@ -1,11 +1,14 @@
 package runs
 
+import "crypto/rand"
+
 // Resource identifiers are application-owned lifecycle identities. Their
 // namespace is decided here rather than by composition or persistence.
 const (
-	runIDPrefix     = "run_"
-	segmentIDPrefix = "seg_"
-	itemIDPrefix    = "item_"
+	runIDPrefix            = "run_"
+	segmentIDPrefix        = "seg_"
+	itemIDPrefix           = "item_"
+	terminalCommitIDPrefix = "terminal_commit_"
 )
 
 // NewRunID, NewSegmentID, and NewItemID add the application-owned namespace to an opaque
@@ -15,3 +18,9 @@ const (
 func NewRunID(entropy string) string     { return runIDPrefix + entropy }
 func NewSegmentID(entropy string) string { return segmentIDPrefix + entropy }
 func NewItemID(entropy string) string    { return itemIDPrefix + entropy }
+
+// newTerminalCommitID identifies one immutable terminal EventCommit write-set.
+// It is minted where the reducer creates that write-set and retained across
+// retries, so persistence can distinguish a lost success receipt from another
+// terminal attempt by the same Segment.
+func newTerminalCommitID() string { return terminalCommitIDPrefix + rand.Text() }

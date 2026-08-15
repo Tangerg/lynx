@@ -880,6 +880,12 @@ func (stubRunState) RequireActiveSegment(context.Context, string, string, string
 }
 func (stubRunState) Suspend(context.Context, run.Run) error     { return nil }
 func (stubRunState) Terminalize(context.Context, run.Run) error { return nil }
+func (stubRunState) TerminalizeEvent(context.Context, run.Run, string, string) error {
+	return nil
+}
+func (stubRunState) TerminalEventCommitted(context.Context, string, string, string, string) (bool, error) {
+	return false, nil
+}
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local

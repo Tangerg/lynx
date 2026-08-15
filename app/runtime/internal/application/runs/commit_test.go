@@ -41,10 +41,14 @@ func TestTerminalEventCommitAllowsOnlyTheTransactionalWatermarkPlaceholder(t *te
 
 	commit := EventCommit{
 		RunID: record.ID(), SessionID: record.SessionID(), SegmentID: "segment_1", State: StateTerminalize,
-		Outcome: outcome, Run: &record,
+		TerminalCommitID: "terminal_commit_1", Outcome: outcome, Run: &record,
 	}
 	if err := commit.Validate(); err != nil {
 		t.Fatalf("terminal commit awaiting transactional watermark: %v", err)
+	}
+	commit.TerminalCommitID = ""
+	if err := commit.Validate(); err == nil {
+		t.Fatal("terminal commit without an immutable commit identity passed validation")
 	}
 
 	invalid := record.Snapshot()

@@ -236,7 +236,8 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 		UpdatedAt: started.Add(time.Minute), MessageMark: run.UnknownMessageMark})
 	commit := appRuns.EventCommit{
 		RunID: "run_1", SessionID: sess.ID(), SegmentID: "seg_open", State: appRuns.StateTerminalize, Outcome: outcome,
-		Run: &terminal,
+		TerminalCommitID: "terminal_commit_rollback",
+		Run:              &terminal,
 	}
 	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {
 		t.Fatalf("commit terminal run: %v", err)

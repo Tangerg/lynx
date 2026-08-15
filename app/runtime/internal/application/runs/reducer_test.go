@@ -44,6 +44,16 @@ func TestReducerTerminalIncludesGoalRunRecord(t *testing.T) {
 	if commit == nil || commit.GoalRun == nil {
 		t.Fatal("terminal commit did not carry Goal Run accounting")
 	}
+	if commit.TerminalCommitID == "" {
+		t.Fatal("terminal commit did not carry an immutable write-set identity")
+	}
+	combined, err := combineTerminalEventCommit(reductionBatch{events: reductions})
+	if err != nil {
+		t.Fatalf("combine terminal commit: %v", err)
+	}
+	if combined.TerminalCommitID != commit.TerminalCommitID {
+		t.Fatalf("combined terminal identity = %q, want %q", combined.TerminalCommitID, commit.TerminalCommitID)
+	}
 	want := goal.RunRecord{SessionID: "ses_1", IncarnationID: "goal_lease", RunID: "run_1", Outcome: run.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
 	if got := *commit.GoalRun; got != want {
 		t.Fatalf("GoalRun = %+v", got)

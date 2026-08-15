@@ -349,9 +349,49 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 		return nil
 	})
 	if err != nil {
+		settled, settleErr := e.reconcileTerminalCommit(ctx, commit)
+		if settled {
+			return nil
+		}
+		if settleErr != nil {
+			err = errors.Join(err, settleErr)
+		}
 		return e.compensateFailedCommit(ctx, commit, err)
 	}
 	return nil
+}
+
+const terminalCommitReconciliationTimeout = 5 * time.Second
+
+// reconcileTerminalCommit turns this write-set's exact durable marker into its
+// successful outcome. SQLite can report an error after COMMIT has crossed its
+// durable boundary, and a caller may replay after losing the success receipt;
+// in both cases blindly retrying is impossible because RequireActiveSegment
+// must reject a terminal Run. A terminal aggregate alone is not evidence: it
+// no longer carries its Segment and may have been restored or ended elsewhere.
+func (e *Effects) reconcileTerminalCommit(
+	ctx context.Context,
+	commit runs.EventCommit,
+) (bool, error) {
+	if commit.State != runs.StateTerminalize || commit.Run == nil || e.runState == nil {
+		return false, nil
+	}
+	reconcileCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		terminalCommitReconciliationTimeout,
+	)
+	defer cancel()
+	settled, err := e.runState.TerminalEventCommitted(
+		reconcileCtx,
+		commit.SessionID,
+		commit.RunID,
+		commit.SegmentID,
+		commit.TerminalCommitID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("runsegment: reconcile terminal commit: %w", err)
+	}
+	return settled, nil
 }
 
 // CommitTreeBarrier atomically records one root-owned pending set and suspends
@@ -636,7 +676,7 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 		if err != nil {
 			return err
 		}
-		return e.runState.Terminalize(ctx, run)
+		return e.runState.TerminalizeEvent(ctx, run, commit.SegmentID, commit.TerminalCommitID)
 	default:
 		return fmt.Errorf("runsegment: unknown run state change %d", commit.State)
 	}

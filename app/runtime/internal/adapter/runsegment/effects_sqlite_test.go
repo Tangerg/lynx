@@ -801,8 +801,9 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	finished := &updated
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID, State: runs.StateTerminalize,
-		Outcome: run.OutcomeCompleted,
-		Run:     finished,
+		TerminalCommitID: "terminal_commit_goal",
+		Outcome:          run.OutcomeCompleted,
+		Run:              finished,
 		GoalRun: &goal.RunRecord{
 			SessionID: g.SessionID, IncarnationID: g.IncarnationID, RunID: draft.RunID,
 			Outcome: run.OutcomeCompleted, CostUSD: costUSD, Steps: 2, CompletedAt: finished.FinishedAt(),
@@ -1151,7 +1152,8 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			finished = &resolved
 			err := fixture.effects.CommitEvent(fixture.ctx, runs.EventCommit{
 				RunID: "run_terminal", SessionID: "ses_terminal", SegmentID: "seg_terminal", State: runs.StateTerminalize,
-				Outcome: run.OutcomeCompleted, Run: finished,
+				TerminalCommitID: "terminal_commit_checkpoint",
+				Outcome:          run.OutcomeCompleted, Run: finished,
 				ObsoleteCheckpointRootID: fixture.rootMemberID,
 			})
 			if test.checkpointDeleteFail || test.childCleanupFail {
@@ -1269,6 +1271,14 @@ func assertTerminalCheckpointRollback(t *testing.T, fixture terminalCheckpointFi
 	runsAfter, err := fixture.runStore.ListRuns(fixture.ctx, "ses_terminal")
 	if err != nil || len(runsAfter) != 1 || runsAfter[0].State() != run.Running {
 		t.Fatalf("Run after rollback = %+v, %v; want running", runsAfter, err)
+	}
+	var terminalCommitID string
+	if err := fixture.database.QueryRowContext(
+		fixture.ctx,
+		`SELECT terminal_commit_id FROM runs WHERE run_id = ?`,
+		"run_terminal",
+	).Scan(&terminalCommitID); err != nil || terminalCommitID != "" {
+		t.Fatalf("terminal marker after rollback = %q err=%v, want empty", terminalCommitID, err)
 	}
 	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.rootMemberID); err != nil {
 		t.Fatalf("checkpoint lost after terminal rollback: %v", err)
@@ -1944,7 +1954,8 @@ func TestCommitEventAppendsConversationBeforeResolvingTerminalWatermark(t *testi
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeCompleted)
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID,
-		State: runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
+		TerminalCommitID: "terminal_commit_watermark",
+		State:            runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
 		ConversationMessages: []chat.Message{
 			chat.NewAssistantMessage(chat.NewTextPart("done")),
 		},
@@ -1958,6 +1969,153 @@ func TestCommitEventAppendsConversationBeforeResolvingTerminalWatermark(t *testi
 	runs, err := state.ListRuns(ctx, draft.SessionID)
 	if err != nil || len(runs) != 1 || runs[0].MessageMark() != 1 {
 		t.Fatalf("terminal Run = %#v, %v; want watermark 1", runs, err)
+	}
+}
+
+// TestCommitEventReconcilesAmbiguousTerminalCommit proves that a terminal
+// write-set whose COMMIT succeeded but whose success receipt was lost converges
+// to success. The exact replay must do the same without appending its messages
+// twice, while a different terminal result remains a conflict.
+func TestCommitEventReconcilesAmbiguousTerminalCommit(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	state := sqlite.NewRunStore(db)
+	messages := sqlite.NewMessageStore(db)
+	draft := run.Draft{
+		RunID: "run_ambiguous", SessionID: "ses_ambiguous", SegmentID: "seg_open",
+		CreatedAt: time.Unix(1, 0).UTC(),
+	}
+	if err := state.Admit(ctx, draft); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	wantAmbiguous := errors.New("lost commit receipt")
+	loseReceipt := true
+	commitCtx, cancelCommit := context.WithCancel(ctx)
+	t.Cleanup(cancelCommit)
+	effects := New(Config{
+		Conversation: messages,
+		State:        state,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			err := sqlite.RunInTx(ctx, db, fn)
+			if err == nil && loseReceipt {
+				loseReceipt = false
+				cancelCommit()
+				return wantAmbiguous
+			}
+			return err
+		},
+	})
+	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeCompleted)
+	commit := runs.EventCommit{
+		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID,
+		TerminalCommitID: "terminal_commit_ambiguous",
+		State:            runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
+		ConversationMessages: []chat.Message{
+			chat.NewAssistantMessage(chat.NewTextPart("durable answer")),
+		},
+	}
+	if err := effects.CommitEvent(commitCtx, commit); err != nil {
+		t.Fatalf("ambiguous CommitEvent = %v, want reconciled success", err)
+	}
+	stored, found, err := state.Run(ctx, draft.RunID)
+	if err != nil || !found || stored.MessageMark() != 1 || !stored.State().IsTerminal() {
+		t.Fatalf("terminal Run = %#v found=%t err=%v, want terminal watermark 1", stored, found, err)
+	}
+	var terminalSegmentID, terminalCommitID string
+	if err := db.QueryRowContext(ctx,
+		`SELECT terminal_segment_id, terminal_commit_id FROM runs WHERE run_id = ?`,
+		draft.RunID,
+	).Scan(&terminalSegmentID, &terminalCommitID); err != nil {
+		t.Fatalf("read terminal commit marker: %v", err)
+	}
+	if terminalSegmentID != draft.SegmentID || terminalCommitID != commit.TerminalCommitID {
+		t.Fatalf(
+			"terminal marker = %q/%q, want %q/%q",
+			terminalSegmentID,
+			terminalCommitID,
+			draft.SegmentID,
+			commit.TerminalCommitID,
+		)
+	}
+	for _, test := range []struct {
+		label     string
+		segmentID string
+		commitID  string
+	}{
+		{label: "other Segment", segmentID: "seg_other", commitID: commit.TerminalCommitID},
+		{label: "other terminal attempt", segmentID: draft.SegmentID, commitID: "terminal_commit_other"},
+	} {
+		matched, matchErr := state.TerminalEventCommitted(
+			ctx,
+			draft.SessionID,
+			draft.RunID,
+			test.segmentID,
+			test.commitID,
+		)
+		if matchErr != nil || matched {
+			t.Fatalf("%s marker matched=%t err=%v, want false/nil", test.label, matched, matchErr)
+		}
+	}
+	assertSingleMessage := func(label string) {
+		t.Helper()
+		got, readErr := messages.Read(ctx, draft.SessionID)
+		if readErr != nil || len(got) != 1 || got[0].Text() != "durable answer" {
+			t.Fatalf("%s conversation = %#v err=%v, want one durable answer", label, got, readErr)
+		}
+	}
+	assertSingleMessage("ambiguous commit")
+
+	if err := effects.CommitEvent(commitCtx, commit); err != nil {
+		t.Fatalf("exact terminal replay = %v, want idempotent success", err)
+	}
+	assertSingleMessage("exact replay")
+
+	conflicting := mutatedRun(*finished, func(snapshot *run.Snapshot) {
+		snapshot.Detail = "different terminal result"
+	})
+	commit.Run = &conflicting
+	commit.TerminalCommitID = "terminal_commit_conflicting"
+	if err := effects.CommitEvent(commitCtx, commit); err == nil {
+		t.Fatal("different terminal replay succeeded")
+	}
+
+	otherDraft := run.Draft{
+		RunID: "run_other", SessionID: "ses_other", SegmentID: "seg_other",
+		CreatedAt: time.Unix(1, 0).UTC(),
+	}
+	if err := state.Admit(ctx, otherDraft); err != nil {
+		t.Fatalf("admit other Run: %v", err)
+	}
+	otherFinished := finishedRunRecord(otherDraft.RunID, otherDraft.SessionID, run.OutcomeCompleted)
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: otherDraft.RunID, SessionID: otherDraft.SessionID, SegmentID: otherDraft.SegmentID,
+		TerminalCommitID: terminalCommitID,
+		State:            runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: otherFinished,
+	}); err == nil {
+		t.Fatal("terminal commit identity was reused by another Run")
+	}
+	otherStored, found, err := state.Run(ctx, otherDraft.RunID)
+	if err != nil || !found || otherStored.State() != run.Running || otherStored.ActiveSegmentID() != otherDraft.SegmentID {
+		t.Fatalf("other Run after marker collision = %#v found=%t err=%v, want original running Segment", otherStored, found, err)
+	}
+	var integrity string
+	if err := db.QueryRowContext(ctx, `PRAGMA integrity_check`).Scan(&integrity); err != nil || integrity != "ok" {
+		t.Fatalf("integrity_check = %q err=%v, want ok", integrity, err)
+	}
+	foreignKeys, err := db.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatalf("foreign_key_check: %v", err)
+	}
+	defer foreignKeys.Close()
+	if foreignKeys.Next() {
+		t.Fatal("foreign_key_check reported a violation")
+	}
+	if err := foreignKeys.Err(); err != nil {
+		t.Fatalf("foreign_key_check rows: %v", err)
 	}
 }
 
@@ -2005,7 +2163,8 @@ func TestRootTerminalCommitReclaimsChildStartReservations(t *testing.T) {
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeCompleted)
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID,
-		State: runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
+		TerminalCommitID: "terminal_commit_cleanup",
+		State:            runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
 		ObsoleteCheckpointRootID: "member_root_1",
 	}); err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -2062,7 +2221,8 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 	finished = &updated
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID, State: runs.StateTerminalize,
-		Outcome: run.OutcomeFailed, Run: finished,
+		TerminalCommitID: "terminal_commit_result",
+		Outcome:          run.OutcomeFailed, Run: finished,
 	}); err != nil {
 		t.Fatalf("CommitEvent: %v", err)
 	}

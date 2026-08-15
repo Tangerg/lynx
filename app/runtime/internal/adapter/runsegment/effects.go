@@ -148,6 +148,11 @@ type ToolInvocationJournal interface {
 // RequireActiveSegment is the admission fence for every EventCommit: it proves
 // the complete write-set still belongs to the exact running Segment before any
 // transcript, conversation, invocation, accounting, or lifecycle fact moves.
+// TerminalizeEvent records the Application-owned immutable terminal write-set
+// identity in the same transaction as the Run transition. TerminalEventCommitted
+// is the commit-outcome proof used after that transaction returns an error, so a
+// lost success receipt converges without confusing another Segment or terminal
+// attempt for this write-set.
 // The sqlite RunStore satisfies it.
 type RunWriter interface {
 	Admit(ctx context.Context, draft run.Draft) error
@@ -155,6 +160,8 @@ type RunWriter interface {
 	RequireActiveSegment(ctx context.Context, sessionID, runID, segmentID string) error
 	Suspend(ctx context.Context, run run.Run) error
 	Terminalize(ctx context.Context, run run.Run) error
+	TerminalizeEvent(ctx context.Context, run run.Run, segmentID, commitID string) error
+	TerminalEventCommitted(ctx context.Context, sessionID, runID, segmentID, commitID string) (bool, error)
 }
 
 // RunMetricsWriter updates only cumulative consumption for one exact active

@@ -77,7 +77,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 70`；
+- 当前 `schemaEpoch = 71`；
 - 数据目录为 `0700` 私有目录，可由少量同版本 Runtime 进程共享；schema/config setup 使用短期跨进程 lease，Runtime lifecycle 不拥有目录全局独占权；
 - SQLite 事务与既有 uniqueness/CAS 继续拥有 durable winner。活跃 Session writer、physical working-tree shared/exclusive operation、Goal drive 与 ordered recovery sweep 使用 OS advisory lease；进程死亡由内核释放。单一 recovery winner 固定 Run-before-Goal 并只清理成功接管的 Session，不使用 TTL、heartbeat、全局 checkpoint/callback sweep 或兼容双路径；
 - 其他 SQLite connection 的 commit 只触发全量 read-model resync，细粒度本地 invalidation 仍由提交用例发布；本次不改变 SQLite epoch、Artifact、checkpoint 或 protocol wire shape；
