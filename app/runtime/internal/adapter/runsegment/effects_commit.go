@@ -180,7 +180,7 @@ func (e *Effects) ClaimResume(
 	if e.tx == nil {
 		return runs.ClaimedResume{}, errors.New("runsegment: transactor is unavailable")
 	}
-	if e.resumeClaims == nil || e.executorCheckpoints == nil {
+	if e.resumeClaims == nil || e.executorCheckpoints == nil || e.runState == nil {
 		return runs.ClaimedResume{}, errors.New("runsegment: resume-claim persistence is unavailable")
 	}
 	if err := claim.Validate(); err != nil {
@@ -233,15 +233,37 @@ func (e *Effects) ClaimResume(
 			return fmt.Errorf("runsegment: invalidate claimed executor checkpoint: %w", err)
 		}
 		checkpoint = loaded.Clone()
+		if err := e.runState.RecordWaitingRunCommit(
+			ctx, claim.Expected.SessionID, claim.Expected.RootRunID, claim.CommitID,
+		); err != nil {
+			return fmt.Errorf("runsegment: record resume claim commit receipt: %w", err)
+		}
 		return nil
 	})
 	if err != nil {
-		return runs.ClaimedResume{}, err
+		settled, settleErr := e.reconcileRunCommit(
+			ctx, claim.Expected.SessionID, claim.Expected.RootRunID, "", claim.CommitID,
+		)
+		if settled {
+			if checkpointErr := checkpoint.Validate(); checkpointErr != nil {
+				return runs.ClaimedResume{}, errors.Join(
+					err,
+					errors.New("runsegment: committed resume claim checkpoint is unavailable to this caller"),
+					checkpointErr,
+				)
+			}
+			return claimedResumeResult(claim, checkpoint), nil
+		}
+		return runs.ClaimedResume{}, errors.Join(err, settleErr)
 	}
+	return claimedResumeResult(claim, checkpoint), nil
+}
+
+func claimedResumeResult(claim runs.ResumeClaimCommit, checkpoint runs.ExecutorCheckpoint) runs.ClaimedResume {
 	return runs.ClaimedResume{
 		Pending: claim.Expected, Answers: append([]runs.InterruptAnswer(nil), claim.Answers...),
 		Checkpoint: checkpoint,
-	}, nil
+	}
 }
 
 // CommitOpening accepts one segment atomically. A fresh segment admits its Run;

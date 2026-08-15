@@ -65,6 +65,9 @@ type OpeningCommit struct {
 // has no recoverable pre-answer snapshot and boot reconciliation must mark the
 // still-nonterminal tree lost.
 type ResumeClaimCommit struct {
+	// CommitID identifies the complete answer-claim transaction. The checkpoint
+	// returned by a successful claim remains a one-shot in-memory hand-off.
+	CommitID  string
 	Expected  Pending
 	Answers   []InterruptAnswer
 	ClaimedAt time.Time
@@ -81,6 +84,9 @@ type ClaimedResume struct {
 }
 
 func (claim ResumeClaimCommit) Validate() error {
+	if strings.TrimSpace(claim.CommitID) == "" || claim.CommitID != strings.TrimSpace(claim.CommitID) {
+		return errors.New("runs: resume claim commit identity is required without surrounding whitespace")
+	}
 	if err := claim.Expected.Validate(); err != nil {
 		return fmt.Errorf("runs: resume claim Pending: %w", err)
 	}

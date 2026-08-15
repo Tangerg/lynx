@@ -1697,10 +1697,32 @@
 - 两种 exact replay均不重复 conversation，另一 identity不能复用已消费 Pending；marker 写失败时完整事务回滚；SQLite integrity/foreign-key 全绿；
 - 核心场景重复与 race、Runtime workspace/standalone 全门禁通过；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
 
-## 76. 进度记录
+## 76. P97 — HITL answer-claim 成功回执收敛
+
+### 目标
+
+关闭 HITL Resume 在 opening 之前的 answer-claim transaction 已完整 COMMIT、调用方却收到错误或取消时仍被判定失败的缺口。该事务同时拥有 `open → resuming`、Question answer replacement 与 one-shot executor checkpoint deletion；修复必须证明这一精确 write-set 已提交，并只在原调用仍持有已加载 checkpoint 时返回 claimed hand-off，不能从粗略 `resuming` 状态推断成功或建立可重放 checkpoint 旁路。
+
+### 工作项
+
+- [x] P97-01 以一个客户端和真实 Question/Pending/checkpoint/Waiting Run 在 SQLite COMMIT 后注入 success receipt 丢失并取消原 context，冻结“回答已接受、checkpoint 已删除、Application 未结算”的窗口；
+- [x] P97-02 为每个 `ResumeClaimCommit` 铸造唯一 Application command identity，并在 answer claim、Question replacement 与 checkpoint deletion 全部成功后，才向 root Waiting Run 写入 exact marker；
+- [x] P97-03 复用 epoch 74 已定义的 empty Segment waiting-command marker，不伪造尚未打开的 continuation Segment，也不增加永久 answer/checkpoint replay ledger；
+- [x] P97-04 让 transaction error 以有界、request-detached exact Session/root/identity read 结算；只有发起该事务且仍持有已加载 checkpoint 的原调用可以重建 `ClaimedResume`，后续进程崩溃继续由既有 recovery 收敛为 RunLost；
+- [x] P97-05 注入 marker 写入失败，证明 interrupt claim、Question answer、checkpoint deletion 与 Run receipt 整笔回滚；另一 identity 不能匹配已提交 claim；
+- [x] P97-06 保持 SQLite epoch 74、Protocol、Artifact、Desktop 与 Agent Framework 合同不变，不增加 migration、dual path 或兼容补丁。
+
+### 验收
+
+- answer-claim COMMIT 后丢回执并取消 caller，原调用仍返回 exact Pending/answers/checkpoint，interrupt 为隐藏 `resuming`、Question answer 与 checkpoint deletion 原子可读；
+- exact root marker 可以证明本次 claim，另一 identity 不能复用；marker 写失败时 Pending、Question、checkpoint 与 Run marker 全部保持原状；
+- 核心场景重复与 race、SQLite integrity/foreign-key、Runtime workspace/standalone 全门禁通过；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
+
+## 77. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P97（HITL answer-claim ambiguous settlement） | 反证确认 HITL Resume 在 opening 前还有独立 answer-claim transaction：`open → resuming`、Question answer replacement 与 one-shot checkpoint deletion 已 durable COMMIT但回执丢失时，旧实现仍返回失败，把已接受回答留给 recovery 的 RunLost。现在 Application 为每次 claim 铸造 immutable identity；runsegment 在完整 write-set 末尾向 root Waiting Run 写入 epoch 74 已支持的 empty-Segment marker，错误后用 request-detached exact identity 结算。原调用利用事务前已加载的 checkpoint 重建 `ClaimedResume`；进程崩溃后不发明 checkpoint replay ledger，仍沿既有 recovery fail closed。marker 写失败整笔回滚，粗略 `resuming` 不作为成功证据；SQLite shape/epoch 与外部合同均未变化 | 真实 SQLite 在 COMMIT 后丢回执并取消 caller，仍精确返回 Pending/answers/checkpoint，回答投影、隐藏 claim、checkpoint deletion 与 exact marker 原子可读；另一 identity 不匹配。marker 写失败时 Pending/Question/checkpoint/Run marker 全部回滚，`integrity_check`/`foreign_key_check` 全绿。核心场景 20×、受影响四包完整 race、Runtime workspace/standalone 全包、root workspace test、staticcheck、deadcode、golangci-lint（0 issues）、generate/diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P96（waiting-child composite cancellation ambiguous settlement） | 反证确认 waiting-child cancellation 的定制 `CommitOpening` 丢弃了 P95 opening identity；它自己的 transaction 同时拥有 checkpoint、Pending、conversation、parent/terminal Items、canceled child Runs 与 surviving Waiting/Running disposition，却没有 durable receipt。COMMIT 后丢回执会错误执行 startup abort或拒绝 process-local `Apply`。现在 remains-Waiting command 单独铸造 identity，resumes-Running command 复用外层 opening identity；runsegment 只在全部 projection 成功后向 root Run写入 latest marker。already-Waiting 不伪造 Segment，以 empty Segment + unique identity 表示；恢复路径绑定 exact new Segment。错误后 request-detached proof读取 durable target/root结果，同 identity replay 收敛，不同 identity拒绝；SQLite 唯一 shape 从 epoch 73 前移到 74，无 migration/双路径 | 两种真实 SQLite transaction 均在 COMMIT 后丢回执并取消 caller：canceled target 与 Waiting/Running root精确返回，checkpoint/Pending/conversation/Items/Run tree/marker 原子可读；同 canceled context replay不重复 conversation，另一 identity fail closed，`integrity_check`/`foreign_key_check` 全绿。两种 marker 写入失败均整笔回滚。核心场景与 rollback matrix 20×、受影响四包完整 race、Runtime workspace/standalone 全包、root workspace test、staticcheck、deadcode、golangci-lint（0 issues）、generate/diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P95（composite Run command ambiguous settlement） | 继续把 P94 的不明 COMMIT 反例推进到 fresh Start、HITL Resume、durable child start 与 HITL tree barrier：旧实现即使 SQLite transaction 已完整提交，仍会向上返回失败并触发 startup abort、释放 staged executor，或让 process-local interrupt owner拒绝已进入 Waiting 的 durable state。Application 现在为 opening/barrier 各铸造一次 immutable identity；runsegment 在完整 opening write-set 末尾写入 owner Run marker，在 root Waiting CAS 内写入 barrier marker，任何 transaction error 都只用 request-detached exact Session/Run/Segment/identity 结算。child reservation 已 concluded 的旧旁路也被收紧为只有 exact child opening marker 才幂等成功。P94 的单行 latest marker推广为全部 Application Run command boundary，不建立永久 ledger；SQLite 列统一为 `commit_segment_id`/`commit_id`，唯一 shape 从 epoch 72 前移到 73，无 migration/双路径 | 真实 SQLite 三类 COMMIT 后回执丢失并取消 caller 均收敛：fresh opening 的 Run/Item/marker、child reservation/parent Item/child Run/marker、tree barrier 的 Pending/checkpoint/Tool/Transcript/Waiting tree/marker 各自原子可读；同 canceled context exact replay不重复写，不同 opening identity fail closed，三类数据库 `integrity_check`/`foreign_key_check` 全绿。核心场景 20×、受影响四包完整 race、Runtime workspace/standalone 全包、root workspace test、staticcheck、deadcode、golangci-lint（0 issues）、generate/diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P94（all EventCommit ambiguous settlement） | P93 的 terminal 反例继续扩展到非终态 authoritative Model/Tool 后，确认 SQLite transaction 已 durable COMMIT、success receipt 丢失时，Application 仍保留旧 reducer；pre-call 会误升级 HostFailure，post-call 会误入 RunLost，并可能用过期 invocation/Item 状态合成矛盾终态。Application 现在为每个顶层 `CommitEvent` 铸造唯一 immutable identity；runsegment 在完整 projection write-set 末尾、同一 transaction 内把 exact Segment/latest identity 写入 Run 行，所有 transaction error 统一以 request-detached exact marker 结算。terminal 复用同一 marker并永久保留；单泵串行使 latest row 足够而无需无限 ledger，下一 canonical fact 覆盖旧值，Suspend/Resume 清除旧代，Restore/Recovery 不伪造 receipt。SQLite CHECK 将非空 marker 限定为 exact Running Segment 或 terminal，唯一 shape 从 epoch 71 直接前移到 72，无 migration/双路径 | 真实 SQLite Model completion 在 COMMIT 后丢回执并取消 caller：invocation completed、conversation、Run metrics 与 marker 原子可读；同 canceled context exact replay 成功且消息不重复，下一 fact 覆盖后旧 marker 不再匹配；Suspend/Resume 旧代失效，integrity/foreign-key 全绿。核心场景 20×、受影响四包完整 race、Runtime workspace/standalone 全包、root workspace test、staticcheck、deadcode、golangci-lint（0 issues）、generate/diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
@@ -1868,6 +1890,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 77. 当前下一步
+## 78. 本轮里程碑
 
-P96 已让 waiting-child cancellation 的 remains-Waiting 与 resumes-Running composite transaction 在 COMMIT 回执不明时精确收敛。下一批 P97 继续审计 HITL Resume 更早的 answer-claim transaction：`open → resuming` claim、Question answer replacement 与 checkpoint deletion 若已 durable COMMIT但 success receipt 丢失，当前调用是否仍返回失败并把已接受回答留给后续 RunLost。先用一个客户端的真实 Question/Pending/checkpoint 注入失败窗口，再决定 claim identity 与一次性 checkpoint返回值如何共同结算；不以粗略 `resuming` 状态冒充 exact write-set。`app/cli` 继续只读且不暂存。
+P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；同时保持单行 latest marker、one-shot checkpoint 与既有 crash recovery 的清晰边界，不建立永久增长 ledger或兼容双路径。本轮到此停止，不预建 P98；后续若开启新一轮，再从真实产品交错与新的反例重新立项。`app/cli` 始终只读且不暂存。

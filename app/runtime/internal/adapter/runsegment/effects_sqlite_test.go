@@ -1133,11 +1133,31 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("save checkpoint: %v", err)
 	}
+	runStore := sqlite.NewRunStore(db)
+	if err := runStore.Admit(ctx, run.Draft{
+		RunID: pending.RootRunID, SessionID: pending.SessionID, SegmentID: "segment_claim",
+		ModelSelection: root.ModelSelection, GoalIncarnationID: pending.GoalIncarnationID,
+		Limits: root.Limits, Capabilities: pending.Capabilities, CreatedAt: root.RunCreatedAt,
+	}); err != nil {
+		t.Fatalf("admit claim root Run: %v", err)
+	}
+	runningRoot, found, err := runStore.Run(ctx, pending.RootRunID)
+	if err != nil || !found {
+		t.Fatalf("read claim root Run: found=%t err=%v", found, err)
+	}
+	waitingRoot, err := runningRoot.Suspend(pending.CreatedAt)
+	if err != nil {
+		t.Fatalf("park claim root Run: %v", err)
+	}
+	if err := runStore.Suspend(ctx, waitingRoot); err != nil {
+		t.Fatalf("persist claim root park: %v", err)
+	}
 	effects := New(Config{
 		Interrupts:          interruptStore,
 		ResumeClaims:        interruptStore,
 		ExecutorCheckpoints: checkpointStore,
 		ItemReplacer:        transcriptStore,
+		State:               runStore,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -1149,7 +1169,7 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 		Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
 	}}
 	replacements, err := (runs.ResumeClaimCommit{
-		Expected: pending, Answers: answers, ClaimedAt: claimedAt,
+		CommitID: "run_commit_resume_claim", Expected: pending, Answers: answers, ClaimedAt: claimedAt,
 	}).QuestionReplacements()
 	if err != nil {
 		t.Fatalf("prepare question replacement: %v", err)
@@ -1167,7 +1187,7 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	stale := pending
 	stale.ExecutorID = "turn_stale"
 	if _, err := effects.ClaimResume(ctx, runs.ResumeClaimCommit{
-		Expected: stale, Answers: answers, ClaimedAt: claimedAt,
+		CommitID: "run_commit_stale_resume_claim", Expected: stale, Answers: answers, ClaimedAt: claimedAt,
 	}); err == nil {
 		t.Fatal("ClaimResume accepted a stale waiting hand-off")
 	}
@@ -1179,7 +1199,7 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	}
 
 	claimed, err := effects.ClaimResume(ctx, runs.ResumeClaimCommit{
-		Expected: pending, Answers: answers, ClaimedAt: claimedAt,
+		CommitID: "run_commit_resume_claim", Expected: pending, Answers: answers, ClaimedAt: claimedAt,
 	})
 	if err != nil {
 		t.Fatalf("ClaimResume: %v", err)
@@ -1237,6 +1257,238 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	if state != "open" || encodedAnswers != "" || storedClaimedAt != 0 {
 		t.Fatalf("advanced barrier state=%q answers=%q claimedAt=%d", state, encodedAnswers, storedClaimedAt)
 	}
+}
+
+func TestClaimResumeReconcilesAmbiguousCommit(t *testing.T) {
+	fixture := newResumeClaimSQLiteFixture(t, "ambiguous")
+	receiptErr := errors.New("lost resume claim commit receipt")
+	commitCtx, cancelCommit := context.WithCancel(fixture.ctx)
+	t.Cleanup(cancelCommit)
+	effects := fixture.effects(func(ctx context.Context, fn func(context.Context) error) error {
+		if err := sqlite.RunInTx(ctx, fixture.db, fn); err != nil {
+			return err
+		}
+		cancelCommit()
+		return receiptErr
+	}, fixture.runStore)
+
+	claimed, err := effects.ClaimResume(commitCtx, fixture.claim)
+	if err != nil {
+		t.Fatalf("ClaimResume after lost COMMIT receipt: %v", err)
+	}
+	if !reflect.DeepEqual(claimed.Pending, fixture.pending) ||
+		!reflect.DeepEqual(claimed.Answers, fixture.answers) ||
+		!reflect.DeepEqual(claimed.Checkpoint, fixture.checkpoint) {
+		t.Fatalf("reconciled claim = %+v", claimed)
+	}
+	matched, err := fixture.runStore.RunCommitCommitted(
+		fixture.ctx,
+		fixture.pending.SessionID,
+		fixture.pending.RootRunID,
+		"",
+		fixture.claim.CommitID,
+	)
+	if err != nil || !matched {
+		t.Fatalf("resume claim commit marker = %t err=%v, want exact match", matched, err)
+	}
+	matched, err = fixture.runStore.RunCommitCommitted(
+		fixture.ctx,
+		fixture.pending.SessionID,
+		fixture.pending.RootRunID,
+		"",
+		fixture.claim.CommitID+"_other",
+	)
+	if err != nil || matched {
+		t.Fatalf("different resume claim commit marker = %t err=%v, want no match", matched, err)
+	}
+	assertResumeClaimCommitted(t, fixture)
+	requireSQLiteHealthy(t, fixture.ctx, fixture.db)
+}
+
+func TestClaimResumeRollsBackWhenCommitMarkerFails(t *testing.T) {
+	fixture := newResumeClaimSQLiteFixture(t, "marker_rollback")
+	markerErr := errors.New("write resume claim commit marker")
+	effects := fixture.effects(
+		func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, fixture.db, fn)
+		},
+		failingWaitingRunWriter{RunStore: fixture.runStore, recordErr: markerErr},
+	)
+
+	if _, err := effects.ClaimResume(fixture.ctx, fixture.claim); !errors.Is(err, markerErr) {
+		t.Fatalf("ClaimResume error = %v, want marker failure", err)
+	}
+	gotPending, found, err := fixture.interrupts.Get(fixture.ctx, fixture.pending.RootRunID)
+	if err != nil || !found || !reflect.DeepEqual(gotPending, fixture.pending) {
+		t.Fatalf("interrupt after marker rollback = found:%t value:%+v err:%v", found, gotPending, err)
+	}
+	gotCheckpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.checkpoint.RootMemberID)
+	if err != nil || !executorCheckpointValuesEqual(gotCheckpoint, fixture.checkpoint) {
+		t.Fatalf("checkpoint after marker rollback = %+v err=%v", gotCheckpoint, err)
+	}
+	gotQuestion, found, err := fixture.transcript.Item(fixture.ctx, fixture.question.ID())
+	if err != nil || !found {
+		t.Fatalf("question after marker rollback = found:%t err:%v", found, err)
+	}
+	question, ok := gotQuestion.Question()
+	if !ok || len(question.Answers) != 0 {
+		t.Fatalf("question after marker rollback = %+v, want unanswered", question)
+	}
+	matched, err := fixture.runStore.RunCommitCommitted(
+		fixture.ctx,
+		fixture.pending.SessionID,
+		fixture.pending.RootRunID,
+		"",
+		fixture.claim.CommitID,
+	)
+	if err != nil || matched {
+		t.Fatalf("resume claim marker after rollback = %t err=%v, want absent", matched, err)
+	}
+	requireSQLiteHealthy(t, fixture.ctx, fixture.db)
+}
+
+type resumeClaimSQLiteFixture struct {
+	ctx         context.Context
+	db          *sql.DB
+	pending     runs.Pending
+	answers     []runs.InterruptAnswer
+	claim       runs.ResumeClaimCommit
+	checkpoint  runs.ExecutorCheckpoint
+	question    transcript.Item
+	interrupts  *persistence.InterruptStore
+	checkpoints *persistence.ExecutorCheckpointStore
+	transcript  *sqlite.TranscriptStore
+	runStore    *sqlite.RunStore
+}
+
+func newResumeClaimSQLiteFixture(t *testing.T, suffix string) resumeClaimSQLiteFixture {
+	t.Helper()
+	database, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	ctx := t.Context()
+	createdAt := time.Unix(10, 0).UTC()
+	interrupts := persistence.NewInterruptStore(sqlite.NewInterruptStore(database))
+	checkpoints := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(database))
+	transcriptStore := sqlite.NewTranscriptStore(database)
+	runStore := sqlite.NewRunStore(database)
+	pending := singleRunPending(
+		t,
+		"run_claim_"+suffix,
+		"session_claim_"+suffix,
+		"member_claim_"+suffix,
+		"request_claim_"+suffix,
+		"item_claim_"+suffix,
+		createdAt,
+		createdAt.Add(time.Second),
+	)
+	if err := interrupts.Open(ctx, pending); err != nil {
+		t.Fatalf("open interrupt: %v", err)
+	}
+	questionItem, err := transcript.NewQuestion(transcript.ItemIdentity{
+		SessionID:  pending.SessionID,
+		RunID:      pending.Interrupts[0].RunID,
+		ItemID:     pending.Interrupts[0].ItemID,
+		OccurredAt: pending.Interrupts[0].ItemOccurredAt,
+	}, *pending.Interrupts[0].Question)
+	if err != nil {
+		t.Fatalf("new question Item: %v", err)
+	}
+	if err := transcriptStore.AppendItem(ctx, questionItem); err != nil {
+		t.Fatalf("seed question Item: %v", err)
+	}
+	root, found := pending.RootContinuation()
+	if !found {
+		t.Fatal("fixture Pending has no root continuation")
+	}
+	checkpoint := runs.ExecutorCheckpoint{
+		RootMemberID:   root.MemberID,
+		Payload:        []byte(`{"opaque":"tree"}`),
+		BuildID:        checkpointBuildID,
+		Scope:          runs.ExecutionScope{SessionID: pending.SessionID},
+		ModelSelection: root.ModelSelection,
+		Limits:         root.Limits,
+	}
+	if err := checkpoints.SaveCheckpoint(ctx, checkpoint); err != nil {
+		t.Fatalf("save checkpoint: %v", err)
+	}
+	if err := runStore.Admit(ctx, run.Draft{
+		RunID: pending.RootRunID, SessionID: pending.SessionID, SegmentID: "segment_claim_" + suffix,
+		ModelSelection: root.ModelSelection, GoalIncarnationID: pending.GoalIncarnationID,
+		Limits: root.Limits, Capabilities: pending.Capabilities, CreatedAt: root.RunCreatedAt,
+	}); err != nil {
+		t.Fatalf("admit claim root Run: %v", err)
+	}
+	runningRoot, found, err := runStore.Run(ctx, pending.RootRunID)
+	if err != nil || !found {
+		t.Fatalf("read claim root Run: found=%t err=%v", found, err)
+	}
+	waitingRoot, err := runningRoot.Suspend(pending.CreatedAt)
+	if err != nil {
+		t.Fatalf("park claim root Run: %v", err)
+	}
+	if err := runStore.Suspend(ctx, waitingRoot); err != nil {
+		t.Fatalf("persist claim root park: %v", err)
+	}
+	answers := []runs.InterruptAnswer{{
+		InterruptItemID: pending.Bindings[0].InterruptItemID,
+		MemberID:        pending.Bindings[0].MemberID,
+		RequestID:       pending.Bindings[0].RequestID,
+		Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
+	}}
+	return resumeClaimSQLiteFixture{
+		ctx: ctx, db: database, pending: pending, answers: answers,
+		claim: runs.ResumeClaimCommit{
+			CommitID:  "run_commit_resume_claim_" + suffix,
+			Expected:  pending,
+			Answers:   answers,
+			ClaimedAt: pending.CreatedAt.Add(time.Second),
+		},
+		checkpoint: checkpoint, question: questionItem, interrupts: interrupts,
+		checkpoints: checkpoints, transcript: transcriptStore, runStore: runStore,
+	}
+}
+
+func (fixture resumeClaimSQLiteFixture) effects(tx Transactor, state RunStore) *Effects {
+	return New(Config{
+		Interrupts:          fixture.interrupts,
+		ResumeClaims:        fixture.interrupts,
+		ExecutorCheckpoints: fixture.checkpoints,
+		ItemReplacer:        fixture.transcript,
+		State:               state,
+		Tx:                  tx,
+	})
+}
+
+func assertResumeClaimCommitted(t *testing.T, fixture resumeClaimSQLiteFixture) {
+	t.Helper()
+	if _, found, err := fixture.interrupts.Get(fixture.ctx, fixture.pending.RootRunID); err != nil || found {
+		t.Fatalf("open interrupt after claim = found:%t err:%v, want hidden", found, err)
+	}
+	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.checkpoint.RootMemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("checkpoint after claim = %v, want not found", err)
+	}
+	answeredItem, found, err := fixture.transcript.Item(fixture.ctx, fixture.question.ID())
+	if err != nil || !found {
+		t.Fatalf("answered question Item = found:%t err:%v", found, err)
+	}
+	answeredQuestion, ok := answeredItem.Question()
+	if !ok || !reflect.DeepEqual(answeredQuestion.Answers, [][]string{{"continue"}}) {
+		t.Fatalf("answered question = %+v", answeredQuestion)
+	}
+}
+
+func executorCheckpointValuesEqual(left, right runs.ExecutorCheckpoint) bool {
+	return left.RootMemberID == right.RootMemberID &&
+		slices.Equal(left.Payload, right.Payload) &&
+		left.BuildID == right.BuildID &&
+		left.Scope == right.Scope &&
+		left.ModelSelection == right.ModelSelection &&
+		left.Limits == right.Limits &&
+		left.Capabilities.Equal(right.Capabilities) &&
+		slices.Equal(left.Usage.Models, right.Usage.Models)
 }
 
 func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {

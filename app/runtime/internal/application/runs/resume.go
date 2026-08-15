@@ -53,7 +53,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}
 
 	claimed, err := c.resumeClaims.ClaimResume(ctx, ResumeClaimCommit{
-		Expected: pending, Answers: answers, ClaimedAt: c.now().UTC(),
+		CommitID: newRunCommitID(), Expected: pending, Answers: answers, ClaimedAt: c.now().UTC(),
 	})
 	if err != nil {
 		return StartResult{}, err
