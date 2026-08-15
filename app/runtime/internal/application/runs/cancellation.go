@@ -348,9 +348,10 @@ func (c *Coordinator) commitWaitingChildCancellation(
 	transformation waitingCancellationTransformation,
 	change WaitingSubtreeChange,
 ) (CancelResult, error) {
+	durable := transformation.durableCommit(plan.pending, newRunCommitID())
 	result, err := c.waitingSubtreeCancellations.CommitWaitingSubtreeCancellation(
 		ctx,
-		transformation.durableCommit(plan.pending),
+		durable,
 	)
 	if err != nil {
 		return CancelResult{}, err
@@ -407,7 +408,7 @@ func (c *Coordinator) resumeAfterWaitingChildCancellation(
 			if opening.Admit != nil || opening.Resume == nil {
 				return errors.New("runs: waiting child continuation produced an invalid opening disposition")
 			}
-			durable := transformation.durableCommit(plan.pending)
+			durable := transformation.durableCommit(plan.pending, opening.CommitID)
 			durable.Resume = opening.Resume
 			durable.OpeningEvents = opening.Events
 			result, commitErr := c.waitingSubtreeCancellations.CommitWaitingSubtreeCancellation(commitCtx, durable)

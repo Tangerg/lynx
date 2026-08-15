@@ -22,6 +22,9 @@ type ItemReplacement struct {
 // WaitingSubtreeCancellationCommit is the immutable write-set for canceling a
 // child while its Run tree is waiting.
 type WaitingSubtreeCancellationCommit struct {
+	// CommitID identifies the complete cancellation transaction. A cancellation
+	// that resumes the surviving tree reuses its OpeningCommit identity.
+	CommitID             string
 	RootRunID            string
 	TargetRunID          string
 	SessionID            string

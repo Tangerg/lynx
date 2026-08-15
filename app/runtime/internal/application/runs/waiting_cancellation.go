@@ -525,8 +525,10 @@ func inputRequestIdentity(memberID, requestID string) string {
 
 func (transformation waitingCancellationTransformation) durableCommit(
 	expected Pending,
+	commitID string,
 ) WaitingSubtreeCancellationCommit {
 	return WaitingSubtreeCancellationCommit{
+		CommitID:             commitID,
 		RootRunID:            expected.RootRunID,
 		TargetRunID:          transformation.targetRunID,
 		SessionID:            expected.SessionID,

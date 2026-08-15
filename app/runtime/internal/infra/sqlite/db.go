@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 73
+const schemaEpoch = 74
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -143,10 +143,12 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// rollback/fork watermark fork{fromRunId} truncates to. -1 is
 		// run.UnknownMessageMark: a Run that has not finished has no watermark yet.
 		// commit_segment_id / commit_id are a technical receipt for the latest
-		// complete Application Run write-set: opening, event, waiting barrier, or
-		// terminal. The single Run pump settles each boundary before issuing the
-		// next, so one marker is sufficient. Restore and recovery clear it because
-		// they did not execute that Application command.
+		// complete Application Run write-set: opening, event, waiting barrier,
+		// waiting-child cancellation, or terminal. An already-waiting command has
+		// no Segment and deliberately stores an empty commit_segment_id beside its
+		// unique commit_id. The command owner settles each boundary before issuing
+		// the next, so one marker is sufficient. Restore and recovery clear it
+		// because they did not execute that Application command.
 		`CREATE TABLE IF NOT EXISTS runs (
 			run_id             TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,
@@ -182,9 +184,10 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			CHECK (root_run_id = '' OR goal_incarnation_id = ''),
 			CHECK (
 				(commit_segment_id = '' AND commit_id = '') OR
-				(commit_segment_id != '' AND commit_id != '' AND (
-					(state = 'running' AND active_segment_id = commit_segment_id) OR
-					state IN ('waiting', 'terminal')
+				(commit_id != '' AND (
+					(commit_segment_id != '' AND state = 'running' AND active_segment_id = commit_segment_id) OR
+					state = 'waiting' OR
+					(commit_segment_id != '' AND state = 'terminal')
 				))
 			)
 		)`,

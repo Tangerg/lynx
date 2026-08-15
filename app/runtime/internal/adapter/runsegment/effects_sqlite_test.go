@@ -1483,6 +1483,99 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 	}
 }
 
+func TestCommitWaitingSubtreeCancellationReconcilesAmbiguousCommit(t *testing.T) {
+	tests := []struct {
+		name              string
+		survivingBoundary bool
+		wantSegmentID     string
+		wantRootState     run.State
+	}{
+		{
+			name:              "remaining waiting boundary",
+			survivingBoundary: true,
+			wantRootState:     run.Waiting,
+		},
+		{
+			name:          "resumed continuation",
+			wantSegmentID: "segment_root_resumed",
+			wantRootState: run.Running,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
+				t,
+				test.survivingBoundary,
+			)
+			commitCtx, cancelCommit := context.WithCancel(fixture.ctx)
+			t.Cleanup(cancelCommit)
+			loseReceipt := true
+			fixture.effects = sqliteEffects(
+				sqliteOpeningStores{interrupts: fixture.interrupts, transcript: fixture.transcript},
+				Config{
+					ItemReplacer:        fixture.transcript,
+					Conversation:        fixture.conversation,
+					State:               fixture.runState,
+					ExecutorCheckpoints: fixture.checkpoints,
+					Tx: func(ctx context.Context, fn func(context.Context) error) error {
+						err := sqlite.RunInTx(ctx, fixture.db, fn)
+						if err == nil && loseReceipt {
+							loseReceipt = false
+							cancelCommit()
+							return errors.New("lost waiting cancellation commit receipt")
+						}
+						return err
+					},
+				},
+			)
+			result, err := fixture.effects.CommitWaitingSubtreeCancellation(
+				commitCtx,
+				fixture.commit,
+			)
+			if err != nil {
+				t.Fatalf("ambiguous waiting cancellation = %v, want reconciled success", err)
+			}
+			if result.RootRun.State() != test.wantRootState ||
+				result.RootRun.ActiveSegmentID() != test.wantSegmentID {
+				t.Fatalf(
+					"reconciled root = state:%s segment:%q, want %s/%q",
+					result.RootRun.State(),
+					result.RootRun.ActiveSegmentID(),
+					test.wantRootState,
+					test.wantSegmentID,
+				)
+			}
+			matched, err := fixture.runState.RunCommitCommitted(
+				fixture.ctx,
+				fixture.commit.SessionID,
+				fixture.commit.RootRunID,
+				test.wantSegmentID,
+				fixture.commit.CommitID,
+			)
+			if err != nil || !matched {
+				t.Fatalf("waiting cancellation marker matched=%t err=%v, want true/nil", matched, err)
+			}
+			replayed, err := fixture.effects.CommitWaitingSubtreeCancellation(
+				commitCtx,
+				fixture.commit,
+			)
+			if err != nil || !replayed.TargetRun.Equal(result.TargetRun) || !replayed.RootRun.Equal(result.RootRun) {
+				t.Fatalf("exact replay result = %+v err=%v, want %+v", replayed, err, result)
+			}
+			messages, err := fixture.conversation.Read(fixture.ctx, fixture.commit.SessionID)
+			if err != nil || len(messages) != len(fixture.commit.ConversationMessages) {
+				t.Fatalf("conversation after exact replay = %d messages err=%v", len(messages), err)
+			}
+			other := fixture.commit
+			other.CommitID = "run_commit_other_waiting_cancellation"
+			if _, err := fixture.effects.CommitWaitingSubtreeCancellation(fixture.ctx, other); err == nil {
+				t.Fatal("different waiting cancellation write-set reused the prior commit marker")
+			}
+			requireSQLiteHealthy(t, fixture.ctx, fixture.db)
+		})
+	}
+}
+
 func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(t *testing.T) {
 	fixture := newWaitingCancellationSQLiteFixture(t)
 	staleSnapshot := fixture.commit.ParentItem.Expected.Snapshot()
@@ -1922,6 +2015,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		originalCheckpoint:    originalCheckpoint,
 		replacementCheckpoint: replacementCheckpoint,
 		commit: runs.WaitingSubtreeCancellationCommit{
+			CommitID:         "run_commit_waiting_cancellation",
 			RootRunID:        rootRun.ID(),
 			TargetRunID:      childRun.ID(),
 			SessionID:        rootRun.SessionID(),

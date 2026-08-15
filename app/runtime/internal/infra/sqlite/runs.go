@@ -487,6 +487,39 @@ func (s *RunStore) RecordRunCommit(
 	return nil
 }
 
+// RecordWaitingRunCommit stamps a command that transforms an already-waiting
+// tree without opening a new Segment. The empty Segment is deliberate: the
+// unique command identity and Waiting root own this boundary.
+func (s *RunStore) RecordWaitingRunCommit(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+	commitID string,
+) error {
+	if err := validateWaitingRunCommitIdentity(sessionID, runID, commitID); err != nil {
+		return err
+	}
+	result, err := conn(ctx, s.db).ExecContext(ctx,
+		`UPDATE runs SET commit_segment_id = '', commit_id = ?
+		  WHERE session_id = ? AND run_id = ? AND state = ? AND active_segment_id = ''`,
+		commitID,
+		sessionID,
+		runID,
+		runStateWaiting,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: record waiting Run commit %q: %w", commitID, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect waiting Run commit %q marker: %w", commitID, err)
+	}
+	if changed != 1 {
+		return fmt.Errorf("sqlite: waiting Run commit %q lost its state fence", commitID)
+	}
+	return nil
+}
+
 // TerminalizeEvent ends one exact active Segment and stamps the immutable
 // Application EventCommit write-set identity into the Run row. The stamp shares
 // the caller's transaction with every projection in that EventCommit.
@@ -534,6 +567,7 @@ func (s *RunStore) terminalize(
 // another Segment, restored/resumed Run, or later write attempt has a different
 // or absent marker. Running markers require the same active Segment; waiting
 // barriers and terminal boundaries retain the Segment that produced them.
+// A command that starts and ends while already Waiting uses an empty Segment.
 func (s *RunStore) RunCommitCommitted(
 	ctx context.Context,
 	sessionID string,
@@ -541,7 +575,11 @@ func (s *RunStore) RunCommitCommitted(
 	segmentID string,
 	commitID string,
 ) (bool, error) {
-	if err := validateRunCommitIdentity(sessionID, runID, segmentID, commitID); err != nil {
+	if segmentID == "" {
+		if err := validateWaitingRunCommitIdentity(sessionID, runID, commitID); err != nil {
+			return false, err
+		}
+	} else if err := validateRunCommitIdentity(sessionID, runID, segmentID, commitID); err != nil {
 		return false, err
 	}
 	var found int
@@ -578,6 +616,22 @@ func validateRunCommitIdentity(sessionID, runID, segmentID, commitID string) err
 	} {
 		if strings.TrimSpace(identity.value) == "" || identity.value != strings.TrimSpace(identity.value) {
 			return fmt.Errorf("sqlite: Run commit %s ID is required without surrounding whitespace", identity.name)
+		}
+	}
+	return nil
+}
+
+func validateWaitingRunCommitIdentity(sessionID, runID, commitID string) error {
+	for _, identity := range []struct {
+		name  string
+		value string
+	}{
+		{name: "session", value: sessionID},
+		{name: "Run", value: runID},
+		{name: "commit", value: commitID},
+	} {
+		if strings.TrimSpace(identity.value) == "" || identity.value != strings.TrimSpace(identity.value) {
+			return fmt.Errorf("sqlite: waiting Run commit %s ID is required without surrounding whitespace", identity.name)
 		}
 	}
 	return nil

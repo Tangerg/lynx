@@ -80,6 +80,9 @@ func newWaitingCancellationValidation(
 }
 
 func validateWaitingCancellationBoundary(c WaitingSubtreeCancellationCommit) error {
+	if strings.TrimSpace(c.CommitID) == "" || c.CommitID != strings.TrimSpace(c.CommitID) {
+		return errors.New("runs: waiting cancellation commit identity is required without surrounding whitespace")
+	}
 	if strings.TrimSpace(c.RootRunID) == "" || strings.TrimSpace(c.TargetRunID) == "" ||
 		strings.TrimSpace(c.SessionID) == "" {
 		return errors.New("runs: waiting cancellation identity is incomplete")

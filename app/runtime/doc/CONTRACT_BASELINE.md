@@ -77,7 +77,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 73`；
+- 当前 `schemaEpoch = 74`；
 - 数据目录为 `0700` 私有目录，可由少量同版本 Runtime 进程共享；schema/config setup 使用短期跨进程 lease，Runtime lifecycle 不拥有目录全局独占权；
 - SQLite 事务与既有 uniqueness/CAS 继续拥有 durable winner。活跃 Session writer、physical working-tree shared/exclusive operation、Goal drive 与 ordered recovery sweep 使用 OS advisory lease；进程死亡由内核释放。单一 recovery winner 固定 Run-before-Goal 并只清理成功接管的 Session，不使用 TTL、heartbeat、全局 checkpoint/callback sweep 或兼容双路径；
 - 其他 SQLite connection 的 commit 只触发全量 read-model resync，细粒度本地 invalidation 仍由提交用例发布；本次不改变 SQLite epoch、Artifact、checkpoint 或 protocol wire shape；
@@ -86,7 +86,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 - Goal aggregate 还持久化 fresh Start 时协商并冻结的 canonical Run capabilities；Goal Resume 的调用方能力必须覆盖该集合，自治 Run 与 Goal 内 `create_goal` 都继承相同集合；
 - executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/input-request binding JSON 使用 `memberId`/`requestId`；
 - `model_invocations` 与 `tool_invocations` 是 operational attempt journals，只保存 exact Run/Segment/call identity、state 与 started/finished time；semantic assistant final、Tool result 和 usage 仍只由 Transcript/Run owners 保存；
-- `runs.commit_segment_id` / `runs.commit_id` 保存当前 Run 最近一次完整 Application command write-set 的 opaque 技术回执，覆盖 fresh/resume opening、顶层 `EventCommit`、HITL tree barrier 与 terminal boundary；单 Run pump 在收到结算前不会发出下一笔 canonical command，因此 latest marker 足以核验 SQLite 已 COMMIT 但 success receipt 丢失的完整事务。Running marker 必须属于 exact active Segment，Waiting barrier 与 terminal 保留生产它们的 Segment；普通 Suspend、Resume、Restore 与 recovery 不沿用旧代 marker；
+- `runs.commit_segment_id` / `runs.commit_id` 保存当前 Run 最近一次完整 Application command write-set 的 opaque 技术回执，覆盖 fresh/resume opening、顶层 `EventCommit`、HITL tree barrier、waiting-child cancellation 与 terminal boundary；单 Run pump/command owner 在收到结算前不会发出下一笔 canonical command，因此 latest marker 足以核验 SQLite 已 COMMIT 但 success receipt 丢失的完整事务。Running marker 必须属于 exact active Segment，Waiting barrier 与 terminal 保留生产它们的 Segment；已经 Waiting 且不打开新 Segment 的 child cancellation 以 empty Segment + unique command identity 表示，不能伪造 Segment。普通 Suspend、Resume、Restore 与 recovery 不沿用旧代 marker；
 - `interrupts.state` 只有 `open`/`resuming`：`open` 不得携带 answer/claimedAt，`resuming` 必须携带两者；普通列表/读取只返回 `open`，continuation opening 必须在事务内证明 exact root 的 `resuming` claim；
 - `child_run_start_reservations.payload` 是 `adapter/runsegment` 显式拥有的 canonical JSON，只保存没有独立列的 reservation facts；SQLite 不解释 payload，Application Go 结构体布局不是 durable wire。reservation/conclusion 只在 owning root tree 与当前进程仍可回调时保留；root terminal、parked terminal、rollback/restore/delete 在原 write-set 内按 Session 回收，boot recovery 在公共 Run 修复同一事务内清空上个进程的 callback ledger；
 - 下一 quiescent barrier 只能由相同 Session/executor/root-member owner 替换 `resuming` row；terminal 与 recovery write-set 删除该 row。不存在 open row overwrite、answer rollback、dual state codec 或兼容列；

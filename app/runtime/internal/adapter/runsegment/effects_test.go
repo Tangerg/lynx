@@ -850,6 +850,10 @@ type fakeRunState struct {
 	terminalized  []run.Run
 }
 
+func (*fakeRunState) Run(context.Context, string) (run.Run, bool, error) {
+	return run.Run{}, false, nil
+}
+
 func (r *fakeRunState) Admit(_ context.Context, draft run.Draft) error {
 	r.admitted = append(r.admitted, draft)
 	return nil
@@ -881,6 +885,9 @@ func (r *fakeRunState) TerminalizeEvent(_ context.Context, run run.Run, _, _ str
 }
 
 func (*fakeRunState) RecordRunCommit(context.Context, string, string, string, string) error {
+	return nil
+}
+func (*fakeRunState) RecordWaitingRunCommit(context.Context, string, string, string) error {
 	return nil
 }
 func (r *fakeRunState) SuspendBarrier(ctx context.Context, value run.Run, _, _ string) error {

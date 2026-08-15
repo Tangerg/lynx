@@ -45,9 +45,35 @@ func (replacer failingWaitingItemReplacer) ReplaceItem(
 }
 
 type failingWaitingRunWriter struct {
-	RunWriter
+	RunStore
 	resumeErr      error
 	terminalizeErr error
+	recordErr      error
+}
+
+func (writer failingWaitingRunWriter) RecordRunCommit(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+	segmentID string,
+	commitID string,
+) error {
+	if writer.recordErr != nil {
+		return writer.recordErr
+	}
+	return writer.RunStore.RecordRunCommit(ctx, sessionID, runID, segmentID, commitID)
+}
+
+func (writer failingWaitingRunWriter) RecordWaitingRunCommit(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+	commitID string,
+) error {
+	if writer.recordErr != nil {
+		return writer.recordErr
+	}
+	return writer.RunStore.RecordWaitingRunCommit(ctx, sessionID, runID, commitID)
 }
 
 func (writer failingWaitingRunWriter) Resume(
@@ -59,7 +85,7 @@ func (writer failingWaitingRunWriter) Resume(
 	if writer.resumeErr != nil {
 		return writer.resumeErr
 	}
-	return writer.RunWriter.Resume(ctx, sessionID, draft, resumedAt)
+	return writer.RunStore.Resume(ctx, sessionID, draft, resumedAt)
 }
 
 func (writer failingWaitingRunWriter) Terminalize(
@@ -69,7 +95,7 @@ func (writer failingWaitingRunWriter) Terminalize(
 	if writer.terminalizeErr != nil {
 		return writer.terminalizeErr
 	}
-	return writer.RunWriter.Terminalize(ctx, run)
+	return writer.RunStore.Terminalize(ctx, run)
 }
 
 type failingWaitingInterruptStore struct {
@@ -221,7 +247,7 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
 				fixture.replaceEffects(func(config *Config) {
 					config.State = failingWaitingRunWriter{
-						RunWriter:      fixture.runState,
+						RunStore:       fixture.runState,
 						terminalizeErr: injected,
 					}
 				})
@@ -246,7 +272,7 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
 				fixture.replaceEffects(func(config *Config) {
 					config.State = failingWaitingRunWriter{
-						RunWriter: fixture.runState,
+						RunStore:  fixture.runState,
 						resumeErr: injected,
 					}
 				})
@@ -277,6 +303,31 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 					config.Transcript = failingWaitingTranscriptStore{
 						TranscriptStore: fixture.transcript,
 						appendErr:       injected,
+					}
+				})
+			},
+		},
+		{
+			name:              "waiting command receipt",
+			survivingBoundary: true,
+			operation:         "record waiting cancellation commit receipt",
+			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
+				fixture.replaceEffects(func(config *Config) {
+					config.State = failingWaitingRunWriter{
+						RunStore:  fixture.runState,
+						recordErr: injected,
+					}
+				})
+			},
+		},
+		{
+			name:      "resumed command receipt",
+			operation: "record resumed waiting cancellation commit receipt",
+			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
+				fixture.replaceEffects(func(config *Config) {
+					config.State = failingWaitingRunWriter{
+						RunStore:  fixture.runState,
+						recordErr: injected,
 					}
 				})
 			},

@@ -151,9 +151,6 @@ type ToolInvocationJournal interface {
 // RecordRunCommit records the Application-owned immutable write-set identity
 // after a non-terminal command's complete projections in the same transaction.
 // SuspendBarrier and TerminalizeEvent record it in their boundary transitions.
-// RunCommitCommitted is the commit-outcome proof used after a transaction
-// returns an error, so a lost success receipt converges without confusing
-// another Segment or write attempt for this write-set.
 // The sqlite RunStore satisfies it.
 type RunWriter interface {
 	Admit(ctx context.Context, draft run.Draft) error
@@ -163,7 +160,15 @@ type RunWriter interface {
 	SuspendBarrier(ctx context.Context, run run.Run, segmentID, commitID string) error
 	Terminalize(ctx context.Context, run run.Run) error
 	RecordRunCommit(ctx context.Context, sessionID, runID, segmentID, commitID string) error
+	RecordWaitingRunCommit(ctx context.Context, sessionID, runID, commitID string) error
 	TerminalizeEvent(ctx context.Context, run run.Run, segmentID, commitID string) error
+}
+
+// RunStore combines lifecycle writes with the exact durable reads required to
+// prove and reconstruct a result after an ambiguous command commit.
+type RunStore interface {
+	RunWriter
+	Run(ctx context.Context, runID string) (run.Run, bool, error)
 	RunCommitCommitted(ctx context.Context, sessionID, runID, segmentID, commitID string) (bool, error)
 }
 
@@ -252,7 +257,7 @@ type Config struct {
 	ToolInvocations     ToolInvocationJournal
 	Conversation        ConversationStore
 	Titles              TitleGenerator
-	State               RunWriter
+	State               RunStore
 	RunMetrics          RunMetricsWriter
 	ExecutorCheckpoints ExecutorCheckpointStore
 	ChildRunStarts      ChildRunStartReservationStore
@@ -278,7 +283,7 @@ type Effects struct {
 	toolInvocations     ToolInvocationJournal
 	conversation        ConversationStore
 	titles              TitleGenerator
-	runState            RunWriter
+	runState            RunStore
 	runMetrics          RunMetricsWriter
 	executorCheckpoints ExecutorCheckpointStore
 	childRunStarts      ChildRunStartReservationStore

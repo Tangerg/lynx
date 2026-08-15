@@ -847,17 +847,17 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 		ToolResults:        s.toolResults,
 		Conversation:       stubMessageCounter{rt: s},
 		Titles:             stubTitleGenerator{},
-		State:              s.runWriter(),
+		State:              s.runStore(),
 		Tx:                 s.RunInTx,
 		Checkpoints:        checkpoints,
 		PublishFileChanges: publish,
 	})
 }
 
-// runWriter is the real Run table when the fixture has one, so a committed
+// runStore is the real Run table when the fixture has one, so a committed
 // terminal actually lands where every Run read comes from. Fixtures that only
 // exercise streaming keep the no-op.
-func (s stubRuntime) runWriter() runsegment.RunWriter {
+func (s stubRuntime) runStore() runsegment.RunStore {
 	if s.runs != nil {
 		return s.runs
 	}
@@ -866,6 +866,9 @@ func (s stubRuntime) runWriter() runsegment.RunWriter {
 
 type stubRunState struct{}
 
+func (stubRunState) Run(context.Context, string) (run.Run, bool, error) {
+	return run.Run{}, false, nil
+}
 func (stubRunState) Admit(context.Context, run.Draft) error { return nil }
 func (stubRunState) Resume(
 	context.Context,
@@ -884,6 +887,9 @@ func (stubRunState) TerminalizeEvent(context.Context, run.Run, string, string) e
 	return nil
 }
 func (stubRunState) RecordRunCommit(context.Context, string, string, string, string) error {
+	return nil
+}
+func (stubRunState) RecordWaitingRunCommit(context.Context, string, string, string) error {
 	return nil
 }
 func (stubRunState) SuspendBarrier(context.Context, run.Run, string, string) error {
