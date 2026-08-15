@@ -865,6 +865,59 @@ func TestInteractionExecutorAppliesSteerAtNextModelBoundary(t *testing.T) {
 	}
 }
 
+func TestInteractionExecutorDoesNotCallNextModelWhenAppliedSteerCommitFails(t *testing.T) {
+	model := &runtimeSteerModel{started: make(chan struct{}), release: make(chan struct{})}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{})
+	ref, err := executor.StageRoot(t.Context(), interactionTestStart())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sequence, err := executor.Observe(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventsReady := make(chan []runs.ExecutorEvent, 1)
+	go func() {
+		var events []runs.ExecutorEvent
+		for event := range sequence {
+			if commit, authoritative := event.Payload.(runs.ExecutionFactCommit); authoritative {
+				commitErr := error(nil)
+				if _, applied := commit.Fact.(runs.SteerMessagesApplied); applied {
+					commitErr = errors.New("steer store unavailable")
+				}
+				commit.Complete(commitErr)
+				event.Payload = commit.Fact
+			}
+			events = append(events, event)
+		}
+		eventsReady <- events
+	}()
+	if err := executor.BeginRoot(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	<-model.started
+	if err := executor.SubmitSteer(t.Context(), ref, []transcript.ContentBlock{{
+		Kind: transcript.TextContent, Text: "do not lose this",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	close(model.release)
+	events := <-eventsReady
+	if err := executor.Release(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	model.mu.Lock()
+	calls := model.calls
+	model.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("model calls = %d, want no next turn after rejected steer commit", calls)
+	}
+	if len(payloadsOf[runs.UnknownEffectsDetected](events)) != 0 {
+		t.Fatalf("pre-call steer failure became unknown: %#v", events)
+	}
+	assertInternalProjectionTerminal(t, events)
+}
+
 type runtimeSteerModel struct {
 	mu      sync.Mutex
 	calls   int

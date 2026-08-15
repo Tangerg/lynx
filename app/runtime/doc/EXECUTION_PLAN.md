@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P89 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P91 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -24,7 +24,7 @@
 - breaking change 允许，禁止 alias、shim、dual read/write 和两套长期路径；
 - 每个阶段按依赖方向从内到外推进，但每个提交必须形成可运行纵切，不允许长期红仓；
 - 旧实现可以作为事实证据，不能成为新 API 兼容规范；
-- Runtime standalone 直接绑定已发布 Agent Framework Baseline 20 canonical module；workspace 与 `GOWORK=off` 消费同一 source，Runtime 不读取其 private state；
+- Runtime standalone 直接绑定已发布 Agent Framework Baseline 22 canonical module；workspace 与 `GOWORK=off` 消费同一 source，Runtime 不读取其 private state；
 - 每批完成后更新本计划和 Capability Ledger，运行对应质量门禁，提交并推送；
 - 如果发现 Agent Framework 缺口，先证明它是中性 Framework 能力且已有真实 Runtime consumer，再单独走 Agent Framework ADR/baseline；禁止在 Runtime 侧补第二套内核；
 - 阶段完成不以文件数量或目录形状判断，只以验收合同和旧 owner 删除判断。
@@ -97,6 +97,8 @@
 | P87 | Run opening 命令结算与 executor activation 所有权 | P86 + HITL claim/opening 强杀窗口与阻塞 activation 反例 | 已完成 |
 | P88 | Desktop final teardown 与 mutation owner 不可复活 | P87 + renderer replacement / window close / late settlement 交错 | 已完成 |
 | P89 | 长对话 compaction 与 Run boundary 坐标统一收敛 | P88 + 连续多轮压缩 / fork / 事务失败与 SQLite 不变量 | 已完成 |
+| P90 | EventCommit Segment 代际事务准入 | P89 + HITL resume 后旧 Segment 迟到写集反例 | 已完成 |
+| P91 | Interaction Host 前置边界失败结算 | P90 + Agent Baseline 22 / 模型与 Tool 调用前事务失败注入 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1565,10 +1567,32 @@
 - route/reducer 属于 Application，事务准入属于 runsegment consumer port，SQLite 只证明当前 durable active Segment；没有兼容双路径、读取时修补或 Agent Framework/Delivery 反向依赖；
 - Protocol、Artifact 与 SQLite schema epoch 不变；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
 
-## 70. 进度记录
+## 70. P91 — Interaction Host 前置边界失败结算
+
+### 目标
+
+关闭模型或 Tool 外部调用尚未发生、Runtime 自有权威前置事实提交却失败时，Interaction 把它当作普通 provider/Tool error 的结算缺口。模型路径会把内部事务失败误报为 provider unavailable；Tool 路径更会把失败作为模型可见 Tool result 并继续下一轮，令长对话跨越一个从未持久化的 Tool boundary 继续生成。
+
+### 工作项
+
+- [x] P91-01 以单客户端确定性失败注入覆盖 ModelCallStarted、ToolCallStarted、自动审批拒绝结果与 SteerMessagesApplied 的 pre-call commit rejection，证明外部 provider/Tool 零调用、零 unknown effect，且 Tool/steer/denial 路径不再开始下一模型轮次；
+- [x] P91-02 在 Agent Interaction 定义中性的 `ErrHostFailure`/`HostFailure` 合同，仅表达外部调用前 Host 自有前置边界被拒绝；不携带 Runtime、事务、数据库、RPC 或产品 failure kind；
+- [x] P91-03 将 Interaction Dispatcher protocol 从 v4 直接升级到 v5，以互斥 `host_error` definite settlement 终止 Execution；旧格式不双读，普通 provider/Tool error 与调用后 unknown settlement 保持原语义；
+- [x] P91-04 Runtime 只在 `adapter/agentexec` 标记权威 pre-call commit failure，并将稳定 `interaction.host.failed` 投影为产品 internal failure；Agent→Runtime 依赖保持为零；
+- [x] P91-05 形成 Agent ADR-A2-076 / Baseline 22，先发布 canonical Agent source，再让 Runtime standalone 绑定唯一 pseudo-version，不建立 local replace 或兼容双路径。
+
+### 验收
+
+- 任一权威 pre-call commit failure 都在外部边界前确定终止；provider/Tool 不被调用，Tool failure 不成为 WorkingContext 业务结果，后续模型 turn 不发生；
+- 调用后的 projection failure 仍走既有 attempt tracker / unknown-effect recovery，不误用 HostFailure；普通 provider error 仍映射 provider unavailable，普通 Tool error 仍对模型可见；
+- Agent Interaction protocol v5 的互斥 mode、prior-version rejection、public/private digest 和 Runtime external-module consumer 全绿；workspace 与 `GOWORK=off` 解析同一已发布 Agent source；
+- Protocol、Artifact、SQLite schema epoch 与 Desktop 均不变；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
+
+## 71. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P91（Interaction Host pre-call failure settlement） | 反证发现 Runtime 在模型/Tool 外部调用前提交 ModelCallStarted、ToolCallStarted、自动审批拒绝结果或 applied steer 失败时，Agent Dispatcher 只能返回普通 error：模型路径被误报 provider unavailable，Tool/denial 路径更把 Host 持久化失败写进模型上下文并开始下一 turn。Agent Interaction 现以中性 `HostFailure`、protocol v5 互斥 `host_error` definite settlement 和稳定 `interaction.host.failed` 终止；Runtime 只在 `adapter/agentexec` 标记 pre-call 权威提交失败并投影为 internal failure。调用后结果不明仍走既有 attempt tracker，普通 provider/Tool error 不变。Agent ADR-A2-076 / Baseline 22 已先以 canonical commit `a9f35b30656a` 发布，Runtime standalone 绑定其唯一 pseudo-version，无 replace、shim 或双路径 | 单客户端 Model/Tool/approval-denial/steer 四类失败注入证明外部调用零发生、unknown effect 为零、后续模型 turn 为零，核心场景 10× 与 Agent/Runtime adapter race 全绿；Agent standalone build/vet/staticcheck/test/Interaction race/lint/tidy-diff 与 public/private baseline 全绿。Runtime workspace/standalone 全包 test、external-consumer、build、vet、受影响 adapter/architecture race、staticcheck、deadcode、golangci-lint（0 issues）、tidy、generate 与 diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P90（EventCommit Segment generation admission） | 反证发现 HITL Resume 用 `seg_new` 替换活动代际后，旧 `seg_old` 的迟到 `EventCommit` 仍只按 Run/Session 提交。Model/Tool invocation 与 Progress 虽各自携带 Segment，纯 Transcript/Conversation 没有 fence；terminal aggregate 又已清空 active Segment，因此旧终态在累计 metrics 与时间可重放时会从当前 `seg_new` aggregate 推导出完全相等的 terminal Run，错误结束恢复后的对话。Application 现在让每个 EventCommit 以 Run/Session/Segment 共同拥有完整写集，Reducer、authoritative combine、route 与 child opening 都保持同代；runsegment 在原事务的任何 projection 写入前要求 SQLite 中该 Run 仍为精确 Running Segment。waiting cancellation 继续走其 Waiting aggregate 专用事务，不伪造 live Segment。无 schema、wire、compat 或双路径 | 单客户端真实 SQLite `seg_old → Waiting → seg_new` 回归分别注入旧 terminal 与 item/message-only write-set：两者均 fail closed，Run 保持 running `seg_new`，Transcript/Conversation 零写入；Application 锁定 Model/Tool/Progress 与 combined terminal 混代拒绝。核心场景连续 10×、Runtime `go test ./... -count=1`、standalone tidy/build/vet/test、受影响 5 包 race、staticcheck、`deadcode -test`、golangci-lint（0 issues）、`go generate ./...` 与 diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P89（long-conversation compaction coordinate convergence） | 反证发现 `runmaintenance` 以原子 `MessageStore.Replace` 将长对话从旧历史改写为 `[summary, optional live reminder, recent…]`，但所有既有 terminal Run 的 `message_mark` 仍停留在压缩前坐标；连续多轮后旧水位可超过当前消息数，Session snapshot/export/fork/rollback 会拒绝同库数据。Conversation Domain 现在拥有唯一 compaction coordinate transform；Conversations Application 从完整 Run snapshot 决定 exact watermark replacements；Persistence 在一个 SQLite transaction 内重验 expected message count 与完整 Run set，再同时替换历史并以 expected-value CAS 重基准 terminal Runs。摘要区内已不可区分的历史边界显式折叠到 replacement prefix，suffix 保持相对距离，纯内容裁剪零坐标变化；不存在读取时 clamp、兼容双路径或 SQLite 自行发明业务公式 | 单客户端 4 个顺序 Run、两次连续长对话压缩后，所有旧/新 Run 水位均落在当前 3 条历史内，旧/最新 Run fork 继续成立；SQLite trigger 注入 Run-watermark 更新失败时，消息和全部水位一起回滚，原始 8 条历史完整保留；直接 SQL invariant 为零。领域/Application/Persistence/runmaintenance/Bootstrap 定向测试与 10× SQLite 场景、受影响包 race 全绿；Runtime `go test ./... -count=1` 全包、standalone build/vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 architecture gate 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P88（Desktop final teardown ownership） | 反证发现 final window teardown 虽同步释放当前 client 的 mutation journal claim，却把 `shared` 清空后继续暴露可调用的旧 factory；等待 retiring transport 时，迟到 bootstrap/事件回调可复活一个不在 teardown settlement 内的 successor client，重新领取 mutation identity 并遗留 transport/lease。composition root 现在先同步进入不可逆 closed 状态，再退休当前 client，并让重复 dispose 共享唯一 settlement；测试 reset 仍通过先换新 owner 保持正常 replacement。journal 回归进一步覆盖旧 mutation 在途、replacement 接管后窗口关闭、retired response 迟到与下一冷启动接回同 key，确认 generation fence 和 Host KV owner cleanup 共同成立 | 红测稳定证明 teardown 中与 teardown 后旧 owner 均可复活，修复后 container/SDK/journal/methods 4 files / 76 tests 及 `--detectAsyncLeaks` 全绿；Frontend `npm run check` 与完整泄露检测均为 288 files / 1786 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites，994 locale keys 在 8 种语言完整；未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
@@ -1730,6 +1754,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 70. 当前下一步
+## 72. 当前下一步
 
-P89 已使 conversation compaction 与所有 terminal Run boundary 在同一原子事务中切换坐标，并冻结连续两次长对话压缩和失败回滚。下一批继续在 `app/runtime` 反证一个客户端的连续 Segment/HITL resume：重点检查 compaction boundary 与 Run/Tool 终态事件重复、乱序或断线重放时，durable transcript、Plan/Goal 与 Desktop mounted material snapshot 是否仍只收敛一次；`app/cli` 继续只读且不暂存。
+P91 已使 Runtime 权威 pre-call 边界失败确定终止，不再伪装 provider/Tool 业务结果或推进长对话。下一批继续以一个客户端反证同 Segment 的重复/乱序 terminal 与调用后投影结果不明：重点检查 Run/Tool 结算、Plan/Goal 失效和冷重启恢复是否仍只提交一次；`app/cli` 继续只读且不暂存。

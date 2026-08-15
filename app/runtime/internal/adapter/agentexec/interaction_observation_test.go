@@ -414,6 +414,7 @@ func TestInteractionExecutorDoesNotCallProviderWhenModelStartCommitFails(t *test
 	if len(payloadsOf[runs.UnknownEffectsDetected](events)) != 0 {
 		t.Fatalf("pre-call failure became unknown: %#v", events)
 	}
+	assertInternalProjectionTerminal(t, events)
 }
 
 func TestInteractionExecutorDoesNotCallToolWhenToolStartCommitFails(t *testing.T) {
@@ -447,6 +448,22 @@ func TestInteractionExecutorDoesNotCallToolWhenToolStartCommitFails(t *testing.T
 	}
 	if len(payloadsOf[runs.UnknownEffectsDetected](events)) != 0 {
 		t.Fatalf("pre-Tool failure became unknown: %#v", events)
+	}
+	model.mu.Lock()
+	remainingResponses := len(model.responses)
+	model.mu.Unlock()
+	if remainingResponses != 1 {
+		t.Fatalf("remaining model responses = %d, want no model turn after rejected Tool start", remainingResponses)
+	}
+	assertInternalProjectionTerminal(t, events)
+}
+
+func assertInternalProjectionTerminal(t *testing.T, events []runs.ExecutorEvent) {
+	t.Helper()
+	ended := payloadsOf[runs.SegmentEnded](events)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeFailed ||
+		ended[0].Failure == nil || ended[0].Failure.Kind != run.FailureInternal {
+		t.Fatalf("projection terminal = %#v, want one internal failure", ended)
 	}
 }
 
@@ -730,6 +747,47 @@ func TestInteractionExecutorCommitsAutomaticDenialWithoutCallingTool(t *testing.
 		finished[0].Failure.Kind != domaintool.FailureDenied {
 		t.Fatalf("denied Tool completion = %#v", finished)
 	}
+}
+
+func TestInteractionExecutorTerminatesWhenAutomaticDenialCommitFails(t *testing.T) {
+	var toolCalls int
+	executable, err := toolcontract.NewFunc(toolcontract.FuncConfig{
+		Name: "write", Description: "Write a value.",
+	}, func(context.Context, struct{}) (string, error) {
+		toolCalls++
+		return "unexpected", nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &observationScriptModel{responses: []*chat.Response{
+		interactionToolResponse(chat.ToolCall{ID: "provider_call", Name: "write", Arguments: `{}`}, 1, 1),
+		interactionUsageTextResponse("must not run", 1, 1),
+	}}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
+		ToolResolver:    staticInteractionTools{manifest: toolset.Manifest{Visible: []toolcontract.Tool{executable}}},
+		ToolInterpreter: testInteractionToolInterpreter{},
+		ToolAuthorizer:  denyingInteractionTools{reason: "blocked by automatic policy"},
+	})
+	events := runInteractionHarnessWithCommit(t, executor, interactionTestStart(), func(fact runs.ExecutionFact) error {
+		if _, denied := fact.(runs.ToolCallFinished); denied {
+			return errors.New("denial store unavailable")
+		}
+		return nil
+	})
+	if toolCalls != 0 {
+		t.Fatalf("Tool calls = %d, want 0", toolCalls)
+	}
+	model.mu.Lock()
+	remainingResponses := len(model.responses)
+	model.mu.Unlock()
+	if remainingResponses != 1 {
+		t.Fatalf("remaining model responses = %d, want no model turn after rejected denial", remainingResponses)
+	}
+	if len(payloadsOf[runs.UnknownEffectsDetected](events)) != 0 {
+		t.Fatalf("pre-Tool denial failure became unknown: %#v", events)
+	}
+	assertInternalProjectionTerminal(t, events)
 }
 
 func TestInteractionExecutorPreservesNoProgressDoomLoopBrake(t *testing.T) {

@@ -208,14 +208,16 @@ func (model *observedInteractionModel) begin(
 	}
 	callID := modelInvocationID(invocation)
 	if _, err := model.session.reconcileCompletedDelegateChildren(ctx); err != nil {
-		return interaction.ModelInvocation{}, nil, "", err
+		return interaction.ModelInvocation{}, nil, "", interaction.HostFailure(err)
 	}
 	member := model.session.executorMember(invocation.Relation())
 	if err := model.session.commitAppliedSteers(ctx, member, invocation.AppliedSteerSignalIDs()); err != nil {
-		return interaction.ModelInvocation{}, nil, "", err
+		return interaction.ModelInvocation{}, nil, "", interaction.HostFailure(err)
 	}
 	if err := model.session.commitFact(ctx, member, runs.ModelCallStarted{CallID: callID}); err != nil {
-		return interaction.ModelInvocation{}, nil, "", fmt.Errorf("agentexec: commit model call start: %w", err)
+		return interaction.ModelInvocation{}, nil, "", interaction.HostFailure(
+			fmt.Errorf("agentexec: commit model call start: %w", err),
+		)
 	}
 	return invocation, attempt, callID, nil
 }
@@ -304,7 +306,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		SafetyClass: observed.interpreter.SafetyClass(call.Name),
 	}
 	if err := observed.session.commitFact(ctx, member, start); err != nil {
-		return "", fmt.Errorf("agentexec: commit Tool call start: %w", err)
+		return "", interaction.HostFailure(fmt.Errorf("agentexec: commit Tool call start: %w", err))
 	}
 	observed.session.recordToolCall()
 	if denied {
@@ -316,7 +318,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 			Kind: tool.FailureDenied,
 		}
 		if err := observed.session.commitFact(ctx, member, end); err != nil {
-			return "", fmt.Errorf("agentexec: commit denied Tool result: %w", err)
+			return "", interaction.HostFailure(fmt.Errorf("agentexec: commit denied Tool result: %w", err))
 		}
 		observed.session.recordToolOutcome(call.Name, arguments, denialReason)
 		return denialReason, nil

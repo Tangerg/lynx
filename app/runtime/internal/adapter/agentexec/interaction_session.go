@@ -1064,6 +1064,14 @@ func segmentEndFromTermination(termination agent.Termination, duration time.Dura
 	case agent.TerminationCauseExternalFailure:
 		end.Reason = run.OutcomeFailed
 		failure, _ := termination.Failure()
+		if failure.Code() == "interaction.host.failed" {
+			problem := run.Failure{
+				Kind:   run.FailureInternal,
+				Detail: executorDiagnostic(errors.New(failure.Message())),
+			}
+			end.Failure = &problem
+			break
+		}
 		detail := executorDiagnostic(errors.New(failure.Message()))
 		if detail == "" {
 			detail = "model provider failed"
