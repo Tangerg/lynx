@@ -45,6 +45,9 @@ type WaitingSubtreeCancellationResult struct {
 // OpeningCommit is the atomic acceptance write-set for one fresh admission or
 // one continuation.
 type OpeningCommit struct {
+	// CommitID identifies the complete admission/resume transaction, including
+	// every opening projection. It is not an EventCommit identity.
+	CommitID           string
 	Admit              *run.Draft
 	Resume             *run.TreeResumeDraft
 	InitialSession     *session.Session
@@ -575,6 +578,9 @@ func (c EventCommit) isEmpty() bool {
 // Port implementations may reject unavailable stores or concurrent state changes, but they
 // do not reinterpret this application write-set.
 func (c OpeningCommit) Validate() error {
+	if strings.TrimSpace(c.CommitID) == "" || c.CommitID != strings.TrimSpace(c.CommitID) {
+		return errors.New("runs: opening commit identity is required without surrounding whitespace")
+	}
 	if (c.Admit == nil) == (c.Resume == nil) {
 		return errors.New("runs: opening requires exactly one admission action")
 	}
@@ -617,6 +623,7 @@ func (c OpeningCommit) Validate() error {
 // Runs contains one StateSuspend commit for every active Run in deterministic
 // postorder. No individual Run commit may write or consume the root-owned set.
 type TreeBarrierCommit struct {
+	CommitID   string
 	Pending    Pending
 	Runs       []EventCommit
 	Checkpoint ExecutorCheckpoint
@@ -626,6 +633,9 @@ type TreeBarrierCommit struct {
 // the pending continuation tree and that its checkpoint belongs to the same
 // run. The Effects port only persists this already-defined write-set.
 func (c TreeBarrierCommit) Validate() error {
+	if strings.TrimSpace(c.CommitID) == "" || c.CommitID != strings.TrimSpace(c.CommitID) {
+		return errors.New("runs: tree barrier commit identity is required without surrounding whitespace")
+	}
 	if err := c.Pending.Validate(); err != nil {
 		return fmt.Errorf("runs: tree barrier Pending: %w", err)
 	}

@@ -240,7 +240,7 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	draft := run.Draft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open"}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
-		Admit: &draft,
+		CommitID: "run_commit_opening", Admit: &draft,
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
@@ -287,7 +287,7 @@ func TestCommitStartedChildRunOwnsOneTransactionBoundary(t *testing.T) {
 	})
 
 	if err := effects.CommitStartedChildRun(t.Context(), reservation, runs.OpeningCommit{
-		Admit: &draft,
+		CommitID: "run_commit_child", Admit: &draft,
 	}); err != nil {
 		t.Fatalf("CommitStartedChildRun: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestCommitOpeningResumesAfterSeparateAnswerClaim(t *testing.T) {
 	}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
-		Resume: &resume,
+		CommitID: "run_commit_resume", Resume: &resume,
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
@@ -387,6 +387,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 	pending.Continuations[0].Metrics = runfixture.MustMetrics(runfixture.MetricsInput{Steps: 2})
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
+		CommitID:   "run_commit_barrier",
 		Pending:    pending,
 		Checkpoint: testRootExecutorCheckpoint(),
 		Runs: []runs.EventCommit{{
@@ -444,6 +445,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 	pending.Continuations[0].MemberID = ""
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
+		CommitID:   "run_commit_barrier_invalid",
 		Pending:    pending,
 		Checkpoint: testRootExecutorCheckpoint(),
 		Runs: []runs.EventCommit{{
@@ -493,6 +495,7 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 			checkpoint := testRootExecutorCheckpoint()
 			mutate(&checkpoint)
 			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
+				CommitID:   "run_commit_barrier_binding_" + name,
 				Pending:    pending,
 				Checkpoint: checkpoint,
 				Runs: []runs.EventCommit{{
@@ -593,7 +596,8 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			effects := testEffects(stores, Config{State: &fakeRunState{}, Tx: tx.run})
 
 			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
-				Pending: pending, Checkpoint: checkpoint,
+				CommitID: "run_commit_barrier_fact_" + test.name,
+				Pending:  pending, Checkpoint: checkpoint,
 				Runs: []runs.EventCommit{{
 					RunID: run.ID(), SessionID: run.SessionID(), SegmentID: "segment_1",
 					State: runs.StateSuspend, Run: &run,
@@ -876,10 +880,13 @@ func (r *fakeRunState) TerminalizeEvent(_ context.Context, run run.Run, _, _ str
 	return nil
 }
 
-func (*fakeRunState) RecordEventCommit(context.Context, string, string, string, string) error {
+func (*fakeRunState) RecordRunCommit(context.Context, string, string, string, string) error {
 	return nil
 }
-func (*fakeRunState) EventCommitCommitted(context.Context, string, string, string, string) (bool, error) {
+func (r *fakeRunState) SuspendBarrier(ctx context.Context, value run.Run, _, _ string) error {
+	return r.Suspend(ctx, value)
+}
+func (*fakeRunState) RunCommitCommitted(context.Context, string, string, string, string) (bool, error) {
 	return false, nil
 }
 

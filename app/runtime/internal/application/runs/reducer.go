@@ -989,7 +989,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 			return reduction{Event: event, Commit: &commit}, nil
 		}
 		commit.State = StateTerminalize
-		commit.CommitID = newEventCommitID()
+		commit.CommitID = newRunCommitID()
 		if outcome, terminal := e.Run.Outcome(); terminal {
 			commit.Outcome = outcome
 			commit.GoalRun = r.goalTurn(e.Run)

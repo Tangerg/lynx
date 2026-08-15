@@ -527,7 +527,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if !control.activated || !activatedAfterOpening {
 		t.Fatalf("activated=%v activatedAfterOpening=%v", control.activated, activatedAfterOpening)
 	}
-	if opening := effects.opening(); opening.Admit == nil || opening.Admit.RunID != "run_new" {
+	if opening := effects.opening(); opening.CommitID == "" || opening.Admit == nil || opening.Admit.RunID != "run_new" {
 		t.Fatalf("opening = %+v, want fresh run admission", opening)
 	} else if opening.Admit.Limits != wantLimits {
 		t.Fatalf("opening limits = %+v, want %+v", opening.Admit.Limits, wantLimits)

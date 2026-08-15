@@ -2310,6 +2310,8 @@ func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
 	}
 	if openings := baseEffects.openingSnapshot(); len(openings) != 2 {
 		t.Fatalf("opening commits = %d, want root and child", len(openings))
+	} else if openings[0].CommitID == "" || openings[1].CommitID == "" || openings[0].CommitID == openings[1].CommitID {
+		t.Fatalf("opening commit identities = %q/%q, want distinct non-empty values", openings[0].CommitID, openings[1].CommitID)
 	}
 }
 
@@ -2479,6 +2481,9 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		t.Fatalf("tree barrier commits = %d, want exactly one", len(barriers))
 	}
 	barrier := barriers[0]
+	if barrier.CommitID == "" {
+		t.Fatal("tree barrier has no commit identity")
+	}
 	wantOrder := []string{"run_grandchild", "run_child_a", "run_child_b", "run_1"}
 	requireWaitingTreeBarrierPostorder(t, barrier, wantOrder)
 	requirePendingInterruptOrder(

@@ -883,10 +883,13 @@ func (stubRunState) Terminalize(context.Context, run.Run) error { return nil }
 func (stubRunState) TerminalizeEvent(context.Context, run.Run, string, string) error {
 	return nil
 }
-func (stubRunState) RecordEventCommit(context.Context, string, string, string, string) error {
+func (stubRunState) RecordRunCommit(context.Context, string, string, string, string) error {
 	return nil
 }
-func (stubRunState) EventCommitCommitted(context.Context, string, string, string, string) (bool, error) {
+func (stubRunState) SuspendBarrier(context.Context, run.Run, string, string) error {
+	return nil
+}
+func (stubRunState) RunCommitCommitted(context.Context, string, string, string, string) (bool, error) {
 	return false, nil
 }
 

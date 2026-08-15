@@ -65,7 +65,7 @@ func (p treePublisher) publish(
 		if reduced.Commit != nil {
 			commit := *reduced.Commit
 			if commit.CommitID == "" {
-				commit.CommitID = newEventCommitID()
+				commit.CommitID = newRunCommitID()
 			}
 			if commit.State == StateTerminalize && route.member.ParentID == "" {
 				commit.ObsoleteCheckpointRootID = route.member.MemberID
@@ -122,7 +122,7 @@ func (p treePublisher) publishAuthoritativeAtomically(
 	}
 	combined := EventCommit{
 		RunID: route.runID, SessionID: p.rootSpec.SessionID, SegmentID: route.segmentID,
-		CommitID: newEventCommitID(),
+		CommitID: newRunCommitID(),
 	}
 	for index, reduced := range batch.events {
 		if reduced.Event.Terminal() {
@@ -308,6 +308,7 @@ func (p treePublisher) publishTreeBarrier(
 	}
 	committed, err := p.owner.commitInterrupt(ctx, func(interruptCtx context.Context) error {
 		if err := p.coordinator.barriers.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
+			CommitID:   newRunCommitID(),
 			Pending:    projection.pending,
 			Runs:       projection.commits,
 			Checkpoint: barrier.Checkpoint,

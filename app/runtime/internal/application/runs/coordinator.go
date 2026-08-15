@@ -417,7 +417,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 	if err != nil {
 		return nil, fmt.Errorf("runs: order opening tree: %w", err)
 	}
-	opening := OpeningCommit{}
+	opening := OpeningCommit{CommitID: newRunCommitID()}
 	if spec.Continuation != nil {
 		opening.Resume = &rundomain.TreeResumeDraft{
 			RootRunID: spec.RunID,
@@ -477,6 +477,9 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 	commitOpening := c.openings.CommitOpening
 	if spec.CommitOpening != nil {
 		commitOpening = spec.CommitOpening
+	}
+	if err := opening.Validate(); err != nil {
+		return nil, err
 	}
 	if err := commitOpening(ctx, opening); err != nil {
 		return nil, err

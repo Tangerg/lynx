@@ -684,6 +684,7 @@ func (c *Coordinator) prepareChildOpening(
 		return nil, fmt.Errorf("runs: child member %q produced an invalid opening batch", member.MemberID)
 	}
 	opening := OpeningCommit{
+		CommitID: newRunCommitID(),
 		Admit: &rundomain.Draft{
 			RunID:           child.runID,
 			SessionID:       spec.SessionID,

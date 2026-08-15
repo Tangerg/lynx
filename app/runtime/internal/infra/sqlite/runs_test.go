@@ -462,12 +462,12 @@ func TestEventCommitMarkerDoesNotCrossSuspendResumeGeneration(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("Admit: %v", err)
 	}
-	if err := store.RecordEventCommit(
+	if err := store.RecordRunCommit(
 		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
 	); err != nil {
-		t.Fatalf("RecordEventCommit: %v", err)
+		t.Fatalf("RecordRunCommit: %v", err)
 	}
-	matched, err := store.EventCommitCommitted(
+	matched, err := store.RunCommitCommitted(
 		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
 	)
 	if err != nil || !matched {
@@ -476,7 +476,7 @@ func TestEventCommitMarkerDoesNotCrossSuspendResumeGeneration(t *testing.T) {
 	if err := store.Suspend(ctx, parkedRun("run_1", "ses_A")); err != nil {
 		t.Fatalf("Suspend: %v", err)
 	}
-	matched, err = store.EventCommitCommitted(
+	matched, err = store.RunCommitCommitted(
 		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
 	)
 	if err != nil || matched {
@@ -487,18 +487,18 @@ func TestEventCommitMarkerDoesNotCrossSuspendResumeGeneration(t *testing.T) {
 	); err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
-	matched, err = store.EventCommitCommitted(
+	matched, err = store.RunCommitCommitted(
 		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
 	)
 	if err != nil || matched {
 		t.Fatalf("resumed old marker matched=%t err=%v, want false/nil", matched, err)
 	}
-	if err := store.RecordEventCommit(
+	if err := store.RecordRunCommit(
 		ctx, "ses_A", "run_1", "seg_next", "event_commit_next",
 	); err != nil {
-		t.Fatalf("RecordEventCommit next: %v", err)
+		t.Fatalf("RecordRunCommit next: %v", err)
 	}
-	matched, err = store.EventCommitCommitted(
+	matched, err = store.RunCommitCommitted(
 		ctx, "ses_A", "run_1", "seg_next", "event_commit_next",
 	)
 	if err != nil || !matched {

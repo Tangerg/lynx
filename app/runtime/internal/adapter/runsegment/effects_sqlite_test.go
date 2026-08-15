@@ -90,7 +90,7 @@ func TestCommitOpeningResumePreservesAnswerClaimOnRollback(t *testing.T) {
 		ResumedAt: time.Now().UTC(),
 		Runs:      []run.ResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
 	}
-	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1", SegmentID: "seg_next"}}})
+	err = effects.CommitOpening(ctx, runs.OpeningCommit{CommitID: "run_commit_stale_resume", Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1", SegmentID: "seg_next"}}})
 	if err == nil {
 		t.Fatal("CommitOpening must reject an interrupt that does not own the active run")
 	}
@@ -139,7 +139,8 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		Runs:      []run.ResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
 	opening := runs.OpeningCommit{
-		Resume: &resume,
+		CommitID: "run_commit_resume",
+		Resume:   &resume,
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
@@ -170,16 +171,88 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		t.Fatalf("run state=%q err=%v, want running", stateName, err)
 	}
 
-	if err := effects.CommitOpening(ctx, opening); err == nil {
-		t.Fatal("duplicate CommitOpening succeeded after the Run was already resumed")
+	if err := effects.CommitOpening(ctx, opening); err != nil {
+		t.Fatalf("exact CommitOpening replay = %v, want idempotent success", err)
 	}
 	recorded, listErr = history.List(ctx, "ses_1")
 	if listErr != nil || len(recorded) != 1 {
-		t.Fatalf("history after duplicate items=%d err=%v, want unchanged", len(recorded), listErr)
+		t.Fatalf("history after exact replay items=%d err=%v, want unchanged", len(recorded), listErr)
 	}
 	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, "run_1").Scan(&stateName); err != nil || stateName != "running" {
-		t.Fatalf("run state after duplicate=%q err=%v, want running", stateName, err)
+		t.Fatalf("run state after exact replay=%q err=%v, want running", stateName, err)
 	}
+	opening.CommitID = "run_commit_other_resume"
+	if err := effects.CommitOpening(ctx, opening); err == nil {
+		t.Fatal("different CommitOpening attempt succeeded after the Run was already resumed")
+	}
+}
+
+func TestCommitOpeningReconcilesAmbiguousAdmission(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	state := sqlite.NewRunStore(db)
+	history := sqlite.NewTranscriptStore(db)
+	createdAt := time.Unix(1, 0).UTC()
+	draft := run.Draft{
+		RunID: "run_ambiguous_opening", SessionID: "ses_ambiguous_opening",
+		SegmentID: "seg_ambiguous_opening", CreatedAt: createdAt,
+	}
+	opening := runs.OpeningCommit{
+		CommitID: "run_commit_ambiguous_opening",
+		Admit:    &draft,
+		Events: []runs.EventCommit{{
+			RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID,
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
+				SessionID: draft.SessionID, RunID: draft.RunID, ID: "item_opening",
+				OccurredAt: createdAt, Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
+				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+			})},
+		}},
+	}
+	commitCtx, cancelCommit := context.WithCancel(ctx)
+	t.Cleanup(cancelCommit)
+	loseReceipt := true
+	effects := New(Config{
+		State: state, Transcript: history,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			err := sqlite.RunInTx(ctx, db, fn)
+			if err == nil && loseReceipt {
+				loseReceipt = false
+				cancelCommit()
+				return errors.New("lost opening commit receipt")
+			}
+			return err
+		},
+	})
+	if err := effects.CommitOpening(commitCtx, opening); err != nil {
+		t.Fatalf("ambiguous CommitOpening = %v, want reconciled success", err)
+	}
+	stored, found, err := state.Run(ctx, draft.RunID)
+	if err != nil || !found || stored.State() != run.Running || stored.ActiveSegmentID() != draft.SegmentID {
+		t.Fatalf("opened Run = %#v found=%t err=%v", stored, found, err)
+	}
+	matched, err := state.RunCommitCommitted(
+		ctx, draft.SessionID, draft.RunID, draft.SegmentID, opening.CommitID,
+	)
+	if err != nil || !matched {
+		t.Fatalf("opening marker matched=%t err=%v, want true/nil", matched, err)
+	}
+	if err := effects.CommitOpening(commitCtx, opening); err != nil {
+		t.Fatalf("exact opening replay = %v, want idempotent success", err)
+	}
+	items, err := history.List(ctx, draft.SessionID)
+	if err != nil || len(items) != 1 || items[0].ID() != "item_opening" {
+		t.Fatalf("opening items = %#v err=%v, want one item", items, err)
+	}
+	opening.CommitID = "run_commit_other_opening"
+	if err := effects.CommitOpening(commitCtx, opening); err == nil {
+		t.Fatal("different opening attempt reconciled against prior marker")
+	}
+	requireSQLiteHealthy(t, ctx, db)
 }
 
 func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
@@ -527,7 +600,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			fixture := newOpeningResumeFixture(t, test.suspendRoot)
 			err := fixture.effects.CommitOpening(
 				fixture.ctx,
-				runs.OpeningCommit{Resume: &fixture.resume},
+				runs.OpeningCommit{CommitID: "run_commit_tree_resume", Resume: &fixture.resume},
 			)
 			if test.wantError {
 				assertOpeningResumeRollback(t, fixture, err)
@@ -724,6 +797,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 		StartedAt: created, UpdatedAt: created, Revision: 1,
 	})
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
+		CommitID:       "run_commit_claimed_resume",
 		Admit:          &draft,
 		InitialSession: &scheduled,
 		// No firing is seeded: Accept fails after Insert and Admit, so the
@@ -872,11 +946,22 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		Usage:          accounting.Snapshot{},
 	})
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	commitCtx, cancelCommit := context.WithCancel(ctx)
+	t.Cleanup(cancelCommit)
+	loseReceipt := true
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
 		State:               state,
 		ExecutorCheckpoints: checkpointStore,
 		ToolInvocations:     toolInvocations,
-		Tx:                  func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			err := sqlite.RunInTx(ctx, db, fn)
+			if err == nil && loseReceipt {
+				loseReceipt = false
+				cancelCommit()
+				return errors.New("lost tree barrier commit receipt")
+			}
+			return err
+		},
 	})
 	pending := singleRunPending(
 		t,
@@ -887,7 +972,8 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		ItemID: "item_tool", ItemOccurredAt: toolStartedAt,
 		CallID: "tool_ask", Name: "ask_user", Arguments: "{}",
 	}}
-	if err := effects.CommitTreeBarrier(ctx, runs.TreeBarrierCommit{
+	barrier := runs.TreeBarrierCommit{
+		CommitID:   "run_commit_durable_barrier",
 		Pending:    pending,
 		Checkpoint: checkpoint,
 		Runs: []runs.EventCommit{{
@@ -913,8 +999,18 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 				Capabilities:   pending.Capabilities,
 				CreatedAt:      createdAt, UpdatedAt: parkedAt, MessageMark: -1})),
 		}},
-	}); err != nil {
+	}
+	if err := effects.CommitTreeBarrier(commitCtx, barrier); err != nil {
 		t.Fatalf("park: %v", err)
+	}
+	if err := effects.CommitTreeBarrier(commitCtx, barrier); err != nil {
+		t.Fatalf("exact barrier replay = %v, want idempotent success", err)
+	}
+	matched, err := state.RunCommitCommitted(
+		ctx, "ses_1", "run_1", "seg_open", barrier.CommitID,
+	)
+	if err != nil || !matched {
+		t.Fatalf("barrier marker matched=%t err=%v, want true/nil", matched, err)
 	}
 
 	if stored, err := checkpointStore.LoadCheckpoint(ctx, rootMemberID); err != nil || stored.RootMemberID != rootMemberID {
@@ -935,6 +1031,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	if err := state.Admit(ctx, run.Draft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, run.ErrSessionBusy) {
 		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
 	}
+	requireSQLiteHealthy(t, ctx, db)
 }
 
 func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
@@ -973,6 +1070,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	)
 	parkedRun := parkedRunRecord("run_missing", "ses_rollback", createdAt)
 	err = effects.CommitTreeBarrier(ctx, runs.TreeBarrierCommit{
+		CommitID:   "run_commit_rollback_barrier",
 		Pending:    pending,
 		Checkpoint: checkpoint,
 		Runs: []runs.EventCommit{{
@@ -1281,7 +1379,7 @@ func assertTerminalCheckpointRollback(t *testing.T, fixture terminalCheckpointFi
 	var terminalCommitID string
 	if err := fixture.database.QueryRowContext(
 		fixture.ctx,
-		`SELECT event_commit_id FROM runs WHERE run_id = ?`,
+		`SELECT commit_id FROM runs WHERE run_id = ?`,
 		"run_terminal",
 	).Scan(&terminalCommitID); err != nil || terminalCommitID != "" {
 		t.Fatalf("terminal marker after rollback = %q err=%v, want empty", terminalCommitID, err)
@@ -1902,7 +2000,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 	})
 	second := run.Draft{RunID: "run_2", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
-		Admit: &second,
+		CommitID: "run_commit_busy_opening", Admit: &second,
 		Events: []runs.EventCommit{{
 			RunID:     "run_2",
 			SessionID: "ses_1",
@@ -2033,7 +2131,7 @@ func TestCommitEventReconcilesAmbiguousTerminalCommit(t *testing.T) {
 	}
 	var terminalSegmentID, terminalCommitID string
 	if err := db.QueryRowContext(ctx,
-		`SELECT event_segment_id, event_commit_id FROM runs WHERE run_id = ?`,
+		`SELECT commit_segment_id, commit_id FROM runs WHERE run_id = ?`,
 		draft.RunID,
 	).Scan(&terminalSegmentID, &terminalCommitID); err != nil {
 		t.Fatalf("read terminal commit marker: %v", err)
@@ -2055,7 +2153,7 @@ func TestCommitEventReconcilesAmbiguousTerminalCommit(t *testing.T) {
 		{label: "other Segment", segmentID: "seg_other", commitID: commit.CommitID},
 		{label: "other terminal attempt", segmentID: draft.SegmentID, commitID: "terminal_commit_other"},
 	} {
-		matched, matchErr := state.EventCommitCommitted(
+		matched, matchErr := state.RunCommitCommitted(
 			ctx,
 			draft.SessionID,
 			draft.RunID,
@@ -2217,7 +2315,7 @@ func TestCommitEventReconcilesAmbiguousAuthoritativeCommit(t *testing.T) {
 		t.Fatalf("model invocation state = %q err=%v, want completed", invocationState, err)
 	}
 	if err := db.QueryRowContext(ctx,
-		`SELECT event_segment_id, event_commit_id FROM runs WHERE run_id = ?`,
+		`SELECT commit_segment_id, commit_id FROM runs WHERE run_id = ?`,
 		draft.RunID,
 	).Scan(&eventSegmentID, &eventCommitID); err != nil {
 		t.Fatalf("read authoritative commit marker: %v", err)
@@ -2253,13 +2351,13 @@ func TestCommitEventReconcilesAmbiguousAuthoritativeCommit(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("commit later fact: %v", err)
 	}
-	matched, err := state.EventCommitCommitted(
+	matched, err := state.RunCommitCommitted(
 		ctx, draft.SessionID, draft.RunID, draft.SegmentID, commit.CommitID,
 	)
 	if err != nil || matched {
 		t.Fatalf("superseded marker matched=%t err=%v, want false/nil", matched, err)
 	}
-	matched, err = state.EventCommitCommitted(
+	matched, err = state.RunCommitCommitted(
 		ctx, draft.SessionID, draft.RunID, draft.SegmentID, "event_commit_authoritative_later",
 	)
 	if err != nil || !matched {
@@ -2423,4 +2521,23 @@ func parkedRunRecord(runID, sessionID string, createdAt time.Time) run.Run {
 		panic(err)
 	}
 	return value
+}
+
+func requireSQLiteHealthy(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	var integrity string
+	if err := db.QueryRowContext(ctx, `PRAGMA integrity_check`).Scan(&integrity); err != nil || integrity != "ok" {
+		t.Fatalf("integrity_check = %q err=%v, want ok", integrity, err)
+	}
+	foreignKeys, err := db.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatalf("foreign_key_check: %v", err)
+	}
+	defer foreignKeys.Close()
+	if foreignKeys.Next() {
+		t.Fatal("foreign_key_check reported a violation")
+	}
+	if err := foreignKeys.Err(); err != nil {
+		t.Fatalf("foreign_key_check rows: %v", err)
+	}
 }

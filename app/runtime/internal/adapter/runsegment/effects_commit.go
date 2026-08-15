@@ -52,7 +52,8 @@ func (e *Effects) CommitStartedChildRun(
 	if err := validateStartedChildOpening(reservation, opening); err != nil {
 		return err
 	}
-	return e.runInTx(ctx, func(ctx context.Context) error {
+	alreadyConcluded := false
+	err = e.runInTx(ctx, func(ctx context.Context) error {
 		changed, err := e.childRunStarts.Conclude(
 			ctx, record, sqlite.ChildRunStartConclusionStarted,
 		)
@@ -60,6 +61,7 @@ func (e *Effects) CommitStartedChildRun(
 			return fmt.Errorf("runsegment: conclude started child Run reservation: %w", err)
 		}
 		if !changed {
+			alreadyConcluded = true
 			return nil
 		}
 		if err := e.commitOpening(ctx, opening); err != nil {
@@ -67,6 +69,24 @@ func (e *Effects) CommitStartedChildRun(
 		}
 		return nil
 	})
+	if err == nil {
+		if !alreadyConcluded {
+			return nil
+		}
+		settled, settleErr := e.reconcileOpeningCommit(ctx, opening)
+		if settled {
+			return nil
+		}
+		return errors.Join(
+			errors.New("runsegment: child Run start was concluded by another opening write-set"),
+			settleErr,
+		)
+	}
+	settled, settleErr := e.reconcileOpeningCommit(ctx, opening)
+	if settled {
+		return nil
+	}
+	return errors.Join(err, settleErr)
 }
 
 // AbortChildRunStart consumes an invisible reservation without creating a Run.
@@ -236,9 +256,17 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 	if err := opening.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid opening: %w", err)
 	}
-	return e.runInTx(ctx, func(ctx context.Context) error {
+	err := e.runInTx(ctx, func(ctx context.Context) error {
 		return e.commitOpening(ctx, opening)
 	})
+	if err == nil {
+		return nil
+	}
+	settled, settleErr := e.reconcileOpeningCommit(ctx, opening)
+	if settled {
+		return nil
+	}
+	return errors.Join(err, settleErr)
 }
 
 // commitOpening assumes that the caller has validated opening and owns the
@@ -260,7 +288,37 @@ func (e *Effects) commitOpening(ctx context.Context, opening runs.OpeningCommit)
 			return err
 		}
 	}
+	sessionID, runID, segmentID, err := openingCommitOwner(opening)
+	if err != nil {
+		return err
+	}
+	if err := e.runState.RecordRunCommit(ctx, sessionID, runID, segmentID, opening.CommitID); err != nil {
+		return fmt.Errorf("runsegment: record opening commit receipt: %w", err)
+	}
 	return nil
+}
+
+func openingCommitOwner(opening runs.OpeningCommit) (sessionID, runID, segmentID string, err error) {
+	if opening.Admit != nil {
+		return opening.Admit.SessionID, opening.Admit.RunID, opening.Admit.SegmentID, nil
+	}
+	if opening.Resume == nil {
+		return "", "", "", errors.New("runsegment: opening has no owner")
+	}
+	for _, resumed := range opening.Resume.Runs {
+		if resumed.RunID == opening.Resume.RootRunID {
+			return opening.Resume.SessionID, resumed.RunID, resumed.SegmentID, nil
+		}
+	}
+	return "", "", "", errors.New("runsegment: resumed opening has no root Run")
+}
+
+func (e *Effects) reconcileOpeningCommit(ctx context.Context, opening runs.OpeningCommit) (bool, error) {
+	sessionID, runID, segmentID, err := openingCommitOwner(opening)
+	if err != nil {
+		return false, err
+	}
+	return e.reconcileRunCommit(ctx, sessionID, runID, segmentID, opening.CommitID)
 }
 
 func (e *Effects) admitOpening(ctx context.Context, opening runs.OpeningCommit) error {
@@ -364,7 +422,7 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 	return nil
 }
 
-const eventCommitReconciliationTimeout = 5 * time.Second
+const runCommitReconciliationTimeout = 5 * time.Second
 
 // reconcileEventCommit turns this write-set's exact durable marker into its
 // successful outcome. SQLite can report an error after COMMIT has crossed its
@@ -375,23 +433,31 @@ func (e *Effects) reconcileEventCommit(
 	ctx context.Context,
 	commit runs.EventCommit,
 ) (bool, error) {
+	return e.reconcileRunCommit(
+		ctx, commit.SessionID, commit.RunID, commit.SegmentID, commit.CommitID,
+	)
+}
+
+func (e *Effects) reconcileRunCommit(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+	segmentID string,
+	commitID string,
+) (bool, error) {
 	if e.runState == nil {
 		return false, nil
 	}
 	reconcileCtx, cancel := context.WithTimeout(
 		context.WithoutCancel(ctx),
-		eventCommitReconciliationTimeout,
+		runCommitReconciliationTimeout,
 	)
 	defer cancel()
-	settled, err := e.runState.EventCommitCommitted(
-		reconcileCtx,
-		commit.SessionID,
-		commit.RunID,
-		commit.SegmentID,
-		commit.CommitID,
+	settled, err := e.runState.RunCommitCommitted(
+		reconcileCtx, sessionID, runID, segmentID, commitID,
 	)
 	if err != nil {
-		return false, fmt.Errorf("runsegment: reconcile event commit: %w", err)
+		return false, fmt.Errorf("runsegment: reconcile Run commit: %w", err)
 	}
 	return settled, nil
 }
@@ -418,7 +484,11 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 		if err := e.openInterrupt(ctx, barrier.Pending); err != nil {
 			return err
 		}
-		for _, commit := range barrier.Runs {
+		for _, original := range barrier.Runs {
+			commit := original
+			if commit.RunID == barrier.Pending.RootRunID {
+				commit.CommitID = barrier.CommitID
+			}
 			if err := e.applyCommit(ctx, commit); err != nil {
 				return err
 			}
@@ -428,6 +498,23 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 	if err == nil {
 		return nil
 	}
+	rootSegmentID := ""
+	for _, commit := range barrier.Runs {
+		if commit.RunID == barrier.Pending.RootRunID {
+			rootSegmentID = commit.SegmentID
+			break
+		}
+	}
+	if rootSegmentID == "" {
+		return errors.Join(err, errors.New("runsegment: tree barrier has no root Run commit"))
+	}
+	settled, settleErr := e.reconcileRunCommit(
+		ctx, barrier.Pending.SessionID, barrier.Pending.RootRunID, rootSegmentID, barrier.CommitID,
+	)
+	if settled {
+		return nil
+	}
+	err = errors.Join(err, settleErr)
 	for _, commit := range barrier.Runs {
 		err = e.compensateFailedCommit(ctx, commit, err)
 	}
@@ -499,7 +586,7 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 		}
 	}
 	if commit.State == runs.StateUnchanged && commit.CommitID != "" {
-		if err := e.runState.RecordEventCommit(
+		if err := e.runState.RecordRunCommit(
 			ctx, commit.SessionID, commit.RunID, commit.SegmentID, commit.CommitID,
 		); err != nil {
 			return fmt.Errorf("runsegment: record event commit receipt: %w", err)
@@ -678,6 +765,9 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 	case runs.StateSuspend:
 		if commit.Run == nil {
 			return errors.New("runsegment: park commit carries no run record")
+		}
+		if commit.CommitID != "" {
+			return e.runState.SuspendBarrier(ctx, *commit.Run, commit.SegmentID, commit.CommitID)
 		}
 		return e.runState.Suspend(ctx, *commit.Run)
 	case runs.StateTerminalize:

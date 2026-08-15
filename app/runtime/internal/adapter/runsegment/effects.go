@@ -148,10 +148,10 @@ type ToolInvocationJournal interface {
 // RequireActiveSegment is the admission fence for every EventCommit: it proves
 // the complete write-set still belongs to the exact running Segment before any
 // transcript, conversation, invocation, accounting, or lifecycle fact moves.
-// RecordEventCommit records the Application-owned immutable write-set identity
-// after every non-terminal CommitEvent projection in the same transaction.
-// TerminalizeEvent records that identity in the terminal transition itself.
-// EventCommitCommitted is the commit-outcome proof used after that transaction
+// RecordRunCommit records the Application-owned immutable write-set identity
+// after a non-terminal command's complete projections in the same transaction.
+// SuspendBarrier and TerminalizeEvent record it in their boundary transitions.
+// RunCommitCommitted is the commit-outcome proof used after a transaction
 // returns an error, so a lost success receipt converges without confusing
 // another Segment or write attempt for this write-set.
 // The sqlite RunStore satisfies it.
@@ -160,10 +160,11 @@ type RunWriter interface {
 	Resume(ctx context.Context, sessionID string, draft run.ResumeDraft, resumedAt time.Time) error
 	RequireActiveSegment(ctx context.Context, sessionID, runID, segmentID string) error
 	Suspend(ctx context.Context, run run.Run) error
+	SuspendBarrier(ctx context.Context, run run.Run, segmentID, commitID string) error
 	Terminalize(ctx context.Context, run run.Run) error
-	RecordEventCommit(ctx context.Context, sessionID, runID, segmentID, commitID string) error
+	RecordRunCommit(ctx context.Context, sessionID, runID, segmentID, commitID string) error
 	TerminalizeEvent(ctx context.Context, run run.Run, segmentID, commitID string) error
-	EventCommitCommitted(ctx context.Context, sessionID, runID, segmentID, commitID string) (bool, error)
+	RunCommitCommitted(ctx context.Context, sessionID, runID, segmentID, commitID string) (bool, error)
 }
 
 // RunMetricsWriter updates only cumulative consumption for one exact active
