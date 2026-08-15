@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const protocolSchemaVersion uint16 = 4
+const protocolSchemaVersion uint16 = 5
 
 type operation string
 
@@ -60,8 +60,9 @@ type signalEnvelope struct {
 }
 
 type modelCallResult struct {
-	Response *chat.Response `json:"response,omitempty"`
-	Error    string         `json:"error,omitempty"`
+	Response  *chat.Response `json:"response,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	HostError string         `json:"host_error,omitempty"`
 }
 
 type steerInput struct {
@@ -73,6 +74,7 @@ type toolBatchResult struct {
 	Direct              bool              `json:"direct"`
 	AdvertisedToolNames []string          `json:"advertised_tool_names,omitempty"`
 	Checkpoint          *toolCheckpoint   `json:"checkpoint,omitempty"`
+	HostError           string            `json:"host_error,omitempty"`
 }
 
 type toolCheckpoint struct {
@@ -272,8 +274,18 @@ func (envelope signalEnvelope) validateModelResult() error {
 		return errors.New("interaction: model_result signal has an invalid payload set")
 	}
 	result := envelope.ModelResult
-	if (result.Response == nil) == (result.Error == "") {
-		return errors.New("interaction: model_result requires exactly one response or error")
+	modes := 0
+	if result.Response != nil {
+		modes++
+	}
+	if result.Error != "" {
+		modes++
+	}
+	if result.HostError != "" {
+		modes++
+	}
+	if modes != 1 {
+		return errors.New("interaction: model_result requires exactly one response, provider error, or host error")
 	}
 	if result.Response != nil {
 		if err := result.Response.Validate(); err != nil {
@@ -287,24 +299,39 @@ func (envelope signalEnvelope) validateToolResult() error {
 	if envelope.ModelResult != nil || envelope.ToolResult == nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
 		return errors.New("interaction: tool_result signal has an invalid payload set")
 	}
-	if (len(envelope.ToolResult.Results) == 0) == (envelope.ToolResult.Checkpoint == nil) {
-		return errors.New("interaction: tool_result requires complete results or a checkpoint")
+	result := envelope.ToolResult
+	modes := 0
+	if len(result.Results) != 0 {
+		modes++
 	}
-	if envelope.ToolResult.Checkpoint != nil {
-		if envelope.ToolResult.Direct || len(envelope.ToolResult.AdvertisedToolNames) != 0 {
+	if result.Checkpoint != nil {
+		modes++
+	}
+	if result.HostError != "" {
+		modes++
+	}
+	if modes != 1 {
+		return errors.New("interaction: tool_result requires complete results, a checkpoint, or a host error")
+	}
+	if result.HostError != "" {
+		if result.Direct || len(result.AdvertisedToolNames) != 0 {
+			return errors.New("interaction: failed tool_result must carry only its host error")
+		}
+	} else if result.Checkpoint != nil {
+		if result.Direct || len(result.AdvertisedToolNames) != 0 {
 			return errors.New("interaction: paused tool_result must carry only its checkpoint")
 		}
-		if _, err := envelope.ToolResult.Checkpoint.InputRequest.inputRequest(); err != nil {
+		if _, err := result.Checkpoint.InputRequest.inputRequest(); err != nil {
 			return err
 		}
 	} else {
-		for index := range envelope.ToolResult.Results {
-			if err := envelope.ToolResult.Results[index].Validate(); err != nil {
+		for index := range result.Results {
+			if err := result.Results[index].Validate(); err != nil {
 				return fmt.Errorf("interaction: tool_result %d: %w", index, err)
 			}
 		}
 	}
-	if err := validateAdvertisedToolNames(envelope.ToolResult.AdvertisedToolNames); err != nil {
+	if err := validateAdvertisedToolNames(result.AdvertisedToolNames); err != nil {
 		return fmt.Errorf("interaction: tool_result advertised Tools: %w", err)
 	}
 	return nil

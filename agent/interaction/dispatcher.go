@@ -194,6 +194,9 @@ func (dispatcher *Dispatcher) dispatchModel(
 	)
 	response, err := dispatcher.callModel(ctx, modelRequest, emit)
 	if err != nil {
+		if errors.Is(err, ErrHostFailure) {
+			return modelHostFailureSettlement(request.ID(), err)
+		}
 		return modelFailureSettlement(request.ID(), err)
 	}
 	if response == nil {
@@ -233,6 +236,18 @@ func modelFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlem
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationModelCall,
 		ModelResult:   &modelCallResult{Error: boundedDiagnostic(cause.Error())},
+	})
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	return agent.NewSettlement(effectID, agent.SettlementStatusFailed, payload)
+}
+
+func modelHostFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlement, error) {
+	payload, err := encodeProtocol(signalEnvelope{
+		SchemaVersion: protocolSchemaVersion,
+		Operation:     operationModelCall,
+		ModelResult:   &modelCallResult{HostError: boundedDiagnostic(cause.Error())},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
@@ -306,12 +321,30 @@ func newToolBatchDispatch(
 
 func (dispatch *toolBatchDispatch) run() (agent.Settlement, error) {
 	if settlement, paused, err := dispatch.resume(); err != nil || paused {
+		if errors.Is(err, ErrHostFailure) {
+			return toolHostFailureSettlement(dispatch.request.ID(), err)
+		}
 		return settlement, err
 	}
 	if settlement, paused, err := dispatch.dispatchRemaining(); err != nil || paused {
+		if errors.Is(err, ErrHostFailure) {
+			return toolHostFailureSettlement(dispatch.request.ID(), err)
+		}
 		return settlement, err
 	}
 	return dispatch.complete()
+}
+
+func toolHostFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlement, error) {
+	payload, err := encodeProtocol(signalEnvelope{
+		SchemaVersion: protocolSchemaVersion,
+		Operation:     operationToolBatch,
+		ToolResult:    &toolBatchResult{HostError: boundedDiagnostic(cause.Error())},
+	})
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	return agent.NewSettlement(effectID, agent.SettlementStatusFailed, payload)
 }
 
 func (dispatch *toolBatchDispatch) resume() (agent.Settlement, bool, error) {
@@ -473,6 +506,9 @@ func (dispatcher *Dispatcher) callTool(
 	}()
 	output, err := hosted.executable.Call(ctx, call.Arguments)
 	if err != nil {
+		if errors.Is(err, ErrHostFailure) {
+			return chat.ToolResult{}, nil, nil, err
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return chat.ToolResult{}, nil, nil, err
 		}

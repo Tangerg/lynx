@@ -116,6 +116,15 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 	if err := execution.addSteer(steer); err != nil {
 		return agent.Transition{}, err
 	}
+	if envelope.ModelResult.HostError != "" {
+		execution.state.PendingSteer = nil
+		return execution.fail(
+			consumedSignals,
+			agent.FailureKindExternal,
+			"interaction.host.failed",
+			envelope.ModelResult.HostError,
+		)
+	}
 	if envelope.ModelResult.Error != "" {
 		execution.state.PendingSteer = nil
 		return execution.fail(
@@ -172,6 +181,15 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	}
 	if err := execution.addSteer(steer); err != nil {
 		return agent.Transition{}, err
+	}
+	if envelope.ToolResult.HostError != "" {
+		execution.state.PendingSteer = nil
+		return execution.fail(
+			consumedSignals,
+			agent.FailureKindExternal,
+			"interaction.host.failed",
+			envelope.ToolResult.HostError,
+		)
 	}
 	calls, err := execution.activeCallSegment()
 	if err != nil {

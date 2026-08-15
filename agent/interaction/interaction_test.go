@@ -112,6 +112,57 @@ func TestManagedInteractionExecutesToolLoopInModelOrder(t *testing.T) {
 	}
 }
 
+func TestManagedInteractionTerminatesOnModelHostFailure(t *testing.T) {
+	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		return nil, interaction.HostFailure(errors.New("model boundary unavailable"))
+	})
+	result := runInteraction(t, newDeployment(t, model, nil, 2), "fail before provider")
+	assertInteractionHostFailure(t, result)
+}
+
+func TestManagedInteractionTerminatesOnToolHostFailureWithoutAnotherModelCall(t *testing.T) {
+	type input struct{}
+	failing, err := tool.NewFunc(tool.FuncConfig{
+		Name: "failing", Description: "Fail at the host boundary.",
+	}, func(context.Context, input) (string, error) {
+		return "", interaction.HostFailure(errors.New("tool boundary unavailable"))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &singleToolCallModel{call: chat.ToolCall{ID: "call_host", Name: "failing", Arguments: `{}`}}
+	result := runInteraction(t, newDeployment(t, model, []tool.Tool{failing}, 2), "fail before Tool")
+	assertInteractionHostFailure(t, result)
+	if model.Calls() != 1 {
+		t.Fatalf("model calls = %d, want no retry after host failure", model.Calls())
+	}
+}
+
+func runInteraction(t *testing.T, deployment agent.Deployment, prompt string) agent.Result {
+	t.Helper()
+	engine, err := agent.NewEngine(agent.EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := engine.Run(context.Background(), deployment, interactionInput(t, prompt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func assertInteractionHostFailure(t *testing.T, result agent.Result) {
+	t.Helper()
+	failure, ok := result.Termination().Failure()
+	if result.Status() != agent.StatusFailed || !ok ||
+		failure.Kind() != agent.FailureKindExternal || failure.Code() != "interaction.host.failed" {
+		t.Fatalf("result = status:%s termination:%#v", result.Status(), result.Termination())
+	}
+}
+
 func TestDefinitionRejectsZeroModelCallLimit(t *testing.T) {
 	_, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.test", Description: "Run a test interaction.", Version: "1.0.0",

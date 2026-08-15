@@ -20,7 +20,7 @@ import (
 func TestInteractionWireBaseline(t *testing.T) {
 	shape := interactionWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "3c52c9d0a2333716e19ea03e8150ba80c8b41b070647de6339e282a8894eb6ec"
+	const want = "b74916e9f67796fa24e2dc640d9ec8db0176d4fa1636324ff7907d2bcb8163b3"
 	if got != want {
 		t.Fatalf("Interaction wire changed: got %s, want %s\n%s", got, want, shape)
 	}

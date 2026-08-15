@@ -647,3 +647,10 @@
 - `DispatchStep` 与 `ScriptedDispatcherConfig` 继续是公开声明数据；构造边界将其冻结为私有 `dispatchStep`，后者独占 expected Effect 匹配、Delta 顺序与 settlement/error 行为。Expected Effect 在构造时编码并脱离 caller 后续修改，Dispatcher 只拥有并发安全的脚本消费游标。
 - 外部测试只使用公开 Definition/Execution/Deployment/Engine 合同，真实经过 prepared Effect、Dispatcher、Settlement、Delta 与 terminal Event；fixture 没有复制 Engine loop、Process 状态或 Host 持久化职责。
 - Workflow 的 `Stage`、`childBinding` 与 `stageKind` 各自投影自己拥有的 sealed state；公开 `Topology`/`StageTopology`/`BindingTopology` 保持 function-free、detached DTO。该精修没有改变公开 API、GoDoc、JSON shape、执行或恢复语义，Baseline 20 保持不变。
+
+## 21. P91 Host 前置边界失败证据
+
+- 真实 Runtime consumer 在模型或 Tool 调用前先提交调用开始、已应用 steer 或拒绝结果等权威事实；这些提交失败时外部调用尚未发生，不能伪装成 provider failure 或模型可见 Tool error。
+- Interaction 以中性的 `ErrHostFailure`/`HostFailure` 标记这一唯一语义，Dispatcher protocol v5 将其结算为互斥、确定的 `host_error`，Execution 以稳定 `interaction.host.failed` 终止。Tool 路径不会继续下一模型轮次，模型路径不会误报 provider unavailable。
+- 普通模型错误、普通 Tool error 和外部调用后结果不明的 unknown settlement 保持原合同。Runtime 只在 `adapter/agentexec` 消费该标记并投影产品 internal failure；Agent 内层没有 Runtime、RPC、数据库、事务、Run 或 Desktop 抽象。
+- Interaction public contract 形成 Baseline 22，ExecutionState 保持 v6，private protocol 从 v4 直接升级到 v5且拒绝旧格式；Process Snapshot v6、TreeSnapshot v4、Kernel/其他 Strategy/observation wire 均不变。

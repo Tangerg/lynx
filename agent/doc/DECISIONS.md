@@ -630,3 +630,11 @@
 - 决策：barrier 只表达 Framework-owned observation ordering，不接收 Host callback、资源 identity、事务或持久化协议，不改变 Event 的同步可靠投递，也不把 Delta 升级为可靠流。Runtime 在提交自己的权威模型完成事实前消费这一公共能力；Agent 不 import、命名或解释 Run、Item、会话和产品协议。
 - 拒绝方案：拒绝 Runtime 读取或绕过 Agent 私有队列、定时 sleep、UI 内容去重、把全部 Delta 改成同步可靠投递，以及以可选 type assertion 隐藏依赖版本错误。这些方案分别会泄露 owner、制造竞态、掩盖重复事实、扩大热路径合同或让模块独立构建失真。
 - 后果：root public API/GoDoc 形成 Baseline 21；Event/Delta wire、Process Snapshot v6、TreeSnapshot v4、全部 Strategy state/protocol 与其他 public package 均不改变。调用方若要求最终值不越过已接受的流增量，必须在发布最终值前显式调用 barrier；barrier 成功不代表没有历史 drop，也不代表任何 Host 状态已经持久化。
+
+## ADR-A2-076：外部调用前的 Host 拒绝必须确定终止 Interaction
+
+- 状态：已接受并实施；形成 Baseline 22。
+- 证据：真实 Runtime consumer 会在模型或 Tool 调用前提交自身权威事实。该提交失败时外部调用尚未发生，结果既不是 provider failure，也不是普通 Tool error；旧 Dispatcher 却只能返回普通 error，使模型边界被错误归类为 provider unavailable，Tool 边界更会把 Host 持久化失败作为模型可见 Tool output 后继续下一模型轮次。长对话因此可能跨过一个从未建立的权威 Tool 边界继续生成内容。
+- 决策：Interaction 新增中性 sentinel `ErrHostFailure` 与构造函数 `HostFailure(cause)`。它只标记 Host 在模型/Tool 外部调用尚未发生前拒绝自己的前置边界，不携带 transaction、journal、Runtime、Run、RPC、数据库或产品 failure kind。普通模型错误仍按 provider 失败处理，普通 Tool error 仍是模型可见结果；外部调用已经发生而 Host 无法确定投影结果时，仍由 consumer 使用既有 unknown settlement/recovery 合同，不能套用该标记。
+- 决策：Dispatcher protocol 从 v4 直接升级到 v5。model/tool settlement 各增加与 success/error/unknown 互斥的 `host_error` 模式；Dispatcher 识别 wrapped sentinel 并产生确定 settlement，Execution 以稳定 code `interaction.host.failed` 终止，不再进入下一模型轮次。旧 v4 不双读，非法多模式 payload 直接拒绝。
+- 后果：Interaction public API/GoDoc 形成 Baseline 22，Interaction private protocol wire 切换到 v5；ExecutionState 保持 v6。Process Snapshot v6、TreeSnapshot v4、Kernel、其他 Strategy 和 observation wire 均不改变。Runtime 只在 `adapter/agentexec` 消费中性标记并把稳定 code 投影为产品 internal failure，Agent production package 继续没有任何 Runtime import 或 Host persistence 实现依赖。

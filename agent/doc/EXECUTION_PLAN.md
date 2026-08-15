@@ -2,9 +2,9 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-11
-> 当前阶段：P1–P18 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账与外层产品化均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
+> 最后更新：2026-08-15
+> 当前阶段：P1–P19 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化与 Host 前置边界失败合同均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -86,6 +86,7 @@ go test ./...
 | P16 JSON wire schema 对账 | 完成 | 2/2 | 让公开 Schema 派生严格匹配 `encoding/json`，不吸收 Runtime/provider 职责 |
 | P17 外层产品化 | 完成 | 2/2 | 提供确定性 consumer fixture 与完整 Workflow 静态投影，不建立第二 runtime |
 | P18 行为所有权精修 | 完成 | 2/2 | 让 fixture step 与 sealed Stage 自己拥有匹配、执行和投影行为，保持公共 DTO 与 wire 纯数据 |
+| P19 Host 前置边界失败合同 | 完成 | 2/2 | 让外部调用前的 Host 拒绝确定终止，不伪装 provider/Tool 业务结果 |
 
 ---
 
@@ -258,6 +259,11 @@ go test ./...
 - [x] P18-01 将 scripted dispatch 的 Effect 匹配、Delta 发射和 settlement 生成收回冻结后的私有 step；用真实外部 Definition/Deployment/Engine consumer 覆盖完整执行，不让公开配置 DTO 承担行为。
 - [x] P18-02 将 Workflow Topology 的 kind/binding/stage 投影收回 sealed owner，并完成 standalone build/vet/test/tidy/lint/race、staticcheck、deadcode、生成物和重复代码门禁；公共 API/GoDoc、wire、schema version 与 Baseline 20 均不变。
 
+### P19：Host 前置边界失败合同
+
+- [x] P19-01 用真实 Runtime consumer 反例证明模型/Tool 调用前的 Host 自有前置边界失败不能复用普通 provider/Tool error；新增中性 `ErrHostFailure`/`HostFailure`，使 Interaction 确定终止且 Tool 路径不继续下一模型轮次。
+- [x] P19-02 将 Dispatcher protocol 从 v4 直接升级到 v5，冻结互斥 `host_error` settlement、stable failure code、旧版本拒绝、Baseline 22、ADR 与 package boundary；完成定向、重复与 race 门禁。
+
 ---
 
 ## 6. 最终完成定义
@@ -303,6 +309,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-15 | P19（Baseline 22） | 真实 Runtime consumer 证明模型/Tool 外部调用前的 Host 权威前置边界失败原先会被误作 provider/Tool 业务错误；Tool 路径甚至会继续下一模型轮次。Interaction 现以中性 host-failure marker、protocol v5 互斥 settlement 与稳定 terminal code 收敛该事实，不引入 Runtime、RPC、数据库、transaction 或产品终态 | Agent/Runtime 定向场景 10 轮与 race 全绿；Agent 全包测试、public/private baseline、prior-version、协议互斥和 architecture gate 全绿。独立 module build/vet/staticcheck/test/race/tidy-diff 随 canonical source 提交前门禁完成；形成 Baseline 22，P19 2/2 完成 |
 | 2026-08-11 | P18（behavior ownership refinement） | `dispatchStep` 自己拥有 Effect 匹配、按序 Delta 与最终 settlement；`Stage`、`childBinding`、`stageKind` 自己投影 sealed Workflow Topology。公开 config/topology 继续是函数无关 DTO，没有引入 service hierarchy、第二 runtime、Host import 或 wire 变化 | Agent standalone build/vet/test/tidy/lint/race 全绿，lint 0 issue；staticcheck 零输出，deadcode 只报告 Baseline 已冻结的外部 `DeltaListenerFunc.OnDelta` adapter；真实 Engine fixture、六种 Topology、生成物与重复代码门禁通过。Baseline 20 保持不变，P18 2/2 完成 |
 | 2026-08-11 | P17（Baseline 20） | `agenttest` 以有限脚本和只读记录器产品化公共测试 seam；Workflow Definition 以完整无函数 Topology 投影 sealed algebra，现有 command 输出阶段诊断。没有 façade、任意图、第二 scheduler、Host import 或 Runtime 产品词汇 | chathistory、Agent fixture/Workflow/example、Runtime provenance 定向测试通过；Agent/Runtime/root 完整 build/vet/test/race/static/hygiene 与最终 digest 见本批验收结果。Baseline 20 冻结，P17 2/2 完成 |
 | 2026-08-11 | P16-02（Baseline 19 final freeze） | 对通用 JSON wire 修正完成 standalone 与真实 consumer 双向反证。Framework production 仍只认识标准库 JSON/reflect 和 Schema：没有 Runtime import、provider 名称、产品状态、持久化端口、metadata sanitizer、第二 schema 或 validation bypass；Host package DAG 守卫保持不变 | Agent standalone build/vet/tidy-diff/staticcheck/lint/test/race 全绿，lint 0 issue；公开/私有合同与 architecture gates 通过，deadcode 仅报告既有冻结的外部 `DeltaListenerFunc.OnDelta` adapter。无 overlay 的当前源码真实构建后，DeepSeek one-shot 与 TUI 均 exit 0；Runtime/CLI build/vet/test/tidy/lint/race 六项全绿，真实 SQLite 两个 Run/模型调用全部 completed，user/reasoning/assistant 各恰好两条且无重复、problem、未完成调用、中断、Tool 或 checkpoint 残留。Baseline 19 冻结，P16 2/2 完成 |
@@ -400,4 +407,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P18 已完成，Baseline 20 保持不变。Framework Kernel 与执行语义未扩张；`agenttest` 的行为属于冻结后的私有 step，Workflow Topology 的行为属于 sealed Stage owner，公开配置和投影继续保持纯数据。Runtime context provenance 仍由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P19 已完成，Baseline 22 冻结 Interaction 的唯一 Host 前置边界失败合同。该标记只适用于模型/Tool 尚未调用时的 Host 拒绝；普通模型/Tool error 与调用后结果不明仍走原合同。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
