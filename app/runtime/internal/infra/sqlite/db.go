@@ -139,9 +139,9 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// rather than by a check that could be forgotten.
 		//
 		// message_mark is the conversation message count captured when the Run
-		// finished (post-compaction) — the per-run rollback/fork watermark
-		// fork{fromRunId} truncate to. -1 is run.UnknownMessageMark: a Run
-		// that has not finished has no watermark yet.
+		// finished and atomically rebased by every later compaction — the per-run
+		// rollback/fork watermark fork{fromRunId} truncates to. -1 is
+		// run.UnknownMessageMark: a Run that has not finished has no watermark yet.
 		`CREATE TABLE IF NOT EXISTS runs (
 			run_id             TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,

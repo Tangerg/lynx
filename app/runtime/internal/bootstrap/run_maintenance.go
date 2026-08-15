@@ -32,7 +32,7 @@ func buildRunMaintenance(
 		window = int(info.Limits.ContextWindow)
 	}
 	compactor := runmaintenance.NewCompactor(
-		conversationServices.store,
+		conversationServices.messages,
 		resolveUtility,
 		runmaintenance.NewLiveStateSnapshotter(shells, cfg.PlanStore),
 		runmaintenance.CompactionConfig{ContextWindow: window},

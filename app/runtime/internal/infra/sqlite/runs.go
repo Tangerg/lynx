@@ -400,6 +400,47 @@ func (s *RunStore) Terminalize(ctx context.Context, value rundomain.Run) error {
 	})
 }
 
+// RebaseMessageMark applies an exact Application-decided coordinate rewrite to
+// one terminal Run. Compaction does not change when the Run happened or any of
+// its lifecycle facts, so updated_at deliberately remains untouched.
+func (s *RunStore) RebaseMessageMark(ctx context.Context, expected, replacement rundomain.Run) error {
+	if err := expected.Validate(); err != nil {
+		return fmt.Errorf("sqlite: rebase Run message watermark: expected Run: %w", err)
+	}
+	if err := replacement.Validate(); err != nil {
+		return fmt.Errorf("sqlite: rebase Run message watermark: replacement Run: %w", err)
+	}
+	if !expected.State().IsTerminal() || !replacement.State().IsTerminal() {
+		return errors.New("sqlite: rebase Run message watermark: terminal Run is required")
+	}
+	if expected.ID() != replacement.ID() || expected.SessionID() != replacement.SessionID() {
+		return errors.New("sqlite: rebase Run message watermark changes identity")
+	}
+	derived, err := expected.WithMessageMark(replacement.MessageMark())
+	if err != nil {
+		return fmt.Errorf("sqlite: rebase Run message watermark: %w", err)
+	}
+	if !derived.Equal(replacement) {
+		return errors.New("sqlite: rebase Run message watermark changes non-watermark facts")
+	}
+	result, err := conn(ctx, s.db).ExecContext(ctx,
+		`UPDATE runs SET message_mark = ?
+		 WHERE session_id = ? AND run_id = ? AND state = ? AND message_mark = ?`,
+		replacement.MessageMark(), expected.SessionID(), expected.ID(), runStateTerminal, expected.MessageMark(),
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: rebase Run %q message watermark: %w", expected.ID(), err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect Run %q message watermark rebase: %w", expected.ID(), err)
+	}
+	if changed != 1 {
+		return fmt.Errorf("sqlite: rebase Run %q message watermark lost its expected-value fence", expected.ID())
+	}
+	return nil
+}
+
 // RecoverLost ends the exact non-terminal Run whose executor state is no longer
 // resumable. Unlike Terminalize, this recovery transition is legal from either
 // Running or Waiting, because it describes a Run nobody is driving rather

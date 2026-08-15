@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P88 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P89 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -96,6 +96,7 @@
 | P86 | survivor Run recovery 与已挂载 read model 收敛 | P84 + local commit / data_version 盲区与 claimed-resume 强杀证据 | 已完成 |
 | P87 | Run opening 命令结算与 executor activation 所有权 | P86 + HITL claim/opening 强杀窗口与阻塞 activation 反例 | 已完成 |
 | P88 | Desktop final teardown 与 mutation owner 不可复活 | P87 + renderer replacement / window close / late settlement 交错 | 已完成 |
+| P89 | 长对话 compaction 与 Run boundary 坐标统一收敛 | P88 + 连续多轮压缩 / fork / 事务失败与 SQLite 不变量 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1522,10 +1523,32 @@
 - Desktop 全门禁与完整异步泄露检测全绿；Runtime/Protocol/Host KV schema、Desktop Agent inner ring 与 Go Agent Framework 合同不变；
 - `app/cli` 未修改或暂存；未使用 agent-browser，测试结束无本仓 Runtime、Vitest/Vite、Chrome/daemon 或 17171 监听残留。
 
-## 68. 进度记录
+## 68. P89 — 长对话 compaction 与 Run boundary 坐标统一收敛
+
+### 目标
+
+关闭多轮长对话压缩只替换 conversation、却保留旧 `runs.message_mark` 坐标的跨聚合缺口。旧 Run 的水位来自压缩前历史，连续压缩后可以大于当前消息数，使 Session export、fork、rollback 与冷启动 material read 在同一份 durable 数据上得到互相冲突的答案；若消息替换与水位修正分成两个事务，事务失败或进程强杀还会把该不变量永久写入 SQLite。
+
+### 工作项
+
+- [x] P89-01 以一个客户端的顺序长对话证明：历史从 8 条压成 3 条后，早期 terminal Run 仍保留 4/6/8 等旧坐标，`ResolveForkBoundary` 与 snapshot watermark invariant 因此失效；
+- [x] P89-02 由 Conversation Domain 定义唯一坐标变换：零边界保持零，摘要覆盖区内的正水位统一折叠到 replacement prefix 末端，保留 suffix 按与 cutoff 的距离平移；纯 Tool 内容裁剪保持坐标不变；
+- [x] P89-03 由 Conversations Application 读取完整 Run snapshot 并生成 exact aggregate replacement；非终态 Run 保持 unknown watermark，Adapter 不拥有 rebase 业务公式；
+- [x] P89-04 由 Persistence Adapter 在同一 SQLite transaction 内重验消息数与完整 Run set，原子 Replace history 并以 expected-mark CAS 更新每个受影响 terminal Run；任何一步失败全部回滚；
+- [x] P89-05 覆盖同一 Session 连续两次压缩、历史 Run 与最新 Run 分叉、Run-watermark 写失败注入及直接 SQLite `message_mark <= message count` 检查。
+
+### 验收
+
+- 每一代 compacted conversation 与所有 terminal Run 只使用同一坐标系；连续压缩不会重复使用第一代旧坐标，fork/export/rollback 的 watermark 前置条件保持成立；
+- summary 调用仍在事务外完成，但最终 commit 对 summary 读取时的消息数与 Run snapshot 做 fail-closed 校验；消息变化、Run lifecycle 变化或 watermark CAS 失败均不产生半压缩状态；
+- 领域公式位于 `domain/conversation`，跨聚合计划位于 `application/conversations`，事务执行位于 `adapter/persistence` / SQLite；`runmaintenance` 只决定压缩内容和 cutoff，Bootstrap 只装配；
+- Protocol、Artifact、SQLite schema epoch、Desktop 与 Agent Framework 合同不变；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
+
+## 69. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P89（long-conversation compaction coordinate convergence） | 反证发现 `runmaintenance` 以原子 `MessageStore.Replace` 将长对话从旧历史改写为 `[summary, optional live reminder, recent…]`，但所有既有 terminal Run 的 `message_mark` 仍停留在压缩前坐标；连续多轮后旧水位可超过当前消息数，Session snapshot/export/fork/rollback 会拒绝同库数据。Conversation Domain 现在拥有唯一 compaction coordinate transform；Conversations Application 从完整 Run snapshot 决定 exact watermark replacements；Persistence 在一个 SQLite transaction 内重验 expected message count 与完整 Run set，再同时替换历史并以 expected-value CAS 重基准 terminal Runs。摘要区内已不可区分的历史边界显式折叠到 replacement prefix，suffix 保持相对距离，纯内容裁剪零坐标变化；不存在读取时 clamp、兼容双路径或 SQLite 自行发明业务公式 | 单客户端 4 个顺序 Run、两次连续长对话压缩后，所有旧/新 Run 水位均落在当前 3 条历史内，旧/最新 Run fork 继续成立；SQLite trigger 注入 Run-watermark 更新失败时，消息和全部水位一起回滚，原始 8 条历史完整保留；直接 SQL invariant 为零。领域/Application/Persistence/runmaintenance/Bootstrap 定向测试与 10× SQLite 场景、受影响包 race 全绿；Runtime `go test ./... -count=1` 全包、standalone build/vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 architecture gate 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P88（Desktop final teardown ownership） | 反证发现 final window teardown 虽同步释放当前 client 的 mutation journal claim，却把 `shared` 清空后继续暴露可调用的旧 factory；等待 retiring transport 时，迟到 bootstrap/事件回调可复活一个不在 teardown settlement 内的 successor client，重新领取 mutation identity 并遗留 transport/lease。composition root 现在先同步进入不可逆 closed 状态，再退休当前 client，并让重复 dispose 共享唯一 settlement；测试 reset 仍通过先换新 owner 保持正常 replacement。journal 回归进一步覆盖旧 mutation 在途、replacement 接管后窗口关闭、retired response 迟到与下一冷启动接回同 key，确认 generation fence 和 Host KV owner cleanup 共同成立 | 红测稳定证明 teardown 中与 teardown 后旧 owner 均可复活，修复后 container/SDK/journal/methods 4 files / 76 tests 及 `--detectAsyncLeaks` 全绿；Frontend `npm run check` 与完整泄露检测均为 288 files / 1786 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites，994 locale keys 在 8 种语言完整；未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P87（Run opening command settlement） | 反证发现根 Start/HITL Resume 的 answer claim 与 Run opening 已 durable commit 后，`openSegment` 仍同步等待 executor activation；activation 卡住会让 Operation/idempotency 无法保存或返回已接受的 Run/Segment receipt。Application 现在显式区分结算边界：根 Start/Resume 在 commit、live-owner 注册与 opening publication 后立即结算，activation/pump 由原 Run lifecycle task继续拥有；waiting-child cancellation 保持同步，以保护其 post-commit Apply/Continue 验证。真实 SQLite 同时覆盖 claim-before-opening 与 opening-before-activation 两个强杀 shape，均由 survivor 恢复为 Lost并保留已接受 Question answer。无兼容路径、第二 activation owner 或协议/存储改动 | 单客户端 blocked Start/Resume 交错、detached activation failure、waiting-child cancellation 后置条件及 claimed/opened SQLite recovery 回归通过；runs/runrecovery/runsegment/server/operation 定向 race 全绿；Runtime workspace/standalone 全量 test、build、vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 diff-check 全绿；受影响 package 无 fuzz owner，未使用 agent-browser，进程检查无 Runtime/Go test/Chrome/daemon 残留；`app/cli` 未修改或暂存 |
 | 2026-08-15 | P86（survivor Run recovery read-model 收敛） | 反证发现 survivor 的周期 Run recovery 通过本 Runtime SQLite connection 提交，connection-local `PRAGMA data_version` 不会观察自己的 commit；因此数据库虽已收敛为 RunLost，当前 Runtime 的已挂载 HITL/Plan/Goal/Run/Tool 仍可能无限停在被强杀 owner 的旧投影。Run Recovery Application 现在从原子 `RecoveryCommit` 按 Session 汇总精确 scope，仅在 commit 成功后按 Runs、Interrupts、Sessions、Goals 顺序发布既有 invalidation；Bootstrap 只注入 publisher，不拥有恢复策略。真实 claimed-resume SQLite 回归同时冻结 accepted Question answer、隐藏 resuming row、conversation Tool closure 与 Lost Run 的一致性；事务失败和 live peer owner 均零通知。Protocol、SQLite schema、Artifact、Desktop Agent inner ring 与 Agent Framework 合同未变化 | application/SQLite/bootstrap 定向测试与 runs/runrecovery/ownershiprecovery race 全绿；Runtime `go test ./... -count=1 -timeout=10m`、build、vet、`make check-standalone`、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 diff-check 全绿；受影响 package 无 fuzz owner，未新增无业务意义的并发压力；`app/cli` 未修改或暂存 |
@@ -1685,6 +1708,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 69. 当前下一步
+## 70. 当前下一步
 
-P88 已使 final teardown 后的 Desktop composition owner 不可复活，并冻结 replacement 再关闭、retired response 迟到与冷启动接回同 mutation identity 的完整交接。下一批回到 `app/runtime`，以一个真实客户端的多轮长对话为主，反证连续 Segment/HITL resume、Run/Tool 重复或乱序事件、事务失败与重连/重启交错下的 durable transcript 和 mounted read model 不变量；`app/cli` 继续只读且不暂存。
+P89 已使 conversation compaction 与所有 terminal Run boundary 在同一原子事务中切换坐标，并冻结连续两次长对话压缩和失败回滚。下一批继续在 `app/runtime` 反证一个客户端的连续 Segment/HITL resume：重点检查 compaction boundary 与 Run/Tool 终态事件重复、乱序或断线重放时，durable transcript、Plan/Goal 与 Desktop mounted material snapshot 是否仍只收敛一次；`app/cli` 继续只读且不暂存。

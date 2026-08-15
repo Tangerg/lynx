@@ -195,7 +195,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		}
 	}
 
-	conversationServices, err := buildConversationEnvironment(cfg.ConversationStore)
+	conversationServices, err := buildConversationEnvironment(
+		cfg.ConversationStore,
+		persistence.NewConversationCompactions(
+			cfg.ConversationStore,
+			cfg.RunStore,
+			persistence.Transactor(cfg.Transactor),
+		),
+	)
 	if err != nil {
 		return nil, err
 	}

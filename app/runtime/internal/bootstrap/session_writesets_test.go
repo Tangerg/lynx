@@ -141,7 +141,7 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *persist
 		interrupts:  ints,
 		runs:        runs,
 		checkpoints: persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db)),
-		history:     conversations.NewMessages(sqlite.NewMessageStore(db)),
+		history:     conversations.NewMessages(sqlite.NewMessageStore(db), nil),
 		plan:        plan,
 		approvals:   approvals,
 		toolResults: sqlite.NewToolResultStore(db),

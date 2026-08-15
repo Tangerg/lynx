@@ -11,12 +11,15 @@ type conversationEnvironment struct {
 	messages *conversations.Messages
 }
 
-func buildConversationEnvironment(store conversations.Store) (conversationEnvironment, error) {
+func buildConversationEnvironment(store conversations.Store, compactions conversations.CompactionStore) (conversationEnvironment, error) {
 	if store == nil {
 		return conversationEnvironment{}, errors.New("runtime: ConversationStore is required")
 	}
+	if compactions == nil {
+		return conversationEnvironment{}, errors.New("runtime: ConversationCompactions is required")
+	}
 	return conversationEnvironment{
 		store:    store,
-		messages: conversations.NewMessages(store),
+		messages: conversations.NewMessages(store, compactions),
 	}, nil
 }

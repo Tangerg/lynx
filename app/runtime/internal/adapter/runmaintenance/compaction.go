@@ -9,12 +9,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 )
 
-// compactionStore is the worker's narrow history view. Replace must be atomic:
-// compaction rewrites the complete model context and cannot tolerate a
-// clear-then-append fallback.
+// compactionStore is the worker's narrow conversation use-case view. The
+// implementation owns the cross-aggregate transaction that replaces history
+// and rebases Run watermarks; this model worker only decides summary content.
 type compactionStore interface {
 	Read(ctx context.Context, sessionID string) ([]chat.Message, error)
-	Replace(ctx context.Context, sessionID string, messages ...chat.Message) error
+	RewriteForCompaction(
+		ctx context.Context,
+		sessionID string,
+		expectedCount int,
+		cutoff int,
+		replacementPrefix int,
+		messages ...chat.Message,
+	) error
 }
 
 // Compactor is the automatic conversation-history compaction worker. A nil
@@ -40,6 +47,7 @@ const (
 type compactionPlan struct {
 	action         compactionAction
 	messagesBefore int
+	cutoff         int
 	trimmed        []chat.Message
 	older          []chat.Message
 	recent         []chat.Message
@@ -141,7 +149,7 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 	}
 
 	if plan.action == trimCompaction {
-		if err := c.store.Replace(ctx, sessionID, plan.trimmed...); err != nil {
+		if err := c.store.RewriteForCompaction(ctx, sessionID, len(msgs), 0, 0, plan.trimmed...); err != nil {
 			return CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
 		}
 		return CompactionResult{}, nil
@@ -167,7 +175,10 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 	// Atomically swap the history for [summary, ...recent]. The store rolls back
 	// a failed rewrite, so a crash cannot
 	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
-	if err := c.store.Replace(ctx, sessionID, rewritten...); err != nil {
+	prefixAfter := len(rewritten) - len(plan.recent)
+	if err := c.store.RewriteForCompaction(
+		ctx, sessionID, plan.messagesBefore, plan.cutoff, prefixAfter, rewritten...,
+	); err != nil {
 		return CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
 	}
 	return CompactionResult{
@@ -187,7 +198,7 @@ func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compa
 	}
 	trimmed, changed := trimForBudgetBefore(messages, cutoff)
 	if changed && !c.shouldCompact(trimmed, maxTokens) {
-		return compactionPlan{action: trimCompaction, trimmed: trimmed}
+		return compactionPlan{action: trimCompaction, messagesBefore: len(messages), trimmed: trimmed}
 	}
 	// KeepRecent is a preference, not a license to preserve a suffix that is
 	// already over budget by itself. In that case the preferred prefix summary
@@ -198,12 +209,13 @@ func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compa
 		cutoff = len(messages)
 		trimmed, changed = trimForBudgetBefore(messages, cutoff)
 		if changed && !c.shouldCompact(trimmed, maxTokens) {
-			return compactionPlan{action: trimCompaction, trimmed: trimmed}
+			return compactionPlan{action: trimCompaction, messagesBefore: len(messages), trimmed: trimmed}
 		}
 	}
 	return compactionPlan{
 		action:         summarizeCompaction,
 		messagesBefore: len(messages),
+		cutoff:         cutoff,
 		older:          trimmed[:cutoff],
 		recent:         trimmed[cutoff:],
 	}

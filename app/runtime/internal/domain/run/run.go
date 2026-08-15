@@ -372,8 +372,10 @@ func (run Run) finish(state State, termination Termination) (Run, error) {
 	return run, nil
 }
 
-// WithMessageMark resolves the final conversation watermark after the terminal
-// transaction obtains it. No other terminal fact is changed.
+// WithMessageMark replaces a terminal Run's conversation coordinate without
+// changing any other fact. Terminalization uses it after obtaining the final
+// count; conversation compaction uses it to rebase an already-final boundary
+// into the replacement history's coordinate space.
 func (run Run) WithMessageMark(messageMark int) (Run, error) {
 	if !run.state.IsTerminal() {
 		return Run{}, errors.New("run: only terminal Run can resolve message watermark")
