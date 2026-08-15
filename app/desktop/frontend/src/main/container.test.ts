@@ -53,6 +53,21 @@ describe("main/container", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("does not resurrect Runtime owners after final application teardown starts", async () => {
+    const owner = getContainer();
+    owner.client();
+    owner.sidecar();
+
+    const closing = disposeContainer();
+
+    expect(disposeContainer()).toBe(closing);
+    expect(() => owner.client()).toThrow("Desktop container is closed");
+    expect(() => owner.sidecar()).toThrow("Desktop container is closed");
+    await closing;
+    expect(() => owner.client()).toThrow("Desktop container is closed");
+    expect(() => owner.sidecar()).toThrow("Desktop container is closed");
+  });
+
   it("does not close a client injected by an external owner", async () => {
     const close = vi.fn(async () => {});
     const external = { close } as unknown as LyraClient;

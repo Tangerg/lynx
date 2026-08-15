@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P87 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P88 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -95,6 +95,7 @@
 | P85 | Desktop 工作目录所有权与右侧 Context Dock 命令接线 | P84 + Wails v3 native dialog / Proma 右栏源码对照 | 已完成 |
 | P86 | survivor Run recovery 与已挂载 read model 收敛 | P84 + local commit / data_version 盲区与 claimed-resume 强杀证据 | 已完成 |
 | P87 | Run opening 命令结算与 executor activation 所有权 | P86 + HITL claim/opening 强杀窗口与阻塞 activation 反例 | 已完成 |
+| P88 | Desktop final teardown 与 mutation owner 不可复活 | P87 + renderer replacement / window close / late settlement 交错 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1501,10 +1502,31 @@
 - waiting-child cancellation 的 Apply/Continue/Discard 后置条件、同步错误语义与 race 保持全绿；Protocol wire、SQLite schema、Artifact、Desktop Agent inner ring 与 Agent Framework 合同不变；
 - `app/cli` 未修改或暂存；测试结束无 Runtime、Go test、agent-browser、Chrome/daemon 残留。
 
-## 67. 进度记录
+## 67. P88 — Desktop final teardown 与 mutation owner 不可复活
+
+### 目标
+
+关闭窗口 final teardown 已同步释放当前 Runtime client 的 mutation journal claim，旧 composition-root 引用却仍可重新构造 successor client 的生命周期缺口。旧实现先把 `shared` 清空并等待 retiring transport；若异步 bootstrap、事件回调或 renderer replacement 在等待窗口内再次调用旧 `container.client()`，新 client/journal 不在本次 `Promise.all(retiring)` 的所有权快照中，窗口关闭会遗留未 join transport 或新 owner lease，下一 renderer 可能被一个已经关闭的 owner 阻断。
+
+### 工作项
+
+- [x] P88-01 以单 renderer 确定性交错证明：`disposeContainer()` 已开始或完成后，旧 owner 仍能创建新的 Runtime client 与 sidecar；红测不依赖高并发或浏览器时序概率；
+- [x] P88-02 让 composition root 显式拥有 `open → closed` 单向 lifecycle；final teardown 在任何资源退休前同步封闭 factory，后续 `client()`/`sidecar()` 一律 fail closed；
+- [x] P88-03 将同一 owner 的重复 dispose 收敛到唯一 settlement，并继续等待 teardown 开始前已经进入 retiring 集合的全部 client；`resetContainer()` 仍先发布全新 owner，再 join 旧 owner，不建立兼容路径；
+- [x] P88-04 冻结真实 identity 交接：旧 mutation 在途、replacement 接管同 key 后窗口再次关闭、旧 response 最后迟到；Host KV 无 owner lease 残留，下一次冷启动仍以更高 generation 接回原 key。
+
+### 验收
+
+- final teardown 一经开始，旧 composition-root 引用不能再创建 RPC transport、sidecar 或 mutation journal owner；teardown 前已经退休的 client 仍由同一 settlement 完整 join；
+- replacement window 关闭不会让 retired late success 删除 successor、复活旧 generation 或遗留 owner KV；下一次冷启动复用原 idempotency key；
+- Desktop 全门禁与完整异步泄露检测全绿；Runtime/Protocol/Host KV schema、Desktop Agent inner ring 与 Go Agent Framework 合同不变；
+- `app/cli` 未修改或暂存；未使用 agent-browser，测试结束无本仓 Runtime、Vitest/Vite、Chrome/daemon 或 17171 监听残留。
+
+## 68. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P88（Desktop final teardown ownership） | 反证发现 final window teardown 虽同步释放当前 client 的 mutation journal claim，却把 `shared` 清空后继续暴露可调用的旧 factory；等待 retiring transport 时，迟到 bootstrap/事件回调可复活一个不在 teardown settlement 内的 successor client，重新领取 mutation identity 并遗留 transport/lease。composition root 现在先同步进入不可逆 closed 状态，再退休当前 client，并让重复 dispose 共享唯一 settlement；测试 reset 仍通过先换新 owner 保持正常 replacement。journal 回归进一步覆盖旧 mutation 在途、replacement 接管后窗口关闭、retired response 迟到与下一冷启动接回同 key，确认 generation fence 和 Host KV owner cleanup 共同成立 | 红测稳定证明 teardown 中与 teardown 后旧 owner 均可复活，修复后 container/SDK/journal/methods 4 files / 76 tests 及 `--detectAsyncLeaks` 全绿；Frontend `npm run check` 与完整泄露检测均为 288 files / 1786 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites，994 locale keys 在 8 种语言完整；未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P87（Run opening command settlement） | 反证发现根 Start/HITL Resume 的 answer claim 与 Run opening 已 durable commit 后，`openSegment` 仍同步等待 executor activation；activation 卡住会让 Operation/idempotency 无法保存或返回已接受的 Run/Segment receipt。Application 现在显式区分结算边界：根 Start/Resume 在 commit、live-owner 注册与 opening publication 后立即结算，activation/pump 由原 Run lifecycle task继续拥有；waiting-child cancellation 保持同步，以保护其 post-commit Apply/Continue 验证。真实 SQLite 同时覆盖 claim-before-opening 与 opening-before-activation 两个强杀 shape，均由 survivor 恢复为 Lost并保留已接受 Question answer。无兼容路径、第二 activation owner 或协议/存储改动 | 单客户端 blocked Start/Resume 交错、detached activation failure、waiting-child cancellation 后置条件及 claimed/opened SQLite recovery 回归通过；runs/runrecovery/runsegment/server/operation 定向 race 全绿；Runtime workspace/standalone 全量 test、build、vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 diff-check 全绿；受影响 package 无 fuzz owner，未使用 agent-browser，进程检查无 Runtime/Go test/Chrome/daemon 残留；`app/cli` 未修改或暂存 |
 | 2026-08-15 | P86（survivor Run recovery read-model 收敛） | 反证发现 survivor 的周期 Run recovery 通过本 Runtime SQLite connection 提交，connection-local `PRAGMA data_version` 不会观察自己的 commit；因此数据库虽已收敛为 RunLost，当前 Runtime 的已挂载 HITL/Plan/Goal/Run/Tool 仍可能无限停在被强杀 owner 的旧投影。Run Recovery Application 现在从原子 `RecoveryCommit` 按 Session 汇总精确 scope，仅在 commit 成功后按 Runs、Interrupts、Sessions、Goals 顺序发布既有 invalidation；Bootstrap 只注入 publisher，不拥有恢复策略。真实 claimed-resume SQLite 回归同时冻结 accepted Question answer、隐藏 resuming row、conversation Tool closure 与 Lost Run 的一致性；事务失败和 live peer owner 均零通知。Protocol、SQLite schema、Artifact、Desktop Agent inner ring 与 Agent Framework 合同未变化 | application/SQLite/bootstrap 定向测试与 runs/runrecovery/ownershiprecovery race 全绿；Runtime `go test ./... -count=1 -timeout=10m`、build、vet、`make check-standalone`、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 diff-check 全绿；受影响 package 无 fuzz owner，未新增无业务意义的并发压力；`app/cli` 未修改或暂存 |
 | 2026-08-15 | P85（Desktop CWD 与右侧 Context Dock 接线） | Wails v3 Desktop Host 新增 native directory picker，严格返回已存在绝对目录；Navigation Application 以独立 port 组合 picker、Session create `{cwd}` 与 focus，取消零写入、失败不回退 home，同一在途用户意图只结算一次。Work Index 新增“打开文件夹”入口并覆盖 8 个 locale。只读对照桌面 Proma 源码后，明确区分额外目录附件与 Session CWD；Lynx 右栏继续使用现有 per-Session Context Dock owner，只新增统一 `view.toggle-dock` 命令及 `Mod+Shift+B`，折叠后不丢标签。Runtime、Protocol、SQLite、Desktop Agent inner ring 与 Go Agent Framework 合同均未变化 | 定向 6 files / 37 tests 与 typecheck 通过；Frontend `npm run check` 及完整 `--detectAsyncLeaks` 均为 288 files / 1784 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites，994 locale keys 在 8 种语言完整；Desktop `go test ./... -count=1`、`go vet ./...`、`go build ./...` 与 diff-check 全绿；`app/cli` 未修改或暂存 |
@@ -1663,6 +1685,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 68. 当前下一步
+## 69. 当前下一步
 
-P87 已让根 Start/HITL Resume 在 durable opening 后立即结算，并由唯一 Run lifecycle task继续 activation/pump；强杀落在 claim 或 opening 两侧均由 P86 recovery 收敛。下一批转向 Desktop renderer replacement 与窗口关闭交错，重点反证 mutation journal active claim、successor generation takeover、迟到 settlement 与 Host KV 清理的同一 identity 交接；仍只采用 1–2 个真实客户端，`app/cli` 继续只读且不暂存。
+P88 已使 final teardown 后的 Desktop composition owner 不可复活，并冻结 replacement 再关闭、retired response 迟到与冷启动接回同 mutation identity 的完整交接。下一批回到 `app/runtime`，以一个真实客户端的多轮长对话为主，反证连续 Segment/HITL resume、Run/Tool 重复或乱序事件、事务失败与重连/重启交错下的 durable transcript 和 mounted read model 不变量；`app/cli` 继续只读且不暂存。

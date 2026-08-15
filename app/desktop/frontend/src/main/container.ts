@@ -53,6 +53,11 @@ function defaultContainer(): DefaultContainerOwner {
   } | null = null;
   let sidecar: { endpoint: string; client: SidecarClient } | null = null;
   const retiring = new Set<Promise<void>>();
+  let closed = false;
+  let disposal: Promise<void> | undefined;
+  const assertOpen = () => {
+    if (closed) throw new Error("Desktop container is closed");
+  };
   const retire = (client: LyraClient) => {
     let closing!: Promise<void>;
     closing = client
@@ -63,6 +68,7 @@ function defaultContainer(): DefaultContainerOwner {
   };
   const container: Container = {
     client: () => {
+      assertOpen();
       const baseUrl = currentRuntimeEndpoint();
       const localToken = localTokenFor(baseUrl);
       const signature = `${baseUrl}\u0000${localToken ?? ""}`;
@@ -92,6 +98,7 @@ function defaultContainer(): DefaultContainerOwner {
       return client;
     },
     sidecar: () => {
+      assertOpen();
       const endpoint = currentRuntimeEndpoint();
       if (sidecar?.endpoint === endpoint) return sidecar.client;
       const client = createSidecarClient({ baseUrl: endpoint });
@@ -102,12 +109,14 @@ function defaultContainer(): DefaultContainerOwner {
   };
   return {
     container,
-    async dispose() {
-      if (shared) {
-        retire(shared.client);
-        shared = null;
-      }
-      await Promise.all(retiring);
+    dispose() {
+      if (disposal) return disposal;
+      closed = true;
+      if (shared) retire(shared.client);
+      shared = null;
+      sidecar = null;
+      disposal = Promise.all(retiring).then(() => undefined);
+      return disposal;
     },
   };
 }

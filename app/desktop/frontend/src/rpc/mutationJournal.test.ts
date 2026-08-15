@@ -961,6 +961,46 @@ describe("persistent mutation journal", () => {
     });
   });
 
+  it("preserves one identity when the replacement window closes before retired settlement", async () => {
+    const storage = new MemoryStorage();
+    const params = { sessionId: "ses_replacement_close" };
+    const retired = journal({ storage, scope: () => scope });
+    const original = retired.reserve("goals.resume", params)!;
+    let settleRetired!: (value: string) => void;
+    const pending = opening(
+      original,
+      () =>
+        new Promise<string>((resolve) => {
+          settleRetired = resolve;
+        }),
+    );
+    await vi.waitFor(() => expect(settleRetired).toBeTypeOf("function"));
+
+    retired.dispose();
+    const replacement = journal({ storage, scope: () => scope });
+    const inherited = replacement.reserve("goals.resume", params)!;
+    expect(inherited.idempotencyKey).toBe(original.idempotencyKey);
+    replacement.dispose();
+
+    settleRetired("retired response");
+    await expect(pending).resolves.toBe("retired response");
+    expect(persistedEntry(storage, original.idempotencyKey)).toMatchObject({
+      generation: 1,
+      claimable: true,
+      settled: false,
+    });
+    expect(storage.keys().filter((key) => key.startsWith("owner:"))).toEqual([]);
+
+    const restarted = journal({ storage, scope: () => scope });
+    const replay = restarted.reserve("goals.resume", params)!;
+    expect(replay.idempotencyKey).toBe(original.idempotencyKey);
+    expect(persistedEntry(storage, original.idempotencyKey)).toMatchObject({
+      generation: 2,
+      claimable: false,
+      settled: false,
+    });
+  });
+
   it("keeps a successor settlement fenced against an older renderer's later failure", async () => {
     const storage = new MemoryStorage();
     let currentTime = 1_000;
