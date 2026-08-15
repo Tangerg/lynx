@@ -456,6 +456,56 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 	}
 }
 
+func TestEventCommitMarkerDoesNotCrossSuspendResumeGeneration(t *testing.T) {
+	store, _ := newRunStores(t)
+	ctx := t.Context()
+	if err := store.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
+		t.Fatalf("Admit: %v", err)
+	}
+	if err := store.RecordEventCommit(
+		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
+	); err != nil {
+		t.Fatalf("RecordEventCommit: %v", err)
+	}
+	matched, err := store.EventCommitCommitted(
+		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
+	)
+	if err != nil || !matched {
+		t.Fatalf("active marker matched=%t err=%v, want true/nil", matched, err)
+	}
+	if err := store.Suspend(ctx, parkedRun("run_1", "ses_A")); err != nil {
+		t.Fatalf("Suspend: %v", err)
+	}
+	matched, err = store.EventCommitCommitted(
+		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
+	)
+	if err != nil || matched {
+		t.Fatalf("suspended marker matched=%t err=%v, want false/nil", matched, err)
+	}
+	if err := store.Resume(
+		ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Unix(6, 0).UTC(),
+	); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	matched, err = store.EventCommitCommitted(
+		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
+	)
+	if err != nil || matched {
+		t.Fatalf("resumed old marker matched=%t err=%v, want false/nil", matched, err)
+	}
+	if err := store.RecordEventCommit(
+		ctx, "ses_A", "run_1", "seg_next", "event_commit_next",
+	); err != nil {
+		t.Fatalf("RecordEventCommit next: %v", err)
+	}
+	matched, err = store.EventCommitCommitted(
+		ctx, "ses_A", "run_1", "seg_next", "event_commit_next",
+	)
+	if err != nil || !matched {
+		t.Fatalf("next marker matched=%t err=%v, want true/nil", matched, err)
+	}
+}
+
 // TestDeleteForSessionFreesSlot: dropping a session's rows wholesale (the
 // delete/restore cascade) removes even a non-terminal row, freeing the session.
 func TestDeleteForSessionFreesSlot(t *testing.T) {

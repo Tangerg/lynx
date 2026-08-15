@@ -313,14 +313,15 @@ type EventCommit struct {
 	// not otherwise carry segment identity. Persistence admits the transaction
 	// only while this exact Segment is still active for the Run.
 	SegmentID string
-	// TerminalCommitID is the stable identity of one immutable terminal
+	// CommitID is the stable identity of one immutable top-level CommitEvent
 	// write-set. Persistence records it inside that transaction, allowing a lost
-	// COMMIT receipt to be reconciled without treating a different Segment or a
-	// later terminal attempt as success. It is empty for non-terminal commits.
-	TerminalCommitID string
-	State            StateChange
-	Outcome          run.Outcome
-	Items            []transcript.Item
+	// COMMIT receipt to be reconciled without treating another Segment or write
+	// attempt as success. Nested opening/barrier projections may leave it empty;
+	// the top-level CommitEvent port boundary requires it.
+	CommitID string
+	State    StateChange
+	Outcome  run.Outcome
+	Items    []transcript.Item
 	// ConversationMessages are the provider-neutral messages this root
 	// execution made durable for future model context. Conversation and
 	// Transcript remain separate projections: the former feeds later model
@@ -387,8 +388,8 @@ func (c EventCommit) validateEnvelope() error {
 	if c.ObsoleteCheckpointRootID != strings.TrimSpace(c.ObsoleteCheckpointRootID) {
 		return errors.New("runs: event commit checkpoint root ID has surrounding whitespace")
 	}
-	if c.TerminalCommitID != strings.TrimSpace(c.TerminalCommitID) {
-		return errors.New("runs: event commit terminal identity has surrounding whitespace")
+	if c.CommitID != strings.TrimSpace(c.CommitID) {
+		return errors.New("runs: event commit identity has surrounding whitespace")
 	}
 	return nil
 }
@@ -479,7 +480,7 @@ func (c EventCommit) validateInvocations() error {
 func (c EventCommit) validateLifecycle() error {
 	switch c.State {
 	case StateUnchanged:
-		if c.Run != nil || c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" || c.TerminalCommitID != "" {
+		if c.Run != nil || c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: unchanged event commit carries lifecycle facts")
 		}
 		return nil
@@ -487,11 +488,11 @@ func (c EventCommit) validateLifecycle() error {
 		if c.Run == nil || c.Run.State() != run.Waiting {
 			return errors.New("runs: suspend event commit has no waiting Run")
 		}
-		if c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" || c.TerminalCommitID != "" {
+		if c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: suspend event commit carries terminal facts")
 		}
 	case StateTerminalize:
-		if c.TerminalCommitID == "" {
+		if c.CommitID == "" {
 			return errors.New("runs: terminal event commit has no commit identity")
 		}
 		if c.Run == nil || !c.Run.State().IsTerminal() {

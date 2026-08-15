@@ -63,22 +63,26 @@ func (p treePublisher) publish(
 		// for replay. A failed commit aborts execution instead of publishing an
 		// event the stores do not yet support.
 		if reduced.Commit != nil {
-			if reduced.Commit.State == StateTerminalize && route.member.ParentID == "" {
-				reduced.Commit.ObsoleteCheckpointRootID = route.member.MemberID
+			commit := *reduced.Commit
+			if commit.CommitID == "" {
+				commit.CommitID = newEventCommitID()
 			}
-			if err := p.coordinator.events.CommitEvent(ctx, *reduced.Commit); err != nil {
+			if commit.State == StateTerminalize && route.member.ParentID == "" {
+				commit.ObsoleteCheckpointRootID = route.member.MemberID
+			}
+			if err := p.coordinator.events.CommitEvent(ctx, commit); err != nil {
 				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
 			}
-			if reduced.Commit.State == StateTerminalize {
-				if reduced.Commit.Run == nil {
+			if commit.State == StateTerminalize {
+				if commit.Run == nil {
 					return reductionPublication{}, errors.New("runs: terminal commit has no run snapshot")
 				}
-				p.owner.recordTerminalRun(*reduced.Commit.Run)
+				p.owner.recordTerminalRun(*commit.Run)
 			}
-			for _, item := range reduced.Commit.Items {
+			for _, item := range commit.Items {
 				p.owner.recordChildCancellationItem(route.runID, item)
 			}
-			goalCharged = goalCharged || reduced.Commit.GoalRun != nil
+			goalCharged = goalCharged || commit.GoalRun != nil
 		}
 		if reduced.Event.Terminal() {
 			publication.finished = true
@@ -116,7 +120,10 @@ func (p treePublisher) publishAuthoritativeAtomically(
 	if batch.parkCommit != nil {
 		return reductionPublication{}, errors.New("runs: authoritative fact unexpectedly produced a park boundary")
 	}
-	combined := EventCommit{RunID: route.runID, SessionID: p.rootSpec.SessionID, SegmentID: route.segmentID}
+	combined := EventCommit{
+		RunID: route.runID, SessionID: p.rootSpec.SessionID, SegmentID: route.segmentID,
+		CommitID: newEventCommitID(),
+	}
 	for index, reduced := range batch.events {
 		if reduced.Event.Terminal() {
 			return reductionPublication{}, fmt.Errorf(
@@ -261,7 +268,7 @@ func combineTerminalEventCommit(batch reductionBatch) (EventCommit, error) {
 		}
 		if commit.State == StateTerminalize {
 			terminalCommits++
-			combined.TerminalCommitID = commit.TerminalCommitID
+			combined.CommitID = commit.CommitID
 			combined.State = commit.State
 			combined.Outcome = commit.Outcome
 			combined.Run = commit.Run

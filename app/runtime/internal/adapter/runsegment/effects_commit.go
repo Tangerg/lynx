@@ -315,6 +315,9 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 	if err := commit.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid event commit: %w", err)
 	}
+	if commit.CommitID == "" {
+		return errors.New("runsegment: event commit identity is required")
+	}
 	if commit.State == runs.StateSuspend {
 		return errors.New("runsegment: per-Run suspend commit is not allowed")
 	}
@@ -349,7 +352,7 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 		return nil
 	})
 	if err != nil {
-		settled, settleErr := e.reconcileTerminalCommit(ctx, commit)
+		settled, settleErr := e.reconcileEventCommit(ctx, commit)
 		if settled {
 			return nil
 		}
@@ -361,35 +364,34 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 	return nil
 }
 
-const terminalCommitReconciliationTimeout = 5 * time.Second
+const eventCommitReconciliationTimeout = 5 * time.Second
 
-// reconcileTerminalCommit turns this write-set's exact durable marker into its
+// reconcileEventCommit turns this write-set's exact durable marker into its
 // successful outcome. SQLite can report an error after COMMIT has crossed its
-// durable boundary, and a caller may replay after losing the success receipt;
-// in both cases blindly retrying is impossible because RequireActiveSegment
-// must reject a terminal Run. A terminal aggregate alone is not evidence: it
-// no longer carries its Segment and may have been restored or ended elsewhere.
-func (e *Effects) reconcileTerminalCommit(
+// durable boundary, and blindly retrying model/tool state transitions is not
+// safe. The aggregate and journals alone are not evidence because they may have
+// been written by another Segment or immutable write attempt.
+func (e *Effects) reconcileEventCommit(
 	ctx context.Context,
 	commit runs.EventCommit,
 ) (bool, error) {
-	if commit.State != runs.StateTerminalize || commit.Run == nil || e.runState == nil {
+	if e.runState == nil {
 		return false, nil
 	}
 	reconcileCtx, cancel := context.WithTimeout(
 		context.WithoutCancel(ctx),
-		terminalCommitReconciliationTimeout,
+		eventCommitReconciliationTimeout,
 	)
 	defer cancel()
-	settled, err := e.runState.TerminalEventCommitted(
+	settled, err := e.runState.EventCommitCommitted(
 		reconcileCtx,
 		commit.SessionID,
 		commit.RunID,
 		commit.SegmentID,
-		commit.TerminalCommitID,
+		commit.CommitID,
 	)
 	if err != nil {
-		return false, fmt.Errorf("runsegment: reconcile terminal commit: %w", err)
+		return false, fmt.Errorf("runsegment: reconcile event commit: %w", err)
 	}
 	return settled, nil
 }
@@ -494,6 +496,13 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 		}
 		if err := e.goalRuns.RecordRun(ctx, *commit.GoalRun); err != nil {
 			return fmt.Errorf("runsegment: record Goal Run: %w", err)
+		}
+	}
+	if commit.State == runs.StateUnchanged && commit.CommitID != "" {
+		if err := e.runState.RecordEventCommit(
+			ctx, commit.SessionID, commit.RunID, commit.SegmentID, commit.CommitID,
+		); err != nil {
+			return fmt.Errorf("runsegment: record event commit receipt: %w", err)
 		}
 	}
 	return nil
@@ -676,7 +685,7 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 		if err != nil {
 			return err
 		}
-		return e.runState.TerminalizeEvent(ctx, run, commit.SegmentID, commit.TerminalCommitID)
+		return e.runState.TerminalizeEvent(ctx, run, commit.SegmentID, commit.CommitID)
 	default:
 		return fmt.Errorf("runsegment: unknown run state change %d", commit.State)
 	}

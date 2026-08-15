@@ -151,6 +151,9 @@ func TestAuthoritativeProjectionFailurePreservesStartUntilAtomicRunLost(t *testi
 	if len(commits) != 2 {
 		t.Fatalf("committed write-sets = %d, want start + atomic lost", len(commits))
 	}
+	if commits[0].CommitID == "" || commits[1].CommitID == "" || commits[0].CommitID == commits[1].CommitID {
+		t.Fatalf("commit identities = %q, %q; want distinct non-empty write-set identities", commits[0].CommitID, commits[1].CommitID)
+	}
 	if got := commits[0].ModelInvocations; len(got) != 1 || got[0].State != ModelInvocationStarted {
 		t.Fatalf("first commit model invocations = %#v", got)
 	}
@@ -240,6 +243,16 @@ func TestConcurrentToolResultsCommitInModelOrder(t *testing.T) {
 	}
 
 	commits := effects.commitSnapshot()
+	seenCommitIDs := make(map[string]struct{}, len(commits))
+	for index, commit := range commits {
+		if commit.CommitID == "" {
+			t.Fatalf("commit[%d] has no write-set identity", index)
+		}
+		if _, duplicate := seenCommitIDs[commit.CommitID]; duplicate {
+			t.Fatalf("commit[%d] repeats write-set identity %q", index, commit.CommitID)
+		}
+		seenCommitIDs[commit.CommitID] = struct{}{}
+	}
 	for index, name := range []string{"first", "second"} {
 		commit := commits[index]
 		if len(commit.Items) != 1 || commit.Items[0].Status() != transcript.ItemRunning {
