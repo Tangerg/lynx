@@ -18,7 +18,7 @@ func TestEventCommitUsesCompleteRunStateInvariant(t *testing.T) {
 		MessageMark: run.UnknownMessageMark})
 
 	valid := EventCommit{
-		RunID: waiting.ID(), SessionID: waiting.SessionID(),
+		RunID: waiting.ID(), SessionID: waiting.SessionID(), SegmentID: "segment_1",
 		State: StateSuspend, Run: &waiting,
 	}
 	if err := valid.Validate(); err != nil {
@@ -40,7 +40,7 @@ func TestTerminalEventCommitAllowsOnlyTheTransactionalWatermarkPlaceholder(t *te
 		FinishedAt: createdAt.Add(time.Second), MessageMark: run.UnknownMessageMark})
 
 	commit := EventCommit{
-		RunID: record.ID(), SessionID: record.SessionID(), State: StateTerminalize,
+		RunID: record.ID(), SessionID: record.SessionID(), SegmentID: "segment_1", State: StateTerminalize,
 		Outcome: outcome, Run: &record,
 	}
 	if err := commit.Validate(); err != nil {
@@ -98,6 +98,10 @@ func TestEventCommitToolJournalOwnsMatchingItemState(t *testing.T) {
 		{name: "matched start", items: []transcript.Item{running}, invocation: started},
 		{name: "matched completion", items: []transcript.Item{completed}, invocation: terminal},
 		{name: "matched failed completion", items: []transcript.Item{failed}, invocation: terminal},
+		{name: "different Segment", items: []transcript.Item{running}, invocation: ToolInvocationCommit{
+			CallID: "call_1", ItemID: running.ID(), SegmentID: "segment_2",
+			State: ToolInvocationStarted, StartedAt: startedAt,
+		}, wantErr: true},
 		{name: "parked attempt", items: []transcript.Item{running}, invocation: ToolInvocationCommit{
 			CallID: "call_1", ItemID: running.ID(), SegmentID: "segment_1",
 			State: ToolInvocationIncomplete, StartedAt: startedAt, FinishedAt: finishedAt,
@@ -106,12 +110,33 @@ func TestEventCommitToolJournalOwnsMatchingItemState(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := (EventCommit{
-				RunID: "run_1", SessionID: "session", Items: test.items,
+				RunID: "run_1", SessionID: "session", SegmentID: "segment_1", Items: test.items,
 				ToolInvocations: []ToolInvocationCommit{test.invocation},
 			}).Validate()
 			if (err != nil) != test.wantErr {
 				t.Fatalf("Validate() error = %v, wantErr %t", err, test.wantErr)
 			}
 		})
+	}
+}
+
+func TestEventCommitOwnsInvocationAndProgressSegment(t *testing.T) {
+	startedAt := time.Date(2026, 8, 15, 1, 2, 3, 0, time.UTC)
+	commit := EventCommit{
+		RunID: "run_1", SessionID: "session", SegmentID: "segment_1",
+		ModelInvocations: []ModelInvocationCommit{{
+			CallID: "call_1", SegmentID: "segment_2",
+			State: ModelInvocationStarted, StartedAt: startedAt,
+		}},
+	}
+	if err := commit.Validate(); err == nil {
+		t.Fatal("EventCommit accepted a model invocation from another Segment")
+	}
+	commit.ModelInvocations = nil
+	commit.Progress = &RunProgressCommit{
+		SegmentID: "segment_2", Metrics: run.Metrics{}, UpdatedAt: startedAt,
+	}
+	if err := commit.Validate(); err == nil {
+		t.Fatal("EventCommit accepted progress from another Segment")
 	}
 }

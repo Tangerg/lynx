@@ -1375,7 +1375,7 @@ func TestReducerRejectsInvalidInterruptProjection(t *testing.T) {
 func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 	parkCommit := func() *EventCommit {
 		run := runfixture.MustRestore(run.Snapshot{State: run.Waiting})
-		return &EventCommit{
+		return &EventCommit{SegmentID: "segment_1",
 			State: StateSuspend,
 			Run:   &run,
 		}
@@ -1383,7 +1383,7 @@ func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 	terminalCommit := func() *EventCommit {
 		outcome := run.OutcomeCompleted
 		run := runfixture.MustRestore(run.Snapshot{State: run.Completed, Outcome: &outcome})
-		return &EventCommit{State: StateTerminalize, Outcome: outcome, Run: &run}
+		return &EventCommit{SegmentID: "segment_1", State: StateTerminalize, Outcome: outcome, Run: &run}
 	}
 	invalidTerminalCommit := terminalCommit()
 	invalidTerminalCommit.Outcome = run.OutcomeFailed
@@ -1399,7 +1399,7 @@ func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 		{name: "terminal has no commit", batch: reductionBatch{events: []reduction{{Event: SegmentFinished{}}}}},
 		{name: "terminal lifecycle is inconsistent", batch: reductionBatch{events: []reduction{{Event: SegmentFinished{}, Commit: invalidTerminalCommit}}}},
 		{name: "commit state is unknown", batch: reductionBatch{events: []reduction{{
-			Event: ItemCompleted{}, Commit: &EventCommit{State: StateChange(255)},
+			Event: ItemCompleted{}, Commit: &EventCommit{SegmentID: "segment_1", State: StateChange(255)},
 		}}}},
 		{name: "park has no terminal event", batch: reductionBatch{
 			events: []reduction{{Event: ItemStarted{}}}, parkCommit: parkCommit(),
@@ -1422,6 +1422,31 @@ func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 				t.Fatalf("validateReductionBatch error = %v, want reducer invariant violation", err)
 			}
 		})
+	}
+}
+
+func TestCombineTerminalEventCommitRejectsSegmentOwnershipChange(t *testing.T) {
+	var terminalRun run.Run
+	_, err := combineTerminalEventCommit(reductionBatch{events: []reduction{
+		{Commit: &EventCommit{RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_old"}},
+		{Commit: &EventCommit{
+			RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_new",
+			State: StateTerminalize, Run: &terminalRun,
+		}},
+	}})
+	if err == nil {
+		t.Fatal("combined terminal batch changed Segment ownership")
+	}
+}
+
+func TestValidateRouteCommitRejectsSegmentOwnershipChange(t *testing.T) {
+	err := validateRouteCommit(
+		&executorRoute{runID: "run_1", segmentID: "segment_new"},
+		"ses_1",
+		&EventCommit{RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_old"},
+	)
+	if !errors.Is(err, errReducerInvariant) {
+		t.Fatalf("validateRouteCommit error = %v, want reducer invariant", err)
 	}
 }
 

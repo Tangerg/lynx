@@ -235,7 +235,7 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 		CreatedAt: started, FinishedAt: started.Add(time.Minute),
 		UpdatedAt: started.Add(time.Minute), MessageMark: run.UnknownMessageMark})
 	commit := appRuns.EventCommit{
-		RunID: "run_1", SessionID: sess.ID(), State: appRuns.StateTerminalize, Outcome: outcome,
+		RunID: "run_1", SessionID: sess.ID(), SegmentID: "seg_open", State: appRuns.StateTerminalize, Outcome: outcome,
 		Run: &terminal,
 	}
 	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {

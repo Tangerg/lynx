@@ -309,6 +309,10 @@ func (progress RunProgressCommit) validate() error {
 type EventCommit struct {
 	RunID     string
 	SessionID string
+	// SegmentID owns the complete event write-set, including projections that do
+	// not otherwise carry segment identity. Persistence admits the transaction
+	// only while this exact Segment is still active for the Run.
+	SegmentID string
 	State     StateChange
 	Outcome   run.Outcome
 	Items     []transcript.Item
@@ -349,6 +353,9 @@ func (c EventCommit) Validate() error {
 		if err := c.Progress.validate(); err != nil {
 			return err
 		}
+		if c.Progress.SegmentID != c.SegmentID {
+			return fmt.Errorf("runs: event commit progress belongs to Segment %q, want %q", c.Progress.SegmentID, c.SegmentID)
+		}
 	}
 	return c.validateLifecycle()
 }
@@ -368,6 +375,9 @@ func (c EventCommit) validateEnvelope() error {
 	}
 	if strings.TrimSpace(c.SessionID) == "" || c.SessionID != strings.TrimSpace(c.SessionID) {
 		return errors.New("runs: event commit Session ID must be non-empty without surrounding whitespace")
+	}
+	if strings.TrimSpace(c.SegmentID) == "" || c.SegmentID != strings.TrimSpace(c.SegmentID) {
+		return errors.New("runs: event commit Segment ID must be non-empty without surrounding whitespace")
 	}
 	if c.ObsoleteCheckpointRootID != strings.TrimSpace(c.ObsoleteCheckpointRootID) {
 		return errors.New("runs: event commit checkpoint root ID has surrounding whitespace")
@@ -405,6 +415,9 @@ func (c EventCommit) validateInvocations() error {
 		if _, duplicate := seenInvocations[invocation.CallID]; duplicate {
 			return fmt.Errorf("runs: event commit repeats model invocation %q", invocation.CallID)
 		}
+		if invocation.SegmentID != c.SegmentID {
+			return fmt.Errorf("runs: event commit model invocation[%d] belongs to Segment %q, want %q", index, invocation.SegmentID, c.SegmentID)
+		}
 		seenInvocations[invocation.CallID] = struct{}{}
 	}
 	seenTools := make(map[string]struct{}, len(c.ToolInvocations))
@@ -415,6 +428,9 @@ func (c EventCommit) validateInvocations() error {
 		}
 		if _, duplicate := seenTools[invocation.CallID]; duplicate {
 			return fmt.Errorf("runs: event commit repeats Tool invocation %q", invocation.CallID)
+		}
+		if invocation.SegmentID != c.SegmentID {
+			return fmt.Errorf("runs: event commit Tool invocation[%d] belongs to Segment %q, want %q", index, invocation.SegmentID, c.SegmentID)
 		}
 		if _, duplicate := seenToolItems[invocation.ItemID]; duplicate {
 			return fmt.Errorf("runs: event commit repeats Tool invocation Item %q", invocation.ItemID)

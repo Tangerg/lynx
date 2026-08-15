@@ -103,6 +103,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID:     "run_1",
 		SessionID: "ses_1",
+		SegmentID: "segment_1",
 		State:     runs.StateTerminalize,
 		Outcome:   run.OutcomeCompleted,
 		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
@@ -120,6 +121,9 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	if len(runState.terminalized) != 1 {
 		t.Fatalf("terminalized = %+v, want one finished run", runState.terminalized)
 	}
+	if !slices.Equal(runState.eventSegments, []string{"ses_1/run_1/segment_1"}) {
+		t.Fatalf("event Segment admissions = %v, want exact commit owner", runState.eventSegments)
+	}
 	finished := runState.terminalized[0]
 	if finished.SessionID() != "ses_1" || finished.ID() != "run_1" || !runHasOutcome(finished, run.OutcomeCompleted) {
 		t.Fatalf("terminalized run = %+v", finished)
@@ -135,12 +139,12 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 	toolResults := new(fakeToolResults)
 	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
-	effects := testEffects(stores, Config{Tx: new(fakeTx).run})
+	effects := testEffects(stores, Config{State: new(fakeRunState), Tx: new(fakeTx).run})
 	ref := &toolresult.Ref{ID: "BLOB234"}
 	preview := tool.StringResult("preview")
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
-		RunID: "run_1", SessionID: "ses_1",
+		RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_1",
 		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
@@ -165,6 +169,7 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 	toolResults := new(fakeToolResults)
 	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
 	effects := testEffects(stores, Config{
+		State: new(fakeRunState),
 		Tx: func(context.Context, func(context.Context) error) error {
 			return want
 		},
@@ -173,7 +178,7 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 	preview := tool.StringResult("preview")
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
-		RunID: "run_1", SessionID: "ses_1",
+		RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_1",
 		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
@@ -198,6 +203,7 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID:     "run_1",
 		SessionID: "ses_1",
+		SegmentID: "segment_1",
 		State:     runs.StateTerminalize,
 		Outcome:   run.OutcomeCompleted,
 		Run:       finishedRunRecord("run_1", "ses_1", run.OutcomeCompleted),
@@ -216,7 +222,7 @@ func TestCommitEventRejectsUnknownStateChange(t *testing.T) {
 		Tx:    new(fakeTx).run,
 	})
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
-		RunID: "run_1", SessionID: "ses_1", State: runs.StateChange(255),
+		RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_1", State: runs.StateChange(255),
 		Run: runPointer(runfixture.MustRestore(run.Snapshot{SessionID: "ses_1", ID: "run_1"})),
 	})
 	if err == nil {
@@ -236,6 +242,7 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
+			SegmentID: "seg_open",
 			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: time.Unix(1, 0).UTC(),
 			})},
@@ -343,6 +350,7 @@ func TestCommitOpeningResumesAfterSeparateAnswerClaim(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
+			SegmentID: "seg_next",
 			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: now,
 			})},
@@ -382,6 +390,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 		Runs: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
+			SegmentID: "segment_1",
 			State:     runs.StateSuspend,
 			Run: runPointer(runfixture.MustRestore(run.Snapshot{SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 				ModelSelection: pending.Continuations[0].ModelSelection,
@@ -436,7 +445,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 		Pending:    pending,
 		Checkpoint: testRootExecutorCheckpoint(),
 		Runs: []runs.EventCommit{{
-			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
+			RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_1", State: runs.StateSuspend,
 			Run: runPointer(runfixture.MustRestore(run.Snapshot{SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 				CreatedAt:   createdAt,
 				MessageMark: run.UnknownMessageMark})),
@@ -485,7 +494,7 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 				Pending:    pending,
 				Checkpoint: checkpoint,
 				Runs: []runs.EventCommit{{
-					RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
+					RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_1", State: runs.StateSuspend,
 					Run: runPointer(runfixture.MustRestore(run.Snapshot{SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 						CreatedAt:   createdAt,
 						MessageMark: run.UnknownMessageMark})),
@@ -584,7 +593,7 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
 				Pending: pending, Checkpoint: checkpoint,
 				Runs: []runs.EventCommit{{
-					RunID: run.ID(), SessionID: run.SessionID(),
+					RunID: run.ID(), SessionID: run.SessionID(), SegmentID: "segment_1",
 					State: runs.StateSuspend, Run: &run,
 				}},
 			})
@@ -828,10 +837,11 @@ func mustResolveMessageMark(t *testing.T, record run.Run, mark int) run.Run {
 
 // fakeRunState records the run-state transitions the commit applies.
 type fakeRunState struct {
-	admitted     []run.Draft
-	resumed      []string
-	suspended    []run.Run
-	terminalized []run.Run
+	admitted      []run.Draft
+	resumed       []string
+	eventSegments []string
+	suspended     []run.Run
+	terminalized  []run.Run
 }
 
 func (r *fakeRunState) Admit(_ context.Context, draft run.Draft) error {
@@ -841,6 +851,11 @@ func (r *fakeRunState) Admit(_ context.Context, draft run.Draft) error {
 
 func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ run.ResumeDraft, _ time.Time) error {
 	r.resumed = append(r.resumed, sessionID)
+	return nil
+}
+
+func (r *fakeRunState) RequireActiveSegment(_ context.Context, sessionID, runID, segmentID string) error {
+	r.eventSegments = append(r.eventSegments, sessionID+"/"+runID+"/"+segmentID)
 	return nil
 }
 

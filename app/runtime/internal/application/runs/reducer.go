@@ -677,7 +677,7 @@ func (r *reducer) attachDurableObservation(
 	} else {
 		last := &batch.events[len(batch.events)-1]
 		if last.Commit == nil {
-			last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
+			last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID, SegmentID: r.cfg.SegmentID}
 		}
 		commit = last.Commit
 	}
@@ -700,7 +700,7 @@ func (r *reducer) attachDurableItems(batch *reductionBatch, items []transcript.I
 	}
 	last := &batch.events[len(batch.events)-1]
 	if last.Commit == nil {
-		last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
+		last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID, SegmentID: r.cfg.SegmentID}
 	}
 	last.Commit.Items = append(last.Commit.Items, items...)
 	return validateReductionBatch(*batch)
@@ -715,7 +715,7 @@ func (r *reducer) attachConversationMessages(batch *reductionBatch, messages []c
 	}
 	last := &batch.events[len(batch.events)-1]
 	if last.Commit == nil {
-		last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
+		last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID, SegmentID: r.cfg.SegmentID}
 	}
 	last.Commit.ConversationMessages = appendClonedMessages(last.Commit.ConversationMessages, messages...)
 	return validateReductionBatch(*batch)
@@ -974,7 +974,7 @@ func (r *reducer) fenceFinalState(events []RunEvent) []RunEvent {
 }
 
 func (r *reducer) projectOne(event RunEvent) (reduction, error) {
-	commit := EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
+	commit := EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID, SegmentID: r.cfg.SegmentID}
 	var nudge *Nudge
 	switch e := event.(type) {
 	case ItemCompleted:

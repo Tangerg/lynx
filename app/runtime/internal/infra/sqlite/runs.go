@@ -309,6 +309,40 @@ func (s *RunStore) Resume(
 	})
 }
 
+// RequireActiveSegment proves that an event transaction still belongs to the
+// exact running Segment that produced it. Callers execute this read through the
+// transaction-bound connection before any projection write; a replacement,
+// park, or terminal transition therefore rejects the complete stale write-set.
+func (s *RunStore) RequireActiveSegment(ctx context.Context, sessionID, runID, segmentID string) error {
+	if sessionID == "" || runID == "" || segmentID == "" {
+		return errors.New("sqlite: require active Run Segment needs session, Run, and Segment identity")
+	}
+	var state, activeSegmentID string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT state, active_segment_id
+		   FROM runs
+		  WHERE session_id = ? AND run_id = ?`,
+		sessionID,
+		runID,
+	).Scan(&state, &activeSegmentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("sqlite: Run %q was not found in session %q", runID, sessionID)
+	}
+	if err != nil {
+		return fmt.Errorf("sqlite: read active Segment for Run %q: %w", runID, err)
+	}
+	if state != runStateRunning || activeSegmentID != segmentID {
+		return fmt.Errorf(
+			"sqlite: Run %q is %s in Segment %q, want running Segment %q",
+			runID,
+			state,
+			activeSegmentID,
+			segmentID,
+		)
+	}
+	return nil
+}
+
 // UpdateMetrics records the cumulative accounting observed at one model-call
 // boundary while fencing the write to the exact active segment. It never moves
 // lifecycle state and rejects a stale or regressing snapshot.

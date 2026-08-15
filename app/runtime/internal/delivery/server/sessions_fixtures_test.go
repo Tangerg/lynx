@@ -875,6 +875,9 @@ func (stubRunState) Resume(
 ) error {
 	return nil
 }
+func (stubRunState) RequireActiveSegment(context.Context, string, string, string) error {
+	return nil
+}
 func (stubRunState) Suspend(context.Context, run.Run) error     { return nil }
 func (stubRunState) Terminalize(context.Context, run.Run) error { return nil }
 

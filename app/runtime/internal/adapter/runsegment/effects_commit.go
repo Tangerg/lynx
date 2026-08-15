@@ -417,6 +417,12 @@ func (e *Effects) compensateFailedCommit(ctx context.Context, commit runs.EventC
 }
 
 func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) error {
+	if e.runState == nil {
+		return errors.New("runsegment: run-state persistence is unavailable")
+	}
+	if err := e.runState.RequireActiveSegment(ctx, commit.SessionID, commit.RunID, commit.SegmentID); err != nil {
+		return fmt.Errorf("runsegment: require active event Segment: %w", err)
+	}
 	for _, item := range commit.Items {
 		if err := e.appendItem(ctx, item); err != nil {
 			return err

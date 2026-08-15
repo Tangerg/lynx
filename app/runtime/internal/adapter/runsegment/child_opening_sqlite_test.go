@@ -63,7 +63,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	if err := effects.CommitOpening(t.Context(), runs.OpeningCommit{
 		Admit: &child,
 		Events: []runs.EventCommit{{
-			RunID: root.RunID, SessionID: root.SessionID,
+			RunID: root.RunID, SessionID: root.SessionID, SegmentID: root.SegmentID,
 			Items: []transcript.Item{spawningItem},
 		}},
 	}); err != nil {
@@ -111,7 +111,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	err = failingEffects.CommitOpening(t.Context(), runs.OpeningCommit{
 		Admit: &rolledBackChild,
 		Events: []runs.EventCommit{{
-			RunID: root.RunID, SessionID: root.SessionID,
+			RunID: root.RunID, SessionID: root.SessionID, SegmentID: root.SegmentID,
 			Items: []transcript.Item{rolledBackItem},
 		}},
 	})

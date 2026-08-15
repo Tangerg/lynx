@@ -1544,10 +1544,32 @@
 - 领域公式位于 `domain/conversation`，跨聚合计划位于 `application/conversations`，事务执行位于 `adapter/persistence` / SQLite；`runmaintenance` 只决定压缩内容和 cutoff，Bootstrap 只装配；
 - Protocol、Artifact、SQLite schema epoch、Desktop 与 Agent Framework 合同不变；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
 
-## 69. 进度记录
+## 69. P90 — EventCommit Segment 代际事务准入
+
+### 目标
+
+关闭 HITL Resume 替换活动 Segment 后，旧 Segment 的迟到事件仍可向同一 Run 提交完整写集的代际缺口。旧 `EventCommit` 只有 Run/Session envelope；Model/Tool/Progress 的局部 Segment fence 无法保护纯 Transcript/Conversation 投影，terminal Run 又会清空 `active_segment_id`，导致旧 Segment 的终态在时间与累计 metrics 恰好可重放时结束新恢复的 Segment。
+
+### 工作项
+
+- [x] P90-01 以一个客户端的真实 SQLite `Running(seg_old) → Waiting → Running(seg_new)` 顺序交错，稳定证明旧 Segment terminal 能错误结束新 Segment；不依赖高并发或概率 race；
+- [x] P90-02 将 `SegmentID` 提升为 Application `EventCommit` 的完整 envelope，Reducer、authoritative batch、terminal combine、child opening 与 route invariant 均只产生同一 Segment 的写集；Model/Tool/Progress 必须与 envelope 精确一致；
+- [x] P90-03 在 runsegment 已有 SQLite transaction 内、任何 Transcript/Conversation/invocation/progress/lifecycle/Goal 写入前执行 `RequireActiveSegment`，只有仍处于 Running 且 active Segment 精确匹配的 Run 才能提交；
+- [x] P90-04 覆盖旧 Segment terminal、纯 Transcript + Conversation 迟到投影、combined terminal Segment 混代、Model/Tool/Progress 混代，以及 fresh/resumed/child opening 和 tree barrier 的 Segment 传递；
+- [x] P90-05 保持 waiting subtree cancellation 的 Waiting→terminal 专用写集不伪造 active Segment；它继续从已收敛 Pending/Run aggregate 直接 terminalize，不被普通 live event 准入路径混同。
+
+### 验收
+
+- EventCommit 的全部 durable projection 共享唯一 Run/Session/Segment owner；局部 invocation/progress fence 不再掩盖 transcript、conversation 或 lifecycle 的无代际写入；
+- 旧 Segment 在 Resume 后无论提交 terminal 还是 item/message-only write-set，都在事务首个持久化动作前失败；新 Segment 的 Run 状态、active identity 与所有 read model 保持不变；
+- route/reducer 属于 Application，事务准入属于 runsegment consumer port，SQLite 只证明当前 durable active Segment；没有兼容双路径、读取时修补或 Agent Framework/Delivery 反向依赖；
+- Protocol、Artifact 与 SQLite schema epoch 不变；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
+
+## 70. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P90（EventCommit Segment generation admission） | 反证发现 HITL Resume 用 `seg_new` 替换活动代际后，旧 `seg_old` 的迟到 `EventCommit` 仍只按 Run/Session 提交。Model/Tool invocation 与 Progress 虽各自携带 Segment，纯 Transcript/Conversation 没有 fence；terminal aggregate 又已清空 active Segment，因此旧终态在累计 metrics 与时间可重放时会从当前 `seg_new` aggregate 推导出完全相等的 terminal Run，错误结束恢复后的对话。Application 现在让每个 EventCommit 以 Run/Session/Segment 共同拥有完整写集，Reducer、authoritative combine、route 与 child opening 都保持同代；runsegment 在原事务的任何 projection 写入前要求 SQLite 中该 Run 仍为精确 Running Segment。waiting cancellation 继续走其 Waiting aggregate 专用事务，不伪造 live Segment。无 schema、wire、compat 或双路径 | 单客户端真实 SQLite `seg_old → Waiting → seg_new` 回归分别注入旧 terminal 与 item/message-only write-set：两者均 fail closed，Run 保持 running `seg_new`，Transcript/Conversation 零写入；Application 锁定 Model/Tool/Progress 与 combined terminal 混代拒绝。核心场景连续 10×、Runtime `go test ./... -count=1`、standalone tidy/build/vet/test、受影响 5 包 race、staticcheck、`deadcode -test`、golangci-lint（0 issues）、`go generate ./...` 与 diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P89（long-conversation compaction coordinate convergence） | 反证发现 `runmaintenance` 以原子 `MessageStore.Replace` 将长对话从旧历史改写为 `[summary, optional live reminder, recent…]`，但所有既有 terminal Run 的 `message_mark` 仍停留在压缩前坐标；连续多轮后旧水位可超过当前消息数，Session snapshot/export/fork/rollback 会拒绝同库数据。Conversation Domain 现在拥有唯一 compaction coordinate transform；Conversations Application 从完整 Run snapshot 决定 exact watermark replacements；Persistence 在一个 SQLite transaction 内重验 expected message count 与完整 Run set，再同时替换历史并以 expected-value CAS 重基准 terminal Runs。摘要区内已不可区分的历史边界显式折叠到 replacement prefix，suffix 保持相对距离，纯内容裁剪零坐标变化；不存在读取时 clamp、兼容双路径或 SQLite 自行发明业务公式 | 单客户端 4 个顺序 Run、两次连续长对话压缩后，所有旧/新 Run 水位均落在当前 3 条历史内，旧/最新 Run fork 继续成立；SQLite trigger 注入 Run-watermark 更新失败时，消息和全部水位一起回滚，原始 8 条历史完整保留；直接 SQL invariant 为零。领域/Application/Persistence/runmaintenance/Bootstrap 定向测试与 10× SQLite 场景、受影响包 race 全绿；Runtime `go test ./... -count=1` 全包、standalone build/vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 architecture gate 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P88（Desktop final teardown ownership） | 反证发现 final window teardown 虽同步释放当前 client 的 mutation journal claim，却把 `shared` 清空后继续暴露可调用的旧 factory；等待 retiring transport 时，迟到 bootstrap/事件回调可复活一个不在 teardown settlement 内的 successor client，重新领取 mutation identity 并遗留 transport/lease。composition root 现在先同步进入不可逆 closed 状态，再退休当前 client，并让重复 dispose 共享唯一 settlement；测试 reset 仍通过先换新 owner 保持正常 replacement。journal 回归进一步覆盖旧 mutation 在途、replacement 接管后窗口关闭、retired response 迟到与下一冷启动接回同 key，确认 generation fence 和 Host KV owner cleanup 共同成立 | 红测稳定证明 teardown 中与 teardown 后旧 owner 均可复活，修复后 container/SDK/journal/methods 4 files / 76 tests 及 `--detectAsyncLeaks` 全绿；Frontend `npm run check` 与完整泄露检测均为 288 files / 1786 tests、零泄露，consumer 为 87/87 operation fact families（84 direct + 3 server-materialized）+ 3/3 sidecars + 16/16 events / 103 typed call sites，994 locale keys 在 8 种语言完整；未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P87（Run opening command settlement） | 反证发现根 Start/HITL Resume 的 answer claim 与 Run opening 已 durable commit 后，`openSegment` 仍同步等待 executor activation；activation 卡住会让 Operation/idempotency 无法保存或返回已接受的 Run/Segment receipt。Application 现在显式区分结算边界：根 Start/Resume 在 commit、live-owner 注册与 opening publication 后立即结算，activation/pump 由原 Run lifecycle task继续拥有；waiting-child cancellation 保持同步，以保护其 post-commit Apply/Continue 验证。真实 SQLite 同时覆盖 claim-before-opening 与 opening-before-activation 两个强杀 shape，均由 survivor 恢复为 Lost并保留已接受 Question answer。无兼容路径、第二 activation owner 或协议/存储改动 | 单客户端 blocked Start/Resume 交错、detached activation failure、waiting-child cancellation 后置条件及 claimed/opened SQLite recovery 回归通过；runs/runrecovery/runsegment/server/operation 定向 race 全绿；Runtime workspace/standalone 全量 test、build、vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 diff-check 全绿；受影响 package 无 fuzz owner，未使用 agent-browser，进程检查无 Runtime/Go test/Chrome/daemon 残留；`app/cli` 未修改或暂存 |

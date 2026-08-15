@@ -259,6 +259,7 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 				fixture.commit.OpeningEvents = []runs.EventCommit{{
 					RunID:     fixture.rootRun.ID(),
 					SessionID: fixture.rootRun.SessionID(),
+					SegmentID: fixture.commit.Resume.Runs[0].SegmentID,
 					Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 						ID:         "item_root_continuation",
 						SessionID:  fixture.rootRun.SessionID(),

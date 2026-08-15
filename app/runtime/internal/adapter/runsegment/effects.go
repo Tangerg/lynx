@@ -145,10 +145,14 @@ type ToolInvocationJournal interface {
 // stay consistent with. Suspend and Terminalize both take the whole Run because
 // a state change and the accounting true at that moment are one fact: a park is
 // a durable commit, so what the Run had spent by then is committed with it. The
-// sqlite RunStore satisfies it.
+// RequireActiveSegment is the admission fence for every EventCommit: it proves
+// the complete write-set still belongs to the exact running Segment before any
+// transcript, conversation, invocation, accounting, or lifecycle fact moves.
+// The sqlite RunStore satisfies it.
 type RunWriter interface {
 	Admit(ctx context.Context, draft run.Draft) error
 	Resume(ctx context.Context, sessionID string, draft run.ResumeDraft, resumedAt time.Time) error
+	RequireActiveSegment(ctx context.Context, sessionID, runID, segmentID string) error
 	Suspend(ctx context.Context, run run.Run) error
 	Terminalize(ctx context.Context, run run.Run) error
 }

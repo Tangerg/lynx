@@ -459,12 +459,14 @@ func validateRouteCommit(route *executorRoute, sessionID string, commit *EventCo
 	if commit == nil {
 		return nil
 	}
-	if commit.RunID != route.runID || commit.SessionID != sessionID {
+	if commit.RunID != route.runID || commit.SessionID != sessionID || commit.SegmentID != route.segmentID {
 		return fmt.Errorf(
-			"%w: route %q commit targets run %q in session %q",
+			"%w: route %q Segment %q commit targets Run %q Segment %q in session %q",
 			errReducerInvariant,
 			route.runID,
+			route.segmentID,
 			commit.RunID,
+			commit.SegmentID,
 			commit.SessionID,
 		)
 	}
@@ -697,6 +699,7 @@ func (c *Coordinator) prepareChildOpening(
 		Events: []EventCommit{{
 			RunID:     parent.runID,
 			SessionID: spec.SessionID,
+			SegmentID: parent.segmentID,
 			Items:     []transcript.Item{spawningItem},
 		}},
 	}

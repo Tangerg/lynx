@@ -90,7 +90,7 @@ func TestCommitOpeningResumePreservesAnswerClaimOnRollback(t *testing.T) {
 		ResumedAt: time.Now().UTC(),
 		Runs:      []run.ResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
 	}
-	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1"}}})
+	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1", SegmentID: "seg_next"}}})
 	if err == nil {
 		t.Fatal("CommitOpening must reject an interrupt that does not own the active run")
 	}
@@ -143,6 +143,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
+			SegmentID: "seg_next",
 			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_1", ID: "item_resumed", OccurredAt: created,
 				Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
@@ -201,6 +202,7 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 	effects := New(Config{
 		Transcript:       history,
 		ModelInvocations: invocations,
+		State:            runState,
 		RunMetrics:       runState,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
@@ -211,7 +213,7 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 		State: runs.ModelInvocationStarted, StartedAt: startedAt,
 	}
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: "run_model", SessionID: "ses_model", ModelInvocations: []runs.ModelInvocationCommit{start},
+		RunID: "run_model", SessionID: "ses_model", SegmentID: "seg_model", ModelInvocations: []runs.ModelInvocationCommit{start},
 	}); err != nil {
 		t.Fatalf("commit start: %v", err)
 	}
@@ -230,7 +232,7 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 		SegmentID: "seg_wrong", Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1, Usage: usage}), UpdatedAt: finishedAt,
 	}
 	err = effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: "run_model", SessionID: "ses_model", Items: []transcript.Item{item},
+		RunID: "run_model", SessionID: "ses_model", SegmentID: "seg_model", Items: []transcript.Item{item},
 		ModelInvocations: []runs.ModelInvocationCommit{completion}, Progress: &wrongSegment,
 	})
 	if err == nil {
@@ -249,7 +251,7 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 	progress := wrongSegment
 	progress.SegmentID = "seg_model"
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: "run_model", SessionID: "ses_model", Items: []transcript.Item{item},
+		RunID: "run_model", SessionID: "ses_model", SegmentID: "seg_model", Items: []transcript.Item{item},
 		ModelInvocations: []runs.ModelInvocationCommit{completion}, Progress: &progress,
 	}); err != nil {
 		t.Fatalf("commit final: %v", err)
@@ -271,6 +273,135 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 	}
 }
 
+func TestCommitEventRejectsTerminalFromReplacedSegment(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	startedAt := time.Date(2026, 8, 15, 1, 0, 0, 0, time.UTC)
+	parkedAt := startedAt.Add(time.Second)
+	resumedAt := parkedAt.Add(time.Second)
+	finishedAt := resumedAt.Add(time.Second)
+	store := sqlite.NewRunStore(db)
+	draft := run.Draft{
+		RunID: "run_resumed", SessionID: "ses_resumed", SegmentID: "seg_old", CreatedAt: startedAt,
+	}
+	if err := store.Admit(ctx, draft); err != nil {
+		t.Fatal(err)
+	}
+	oldSegment, err := run.Admit(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting, err := oldSegment.Suspend(parkedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Suspend(ctx, waiting); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Resume(ctx, draft.SessionID, run.ResumeDraft{
+		RunID: draft.RunID, SegmentID: "seg_new",
+	}, resumedAt); err != nil {
+		t.Fatal(err)
+	}
+	staleTerminal, err := oldSegment.Terminate(run.Termination{
+		Outcome: run.OutcomeCompleted, FinishedAt: finishedAt, MessageMark: 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	effects := New(Config{
+		State: store,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: draft.RunID, SessionID: draft.SessionID,
+		SegmentID: "seg_old",
+		State:     runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: &staleTerminal,
+	}); err == nil {
+		t.Fatal("terminal fact from the replaced Segment ended the resumed Run")
+	}
+	current, found, err := store.Run(ctx, draft.RunID)
+	if err != nil || !found {
+		t.Fatalf("read resumed Run = found %v, err %v", found, err)
+	}
+	if current.State() != run.Running || current.ActiveSegmentID() != "seg_new" {
+		t.Fatalf("Run after stale terminal = %s/%q, want running seg_new", current.State(), current.ActiveSegmentID())
+	}
+}
+
+func TestCommitEventRejectsProjectionFromReplacedSegmentBeforeWritingAnything(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	startedAt := time.Date(2026, 8, 15, 2, 0, 0, 0, time.UTC)
+	store := sqlite.NewRunStore(db)
+	draft := run.Draft{
+		RunID: "run_resumed", SessionID: "ses_resumed", SegmentID: "seg_old", CreatedAt: startedAt,
+	}
+	if err := store.Admit(ctx, draft); err != nil {
+		t.Fatal(err)
+	}
+	oldSegment, err := run.Admit(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting, err := oldSegment.Suspend(startedAt.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Suspend(ctx, waiting); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Resume(ctx, draft.SessionID, run.ResumeDraft{
+		RunID: draft.RunID, SegmentID: "seg_new",
+	}, startedAt.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	history := sqlite.NewTranscriptStore(db)
+	messages := sqlite.NewMessageStore(db)
+	effects := New(Config{
+		State: store, Transcript: history, Conversation: messages,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	item := itemfixture.MustRestore(itemfixture.Input{
+		SessionID: draft.SessionID, RunID: draft.RunID, ID: "item_stale",
+		Status: transcript.ItemCompleted, Kind: transcript.AgentMessage,
+		OccurredAt: startedAt.Add(3 * time.Second),
+		Content:    []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "stale"}},
+	})
+	err = effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: "seg_old",
+		Items: []transcript.Item{item},
+		ConversationMessages: []chat.Message{
+			chat.NewAssistantMessage(chat.NewTextPart("stale")),
+		},
+	})
+	if err == nil {
+		t.Fatal("projection from the replaced Segment committed")
+	}
+	if items, listErr := history.List(ctx, draft.SessionID); listErr != nil || len(items) != 0 {
+		t.Fatalf("transcript after stale write-set = %#v, %v; want empty", items, listErr)
+	}
+	if count, countErr := messages.Count(ctx, draft.SessionID); countErr != nil || count != 0 {
+		t.Fatalf("conversation after stale write-set = %d, %v; want empty", count, countErr)
+	}
+	current, found, readErr := store.Run(ctx, draft.RunID)
+	if readErr != nil || !found || current.State() != run.Running || current.ActiveSegmentID() != "seg_new" {
+		t.Fatalf("Run after stale write-set = found:%t state:%s Segment:%q err:%v", found, current.State(), current.ActiveSegmentID(), readErr)
+	}
+}
+
 func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
@@ -289,7 +420,7 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 	history := sqlite.NewTranscriptStore(db)
 	invocations := sqlite.NewToolInvocationStore(db)
 	effects := New(Config{
-		Transcript: history, ToolInvocations: invocations, RunMetrics: runState,
+		Transcript: history, ToolInvocations: invocations, State: runState, RunMetrics: runState,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -307,7 +438,7 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 			SafetyClass: tool.SafetyClassSafe,
 		})
 		if err := effects.CommitEvent(ctx, runs.EventCommit{
-			RunID: "run_tools", SessionID: "ses_tools", Items: []transcript.Item{running},
+			RunID: "run_tools", SessionID: "ses_tools", SegmentID: "seg_tools", Items: []transcript.Item{running},
 			ToolInvocations: []runs.ToolInvocationCommit{start},
 		}); err != nil {
 			t.Fatalf("commit Tool start %q: %v", start.CallID, err)
@@ -335,7 +466,7 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 		SegmentID: "seg_wrong", Metrics: run.Metrics{}, UpdatedAt: finishedAt,
 	}
 	err = effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: "run_tools", SessionID: "ses_tools", Items: items,
+		RunID: "run_tools", SessionID: "ses_tools", SegmentID: "seg_tools", Items: items,
 		ToolInvocations: terminals, Progress: &wrongSegment,
 	})
 	if err == nil {
@@ -358,7 +489,7 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 	progress := wrongSegment
 	progress.SegmentID = "seg_tools"
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: "run_tools", SessionID: "ses_tools", Items: items,
+		RunID: "run_tools", SessionID: "ses_tools", SegmentID: "seg_tools", Items: items,
 		ToolInvocations: terminals, Progress: &progress,
 	}); err != nil {
 		t.Fatalf("commit canonical Tool batch: %v", err)
@@ -593,7 +724,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 		// test exercises rollback rather than a preflight rejection.
 		ScheduleFiring: "fire_missing",
 		Events: []runs.EventCommit{{
-			RunID: draft.RunID, SessionID: draft.SessionID,
+			RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID,
 			Run: runPointer(runfixture.MustRestore(run.Snapshot{ID: draft.RunID, SessionID: draft.SessionID, UpdatedAt: created})),
 		}},
 	})
@@ -669,7 +800,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	updated = mustResolveMessageMark(t, updated, 0)
 	finished := &updated
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
+		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID, State: runs.StateTerminalize,
 		Outcome: run.OutcomeCompleted,
 		Run:     finished,
 		GoalRun: &goal.RunRecord{
@@ -753,7 +884,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		Pending:    pending,
 		Checkpoint: checkpoint,
 		Runs: []runs.EventCommit{{
-			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
+			RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", State: runs.StateSuspend,
 			Items: []transcript.Item{
 				itemfixture.MustRestore(itemfixture.Input{
 					SessionID: "ses_1", ID: "item_tool", RunID: "run_1",
@@ -838,7 +969,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 		Pending:    pending,
 		Checkpoint: checkpoint,
 		Runs: []runs.EventCommit{{
-			RunID: "run_missing", SessionID: "ses_rollback", State: runs.StateSuspend,
+			RunID: "run_missing", SessionID: "ses_rollback", SegmentID: "seg_open", State: runs.StateSuspend,
 			Run: &parkedRun,
 		}},
 	})
@@ -1019,7 +1150,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			resolved := mustResolveMessageMark(t, *finished, 0)
 			finished = &resolved
 			err := fixture.effects.CommitEvent(fixture.ctx, runs.EventCommit{
-				RunID: "run_terminal", SessionID: "ses_terminal", State: runs.StateTerminalize,
+				RunID: "run_terminal", SessionID: "ses_terminal", SegmentID: "seg_terminal", State: runs.StateTerminalize,
 				Outcome: run.OutcomeCompleted, Run: finished,
 				ObsoleteCheckpointRootID: fixture.rootMemberID,
 			})
@@ -1759,6 +1890,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_2",
 			SessionID: "ses_1",
+			SegmentID: second.SegmentID,
 			ConversationMessages: []chat.Message{
 				chat.NewUserMessage(chat.NewTextPart("me too")),
 			},
@@ -1811,7 +1943,7 @@ func TestCommitEventAppendsConversationBeforeResolvingTerminalWatermark(t *testi
 	})
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeCompleted)
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: draft.RunID, SessionID: draft.SessionID,
+		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID,
 		State: runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
 		ConversationMessages: []chat.Message{
 			chat.NewAssistantMessage(chat.NewTextPart("done")),
@@ -1872,7 +2004,7 @@ func TestRootTerminalCommitReclaimsChildStartReservations(t *testing.T) {
 	})
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeCompleted)
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: draft.RunID, SessionID: draft.SessionID,
+		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID,
 		State: runs.StateTerminalize, Outcome: run.OutcomeCompleted, Run: finished,
 		ObsoleteCheckpointRootID: "member_root_1",
 	}); err != nil {
@@ -1929,7 +2061,7 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 	updated = mustResolveMessageMark(t, updated, 0)
 	finished = &updated
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
+		RunID: draft.RunID, SessionID: draft.SessionID, SegmentID: draft.SegmentID, State: runs.StateTerminalize,
 		Outcome: run.OutcomeFailed, Run: finished,
 	}); err != nil {
 		t.Fatalf("CommitEvent: %v", err)

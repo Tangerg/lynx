@@ -116,7 +116,7 @@ func (p treePublisher) publishAuthoritativeAtomically(
 	if batch.parkCommit != nil {
 		return reductionPublication{}, errors.New("runs: authoritative fact unexpectedly produced a park boundary")
 	}
-	combined := EventCommit{RunID: route.runID, SessionID: p.rootSpec.SessionID}
+	combined := EventCommit{RunID: route.runID, SessionID: p.rootSpec.SessionID, SegmentID: route.segmentID}
 	for index, reduced := range batch.events {
 		if reduced.Event.Terminal() {
 			return reductionPublication{}, fmt.Errorf(
@@ -236,8 +236,10 @@ func combineTerminalEventCommit(batch reductionBatch) (EventCommit, error) {
 		if !envelopeSet {
 			combined.RunID = commit.RunID
 			combined.SessionID = commit.SessionID
+			combined.SegmentID = commit.SegmentID
 			envelopeSet = true
-		} else if commit.RunID != combined.RunID || commit.SessionID != combined.SessionID {
+		} else if commit.RunID != combined.RunID || commit.SessionID != combined.SessionID ||
+			commit.SegmentID != combined.SegmentID {
 			return EventCommit{}, fmt.Errorf(
 				"runs: atomic terminal event[%d] changes commit ownership",
 				index,
