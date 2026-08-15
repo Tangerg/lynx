@@ -16,6 +16,8 @@ type dispatchAttemptContextKey struct{}
 // projection failure after any call in the Effect has crossed that boundary.
 type dispatchAttempt struct {
 	effectID agent.EffectID
+	failure  context.Context
+	fail     context.CancelCauseFunc
 
 	mu            sync.Mutex
 	externalCalls uint32
@@ -23,7 +25,8 @@ type dispatchAttempt struct {
 }
 
 func newDispatchAttempt(effectID agent.EffectID) *dispatchAttempt {
-	return &dispatchAttempt{effectID: effectID}
+	failure, fail := context.WithCancelCause(context.Background())
+	return &dispatchAttempt{effectID: effectID, failure: failure, fail: fail}
 }
 
 func withDispatchAttempt(ctx context.Context, attempt *dispatchAttempt) context.Context {
@@ -56,11 +59,35 @@ func (attempt *dispatchAttempt) recordProjectionFailure(err error) {
 		return
 	}
 	attempt.mu.Lock()
-	defer attempt.mu.Unlock()
 	if attempt.projectionErr == nil {
 		attempt.projectionErr = err
 	} else {
 		attempt.projectionErr = errors.Join(attempt.projectionErr, err)
+	}
+	fail := attempt.fail
+	attempt.mu.Unlock()
+	if fail != nil {
+		fail(err)
+	}
+}
+
+// projectionContext detaches a post-external projection from ordinary Effect
+// cancellation while still retiring it when another member of the same Effect
+// proves the aggregate outcome indeterminate.
+func (attempt *dispatchAttempt) projectionContext(parent context.Context) (context.Context, context.CancelFunc) {
+	bound, cancel := context.WithCancelCause(parent)
+	stop := context.AfterFunc(attempt.failure, func() {
+		cancel(context.Cause(attempt.failure))
+	})
+	return bound, func() {
+		stop()
+		cancel(nil)
+	}
+}
+
+func (attempt *dispatchAttempt) close() {
+	if attempt.fail != nil {
+		attempt.fail(context.Canceled)
 	}
 }
 

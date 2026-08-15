@@ -230,6 +230,69 @@ func TestInteractionExecutorCancellationStopsCooperativeInflightModel(t *testing
 	}
 }
 
+func TestInteractionExecutorCancellationWinsWhileModelStartCommitIsSettling(t *testing.T) {
+	var modelCalls int
+	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		modelCalls++
+		return interactionUsageTextResponse("unexpected", 1, 1), nil
+	})
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{})
+	ref, err := executor.StageRoot(t.Context(), interactionTestStart())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := executor.Release(context.Background(), ref); err != nil {
+			t.Errorf("Release: %v", err)
+		}
+	})
+	sequence, err := executor.Observe(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	startCommitSeen := make(chan struct{})
+	releaseCommit := make(chan struct{})
+	eventsReady := make(chan []runs.ExecutorEvent, 1)
+	go func() {
+		var events []runs.ExecutorEvent
+		for event := range sequence {
+			if commit, authoritative := event.Payload.(runs.ExecutionFactCommit); authoritative {
+				if _, starting := commit.Fact.(runs.ModelCallStarted); starting {
+					close(startCommitSeen)
+					<-releaseCommit
+				}
+				commit.Complete(nil)
+				event.Payload = commit.Fact
+			}
+			events = append(events, event)
+		}
+		eventsReady <- events
+	}()
+	if err := executor.BeginRoot(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	<-startCommitSeen
+	if err := executor.RequestRootCancellation(t.Context(), ref, "operator canceled before model admission"); err != nil {
+		t.Fatal(err)
+	}
+	// The authoritative consumer may settle after the dispatch context was
+	// canceled. The accepted cancellation must still own the product terminal.
+	close(releaseCommit)
+	var events []runs.ExecutorEvent
+	select {
+	case events = <-eventsReady:
+	case <-time.After(time.Second):
+		t.Fatal("canceled pre-model boundary did not settle")
+	}
+	if modelCalls != 0 {
+		t.Fatalf("model calls = %d, want 0 before a settled start boundary", modelCalls)
+	}
+	ended := payloadsOf[runs.SegmentEnded](events)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeCanceled {
+		t.Fatalf("segment end = %#v, want canceled", ended)
+	}
+}
+
 func TestInteractionExecutorBindsResolvedRunScopeToManifestAndToolCalls(t *testing.T) {
 	start := interactionTestStart()
 	start.CWD = "/isolated/project"
@@ -718,6 +781,103 @@ func TestInteractionExecutorMakesWholeConcurrentEffectUnknownWhenOneResultWriteF
 	}
 }
 
+func TestInteractionExecutorMakesConcurrentEffectUnknownWhenDeniedSiblingProjectionFails(t *testing.T) {
+	deniedInner, err := toolcontract.NewFunc(toolcontract.FuncConfig{
+		Name: "denied_write", Description: "A write rejected by policy.",
+	}, func(context.Context, struct{}) (string, error) {
+		return "unexpected", nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	externalResultCommitSeen := make(chan struct{})
+	var externalCalls int
+	externalInner, err := toolcontract.NewFunc(toolcontract.FuncConfig{
+		Name: "external_write", Description: "A concurrently safe external write.",
+	}, func(context.Context, struct{}) (string, error) {
+		externalCalls++
+		return "written", nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &observationScriptModel{responses: []*chat.Response{
+		interactionToolBatchResponse([]chat.ToolCall{
+			{ID: "provider_denied", Name: "denied_write", Arguments: `{}`},
+			{ID: "provider_external", Name: "external_write", Arguments: `{}`},
+		}, 1, 1),
+	}}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
+		ToolResolver: staticInteractionTools{manifest: toolset.Manifest{Visible: []toolcontract.Tool{
+			concurrentInteractionTool{Tool: deniedInner},
+			concurrentInteractionTool{Tool: externalInner},
+		}}},
+		ToolInterpreter: testInteractionToolInterpreter{},
+		ToolAuthorizer: selectiveDenyInteractionTools{
+			name: "denied_write", reason: "blocked by policy", waitBeforeDenial: externalResultCommitSeen,
+		},
+		MaxConcurrentToolCalls: 2,
+	})
+	projectionFailure := errors.New("denial store unavailable")
+	ref, err := executor.StageRoot(t.Context(), interactionTestStart())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := executor.Release(context.Background(), ref); err != nil {
+			t.Errorf("Release: %v", err)
+		}
+	})
+	sequence, err := executor.Observe(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventsReady := make(chan []runs.ExecutorEvent, 1)
+	go func() {
+		var events []runs.ExecutorEvent
+		for event := range sequence {
+			if commit, authoritative := event.Payload.(runs.ExecutionFactCommit); authoritative {
+				finished, toolFinished := commit.Fact.(runs.ToolCallFinished)
+				switch {
+				case toolFinished && finished.Failure == nil:
+					// Model-order persistence cannot commit index 1 before the
+					// denied index 0. Keep this receipt unsettled to reproduce the
+					// real pump's pending canonical-prefix wait.
+					close(externalResultCommitSeen)
+				case toolFinished && finished.Failure.Kind == domaintool.FailureDenied:
+					commit.Complete(projectionFailure)
+				default:
+					commit.Complete(nil)
+				}
+				event.Payload = commit.Fact
+			}
+			events = append(events, event)
+			if _, unknown := event.Payload.(runs.UnknownEffectsDetected); unknown {
+				break
+			}
+		}
+		eventsReady <- events
+	}()
+	if err := executor.BeginRoot(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	var events []runs.ExecutorEvent
+	select {
+	case events = <-eventsReady:
+	case <-time.After(time.Second):
+		t.Fatal("concurrent Tool batch remained blocked on the sibling's canonical result receipt")
+	}
+	if externalCalls != 1 {
+		t.Fatalf("external Tool calls = %d, want 1", externalCalls)
+	}
+	if unknown := payloadsOf[runs.UnknownEffectsDetected](events); len(unknown) != 1 || len(unknown[0].IDs) != 1 {
+		t.Fatalf("unknown observations = %#v, want whole concurrent Effect unknown", unknown)
+	}
+	if ended := payloadsOf[runs.SegmentEnded](events); len(ended) != 0 {
+		t.Fatalf("concurrent external Effect was projected as definite: %#v", ended)
+	}
+}
+
 func TestInteractionExecutorCommitsAutomaticDenialWithoutCallingTool(t *testing.T) {
 	var toolCalls int
 	executable, err := toolcontract.NewFunc(toolcontract.FuncConfig{
@@ -895,6 +1055,34 @@ func (authorizer denyingInteractionTools) AuthorizeTool(context.Context, ToolAut
 
 func (authorizer denyingInteractionTools) ResolveToolApproval(context.Context, ToolAuthorizationRequest, runs.ApprovalPrompt, interrupt.Resolution) (ToolAuthorizationDecision, error) {
 	return ToolAuthorizationDecision{Denied: true, Reason: authorizer.reason}, nil
+}
+
+type selectiveDenyInteractionTools struct {
+	name             string
+	reason           string
+	waitBeforeDenial <-chan struct{}
+}
+
+func (authorizer selectiveDenyInteractionTools) AuthorizeTool(
+	_ context.Context,
+	request ToolAuthorizationRequest,
+) (ToolAuthorizationDecision, error) {
+	if request.ToolName != authorizer.name {
+		return ToolAuthorizationDecision{}, nil
+	}
+	if authorizer.waitBeforeDenial != nil {
+		<-authorizer.waitBeforeDenial
+	}
+	return ToolAuthorizationDecision{Denied: true, Reason: authorizer.reason}, nil
+}
+
+func (authorizer selectiveDenyInteractionTools) ResolveToolApproval(
+	ctx context.Context,
+	request ToolAuthorizationRequest,
+	_ runs.ApprovalPrompt,
+	_ interrupt.Resolution,
+) (ToolAuthorizationDecision, error) {
+	return authorizer.AuthorizeTool(ctx, request)
 }
 
 type testInteractionToolInterpreter struct{}

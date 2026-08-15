@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P91 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P92 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -99,6 +99,7 @@
 | P89 | 长对话 compaction 与 Run boundary 坐标统一收敛 | P88 + 连续多轮压缩 / fork / 事务失败与 SQLite 不变量 | 已完成 |
 | P90 | EventCommit Segment 代际事务准入 | P89 + HITL resume 后旧 Segment 迟到写集反例 | 已完成 |
 | P91 | Interaction Host 前置边界失败结算 | P90 + Agent Baseline 22 / 模型与 Tool 调用前事务失败注入 | 已完成 |
+| P92 | 并行 Tool Effect 外部边界与失败仲裁 | P91 + 两 Tool 窗口 / pending canonical receipt / approval failure 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1588,10 +1589,32 @@
 - Agent Interaction protocol v5 的互斥 mode、prior-version rejection、public/private digest 和 Runtime external-module consumer 全绿；workspace 与 `GOWORK=off` 解析同一已发布 Agent source；
 - Protocol、Artifact、SQLite schema epoch 与 Desktop 均不变；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
 
-## 71. 进度记录
+## 71. P92 — 并行 Tool Effect 外部边界与失败仲裁
+
+### 目标
+
+关闭 P91 单 Tool definite Host failure 在两个显式并行 Tool 的同一 Effect 中被错误泛化的缺口。一个 sibling 的 Tool start 或自动审批拒绝投影失败时，另一个 sibling 可能已经跨越外部调用并在等待模型顺序的 canonical result prefix；若整批仍结算 definite HostFailure，会抹掉已经发生的外部副作用，真实 Run pump 还会形成“pending result receipt 等待缺失前缀、Dispatcher 等待全部 goroutine”的闭环。
+
+### 工作项
+
+- [x] P92-01 只用两个明确声明可并行的 Tool、窗口 2 构造确定性交错：index 1 外部写已发生且 result receipt 未结算，index 0 自动拒绝结果的权威提交失败；证明旧实现既不报告 unknown，又无法退休 pending sibling；
+- [x] P92-02 让一个 Agent Effect 的 `dispatchAttempt` 统一仲裁外部边界与 Host projection failure：失败先发生时禁止后续 sibling 跨界，任一 sibling 已跨界时整批只能是 indeterminate；
+- [x] P92-03 为 post-external canonical projection 建立 attempt-owned retirement context；它忽略普通 Effect cancellation以保护已发生调用的 durable result，却在同 Effect 已被证明 indeterminate 时立即释放等待，不再依赖 Run teardown打破环；
+- [x] P92-04 保持单 Tool 的 P91 行为：外部调用前提交失败仍 definite internal；并行 sibling 已跨界时转入既有 unknown-effect/RunLost 路径，不能产生模型可见 Tool result 或 definite SegmentEnded；
+- [x] P92-05 冻结 root cancellation 与 pre-model commit settlement 交错：已接受取消继续拥有产品 terminal，即使 start receipt 在 dispatch context 取消后才成功结算，provider 仍为零调用。
+
+### 验收
+
+- 两 Tool 场景中外部调用恰好一次；失败的 approval projection 不泄露普通 Tool output，未结算 canonical sibling receipt 被 attempt failure 主动退休，Run 收到唯一 unknown Effect且没有 definite terminal；
+- Host failure 先于全部 external call 时后续 sibling 无法跨界，仍按 P91 唯一 internal terminal；root cancellation 不被 Host failure 抢占；
+- 改动止于 Runtime→Agent 防腐层 `adapter/agentexec`，Agent Framework、Application、Domain、Persistence、Protocol、Artifact、SQLite 与 Desktop 合同均不变化；
+- 核心两 Tool交错重复与 race、agentexec 全包 race、Runtime workspace/standalone 全门禁通过；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
+
+## 72. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-15 | P92（concurrent Tool Effect boundary arbitration） | P91 的单 Tool HostFailure 反例扩展到一个真实窗口中的两个 Tool 后，发现 index 1 外部写已经发生并等待 canonical result prefix，index 0 自动审批拒绝投影失败却把整批结算为 definite internal；真实 pump 还会让 sibling receipt 与 Dispatcher 互相等待。`dispatchAttempt` 现在统一拥有 Effect 级外部边界和失败 arbitration：Host projection failure 会阻止尚未跨界的 sibling，并通过独立 failure context 退休已跨界 sibling 的 post-external projection wait；只要任一外部调用发生，wrapper 就走既有 unknown-effect/RunLost，单 Tool 零外部调用仍保持 P91 definite internal。另补 accepted root cancellation 与迟到 model-start receipt 交错，取消 terminal 保持优先且 provider 零调用。无 Agent Framework、Application/Domain/Persistence、Protocol、SQLite 或 Desktop 变化 | 两 Tool / window 2 的 pending canonical receipt 红测修复前稳定得到零 unknown并超时，修复后外部 Tool 恰好一次、唯一 unknown、零 SegmentEnded；核心场景 20×、race 5× 与 agentexec 全包普通/race 全绿。Runtime workspace/standalone test/build/vet/staticcheck/deadcode/lint/tidy/generate/diff-check及资源清理在本批提交前完成；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P91（Interaction Host pre-call failure settlement） | 反证发现 Runtime 在模型/Tool 外部调用前提交 ModelCallStarted、ToolCallStarted、自动审批拒绝结果或 applied steer 失败时，Agent Dispatcher 只能返回普通 error：模型路径被误报 provider unavailable，Tool/denial 路径更把 Host 持久化失败写进模型上下文并开始下一 turn。Agent Interaction 现以中性 `HostFailure`、protocol v5 互斥 `host_error` definite settlement 和稳定 `interaction.host.failed` 终止；Runtime 只在 `adapter/agentexec` 标记 pre-call 权威提交失败并投影为 internal failure。调用后结果不明仍走既有 attempt tracker，普通 provider/Tool error 不变。Agent ADR-A2-076 / Baseline 22 已先以 canonical commit `a9f35b30656a` 发布，Runtime standalone 绑定其唯一 pseudo-version，无 replace、shim 或双路径 | 单客户端 Model/Tool/approval-denial/steer 四类失败注入证明外部调用零发生、unknown effect 为零、后续模型 turn 为零，核心场景 10× 与 Agent/Runtime adapter race 全绿；Agent standalone build/vet/staticcheck/test/Interaction race/lint/tidy-diff 与 public/private baseline 全绿。Runtime workspace/standalone 全包 test、external-consumer、build、vet、受影响 adapter/architecture race、staticcheck、deadcode、golangci-lint（0 issues）、tidy、generate 与 diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P90（EventCommit Segment generation admission） | 反证发现 HITL Resume 用 `seg_new` 替换活动代际后，旧 `seg_old` 的迟到 `EventCommit` 仍只按 Run/Session 提交。Model/Tool invocation 与 Progress 虽各自携带 Segment，纯 Transcript/Conversation 没有 fence；terminal aggregate 又已清空 active Segment，因此旧终态在累计 metrics 与时间可重放时会从当前 `seg_new` aggregate 推导出完全相等的 terminal Run，错误结束恢复后的对话。Application 现在让每个 EventCommit 以 Run/Session/Segment 共同拥有完整写集，Reducer、authoritative combine、route 与 child opening 都保持同代；runsegment 在原事务的任何 projection 写入前要求 SQLite 中该 Run 仍为精确 Running Segment。waiting cancellation 继续走其 Waiting aggregate 专用事务，不伪造 live Segment。无 schema、wire、compat 或双路径 | 单客户端真实 SQLite `seg_old → Waiting → seg_new` 回归分别注入旧 terminal 与 item/message-only write-set：两者均 fail closed，Run 保持 running `seg_new`，Transcript/Conversation 零写入；Application 锁定 Model/Tool/Progress 与 combined terminal 混代拒绝。核心场景连续 10×、Runtime `go test ./... -count=1`、standalone tidy/build/vet/test、受影响 5 包 race、staticcheck、`deadcode -test`、golangci-lint（0 issues）、`go generate ./...` 与 diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P89（long-conversation compaction coordinate convergence） | 反证发现 `runmaintenance` 以原子 `MessageStore.Replace` 将长对话从旧历史改写为 `[summary, optional live reminder, recent…]`，但所有既有 terminal Run 的 `message_mark` 仍停留在压缩前坐标；连续多轮后旧水位可超过当前消息数，Session snapshot/export/fork/rollback 会拒绝同库数据。Conversation Domain 现在拥有唯一 compaction coordinate transform；Conversations Application 从完整 Run snapshot 决定 exact watermark replacements；Persistence 在一个 SQLite transaction 内重验 expected message count 与完整 Run set，再同时替换历史并以 expected-value CAS 重基准 terminal Runs。摘要区内已不可区分的历史边界显式折叠到 replacement prefix，suffix 保持相对距离，纯内容裁剪零坐标变化；不存在读取时 clamp、兼容双路径或 SQLite 自行发明业务公式 | 单客户端 4 个顺序 Run、两次连续长对话压缩后，所有旧/新 Run 水位均落在当前 3 条历史内，旧/最新 Run fork 继续成立；SQLite trigger 注入 Run-watermark 更新失败时，消息和全部水位一起回滚，原始 8 条历史完整保留；直接 SQL invariant 为零。领域/Application/Persistence/runmaintenance/Bootstrap 定向测试与 10× SQLite 场景、受影响包 race 全绿；Runtime `go test ./... -count=1` 全包、standalone build/vet、staticcheck、`deadcode -test`、golangci-lint、tidy-diff、`go generate ./...` 与 architecture gate 全绿；受影响包无 fuzz owner，未使用 agent-browser，本仓进程与 17171 监听为零，`app/cli` 未修改或暂存 |
@@ -1754,6 +1777,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 72. 当前下一步
+## 73. 当前下一步
 
-P91 已使 Runtime 权威 pre-call 边界失败确定终止，不再伪装 provider/Tool 业务结果或推进长对话。下一批继续以一个客户端反证同 Segment 的重复/乱序 terminal 与调用后投影结果不明：重点检查 Run/Tool 结算、Plan/Goal 失效和冷重启恢复是否仍只提交一次；`app/cli` 继续只读且不暂存。
+P92 已把 P91 的 definite Host failure 精确限制在整个 Effect 均未跨越外部调用的情形，并让两 Tool canonical receipt 在 sibling failure 下可退出。下一批继续以一个客户端反证同 Segment terminal commit 的响应不明、重复恢复和 Run/Tool/Plan/Goal 失效收敛；`app/cli` 继续只读且不暂存。

@@ -48,6 +48,7 @@ func (dispatcher *interactionDispatcher) Dispatch(
 	ctx, finishDispatch := dispatcher.session.beginDispatch(ctx, request)
 	defer finishDispatch()
 	attempt := newDispatchAttempt(request.ID())
+	defer attempt.close()
 	settlement, err := dispatcher.inner.Dispatch(withDispatchAttempt(ctx, attempt), request, emit)
 	if projectionErr := attempt.indeterminateFailure(); projectionErr != nil {
 		dispatcher.session.wakeUnknownReconciliation()
@@ -306,7 +307,9 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		SafetyClass: observed.interpreter.SafetyClass(call.Name),
 	}
 	if err := observed.session.commitFact(ctx, member, start); err != nil {
-		return "", interaction.HostFailure(fmt.Errorf("agentexec: commit Tool call start: %w", err))
+		failure := interaction.HostFailure(fmt.Errorf("agentexec: commit Tool call start: %w", err))
+		attempt.recordProjectionFailure(failure)
+		return "", failure
 	}
 	observed.session.recordToolCall()
 	if denied {
@@ -318,7 +321,9 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 			Kind: tool.FailureDenied,
 		}
 		if err := observed.session.commitFact(ctx, member, end); err != nil {
-			return "", interaction.HostFailure(fmt.Errorf("agentexec: commit denied Tool result: %w", err))
+			failure := interaction.HostFailure(fmt.Errorf("agentexec: commit denied Tool result: %w", err))
+			attempt.recordProjectionFailure(failure)
+			return "", failure
 		}
 		observed.session.recordToolOutcome(call.Name, arguments, denialReason)
 		return denialReason, nil
@@ -334,6 +339,9 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		mutatedPaths = append(mutatedPaths, paths...)
 	})
 	output, callErr := observed.inner.Call(ctx, rawArguments)
+	if attemptErr := attempt.indeterminateFailure(); attemptErr != nil {
+		return "", attemptErr
+	}
 	if errors.Is(context.Cause(ctx), errInteractionRunCanceled) &&
 		(errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded)) {
 		// The product cancellation plane, unlike an arbitrary caller deadline,
@@ -365,7 +373,8 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	// Its commit receipt intentionally waits for the canonical durable prefix;
 	// the Effect context and executor release own that wait, not an arbitrary local
 	// timeout that could misclassify a healthy long-running sibling as unknown.
-	projectionCtx := context.WithoutCancel(ctx)
+	projectionCtx, cancelProjection := attempt.projectionContext(context.WithoutCancel(ctx))
+	defer cancelProjection()
 	commitErr := observed.session.commitFact(projectionCtx, member, end)
 	if commitErr != nil {
 		attempt.recordProjectionFailure(commitErr)
