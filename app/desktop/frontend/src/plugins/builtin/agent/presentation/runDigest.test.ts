@@ -27,6 +27,7 @@ const view = (
   toolCalls: {},
   runId: "r1",
   running: false,
+  outcome: null,
   ...patch,
 });
 
@@ -40,7 +41,7 @@ describe("deriveLatestRun", () => {
       runId: "r2",
       timeline: [
         entry({ kind: "run-start", runId: "r1" }),
-        entry({ kind: "run-end", runId: "r1" }),
+        entry({ kind: "run-end", runId: "r1", status: "ok" }),
         entry({ kind: "run-start", runId: "r2" }),
         entry({ kind: "tool-start", runId: "r2", refId: "t1", summary: "shell" }),
       ],
@@ -54,8 +55,9 @@ describe("deriveLatestRun", () => {
     const ok = view({
       timeline: [
         entry({ kind: "run-start", runId: "r1" }),
-        entry({ kind: "run-end", runId: "r1" }),
+        entry({ kind: "run-end", runId: "r1", status: "ok" }),
       ],
+      outcome: { type: "completed" },
     });
     expect(deriveLatestRun(ok)?.status).toBe("ok");
 
@@ -74,6 +76,37 @@ describe("deriveLatestRun", () => {
       running: true,
     });
     expect(deriveLatestRun(running)?.status).toBe("running");
+  });
+
+  it("does not report canceled and limit outcomes as successful", () => {
+    const canceled = {
+      ...view({
+        timeline: [
+          entry({ kind: "run-start", runId: "r1" }),
+          entry({ kind: "run-end", runId: "r1", summary: "canceled" }),
+        ],
+      }),
+      outcome: { type: "canceled" as const },
+    };
+    const limited = {
+      ...view({
+        timeline: [
+          entry({ kind: "run-start", runId: "r1" }),
+          entry({ kind: "run-end", runId: "r1", summary: "maxSteps" }),
+        ],
+      }),
+      outcome: { type: "maxSteps" as const },
+    };
+    const unproven = view({
+      timeline: [
+        entry({ kind: "run-start", runId: "r1" }),
+        entry({ kind: "run-end", runId: "r1" }),
+      ],
+    });
+
+    expect(deriveLatestRun(canceled)?.status).toBe("canceled");
+    expect(deriveLatestRun(limited)?.status).toBe("limit");
+    expect(deriveLatestRun(unproven)?.status).toBe("unknown");
   });
 
   it("buckets file writes, file reads, and shell runs via toolCalls", () => {

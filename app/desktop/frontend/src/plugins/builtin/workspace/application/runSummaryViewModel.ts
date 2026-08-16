@@ -51,6 +51,14 @@ const STATUS_BADGE_BY_STATUS: Record<RunDigest["status"], RunSummaryBadge> = {
     labelKey: "runSummary.status.unknown",
     tone: "neutral",
   },
+  canceled: {
+    labelKey: "agent.runTree.status.canceled",
+    tone: "neutral",
+  },
+  limit: {
+    labelKey: "agent.runTree.status.limit",
+    tone: "warning",
+  },
 };
 
 const APPROVAL_BADGE_BY_DECISION: Record<

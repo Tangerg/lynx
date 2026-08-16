@@ -3,6 +3,7 @@ import type { RunDigest } from "@/plugins/builtin/agent/public/runDigest";
 import {
   useActiveSessionTimeline,
   useActiveSessionToolCalls,
+  useCurrentRootOutcome,
   useCurrentRootRunId,
   useIsCurrentRootRunning,
 } from "@/plugins/builtin/agent/public/run";
@@ -13,9 +14,10 @@ export function useLatestRunDigest(): RunDigest | null {
   const toolCalls = useActiveSessionToolCalls();
   const runId = useCurrentRootRunId();
   const running = useIsCurrentRootRunning();
+  const outcome = useCurrentRootOutcome();
 
   return useMemo(
-    () => deriveLatestRun({ timeline, toolCalls, runId, running }),
-    [timeline, toolCalls, runId, running],
+    () => deriveLatestRun({ timeline, toolCalls, runId, running, outcome }),
+    [timeline, toolCalls, runId, running, outcome],
   );
 }

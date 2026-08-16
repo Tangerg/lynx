@@ -8,7 +8,11 @@
 
 import type { Translate } from "@/lib/i18n";
 import type { ApprovalDecision } from "../domain/hitl";
-import type { TimelineEntry, ToolCall } from "@/plugins/sdk/types/agentSessionView";
+import type {
+  AgentRunOutcome,
+  TimelineEntry,
+  ToolCall,
+} from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../domain/toolCategory";
 
 export interface ApprovalDigest {
@@ -31,7 +35,7 @@ export interface RunDigest {
   runId: string | null;
   startedAt: number | null;
   endedAt: number | null;
-  status: "running" | "ok" | "err" | "unknown";
+  status: "running" | "ok" | "err" | "canceled" | "limit" | "unknown";
   changedFiles: ChangedFile[];
   readFiles: string[];
   commands: CommandDigest[];
@@ -44,6 +48,7 @@ export interface RunDigestSource {
   toolCalls: Record<string, ToolCall>;
   runId: string | null;
   running: boolean;
+  outcome: AgentRunOutcome | null;
 }
 
 // First non-whitespace token of a tool args string — used as the path
@@ -89,13 +94,7 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
     runId: startEntry.runId,
     startedAt: startEntry.ts,
     endedAt: terminal?.ts ?? null,
-    status: terminal
-      ? terminal.kind === "run-error"
-        ? "err"
-        : "ok"
-      : source.running
-        ? "running"
-        : "unknown",
+    status: runDigestStatus(terminal, source.running, source.outcome),
     changedFiles: [],
     readFiles: [],
     commands: [],
@@ -152,6 +151,30 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
   }
 
   return digest;
+}
+
+function runDigestStatus(
+  terminal: TimelineEntry | undefined,
+  running: boolean,
+  outcome: AgentRunOutcome | null,
+): RunDigest["status"] {
+  if (!terminal) return running ? "running" : "unknown";
+  if (terminal.kind === "run-error") return "err";
+  switch (outcome?.type) {
+    case "completed":
+      return "ok";
+    case "canceled":
+      return "canceled";
+    case "maxSteps":
+    case "maxBudget":
+      return "limit";
+    case "timedOut":
+    case "failed":
+    case "lost":
+      return "err";
+    default:
+      return terminal.status === "ok" ? "ok" : "unknown";
+  }
 }
 
 export function durationText(t: Translate, start: number, end: number | null): string {

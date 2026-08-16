@@ -68,6 +68,17 @@ describe("runSummaryViewModel", () => {
       tone: "neutral",
     });
   });
+
+  it("uses non-success badges for canceled and limit outcomes", () => {
+    expect(runSummaryViewModel(t, digest({ status: "canceled" })).statusBadge).toEqual({
+      labelKey: "agent.runTree.status.canceled",
+      tone: "neutral",
+    });
+    expect(runSummaryViewModel(t, digest({ status: "limit" })).statusBadge).toEqual({
+      labelKey: "agent.runTree.status.limit",
+      tone: "warning",
+    });
+  });
 });
 
 describe("runSummarySubtext", () => {
