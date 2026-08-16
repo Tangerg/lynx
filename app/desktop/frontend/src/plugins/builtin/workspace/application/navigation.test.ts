@@ -11,13 +11,14 @@ import {
   selectWorkspaceDockView,
   showWorkspaceDock,
   toggleWorkspaceDock,
+  activateWorkspaceSessionScope,
 } from "./navigation";
 
 function reset() {
   document.body.replaceChildren();
   navigator().go({ view: "v2", settings: null });
   useContextDockStore.setState({
-    activeSessionScopeId: "",
+    activeSessionScopeId: null,
     sessionScopes: new Map(),
     dockViewIds: [],
     lastViewId: null,
@@ -100,6 +101,38 @@ describe("workspace navigation port", () => {
     toggleWorkspaceDock();
     expect(navigator().get().dock).toBe("diff");
     expect(useContextDockStore.getState().dockViewIds).toEqual(["diff"]);
+  });
+
+  it("does not reopen a collapsed dock when the same session scope is rebound", () => {
+    navigator().go({ session: "s1", dock: null });
+    useContextDockStore.setState({
+      activeSessionScopeId: "s1",
+      dockViewIds: ["diff"],
+      lastViewId: "diff",
+    });
+
+    activateWorkspaceSessionScope("s1");
+
+    expect(navigator().get().dock).toBeNull();
+    expect(useContextDockStore.getState().dockViewIds).toEqual(["diff"]);
+  });
+
+  it("distinguishes a real move from the initialized sessionless scope", () => {
+    navigator().go({ session: "s1", dock: "diff" });
+    useContextDockStore.setState({
+      activeSessionScopeId: "",
+      dockViewIds: ["diff"],
+      lastViewId: "diff",
+    });
+
+    activateWorkspaceSessionScope("s1");
+
+    expect(navigator().get().dock).toBeNull();
+    expect(useContextDockStore.getState()).toMatchObject({
+      activeSessionScopeId: "s1",
+      dockViewIds: [],
+      lastViewId: null,
+    });
   });
 
   it("closes the active dock tab before the session-level command can run", () => {

@@ -69,11 +69,30 @@ beforeEach(() => {
 
 describe("workspace session navigation", () => {
   it("adopts the session the app is already in when it loads", async () => {
-    useContextDockStore.setState({ activeSessionScopeId: "", sessionScopes: new Map() });
+    useContextDockStore.setState({ activeSessionScopeId: null, sessionScopes: new Map() });
 
     await loadPluginsForTest(ports, sessionNavigation);
 
     expect(useContextDockStore.getState().activeSessionScopeId).toBe("s1");
+  });
+
+  it("adopts the dock location that survived a renderer replacement", async () => {
+    navigator().go({ session: "s1", dock: "diff" });
+    useContextDockStore.setState({
+      activeSessionScopeId: null,
+      sessionScopes: new Map(),
+      dockViewIds: [],
+      lastViewId: null,
+    });
+
+    await loadPluginsForTest(ports, sessionNavigation);
+
+    expect(navigator().get().dock).toBe("diff");
+    expect(useContextDockStore.getState()).toMatchObject({
+      activeSessionScopeId: "s1",
+      dockViewIds: ["diff"],
+      lastViewId: "diff",
+    });
   });
 
   it("restores the dock destination the session it moves to remembers", async () => {

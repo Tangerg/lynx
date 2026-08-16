@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useContextDockStore } from "./contextDockStore";
 
 const EMPTY = {
-  activeSessionScopeId: "",
+  activeSessionScopeId: null,
   sessionScopes: new Map(),
   dockViewIds: [],
   lastViewId: null,
@@ -52,6 +52,19 @@ describe("the open tab set", () => {
 });
 
 describe("what a re-open returns to", () => {
+  it("adopts an authoritative location into both facts in one update", () => {
+    let notifications = 0;
+    const unsubscribe = useContextDockStore.subscribe(() => {
+      notifications += 1;
+    });
+
+    dock().adoptDockLocation("diff");
+
+    unsubscribe();
+    expect(notifications).toBe(1);
+    expect(dock()).toMatchObject({ dockViewIds: ["diff"], lastViewId: "diff" });
+  });
+
   it("is the destination last shown, when it is still open", () => {
     dock().openDockTab("explorer");
     dock().openDockTab("diff");

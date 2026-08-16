@@ -48,7 +48,7 @@ beforeEach(async () => {
   useNotificationStore.setState({ log: [], nextId: 1 });
   useConfigStore.setState({ values: new Map(), subscribers: new Map() });
   useContextDockStore.setState({
-    activeSessionScopeId: "",
+    activeSessionScopeId: null,
     sessionScopes: new Map(),
     dockViewIds: [],
     lastViewId: null,

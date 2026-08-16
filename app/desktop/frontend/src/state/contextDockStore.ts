@@ -26,13 +26,16 @@ interface ContextDockSessionScope {
 }
 
 interface ContextDockState extends ContextDockSessionScope {
-  activeSessionScopeId: string;
+  /** null until the current renderer has adopted its URL-backed location. */
+  activeSessionScopeId: string | null;
   sessionScopes: Map<string, ContextDockSessionScope>;
 }
 
 interface ContextDockActions {
   /** Hold `id` open. Which destination shows is the caller's navigation. */
   openDockTab: (id: string) => void;
+  /** Adopt an already-authoritative location as open and last-shown in one write. */
+  adoptDockLocation: (id: string) => void;
   /** Drop `id`; answers which tab should take its place, or null for none. */
   closeDockTab: (id: string) => string | null;
   /** The destination a re-open should return to, given a fallback. */
@@ -77,7 +80,7 @@ function saveCurrentSessionScope(state: ContextDockState) {
 }
 
 export const useContextDockStore = create<ContextDockState & ContextDockActions>((set, get) => ({
-  activeSessionScopeId: "",
+  activeSessionScopeId: null,
   sessionScopes: new Map<string, ContextDockSessionScope>(),
   dockViewIds: [],
   lastViewId: null,
@@ -89,6 +92,11 @@ export const useContextDockStore = create<ContextDockState & ContextDockActions>
   openDockTab: (id) =>
     set((state) => ({
       dockViewIds: state.dockViewIds.includes(id) ? state.dockViewIds : [...state.dockViewIds, id],
+    })),
+  adoptDockLocation: (id) =>
+    set((state) => ({
+      dockViewIds: state.dockViewIds.includes(id) ? state.dockViewIds : [...state.dockViewIds, id],
+      lastViewId: id,
     })),
   closeDockTab: (id) => {
     const { dockViewIds } = get();

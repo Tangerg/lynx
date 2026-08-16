@@ -110,11 +110,21 @@ export function installWorkspaceNavigationPort(): () => void {
         requestAnimationFrame(() => focusConversationTool(id));
       }
     },
-    // Arriving in a session restores the destination it remembers. `replace`
-    // because this is the tail of the move the user already made — going back
-    // should leave the session, not undo its dock.
+    // A fresh renderer or a same-session Host rebind adopts the URL: location
+    // already owns whether the dock survived open or collapsed. A real session
+    // move restores that session's memory with `replace`, because this is the
+    // tail of the move the user already made — going back should leave the
+    // session, not undo its dock.
     activateSessionScope: (sessionId) => {
-      const remembered = useContextDockStore.getState().activateSessionScope(sessionId);
+      const state = useContextDockStore.getState();
+      const adoptsCurrentLocation =
+        state.activeSessionScopeId === null || state.activeSessionScopeId === sessionId;
+      const remembered = state.activateSessionScope(sessionId);
+      if (adoptsCurrentLocation) {
+        const located = navigator().get().dock;
+        if (located !== null) state.adoptDockLocation(located);
+        return;
+      }
       if (navigator().get().dock !== remembered) {
         navigator().go({ dock: remembered }, { replace: true });
       }
