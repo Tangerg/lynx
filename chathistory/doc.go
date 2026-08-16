@@ -2,8 +2,11 @@
 // and model middleware.
 //
 // Reader, Writer, Clearer, and Store use core/chat protocol values directly.
-// WindowStore is an explicit read-side retention decorator; optional
-// cross-conversation and replacement capabilities remain separate interfaces.
+// WindowStore is an explicit read-side retention decorator. It merges system
+// messages and retains only complete user-led turns, so assistant Tool calls,
+// Tool results, reasoning, and final text cannot be split at the read boundary.
+// Optional cross-conversation and replacement capabilities remain separate
+// interfaces.
 // The zero-value-ready reference provider lives in chathistory/inmemory.
 //
 // Conversation IDs are runtime scope carried with [WithConversationID], not

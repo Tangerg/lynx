@@ -58,6 +58,87 @@ func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
 	}
 }
 
+func TestWindowStoreKeepsCompleteToolTurn(t *testing.T) {
+	base := inmemory.New()
+	messages := []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("old question")),
+		chat.NewAssistantMessage(chat.NewTextPart("old answer")),
+		chat.NewUserMessage(chat.NewTextPart("new question")),
+		chat.NewAssistantMessage(
+			chat.NewReasoningPart("inspect first", []byte("signature")),
+			chat.NewToolCallPart(chat.ToolCall{ID: "call-a", Name: "read", Arguments: `{}`}),
+			chat.NewToolCallPart(chat.ToolCall{ID: "call-b", Name: "search", Arguments: `{}`}),
+		),
+		chat.NewToolMessage(
+			chat.ToolResult{ID: "call-a", Name: "read", Result: "a"},
+			chat.ToolResult{ID: "call-b", Name: "search", Result: "b"},
+		),
+		chat.NewAssistantMessage(chat.NewTextPart("new answer")),
+	}
+	if err := base.Write(t.Context(), "c", messages...); err != nil {
+		t.Fatal(err)
+	}
+	window, err := chathistory.NewWindowStore(base, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := window.Read(t.Context(), "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 {
+		t.Fatalf("len(window) = %d, want 4", len(got))
+	}
+	for i := range got {
+		if got[i].Role != messages[i+2].Role || got[i].Text() != messages[i+2].Text() {
+			t.Fatalf("window[%d] = %#v, want %#v", i, got[i], messages[i+2])
+		}
+	}
+}
+
+func TestWindowStoreRejectsSplitNewestTurn(t *testing.T) {
+	base := inmemory.New()
+	messages := []chat.Message{
+		chat.NewSystemMessage("system"),
+		chat.NewUserMessage(chat.NewTextPart("question")),
+		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call", Name: "read", Arguments: `{}`})),
+		chat.NewToolMessage(chat.ToolResult{ID: "call", Name: "read", Result: "result"}),
+	}
+	if err := base.Write(t.Context(), "c", messages...); err != nil {
+		t.Fatal(err)
+	}
+	window, err := chathistory.NewWindowStore(base, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := window.Read(t.Context(), "c"); !errors.Is(err, chathistory.ErrWindowTooSmall) {
+		t.Fatalf("Read error = %v, want ErrWindowTooSmall", err)
+	}
+}
+
+func TestWindowStorePreservesStandaloneNewestUserTurn(t *testing.T) {
+	base := inmemory.New()
+	messages := []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("old question")),
+		chat.NewAssistantMessage(chat.NewTextPart("old answer")),
+		chat.NewUserMessage(chat.NewTextPart("new question")),
+	}
+	if err := base.Write(t.Context(), "c", messages...); err != nil {
+		t.Fatal(err)
+	}
+	window, err := chathistory.NewWindowStore(base, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := window.Read(t.Context(), "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Role != chat.RoleUser || got[0].Text() != "new question" {
+		t.Fatalf("window = %#v", got)
+	}
+}
+
 func TestWindowStorePreservesSystemPartStructure(t *testing.T) {
 	base := inmemory.New()
 	part := chat.NewTextPart("")

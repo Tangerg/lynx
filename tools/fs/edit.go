@@ -84,7 +84,7 @@ func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {
 }
 
 func (t *EditTool) edit(ctx context.Context, req EditRequest) (EditResponse, error) {
-	res, err := t.executor.Edit(ctx, EditInput{Path: req.Path, OldString: req.OldString, NewString: req.NewString, ReplaceAll: req.ReplaceAll})
+	res, err := t.executor.Edit(ctx, EditInput(req))
 	if err != nil {
 		return EditResponse{}, fmt.Errorf("fs.edit: %w", err)
 	}

@@ -79,13 +79,7 @@ func (t *ApplyPatchTool) apply(ctx context.Context, req ApplyPatchRequest) (Appl
 	}
 	files := make([]PatchFileResponse, len(res.Files))
 	for i, file := range res.Files {
-		files[i] = PatchFileResponse{
-			Path:      file.Path,
-			Hunks:     file.Hunks,
-			Created:   file.Created,
-			Deleted:   file.Deleted,
-			MovedFrom: file.MovedFrom,
-		}
+		files[i] = PatchFileResponse(file)
 	}
 	return ApplyPatchResponse{Files: files, Hunks: res.Hunks}, nil
 }
