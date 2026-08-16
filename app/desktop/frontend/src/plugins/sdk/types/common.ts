@@ -1,8 +1,8 @@
 // Cross-cutting primitives shared by every other types file.
 
 /**
- * A reversible handle. `register*` returns this; the host calls `.dispose()`
- * during unload so plugin authors never write cleanup code themselves.
+ * A reversible application-level handle. Dougong owns plugin setup resources;
+ * this narrower shape remains for UI registrations outside its core contracts.
  */
 export interface Disposable {
   dispose: () => void;
@@ -27,12 +27,10 @@ export type ReadyHandler = () => void;
 export type BeforeUnloadHandler = () => void;
 
 /**
- * The permission vocabulary. Each value names a top-level `Host` namespace and
- * doubles as the gate for contributing to a kernel extension point (a point's
- * `capability`). A plugin narrows what it can touch by listing only the ones it
- * needs in `PluginSpec.capabilities`; anything else becomes a throwing proxy /
- * a denied `contribute`. Lives in this leaf module so both `plugin` and
- * `extensions` can reference it without forming a type cycle.
+ * The application permission vocabulary used by extension points and sideload
+ * manifests. A point's `capability` is checked before contribution, while the
+ * dougong Platform authorizes the same vocabulary before loading third-party
+ * code. Lives here so plugin and extension types share it without a cycle.
  */
 export type HostCapability =
   | "tool"

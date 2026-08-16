@@ -1,12 +1,9 @@
 // Plugin origin registry. The sideload loader records "sideload" for a plugin
-// *before* it calls `loadPlugin`, so the load path can tell a third-party
-// bundle from a first-party built-in and enforce the right trust policy
-// (sideload default-deny). Anything not recorded defaults to "builtin"
-// (trusted) — that covers the static manifest. Origin is recorded by the
-// loader, not derived from the name, so a plugin can't spoof it.
-//
-// A leaf module (no imports) so both the loader (`sideload.ts`) and the load
-// path (`definePlugin.ts`) can use it without a dependency cycle.
+// before it registers the artifact with dougong Platform. Anything not
+// recorded defaults to "builtin" — that covers the static Host manifest.
+// Origin is recorded by the loader, not derived from the name, so a plugin
+// cannot spoof it. This leaf stays import-free for sideload registration and
+// diagnostics.
 
 export type PluginOrigin = "builtin" | "sideload";
 

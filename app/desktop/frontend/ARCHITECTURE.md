@@ -13,7 +13,7 @@
 
 **Lyra 前端 = 自研 Lyra Runtime Protocol v2 流式协议 + 插件化 React 外壳。**
 
-外壳几乎不长肉——路由、布局、内容渲染、命令、快捷键、主题、协议事件处理（StreamEvent fold）、设置面板，全部由内置插件贡献。Kernel 自己只是一组命名 Slot 加几个共享 Zustand store；插件通过统一的 `Host` API 往开放扩展点底座里贡献：往 Slot 塞组件、往 reducer 挂事件 handler、往 registry 写自己的数据。
+外壳几乎不长肉——路由、布局、内容渲染、命令、快捷键、主题、协议事件处理（StreamEvent fold）、设置面板，全部由内置插件贡献。Kernel 由 dougong `Host` 的契约图与生命周期、Lyra 的开放扩展点策略和少量共享 Zustand store组成；插件经 `PluginContext` 写贡献，经 typed selector 消费稳定 read model。
 
 ---
 
@@ -52,25 +52,26 @@ src/
 │
 ├── plugins/              插件系统
 │   ├── host/                 插件宿主运行时
-│   │   ├── PluginProvider.tsx    启动编排：bridge → loadPlugins → tag → ready → sideload
+│   │   ├── PluginProvider.tsx    启动编排与代际 owner：bridge → Host.start → ready → sideload
 │   │   ├── Slot.tsx              <Slot name="…"/> 渲染注册到该 slot 的插件组件
 │   │   ├── PluginBoundary.tsx    每个插件组件的 React Error Boundary
 │   │   ├── PluginContentBlock.tsx 包装消息内容块的边界
 │   │   ├── PluginToaster.tsx     全局 toast 层（sonner）
 │   │   ├── ShortcutsProvider.tsx 全局键盘快捷键派发
 │   │   ├── hostBridge.ts         挂 window.__LYRA__，让 sideload 包共用 React/SDK
-│   │   └── sideload.ts           从 Wails Host Bridge 读取并 dynamic-import 用户插件
+│   │   └── sideloadDiscovery.ts  从 Wails Host Bridge 读取并 dynamic-import 用户插件
 │   │
 │   ├── sdk/                  插件平台
 │   │   ├── types/                17 个 domain 文件 + barrel（按贡献面拆）
 │   │   ├── kernelPoints.ts       ~35 个内置 ExtensionPoint（THEME / COMMAND / LAYOUT_SLOT / …）
-│   │   ├── defineExtensionPoint.ts  defineExtensionPoint<T>(def) — typed point handle
-│   │   ├── host.ts               createHost(pluginName) — extensions.contribute 写路径
-│   │   ├── registry.ts           usePluginStore — 单一 extensions map + bookkeeping
-│   │   ├── registryState.ts / registryHelpers.ts  store 内部结构 + 纯 helper
+│   │   ├── contracts.ts          dougong token + Lyra key/capability/read policy
+│   │   ├── definePlugin.ts       绑定 dougong context 与 Lyra contribute policy
+│   │   ├── bootstrap.ts          Host create/start/stop + installation transaction
+│   │   ├── kernel.ts             当前 Host 代际、ContributionView cache 与安装 read model
+│   │   ├── services.ts / shellServices.ts  typed shell capability contracts
 │   │   ├── selectors/            按面分组的 useXxx / lookupXxx + extensions.ts（读侧底座 + O(1) 索引）
-│   │   ├── definePlugin.ts / definePluginPack.ts   loadPlugin(s) / pack
-│   │   ├── capabilities.ts / pluginOrigin.ts       最小权限 + sideload 默认 deny
+│   │   ├── sideload.ts           dougong Platform / permission / lazy activation adapter
+│   │   ├── capabilities.ts / pluginOrigin.ts       capability vocabulary + 来源诊断
 │   │   ├── evalWhen.ts           when 子句求值器（VS Code-when 子集）
 │   │   ├── lazyActivator.ts      activationEvents + contributes 占位激活
 │   │   ├── state.ts / stateSlice.ts / sharedState.ts  插件共享 state
@@ -78,7 +79,7 @@ src/
 │   │   └── apiVersion.ts         HOST_API_VERSION 常量
 │   │
 │   └── builtin/              内置插件，按领域（限界上下文）分组
-│       ├── index.ts          manifest（topo sort 由 spec.requires 驱动）
+│       ├── index.ts          manifest（依赖由 requires / provides contract graph 驱动）
 │       ├── agent/            agent ports bootstrap · fold（StreamEvent→view state）· rpc-agent
 │       ├── chat/             composer · message/(渲染 ui/ + public) · message-actions · plan-progress ·
 │       │                     slash-hints · chat-search · preview-blocks · file-references ·
@@ -204,7 +205,7 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 
 React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/data/dataQuery.ts` 与 `queryClient.ts`。Session、Workspace、Approval、Provider、MCP、Hooks、Schedules、Recipes、Usage 的 query key、read model 与 hook 均由所属上下文拥有；跨上下文消费必须经过该上下文的 `public/queries.ts`（或既有 public facade）。`lib/data` 不再充当全局业务模型仓库。
 
-Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它返回给 SDK lifecycle；unload / reload / HMR 会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
+Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它交给 `ctx.cleanup`；Installation remove、Host stop 或 HMR owner 退休会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
 
 Runtime endpoint 是 Runtime context 的应用配置：application 拥有默认值、HTTP(S)
 校验与 `applied | rejected` 结果语义，adapter 才把 consumer-owned port 接到 Host
@@ -307,15 +308,15 @@ App.tsx
 
 `src/plugins/host/PluginProvider.tsx`：
 
-1. **`installHostBridge()`** — 把 React / motion / SDK 单例挂到 `window.__LYRA__`，sideload 插件不必自带这些重依赖。先于一切，让模块求值期就 touch `window.__LYRA__` 的 sideload 包能看见它。
-2. **`loadPlugins(builtinPlugins)`** — 对 `spec.requires` 做拓扑排序后顺序加载内置插件（同步 setup，几个微任务搞定）。
-3. **`tagAllAsBuiltin()`** — 给已加载插件打 origin 标记，Plugins 面板显示用。
-4. **`markAppReady()`** — 触发所有 `host.lifecycle.onReady(...)` 回调（注册顺序）。
-5. **`setBuiltinsReady(true)`** — 解除 children 渲染门；同时 fire-and-forget `loadSideloadedPlugins()`（不阻塞首屏，附加式注册）。
+1. **`publishHostBridge()`** — 把 React / motion / SDK 单例挂到 `window.__LYRA__`，先于第三方模块求值。
+2. **`startKernel(builtinPlugins, signal)`** — 创建 dougong Host，将 shell Services 与全部 built-ins 作为一个启动事务安装；Host 根据 `requires` / `provides` 解析契约图。启动失败整笔 rollback，不暴露半启动 read model。
+3. **`publishKernel(host)` + ready handlers** — `host.start()` 成功后才发布当前 Host 代际与安装 read model，并触发 ready contributions。
+4. **`setReady(true)`** — 解除 children 渲染门；随后启动不阻塞首屏的 sideload discovery。每个第三方 artifact 走独立 Platform transaction，失败只回滚自身。
+5. **effect cleanup** — `beforeunload` 的唯一 host teardown 先同步 unmount React root；Provider cleanup 同步撤销 exact Host publication，再取消/释放本代 sideload Platform 与 blob URL，最后 `stopKernel(ownedHost)`。旧 renderer 的迟到 cleanup 不能撤销 successor Host，启动在 owner 退休后才结算时也必须 rollback。
 
 外层再包一个 `TooltipProvider`（Base UI provider，250ms delay），让 kernel + 任意插件的 `<Tooltip>` 不必各自带 provider。
 
-> **为什么门控？** AppRouter 挂载时一次性构建路由树（`buildRouter()` 读 `listRoutes()`）。内置插件注册路由前就 mount 会"no routes match"白屏。门控保证 route registry 就绪。内置 setup 无 I/O，门在下一个微任务就解开——只是首帧短暂空白。
+> **为什么门控？** AppRouter 挂载时要读取已经提交的 route contributions。门控保证消费者只观察完整 Host transaction，不会看到"一部分插件已启动、另一部分仍缺失"的中间态。
 
 ### 4.2 AgentClientPage —— 整个 Kernel
 
@@ -352,122 +353,68 @@ App.tsx
 
 ### 5.1 插件系统 —— Plugin SDK + 开放扩展点底座
 
-#### 数据流：贡献 → 存储 → 订阅 → 渲染
+#### 数据流：贡献 → Host read model → 订阅 → 渲染
 
 ```
-PluginSpec.setup({ host })
-       │  host.extensions.contribute(POINT, spec, opts?)   // POINT 来自 kernelPoints.ts
+PluginSpec.setup(ctx)
+       │  ctx.contribute(POINT, item, opts?)
        ▼
-   host.ts ── 通过 store() 调 registry actions
+dougong Host —— owner-qualified contribution storage + transaction + cleanup
+       │  host.contributions(POINT.token)
+       ▼
+kernel.ts —— current Host generation + cached ContributionView + Lyra single/multi policy
        │
        ▼
-   usePluginStore (Zustand) —— 单一 extensions: Map<"${point.id}#${dedupe}", Owned<Entry>>
+selectors（sdk/selectors/）
        │
        ▼
-   selectors（sdk/selectors/）：
-     useLayoutSlot("app.sidebar") → 排序后的 specs[]
-     useWorkspaceViews() / useCommands() / useToolPreview(fn) / …
-     lookupStreamHandlers(type) / lookupCustomHandlers(name)  ← reducer 用，非 React
-       │
-       ▼
-   React 组件按 selector 订阅 — registry 变更触发重渲染
+React hooks / imperative lookup consumers
 ```
+
+`contracts.ts` 把 dougong `ExtensionPoint` token 与 Lyra 的领域 key、排序、capability 和 `single | multi` read policy绑定。Core 保留所有 owner-qualified contribution；Lyra selector 才按领域 key 解析 shadow。因而覆盖插件卸载后，被遮蔽的原贡献会重新出现，而不是在写入时被破坏。
 
 #### 一个插件长这样
 
 ```ts
-// frontend/src/plugins/builtin/agent/rpc-agent/index.ts（简化）
 import { definePlugin } from "@/plugins/sdk";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
   name: "lyra.builtin.rpc-agent",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(AGENT_SOURCE, {
-      id: "rpc",
-      label: "Runtime Protocol (JSON-RPC)",
-      priority: 1,
-      factory: () => makeDriver(/* sessionId */),
-    });
+  setup(ctx) {
+    ctx.contribute(AGENT_SOURCE, rpcAgentSource(t, getActiveSessionId, runtimeRunsGateway));
   },
 });
 ```
 
-`setup` 返回时所有贡献已进 registry；对应 selector 在 React 渲染时就能看见。
+`requires` / `provides` 是 typed service contract，不是插件名排序提示。`ctx.cleanup`、contributions、spawned tasks 与 abort signal 全部归当前 Installation lifetime；Host stop 或 Installation remove 会按结构化生命周期回收。
 
-#### Host 接口（写路径 + 命令式动作）
+#### Host、Services 与 read policy
 
-`Host`（`src/plugins/sdk/types/host.ts`）是插件能调的"动词"集合。**贡献统一走开放扩展点底座**（写路径见下）。
+- dougong `Host` 只由 composition root 持有：安装、启动、事务变更、贡献 read model 与 stop；产品插件不通过全局 Host 绕过契约。
+- 插件间命令式能力通过 `services.ts` token 与 `requires` / `provides` 注入。Lyra shell 只提供 config、i18n、window、workspace、commands、plugins 六类明确 Service。
+- Runtime 网络访问不属于通用 shell Service；内置业务仍经 context adapter → `main/container` → typed JSON-RPC client，Runtime DTO 停在 Adapter。
+- `kernel.ts` 只发布一个 Host generation。views、installation handles 与 installed-plugin read model 都绑定该 Host identity；stale stop / subscription callback 不能清理或写入 successor generation。
 
-**贡献写路径（绝大多数"注册一个 spec"）**：
+#### 启动、移除与懒激活
 
-```ts
-host.extensions.contribute(POINT, spec, opts?)
-```
-
-内置点（`kernelPoints.ts`）涵盖主题 / 强调色 / 路由 / 命令 / 设置面板 / 侧栏分区 + rail / 工具预览 + 操作 + 图标 / 内容块 / 消息角色 / slash 命令 / agent source / 数据 provider / composer 状态 + 模式 + 占位符 / 快捷键 + 键绑定 / locale / 工作区 view / 错误回退 / log + 生命周期 hook 等。第三方插件用 `defineExtensionPoint` 开自己的点，机制完全相同。
-
-**保留的薄 facade**（仍只是调 `contribute`，但各带逻辑/泛型/防错）：
-
-| 面                                        | 为什么不退化成裸 contribute             |
-| ----------------------------------------- | --------------------------------------- |
-| `host.events.onStream(type, handler)`     | StreamEvent（run._/item._/state.*）订阅 |
-| `host.events.onCustom(name, handler)`     | custom StreamEvent 订阅                 |
-| `host.layout.register(slot, spec)`        | 内部算去重 id `${slot}#${spec.id}`      |
-| `host.message.registerContentBlock<K>`    | per-kind 泛型类型安全                   |
-| `host.lifecycle.onReady / onBeforeUnload` | onReady 带"已 ready 则立即触发"逻辑     |
-| `host.log.subscribe`                      | 日志订阅 hook                           |
-
-**命令式动作（非贡献，本就该是方法）**：`host.workspace.openView/closeView` · `host.config` · `host.storage` · `host.state` · `host.notify` · `host.window` · `host.plugins.{list,load,unload,reload}` · `host.i18n.addBundle` · `host.tasks` · `host.log.{debug,info,warn,error}` · `host.commands.execute`。Runtime 网络访问不属于通用 Host；内置业务经 context adapter → `main/container` → typed JSON-RPC client，第三方插件通过明确的 domain extension/command 协作。
-
-`contribute` 与每个 facade 都返回 `Disposable`，`createHost` 收集到 `setup` 期的 sink；plugin setup 抛错时自动 dispose 已注册部分，避免半成品挂在 registry。
-
-#### Registry 内部结构
-
-`usePluginStore`（`registry.ts` + `registryState.ts`）是一个 Zustand store。所有贡献坐落在**单一** `extensions: Map<"${point.id}#${dedupe}", Owned<ContributionEntry>>`。两种 keying（点定义里声明）：
-
-- **single**：`dedupe` = 归一后的单键（主题 by id、工具预览 by fn、slash by trigger…）。同 key 后来者覆盖 + console 警告。
-- **multi**：`dedupe` = `${plugin}|${id}`（id 默认 mint），每条共存——事件 handler / layout slot / log hook 等链式执行。
-
-`pluginName` 嵌在外层 `Owned`，dispose 只删本插件那条；selector 侧（`selectors/extensions.ts`）用缓存在 map 引用上的二级索引保 O(1) 读。
-
-#### 加载 / 卸载 / 懒激活
-
-- `loadPlugin(spec)`：校验 `apiVersion` → 建 disposable sink + 绑 Host → `await setup({ host })` → 成功 `registerLoaded`，失败 dispose 已注册部分 + `reportPluginError`（**不抛出**，其它插件继续）。
-- `host.plugins.{unload,reload}`：dispose 全部 + 清 loaded 表 + fire `onUnload`；`reload` = unload + 重 load。Settings → Plugins 每行有 Reload 按钮。
-- **懒激活**：`activationEvents: ["onCommand:foo"]` + `contributes: { commands/views/settingsPanes }` → setup 不跑，只注册占位；用户首次访问占位时再 `loadPlugin`，selector 自动用真组件替换占位。
-- **能力切片**：`spec.capabilities` 列出用到的 host namespace；未声明的在 `createHost` 阶段换成 throwing Proxy（最小权限 + 未来 marketplace 审核底）。
-- **when 子句**：`CommandSpec.when?` 控制命令何时出现，语法是 VS Code-when 子集，求值器在 `evalWhen.ts`（纯模块）。
+- **built-ins**：`createKernel` 先安装 shell Services 和 manifest，`host.start()` 作为一个完整 transaction；任一 setup 失败就 rollback 全部，不发布半成品。
+- **运行期安装**：`installPlugins` 使用一个 dougong change transaction；commit 成功后才发布 installation handles。
+- **移除**：`Installation.remove()` 成功后才从 Plugins read model 删除；失败仍显示原安装，迟到旧 settlement 不能删除同名 replacement handle。
+- **sideload**：每个 artifact 通过 dougong Platform 独立注册；manifest permission 在代码加载前授权。lazy artifact 先装 placeholder，activation event 再由同一 Platform transaction替换为真实模块。
+- **when 子句**：`CommandSpec.when?` 使用 `evalWhen.ts` 的 VS Code-when 子集，只决定可见/可用条件，不参与 lifecycle。
 
 #### 内置 vs 外置（sideload）
 
-|            | 内置                  | 外置（sideload）                                       |
-| ---------- | --------------------- | ------------------------------------------------------ |
-| 来源       | 同 bundle 静态 import | Go 后端 manifest + dynamic `import(url)`               |
-| 加载时机   | 启动前同步串行        | 启动后异步（不阻塞首屏）                               |
-| origin     | `builtin`             | `sideload`（默认 deny，需用户授权——`pluginOrigin.ts`） |
-| 共享 React | 同 bundle 自然共享    | 通过 `window.__LYRA__` 桥接                            |
+|                | 内置                                     | 外置（sideload）                                  |
+| -------------- | ---------------------------------------- | ------------------------------------------------- |
+| 来源           | 同 bundle 静态 import                    | Desktop bootstrap source + dynamic `import(url)` |
+| transaction    | 全 manifest 一次 Host start              | 每个 artifact 独立 Platform registration         |
+| capability     | trusted contract graph + point policy    | manifest permission + point policy               |
+| 共享 React/SDK | 同 bundle                                | `window.__LYRA__` bridge                         |
+| 资源 owner     | exact Host / Installation generation     | exact Host-bound Platform + blob URL set         |
 
-#### 内置插件 manifest（`builtin/index.ts`）
-
-按"先依赖、后消费"分组（仅人类可读；真实约束在各 `spec.requires`）：
-
-```
-protocol        → agent fold
-infrastructure  → observability / agentBootstrap / runtime / defaultData / rpcAgent / defaultTitle /
-                  defaultAccents / themesPack / localesPack / mainRoute
-messageRendering→ defaultRoles / messageCopy+Edit+Regenerate / previewBlocks
-toolRendering   → shellPreview / diff / file / grep / toolActions / toolIcons
-composer        → slashHints / chips / modes / toolbar / placeholders / keymap / send
-panes           → appearance / personalization / connection / pluginsPane / providers /
-                  workspace views（diff/terminal/files/plan/timeline/runSummary/tools/skills/agentDocs/notifications）/ diagnostics
-kernel          → kernelSidebar / kernelChat / kernelSettings
-sidebar         → search / projects / sessions / footer / 三个 rail-*
-overlays        → toaster / commandPalette / chatSearch / defaultCommands / statusPill /
-                  tasksPill / statusNotifications / welcomeScreen / topbarNewTab /
-                  shortcuts / globalKeymap / iconGallery / planProgress / conversationExport
-```
+`builtin/index.ts` 的分组只供人阅读；依赖真相在各 spec 的 `requires` / `provides`，贡献覆盖的稳定 tie-break 才使用 manifest 顺序。
 
 ---
 
@@ -588,7 +535,6 @@ application port 重读完整 durable projection；不能把旧 Running 留给 U
 | `composerStore`          | 撰写区文本 / 模式 / 附件 / provider+model                           | ❌ ephemeral   |
 | `contextDockStore`       | 按 Session 隔离的 file/tool/dock material                           | ❌ ephemeral   |
 | `workspaceSurfaceStore`  | app-global main/settings surface                                    | ❌ ephemeral   |
-| `usePluginStore`         | 整个插件 registry                                                   | ❌             |
 | `useConfigStore`         | 插件可读写的全局 config（如 `runtime.endpoint`）                    | ✅             |
 
 每个 store 各自用 Zustand `persist` + 自己的 `version`；**schema 变了就 bump version 丢旧数据，不写 migration**（开发期无历史包袱）。
@@ -606,9 +552,9 @@ defineThemePlugin({
 });
 ```
 
-helper 自动补 shadow ladder + CTA defaults + 注册仪式（`host.extensions.contribute(THEME, …)`）。切主题时 `uiStore` 副作用：替换 `<html>` 的 `theme-{scheme}` class + 把 `palette` 全部 inline 写到 `:root.style`（内联永远胜过 stylesheet，插件完全拥有调色板）+ 最后写一次用户选的 `--color-accent`。
+helper 自动补 shadow ladder + CTA defaults + `ctx.contribute(THEME, …)` 注册仪式。切主题时 `uiStore` 副作用：替换 `<html>` 的 `theme-{scheme}` class + 把 `palette` 全部 inline 写到 `:root.style`（内联永远胜过 stylesheet，插件完全拥有调色板）+ 最后写一次用户选的 `--color-accent`。
 
-加新主题 = 新文件（调 `defineThemePlugin`）+ `theme/themes/index.ts` 加一行；Settings → Appearance 的 picker 从 registry 自动读列表。首屏防闪烁靠 `index.html` 内嵌一段同步 JS 在 CSS 解析前贴 `theme-{scheme}` class。
+加新主题 = 新文件（调 `defineThemePlugin`）+ `theme/themes/index.ts` 加一行；Settings → Appearance 的 picker 从主题 extension view 自动读列表。首屏防闪烁靠 `index.html` 内嵌一段同步 JS 在 CSS 解析前贴 `theme-{scheme}` class。
 
 ---
 
@@ -630,7 +576,7 @@ helper 自动补 shadow ladder + CTA defaults + 注册仪式（`host.extensions.
 `src/plugins/host/Slot.tsx` 是 kernel ↔ 插件的"插槽桥"：
 
 ```ts
-const specs = useLayoutSlot("app.sidebar");   // 订阅 registry
+const specs = useLayoutSlot("app.sidebar");   // 订阅当前 Host contribution view
 return specs.map(spec => (
   <PluginBoundary key={spec.id} plugin={spec.pluginName}>
     <spec.component />
@@ -737,25 +683,16 @@ import { COMMAND } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
   name: "lyra.example.hello",
-  version: "1.0.0",
-  apiVersion: "^4.0.0",                          // 可选；不写接受任意 host
-  requires: ["lyra.builtin.default-themes"],     // 可选；依赖（拓扑排序）
-  capabilities: ["extensions", "commands", "events", "message", "notify", "log"], // 可选；最小权限
-  setup({ host }) {
+  capabilities: ["commands"],
+  setup(ctx) {
     // 1. 加一个 Cmd+K 命令
-    host.extensions.contribute(COMMAND, {
+    ctx.contribute(COMMAND, {
       id: "hello.world", label: "Hello, world!", group: "Examples",
-      run: () => host.notify("hi", "info"),
+      run: () => ctx.notify("hi", "info"),
     });
-    // 2. 监听一个 custom StreamEvent
-    host.events.onCustom<{ text: string }>("example.banner", (payload) =>
-      (state) => /* 返回 StateUpdate */ state,
-    );
-    // 3. 提供该 kind 的内容块渲染器
-    host.message.registerContentBlock("exampleBanner", ({ block }) => <div>{block.text}</div>);
-    // 4. 副作用（subscribe 等）通过 setup 返回 cleanup
+    // 2. 副作用归当前 Installation lifetime
     const unsub = someStore.subscribe(/* … */);
-    return () => unsub();
+    ctx.cleanup(unsub);
   },
 });
 ```
@@ -773,19 +710,19 @@ declare module "@/plugins/sdk/types/contentBlock" {
 }
 ```
 
-> 内置块（text/reasoning/plan/tool/approval/question）在 `plugins/builtin/chat/message/ui/` 内部直渲（`renderBlock` switch）；扩展块（第三方 / `preview-blocks`）才走 `registerContentBlock` registry。
+> 内置块（text/reasoning/plan/tool/approval/question）在 `plugins/builtin/chat/message/ui/` 内部直渲（`renderBlock` switch）；扩展块（第三方 / `preview-blocks`）才走 typed content-block extension point。
 
 ---
 
 ## 10. 不变量速查
 
 - **Kernel 不知道任何具体功能**——所有看得见的元素都来自插件。改一处功能 = 改一个插件目录。
-- **registry 是唯一真相**——不直接 import 内置插件去用，永远走 `useXxx` / `lookupXxx`。
+- **当前 Host contribution view 是插件真相**——不直接 import 内置插件取贡献，永远走 `useXxx` / `lookupXxx`。
 - **store 是单 Zustand instance**——多 selector 订阅，不要把 store 包进 context。
 - **Agent projection 只有一个作者**——live fold 与 durable snapshot 投影共享规则；
   render 不回写 store，跨 context 只调用 Agent `public/` command/read model。
 - **components 不直连后端**——只经 context public facade / store selector / SDK selector，**禁** import `@/main` / `@/rpc`（`check:layers` 强制）。
-- **Disposable 一律由 Host 收集**——别手动 `dispose()`。
+- **插件资源归结构化 lifetime**——setup 中用 `ctx.cleanup`，composition root 只停止自己持有的 exact Host / Platform generation。
 - **协议是唯一 outbound 边界**——不在 UI/store 里直接 `fetch` / 开 SSE / 调 IPC，都走 `rpc/`。
 - **交互语义只向外组合**——Base UI / 原生标签只在 primitives；业务 UI 只用 atoms /
   agent primitives，复合内容用 `Pressable` 而不是反向撤销 `Button` 样式。
@@ -802,7 +739,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 | 后端给什么数据 / 每个字段要表达什么（自包含，可给外部人看） | `frontend/CONTENT_RENDERING.md`                                     |
 | 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`                                         |
 | transport / handshake / 错误码   | `docs/protocol/TRANSPORT.md`                                                                |
-| Host 全部接口                    | `src/plugins/sdk/types/host.ts`                                                             |
+| 插件 context / shell contracts  | `src/plugins/sdk/definePlugin.ts` + `src/plugins/sdk/services.ts`                            |
 | 协议 fold                        | `src/plugins/builtin/agent/application/fold/reducer.ts` + `builtin/agent/application/fold/` |
 | 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                                              |
 | Agent Session driver / recovery  | `src/plugins/builtin/agent/adapters/useAgentSession.ts`                                     |

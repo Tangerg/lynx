@@ -18,8 +18,10 @@ interface Theme {
 let host: Host | undefined;
 
 afterEach(async () => {
-  retractKernel();
-  await host?.stop();
+  if (host) {
+    retractKernel(host);
+    await host.stop();
+  }
   host = undefined;
   resetExtensionPointsForTest();
 });

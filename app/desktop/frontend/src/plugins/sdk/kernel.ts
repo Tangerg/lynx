@@ -26,7 +26,7 @@ let host: Host | undefined;
 let revision = 0;
 let names: ReadonlyArray<string> = EMPTY_NAMES;
 const listeners = new Set<() => void>();
-const installations = new Map<string, Removable>();
+const installationsByHost = new WeakMap<Host, Map<string, Removable>>();
 
 // Per point, resolved on first read and held until the kernel is retracted: the
 // view's subscription is what invalidates the cached array.
@@ -36,8 +36,16 @@ let entries = new Map<string, ReadonlyArray<Contribution<unknown>>>();
 
 function announce(): void {
   revision += 1;
-  names = Object.freeze([...installations.keys()].sort());
+  names = Object.freeze([...(host ? installationsFor(host).keys() : [])].sort());
   for (const listener of [...listeners]) listener();
+}
+
+function installationsFor(owner: Host): Map<string, Removable> {
+  const existing = installationsByHost.get(owner);
+  if (existing) return existing;
+  const created = new Map<string, Removable>();
+  installationsByHost.set(owner, created);
+  return created;
 }
 
 function retractViews(): void {
@@ -53,11 +61,14 @@ export function publishKernel(next: Host): void {
   announce();
 }
 
-export function retractKernel(): void {
+/** Retract exactly the generation its owner is retiring. A late cleanup from an
+ * older renderer must never unpublish the successor that replaced it. */
+export function retractKernel(owner: Host): boolean {
+  if (host !== owner) return false;
   retractViews();
   host = undefined;
-  installations.clear();
   announce();
+  return true;
 }
 
 /** Throws when nothing booted — callers are imperative actions where that is a bug. */
@@ -66,9 +77,9 @@ export function kernelHost(): Host {
   return host;
 }
 
-export function trackInstallation(name: string, installation: Removable): void {
-  installations.set(name, installation);
-  announce();
+export function trackInstallation(owner: Host, name: string, installation: Removable): void {
+  installationsFor(owner).set(name, installation);
+  if (host === owner) announce();
 }
 
 export function installedPlugins(): ReadonlyArray<string> {
@@ -76,20 +87,26 @@ export function installedPlugins(): ReadonlyArray<string> {
 }
 
 export async function removeInstallation(name: string): Promise<void> {
+  const owner = host;
+  if (!owner) return;
+  const installations = installationsFor(owner);
   const installation = installations.get(name);
   if (!installation) return;
-  installations.delete(name);
-  announce();
   await installation.remove();
+  if (installations.get(name) !== installation) return;
+  installations.delete(name);
+  if (host === owner) announce();
 }
 
 function viewOf<T>(point: ExtensionPoint<T>): ContributionView<Contribution<T>> | undefined {
-  if (!host) return undefined;
+  const owner = host;
+  if (!owner) return undefined;
   const cached = views.get(point.id);
   if (cached) return cached as ContributionView<Contribution<T>>;
-  const view = host.contributions(point.token);
+  const view = owner.contributions(point.token);
   views.set(point.id, view as ContributionView<Contribution<unknown>>);
   const subscription = view.subscribe(() => {
+    if (host !== owner) return;
     entries.delete(point.id);
     announce();
   });

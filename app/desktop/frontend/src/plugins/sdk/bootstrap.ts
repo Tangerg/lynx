@@ -17,20 +17,34 @@ export function createKernel(plugins: ReadonlyArray<AnyPlugin>): Host {
     onError: (error) => reportPluginError("kernel", "setup", error),
   });
   host.install(shellServices);
-  for (const plugin of plugins) trackInstallation(plugin.name, host.install(plugin));
+  for (const plugin of plugins) trackInstallation(host, plugin.name, host.install(plugin));
   return host;
 }
 
-export async function startKernel(plugins: ReadonlyArray<AnyPlugin>): Promise<Host> {
+export async function startKernel(
+  plugins: ReadonlyArray<AnyPlugin>,
+  signal?: AbortSignal,
+): Promise<Host> {
   const host = createKernel(plugins);
-  await host.start();
-  publishKernel(host);
-  fireReadyHandlers();
-  return host;
+  try {
+    signal?.throwIfAborted();
+    await host.start();
+    signal?.throwIfAborted();
+    publishKernel(host);
+    fireReadyHandlers();
+    return host;
+  } catch (error) {
+    try {
+      await host.stop();
+    } catch (stopError) {
+      throw new AggregateError([error, stopError], "Kernel startup and rollback both failed");
+    }
+    throw error;
+  }
 }
 
 export async function stopKernel(host: Host): Promise<void> {
-  retractKernel();
+  retractKernel(host);
   await host.stop();
 }
 
@@ -41,7 +55,7 @@ export async function installPlugins(host: Host, plugins: ReadonlyArray<AnyPlugi
   const change = host.change();
   const installed = plugins.map((plugin) => [plugin.name, change.install(plugin)] as const);
   await change.commit();
-  for (const [name, installation] of installed) trackInstallation(name, installation);
+  for (const [name, installation] of installed) trackInstallation(host, name, installation);
 }
 
 // `host.start()` resolving is the ready point; Core has no post-start hook

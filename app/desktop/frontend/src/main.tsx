@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import type { Root } from "react-dom/client";
 import App from "./App";
 import { disposeContainer, initializeDesktopHost } from "./main/container";
 import { applyWindowChrome, watchWindowChrome } from "./main/windowChrome";
@@ -21,8 +22,19 @@ import "./styles/globals.css";
 // safety.
 
 let stopWatchingWindowChrome = () => {};
+let root: Root | undefined;
 configureHostTeardown(() => {
-  stopWatchingWindowChrome();
+  try {
+    root?.unmount();
+  } catch (error) {
+    console.error("[desktop] React root teardown failed:", error);
+  }
+  root = undefined;
+  try {
+    stopWatchingWindowChrome();
+  } catch (error) {
+    console.error("[desktop] window chrome teardown failed:", error);
+  }
   void disposeContainer().catch((error: unknown) => {
     console.error("[desktop] teardown failed:", error);
   });
@@ -42,7 +54,8 @@ async function start(): Promise<void> {
   await applyWindowChrome();
   stopWatchingWindowChrome = watchWindowChrome();
   const container = document.getElementById("root");
-  createRoot(container!).render(<App />);
+  root = createRoot(container!);
+  root.render(<App />);
 }
 
 void start();

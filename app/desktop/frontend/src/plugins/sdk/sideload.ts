@@ -17,13 +17,13 @@ import {
   PermissionSet,
   type Platform,
   type AnyPlugin,
+  type Host,
 } from "dougong";
 import { z } from "zod";
 import { HOST_API_VERSION } from "./apiVersion";
 import { definePlugin } from "./definePlugin";
 import { measurePluginLoad } from "@/lib/metrics";
 import { reportPluginError } from "./errors";
-import { kernelHost } from "./kernel";
 import { COMMAND, SETTINGS_PANE, WORKSPACE_VIEW } from "./kernelPoints";
 import { makeLazyActivator } from "./lazyActivator";
 import { setPluginOrigin } from "./pluginOrigin";
@@ -48,28 +48,23 @@ export const sideloadManifestSchema = z.object({
 
 export type SideloadManifest = z.infer<typeof sideloadManifestSchema>;
 
-let platform: Platform<string | URL> | undefined;
-
 /** Capabilities a third-party plugin may be granted. Anything outside this set
  *  is denied at registration, before a line of its code runs. */
-export function createSideloadPlatform(allowed: Iterable<string>): Platform<string | URL> {
-  platform = createPlatform<string | URL>({
-    installer: kernelHost(),
+export function createSideloadPlatform(
+  allowed: Iterable<string>,
+  installer: Host,
+): Platform<string | URL> {
+  return createPlatform<string | URL>({
+    installer,
     apiVersion: HOST_API_VERSION,
     loader: new ImportLoader(),
     authorizer: new PermissionSet(allowed),
   });
-  return platform;
-}
-
-export function sideloadPlatform(): Platform<string | URL> {
-  if (!platform) throw new Error("No sideload platform — call createSideloadPlatform first");
-  return platform;
 }
 
 /** Fire an activation event; every artifact waiting on it activates. */
-export async function triggerActivation(event: string): Promise<void> {
-  await platform?.trigger(event);
+async function triggerActivation(platform: Platform<string | URL>, event: string): Promise<void> {
+  await platform.trigger(event);
 }
 
 /**
@@ -77,7 +72,11 @@ export async function triggerActivation(event: string): Promise<void> {
  * surfaces the manifest declared, each rendering an activating stub, so the
  * entry is visible and clickable before any third-party code has run.
  */
-function placeholderFor(manifest: SideloadManifest, event: string): AnyPlugin {
+function placeholderFor(
+  platform: Platform<string | URL>,
+  manifest: SideloadManifest,
+  event: string,
+): AnyPlugin {
   const declared = manifest.contributes ?? {};
   return definePlugin({
     name: manifest.name,
@@ -85,19 +84,19 @@ function placeholderFor(manifest: SideloadManifest, event: string): AnyPlugin {
       for (const command of declared.commands ?? []) {
         ctx.contribute(COMMAND, {
           ...command,
-          run: () => void triggerActivation(event),
+          run: () => void triggerActivation(platform, event),
         });
       }
       for (const view of declared.views ?? []) {
         ctx.contribute(WORKSPACE_VIEW, {
           ...view,
-          component: makeLazyActivator(view.title, () => void triggerActivation(event)),
+          component: makeLazyActivator(view.title, () => void triggerActivation(platform, event)),
         });
       }
       for (const pane of declared.settingsPanes ?? []) {
         ctx.contribute(SETTINGS_PANE, {
           ...pane,
-          component: makeLazyActivator(pane.label, () => void triggerActivation(event)),
+          component: makeLazyActivator(pane.label, () => void triggerActivation(platform, event)),
         });
       }
     },
@@ -105,14 +104,16 @@ function placeholderFor(manifest: SideloadManifest, event: string): AnyPlugin {
 }
 
 export async function registerSideloadedPlugin(
+  platform: Platform<string | URL>,
   manifest: SideloadManifest,
   reference: string | URL,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   const activation = manifest.activation?.length ? manifest.activation : ["startup"];
   setPluginOrigin(manifest.name, "sideload");
   const started = performance.now();
   try {
-    await sideloadPlatform().register({
+    await platform.register({
       manifest: {
         name: manifest.name,
         version: manifest.version,
@@ -126,11 +127,13 @@ export async function registerSideloadedPlugin(
         ? {}
         : // `install` takes AnyPlugin in 0.2.0; `Artifact.placeholder` still wants
           // the fully-generic Plugin, so this one seam needs the cast.
-          { placeholder: placeholderFor(manifest, activation[0]!) as never }),
+          { placeholder: placeholderFor(platform, manifest, activation[0]!) as never }),
     });
+    if (signal?.aborted) return false;
     measurePluginLoad(performance.now() - started, manifest.name, "loaded");
     return true;
   } catch (error) {
+    if (signal?.aborted) return false;
     measurePluginLoad(performance.now() - started, manifest.name, "failed");
     reportPluginError(manifest.name, "setup", error);
     return false;

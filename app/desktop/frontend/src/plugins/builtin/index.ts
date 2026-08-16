@@ -1,10 +1,9 @@
 // Manifest of all built-in plugins.
 //
-// `loadPlugins` performs a topological sort over `spec.requires`. This
-// array's order is only a tie-breaker between independent plugins — the
-// groups below are for *human* readability, not load-order semantics.
-// Any "must load before X" relationship lives inside the dependent
-// plugin's `requires: [...]` field.
+// dougong starts this set as one Host transaction and resolves declared
+// service contracts from each plugin's `requires` / `provides`. This array's
+// order is only a tie-breaker between independent plugins — the groups below
+// are for human readability, not dependency semantics.
 //
 // Slot ordering (which contribution wins for last-write-wins slots like
 // previews / themes) is still array-order driven, so keep destructive

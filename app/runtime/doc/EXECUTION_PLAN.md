@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P92 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P98 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -100,6 +100,12 @@
 | P90 | EventCommit Segment 代际事务准入 | P89 + HITL resume 后旧 Segment 迟到写集反例 | 已完成 |
 | P91 | Interaction Host 前置边界失败结算 | P90 + Agent Baseline 22 / 模型与 Tool 调用前事务失败注入 | 已完成 |
 | P92 | 并行 Tool Effect 外部边界与失败仲裁 | P91 + 两 Tool 窗口 / pending canonical receipt / approval failure 反例 | 已完成 |
+| P93 | Terminal EventCommit 成功回执结算 | P92 + terminal COMMIT / canceled caller 反例 | 已完成 |
+| P94 | 普通 EventCommit 成功回执统一结算 | P93 + Model completion COMMIT / replay 反例 | 已完成 |
+| P95 | Composite Run command 成功回执结算 | P94 + opening / child / barrier COMMIT 反例 | 已完成 |
+| P96 | Waiting-child cancellation 成功回执结算 | P95 + remains-Waiting / resumes-Running 反例 | 已完成 |
+| P97 | HITL answer-claim 成功回执结算 | P96 + answer claim COMMIT / canceled caller 反例 | 已完成 |
+| P98 | Desktop 插件 Host 代际与移除事务收敛 | P97 + renderer replacement / late startup / failed removal 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1718,10 +1724,33 @@
 - exact root marker 可以证明本次 claim，另一 identity 不能复用；marker 写失败时 Pending、Question、checkpoint 与 Run marker 全部保持原状；
 - 核心场景重复与 race、SQLite integrity/foreign-key、Runtime workspace/standalone 全门禁通过；`app/cli` 未修改或暂存，未使用 agent-browser，测试结束本仓无残留进程或 17171 监听。
 
-## 77. 进度记录
+## 77. P98 — Desktop 插件 Host 代际与移除事务收敛
+
+### 目标
+
+关闭 dougong 切换后 composition root 只启动、不停止 Host，以及安装句柄、sideload Platform 通过 renderer-global 状态跨代串写的缺口。renderer 替换、窗口关闭、启动迟到或插件移除失败时，旧代只能回收自己拥有的资源；当前 Plugins read model 必须始终对应已发布 exact Host 与已提交 Installation transaction。
+
+### 工作项
+
+- [x] P98-01 以真实 dougong Host 冻结三个反例：successor 发布后继承旧安装名、旧 Host 迟到 stop 撤销 successor、尚未发布 Host 的 installation 提前污染当前 read model；先证明现有实现全部失败；
+- [x] P98-02 将 installation handles 按 Host identity 存入 WeakMap；publish 只读取当前 Host，retract 与 ContributionView 回调都要求 exact generation，旧 stop 仍可回收旧 Host但不能触碰 successor；
+- [x] P98-03 让 PluginProvider 显式拥有 startup AbortSignal、Host 与 SideloadDiscovery；`beforeunload` 的唯一 Host teardown 先同步 unmount React root，effect cleanup 同步撤销本代 publication，再异步按 Platform → Host 顺序 join；正常 unmount和启动迟到都停止 Host，blob URL 在失败或代际结束时撤销，迟到 Desktop discovery 不再创建 Platform；
+- [x] P98-04 将 Plugins remove read model 调整为 transaction commit 后删除，并用 installation handle identity防止旧 removal settlement 删除同名 replacement；移除失败继续显示仍实际安装的插件；
+- [x] P98-05 让 sideload disposal 失败不阻止 Host stop，让 Platform disposal 失败也不阻止 blob URL 回收；同步修正插件架构文档与 stale in-house registry / Host facade 描述；
+- [x] P98-06 保持 Runtime operation、Protocol、Artifact、SQLite、Desktop Agent inner ring 与 Go Agent Framework 合同不变；没有修改或暂存 `app/cli`。
+
+### 验收
+
+- Provider 正常卸载、启动 Promise 在卸载后结算、旧 Host stop 与 successor 发布交错时，每代资源只清理一次且当前 Host/read model 不被旧代撤销；
+- late sideload discovery 不创建 Platform；已创建 Platform 使用 exact Host installer并先于 Host stop dispose，保留 URL 只活到本代结束；
+- installation remove 失败不产生假删除，旧 settlement 不删除 replacement；focused 24 tests 与完整 Frontend 289 files / 1732 tests、严格异步泄露检测、类型、lint、格式、依赖、架构、API consumer、设计系统与生产 bundle 门禁全绿；Desktop Go test/vet/build 全绿；
+- 本批无视觉样式变化，未使用 agent-browser，测试结束本仓无残留 Frontend 测试或 Runtime 进程。
+
+## 78. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P98（Desktop plugin Host generation ownership） | 反证发现 dougong 替换后仍沿用旧 composition-root 假设：PluginProvider unmount 只置 canceled，不停止 Host；installation handles 是 renderer-global Map，尚未发布的 Host 已污染 Plugins read model；`stopKernel(old)` 无条件 retract，会撤销 successor；sideload Platform 又在注册时通过全局 `kernelHost()` 取 installer。进一步复核真实窗口关闭发现 `beforeunload` 没有 unmount React root，Provider cleanup 仍不会运行。现在 Host identity 同时拥有 installation registry、ContributionView 与 retract资格；唯一 host teardown先 unmount root，effect 同步退休 publication，再异步按 Platform → Host join。Provider 对 startup、Host、Platform 和 blob URL 建立结构化 owner，late startup/discovery 只能 rollback本代。插件移除 read model 也改为 transaction commit 后删除，并以 handle identity拒绝旧 settlement 删除 replacement。Runtime、Protocol、SQLite、Desktop Agent inner ring 与 Agent Framework 均未变化 | 修复前 generation 3 条与 Provider 2 条红测稳定失败；修复后 focused 24 tests、Frontend 普通与严格 `--detectAsyncLeaks` 均为 289 files / 1732 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；Desktop Go test/vet/build 全绿；未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P97（HITL answer-claim ambiguous settlement） | 反证确认 HITL Resume 在 opening 前还有独立 answer-claim transaction：`open → resuming`、Question answer replacement 与 one-shot checkpoint deletion 已 durable COMMIT但回执丢失时，旧实现仍返回失败，把已接受回答留给 recovery 的 RunLost。现在 Application 为每次 claim 铸造 immutable identity；runsegment 在完整 write-set 末尾向 root Waiting Run 写入 epoch 74 已支持的 empty-Segment marker，错误后用 request-detached exact identity 结算。原调用利用事务前已加载的 checkpoint 重建 `ClaimedResume`；进程崩溃后不发明 checkpoint replay ledger，仍沿既有 recovery fail closed。marker 写失败整笔回滚，粗略 `resuming` 不作为成功证据；SQLite shape/epoch 与外部合同均未变化 | 真实 SQLite 在 COMMIT 后丢回执并取消 caller，仍精确返回 Pending/answers/checkpoint，回答投影、隐藏 claim、checkpoint deletion 与 exact marker 原子可读；另一 identity 不匹配。marker 写失败时 Pending/Question/checkpoint/Run marker 全部回滚，`integrity_check`/`foreign_key_check` 全绿。核心场景 20×、受影响四包完整 race、Runtime workspace/standalone 全包、root workspace test、staticcheck、deadcode、golangci-lint（0 issues）、generate/diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P96（waiting-child composite cancellation ambiguous settlement） | 反证确认 waiting-child cancellation 的定制 `CommitOpening` 丢弃了 P95 opening identity；它自己的 transaction 同时拥有 checkpoint、Pending、conversation、parent/terminal Items、canceled child Runs 与 surviving Waiting/Running disposition，却没有 durable receipt。COMMIT 后丢回执会错误执行 startup abort或拒绝 process-local `Apply`。现在 remains-Waiting command 单独铸造 identity，resumes-Running command 复用外层 opening identity；runsegment 只在全部 projection 成功后向 root Run写入 latest marker。already-Waiting 不伪造 Segment，以 empty Segment + unique identity 表示；恢复路径绑定 exact new Segment。错误后 request-detached proof读取 durable target/root结果，同 identity replay 收敛，不同 identity拒绝；SQLite 唯一 shape 从 epoch 73 前移到 74，无 migration/双路径 | 两种真实 SQLite transaction 均在 COMMIT 后丢回执并取消 caller：canceled target 与 Waiting/Running root精确返回，checkpoint/Pending/conversation/Items/Run tree/marker 原子可读；同 canceled context replay不重复 conversation，另一 identity fail closed，`integrity_check`/`foreign_key_check` 全绿。两种 marker 写入失败均整笔回滚。核心场景与 rollback matrix 20×、受影响四包完整 race、Runtime workspace/standalone 全包、root workspace test、staticcheck、deadcode、golangci-lint（0 issues）、generate/diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-15 | P95（composite Run command ambiguous settlement） | 继续把 P94 的不明 COMMIT 反例推进到 fresh Start、HITL Resume、durable child start 与 HITL tree barrier：旧实现即使 SQLite transaction 已完整提交，仍会向上返回失败并触发 startup abort、释放 staged executor，或让 process-local interrupt owner拒绝已进入 Waiting 的 durable state。Application 现在为 opening/barrier 各铸造一次 immutable identity；runsegment 在完整 opening write-set 末尾写入 owner Run marker，在 root Waiting CAS 内写入 barrier marker，任何 transaction error 都只用 request-detached exact Session/Run/Segment/identity 结算。child reservation 已 concluded 的旧旁路也被收紧为只有 exact child opening marker 才幂等成功。P94 的单行 latest marker推广为全部 Application Run command boundary，不建立永久 ledger；SQLite 列统一为 `commit_segment_id`/`commit_id`，唯一 shape 从 epoch 72 前移到 73，无 migration/双路径 | 真实 SQLite 三类 COMMIT 后回执丢失并取消 caller 均收敛：fresh opening 的 Run/Item/marker、child reservation/parent Item/child Run/marker、tree barrier 的 Pending/checkpoint/Tool/Transcript/Waiting tree/marker 各自原子可读；同 canceled context exact replay不重复写，不同 opening identity fail closed，三类数据库 `integrity_check`/`foreign_key_check` 全绿。核心场景 20×、受影响四包完整 race、Runtime workspace/standalone 全包、root workspace test、staticcheck、deadcode、golangci-lint（0 issues）、generate/diff-check 全绿；受影响包无 fuzz owner，未使用 agent-browser，`app/cli` 未修改或暂存 |
@@ -1890,6 +1919,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 78. 本轮里程碑
+## 79. 本轮里程碑
 
-P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；同时保持单行 latest marker、one-shot checkpoint 与既有 crash recovery 的清晰边界，不建立永久增长 ledger或兼容双路径。本轮到此停止，不预建 P98；后续若开启新一轮，再从真实产品交错与新的反例重新立项。`app/cli` 始终只读且不暂存。
+P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98 又把相同的 identity discipline落实到 Desktop plugin composition root，使旧 renderer 的 Host、Platform、ContributionView、installation removal 与 blob resource 不能越代触碰 successor。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。
