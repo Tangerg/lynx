@@ -139,7 +139,18 @@
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM15 6a9 9 0 0 1-9 9"></path></svg>
         feat/pricing-24
       </span>
+      <sc-if value="{{ planMode }}">
+        <span style="display:inline-flex; flex:0 0 auto; align-items:center; gap:5px; font-size:11px; color:var(--accent-soft-foreground); background:var(--accent-soft); border-radius:6px; padding:2px 8px; white-space:nowrap;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3ZM9 3v15M15 6v15"></path></svg>
+          计划模式 · 只读
+        </span>
+      </sc-if>
       <div style="flex:1;"></div>
+      <div style="display:flex; align-items:center; gap:2px; padding:2px; border-radius:9px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%);">
+        <sc-for list="{{ views }}" as="v" hint-placeholder-count="2">
+          <button onClick="{{ v.pick }}" style="{{ v.style }}">{{ v.label }}</button>
+        </sc-for>
+      </div>
       <sc-if value="{{ isBusy }}">
         <span style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--accent-soft-foreground); background:var(--accent-soft); border-radius:999px; padding:3px 9px 3px 7px;">
           <span style="width:11px; height:11px; border-radius:50%; border:1.6px solid currentColor; border-top-color:transparent; animation:nv-spin .75s linear infinite;"></span>
@@ -155,8 +166,120 @@
       </button>
     </header>
 
+    <sc-if value="{{ barsVisible }}" hint-placeholder-val="{{ true }}">
+      <div style="{{ barsBandStyle }}">
+        <div style="{{ barsWrapStyle }}">
+
+          <sc-if value="{{ planBarOn }}" hint-placeholder-val="{{ true }}">
+            <div style="{{ barCardStyle }}">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style="color:var(--muted); flex:0 0 13px;"><path d="m3 6 2 2 3-3M3 14l2 2 3-3M13 7h8M13 17h8"></path></svg>
+                <span style="font-size:12.5px; font-weight:500; flex:0 0 auto;">计划</span>
+                <span style="flex:1; min-width:0; font-size:12.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ planCurrent }}</span>
+                <span style="font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono',ui-monospace,monospace;">{{ planRatio }}</span>
+                <button onClick="{{ togglePlanBar }}" title="展开计划" style="width:20px; height:20px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer;" style-hover="background:var(--surface-hover);">
+                  <span style="{{ planCaret }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+                <button onClick="{{ dismissPlan }}" title="本轮不再显示" style="{{ dismissBtnStyle }}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+                </button>
+              </div>
+              <div style="{{ planTrackStyle }}">
+                <div style="{{ planFillStyle }}"></div>
+              </div>
+              <sc-if value="{{ planBarOpen }}">
+                <div style="display:flex; flex-direction:column; gap:9px; margin-top:12px;">
+                  <sc-for list="{{ planSteps }}" as="p" hint-placeholder-count="7">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="{{ p.markStyle }}">{{ p.mark }}</span>
+                      <span style="{{ p.textStyle }}">{{ p.description }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ goalBarOn }}" hint-placeholder-val="{{ true }}">
+            <div style="{{ barCardStyle }}">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style="color:var(--muted); flex:0 0 13px;"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+                <span style="font-size:12.5px; font-weight:500; flex:0 0 auto;">目标</span>
+                <span style="{{ goalTagStyle }}">{{ goalTag }}</span>
+                <span style="{{ goalObjectiveStyle }}">{{ goalObjective }}</span>
+                <span style="font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono',ui-monospace,monospace;">{{ goalTightest }}</span>
+                <button onClick="{{ toggleGoalBar }}" title="展开预算" style="width:20px; height:20px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer;" style-hover="background:var(--surface-hover);">
+                  <span style="{{ goalCaret }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                </button>
+                <button onClick="{{ pauseGoal }}" title="{{ goalPauseTitle }}" style="width:20px; height:20px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer;" style-hover="background:var(--surface-hover);">
+                  <span style="{{ goalPauseIcon }}"></span>
+                </button>
+              </div>
+              <sc-if value="{{ goalBarOpen }}">
+                <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+                  <sc-for list="{{ goalAxes }}" as="a" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <span style="width:52px; flex:0 0 52px; font-size:11.5px; color:var(--muted);">{{ a.name }}</span>
+                      <span style="{{ a.trackStyle }}"><span style="{{ a.fillStyle }}"></span></span>
+                      <span style="flex:0 0 auto; font-size:11.5px; font-family:'JetBrains Mono',ui-monospace,monospace; color:var(--muted); font-variant-numeric:tabular-nums;">{{ a.value }}</span>
+                    </div>
+                  </sc-for>
+                  <div style="font-size:11.5px; color:var(--muted); line-height:1.65; padding-top:2px;">{{ goalReason }}</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isTools }}">
+      <div style="flex:1; overflow-y:auto; scrollbar-width:thin;">
+        <div style="max-width:768px; margin:0 auto; padding:36px 40px 56px; display:flex; flex-direction:column; gap:34px;">
+
+          <div>
+            <h2 style="margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-0.02em;">工具渲染图鉴</h2>
+            <p style="margin:0; font-size:13.5px; line-height:1.75; color:var(--muted); text-wrap:pretty;">三十个内置工具在内容区各自的形态。<strong style="font-weight:500; color:var(--foreground);">只读</strong>退化成一行，<strong style="font-weight:500; color:var(--foreground);">写 / 执行 / 网络</strong>成卡，结论由常驻条回答的工具<strong style="font-weight:500; color:var(--foreground);">不占行</strong>。颜色只表达状态，身份交给字形。</p>
+          </div>
+
+          <sc-for list="{{ toolGroups }}" as="g" hint-placeholder-count="10">
+            <div>
+              <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:14px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);">{{ g.name }}</span>
+                <span style="flex:1; height:1px; background:var(--separator);"></span>
+                <span style="font-size:11px; color:var(--muted); font-family:'JetBrains Mono',ui-monospace,monospace;">{{ g.count }}</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <sc-for list="{{ g.tools }}" as="t" hint-placeholder-count="3">
+                  <div style="{{ t.wrapStyle }}">
+                    <span style="{{ t.iconStyle }}">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="{{ t.d }}"></path><path d="{{ t.d2 }}"></path></svg>
+                    </span>
+                    <span style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;">
+                      <span style="display:flex; align-items:baseline; gap:8px; min-width:0;">
+                        <span style="{{ t.titleStyle }}">{{ t.title }}</span>
+                        <span style="font-size:11px; color:var(--muted); font-family:'JetBrains Mono',ui-monospace,monospace; opacity:.65; white-space:nowrap;">{{ t.name }}</span>
+                      </span>
+                      <span style="{{ t.subStyle }}">{{ t.sub }}</span>
+                    </span>
+                    <sc-for list="{{ t.chips }}" as="c" hint-placeholder-count="1">
+                      <span style="{{ c.style }}">{{ c.text }}</span>
+                    </sc-for>
+                    <span style="{{ t.clsStyle }}">{{ t.cls }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isChat }}" hint-placeholder-val="{{ true }}">
     <div ref="{{ scrollRef }}" onScroll="{{ onTranscriptScroll }}" style="flex:1; overflow-y:auto; scrollbar-width:thin; position:relative;">
-      <div style="max-width:768px; margin:0 auto; padding:44px 40px 40px; display:flex; flex-direction:column; gap:40px;">
+      <div style="max-width:768px; margin:0 auto; padding:44px 40px 40px; display:flex; flex-direction:column; gap:46px;">
 
         <div style="display:grid; grid-template-columns:26px 1fr; gap:18px; align-items:start;">
           <div style="width:26px; height:26px; border-radius:50%; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--foreground); display:grid; place-items:center; font-size:10.5px; font-weight:600; margin-top:1px;">ZY</div>
@@ -183,7 +306,7 @@
           <div style="display:flex; flex-direction:column; gap:26px; min-width:0;">
 
             <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
-              <button onClick="{{ toggleReason }}" style="width:100%; display:flex; align-items:center; gap:8px; padding:13px 16px; border:0; background:transparent; color:var(--foreground); font-family:inherit; font-size:12.5px; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
+              <button onClick="{{ toggleReason }}" style="width:100%; display:flex; align-items:center; gap:8px; padding:13px 15px; border:0; background:transparent; color:var(--foreground); font-family:inherit; font-size:12.5px; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
                 <span style="{{ reasonCaret }}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
                 </span>
@@ -203,10 +326,10 @@
               </sc-if>
             </div>
 
-            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:17px 19px;">
+            <div style="border-radius:16px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); box-shadow:var(--surface-shadow); padding:16px 18px;">
               <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
                 <span style="font-size:13px; font-weight:500;">执行计划</span>
-                <span style="font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;">4 / 5 已完成</span>
+                <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;">4 / 5 已完成</span>
                 <div style="flex:1;"></div>
                 <div style="width:96px; height:4px; border-radius:999px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); overflow:hidden;">
                   <div style="width:80%; height:100%; background:var(--accent); border-radius:999px;"></div>
@@ -238,9 +361,9 @@
             </div>
 
             <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
-              <button onClick="{{ toggleGrep }}" style="width:100%; display:flex; align-items:center; gap:11px; padding:13px 16px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
-                <span style="width:22px; height:22px; border-radius:7px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 22px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 21l-4.34-4.34M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path></svg>
+              <button onClick="{{ toggleGrep }}" style="width:100%; display:flex; align-items:center; gap:11px; padding:13px 15px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 21l-4.34-4.34M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path></svg>
                 </span>
                 <span style="font-size:13px; font-weight:500;">搜索代码库</span>
                 <span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">"PRO_PRICE|2000" — apps/web</span>
@@ -252,7 +375,7 @@
                 </span>
               </button>
               <sc-if value="{{ grepOpen }}">
-                <div style="padding:13px 16px 15px; display:flex; flex-direction:column; gap:7px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.6;">
+                <div style="padding:13px 15px 14px; display:flex; flex-direction:column; gap:7px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.6;">
                   <div style="display:flex; gap:10px;"><span style="color:var(--accent); flex:0 0 210px; overflow:hidden; text-overflow:ellipsis;">pricing/plans.ts:14</span><span style="color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">export const PRO_PRICE = 2000;</span></div>
                   <div style="display:flex; gap:10px;"><span style="color:var(--accent); flex:0 0 210px; overflow:hidden; text-overflow:ellipsis;">pricing/PricingCard.tsx:37</span><span style="color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">price={PRO_PRICE} interval="mo"</span></div>
                   <div style="display:flex; gap:10px;"><span style="color:var(--accent); flex:0 0 210px; overflow:hidden; text-overflow:ellipsis;">billing/checkout.ts:88</span><span style="color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">amount: plan === 'pro' ? PRO_PRICE : ...</span></div>
@@ -275,9 +398,9 @@
             </div>
 
             <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
-              <button onClick="{{ toggleDiff }}" style="width:100%; display:flex; align-items:center; gap:11px; padding:13px 16px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
-                <span style="width:22px; height:22px; border-radius:7px; background:var(--accent-soft); color:var(--accent-soft-foreground); display:grid; place-items:center; flex:0 0 22px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+              <button onClick="{{ toggleDiff }}" style="width:100%; display:flex; align-items:center; gap:11px; padding:13px 15px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
+                <span style="width:24px; height:24px; border-radius:8px; background:var(--accent-soft); color:var(--accent-soft-foreground); display:grid; place-items:center; flex:0 0 24px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
                 </span>
                 <span style="font-size:13px; font-weight:500;">编辑文件</span>
                 <span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">pricing/plans.ts</span>
@@ -303,7 +426,7 @@
                   <div style="display:grid; grid-template-columns:42px 42px 1fr; background:var(--success-soft);"><span style="text-align:right; padding-right:8px; color:var(--muted); font-size:10.5px;"></span><span style="text-align:right; padding-right:8px; color:var(--muted); font-size:10.5px;">15</span><span style="padding-left:12px; color:var(--success-soft-foreground);">+ export const PRO_LABEL = formatUSD(PRO_PRICE);</span></div>
                   <div style="display:grid; grid-template-columns:42px 42px 1fr; background:var(--success-soft);"><span style="text-align:right; padding-right:8px; color:var(--muted); font-size:10.5px;"></span><span style="text-align:right; padding-right:8px; color:var(--muted); font-size:10.5px;">16</span><span style="padding-left:12px; color:var(--success-soft-foreground);">+ export const PRO_PRICE_ID = 'price_1QpRo24';</span></div>
                   <div style="display:grid; grid-template-columns:42px 42px 1fr;"><span style="text-align:right; padding-right:8px; color:var(--muted); font-size:10.5px;">16</span><span style="text-align:right; padding-right:8px; color:var(--muted); font-size:10.5px;">17</span><span style="padding-left:12px; color:var(--muted);">&nbsp;</span></div>
-                  <div style="display:flex; align-items:center; gap:8px; padding:11px 16px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
+                  <div style="display:flex; align-items:center; gap:8px; padding:11px 15px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
                     <span style="font-size:11px; color:var(--muted); font-family:Inter,sans-serif;">另外 4 个文件已同步修改</span>
                     <div style="flex:1;"></div>
                     <button style="height:24px; padding:0 10px; border:1px solid var(--border-secondary); border-radius:999px; background:transparent; color:var(--foreground); font-size:11.5px; font-family:Inter,sans-serif; cursor:pointer;" style-hover="background:var(--surface-hover);">查看全部 diff</button>
@@ -403,7 +526,7 @@
             </div>
 
             <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
-              <div style="display:flex; align-items:center; gap:11px; padding:13px 16px;">
+              <div style="display:flex; align-items:center; gap:11px; padding:13px 15px;">
                 <span style="{{ testIconStyle }}">
                   <sc-if value="{{ testFailed }}" hint-placeholder-val="{{ true }}">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0ZM12 9v4M12 17h.01"></path></svg>
@@ -423,13 +546,13 @@
               </div>
               <sc-if value="{{ testFailed }}" hint-placeholder-val="{{ true }}">
                 <div>
-                  <div style="padding:14px 16px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
+                  <div style="padding:13px 15px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
                     <div style="color:var(--danger-soft-foreground);">FAIL  src/__tests__/billing.spec.ts &gt; 折扣叠加</div>
                     <div style="color:var(--muted);">  → expected 2400 to be 2000 // Object.is equality</div>
                     <div style="color:var(--muted);">  at billing.spec.ts:52:24</div>
                     <div style="color:var(--muted); padding-top:6px;">Tests  1 failed | 47 passed (48)</div>
                   </div>
-                  <div style="display:flex; align-items:center; gap:9px; padding:12px 16px;">
+                  <div style="display:flex; align-items:center; gap:9px; padding:12px 15px;">
                     <span style="font-size:12px; color:var(--muted); flex:1;">断言写死了旧价格，需要改成引用常量后重跑。</span>
                     <button style="height:26px; padding:0 11px; border:1px solid var(--border-secondary); border-radius:999px; background:transparent; color:var(--foreground); font-size:11.5px; font-family:inherit; cursor:pointer;" style-hover="background:var(--surface-hover);">查看失败用例</button>
                     <button onClick="{{ retryTest }}" style="height:26px; padding:0 11px; display:inline-flex; align-items:center; gap:6px; border:0; border-radius:999px; background:var(--accent); color:var(--accent-foreground); font-size:11.5px; font-family:inherit; cursor:pointer;" style-hover="background:var(--accent-hover);">
@@ -440,7 +563,7 @@
                 </div>
               </sc-if>
               <sc-if value="{{ testPassed }}">
-                <div style="padding:14px 16px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
+                <div style="padding:13px 15px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
                   <div style="color:var(--success-soft-foreground);">PASS  src/__tests__/billing.spec.ts</div>
                   <div style="color:var(--muted);">  断言改为 expect(total).toBe(PRO_PRICE)</div>
                   <div style="color:var(--muted); padding-top:6px;">Tests  48 passed (48) · Duration 6.11s</div>
@@ -449,7 +572,7 @@
             </div>
 
             <div ref="{{ approvalRef }}" style="{{ approvalCardStyle }}">
-              <div style="display:flex; align-items:flex-start; gap:11px; padding:17px 19px;">
+              <div style="display:flex; align-items:flex-start; gap:11px; padding:16px 18px;">
                 <span style="{{ approvalIconStyle }}">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10ZM12 8v4M12 16h.01"></path></svg>
                 </span>
@@ -459,7 +582,7 @@
                     <span style="{{ approvalTagStyle }}">{{ approvalTag }}</span>
                   </div>
                   <div style="font-size:12.5px; color:var(--muted); margin-top:3px; line-height:1.6;">{{ approvalDesc }}</div>
-                  <div style="margin-top:10px; border-radius:9px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); padding:10px 12px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; line-height:1.7; display:flex; gap:9px;">
+                  <div style="margin-top:10px; border-radius:9px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); padding:10px 13px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; line-height:1.7; display:flex; gap:9px;">
                     <span style="color:var(--muted); user-select:none;">$</span>
                     <span style="overflow-x:auto; white-space:pre;">rm -rf .next/cache &amp;&amp; pnpm build --force --filter web</span>
                   </div>
@@ -496,7 +619,7 @@
 
               <sc-if value="{{ approvalApproved }}">
                 <div>
-                  <button onClick="{{ toggleTerm }}" style="width:100%; display:flex; align-items:center; gap:9px; padding:11px 16px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
+                  <button onClick="{{ toggleTerm }}" style="width:100%; display:flex; align-items:center; gap:9px; padding:11px 15px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
                     <span style="{{ termCaret }}">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
                     </span>
@@ -506,7 +629,7 @@
                     <span style="font-size:11px; color:var(--muted);">{{ approvalScopeNote }}</span>
                   </button>
                   <sc-if value="{{ termOpen }}">
-                    <div style="padding:14px 16px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7;">
+                    <div style="padding:13px 15px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7;">
                       <div style="color:var(--muted);">▲ Next.js 15.4.2 — building apps/web</div>
                       <div style="color:var(--muted);">  ✓ Compiled successfully in 41.7s</div>
                       <div style="color:var(--muted);">  ✓ Generating static pages (38/38)</div>
@@ -556,9 +679,9 @@
           <div style="width:26px; height:26px; border-radius:8px; background:var(--accent); color:var(--accent-foreground); display:grid; place-items:center; margin-top:1px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.9 5.8L4 10.7l6.1 1.9L12 18.4l1.9-5.8 6.1-1.9-6.1-1.9L12 3Z"></path></svg>
           </div>
-          <div style="display:flex; flex-direction:column; gap:20px; min-width:0;">
+          <div style="display:flex; flex-direction:column; gap:18px; min-width:0;">
 
-            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:17px 19px;">
+            <div style="border-radius:16px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); box-shadow:var(--surface-shadow); padding:16px 18px;">
               <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                 <span style="font-size:13px; font-weight:500;">开始前先确认一处</span>
                 <span style="{{ askTagStyle }}">{{ askTag }}</span>
@@ -590,22 +713,22 @@
 
             <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
               <button onClick="{{ toggleSearch }}" style="width:100%; display:flex; align-items:center; gap:11px; padding:11px 14px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
-                <span style="width:22px; height:22px; border-radius:7px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 22px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"></path></svg>
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"></path></svg>
                 </span>
                 <span style="font-size:13px; font-weight:500;">联网检索</span>
                 <span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">SaaS 调价 过渡期 最佳实践</span>
                 <div style="flex:1;"></div>
-                <span style="font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;">1.8s</span>
+                <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;">1.8s</span>
                 <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; border-radius:999px; padding:2px 8px; background:var(--success-soft); color:var(--success-soft-foreground);">3 条引用</span>
                 <span style="{{ searchCaret }}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
                 </span>
               </button>
               <sc-if value="{{ searchOpen }}">
-                <div style="padding:2px 14px 14px; display:flex; flex-direction:column; gap:8px;">
+                <div style="padding:2px 15px 13px; display:flex; flex-direction:column; gap:8px;">
                   <sc-for list="{{ sources }}" as="s" hint-placeholder-count="3">
-                    <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:10px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
+                    <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 13px; border-radius:10px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);">
                       <span style="width:18px; height:18px; border-radius:6px; background:var(--accent-soft); color:var(--accent-soft-foreground); display:grid; place-items:center; font-size:10px; font-weight:600; flex:0 0 18px;">{{ s.n }}</span>
                       <span style="flex:1; min-width:0;">
                         <span style="display:block; font-size:12.5px; line-height:1.5;">{{ s.title }}</span>
@@ -617,7 +740,7 @@
               </sc-if>
             </div>
 
-            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:15px 17px;">
+            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:13px 15px;">
               <div style="display:flex; align-items:center; gap:8px; margin-bottom:13px;">
                 <span style="font-size:13px; font-weight:500;">并行子任务</span>
                 <span style="font-size:11.5px; color:var(--muted);">3 个子代理 · 共享同一份工作区快照</span>
@@ -633,14 +756,14 @@
                     <span style="width:74px; height:4px; border-radius:999px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); overflow:hidden; flex:0 0 74px;">
                       <span style="{{ a.barStyle }}"></span>
                     </span>
-                    <span style="font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; width:34px; text-align:right;">{{ a.pct }}</span>
+                    <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; width:34px; text-align:right;">{{ a.pct }}</span>
                   </div>
                 </sc-for>
               </div>
             </div>
 
             <div style="{{ mcpCardStyle }}">
-              <div style="display:flex; align-items:flex-start; gap:11px; padding:14px 16px;">
+              <div style="display:flex; align-items:flex-start; gap:11px; padding:13px 15px;">
                 <span style="{{ mcpIconStyle }}">
                   <sc-if value="{{ mcpFailed }}" hint-placeholder-val="{{ true }}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 8v4M12 16h.01"></path></svg>
@@ -655,7 +778,7 @@
                   </div>
                   <div style="font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.65;">{{ mcpDesc }}</div>
                   <sc-if value="{{ mcpFailed }}" hint-placeholder-val="{{ true }}">
-                    <div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; color:var(--muted);">Error: connect ETIMEDOUT 10.4.2.19:8931 (attempt 1/3)</div>
+                    <div style="margin-top:10px; padding:10px 13px; border-radius:10px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; color:var(--muted);">Error: connect ETIMEDOUT 10.4.2.19:8931 (attempt 1/3)</div>
                     <div style="display:flex; align-items:center; gap:8px; margin-top:11px;">
                       <button onClick="{{ retryMcp }}" style="height:28px; padding:0 12px; display:inline-flex; align-items:center; gap:6px; border:0; border-radius:999px; background:var(--accent); color:var(--accent-foreground); font-size:12px; font-family:inherit; cursor:pointer;" style-hover="background:var(--accent-hover);">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"></path></svg>
@@ -669,12 +792,12 @@
             </div>
 
             <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
-              <div style="padding:15px 17px 14px;">
+              <div style="padding:14px 15px 13px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                   <span style="font-size:13px; font-weight:500;">部署到 staging</span>
                   <span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--muted);">vercel · iad1</span>
                   <div style="flex:1;"></div>
-                  <span style="font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;">4/6 · 01:12</span>
+                  <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;">4/6 · 01:12</span>
                 </div>
                 <div style="height:4px; border-radius:999px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); overflow:hidden; margin-top:11px;">
                   <div style="width:66%; height:100%; border-radius:999px; background:var(--accent);"></div>
@@ -688,7 +811,7 @@
                   <span style="opacity:.6;">冒烟测试</span>
                 </div>
               </div>
-              <button onClick="{{ toggleLogs }}" style="width:100%; display:flex; align-items:center; gap:9px; padding:11px 16px; border:0; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
+              <button onClick="{{ toggleLogs }}" style="width:100%; display:flex; align-items:center; gap:9px; padding:11px 15px; border:0; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
                 <span style="{{ logsCaret }}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
                 </span>
@@ -697,7 +820,7 @@
                 <span style="font-size:11.5px; color:var(--muted);">尾随输出</span>
               </button>
               <sc-if value="{{ logsOpen }}">
-                <div style="padding:12px 16px 14px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; color:var(--muted); display:flex; flex-direction:column; gap:2px;">
+                <div style="padding:11px 15px 13px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7; color:var(--muted); display:flex; flex-direction:column; gap:2px;">
                   <div>[01:04] Uploading build outputs (38 files, 4.2 MB)</div>
                   <div>[01:09] Assigning nova-web-git-feat-pricing-24.vercel.app</div>
                   <div style="color:var(--accent);">[01:12] Waiting for smoke test /pricing …</div>
@@ -710,7 +833,7 @@
               <p style="margin:0; text-wrap:pretty;">按过去 12 个月的价格弹性回归，Legacy Pro 从 $15 到 $18 的流失率明显高于 Pro 档，建议把过渡期从 60 天延长到 90 天：</p>
             </div>
 
-            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:16px 18px;">
+            <div style="border-radius:16px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); box-shadow:var(--surface-shadow); padding:16px 18px;">
               <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
                 <span style="font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);">预计 90 天流失率</span>
                 <span style="font-size:11.5px; color:var(--muted);">回归置信度 0.82</span>
@@ -729,8 +852,8 @@
             </div>
 
             <div style="display:flex; align-items:center; gap:11px; padding:11px 14px; border-radius:12px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%);">
-              <span style="width:22px; height:22px; border-radius:7px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 22px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2"></path></svg>
+              <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2"></path></svg>
               </span>
               <span style="flex:1; min-width:0;">
                 <span style="display:block; font-size:12.5px;">检查点 · 定价改动已落库</span>
@@ -754,6 +877,255 @@
             </sc-if>
 
           </div>
+        </div>
+
+
+        <div style="display:flex; align-items:center; gap:14px; padding:4px 0;">
+          <span style="flex:1; height:1px; background:var(--separator);"></span>
+          <span style="font-size:11.5px; color:var(--muted);">已压缩 42 条更早的消息</span>
+          <span style="flex:1; height:1px; background:var(--separator);"></span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:26px 1fr; gap:18px; align-items:start;">
+          <div style="width:26px; height:26px; border-radius:50%; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--foreground); display:grid; place-items:center; font-size:10.5px; font-weight:600; margin-top:1px;">ZY</div>
+          <div style="font-size:15px; line-height:1.75;">跑一遍迁移演练，再查一下 Stripe 对价格迁移的接口限制。</div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:26px 1fr; gap:18px; align-items:start;">
+          <div style="width:26px; height:26px; border-radius:8px; background:var(--accent); color:var(--accent-foreground); display:grid; place-items:center; margin-top:1px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.9 5.8L4 10.7l6.1 1.9L12 18.4l1.9-5.8 6.1-1.9-6.1-1.9L12 3Z"></path></svg>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:18px; min-width:0;">
+
+            <button onClick="{{ exGrp.toggle }}" style="display:flex; align-items:center; gap:9px; padding:0 2px; border:0; background:transparent; color:var(--muted); font-family:inherit; cursor:pointer; text-align:left;">
+              <span style="{{ exGrp.caret }}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+              </span>
+              <span style="font-size:13px;">读了 3 个文件 · 搜了 2 次</span>
+            </button>
+            <sc-if value="{{ exGrp.open }}">
+              <div style="display:flex; flex-direction:column; gap:9px; margin:-8px 0 0 21px;">
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="color:var(--muted); display:grid; place-items:center; flex:0 0 15px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+                  <span style="flex:1; min-width:0; font-size:13px; font-family:'JetBrains Mono',ui-monospace,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left;">apps/web/pricing/plans.ts</span>
+                  <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">L40-80</span>
+                  <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">1,284 行</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="color:var(--muted); display:grid; place-items:center; flex:0 0 15px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+                  <span style="flex:1; min-width:0; font-size:13px; font-family:'JetBrains Mono',ui-monospace,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left;">apps/web/billing/checkout.ts</span>
+                  <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">612 行</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="color:var(--muted); display:grid; place-items:center; flex:0 0 15px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7.5l-2-3H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1Z"></path><path d="M13.5 15.5 15 17"></path><circle cx="11.5" cy="13.5" r="2.5"></circle></svg></span>
+                  <span style="flex:1; min-width:0; font-size:13px; font-family:'JetBrains Mono',ui-monospace,monospace;">**/migrations/*.ts</span>
+                  <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">7 项</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="color:var(--muted); display:grid; place-items:center; flex:0 0 15px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h13M3 12h9M3 18h7"></path><circle cx="17.5" cy="16.5" r="3.5"></circle><path d="m21 20-1-1"></path></svg></span>
+                  <span style="flex:1; min-width:0; font-size:13px; font-family:'JetBrains Mono',ui-monospace,monospace;">legacyPro|LEGACY_PRO</span>
+                  <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">12 处命中</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="color:var(--muted); display:grid; place-items:center; flex:0 0 15px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h13M3 12h9M3 18h7"></path><circle cx="17.5" cy="16.5" r="3.5"></circle><path d="m21 20-1-1"></path></svg></span>
+                  <span style="flex:1; min-width:0; font-size:13px; font-family:'JetBrains Mono',ui-monospace,monospace; color:var(--muted);">grandfather_until</span>
+                  <span style="font-size:11px; color:var(--muted);">没有匹配</span>
+                  <span style="display:inline-flex; align-items:center; height:17px; padding:0 6px; border-radius:5px; background:var(--warning-soft); color:var(--warning-soft-foreground); font-size:10.5px; font-family:'JetBrains Mono',ui-monospace,monospace;">exit 1</span>
+                </div>
+              </div>
+            </sc-if>
+
+            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
+              <div style="display:flex; align-items:flex-start; gap:11px; padding:13px 15px 12px;">
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m4 17 6-5-6-5M12 19h8"></path></svg></span>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:baseline; gap:10px;">
+                    <span style="font-size:13px; font-weight:500;">运行迁移演练</span>
+                    <div style="flex:1;"></div>
+                    <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">8.4s</span>
+                  </div>
+                  <div style="margin-top:7px; overflow-x:auto; scrollbar-width:none;">
+                    <span style="display:inline-block; white-space:pre; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; color:var(--muted);">pnpm tsx scripts/migrate-prices.ts --dry-run --tier=legacy_pro --to=1800</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick="{{ exSh.toggle }}" style="width:100%; display:flex; align-items:center; gap:9px; padding:10px 15px; border:0; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
+                <span style="{{ exSh.caret }}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+                </span>
+                <span style="font-size:12px;">终端输出</span>
+                <div style="flex:1;"></div>
+                <span style="font-size:11px; color:var(--muted);">18 行</span>
+              </button>
+              <sc-if value="{{ exSh.open }}">
+                <div style="padding:11px 15px 13px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.75; color:var(--muted); display:flex; flex-direction:column; gap:1px;">
+                  <div>dry-run · 不会写库</div>
+                  <div>legacy_pro  1500 → 1800   影响 2,418 个订阅</div>
+                  <div>grandfather 90d          截止 2026-11-07</div>
+                  <div style="color:var(--warning-soft-foreground);">warn  312 个订阅处于试用期，将跳过</div>
+                  <div style="color:var(--success-soft-foreground);">ok    演练通过，无冲突</div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
+              <button onClick="{{ exWs.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; padding:12px 15px; border:0; background:transparent; color:var(--foreground); font-family:inherit; cursor:pointer; text-align:left;" style-hover="background:var(--surface-hover);">
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"></path></svg></span>
+                <span style="font-size:13px; font-weight:500; flex:0 0 auto;">Stripe 价格迁移限制</span>
+                <div style="flex:1;"></div>
+                <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">4 条结果</span>
+                <span style="{{ exWs.caret }}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+                </span>
+              </button>
+              <sc-if value="{{ exWs.open }}" hint-placeholder-val="{{ true }}">
+                <div style="padding:0 15px 13px; display:flex; flex-direction:column; gap:2px;">
+                  <sc-for list="{{ webHits }}" as="h" hint-placeholder-count="4">
+                    <a href="#" style="display:flex; align-items:flex-start; gap:11px; padding:10px 13px; border-radius:10px; text-decoration:none; color:inherit;" style-hover="background:var(--surface-hover);">
+                      <span style="{{ h.dotStyle }}">{{ h.initial }}</span>
+                      <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-size:12.5px; line-height:1.5; color:var(--foreground);">{{ h.title }}</span>
+                        <span style="display:block; font-size:11px; color:var(--muted); margin-top:3px; line-height:1.6;">{{ h.snippet }}</span>
+                        <span style="display:block; font-size:11px; color:var(--muted); margin-top:4px; font-family:'JetBrains Mono',ui-monospace,monospace; opacity:.8;">{{ h.host }}</span>
+                      </span>
+                    </a>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:11px; padding:12px 15px;">
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4H4v16h16V10M9 15l11-11M14 4h6v6"></path></svg></span>
+                <span style="flex:1; min-width:0; font-size:12.5px; font-family:'JetBrains Mono',ui-monospace,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">api.stripe.com/v1/prices/migrate</span>
+                <span style="display:inline-flex; align-items:center; height:19px; padding:0 7px; border-radius:6px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); font-size:10.5px; font-family:'JetBrains Mono',ui-monospace,monospace;">POST</span>
+                <button onClick="{{ exHttp.toggle }}" style="width:22px; height:22px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer;" style-hover="background:var(--surface-hover);">
+                  <span style="{{ exHttp.caret }}">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+                  </span>
+                </button>
+              </div>
+              <sc-if value="{{ exHttp.open }}">
+                <div style="padding:0 15px 13px; display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:6px; background:var(--success-soft); color:var(--success-soft-foreground); font-size:11px; font-weight:600; font-family:'JetBrains Mono',ui-monospace,monospace;">200</span>
+                    <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">412ms</span>
+                    <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">2.1 KB</span>
+                  </div>
+                  <div style="border-radius:10px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); padding:11px 13px; display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; line-height:1.7;">
+                    <span style="color:var(--muted);">content-type</span><span>application/json</span>
+                    <span style="color:var(--muted);">ratelimit-remaining</span><span>96</span>
+                    <span style="color:var(--muted);">request-id</span><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">req_8Kt2xQfLmNq4Vd</span>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:11px; padding:12px 15px;">
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4c-4 0-4 3-7 3v10c3 0 3-3 7-3s4 3 7 3V7c-3 0-3-3-7-3Z"></path></svg></span>
+                <span style="flex:1; min-width:0; font-size:12.5px; font-family:'JetBrains Mono',ui-monospace,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left;">scripts/migrate-prices.ts</span>
+                <span style="font-size:11.5px; font-family:'JetBrains Mono',ui-monospace,monospace;"><span style="color:var(--success-soft-foreground);">+14</span> <span style="color:var(--danger-soft-foreground);">−3</span></span>
+                <button onClick="{{ exAp.toggle }}" style="width:22px; height:22px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer;" style-hover="background:var(--surface-hover);">
+                  <span style="{{ exAp.caret }}">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+                  </span>
+                </button>
+              </div>
+              <sc-if value="{{ exAp.open }}" hint-placeholder-val="{{ true }}">
+                <div style="background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); padding:10px 0 12px;">
+                  <sc-for list="{{ patchRows }}" as="r" hint-placeholder-count="7">
+                    <div style="{{ r.rowStyle }}">
+                      <span style="width:38px; flex:0 0 38px; text-align:right; padding-right:10px; opacity:.5;">{{ r.ln }}</span>
+                      <span style="width:12px; flex:0 0 12px; opacity:.8;">{{ r.sign }}</span>
+                      <span style="flex:1; min-width:0; white-space:pre;">{{ r.code }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:13px 15px; display:flex; align-items:flex-start; gap:11px;">
+              <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path></svg>
+              </span>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:baseline; gap:10px;">
+                  <span style="font-size:13px; font-weight:500; color:var(--muted);">清理旧价格快照</span>
+                  <div style="flex:1;"></div>
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--muted);">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+                    你拒绝了
+                  </span>
+                </div>
+                <div style="margin-top:6px; overflow-x:auto; scrollbar-width:none;">
+                  <span style="display:inline-block; white-space:pre; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; color:var(--muted); opacity:.7;">rm -rf .cache/prices/*.snap</span>
+                </div>
+                <div style="font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.65;">Nova 已换用 <code style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); padding:1px 5px; border-radius:4px;">git clean -n</code> 先列出待删文件，等你确认。</div>
+              </div>
+            </div>
+
+            <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); border:1px solid color-mix(in oklab, var(--danger) 34%, var(--surface)); padding:13px 15px; display:flex; align-items:flex-start; gap:11px;">
+              <span style="width:24px; height:24px; border-radius:8px; background:var(--danger-soft); color:var(--danger-soft-foreground); display:grid; place-items:center; flex:0 0 24px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v5M12 17h.01"></path><circle cx="12" cy="12" r="10"></circle></svg>
+              </span>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:baseline; gap:10px;">
+                  <span style="font-size:13px; font-weight:500;">抓取变更日志</span>
+                  <span style="font-size:11px; color:var(--muted); font-family:'JetBrains Mono',ui-monospace,monospace;">rate_limited</span>
+                </div>
+                <div style="font-size:12.5px; color:var(--muted); margin-top:5px; line-height:1.65;">上游限流，60 秒内最多 20 次请求。</div>
+                <div style="display:flex; align-items:center; gap:8px; margin-top:11px;">
+                  <button onClick="{{ retryFetch }}" style="{{ retryBtnStyle }}">{{ retryLabel }}</button>
+                  <button style="height:28px; padding:0 12px; border:0; border-radius:999px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--foreground); font-size:12px; font-family:inherit; cursor:pointer;" style-hover="background:var(--surface-hover);">打开诊断</button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex; align-items:center; gap:11px; padding:12px 15px; border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%);">
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path></svg></span>
+                <span style="flex:1; min-width:0; font-size:13px; font-weight:500;">核对试用期订阅</span>
+                <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">2 个子任务</span>
+              </div>
+              <div style="margin:10px 0 0 21px; padding-left:17px; border-left:1px solid var(--separator); display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="width:7px; height:7px; border-radius:50%; background:var(--success); flex:0 0 7px;"></span>
+                  <span style="flex:1; min-width:0; font-size:12.5px; color:var(--muted);">委派任务 (1/2) · 已完成 · 9 步</span>
+                  <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',ui-monospace,monospace;">22s</span>
+                </div>
+                <div>
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <span style="width:7px; height:7px; border-radius:50%; background:var(--warning); flex:0 0 7px; animation:nv-breathe 1.6s ease-in-out infinite;"></span>
+                    <span style="flex:1; min-width:0; font-size:12.5px;">委派任务 (2/2) · 等待中 · 4 步</span>
+                    <button style="height:24px; padding:0 10px; border:0; border-radius:999px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); font-size:11px; font-family:inherit; cursor:pointer;" style-hover="background:var(--surface-hover); color:var(--foreground);">取消</button>
+                  </div>
+                  <div style="margin-top:10px; border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); box-shadow:var(--surface-shadow); padding:15px 17px; display:flex; flex-direction:column; gap:11px;">
+                    <div style="font-size:12.5px; line-height:1.7;">312 个试用期订阅里有 <strong style="font-weight:600;">47 个</strong>会在过渡期内转正。要把它们按新价还是旧价结算？</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                      <sc-for list="{{ subChoices }}" as="c" hint-placeholder-count="2">
+                        <button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="font-size:15px; line-height:1.85;">
+              <p style="margin:0; text-wrap:pretty;">演练没有冲突，补丁已经写好但还没提交。等你决定试用期订阅的结算口径，我就把这两件事一起落库。</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:14px; padding:6px 0 2px;">
+          <span style="flex:1; height:1px; background:var(--separator);"></span>
+          <span style="display:inline-flex; align-items:center; gap:9px; font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono',ui-monospace,monospace;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style="color:var(--accent);"><path d="M20 6 9 17l-5-5"></path></svg>
+            已完成 · 42s · 8 步 · ↑12.4k ↓3.4k · $0.08
+          </span>
+          <span style="flex:1; height:1px; background:var(--separator);"></span>
         </div>
 
         <sc-for list="{{ liveBlocks }}" as="b" hint-placeholder-count="0">
@@ -781,9 +1153,9 @@
               </sc-if>
 
               <sc-if value="{{ b.isTool }}">
-                <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); display:flex; align-items:center; gap:11px; padding:13px 16px;">
-                  <span style="width:22px; height:22px; border-radius:7px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 22px;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 21l-4.34-4.34M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path></svg>
+                <div style="border-radius:14px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); display:flex; align-items:center; gap:11px; padding:13px 15px;">
+                  <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 21l-4.34-4.34M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path></svg>
                   </span>
                   <span style="font-size:12.5px; font-weight:500;">{{ b.name }}</span>
                   <span style="font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ b.target }}</span>
@@ -808,7 +1180,9 @@
 
       </div>
     </div>
+    </sc-if>
 
+    <sc-if value="{{ isChat }}" hint-placeholder-val="{{ true }}">
     <div style="{{ composerBandStyle }}">
       <div style="max-width:768px; margin:0 auto; padding-left:44px; position:relative;">
 
@@ -820,7 +1194,7 @@
         </sc-if>
 
         <sc-if value="{{ approvalPending }}" hint-placeholder-val="{{ true }}">
-          <button onClick="{{ jumpApproval }}" style="width:100%; display:flex; align-items:center; gap:9px; margin-bottom:9px; padding:9px 13px; border:0; border-radius:11px; background:var(--danger-soft); color:var(--danger-soft-foreground); font-family:inherit; font-size:12.5px; cursor:pointer; text-align:left;" style-hover="background:var(--danger-soft-hover);">
+          <button onClick="{{ jumpApproval }}" style="width:100%; display:flex; align-items:center; gap:9px; margin-bottom:9px; padding:9px 13px; border:0; border-radius:12px; background:var(--danger-soft); color:var(--danger-soft-foreground); font-family:inherit; font-size:12.5px; cursor:pointer; text-align:left;" style-hover="background:var(--danger-soft-hover);">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10ZM12 8v4M12 16h.01"></path></svg>
             <span style="flex:1;">1 条命令等待审批，Nova 已暂停</span>
             <span style="opacity:.75;">查看 →</span>
@@ -887,6 +1261,7 @@
         </div>
       </div>
     </div>
+    </sc-if>
   </main>
 
   <sc-if value="{{ rightOpen }}" hint-placeholder-val="{{ true }}">
@@ -985,12 +1360,17 @@
               </div>
             </div>
             <div>
-              <div style="font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;">待办</div>
-              <div style="display:flex; flex-direction:column; gap:10px; font-size:12.5px;">
-                <div style="display:flex; align-items:center; gap:9px; color:var(--muted);"><span style="width:14px; height:14px; border-radius:50%; background:var(--success-soft); color:var(--success-soft-foreground); display:grid; place-items:center; flex:0 0 14px;"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>更新快照与账单单测</div>
-                <div style="display:flex; align-items:center; gap:9px;"><span style="width:14px; height:14px; border-radius:50%; border:1.6px solid var(--accent); border-top-color:transparent; flex:0 0 14px; animation:nv-spin .75s linear infinite;"></span>运行受影响的测试套件</div>
-                <div style="display:flex; align-items:center; gap:9px; color:var(--muted);"><span style="width:14px; height:14px; border-radius:50%; border:1.5px dashed var(--border-tertiary); flex:0 0 14px;"></span>重新构建定价页静态产物</div>
-                <div style="display:flex; align-items:center; gap:9px; color:var(--muted);"><span style="width:14px; height:14px; border-radius:50%; border:1.5px dashed var(--border-tertiary); flex:0 0 14px;"></span>确认 Legacy Pro 档位处理方式</div>
+              <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);">计划</span>
+                <span style="font-size:11px; color:var(--muted); font-family:'JetBrains Mono',ui-monospace,monospace;">{{ planRatio }}</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <sc-for list="{{ planSteps }}" as="p" hint-placeholder-count="7">
+                  <div style="display:flex; align-items:flex-start; gap:10px;">
+                    <span style="{{ p.markStyle }}">{{ p.mark }}</span>
+                    <span style="{{ p.textStyle }}">{{ p.description }}</span>
+                  </div>
+                </sc-for>
               </div>
             </div>
           </div>
@@ -1023,7 +1403,7 @@
               <input value="{{ termQuery }}" onChange="{{ onTermQuery }}" placeholder="过滤输出" style="flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--foreground); font-family:inherit; font-size:12.5px;">
               <span style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;">{{ termCount }}</span>
             </div>
-            <div style="border-radius:12px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:12px 13px; display:flex; flex-direction:column; gap:3px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7;">
+            <div style="border-radius:12px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%); padding:11px 13px; display:flex; flex-direction:column; gap:3px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.7;">
               <sc-for list="{{ termLines }}" as="l" hint-placeholder-count="8">
                 <div style="{{ l.style }}">{{ l.text }}</div>
               </sc-for>
@@ -1040,9 +1420,9 @@
           <div style="display:flex; flex-direction:column; gap:12px;">
             <div style="font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);">已加载上下文</div>
             <sc-for list="{{ contextFiles }}" as="f" hint-placeholder-count="4">
-              <div style="display:flex; align-items:center; gap:11px; padding:12px 14px; border-radius:12px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%);">
-                <span style="width:22px; height:22px; border-radius:7px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 22px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"></path></svg>
+              <div style="display:flex; align-items:center; gap:11px; padding:11px 14px; border-radius:12px; background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%);">
+                <span style="width:24px; height:24px; border-radius:8px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); display:grid; place-items:center; flex:0 0 24px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"></path></svg>
                 </span>
                 <span style="flex:1; min-width:0;">
                   <span style="display:block; font-size:12.5px; font-family:'JetBrains Mono',ui-monospace,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ f.name }}</span>
@@ -1052,6 +1432,34 @@
               </div>
             </sc-for>
             <div style="font-size:11.5px; color:var(--muted); line-height:1.7;">上下文按最近使用排序，超出窗口时最旧的文件会被自动裁剪。</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isGoal }}">
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);">自治目标</span>
+                <span style="{{ goalTagStyle }}">{{ goalTag }}</span>
+              </div>
+              <div style="font-size:13px; line-height:1.7;">{{ goalObjective }}</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <sc-for list="{{ goalAxes }}" as="a" hint-placeholder-count="3">
+                <div>
+                  <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px;">
+                    <span style="font-size:12px; color:var(--muted);">{{ a.name }}</span>
+                    <span style="font-size:11.5px; font-family:'JetBrains Mono',ui-monospace,monospace; color:var(--muted); font-variant-numeric:tabular-nums;">{{ a.value }}</span>
+                  </div>
+                  <span style="{{ a.railTrackStyle }}"><span style="{{ a.fillStyle }}"></span></span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px; color:var(--muted); line-height:1.7;">{{ goalReason }}</div>
+            <div style="display:flex; gap:8px;">
+              <button onClick="{{ pauseGoal }}" style="flex:1; height:30px; border:0; border-radius:999px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--foreground); font-size:12px; font-family:inherit; cursor:pointer;" style-hover="background:var(--surface-hover);">{{ goalPauseTitle }}</button>
+              <button style="height:30px; padding:0 13px; border:0; border-radius:999px; background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%); color:var(--muted); font-size:12px; font-family:inherit; cursor:pointer;" style-hover="background:var(--surface-hover); color:var(--foreground);">结束</button>
+            </div>
           </div>
         </sc-if>
 
@@ -1094,7 +1502,7 @@
 </div>
 
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark' | 'light'&quot;},&quot;showRightPanel&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;streamSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:6,&quot;max&quot;:60,&quot;step&quot;:2,&quot;default&quot;:18,&quot;unit&quot;:&quot;字/秒&quot;,&quot;tsType&quot;:&quot;number&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;planMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;场景&quot;},&quot;showPlanBar&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;常驻条&quot;},&quot;showGoalBar&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;常驻条&quot;}}">
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -1167,6 +1575,15 @@ class Component extends DCLogic {
       chips: ['plans.ts', 'checkout.ts'],
       atBottom: true,
       sessMore: false,
+      exp: { grp: false, sh: true, ws: true, http: false, ap: true },
+      retry: 'idle',
+      subPick: '',
+      view: 'chat',
+      planMode: false,
+      planBarOpen: false,
+      planDismissed: false,
+      goalBarOpen: false,
+      goalStatus: 'active',
       reasonOpen: true,
       grepOpen: false,
       diffOpen: true,
@@ -1354,6 +1771,78 @@ class Component extends DCLogic {
   renderVals() {
     const s = this.state;
     const dark = s.theme === 'dark';
+    const CARD_ = 'color-mix(in oklab, var(--surface) 96%, var(--accent) 4%)';
+    const INNER_ = 'color-mix(in oklab, var(--surface) 91%, var(--accent) 9%)';
+    const MONO_ = "font-family:'JetBrains Mono',ui-monospace,monospace;";
+    const rot = (o) => 'display:grid;place-items:center;color:var(--muted);transition:transform 160ms var(--ease-smooth,ease);transform:rotate(' + (o ? 90 : 0) + 'deg);';
+    const PLAN = [
+      ['定位所有价格常量引用', 'completed'],
+      ['修改 plans.ts 中的 PRO_PRICE', 'completed'],
+      ['更新 3 处快照与账单单测', 'completed'],
+      ['把 fold 层的 plan 投影接到常驻条', 'in_progress'],
+      ['运行受影响的测试套件', 'pending'],
+      ['重新构建定价页静态产物', 'pending'],
+      ['确认 Legacy Pro 档位处理方式', 'pending']
+    ];
+    const planDone = PLAN.filter(p => p[1] === 'completed').length;
+    const TOOLS = [
+      { n: '文件与代码', t: [
+        { k: 'read', ti: 'apps/web/pricing/plans.ts', s: '读文件 · 标题是路径，从左截断', c: 'safe', f: 'line', ch: ['L40-80', '1,284 行'], d: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z', d2: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z' },
+        { k: 'glob', ti: '**/migrations/*.ts', s: '按文件名找 · 展开体是路径列表', c: 'safe', f: 'line', ch: ['7 项'], d: 'M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7.5l-2-3H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1Z', d2: 'M11.5 11a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM15 17l1.5 1.5' },
+        { k: 'grep', ti: 'legacyPro|LEGACY_PRO', s: '按内容找 · 展开体是命中行', c: 'safe', f: 'line', ch: ['12 处'], d: 'M3 6h13M3 12h9M3 18h7', d2: 'M17.5 13a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM21 20l-1-1' },
+        { k: 'lsp', ti: 'plans.ts:118:14', s: '语言服务 · 展开体按 operation 换脸', c: 'safe', f: 'line', ch: ['references'], d: 'm16 18 6-6-6-6M8 6l-6 6 6 6' },
+        { k: 'apply_patch', ti: 'scripts/migrate-prices.ts', s: '唯一的文件变更工具 · 展开体是 diff', c: 'write', f: 'card', ch: ['+14 −3'], d: 'M14 4c-4 0-4 3-7 3v10c3 0 3-3 7-3s4 3 7 3V7c-3 0-3-3-7-3Z' }
+      ]},
+      { n: '命令执行', t: [
+        { k: 'shell', ti: '运行迁移演练', s: 'pnpm tsx scripts/migrate-prices.ts --dry-run', c: 'exec', f: 'card', ch: ['8.4s'], d: 'm4 17 6-5-6-5M12 19h8' },
+        { k: 'read_shell_output', ti: 'shell_7f2a', s: '读后台输出 · 展开体是终端', c: 'safe', f: 'line', ch: ['运行中'], d: 'M8 3H5a2 2 0 0 0-2 2v3M3 16v3a2 2 0 0 0 2 2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3', d2: 'M7 12h10' },
+        { k: 'stop_shell', ti: 'shell_7f2a', s: '停后台命令 · 有副作用，成卡', c: 'exec', f: 'card', d: 'M7 7h10v10H7z' }
+      ]},
+      { n: '网络', t: [
+        { k: 'web_search', ti: 'Stripe 价格迁移限制', s: '展开体是结果卡：标题 / 域名 / 摘要', c: 'network', f: 'card', ch: ['4 条'], d: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', d2: 'M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z' },
+        { k: 'web_fetch', ti: 'stripe.com/docs/billing/migrate', s: 'URL 从右截断 · 展开体是页面正文', c: 'network', f: 'card', ch: ['markdown'], d: 'M12 3v12m0 0 4-4m-4 4-4-4M4 19h16' },
+        { k: 'http_request', ti: 'api.stripe.com/v1/prices/migrate', s: '展开体是状态码 + header 表 + body', c: 'network', f: 'card', ch: ['200', '412ms'], d: 'M18 17h-6c-1.1 0-2 .9-2.5 1.9A4 4 0 1 1 4 13', d2: 'm7 9 3.5-6A4 4 0 1 1 18 9M15 15l-3.5 6' }
+      ]},
+      { n: 'Skill', t: [
+        { k: 'list_skills', ti: '列出 Skills', s: '无参数 · 展开体是 name + description', c: 'safe', f: 'line', ch: ['14 个'], d: 'M16 6l4 14M12 6v14M8 8v12M4 4v16' },
+        { k: 'load_skill', ti: 'pricing-migration', s: '加载完整指令进上下文', c: 'safe', f: 'line', d: 'M12 7v14M3 18h6a3 3 0 0 1 3 3V7a3 3 0 0 0-3-3H4a1 1 0 0 0-1 1v14ZM21 18h-6a3 3 0 0 0-3 3V7a3 3 0 0 1 3-3h5a1 1 0 0 1 1 1v14Z' },
+        { k: 'read_skill_resource', ti: 'pricing-migration/REFERENCE.md', s: '只读内容，永不执行脚本', c: 'safe', f: 'line', d: 'm16 6-8.4 8.4a2 2 0 0 0 2.8 2.8l8.4-8.4a4 4 0 1 0-5.7-5.7L4.7 11.6a6 6 0 1 0 8.5 8.5L21 12.3' },
+        { k: 'propose_skill', ti: 'price-tier-migration', s: '进审核队列 · 这里不画审批 UI', c: 'safe', f: 'line', ch: ['project'], d: 'm12 3 1.9 5.8 5.8 1.9-5.8 1.9L12 18.4l-1.9-5.8-5.8-1.9 5.8-1.9L12 3Z' }
+      ]},
+      { n: 'Plan 模式', t: [
+        { k: 'enter_plan_mode', ti: '进入计划模式', s: '只降权限 · 顶栏出现只读标记', c: 'safe', f: 'line', d: 'm3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3ZM9 3v15M15 6v15' },
+        { k: 'set_plan', ti: '更新计划', s: '行被丢弃 → 结论在计划常驻条', c: 'safe', f: 'drop', ch: ['3/7'], d: 'm3 6 2 2 3-3M3 14l2 2 3-3M13 7h8M13 17h8' },
+        { k: 'exit_plan_mode', ti: '请求批准计划', s: '行被丢弃 → 提问卡才是真身', c: 'safe', f: 'drop', d: 'M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1ZM4 22V4' }
+      ]},
+      { n: 'Goal', t: [
+        { k: 'create_goal', ti: '启动自治目标', s: '行被丢弃 → 结论在目标常驻条', c: 'safe', f: 'drop', d: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', d2: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z' },
+        { k: 'get_goal', ti: '查看目标', s: '行被丢弃 · 常驻条读的是 goals.get', c: 'safe', f: 'drop', d: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z', d2: 'M22 12h-4M6 12H2M12 6V2M12 22v-4' },
+        { k: 'report_goal_outcome', ti: '汇报目标结果', s: '行被丢弃 → 状态落到目标条', c: 'safe', f: 'drop', d: 'M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z', d2: 'm9 14 2 2 4-4' }
+      ]},
+      { n: '定时任务', t: [
+        { k: 'list_schedules', ti: '列出定时任务', s: '无参数 · 展开体是任务行表', c: 'safe', f: 'line', ch: ['3 个'], d: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', d2: 'M12 6v6l4 2' },
+        { k: 'create_schedule', ti: '每周一 09:00 复核定价', s: '0 9 * * 1 · 展开体是任务详情', c: 'write', f: 'card', d: 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', d2: 'M12 13v5M9.5 15.5h5' },
+        { k: 'delete_schedule', ti: 'sch_4b81', s: '一张回执，不是一个视图 · 无展开体', c: 'write', f: 'card', d: 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', d2: 'm10 14 4 4M14 14l-4 4' }
+      ]},
+      { n: '回忆与发现', t: [
+        { k: 'search_memory', ti: '定价决策历史', s: '结果是散文 · 展开体逐条记忆', c: 'safe', f: 'line', ch: ['6 条'], d: 'M12 5a3 3 0 0 0-6 0 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1Z', d2: 'M12 5a3 3 0 0 1 6 0 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1Z' },
+        { k: 'search_conversations', ti: 'Legacy Pro 过渡期', s: '展开体三列：说话人 / 日期 / 摘录', c: 'safe', f: 'line', ch: ['8 条'], d: 'M3 12a9 9 0 1 0 3-6.7L3 8', d2: 'M3 3v5h5M12 7v5l4 2' },
+        { k: 'search_tools', ti: '需要读写 Stripe 订阅', s: '按需加载 · 展开体按来源分组', c: 'safe', f: 'line', ch: ['+5 个'], d: 'M21 10V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l1-.6', d2: 'M17.5 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM22 21l-1.2-1.2' },
+        { k: 'read_tool_result', ti: '读被省略的工具输出', s: '它的存在就是上一条结果被卸载的证据', c: 'safe', f: 'line', ch: ['20 KB'], d: 'M3 4h18v4H3z', d2: 'M5 8v12h14V8M10 12h4' }
+      ]},
+      { n: '委派与提问', t: [
+        { k: 'delegate_task', ti: '核对试用期订阅', s: '唯一会长出第二层内容的工具', c: 'safe', f: 'line', ch: ['2 个子任务'], d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', d2: 'M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM22 21v-2a4 4 0 0 0-3-3.9' },
+        { k: 'ask_user', ti: '向用户提问', s: '行被丢弃 → 提问卡才是真身', c: 'safe', f: 'drop', d: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', d2: 'M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01' }
+      ]},
+      { n: 'MCP 与未知工具', t: [
+        { k: 'help-center_update_article', ti: 'help-center · update_article', s: '卡形按 safetyClass · 展开体是 JSON 树', c: 'write', f: 'card', d: 'M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.8 2.8' }
+      ]}
+    ];
+    const ex = (k) => ({
+      open: !!s.exp[k],
+      caret: 'display:grid;place-items:center;color:var(--muted);transition:transform 160ms var(--ease-smooth,ease);transform:rotate(' + (s.exp[k] ? 90 : 0) + 'deg);',
+      toggle: () => this.setState(st => ({ exp: Object.assign({}, st.exp, { [k]: !st.exp[k] }) }))
+    });
     const caret = (open) => 'display:grid;place-items:center;color:var(--muted);transition:transform 180ms var(--ease-smooth,ease);transform:rotate(' + (open ? 90 : 0) + 'deg);';
 
     const sessionRow = (id, indent) => 'width:100%;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px 0 ' + (indent ? '37px' : '10px') +
@@ -1387,6 +1876,7 @@ class Component extends DCLogic {
       diff: { label: '变更', hint: '5 个文件' },
       terminal: { label: '终端', hint: '命令输出' },
       context: { label: '上下文', hint: '已加载文件' },
+      goal: { label: '目标', hint: '自治预算' },
       usage: { label: '用量', hint: 'token 与权限' }
     };
 
@@ -1632,7 +2122,7 @@ class Component extends DCLogic {
       testChipStyle: s.test === 'failed'
         ? this.chip('var(--danger-soft)', 'var(--danger-soft-foreground)')
         : (s.test === 'running' ? this.chip('var(--accent-soft)', 'var(--accent-soft-foreground)') : this.chip('var(--success-soft)', 'var(--success-soft-foreground)')),
-      testIconStyle: 'width:22px;height:22px;border-radius:7px;display:grid;place-items:center;flex:0 0 22px;background:' +
+      testIconStyle: 'width:24px;height:24px;border-radius:8px;display:grid;place-items:center;flex:0 0 24px;background:' +
         (s.test === 'failed' ? 'var(--danger-soft);color:var(--danger-soft-foreground)' : (s.test === 'running' ? 'var(--accent-soft);color:var(--accent-soft-foreground)' : 'var(--success-soft);color:var(--success-soft-foreground)')) + ';',
       retryTest: this.retryTest,
 
@@ -1648,8 +2138,10 @@ class Component extends DCLogic {
         ? (s.approval === 'always' ? '已加入始终允许列表，后续同类命令不再询问。' : '本次已授权执行，下次仍会询问。')
         : (s.approval === 'rejected' ? '未执行任何写操作，工作区保持原状。' : 'Nova 想在你的工作区执行一条会删除文件的命令。请确认后再继续。'),
       approvalScopeNote: s.approval === 'always' ? '始终允许 · apps/web' : '仅本次',
-      approvalCardStyle: 'border-radius:14px;background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%);overflow:hidden;border:1px solid ' +
-        (s.approval === 'pending' ? 'color-mix(in oklab, var(--danger) 40%, var(--surface-secondary))' : 'transparent') + ';',
+      approvalCardStyle: 'border-radius:16px;overflow:hidden;background:color-mix(in oklab, var(--surface) 96%, var(--accent) 4%);' +
+        (s.approval === 'pending'
+          ? 'box-shadow:var(--surface-shadow);border:1px solid color-mix(in oklab, var(--danger) 40%, var(--surface));'
+          : 'border:1px solid transparent;'),
       approvalIconStyle: 'width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:0 0 26px;background:' +
         (s.approval === 'pending' ? 'var(--danger-soft);color:var(--danger-soft-foreground)' : (approved ? 'var(--success-soft);color:var(--success-soft-foreground)' : 'color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);color:var(--muted)')) + ';',
       allowOnce: () => this.setState({ approval: 'once' }),
@@ -1685,6 +2177,7 @@ class Component extends DCLogic {
       isDiff: s.active === 'diff',
       isTerminal: s.active === 'terminal',
       isContext: s.active === 'context',
+      isGoal: s.active === 'goal',
       isUsage: s.active === 'usage',
       railStyle: 'width:' + s.railW + 'px;flex:0 0 ' + s.railW + 'px;position:relative;background:color-mix(in oklab, var(--background) 94%, var(--accent) 6%);display:flex;flex-direction:column;overflow:hidden;',
       panelBodyStyle: 'flex:1;overflow-y:auto;padding:18px 20px 28px;scrollbar-width:thin;display:' + (s.active ? 'block' : 'none') + ';',
@@ -1790,6 +2283,159 @@ class Component extends DCLogic {
       resumeBtnStyle: 'height:28px;padding:0 13px;border:0;border-radius:999px;font-size:12px;font-family:inherit;cursor:' + (s.resumed ? 'default' : 'pointer') + ';background:' +
         (s.resumed ? 'color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);color:var(--muted)' : 'var(--accent);color:var(--accent-foreground)') + ';',
       resume: () => this.setState({ resumed: true }),
+
+      exGrp: ex('grp'), exSh: ex('sh'), exWs: ex('ws'), exHttp: ex('http'), exAp: ex('ap'),
+
+      webHits: [
+        { host: 'docs.stripe.com', title: '价格迁移：一次最多 100 个订阅', snippet: '批量迁移接口按 100 个订阅分页，超出返回 rate_limited；建议按 subscription_id 游标串行。' },
+        { host: 'docs.stripe.com', title: 'Subscription schedules 与试用期的相互作用', snippet: '处于 trialing 的订阅不会立即应用新价格，需在 trial_end 时触发一次 proration。' },
+        { host: 'support.stripe.com', title: '价格变更通知的合规要求', snippet: '欧盟区域要求提前 30 天书面通知，过渡期短于此的迁移会被拒绝。' },
+        { host: 'github.com', title: 'stripe-node · 迁移脚本示例', snippet: 'examples/migrate-prices 展示了带指数退避的分页迁移写法。' }
+      ].map(h => ({
+        host: h.host, title: h.title, snippet: h.snippet,
+        initial: h.host.replace('www.', '').charAt(0).toUpperCase(),
+        dotStyle: 'width:20px;height:20px;flex:0 0 20px;border-radius:6px;margin-top:1px;display:grid;place-items:center;font-size:10px;font-weight:600;background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);color:var(--muted);'
+      })),
+
+      patchRows: [
+        { t: 'hunk', ln: '', sign: '', code: '@@ -118,7 +118,18 @@ async function migrateTier(' },
+        { t: 'ctx', ln: 118, sign: ' ', code: '  const subs = await listSubscriptions(tier)' },
+        { t: 'del', ln: 119, sign: '−', code: '  for (const s of subs) {' },
+        { t: 'add', ln: 119, sign: '+', code: '  for (const s of subs) {' },
+        { t: 'add', ln: 120, sign: '+', code: '    if (s.status === "trialing") { skipped++; continue }' },
+        { t: 'add', ln: 121, sign: '+', code: '    if (s.created > GRANDFATHER_CUTOFF) continue' },
+        { t: 'ctx', ln: 122, sign: ' ', code: '    await updatePrice(s.id, nextPriceId)' },
+        { t: 'ctx', ln: 123, sign: ' ', code: '  }' }
+      ].map(r => ({
+        ln: r.ln === '' ? '' : String(r.ln),
+        sign: r.sign,
+        code: r.code,
+        rowStyle: "display:flex;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;line-height:1.85;padding:0 14px 0 2px;" +
+          (r.t === 'hunk' ? 'color:var(--muted);opacity:.6;'
+            : r.t === 'add' ? 'color:var(--success-soft-foreground);background:color-mix(in oklab, var(--success) 11%, transparent);'
+            : r.t === 'del' ? 'color:var(--danger-soft-foreground);background:color-mix(in oklab, var(--danger) 11%, transparent);'
+            : 'color:var(--muted);')
+      })),
+
+      retryLabel: s.retry === 'idle' ? '48 秒后可重试' : (s.retry === 'running' ? '重试中…' : '已重试'),
+      retryBtnStyle: 'height:28px;padding:0 12px;border:0;border-radius:999px;font-size:12px;font-family:inherit;' +
+        (s.retry === 'idle'
+          ? 'background:color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);color:var(--muted);cursor:not-allowed;'
+          : 'background:var(--accent);color:var(--accent-foreground);cursor:pointer;'),
+      retryFetch: () => { if (s.retry !== 'idle') return; },
+
+      subChoices: ['按新价结算', '转正前保持旧价'].map(label => ({
+        label,
+        pick: () => this.setState({ subPick: label }),
+        style: 'height:30px;padding:0 13px;border:0;border-radius:999px;font-size:12.5px;font-family:inherit;cursor:pointer;background:' +
+          (s.subPick === label ? 'var(--accent);color:var(--accent-foreground)' : 'color-mix(in oklab, var(--surface) 91%, var(--accent) 9%);color:var(--foreground)') + ';'
+      })),
+
+      views: [{ id: 'chat', label: '对话' }, { id: 'tools', label: '工具' }].map(v => ({
+        label: v.label,
+        pick: () => this.setState({ view: v.id }),
+        style: 'height:24px;padding:0 11px;border:0;border-radius:7px;font-family:inherit;font-size:12px;cursor:pointer;background:' +
+          (s.view === v.id ? 'var(--surface)' : 'transparent') + ';color:' + (s.view === v.id ? 'var(--foreground)' : 'var(--muted)') +
+          ';font-weight:' + (s.view === v.id ? '500' : '400') + ';box-shadow:' + (s.view === v.id ? 'var(--surface-shadow)' : 'none') + ';'
+      })),
+      isChat: s.view === 'chat',
+      isTools: s.view === 'tools',
+      planMode: this.props.planMode ?? s.planMode,
+      barsVisible: s.view === 'chat',
+
+      barsBandStyle: 'flex:0 0 auto;padding:' + (shortView ? '9px 40px 0' : '12px 40px 0') + ';' +
+        (shortView ? 'max-height:' + Math.max(44, s.vh - 400) + 'px;overflow-y:auto;scrollbar-width:thin;' : ''),
+      barsWrapStyle: 'max-width:768px;margin:0 auto;padding-left:44px;display:flex;gap:8px;flex-direction:' + (shortView ? 'row' : 'column') + ';',
+      barCardStyle: 'flex:1 1 0;min-width:0;border-radius:12px;background:' + CARD_ + ';padding:' + (shortView ? '8px 12px' : '11px 14px') + ';',
+      planTrackStyle: shortView ? 'display:none;' : 'height:3px;border-radius:999px;background:' + INNER_ + ';overflow:hidden;margin-top:9px;',
+      dismissBtnStyle: 'width:20px;height:20px;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;display:' + (shortView ? 'none' : 'grid') + ';',
+      planBarOn: (this.props.showPlanBar ?? true) && !s.planDismissed,
+      planBarOpen: s.planBarOpen,
+      planCaret: rot(s.planBarOpen),
+      togglePlanBar: () => this.setState({ planBarOpen: !s.planBarOpen }),
+      dismissPlan: () => this.setState({ planDismissed: true }),
+      planCurrent: PLAN.filter(p => p[1] === 'in_progress').map(p => p[0])[0] || '全部步骤已完成',
+      planRatio: planDone + '/' + PLAN.length,
+      planFillStyle: 'height:100%;border-radius:999px;background:var(--accent);width:' + Math.round(planDone / PLAN.length * 100) + '%;',
+      planSteps: PLAN.map(p => ({
+        description: p[0],
+        mark: p[1] === 'completed' ? '✓' : (p[1] === 'in_progress' ? '' : ''),
+        markStyle: 'width:15px;height:15px;flex:0 0 15px;border-radius:50%;display:grid;place-items:center;font-size:9px;' +
+          (p[1] === 'completed' ? 'background:var(--success-soft);color:var(--success-soft-foreground);'
+            : p[1] === 'in_progress' ? 'border:1.6px solid var(--accent);border-top-color:transparent;animation:nv-spin .9s linear infinite;'
+            : 'border:1.5px dashed var(--border-tertiary);'),
+        textStyle: 'flex:1;min-width:0;font-size:12.5px;line-height:1.6;color:' +
+          (p[1] === 'in_progress' ? 'var(--foreground)' : 'var(--muted)') + ';'
+      })),
+
+      goalBarOn: this.props.showGoalBar ?? true,
+      goalBarOpen: s.goalBarOpen,
+      goalCaret: rot(s.goalBarOpen),
+      toggleGoalBar: () => this.setState({ goalBarOpen: !s.goalBarOpen }),
+      goalObjective: '把 desktop 的内容区渲染文档补完',
+      goalObjectiveStyle: shortView
+        ? 'display:none;'
+        : 'flex:1;min-width:0;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
+      goalTag: s.goalStatus === 'active' ? '运行中' : '已暂停',
+      goalTagStyle: 'flex:0 0 auto;display:inline-flex;align-items:center;height:19px;padding:0 8px;border-radius:6px;font-size:11px;background:' +
+        (s.goalStatus === 'active' ? INNER_ + ';color:var(--muted)' : 'var(--warning-soft);color:var(--warning-soft-foreground)'),
+      goalTightest: '花费 62%',
+      goalPauseTitle: s.goalStatus === 'active' ? '暂停目标' : '继续目标',
+      goalPauseIcon: s.goalStatus === 'active'
+        ? 'display:block;width:9px;height:10px;border-left:2.5px solid currentColor;border-right:2.5px solid currentColor;'
+        : 'display:block;width:0;height:0;border-left:8px solid currentColor;border-top:5px solid transparent;border-bottom:5px solid transparent;',
+      pauseGoal: () => this.setState({ goalStatus: s.goalStatus === 'active' ? 'paused' : 'active' }),
+      goalAxes: [
+        { name: '运行数', pct: 40, value: '8 / 20' },
+        { name: '花费', pct: 62, value: '$6.20 / $10.00' },
+        { name: '步数', pct: null, value: '无限制' }
+      ].map(a => ({
+        name: a.name,
+        value: a.value,
+        railTrackStyle: a.pct === null
+          ? 'display:none;'
+          : 'display:block;height:5px;border-radius:999px;background:' + INNER_ + ';overflow:hidden;',
+        trackStyle: a.pct === null
+          ? 'flex:1;'
+          : 'flex:1;height:5px;border-radius:999px;background:' + INNER_ + ';overflow:hidden;display:block;',
+        fillStyle: a.pct === null
+          ? 'display:none;'
+          : 'display:block;height:100%;border-radius:999px;width:' + a.pct + '%;background:' + (a.pct >= 60 ? 'var(--warning)' : 'var(--accent)') + ';'
+      })),
+      goalReason: s.goalStatus === 'active'
+        ? '自治循环运行中，任一预算轴耗尽即停止并汇报。未设限的轴不参与判定。'
+        : '已由你暂停（stoppedByUser）。继续后从下一个 Run 接着跑，预算按累计值计。',
+
+      toolGroups: TOOLS.map(g => ({
+        name: g.n,
+        count: g.t.length + ' 个',
+        tools: g.t.map(t => {
+          const card = t.f === 'card';
+          const drop = t.f === 'drop';
+          return {
+            name: t.k,
+            title: t.ti,
+            sub: t.s,
+            d: t.d,
+            d2: t.d2 || '',
+            cls: t.c,
+            wrapStyle: 'display:flex;align-items:center;gap:11px;' +
+              (card ? 'padding:11px 14px;border-radius:12px;background:' + CARD_ + ';'
+                    : 'padding:6px 2px;'),
+            iconStyle: card
+              ? 'width:24px;height:24px;flex:0 0 24px;border-radius:8px;display:grid;place-items:center;background:' + INNER_ + ';color:var(--muted);'
+              : 'width:15px;height:15px;flex:0 0 15px;display:grid;place-items:center;color:var(--muted);' + (drop ? 'opacity:.55;' : ''),
+            titleStyle: 'font-size:13px;font-weight:' + (card ? '500' : '400') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + (drop ? 'var(--muted)' : 'var(--foreground)') + ';',
+            subStyle: 'font-size:11.5px;line-height:1.55;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
+            chips: (t.ch || []).map(text => ({
+              text,
+              style: 'flex:0 0 auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;' + MONO_
+            })),
+            clsStyle: 'flex:0 0 auto;display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:5px;font-size:10px;' + MONO_ +
+              'background:' + (drop ? 'transparent' : INNER_) + ';color:var(--muted);' + (drop ? 'border:1px dashed var(--border-tertiary);' : '')
+          };
+        })
+      })),
 
       contextFiles: [
         { name: 'plans.ts', path: 'apps/web/src/pricing', tokens: '2.1k' },

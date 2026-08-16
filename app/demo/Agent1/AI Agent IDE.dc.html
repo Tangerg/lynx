@@ -191,6 +191,10 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
         <span style="font-size:13px; font-weight:600; letter-spacing:-.1px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">抽离支付重试 hook</span>
         <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-dim); font-size:11px; flex:none; font-family:'JetBrains Mono',monospace;">AGENT</span>
         <div style="flex:1;"></div>
+        <div onClick="{{ openCatalog }}" title="工具目录" style="display:flex; align-items:center; gap:6px; height:24px; padding:0 9px; flex:none; border-radius:6px; background:var(--chip); color:var(--text-dim); font-size:11.5px; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M14.5 4.5a4.5 4.5 0 0 0 5.6 5.9L21 11l-9 9-2-2 9-9-.6-.9A4.5 4.5 0 0 0 14.5 4.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+          工具
+        </div>
         <sc-if value="{{ showBarStatus }}" hint-placeholder-val="{{ true }}">
           <div style="display:flex; align-items:center; gap:6px; padding:3px 9px; border-radius:6px; background:var(--green-bg); color:var(--green); font-size:11.5px; flex:none; white-space:nowrap; font-family:'JetBrains Mono',monospace;">
             <span style="width:6px; height:6px; border-radius:50%; background:currentColor;"></span>agent 运行中
@@ -204,6 +208,537 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
         </sc-if>
       </div>
 
+      <sc-if value="{{ planBar }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:none; padding:10px 38px 0; padding-left:{{ mapPad }};">
+        <div style="max-width:820px; margin:0 auto; border-radius:8px; background:var(--bg-elev); box-shadow:var(--shadow); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:10px; padding:9px 11px 9px 13px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--accent);"><path d="M4 6.5h4M4 12h4M4 17.5h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><path d="M11.5 6.5h8.5M11.5 12h8.5M11.5 17.5h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+            <span style="font-size:12px; color:var(--text-faint); flex:none;">计划</span>
+            <span style="font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">正在：核对网关重试语义与本地退避是否叠加</span>
+            <div style="flex:1;"></div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none;">3/5</span>
+            <div onClick="{{ dismissPlan }}" title="收起计划条" style="width:22px; height:22px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:5px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+            </div>
+          </div>
+          <div style="height:2px; background:var(--chip);"><div style="width:60%; height:100%; background:var(--accent);"></div></div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ catalog }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ closeCatalog }}" style="position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:40px;">
+        <div onClick="{{ stopPop }}" style="width:min(1000px,100%); height:100%; max-height:780px; border-radius:12px; background:var(--bg-app); box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column; cursor:default;">
+          <div style="flex:none; display:flex; align-items:center; gap:10px; padding:14px 14px 14px 20px; background:var(--bg-panel);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--accent);"><path d="M14.5 4.5a4.5 4.5 0 0 0 5.6 5.9L21 11l-9 9-2-2 9-9-.6-.9A4.5 4.5 0 0 0 14.5 4.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M6.5 13.5l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+            <span style="font-size:14px; font-weight:600; letter-spacing:-.2px;">工具目录</span>
+            <span style="font-size:12px; color:var(--text-faint);">30 个内置工具 · 卡形由 safetyClass 决定，图标一工具一字形</span>
+            <div style="flex:1;"></div>
+            <div onClick="{{ closeCatalog }}" style="width:26px; height:26px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+            </div>
+          </div>
+          <div style="flex:1; min-height:0; overflow-y:auto; padding:18px 20px 26px; display:flex; flex-direction:column; gap:22px;">
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">文件与代码</span>
+              <span style="font-size:11px; color:var(--text-faint);">读写工作区</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">5</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">read</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Reading file</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← path · chips range / lines</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M3.5 6.5A2 2 0 0 1 5.5 4.5h3l1.6 2h8.4a2 2 0 0 1 2 2v2.5"/><path d="M3.5 8.5v9a2 2 0 0 0 2 2h6"/><circle cx="16.5" cy="16.5" r="3.2"/><path d="M19 19l2.4 2.4"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">glob</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Finding files</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← pattern · chips hits</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M4 6h13M4 10.5h8M4 15h6M4 19.5h9"/><circle cx="17" cy="16" r="3.4"/><path d="M19.5 18.5L22 21"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">grep</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Searching</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← pattern · chips hits</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M8.5 8.5L5 12l3.5 3.5M15.5 8.5L19 12l-3.5 3.5M13.5 5.5l-3 13"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">lsp</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">按 operation 分派文案</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← path:line:character</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--syn-fn);"><path d="M4 8.5h11l-2.5-2.5M20 15.5H9l2.5 2.5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">apply_patch</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-fn); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">写入</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Applying a patch</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← changes[0].path · chips files / +n −m</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">命令执行</span>
+              <span style="font-size:11px; color:var(--text-faint);">唯一会改机器状态的一族</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">3</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--amber);"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 9.5l3 2.5-3 2.5M13 15h4.5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">shell</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--amber); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">执行</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Running command</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← description · 副行 command</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M6 4.5h11a2 2 0 0 1 2 2V17a2.5 2.5 0 0 0 2.5 2.5H7A2.5 2.5 0 0 1 4.5 17V7a2.5 2.5 0 0 1 2.5-2.5z"/><path d="M8.5 9h7M8.5 13h5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">read_shell_output</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Reading command output</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← shell_id</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--amber);"><circle cx="12" cy="12" r="8.5"/><rect x="9" y="9" width="6" height="6" rx="1.2" fill="currentColor"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">stop_shell</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--amber); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">执行</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Stopping command</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← shell_id</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">网络</span>
+              <span style="font-size:11px; color:var(--text-faint);">出网请求都要过审批门</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">3</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--syn-ty);"><circle cx="12" cy="12" r="8.5"/><path d="M3.6 9.5h16.8M3.6 14.5h16.8M12 3.5c2.6 2.6 2.6 14.4 0 17M12 3.5c-2.6 2.6-2.6 14.4 0 17"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">web_search</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-ty); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">网络</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Searching the web</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← query · 展开体 结果卡</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--syn-ty);"><path d="M12 4v10M8 10.5l4 4 4-4"/><path d="M4.5 17v1.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V17"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">web_fetch</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-ty); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">网络</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Fetching a page</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← url（从右截断）</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--syn-ty);"><circle cx="6" cy="17" r="2.6"/><circle cx="18" cy="17" r="2.6"/><circle cx="12" cy="6" r="2.6"/><path d="M10.3 8l-3.2 6.6M13.7 8l3.2 6.6M8.6 17h6.8"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">http_request</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-ty); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">网络</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Sending &lt;METHOD&gt; request</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← url · 展开体 状态 / 头 / body</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">Skill</span>
+              <span style="font-size:11px; color:var(--text-faint);">可复用流程的装载与提案</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">4</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M5 4.5h3.5v15H5zM10.5 4.5H14v15h-3.5z"/><path d="M16.4 5.4l3 .8-3.6 13.4-3-.8z"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">list_skills</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Listing Skills</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">无参数 · 标题用本地化词条</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M12 7.5C10.5 6 8.2 5.5 4.5 5.5v12c3.7 0 6 .5 7.5 2 1.5-1.5 3.8-2 7.5-2v-12c-3.7 0-6 .5-7.5 2z"/><path d="M12 7.5v12"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">load_skill</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Loading Skill: &lt;name&gt;</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← name</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M19.5 11.5l-8.2 8.2a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.6 1.6 0 0 1-2.3-2.3l7.8-7.8"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">read_skill_resource</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Reading a Skill resource</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← name/path</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M12 3.5l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5L4.5 11l5.5-2z"/><path d="M18.5 16l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">propose_skill</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Proposing Skill: &lt;name&gt;</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← name · 进审核队列</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">Plan 模式</span>
+              <span style="font-size:11px; color:var(--text-faint);">结论由计划面回答，行被丢弃</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">3</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M9 5.5L3.5 7.5v12L9 17.5l6 2 5.5-2v-12l-5.5 2z"/><path d="M9 5.5v12M15 7.5v12"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">enter_plan_mode</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Entering Plan mode</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">无参数 · 只降权限，不建计划</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M4 7l2 2 3-3M4 15l2 2 3-3"/><path d="M12.5 8h7.5M12.5 16h7.5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">set_plan</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Updating the Plan</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">整份替换 · 至多一个 in_progress</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M5 20V4.5h9l-1.2 3.2L14 11H5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">exit_plan_mode</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Requesting Plan approval</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">提问工具 · 闭合选项，无自定义</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">Goal</span>
+              <span style="font-size:11px; color:var(--text-faint);">自治目标，结论由目标面回答</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">3</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">create_goal</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Starting an autonomous Goal</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">budget 各轴 0 或缺席 = 不设限</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><circle cx="12" cy="12" r="6"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">get_goal</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Inspecting the autonomous Goal</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">那一刻的快照，常驻条不读它</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2"/><rect x="9" y="2.8" width="6" height="3.4" rx="1.2"/><path d="M9 13.5l2 2 4-4.5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">report_goal_outcome</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Reporting a Goal outcome</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">blocked 时 reason 必填</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">定时任务</span>
+              <span style="font-size:11px; color:var(--text-faint);">cron 五段</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">3</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.2l3.2 2"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">list_schedules</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Listing schedules</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">无参数 · 展开体 任务行表</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--syn-fn);"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4M12 13v4M10 15h4"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">create_schedule</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-fn); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">写入</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Creating schedule: &lt;title&gt;</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← title · cron 五段</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--syn-fn);"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4M10 13.5l4 4M14 13.5l-4 4"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">delete_schedule</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-fn); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">写入</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Deleting a schedule</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">回执，无展开体</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">回忆与发现</span>
+              <span style="font-size:11px; color:var(--text-faint);">结果都是散文，解析要防御</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">4</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M12 4.5a4 4 0 0 0-4 4v.4A3.2 3.2 0 0 0 6.5 15v.5a3.5 3.5 0 0 0 3.5 3.5h2a3.5 3.5 0 0 0 3.5-3.5V15A3.2 3.2 0 0 0 16 8.9v-.4a4 4 0 0 0-4-4z"/><path d="M12 4.5v14.5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">search_memory</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Searching project memory</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← query · limit 1–20</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5V9h4.5"/><path d="M12 8.5V12l2.5 1.5"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">search_conversations</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Searching earlier conversations</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">展开体 说话人 / 日期 / 摘录</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><path d="M12 3.2l7.5 4v9L12 20.8 4.5 16.2v-9z"/><path d="M4.7 7.4L12 11.6l7.3-4.2M12 11.6v9"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">search_tools</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Loading additional tools</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">select:a,b 可精确加载</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">read_tool_result</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Reading omitted tool output</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">存在即证明上条结果被卸载</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">委派与提问</span>
+              <span style="font-size:11px; color:var(--text-faint);">会长出第二层内容</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">2</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.5a3 3 0 0 1 0 5.6M17.5 19c0-2-.6-3.6-1.6-4.6"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">delegate_task</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Delegating: &lt;summary&gt;</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">标题 ← summary · 卡下挂子 agent 叙事</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-sunken); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--text-dim);"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.4"/><path d="M12 17.2v.4"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">ask_user</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-faint); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">只读</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">一行</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">Waiting for your answer</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">行被丢弃，提问卡才是真身</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:9px;">
+            <div style="display:flex; align-items:baseline; gap:9px;">
+              <span style="font-size:13px; font-weight:600; letter-spacing:-.2px;">MCP 与未知工具</span>
+              <span style="font-size:11px; color:var(--text-faint);">卡形由 safetyClass 决定</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">1</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(292px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; background:var(--bg-elev); cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:1px; color:var(--syn-fn);"><path d="M8 3.5v5M16 3.5v5"/><path d="M5.5 8.5h13v3a6.5 6.5 0 0 1-13 0z"/><path d="M12 18v3"/></svg>
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">mcp</span>
+                  <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-fn); font-size:10px; font-family:'JetBrains Mono',monospace; flex:none;">写入</span>
+                  <span style="font-size:10px; color:var(--text-faint); flex:none;">卡片</span>
+                </div>
+                <span style="font-size:12px; color:var(--text-dim); line-height:1.55;">按远端工具名分派</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">塌名有损，不可反解关联目录</span>
+              </div>
+            </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+      <sc-if value="{{ goalBar }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:none; padding:8px 38px 0; padding-left:{{ mapPad }};">
+        <div style="max-width:820px; margin:0 auto; border-radius:8px; background:var(--bg-elev); box-shadow:var(--shadow); display:flex; align-items:center; gap:10px; padding:9px 11px 9px 13px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--amber);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="12" cy="12" r="1.2" fill="currentColor"></circle></svg>
+          <span style="font-size:12px; color:var(--text-faint); flex:none;">目标</span>
+          <span style="font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">把支付重试收敛成一套可观测的策略</span>
+          <div style="flex:1;"></div>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--amber); flex:none;">花费 62%</span>
+          <div onClick="{{ openGoal }}" style="height:22px; padding:0 9px; flex:none; display:flex; align-items:center; border-radius:5px; background:var(--chip); font-size:11.5px; color:var(--text-dim); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">详情</div>
+          <div onClick="{{ dismissGoal }}" title="收起目标条" style="width:22px; height:22px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:5px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          </div>
+        </div>
+      </div>
+      </sc-if>
       <div style="flex:1; min-width:0; min-height:0; display:flex;">
 
         <sc-if value="{{ showMap }}" hint-placeholder-val="{{ true }}">
@@ -217,9 +752,9 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
         </sc-if>
 
         <div data-scroll-root="1" ref="{{ scrollRef }}" onScroll="{{ onChatScroll }}" style="flex:1; min-width:0; position:relative; overflow-y:auto; scrollbar-gutter:stable; padding:32px 0 40px;">
-        <div style="max-width:820px; margin:0 auto; padding:0 28px; display:flex; flex-direction:column; gap:30px; font-size:14px; ">
+        <div style="max-width:820px; margin:0 auto; padding:0 28px; display:flex; flex-direction:column; gap:18px; font-size:14px; ">
 
-          <div data-anchor="ask" style="display:flex; flex-direction:column; gap:7px;">
+          <div data-anchor="ask" style="margin-top:22px; display:flex; flex-direction:column; gap:7px;">
             <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
               <div style="width:18px; height:18px; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#fff;">Z</div>
               你 · 14:02
@@ -313,7 +848,7 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
               </div>
             </div>
 
-            <div data-anchor="prose" style="display:flex; flex-direction:column; gap:13px; line-height:1.85;">
+            <div data-anchor="prose" style="margin-top:12px; display:flex; flex-direction:column; gap:13px; line-height:1.85;">
               <div style="font-size:19px; font-weight:600; letter-spacing:-.45px; margin-top:2px;">抽出的 hook</div>
               <div>核心是把幂等键固定在 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 5px; border-radius:4px; color:var(--syn-fn);">useRef</code> 上，整个重试周期共用一个 key —— 否则每次重试都会被网关当成新订单。</div>
               <ul style="margin:0; padding-left:22px; display:flex; flex-direction:column; gap:7px; color:var(--text-dim);">
@@ -474,7 +1009,7 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
               </div>
             </div>
 
-            <div data-anchor="table" style="display:flex; flex-direction:column; gap:10px;">
+            <div data-anchor="table" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
               <div style="font-size:19px; font-weight:600; letter-spacing:-.45px;">重试策略对比</div>
               <div style="border-radius:8px; overflow:hidden; background:var(--bg-elev);">
                 <table style="width:100%; border-collapse:collapse; font-size:13px;">
@@ -519,7 +1054,7 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
 
           </div>
 
-          <div data-anchor="ask2" style="display:flex; flex-direction:column; gap:7px;">
+          <div data-anchor="ask2" style="margin-top:22px; display:flex; flex-direction:column; gap:7px;">
             <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
               <div style="width:18px; height:18px; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#fff;">Z</div>
               你 · 14:19
@@ -748,7 +1283,7 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
               <span style="font-size:12px; color:var(--accent); white-space:nowrap; cursor:pointer;">查看摘要</span>
             </div>
 
-            <div data-anchor="summary" style="border-radius:8px; background:var(--bg-elev); overflow:hidden;">
+            <div data-anchor="summary" style="margin-top:12px; border-radius:8px; background:var(--bg-elev); overflow:hidden;">
               <div style="display:flex; align-items:center; gap:9px; padding:12px 14px; background:var(--green-bg);">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 12.3l2.6 2.5 5-5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                 <span style="font-size:13px; font-weight:600; color:var(--green);">本轮完成</span>
@@ -780,6 +1315,205 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
                 </div>
               </div>
             </div>
+          </div>
+
+<div data-anchor="ask3" style="margin-top:22px; display:flex; flex-direction:column; gap:7px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+              <div style="width:18px; height:18px; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#fff;">Z</div>
+              你 · 14:31
+            </div>
+            <div style="background:var(--bg-elev); border-radius:16px; box-shadow:none; padding:15px 17px; line-height:1.8;">如果灰度后指标不对，回滚预案是什么？顺便查一下网关那边的重试语义，别和我们本地退避打架。<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:11px;">
+                <div style="display:flex; align-items:center; gap:9px; padding:7px 11px 7px 8px; border-radius:6px; background:var(--bg-sunken);">
+                  <div style="width:30px; height:30px; flex:none; border-radius:6px; background:var(--chip); display:flex; align-items:center; justify-content:center; color:var(--text-faint);">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="14" rx="2.5" stroke="currentColor" stroke-width="1.5"></rect><circle cx="9" cy="10" r="1.6" stroke="currentColor" stroke-width="1.4"></circle><path d="M4.5 16.5l4.5-4 4 3.5 3-2.5 3.5 3" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:1px;">
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">sentry-trace.png</span>
+                    <span style="font-size:11px; color:var(--text-faint);">截图 · 218 KB</span>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:5px; padding:2px 7px; border-radius:6px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="var(--syn-ty)" stroke-width="1.7"></circle></svg>@PaymentError
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:30px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="color:var(--accent);"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+              助手 · {{ model }}
+            </div>
+          </div>
+
+<div data-anchor="reads" style="display:flex; flex-direction:column; gap:1px; margin:0 -10px;">
+              <div style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.5"></path><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.5"></circle></svg>
+                <span style="display:flex; min-width:0; font-family:'JetBrains Mono',monospace; font-size:12px; white-space:nowrap;"><span style="min-width:0; overflow:hidden; text-overflow:ellipsis; direction:rtl;">src/checkout</span><span style="flex:none;">/checkout.tsx</span></span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">L1–240 · 240 行</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M3.5 6.5A2 2 0 0 1 5.5 4.5h3l1.6 2h8.4a2 2 0 0 1 2 2v3" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M3.5 8.5v9a2 2 0 0 0 2 2h6" stroke="currentColor" stroke-width="1.5"></path><circle cx="16.5" cy="16.5" r="3.2" stroke="currentColor" stroke-width="1.5"></circle><path d="M19 19l2.2 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">**/*.retry.test.ts</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">12 个文件</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--syn-ty);"><path d="M8.5 8.5L5 12l3.5 3.5M15.5 8.5L19 12l-3.5 3.5M13.5 5.5l-3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">PaymentError · hover</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">lsp</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+          </div>
+
+          <div data-anchor="group" style="margin:0 -10px;">
+            <div onClick="{{ toggle_group }}" style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transition:transform 150ms cubic-bezier(0.175,0.885,0.32,1.1); transform:{{ rot_group }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span style="font-size:12.5px; color:var(--text-dim);">读了 3 个文件 · 搜了 2 次</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">1.8s</span>
+            </div>
+            <sc-if value="{{ show_group }}" hint-placeholder-val="{{ false }}">
+              <div style="padding-left:21px; display:flex; flex-direction:column; gap:1px;">
+              <div style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.5"></path><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.5"></circle></svg>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">src/api/pay.ts</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">88 行</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.5"></path><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.5"></circle></svg>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">src/lib/idempotency.ts</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">41 行</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.5"></path><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.5"></circle></svg>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">src/lib/telemetry.ts</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">126 行</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div data-anchor="redacted" style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:6px; background:repeating-linear-gradient(135deg, var(--bg-sunken) 0 9px, transparent 9px 18px);">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><rect x="4.5" y="10.5" width="15" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.5"></path></svg>
+            <span style="font-size:12.5px; color:var(--text-dim);">已思考 8 秒</span>
+            <span style="font-size:11.5px; color:var(--text-faint);">内容由模型加密，客户端不可读</span>
+          </div>
+
+          <div data-anchor="http" style="border-radius:8px; background:var(--bg-elev); overflow:hidden;">
+            <div onClick="{{ toggle_http }}" style="display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding:10px 13px; cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transition:transform 150ms cubic-bezier(0.175,0.885,0.32,1.1); transform:{{ rot_http }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--syn-fn); font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:500; flex:none;">GET</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">api.gateway.internal/v2/retry-policy</span>
+              <div style="flex:1;"></div>
+              <span style="padding:1px 7px; border-radius:4px; background:var(--green-bg); color:var(--green); font-family:'JetBrains Mono',monospace; font-size:10.5px; flex:none;">200</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none;">342ms · 1.2 KB</span>
+            </div>
+            <sc-if value="{{ show_http }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:0 13px 13px; display:flex; flex-direction:column; gap:10px;">
+                <div style="border-radius:6px; background:var(--bg-sunken); overflow:hidden;">
+                  <div style="display:flex; gap:12px; padding:6px 11px; background:var(--chip);"><span style="width:150px; flex:none; font-size:10.5px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">响应头</span><span style="font-size:10.5px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">值</span></div>
+                  <div style="display:flex; gap:12px; padding:5px 11px; font-family:'JetBrains Mono',monospace; font-size:11.5px;"><span style="width:150px; flex:none; color:var(--text-dim);">content-type</span><span style="color:var(--syn-str);">application/json</span></div>
+                  <div style="display:flex; gap:12px; padding:5px 11px; font-family:'JetBrains Mono',monospace; font-size:11.5px;"><span style="width:150px; flex:none; color:var(--text-dim);">x-retry-after</span><span style="color:var(--syn-num);">1200</span></div>
+                  <div style="display:flex; gap:12px; padding:5px 11px 8px; font-family:'JetBrains Mono',monospace; font-size:11.5px;"><span style="width:150px; flex:none; color:var(--text-dim);">x-idempotency-window</span><span style="color:var(--syn-num);">86400</span></div>
+                </div>
+                <div style="border-radius:6px; background:var(--bg-sunken); padding:9px 11px; font-family:'JetBrains Mono',monospace; font-size:11.5px; line-height:1.85; overflow-x:auto;">
+                  <div style="white-space:pre;">{ <span style="color:var(--syn-str);">"strategy"</span>: <span style="color:var(--syn-str);">"exponential_jitter"</span>,</div>
+                  <div style="white-space:pre;">  <span style="color:var(--syn-str);">"maxAttempts"</span>: <span style="color:var(--syn-num);">3</span>,</div>
+                  <div style="white-space:pre;">  <span style="color:var(--syn-str);">"honorsIdempotencyKey"</span>: <span style="color:var(--syn-kw);">true</span> }</div>
+                </div>
+                <div style="font-size:12px; color:var(--text-dim); line-height:1.7;">网关侧已是指数退避 + 抖动，和本地策略同构；本地只需保证幂等键不变，不会叠加放大。</div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div data-anchor="denied" style="display:flex; align-items:center; gap:11px; padding:10px 13px; border-radius:8px; background:var(--chip);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M6.5 6.5l11 11" stroke="currentColor" stroke-width="1.6"></path></svg>
+            <div style="min-width:0; display:flex; flex-direction:column; gap:2px;">
+              <span style="font-size:12.5px; color:var(--text);">你拒绝了 <code style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-dim);">git push --force origin feat/payment-retry</code></span>
+              <span style="font-size:11.5px; color:var(--text-faint);">已跳过这一步，改用 --force-with-lease 重新申请。</span>
+            </div>
+            <div style="flex:1;"></div>
+            <span style="padding:1px 7px; border-radius:4px; background:var(--bg-sunken); color:var(--text-faint); font-family:'JetBrains Mono',monospace; font-size:10.5px; flex:none;">已拒绝</span>
+          </div>
+
+          <div data-anchor="sub" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="border-radius:8px; background:var(--bg-elev); display:flex; align-items:center; gap:9px; padding:10px 13px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><circle cx="9" cy="8.5" r="3" stroke="currentColor" stroke-width="1.5"></circle><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M16 6.5a3 3 0 0 1 0 5.6M17.5 19c0-2-.6-3.6-1.6-4.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+              <span style="font-size:12.5px; color:var(--text-dim);">委派</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">核对网关重试语义</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none;">2 个子任务</span>
+            </div>
+            <div style="margin-left:14px; padding-left:14px; border-left:1.5px solid var(--border); display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; gap:9px; padding:6px 10px; border-radius:6px; background:var(--bg-elev);">
+                <span style="width:7px; height:7px; flex:none; border-radius:50%; background:var(--green);"></span>
+                <span style="font-size:12.5px;">委派任务 (1/2)</span>
+                <span style="font-size:11.5px; color:var(--text-faint);">已完成 · 6 步</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">↑3.1k ↓0.8k</span>
+              </div>
+              <div style="border-radius:6px; background:var(--bg-elev); overflow:hidden;">
+                <div onClick="{{ toggle_sub }}" style="display:flex; align-items:center; gap:9px; padding:6px 10px; cursor:pointer;" style-hover="background:var(--hover)">
+                  <span style="width:7px; height:7px; flex:none; border-radius:50%; background:var(--amber); animation:cc-breathe 1.6s ease-in-out infinite;"></span>
+                  <span style="font-size:12.5px;">委派任务 (2/2)</span>
+                  <span style="font-size:11.5px; color:var(--amber);">等待你的答复 · 4 步</span>
+                  <div style="flex:1;"></div>
+                  <span style="font-size:11px; color:var(--text-faint);">{{ label_sub }}</span>
+                </div>
+                <sc-if value="{{ show_sub }}" hint-placeholder-val="{{ true }}">
+                  <div style="padding:0 10px 10px 27px; display:flex; flex-direction:column; gap:7px;">
+                    <div style="font-size:12px; color:var(--text-faint);">▸ 思考了 3 秒</div>
+                    <div style="display:flex; align-items:center; gap:9px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-dim);">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.5"></path><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.5"></circle></svg>docs/gateway/retry.md<span style="color:var(--text-faint);">62 行</span>
+                    </div>
+                    <div style="border-radius:6px; background:var(--amber-bg); padding:9px 11px; display:flex; flex-direction:column; gap:8px;">
+                      <span style="font-size:12px; color:var(--text);">子 agent 想把网关文档同步进 <code style="font-family:'JetBrains Mono',monospace; font-size:11.5px;">docs/</code>，需要写权限。</span>
+                      <div style="display:flex; gap:7px;">
+                        <div style="height:24px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--accent); color:var(--accent-fg); font-size:12px; font-weight:500; cursor:pointer;">批准</div>
+                        <div style="height:24px; padding:0 10px; display:flex; align-items:center; border-radius:6px; background:var(--chip); color:var(--text-dim); font-size:12px; cursor:pointer;">拒绝</div>
+                      </div>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+
+          <div data-anchor="wave" style="margin:0 -10px;">
+            <div onClick="{{ toggle_wave }}" style="display:flex; align-items:center; gap:10px; padding:5px 10px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transition:transform 150ms cubic-bezier(0.175,0.885,0.32,1.1); transform:{{ rot_wave }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span style="font-size:12.5px; color:var(--text-faint);">6 步工作</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">12s</span>
+            </div>
+            <sc-if value="{{ show_wave }}" hint-placeholder-val="{{ false }}">
+              <div style="padding-left:21px; display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--text-faint); padding-top:4px;">
+                <div>▸ 思考了 4 秒</div>
+                <div>读了 grafana 面板导出 · 2 个文件</div>
+                <div>跑了 <code style="font-family:'JetBrains Mono',monospace; font-size:11px;">pnpm test --filter checkout</code></div>
+                <div>比对了网关与本地退避曲线</div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div data-anchor="runend" style="margin-top:12px; display:flex; align-items:center; gap:12px; padding:2px 0;">
+            <div style="flex:1; height:1px; background:var(--border);"></div>
+            <div style="display:flex; align-items:center; gap:9px; min-width:0; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              已完成 · 4m 06s · 8 步 · ↑12.4k ↓3.4k · $0.08
+            </div>
+            <div style="flex:1; height:1px; background:var(--border);"></div>
           </div>
 
           <sc-for list="{{ sent }}" as="m" hint-placeholder-count="0">
@@ -819,17 +1553,6 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
         </div>
         </div>
 
-        <sc-if value="{{ showToc }}" hint-placeholder-val="{{ true }}">
-        <div style="width:186px; flex:none; padding:34px 18px 20px 6px; display:flex; flex-direction:column; gap:10px; overflow-y:auto;">
-          <div style="font-size:11px; color:var(--text-faint); letter-spacing:.04em;">本条消息目录</div>
-          <sc-for list="{{ tocItems }}" as="c" hint-placeholder-count="8">
-            <div onClick="{{ c.go }}" style="display:flex; align-items:flex-start; gap:8px; padding:4px 0; font-size:12px; line-height:1.5; color:{{ c.fg }}; cursor:pointer;" style-hover="color:var(--text)">
-              <span style="width:2px; flex:none; align-self:stretch; border-radius:2px; background:{{ c.bar }};"></span>
-              <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ c.label }}</span>
-            </div>
-          </sc-for>
-        </div>
-        </sc-if>
 
       </div>
 
@@ -885,12 +1608,12 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
     <sc-if value="{{ rightOpen }}" hint-placeholder-val="{{ true }}">
     <div style="width:300px; flex:none; background:var(--bg-right); position:relative; z-index:3; box-shadow:var(--sh-right); display:flex; flex-direction:column; min-height:0;">
 
-      <div style="height:42px; flex:none; display:flex; align-items:center; gap:4px; padding:0 8px; position:relative; z-index:2;">
-        <div class="nosb" style="flex:1; min-width:0; display:flex; align-items:center; gap:3px; overflow-x:auto;">
+      <div style="min-height:42px; flex:none; display:flex; align-items:flex-start; gap:4px; padding:7px 8px; position:relative; z-index:2;">
+        <div style="flex:1; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:4px 3px;">
           <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
             <div onClick="{{ t.select }}" style="display:flex; align-items:center; gap:5px; height:28px; flex:{{ t.flex }}; min-width:0; overflow:hidden; padding:0 6px 0 10px; border-radius:6px; background:{{ t.bg }}; color:{{ t.fg }}; font-size:12px; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover)">
-              <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.label }}</span>
-              <span style="font-size:11px; color:var(--text-faint); flex:none; font-family:'JetBrains Mono',monospace;">{{ t.badge }}</span>
+              <span style="flex:none; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.label }}</span>
+              <sc-if value="{{ t.showBadge }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; color:var(--text-faint); flex:none; font-family:'JetBrains Mono',monospace;">{{ t.badge }}</span></sc-if>
               <div onClick="{{ t.close }}" title="关闭标签" style="width:16px; height:16px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text-faint);" style-hover="background:var(--chip); color:var(--text)">
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg>
               </div>
@@ -1022,23 +1745,123 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
       </sc-if>
 
       <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
-        <div ref="{{ panelRef }}" onScroll="{{ onPanelScroll }}" style="flex:1; min-height:0; overflow-y:auto; padding:14px 13px 18px; display:flex; flex-direction:column; gap:12px;">
+        <div ref="{{ panelRef }}" onScroll="{{ onPanelScroll }}" style="flex:1; min-height:0; overflow-y:auto; padding:13px 12px 18px; display:flex; flex-direction:column; gap:12px;">
+          <div style="flex:none; display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:8px; background:var(--sel);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--accent);"><path d="M9 5.5L3.5 7.5v12L9 17.5l6 2 5.5-2v-12l-5.5 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M9 5.5v12M15 7.5v12" stroke="currentColor" stroke-width="1.5"></path></svg>
+            <div style="min-width:0; display:flex; flex-direction:column; gap:1px;">
+              <span style="font-size:12.5px; font-weight:500;">只读计划模式</span>
+              <span style="font-size:11px; color:var(--text-dim);">写入 · 命令 · 网络 已临时封禁</span>
+            </div>
+          </div>
+
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">3 / 5 步</span>
+            <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace; flex:none;">3 / 5</span>
             <div style="flex:1; height:4px; border-radius:4px; background:var(--bg-sunken); overflow:hidden;"><div style="width:60%; height:100%; background:var(--accent);"></div></div>
+            <span style="font-size:10.5px; color:var(--text-faint); font-family:'JetBrains Mono',monospace; flex:none;">rev 12</span>
           </div>
-          <div style="display:flex; flex-direction:column; gap:9px; font-size:13px;">
-            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-faint);"><span style="color:var(--green);">✓</span><span style="text-decoration:line-through;">定位现有重试实现</span></div>
-            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-faint);"><span style="color:var(--green);">✓</span><span style="text-decoration:line-through;">新建 useRetryPayment 并接入 checkout</span></div>
-            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text);"><span style="color:var(--accent);">◐</span><span>运行 checkout 相关单测</span></div>
-            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-dim);"><span style="color:var(--text-faint);">○</span><span>重装依赖（需审批）</span></div>
-            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-dim);"><span style="color:var(--text-faint);">○</span><span>输出重试方案对比表</span></div>
+
+          <div style="flex:none; display:flex; flex-direction:column; gap:2px; margin:0 -9px;">
+            <div style="display:flex; align-items:flex-start; gap:9px; padding:7px 9px; border-radius:6px; background:transparent;">
+              <span style="flex:none; width:14px; text-align:center; color:var(--green); font-size:12px; line-height:1.5;">✓</span>
+              <span style="font-size:13px; line-height:1.5; color:var(--text-faint); text-decoration:line-through;">定位现有重试实现</span>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:9px; padding:7px 9px; border-radius:6px; background:transparent;">
+              <span style="flex:none; width:14px; text-align:center; color:var(--green); font-size:12px; line-height:1.5;">✓</span>
+              <span style="font-size:13px; line-height:1.5; color:var(--text-faint); text-decoration:line-through;">新建 useRetryPayment 并接入 checkout</span>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:9px; padding:7px 9px; border-radius:6px; background:var(--sel);">
+              <span style="flex:none; width:14px; text-align:center; color:var(--accent); font-size:12px; line-height:1.5;">◐</span>
+              <span style="font-size:13px; line-height:1.5; color:var(--text); ">运行 checkout 相关单测</span>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:9px; padding:7px 9px; border-radius:6px; background:transparent;">
+              <span style="flex:none; width:14px; text-align:center; color:var(--text-faint); font-size:12px; line-height:1.5;">○</span>
+              <span style="font-size:13px; line-height:1.5; color:var(--text); ">重装依赖（需审批）</span>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:9px; padding:7px 9px; border-radius:6px; background:transparent;">
+              <span style="flex:none; width:14px; text-align:center; color:var(--text-faint); font-size:12px; line-height:1.5;">○</span>
+              <span style="font-size:13px; line-height:1.5; color:var(--text); ">输出重试方案对比表</span>
+            </div>
           </div>
-          <div style="height:1px; background:var(--border); margin:2px 0;"></div>
-          <div style="font-size:11px; color:var(--text-faint); letter-spacing:.06em; text-transform:uppercase;">本轮引用</div>
+
+          <div style="flex:none; border-radius:8px; background:var(--bg-elev); overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:8px; padding:9px 11px; background:var(--amber-bg);">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--amber);"><path d="M5 20V4.5h9l-1.2 3.2L14 11H5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+              <span style="font-size:12.5px; font-weight:500; color:var(--amber);">请求批准计划</span>
+            </div>
+            <div style="padding:10px 11px 11px; display:flex; flex-direction:column; gap:9px;">
+              <span style="font-size:12px; color:var(--text-dim); line-height:1.65;">批准后退出只读模式，按上面这份清单执行。选项是闭合的，不接受自定义方案。</span>
+              <div style="display:flex; gap:7px;">
+                <div style="height:26px; padding:0 11px; display:flex; align-items:center; border-radius:6px; background:var(--accent); color:var(--accent-fg); font-size:12px; font-weight:500; cursor:pointer;">批准并执行</div>
+                <div style="height:26px; padding:0 11px; display:flex; align-items:center; border-radius:6px; background:var(--chip); color:var(--text-dim); font-size:12px; cursor:pointer;">驳回</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size:11px; color:var(--text-faint); line-height:1.7;">计划由 <code style="font-family:'JetBrains Mono',monospace;">set_plan</code> 整份替换；此处只读取快照，不做增量合并。</div>
+        </div>
+      </sc-if>
+
+
+      <sc-if value="{{ isGoal }}" hint-placeholder-val="{{ false }}">
+        <div ref="{{ panelRef }}" onScroll="{{ onPanelScroll }}" style="flex:1; min-height:0; overflow-y:auto; padding:13px 12px 18px; display:flex; flex-direction:column; gap:14px;">
           <div style="display:flex; flex-direction:column; gap:7px;">
-            <div style="display:flex; align-items:center; gap:7px; padding:8px 10px; border-radius:8px; background:var(--bg-elev); font-size:13px;"><span style="font-family:'JetBrains Mono',monospace; font-size:12px;">checkout.tsx</span><span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">4.1k</span></div>
-            <div style="display:flex; align-items:center; gap:7px; padding:8px 10px; border-radius:8px; background:var(--bg-elev); font-size:13px;"><span style="font-family:'JetBrains Mono',monospace; font-size:12px;">api/pay.ts</span><span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">2.3k</span></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--accent);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="12" cy="12" r="1.2" fill="currentColor"></circle></svg>
+              <span style="font-size:12.5px; font-weight:500;">自治目标</span>
+              <div style="flex:1;"></div>
+              <span style="padding:1px 7px; border-radius:4px; background:var(--green-bg); color:var(--green); font-size:10.5px; font-family:'JetBrains Mono',monospace;">运行中</span>
+            </div>
+            <span style="font-size:13px; line-height:1.6;">把支付重试收敛成一套可观测的策略，并让灰度指标稳定一周。</span>
+          </div>
+
+          <div style="flex:none; display:flex; flex-direction:column; gap:12px; padding:12px 12px 13px; border-radius:8px; background:var(--bg-elev);">
+            <span style="font-size:11px; color:var(--text-faint); letter-spacing:.05em;">预算</span>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; align-items:baseline; gap:8px;">
+              <span style="font-size:12px; color:var(--text-dim);">运行数</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text);">8 / 20</span>
+            </div>
+            <div style="height:4px; border-radius:4px; background:var(--bg-sunken); overflow:hidden;"><div style="width:40%; height:100%; background:var(--accent);"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; align-items:baseline; gap:8px;">
+              <span style="font-size:12px; color:var(--text-dim);">花费</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--amber);">$6.20 / $10.00</span>
+            </div>
+            <div style="height:4px; border-radius:4px; background:var(--bg-sunken); overflow:hidden;"><div style="width:62%; height:100%; background:var(--amber);"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; align-items:baseline; gap:8px;">
+              <span style="font-size:12px; color:var(--text-dim);">步数</span>
+              <div style="flex:1;"></div>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text);">无限制</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-faint);">无限制 · 不作为终止条件</div>
+          </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <span style="font-size:11px; color:var(--text-faint); letter-spacing:.05em;">最近一次停止</span>
+            <div style="display:flex; align-items:flex-start; gap:9px; padding:9px 11px; border-radius:8px; background:var(--bg-elev);">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; margin-top:2px; color:var(--text-dim);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M12 7.5v5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+              <div style="min-width:0; display:flex; flex-direction:column; gap:2px;">
+                <span style="font-size:12.5px;">等待你的答复</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-faint);">awaitingInput</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">
+            <div style="display:flex;"><span>创建于</span><div style="flex:1;"></div><span>08-09 09:12</span></div>
+            <div style="display:flex;"><span>最近更新</span><div style="flex:1;"></div><span>14:31</span></div>
+            <div style="display:flex;"><span>模型</span><div style="flex:1;"></div><span>Claude Sonnet 4.5</span></div>
+          </div>
+
+          <div style="display:flex; gap:7px;">
+            <div style="flex:1; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:var(--chip); font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">暂停</div>
+            <div style="flex:1; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:var(--chip); color:var(--red); font-size:12px; cursor:pointer;" style-hover="background:var(--red-bg)">结束目标</div>
           </div>
         </div>
       </sc-if>
@@ -1092,7 +1915,16 @@ const BLOCKS = [
   { id: 'longtask', label: '长任务进度', lines: 3, tone: 'card' },
   { id: 'checkpoint', label: '检查点', lines: 3, tone: 'quiet' },
   { id: 'ctx', label: '上下文压缩', lines: 1, tone: 'quiet' },
-  { id: 'summary', label: '本轮完成', lines: 4, tone: 'card' }
+  { id: 'summary', label: '本轮完成', lines: 4, tone: 'card' },
+  { id: 'ask3', label: '追问 · 回滚预案', lines: 2, tone: 'user' },
+  { id: 'reads', label: '只读检索', lines: 3, tone: 'quiet' },
+  { id: 'group', label: '工具组', lines: 1, tone: 'quiet' },
+  { id: 'redacted', label: '加密的思考', lines: 1, tone: 'quiet' },
+  { id: 'http', label: 'HTTP 请求', lines: 4, tone: 'card' },
+  { id: 'denied', label: '你拒绝的命令', lines: 1, tone: 'warn' },
+  { id: 'sub', label: '子 agent 叙事', lines: 5, tone: 'card' },
+  { id: 'wave', label: '折叠的过程', lines: 1, tone: 'quiet' },
+  { id: 'runend', label: 'Run 收尾', lines: 1, tone: 'text' }
 ];
 const TONE = { user: 'var(--accent)', quiet: 'var(--text-faint)', card: 'var(--text-dim)', text: 'var(--text-dim)', code: 'var(--syn-fn)', error: 'var(--red)', warn: 'var(--amber)' };
 
@@ -1100,7 +1932,8 @@ const PANELS = {
   explorer: { label: 'Explorer' },
   diff: { label: 'Diff', badge: '2' },
   terminal: { label: 'Terminal' },
-  plan: { label: 'Plan', badge: '3/5' }
+  plan: { label: 'Plan', badge: '3/5' },
+  goal: { label: 'Goal', badge: '62%' }
 };
 
 class Component extends DCLogic {
@@ -1111,7 +1944,7 @@ class Component extends DCLogic {
     settingsOpen: false,
     appearanceOpen: false,
     accent: null,
-    open: { think: true, grep: false, diff: true, ex_src: true, ex_checkout: true, ex_hooks: true, ex_lib: false, ex_api: false },
+    open: { think: true, grep: false, diff: true, ex_src: true, ex_checkout: true, ex_hooks: true, ex_lib: false, ex_api: false, group: false, wave: false, http: true, sub: true },
     cmd: 'pending',
     diffState: 'pending',
     tries: 1,
@@ -1120,6 +1953,9 @@ class Component extends DCLogic {
     plan: 'a',
     bgRun: false,
     restored: null,
+    planBar: true,
+    goalBar: true,
+    catalog: false,
     tabs: [{ id: 'diff' }, { id: 'terminal' }, { id: 'plan' }],
     active: 'diff',
     anchor: 'ask',
@@ -1230,7 +2066,7 @@ class Component extends DCLogic {
     const rot = (k) => s.open[k] ? 'rotate(90deg)' : 'rotate(0deg)';
     const dark = s.theme === 'dark';
     const cur = s.accent || this.props.accent || '#3574f0';
-    const turns = [{ id: 'ask', label: '你 · 14:02' }, { id: 'ask2', label: '你 · 14:19' }].concat(s.sent.map((m, i) => ({ id: 't' + i, label: '你 · ' + m.text.slice(0, 12) })));
+    const turns = [{ id: 'ask', label: '你 · 14:02' }, { id: 'ask2', label: '你 · 14:19' }, { id: 'ask3', label: '你 · 14:31' }].concat(s.sent.map((m, i) => ({ id: 't' + i, label: '你 · ' + m.text.slice(0, 12) })));
     const center = (s.vw || 1440) - (s.leftOpen ? 240 : 0) - (s.rightOpen ? 300 : 0);
     const ring = (c) => c === cur ? '0 0 0 2px var(--bg-elev), 0 0 0 3.5px ' + c : 'none';
 
@@ -1272,8 +2108,9 @@ class Component extends DCLogic {
       rightToggleBg: s.rightOpen ? 'var(--chip)' : 'transparent',
       scrollRef: (el) => { this._scroll = el; if (el && this._chatPos && !el.scrollTop) el.scrollTop = this._chatPos; },
       composerPadL: center >= 560 ? '74px' : '28px',
-      composerPadR: center >= 820 ? '224px' : '38px',
+      composerPadR: '38px',
       showMap: center >= 560,
+      mapPad: center >= 560 ? '74px' : '28px',
       showBarMeta: center >= 620,
       showBarStatus: center >= 460,
       showToc: center >= 820,
@@ -1302,6 +2139,19 @@ class Component extends DCLogic {
       label_think: s.open.think ? '收起' : '展开',
       show_grep: s.open.grep, rot_grep: rot('grep'), toggle_grep: on('grep'),
       show_diff: s.open.diff, rot_diff: rot('diff'), toggle_diff: on('diff'),
+      show_group: s.open.group, rot_group: rot('group'), toggle_group: on('group'),
+      show_wave: s.open.wave, rot_wave: rot('wave'), toggle_wave: on('wave'),
+      show_http: s.open.http, rot_http: rot('http'), toggle_http: on('http'),
+      show_sub: s.open.sub, rot_sub: rot('sub'), toggle_sub: on('sub'),
+      label_sub: s.open.sub ? '收起' : '展开',
+      planBar: s.planBar,
+      dismissPlan: () => this.setState({ planBar: false }),
+      goalBar: s.goalBar,
+      dismissGoal: () => this.setState({ goalBar: false }),
+      openGoal: () => this.openTab('goal'),
+      catalog: s.catalog,
+      openCatalog: () => this.setState({ catalog: true }),
+      closeCatalog: () => this.setState({ catalog: false }),
 
       diffPending: s.diffState === 'pending',
       diffDone: s.diffState !== 'pending',
@@ -1373,7 +2223,8 @@ class Component extends DCLogic {
       tabs: s.tabs.map((t) => ({
         label: PANELS[t.id].label,
         badge: PANELS[t.id].badge || '',
-        flex: t.id === s.active ? '0 0 auto' : '0 1 auto',
+        flex: '0 0 auto',
+        showBadge: !!PANELS[t.id].badge,
         bg: t.id === s.active ? 'var(--chip)' : 'transparent',
         fg: t.id === s.active ? 'var(--text)' : 'var(--text-dim)',
         select: () => this.setState({ active: t.id }),
@@ -1390,7 +2241,7 @@ class Component extends DCLogic {
       openExplorer: () => this.openTab('explorer'),
       noTabs: s.tabs.length === 0,
       isExplorer: s.active === 'explorer', isDiff: s.active === 'diff',
-      isTerminal: s.active === 'terminal', isPlan: s.active === 'plan',
+      isTerminal: s.active === 'terminal', isPlan: s.active === 'plan', isGoal: s.active === 'goal',
       panelRef: (el) => { if (el) { this._panes = this._panes || {}; this._panes[s.active] = el; el.scrollTop = (this._scrollPos && this._scrollPos[s.active]) || 0; } },
       onPanelScroll: (e) => { this._scrollPos = this._scrollPos || {}; this._scrollPos[s.active] = e.target.scrollTop; },
       exQuery: s.exQuery,
