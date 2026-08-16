@@ -51,6 +51,50 @@ describe("deriveLatestRun", () => {
     expect(d?.status).toBe("unknown"); // running:false, no terminal in slice
   });
 
+  it("keeps the whole Run across HITL continuation Segment starts", () => {
+    const firstStart = entry({ kind: "run-start", runId: "r1" });
+    const v = view({
+      timeline: [
+        firstStart,
+        entry({ kind: "tool-start", runId: "r1", refId: "before-hitl" }),
+        entry({ kind: "approval-request", runId: "r1", refId: "approval-1" }),
+        entry({ kind: "approval-result", runId: "r1", refId: "approval-1", status: "approved" }),
+        entry({ kind: "run-start", runId: "r1" }),
+        entry({ kind: "tool-start", runId: "r1", refId: "after-hitl" }),
+        entry({ kind: "run-end", runId: "r1", status: "ok" }),
+      ],
+      toolCalls: {
+        "before-hitl": {
+          id: "before-hitl",
+          runId: "r1",
+          name: "shell",
+          fn: "npm test",
+          args: "",
+          status: "ok",
+        },
+        "after-hitl": {
+          id: "after-hitl",
+          runId: "r1",
+          name: "shell",
+          fn: "npm run build",
+          args: "",
+          status: "ok",
+        },
+      },
+      outcome: { type: "completed" },
+    });
+
+    expect(deriveLatestRun(v)).toMatchObject({
+      startedAt: firstStart.ts,
+      status: "ok",
+      commands: [
+        { cmd: "npm test", status: "ok" },
+        { cmd: "npm run build", status: "ok" },
+      ],
+      approvals: [{ command: "", decision: "approved" }],
+    });
+  });
+
   it("flags status ok / err / running based on terminal entry", () => {
     const ok = view({
       timeline: [

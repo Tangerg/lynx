@@ -1,9 +1,9 @@
 // Run digest — pure derivation from AgentSessionView.timeline + toolCalls.
 //
-// Picks the most recent RUN_STARTED boundary and walks forward, bucketing
-// the entries into a structured summary: changed/read files, commands,
-// approvals, errors. The Run Summary workspace view consumes this; the
-// derivation lives here so it can be unit-tested in isolation (and so
+// Picks the selected root Run's first available start and walks that exact Run
+// identity across every continuation Segment, bucketing changed/read files,
+// commands, approvals, and errors. The Run Summary workspace view consumes
+// this; the derivation lives here so it can be unit-tested in isolation (and so
 // future surfaces — telemetry export, end-of-run toasts — can reuse it).
 
 import type { Translate } from "@/lib/i18n";
@@ -78,7 +78,7 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
   if (!source.runId) return null;
   // A session timeline interleaves root and descendant Runs. The summary owns
   // one selected root, so child boundaries and tools cannot displace it.
-  const startIdx = source.timeline.findLastIndex(
+  const startIdx = source.timeline.findIndex(
     (entry) => entry.kind === "run-start" && entry.runId === source.runId,
   );
   if (startIdx < 0) return null;
