@@ -17,12 +17,11 @@ import { Icon, IconButton, PillButton, TextButton } from "@/ui";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { useInstalledPlugins, usePluginErrorStore } from "@/plugins/sdk";
-import { pluginOrigin } from "@/plugins/sdk/pluginOrigin";
+import { useInstalledPluginRecords, usePluginErrorStore } from "@/plugins/sdk";
 
 export function PluginsPane() {
   const t = useT();
-  const installed = useInstalledPlugins();
+  const installed = useInstalledPluginRecords();
   const log = usePluginErrorStore((s) => s.log);
   const clearFor = usePluginErrorStore((s) => s.clearFor);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -38,13 +37,11 @@ export function PluginsPane() {
   // Sort: built-ins first (alphabetical), then sideloaded (alphabetical).
   // Within each origin group, errored plugins float to the top.
   const rows = [...installed].sort((a, b) => {
-    const oa = pluginOrigin(a);
-    const ob = pluginOrigin(b);
-    if (oa !== ob) return oa === "builtin" ? -1 : 1;
-    const ea = errorsByPlugin.get(a)?.length ?? 0;
-    const eb = errorsByPlugin.get(b)?.length ?? 0;
+    if (a.origin !== b.origin) return a.origin === "builtin" ? -1 : 1;
+    const ea = errorsByPlugin.get(a.name)?.length ?? 0;
+    const eb = errorsByPlugin.get(b.name)?.length ?? 0;
     if (ea !== eb) return eb - ea;
-    return a.localeCompare(b);
+    return a.name.localeCompare(b.name);
   });
 
   const toggle = (name: string) =>
@@ -57,10 +54,9 @@ export function PluginsPane() {
   return (
     <div>
       <div className="flex flex-col gap-2">
-        {rows.map((name) => {
+        {rows.map(({ name, origin }) => {
           const errors = errorsByPlugin.get(name) ?? [];
           const errCount = errors.length;
-          const origin = pluginOrigin(name);
           const open = expanded.has(name);
           return (
             <div

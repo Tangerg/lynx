@@ -104,7 +104,7 @@ export function loadSideloadedPlugins(host: Host): SideloadDiscovery {
         releaseUrl(url);
         continue;
       }
-      if (await registerSideloadedPlugin(platform, parsed.data, url, controller.signal)) {
+      if (await registerSideloadedPlugin(platform, host, parsed.data, url, controller.signal)) {
         loaded += 1;
       } else {
         releaseUrl(url);

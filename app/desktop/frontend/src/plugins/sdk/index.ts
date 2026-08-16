@@ -19,9 +19,11 @@ export {
   contributionsTo,
   subscribeContributions,
   useContributions,
+  useInstalledPluginRecords,
   useInstalledPlugins,
   useKernelRevision,
 } from "./kernel";
+export type { InstalledPlugin, PluginOrigin } from "./kernel";
 export { COMMANDS, CONFIG, I18N, PLUGINS, WINDOW, WORKSPACE } from "./services";
 export type {
   AmbientShell,

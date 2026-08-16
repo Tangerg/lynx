@@ -24,9 +24,9 @@ import { HOST_API_VERSION } from "./apiVersion";
 import { definePlugin } from "./definePlugin";
 import { measurePluginLoad } from "@/lib/metrics";
 import { reportPluginError } from "./errors";
+import { hasInstallation, trackInstallation } from "./kernel";
 import { COMMAND, SETTINGS_PANE, WORKSPACE_VIEW } from "./kernelPoints";
 import { makeLazyActivator } from "./lazyActivator";
-import { setPluginOrigin } from "./pluginOrigin";
 import type { ContributedCommand } from "./types/commands";
 import type { ContributedSettingsPane, ContributedView } from "./types/declared";
 
@@ -105,15 +105,18 @@ function placeholderFor(
 
 export async function registerSideloadedPlugin(
   platform: Platform<string | URL>,
+  owner: Host,
   manifest: SideloadManifest,
   reference: string | URL,
   signal?: AbortSignal,
 ): Promise<boolean> {
   const activation = manifest.activation?.length ? manifest.activation : ["startup"];
-  setPluginOrigin(manifest.name, "sideload");
   const started = performance.now();
   try {
-    await platform.register({
+    if (hasInstallation(owner, manifest.name)) {
+      throw new Error(`Plugin "${manifest.name}" is already installed in this Host generation`);
+    }
+    const registration = await platform.register({
       manifest: {
         name: manifest.name,
         version: manifest.version,
@@ -130,6 +133,7 @@ export async function registerSideloadedPlugin(
           { placeholder: placeholderFor(platform, manifest, activation[0]!) as never }),
     });
     if (signal?.aborted) return false;
+    trackInstallation(owner, manifest.name, registration, "sideload");
     measurePluginLoad(performance.now() - started, manifest.name, "loaded");
     return true;
   } catch (error) {

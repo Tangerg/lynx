@@ -71,7 +71,7 @@ src/
 │   │   ├── services.ts / shellServices.ts  typed shell capability contracts
 │   │   ├── selectors/            按面分组的 useXxx / lookupXxx + extensions.ts（读侧底座 + O(1) 索引）
 │   │   ├── sideload.ts           dougong Platform / permission / lazy activation adapter
-│   │   ├── capabilities.ts / pluginOrigin.ts       capability vocabulary + 来源诊断
+│   │   ├── capabilities.ts        capability vocabulary；安装来源随 Host read model 保存
 │   │   ├── evalWhen.ts           when 子句求值器（VS Code-when 子集）
 │   │   ├── lazyActivator.ts      activationEvents + contributes 占位激活
 │   │   ├── state.ts / stateSlice.ts / sharedState.ts  插件共享 state
