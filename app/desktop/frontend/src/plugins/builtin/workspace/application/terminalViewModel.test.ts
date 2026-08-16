@@ -17,6 +17,7 @@ describe("terminalViewModel", () => {
       commands: [],
       commandCount: 0,
       tailSignature: 0,
+      selectedCommandId: "",
       isEmpty: true,
     });
   });
@@ -25,12 +26,20 @@ describe("terminalViewModel", () => {
     const first = command({ id: "cmd-1", output: "abc" });
     const second = command({ id: "cmd-2", output: "12345" });
 
-    expect(terminalViewModel([first, second])).toEqual({
+    expect(terminalViewModel([first, second], "cmd-1")).toEqual({
       commands: [first, second],
       commandCount: 2,
       tailSignature: 10,
+      selectedCommandId: "cmd-1",
       isEmpty: false,
     });
+  });
+
+  it("falls back to the latest command when compaction removed the selected tool", () => {
+    const first = command({ id: "cmd-1" });
+    const latest = command({ id: "cmd-2" });
+
+    expect(terminalViewModel([first, latest], "gone").selectedCommandId).toBe("cmd-2");
   });
 });
 

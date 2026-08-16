@@ -25,6 +25,7 @@ export interface WorkspaceNavigationPort {
   useFileViewer(): WorkspaceFileViewer | null;
   useSettingsPaneTarget(): string | null;
   useExpandedToolIds(): Set<string>;
+  useSelectedToolId(): string;
   useSelectTool(): (id: string) => void;
   useToggleTool(): (id: string) => void;
   useSidebarDrawer(): { collapsed: boolean; toggle: () => void };

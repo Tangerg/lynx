@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P100 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P101 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -108,6 +108,7 @@
 | P98 | Desktop 插件 Host 代际与移除事务收敛 | P97 + renderer replacement / late startup / failed removal 反例 | 已完成 |
 | P99 | Desktop sideload 安装事实与来源代际收敛 | P98 + successful install invisibility / name collision / stale origin 反例 | 已完成 |
 | P100 | Desktop Context Dock renderer 接管与会话切换收敛 | P99 + retained URL / same-session rebind / sessionless scope 反例 | 已完成 |
+| P101 | Desktop Tool→Terminal 精确选择与长对话收敛 | P100 + dead selection / compaction removal / tail-vs-target 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1791,10 +1792,33 @@
 - focused 3 files / 30 tests 与完整 Frontend 291 files / 1740 tests、严格异步泄露检测、类型、lint、格式、依赖、架构、API consumer、设计系统与生产 bundle 门禁全绿；
 - 本批无视觉样式变化，未使用 agent-browser，测试结束本仓无新增 Frontend 测试或 Runtime 进程。
 
-## 80. 进度记录
+## 80. P101 — Desktop Tool→Terminal 精确选择与长对话收敛
+
+### 目标
+
+关闭消息流与“从工具卡打开右栏”持续写入 `selectedToolId`、Terminal 却从未读取它的产品断链，并处理长对话 compaction、Runtime 恢复或 authoritative snapshot 删除旧 Tool 后选择永久悬空的问题。右侧命令面板必须跟随 exact Tool item identity；显式查看历史命令时不能被自动追尾立即拉回底部。
+
+### 工作项
+
+- [x] P101-01 冻结 exact command、已删除 selection 回退、空 Tool snapshot 清理与选中行单一标记反例；修复前 selection 只写不读，Terminal 永远是无目标汇总；
+- [x] P101-02 将 reactive selected Tool read 加入 Workspace navigation port，删除只在首次 Tool 出现时写一次的旧入口；ChatStream 按 Tool identity membership 收敛，存活选择保持，旧选择回退到最新存活 Tool，空集合清空；
+- [x] P101-03 让 membership effect 由 Tool id signature 驱动，Tool output delta 不重复触发选择写入，保留长流式对话热路径；
+- [x] P101-04 Terminal view model 将 selected Tool 精确映射到 command；非 command/已删除 Tool 回退到最新存活 command并回写唯一 selection；
+- [x] P101-05 Terminal 激活或选择变化时滚到 exact command card；选择历史命令会退出 pinned-tail，选择最新命令继续追尾。选中视觉只复用现有 `bg-selected` token，不新增 ad-hoc 色值；
+- [x] P101-06 只读对照 study/Codex 的 item identity + command output delta 心智模型，保留 Lyra 的聚合 Terminal 与 per-session Context Dock 信息架构；Runtime、Protocol、SQLite、Agent inner ring 与 Go Agent Framework 合同不变，`app/cli` 未修改或暂存。
+
+### 验收
+
+- 从任意命令 Tool card 打开 Terminal 后，exact command 成为唯一 selected card并滚入视野；历史目标不被 live tail 抢走，最新目标继续 tail；
+- compaction/恢复替换 Tool read model时，存活选择不动，已删除选择收敛到最新存活 item/command，无 Tool 时清空；output delta 不产生多余 selection effect；
+- focused 3 files / 19 tests 与完整 Frontend 292 files / 1744 tests、严格异步泄露检测、类型、lint、格式、依赖、架构、API consumer、设计系统与生产 bundle 门禁全绿；
+- 未使用 agent-browser，测试结束本仓无新增 Frontend 测试或 Runtime 进程。
+
+## 81. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P101（Desktop Tool→Terminal exact selection） | 右侧功能区接线复核发现 `selectedToolId` 是只写事实：消息流自动选择与 Tool card 路由都会写它，但 Terminal 只渲染全部 command且始终按底部追尾，因此点击历史命令没有可见目标；长对话 compaction/Runtime 恢复删除旧 Tool 后选择还会永久悬空。对照 study/Codex 的 item identity + command output delta模型后，Lyra 仍保留聚合 Terminal，但选中 identity 现在是 reactive read：ChatStream 按 Tool id membership保留或回退选择，id signature 避开 output delta 热路径；Terminal 精确映射 command，旧/非命令目标回退最新 command并回写，激活时滚到唯一 `bg-selected` card。历史选择关闭 pinned-tail，最新选择继续 tail | 修复前 5 条反例稳定失败；修复后 focused 3 files / 19 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 292 files / 1744 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P100（Desktop Context Dock renderer ownership） | 右侧栏反证发现 URL 与 per-session memory 在 composition bind 时没有明确交接：renderer 刷新仍保留 `dock=diff`，新 store 却以空 `lastViewId` 把 URL 改成 `null`；相反，同一 Session 的 Host/plugin 重绑又会用旧 `lastViewId` 擅自重新打开用户已折叠的 Dock。根因是未绑定 renderer 与合法 sessionless scope 共用空字符串。现在 `null` 是唯一 unbound identity；首次接管和 same-session rebind 采用 navigator 当前 location，非空位置以一次 store write 同时补入本 Session open/last facts，折叠位置保持不动；只有 exact scope identity 变化才恢复目标 Session memory。Workspace public port 和 Runtime/Agent 边界均未变化 | 两个相反反例修复前稳定失败，并补 sessionless→Session 真实迁移与单通知交接防回归；修复后 focused 3 files / 30 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 291 files / 1740 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P99（Desktop sideload installation facts） | 继续反证 P98 的插件生命周期后发现另一条真实产品断链：第三方插件已经在 dougong Platform transaction 中成功注册，但 installation read model 只记录 bootstrap 内置插件，Settings → Plugins 因而既看不见也无法卸载；独立 renderer-global `pluginOrigin` 又会让失败或旧代 sideload 用同名来源污染 successor。现在 exact Host 唯一持有 `{name, origin, handle}`，内置与 sideload 共用同一已提交事实源；sideload 只在 Platform 注册成功后登记真实 registration handle，同名冲突在进入 transaction 前拒绝。Plugins pane 直接消费当前 Host records，全局 origin 双路径已删除，旧 Host publication/settlement 不能重标新 Host | 修复前 successful registration / installed read model 红测稳定得到空列表；修复后 focused 4 files / 12 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 291 files / 1736 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P98（Desktop plugin Host generation ownership） | 反证发现 dougong 替换后仍沿用旧 composition-root 假设：PluginProvider unmount 只置 canceled，不停止 Host；installation handles 是 renderer-global Map，尚未发布的 Host 已污染 Plugins read model；`stopKernel(old)` 无条件 retract，会撤销 successor；sideload Platform 又在注册时通过全局 `kernelHost()` 取 installer。进一步复核真实窗口关闭发现 `beforeunload` 没有 unmount React root，Provider cleanup 仍不会运行。现在 Host identity 同时拥有 installation registry、ContributionView 与 retract资格；唯一 host teardown先 unmount root，effect 同步退休 publication，再异步按 Platform → Host join。Provider 对 startup、Host、Platform 和 blob URL 建立结构化 owner，late startup/discovery 只能 rollback本代。插件移除 read model 也改为 transaction commit 后删除，并以 handle identity拒绝旧 settlement 删除 replacement。Runtime、Protocol、SQLite、Desktop Agent inner ring 与 Agent Framework 均未变化 | 修复前 generation 3 条与 Provider 2 条红测稳定失败；修复后 focused 24 tests、Frontend 普通与严格 `--detectAsyncLeaks` 均为 289 files / 1732 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；Desktop Go test/vet/build 全绿；未使用 agent-browser，`app/cli` 未修改或暂存 |
@@ -1966,6 +1990,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 81. 本轮里程碑
+## 82. 本轮里程碑
 
-P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98 又把相同的 identity discipline落实到 Desktop plugin composition root，使旧 renderer 的 Host、Platform、ContributionView、installation removal 与 blob resource 不能越代触碰 successor；P99 进一步让 exact Host 唯一拥有内置与 sideload 的名称、来源和真实卸载句柄；P100 则明确右侧 Context Dock 在 renderer 首次接管、same-session 重绑与真实 Session 迁移间的位置/记忆交接，URL 不再被新内存反向清空，已折叠位置也不会被旧记忆复活。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。
+P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100 明确右侧 Context Dock 在 renderer 首次接管、same-session 重绑与真实 Session 迁移间的位置/记忆交接；P101 再把对话 Tool item identity 接通到右侧 Terminal，长对话 compaction/恢复后的旧 selection 不再悬空，历史命令目标也不会被 live tail 抢走。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。

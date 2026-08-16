@@ -15,7 +15,7 @@ import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import {
-  selectInitialWorkspaceTool,
+  reconcileWorkspaceToolSelection,
   useExpandedWorkspaceToolIds,
   useSelectWorkspaceTool,
   useToggleWorkspaceTool,
@@ -70,20 +70,20 @@ export function ChatStream({ onSend }: Props) {
   // store subscription on the hot streaming path.
   const textReveal = useUiStore((state) => state.streamReveal);
 
-  // Auto-select (but don't expand) the latest tool the first time it
-  // streams in — so the inspector pane has something to show without
-  // forcing the inline card to balloon open. Expanding is a deliberate
-  // user click.
-  //
-  // Effect deps narrow to `latestToolId` (a string, stable under
-  // Object.is) so it only fires when the *latest* tool changes —
-  // not on every TOOL_CALL_ARGS delta that mutates the toolCalls map
-  // reference while leaving the latest id alone.
-  const latestToolId = useMemo(() => Object.keys(toolCalls).at(-1) ?? "", [toolCalls]);
+  // Keep the target exact across authoritative snapshot replacement. A user's
+  // surviving selection stays put; if compaction/recovery removes it, the
+  // latest surviving tool takes ownership without expanding the inline card.
+  // Output deltas replace the Tool map too, so the membership signature keeps
+  // this effect off that hot path while still changing when compaction removes
+  // an id without changing the latest surviving id.
+  const toolIdSignature = useMemo(() => Object.keys(toolCalls).join("\u001f"), [toolCalls]);
+  const toolIds = useMemo(
+    () => (toolIdSignature ? toolIdSignature.split("\u001f") : []),
+    [toolIdSignature],
+  );
   useEffect(() => {
-    if (!latestToolId) return;
-    selectInitialWorkspaceTool(latestToolId);
-  }, [latestToolId]);
+    reconcileWorkspaceToolSelection(toolIds);
+  }, [toolIds]);
 
   // The transcript's shared context, and every member of it is session-independent by
   // construction — see BlockCtx. That is what makes the memo on each turn able to bail:

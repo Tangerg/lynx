@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionToolCalls } from "@/plugins/builtin/agent/public/run";
@@ -7,6 +7,10 @@ import { terminalSubtext, terminalViewModel } from "../application/terminalViewM
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
+import {
+  useSelectedWorkspaceToolId,
+  useSelectWorkspaceTool,
+} from "@/plugins/builtin/workspace/public/navigation";
 
 // The agent's command log (G5). Each command's output streams via
 // item.delta{toolOutput} → item.completed — 613 confirmed that's already on
@@ -17,10 +21,13 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 function TerminalTab() {
   const t = useT();
   const toolCalls = useActiveSessionToolCalls();
+  const selectedToolId = useSelectedWorkspaceToolId();
+  const selectTool = useSelectWorkspaceTool();
   const view = useMemo(
-    () => terminalViewModel(workspaceCommandActivitiesFromAgentTools(toolCalls)),
-    [toolCalls],
+    () => terminalViewModel(workspaceCommandActivitiesFromAgentTools(toolCalls), selectedToolId),
+    [selectedToolId, toolCalls],
   );
+  const latestCommandId = view.commands.at(-1)?.id ?? "";
 
   // Terminal semantics: open at the bottom (latest command) and tail live
   // output — but only while the user is pinned to the bottom, so scrolling up
@@ -37,6 +44,19 @@ function TerminalTab() {
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
+  useLayoutEffect(() => {
+    if (!view.selectedCommandId) {
+      pinnedRef.current = true;
+      return;
+    }
+    pinnedRef.current = latestCommandId === view.selectedCommandId;
+    scrollRef.current
+      ?.querySelector<HTMLElement>("[data-command-selected]")
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [latestCommandId, view.selectedCommandId]);
+  useEffect(() => {
+    if (view.selectedCommandId !== selectedToolId) selectTool(view.selectedCommandId);
+  }, [selectTool, selectedToolId, view.selectedCommandId]);
   useEffect(() => {
     if (!pinnedRef.current) return;
     const el = scrollRef.current;
@@ -57,7 +77,7 @@ function TerminalTab() {
           sub={t("terminal.empty.sub")}
         />
       ) : (
-        <CommandLog commands={view.commands} />
+        <CommandLog commands={view.commands} selectedCommandId={view.selectedCommandId} />
       )}
     </WorkspaceViewLayout>
   );

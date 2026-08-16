@@ -41,6 +41,7 @@ export function installWorkspaceNavigationPort(): () => void {
     useFileViewer: () => useContextDockStore((state) => state.fileViewer),
     useSettingsPaneTarget: () => navigator().use((location) => location.settings),
     useExpandedToolIds: () => useContextDockStore((state) => state.expandedToolIds),
+    useSelectedToolId: () => useContextDockStore((state) => state.selectedToolId),
     useSelectTool: () => useContextDockStore((state) => state.setSelectedToolId),
     useToggleTool: () => useContextDockStore((state) => state.toggleExpandedTool),
     // The drawer follows the user's preference and nothing else. It used to be

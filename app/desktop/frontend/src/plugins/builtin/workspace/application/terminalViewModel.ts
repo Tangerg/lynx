@@ -5,21 +5,28 @@ export interface TerminalViewModel {
   commands: WorkspaceCommandActivity[];
   commandCount: number;
   tailSignature: number;
+  selectedCommandId: string;
   isEmpty: boolean;
 }
 
 export function terminalViewModel(
   commands: readonly WorkspaceCommandActivity[],
+  selectedToolId = "",
 ): TerminalViewModel {
   let tailSignature = commands.length;
   for (const command of commands) {
     tailSignature += command.output.length;
   }
 
+  const selectedCommandId = commands.some((command) => command.id === selectedToolId)
+    ? selectedToolId
+    : (commands.at(-1)?.id ?? "");
+
   return {
     commands: Array.from(commands),
     commandCount: commands.length,
     tailSignature,
+    selectedCommandId,
     isEmpty: commands.length === 0,
   };
 }
