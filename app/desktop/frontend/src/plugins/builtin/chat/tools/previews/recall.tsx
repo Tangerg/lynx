@@ -96,14 +96,13 @@ function StoredToolResultPreview({ tool }: ToolPreviewProps) {
 
 export const recallPreviews = definePlugin({
   name: "lyra.builtin.recall-previews",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of recallToolPreviews({
       search_memory: MemoryRecallPreview,
       search_conversations: ConversationRecallPreview,
       read_tool_result: StoredToolResultPreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

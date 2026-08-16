@@ -77,7 +77,7 @@ const DEFAULT_MOTION: VisualStyleMotion = {
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  drawerMs: 180,
+  drawerMs: 300,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],

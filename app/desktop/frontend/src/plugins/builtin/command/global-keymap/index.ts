@@ -6,12 +6,10 @@ import { t } from "@/lib/i18n";
 
 export default definePlugin({
   name: "lyra.builtin.global-keymap",
-  version: "1.0.0",
-  requires: ["lyra.builtin.default-commands", "lyra.builtin.shortcuts"],
-  setup({ host }) {
+  setup(ctx) {
     for (const shortcut of globalCommandShortcuts((id) => lookupExtensionByKey(COMMAND, id))) {
-      host.extensions.contribute(SHORTCUT, shortcut);
+      ctx.contribute(SHORTCUT, shortcut);
     }
-    host.extensions.contribute(SHORTCUT, workspaceEscapeShortcut(t, closeActiveWorkspaceView));
+    ctx.contribute(SHORTCUT, workspaceEscapeShortcut(t, closeActiveWorkspaceView));
   },
 });

@@ -11,11 +11,10 @@ const McpServersPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.mcp-servers-pane",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeGateway = installMCPServerGateway();
-    registerMCPDataProviders(host);
-    registerSettingsPane(host, mcpServersSettingsPane(McpServersPane));
-    return disposeGateway;
+    registerMCPDataProviders(ctx);
+    registerSettingsPane(ctx, mcpServersSettingsPane(McpServersPane));
+    ctx.cleanup(disposeGateway);
   },
 });

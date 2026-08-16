@@ -1,62 +1,68 @@
-// Open extension points — the JetBrains-style "a plugin defines a typed
-// point, any plugin contributes to it, any plugin consumes it" surface.
+// Open extension points — the "a plugin defines a typed point, any plugin
+// contributes to it, any plugin consumes it" surface.
 //
 // Unlike layout slots (which carry React components rendered by <Slot>), an
 // extension point carries arbitrary typed DATA / behaviour, consumed
 // programmatically (a command list, a set of serializers, formatters…). The
 // kernel owns none of these points — a plugin opens one with a string id and
-// others fill it, exactly like `host.events.onCustom(name, …)` fans an event out to
-// every registered handler.
+// others fill it.
+//
+// The handle is created by `defineExtensionPoint` (see `../contracts`), which is
+// where the storage envelope and the reason it exists are documented.
 
+import type { ExtensionPoint as ContractToken } from "dougong";
+import type { Contribution } from "../contracts";
 import type { HostCapability } from "./common";
 
-/** How a point keys its contributions. */
+/** How a point resolves two contributions that claim the same domain key. */
 export type ExtensionKeying =
-  // Same key → overwrite the previous, warn on cross-plugin override.
-  // Used by "there is one X per key" points (themes by id, previews by fn…).
+  // Last contributor of a key wins; the ones it shadows stay in the store and
+  // come back if it unloads. "There is one X per key" points — themes by id,
+  // previews by tool fn, commands by id.
   | "single"
-  // Composite key per (plugin, id) → every contribution coexists.
-  // Used by "many handlers / chips / slots" points (events, layout…).
+  // Every contribution stands on its own; nothing shadows anything. "Many
+  // handlers / chips / slots" points — events, layout, log subscribers.
   | "multi";
 
 /**
- * A typed handle to an extension point. Created with `defineExtensionPoint`
- * and shared as a module const between the plugin that contributes and the
- * one that consumes — it re-adds the type inference the raw string API would
- * erase. The handle holds no state; the registry is the single source of
- * truth.
+ * A typed handle to an extension point, shared as a module const between the
+ * plugin that contributes and the one that consumes — it re-adds the type
+ * inference a raw string API would erase. The handle holds no state; the Host's
+ * contribution store is the single source of truth.
  */
 export interface ExtensionPoint<T> {
-  /** The string id this point is keyed by in the registry. */
+  /** The string id this point is known by, and its Contract token's id. */
   readonly id: string;
-  /** Keying strategy — see `ExtensionKeying`. */
+  /** How the read side resolves a contested domain key — see `ExtensionKeying`. */
   readonly keying: ExtensionKeying;
+  /** The Contract the Host routes contributions on. */
+  readonly token: ContractToken<Contribution<T>>;
   /**
-   * How to derive the dedupe key from an item for `single` points. Defaults
-   * to `item.id`. Use it for points keyed by something else (a tool fn name,
-   * a data-provider `key`, a content-block `kind`).
+   * How to derive the domain key from an item for `single` points. Defaults to
+   * `item.id`. Use it for points keyed by something else (a tool fn name, a
+   * data-provider `key`, a content-block `kind`).
    */
   readonly keyOf?: (item: T) => string;
   /**
-   * Optional key normalizer for `single` points — e.g. shortcuts fold
-   * "Cmd+K" / "mod+k" to one canonical combo. Applied to `keyOf`'s result on
-   * both contribute and remove so registrations and lookups agree.
+   * Optional key normalizer — e.g. shortcuts fold "Cmd+K" / "mod+k" to one
+   * canonical combo. Applied on both contribute and lookup so registrations and
+   * lookups agree.
    */
   readonly normalizeKey?: (key: string) => string;
   /**
-   * Capability a plugin must declare to contribute to this point — the
-   * permission gate, enforced by `host.extensions.contribute` for hosts that
-   * declared `capabilities` (sideload). Kernel points carry their domain
-   * capability (COLOR_THEME → "theme", COMMAND → "commands"); plugin-defined
-   * points omit it (contributing to a plugin's own point needs no kernel
-   * permission). Full hosts (built-ins, no `capabilities`) skip the check.
+   * Capability a plugin must hold to contribute here — the permission gate for
+   * sideloaded plugins. Kernel points carry their domain capability
+   * (COLOR_THEME → "theme"); a plugin's own points omit it, since contributing
+   * to your own point needs no kernel permission. Plugins with no declared
+   * capability set (built-ins) skip the check.
+   *
+   * Enforced by our `contribute`, not by the platform layer: `PermissionSet`
+   * authorizes a manifest once at registration and never sees a contribution.
    */
   readonly capability?: HostCapability;
-  /** @internal phantom — carries `T` for inference; never read at runtime. */
-  readonly __itemType?: T;
 }
 
-/** Per-contribution options passed to `host.extensions.contribute`. */
+/** Per-contribution options passed to `contribute`. */
 export interface ExtensionContributionOptions {
   /**
    * Stable id within a `multi` point — defaults to a minted one. Pass it so a
@@ -65,9 +71,9 @@ export interface ExtensionContributionOptions {
    */
   id?: string;
   /**
-   * Explicit dedupe key for `single` points whose key isn't carried on the
-   * item — a tool fn name, a content-block kind, a slash trigger. Takes
-   * precedence over the point's `keyOf`. Ignored by `multi` points.
+   * Explicit domain key for `single` points whose key isn't carried on the item
+   * — a tool fn name, a content-block kind, a slash trigger. Takes precedence
+   * over the point's `keyOf`. Ignored by `multi` points.
    */
   key?: string;
   /** Sort hint — lower comes first. Falls back to the item's own `order`. */

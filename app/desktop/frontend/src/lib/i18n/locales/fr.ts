@@ -180,6 +180,15 @@ export const fr: Record<string, string> = {
   "goal.error.start": "Impossible de lancer l’objectif",
   "goal.error.stop": "Impossible d’arrêter l’objectif",
   "goal.error.resume": "Impossible de reprendre l’objectif",
+  "slash.goal": "Définir un objectif que l’agent continue de poursuivre",
+  "goal.error.unavailable":
+    "Impossible de définir un objectif pour le moment — ce runtime ne les prend peut-être pas en charge, ou l’un d’eux est déjà en cours",
+  "goal.meta.model": "Modèle",
+  "goal.meta.lastMove": "Dernière avancée",
+  "goal.replace.title": "Remplacer l’objectif actuel ?",
+  "goal.replace.body":
+    "« {{objective}} » s’arrête ici, avec le quota déjà consommé. La conversation est conservée.",
+  "goal.replace.confirm": "Remplacer l’objectif",
   "goal.stop.stoppedByUser": "Vous l'avez arrêté",
   "goal.stop.runtimeRestarted": "Le runtime a redémarré",
   "goal.stop.runStartFailed": "Un tour n'a pas pu démarrer",
@@ -289,8 +298,6 @@ export const fr: Record<string, string> = {
   "plugins.errorDetail.hide": "Masquer le détail de l'erreur",
   "plugins.errors": "{{count}} erreur(s)",
   "plugins.clear": "Effacer",
-  "plugins.reload": "Recharger le plugin",
-  "plugins.reloading": "Rechargement…",
   "plugins.copyError": "Copier l'erreur",
   "plugins.origin.builtin": "Intégré",
   "plugins.origin.builtin.title": "Fourni avec Lyra",
@@ -773,6 +780,8 @@ export const fr: Record<string, string> = {
   "settings.pane.schedules": "Planifications",
   "settings.appearance.hero":
     "Thèmes, contraste, typographie et animation définissent la sensation de travail de Lynx.",
+  "context.usage.aria": "Utilisation du contexte : {percent}%",
+  "context.usage.tooltip": "{used} / {window} tokens utilisés",
   "usage.session.hint": "Tokens et coût cumulés de cette session, toutes exécutions confondues",
   "usage.range.all": "Tout",
   "usage.range.30d": "30 j",

@@ -7,7 +7,7 @@
 import { DropdownMenu, Tooltip } from "@/ui";
 import { writeToClipboard } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n";
-import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { contributeLayout, definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canCopyMessage } from "./application/messageActionAvailability";
 import { messageCopyActionSlot } from "./application/messageActionContributions";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
@@ -81,8 +81,7 @@ function CopyItem({
 
 export const messageCopy = definePlugin({
   name: "lyra.builtin.message-copy",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("message.actions", messageCopyActionSlot(CopyButton));
+  setup(ctx) {
+    contributeLayout(ctx, "message.actions", messageCopyActionSlot(CopyButton));
   },
 });

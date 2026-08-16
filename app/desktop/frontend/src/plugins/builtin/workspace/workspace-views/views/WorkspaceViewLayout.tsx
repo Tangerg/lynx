@@ -5,6 +5,7 @@
 
 import type { ReactNode, Ref } from "react";
 import { ScrollArea } from "@/ui";
+import { AgentWorkspaceView } from "@/ui/agent";
 import { ViewHeader, type ViewHeaderProps } from "./ViewHeader";
 
 interface Props extends ViewHeaderProps {
@@ -18,11 +19,11 @@ interface Props extends ViewHeaderProps {
 
 export function WorkspaceViewLayout({ scrollClassName, scrollRef, children, ...header }: Props) {
   return (
-    <div className="agent-workspace-view flex min-h-0 flex-1 flex-col bg-canvas">
+    <AgentWorkspaceView>
       <ViewHeader {...header} />
       <ScrollArea ref={scrollRef} className={scrollClassName}>
         {children}
       </ScrollArea>
-    </div>
+    </AgentWorkspaceView>
   );
 }

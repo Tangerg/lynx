@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getContainer, resetContainer } from "@/main/container";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "@/plugins/sdk/config";
-import type { Host } from "@/plugins/sdk";
+import type { ConfigService, KeyValueStore } from "@/plugins/sdk";
 import {
   applyRuntimeEndpoint,
   currentRuntimeEndpoint,
@@ -13,7 +13,7 @@ import { installRuntimeEndpointConfiguration } from "../adapters/runtimeEndpoint
 const cleanups: Array<() => void> = [];
 
 function connectionHost(initial?: unknown): {
-  host: Pick<Host, "config" | "storage">;
+  host: { config: ConfigService; storage: KeyValueStore };
   stored: Map<string, unknown>;
 } {
   const stored = new Map<string, unknown>();
@@ -36,6 +36,7 @@ function connectionHost(initial?: unknown): {
           stored.delete(key);
         },
         keys: () => [...stored.keys()],
+        clear: () => stored.clear(),
       },
     },
   };

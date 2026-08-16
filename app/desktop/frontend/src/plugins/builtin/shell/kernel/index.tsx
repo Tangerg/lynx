@@ -9,7 +9,7 @@ import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/plugins/builtin/sidebar/public/SidebarPanel";
 import { useSendComposerInput } from "@/plugins/builtin/chat/composer/public/sendToAgent";
 import { useReconcilePersistedAgentSessions } from "@/plugins/builtin/agent/public/session";
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useDefaultChatSession } from "@/plugins/builtin/agent/public/defaultSession";
 import {
@@ -37,24 +37,21 @@ function KernelSidebar() {
 
 export const kernelChat = definePlugin({
   name: "lyra.builtin.kernel-chat",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("app.main", kernelChatSlot(KernelChat));
+  setup(ctx) {
+    contributeLayout(ctx, "app.main", kernelChatSlot(KernelChat));
   },
 });
 
 export const kernelSidebar = definePlugin({
   name: "lyra.builtin.kernel-sidebar",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("app.sidebar", kernelSidebarSlot(KernelSidebar));
+  setup(ctx) {
+    contributeLayout(ctx, "app.sidebar", kernelSidebarSlot(KernelSidebar));
   },
 });
 
 export const kernelSettings = definePlugin({
   name: "lyra.builtin.kernel-settings",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, kernelSettingsView(SettingsPage));
+  setup(ctx) {
+    ctx.contribute(WORKSPACE_VIEW, kernelSettingsView(SettingsPage));
   },
 });

@@ -10,10 +10,10 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { selectCurrentRootRun, selectRun, selectVisibleProblem } from "../view/runTree";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 // Terse builders (mirror reducer.events.test.ts). Items are partial — only the
 // fields the fold reads matter; the cast keeps the wire shape from bloating.
@@ -42,7 +42,7 @@ const snapshot = (revision: number): StreamEvent =>
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(spec);
+  await loadPluginsForTest(spec);
 });
 
 describe("handler contract — run.*", () => {

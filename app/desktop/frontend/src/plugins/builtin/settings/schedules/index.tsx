@@ -10,10 +10,9 @@ const SchedulesPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.schedules-pane",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeGateway = installScheduleGateway();
-    registerSettingsPane(host, schedulesSettingsPane(SchedulesPane));
-    return disposeGateway;
+    registerSettingsPane(ctx, schedulesSettingsPane(SchedulesPane));
+    ctx.cleanup(disposeGateway);
   },
 });

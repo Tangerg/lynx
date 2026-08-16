@@ -97,14 +97,13 @@ function GoalOutcomePreview({ tool }: ToolPreviewProps) {
 
 export const goalPreviews = definePlugin({
   name: "lyra.builtin.goal-previews",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of goalToolPreviews({
       create_goal: CreatedGoalPreview,
       get_goal: CurrentGoalPreview,
       report_goal_outcome: GoalOutcomePreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

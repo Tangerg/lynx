@@ -1,4 +1,4 @@
-import { normalizeCombo } from "@/plugins/sdk/registry";
+import { normalizeCombo } from "@/plugins/sdk/combo";
 import { isLargePaste } from "../domain/largePaste";
 
 export type ComposerPasteIntent =

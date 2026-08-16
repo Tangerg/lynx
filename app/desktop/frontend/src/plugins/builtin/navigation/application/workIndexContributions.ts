@@ -4,9 +4,9 @@ import type {
   WorkIndexItemVariant,
 } from "@/plugins/sdk/types/navigation";
 import type { Disposable } from "@/plugins/sdk/types/common";
-import type { ContributingHost } from "@/plugins/sdk/types/host";
 import { useWorkIndexItems as useSdkWorkIndexItems } from "@/plugins/sdk/selectors/layout";
 import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
+import type { Contributor } from "@/plugins/sdk";
 
 export type {
   WorkIndexItemScope,
@@ -14,11 +14,8 @@ export type {
   WorkIndexItemVariant,
 } from "@/plugins/sdk/types/navigation";
 
-export function contributeWorkIndexItem(
-  host: ContributingHost,
-  item: WorkIndexItemSpec,
-): Disposable {
-  return host.extensions.contribute(WORK_INDEX_ITEM, item);
+export function contributeWorkIndexItem(ctx: Contributor, item: WorkIndexItemSpec): Disposable {
+  return ctx.contribute(WORK_INDEX_ITEM, item);
 }
 
 export function useWorkIndexItems(

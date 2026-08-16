@@ -8,10 +8,10 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, RunEvent, RunRef, SegmentOutcome, StreamEvent } from "@/rpc";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
 import { selectCurrentRootRun } from "../application/view/runTree";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 const SID = "ses_1";
 
@@ -128,7 +128,7 @@ const view = () => useAgentStore.getState().sessions[SID]!.view;
 beforeEach(async () => {
   useAgentStore.getState().dropSession(SID);
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(spec);
+  await loadPluginsForTest(spec);
 });
 
 describe("agentStore.commitCancelResponse", () => {

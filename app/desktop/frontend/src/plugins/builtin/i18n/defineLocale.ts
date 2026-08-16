@@ -5,7 +5,7 @@
 // generic `contribute` write path; per-domain ergonomics belong to the domain.
 
 import type { LocaleSpec } from "@/plugins/sdk/types";
-import type { PluginSpec } from "@/plugins/sdk";
+import type { AnyPlugin } from "dougong";
 import { definePlugin } from "@/plugins/sdk";
 import { LOCALE } from "@/plugins/sdk/kernelPoints";
 import { activeLocale, addLocaleBundle } from "@/lib/i18n";
@@ -19,12 +19,11 @@ import { activeLocale, addLocaleBundle } from "@/lib/i18n";
  * languages statically imported at setup meant eight dictionaries in the entry
  * payload, seven of which the reader will never see.
  */
-export function defineLocale(spec: LocaleSpec): PluginSpec {
+export function defineLocale(spec: LocaleSpec): AnyPlugin {
   return definePlugin({
     name: `lyra.builtin.locale-${spec.id}`,
-    version: "1.0.0",
-    setup({ host }) {
-      host.extensions.contribute(LOCALE, spec);
+    setup(ctx) {
+      ctx.contribute(LOCALE, spec);
       // Cold start with a persisted non-English locale: this plugin is the only
       // thing that knows how to fetch its own dictionary, so it does — during
       // setup, which runs before first paint.

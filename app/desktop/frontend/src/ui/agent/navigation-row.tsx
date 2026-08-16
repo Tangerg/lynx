@@ -70,11 +70,16 @@ export function AgentRow({
       press={false}
       data-active={active ? "" : undefined}
       className={cn(
-        // A step up in size AND weight from the chrome default. The index is the
-        // one column a user reads standing still, and at 13px/400 a Latin label
+        // A step up in SIZE from the chrome default, and only size. The index is
+        // the one column a user reads standing still, and at 13px a Latin label
         // filled about a third of its row's height — the row looked airy because
-        // the type had abandoned it, not because it was generous.
-        "w-full justify-start rounded-[var(--surface-card-radius)] text-left text-ui-md font-medium",
+        // the type had abandoned it, not because it was generous. The weight came
+        // along for that ride and did not belong on it: at 500 every row in the
+        // column is emphasised, so nothing in it is, and the open row is left
+        // with only its fill to say so. The reference sets the whole index at the
+        // body weight for exactly that reason, and `Button` defaults to medium,
+        // so this has to say `normal` out loud.
+        "w-full justify-start rounded-[var(--row-radius)] text-left text-ui-md font-normal",
         "gap-[var(--density-row-gap)]",
         "text-fg transition-[background-color,color] duration-[var(--dur-color)]",
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
@@ -116,11 +121,11 @@ export function AgentRow({
             detail ? "leading-body" : "leading-snug",
           )}
         >
-          <span className="min-w-0 flex-1 truncate">{children}</span>
+          <span className="min-w-0 flex-1 truncate-fade">{children}</span>
           {trailing && <span className={cn("shrink-0", action && RESTING_GLYPH)}>{trailing}</span>}
         </span>
         {detail != null && (
-          <span className="min-w-0 truncate text-ui-2xs font-normal leading-body text-fg-faint">
+          <span className="min-w-0 truncate-fade text-ui-2xs leading-body text-fg-faint">
             {detail}
           </span>
         )}

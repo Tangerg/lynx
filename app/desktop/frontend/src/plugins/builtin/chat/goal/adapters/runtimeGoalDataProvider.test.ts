@@ -7,23 +7,20 @@ vi.mock("@/plugins/builtin/runtime/public/capabilities", () => ({
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import type { Disposable } from "@/plugins/sdk";
-import { createHost } from "@/plugins/sdk/host";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
-import { usePluginStore } from "@/plugins/sdk/registry";
 import { GOAL_KEY, type GoalQuery, type GoalState } from "../application/goalQueries";
 import { installGoalRuntimeAdapter } from "./runtimeGoalCommandsGateway";
+import { contributeForTest } from "@/plugins/sdk/testKernel";
 
 let disposables: Disposable[] = [];
 
-beforeEach(() => {
-  usePluginStore.getState().resetForTest();
+beforeEach(async () => {
   disposables = [];
 });
 
 afterEach(async () => {
   for (const disposable of disposables.reverse()) disposable.dispose();
   await resetContainer();
-  usePluginStore.getState().resetForTest();
 });
 
 describe("Runtime Goal data provider", () => {
@@ -32,9 +29,7 @@ describe("Runtime Goal data provider", () => {
     setContainer({
       client: () => ({ goals: { get } }) as unknown as LyraClient,
     });
-    const restoreGateway = installGoalRuntimeAdapter(
-      createHost("goal-data-provider-test", disposables),
-    );
+    await contributeForTest(installGoalRuntimeAdapter);
     try {
       const fetcher = lookupDataProvider<GoalState, GoalQuery>(GOAL_KEY);
       expect(fetcher).toBeDefined();
@@ -46,7 +41,6 @@ describe("Runtime Goal data provider", () => {
 
       expect(get).toHaveBeenCalledWith("ses_goal_generation", controller.signal);
     } finally {
-      restoreGateway();
     }
   });
 });

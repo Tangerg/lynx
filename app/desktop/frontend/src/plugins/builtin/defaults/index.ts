@@ -1,4 +1,4 @@
-import { definePlugin } from "@/plugins/sdk";
+import { definePlugin, WINDOW } from "@/plugins/sdk";
 import { ACCENT, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
 import { DEFAULT_ACCENTS, defaultMessageRoles } from "./application/defaultContributions";
 
@@ -7,28 +7,26 @@ export { defaultDataProviders } from "./dataProviders";
 
 export const defaultTitle = definePlugin({
   name: "lyra.builtin.default-title",
-  version: "1.0.0",
-  setup({ host }) {
-    host.window.setTitle("Lyra");
+  requires: { window: WINDOW },
+  setup(ctx) {
+    ctx.window.setTitle("Lyra");
   },
 });
 
 export const defaultAccents = definePlugin({
   name: "lyra.builtin.default-accents",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const accent of DEFAULT_ACCENTS) {
-      host.extensions.contribute(ACCENT, accent);
+      ctx.contribute(ACCENT, accent);
     }
   },
 });
 
 export const defaultRoles = definePlugin({
   name: "lyra.builtin.default-roles",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const role of defaultMessageRoles()) {
-      host.extensions.contribute(MESSAGE_ROLE, role);
+      ctx.contribute(MESSAGE_ROLE, role);
     }
   },
 });

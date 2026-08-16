@@ -9,11 +9,16 @@ import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway"
 import { installWorkspaceErrorClassifier } from "./adapters/runtimeWorkspaceErrorClassifier";
 import { installWorkspaceNavigationPort } from "./adapters/navigationStatePort";
 import { installBrowserFileTransfer } from "./adapters/browserFileTransfer";
+import {
+  activateWorkspaceSessionScope,
+  forgetWorkspaceSessionScopes,
+} from "@/plugins/builtin/workspace/public/navigation";
+import { WORKSPACE_SCOPE_PORTS } from "@/plugins/builtin/workspace/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.workspace-bootstrap",
-  version: "1.0.0",
-  setup() {
+  provides: { scopes: WORKSPACE_SCOPE_PORTS },
+  setup(ctx) {
     const disposers = [
       installCodebaseGateway(),
       installConversationArchiveGateway(),
@@ -26,8 +31,14 @@ export default definePlugin({
       installWorkspaceNavigationPort(),
       installBrowserFileTransfer(),
     ];
-    return () => {
+    ctx.cleanup(() => {
       for (let index = disposers.length - 1; index >= 0; index--) disposers[index]!();
+    });
+    return {
+      scopes: {
+        activateSessionScope: activateWorkspaceSessionScope,
+        forgetSessionScopes: forgetWorkspaceSessionScopes,
+      },
     };
   },
 });

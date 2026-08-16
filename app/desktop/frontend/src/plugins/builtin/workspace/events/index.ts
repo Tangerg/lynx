@@ -5,8 +5,6 @@
 // live in their owning layers under this bounded context.
 
 import { definePlugin } from "@/plugins/sdk";
-import { subscribeRuntimeCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
-import { verifyRuntimeServiceConnection } from "@/plugins/builtin/runtime/public/serviceStatus";
 import { installProjectIndexRefresh } from "./adapters/projectIndexRefresh";
 import {
   invalidateWorkspaceEvent,
@@ -22,25 +20,25 @@ import {
 } from "./adapters/sessionWorkspaceCwd";
 import { createWorkspaceEventLoop } from "./application/workspaceEventLoop";
 import { startWorkspaceEventSubscription } from "./application/workspaceEventSubscription";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.workspace-events",
-  version: "1.0.0",
-  requires: ["lyra.builtin.runtime", "lyra.builtin.agent-bootstrap"],
-  setup() {
+  requires: { runtime: RUNTIME_STREAM_PORTS },
+  setup(ctx) {
     const loop = createWorkspaceEventLoop({
       subscribe: ({ target, signal }) => subscribeRuntimeWorkspaceEvents(target, signal),
       handleEvent: invalidateWorkspaceEvent,
       invalidateAll: invalidateWorkspaceEverything,
       reportDisconnect: () => {
-        void verifyRuntimeServiceConnection();
+        void ctx.runtime.verifyServiceConnection();
       },
     });
 
     const disposeProjectIndex = installProjectIndexRefresh();
     const disposeSubscription = startWorkspaceEventSubscription({
       canSubscribe: canSubscribeWorkspaceEvents,
-      subscribeCapabilities: subscribeRuntimeCapabilities,
+      subscribeCapabilities: ctx.runtime.subscribeCapabilities,
       resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
       reportResolutionError: (error) =>
         console.warn("[workspace-events] target resolution failed:", error),
@@ -48,9 +46,9 @@ export default definePlugin({
       loop,
     });
 
-    return () => {
+    ctx.cleanup(() => {
       disposeSubscription();
       disposeProjectIndex();
-    };
+    });
   },
 });

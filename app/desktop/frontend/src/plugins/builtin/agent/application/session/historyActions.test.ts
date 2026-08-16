@@ -1,6 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentRunFact as RunRef } from "@/plugins/sdk";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import {
   configureAgentRuntimeGateway,
   type AgentRuntimeGateway,
@@ -8,13 +7,14 @@ import {
 } from "../ports/runtimeGateway";
 import { configureAgentSessionViewPort, type AgentSessionViewPort } from "../ports/sessionView";
 import { rollbackSessionToBeforeRun } from "./historyActions";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 let restoreRuntime: (() => void) | undefined;
 let restoreView: (() => void) | undefined;
 
 beforeAll(async () => {
   const { default: foldPlugin } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(foldPlugin);
+  await loadPluginsForTest(foldPlugin);
 });
 
 afterEach(() => {

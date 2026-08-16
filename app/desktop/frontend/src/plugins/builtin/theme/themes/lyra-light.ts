@@ -47,9 +47,16 @@ const c = {
   inkMuted: "#5a5d63",
   inkFaint: "#63666d",
 
-  hairline: "#dee1e7",
-  hairStrong: "#c6cad3",
-  hairTertiary: "rgb(0 0 0 / 0.07)",
+  // Three weights, and all three are the reference's ink percentages rather than
+  // picked greys: 5 / 8 / 12 percent of the ink over the plane, which lands at
+  // 244 / 237 / 228 against 255. They had been 226 / 204 — a seam 24 levels
+  // heavier than the deepest line the reference draws anywhere, which is what
+  // made a window of tool panels read as a wireframe of boxes rather than as
+  // paper of different weights. The value delta between the panels was never the
+  // problem: ours is 255/247 against the reference's 255/249.
+  hairline: "#e9ecf2",
+  hairStrong: "#dee2eb",
+  hairTertiary: "rgb(0 0 0 / 0.05)",
 };
 
 export default defineColorThemePlugin({
@@ -96,8 +103,8 @@ export default defineColorThemePlugin({
     surface: { l: 97.3, c: 0.006 },
     elevated: { l: 98.4, c: 0.008 },
     sunken: { l: 95.4, c: 0.016 },
-    border: { l: 90.9, c: 0.009 },
-    borderSoft: { l: 83.9, c: 0.013 },
+    border: { l: 94.3, c: 0.009 },
+    borderSoft: { l: 91.2, c: 0.013 },
   },
   cta: {
     cta: "var(--color-accent)",

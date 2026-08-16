@@ -1,8 +1,8 @@
-import type { PluginSpec } from "@/plugins/sdk";
+import type { AnyPlugin } from "dougong";
 import { defineVisualStylePlugin } from "./defineVisualStylePlugin";
 import { lyraStyle } from "./lyra";
 
 export const builtinVisualStyleSpecs = [lyraStyle] as const;
 
-export const builtinVisualStyles: PluginSpec[] =
+export const builtinVisualStyles: AnyPlugin[] =
   builtinVisualStyleSpecs.map(defineVisualStylePlugin);

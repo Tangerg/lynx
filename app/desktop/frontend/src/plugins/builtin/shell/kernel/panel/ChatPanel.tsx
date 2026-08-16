@@ -89,7 +89,11 @@ function DockHeader({
 }) {
   const t = useT();
   return (
-    <AgentSurfaceHeader className="gap-1">
+    // No bottom edge: this bar butts against the panel its tabs open, and the
+    // selected tab carries that panel's own ground up into the strip. A hairline
+    // across that seam would cut the one join the tab metaphor is made of. The
+    // strip's own darker ground is what separates it from the panel instead.
+    <AgentSurfaceHeader className="gap-1" divider={false}>
       <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} />
       <AddDockViewPicker groups={groups} openViewIds={openViewIds} />
     </AgentSurfaceHeader>

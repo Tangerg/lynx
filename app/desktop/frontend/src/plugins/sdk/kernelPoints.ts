@@ -24,7 +24,6 @@ import type {
   CitationSource,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
-  PluginSpec,
   ReadyHandler,
   RouteSpec,
   SettingsPaneSpec,
@@ -41,9 +40,9 @@ import type {
 } from "./types";
 import type { ReactNode } from "react";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
-import { defineExtensionPoint } from "./defineExtensionPoint";
+import { defineExtensionPoint } from "./contracts";
 import { LIFECYCLE_POINT_IDS } from "./pointIds";
-import { normalizeCombo } from "./registry";
+import { normalizeCombo } from "./combo";
 
 type RegisteredContentBlockRenderer = (block: ContentBlock) => ReactNode;
 
@@ -173,7 +172,7 @@ export const BEFORE_UNLOAD_HANDLER = defineExtensionPoint<BeforeUnloadHandler>({
   capability: "lifecycle",
   keying: "multi",
 });
-export const PLUGIN_LOAD_LISTENER = defineExtensionPoint<(spec: PluginSpec) => void>({
+export const PLUGIN_LOAD_LISTENER = defineExtensionPoint<(name: string) => void>({
   id: LIFECYCLE_POINT_IDS.pluginLoad,
   capability: "plugins",
   keying: "multi",

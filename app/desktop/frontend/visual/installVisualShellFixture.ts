@@ -23,10 +23,11 @@ import {
   WORKSPACE_PROJECTS_KEY,
   type WorkspaceProjectSummary,
 } from "@/plugins/builtin/workspace/public/queries";
-import { DATA_PROVIDER, definePlugin, loadPlugin, usePluginStore } from "@/plugins/sdk";
-import type { PluginSpec } from "@/plugins/sdk";
+import { DATA_PROVIDER, definePlugin } from "@/plugins/sdk";
+import type { AnyPlugin } from "dougong";
 import { useUiStore } from "@/state/uiStore";
 import type { VisualShellTheme, VisualWorkIndexState } from "./shellFixtureStates";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 const ACTIVE_SESSION_ID = "visual-shell-active";
 
@@ -132,12 +133,11 @@ function pending<T>(): Promise<T> {
   });
 }
 
-function dataProviderPlugin(state: VisualWorkIndexState): PluginSpec {
+function dataProviderPlugin(state: VisualWorkIndexState): AnyPlugin {
   return definePlugin({
     name: "lyra.visual.work-index-data",
-    version: "1.0.0",
-    setup({ host }) {
-      host.extensions.contribute(DATA_PROVIDER, {
+    setup(ctx) {
+      ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_PROJECTS_KEY,
         fetcher: async () => {
           if (state === "loading") return pending<WorkspaceProjectSummary[]>();
@@ -147,7 +147,7 @@ function dataProviderPlugin(state: VisualWorkIndexState): PluginSpec {
           return state === "empty" ? [] : PROJECTS;
         },
       });
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: AGENT_SESSIONS_KEY,
         fetcher: async () => (state === "populated" ? SESSIONS : []),
       });
@@ -160,7 +160,6 @@ export async function installVisualShellFixture(
   theme: VisualShellTheme,
   sidebarOpen: boolean,
 ): Promise<void> {
-  usePluginStore.getState().resetForTest();
   queryClient.clear();
   queryClient.setQueryDefaults([WORKSPACE_PROJECTS_KEY], { retry: false });
   queryClient.setQueryDefaults([AGENT_SESSIONS_KEY], { retry: false });
@@ -185,7 +184,7 @@ export async function installVisualShellFixture(
   // seam, casts, radii, control heights. Without them registered the suite runs on
   // the globals.css fallbacks, so every screenshot here would be of a skin the
   // product never renders and no style regression could ever fail a test.
-  for (const plugin of [
+  await loadPluginsForTest(
     dataProviderPlugin(state),
     lyraLight,
     defaultAccents,
@@ -196,10 +195,5 @@ export async function installVisualShellFixture(
     sidebarProjects,
     sidebarRecents,
     sidebarFooter,
-  ]) {
-    const result = await loadPlugin(plugin);
-    if (result.kind !== "loaded") {
-      throw new Error(`Failed to install visual shell plugin "${result.name}": ${result.kind}`);
-    }
-  }
+  );
 }

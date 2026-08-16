@@ -46,7 +46,7 @@ import {
   WORKSPACE_SKILL_PROPOSALS_KEY,
   WORKSPACE_AGENT_MEMORY_KEY,
 } from "@/plugins/builtin/workspace/public/queries";
-import type { DataProviderSpec, ContributingHost } from "@/plugins/sdk";
+import type { DataProviderSpec, Contributor } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { asSessionId } from "@/rpc";
@@ -84,11 +84,11 @@ function scheduleConfig(schedule: Schedule): ScheduleConfig {
   };
 }
 
-export function registerDefaultDataProviders(host: ContributingHost): void {
+export function registerDefaultDataProviders(ctx: Contributor): void {
   const client = () => getContainer().client();
   const workspace = (cwd?: string) => client().workspaces.open(cwd ? { path: cwd } : undefined);
   const contribute = (provider: DataProviderSpec): void => {
-    host.extensions.contribute(DATA_PROVIDER, provider);
+    ctx.contribute(DATA_PROVIDER, provider);
   };
 
   contribute({

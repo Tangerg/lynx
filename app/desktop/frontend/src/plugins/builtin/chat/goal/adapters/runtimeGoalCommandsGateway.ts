@@ -1,6 +1,6 @@
 import { getContainer } from "@/main/container";
 import { asSessionId, createUnaryMutationSettler, type Goal } from "@/rpc";
-import type { ContributingHost } from "@/plugins/sdk";
+import type { Contributor } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import type {
@@ -74,8 +74,8 @@ const gateway: GoalCommandsGateway = {
   },
 };
 
-export function installGoalRuntimeAdapter(host: ContributingHost): () => void {
-  host.extensions.contribute(DATA_PROVIDER, {
+export function installGoalRuntimeAdapter(ctx: Contributor): () => void {
+  ctx.contribute(DATA_PROVIDER, {
     key: GOAL_KEY,
     fetcher: async (params, signal) => {
       const query = params as GoalQuery | undefined;

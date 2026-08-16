@@ -14,8 +14,7 @@ import { DiagnosticsView } from "./DiagnosticsView";
 
 export default definePlugin({
   name: "lyra.builtin.diagnostics",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, diagnosticsWorkspaceView(DiagnosticsView));
+  setup(ctx) {
+    ctx.contribute(WORKSPACE_VIEW, diagnosticsWorkspaceView(DiagnosticsView));
   },
 });

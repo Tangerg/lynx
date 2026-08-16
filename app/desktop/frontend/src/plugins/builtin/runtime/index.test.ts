@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { loadPlugin, unloadPlugin } from "@/plugins/sdk/definePlugin";
 import {
   HTTP_ENDPOINTS,
   PROTOCOL_VERSION,
@@ -13,6 +12,8 @@ import {
 import { useRuntimeStore } from "./adapters/runtimeCapabilityStore";
 import { useRuntimeServiceStore } from "./adapters/runtimeServiceStore";
 import runtimePlugin from "./index";
+import { removeInstallation } from "@/plugins/sdk/kernel";
+import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 
 // Typed, not cast. What this test asserts is that discovery reaches the store at
 // all, so the payload could be anything — which is exactly why it was written as
@@ -73,8 +74,8 @@ function stubContainer(
   });
 }
 
-afterEach(() => {
-  unloadPlugin(runtimePlugin.name);
+afterEach(async () => {
+  await resetKernelForTest();
   resetContainer();
   useRuntimeStore.getState().clear();
   useRuntimeServiceStore.getState().clear();
@@ -86,7 +87,7 @@ describe("runtime plugin", () => {
     const discover = vi.fn().mockResolvedValue(discovery);
     stubContainer(discover);
 
-    await loadPlugin(runtimePlugin);
+    await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
       expect(useRuntimeStore.getState().capabilities).not.toBeNull();
@@ -98,7 +99,7 @@ describe("runtime plugin", () => {
     const sidecar = healthySidecar();
     stubContainer(vi.fn().mockResolvedValue(discovery), sidecar);
 
-    await loadPlugin(runtimePlugin);
+    await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
       expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("ready");
@@ -113,7 +114,7 @@ describe("runtime plugin", () => {
     sidecar.readiness = vi.fn().mockRejectedValue(new Error("connection refused"));
     stubContainer(vi.fn().mockResolvedValue(discovery), sidecar);
 
-    await loadPlugin(runtimePlugin);
+    await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
       expect(useRuntimeServiceStore.getState().snapshot).toMatchObject({
@@ -127,7 +128,7 @@ describe("runtime plugin", () => {
     useRuntimeStore.getState().replace(discovery.capabilities);
     stubContainer(vi.fn().mockRejectedValue(new Error("method not found")));
 
-    await loadPlugin(runtimePlugin);
+    await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
       expect(useRuntimeServiceStore.getState().snapshot).toMatchObject({
@@ -148,9 +149,9 @@ describe("runtime plugin", () => {
     );
     stubContainer(discover);
 
-    await loadPlugin(runtimePlugin);
+    await loadPluginsForTest(runtimePlugin);
     await vi.waitFor(() => expect(discover).toHaveBeenCalledOnce());
-    unloadPlugin(runtimePlugin.name);
+    await removeInstallation(runtimePlugin.name);
 
     resolveDiscovery(discovery);
     await Promise.resolve();
@@ -168,7 +169,7 @@ describe("runtime plugin", () => {
         .mockResolvedValue(discovery);
       stubContainer(discover);
 
-      await loadPlugin(runtimePlugin);
+      await loadPluginsForTest(runtimePlugin);
       await vi.advanceTimersByTimeAsync(0);
       expect(useRuntimeStore.getState().capabilities).toBeNull();
       expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("unavailable");
@@ -193,9 +194,9 @@ describe("runtime plugin", () => {
     );
     stubContainer(vi.fn().mockResolvedValue(discovery), sidecar);
 
-    await loadPlugin(runtimePlugin);
+    await loadPluginsForTest(runtimePlugin);
     await vi.waitFor(() => expect(sidecar.readiness).toHaveBeenCalledOnce());
-    unloadPlugin(runtimePlugin.name);
+    await removeInstallation(runtimePlugin.name);
 
     resolveReadiness({ status: "ok" });
     await Promise.resolve();

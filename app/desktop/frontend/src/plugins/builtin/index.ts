@@ -10,7 +10,7 @@
 // previews / themes) is still array-order driven, so keep destructive
 // overrides later in the manifest.
 
-import type { PluginSpec } from "../sdk";
+import type { AnyPlugin } from "dougong";
 import appearance from "./settings/appearance";
 import approvalsPane from "./settings/approvals";
 import personalization from "./settings/personalization";
@@ -51,7 +51,7 @@ import rpcAgent from "./agent/rpc-agent";
 import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
 import nativeShell from "./shell/native-shell";
 import providerSetup from "./shell/provider-setup";
-import { localesPack } from "./i18n";
+import { localePlugins } from "./i18n";
 import mainRoute from "./shell/main-route";
 import navigationBootstrap from "./navigation/bootstrap";
 import {
@@ -66,6 +66,7 @@ import planProgress from "./chat/plan-progress";
 import recipesSlash from "./chat/recipes";
 import pluginsPane from "./settings/plugins-pane";
 import providersPane from "./settings/providers";
+import contextUsage from "./chat/context-usage";
 import sessionUsage from "./chat/session-usage";
 import shortcuts from "./command/shortcuts";
 import usagePane from "./settings/usage";
@@ -73,7 +74,7 @@ import { sidebarActions, sidebarFooter, sidebarProjects, sidebarRecents } from "
 import slashHints from "./chat/slash-hints";
 import { completionNotify, statusNotifications, windowTitle } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
-import { appearancePack } from "./theme";
+import { appearancePlugins } from "./theme";
 import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tools/meta";
 import toolViewOpener from "./workspace/tool-view-opener";
@@ -123,11 +124,11 @@ import {
 // All semantics (messages, reasoning, tools, plan, questions, HITL) are
 // first-class Items now, so the built-in agent fold owns the whole fold;
 // `custom` StreamEvents are reserved for third-party plugins.
-const protocol: PluginSpec[] = [agentFold];
+const protocol: AnyPlugin[] = [agentFold];
 
 // Configuration & infrastructure.
 
-const infrastructure: PluginSpec[] = [
+const infrastructure: AnyPlugin[] = [
   nativeShell,
   observability,
   navigationBootstrap,
@@ -142,8 +143,8 @@ const infrastructure: PluginSpec[] = [
   rpcAgent,
   defaultTitle,
   defaultAccents,
-  appearancePack,
-  localesPack,
+  ...appearancePlugins,
+  ...localePlugins,
   mainRoute,
 ];
 
@@ -152,7 +153,7 @@ const infrastructure: PluginSpec[] = [
 // Built-in content blocks (text / tool / reasoning / plan / approval /
 // question) render directly in the message module — no plugin here. This
 // group is roles + per-message actions + the extension-only preview blocks.
-const messageRendering: PluginSpec[] = [
+const messageRendering: AnyPlugin[] = [
   defaultRoles,
   messageCopy,
   messageEdit,
@@ -168,7 +169,7 @@ const messageRendering: PluginSpec[] = [
 // canonical snapshots carry results for — drew raw JSON in every fixture while
 // production drew the real thing. A list to be kept in sync by hand is a list that
 // drifts silently.
-export const toolPreviewPlugins: PluginSpec[] = [
+export const toolPreviewPlugins: AnyPlugin[] = [
   shellPreview,
   diff,
   file,
@@ -187,7 +188,7 @@ export const toolPreviewPlugins: PluginSpec[] = [
   httpPreviews,
 ];
 
-export const toolRenderingPlugins: PluginSpec[] = [
+export const toolRenderingPlugins: AnyPlugin[] = [
   ...toolPreviewPlugins,
   toolActions,
   toolViewOpener,
@@ -196,7 +197,7 @@ export const toolRenderingPlugins: PluginSpec[] = [
 
 // Composer — slash commands, modes, toolbar, status chips, send & hint.
 
-const composer: PluginSpec[] = [
+const composer: AnyPlugin[] = [
   composerBootstrap,
   slashHints,
   // After slashHints so a user recipe named like a built-in hint wins the
@@ -210,7 +211,7 @@ const composer: PluginSpec[] = [
 
 // Settings panes + workspace views (each spec is independent).
 
-const panes: PluginSpec[] = [
+const panes: AnyPlugin[] = [
   appearance,
   approvalsPane,
   personalization,
@@ -248,15 +249,15 @@ const panes: PluginSpec[] = [
 
 // Kernel layout regions — fill the named slots in AgentClientPage.
 
-const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
+const kernel: AnyPlugin[] = [kernelSidebar, kernelChat, kernelSettings];
 
 // Sidebar internals — the sections that fill the expanded work-index view.
 
-const sidebar: PluginSpec[] = [sidebarActions, sidebarProjects, sidebarRecents, sidebarFooter];
+const sidebar: AnyPlugin[] = [sidebarActions, sidebarProjects, sidebarRecents, sidebarFooter];
 
 // Overlays + chrome — toasts, command palette, status bar, …
 
-const overlays: PluginSpec[] = [
+const overlays: AnyPlugin[] = [
   toaster,
   chatSearch,
   defaultCommands,
@@ -272,11 +273,12 @@ const overlays: PluginSpec[] = [
   goal,
   planProgress,
   providerSetup,
+  contextUsage,
   sessionUsage,
   conversationExport,
 ];
 
-export const builtinPlugins: PluginSpec[] = [
+export const builtinPlugins: AnyPlugin[] = [
   ...protocol,
   ...infrastructure,
   ...messageRendering,

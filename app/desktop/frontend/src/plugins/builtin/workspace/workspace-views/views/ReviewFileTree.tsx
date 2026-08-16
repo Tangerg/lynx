@@ -9,7 +9,8 @@
 
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { DiffStat, Icon, IconButton, Pressable, ScrollArea, TextField } from "@/ui";
+import { DiffStat, FilePath, Icon, IconButton, Pressable, ScrollArea, TextField } from "@/ui";
+import { AgentViewNavigator } from "@/ui/agent";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import type { WorkspaceFileDiff } from "@/plugins/builtin/workspace/application/workspaceQueries";
@@ -56,6 +57,7 @@ function TreeRows({
           selected={node.path === selectedPath}
           leading={<Icon name="file" size="sm" className="shrink-0 opacity-70" />}
           label={node.name}
+          title={node.name}
           trailing={
             <DiffStat
               added={node.added}
@@ -80,8 +82,12 @@ function TreeRows({
               className={cn("shrink-0 transition-transform", !open && "-rotate-90")}
             />
           }
-          label={node.name}
-          labelClassName="text-fg-muted"
+          // A directory node's name is a whole COLLAPSED CHAIN, not one segment,
+          // so it overflows the way a path does and has to lose characters the
+          // way a path does — from the left. Tail-truncated, every deep row in
+          // the tree ended in the same shared prefix and named nothing.
+          label={<FilePath path={node.name} className="text-fg-muted" />}
+          title={node.name}
           expanded={open}
           trailing={
             <DiffStat
@@ -113,7 +119,7 @@ function TreeRow({
   selected,
   leading,
   label,
-  labelClassName,
+  title,
   expanded,
   trailing,
   onClick,
@@ -121,8 +127,9 @@ function TreeRow({
   depth: number;
   selected: boolean;
   leading: ReactNode;
-  label: string;
-  labelClassName?: string;
+  label: ReactNode;
+  /** The full text, for the row's tooltip — `label` may already be truncating it. */
+  title: string;
   expanded?: boolean;
   /** The row's figure, right-aligned in a column of its own. */
   trailing?: ReactNode;
@@ -144,10 +151,10 @@ function TreeRow({
         "text-left text-ui-xs text-fg transition-colors hover:bg-hover focus-visible:bg-hover",
         selected && "bg-selected",
       )}
-      title={label}
+      title={title}
     >
       {leading}
-      <span className={cn("min-w-0 flex-1 truncate", labelClassName)}>{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       {trailing}
     </Pressable>
   );
@@ -192,28 +199,25 @@ export function ReviewFileTree({
   };
 
   return (
-    <aside
-      aria-label={t("diff.files.aria")}
-      // The navigator's own width, so the panel beside it just takes the rest:
-      // wide enough for a nested path at the dock's review width, and a share
-      // rather than a fixed number so a narrowed dock leaves the code column
-      // something to render into.
-      className="agent-pane-split flex h-full min-h-0 w-[min(42%,28rem)] min-w-0 shrink-0 flex-col"
+    <AgentViewNavigator
+      label={t("diff.files.aria")}
+      header={
+        <>
+          <TextField
+            size="sm"
+            font="sans"
+            value={query}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder={t("diff.files.filter")}
+            aria-label={t("diff.files.filter")}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onFilterKeyDown}
+          />
+          <IconButton icon="x" size="sm" aria-label={t("diff.files.hide")} onClick={onClose} />
+        </>
+      }
     >
-      <div className="agent-surface-divider flex shrink-0 items-center gap-1.5 p-2">
-        <TextField
-          size="sm"
-          font="sans"
-          value={query}
-          spellCheck={false}
-          autoComplete="off"
-          placeholder={t("diff.files.filter")}
-          aria-label={t("diff.files.filter")}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={onFilterKeyDown}
-        />
-        <IconButton icon="x" size="sm" aria-label={t("diff.files.hide")} onClick={onClose} />
-      </div>
       <ScrollArea className="px-1 py-1">
         {nodes.length === 0 ? (
           <p className="m-0 px-2 py-2 text-ui-xs text-fg-faint">
@@ -231,6 +235,6 @@ export function ReviewFileTree({
           />
         )}
       </ScrollArea>
-    </aside>
+    </AgentViewNavigator>
   );
 }

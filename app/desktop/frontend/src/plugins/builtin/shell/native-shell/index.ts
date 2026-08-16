@@ -34,8 +34,7 @@ const WINDOW_INACTIVE_ATTR = "data-window-inactive";
 
 export default definePlugin({
   name: "lyra.builtin.native-shell",
-  version: "1.0.0",
-  setup() {
+  setup(ctx) {
     const onContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
       if (target?.closest(EDITABLE)) return; // keep the system edit menu on inputs
@@ -50,11 +49,11 @@ export default definePlugin({
     addEventListener("focus", syncFocus);
     addEventListener("blur", syncFocus);
 
-    return () => {
+    ctx.cleanup(() => {
       document.removeEventListener("contextmenu", onContextMenu);
       removeEventListener("focus", syncFocus);
       removeEventListener("blur", syncFocus);
       document.documentElement.removeAttribute(WINDOW_INACTIVE_ATTR);
-    };
+    });
   },
 });

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { DOCK_MIN_WIDTH_PX } from "@/lib/shellGeometry";
 import { en } from "@/lib/i18n/locales/en";
 
 // Named from the catalogue, not copied out of it. This string had seven literal copies
@@ -83,10 +84,10 @@ test("WebKit workspace keeps review geometry and separator semantics", async ({ 
 
   await expect(page.locator("[data-diff-file]")).toHaveCount(2);
   const separator = page.getByRole("separator", { name: "Resize right workspace" });
-  await expect(separator).toHaveAttribute("aria-valuemin", "300");
+  await expect(separator).toHaveAttribute("aria-valuemin", String(DOCK_MIN_WIDTH_PX));
   await expect
     .poll(async () => Number(await separator.getAttribute("aria-valuenow")))
-    .toBeGreaterThan(300);
+    .toBeGreaterThan(DOCK_MIN_WIDTH_PX);
   await expectNoPageOverflow(page);
 });
 

@@ -12,7 +12,7 @@ import {
 } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { notifyError } from "@/plugins/sdk";
+import { contributeLayout, notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
@@ -208,10 +208,9 @@ function ApprovalModePill() {
 
 export const composerToolbar = definePlugin({
   name: "lyra.builtin.composer-toolbar",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("composer.toolbar.start", composerAttachSlot(AttachButton));
-    host.layout.register("composer.toolbar.start", composerApprovalSlot(ApprovalModePill));
-    host.layout.register("composer.toolbar.start", composerModelSlot(ModelPicker));
+  setup(ctx) {
+    contributeLayout(ctx, "composer.toolbar.start", composerAttachSlot(AttachButton));
+    contributeLayout(ctx, "composer.toolbar.start", composerApprovalSlot(ApprovalModePill));
+    contributeLayout(ctx, "composer.toolbar.start", composerModelSlot(ModelPicker));
   },
 });

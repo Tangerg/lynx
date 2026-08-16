@@ -7,7 +7,7 @@ import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
 import { isLightTheme, toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { Slot } from "@/plugins/host/Slot";
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 import { sidebarFooterSlot } from "./application/sidebarContributions";
 
@@ -59,8 +59,7 @@ function SidebarFooter() {
 
 export const sidebarFooter = definePlugin({
   name: "lyra.builtin.sidebar-footer",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("sidebar.footer", sidebarFooterSlot(SidebarFooter));
+  setup(ctx) {
+    contributeLayout(ctx, "sidebar.footer", sidebarFooterSlot(SidebarFooter));
   },
 });

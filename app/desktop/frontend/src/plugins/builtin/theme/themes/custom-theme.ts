@@ -73,12 +73,11 @@ function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): Co
 
 export default definePlugin({
   name: "lyra.builtin.custom-theme",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const register = () => {
       const { customTheme, accent, contrast } = useUiStore.getState();
       const spec = deriveCustomSpec(customTheme, accent, contrast);
-      host.extensions.contribute(
+      ctx.contribute(
         COLOR_THEME,
         colorThemeContribution({
           ...spec,

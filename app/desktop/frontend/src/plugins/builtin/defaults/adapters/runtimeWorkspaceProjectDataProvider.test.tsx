@@ -8,13 +8,12 @@ import {
   WORKSPACE_PROJECTS_KEY,
   useWorkspaceProjects,
 } from "@/plugins/builtin/workspace/public/queries";
-import { createHost } from "@/plugins/sdk/host";
-import { usePluginStore } from "@/plugins/sdk/registry";
 import type { Disposable } from "@/plugins/sdk";
 import { createLyraClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess } from "@/rpc/transports/memory.testkit";
 import { registerDefaultDataProviders } from "./runtimeDataProviders";
+import { contributeForTest } from "@/plugins/sdk/testKernel";
 
 let disposables: Disposable[] = [];
 let transport: ReturnType<typeof createMemoryTransport>;
@@ -46,14 +45,13 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   queryClient.clear();
-  usePluginStore.getState().resetForTest();
   disposables = [];
   transport = createMemoryTransport();
   client = createLyraClient(transport);
   setContainer({ client: () => client });
-  registerDefaultDataProviders(createHost("project-provider-test", disposables));
+  await contributeForTest(registerDefaultDataProviders);
 });
 
 afterEach(async () => {
@@ -63,7 +61,6 @@ afterEach(async () => {
   for (const disposable of disposables.reverse()) disposable.dispose();
   await client.close();
   await resetContainer();
-  usePluginStore.getState().resetForTest();
   vi.restoreAllMocks();
 });
 

@@ -18,7 +18,7 @@ import { iconScaleCssVariables } from "@/lib/iconScale";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
 import type { ColorThemeSpec, NeutralStep } from "@/plugins/sdk";
 import { ACCENT, COLOR_THEME, VISUAL_STYLE } from "@/plugins/sdk/kernelPoints";
-import { usePluginStore } from "@/plugins/sdk/registry";
+import { subscribeContributions } from "@/plugins/sdk";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import type { UiState } from "@/state/uiPreferences";
 import { accentTintedNeutral } from "../kit/accentTint";
@@ -245,8 +245,7 @@ export function installDocumentAppearance<T extends UiState>(store: UiEffectStor
     }
   });
 
-  const unsubscribePlugins = usePluginStore.subscribe((state, previous) => {
-    if (state.extensions === previous.extensions) return;
+  const unsubscribePlugins = subscribeContributions(() => {
     const current = store.getState();
     applyColorTheme(current.theme, current.accent, current.contrast, current.accentTint);
     applyVisualStyle(current.visualStyle);

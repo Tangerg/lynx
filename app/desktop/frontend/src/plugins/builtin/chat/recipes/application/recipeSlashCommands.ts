@@ -1,4 +1,4 @@
-import type { Disposable, ContributingHost } from "@/plugins/sdk";
+import type { Disposable, Contributor } from "@/plugins/sdk";
 import { queryClient } from "@/lib/queryClient";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
@@ -59,7 +59,7 @@ function recipeSignature(recipes: Recipe[]): string {
     .join(RECIPE_SIGNATURE_ROW_SEPARATOR);
 }
 
-export function installRecipeSlashCommands(host: ContributingHost): () => void {
+export function installRecipeSlashCommands(ctx: Contributor): () => void {
   let dynamic: Disposable[] = [];
   let lastSignature = "";
 
@@ -70,7 +70,7 @@ export function installRecipeSlashCommands(host: ContributingHost): () => void {
     for (const disposable of dynamic) disposable.dispose();
     dynamic = recipes.map((recipe) => {
       const label = recipe.description || recipe.name;
-      return host.extensions.contribute(
+      return ctx.contribute(
         SLASH_COMMAND,
         {
           description: recipe.argumentHint ? `${label}  ${recipe.argumentHint}` : label,

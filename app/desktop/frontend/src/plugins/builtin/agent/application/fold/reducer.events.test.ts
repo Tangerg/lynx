@@ -7,11 +7,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { reduceDurableItem } from "./reducer";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { selectCurrentRootRun, selectVisibleProblem } from "../view/runTree";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 // Builders. Items are partial — only the fields the fold reads matter; the
 // cast keeps the test terse without re-stating the full wire shape.
@@ -34,7 +34,7 @@ const runStarted = (id: string, sessionId: string): StreamEvent => ({
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(spec);
+  await loadPluginsForTest(spec);
 });
 
 describe("reducer — run lifecycle", () => {

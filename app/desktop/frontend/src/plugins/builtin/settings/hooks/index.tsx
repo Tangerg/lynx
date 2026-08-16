@@ -14,10 +14,9 @@ const HooksPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.hooks-pane",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeGateway = installHookTrustGateway();
-    registerSettingsPane(host, hooksSettingsPane(HooksPane));
-    return disposeGateway;
+    registerSettingsPane(ctx, hooksSettingsPane(HooksPane));
+    ctx.cleanup(disposeGateway);
   },
 });

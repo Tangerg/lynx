@@ -92,14 +92,13 @@ function DeletedSchedulePreview({ tool }: ToolPreviewProps) {
 
 export const schedulePreview = definePlugin({
   name: "lyra.builtin.schedule-preview",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of scheduleToolPreviews({
       create_schedule: CreatedSchedulePreview,
       list_schedules: ScheduleListPreview,
       delete_schedule: DeletedSchedulePreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

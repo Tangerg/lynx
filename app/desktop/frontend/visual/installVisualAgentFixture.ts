@@ -16,6 +16,7 @@ import {
 } from "@/plugins/builtin/agent/public/session";
 import { APPROVAL_MODE_KEY } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { composerBootstrap, composerSend, composerToolbar } from "@/plugins/builtin/chat/composer";
+import contextUsage from "@/plugins/builtin/chat/context-usage";
 import narrativeRails from "@/plugins/builtin/chat/narrative-rails";
 import {
   messageCopy,
@@ -36,8 +37,12 @@ import {
 } from "@/plugins/builtin/settings/providers/public/queries";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeCapabilityStore";
+import {
+  configureRuntimeServiceStatusPort,
+  type RuntimeServiceSnapshot,
+} from "@/plugins/builtin/runtime/application/ports/serviceStatus";
 import { queryClient } from "@/lib/queryClient";
-import { loadPlugin, usePluginStore } from "@/plugins/sdk";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 import { toolRenderingPlugins } from "@/plugins/builtin";
 import { DATA_PROVIDER, definePlugin } from "@/plugins/sdk";
 import {
@@ -109,9 +114,8 @@ function visualAgentRuntimeGateway(state: VisualAgentState): AgentRuntimeGateway
 // the column it is read in, which is where it used to lose its tail.
 const fileHeadProvider = definePlugin({
   name: "lyra.visual.file-head",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(DATA_PROVIDER, {
+  setup(ctx) {
+    ctx.contribute(DATA_PROVIDER, {
       key: WORKSPACE_FILE_HEAD_KEY,
       fetcher: async () =>
         [
@@ -129,12 +133,42 @@ const fileHeadProvider = definePlugin({
   },
 });
 
+/**
+ * A connected Runtime, stated rather than probed.
+ *
+ * The transcript asks whether commands may be sent (RunErrorBanner gates Retry on
+ * it), and in production the answer comes from a live health check. A fixture that
+ * left the port unconfigured did not render a degraded banner — it threw out of
+ * the first component to ask, so every screenshot in four spec files was of an
+ * error boundary. Deterministic by construction: one frozen observation, and
+ * refresh/verify do nothing, because a golden must not depend on a probe.
+ */
+function installVisualRuntimeServiceStatusPort(): void {
+  const snapshot = {
+    phase: "ready",
+    observation: {
+      server: { name: "lyra-runtime", version: "0.0.0-visual" },
+      protocol: { current: "2", minSupported: "2" },
+      health: "ready",
+      checks: {},
+    },
+    failure: null,
+  } as const satisfies RuntimeServiceSnapshot;
+
+  configureRuntimeServiceStatusPort({
+    useSnapshot: () => snapshot,
+    snapshot: () => snapshot,
+    refresh: () => Promise.resolve(),
+    verify: () => Promise.resolve(),
+  });
+}
+
 export async function installVisualAgentFixture(
   state: VisualAgentState,
 ): Promise<AgentSessionView> {
-  usePluginStore.getState().resetForTest();
   queryClient.clear();
   installRuntimeCapabilityPort();
+  installVisualRuntimeServiceStatusPort();
   installAgentStatePorts();
   installWorkspaceNavigationPort();
   configureAgentRuntimeGateway(visualAgentRuntimeGateway(state));
@@ -162,7 +196,7 @@ export async function installVisualAgentFixture(
     goal: VISUAL_GOALS[state] ?? null,
   } satisfies GoalState);
 
-  for (const plugin of [
+  await loadPluginsForTest(
     // The palettes and the geometry, or the fixture photographs globals.css's
     // pre-hydration fallbacks: an unregistered theme id resolves to the dark
     // scheme, which is why every `agent-light-*` golden was a byte-for-byte copy
@@ -174,6 +208,7 @@ export async function installVisualAgentFixture(
     agentFold,
     composerBootstrap,
     composerToolbar,
+    contextUsage,
     composerSend,
     narrativeRails,
     // The per-message action bar. Unregistered, the slot rendered nothing, so
@@ -192,12 +227,7 @@ export async function installVisualAgentFixture(
     // while the app rendered the real component.
     ...toolRenderingPlugins,
     fileHeadProvider,
-  ]) {
-    const result = await loadPlugin(plugin);
-    if (result.kind !== "loaded") {
-      throw new Error(`Failed to install visual agent plugin "${result.name}": ${result.kind}`);
-    }
-  }
+  );
 
   // composerBootstrap synchronizes the active session draft while it loads;
   // install the fixture draft after that production bootstrap has completed.

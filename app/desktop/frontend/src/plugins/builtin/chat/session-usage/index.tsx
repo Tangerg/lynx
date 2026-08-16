@@ -5,14 +5,13 @@
 // is next to the session title, the run state and the diff stat: the row of
 // glanceable facts about the thing you are reading, none of which move anything.
 
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { sessionUsageStatusSlot } from "./application/sessionUsageContributions";
 import { SessionUsageChip } from "./ui/SessionUsageChip";
 
 export default definePlugin({
   name: "lyra.builtin.session-usage",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("chat.header.meta", sessionUsageStatusSlot(SessionUsageChip));
+  setup(ctx) {
+    contributeLayout(ctx, "chat.header.meta", sessionUsageStatusSlot(SessionUsageChip));
   },
 });

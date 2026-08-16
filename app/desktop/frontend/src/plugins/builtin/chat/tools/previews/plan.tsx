@@ -58,14 +58,13 @@ function ExitPlanModePreview(props: ToolPreviewProps) {
 
 export const planPreviews = definePlugin({
   name: "lyra.builtin.plan-previews",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of planToolPreviews({
       enter_plan_mode: EnterPlanModePreview,
       set_plan: SetPlanPreview,
       exit_plan_mode: ExitPlanModePreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

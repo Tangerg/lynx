@@ -6,21 +6,16 @@ import { copyToolArgsAction } from "./application/toolActions";
 
 export const toolActions = definePlugin({
   name: "lyra.builtin.tool-actions",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(
-      TOOL_ACTION,
-      copyToolArgsAction({ title: "toolAction.copyCommand", copyText }),
-    );
+  setup(ctx) {
+    ctx.contribute(TOOL_ACTION, copyToolArgsAction({ title: "toolAction.copyCommand", copyText }));
   },
 });
 
 export const toolIcons = definePlugin({
   name: "lyra.builtin.tool-icons",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const { key, icon } of defaultToolIconContributions()) {
-      host.extensions.contribute(TOOL_ICON, icon, { key });
+      ctx.contribute(TOOL_ICON, icon, { key });
     }
   },
 });

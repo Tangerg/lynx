@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { definePlugin, loadPlugin } from "../sdk";
+import { definePlugin } from "../sdk";
 import { Slot } from "./Slot";
+import { contributeLayout } from "@/plugins/sdk";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 describe("slot", () => {
   it("renders nothing when no plugin has filled the slot", () => {
@@ -10,13 +12,20 @@ describe("slot", () => {
   });
 
   it("renders registered components ordered by `order`", async () => {
-    await loadPlugin(
+    await loadPluginsForTest(
       definePlugin({
         name: "test.layout.a",
-        version: "1.0.0",
-        setup: ({ host }) => {
-          host.layout.register("test.slot", { id: "a", order: 2, component: () => <span>A</span> });
-          host.layout.register("test.slot", { id: "b", order: 1, component: () => <span>B</span> });
+        setup: (ctx) => {
+          contributeLayout(ctx, "test.slot", {
+            id: "a",
+            order: 2,
+            component: () => <span>A</span>,
+          });
+          contributeLayout(ctx, "test.slot", {
+            id: "b",
+            order: 1,
+            component: () => <span>B</span>,
+          });
         },
       }),
     );
@@ -27,19 +36,18 @@ describe("slot", () => {
 
   it("wraps each contribution in PluginBoundary — one bad render doesn't sink the slot", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    await loadPlugin(
+    await loadPluginsForTest(
       definePlugin({
         name: "test.boundary",
-        version: "1.0.0",
-        setup: ({ host }) => {
-          host.layout.register("test.boundary.slot", {
+        setup: (ctx) => {
+          contributeLayout(ctx, "test.boundary.slot", {
             id: "boom",
             order: 0,
             component: () => {
               throw new Error("boom");
             },
           });
-          host.layout.register("test.boundary.slot", {
+          contributeLayout(ctx, "test.boundary.slot", {
             id: "ok",
             order: 1,
             component: () => <span>still-here</span>,
@@ -56,12 +64,11 @@ describe("slot", () => {
   });
 
   it("emits a wrapping <div data-slot> when `wrapper` is set", async () => {
-    await loadPlugin(
+    await loadPluginsForTest(
       definePlugin({
         name: "test.wrapper",
-        version: "1.0.0",
-        setup: ({ host }) => {
-          host.layout.register("test.wrap", {
+        setup: (ctx) => {
+          contributeLayout(ctx, "test.wrap", {
             id: "one",
             order: 0,
             component: () => <span>x</span>,

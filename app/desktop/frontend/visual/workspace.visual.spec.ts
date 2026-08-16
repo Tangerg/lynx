@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { en } from "@/lib/i18n/locales/en";
+import { DOCK_MIN_WIDTH_PX } from "@/lib/shellGeometry";
 import {
+  VISUAL_DOCK_WIDTH_PX,
+  VISUAL_REVIEW_VIEWPORT,
   VISUAL_WORKSPACE_STATES,
   type VisualWorkspaceState,
   type VisualWorkspaceTheme,
@@ -238,17 +241,20 @@ test("all dock views share one stable user-owned width", async ({ page }) => {
   await expect(page.getByTestId("persisted-dock-width")).toHaveText("424");
 });
 
+// Deliberately NOT the review state: that one is seeded wide enough to exercise
+// the diff's split, and this test is about the rail — it needs a width that both
+// fits at 1440 and gets clamped at 1120, which is what the general seed is for.
 test("dock separator exposes its real range and commits a pointer drag once", async ({ page }) => {
-  await openWorkspace(page, { state: "dock-review" });
-  await waitForWorkspaceState(page, "dock-review");
+  await openWorkspace(page, { state: "dock-light" });
+  await waitForWorkspaceState(page, "dock-light");
 
   const separator = page.getByRole("separator", { name: "Resize right workspace" });
   const persistedWidth = page.getByTestId("persisted-dock-width");
-  await expect(separator).toHaveAttribute("aria-valuemin", "300");
+  await expect(separator).toHaveAttribute("aria-valuemin", String(DOCK_MIN_WIDTH_PX));
   const max = Number(await separator.getAttribute("aria-valuemax"));
   const now = Number(await separator.getAttribute("aria-valuenow"));
   expect(now).toBe(max);
-  await expect(persistedWidth).toHaveText("520");
+  await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
 
   const dock = page.locator(".agent-context-dock");
   const dockBefore = (await dock.boundingBox())?.width;
@@ -258,13 +264,13 @@ test("dock separator exposes its real range and commits a pointer drag once", as
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 48, box.y + box.height / 2);
 
-  await expect(persistedWidth).toHaveText("520");
+  await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
   await expect(page.locator("html")).toHaveAttribute("data-visual-dock-width-commits", "0");
   await expect.poll(async () => (await dock.boundingBox())?.width ?? 0).toBeLessThan(dockBefore);
 
   await page.mouse.up();
   await expect(page.locator("html")).toHaveAttribute("data-visual-dock-width-commits", "1");
-  await expect(persistedWidth).not.toHaveText("520");
+  await expect(persistedWidth).not.toHaveText(String(VISUAL_DOCK_WIDTH_PX));
   const settledWidth = await persistedWidth.textContent();
   if (!settledWidth) throw new Error("Persisted dock width is missing");
   await expect(separator).toHaveAttribute("aria-valuenow", settledWidth);
@@ -272,15 +278,15 @@ test("dock separator exposes its real range and commits a pointer drag once", as
 
 test("window clamping does not overwrite the dock preference", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await openWorkspace(page, { state: "dock-review" });
-  await waitForWorkspaceState(page, "dock-review");
+  await openWorkspace(page, { state: "dock-light" });
+  await waitForWorkspaceState(page, "dock-light");
 
   const separator = page.getByRole("separator", { name: "Resize right workspace" });
   const persistedWidth = page.getByTestId("persisted-dock-width");
   const wideMax = Number(await separator.getAttribute("aria-valuemax"));
-  expect(wideMax).toBeGreaterThan(520);
-  await expect(separator).toHaveAttribute("aria-valuenow", "520");
-  await expect(persistedWidth).toHaveText("520");
+  expect(wideMax).toBeGreaterThan(VISUAL_DOCK_WIDTH_PX);
+  await expect(separator).toHaveAttribute("aria-valuenow", String(VISUAL_DOCK_WIDTH_PX));
+  await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
 
   await page.setViewportSize({ width: 1120, height: 720 });
   await expect
@@ -293,11 +299,11 @@ test("window clamping does not overwrite the dock preference", async ({ page }) 
         Number(await separator.getAttribute("aria-valuemax")),
     )
     .toBe(true);
-  await expect(persistedWidth).toHaveText("520");
+  await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(separator).toHaveAttribute("aria-valuenow", "520");
-  await expect(persistedWidth).toHaveText("520");
+  await expect(separator).toHaveAttribute("aria-valuenow", String(VISUAL_DOCK_WIDTH_PX));
+  await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
 });
 
 test("settings filtering and menu dismissal stay inside production semantics", async ({ page }) => {
@@ -416,7 +422,7 @@ for (const theme of ["light", "dark"] as const) {
   for (const state of VISUAL_WORKSPACE_STATES) {
     test(`workspace golden ${theme} ${state}`, async ({ page }) => {
       if (state === "dock-review") {
-        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.setViewportSize(VISUAL_REVIEW_VIEWPORT);
       }
       await openWorkspace(page, { state, theme });
       await waitForWorkspaceState(page, state);

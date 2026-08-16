@@ -12,6 +12,7 @@ type VisualStyleTokenName =
   | "segmented-radius"
   | "segment-radius"
   | "surface-card-radius"
+  | "row-radius"
   | "floating-panel-radius"
   | "floating-tip-radius"
   | "dock-tab-radius"
@@ -33,10 +34,13 @@ type VisualStyleTokenName =
   | "app-content-surface"
   | "app-header-surface"
   | "app-dock-surface"
+  | "app-dock-tabstrip-surface"
+  | "dock-tab-active-surface"
   | "app-card-surface"
   | "app-composer-surface"
   | "app-floating-surface"
   | "composer-backdrop"
+  | "floating-backdrop"
   | "app-card-edge"
   | "app-pane-split"
   | "app-pane-split-end"
@@ -60,13 +64,19 @@ export type VisualStyleTokens = Record<VisualStyleTokenName, string>;
 export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // Corner ladder. Four values do all the work: 4 for anything that is really a
   // tag, 6 for controls and rows, 8 for cards, 10 for the surfaces that float.
-  "style-shape-2xs": "3px",
+  "style-shape-2xs": "2px",
   "style-shape-xs": "4px",
   "style-shape-sm": "6px",
   "style-shape-md": "8px",
   "style-shape-lg": "10px",
   "style-shape-xl": "12px",
-  "style-shape-composer": "10px",
+  // The composer is the roundest object in the window, and deliberately rounder
+  // than anything that floats: the reference runs 22px at rest and 20px once the
+  // text wraps, against 12–16 for its panels. Ours sat on the floating rung, which
+  // made the one surface you type into look like another panel. One value for both
+  // states — the 2px the reference moves between them needs the wrapped line count,
+  // and that is a measurement, not a style.
+  "style-shape-composer": "20px",
   // A bubble is the one object that wears the widest corner. It is small, floated
   // to one side and quoted rather than read straight through, and at the card radius
   // a narrow bubble read as a cropped card. The reference uses its 2xl (16px) here.
@@ -76,9 +86,16 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "segmented-radius": "var(--shape-md)",
   "segment-radius": "var(--shape-sm)",
   "surface-card-radius": "var(--shape-md)",
-  "floating-panel-radius": "var(--shape-lg)",
+  // A row is not a small card. It is a full-bleed target whose corner exists only
+  // so a wash sliding under the cursor has a shape, and at the card's rung that
+  // wash read as a stack of stubby cards in a list. Every desktop reference gives
+  // the row its own rung and puts it ABOVE the card's — 10px on a 30px row.
+  "row-radius": "var(--shape-lg)",
+  "floating-panel-radius": "var(--shape-xl)",
   "floating-tip-radius": "var(--shape-sm)",
-  "dock-tab-radius": "var(--shape-sm)",
+  // A tab is the top of the panel under it, so it takes the surface rung rather
+  // than a control's.
+  "dock-tab-radius": "var(--shape-lg)",
 
   // Tool-window density: chrome rows are short and the type inside them carries
   // the hierarchy. Every height is even so a centred 1px rule never lands on a
@@ -122,6 +139,16 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // The dock recedes a quarter step back toward the plane, so the two flanks are
   // legible as near and far rather than as one frame in two pieces.
   "app-dock-surface": "color-mix(in oklab, var(--color-bg) 25%, var(--color-surface))",
+  // The dock's tab strip is the one bar that is NOT the ground of what it labels.
+  // A tab is the top edge of its panel, so the panel's ground has to reach up into
+  // the selected tab — which only reads if the strip itself sits a step back. The
+  // step is the contrast preference, not a picked value.
+  "app-dock-tabstrip-surface":
+    "color-mix(in oklab, var(--color-text) calc(var(--depth-step) * 0.75), var(--app-dock-surface))",
+  // What the selected tab fills with. Its identity with the panel's ground IS the
+  // tab metaphor; a style that would rather have a chip or an underline retargets
+  // this one value (see `data-control-treatment`).
+  "dock-tab-active-surface": "var(--app-dock-surface)",
   "app-card-surface": "var(--color-elevated)",
   // The composer's material, and the one translucent surface in the language. It
   // rests ON the transcript rather than in a column, so it picks up what passes
@@ -135,7 +162,18 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // rather than as a second page pasted on it. Held here rather than as an alpha at
   // the atom, because how see-through a panel is is the style's call, not the
   // panel's.
-  "app-floating-surface": "color-mix(in oklab, var(--app-content-surface) 70%, transparent)",
+  // 90%, not 70%. A floating panel lets a HINT of the page through; at 30%
+  // transparent it was letting the page through, and the reference — whose whole
+  // popover language this one already follows (half-pixel ring, one drop, a blur
+  // behind) — sits at 10%. The pair matters together: ours was three times more
+  // see-through AND five times more blurred, which is the look this design
+  // language spends a rule forbidding everywhere else.
+  "app-floating-surface": "color-mix(in oklab, var(--app-content-surface) 90%, transparent)",
+  // The other half of the glass, and it belongs here rather than in the atom for
+  // the same reason the opacity does: how see-through a panel is is the style's
+  // call, and half a recipe in a token with the other half in a utility class is
+  // how the two drift.
+  "floating-backdrop": "blur(8px) saturate(1.4)",
   // The drawer's boundary, drawn INSIDE the plane: the plane outranks the drawer on
   // z-index so the drawer can slide under it, which means the drawer cannot draw the
   // seam from outside.
@@ -173,7 +211,12 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "app-pane-wash-end": "inset -12px 0 12px -6px",
   // Reserved for the one place an optical ring still earns its pixel: a floating
   // panel, which has no value delta to lean on because it can land over anything.
-  "seam-line": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",
+  // A floating surface's edge, and it is the region step itself — the reference
+  // draws its `elevation-stroke` at exactly the same weight as its heaviest border
+  // (12% of the ink) and adds nothing on top. This used to mix raw ink INTO the
+  // border to reach ~25%, which put the darkest line in the window around the
+  // lightest thing in it.
+  "seam-line": "var(--color-border-soft)",
 
   // ---- Elevation ---------------------------------------------------------
   // Flush chrome casts nothing. Only surfaces that genuinely leave the plane —
@@ -211,10 +254,24 @@ export const WORKBENCH_MOTION = {
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  // Short on purpose: a flank's travel is not only an edge moving, it is also the
-  // reading plane taking a new measure, and the two have to finish together. At 240ms
-  // with the sheet curve below they did not — see easeDrawer.
-  drawerMs: 180,
+  // A flank's travel is not only an edge moving, it is also the reading plane taking a
+  // new measure, and the two have to finish together. That is what rules the curve
+  // (see easeDrawer) — it turned out not to rule the DURATION, which is what this was
+  // held short for. The 240ms that failed failed on the sheet curve, which was 92% done
+  // at 40% of the clock; a near-uniform curve cannot come apart that way at any length.
+  //
+  // What the length does rule is how far the flank jumps between one frame and the
+  // next, and that is the whole of the difference from the reference. Measured against
+  // the real window, on a 592px dock: 180ms is 11 frames peaking at 69px of travel per
+  // frame, 300ms is 18 frames peaking at 41. Nothing is dropping frames at either
+  // length — a text-dense panel simply cannot be tracked by the eye in 69px steps
+  // without reading as judder, because UI has no motion blur to fill the gap. Swapping
+  // the curve for the reference's own `ease` at a fixed length moved the peak by one
+  // pixel, so the curve was never the variable.
+  //
+  // 300ms is the reference's figure. Arrival lands softer for the same reason: the last
+  // interpolated step is 17px rather than 24.
+  drawerMs: 300,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],

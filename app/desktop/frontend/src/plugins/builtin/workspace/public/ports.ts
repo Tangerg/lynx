@@ -1,0 +1,11 @@
+// The Workspace context's setup-time contract — see `agent/public/ports` for why
+// only setup-time readers need one.
+
+import { service } from "dougong";
+
+export interface WorkspaceScopePorts {
+  activateSessionScope: (sessionId: string) => void;
+  forgetSessionScopes: (openSessionIds: string[]) => void;
+}
+
+export const WORKSPACE_SCOPE_PORTS = service<WorkspaceScopePorts>("lyra.workspace.scopePorts");

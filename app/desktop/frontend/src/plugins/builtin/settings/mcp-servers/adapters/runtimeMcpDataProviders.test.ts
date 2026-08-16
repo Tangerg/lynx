@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import { createLyraClient, JSONRPC_VERSION } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
 import type { MCPServerSettings, MCPToolSummary } from "../application/mcpServerQueries";
 import { registerMCPDataProviders } from "./runtimeMcpDataProviders";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 const mcpDataProviders = definePlugin({
   name: "test.mcp-data-providers",
-  version: "1.0.0",
-  setup({ host }) {
-    registerMCPDataProviders(host);
+  setup(ctx) {
+    registerMCPDataProviders(ctx);
   },
 });
 
@@ -30,7 +30,7 @@ afterEach(async () => {
 });
 
 async function provider<T>(key: string): Promise<(params?: unknown) => Promise<T>> {
-  await loadPlugin(mcpDataProviders);
+  await loadPluginsForTest(mcpDataProviders);
   const fetcher = lookupDataProvider<T>(key);
   if (!fetcher) throw new Error(`no provider for "${key}"`);
   return fetcher;

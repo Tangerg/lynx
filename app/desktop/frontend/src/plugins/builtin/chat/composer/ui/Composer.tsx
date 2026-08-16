@@ -112,10 +112,14 @@ export function Composer({
           onPaste={input.handlePaste}
           onKeyDown={input.handleKeyDown}
           rows={1}
-          /* `min-h-[2.5lh]` tracks THIS element's own line-height, so the
-             resting height tracks the type ladder instead of a pixel guess that
-             goes wrong the moment the base size changes. */
-          className="max-h-48 min-h-[1.5lh] resize-none p-0 placeholder:tracking-normal"
+          autosize
+          /* Both bounds are in `lh` — THIS element's own line-height — so the
+             resting height and the ceiling track the type ladder instead of a
+             pixel guess that goes wrong the moment the user changes their text
+             size. The ceiling used to be written twice and disagree: `max-h-48`
+             (192px) in the class and 160px in an autosize effect, which set an
+             inline height and therefore always won. */
+          className="max-h-[6lh] min-h-[1.5lh] p-0 placeholder:tracking-normal"
         />
       </div>
       {/* Bottom toolbar — ALL controls live below the input so the text area
@@ -124,7 +128,7 @@ export function Composer({
           which is what keeps the controls reading as chrome, not content. */}
       <div
         data-slot="composer-footer"
-        className="flex flex-nowrap items-center gap-1.5 pr-[var(--density-composer-footer-end)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]"
+        className="agent-composer-footer flex flex-nowrap items-center gap-1.5 pr-[var(--density-composer-footer-end)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]"
       >
         <Slot name="composer.toolbar.start" />
         <div className="flex-1 min-w-2" />

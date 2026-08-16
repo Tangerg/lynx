@@ -8,9 +8,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 function item(partial: Record<string, unknown>): Item {
   return {
@@ -31,7 +31,7 @@ const runStarted = (id: string): StreamEvent => ({
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(spec);
+  await loadPluginsForTest(spec);
 });
 
 const TOOL = "item_run_X_1";

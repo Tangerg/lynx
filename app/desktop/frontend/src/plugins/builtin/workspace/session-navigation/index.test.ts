@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadPlugin, unloadPlugin } from "@/plugins/sdk";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { navigator } from "@/lib/navigation";
 import sessionNavigation from ".";
+import { definePlugin } from "@/plugins/sdk";
+import { AGENT_SESSION_PORTS } from "@/plugins/builtin/agent/public/ports";
+import { WORKSPACE_SCOPE_PORTS } from "@/plugins/builtin/workspace/public/ports";
+import {
+  activateWorkspaceSessionScope,
+  forgetWorkspaceSessionScopes,
+} from "@/plugins/builtin/workspace/public/navigation";
+import { removeInstallation } from "@/plugins/sdk/kernel";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 // The plugin's job: keep the dock's per-session memory pointed at the session the
 // user is in. It observes the session through the agent facade and answers by
@@ -32,36 +40,44 @@ const agentSession = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/plugins/builtin/agent/public/session", () => ({
-  getActiveSessionId: () => navigator().get().session,
-  getAgentSessionLifecycleSnapshot: () => ({
-    activeSessionId: navigator().get().session,
-    openSessionIds: agentSession.getOpen(),
+// The plugin declares its ports, so the fake is installed as their provider
+// rather than mocked into a module path it no longer imports.
+const ports = definePlugin({
+  name: "test.session-ports",
+  provides: { sessions: AGENT_SESSION_PORTS, scopes: WORKSPACE_SCOPE_PORTS },
+  setup: () => ({
+    sessions: {
+      activeSessionId: () => navigator().get().session,
+      lifecycleSnapshot: () => ({
+        activeSessionId: navigator().get().session,
+        openSessionIds: agentSession.getOpen(),
+      }),
+      subscribeActiveSessionId: (fn: (sessionId: string) => void) => agentSession.subscribe(fn),
+      subscribeLifecycle: () => () => {},
+    },
+    scopes: {
+      activateSessionScope: activateWorkspaceSessionScope,
+      forgetSessionScopes: forgetWorkspaceSessionScopes,
+    },
   }),
-  subscribeActiveSessionId: (fn: (sessionId: string) => void) => agentSession.subscribe(fn),
-  subscribeAgentSessionLifecycle: () => () => {},
-}));
+});
 
 beforeEach(() => {
   agentSession.reset();
   navigator().go({ session: "s1" });
 });
 
-afterEach(() => {
-  unloadPlugin(sessionNavigation.name);
-});
-
 describe("workspace session navigation", () => {
   it("adopts the session the app is already in when it loads", async () => {
     useContextDockStore.setState({ activeSessionScopeId: "", sessionScopes: new Map() });
 
-    await loadPlugin(sessionNavigation);
+    await loadPluginsForTest(ports, sessionNavigation);
 
     expect(useContextDockStore.getState().activeSessionScopeId).toBe("s1");
   });
 
   it("restores the dock destination the session it moves to remembers", async () => {
-    await loadPlugin(sessionNavigation);
+    await loadPluginsForTest(ports, sessionNavigation);
     useContextDockStore.getState().openDockTab("diff");
     useContextDockStore.getState().rememberDockView("diff");
 
@@ -74,7 +90,7 @@ describe("workspace session navigation", () => {
   });
 
   it("keeps each session's own tabs", async () => {
-    await loadPlugin(sessionNavigation);
+    await loadPluginsForTest(ports, sessionNavigation);
     useContextDockStore.getState().openDockTab("diff");
 
     agentSession.goTo("s2");
@@ -85,8 +101,8 @@ describe("workspace session navigation", () => {
   });
 
   it("stops following once unloaded", async () => {
-    await loadPlugin(sessionNavigation);
-    await unloadPlugin(sessionNavigation.name);
+    await loadPluginsForTest(ports, sessionNavigation);
+    await removeInstallation(sessionNavigation.name);
 
     agentSession.goTo("s2");
 

@@ -12,8 +12,7 @@ import { mainRoute } from "./application/mainRouteContribution";
 
 export default definePlugin({
   name: "lyra.builtin.main-route",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(ROUTE, mainRoute(AgentClientPage));
+  setup(ctx) {
+    ctx.contribute(ROUTE, mainRoute(AgentClientPage));
   },
 });

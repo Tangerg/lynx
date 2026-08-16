@@ -1,7 +1,7 @@
-// Capability risk classification (AionUi-style safe / moderate / dangerous).
-// Each Host capability is rated by blast radius; `aggregateRisk` rolls a
-// plugin's declared set up to its worst level. Used today by the sideload load
-// audit log; the Plugins pane risk badge will read it when built (§9.3).
+// Capability risk classification — each capability rated by blast radius.
+//
+// Also the grantable vocabulary: sideload discovery authorizes a manifest
+// against this table's keys, so a permission nobody rated cannot be granted.
 
 import type { HostCapability } from "./types";
 
@@ -36,14 +36,3 @@ export const CAPABILITY_RISK: Record<HostCapability, CapabilityRisk> = {
   lifecycle: "moderate",
   plugins: "dangerous",
 };
-
-const RANK: Record<CapabilityRisk, number> = { safe: 0, moderate: 1, dangerous: 2 };
-
-/** The worst risk level among a plugin's declared capabilities ("safe" if none). */
-export function aggregateRisk(capabilities: readonly HostCapability[]): CapabilityRisk {
-  let worst: CapabilityRisk = "safe";
-  for (const c of capabilities) {
-    if (RANK[CAPABILITY_RISK[c]] > RANK[worst]) worst = CAPABILITY_RISK[c];
-  }
-  return worst;
-}

@@ -94,13 +94,6 @@ export function useComposerInputController({
     [images, onClear, onSend, pastes, recordHistory, value],
   );
 
-  useEffect(() => {
-    const textarea = inputRef.current;
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
-  }, [value]);
-
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>): void => {
     const target = event.target;
     // Some browsers drop compositionend; recover a stuck flag when a plain

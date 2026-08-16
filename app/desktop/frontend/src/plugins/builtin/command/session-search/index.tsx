@@ -5,7 +5,7 @@
 // other home, because the sidebar's session list has no filter and loads every
 // session.
 
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import {
   sessionSearchOverlaySlot,
@@ -17,14 +17,13 @@ import { SessionSearch } from "./ui/SessionSearch";
 
 export default definePlugin({
   name: "lyra.builtin.session-search",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeLauncher = installSessionSearchLauncher();
-    host.layout.register("app.overlay", sessionSearchOverlaySlot(SessionSearch));
-    host.extensions.contribute(
+    contributeLayout(ctx, "app.overlay", sessionSearchOverlaySlot(SessionSearch));
+    ctx.contribute(
       SHORTCUT,
       sessionSearchShortcut(() => sessionSearchLauncher().toggle()),
     );
-    return disposeLauncher;
+    ctx.cleanup(disposeLauncher);
   },
 });

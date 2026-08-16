@@ -12,8 +12,7 @@ import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/servi
 
 export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const binding of composerKeyBindings({
       send: ({ submit, event }) => {
         if (event.shiftKey) return false;
@@ -35,7 +34,7 @@ export const composerKeymap = definePlugin({
       historyNext: ({ event }) =>
         recallNextHistoryFromKey({ event, recall: recallNextComposerHistory }),
     })) {
-      host.extensions.contribute(COMPOSER_KEY_BINDING, binding);
+      ctx.contribute(COMPOSER_KEY_BINDING, binding);
     }
   },
 });

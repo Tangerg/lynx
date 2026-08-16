@@ -5,10 +5,10 @@ import type {
   AgentRunFact as RunRef,
   AgentStreamEvent as StreamEvent,
 } from "@/plugins/sdk";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { reduceAgentEvent } from "./reducer";
 import { foldRunSnapshot } from "./runSnapshot";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 const METRICS = {
   steps: 0,
@@ -81,7 +81,7 @@ function itemStarted(eventId: string, item: Item, segmentId: string): RunEvent {
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(spec);
+  await loadPluginsForTest(spec);
 });
 
 describe("reducer — source-owned Run tree", () => {

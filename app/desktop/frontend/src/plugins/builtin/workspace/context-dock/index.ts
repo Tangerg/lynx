@@ -4,10 +4,9 @@ import { builtinContextDockDestinations } from "../application/contextDockDestin
 
 export default definePlugin({
   name: "lyra.builtin.context-dock-destinations",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const destination of builtinContextDockDestinations) {
-      host.extensions.contribute(CONTEXT_DOCK_DESTINATION, destination);
+      ctx.contribute(CONTEXT_DOCK_DESTINATION, destination);
     }
   },
 });

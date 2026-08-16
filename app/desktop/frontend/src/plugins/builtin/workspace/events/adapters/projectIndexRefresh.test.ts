@@ -11,11 +11,10 @@ import {
   WORKSPACE_PROJECTS_KEY,
   useWorkspaceProjects,
 } from "@/plugins/builtin/workspace/public/queries";
-import { createHost } from "@/plugins/sdk/host";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
-import { usePluginStore } from "@/plugins/sdk/registry";
 import type { Disposable } from "@/plugins/sdk";
 import { installProjectIndexRefresh, workspaceProjectRevision } from "./projectIndexRefresh";
+import { contributeForTest } from "@/plugins/sdk/testKernel";
 
 let disposables: Disposable[] = [];
 let disposeRefresh: (() => void) | undefined;
@@ -46,9 +45,8 @@ function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary 
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   queryClient.clear();
-  usePluginStore.getState().resetForTest();
   disposables = [];
 });
 
@@ -59,7 +57,6 @@ afterEach(() => {
   disposeRefresh = undefined;
   queryClient.clear();
   for (const disposable of disposables.reverse()) disposable.dispose();
-  usePluginStore.getState().resetForTest();
   vi.restoreAllMocks();
 });
 
@@ -91,9 +88,8 @@ describe("workspaceProjectRevision", () => {
       }
       return Promise.resolve([{ id: "/successor", name: "successor", sessionCount: 1 }]);
     });
-    createHost("project-generation-test", disposables).extensions.contribute(DATA_PROVIDER, {
-      key: WORKSPACE_PROJECTS_KEY,
-      fetcher,
+    await contributeForTest((ctx) => {
+      ctx.contribute(DATA_PROVIDER, { key: WORKSPACE_PROJECTS_KEY, fetcher });
     });
     disposeRefresh = installProjectIndexRefresh();
     const hook = renderHook(() => useWorkspaceProjects(), { wrapper });

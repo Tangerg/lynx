@@ -57,16 +57,36 @@ export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaL
               key={tab.id}
               data-active={tab.active ? "" : undefined}
               className={cn(
+                // `shrink-0`, and it is the lesser evil rather than the right
+                // answer. The strip hides its scrollbar, so when six tabs meet a
+                // 432px dock the last two go past the edge with nothing saying so.
+                // Letting them shrink instead was measured and is worse: the floor
+                // that keeps a tab identifiable is wider than the share available,
+                // so every label collapsed to one letter and the strip stopped
+                // naming anything. Four readable names plus a scroll beats six
+                // unreadable ones; a real fix needs the strip to know it is
+                // overflowing, which is a measurement, not a class.
                 "group flex h-[var(--dock-tab-height)] min-w-0 shrink-0 items-center rounded-[var(--dock-tab-radius)]",
                 "text-fg-muted transition-[background-color,color] duration-[var(--dur-color)] ease-out",
                 "hover:bg-hover hover:text-fg focus-within:text-fg",
-                "data-[active]:bg-selected data-[active]:text-fg",
+                // The selected tab fills with the PANEL's ground, not with a
+                // selection wash: a tab is the top of the thing it opens, and the
+                // shared value is the only part of that claim a static bar can
+                // make. A wash instead made the strip read as a row of chips that
+                // happened to sit above some content.
+                "data-[active]:bg-[var(--dock-tab-active-surface)] data-[active]:text-fg",
               )}
             >
               <TabsPrimitive.Tab
                 value={tab.id}
                 data-chrome-focus=""
-                className="inline-flex h-full min-w-0 max-w-40 items-center gap-1.5 rounded-[inherit] border-0 bg-transparent py-0 pl-2 pr-1 text-ui-sm font-normal text-inherit focus-visible:outline-none"
+                className={cn(
+                  "inline-flex h-full min-w-0 max-w-40 items-center gap-1.5 rounded-[inherit] border-0 bg-transparent py-0 text-ui-sm font-normal text-inherit focus-visible:outline-none",
+                  // Symmetric unless a close button already occupies the trailing
+                  // side — the inset is there to keep the label off the tab's edge,
+                  // and with a control there the control is what does that.
+                  tab.onClose ? "pl-2 pr-1" : "px-2",
+                )}
               >
                 {tab.icon && <Icon name={tab.icon} size="sm" className="shrink-0 opacity-70" />}
                 <span className="truncate">{tab.title}</span>

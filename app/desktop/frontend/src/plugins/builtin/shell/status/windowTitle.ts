@@ -14,25 +14,22 @@
 
 import { disposeOnHmr } from "@/lib/hmr";
 import { subscribeAnySessionRunning } from "@/plugins/builtin/agent/public/run";
-import { definePlugin } from "@/plugins/sdk";
-import { usePluginStore } from "@/plugins/sdk/registry";
+import { definePlugin, READY_HANDLER, WINDOW } from "@/plugins/sdk";
 
 export const windowTitle = definePlugin({
   name: "lyra.builtin.window-title",
-  version: "1.0.0",
-  setup({ host }) {
+  requires: { window: WINDOW },
+  setup(ctx) {
     // Subscribe to the "any run working" signal only once the app is READY.
     // subscribeAnySessionRunning reads the agent view-state port, which another
     // plugin's setup binds — a module-eval subscription (as this file used to
     // do) ran before that setup and threw "Agent view state port is not
     // configured", crashing the manifest import chain and blanking the window.
     let unsubscribe: (() => void) | undefined;
-    host.lifecycle.onReady(() => {
-      unsubscribe = subscribeAnySessionRunning((working) =>
-        usePluginStore.getState().setWindowWorking(working),
-      );
+    ctx.contribute(READY_HANDLER, () => {
+      unsubscribe = subscribeAnySessionRunning((working) => ctx.window.setWorking(working));
       disposeOnHmr(unsubscribe);
     });
-    return () => unsubscribe?.();
+    ctx.cleanup(() => unsubscribe?.());
   },
 });

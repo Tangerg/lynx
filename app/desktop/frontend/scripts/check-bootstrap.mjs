@@ -13,9 +13,14 @@
 //   - and, across the language boundary, the native window colour in main.go,
 //     which shows for the frame before the WebView paints.
 //
-// Five contracts, in three languages, held by nothing. One had already drifted:
-// the dark canvas was #121212 against a #101010 token, so a dark cold boot
-// painted one grey and repainted another a moment later. This pins all five.
+// Contracts in three languages, held by nothing. One had already drifted: the dark
+// canvas was #121212 against a #101010 token, so a dark cold boot painted one grey and
+// repainted another a moment later. This pins each of them.
+//
+// The same shape recurs one layer in, so the file grew past the bootstrap itself: any
+// value a running app derives and globals.css also states as a literal, plus the motion
+// ladder, which three files state independently. No count here on purpose — it was
+// written as "five", and was wrong by the time anyone read it.
 //
 // Every one of them fails silently when it drifts — the wrong scheme for a frame,
 // a ring that never shows, a flash of the wrong grey — which is exactly the class
@@ -144,6 +149,55 @@ expect(
     declaredDepths.length === 2 &&
     declaredDepths.every((declared, i) => Number(declared) === Number(derivedDepths[i])),
   `globals.css paints --depth-step at ${declaredDepths.join(" / ")}%, but contrast ${contrastDefault} derives ${derivedDepths?.join(" / ")}%`,
+);
+
+// ── 7. The motion ladder, in all three places that state it ──────────────────
+// The shipped visual style owns these numbers. Two other files restate them: the
+// fallback every consumer stands on before a style publishes, and globals.css, which
+// paints the frames before hydration. Neither restatement was checked by anything, and
+// the fallback's own doc comment records `drawerMs` having drifted to 300 against a
+// style shipping 240 — a drawer that travelled on one clock cold and another warm.
+// Exactly the class of defect this file exists for: nothing errors, the motion is
+// simply wrong for the first frames and nobody can say why.
+const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+const styleMotion = strip(read("../src/plugins/builtin/theme/visualStyles/tokens.ts"));
+const fallbackMotion = strip(read("../src/lib/appearance.ts"));
+
+const MIRRORED_DURATIONS = {
+  instantMs: "instant",
+  fastMs: "fast",
+  mediumMs: "med",
+  disclosureMs: "disclosure",
+  slowMs: "slow",
+  drawerMs: "drawer",
+};
+for (const [field, token] of Object.entries(MIRRORED_DURATIONS)) {
+  const owned = styleMotion.match(new RegExp(`\\b${field}:\\s*(\\d+)`))?.[1];
+  const fallback = fallbackMotion.match(new RegExp(`\\b${field}:\\s*(\\d+)`))?.[1];
+  const painted = css.match(new RegExp(`--dur-${token}-base:\\s*(\\d+)ms`))?.[1];
+  expect(
+    owned !== undefined && fallback === owned && painted === owned,
+    `${field} is ${owned} in the shipped style, ${fallback} in the appearance fallback, ` +
+      `and ${painted} in globals.css --dur-${token}-base`,
+  );
+}
+
+// The drawer's curve travels with its duration and is mirrored the same three ways.
+const curveOf = (src) =>
+  src
+    .match(/\beaseDrawer:\s*\[([^\]]+)\]/)?.[1]
+    .replace(/\s+/g, " ")
+    .trim();
+const paintedCurve = css
+  .match(/--ease-drawer:\s*cubic-bezier\(([^)]+)\)/)?.[1]
+  .replace(/\s+/g, " ")
+  .trim();
+expect(
+  curveOf(styleMotion) !== undefined &&
+    curveOf(fallbackMotion) === curveOf(styleMotion) &&
+    paintedCurve === curveOf(styleMotion),
+  `easeDrawer is [${curveOf(styleMotion)}] in the shipped style, [${curveOf(fallbackMotion)}] in ` +
+    `the appearance fallback, and cubic-bezier(${paintedCurve}) in globals.css`,
 );
 
 if (failures.length > 0) {

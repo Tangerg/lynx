@@ -41,9 +41,14 @@ const c = {
   // A control's edge is a real line here; a REGION's edge is not. Region
   // separation is the visual style's cast, so nothing in this ramp is ever
   // stretched into a pane divider.
-  hairline: "#3a3d42",
-  hairStrong: "#4b4e54",
-  hairTertiary: "rgb(255 255 255 / 0.07)",
+  // The reference's own weights, mirrored: 4 / 8 / 16 percent of white over the
+  // app ground. Dark carries a wider top step than light (16 against 12) because
+  // a light line on a dark ground loses more of itself to the surround. Ours had
+  // been 13 / 21 — the same overshoot the light scheme had, and for the same
+  // reason: the numbers were greys someone picked, not a percentage of anything.
+  hairline: "#2e3136",
+  hairStrong: "#3f4248",
+  hairTertiary: "rgb(255 255 255 / 0.04)",
 };
 
 export default defineColorThemePlugin({
@@ -83,7 +88,13 @@ export default defineColorThemePlugin({
   semantic: {
     negative: "#e68a8a",
     warning: "#d6a750",
-    info: c.accent,
+    // The accent's hue, lifted 12 L — NOT `c.accent`. The other three here were
+    // each pulled until they clear AA on the darkest ground they land on, and this
+    // one was left aliased to the brand fill, which is a different job: a fill is
+    // read as an area and an ink is read as letters. Every consumer of this token
+    // sets it as `text-info`, and at #3574f0 a 12px status label measured 3.23:1
+    // on a card. 5.04 / 6.02 / 6.49 on card / plane / well.
+    info: "#6e9bf4",
     success: "#6db473",
   },
   // Where each neutral sits, so the shell can rewrite them onto the live accent. The
@@ -94,8 +105,8 @@ export default defineColorThemePlugin({
     surface: { l: 29.6, c: 0.01 },
     elevated: { l: 29.6, c: 0.01 },
     sunken: { l: 20.9, c: 0.015 },
-    border: { l: 35.9, c: 0.0095 },
-    borderSoft: { l: 42.3, c: 0.0107 },
+    border: { l: 31.2, c: 0.0095 },
+    borderSoft: { l: 37.9, c: 0.0107 },
   },
   // The primary CTA IS the accent here, not an inverting ink button: this
   // language spends colour on the one action that matters and keeps everything

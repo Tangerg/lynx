@@ -85,10 +85,9 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
 
 export const grep = definePlugin({
   name: "lyra.builtin.grep",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of grepToolPreview(GrepPreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

@@ -1,3 +1,31 @@
+/**
+ * The dock width every workspace golden is shot at, and the one the resize specs
+ * treat as "a preference the user set".
+ *
+ * Chosen against three constraints rather than picked: wide enough that the review
+ * split renders side by side (>= the 560 at which the navigator withdraws — the
+ * seeded 520 put every golden on the collapsed side of that line, so the file
+ * navigator appeared in no screenshot at all), narrow enough to survive at 1440
+ * (`maxDockWidth` = 592 there) so the clamp specs can prove a preference is kept,
+ * and wide enough to be clamped at 1120 (max 432) so they can prove it is not
+ * overwritten.
+ */
+export const VISUAL_DOCK_WIDTH_PX = 576;
+
+/**
+ * What the review golden is shot at, and it is deliberately not the width above.
+ *
+ * The diff view is the only one that splits, and its split has a hard floor (720 —
+ * see the container query in globals.css). Shooting it at the general width put
+ * every review golden on the collapsed side of that floor, so the navigator's
+ * side-by-side geometry — a whole track, its seam, and its filter strip — was
+ * covered by nothing. This is the narrowest dock at which that geometry exists.
+ */
+export const VISUAL_REVIEW_DOCK_WIDTH_PX = 760;
+
+/** The viewport the review golden needs for `maxDockWidth` to allow the width above. */
+export const VISUAL_REVIEW_VIEWPORT = { width: 1800, height: 1000 } as const;
+
 export const VISUAL_WORKSPACE_STATES = [
   "dock-light",
   "dock-review",

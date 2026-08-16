@@ -3,8 +3,7 @@ import { installDesktopWorkingDirectoryPicker } from "./adapters/desktopWorkingD
 
 export default definePlugin({
   name: "lyra.builtin.navigation-bootstrap",
-  version: "1.0.0",
-  setup() {
-    return installDesktopWorkingDirectoryPicker();
+  setup(ctx) {
+    ctx.cleanup(installDesktopWorkingDirectoryPicker());
   },
 });

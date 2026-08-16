@@ -37,10 +37,9 @@ function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
 
 export const webSearchPreview = definePlugin({
   name: "lyra.builtin.web-search-preview",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of webSearchToolPreview(WebSearchPreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

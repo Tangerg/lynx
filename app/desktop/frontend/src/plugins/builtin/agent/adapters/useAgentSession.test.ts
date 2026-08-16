@@ -16,13 +16,13 @@ import {
   type RunEvent,
   type RunRef,
 } from "@/rpc";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { agentTextInput } from "@/plugins/builtin/agent/domain/input";
 import { resetContainer, setContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { useAgentSession } from "./useAgentSession";
 import { selectCurrentRootRun } from "../application/view/runTree";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 const SID = "ses_dbl";
 const SID_B = "ses_next";
@@ -51,7 +51,7 @@ function parkedDriver(): { driver: AgentDriver; start: ReturnType<typeof vi.fn> 
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(spec);
+  await loadPluginsForTest(spec);
   // Mark draft so the effect skips history hydration (items.list → container).
   navigator().go({ session: SID });
   useAgentSessionStore.setState({

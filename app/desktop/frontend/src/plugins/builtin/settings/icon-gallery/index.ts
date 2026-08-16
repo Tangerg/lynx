@@ -21,10 +21,9 @@ const IconShowcase = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.icon-gallery",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, iconGalleryWorkspaceView(IconGallery));
+  setup(ctx) {
+    ctx.contribute(WORKSPACE_VIEW, iconGalleryWorkspaceView(IconGallery));
 
-    registerSettingsPane(host, brandIconsSettingsPane(IconShowcase));
+    registerSettingsPane(ctx, brandIconsSettingsPane(IconShowcase));
   },
 });

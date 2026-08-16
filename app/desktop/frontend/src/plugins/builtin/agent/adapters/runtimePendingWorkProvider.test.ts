@@ -3,12 +3,11 @@ import { resetContainer, setContainer } from "@/main/container";
 import { createLyraClient, RpcTransportError } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
-import { createHost } from "@/plugins/sdk/host";
-import { usePluginStore } from "@/plugins/sdk/registry";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import type { Disposable } from "@/plugins/sdk";
 import { PENDING_WORK_KEY, type PendingWorkItem } from "../application/hitl/pendingWork";
 import { contributeRuntimePendingWork } from "./runtimePendingWorkProvider";
+import { contributeForTest } from "@/plugins/sdk/testKernel";
 
 let disposables: Disposable[] = [];
 let clients: Array<ReturnType<typeof createLyraClient>> = [];
@@ -25,8 +24,7 @@ async function waitForInterruptRequest(
   throw new Error(`timeout waiting for interrupts.list request ${index + 1}`);
 }
 
-beforeEach(() => {
-  usePluginStore.getState().resetForTest();
+beforeEach(async () => {
   disposables = [];
   clients = [];
 });
@@ -43,7 +41,7 @@ describe("Agent-owned Runtime pending-work provider", () => {
     const client = createLyraClient(transport);
     clients.push(client);
     setContainer({ client: () => client });
-    contributeRuntimePendingWork(createHost("agent-provider-test", disposables));
+    await contributeForTest(contributeRuntimePendingWork);
 
     const fetcher = lookupDataProvider<PendingWorkItem[]>(PENDING_WORK_KEY);
     expect(fetcher).toBeDefined();
@@ -98,7 +96,7 @@ describe("Agent-owned Runtime pending-work provider", () => {
     const client = createLyraClient(transport);
     clients.push(client);
     setContainer({ client: () => client });
-    contributeRuntimePendingWork(createHost("agent-provider-cancellation-test", disposables));
+    await contributeForTest(contributeRuntimePendingWork);
 
     const fetcher = lookupDataProvider<PendingWorkItem[]>(PENDING_WORK_KEY);
     expect(fetcher).toBeDefined();

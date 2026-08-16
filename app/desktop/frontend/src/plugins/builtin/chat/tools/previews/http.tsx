@@ -104,13 +104,12 @@ function WebFetchPreview({ tool, onOpenView }: ToolPreviewProps) {
 
 export const httpPreviews = definePlugin({
   name: "lyra.builtin.http-previews",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of httpToolPreviews({
       http_request: HttpRequestPreview,
       web_fetch: WebFetchPreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

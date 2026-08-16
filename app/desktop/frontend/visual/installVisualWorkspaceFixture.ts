@@ -42,21 +42,21 @@ import {
 } from "@/plugins/builtin/workspace/workspace-views";
 import { builtinContextDockDestinations } from "@/plugins/builtin/workspace/application/contextDockDestinations";
 import { PENDING_WORK_KEY, type PendingWorkItem } from "@/plugins/builtin/agent/public/hitl";
-import {
-  CONTEXT_DOCK_DESTINATION,
-  DATA_PROVIDER,
-  SHORTCUT,
-  definePlugin,
-  loadPlugin,
-} from "@/plugins/sdk";
-import type { PluginSpec } from "@/plugins/sdk";
+import { CONTEXT_DOCK_DESTINATION, DATA_PROVIDER, SHORTCUT, definePlugin } from "@/plugins/sdk";
+import type { AnyPlugin } from "dougong";
 import type { FeatureCapability, ServerCapabilities } from "@/rpc";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useUiStore } from "@/state/uiStore";
 import { navigator } from "@/lib/navigation";
 import { VISUAL_SESSION_ID } from "./agentSessionSnapshots";
 import { installVisualAgentFixture } from "./installVisualAgentFixture";
-import type { VisualWorkspaceState, VisualWorkspaceTheme } from "./workspaceFixtureStates";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
+import {
+  VISUAL_DOCK_WIDTH_PX,
+  VISUAL_REVIEW_DOCK_WIDTH_PX,
+  type VisualWorkspaceState,
+  type VisualWorkspaceTheme,
+} from "./workspaceFixtureStates";
 
 const ACTIVE_DIFF_FILE =
   "app/desktop/frontend/src/plugins/builtin/shell/kernel/panel/DockResizer.tsx";
@@ -193,12 +193,11 @@ function pending<T>(): Promise<T> {
   });
 }
 
-function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
+function workspaceDataPlugin(state: VisualWorkspaceState): AnyPlugin {
   return definePlugin({
     name: "lyra.visual.workspace-data",
-    version: "1.0.0",
-    setup({ host }) {
-      host.extensions.contribute(DATA_PROVIDER, {
+    setup(ctx) {
+      ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_DIFF_KEY,
         fetcher: async () => {
           if (state === "dock-loading") return pending<WorkspaceDiff>();
@@ -213,7 +212,7 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
       // It is a separate query from the diff itself — the diff is what you are
       // looking at, this is what changed — so the fixture has to answer both or
       // two production readouts stay invisible to every screenshot.
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_FILES_CHANGED_KEY,
         fetcher: async () => {
           if (state === "dock-loading") return pending<WorkspaceFileChange[]>();
@@ -236,7 +235,7 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
       // shapes: every safety class, a family with one member and a family with
       // several, and a name the local family table has never heard of — which is
       // what proves an unplaced tool still lists instead of vanishing.
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_BUILTIN_TOOLS_KEY,
         fetcher: async () =>
           [
@@ -301,11 +300,11 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
             },
           ] satisfies BuiltinToolSummary[],
       });
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: MCP_SERVERS_KEY,
         fetcher: async () => [] satisfies MCPServerSettings[],
       });
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_LIST_FILES_KEY,
         fetcher: async () =>
           [
@@ -317,7 +316,7 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
       // Two sessions blocked on two different kinds of ask, one of them on a
       // batch — the shapes the row has to tell apart. An empty queue is the
       // other states' job, so this one is never empty.
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: PENDING_WORK_KEY,
         fetcher: async () =>
           state === "dock-inbox"
@@ -343,19 +342,19 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
               ] satisfies PendingWorkItem[])
             : [],
       });
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: PROVIDERS_KEY,
         fetcher: async () => PROVIDERS,
       });
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_READ_FILE_KEY,
         fetcher: async () => RESIZER_SOURCE,
       });
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: UTILITY_ROLE_KEY,
         fetcher: async () => ({ provider: "openai", model: "gpt-5.6" }),
       });
-      host.extensions.contribute(DATA_PROVIDER, {
+      ctx.contribute(DATA_PROVIDER, {
         key: EMBEDDING_ROLE_KEY,
         fetcher: async () => ({}),
       });
@@ -386,19 +385,17 @@ const FIXTURE_VIEW_IDS = new Set([
 
 const workspaceDockDestinations = definePlugin({
   name: "lyra.visual.workspace-dock-destinations",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const destination of builtinContextDockDestinations) {
       if (!FIXTURE_VIEW_IDS.has(destination.viewId)) continue;
-      host.extensions.contribute(CONTEXT_DOCK_DESTINATION, destination);
+      ctx.contribute(CONTEXT_DOCK_DESTINATION, destination);
     }
   },
 });
 
 const visualShortcuts = definePlugin({
   name: "lyra.visual.shortcuts",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const shortcut of [
       {
         key: "Mod+N",
@@ -411,18 +408,13 @@ const visualShortcuts = definePlugin({
         handler: () => undefined,
       },
     ]) {
-      host.extensions.contribute(SHORTCUT, shortcut);
+      ctx.contribute(SHORTCUT, shortcut);
     }
   },
 });
 
-async function loadVisualPlugins(plugins: readonly PluginSpec[]): Promise<void> {
-  for (const plugin of plugins) {
-    const result = await loadPlugin(plugin);
-    if (result.kind !== "loaded") {
-      throw new Error(`Failed to install visual workspace plugin "${result.name}": ${result.kind}`);
-    }
-  }
+async function loadVisualPlugins(plugins: readonly AnyPlugin[]): Promise<void> {
+  await loadPluginsForTest(...plugins);
 }
 
 // Which dock view each state is ABOUT. A state not named here is a diff state —
@@ -497,7 +489,8 @@ export async function installVisualWorkspaceFixture(
     motionScale: 0,
     sidebarCollapsed: false,
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
-    dockWidth: 520,
+    // Only the review view splits, and only above a width the others never need.
+    dockWidth: state === "dock-review" ? VISUAL_REVIEW_DOCK_WIDTH_PX : VISUAL_DOCK_WIDTH_PX,
   });
 
   // The palettes and the visual style come from the agent installer above — this

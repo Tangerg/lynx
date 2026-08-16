@@ -516,10 +516,23 @@
      stretched into a pane divider BY A CALLSITE — the seams read `border` and
      `border-soft` themselves, one weight for a bar inside a region and one for a
      change of region. Keep in step with `themes/lyra-light.ts`. */
-  --color-border: #dee1e7;
-  --color-border-soft: #c6cad3;
-  --color-divider: rgb(0 0 0 / 0.07);
+  --color-border: #e9ecf2;
+  --color-border-soft: #dee2eb;
+  --color-divider: rgb(0 0 0 / 0.05);
   --color-scrim: rgb(0 0 0 / 0.22);
+  /* Scrollbar thumb, as a percentage of the scheme's OWN ink rather than a grey.
+     Two schemes used to need two rules here: the literals were picked on light
+     and overshot on dark, and one of them was 90° off the palette's hue, so the
+     single chrome that overlays the reading plane was the only thing on screen
+     from another colour family. A percentage of `--color-text` is a light bar on
+     dark and a dark bar on light without anyone choosing twice. */
+  /* A gauge's dial. A fraction of the INDICATOR's own ink rather than a border
+     token, so the track follows the mark wherever its tone goes — including into
+     `warning`. `currentColor` in a custom property resolves where it is USED, so
+     one declaration here tracks every caller's colour. */
+  --gauge-track: color-mix(in oklab, currentColor 22%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, var(--color-text) 17%, transparent);
+  --scrollbar-thumb-strong: color-mix(in oklab, var(--color-text) 28%, transparent);
 
   /* Semantic — used sparingly per DESIGN.md §9. Light-scheme first paint; the
      theme re-applies the same values at runtime. One step deeper than the
@@ -645,13 +658,13 @@
 
   /* Visual-style geometry is the base; the user's radius preference is the
      multiplier. Colour themes never write either side of this equation. */
-  --style-shape-2xs: 3px;
+  --style-shape-2xs: 2px;
   --style-shape-xs: 4px;
   --style-shape-sm: 6px;
   --style-shape-md: 8px;
   --style-shape-lg: 10px;
   --style-shape-xl: 12px;
-  --style-shape-composer: 10px;
+  --style-shape-composer: 20px;
   --style-shape-bubble: 8px;
   --radius-scale: 1;
   --shape-2xs: calc(var(--style-shape-2xs) * var(--radius-scale));
@@ -672,9 +685,15 @@
   --segmented-radius: var(--shape-sm);
   --segment-radius: var(--shape-xs);
   --surface-card-radius: var(--shape-md);
-  --floating-panel-radius: var(--shape-lg);
+  /* A row's corner is not a card's — see `row-radius` in visualStyles/tokens.ts. */
+  --row-radius: var(--shape-lg);
+  --floating-panel-radius: var(--shape-xl);
   --floating-tip-radius: var(--shape-sm);
-  --dock-tab-radius: var(--shape-xs);
+  /* A tab is a tab, not a segment: it is the top of the panel under it, so its
+     corner is the panel's own — the `lg` rung, which is what every desktop
+     reference draws (Codex `rounded-lg`, 10px on a 28px chip). At the `xs` rung
+     it read as a segmented control that had lost its track. */
+  --dock-tab-radius: var(--shape-lg);
   --control-height-xs: 24px;
   --control-height-sm: 28px;
   --control-height-md: 32px;
@@ -684,6 +703,17 @@
   --field-height-lg: 36px;
   --menu-row-height: 28px;
   --dock-tab-height: 28px;
+  /* The composer's footer runs its own control metrics, which is what the
+     reference does (`h-token-button-composer`, and a 16px glyph inside its
+     dropdown labels) rather than reusing the chrome ladder. The row sits under
+     reading-sized text in a card of its own, so the chrome step reads small there
+     while 28/16 reads as part of the input. */
+  --composer-control-height: 28px;
+  --composer-control-icon: 16px;
+  /* A navigator beside content is as wide as the paths in it, and that width does
+     not change when the dock is dragged — the content beside it is what should
+     absorb the drag. Sized for a nested repo path at the type ladder's `ui-sm`. */
+  --dock-navigator-width: 240px;
   --control-edge-width: 1px;
   --composer-edge-width: 0.5px;
 
@@ -691,8 +721,8 @@
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
      are NOT here on purpose: they stay pinned so the drawer and content headers
      keep lining up across the seam. */
-  --density-row-height: 36px;
-  --density-row-gap: 10px;
+  --density-row-height: 30px;
+  --density-row-gap: 8px;
   --density-navigation-gutter: 12px;
   --density-navigation-section-gap: 18px;
   --density-navigation-group-gap: 10px;
@@ -721,7 +751,11 @@
   --dur-med-base: 200ms;
   --dur-disclosure-base: 220ms;
   --dur-slow-base: 360ms;
-  --dur-drawer-base: 180ms;
+  /* Long enough that a flank's travel lands in frames the eye can follow — the
+     measurements and the reasoning live on `drawerMs` in visualStyles/tokens.ts,
+     which publishes this at runtime; this is the first-paint mirror and the two
+     have to agree. */
+  --dur-drawer-base: 300ms;
   --animation-duration: calc(var(--dur-fast-base) * var(--motion-scale));
   --ease-out: cubic-bezier(0.3, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
@@ -822,10 +856,25 @@
   --app-content-surface: var(--color-bg);
   --app-header-surface: transparent;
   --app-dock-surface: color-mix(in oklab, var(--color-bg) 25%, var(--color-surface));
+  /* The tab strip is the one bar that is NOT the ground of what it labels: a tab
+     is the top edge of the panel under it, so the panel's ground has to be able to
+     reach up into the selected tab. That needs the strip itself to sit one step
+     back, and the step is the contrast preference rather than a picked value —
+     three quarters of `--depth-step`, the same fraction the hover wash takes. */
+  --app-dock-tabstrip-surface: color-mix(
+    in oklab,
+    var(--color-text) calc(var(--depth-step) * 0.75),
+    var(--app-dock-surface)
+  );
+  /* What the selected tab fills with, and it is the panel's ground on purpose —
+     that identity IS the tab metaphor. A visual style that wants a chip or an
+     underline instead retargets this (see `data-control-treatment`). */
+  --dock-tab-active-surface: var(--app-dock-surface);
   --app-card-surface: var(--color-elevated);
   --app-composer-surface: color-mix(in oklab, var(--app-content-surface) 86%, transparent);
   --composer-backdrop: blur(20px) saturate(1.4);
-  --app-floating-surface: color-mix(in oklab, var(--app-content-surface) 70%, transparent);
+  --app-floating-surface: color-mix(in oklab, var(--app-content-surface) 90%, transparent);
+  --floating-backdrop: blur(8px) saturate(1.4);
   /* Edge GEOMETRY only — offsets and spread, no colour. The colour is the
      shell's live `--shell-boundary` / `--split-boundary`, and it has to be
      substituted on the element that draws the edge: a var() inside a token
@@ -838,7 +887,7 @@
   --app-header-edge: inset 0 -0.5px 0 0;
   --app-pane-wash: inset 12px 0 12px -6px;
   --app-pane-wash-end: inset -12px 0 12px -6px;
-  --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
+  --seam-line: var(--color-border-soft);
   /* How dark the chrome goes as it reaches a seam. A fifth of the palette's cast:
      at full strength the panel lost 45 levels into the split and read as a shaded
      wall; the reference loses 10. One value for every seam, so the drawer, the
@@ -1111,9 +1160,9 @@ html.theme-dark {
   --color-text-on-accent: #ffffff;
   --color-text-on-warning: #000000;
 
-  --color-border: #3a3d42;
-  --color-border-soft: #4b4e54;
-  --color-divider: rgb(255 255 255 / 0.07);
+  --color-border: #2e3136;
+  --color-border-soft: #3f4248;
+  --color-divider: rgb(255 255 255 / 0.04);
   --color-scrim: rgb(0 0 0 / 0.5);
 
   /* Fainter bands than light's, which is the opposite of what a scheme usually wants,
@@ -1135,25 +1184,8 @@ html.theme-dark {
      canvas alone, the one surface where it passed. */
   --color-negative: #e68a8a;
   --color-warning: #d6a750;
-  --color-info: #3574f0;
+  --color-info: #6e9bf4;
   --color-success: #6db473;
-}
-
-/* Quieter scrollbar on light — the dark thumb tokens overshoot. An ink wash and
-   not a literal: the three greys here were warm (#d4d4d3 is 90° off the palette's
-   hue), so the one chrome that overlays the reading plane was the one thing on
-   screen from another colour family. */
-html.theme-light .panel-scroll {
-  scrollbar-color: color-mix(in oklab, var(--color-text) 20%, transparent) transparent;
-}
-html.theme-light .panel-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--color-text) 17%, transparent);
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--color-text) 28%, transparent);
-  background-clip: content-box;
 }
 
 /* =========================================================================
@@ -1677,6 +1709,67 @@ html.theme-dark {
   background: transparent;
 }
 
+/* ---------- Workspace view: the frame and its two tracks ---------- */
+
+/* The view is the container its tracks measure against, not the window and not
+   the dock: the same view is a full page in the card and a 400px column in the
+   flank, and only its own inline size tells the two apart. */
+.agent-workspace-view {
+  container: workspace-view / inline-size;
+}
+
+.agent-view-split {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.agent-view-body {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.agent-view-navigator {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 var(--dock-navigator-width);
+  flex-direction: column;
+}
+
+.agent-view-navigator-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  box-shadow: var(--app-header-edge) var(--color-border);
+}
+
+/* Below this the pair does not fit. The number is measured, not reasoned: a
+   unified diff at the code step reads once its column reaches ~428px — below that
+   it stops breaking at token boundaries and starts splitting identifiers, which is
+   worse than no split at all. Add the navigator's own width and the ~76px the line
+   gutters and card insets take, and the pair needs ~744; 720 is the round number
+   just under it, and the last 24px cost only the occasional long line.
+   An earlier 560 came from a relative rule ("content is never the smaller half")
+   and shipped a 336px code column that wrapped `persistedWidth` mid-word. A
+   relative rule cannot express a floor.
+   THE CONTENT WINS. A view is opened for the thing in it, never for the index of
+   that thing, so what yields is the navigator. Its toggle goes with it in the
+   same breath: a control that cannot do anything is worse than a missing one, and
+   the caller cannot know this width — the shape that decides it is the shape that
+   has to withdraw the control. */
+@container workspace-view (width < 720px) {
+  .agent-view-navigator,
+  .agent-view-navigator-toggle {
+    display: none;
+  }
+}
+
 /* Dock chrome: the tab strip is a dense desktop toolbar, not a second content
    header. Keep its controls close to the pane edge while the view-owned toolbar
    below retains the standard reading inset.
@@ -1691,6 +1784,29 @@ html.theme-dark {
   /* The trailing inset is the strip the pinned toggle covers, not density — this bar is
      at the plane's trailing corner whenever it is on screen. */
   padding-inline: 14px var(--dock-control-span);
+  /* Its own ground. The selected tab reaches down into the panel with the panel's
+     own colour, so the value delta between strip and panel is what separates them
+     — the same answer this language gives everywhere else a region meets a region.
+     The bar declines the bottom hairline at its callsite rather than being given
+     one and having it cancelled here: a line drawn across that seam would cut the
+     one join the tab metaphor is made of, and `agent-surface-divider` is the class
+     that says a bar HAS an edge. Wearing it and overriding it is how the two ended
+     up disagreeing the first time. */
+  background: var(--app-dock-tabstrip-surface);
+}
+
+/* Every control in the composer's footer takes the composer's metrics, by
+   overriding the two rungs they read rather than by each callsite asking for a
+   size. That keeps the business slots free of geometry — a plugin contributing a
+   control here gets the right one without knowing there is a right one.
+   A CLASS and not the `data-slot` beside it: custom properties inherit, so a
+   selector that writes one pays for its whole subtree every time it matches. The
+   invalidation guard draws that line at state selectors (`[data-…]`, `:hover`),
+   and it is the right line — this scope is structure, it is decided at mount and
+   never flips, so it belongs on the side of the line that costs nothing. */
+.agent-composer-footer {
+  --control-height-md: var(--composer-control-height);
+  --icon-sm: var(--composer-control-icon);
 }
 
 .agent-dock-tabs {
@@ -1705,6 +1821,51 @@ html.theme-dark {
 
 .agent-dock-tabs::-webkit-scrollbar {
   display: none;
+}
+
+/* A label too long for its row ends by fading out, not by growing an ellipsis.
+   Same mechanism and same 16px as the tab strip below, and the reasoning is the
+   same one turned on its side: the fade says "there is more" without spending
+   three characters of the little width there was to say it. In a column of rows
+   that all overflow — a session list is exactly that — the ellipses stack into a
+   ragged dotted margin that reads as a UI element, and the eye finds it before it
+   finds any of the titles.
+   `text-overflow: clip` is load-bearing: `truncate` may still be on the element
+   this replaces at some callsite, and an ellipsis under a mask is the worst of
+   both. Grayscale antialiasing is already the document default, so the layer this
+   creates costs no text rendering. */
+.truncate-fade {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
+
+/* The work index hides its scrollbar too, and it ends against an opaque footer,
+   so a list longer than the drawer was guillotined by a bar with nothing to say
+   it had been. The reference fades its own sidebar over 4rem for this; ours takes
+   the distance from the scroller's own bottom padding instead of copying the
+   number, for the same reason the transcript's fade does — at rest the gradient
+   then lands entirely in padding and the last row a user is reading is never
+   dimmed. Keep in step with `pb-5` on AgentWorkIndexBody. */
+.agent-index-scroll {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
+}
+
+/* The strip hides its scrollbar, so this is the only thing that says a tab is
+   past the edge. Constant rather than conditional, which is what the reference
+   does and is safe for the reason it is safe there: when the tabs fit, the last
+   16px of the strip is empty and the fade falls on nothing. Detecting overflow
+   would need the strip to measure itself, and it would buy the same picture.
+   16px is the reference's own distance. */
+.agent-dock-tabs {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
 }
 
 html[data-control-treatment="outlined"] .agent-dock-tabs > [role="tablist"] > [data-active] {
@@ -1742,19 +1903,39 @@ html[data-control-treatment="elevated"]
      interacted badly with WebKit's scrollbar-recompute path, causing the chat to
      snap back to the top). The enclosing pane clips anything that still escapes. */
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border-soft) transparent;
+  /* QUIET AT REST. The thumb is invisible until the pointer is over the pane it
+     belongs to — the reference's own rule, and the same instinct as the rest of
+     this language: a scrollbar reports a fact nobody asked about, and a grey bar
+     down the side of every list is the web's answer, not a desktop's. The tint
+     appears on hover, and the transition is the colour step so it arrives without
+     a flicker. */
+  transition: scrollbar-color var(--dur-fast) ease;
+  scrollbar-color: transparent transparent;
+}
+.panel-scroll:hover {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 .panel-scroll::-webkit-scrollbar {
   width: 10px;
 }
+.panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
 .panel-scroll::-webkit-scrollbar-thumb {
-  background: var(--color-border-soft);
+  background: transparent;
   border-radius: var(--shape-pill);
+  /* The border IS the inset: the thumb paints into its content box, so 2px of
+     transparent border is what keeps a 10px track carrying a 6px bar. */
   border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color var(--dur-fast) ease;
+}
+.panel-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
   background-clip: content-box;
 }
 .panel-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-soft);
+  background: var(--scrollbar-thumb-strong);
   background-clip: content-box;
 }
 

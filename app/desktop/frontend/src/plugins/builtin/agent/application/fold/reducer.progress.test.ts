@@ -4,10 +4,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { selectCurrentRootRun } from "../view/runTree";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 const runStarted = (id: string): StreamEvent => ({
   type: "segment.started",
@@ -18,7 +18,7 @@ const progress = (p: Record<string, unknown>): StreamEvent =>
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(spec);
+  await loadPluginsForTest(spec);
 });
 
 describe("reducer — segment.progress (mid-run live readout)", () => {

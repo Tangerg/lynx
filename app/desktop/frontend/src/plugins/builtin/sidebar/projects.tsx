@@ -106,9 +106,8 @@ function ProjectsSection() {
 
 export const sidebarProjects = definePlugin({
   name: "lyra.builtin.sidebar-projects",
-  version: "1.0.0",
-  setup({ host }) {
-    contributeWorkIndexItem(host, {
+  setup(ctx) {
+    contributeWorkIndexItem(ctx, {
       id: "projects",
       scope: "session",
       variant: "expanded",

@@ -16,14 +16,13 @@ const AppearancePane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.appearance",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposePreferences = installAppearancePreferencesPort();
     const disposeFonts = installBrowserFontAvailability();
-    registerSettingsPane(host, appearanceSettingsPane(AppearancePane));
-    return () => {
+    registerSettingsPane(ctx, appearanceSettingsPane(AppearancePane));
+    ctx.cleanup(() => {
       disposeFonts();
       disposePreferences();
-    };
+    });
   },
 });

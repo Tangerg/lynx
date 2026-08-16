@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import * as workspaceViews from "./workspace/workspace-views";
 import contextDockDestinations from "./workspace/context-dock";
 import diagnostics from "./workspace/diagnostics";
-import { loadPlugin } from "@/plugins/sdk";
 import { lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import { CONTEXT_DOCK_DESTINATION, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 // A composition invariant, so it lives with the manifest rather than inside one
 // context: destinations are contributed by one plugin and the views they name by
@@ -12,10 +12,12 @@ import { CONTEXT_DOCK_DESTINATION, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPo
 // registry — the same data the dock's add-panel menu reads.
 describe("assembled context dock destinations", () => {
   async function assemble() {
-    await Promise.all(
-      [...Object.values(workspaceViews), diagnostics, contextDockDestinations].map((plugin) =>
-        loadPlugin(plugin),
-      ),
+    // One kernel holding all of them: the invariant is about the ASSEMBLED set,
+    // and each call stands up a fresh Host.
+    await loadPluginsForTest(
+      ...Object.values(workspaceViews),
+      diagnostics,
+      contextDockDestinations,
     );
     return {
       destinations: lookupExtensionPoint(CONTEXT_DOCK_DESTINATION),

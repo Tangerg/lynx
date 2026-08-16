@@ -9,17 +9,16 @@
 // switch to it, and the DOM reflects the palette. It moved here with the painter
 // — the tests belong with the code they pin, and this is no longer a store test.
 
-import type { Disposable } from "@/plugins/sdk/types";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createHost } from "@/plugins/sdk/host";
 import { ACCENT, COLOR_THEME, VISUAL_STYLE } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
 import { installDocumentAppearance } from "./documentAppearance";
 import { installSystemAppearance } from "./systemAppearance";
 import { toggleThemeScheme } from "../application/themeScheme";
 import { installThemePreferencePort } from "./uiThemePreference";
+import type { PluginContext } from "@/plugins/sdk";
+import { contributeForTest } from "@/plugins/sdk/testKernel";
 
-const sink: Disposable[] = [];
 let uninstall: () => void = () => {};
 const TEST_MOTION = {
   instantMs: 80,
@@ -52,7 +51,6 @@ beforeEach(() => {
     radiusScale: 1,
     motionScale: 1,
   });
-  sink.length = 0;
   // The painter installs from the theme pack's setup in the app; a test drives
   // it directly — in the same order, so resolving a scheme has its port.
   uninstall();
@@ -64,10 +62,11 @@ beforeEach(() => {
 /** Both schemes registered under their canonical ids — anything a test does that
  *  depends on the resolved SCHEME (and not just on the token map) needs them,
  *  because an unregistered id deliberately reads as dark. */
-function registerSchemePair(): void {
-  const host = createHost("test-schemes", sink);
-  host.extensions.contribute(COLOR_THEME, { id: "dark", label: "Dark", scheme: "dark" });
-  host.extensions.contribute(COLOR_THEME, { id: "light", label: "Light", scheme: "light" });
+async function registerSchemePair(): Promise<void> {
+  await contributeForTest((ctx) => {
+    ctx.contribute(COLOR_THEME, { id: "dark", label: "Dark", scheme: "dark" });
+    ctx.contribute(COLOR_THEME, { id: "light", label: "Light", scheme: "light" });
+  }, "test.schemes");
 }
 
 describe("neutral family following the live accent", () => {
@@ -81,8 +80,8 @@ describe("neutral family following the live accent", () => {
 
   /** A theme that opts in. Dark, so the light-scheme accent remap stays out of it, and
    *  carrying the accent its literals are relative to. */
-  function registerTinted(host: ReturnType<typeof createHost>) {
-    host.extensions.contribute(COLOR_THEME, {
+  function tinted(ctx: PluginContext) {
+    ctx.contribute(COLOR_THEME, {
       id: "tinted",
       label: "Tinted",
       scheme: "dark",
@@ -101,9 +100,10 @@ describe("neutral family following the live accent", () => {
     });
   }
 
-  it("reproduces the theme's own literals when the accent is untouched", () => {
-    const host = createHost("test", sink);
-    registerTinted(host);
+  it("reproduces the theme's own literals when the accent is untouched", async () => {
+    await contributeForTest((ctx) => {
+      tinted(ctx);
+    });
     useUiStore.setState({ theme: "tinted", accent: "#3574f0" });
 
     // The derivation has to be a no-op on the accent the family was measured against,
@@ -112,9 +112,10 @@ describe("neutral family following the live accent", () => {
     expect(painted("color-sunken")).toBe("#14181f");
   });
 
-  it("goes grey for a grey accent instead of red", () => {
-    const host = createHost("test", sink);
-    registerTinted(host);
+  it("goes grey for a grey accent instead of red", async () => {
+    await contributeForTest((ctx) => {
+      tinted(ctx);
+    });
     useUiStore.setState({ theme: "tinted", accent: "#000000" });
 
     // Reported: picking pure black painted every surface pink, because CSS reads a
@@ -124,9 +125,10 @@ describe("neutral family following the live accent", () => {
     }
   });
 
-  it("turns the family when the accent changes", () => {
-    const host = createHost("test", sink);
-    registerTinted(host);
+  it("turns the family when the accent changes", async () => {
+    await contributeForTest((ctx) => {
+      tinted(ctx);
+    });
     useUiStore.setState({ theme: "tinted", accent: "#3574f0" });
     const blue = painted("color-sunken");
 
@@ -134,13 +136,14 @@ describe("neutral family following the live accent", () => {
     expect(painted("color-sunken")).not.toBe(blue);
   });
 
-  it("does not touch a palette theme that never opted in", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(COLOR_THEME, {
-      id: "solarized",
-      label: "Solarized",
-      scheme: "light",
-      tokens: { "color-accent": "#268bd2", "color-surface": "#eee8d5" },
+  it("does not touch a palette theme that never opted in", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(COLOR_THEME, {
+        id: "solarized",
+        label: "Solarized",
+        scheme: "light",
+        tokens: { "color-accent": "#268bd2", "color-surface": "#eee8d5" },
+      });
     });
     useUiStore.setState({ theme: "solarized", accent: "#7f52ff" });
 
@@ -148,9 +151,10 @@ describe("neutral family following the live accent", () => {
     expect(painted("color-surface")).toBe("#eee8d5");
   });
 
-  it("collapses the family to neutral at the `off` tint and restores it after", () => {
-    const host = createHost("test", sink);
-    registerTinted(host);
+  it("collapses the family to neutral at the `off` tint and restores it after", async () => {
+    await contributeForTest((ctx) => {
+      tinted(ctx);
+    });
     useUiStore.setState({ theme: "tinted", accent: "#7f52ff", accentTint: "off" });
     const off = painted("color-sunken");
     expect(channelSpread(off)).toBeLessThanOrEqual(1);
@@ -161,16 +165,17 @@ describe("neutral family following the live accent", () => {
 });
 
 describe("applyTheme — theme-as-plugin contract", () => {
-  it("writes spec.tokens to :root.style when the active theme is registered", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(COLOR_THEME, {
-      id: "dark",
-      label: "Dark",
-      scheme: "dark",
-      tokens: {
-        "color-bg": "#101010",
-        "color-surface": "#1a1a1a",
-      },
+  it("writes spec.tokens to :root.style when the active theme is registered", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(COLOR_THEME, {
+        id: "dark",
+        label: "Dark",
+        scheme: "dark",
+        tokens: {
+          "color-bg": "#101010",
+          "color-surface": "#1a1a1a",
+        },
+      });
     });
 
     // The registry subscription in uiStore re-fires applyTheme when
@@ -180,13 +185,14 @@ describe("applyTheme — theme-as-plugin contract", () => {
     expect(root.style.getPropertyValue("--color-surface")).toBe("#1a1a1a");
   });
 
-  it("toggles theme-{scheme} class — drives structural CSS overrides", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(COLOR_THEME, {
-      id: "solarized-light",
-      label: "Solarized Light",
-      scheme: "light",
-      tokens: { "color-bg": "#fdf6e3" },
+  it("toggles theme-{scheme} class — drives structural CSS overrides", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(COLOR_THEME, {
+        id: "solarized-light",
+        label: "Solarized Light",
+        scheme: "light",
+        tokens: { "color-bg": "#fdf6e3" },
+      });
     });
 
     useUiStore.getState().setTheme("solarized-light");
@@ -197,19 +203,20 @@ describe("applyTheme — theme-as-plugin contract", () => {
     expect(root.style.getPropertyValue("--color-bg")).toBe("#fdf6e3");
   });
 
-  it("switching themes replaces token values", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(COLOR_THEME, {
-      id: "dark",
-      label: "Dark",
-      scheme: "dark",
-      tokens: { "color-bg": "#010102", "color-text": "#f7f8f8" },
-    });
-    host.extensions.contribute(COLOR_THEME, {
-      id: "light",
-      label: "Light",
-      scheme: "light",
-      tokens: { "color-bg": "#fafafa", "color-text": "#171717" },
+  it("switching themes replaces token values", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(COLOR_THEME, {
+        id: "dark",
+        label: "Dark",
+        scheme: "dark",
+        tokens: { "color-bg": "#010102", "color-text": "#f7f8f8" },
+      });
+      ctx.contribute(COLOR_THEME, {
+        id: "light",
+        label: "Light",
+        scheme: "light",
+        tokens: { "color-bg": "#fafafa", "color-text": "#171717" },
+      });
     });
 
     useUiStore.getState().setTheme("light");
@@ -223,19 +230,20 @@ describe("applyTheme — theme-as-plugin contract", () => {
     expect(root.style.getPropertyValue("--color-text")).toBe("#f7f8f8");
   });
 
-  it("removes tokens omitted by the next theme", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(COLOR_THEME, {
-      id: "dark",
-      label: "Dark",
-      scheme: "dark",
-      tokens: { "color-bg": "#010102", "color-warning": "#f0c000" },
-    });
-    host.extensions.contribute(COLOR_THEME, {
-      id: "light",
-      label: "Light",
-      scheme: "light",
-      tokens: { "color-bg": "#fafafa" },
+  it("removes tokens omitted by the next theme", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(COLOR_THEME, {
+        id: "dark",
+        label: "Dark",
+        scheme: "dark",
+        tokens: { "color-bg": "#010102", "color-warning": "#f0c000" },
+      });
+      ctx.contribute(COLOR_THEME, {
+        id: "light",
+        label: "Light",
+        scheme: "light",
+        tokens: { "color-bg": "#fafafa" },
+      });
     });
 
     useUiStore.getState().setTheme("light");
@@ -245,19 +253,20 @@ describe("applyTheme — theme-as-plugin contract", () => {
     expect(root.style.getPropertyValue("--color-warning")).toBe("");
   });
 
-  it("resolves accent through the registry for light-scheme themes", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(COLOR_THEME, {
-      id: "light",
-      label: "Light",
-      scheme: "light",
-      tokens: {},
-    });
-    host.extensions.contribute(ACCENT, {
-      id: "green",
-      label: "Green",
-      dark: "#1ed760",
-      light: "#15883e",
+  it("resolves accent through the registry for light-scheme themes", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(COLOR_THEME, {
+        id: "light",
+        label: "Light",
+        scheme: "light",
+        tokens: {},
+      });
+      ctx.contribute(ACCENT, {
+        id: "green",
+        label: "Green",
+        dark: "#1ed760",
+        light: "#15883e",
+      });
     });
 
     useUiStore.getState().setTheme("light");
@@ -265,21 +274,22 @@ describe("applyTheme — theme-as-plugin contract", () => {
     expect(document.documentElement.style.getPropertyValue("--color-accent")).toBe("#15883e");
   });
 
-  it("toggleTheme flips to the first registered theme of the opposite scheme", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(COLOR_THEME, {
-      id: "dark",
-      label: "Dark",
-      scheme: "dark",
-      order: 0,
-      tokens: {},
-    });
-    host.extensions.contribute(COLOR_THEME, {
-      id: "solarized-light",
-      label: "Solarized Light",
-      scheme: "light",
-      order: 0,
-      tokens: {},
+  it("toggleTheme flips to the first registered theme of the opposite scheme", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(COLOR_THEME, {
+        id: "dark",
+        label: "Dark",
+        scheme: "dark",
+        order: 0,
+        tokens: {},
+      });
+      ctx.contribute(COLOR_THEME, {
+        id: "solarized-light",
+        label: "Solarized Light",
+        scheme: "light",
+        order: 0,
+        tokens: {},
+      });
     });
 
     useUiStore.setState({ theme: "dark" });
@@ -292,22 +302,23 @@ describe("applyTheme — theme-as-plugin contract", () => {
 });
 
 describe("visual-style contract", () => {
-  it("applies component tokens and structural traits independently from colour", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(VISUAL_STYLE, {
-      id: "test-style",
-      label: "Test style",
-      description: "Test",
-      traits: { regions: "tool-windows", controls: "outlined" },
-      motion: TEST_MOTION,
-      preview: {
-        canvas: "#fff",
-        sidebar: "#eee",
-        dock: "#f5f5f5",
-        edge: "#ccc",
-        accent: "#06f",
-      },
-      tokens: { "style-shape-md": "5px", "app-content-shadow": "none" },
+  it("applies component tokens and structural traits independently from colour", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(VISUAL_STYLE, {
+        id: "test-style",
+        label: "Test style",
+        description: "Test",
+        traits: { regions: "tool-windows", controls: "outlined" },
+        motion: TEST_MOTION,
+        preview: {
+          canvas: "#fff",
+          sidebar: "#eee",
+          dock: "#f5f5f5",
+          edge: "#ccc",
+          accent: "#06f",
+        },
+        tokens: { "style-shape-md": "5px", "app-content-shadow": "none" },
+      });
     });
 
     useUiStore.getState().setVisualStyle("test-style");
@@ -322,37 +333,38 @@ describe("visual-style contract", () => {
     expect(root.style.getPropertyValue("--ease-out")).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
   });
 
-  it("removes tokens omitted by the next visual style", () => {
-    const host = createHost("test", sink);
-    host.extensions.contribute(VISUAL_STYLE, {
-      id: "first",
-      label: "First",
-      description: "First",
-      traits: { regions: "floating-card", controls: "quiet" },
-      motion: TEST_MOTION,
-      preview: {
-        canvas: "#fff",
-        sidebar: "#eee",
-        dock: "#fff",
-        edge: "#ccc",
-        accent: "#06f",
-      },
-      tokens: { "shadow-surface-card": "0 8px 20px black" },
-    });
-    host.extensions.contribute(VISUAL_STYLE, {
-      id: "second",
-      label: "Second",
-      description: "Second",
-      traits: { regions: "flush-panes", controls: "quiet" },
-      motion: TEST_MOTION,
-      preview: {
-        canvas: "#111",
-        sidebar: "#222",
-        dock: "#111",
-        edge: "#333",
-        accent: "#69f",
-      },
-      tokens: {},
+  it("removes tokens omitted by the next visual style", async () => {
+    await contributeForTest((ctx) => {
+      ctx.contribute(VISUAL_STYLE, {
+        id: "first",
+        label: "First",
+        description: "First",
+        traits: { regions: "floating-card", controls: "quiet" },
+        motion: TEST_MOTION,
+        preview: {
+          canvas: "#fff",
+          sidebar: "#eee",
+          dock: "#fff",
+          edge: "#ccc",
+          accent: "#06f",
+        },
+        tokens: { "shadow-surface-card": "0 8px 20px black" },
+      });
+      ctx.contribute(VISUAL_STYLE, {
+        id: "second",
+        label: "Second",
+        description: "Second",
+        traits: { regions: "flush-panes", controls: "quiet" },
+        motion: TEST_MOTION,
+        preview: {
+          canvas: "#111",
+          sidebar: "#222",
+          dock: "#111",
+          edge: "#333",
+          accent: "#69f",
+        },
+        tokens: {},
+      });
     });
 
     useUiStore.getState().setVisualStyle("first");
@@ -363,7 +375,7 @@ describe("visual-style contract", () => {
 });
 
 describe("UI preference DOM synchronization", () => {
-  it("applies and clears font preferences", () => {
+  it("applies and clears font preferences", async () => {
     const state = useUiStore.getState();
     state.setUiFont("Inter");
     state.setCodeFont("JetBrains Mono");
@@ -390,8 +402,8 @@ describe("UI preference DOM synchronization", () => {
     expect(style.getPropertyValue("--fs-ui-md")).toBe("14px");
   });
 
-  it("applies contrast, radius, and reduced-motion preferences", () => {
-    registerSchemePair();
+  it("applies contrast, radius, and reduced-motion preferences", async () => {
+    await registerSchemePair();
     useUiStore.getState().setTheme("light");
     useUiStore.getState().setContrast(100);
     useUiStore.getState().setRadiusScale(1.25);
@@ -410,8 +422,8 @@ describe("UI preference DOM synchronization", () => {
   // Equal ink percentages do not buy equal separation: the contrast setting that
   // read right on light collapsed every dark scheme's regions into one value, so
   // the mapping is doubled there.
-  it("doubles the ladder step on dark so both schemes separate equally", () => {
-    registerSchemePair();
+  it("doubles the ladder step on dark so both schemes separate equally", async () => {
+    await registerSchemePair();
     useUiStore.getState().setContrast(25);
     useUiStore.getState().setTheme("light");
     expect(document.documentElement.style.getPropertyValue("--depth-step")).toBe("4.0%");

@@ -32,6 +32,7 @@ export { PillButton } from "./pill-button";
 export { Popover } from "./popover";
 export { Pressable } from "./pressable";
 export type { PressableProps } from "./pressable";
+export { Gauge } from "./gauge";
 export { ProgressBar } from "./progress-bar";
 export { ProviderIcon } from "./provider-icon";
 export { ResizeHandle } from "./resize-handle";

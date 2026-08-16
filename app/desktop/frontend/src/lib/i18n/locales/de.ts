@@ -180,6 +180,15 @@ export const de: Record<string, string> = {
   "goal.error.start": "Das Ziel konnte nicht gestartet werden",
   "goal.error.stop": "Das Ziel konnte nicht gestoppt werden",
   "goal.error.resume": "Das Ziel konnte nicht fortgesetzt werden",
+  "slash.goal": "Ein Ziel setzen, das der Agent weiterverfolgt",
+  "goal.error.unavailable":
+    "Derzeit lässt sich kein Ziel setzen – diese Laufzeit unterstützt eventuell keine Ziele, oder es läuft bereits eines",
+  "goal.meta.model": "Modell",
+  "goal.meta.lastMove": "Letzter Fortschritt",
+  "goal.replace.title": "Aktuelles Ziel ersetzen?",
+  "goal.replace.body":
+    "„{{objective}}“ endet hier, samt des bereits verbrauchten Kontingents. Die Unterhaltung bleibt erhalten.",
+  "goal.replace.confirm": "Ziel ersetzen",
   "goal.stop.stoppedByUser": "Von dir gestoppt",
   "goal.stop.runtimeRestarted": "Die Runtime wurde neu gestartet",
   "goal.stop.runStartFailed": "Eine Runde konnte nicht starten",
@@ -289,8 +298,6 @@ export const de: Record<string, string> = {
   "plugins.errorDetail.hide": "Fehlerdetails ausblenden",
   "plugins.errors": "{{count}} Fehler",
   "plugins.clear": "Löschen",
-  "plugins.reload": "Plugin neu laden",
-  "plugins.reloading": "Wird neu geladen…",
   "plugins.copyError": "Fehler kopieren",
   "plugins.origin.builtin": "Integriert",
   "plugins.origin.builtin.title": "Wird mit Lyra ausgeliefert",
@@ -774,6 +781,8 @@ export const de: Record<string, string> = {
   "settings.pane.schedules": "Zeitpläne",
   "settings.appearance.hero":
     "Themes, Kontrast, Typografie und Bewegung bestimmen das Arbeitsgefühl von Lynx.",
+  "context.usage.aria": "Kontextauslastung: {percent}%",
+  "context.usage.tooltip": "{used} / {window} Tokens verwendet",
   "usage.session.hint": "Kumulierte Tokens und Kosten dieser Sitzung über alle Läufe",
   "usage.range.all": "Alle",
   "usage.range.30d": "30 T",

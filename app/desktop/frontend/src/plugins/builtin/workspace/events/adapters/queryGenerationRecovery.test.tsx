@@ -17,9 +17,9 @@ import { queryClient } from "@/lib/queryClient";
 import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { createParameterizedDataQuery } from "@/plugins/sdk/dataQuery";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
-import { definePlugin, loadPlugin } from "@/plugins/sdk";
-import { usePluginStore } from "@/plugins/sdk/registry";
+import { definePlugin } from "@/plugins/sdk";
 import { invalidateWorkspaceEvent, invalidateWorkspaceEverything } from "./queryInvalidation";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 interface GoalState {
   readonly available: boolean;
@@ -44,15 +44,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   queryClient.clear();
-  usePluginStore.getState().resetForTest();
   synchronizeMountedAgentSessions.mockClear();
 });
 
 afterEach(() => {
   queryClient.clear();
-  usePluginStore.getState().resetForTest();
 });
 
 describe("workspace Runtime-generation query recovery", () => {
@@ -68,12 +66,11 @@ describe("workspace Runtime-generation query recovery", () => {
       }
       return Promise.resolve({ available: true, goal: goal("successor goal") });
     });
-    await loadPlugin(
+    await loadPluginsForTest(
       definePlugin({
         name: "test.goal-generation-recovery",
-        version: "1.0.0",
-        setup({ host }) {
-          host.extensions.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
+        setup(ctx) {
+          ctx.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
         },
       }),
     );
@@ -111,12 +108,11 @@ describe("workspace Runtime-generation query recovery", () => {
       }
       return Promise.resolve({ available: true, goal: goal("committed goal") });
     });
-    await loadPlugin(
+    await loadPluginsForTest(
       definePlugin({
         name: "test.goal-event-generation-recovery",
-        version: "1.0.0",
-        setup({ host }) {
-          host.extensions.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
+        setup(ctx) {
+          ctx.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
         },
       }),
     );

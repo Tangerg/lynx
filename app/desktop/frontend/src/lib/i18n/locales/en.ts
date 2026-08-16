@@ -192,6 +192,15 @@ export const en: Record<string, string> = {
   "goal.error.start": "Could not start the goal",
   "goal.error.stop": "Could not stop the goal",
   "goal.error.resume": "Could not resume the goal",
+  "slash.goal": "Set a goal the agent keeps pursuing",
+  "goal.error.unavailable":
+    "No goal can be set right now — this runtime may not support goals, or one is already running",
+  "goal.meta.model": "Model",
+  "goal.meta.lastMove": "Last move",
+  "goal.replace.title": "Replace the current goal?",
+  "goal.replace.body":
+    '"{{objective}}" ends here, along with the allowance it has already spent. The conversation stays.',
+  "goal.replace.confirm": "Replace goal",
   "goal.stop.stoppedByUser": "Stopped by you",
   "goal.stop.runtimeRestarted": "The runtime restarted",
   "goal.stop.runStartFailed": "A turn could not start",
@@ -265,6 +274,8 @@ export const en: Record<string, string> = {
   "settings.pane.schedules": "Schedules",
   "settings.appearance.hero":
     "Themes, contrast, typography, and motion define the working feel of Lynx.",
+  "context.usage.aria": "Context usage: {percent}%",
+  "context.usage.tooltip": "{used} / {window} tokens used",
   "usage.session.hint": "This session's cumulative tokens and cost across all its runs",
   "usage.range.all": "All",
   "usage.range.30d": "30d",
@@ -427,8 +438,6 @@ export const en: Record<string, string> = {
   "plugins.errorDetail.hide": "Hide error detail",
   "plugins.errors": "{{count}} error(s)",
   "plugins.clear": "Clear",
-  "plugins.reload": "Reload plugin",
-  "plugins.reloading": "Reloading…",
   "plugins.copyError": "Copy error",
   "plugins.origin.builtin": "Built-in",
   "plugins.origin.builtin.title": "Ships with Lyra",

@@ -3,8 +3,6 @@
 // logic on top of it (declared-merge, weighted-random, priority pick, cached
 // sub-index, owner attribution).
 
-export { configurePluginActivation } from "./pluginActivation";
-
 // Open extension points — the one read API for plain reads (kernel + plugins).
 export {
   lookupExtensionByKey,

@@ -9,9 +9,7 @@ const ConnectionPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.connection-settings",
-  version: "1.0.0",
-  requires: ["lyra.builtin.runtime"],
-  setup({ host }) {
-    registerSettingsPane(host, connectionSettingsPane(ConnectionPane));
+  setup(ctx) {
+    registerSettingsPane(ctx, connectionSettingsPane(ConnectionPane));
   },
 });

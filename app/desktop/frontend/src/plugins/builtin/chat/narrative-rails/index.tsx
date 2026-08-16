@@ -5,14 +5,13 @@
 // contribution rather than shell furniture because a navigation aid over the
 // narrative is exactly the kind of thing a plugin should be able to replace.
 
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { turnRailSlot } from "./application/narrativeRailContributions";
 import { TurnRail } from "./ui/TurnRail";
 
 export default definePlugin({
   name: "lyra.builtin.narrative-rails",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("chat.rail.start", turnRailSlot(TurnRail));
+  setup(ctx) {
+    contributeLayout(ctx, "chat.rail.start", turnRailSlot(TurnRail));
   },
 });

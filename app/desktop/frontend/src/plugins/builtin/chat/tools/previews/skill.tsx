@@ -78,15 +78,14 @@ function SkillProposalPreview(props: ToolPreviewProps) {
 
 export const skillPreview = definePlugin({
   name: "lyra.builtin.skill-preview",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of skillToolPreviews({
       list_skills: SkillCatalogPreview,
       load_skill: LoadedSkillPreview,
       read_skill_resource: SkillResourcePreview,
       propose_skill: SkillProposalPreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

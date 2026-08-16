@@ -81,9 +81,22 @@ const textAreaStyles = cva(`${BASE} resize-y leading-body`, {
       md: "px-3 py-2",
       prose: "text-prose leading-prose",
     },
+    // Grow with what is typed, up to whatever `max-h` the caller sets. The engine
+    // does this natively; the alternative every codebase reaches for first is an
+    // effect that writes `height:auto`, reads `scrollHeight` and writes a pixel
+    // back — a forced reflow on every keystroke, and a pixel cap that stops
+    // tracking the type ladder the moment the user changes their text size.
+    // Off by default: a form textarea wants the height its `rows` asked for.
+    autosize: { true: "field-sizing-content resize-none", false: "" },
   },
   compoundVariants: [...INVALID_COMPOUNDS],
-  defaultVariants: { variant: "boxed", size: "md", font: "mono", invalid: false },
+  defaultVariants: {
+    variant: "boxed",
+    size: "md",
+    font: "mono",
+    invalid: false,
+    autosize: false,
+  },
 });
 
 type FieldVariants = VariantProps<typeof inputStyles>;
@@ -112,11 +125,19 @@ export function TextField({ variant, size, font, invalid, className, ...props }:
 export type TextAreaProps = Omit<TextAreaPrimitiveProps, "className"> &
   VariantProps<typeof textAreaStyles> & { className?: string };
 
-export function TextArea({ variant, size, font, invalid, className, ...props }: TextAreaProps) {
+export function TextArea({
+  variant,
+  size,
+  font,
+  invalid,
+  autosize,
+  className,
+  ...props
+}: TextAreaProps) {
   return (
     <TextAreaPrimitive
       {...props}
-      className={cn(textAreaStyles({ variant, size, font, invalid }), className)}
+      className={cn(textAreaStyles({ variant, size, font, invalid, autosize }), className)}
     />
   );
 }

@@ -12,8 +12,7 @@ const PluginsPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.plugins-pane",
-  version: "1.0.0",
-  setup({ host }) {
-    registerSettingsPane(host, pluginsSettingsPane(PluginsPane));
+  setup(ctx) {
+    registerSettingsPane(ctx, pluginsSettingsPane(PluginsPane));
   },
 });

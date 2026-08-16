@@ -1,12 +1,14 @@
 // The "Plugins" settings pane.
 //
-// Lists every loaded plugin with name + version + origin + error count.
+// Lists every installed plugin with name + origin + error count.
 // Errored rows expand inline to show each error's source, message, and
 // stack (captured at the catch site, see sdk/errors.ts) so a broken
-// plugin is debuggable without opening the browser console. Each row has
-// a Reload action; errored rows surface a Clear-errors button. Built-ins
-// can be reloaded but not unloaded (they're shipped in the bundle;
-// disabling would brick the kernel).
+// plugin is debuggable without opening the browser console. Errored rows
+// surface a Clear-errors button.
+//
+// No per-row reload: a built-in's installation is part of one boot transaction
+// and reinstalling it alone would leave the graph in a state the Host never
+// agreed to. Sideloaded plugins are removed and re-registered by the platform.
 
 import { Trans } from "@/lib/i18n";
 import type { PluginError, PluginErrorSource } from "@/plugins/sdk";
@@ -15,15 +17,14 @@ import { Icon, IconButton, PillButton, TextButton } from "@/ui";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { reloadPlugin, usePluginErrorStore, usePluginStore } from "@/plugins/sdk";
-import { pluginOrigin } from "@/plugins/host/sideload";
+import { useInstalledPlugins, usePluginErrorStore } from "@/plugins/sdk";
+import { pluginOrigin } from "@/plugins/sdk/pluginOrigin";
 
 export function PluginsPane() {
   const t = useT();
-  const loaded = usePluginStore((s) => s.loaded);
+  const installed = useInstalledPlugins();
   const log = usePluginErrorStore((s) => s.log);
   const clearFor = usePluginErrorStore((s) => s.clearFor);
-  const [reloading, setReloading] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   // Newest-first list per plugin (the count is the list length).
@@ -36,24 +37,15 @@ export function PluginsPane() {
 
   // Sort: built-ins first (alphabetical), then sideloaded (alphabetical).
   // Within each origin group, errored plugins float to the top.
-  const rows = Array.from(loaded.values()).sort((a, b) => {
-    const oa = pluginOrigin(a.spec.name);
-    const ob = pluginOrigin(b.spec.name);
+  const rows = [...installed].sort((a, b) => {
+    const oa = pluginOrigin(a);
+    const ob = pluginOrigin(b);
     if (oa !== ob) return oa === "builtin" ? -1 : 1;
-    const ea = errorsByPlugin.get(a.spec.name)?.length ?? 0;
-    const eb = errorsByPlugin.get(b.spec.name)?.length ?? 0;
+    const ea = errorsByPlugin.get(a)?.length ?? 0;
+    const eb = errorsByPlugin.get(b)?.length ?? 0;
     if (ea !== eb) return eb - ea;
-    return a.spec.name.localeCompare(b.spec.name);
+    return a.localeCompare(b);
   });
-
-  const handleReload = async (name: string) => {
-    setReloading(name);
-    try {
-      await reloadPlugin(name);
-    } finally {
-      setReloading((cur) => (cur === name ? null : cur));
-    }
-  };
 
   const toggle = (name: string) =>
     setExpanded((cur) => {
@@ -65,15 +57,14 @@ export function PluginsPane() {
   return (
     <div>
       <div className="flex flex-col gap-2">
-        {rows.map(({ spec }) => {
-          const errors = errorsByPlugin.get(spec.name) ?? [];
+        {rows.map((name) => {
+          const errors = errorsByPlugin.get(name) ?? [];
           const errCount = errors.length;
-          const origin = pluginOrigin(spec.name);
-          const busy = reloading === spec.name;
-          const open = expanded.has(spec.name);
+          const origin = pluginOrigin(name);
+          const open = expanded.has(name);
           return (
             <div
-              key={spec.name}
+              key={name}
               className={cn(
                 "rounded-md transition-colors hover:bg-hover",
                 errCount > 0 && "bg-negative-wash",
@@ -82,14 +73,13 @@ export function PluginsPane() {
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">
                 <div>
                   <div className="text-ui-md font-medium text-fg">
-                    {spec.name}
+                    {name}
                     <OriginBadge origin={origin} />
                   </div>
-                  <div className="font-mono text-ui-md text-fg-muted">v{spec.version}</div>
                   {errCount > 0 && (
                     <TextButton
                       tone="negative"
-                      onClick={() => toggle(spec.name)}
+                      onClick={() => toggle(name)}
                       title={open ? t("plugins.errorDetail.hide") : t("plugins.errorDetail.show")}
                       className="mt-1.5"
                     >
@@ -101,17 +91,10 @@ export function PluginsPane() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {errCount > 0 && (
-                    <PillButton variant="outlined" size="sm" onClick={() => clearFor(spec.name)}>
+                    <PillButton variant="outlined" size="sm" onClick={() => clearFor(name)}>
                       {t("plugins.clear")}
                     </PillButton>
                   )}
-                  <IconButton
-                    icon="loop"
-                    iconSize="sm"
-                    title={busy ? t("plugins.reloading") : t("plugins.reload")}
-                    onClick={() => handleReload(spec.name)}
-                    disabled={busy}
-                  />
                 </div>
               </div>
               {open && errCount > 0 && (

@@ -10,13 +10,13 @@ import { configureNavigator } from "@/lib/navigation";
 import { createMemoryNavigator } from "@/lib/navigation.testkit";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
 import { installDocumentAppearance } from "@/plugins/builtin/theme/adapters/documentAppearance";
-import { loadPlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 import { VisualFoundationFixture } from "./VisualFoundationFixture";
 import { VISUAL_AGENT_STATES, type VisualAgentState } from "./agentSessionSnapshots";
 import { VISUAL_WORK_INDEX_STATES, type VisualWorkIndexState } from "./shellFixtureStates";
 import { isVisualWorkspaceState, type VisualWorkspaceState } from "./workspaceFixtureStates";
 import "../src/styles/globals.css";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 type FixtureTheme = "light" | "dark";
 
@@ -100,7 +100,7 @@ async function fixtureNode(): Promise<ReactNode> {
       import("@/plugins/builtin/defaults"),
     ]);
     for (const plugin of [lyraLight, lyraDark, defaultAccents, ...builtinVisualStyles]) {
-      await loadPlugin(plugin);
+      await loadPluginsForTest(plugin);
     }
     return <VisualFoundationFixture sidebarOpen={sidebarOpen} />;
   }

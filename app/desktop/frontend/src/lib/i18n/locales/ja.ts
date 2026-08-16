@@ -179,6 +179,15 @@ export const ja: Record<string, string> = {
   "goal.error.start": "目標を開始できませんでした",
   "goal.error.stop": "目標を停止できませんでした",
   "goal.error.resume": "目標を再開できませんでした",
+  "slash.goal": "エージェントが追い続ける目標を設定する",
+  "goal.error.unavailable":
+    "いま目標は設定できません — このランタイムが目標に対応していないか、すでに実行中です",
+  "goal.meta.model": "モデル",
+  "goal.meta.lastMove": "最後の進行",
+  "goal.replace.title": "現在の目標を置き換えますか？",
+  "goal.replace.body":
+    "「{{objective}}」はここで終了し、消費済みの上限も戻りません。会話はそのまま残ります。",
+  "goal.replace.confirm": "目標を置き換える",
   "goal.stop.stoppedByUser": "手動で停止しました",
   "goal.stop.runtimeRestarted": "ランタイムが再起動しました",
   "goal.stop.runStartFailed": "ターンを開始できませんでした",
@@ -286,8 +295,6 @@ export const ja: Record<string, string> = {
   "plugins.errorDetail.hide": "エラー詳細を非表示",
   "plugins.errors": "{{count}} 件のエラー",
   "plugins.clear": "クリア",
-  "plugins.reload": "プラグインを再読み込み",
-  "plugins.reloading": "再読み込み中…",
   "plugins.copyError": "エラーをコピー",
   "plugins.origin.builtin": "組み込み",
   "plugins.origin.builtin.title": "Lyra に同梱",
@@ -764,6 +771,8 @@ export const ja: Record<string, string> = {
   "settings.pane.schedules": "スケジュール",
   "settings.appearance.hero":
     "テーマ、コントラスト、タイポグラフィ、モーションが Lynx の操作感を決めます。",
+  "context.usage.aria": "コンテキスト使用率: {percent}%",
+  "context.usage.tooltip": "{used} / {window} トークン使用",
   "usage.session.hint": "このセッションの全実行を通じた累計トークンとコスト",
   "usage.range.all": "すべて",
   "usage.range.30d": "30日",

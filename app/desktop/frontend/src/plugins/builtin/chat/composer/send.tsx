@@ -2,7 +2,7 @@ import { IconButton } from "@/ui";
 import { useSendComposerInput } from "./public/sendToAgent";
 import { useIsCurrentRootRunning, useStopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { useComposerImages, useComposerPastes } from "./public/attachments";
 import { useClearComposerDraft, useComposerText } from "./public/draft";
 import { useRecordComposerHistory } from "./public/history";
@@ -14,14 +14,20 @@ import { useCanSendToAgent } from "@/plugins/builtin/agent/public/input";
 import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 // The composer's action target: one control whose glyph changes across steer /
-// send / stop, so the place you click never moves. A rounded square on the
-// control ladder rather than a circle — every other control in this language is
-// a rounded rectangle, and a lone disc beside them reads as a different kit.
+// send / stop, so the place you click never moves.
+//
+// A DISC, and deliberately the only one in the window. This used to be a rounded
+// square, reasoned as "every other control here is a rounded rectangle, so a lone
+// disc reads as a different kit" — but that is the argument backwards. The
+// controls beside it are ghosts: no fill, no edge, they are labels you can press.
+// This one is the solid primary, and being a different shape is how it says so
+// without shouting in colour. The reference sits its send on the same row of
+// ghost dropdowns and makes it round for exactly this reason.
 const ACTION =
-  "size-[var(--control-height-md)] shrink-0 rounded-[var(--button-radius)] bg-cta text-cta-text hover:bg-cta-hover hover:text-cta-text active:translate-y-[0.5px]";
+  "size-[var(--control-height-md)] shrink-0 rounded-full bg-cta text-cta-text hover:bg-cta-hover hover:text-cta-text active:translate-y-[0.5px]";
 const ACTION_OFF =
-  "size-[var(--control-height-md)] shrink-0 rounded-[var(--button-radius)] bg-surface-2 text-fg-faint";
-const QUIET = "size-[var(--control-height-md)] shrink-0 rounded-[var(--button-radius)]";
+  "size-[var(--control-height-md)] shrink-0 rounded-full bg-surface-2 text-fg-faint";
+const QUIET = "size-[var(--control-height-md)] shrink-0 rounded-full";
 
 function SendButton() {
   const t = useT();
@@ -86,8 +92,7 @@ function SendButton() {
 
 export const composerSend = definePlugin({
   name: "lyra.builtin.composer-send",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("composer.toolbar.end", composerSendSlot(SendButton));
+  setup(ctx) {
+    contributeLayout(ctx, "composer.toolbar.end", composerSendSlot(SendButton));
   },
 });

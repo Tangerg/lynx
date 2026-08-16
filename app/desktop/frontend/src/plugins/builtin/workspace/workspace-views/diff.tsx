@@ -10,7 +10,8 @@
 // whole comparison. Structured per-file diff from workspace.diff.get (AUX_API §2.3).
 
 import { useEffect, useId, useRef, useState } from "react";
-import { DataView, DiffStat, Icon, IconButton, Pressable, ScrollArea, Segmented } from "@/ui";
+import { DataView, DiffStat, FilePath, Icon, Pressable, ScrollArea, Segmented } from "@/ui";
+import { AgentViewNavigatorToggle, AgentViewSplit, AgentWorkspaceView } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
@@ -67,7 +68,22 @@ function FileCard({
           "text-left font-mono text-ui-sm text-fg-muted transition-colors hover:text-fg",
         )}
       >
-        <span className="min-w-0 flex-1 truncate">{header.displayPath}</span>
+        {/* Left-truncating, because the answer to "which file is this" is at the
+            END of a path and every card in the list shares the beginning. A
+            rename shows both, and the one it came FROM is the one that yields
+            width first — the destination is where the change is. */}
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          {header.previousPath && (
+            <>
+              {/* Shrinks far faster than the destination beside it, for the same
+                  reason the directory shrinks faster than the filename: where the
+                  file came FROM is context, where it is now is the answer. */}
+              <FilePath path={header.previousPath} className="shrink-[100] text-fg-faint" />
+              <Icon name="arrow-right" size="xs" className="shrink-0 opacity-60" />
+            </>
+          )}
+          <FilePath path={header.path} className="shrink" />
+        </span>
         <DiffStat added={header.added ?? 0} removed={header.removed ?? 0} />
         <Icon
           name="chevron-down"
@@ -139,7 +155,7 @@ function ReviewPanel() {
   ) : undefined;
 
   return (
-    <div className="agent-workspace-view flex min-h-0 flex-1 flex-col bg-canvas">
+    <AgentWorkspaceView>
       <ViewHeader
         icon="diff"
         title={mode === "base" ? "diff.branchCompare" : "diff.workingTree"}
@@ -166,18 +182,28 @@ function ReviewPanel() {
               ]}
             />
             {hasFiles && (
-              <IconButton
-                icon="list"
-                size="sm"
-                aria-pressed={navigatorOpen}
-                title={navigatorOpen ? t("diff.files.hide") : t("diff.files.show")}
-                onClick={() => setNavigatorOpen((open) => !open)}
+              <AgentViewNavigatorToggle
+                open={navigatorOpen}
+                onToggle={() => setNavigatorOpen((open) => !open)}
+                showLabel={t("diff.files.show")}
+                hideLabel={t("diff.files.hide")}
               />
             )}
           </div>
         }
       />
-      <div className="flex min-h-0 flex-1">
+      <AgentViewSplit
+        navigator={
+          navigatorOpen && hasFiles ? (
+            <ReviewFileTree
+              files={files ?? []}
+              selectedPath={activeFile}
+              onSelectFile={selectFile}
+              onClose={() => setNavigatorOpen(false)}
+            />
+          ) : undefined
+        }
+      >
         <ScrollArea ref={scrollRef} className="min-w-0 px-2 pb-2">
           <DataView
             items={gitEnabled ? files : []}
@@ -222,16 +248,8 @@ function ReviewPanel() {
             )}
           </DataView>
         </ScrollArea>
-        {navigatorOpen && hasFiles && (
-          <ReviewFileTree
-            files={files ?? []}
-            selectedPath={activeFile}
-            onSelectFile={selectFile}
-            onClose={() => setNavigatorOpen(false)}
-          />
-        )}
-      </div>
-    </div>
+      </AgentViewSplit>
+    </AgentWorkspaceView>
   );
 }
 

@@ -2,45 +2,34 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { TooltipProvider } from "@/ui";
 import { builtinPlugins } from "../builtin";
+import { startKernel } from "../sdk";
 import { publishHostBridge } from "./hostBridge";
-import { loadPlugins, usePluginStore } from "../sdk";
-import { loadSideloadedPlugins, tagAllAsBuiltin } from "./sideload";
+import { loadSideloadedPlugins } from "./sideloadDiscovery";
 
 interface Props {
   children: ReactNode;
 }
 
 /**
- * PluginProvider — startup orchestrator for plugins.
+ * Startup: bridge first (a sideloaded module can touch `window.__LYRA__` at
+ * module-evaluation time), then the built-in kernel, then sideloads in the
+ * background.
  *
- *   1. Install the `window.__LYRA__` bridge so sideloaded modules can reach
- *      the host's React / motion / SDK without bundling their own.
- *   2. Load built-in plugins (sync — already in the bundle).
- *   3. Tag everything loaded so far as "builtin".
- *   4. Fetch the sideload manifest from the Go backend and dynamic-import
- *      each plugin.
- *
- * Children are gated on the built-in plugins finishing because anything
- * in the bundle's startup path (routes, layout slots, themes) is a built-in
- * plugin contribution. Sideloaded plugins load in the background.
+ * Children wait on the kernel because everything in the startup path — routes,
+ * layout slots, themes — is a built-in contribution. One blank tick beats a
+ * flash of "no routes match".
  */
 export function PluginProvider({ children }: Props) {
-  const [builtinsReady, setBuiltinsReady] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-
-    // Bridge is sync (static imports). Install before anything else so
-    // sideloaded plugins that touch window.__LYRA__ at module-evaluation
-    // time can see it.
     publishHostBridge();
 
     void (async () => {
-      await loadPlugins(builtinPlugins);
-      tagAllAsBuiltin();
-      // Flush lifecycle.onReady listeners in registration order.
-      usePluginStore.getState().markAppReady();
-      if (!cancelled) setBuiltinsReady(true);
+      await startKernel(builtinPlugins);
+      if (cancelled) return;
+      setReady(true);
       void loadSideloadedPlugins();
     })();
 
@@ -49,10 +38,7 @@ export function PluginProvider({ children }: Props) {
     };
   }, []);
 
-  // Nothing to show until built-ins register (router has no routes, layout
-  // slots are empty). One tick of blank is preferable to a flash of "no
-  // routes match" or an empty kernel.
-  if (!builtinsReady) return null;
+  if (!ready) return null;
 
   return <TooltipProvider>{children}</TooltipProvider>;
 }

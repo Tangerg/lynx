@@ -23,8 +23,20 @@ const SCALE: Readonly<Record<UiDensity, number>> = {
 
 /** Comfortable-mode base values, in px. Every mode is these times its scale. */
 const BASE_PX = {
-  rowHeight: 36,
-  rowGap: 10,
+  /* Derived, not chosen: a row is one line of chrome type plus its inset, which
+     is `14px * 1.5 + 2 * 4px` — 29, rounded to the even 30 so a centred hairline
+     never lands on a half pixel. All three desktop references compute it the same
+     way and land on the same number. At 36 the row was carrying half a line of
+     air it had no content for, which is what made a full index read as a short
+     list that had been spaced out to look considered. */
+  rowHeight: 30,
+  /* The gap between a row's glyph and its label. Same 8px the reference gives it,
+     and the same 8px the row's own inset already uses — one number for "the
+     distance between two things inside a row" rather than a second, slightly
+     larger one that exists only here. At 10 the glyph sat visibly further from
+     its label than the label sat from the row's edge, which reads as the icon
+     drifting out of its own row. */
+  rowGap: 8,
   navigationGutter: 12,
   navigationSectionGap: 18,
   navigationGroupGap: 10,

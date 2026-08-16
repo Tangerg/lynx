@@ -16,8 +16,7 @@ import { installThemePreferencePort } from "./adapters/uiThemePreference";
 
 export const appearancePainter = definePlugin({
   name: "lyra.builtin.appearance-painter",
-  version: "1.0.0",
-  setup() {
+  setup(ctx) {
     const releasePreference = installThemePreferencePort();
     // Before the painter: its first paint resolves the scheme, which asks this.
     const releaseSystem = installSystemAppearance();
@@ -28,6 +27,6 @@ export const appearancePainter = definePlugin({
       releasePreference();
     };
     disposeOnHmr(uninstall);
-    return uninstall;
+    ctx.cleanup(uninstall);
   },
 });

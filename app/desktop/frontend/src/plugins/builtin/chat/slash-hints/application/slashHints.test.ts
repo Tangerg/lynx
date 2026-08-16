@@ -17,16 +17,16 @@ describe("DEFAULT_SLASH_HINTS", () => {
 });
 
 describe("slashHintContributions", () => {
-  it("projects translation keys into hint-only slash command specs", () => {
-    expect(slashHintContributions((key) => `t:${key}`)).toEqual([
-      { cmd: "/explain", spec: { description: "t:slash.explain" } },
-      { cmd: "/test", spec: { description: "t:slash.test" } },
-      { cmd: "/fix", spec: { description: "t:slash.fix" } },
-      { cmd: "/diff", spec: { description: "t:slash.diff" } },
-      { cmd: "/review", spec: { description: "t:slash.review" } },
-      { cmd: "/commit", spec: { description: "t:slash.commit" } },
-      { cmd: "/search", spec: { description: "t:slash.search" } },
-      { cmd: "/plan", spec: { description: "t:slash.plan" } },
+  it("carries translation keys rather than resolved copy", () => {
+    expect(slashHintContributions()).toEqual([
+      { cmd: "/explain", spec: { description: "slash.explain" } },
+      { cmd: "/test", spec: { description: "slash.test" } },
+      { cmd: "/fix", spec: { description: "slash.fix" } },
+      { cmd: "/diff", spec: { description: "slash.diff" } },
+      { cmd: "/review", spec: { description: "slash.review" } },
+      { cmd: "/commit", spec: { description: "slash.commit" } },
+      { cmd: "/search", spec: { description: "slash.search" } },
+      { cmd: "/plan", spec: { description: "slash.plan" } },
     ]);
   });
 });

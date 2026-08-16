@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { contributeLayout, definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import type { MessageFeedbackRating } from "./domain/feedback";
 import { canRateMessage } from "./application/messageActionAvailability";
 import { messageFeedbackActionSlot } from "./application/messageActionContributions";
@@ -53,10 +53,9 @@ function FeedbackButtons() {
 
 export const messageFeedback = definePlugin({
   name: "lyra.builtin.message-feedback",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeFeedback = installRuntimeFeedbackPort();
-    host.layout.register("message.actions", messageFeedbackActionSlot(FeedbackButtons));
-    return disposeFeedback;
+    contributeLayout(ctx, "message.actions", messageFeedbackActionSlot(FeedbackButtons));
+    ctx.cleanup(disposeFeedback);
   },
 });

@@ -1,5 +1,4 @@
 import type { SlashCommandSpec } from "@/plugins/sdk";
-import type { Translate } from "@/lib/i18n";
 
 export interface SlashHintDefinition {
   cmd: string;
@@ -22,9 +21,19 @@ export const DEFAULT_SLASH_HINTS: SlashHintDefinition[] = [
   { cmd: "/plan", descriptionKey: "slash.plan" },
 ];
 
-export function slashHintContributions(t: Translate): SlashHintContribution[] {
+/**
+ * The hints as specs, carrying their KEYS.
+ *
+ * The suggestion list resolves the description itself (`t(spec.description)`), so
+ * handing it a finished sentence pinned every hint to whichever language happened
+ * to be loaded when this plugin registered — a switch afterwards moved the rest of
+ * the UI and left these eight behind. It went unnoticed because translating an
+ * already-translated string returns it unchanged, so nothing ever looked broken in
+ * the language it started in.
+ */
+export function slashHintContributions(): SlashHintContribution[] {
   return DEFAULT_SLASH_HINTS.map((hint) => ({
     cmd: hint.cmd,
-    spec: { description: t(hint.descriptionKey) },
+    spec: { description: hint.descriptionKey },
   }));
 }

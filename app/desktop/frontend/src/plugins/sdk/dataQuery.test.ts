@@ -3,8 +3,9 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DATA_PROVIDER } from "./kernelPoints";
-import { definePlugin, loadPlugin } from "./definePlugin";
+import { definePlugin } from "./definePlugin";
 import { createParameterizedDataQuery } from "./dataQuery";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 function createWrapper(experimentalPrefetchInRender: boolean) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -25,12 +26,11 @@ function createWrapper(experimentalPrefetchInRender: boolean) {
 }
 
 async function registerProvider(fetcher: (params: unknown) => Promise<string>): Promise<void> {
-  await loadPlugin(
+  await loadPluginsForTest(
     definePlugin({
       name: "test.parameterized-data-query",
-      version: "1.0.0",
-      setup({ host }) {
-        host.extensions.contribute(DATA_PROVIDER, { key: "resource", fetcher });
+      setup(ctx) {
+        ctx.contribute(DATA_PROVIDER, { key: "resource", fetcher });
       },
     }),
   );

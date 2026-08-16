@@ -38,9 +38,8 @@ function RecentsSection() {
 
 export const sidebarRecents = definePlugin({
   name: "lyra.builtin.sidebar-recents",
-  version: "1.0.0",
-  setup({ host }) {
-    contributeWorkIndexItem(host, {
+  setup(ctx) {
+    contributeWorkIndexItem(ctx, {
       id: "recents",
       scope: "session",
       variant: "expanded",

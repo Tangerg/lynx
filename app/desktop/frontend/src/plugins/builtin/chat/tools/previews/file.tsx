@@ -41,10 +41,9 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
 
 export const file = definePlugin({
   name: "lyra.builtin.file",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of fileToolPreview(FilePreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

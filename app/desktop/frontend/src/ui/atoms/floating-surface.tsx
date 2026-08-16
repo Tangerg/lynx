@@ -20,7 +20,11 @@ const FLOATING_SURFACE_BASE = [
   "relative isolate overflow-hidden text-fg",
   "bg-[var(--app-floating-surface)] shadow-[var(--shadow-popover)]",
   "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
-  "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",
+  // The blur reads from the style, like the fill above it — the two are one
+  // recipe, and spelling the fill as a token while the blur stayed a utility is
+  // what let them drift to three times the reference's transparency at five times
+  // its blur.
+  "before:rounded-[inherit] before:[backdrop-filter:var(--floating-backdrop)]",
 ].join(" ");
 
 /**

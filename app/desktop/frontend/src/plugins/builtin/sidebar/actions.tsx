@@ -64,9 +64,8 @@ function SidebarActions() {
 
 export const sidebarActions = definePlugin({
   name: "lyra.builtin.sidebar-actions",
-  version: "1.0.0",
-  setup({ host }) {
-    contributeWorkIndexItem(host, {
+  setup(ctx) {
+    contributeWorkIndexItem(ctx, {
       id: "actions",
       scope: "global",
       variant: "expanded",

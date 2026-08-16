@@ -388,6 +388,15 @@ for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
         const style = getComputedStyle(el);
         if (!(style.overflowX === "hidden" || style.overflowX === "clip")) continue;
         if (style.textOverflow === "ellipsis") continue;
+        // The other way an edge admits it is an edge. An ellipsis does not let
+        // anyone READ the missing characters either — what it does is say the
+        // string did not end there — and a gradient that dissolves the text into
+        // the clip says the same thing without spending three of the characters
+        // it had left to say it. Matched on direction, not merely on "has a
+        // mask": a mask fading some other edge, or shaping the box, is not a
+        // statement about THIS overflow and must not buy an exemption from it.
+        const fade = style.maskImage === "none" ? style.webkitMaskImage : style.maskImage;
+        if (fade?.startsWith("linear-gradient(to right")) continue;
         if (!el.textContent?.trim()) continue;
         const box = el.getBoundingClientRect();
         const clipEdge = box.left + Number.parseFloat(style.borderLeftWidth) + el.clientWidth;

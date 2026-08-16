@@ -4,8 +4,6 @@
 
 import { useMemo } from "react";
 import type {
-  ContributedSettingsPane,
-  ContributedView,
   ContextDockDestinationSpec,
   LayoutSlotSpec,
   SettingsPaneSpec,
@@ -21,32 +19,27 @@ import {
   WORK_INDEX_ITEM,
   WORKSPACE_VIEW,
 } from "../kernelPoints";
-import { makeLazyActivator } from "../lazyActivator";
-import { usePluginStore } from "../registry";
-import { useResolvedContributions } from "./declaredContributions";
+import { useContributions } from "../kernel";
 import { createPointSubIndex, useExtensionPoint } from "./extensions";
-import { activatePlugin } from "./pluginActivation";
 
-const layoutBySlot = createPointSubIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>(
-  LAYOUT_SLOT.id,
-  (item) => ({ key: item.slot, value: item.spec }),
-);
+const layoutBySlot = createPointSubIndex((item: { slot: string; spec: LayoutSlotSpec }) => ({
+  key: item.slot,
+  value: item.spec,
+}));
 
 export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
-  const extensions = usePluginStore((s) => s.extensions);
+  const entries = useContributions(LAYOUT_SLOT);
   return useMemo(
     () =>
-      [...(layoutBySlot(extensions).get(slot) ?? [])].sort(
+      [...(layoutBySlot(entries).get(slot) ?? [])].sort(
         (a, b) => (a.order ?? 100) - (b.order ?? 100),
       ),
-    [extensions, slot],
+    [entries, slot],
   );
 }
 
 export function useWorkspaceViews(): WorkspaceViewSpec[] {
-  const registered = useExtensionPoint(WORKSPACE_VIEW);
-  const declared = usePluginStore((state) => state.declaredViews);
-  return useResolvedContributions(registered, declared, declaredToWorkspaceView);
+  return useExtensionPoint(WORKSPACE_VIEW);
 }
 
 export function useContextDockDestinations(): ContextDockDestinationSpec[] {
@@ -64,29 +57,6 @@ export function useWorkIndexItems(
   );
 }
 
-function declaredToWorkspaceView(view: ContributedView, pluginName: string): WorkspaceViewSpec {
-  return {
-    ...view,
-    component: makeLazyActivator(view.title, () => {
-      void activatePlugin(pluginName);
-    }),
-  };
-}
-
 export function useSettingsPanes(): SettingsPaneSpec[] {
-  const registered = useExtensionPoint(SETTINGS_PANE);
-  const declared = usePluginStore((state) => state.declaredSettingsPanes);
-  return useResolvedContributions(registered, declared, declaredToSettingsPane);
-}
-
-function declaredToSettingsPane(
-  pane: ContributedSettingsPane,
-  pluginName: string,
-): SettingsPaneSpec {
-  return {
-    ...pane,
-    component: makeLazyActivator(pane.label, () => {
-      void activatePlugin(pluginName);
-    }),
-  };
+  return useExtensionPoint(SETTINGS_PANE);
 }

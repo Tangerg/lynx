@@ -1,4 +1,4 @@
-import { definePlugin } from "@/plugins/sdk";
+import { CONFIG, definePlugin } from "@/plugins/sdk";
 import { runtimeCapabilities } from "./application/ports/capabilities";
 import { installRuntimeEndpointConfiguration } from "./adapters/runtimeEndpointConfiguration";
 import { installRuntimeMutationJournalStorage } from "./adapters/runtimeMutationJournalStorage";
@@ -9,13 +9,17 @@ import {
   installRuntimeServiceStatusPort,
   useRuntimeServiceStore,
 } from "./adapters/runtimeServiceStore";
+import { subscribeRuntimeCapabilities } from "./public/capabilities";
+import { verifyRuntimeServiceConnection } from "./public/serviceStatus";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.runtime",
-  version: "1.0.0",
-  setup({ host }) {
-    const disposeEndpoint = installRuntimeEndpointConfiguration(host);
-    const disposeMutationJournal = installRuntimeMutationJournalStorage(host);
+  provides: { stream: RUNTIME_STREAM_PORTS },
+  requires: { config: CONFIG },
+  setup(ctx) {
+    const disposeEndpoint = installRuntimeEndpointConfiguration(ctx);
+    const disposeMutationJournal = installRuntimeMutationJournalStorage(ctx);
     const disposeCapabilities = installRuntimeCapabilityPort();
     const serviceStore = useRuntimeServiceStore.getState();
     serviceStore.clear();
@@ -34,7 +38,7 @@ export default definePlugin({
     const capabilities = runtimeCapabilities();
     capabilities.clear();
     serviceController.start();
-    return () => {
+    ctx.cleanup(() => {
       serviceController.dispose();
       useRuntimeServiceStore.getState().clear();
       disposeServiceStatus();
@@ -42,6 +46,12 @@ export default definePlugin({
       disposeCapabilities();
       disposeMutationJournal();
       disposeEndpoint();
+    });
+    return {
+      stream: {
+        subscribeCapabilities: subscribeRuntimeCapabilities,
+        verifyServiceConnection: verifyRuntimeServiceConnection,
+      },
     };
   },
 });

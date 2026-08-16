@@ -52,8 +52,12 @@ export function DelegatedRunDisclosure({
           <span
             className={cn(
               "inline-flex items-center gap-1 text-ui-xs font-medium",
+              // `info`, not `accent`: its three siblings below are semantic status
+              // inks, and this branch reached for the brand FILL instead. A fill is
+              // read as an area and carries no AA promise as letters — this label is
+              // 12px.
               model.status === "running"
-                ? "text-accent"
+                ? "text-info"
                 : model.status === "waiting" || model.status === "limit"
                   ? "text-warning"
                   : model.status === "error"

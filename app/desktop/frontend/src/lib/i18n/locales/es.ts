@@ -180,6 +180,15 @@ export const es: Record<string, string> = {
   "goal.error.start": "No se pudo iniciar el objetivo",
   "goal.error.stop": "No se pudo detener el objetivo",
   "goal.error.resume": "No se pudo reanudar el objetivo",
+  "slash.goal": "Define un objetivo que el agente siga persiguiendo",
+  "goal.error.unavailable":
+    "Ahora no se puede definir un objetivo: puede que este runtime no admita objetivos o que ya haya uno en marcha",
+  "goal.meta.model": "Modelo",
+  "goal.meta.lastMove": "Último avance",
+  "goal.replace.title": "¿Reemplazar el objetivo actual?",
+  "goal.replace.body":
+    "«{{objective}}» termina aquí, junto con el margen que ya ha gastado. La conversación se conserva.",
+  "goal.replace.confirm": "Reemplazar objetivo",
   "goal.stop.stoppedByUser": "Lo detuviste tú",
   "goal.stop.runtimeRestarted": "El runtime se reinició",
   "goal.stop.runStartFailed": "Un turno no pudo iniciarse",
@@ -287,8 +296,6 @@ export const es: Record<string, string> = {
   "plugins.errorDetail.hide": "Ocultar detalle del error",
   "plugins.errors": "{{count}} error(es)",
   "plugins.clear": "Borrar",
-  "plugins.reload": "Recargar plugin",
-  "plugins.reloading": "Recargando…",
   "plugins.copyError": "Copiar error",
   "plugins.origin.builtin": "Integrado",
   "plugins.origin.builtin.title": "Incluido con Lyra",
@@ -771,6 +778,8 @@ export const es: Record<string, string> = {
   "settings.pane.schedules": "Programaciones",
   "settings.appearance.hero":
     "Los temas, el contraste, la tipografía y el movimiento definen la sensación de trabajo de Lynx.",
+  "context.usage.aria": "Uso del contexto: {percent}%",
+  "context.usage.tooltip": "{used} / {window} tokens usados",
   "usage.session.hint": "Tokens y coste acumulados de esta sesión en todas sus ejecuciones",
   "usage.range.all": "Todo",
   "usage.range.30d": "30 d",

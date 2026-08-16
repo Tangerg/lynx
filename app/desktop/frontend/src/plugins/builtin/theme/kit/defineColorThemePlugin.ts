@@ -1,5 +1,5 @@
 // Helper for the "colour theme as plugin" pattern — turns a typed ColorThemePluginSpec
-// into a PluginSpec ready for the builtin manifest. Required sections
+// into a AnyPlugin ready for the builtin manifest. Required sections
 // (brand / surfaces / ink / borders / semantic) are enforced by TypeScript;
 // depthStep / cta / extras are optional palette overrides.
 //
@@ -8,7 +8,7 @@
 // surface (ColorThemePluginSpec + sections) lives in `./types.ts` so
 // `tokens.ts` can pull it without forming a cycle with this file.
 
-import type { PluginSpec } from "@/plugins/sdk";
+import type { AnyPlugin } from "dougong";
 import { definePlugin } from "@/plugins/sdk";
 import { COLOR_THEME } from "@/plugins/sdk/kernelPoints";
 import { colorThemeContribution } from "./colorThemeContribution";
@@ -24,13 +24,12 @@ export type {
   ThemeSurfaces,
 } from "./types";
 
-export function defineColorThemePlugin(spec: ColorThemePluginSpec): PluginSpec {
+export function defineColorThemePlugin(spec: ColorThemePluginSpec): AnyPlugin {
   const theme = colorThemeContribution(spec);
   return definePlugin({
     name: `lyra.builtin.color-theme-${spec.id}`,
-    version: "1.0.0",
-    setup({ host }) {
-      host.extensions.contribute(COLOR_THEME, theme);
+    setup(ctx) {
+      ctx.contribute(COLOR_THEME, theme);
     },
   });
 }

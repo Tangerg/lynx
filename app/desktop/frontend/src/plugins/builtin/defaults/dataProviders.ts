@@ -3,9 +3,7 @@ import { registerDefaultDataProviders } from "./adapters/runtimeDataProviders";
 
 export const defaultDataProviders = definePlugin({
   name: "lyra.builtin.default-data",
-  version: "1.0.0",
-  requires: ["lyra.builtin.runtime"],
-  setup({ host }) {
-    registerDefaultDataProviders(host);
+  setup(ctx) {
+    registerDefaultDataProviders(ctx);
   },
 });

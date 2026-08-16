@@ -5,6 +5,7 @@ import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { fmtCost } from "@/lib/format";
 import { useT } from "@/lib/i18n";
+import { formatRelative } from "@/lib/i18n/relativeTime";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
@@ -116,6 +117,7 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
             <BudgetAxis key={axis.label} axis={axis} />
           ))}
         </div>
+        <GoalMeta goal={goal} />
         {goal.stop && (
           <p className="mt-2.5 text-ui-sm leading-body text-fg-muted">
             {t(GOAL_STOP_I18N[goal.stop.code])}
@@ -124,6 +126,36 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
         )}
       </AgentActivityDisclosure>
     </motion.div>
+  );
+}
+
+/**
+ * The two facts about a standing loop that no budget bar can carry: whether it is
+ * still moving, and what it is spending the allowance ON.
+ *
+ * Both were already in the read model and neither was on screen. "Last move" is
+ * the only liveness signal a surface like this can give — an autonomous loop
+ * between turns and one that has quietly stopped making progress look identical,
+ * and the bars, which only ever climb, cannot tell them apart. The model is here
+ * because it is pinned at start: the composer's picker may have moved on, and
+ * when there is a cost cap, which model is drawing it down is the whole story.
+ *
+ * In the expanded body, not the collapsed row: the row is a glance, and it is
+ * already carrying the objective, the tightest axis and the status.
+ */
+function GoalMeta({ goal }: { goal: GoalReadModel }) {
+  const t = useT();
+  return (
+    <dl className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-ui-xs text-fg-faint">
+      <div className="flex items-baseline gap-1.5">
+        <dt>{t("goal.meta.model")}</dt>
+        <dd className="m-0 font-mono text-fg-muted">{goal.model}</dd>
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <dt>{t("goal.meta.lastMove")}</dt>
+        <dd className="m-0 text-fg-muted">{formatRelative(goal.updatedAt)}</dd>
+      </div>
+    </dl>
   );
 }
 

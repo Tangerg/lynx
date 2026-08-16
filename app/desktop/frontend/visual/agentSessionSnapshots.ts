@@ -33,7 +33,16 @@ export type VisualAgentState = (typeof VISUAL_AGENT_STATES)[number];
 const SESSION_ID = "ses_visual";
 const ROOT_RUN_ID = "run_root";
 const CREATED_AT = "2026-07-31T08:00:00.000Z";
-const METRICS = { steps: 4, activeDurationMillis: 12_000 };
+// Carries usage, and it has to: two production readouts are gated on a non-zero
+// count — the run-close line's token figures, and the composer's context gauge,
+// which refuses to draw rather than claim an empty window it cannot verify. With
+// the counts at zero both were absent from every screenshot. 96k against the
+// fixture model's 256k window puts the gauge at 38%, off both of its ends.
+const METRICS = {
+  steps: 4,
+  activeDurationMillis: 12_000,
+  usage: { inputTokens: 96_000, outputTokens: 3_100, cacheReadTokens: 64_000 },
+};
 const PROFILE: RunProtocolProfile = {
   interruptTypes: ["approval"],
   requiredFeatures: ["subagents"],

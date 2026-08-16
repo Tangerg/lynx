@@ -4,6 +4,7 @@ import type { IconSize } from "@/lib/iconScale";
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Bell,
   Book,
@@ -160,6 +161,7 @@ export type IconName =
   | "panel-r"
   | "arrow-down"
   | "arrow-left"
+  | "arrow-right"
   | "arrow-up"
   | "trash"
   | "alert"
@@ -262,6 +264,7 @@ const ICON_MAP = {
   "chevron-right": ChevronRight,
   "arrow-down": ArrowDown,
   "arrow-left": ArrowLeft,
+  "arrow-right": ArrowRight,
   "arrow-up": ArrowUp,
   trash: Trash2,
   alert: TriangleAlert,

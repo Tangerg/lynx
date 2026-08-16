@@ -17,8 +17,7 @@ const ApprovalsPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.approvals-pane",
-  version: "1.0.0",
-  setup({ host }) {
-    registerSettingsPane(host, approvalsSettingsPane(ApprovalsPane));
+  setup(ctx) {
+    registerSettingsPane(ctx, approvalsSettingsPane(ApprovalsPane));
   },
 });

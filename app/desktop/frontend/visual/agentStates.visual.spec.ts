@@ -491,6 +491,14 @@ test("the goal banner reports the allowance that will run out first", async ({ p
     .filter({ hasText: "green on Linux" });
   await expect(banner.locator("[role=progressbar]")).toHaveCount(2);
   await expect(banner.getByText("no limit")).toBeVisible();
+
+  // The two facts the bars cannot carry. Bars only ever climb, so a loop between
+  // turns and one that has quietly stopped look identical without "last move";
+  // and the model is pinned when the goal starts, so the composer's current pick
+  // is not an answer to what is drawing the cost cap down.
+  await expect(banner.getByText("Model")).toBeVisible();
+  await expect(banner.getByText("gpt-5", { exact: true })).toBeVisible();
+  await expect(banner.getByText("Last move")).toBeVisible();
 });
 
 for (const theme of ["light", "dark"] as const) {

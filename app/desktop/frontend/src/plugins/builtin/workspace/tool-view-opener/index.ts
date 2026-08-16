@@ -3,8 +3,7 @@ import { workspaceToolViewOpener } from "../application/toolViewOpenerContributi
 
 export default definePlugin({
   name: "lyra.builtin.workspace.tool-view-opener",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(TOOL_VIEW_OPENER, workspaceToolViewOpener());
+  setup(ctx) {
+    ctx.contribute(TOOL_VIEW_OPENER, workspaceToolViewOpener());
   },
 });

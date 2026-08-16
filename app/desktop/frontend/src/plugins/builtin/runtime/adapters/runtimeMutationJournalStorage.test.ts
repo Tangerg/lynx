@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getContainer, resetContainer } from "@/main/container";
-import type { Host } from "@/plugins/sdk";
+import type { KeyValueStore } from "@/plugins/sdk";
 import { installedRuntimeMutationJournalStorage } from "../application/ports/mutationJournal";
 import { installRuntimeMutationJournalStorage } from "./runtimeMutationJournalStorage";
 
@@ -14,15 +14,16 @@ afterEach(async () => {
 describe("Runtime mutation journal storage adapter", () => {
   it("owns verified opaque records in Runtime plugin storage and disconnects on unload", () => {
     const stored = new Map<string, unknown>();
-    const host: Pick<Host, "storage"> = {
+    const ctx: { storage: KeyValueStore } = {
       storage: {
         get: (key) => stored.get(key),
         set: (key, value) => stored.set(key, value),
         remove: (key) => stored.delete(key),
         keys: () => [...stored.keys()],
+        clear: () => stored.clear(),
       },
     };
-    const dispose = installRuntimeMutationJournalStorage(host);
+    const dispose = installRuntimeMutationJournalStorage(ctx);
     cleanups.push(dispose);
 
     const storage = installedRuntimeMutationJournalStorage();
@@ -42,15 +43,16 @@ describe("Runtime mutation journal storage adapter", () => {
 
   it("maps the shipped v1 snapshot only through the explicit migration key", () => {
     const stored = new Map<string, unknown>([["mutation-journal-v1", { version: 1 }]]);
-    const host: Pick<Host, "storage"> = {
+    const ctx: { storage: KeyValueStore } = {
       storage: {
         get: (key) => stored.get(key),
         set: (key, value) => stored.set(key, value),
         remove: (key) => stored.delete(key),
         keys: () => [...stored.keys()],
+        clear: () => stored.clear(),
       },
     };
-    cleanups.push(installRuntimeMutationJournalStorage(host));
+    cleanups.push(installRuntimeMutationJournalStorage(ctx));
     const storage = installedRuntimeMutationJournalStorage();
 
     expect(storage?.get("legacy:v1")).toEqual({ version: 1 });
@@ -64,7 +66,7 @@ describe("Runtime mutation journal storage adapter", () => {
     let discardWrites = true;
     let discardRemovals = false;
     let hideKeys = false;
-    const host: Pick<Host, "storage"> = {
+    const ctx: { storage: KeyValueStore } = {
       storage: {
         get: (key) => stored.get(key),
         set: (key, value) => {
@@ -74,9 +76,10 @@ describe("Runtime mutation journal storage adapter", () => {
           if (!discardRemovals) stored.delete(key);
         },
         keys: () => (hideKeys ? [] : [...stored.keys()]),
+        clear: () => stored.clear(),
       },
     };
-    cleanups.push(installRuntimeMutationJournalStorage(host));
+    cleanups.push(installRuntimeMutationJournalStorage(ctx));
     const storage = installedRuntimeMutationJournalStorage()!;
 
     expect(() => storage.set("entry:key-1", { version: 2 })).toThrow("not persisted");
@@ -91,18 +94,19 @@ describe("Runtime mutation journal storage adapter", () => {
 
   it("rebuilds a client that was constructed before journal storage installed", () => {
     const stored = new Map<string, unknown>();
-    const host: Pick<Host, "storage"> = {
+    const ctx: { storage: KeyValueStore } = {
       storage: {
         get: (key) => stored.get(key),
         set: (key, value) => stored.set(key, value),
         remove: (key) => stored.delete(key),
         keys: () => [...stored.keys()],
+        clear: () => stored.clear(),
       },
     };
     const beforeInstall = getContainer().client();
     const closeBeforeInstall = vi.spyOn(beforeInstall, "close");
 
-    cleanups.push(installRuntimeMutationJournalStorage(host));
+    cleanups.push(installRuntimeMutationJournalStorage(ctx));
     const afterInstall = getContainer().client();
 
     expect(afterInstall).not.toBe(beforeInstall);

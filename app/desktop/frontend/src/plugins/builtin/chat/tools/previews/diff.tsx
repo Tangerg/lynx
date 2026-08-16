@@ -139,14 +139,13 @@ function ApplyPatchPreview(props: ToolPreviewProps) {
 
 export const diff = definePlugin({
   name: "lyra.builtin.diff",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of diffToolPreviews({
       edit: EditPreview,
       write: WritePreview,
       apply_patch: ApplyPatchPreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

@@ -1,4 +1,4 @@
-import type { Host } from "@/plugins/sdk";
+import type { ConfigService, KeyValueStore } from "@/plugins/sdk";
 import { configureRuntimeEndpoint } from "../application/ports/runtimeEndpoint";
 
 const CONFIG_KEY = "runtime.endpoint";
@@ -8,24 +8,27 @@ const STORAGE_KEY = "endpoint";
  * Bind the Runtime endpoint application port to Host configuration and mirror
  * accepted changes into this plugin's persistent storage.
  */
-export function installRuntimeEndpointConfiguration(
-  host: Pick<Host, "config" | "storage">,
-): () => void {
-  const stored = host.storage.get(STORAGE_KEY);
+interface EndpointBindings {
+  config: ConfigService;
+  storage: KeyValueStore;
+}
+
+export function installRuntimeEndpointConfiguration(ctx: EndpointBindings): () => void {
+  const stored = ctx.storage.get(STORAGE_KEY);
   if (typeof stored === "string" && stored.trim()) {
-    host.config.set(CONFIG_KEY, stored);
+    ctx.config.set(CONFIG_KEY, stored);
   }
 
   const disposePort = configureRuntimeEndpoint({
     read: () => {
-      const value = host.config.get(CONFIG_KEY);
+      const value = ctx.config.get(CONFIG_KEY);
       return typeof value === "string" ? value : undefined;
     },
-    write: (endpoint) => host.config.set(CONFIG_KEY, endpoint),
+    write: (endpoint) => ctx.config.set(CONFIG_KEY, endpoint),
   });
 
-  host.config.onChange(CONFIG_KEY, (value) => {
-    if (typeof value === "string") host.storage.set(STORAGE_KEY, value);
+  ctx.config.onChange(CONFIG_KEY, (value) => {
+    if (typeof value === "string") ctx.storage.set(STORAGE_KEY, value);
   });
 
   return disposePort;

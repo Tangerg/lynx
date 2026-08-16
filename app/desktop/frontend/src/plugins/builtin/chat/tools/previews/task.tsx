@@ -33,10 +33,9 @@ function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
 
 export const taskPreview = definePlugin({
   name: "lyra.builtin.task-preview",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of delegationToolPreview(TaskPreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

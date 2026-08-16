@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 import { submitComposer, type SubmitDeps } from "./submitComposer";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 describe("submitComposer", () => {
   function deps(input: Partial<SubmitDeps>): SubmitDeps {
@@ -75,12 +76,11 @@ describe("submitComposer", () => {
 
   it("routes a registered slash command to its handler — sendInput not called", async () => {
     const run = vi.fn();
-    await loadPlugin(
+    await loadPluginsForTest(
       definePlugin({
         name: "test.submit.slash",
-        version: "1.0.0",
-        setup: ({ host }) => {
-          host.extensions.contribute(SLASH_COMMAND, { description: "echo", run }, { key: "/echo" });
+        setup: (ctx) => {
+          ctx.contribute(SLASH_COMMAND, { description: "echo", run }, { key: "/echo" });
         },
       }),
     );

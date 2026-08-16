@@ -40,9 +40,12 @@ function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; acc
       style={{ background: bg }}
     >
       {/* Nested rounded rect: the inner radius has to be the outer one minus the
-          inset, or the two curves fight. Derived so it tracks the shape scale. */}
+          inset, or the two curves fight. Derived so it tracks the shape scale, and
+          floored — a negative radius is an invalid declaration, so the browser
+          drops the whole thing rather than clamping it, and the tightest rung on
+          the ladder is already narrower than this inset. */}
       <span
-        className="absolute inset-x-[3px] top-[3px] bottom-[2px] rounded-[calc(var(--shape-2xs)-3px)]"
+        className="absolute inset-x-[3px] top-[3px] bottom-[2px] rounded-[max(0px,calc(var(--shape-2xs)-3px))]"
         style={{ background: surface }}
       />
       <span

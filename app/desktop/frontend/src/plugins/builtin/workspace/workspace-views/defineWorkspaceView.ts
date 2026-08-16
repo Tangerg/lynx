@@ -4,16 +4,16 @@
 // `defineThemePlugin` in theme/kit: the kernel exposes only the generic
 // `contribute` write path; per-domain ergonomics belong to the domain.
 
-import type { PluginSpec, WorkspaceViewSpec } from "@/plugins/sdk";
+import type { WorkspaceViewSpec } from "@/plugins/sdk";
+import type { AnyPlugin } from "dougong";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
-export function defineWorkspaceView(spec: WorkspaceViewSpec): PluginSpec {
+export function defineWorkspaceView(spec: WorkspaceViewSpec): AnyPlugin {
   return definePlugin({
     name: `lyra.builtin.view-${spec.id}`,
-    version: "1.0.0",
-    setup({ host }) {
-      host.extensions.contribute(WORKSPACE_VIEW, spec);
+    setup(ctx) {
+      ctx.contribute(WORKSPACE_VIEW, spec);
     },
   });
 }

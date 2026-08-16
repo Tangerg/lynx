@@ -10,10 +10,9 @@ const ProvidersPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.providers-pane",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeGateway = installProviderGateway();
-    registerSettingsPane(host, providersSettingsPane(ProvidersPane));
-    return disposeGateway;
+    registerSettingsPane(ctx, providersSettingsPane(ProvidersPane));
+    ctx.cleanup(disposeGateway);
   },
 });

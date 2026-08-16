@@ -40,14 +40,13 @@ function StopShellPreview(props: ToolPreviewProps) {
 // §4.4.2 display conventions).
 export const shellPreview = definePlugin({
   name: "lyra.builtin.shell",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of shellToolPreviews({
       shell: ShellCommandPreview,
       read_shell_output: ShellOutputPreview,
       stop_shell: StopShellPreview,
     })) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

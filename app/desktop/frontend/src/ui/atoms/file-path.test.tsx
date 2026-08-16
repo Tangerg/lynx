@@ -8,7 +8,7 @@ import { FilePath } from "./file-path";
 describe("FilePath", () => {
   it("pins the filename and lets the directory take the squeeze", () => {
     const { container } = render(<FilePath path="src/plugins/builtin/chat/Composer.tsx" />);
-    const parts = [...container.querySelectorAll("span > span")];
+    const parts = [...(container.firstElementChild?.children ?? [])];
 
     expect(parts.map((p) => p.textContent)).toEqual([
       "src/plugins/builtin/chat",
@@ -24,6 +24,17 @@ describe("FilePath", () => {
     // the whole row past a column narrower than the name.
     expect(parts[2]?.className).toContain("shrink");
     expect(parts[2]?.className).toContain("truncate");
+  });
+
+  it("isolates the directory's own text direction inside the rtl clip", () => {
+    const { container } = render(<FilePath path="/Users/me/app/tools/preview.ts" />);
+    const clip = container.querySelector("[dir=rtl]");
+    // The whole directory sits in ONE ltr isolate. Without it the leading `/` of an
+    // absolute path takes the surrounding rtl direction and is reordered to the far
+    // side of the run, next to the separator — a second slash appears out of nowhere.
+    expect(clip?.children).toHaveLength(1);
+    expect(clip?.firstElementChild?.getAttribute("dir")).toBe("ltr");
+    expect(clip?.firstElementChild?.textContent).toBe("/Users/me/app/tools");
   });
 
   it("renders a bare filename as just the filename", () => {

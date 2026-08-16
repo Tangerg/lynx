@@ -22,7 +22,7 @@ import {
   closeActiveWorkspaceView,
   toggleWorkspaceDock,
 } from "@/plugins/builtin/workspace/public/navigation";
-import { definePlugin } from "@/plugins/sdk";
+import { COMMAND, definePlugin } from "@/plugins/sdk";
 import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
 import { useUiStore } from "@/state/uiStore";
 import { navigator } from "@/lib/navigation";
@@ -44,8 +44,7 @@ function openNewChatSession(): void {
 
 export const defaultCommands = definePlugin({
   name: "lyra.builtin.default-commands",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const command of defaultStaticCommands({
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
       toggleDock: toggleWorkspaceDock,
@@ -56,7 +55,7 @@ export const defaultCommands = definePlugin({
       historyBack: () => navigator().back(),
       historyForward: () => navigator().forward(),
     })) {
-      host.commands.register(command);
+      ctx.contribute(COMMAND, command);
     }
   },
 });

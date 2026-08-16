@@ -2,11 +2,12 @@ import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { addLocaleBundle, setLocale } from "@/lib/i18n";
 import { WORKSPACE_LIST_FILES_KEY } from "@/plugins/builtin/workspace/public/queries";
 import { Composer } from "./Composer";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
   runtimeCommandsAvailable: () => true,
@@ -31,12 +32,11 @@ function wrap(ui: ReactElement) {
 // Composer relies on a built-in composer-keymap registration to bind
 // Enter → submit. Set up a tiny in-test plugin that mirrors it.
 async function withEnterKeymap() {
-  await loadPlugin(
+  await loadPluginsForTest(
     definePlugin({
       name: "test.composer-keymap",
-      version: "1.0.0",
-      setup: ({ host }) => {
-        host.extensions.contribute(COMPOSER_KEY_BINDING, {
+      setup: (ctx) => {
+        ctx.contribute(COMPOSER_KEY_BINDING, {
           key: "Enter",
           description: "submit",
           handler: ({ submit }) => {

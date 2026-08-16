@@ -1,16 +1,15 @@
 // Global test setup — runs before every spec.
 //
-// Each test mutates module-level singletons (Zustand stores, plugin
-// registry) so we wipe them between tests to keep specs hermetic. New
-// registry slots only need to be added in `registry.INITIAL_STATE`; this
-// file stays a one-liner per store.
+// Each test mutates module-level singletons (Zustand stores, the kernel) so we
+// wipe them between tests to keep specs hermetic — one line per store, plus
+// tearing down whatever Host a spec stood up.
 
 import { afterEach, beforeEach } from "vitest";
 import { MotionGlobalConfig } from "motion/react";
 import { useConfigStore } from "@/plugins/sdk/config";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { useNotificationStore } from "@/plugins/sdk/notifications";
-import { usePluginStore } from "@/plugins/sdk/registry";
+import { resetKernelForTest } from "@/plugins/sdk/testKernel";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { configureNavigator } from "@/lib/navigation";
 import { createMemoryNavigator } from "@/lib/navigation.testkit";
@@ -35,7 +34,8 @@ installRuntimeCapabilityPort();
 // so an exit animation can otherwise retain its completion Promise forever.
 MotionGlobalConfig.skipAnimations = true;
 
-beforeEach(() => {
+beforeEach(async () => {
+  await resetKernelForTest();
   // A fresh location per spec, with its own history. First, for the same reason.
   configureNavigator(createMemoryNavigator());
   installAgentStatePorts();
@@ -44,7 +44,6 @@ beforeEach(() => {
   installComposerStatePorts();
   installWorkspaceNavigationPort();
   installRuntimeCapabilityPort();
-  usePluginStore.getState().resetForTest();
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });
   useConfigStore.setState({ values: new Map(), subscribers: new Map() });

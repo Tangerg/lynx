@@ -10,12 +10,32 @@ export { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 
 export type { ConfigValue } from "./config";
 
-export { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
-export { definePluginPack } from "./definePluginPack";
+export { definePlugin } from "./definePlugin";
+export { createKernel, installPlugins, startKernel, stopKernel } from "./bootstrap";
+export type { Contributor, PluginContext, PluginSpec } from "./definePlugin";
+export { contributeContentBlock, contributeLayout } from "./contributeHelpers";
+export type { Contribution } from "./contracts";
+export {
+  contributionsTo,
+  subscribeContributions,
+  useContributions,
+  useInstalledPlugins,
+  useKernelRevision,
+} from "./kernel";
+export { COMMANDS, CONFIG, I18N, PLUGINS, WINDOW, WORKSPACE } from "./services";
+export type {
+  AmbientShell,
+  CommandsService,
+  ConfigService,
+  I18nService,
+  PluginsService,
+  WindowService,
+  WorkspaceService,
+} from "./services";
 
 // Open extension points — the JetBrains-style substrate: a plugin defines a
 // typed point, any plugin contributes, any plugin consumes.
-export { defineExtensionPoint } from "./defineExtensionPoint";
+export { defineExtensionPoint } from "./contracts";
 // Built-in kernel points (COLOR_THEME / COMMAND / LAYOUT_SLOT / …). Re-exported so
 // sideload bundles — which only see the SDK via `window.__LYRA__.SDK` — can
 // contribute to kernel surfaces, the same way built-ins do via the deep path.
@@ -46,7 +66,6 @@ export type { ParameterizedQueryOptions } from "./dataQuery";
 // getState). `normalizeCombo` + the toast-event contract stay internal to
 // `./registry` / `./hostToast` (plugins don't need them — points normalize combos
 // on contribute, and toasts go through `host.notify`).
-export { usePluginStore } from "./registry";
 
 // Read side. Plain reads use the generic substrate (use/lookupExtensionPoint,
 // use/lookupExtensionByKey); the rest are selectors with real logic.
@@ -130,19 +149,13 @@ export type {
   ExtensionContributionOptions,
   ExtensionKeying,
   ExtensionPoint,
-  Host,
-  ContributingHost,
   LayoutSlotSpec,
-  LoadedPlugin,
   LogEvent,
   LogLevel,
   LogSubscriber,
   MessageRoleSpec,
-  PluginContext,
   PluginErrorFallbackProps,
   PluginErrorFallbackSpec,
-  PluginPackSpec,
-  PluginSpec,
   ReadyHandler,
   RouteSpec,
   SettingsPaneSpec,

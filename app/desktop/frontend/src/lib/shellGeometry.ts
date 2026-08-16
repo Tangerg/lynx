@@ -7,14 +7,21 @@
 export const SIDEBAR_MIN_WIDTH_PX = 240;
 export const SIDEBAR_DEFAULT_WIDTH_PX = 256;
 
-export const DOCK_MIN_WIDTH_PX = 300;
+export const DOCK_MIN_WIDTH_PX = 420;
 /** One stable workspace width. Switching tabs must not make both reading
  *  columns jump; the live row clamp still protects chat on narrow windows.
  *
- *  336 is where the three references land (Nova 336, Zed 320, JetBrains 300)
- *  against a reading column of 768–820. The dock had been 520 against 736 — the
- *  ratio inverted, with ~90px taken off the column people actually read. */
-export const DOCK_DEFAULT_WIDTH_PX = 336;
+ *  Sized for what this flank actually holds. 336 came from outline panels (Nova
+ *  336, Zed 320, JetBrains 300) — navigators, where the content is a list of
+ *  names. This one hosts diffs, terminals and file viewers, and the two shipping
+ *  agent desktops that host the same things both land on 640 (Codex's right
+ *  panel, MiniMax's file panel), with Codex refusing to go under 500 at all. At
+ *  336 a unified diff had ~22 characters of code per line after its gutters and
+ *  a navigator beside it, which is a column that renders but cannot be read.
+ *
+ *  On a narrow window `maxDockWidth` still takes this down to half the row, so
+ *  the number is a ceiling the user drags away from rather than a promise. */
+export const DOCK_DEFAULT_WIDTH_PX = 640;
 
 /** Floor for the reading column. Enforced against the live window width, so the
  *  drawer's maximum shrinks with the window instead of being a fixed number. */

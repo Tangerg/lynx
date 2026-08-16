@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import type { ContributingHost, DataProviderSpec } from "@/plugins/sdk";
+import type { Contributor, DataProviderSpec } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { isErrorType } from "@/rpc";
 import {
@@ -23,10 +23,10 @@ function requiredQuery(params: unknown): McpToolsQuery {
   return params as McpToolsQuery;
 }
 
-export function registerMCPDataProviders(host: ContributingHost): void {
+export function registerMCPDataProviders(ctx: Contributor): void {
   const client = () => getContainer().client();
   const contribute = (provider: DataProviderSpec): void => {
-    host.extensions.contribute(DATA_PROVIDER, provider);
+    ctx.contribute(DATA_PROVIDER, provider);
   };
   contribute({
     key: MCP_SERVERS_KEY,

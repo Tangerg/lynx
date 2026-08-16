@@ -1,4 +1,4 @@
-import { definePlugin } from "@/plugins/sdk";
+import { COMMAND, definePlugin } from "@/plugins/sdk";
 import {
   exportConversationJson,
   exportConversationMarkdown,
@@ -8,15 +8,13 @@ import { conversationExportCommands } from "./application/conversationExportComm
 
 export default definePlugin({
   name: "lyra.builtin.conversation-export",
-  version: "1.0.0",
-  requires: ["lyra.builtin.workspace-bootstrap"],
-  setup({ host }) {
+  setup(ctx) {
     for (const command of conversationExportCommands({
       exportMarkdown: exportConversationMarkdown,
       exportJson: exportConversationJson,
       importJson: importConversationJson,
     })) {
-      host.commands.register(command);
+      ctx.contribute(COMMAND, command);
     }
   },
 });

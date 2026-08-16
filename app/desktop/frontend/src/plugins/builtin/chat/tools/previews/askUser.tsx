@@ -30,10 +30,9 @@ function AskUserPreview({ tool }: ToolPreviewProps) {
 
 export const askUserPreview = definePlugin({
   name: "lyra.builtin.ask-user-preview",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of askUserToolPreview(AskUserPreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

@@ -57,7 +57,7 @@ export function SessionList({
           size="sm"
           onClick={() => setShowAll((open) => !open)}
           className={cn(
-            "rounded-[var(--surface-card-radius)] border-0 bg-transparent px-2 py-1 text-left text-ui-xs text-fg-faint transition-colors hover:bg-hover hover:text-fg",
+            "rounded-[var(--row-radius)] border-0 bg-transparent px-2 py-1 text-left text-ui-xs text-fg-faint transition-colors hover:bg-hover hover:text-fg",
             indented && "pl-[calc(0.5rem+var(--icon-sm)+var(--density-row-gap))]",
           )}
         >

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentSessionSnapshot } from "../ports/runtimeGateway";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { projectAgentSessionSnapshot } from "./sessionSnapshot";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 const SESSION_ID = "ses_snapshot";
 const ROOT_RUN_ID = "run_root";
@@ -12,7 +12,7 @@ const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
 
 beforeAll(async () => {
   const { default: foldPlugin } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
-  await loadPlugin(foldPlugin);
+  await loadPluginsForTest(foldPlugin);
 });
 
 describe("projectAgentSessionSnapshot", () => {

@@ -116,10 +116,9 @@ function LspPreview(props: ToolPreviewProps) {
 
 export const lspPreviews = definePlugin({
   name: "lyra.builtin.lsp-previews",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of lspToolPreview(LspPreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

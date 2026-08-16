@@ -13,10 +13,9 @@ const UsagePane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.usage-pane",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeGateway = installUsageGateway();
-    registerSettingsPane(host, usageSettingsPane(UsagePane));
-    return disposeGateway;
+    registerSettingsPane(ctx, usageSettingsPane(UsagePane));
+    ctx.cleanup(disposeGateway);
   },
 });

@@ -19,7 +19,7 @@ import {
   type RootRunSettlement,
   subscribeRootRunSettlements,
 } from "@/plugins/builtin/agent/public/run";
-import { definePlugin } from "@/plugins/sdk";
+import { definePlugin, READY_HANDLER } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 
 function onSettled({ sessionId, status, errorMessage }: RootRunSettlement): void {
@@ -58,8 +58,7 @@ function onSettled({ sessionId, status, errorMessage }: RootRunSettlement): void
 
 export const completionNotify = definePlugin({
   name: "lyra.builtin.completion-notify",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     // Prime notification permission at load (window focused → prompt allowed).
     ensureOsNotifyPermission();
     // Subscribe to run settlements only once the app is READY. The agent
@@ -69,10 +68,10 @@ export const completionNotify = definePlugin({
     // code in the manifest import chain, crashed the whole load and blanked the
     // window. onReady fires after markAppReady, when every setup has run.
     let unsubscribe: (() => void) | undefined;
-    host.lifecycle.onReady(() => {
+    ctx.contribute(READY_HANDLER, () => {
       unsubscribe = subscribeRootRunSettlements(onSettled);
       disposeOnHmr(unsubscribe);
     });
-    return () => unsubscribe?.();
+    ctx.cleanup(() => unsubscribe?.());
   },
 });

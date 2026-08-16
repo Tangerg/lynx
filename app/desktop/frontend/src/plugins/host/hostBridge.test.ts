@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { BEFORE_UNLOAD_HANDLER, definePlugin } from "@/plugins/sdk";
 import { configureHostTeardown, publishHostBridge } from "./hostBridge";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 describe("host bridge teardown", () => {
   it("runs plugin unload handlers before the composition root teardown", async () => {
     const order: string[] = [];
-    await loadPlugin(
+    await loadPluginsForTest(
       definePlugin({
         name: "test.host-before-unload",
-        version: "1.0.0",
-        setup({ host }) {
-          host.lifecycle.onBeforeUnload(() => order.push("plugin"));
+        setup(ctx) {
+          ctx.contribute(BEFORE_UNLOAD_HANDLER, () => order.push("plugin"));
         },
       }),
     );

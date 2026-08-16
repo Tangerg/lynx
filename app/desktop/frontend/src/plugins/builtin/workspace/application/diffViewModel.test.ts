@@ -53,19 +53,28 @@ describe("workspaceDiffViewModel", () => {
 describe("workspaceDiffFileHeader", () => {
   it("projects plain and renamed file header labels", () => {
     expect(workspaceDiffFileHeader(file({ path: "src/app.ts", added: 2, removed: 1 }))).toEqual({
-      displayPath: "src/app.ts",
+      path: "src/app.ts",
       added: 2,
       removed: 1,
     });
 
+    // The rename keeps BOTH paths — the header decides how to spend the width
+    // between them, which it cannot do from a pre-joined string.
     expect(
       workspaceDiffFileHeader(
         file({ path: "src/new.ts", previousPath: "src/old.ts", added: undefined, removed: 3 }),
       ),
     ).toEqual({
-      displayPath: "src/old.ts → src/new.ts",
+      path: "src/new.ts",
+      previousPath: "src/old.ts",
       added: undefined,
       removed: 3,
     });
+  });
+
+  it("omits previousPath entirely when the file was not renamed", () => {
+    expect(workspaceDiffFileHeader(file({ path: "src/app.ts" }))).not.toHaveProperty(
+      "previousPath",
+    );
   });
 });

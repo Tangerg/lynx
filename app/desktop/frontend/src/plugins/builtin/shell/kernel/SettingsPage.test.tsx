@@ -1,24 +1,24 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { drainBrowserTasks } from "@/test/browserTasks";
 import { SettingsPage } from "./SettingsPage";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 async function loadPanes() {
-  await loadPlugin(
+  await loadPluginsForTest(
     definePlugin({
       name: "test.settings",
-      version: "1.0.0",
-      setup: ({ host }) => {
-        host.extensions.contribute(SETTINGS_PANE, {
+      setup: (ctx) => {
+        ctx.contribute(SETTINGS_PANE, {
           id: "appearance",
           label: "Appearance",
           description: "Tune the interface",
           order: 0,
           component: () => <div data-testid="appearance-body">appearance body</div>,
         });
-        host.extensions.contribute(SETTINGS_PANE, {
+        ctx.contribute(SETTINGS_PANE, {
           id: "plugins",
           label: "Plugins",
           order: 10,

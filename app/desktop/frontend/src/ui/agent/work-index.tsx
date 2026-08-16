@@ -10,7 +10,10 @@ import { ScrollArea } from "@/ui/atoms/scroll-area";
  */
 export function AgentWorkIndexBody({ children }: { children: ReactNode }) {
   return (
-    <ScrollArea hideScrollbar className="px-[var(--density-navigation-gutter)] pb-5 pt-2">
+    <ScrollArea
+      hideScrollbar
+      className="agent-index-scroll px-[var(--density-navigation-gutter)] pb-5 pt-2"
+    >
       <div className="flex flex-col gap-y-[var(--density-navigation-section-gap)]">{children}</div>
     </ScrollArea>
   );

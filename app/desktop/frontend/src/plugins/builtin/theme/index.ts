@@ -6,8 +6,7 @@
 // imports. `themes/` holds the data files; `kit/` holds the shared
 // theme-authoring helper (`defineColorThemePlugin` + tokens + types).
 
-import type { PluginSpec } from "@/plugins/sdk";
-import { definePluginPack } from "@/plugins/sdk";
+import type { AnyPlugin } from "dougong";
 import { appearancePainter } from "./appearancePainter";
 import customTheme from "./themes/custom-theme";
 import atomOneDark from "./themes/atom-one-dark";
@@ -22,7 +21,7 @@ import tokyoNightLight from "./themes/tokyo-night-light";
 import tokyoNightStorm from "./themes/tokyo-night-storm";
 import { builtinVisualStyles } from "./visualStyles";
 
-const builtinThemes: PluginSpec[] = [
+const builtinThemes: AnyPlugin[] = [
   lyraDark,
   lyraLight,
   atomOneDark,
@@ -35,11 +34,9 @@ const builtinThemes: PluginSpec[] = [
   catppuccinLatte,
 ];
 
-// Themes have no `requires` and distinct ids, so child array order is purely
-// the picker's sort hint. The user-editable custom theme rides along as the
-// last child.
-export const appearancePack = definePluginPack({
-  name: "lyra.builtin.appearance-system",
-  version: "1.0.0",
-  children: [...builtinThemes, customTheme, ...builtinVisualStyles, appearancePainter],
-});
+export const appearancePlugins: AnyPlugin[] = [
+  ...builtinThemes,
+  customTheme,
+  ...builtinVisualStyles,
+  appearancePainter,
+];

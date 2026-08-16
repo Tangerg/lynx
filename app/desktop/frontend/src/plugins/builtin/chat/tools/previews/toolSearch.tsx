@@ -48,10 +48,9 @@ function ToolSearchPreview({ tool }: ToolPreviewProps) {
 
 export const toolSearchPreviewPlugin = definePlugin({
   name: "lyra.builtin.tool-search-preview",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of toolSearchPreview(ToolSearchPreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });

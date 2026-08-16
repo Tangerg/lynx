@@ -1,14 +1,13 @@
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { installTaskReadoutPort } from "./adapters/taskReadoutStore";
 import { tasksStatusSlot } from "./application/taskContributions";
 import { TasksPill } from "./ui/TasksPill";
 
 export const tasksPill = definePlugin({
   name: "lyra.builtin.tasks",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     const disposeTaskReadout = installTaskReadoutPort();
-    host.layout.register("sidebar.footer.status", tasksStatusSlot(TasksPill));
-    return disposeTaskReadout;
+    contributeLayout(ctx, "sidebar.footer.status", tasksStatusSlot(TasksPill));
+    ctx.cleanup(disposeTaskReadout);
   },
 });

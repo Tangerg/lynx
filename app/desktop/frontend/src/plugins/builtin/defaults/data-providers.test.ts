@@ -16,13 +16,13 @@ import type {
 } from "@/plugins/builtin/workspace/public/queries";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import { createLyraClient, JSONRPC_VERSION } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
 import type { WireMethodName } from "@/rpc/wire.methods.generated";
 import { defaultDataProviders } from "./index";
+import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 afterEach(resetContainer);
 
@@ -38,7 +38,7 @@ async function runProvider<T>(
   const client = createLyraClient(t);
   try {
     setContainer({ client: () => client });
-    await loadPlugin(defaultDataProviders);
+    await loadPluginsForTest(defaultDataProviders);
 
     const fetcher = lookupDataProvider<T>(key);
     if (!fetcher) throw new Error(`no provider for "${key}"`);
@@ -60,7 +60,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     const client = createLyraClient(createMemoryTransport());
     try {
       setContainer({ client: () => client });
-      await loadPlugin(defaultDataProviders);
+      await loadPluginsForTest(defaultDataProviders);
 
       for (const key of [
         "diff",
@@ -305,7 +305,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     const transport = createMemoryTransport();
     const client = createLyraClient(transport);
     setContainer({ client: () => client });
-    await loadPlugin(defaultDataProviders);
+    await loadPluginsForTest(defaultDataProviders);
     const fetcher = lookupDataProvider("models");
     if (!fetcher) throw new Error('no provider for "models"');
 

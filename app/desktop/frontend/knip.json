@@ -5,7 +5,7 @@
     "visual/**/*.visual.spec.ts",
     "src/plugins/builtin/chat/message/ui/index.ts",
     "src/plugins/builtin/theme/kit/defineColorThemePlugin.ts",
-    "src/plugins/sdk/host.ts",
+    "src/plugins/sdk/index.ts",
     "src/rpc/index.ts",
     "src/ui/atoms/index.ts"
   ],

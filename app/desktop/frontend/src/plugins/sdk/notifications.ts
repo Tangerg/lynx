@@ -11,6 +11,7 @@
 // `usePluginErrorStore` for consistency.
 
 import type { NotificationEntry, NotificationLevel } from "./types";
+import { dispatchToast } from "./hostToast";
 import { toast } from "sonner";
 import { create } from "zustand";
 
@@ -126,4 +127,18 @@ export function notifyInfo(message: string, opts?: NotifyOptions): void {
 }
 export function notifyError(message: string, opts?: NotifyOptions): void {
   notify("error", message, opts);
+}
+
+/**
+ * A plugin's own notification, attributed to it in the feed. Reaches "warn",
+ * which the app-side helpers above deliberately don't.
+ *
+ * The feed entry is written before the toast is dispatched, so anything reacting
+ * to the toast can already cross-reference it. The toast goes out as an event
+ * rather than a `toast()` call so a plugin's notification path pulls no React
+ * portal machinery into the SDK.
+ */
+export function notifyFrom(plugin: string, message: string, level: NotificationLevel): void {
+  useNotificationStore.getState().push({ plugin, level, message });
+  dispatchToast(message, level);
 }

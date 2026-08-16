@@ -38,10 +38,9 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
 
 export const globPreview = definePlugin({
   name: "lyra.builtin.glob-preview",
-  version: "1.0.0",
-  setup({ host }) {
+  setup(ctx) {
     for (const preview of globToolPreview(GlobPreview)) {
-      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+      ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },
 });
