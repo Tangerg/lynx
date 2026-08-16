@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-13";
+export const PROTOCOL_VERSION = "2026-08-17";
 
 // HTTP entrypoints implemented by this runtime build.
 export const HTTP_ENDPOINTS = {
@@ -163,7 +163,7 @@ export type ArtifactItem =
   | { type: "agentMessage"; content?: ArtifactContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
   | { type: "question"; createdAt: string; id: string; question?: ArtifactQuestion; runId: string; status: ItemStatus }
-  | { type: "toolCall"; durationMillis?: number; error?: ArtifactProblem; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ArtifactToolInvocation }
+  | { type: "toolCall"; approvalDecision?: ApprovalDecision; durationMillis?: number; error?: ArtifactProblem; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ArtifactToolInvocation }
   | { type: "compaction"; createdAt: string; droppedMessages?: number; id: string; runId: string; status: ItemStatus; summary?: string };
 
 export interface ArtifactModelUsage {
@@ -691,7 +691,7 @@ export type Item =
   | { type: "agentMessage"; content?: ContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
   | { type: "question"; createdAt: string; id: string; question?: Question; runId: string; status: ItemStatus }
-  | { type: "toolCall"; durationMillis?: number; error?: ProblemData; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ToolInvocation }
+  | { type: "toolCall"; approvalDecision?: ApprovalDecision; durationMillis?: number; error?: ProblemData; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ToolInvocation }
   | { type: "compaction"; createdAt: string; droppedMessages?: number; id: string; runId: string; status: ItemStatus; summary?: string };
 
 export type ItemDelta =

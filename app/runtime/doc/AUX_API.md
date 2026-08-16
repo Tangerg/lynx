@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-13`）
+# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-17`）
 
 > **状态：正式契约（canonical）。** 本文是 [`API.md`](./API.md) 的配套契约，定义 Lyra Runtime 的**旁路面**——不经 LLM 的
 > 辅助能力：git/VCS、失效事件流、会话回退 / 派生 / 归档、MCP 生命周期、审批 scope。与 `API.md` /
@@ -11,7 +11,7 @@
 > **字段级真相在生成物**（`runtime/contract/{schema,openrpc,manifest}.json` 与 `API_REFERENCE.md`，`API.md §14`）。
 > 本文写语义与不变量，不重述字段表。
 >
-> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-13`**（与 `API.md` 同）。
+> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-17`**（与 `API.md` 同）。
 
 ---
 

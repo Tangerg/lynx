@@ -223,7 +223,7 @@ func registerItemUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "approvalDecision", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: createdItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
@@ -429,7 +429,7 @@ func registerArtifactUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "approvalDecision", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: createdItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})

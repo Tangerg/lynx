@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
@@ -34,13 +35,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
-	if protocol.SessionArtifactVersion != 18 {
-		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v18",
+	if protocol.SessionArtifactVersion != 19 {
+		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v19",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV18RoundTripsEveryFieldItCarries is the rest of gate 16.
+// TestArtifactV19RoundTripsEveryFieldItCarries is the rest of gate 16.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -53,7 +54,7 @@ func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV18RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV19RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -490,9 +491,10 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 	}), itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_tool", RunID: "run_done", Kind: transcript.ToolCall,
 		Status: transcript.ItemCompleted, OccurredAt: time.Unix(7, 0).UTC(),
-		FinishedAt:  time.UnixMilli(7250).UTC(),
-		SafetyClass: tool.SafetyClassExec,
-		Tool:        &transcript.ToolInvocation{Name: "shell", Arguments: arguments, Result: &result},
+		FinishedAt:       time.UnixMilli(7250).UTC(),
+		SafetyClass:      tool.SafetyClassExec,
+		ApprovalDecision: approval.Allow,
+		Tool:             &transcript.ToolInvocation{Name: "shell", Arguments: arguments, Result: &result},
 	}), itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_failed", RunID: "run_failed", Kind: transcript.ToolCall,
 		Status: transcript.ItemIncomplete, OccurredAt: time.Unix(8, 0).UTC(),

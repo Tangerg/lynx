@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-13",
-    "minSupported": "2026-08-13"
+    "current": "2026-08-17",
+    "minSupported": "2026-08-17"
   },
   "features": [
     "reasoning",
@@ -2781,6 +2781,7 @@
             "durationMillis",
             "tool",
             "safetyClass",
+            "approvalDecision",
             "error"
           ]
         },
@@ -3518,6 +3519,7 @@
             "durationMillis",
             "tool",
             "safetyClass",
+            "approvalDecision",
             "error"
           ]
         },
@@ -4357,11 +4359,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(18)"
+          "constraint": "minimum(19)"
         },
         {
           "field": "version",
-          "constraint": "maximum(18)"
+          "constraint": "maximum(19)"
         }
       ]
     },

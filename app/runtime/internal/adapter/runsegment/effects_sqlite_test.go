@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -1257,6 +1258,131 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	if state != "open" || encodedAnswers != "" || storedClaimedAt != 0 {
 		t.Fatalf("advanced barrier state=%q answers=%q claimedAt=%d", state, encodedAnswers, storedClaimedAt)
 	}
+}
+
+func TestClaimResumeAtomicallyPersistsToolApprovalDecision(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	createdAt := time.Unix(20, 0).UTC()
+	pending := singleRunPending(
+		t, "run_approval_claim", "session_approval_claim", "member_approval_claim",
+		"request_approval_claim", "item_approval_claim", createdAt, createdAt.Add(time.Second),
+	)
+	arguments, err := tool.ArgumentsFromMap(map[string]any{
+		"command": "go test ./...", "description": "Run tests",
+	})
+	if err != nil {
+		t.Fatalf("tool arguments: %v", err)
+	}
+	invocation := transcript.ToolInvocation{Name: "shell", Arguments: arguments}
+	pending.Capabilities.InterruptKinds = []interrupt.Kind{interrupt.Approval}
+	pending.Interrupts[0].Kind = interrupt.Approval
+	pending.Interrupts[0].Question = nil
+	pending.Interrupts[0].Approval = &transcript.Approval{
+		Tool: invocation, Risk: tool.RiskHigh,
+	}
+	if err := pending.Validate(); err != nil {
+		t.Fatalf("approval Pending: %v", err)
+	}
+
+	interrupts := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
+	checkpoints := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	transcriptStore := sqlite.NewTranscriptStore(db)
+	runStore := sqlite.NewRunStore(db)
+	if err := interrupts.Open(ctx, pending); err != nil {
+		t.Fatalf("open interrupt: %v", err)
+	}
+	toolItem, err := transcript.NewToolCall(transcript.ItemIdentity{
+		SessionID: pending.SessionID, RunID: pending.RootRunID,
+		ItemID: pending.Interrupts[0].ItemID, OccurredAt: pending.Interrupts[0].ItemOccurredAt,
+	}, invocation, tool.SafetyClassExec)
+	if err != nil {
+		t.Fatalf("new ToolCall: %v", err)
+	}
+	if err := transcriptStore.AppendItem(ctx, toolItem); err != nil {
+		t.Fatalf("seed ToolCall: %v", err)
+	}
+	root, _ := pending.RootContinuation()
+	checkpoint := runs.ExecutorCheckpoint{
+		RootMemberID: root.MemberID, Payload: []byte(`{"opaque":"tree"}`),
+		BuildID: checkpointBuildID, Scope: runs.ExecutionScope{SessionID: pending.SessionID},
+		ModelSelection: root.ModelSelection, Limits: root.Limits,
+	}
+	if err := checkpoints.SaveCheckpoint(ctx, checkpoint); err != nil {
+		t.Fatalf("save checkpoint: %v", err)
+	}
+	if err := runStore.Admit(ctx, run.Draft{
+		RunID: pending.RootRunID, SessionID: pending.SessionID, SegmentID: "segment_approval_claim",
+		ModelSelection: root.ModelSelection, Limits: root.Limits,
+		Capabilities: pending.Capabilities, CreatedAt: root.RunCreatedAt,
+	}); err != nil {
+		t.Fatalf("admit Run: %v", err)
+	}
+	runningRoot, found, err := runStore.Run(ctx, pending.RootRunID)
+	if err != nil || !found {
+		t.Fatalf("read Run: found=%t err=%v", found, err)
+	}
+	waitingRoot, err := runningRoot.Suspend(pending.CreatedAt)
+	if err != nil {
+		t.Fatalf("park Run: %v", err)
+	}
+	if err := runStore.Suspend(ctx, waitingRoot); err != nil {
+		t.Fatalf("persist Run park: %v", err)
+	}
+	answer := runs.InterruptAnswer{
+		InterruptItemID: pending.Bindings[0].InterruptItemID,
+		MemberID:        pending.Bindings[0].MemberID, RequestID: pending.Bindings[0].RequestID,
+		Resolution: interrupt.Resolution{Approved: true},
+	}
+	claim := runs.ResumeClaimCommit{
+		CommitID: "run_commit_approval_claim", Expected: pending,
+		Answers: []runs.InterruptAnswer{answer}, ClaimedAt: pending.CreatedAt.Add(time.Second),
+	}
+	newEffects := func(state RunStore) *Effects {
+		return New(Config{
+			ResumeClaims: interrupts, ExecutorCheckpoints: checkpoints,
+			ToolApprovals: transcriptStore, State: state,
+			Tx: func(ctx context.Context, fn func(context.Context) error) error {
+				return sqlite.RunInTx(ctx, db, fn)
+			},
+		})
+	}
+
+	markerErr := errors.New("write approval claim marker")
+	if _, err := newEffects(failingWaitingRunWriter{
+		RunStore: runStore, recordErr: markerErr,
+	}).ClaimResume(ctx, claim); !errors.Is(err, markerErr) {
+		t.Fatalf("ClaimResume rollback error = %v, want marker failure", err)
+	}
+	rolledBack, found, err := transcriptStore.Item(ctx, toolItem.ID())
+	if err != nil || !found || rolledBack.ApprovalDecision() != "" {
+		t.Fatalf("ToolCall after rollback = found:%t decision:%q err:%v", found, rolledBack.ApprovalDecision(), err)
+	}
+	if _, found, err := interrupts.Get(ctx, pending.RootRunID); err != nil || !found {
+		t.Fatalf("Pending after rollback = found:%t err:%v", found, err)
+	}
+	if _, err := checkpoints.LoadCheckpoint(ctx, root.MemberID); err != nil {
+		t.Fatalf("checkpoint after rollback: %v", err)
+	}
+
+	if _, err := newEffects(runStore).ClaimResume(ctx, claim); err != nil {
+		t.Fatalf("ClaimResume: %v", err)
+	}
+	resolved, found, err := transcriptStore.Item(ctx, toolItem.ID())
+	if err != nil || !found || resolved.ApprovalDecision() != approval.Allow {
+		t.Fatalf("resolved ToolCall = found:%t decision:%q err:%v", found, resolved.ApprovalDecision(), err)
+	}
+	if _, found, err := interrupts.Get(ctx, pending.RootRunID); err != nil || found {
+		t.Fatalf("Pending after commit = found:%t err:%v", found, err)
+	}
+	if _, err := checkpoints.LoadCheckpoint(ctx, root.MemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("checkpoint after commit = %v, want not found", err)
+	}
+	requireSQLiteHealthy(t, ctx, db)
 }
 
 func TestClaimResumeReconcilesAmbiguousCommit(t *testing.T) {

@@ -5,6 +5,7 @@ package itemfixture
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
@@ -27,6 +28,7 @@ type Input struct {
 	Question          *transcript.Question
 	Tool              *transcript.ToolInvocation
 	SafetyClass       tool.SafetyClass
+	ApprovalDecision  approval.Decision
 	Failure           *tool.Failure
 	Summary           string
 	DroppedMessages   int
@@ -88,7 +90,8 @@ func MustRestore(input Input) transcript.Item {
 		ExecutionDuration: input.ExecutionDuration, Kind: input.Kind,
 		Content: input.Content, Text: input.Text, Redacted: input.Redacted,
 		Question: input.Question, Tool: input.Tool, SafetyClass: input.SafetyClass,
-		Failure: input.Failure, Summary: input.Summary, DroppedMessages: input.DroppedMessages,
+		ApprovalDecision: input.ApprovalDecision,
+		Failure:          input.Failure, Summary: input.Summary, DroppedMessages: input.DroppedMessages,
 	})
 	if err != nil {
 		panic(err)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -273,7 +274,8 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 			OccurredAt: artifact.CreatedAt,
 		},
 		Status: status, Kind: kind, Text: artifact.Text, Redacted: artifact.Redacted,
-		Failure: failure, Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
+		ApprovalDecision: portableItemApprovalDecision(artifact.ApprovalDecision),
+		Failure:          failure, Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
 	}
 	if kind == transcript.ToolCall {
 		snapshot.Identity.OccurredAt = artifact.StartedAt
@@ -322,6 +324,17 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 		return transcript.Item{}, invalidArtifact(path, "%v", err)
 	}
 	return item, nil
+}
+
+func portableItemApprovalDecision(decision protocol.ApprovalDecision) approval.Decision {
+	switch decision {
+	case protocol.ApprovalApprove:
+		return approval.Allow
+	case protocol.ApprovalDeny:
+		return approval.Deny
+	default:
+		return ""
+	}
 }
 
 func portableItemStatus(path string, value protocol.ItemStatus) (transcript.ItemStatus, error) {

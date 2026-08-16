@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -905,6 +906,9 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 			{ItemID: "item_question", ItemOccurredAt: questionAt, RunID: "run_1", Kind: interrupt.Question, Question: question},
 		},
 	})
+	config.Continuation.approvalDecisions = map[string]approval.Decision{
+		"item_approval": approval.Allow,
+	}
 	reducer := newReducer(config)
 	opening := mustOpen(t, reducer)
 	if len(opening) != 1 {
@@ -923,6 +927,9 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	completed := completedItem(t, mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")}))
 	if completed.ID() != "item_approval" || !completed.OccurredAt().Equal(approvalAt) {
 		t.Fatalf("resumed completed tool = %s/%s, want original identity and occurrence", completed.ID(), completed.OccurredAt())
+	}
+	if completed.ApprovalDecision() != approval.Allow {
+		t.Fatalf("resumed completed Tool approval = %q, want %q", completed.ApprovalDecision(), approval.Allow)
 	}
 
 	second := mustReduce(t, reducer, ToolCallStarted{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet","description":"Vet server packages"}`})

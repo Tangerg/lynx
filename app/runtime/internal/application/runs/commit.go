@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -83,6 +84,28 @@ type ClaimedResume struct {
 	Checkpoint ExecutorCheckpoint
 }
 
+// ToolApprovalResolution is the exact durable ToolCall fact accepted by one
+// human answer. The persistence boundary resolves this identity inside the same
+// transaction that consumes the Pending barrier.
+type ToolApprovalResolution struct {
+	Identity   transcript.ItemIdentity
+	Invocation transcript.ToolInvocation
+	Decision   approval.Decision
+}
+
+func (resolution ToolApprovalResolution) Validate() error {
+	if err := resolution.Identity.Validate(); err != nil {
+		return err
+	}
+	if err := resolution.Invocation.Validate(true); err != nil {
+		return fmt.Errorf("runs: approval Tool invocation: %w", err)
+	}
+	if !resolution.Decision.Valid() {
+		return fmt.Errorf("runs: invalid Tool approval decision %q", resolution.Decision)
+	}
+	return nil
+}
+
 func (claim ResumeClaimCommit) Validate() error {
 	if strings.TrimSpace(claim.CommitID) == "" || claim.CommitID != strings.TrimSpace(claim.CommitID) {
 		return errors.New("runs: resume claim commit identity is required without surrounding whitespace")
@@ -109,7 +132,47 @@ func (claim ResumeClaimCommit) Validate() error {
 	if _, err := claim.QuestionReplacements(); err != nil {
 		return fmt.Errorf("runs: resume claim question projections: %w", err)
 	}
+	if _, err := claim.ToolApprovalResolutions(); err != nil {
+		return fmt.Errorf("runs: resume claim Tool approval projections: %w", err)
+	}
 	return nil
+}
+
+// ToolApprovalResolutions derives the durable verdict for every accepted
+// approval response from the exact Pending snapshot. It deliberately carries
+// the original invocation: edited arguments apply to execution after approval,
+// not to the historical call the person reviewed.
+func (claim ResumeClaimCommit) ToolApprovalResolutions() ([]ToolApprovalResolution, error) {
+	answersByItem := make(map[string]InterruptAnswer, len(claim.Answers))
+	for _, answer := range claim.Answers {
+		answersByItem[answer.InterruptItemID] = answer
+	}
+	resolutions := make([]ToolApprovalResolution, 0, len(claim.Expected.Interrupts))
+	for _, request := range claim.Expected.Interrupts {
+		if request.Kind != interrupt.Approval {
+			continue
+		}
+		if request.Approval == nil {
+			return nil, fmt.Errorf("approval item %q has no prompt", request.ItemID)
+		}
+		answer, ok := answersByItem[request.ItemID]
+		if !ok {
+			return nil, fmt.Errorf("approval item %q has no answer", request.ItemID)
+		}
+		resolution := ToolApprovalResolution{
+			Identity: transcript.ItemIdentity{
+				SessionID: claim.Expected.SessionID, RunID: request.RunID,
+				ItemID: request.ItemID, OccurredAt: request.ItemOccurredAt,
+			},
+			Invocation: request.Approval.Tool,
+			Decision:   approval.DecisionOf(answer.Resolution.Approved),
+		}
+		if err := resolution.Validate(); err != nil {
+			return nil, fmt.Errorf("approval item %q: %w", request.ItemID, err)
+		}
+		resolutions = append(resolutions, resolution)
+	}
+	return resolutions, nil
 }
 
 // QuestionReplacements derives the transcript compare-and-swap write-set for

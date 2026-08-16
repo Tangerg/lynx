@@ -107,6 +107,7 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
   // only contribute the end. Both paths own the same Tool read-model fact, and
   // neither should have to fabricate the other's observation to build a digest.
   const materializedTools = new Set<string>();
+  const timelineApprovalRefs = new Set<string>();
   for (const e of slice) {
     if ((e.kind === "tool-start" || e.kind === "tool-end") && e.refId) {
       materializedTools.add(e.refId);
@@ -115,13 +116,15 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
       digest.errors.push(e.summary);
     }
     if (e.kind === "approval-request" && e.refId) {
+      timelineApprovalRefs.add(e.refId);
       const result = slice.find((x) => x.kind === "approval-result" && x.refId === e.refId);
+      const durableDecision = source.toolCalls[e.refId]?.approvalDecision;
       digest.approvals.push({
         command: e.summary ?? "",
         decision:
           result?.status === "approved" || result?.status === "declined"
             ? result.status
-            : undefined,
+            : durableDecision,
       });
     }
   }
@@ -131,6 +134,12 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
   for (const id of materializedTools) {
     const tool = source.toolCalls[id];
     if (!tool || tool.runId !== source.runId) continue;
+    if (tool.approvalDecision && !timelineApprovalRefs.has(id)) {
+      digest.approvals.push({
+        command: tool.command ?? tool.fn,
+        decision: tool.approvalDecision,
+      });
+    }
     // Bucket by the §4.4.2 display category (derived from tool.name), the same
     // table the fold + icon routing use.
     const category = toolCategory(tool.name);

@@ -146,6 +146,83 @@ describe("deriveLatestRun", () => {
     });
   });
 
+  it("rebuilds exact approvals from cold Tool facts without duplicating live history", () => {
+    const cold = view({
+      timeline: [
+        entry({ kind: "run-start", runId: "r1" }),
+        entry({ kind: "tool-end", runId: "r1", refId: "approved-tool", status: "ok" }),
+        entry({ kind: "tool-end", runId: "r1", refId: "declined-tool", status: "err" }),
+        entry({ kind: "run-end", runId: "r1", status: "ok" }),
+      ],
+      toolCalls: {
+        "approved-tool": {
+          id: "approved-tool",
+          runId: "r1",
+          name: "shell",
+          fn: "Run tests",
+          command: "go test ./...",
+          args: "",
+          status: "ok",
+          approvalDecision: "approved",
+        },
+        "declined-tool": {
+          id: "declined-tool",
+          runId: "r1",
+          name: "shell",
+          fn: "Remove build output",
+          command: "rm -rf dist",
+          args: "",
+          status: "denied",
+          approvalDecision: "declined",
+        },
+      },
+      outcome: { type: "completed" },
+    });
+    expect(deriveLatestRun(cold)?.approvals).toEqual([
+      { command: "go test ./...", decision: "approved" },
+      { command: "rm -rf dist", decision: "declined" },
+    ]);
+
+    const live = view({
+      timeline: [
+        entry({ kind: "run-start", runId: "r1" }),
+        entry({
+          kind: "approval-request",
+          runId: "r1",
+          refId: "approved-tool",
+          summary: "go test ./...",
+        }),
+        entry({ kind: "approval-result", runId: "r1", refId: "approved-tool", status: "approved" }),
+        entry({ kind: "tool-end", runId: "r1", refId: "approved-tool", status: "ok" }),
+        entry({ kind: "run-end", runId: "r1", status: "ok" }),
+      ],
+      toolCalls: { "approved-tool": cold.toolCalls["approved-tool"]! },
+      outcome: { type: "completed" },
+    });
+    expect(deriveLatestRun(live)?.approvals).toEqual([
+      { command: "go test ./...", decision: "approved" },
+    ]);
+
+    const answeredElsewhere = view({
+      timeline: [
+        entry({ kind: "run-start", runId: "r1" }),
+        entry({
+          kind: "approval-request",
+          runId: "r1",
+          refId: "approved-tool",
+          summary: "go test ./...",
+        }),
+        entry({ kind: "tool-end", runId: "r1", refId: "approved-tool", status: "ok" }),
+        entry({ kind: "run-end", runId: "r1", status: "ok" }),
+      ],
+      toolCalls: { "approved-tool": cold.toolCalls["approved-tool"]! },
+      outcome: { type: "completed" },
+    });
+    expect(deriveLatestRun(answeredElsewhere)?.approvals).toEqual([
+      { command: "go test ./...", decision: "approved" },
+    ]);
+  });
+
   it("flags status ok / err / running based on terminal entry", () => {
     const ok = view({
       timeline: [

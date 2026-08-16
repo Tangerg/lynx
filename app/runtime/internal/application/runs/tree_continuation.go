@@ -3,9 +3,12 @@ package runs
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
@@ -21,8 +24,49 @@ type treeContinuation struct {
 	executorID        string
 	goalIncarnationID string
 	interrupts        []transcript.Interrupt
+	approvalDecisions map[string]approval.Decision
 	continuations     []Continuation
 	capabilities      run.Capabilities
+}
+
+func (continuation *treeContinuation) bindToolApprovalResolutions(
+	resolutions []ToolApprovalResolution,
+) error {
+	if continuation == nil {
+		return errors.New("runs: tree continuation is required")
+	}
+	if len(resolutions) == 0 {
+		return nil
+	}
+	interruptItems := make(map[string]transcript.Interrupt, len(continuation.interrupts))
+	for _, pending := range continuation.interrupts {
+		interruptItems[pending.ItemID] = pending
+	}
+	decisions := make(map[string]approval.Decision, len(resolutions))
+	for _, resolution := range resolutions {
+		if err := resolution.Validate(); err != nil {
+			return err
+		}
+		if resolution.Identity.SessionID != continuation.sessionID {
+			return fmt.Errorf("runs: Tool approval item %q belongs to another Session", resolution.Identity.ItemID)
+		}
+		pending, exists := interruptItems[resolution.Identity.ItemID]
+		if !exists {
+			return fmt.Errorf("runs: Tool approval item %q is not in the continuation", resolution.Identity.ItemID)
+		}
+		if pending.Kind != interrupt.Approval || pending.Approval == nil ||
+			pending.RunID != resolution.Identity.RunID ||
+			!pending.ItemOccurredAt.Equal(resolution.Identity.OccurredAt) ||
+			!reflect.DeepEqual(pending.Approval.Tool, resolution.Invocation) {
+			return fmt.Errorf("runs: Tool approval item %q differs from the continuation", resolution.Identity.ItemID)
+		}
+		if _, duplicate := decisions[resolution.Identity.ItemID]; duplicate {
+			return fmt.Errorf("runs: Tool approval item %q is resolved twice", resolution.Identity.ItemID)
+		}
+		decisions[resolution.Identity.ItemID] = resolution.Decision
+	}
+	continuation.approvalDecisions = decisions
+	return nil
 }
 
 func treeContinuationFromPending(pending Pending) (*treeContinuation, error) {

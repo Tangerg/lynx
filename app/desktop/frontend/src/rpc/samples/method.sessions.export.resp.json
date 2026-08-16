@@ -1,7 +1,7 @@
 {
   "format": "json",
   "artifact": {
-    "version": 18,
+    "version": 19,
     "session": {
       "id": "ses_01",
       "title": "Refactor the runtime protocol",
@@ -51,7 +51,8 @@
           },
           "result": "total 0\n"
         },
-        "safetyClass": "exec"
+        "safetyClass": "exec",
+        "approvalDecision": "approve"
       }
     ],
     "toolResults": [

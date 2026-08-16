@@ -78,6 +78,7 @@ export type AgentItem =
     }
   | {
       type: "toolCall";
+      approvalDecision?: "approved" | "declined";
       durationMillis?: number;
       error?: AgentProblem;
       finishedAt?: string;

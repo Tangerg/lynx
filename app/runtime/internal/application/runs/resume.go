@@ -52,9 +52,10 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, err
 	}
 
-	claimed, err := c.resumeClaims.ClaimResume(ctx, ResumeClaimCommit{
+	claim := ResumeClaimCommit{
 		CommitID: newRunCommitID(), Expected: pending, Answers: answers, ClaimedAt: c.now().UTC(),
-	})
+	}
+	claimed, err := c.resumeClaims.ClaimResume(ctx, claim)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -87,6 +88,17 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, c.failClaimedResume(
 			ctx, pending, &ref, fmt.Errorf("runs: prepare tree continuation: %w", err),
+		)
+	}
+	approvalResolutions, err := claim.ToolApprovalResolutions()
+	if err != nil {
+		return StartResult{}, c.failClaimedResume(
+			ctx, pending, &ref, fmt.Errorf("runs: prepare Tool approval continuation: %w", err),
+		)
+	}
+	if err := continuation.bindToolApprovalResolutions(approvalResolutions); err != nil {
+		return StartResult{}, c.failClaimedResume(
+			ctx, pending, &ref, fmt.Errorf("runs: bind Tool approval continuation: %w", err),
 		)
 	}
 	events, err := c.openSegment(ctx, segmentSpec{

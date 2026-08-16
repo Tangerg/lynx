@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -17,7 +18,8 @@ func presentItem(item transcript.Item) protocol.Item {
 		Type: presentItemKind(item.Kind()),
 		Text: item.Text(), Redacted: item.Redacted(),
 		SafetyClass: presentSafetyClass(item.SafetyClass()), Error: presentToolFailure(failureRef),
-		Summary: item.Summary(), DroppedMessages: item.DroppedMessages(),
+		ApprovalDecision: presentItemApprovalDecision(item.ApprovalDecision()),
+		Summary:          item.Summary(), DroppedMessages: item.DroppedMessages(),
 	}
 	content := item.Content()
 	if len(content) > 0 {
@@ -42,6 +44,17 @@ func presentItem(item transcript.Item) protocol.Item {
 		out.CreatedAt = item.OccurredAt()
 	}
 	return out
+}
+
+func presentItemApprovalDecision(decision approval.Decision) protocol.ApprovalDecision {
+	switch decision {
+	case approval.Allow:
+		return protocol.ApprovalApprove
+	case approval.Deny:
+		return protocol.ApprovalDeny
+	default:
+		return ""
+	}
 }
 
 func presentToolDurationMillis(item transcript.Item) *int64 {

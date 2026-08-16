@@ -145,7 +145,7 @@ const (
 //	userMessage / agentMessage → Content
 //	reasoning                  → Text, Redacted
 //	question                   → Question
-//	toolCall                   → Tool, SafetyClass, Error
+//	toolCall                   → Tool, SafetyClass, ApprovalDecision, Error
 //	compaction                 → Summary, DroppedMessages
 type Item struct {
 	ID     string     `json:"id"`
@@ -170,7 +170,10 @@ type Item struct {
 	Question    *Question       `json:"question,omitempty"`
 	Tool        *ToolInvocation `json:"tool,omitempty"`
 	SafetyClass SafetyClass     `json:"safetyClass,omitempty"`
-	Error       *ProblemData    `json:"error,omitempty"` // tool-level failure (API.md §4.3)
+	// ApprovalDecision is present only when this exact ToolCall crossed a human
+	// approval boundary. Auto-approved calls carry no decision.
+	ApprovalDecision ApprovalDecision `json:"approvalDecision,omitempty"`
+	Error            *ProblemData     `json:"error,omitempty"` // tool-level failure (API.md §4.3)
 	// Summary / DroppedMessages describe a compaction Item — the post-Run
 	// auto-compaction boundary. DroppedMessages is the net history reduction
 	// (messages before − after); Summary is an optional human note (currently

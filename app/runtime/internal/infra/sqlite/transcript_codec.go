@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
@@ -24,6 +25,7 @@ type transcriptItemPayload struct {
 	Question               *questionPayload       `json:"question,omitempty"`
 	Tool                   *toolInvocationPayload `json:"tool,omitempty"`
 	SafetyClass            string                 `json:"safetyClass,omitempty"`
+	ApprovalDecision       string                 `json:"approvalDecision,omitempty"`
 	Failure                *toolFailurePayload    `json:"failure,omitempty"`
 	Summary                string                 `json:"summary,omitempty"`
 	DroppedMessages        int                    `json:"droppedMessages,omitempty"`
@@ -81,7 +83,8 @@ func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
 	}
 	payload := transcriptItemPayload{
 		Status: status, Kind: kind, Text: item.Text(), Redacted: item.Redacted(),
-		SafetyClass: string(item.SafetyClass()), Summary: item.Summary(),
+		SafetyClass: string(item.SafetyClass()), ApprovalDecision: string(item.ApprovalDecision()),
+		Summary:         item.Summary(),
 		DroppedMessages: item.DroppedMessages(),
 	}
 	if !item.FinishedAt().IsZero() {
@@ -146,7 +149,8 @@ func decodeTranscriptItem(data []byte) (transcript.ItemSnapshot, error) {
 	}
 	snapshot := transcript.ItemSnapshot{
 		Status: status, Kind: kind, Text: payload.Text, Redacted: payload.Redacted,
-		SafetyClass: tool.SafetyClass(payload.SafetyClass), Summary: payload.Summary,
+		SafetyClass:      tool.SafetyClass(payload.SafetyClass),
+		ApprovalDecision: approval.Decision(payload.ApprovalDecision), Summary: payload.Summary,
 		DroppedMessages: payload.DroppedMessages,
 	}
 	if payload.FinishedAt != 0 {

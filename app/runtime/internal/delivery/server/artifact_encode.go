@@ -266,7 +266,7 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 	out := protocol.ArtifactItem{
 		ID: item.ID(), RunID: item.RunID(), Status: status,
 		Type: kind, Text: item.Text(), Redacted: item.Redacted(),
-		SafetyClass: safetyClass, Error: problem,
+		SafetyClass: safetyClass, ApprovalDecision: presentItemApprovalDecision(item.ApprovalDecision()), Error: problem,
 		Summary: item.Summary(), DroppedMessages: item.DroppedMessages(),
 	}
 	content := item.Content()

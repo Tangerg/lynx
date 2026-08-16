@@ -447,6 +447,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ]),
   ArtifactItem: allOf([
     object({
+      approvalDecision: ref(() => CHECKS.ApprovalDecision),
       content: array(ref(() => CHECKS.ArtifactContentBlock)),
       createdAt: text(),
       droppedMessages: allOf([integer(), minimum(0)]),
@@ -467,6 +468,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     }, []),
     oneOf([
       fields({
+        approvalDecision: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
         error: absent(),
@@ -481,6 +483,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("userMessage"),
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
         error: absent(),
@@ -495,6 +498,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("agentMessage"),
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         content: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
@@ -508,6 +512,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("reasoning"),
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         content: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
@@ -532,6 +537,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("toolCall"),
       }, ["id", "runId", "startedAt", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         content: absent(),
         durationMillis: absent(),
         error: absent(),
@@ -1235,6 +1241,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["arguments", "name"]),
   Item: allOf([
     object({
+      approvalDecision: ref(() => CHECKS.ApprovalDecision),
       content: array(ref(() => CHECKS.ContentBlock)),
       createdAt: text(),
       droppedMessages: integer(),
@@ -1255,6 +1262,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     }, []),
     oneOf([
       fields({
+        approvalDecision: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
         error: absent(),
@@ -1269,6 +1277,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("userMessage"),
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
         error: absent(),
@@ -1283,6 +1292,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("agentMessage"),
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         content: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
@@ -1296,6 +1306,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("reasoning"),
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         content: absent(),
         droppedMessages: absent(),
         durationMillis: absent(),
@@ -1320,6 +1331,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("toolCall"),
       }, ["id", "runId", "startedAt", "status", "type"]),
       fields({
+        approvalDecision: absent(),
         content: absent(),
         durationMillis: absent(),
         error: absent(),
@@ -2979,7 +2991,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(18), maximum(18)]),
+    version: allOf([integer(), minimum(19), maximum(19)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionSnapshot: object({
     interrupts: array(ref(() => CHECKS.PendingInterruptSet)),

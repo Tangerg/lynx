@@ -2,7 +2,7 @@
 
 > 状态：Runtime Protocol Baseline 1
 >
-> 基线日期：2026-08-13
+> 基线日期：2026-08-17
 >
 > 适用范围：Runtime Protocol 制品、持久化 shape、Agent Framework 消费边界和重构期间的内部防腐合同
 
@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `58f50b7736895892ba1e2797d686abbc3dc1deb7b61fa6a5c8da6728d980c4c4` |
-| `contract/openrpc.json` | `153b26e538f0c1ad44f0a7b78732e5b93699779cd0cd54084626c3a082eff0cd` |
-| `contract/schema.json` | `4be543ca07b37090e09d399af177812c7b74f7b4851e8db5d8db9271acbdb3a4` |
-| `contract/go-api.json` | `86cded7b620a346d5b5aa4f6f9f96ff84099d86984cf5361aa62e091f7249dc9` |
+| `contract/manifest.json` | `8d0e7645e6bec8826140b0dac7fab6a1227035a158f5d834ce3e47ae9f9e252b` |
+| `contract/openrpc.json` | `ec6f63f6ef00d43c6792f07543fc6ac2d0bfe374810dcb8b07538b38f9a88d8e` |
+| `contract/schema.json` | `c4935b69f705226c275bfc35d7d13675f2993f89d3ef266d2d9f54ba6fcd146f` |
+| `contract/go-api.json` | `955423c8c6e6ce4ba481095e1f136ba725ed7eef722c9237313f88ca4d333071` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -50,7 +50,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为 `2026-08-13`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为 `2026-08-17`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan 的跨投影关系，Persistence 在一个 SQLite transaction 内读取全部事实，Delivery
@@ -112,7 +112,7 @@ P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 �
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 18；v17 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 19；v18 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall 的 `approvalDecision` 是该调用实际接受的人类决定，和 Pending consume/checkpoint invalidation/commit receipt 同事务写入，并随续跑终态与 artifact 保留；自动放行不伪造。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
 
 ## 4. Agent Framework 消费 Baseline
 

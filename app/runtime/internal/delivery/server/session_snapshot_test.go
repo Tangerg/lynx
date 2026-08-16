@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
@@ -41,6 +43,15 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	})); err != nil {
 		t.Fatalf("append question Item: %v", err)
 	}
+	if err := rt.hist.AppendItem(t.Context(), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_approved_tool", RunID: "run_waiting", SessionID: "ses_1",
+		Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
+		OccurredAt: createdAt.Add(time.Second), FinishedAt: createdAt.Add(2 * time.Second),
+		SafetyClass: tool.SafetyClassExec, ApprovalDecision: approval.Allow,
+		Tool: &transcript.ToolInvocation{Name: "shell"},
+	})); err != nil {
+		t.Fatalf("append approved ToolCall: %v", err)
+	}
 	if err := rt.interrupts.Open(t.Context(), serverPending(
 		"run_waiting", "ses_1", "exec_waiting", "member_waiting",
 		[]transcript.Interrupt{{
@@ -69,8 +80,10 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSessionSnapshot: %v", err)
 	}
-	if len(snapshot.Items) != 1 || snapshot.Items[0].ID != "item_question" {
-		t.Fatalf("Items = %+v, want the question Item", snapshot.Items)
+	if len(snapshot.Items) != 2 || snapshot.Items[0].ID != "item_question" ||
+		snapshot.Items[1].ID != "item_approved_tool" ||
+		snapshot.Items[1].ApprovalDecision != protocol.ApprovalApprove {
+		t.Fatalf("Items = %+v, want question and durable approved ToolCall", snapshot.Items)
 	}
 	if len(snapshot.Runs) != 1 || snapshot.Runs[0].ID != "run_waiting" || snapshot.Runs[0].Status != protocol.RunStatusWaiting {
 		t.Fatalf("Runs = %+v, want the waiting Run", snapshot.Runs)

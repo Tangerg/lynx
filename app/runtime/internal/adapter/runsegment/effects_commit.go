@@ -198,6 +198,13 @@ func (e *Effects) ClaimResume(
 	if len(questionReplacements) > 0 && e.itemReplacer == nil {
 		return runs.ClaimedResume{}, errors.New("runsegment: answered-question replacement is unavailable")
 	}
+	approvalResolutions, err := claim.ToolApprovalResolutions()
+	if err != nil {
+		return runs.ClaimedResume{}, fmt.Errorf("runsegment: prepare Tool approval resolutions: %w", err)
+	}
+	if len(approvalResolutions) > 0 && e.toolApprovals == nil {
+		return runs.ClaimedResume{}, errors.New("runsegment: Tool approval persistence is unavailable")
+	}
 	err = e.runInTx(ctx, func(ctx context.Context) error {
 		loaded, err := e.executorCheckpoints.LoadCheckpoint(ctx, root.MemberID)
 		if err != nil {
@@ -221,6 +228,11 @@ func (e *Effects) ClaimResume(
 		}
 		if !reflect.DeepEqual(consumed, claim.Expected) {
 			return errors.New("runsegment: waiting hand-off changed before answer claim")
+		}
+		for _, resolution := range approvalResolutions {
+			if err := e.resolveToolApproval(ctx, resolution); err != nil {
+				return fmt.Errorf("runsegment: record Tool approval %q: %w", resolution.Identity.ItemID, err)
+			}
 		}
 		for _, replacement := range questionReplacements {
 			if err := e.itemReplacer.ReplaceItem(ctx, replacement.Expected, replacement.Replacement); err != nil {
@@ -257,6 +269,34 @@ func (e *Effects) ClaimResume(
 		return runs.ClaimedResume{}, errors.Join(err, settleErr)
 	}
 	return claimedResumeResult(claim, checkpoint), nil
+}
+
+func (e *Effects) resolveToolApproval(
+	ctx context.Context,
+	resolution runs.ToolApprovalResolution,
+) error {
+	current, found, err := e.toolApprovals.Item(ctx, resolution.Identity.ItemID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("running ToolCall is absent")
+	}
+	if current.SessionID() != resolution.Identity.SessionID ||
+		current.RunID() != resolution.Identity.RunID ||
+		current.ID() != resolution.Identity.ItemID ||
+		!current.OccurredAt().Equal(resolution.Identity.OccurredAt) {
+		return fmt.Errorf("%w: running ToolCall identity differs from Pending", transcript.ErrIdentityConflict)
+	}
+	invocation, present := current.ToolInvocation()
+	if !present || !reflect.DeepEqual(invocation, resolution.Invocation) {
+		return fmt.Errorf("%w: running ToolCall invocation differs from Pending", transcript.ErrIdentityConflict)
+	}
+	replacement, err := current.ResolveToolApproval(resolution.Decision)
+	if err != nil {
+		return err
+	}
+	return e.toolApprovals.ReplaceItem(ctx, current, replacement)
 }
 
 func claimedResumeResult(claim runs.ResumeClaimCommit, checkpoint runs.ExecutorCheckpoint) runs.ClaimedResume {

@@ -105,12 +105,14 @@ describe("Runtime → Agent fact adapter", () => {
       startedAt: "2026-08-12T08:00:00.000Z",
       finishedAt: "2026-08-12T08:00:01.000Z",
       safetyClass: "exec",
+      approvalDecision: "deny",
       tool: { name: "shell", arguments: { command: "false" } },
       error: { type: "tool_failed", detail: "exit 1" },
     });
     expect(tool).toMatchObject({
       type: "toolCall",
       safetyClass: "exec",
+      approvalDecision: "declined",
       error: { code: "tool_failed", message: "exit 1" },
     });
 

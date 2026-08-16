@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -152,6 +153,7 @@ type openTool struct {
 	name              string
 	arguments         tool.Arguments
 	safetyClass       tool.SafetyClass
+	approvalDecision  approval.Decision
 	end               *ToolCallFinished
 }
 
@@ -849,12 +851,13 @@ func (r *reducer) abandonUnconsumedResumeTools() ([]RunEvent, error) {
 			return nil, fmt.Errorf("tool %q arguments: %w", drained.Name, err)
 		}
 		ref := &openTool{
-			callID:       drained.CallID,
-			sourceCallID: drained.SourceCallID,
-			id:           drained.ItemID,
-			occurredAt:   drained.ItemOccurredAt,
-			name:         drained.Name,
-			arguments:    arguments,
+			callID:           drained.CallID,
+			sourceCallID:     drained.SourceCallID,
+			id:               drained.ItemID,
+			occurredAt:       drained.ItemOccurredAt,
+			name:             drained.Name,
+			arguments:        arguments,
+			approvalDecision: r.resume.approvalDecision(drained.ItemID),
 		}
 		completed, err := r.abandonUnstartedToolItem(ref)
 		if err != nil {

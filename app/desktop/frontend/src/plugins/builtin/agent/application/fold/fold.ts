@@ -408,6 +408,7 @@ export function writeToolCall(
     error: item.error ? (item.error.message ?? item.error.code) : undefined,
     durationMillis: item.durationMillis,
     safetyClass: item.safetyClass,
+    approvalDecision: item.approvalDecision,
     ...toolFields(item.tool),
   };
   return { state: { ...withBlock, toolCalls: { ...withBlock.toolCalls, [item.id]: tool } }, tool };

@@ -6,10 +6,44 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
+
+func TestResumeClaimDerivesExactToolApprovalResolutions(t *testing.T) {
+	pending := validTreePending()
+	answers := make([]InterruptAnswer, len(pending.Bindings))
+	for index, binding := range pending.Bindings {
+		answers[index] = InterruptAnswer{
+			InterruptItemID: binding.InterruptItemID,
+			MemberID:        binding.MemberID,
+			RequestID:       binding.RequestID,
+			Resolution:      interrupt.Resolution{Approved: index == 0},
+		}
+	}
+	claim := ResumeClaimCommit{
+		CommitID: "run_commit_approval", Expected: pending, Answers: answers,
+		ClaimedAt: pending.CreatedAt.Add(time.Second),
+	}
+	if err := claim.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	resolutions, err := claim.ToolApprovalResolutions()
+	if err != nil {
+		t.Fatalf("ToolApprovalResolutions: %v", err)
+	}
+	if len(resolutions) != 2 ||
+		resolutions[0].Identity.ItemID != "item_grandchild" ||
+		resolutions[0].Invocation.Name != "shell" ||
+		resolutions[0].Decision != approval.Allow ||
+		resolutions[1].Identity.ItemID != "item_b" ||
+		resolutions[1].Invocation.Name != "write" ||
+		resolutions[1].Decision != approval.Deny {
+		t.Fatalf("Tool approval resolutions = %+v", resolutions)
+	}
+}
 
 func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 	pending := validTreePending()

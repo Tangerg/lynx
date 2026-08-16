@@ -1301,7 +1301,7 @@
         {
           "name": "MinProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-13\""
+          "value": "\"2026-08-17\""
         },
         {
           "name": "ModalityAudio",
@@ -1471,7 +1471,7 @@
         {
           "name": "ProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-13\""
+          "value": "\"2026-08-17\""
         },
         {
           "name": "ProviderConfigClear",
@@ -1776,7 +1776,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "18"
+          "value": "19"
         },
         {
           "name": "SessionStatusIdle",
@@ -2594,6 +2594,11 @@
               "name": "SafetyClass",
               "type": "SafetyClass",
               "tag": "json:\"safetyClass,omitempty\""
+            },
+            {
+              "name": "ApprovalDecision",
+              "type": "ApprovalDecision",
+              "tag": "json:\"approvalDecision,omitempty\""
             },
             {
               "name": "Error",
@@ -4846,6 +4851,11 @@
               "name": "SafetyClass",
               "type": "SafetyClass",
               "tag": "json:\"safetyClass,omitempty\""
+            },
+            {
+              "name": "ApprovalDecision",
+              "type": "ApprovalDecision",
+              "tag": "json:\"approvalDecision,omitempty\""
             },
             {
               "name": "Error",

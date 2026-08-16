@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-13` (minimum supported `2026-08-13`) · 87 methods
+Protocol `2026-08-17` (minimum supported `2026-08-17`) · 87 methods
 
 ## Methods
 
@@ -242,7 +242,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
-| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `error` |
+| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `approvalDecision`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
 
 ### `ItemDelta`
@@ -431,7 +431,7 @@ Forbidden on every variant: `durable`.
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
-| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `error` |
+| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `approvalDecision`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
 
 ### `ArtifactContentBlock`
@@ -466,8 +466,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(18)` |
-| `SessionArtifact` | `version` | `maximum(18)` |
+| `SessionArtifact` | `version` | `minimum(19)` |
+| `SessionArtifact` | `version` | `maximum(19)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMillis` | `nonNegative` |

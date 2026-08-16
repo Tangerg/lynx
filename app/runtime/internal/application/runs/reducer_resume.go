@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -23,12 +24,13 @@ type resumeBinding struct {
 }
 
 type resumableItem struct {
-	id         string
-	occurredAt time.Time
+	id               string
+	occurredAt       time.Time
+	approvalDecision approval.Decision
 }
 
 func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBinding {
-	builder := newResumeBindingBuilder()
+	builder := newResumeBindingBuilder(continuation.approvalDecisions)
 	builder.addInterrupts(continuation.interrupts, runID)
 	if member, found := continuation.forRun(runID); found {
 		if err := builder.addTools(member); err != nil {
@@ -39,11 +41,12 @@ func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBindi
 }
 
 type resumeBindingBuilder struct {
-	binding resumeBinding
+	binding           resumeBinding
+	approvalDecisions map[string]approval.Decision
 }
 
-func newResumeBindingBuilder() *resumeBindingBuilder {
-	return &resumeBindingBuilder{binding: resumeBinding{
+func newResumeBindingBuilder(decisions map[string]approval.Decision) *resumeBindingBuilder {
+	return &resumeBindingBuilder{approvalDecisions: decisions, binding: resumeBinding{
 		callItems: make(map[string]resumableItem),
 		toolItems: make(map[string]resumableItem),
 		byName:    make(map[string]resumableItem),
@@ -58,8 +61,9 @@ func (builder *resumeBindingBuilder) addItem(
 	arguments string,
 	itemID string,
 	occurredAt time.Time,
+	decision approval.Decision,
 ) {
-	identity := resumableItem{id: itemID, occurredAt: occurredAt}
+	identity := resumableItem{id: itemID, occurredAt: occurredAt, approvalDecision: decision}
 	if callID != "" {
 		builder.binding.callItems[callID] = identity
 	}
@@ -85,6 +89,7 @@ func (builder *resumeBindingBuilder) addInterrupts(interrupts []transcript.Inter
 					argumentIdentity(pending.Approval.Tool.Arguments),
 					pending.ItemID,
 					pending.ItemOccurredAt,
+					builder.approvalDecisions[pending.ItemID],
 				)
 			}
 		case interrupt.Question:
@@ -111,6 +116,7 @@ func (builder *resumeBindingBuilder) addTools(member Continuation) error {
 			argumentIdentity(arguments),
 			drained.ItemID,
 			drained.ItemOccurredAt,
+			"",
 		)
 	}
 	for _, committed := range member.CommittedTools {
@@ -164,6 +170,20 @@ func (b *resumeBinding) consumeToolItem(id string) {
 	maps.DeleteFunc(b.callItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
 	maps.DeleteFunc(b.toolItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
 	maps.DeleteFunc(b.byName, func(_ string, candidate resumableItem) bool { return candidate.id == id })
+}
+
+func (b *resumeBinding) approvalDecision(itemID string) approval.Decision {
+	if b == nil || itemID == "" {
+		return ""
+	}
+	for _, items := range []map[string]resumableItem{b.callItems, b.toolItems, b.byName} {
+		for _, item := range items {
+			if item.id == itemID {
+				return item.approvalDecision
+			}
+		}
+	}
+	return ""
 }
 
 func (b *resumeBinding) remainingDrainedTools() []DrainedTool {

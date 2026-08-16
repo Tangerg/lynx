@@ -158,10 +158,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 18 preserves the exact accepted answers on Question transcript facts.
-// An unanswered Question remains distinguishable from one whose response was
-// accepted before export.
-const SessionArtifactVersion = 18
+// Version 19 preserves exact human decisions on ToolCall transcript facts as
+// well as accepted Question answers. Auto-approved tools remain distinguishable
+// from calls a person explicitly approved.
+const SessionArtifactVersion = 19
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -326,15 +326,16 @@ type ArtifactItem struct {
 	FinishedAt     time.Time `json:"finishedAt,omitzero"`
 	DurationMillis *int64    `json:"durationMillis,omitempty"`
 
-	Content         []ArtifactContentBlock  `json:"content,omitempty"`
-	Text            string                  `json:"text,omitempty"`
-	Redacted        bool                    `json:"redacted,omitempty"`
-	Question        *ArtifactQuestion       `json:"question,omitempty"`
-	Tool            *ArtifactToolInvocation `json:"tool,omitempty"`
-	SafetyClass     SafetyClass             `json:"safetyClass,omitempty"`
-	Error           *ArtifactProblem        `json:"error,omitempty"`
-	Summary         string                  `json:"summary,omitempty"`
-	DroppedMessages int                     `json:"droppedMessages,omitempty"`
+	Content          []ArtifactContentBlock  `json:"content,omitempty"`
+	Text             string                  `json:"text,omitempty"`
+	Redacted         bool                    `json:"redacted,omitempty"`
+	Question         *ArtifactQuestion       `json:"question,omitempty"`
+	Tool             *ArtifactToolInvocation `json:"tool,omitempty"`
+	SafetyClass      SafetyClass             `json:"safetyClass,omitempty"`
+	ApprovalDecision ApprovalDecision        `json:"approvalDecision,omitempty"`
+	Error            *ArtifactProblem        `json:"error,omitempty"`
+	Summary          string                  `json:"summary,omitempty"`
+	DroppedMessages  int                     `json:"droppedMessages,omitempty"`
 }
 
 type ArtifactContentBlock struct {

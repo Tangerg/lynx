@@ -2,7 +2,7 @@
 
 > 状态：当前能力事实，随每个实施批次更新
 >
-> 基线日期：2026-08-13
+> 基线日期：2026-08-17
 
 本文记录当前能力事实、目标 owner、迁移 verdict、实施阶段和验收证据。它不重复目标架构和 ADR。代码变化后必须在同一批更新对应条目；不能用“计划保留”冒充“已经迁移”。
 
@@ -274,7 +274,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前 owner | Verdict | 说明 |
 |---|---|---|---|
-| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-13`、Artifact v18；Question `answers` 只投影 Runtime 已接受响应，未回答/取消不伪造；ToolCall lifecycle 与 optional exact execution duration 分离，后者排除审批等待且 unknown 时不伪造；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；Runtime 失效闭集覆盖 models / approvals / agent memory / codebase 的 API 与后台任务变化，且不携带业务值；机器真相仍在 contract |
+| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-17`、Artifact v19；Question `answers` 只投影 Runtime 已接受响应，未回答/取消不伪造；ToolCall `approvalDecision` 只投影该调用实际接受的人类决定，不从当前策略或终态推断；ToolCall lifecycle 与 optional exact execution duration 分离，后者排除审批等待且 unknown 时不伪造；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；Runtime 失效闭集覆盖 models / approvals / agent memory / codebase 的 API 与后台任务变化，且不携带业务值；机器真相仍在 contract |
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |

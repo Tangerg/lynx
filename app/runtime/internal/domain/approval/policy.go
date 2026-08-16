@@ -91,7 +91,9 @@ func (s Scope) Valid() bool {
 	}
 }
 
-// Decision is a rule's standing verdict.
+// Decision is a tool-call access verdict. The same canonical allow/deny values
+// describe a one-shot human decision and a standing remembered rule; whether a
+// verdict is persisted as policy belongs to the surrounding aggregate.
 type Decision string
 
 const (

@@ -97,6 +97,10 @@ export interface ToolCall {
    *  when the execution interval is not known — a client-side stopwatch would be
    *  measuring its own render loop, not the Tool. */
   durationMillis?: number;
+  /** Exact human verdict accepted for this ToolCall. Absent means the call did
+   *  not cross a human approval boundary; it must never be inferred from the
+   *  current policy or terminal status. */
+  approvalDecision?: "approved" | "declined";
 }
 
 export interface Message {

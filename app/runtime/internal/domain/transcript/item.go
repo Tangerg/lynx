@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
@@ -54,6 +55,7 @@ type Item struct {
 	question          *Question
 	tool              *ToolInvocation
 	safetyClass       tool.SafetyClass
+	approvalDecision  approval.Decision
 	failure           *tool.Failure
 	summary           string
 	droppedMessages   int
@@ -73,6 +75,7 @@ type ItemSnapshot struct {
 	Question          *Question
 	Tool              *ToolInvocation
 	SafetyClass       tool.SafetyClass
+	ApprovalDecision  approval.Decision
 	Failure           *tool.Failure
 	Summary           string
 	DroppedMessages   int
@@ -137,7 +140,8 @@ func RestoreItem(snapshot ItemSnapshot) (Item, error) {
 		kind:              snapshot.Kind, content: CloneContent(snapshot.Content), text: snapshot.Text,
 		redacted: snapshot.Redacted, question: cloneQuestion(snapshot.Question),
 		tool: cloneToolInvocation(snapshot.Tool), safetyClass: snapshot.SafetyClass,
-		failure: cloneToolFailure(snapshot.Failure), summary: snapshot.Summary,
+		approvalDecision: snapshot.ApprovalDecision,
+		failure:          cloneToolFailure(snapshot.Failure), summary: snapshot.Summary,
 		droppedMessages: snapshot.DroppedMessages,
 	}
 	if err := item.Validate(); err != nil {
@@ -154,7 +158,8 @@ func (item Item) Snapshot() ItemSnapshot {
 		Kind:              item.kind, Content: CloneContent(item.content), Text: item.text,
 		Redacted: item.redacted, Question: cloneQuestion(item.question),
 		Tool: cloneToolInvocation(item.tool), SafetyClass: item.safetyClass,
-		Failure: cloneToolFailure(item.failure), Summary: item.summary,
+		ApprovalDecision: item.approvalDecision,
+		Failure:          cloneToolFailure(item.failure), Summary: item.summary,
 		DroppedMessages: item.droppedMessages,
 	}
 }
@@ -235,6 +240,27 @@ func (item Item) ClassifyAbandonedToolCall(failure tool.Failure) (Item, error) {
 		return Item{}, errors.New("transcript: incomplete ToolCall already has a failure")
 	}
 	item.failure = cloneToolFailure(&failure)
+	if err := item.Validate(); err != nil {
+		return Item{}, err
+	}
+	return item, nil
+}
+
+// ResolveToolApproval records the exact human verdict accepted for a running
+// ToolCall. The decision is a durable semantic fact on the invocation rather
+// than a property of the current policy or its eventual execution outcome.
+// Identity and lifecycle remain unchanged, and a second verdict is rejected.
+func (item Item) ResolveToolApproval(decision approval.Decision) (Item, error) {
+	if item.kind != ToolCall || item.status != ItemRunning || item.tool == nil {
+		return Item{}, errors.New("transcript: only a running ToolCall can resolve approval")
+	}
+	if !decision.Valid() {
+		return Item{}, fmt.Errorf("transcript: unknown Tool approval decision %q", decision)
+	}
+	if item.approvalDecision != "" {
+		return Item{}, errors.New("transcript: ToolCall approval is already resolved")
+	}
+	item.approvalDecision = decision
 	if err := item.Validate(); err != nil {
 		return Item{}, err
 	}
@@ -329,6 +355,9 @@ func (item Item) validateToolCall() error {
 	if item.safetyClass != "" && !item.safetyClass.Valid() {
 		return fmt.Errorf("transcript: unknown Tool safety class %q", item.safetyClass)
 	}
+	if item.approvalDecision != "" && !item.approvalDecision.Valid() {
+		return fmt.Errorf("transcript: unknown Tool approval decision %q", item.approvalDecision)
+	}
 	switch item.status {
 	case ItemRunning:
 		if !item.finishedAt.IsZero() || item.executionDuration != nil || item.failure != nil {
@@ -381,6 +410,7 @@ func (item Item) rejectDisallowedPayload() error {
 		{item.kind != QuestionItem && item.question != nil, "question"},
 		{item.kind != ToolCall && item.tool != nil, "Tool invocation"},
 		{item.kind != ToolCall && item.safetyClass != "", "Tool safety class"},
+		{item.kind != ToolCall && item.approvalDecision != "", "Tool approval decision"},
 		{item.kind != ToolCall && item.failure != nil, "Tool failure"},
 		{item.kind != ToolCall && !item.finishedAt.IsZero(), "finish time"},
 		{item.kind != ToolCall && item.executionDuration != nil, "execution duration"},
@@ -488,13 +518,14 @@ func (item Item) ExecutionDuration() (time.Duration, bool) {
 	}
 	return *item.executionDuration, true
 }
-func (item Item) Kind() ItemKind                { return item.kind }
-func (item Item) Content() []ContentBlock       { return CloneContent(item.content) }
-func (item Item) Text() string                  { return item.text }
-func (item Item) Redacted() bool                { return item.redacted }
-func (item Item) SafetyClass() tool.SafetyClass { return item.safetyClass }
-func (item Item) Summary() string               { return item.summary }
-func (item Item) DroppedMessages() int          { return item.droppedMessages }
+func (item Item) Kind() ItemKind                      { return item.kind }
+func (item Item) Content() []ContentBlock             { return CloneContent(item.content) }
+func (item Item) Text() string                        { return item.text }
+func (item Item) Redacted() bool                      { return item.redacted }
+func (item Item) SafetyClass() tool.SafetyClass       { return item.safetyClass }
+func (item Item) ApprovalDecision() approval.Decision { return item.approvalDecision }
+func (item Item) Summary() string                     { return item.summary }
+func (item Item) DroppedMessages() int                { return item.droppedMessages }
 func (item Item) Question() (Question, bool) {
 	if item.question == nil {
 		return Question{}, false

@@ -446,6 +446,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		GoalRuns:            cfg.GoalStore,
 		Transcript:          cfg.TranscriptStore,
 		ItemReplacer:        cfg.TranscriptStore,
+		ToolApprovals:       cfg.TranscriptStore,
 		ToolResults:         cfg.ToolResultStore,
 		ModelInvocations:    cfg.ModelInvocationStore,
 		ToolInvocations:     cfg.ToolInvocationStore,

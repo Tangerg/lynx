@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P105 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P106 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -113,6 +113,7 @@
 | P103 | Desktop Run Summary HITL continuation 全程聚合 | P102 + repeated Segment starts / pre-HITL material loss 反例 | 已完成 |
 | P104 | Desktop Context Dock React 实例 Session 所有权 | P103 + same-view cross-session local-state reuse 反例 | 已完成 |
 | P105 | Desktop Run Summary durable Tool 冷恢复收敛 | P104 + completed Item without live start observation 反例 | 已完成 |
+| P106 | ToolCall 人工审批事实持久化与冷恢复收敛 | P105 + consumed Interrupt / Runtime restart / two-client answer 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1899,10 +1900,35 @@
 - focused 2 files / 10 tests 与完整 Frontend 293 files / 1749 tests、严格异步泄露检测、类型、lint、格式、依赖、架构、API consumer、设计系统与生产 bundle 门禁全绿；
 - 本批无视觉样式变化，未使用 agent-browser，测试结束本仓无新增 Frontend 测试或 Runtime 进程。
 
-## 85. 进度记录
+## 85. P106 — ToolCall 人工审批事实持久化与冷恢复收敛
+
+### 目标
+
+关闭人工 Tool 审批在 resume 后只存在于 Desktop 瞬时 timeline、Runtime 重启或冷启动后从 Run Summary 消失的缺口。唯一已接受的 approve/deny 必须由 exact ToolCall Transcript 持久拥有，与 answer claim、checkpoint 和 Pending 消费在同一事务提交，并在 live、冷恢复和另一客户端代答三条路径收敛为一个产品事实。
+
+### 工作项
+
+- [x] P106-01 冻结 consumed Interrupt 后没有任何 durable approval owner 的恢复反例；拒绝从当前 policy、Tool outcome 或本地 optimistic result 反推历史决定；
+- [x] P106-02 为 running ToolCall 增加 exact-once `ResolveToolApproval` 领域迁移，并让 terminal replacement、fork、snapshot、Artifact 与 SQLite codec 保留决定；非 Tool、非法值、重复决定和 identity mismatch 均 fail closed；
+- [x] P106-03 从已验证 Pending + accepted answer 推导 exact Tool approval resolution，在同一 SQLite answer-claim 事务内 CAS 替换 Transcript、消费 Pending/checkpoint 并写 commit receipt；后续 commit-marker 失败时全部回滚；
+- [x] P106-04 将已接受决定绑定到 resumed continuation 的 exact Item/occurrence/invocation，使 reducer 在 Tool completion、failure 或 abandonment 重建 Item 时不覆盖已持久事实；
+- [x] P106-05 一次性提升 Protocol 至 `2026-08-17`、Session Artifact 至 v19，同步 Go/Schema/OpenRPC/TypeScript 生成合同、严格样例和 Desktop vendored binding，不保留旧版本兼容路径；
+- [x] P106-06 Desktop 以 live approval request/result 为首选，以 durable ToolCall decision 补齐冷恢复或另一客户端代答，并按 exact interrupt/item reference 去重；保持 Agent Application/Domain 不依赖 Runtime DTO，Go Agent Framework 合同不变；
+- [x] P106-07 完成 Runtime 全包、定向 race、Frontend 全门禁与完整异步泄露检测；没有修改或暂存 `app/cli`，未使用 agent-browser。
+
+### 验收
+
+- approve/deny 在 Runtime 重启、renderer 冷启动和 authoritative snapshot replacement 后仍由 `sessions.snapshot` 恢复，Run Summary 与 live stream 显示相同决定；
+- 两个真实客户端中任一客户端回答后，另一客户端已有 request 时补齐同一项 decision，没有 pending 假象或 live/durable 双项；
+- answer claim 后任一事务步骤失败时，ToolCall decision、Pending、checkpoint 与 commit receipt 保持共同回滚；成功时四者共同收敛；
+- Runtime 全包与定向 race 全绿；Frontend focused 4 files / 207 tests、完整普通门禁 293 files / 1750 tests、严格 `--detectAsyncLeaks` 293 files / 1750 tests且零泄露；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；
+- 本批只改变 Run Summary 已有审批信息的恢复一致性，没有新增视觉样式；未使用 agent-browser，测试结束本仓无新增 Frontend 测试或 Runtime 进程。
+
+## 86. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P106（ToolCall human approval durable truth） | 继续复核 Runtime 重启后的 mounted HITL/Run/Tool read model 时确认，人工 Tool approval 的 accepted decision 只存在于 Desktop `approval-request/result` 瞬时 timeline；answer claim 消费 Interrupt 后 Runtime 没有 durable owner，冷 snapshot 因而丢失审批历史，另一客户端代答时原客户端还可能保持 pending。现在 exact running ToolCall Transcript 不可变补充唯一 allow/deny，answer claim 在同一 SQLite 事务中验证 Pending 的 Session/Run/Item/occurrence/invocation 后 CAS 替换 Item，再与 checkpoint/Pending/commit receipt 共同提交；resume continuation 同时绑定该事实，后续 terminal reducer 不得覆盖。Protocol `2026-08-17`、Artifact v19、生成合同和 Desktop binding 原子同步；Desktop live fact优先，durable fact只补冷恢复或 exact request 的远端决定并去重 | Domain exact-once/terminal/restore、Application resolution derivation、resume reducer preserve 与 SQLite commit-marker rollback/success 回归全绿；Runtime `go test ./... -count=1 -timeout=10m` 全包通过，Domain/Application/runsegment/SQLite/Delivery 定向 race通过。Frontend focused 4 files / 207 tests，`npm run check` 与完整 `--detectAsyncLeaks` 均为 293 files / 1750 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；Go 实际依赖边界不变，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P105（Desktop Run Summary durable Tool recovery） | Runtime 重启/冷启动收敛复核确认，`sessions.snapshot` 按持久 Item重建 completed Tool时正确地产生 `toolCalls + tool-end`，不会伪造只存在于 live stream 的 `item.started`；Run Summary却只从 `tool-start` 收集 Tool identity，因此同一 completed Run恢复后 command、file edit与file read摘要全部消失。现在 timeline中 start/end任一首次出现都建立 material identity，live start+end由 Set去重，durable end-only路径使用同一个 Tool read model恢复参数、状态与diffstat，exact runId过滤不变 | 修复前 end-only completed command反例稳定得到空数组；修复后 command/file-edit/file-read三类冷恢复与既有 HITL/live/child隔离回归全绿，focused 2 files / 10 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 293 files / 1749 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无样式或 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P104（Desktop Context Dock React instance ownership） | 继续审计右侧功能区 Session 交接时确认，P100 已把 tabs/selection 放进逐 Session store，但 `ChatPanel` 仍只用 `viewId` key mounted `Activity`；s1/s2 打开同名 Terminal、Diff 或 Run Summary 时 React 会把同一组件实例交给新 Session，局部 scroll anchor、collapsed files、copied feedback 等事实因此越权存活。现在 exact active Session ID key整个 Context Dock subtree，Session 切换统一退休 view-local state；同一 Session 内各 tab仍由既有 `Activity` 保持挂载，导航 memory继续由 P100 owner恢复 | 修复前没有 Session-owned Dock component，定向红测无法解析边界；修复后 exact owner切换生成新 child instance、same-session rerender保留实例，focused 1 file / 1 test，Frontend 普通与严格 `--detectAsyncLeaks` 均为 293 files / 1748 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无样式或 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P103（Desktop Run Summary HITL continuation） | 继续沿多轮/HITL 复核 Run Summary 时确认 `segment.started` 在同一 Run每次 resume都会产生新的 `run-start` timeline entry，而 digest 使用 `findLastIndex` 把最后一个 Segment start误作 Run边界；审批前命令、文件、approval与耗时因此全部消失。现在 selected root Run以第一个可用 start建立坐标，再以 exact runId聚合全部 continuation Segments到 terminal；后续 start不重置 startedAt，child/其他 root仍被过滤，P102 outcome状态准入不变 | 修复前真实 pre-HITL→approval→resume→terminal 红测只剩后半段命令且 startedAt漂移；修复后 focused 1 file / 8 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 292 files / 1747 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
@@ -2079,6 +2105,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 86. 本轮里程碑
+## 87. 本轮里程碑
 
-P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100–P101 明确右侧 Context Dock 的 renderer/session 交接并把对话 Tool identity 接通到 Terminal；P102–P103 让 Run Summary 只按 authoritative root outcome宣告状态，并以 exact Run而不是最后一个 continuation Segment作为全程聚合边界；P104 让 mounted Dock view-local state服从 exact Session owner；P105 则让 Run Summary 的 Tool material在 live 与 durable snapshot路径收敛，不再依赖冷恢复无法重建的瞬时 start observation。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。
+P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100–P101 明确右侧 Context Dock 的 renderer/session 交接并把对话 Tool identity 接通到 Terminal；P102–P103 让 Run Summary 只按 authoritative root outcome宣告状态，并以 exact Run而不是最后一个 continuation Segment作为全程聚合边界；P104 让 mounted Dock view-local state服从 exact Session owner；P105 让 Run Summary 的 Tool material在 live 与 durable snapshot路径收敛，不再依赖冷恢复无法重建的瞬时 start observation；P106 进一步让 ToolCall 自己持有唯一已接受的人类审批事实，并把 answer claim事务、resume reducer、协议制品与 Desktop双客户端归并收敛到同一 identity。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。

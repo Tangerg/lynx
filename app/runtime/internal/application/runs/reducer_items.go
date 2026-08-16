@@ -306,6 +306,7 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 		modelCallSequence: e.ModelCallSequence, toolCallIndex: e.ToolCallIndex,
 		id: identity.id, occurredAt: identity.occurredAt, attemptStartedAt: r.now(),
 		name: e.ToolName, arguments: arguments, safetyClass: e.SafetyClass,
+		approvalDecision: identity.approvalDecision,
 	}
 	r.toolCallIDs[e.CallID] = struct{}{}
 	if e.ModelCallSequence > 0 {
@@ -336,11 +337,15 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 }
 
 func (r *reducer) runningToolItem(ref *openTool) (transcript.Item, error) {
-	return transcript.NewToolCall(
+	item, err := transcript.NewToolCall(
 		r.itemIdentity(ref.id, ref.occurredAt),
 		*newToolInvocation(ref.name, ref.arguments, nil),
 		ref.safetyClass,
 	)
+	if err != nil || ref.approvalDecision == "" {
+		return item, err
+	}
+	return item.ResolveToolApproval(ref.approvalDecision)
 }
 
 func (r *reducer) openToolItemID(callID string) (string, bool) {
@@ -491,11 +496,7 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, e
 	}
 	invocation := newToolInvocation(ref.name, arguments, e.Result)
 	invocation.Offload = e.Offload
-	item, err := transcript.NewToolCall(
-		r.itemIdentity(ref.id, ref.occurredAt),
-		*newToolInvocation(ref.name, ref.arguments, nil),
-		ref.safetyClass,
-	)
+	item, err := r.runningToolItem(ref)
 	if err != nil {
 		return nil, err
 	}

@@ -87,6 +87,14 @@ type ItemReplacer interface {
 	ReplaceItem(ctx context.Context, expected transcript.Item, replacement transcript.Item) error
 }
 
+// ToolApprovalStore is the exact transcript read/CAS surface used at the
+// answer-claim transaction. The adapter loads the running ToolCall, applies its
+// domain transition, and replaces that same immutable value atomically.
+type ToolApprovalStore interface {
+	Item(ctx context.Context, itemID string) (transcript.Item, bool, error)
+	ReplaceItem(ctx context.Context, expected transcript.Item, replacement transcript.Item) error
+}
+
 type ToolResultStore interface {
 	Bind(ctx context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error
 	Discard(ctx context.Context, sessionID string, ref toolresult.Ref) error
@@ -252,6 +260,7 @@ type Config struct {
 	GoalRuns            GoalRunRecorder
 	Transcript          TranscriptStore
 	ItemReplacer        ItemReplacer
+	ToolApprovals       ToolApprovalStore
 	ToolResults         ToolResultStore
 	ModelInvocations    ModelInvocationJournal
 	ToolInvocations     ToolInvocationJournal
@@ -278,6 +287,7 @@ type Effects struct {
 	goalRuns            GoalRunRecorder
 	transcript          TranscriptStore
 	itemReplacer        ItemReplacer
+	toolApprovals       ToolApprovalStore
 	toolResults         ToolResultStore
 	modelInvocations    ModelInvocationJournal
 	toolInvocations     ToolInvocationJournal
@@ -318,6 +328,7 @@ func New(cfg Config) *Effects {
 		goalRuns:            cfg.GoalRuns,
 		transcript:          cfg.Transcript,
 		itemReplacer:        cfg.ItemReplacer,
+		toolApprovals:       cfg.ToolApprovals,
 		toolResults:         cfg.ToolResults,
 		modelInvocations:    cfg.ModelInvocations,
 		toolInvocations:     cfg.ToolInvocations,

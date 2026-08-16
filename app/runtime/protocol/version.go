@@ -6,8 +6,8 @@ import "time"
 // Current and minimum supported are deliberately equal: this build serves one
 // exact version and does not advertise negotiation it cannot perform.
 const (
-	ProtocolVersion    = "2026-08-13"
-	MinProtocolVersion = "2026-08-13"
+	ProtocolVersion    = "2026-08-17"
+	MinProtocolVersion = "2026-08-17"
 )
 
 // ProtocolRange is the negotiated wire-version window advertised by discovery

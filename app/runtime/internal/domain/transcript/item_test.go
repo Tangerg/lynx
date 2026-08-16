@@ -4,10 +4,47 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
+
+func TestToolApprovalDecisionIsImmutableAndSurvivesSettlement(t *testing.T) {
+	running, err := transcript.NewToolCall(
+		itemIdentity(), transcript.ToolInvocation{Name: "shell"}, tool.SafetyClassExec,
+	)
+	if err != nil {
+		t.Fatalf("NewToolCall: %v", err)
+	}
+	resolved, err := running.ResolveToolApproval(approval.Allow)
+	if err != nil {
+		t.Fatalf("ResolveToolApproval: %v", err)
+	}
+	if running.ApprovalDecision() != "" || resolved.ApprovalDecision() != approval.Allow {
+		t.Fatalf("approval decisions = original %q, resolved %q", running.ApprovalDecision(), resolved.ApprovalDecision())
+	}
+	if _, err := resolved.ResolveToolApproval(approval.Deny); err == nil {
+		t.Fatal("ResolveToolApproval accepted a second decision")
+	}
+	result := tool.StringResult("ok")
+	completed, err := resolved.CompleteToolCall(
+		transcript.ToolInvocation{Name: "shell", Result: &result},
+		resolved.OccurredAt(),
+		resolved.OccurredAt().Add(time.Second),
+	)
+	if err != nil {
+		t.Fatalf("CompleteToolCall: %v", err)
+	}
+	if completed.ApprovalDecision() != approval.Allow {
+		t.Fatalf("completed approval decision = %q, want %q", completed.ApprovalDecision(), approval.Allow)
+	}
+	if restored, err := transcript.RestoreItem(completed.Snapshot()); err != nil {
+		t.Fatalf("RestoreItem: %v", err)
+	} else if restored.ApprovalDecision() != approval.Allow {
+		t.Fatalf("restored approval decision = %q, want %q", restored.ApprovalDecision(), approval.Allow)
+	}
+}
 
 func itemIdentity() transcript.ItemIdentity {
 	location := time.FixedZone("fixture", 8*60*60)
