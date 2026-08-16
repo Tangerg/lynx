@@ -5,14 +5,17 @@ import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlace
 import { CatalogPicker, type CatalogPickerGroup, type IconName } from "@/ui";
 import {
   AgentContentCard,
-  AgentContextDock,
   type AgentDockTab,
   AgentDockTabs,
   AgentDockToggle,
   AgentStatusPill,
   AgentSurfaceHeader,
 } from "@/ui/agent";
-import { useAgentSessions, useActiveSession } from "@/plugins/builtin/agent/public/session";
+import {
+  useActiveSession,
+  useActiveSessionId,
+  useAgentSessions,
+} from "@/plugins/builtin/agent/public/session";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import {
   closeWorkspaceDockView,
@@ -37,6 +40,7 @@ import { DockResizer } from "./DockResizer";
 import { HeaderDiffStat } from "./HeaderDiffStat";
 import { ViewPlacementProvider } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
+import { SessionOwnedDock } from "./SessionOwnedDock";
 import { useT } from "@/lib/i18n";
 
 function viewIcon(name: string | undefined): IconName | undefined {
@@ -108,6 +112,7 @@ export function ChatPanel({ onSend }: Props) {
   const { width: dockWidth } = useDockWidth();
   const { isLoading } = useAgentSessions();
   const activeSession = useActiveSession();
+  const activeSessionId = useActiveSessionId();
   const running = useIsCurrentRootRunning();
   const t = useT();
 
@@ -208,10 +213,11 @@ export function ChatPanel({ onSend }: Props) {
               did not occupy on the previous frame, and the first view opened in a session
               is exactly the case where there is no previous frame to leave unless the
               flank was already there, held outside the window by its end margin. */}
-          <AgentContextDock>
+          <SessionOwnedDock sessionId={activeSessionId}>
             <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
             <div className="relative min-h-0 flex-1">
-              {/* Every open tab stays mounted so switching between them keeps each
+              {/* Every open tab stays mounted within the current Session so switching
+                    between them keeps each
                     one's scroll, selection and expansion — but only the visible one is
                     allowed to be doing anything. `Activity` is what separates those:
                     hiding a tab runs its effect cleanups, so a diff behind another tab
@@ -232,7 +238,7 @@ export function ChatPanel({ onSend }: Props) {
                 </Activity>
               ))}
             </div>
-          </AgentContextDock>
+          </SessionOwnedDock>
           {/* Pinned to the row's trailing corner rather than placed in either bar — see
               AgentDockToggle. Last in the row so it paints over the flank it moves. */}
           <div className="agent-dock-control">
