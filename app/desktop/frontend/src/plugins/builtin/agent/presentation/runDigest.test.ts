@@ -95,6 +95,57 @@ describe("deriveLatestRun", () => {
     });
   });
 
+  it("rebuilds Tool material from a durable snapshot that only has tool-end", () => {
+    const v = view({
+      timeline: [
+        entry({ kind: "run-start", runId: "r1" }),
+        // sessions.snapshot replays a completed Item through completion
+        // semantics. It owns the durable Tool fact and its terminal timeline
+        // entry, but cannot invent a live item.started observation.
+        entry({ kind: "tool-end", runId: "r1", refId: "cold-command", status: "ok" }),
+        entry({ kind: "tool-end", runId: "r1", refId: "cold-edit", status: "ok" }),
+        entry({ kind: "tool-end", runId: "r1", refId: "cold-read", status: "ok" }),
+        entry({ kind: "run-end", runId: "r1", status: "ok" }),
+      ],
+      toolCalls: {
+        "cold-command": {
+          id: "cold-command",
+          runId: "r1",
+          name: "shell",
+          fn: "Run tests",
+          command: "npm test",
+          args: "",
+          status: "ok",
+        },
+        "cold-edit": {
+          id: "cold-edit",
+          runId: "r1",
+          name: "edit",
+          fn: "src/runtime.ts",
+          args: "",
+          status: "ok",
+          added: 4,
+          removed: 1,
+        },
+        "cold-read": {
+          id: "cold-read",
+          runId: "r1",
+          name: "read",
+          fn: "read",
+          args: '{"path":"src/model.ts"}',
+          status: "ok",
+        },
+      },
+      outcome: { type: "completed" },
+    });
+
+    expect(deriveLatestRun(v)).toMatchObject({
+      commands: [{ cmd: "npm test", status: "ok" }],
+      changedFiles: [{ path: "src/runtime.ts", added: 4, removed: 1 }],
+      readFiles: ["src/model.ts"],
+    });
+  });
+
   it("flags status ok / err / running based on terminal entry", () => {
     const ok = view({
       timeline: [

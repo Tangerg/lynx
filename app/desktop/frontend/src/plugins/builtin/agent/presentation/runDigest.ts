@@ -102,12 +102,14 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
     errors: [],
   };
 
-  // Track tool-start refs so we can pair them with their tool-end and
-  // know which tools were *attempted* even if not yet ended.
-  const startedTools = new Set<string>();
+  // Keep the first causal occurrence of every Tool. Live folding contributes a
+  // start and (usually) an end; a cold durable snapshot of a completed Item can
+  // only contribute the end. Both paths own the same Tool read-model fact, and
+  // neither should have to fabricate the other's observation to build a digest.
+  const materializedTools = new Set<string>();
   for (const e of slice) {
-    if (e.kind === "tool-start" && e.refId) {
-      startedTools.add(e.refId);
+    if ((e.kind === "tool-start" || e.kind === "tool-end") && e.refId) {
+      materializedTools.add(e.refId);
     }
     if (e.kind === "run-error" && e.summary) {
       digest.errors.push(e.summary);
@@ -126,7 +128,7 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
 
   // Pull the categorised tool details from view.toolCalls — that's
   // where the args, status, added/removed counts already live.
-  for (const id of startedTools) {
+  for (const id of materializedTools) {
     const tool = source.toolCalls[id];
     if (!tool || tool.runId !== source.runId) continue;
     // Bucket by the §4.4.2 display category (derived from tool.name), the same

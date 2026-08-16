@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P104 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P105 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -112,6 +112,7 @@
 | P102 | Desktop Run Summary authoritative outcome 收敛 | P101 + canceled/limit reported Done / unproven terminal 反例 | 已完成 |
 | P103 | Desktop Run Summary HITL continuation 全程聚合 | P102 + repeated Segment starts / pre-HITL material loss 反例 | 已完成 |
 | P104 | Desktop Context Dock React 实例 Session 所有权 | P103 + same-view cross-session local-state reuse 反例 | 已完成 |
+| P105 | Desktop Run Summary durable Tool 冷恢复收敛 | P104 + completed Item without live start observation 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1878,10 +1879,31 @@
 - focused 1 file / 1 test 与完整 Frontend 293 files / 1748 tests、严格异步泄露检测、类型、lint、格式、依赖、架构、API consumer、设计系统与生产 bundle 门禁全绿；
 - 本批无视觉样式变化，未使用 agent-browser，测试结束本仓无新增 Frontend 测试或 Runtime 进程。
 
-## 84. 进度记录
+## 84. P105 — Desktop Run Summary durable Tool 冷恢复收敛
+
+### 目标
+
+关闭 Runtime 重启、renderer 冷启动或 authoritative snapshot 替换后，已完成 Tool 只重建 `toolCalls + tool-end`，Run Summary 却要求瞬时 `tool-start` 才纳入命令、改文件和读文件，导致同一 completed Run 的摘要在恢复后变空的缺口。摘要必须从 durable Tool read model恢复，并与 live stream路径保持 exact Run、因果顺序和状态一致。
+
+### 工作项
+
+- [x] P105-01 冻结 completed command/file-edit/file-read 只有 durable `tool-end` 的恢复反例；修复前三类 Tool read-model facts均存在但摘要全部忽略；
+- [x] P105-02 将 Tool material准入从 live-only `tool-start` 扩为 timeline 中该 Tool 的首个 `tool-start` 或 `tool-end`，以 Set保持首个因果位置并自然去重 live start/end；
+- [x] P105-03 继续从 exact `toolCalls[id]` 读取 command、path、diffstat与 terminal status，并重验 `tool.runId`，不伪造 live event、不按 object map猜跨 Run顺序；
+- [x] P105-04 保持 Runtime snapshot/Protocol/Artifact/SQLite、Desktop Agent inner ring 与 Go Agent Framework 合同不变；没有修改或暂存 `app/cli`。
+
+### 验收
+
+- completed Run 在 live stream与 `sessions.snapshot` 冷恢复后得到相同 command、changedFiles、readFiles摘要；start+end双事实仍只产生一项；
+- HITL continuation、child Run隔离、running Tool 与 P102 outcome状态准入保持不变；
+- focused 2 files / 10 tests 与完整 Frontend 293 files / 1749 tests、严格异步泄露检测、类型、lint、格式、依赖、架构、API consumer、设计系统与生产 bundle 门禁全绿；
+- 本批无视觉样式变化，未使用 agent-browser，测试结束本仓无新增 Frontend 测试或 Runtime 进程。
+
+## 85. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P105（Desktop Run Summary durable Tool recovery） | Runtime 重启/冷启动收敛复核确认，`sessions.snapshot` 按持久 Item重建 completed Tool时正确地产生 `toolCalls + tool-end`，不会伪造只存在于 live stream 的 `item.started`；Run Summary却只从 `tool-start` 收集 Tool identity，因此同一 completed Run恢复后 command、file edit与file read摘要全部消失。现在 timeline中 start/end任一首次出现都建立 material identity，live start+end由 Set去重，durable end-only路径使用同一个 Tool read model恢复参数、状态与diffstat，exact runId过滤不变 | 修复前 end-only completed command反例稳定得到空数组；修复后 command/file-edit/file-read三类冷恢复与既有 HITL/live/child隔离回归全绿，focused 2 files / 10 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 293 files / 1749 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无样式或 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P104（Desktop Context Dock React instance ownership） | 继续审计右侧功能区 Session 交接时确认，P100 已把 tabs/selection 放进逐 Session store，但 `ChatPanel` 仍只用 `viewId` key mounted `Activity`；s1/s2 打开同名 Terminal、Diff 或 Run Summary 时 React 会把同一组件实例交给新 Session，局部 scroll anchor、collapsed files、copied feedback 等事实因此越权存活。现在 exact active Session ID key整个 Context Dock subtree，Session 切换统一退休 view-local state；同一 Session 内各 tab仍由既有 `Activity` 保持挂载，导航 memory继续由 P100 owner恢复 | 修复前没有 Session-owned Dock component，定向红测无法解析边界；修复后 exact owner切换生成新 child instance、same-session rerender保留实例，focused 1 file / 1 test，Frontend 普通与严格 `--detectAsyncLeaks` 均为 293 files / 1748 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无样式或 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P103（Desktop Run Summary HITL continuation） | 继续沿多轮/HITL 复核 Run Summary 时确认 `segment.started` 在同一 Run每次 resume都会产生新的 `run-start` timeline entry，而 digest 使用 `findLastIndex` 把最后一个 Segment start误作 Run边界；审批前命令、文件、approval与耗时因此全部消失。现在 selected root Run以第一个可用 start建立坐标，再以 exact runId聚合全部 continuation Segments到 terminal；后续 start不重置 startedAt，child/其他 root仍被过滤，P102 outcome状态准入不变 | 修复前真实 pre-HITL→approval→resume→terminal 红测只剩后半段命令且 startedAt漂移；修复后 focused 1 file / 8 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 292 files / 1747 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P102（Desktop Run Summary outcome truth） | 右侧 Run Summary 反证发现它把任何 `run-end` 都直接映射为 `ok`，而 fold 对 canceled、maxSteps、maxBudget 本就生成非 `ok` run-end并在 root Run保留 authoritative outcome；结果用户取消或触达限制后仍看到绿色 Done。现在 Workspace presentation通过 Agent public read model读取 exact current-root outcome，摘要只在 completed 或明确 terminal `status=ok` 时进入 success；canceled 为 neutral，步数/预算上限为 warning，failure/run-error 为 negative，无法证明的终态 fail closed为 unknown。既有 Run Tree 文案/tone 被复用，没有解析 summary 文本或复制 Runtime DTO | 修复前 canceled/limit 两类红测稳定得到 `ok`/undefined badge；修复后 focused 2 files / 14 tests，Frontend 普通与严格 `--detectAsyncLeaks` 均为 292 files / 1746 tests且零泄露，typecheck、OxLint、Prettier、knip、circular/context/layer/port/API consumer、设计系统、locale、bootstrap 与 production bundle 全绿；87/87 operation fact families + 3/3 sidecars + 16/16 events 保持消费；本批无 Go/Runtime 合同变化，未使用 agent-browser，`app/cli` 未修改或暂存 |
@@ -2057,6 +2079,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 85. 本轮里程碑
+## 86. 本轮里程碑
 
-P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100–P101 明确右侧 Context Dock 的 renderer/session 交接并把对话 Tool identity 接通到 Terminal；P102–P103 让 Run Summary 只按 authoritative root outcome宣告状态，并以 exact Run而不是最后一个 continuation Segment作为全程聚合边界；P104 进一步让 mounted Dock view-local state服从 exact Session owner，消除同名 view跨会话实例复用。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。
+P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100–P101 明确右侧 Context Dock 的 renderer/session 交接并把对话 Tool identity 接通到 Terminal；P102–P103 让 Run Summary 只按 authoritative root outcome宣告状态，并以 exact Run而不是最后一个 continuation Segment作为全程聚合边界；P104 让 mounted Dock view-local state服从 exact Session owner；P105 则让 Run Summary 的 Tool material在 live 与 durable snapshot路径收敛，不再依赖冷恢复无法重建的瞬时 start observation。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。
