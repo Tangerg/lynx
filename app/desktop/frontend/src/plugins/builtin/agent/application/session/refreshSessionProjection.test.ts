@@ -10,6 +10,7 @@ import { installAgentStatePorts } from "../../adapters/agentStatePorts";
 import {
   refreshAgentSessionProjection,
   revalidateAgentSessionProjection,
+  synchronizeMountedAgentSessions,
 } from "./refreshSessionProjection";
 
 const SESSION_ID = "ses_refresh";
@@ -186,6 +187,24 @@ describe("refreshAgentSessionProjection", () => {
     const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
       { revision?: number } | null | undefined;
     expect(plan?.revision).not.toBe(9);
+    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+  });
+
+  it("revokes an unsignaled snapshot at the Runtime connection boundary", async () => {
+    const read = deferred<AgentSessionMaterialRead>();
+    const commitAssociatedReadModels = vi.fn();
+    restoreRuntime = configureAgentRuntimeGateway({
+      loadSessionSnapshot: vi.fn(() => read.promise),
+    } as unknown as AgentRuntimeGateway);
+
+    const refreshing = refreshAgentSessionProjection(SESSION_ID);
+    synchronizeMountedAgentSessions({ ownership: "retire-live" });
+    read.resolve(material(snapshot(11), commitAssociatedReadModels));
+
+    await expect(refreshing).resolves.toBeNull();
+    const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
+      { revision?: number } | null | undefined;
+    expect(plan?.revision).not.toBe(11);
     expect(commitAssociatedReadModels).not.toHaveBeenCalled();
   });
 

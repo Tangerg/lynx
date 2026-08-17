@@ -30,6 +30,7 @@ function subscriptionPorts(
     canSubscribe: vi.fn(() => true),
     runtimeGeneration: vi.fn(() => "runtime_1"),
     subscribeConnection: vi.fn(() => vi.fn()),
+    retireReadModels: vi.fn(),
     resolveWorkspaceCwd: vi.fn().mockResolvedValue({ status: "resolved", cwd: "/repo" }),
     reportResolutionError: vi.fn(),
     subscribeWorkspaceCwdInputs: vi.fn(() => vi.fn()),
@@ -131,6 +132,62 @@ describe("startWorkspaceEventSubscription", () => {
     expect(signals).toHaveLength(2);
     expect(signals[0]?.aborted).toBe(true);
     expect(signals[1]?.aborted).toBe(false);
+  });
+
+  it("retires old read admissions before opening a successor Runtime event tail", () => {
+    let onConnectionChange: (() => void) | undefined;
+    let generation = "runtime_retired";
+    const order: string[] = [];
+    const ports = subscriptionPorts({
+      runtimeGeneration: () => generation,
+      subscribeConnection: (listener) => {
+        onConnectionChange = listener;
+        return vi.fn();
+      },
+      retireReadModels: () => order.push("retire"),
+      loop: {
+        start: vi.fn(async () => {
+          order.push("start");
+        }),
+        retarget: vi.fn(),
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    order.length = 0;
+    generation = "runtime_successor";
+    onConnectionChange?.();
+
+    expect(order).toEqual(["retire", "start"]);
+  });
+
+  it("retires reads admitted while disconnected before the first recovered tail", () => {
+    let onConnectionChange: (() => void) | undefined;
+    let generation: string | null = null;
+    let advertised = false;
+    const order: string[] = [];
+    const ports = subscriptionPorts({
+      canSubscribe: () => advertised,
+      runtimeGeneration: () => generation,
+      subscribeConnection: (listener) => {
+        onConnectionChange = listener;
+        return vi.fn();
+      },
+      retireReadModels: () => order.push("retire"),
+      loop: {
+        start: vi.fn(async () => {
+          order.push("start");
+        }),
+        retarget: vi.fn(),
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    generation = "runtime_recovered";
+    advertised = true;
+    onConnectionChange?.();
+
+    expect(order).toEqual(["retire", "start"]);
   });
 
   it("retargets to the latest resolved cwd and ignores stale resolutions", async () => {

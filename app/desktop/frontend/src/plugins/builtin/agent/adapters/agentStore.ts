@@ -75,6 +75,7 @@ interface AgentStore {
     token: AgentViewRefreshToken,
     view: AgentSessionView,
   ) => boolean;
+  retireProjectionGeneration: (sessionIds: readonly string[]) => void;
   /**
    * Reconcile an optimistic placeholder with the server id named by the run
    * acknowledgement. If the streamed item won the race and already occupies
@@ -258,6 +259,19 @@ export const useAgentStore = create<AgentStore>((set) => ({
     });
     return committed;
   },
+  retireProjectionGeneration: (sessionIds) =>
+    set((state) => {
+      let sessions = state.sessions;
+      for (const sessionId of new Set(sessionIds)) {
+        const entry = sessions[sessionId];
+        if (!entry) continue;
+        sessions = patchSession(sessions, sessionId, {
+          refreshSequence: entry.refreshSequence + 1,
+          viewEpoch: entry.viewEpoch + 1,
+        });
+      }
+      return sessions === state.sessions ? state : { sessions };
+    }),
   reconcileMessageIdentity: (sessionId, fromId, toId) =>
     set((state) => {
       const sessions = patchView(state.sessions, sessionId, (view) =>
@@ -336,6 +350,11 @@ export class AgentViewRefreshOwner {
   commit(sessionId: string, token: AgentViewRefreshToken, view: AgentSessionView): boolean {
     if (!this.#ownsGeneration()) return false;
     return useAgentStore.getState().commitViewRefresh(sessionId, token, view);
+  }
+
+  retireProjectionGeneration(sessionIds: readonly string[]): void {
+    if (!this.#ownsGeneration()) return;
+    useAgentStore.getState().retireProjectionGeneration(sessionIds);
   }
 
   dispose(): void {

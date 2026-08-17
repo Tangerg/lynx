@@ -7,6 +7,7 @@ export interface WorkspaceEventSubscriptionPorts {
   canSubscribe: () => boolean;
   runtimeGeneration: () => string | null;
   subscribeConnection: (onChange: () => void) => () => void;
+  retireReadModels: () => void;
   resolveWorkspaceCwd: (signal: AbortSignal) => Promise<WorkspaceCwdResolution>;
   reportResolutionError: (error: unknown) => void;
   subscribeWorkspaceCwdInputs: (onChange: (change: WorkspaceCwdInputChange) => void) => () => void;
@@ -14,26 +15,40 @@ export interface WorkspaceEventSubscriptionPorts {
 }
 
 class RuntimeEventLoopOwner {
+  #observedConnection = false;
   #generation: string | null = null;
   #abort: AbortController | null = null;
 
-  constructor(private readonly loop: WorkspaceEventLoop) {}
+  constructor(
+    private readonly loop: WorkspaceEventLoop,
+    private readonly retireReadModels: () => void,
+  ) {}
 
-  replace(generation: string | null): void {
-    if (generation !== null && this.#abort !== null && this.#generation === generation) return;
+  reconcile(generation: string | null, canSubscribe: boolean): void {
+    const generationChanged = this.#observedConnection && this.#generation !== generation;
+    const shouldStream = generation !== null && canSubscribe;
+    if (this.#observedConnection && !generationChanged && (this.#abort !== null) === shouldStream)
+      return;
+
+    // Runtime identity owns every read admitted through its connection, not
+    // only runtime.subscribe. Revoke those writers synchronously before the
+    // old tail is aborted or the successor tail begins opening. The successor
+    // snapshot remains deliberately deferred until that tail is established.
+    if (generationChanged) this.retireReadModels();
     this.#abort?.abort();
     this.#abort = null;
-    this.#generation = null;
-    if (generation === null) return;
+    this.#observedConnection = true;
+    this.#generation = generation;
+    if (!shouldStream) return;
 
     const abort = new AbortController();
-    this.#generation = generation;
     this.#abort = abort;
     void this.loop.start(abort.signal);
   }
 
   dispose(): void {
-    this.replace(null);
+    this.#abort?.abort();
+    this.#abort = null;
   }
 }
 
@@ -46,7 +61,7 @@ export function startWorkspaceEventSubscription(
   ports: WorkspaceEventSubscriptionPorts,
 ): () => void {
   const controller = new AbortController();
-  const eventLoop = new RuntimeEventLoopOwner(ports.loop);
+  const eventLoop = new RuntimeEventLoopOwner(ports.loop, ports.retireReadModels);
   let retargetGeneration = 0;
   let resolutionAbort: AbortController | null = null;
 
@@ -105,7 +120,7 @@ export function startWorkspaceEventSubscription(
 
   const reconcileConnection = (): void => {
     if (controller.signal.aborted) return;
-    eventLoop.replace(ports.canSubscribe() ? ports.runtimeGeneration() : null);
+    eventLoop.reconcile(ports.runtimeGeneration(), ports.canSubscribe());
   };
 
   reconcileConnection();

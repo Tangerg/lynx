@@ -105,10 +105,13 @@ export function synchronizeMountedAgentSessions(
   const targets = requested
     ? mountedIds.filter((sessionId) => requested.has(sessionId))
     : mountedIds;
+  if (request.ownership === "replace-live" || request.ownership === "retire-live") {
+    agentSessionView().retireProjectionGeneration(targets);
+  }
   for (const sessionId of targets) {
     const synchronize = sessions[sessionId]?.synchronize;
     if (synchronize) void synchronize(request.ownership);
-    else void refreshAgentSessionProjection(sessionId);
+    else if (request.ownership !== "retire-live") void refreshAgentSessionProjection(sessionId);
   }
   return targets;
 }

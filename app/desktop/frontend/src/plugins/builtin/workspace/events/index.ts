@@ -9,6 +9,7 @@ import { installProjectIndexRefresh } from "./adapters/projectIndexRefresh";
 import {
   invalidateWorkspaceEvent,
   invalidateWorkspaceEverything,
+  retireWorkspaceReadModels,
 } from "./adapters/queryInvalidation";
 import {
   canSubscribeWorkspaceEvents,
@@ -40,6 +41,7 @@ export default definePlugin({
       canSubscribe: canSubscribeWorkspaceEvents,
       runtimeGeneration: ctx.runtime.runtimeGeneration,
       subscribeConnection: ctx.runtime.subscribeConnection,
+      retireReadModels: retireWorkspaceReadModels,
       resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
       reportResolutionError: (error) =>
         console.warn("[workspace-events] target resolution failed:", error),

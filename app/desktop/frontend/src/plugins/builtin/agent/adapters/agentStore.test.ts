@@ -337,6 +337,21 @@ describe("agentStore authoritative refresh", () => {
     expect(view().shared).toEqual({ marker: "newest" });
   });
 
+  it("revokes snapshot and queued-stream writers at a connection generation boundary", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    const owner = AgentViewRefreshOwner.install();
+    const token = owner.begin(SID, false)!;
+    const previous = useAgentStore.getState().sessions[SID]!;
+
+    owner.retireProjectionGeneration([SID]);
+
+    const retired = useAgentStore.getState().sessions[SID]!;
+    expect(retired.viewEpoch).toBe(previous.viewEpoch + 1);
+    expect(owner.commit(SID, token, EMPTY_AGENT_SESSION_VIEW)).toBe(false);
+    owner.dispose();
+  });
+
   it("invalidates queued stream events for a history rewrite without clearing the view", () => {
     const store = useAgentStore.getState();
     store.ensureSession(SID);

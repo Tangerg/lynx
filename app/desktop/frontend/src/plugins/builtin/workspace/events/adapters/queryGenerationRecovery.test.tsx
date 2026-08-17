@@ -18,7 +18,11 @@ import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { createParameterizedDataQuery } from "@/plugins/sdk/dataQuery";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { definePlugin } from "@/plugins/sdk";
-import { invalidateWorkspaceEvent, invalidateWorkspaceEverything } from "./queryInvalidation";
+import {
+  invalidateWorkspaceEvent,
+  invalidateWorkspaceEverything,
+  retireWorkspaceReadModels,
+} from "./queryInvalidation";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 interface GoalState {
@@ -54,6 +58,52 @@ afterEach(() => {
 });
 
 describe("workspace Runtime-generation query recovery", () => {
+  it("revokes an old query before the successor event tail starts its replacement", async () => {
+    const retired = deferred<GoalState>();
+    let firstSignal: AbortSignal | undefined;
+    let calls = 0;
+    const fetcher = vi.fn((_params?: unknown, signal?: AbortSignal) => {
+      calls += 1;
+      if (calls === 1) {
+        firstSignal = signal;
+        return retired.promise;
+      }
+      return Promise.resolve({ available: true, goal: goal("successor goal") });
+    });
+    await loadPluginsForTest(
+      definePlugin({
+        name: "test.goal-two-phase-generation-recovery",
+        setup(ctx) {
+          ctx.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
+        },
+      }),
+    );
+    const { result } = renderHook(() => useGoal({ sessionId: "ses_goal_generation" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+
+    act(() => retireWorkspaceReadModels());
+
+    expect(firstSignal?.aborted).toBe(true);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
+      ownership: "retire-live",
+    });
+    retired.resolve({ available: true, goal: goal("retired goal") });
+    await act(async () => Promise.resolve());
+    expect(result.current.data).toBeUndefined();
+    expect(fetcher).toHaveBeenCalledOnce();
+
+    act(() => invalidateWorkspaceEverything());
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.data?.goal?.objective).toBe("successor goal"));
+    await expect(result.current.promise).rejects.toThrow(
+      "experimental_prefetchInRender feature flag is not enabled",
+    );
+  });
+
   it("replaces an initial Goal read before the old Runtime settles", async () => {
     const retired = deferred<GoalState>();
     let firstSignal: AbortSignal | undefined;

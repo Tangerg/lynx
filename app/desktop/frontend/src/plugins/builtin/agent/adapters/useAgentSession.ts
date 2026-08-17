@@ -234,8 +234,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().setStop(sessionId, stop);
     store().setResume(sessionId, resume);
     store().setSynchronize(sessionId, (ownership) => {
-      if (ownership === "replace-live") {
+      if (ownership === "replace-live" || ownership === "retire-live") {
         runOpening.retire();
+        if (ownership === "retire-live") {
+          projectionSynchronization?.retire();
+          return Promise.resolve(false);
+        }
         return projectionSynchronization?.replace() ?? Promise.resolve(false);
       }
       return projectionSynchronization?.request() ?? Promise.resolve(false);

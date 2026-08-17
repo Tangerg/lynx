@@ -126,6 +126,14 @@ export function invalidateWorkspaceEverything(): void {
   replaceWorkspaceReadModels();
 }
 
+/** Phase one of a Runtime generation handoff. Retire every writer admitted by
+ * the prior connection while preserving the last committed projection. The
+ * event loop starts phase two only after its successor tail is open. */
+export function retireWorkspaceReadModels(): void {
+  synchronizeMountedAgentSessions({ ownership: "retire-live" });
+  void queryClient.cancelQueries();
+}
+
 function replaceWorkspaceReadModels(): void {
   // The material session projection is not a query-cache entry. Replace its
   // live generation first. Its sessions.snapshot successor now carries Goal

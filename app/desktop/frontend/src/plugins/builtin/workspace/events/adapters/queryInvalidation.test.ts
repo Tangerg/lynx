@@ -33,7 +33,11 @@ vi.mock("@/plugins/builtin/settings/providers/public/queries", () => ({
   UTILITY_ROLE_KEY: "utility-role",
 }));
 
-import { invalidateWorkspaceEvent, invalidateWorkspaceEverything } from "./queryInvalidation";
+import {
+  invalidateWorkspaceEvent,
+  invalidateWorkspaceEverything,
+  retireWorkspaceReadModels,
+} from "./queryInvalidation";
 import { createWorkspaceEventLoop } from "../application/workspaceEventLoop";
 
 beforeEach(() => {
@@ -80,6 +84,17 @@ describe("workspace session projection invalidation", () => {
     expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
       ownership: "replace-live",
     });
+  });
+
+  it("retires prior Runtime writers without starting successor reads", () => {
+    retireWorkspaceReadModels();
+
+    expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
+      ownership: "retire-live",
+    });
+    expect(cancelQueries).toHaveBeenCalledOnce();
+    expect(cancelQueries).toHaveBeenCalledWith();
+    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 
   it("keeps a mounted Goal inside the same full-resync material generation", () => {

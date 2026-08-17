@@ -6,6 +6,8 @@ export interface SessionProjectionSynchronization {
   /** Supersede the active Runtime generation. The current synchronization is
    * retired even when one of its reads does not cooperate with cancellation. */
   replace(): Promise<boolean>;
+  /** Revoke the active and queued generation without admitting a successor. */
+  retire(): void;
   /** Notify the coordinator after the live stream has folded its queued tail. */
   liveStreamSettled(): void;
   dispose(): void;
@@ -69,24 +71,29 @@ export function createSessionProjectionSynchronization({
     });
   };
 
+  const retire = (): void => {
+    requested = false;
+    activeAbort?.abort();
+    const pending = pendingWaiters;
+    pendingWaiters = [];
+    for (const settle of pending) settle(false);
+    const inFlight = activeWaiters;
+    activeWaiters = [];
+    for (const settle of inFlight) settle(false);
+  };
+
   return {
     request: enqueue,
     replace() {
       activeAbort?.abort();
       return enqueue();
     },
+    retire,
     liveStreamSettled: drain,
     dispose() {
       disposed = true;
-      activeAbort?.abort();
+      retire();
       activeAbort = null;
-      requested = false;
-      const waiters = pendingWaiters;
-      pendingWaiters = [];
-      for (const settle of waiters) settle(false);
-      const inFlight = activeWaiters;
-      activeWaiters = [];
-      for (const settle of inFlight) settle(false);
     },
   };
 }

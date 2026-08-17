@@ -171,6 +171,7 @@ export function installAgentStatePorts(): () => void {
     beginViewRefresh: (sessionId, invalidateQueuedRunEvents) =>
       refreshOwner.begin(sessionId, invalidateQueuedRunEvents),
     commitViewRefresh: (sessionId, token, view) => refreshOwner.commit(sessionId, token, view),
+    retireProjectionGeneration: (sessionIds) => refreshOwner.retireProjectionGeneration(sessionIds),
     clearProblem: (sessionId) => useAgentStore.getState().clearProblem(sessionId),
     resolveInterrupt: (sessionId, itemId, settled, resolvedAt) =>
       useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled, resolvedAt),

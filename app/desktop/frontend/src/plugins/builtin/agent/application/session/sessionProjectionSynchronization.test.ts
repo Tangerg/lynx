@@ -141,4 +141,29 @@ describe("session projection synchronization", () => {
     await Promise.resolve();
     expect(synchronize).toHaveBeenCalledTimes(2);
   });
+
+  it("retires active and queued work without admitting a successor read", async () => {
+    const first = deferred();
+    const signals: AbortSignal[] = [];
+    const synchronize = vi.fn((signal: AbortSignal) => {
+      signals.push(signal);
+      return first.promise;
+    });
+    const coordinator = createSessionProjectionSynchronization({
+      isLiveStreamActive: () => false,
+      synchronize,
+    });
+
+    const active = coordinator.request();
+    const queued = coordinator.request();
+    coordinator.retire();
+
+    await expect(active).resolves.toBe(false);
+    await expect(queued).resolves.toBe(false);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(synchronize).toHaveBeenCalledOnce();
+    first.resolve(true);
+    await Promise.resolve();
+    expect(synchronize).toHaveBeenCalledOnce();
+  });
 });
