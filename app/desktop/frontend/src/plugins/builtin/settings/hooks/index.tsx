@@ -7,6 +7,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installHookTrustGateway } from "./adapters/runtimeHookTrustGateway";
 import { hooksSettingsPane } from "./application/hooksContributions";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 const HooksPane = lazy(() =>
   import("./ui/HooksPane").then(({ HooksPane }) => ({ default: HooksPane })),
@@ -14,9 +15,20 @@ const HooksPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.hooks-pane",
+  requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
-    const disposeGateway = installHookTrustGateway();
+    const gateway = installHookTrustGateway();
+    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
+      const next = ctx.runtime.runtimeGeneration();
+      if (next === runtimeGeneration) return;
+      runtimeGeneration = next;
+      gateway.replaceRuntimeGeneration();
+    });
     registerSettingsPane(ctx, hooksSettingsPane(HooksPane));
-    ctx.cleanup(disposeGateway);
+    ctx.cleanup(() => {
+      unsubscribeRuntime();
+      gateway.dispose();
+    });
   },
 });

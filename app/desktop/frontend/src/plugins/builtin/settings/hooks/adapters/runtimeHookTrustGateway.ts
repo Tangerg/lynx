@@ -1,13 +1,26 @@
 import { getContainer } from "@/main/container";
-import { configureHookTrustGateway } from "../application/ports/hookTrustGateway";
-import type { HookTrustGateway } from "../application/ports/hookTrustGateway";
+import type { LyraClient } from "@/rpc";
+import { HookTrustMutationOwner, type HookTrustGateway } from "../application/hookTrust";
 
-const gateway: HookTrustGateway = {
-  async setProjectTrust(projectRoot, trusted) {
-    await getContainer().client().hooks.setTrust(projectRoot, trusted);
-  },
-};
+function runtimeHookTrustGateway(client: LyraClient): HookTrustGateway {
+  return {
+    async setProjectTrust(projectRoot, trusted) {
+      await client.hooks.setTrust(projectRoot, trusted);
+    },
+  };
+}
 
-export function installHookTrustGateway(): () => void {
-  return configureHookTrustGateway(gateway);
+export interface HookTrustGatewayInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installHookTrustGateway(): HookTrustGatewayInstallation {
+  const owner = HookTrustMutationOwner.install(runtimeHookTrustGateway(getContainer().client()));
+  return {
+    replaceRuntimeGeneration: () => owner.replaceRuntimeGeneration(),
+    dispose() {
+      owner.dispose();
+    },
+  };
 }
