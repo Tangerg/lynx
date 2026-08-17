@@ -118,7 +118,7 @@ function steerRunningTurn({
   const view = agentSessionView();
   const localId = mintSteerBubble(view, sessionId, input);
   const effect = owner.trackEffect(() => view.dropMessage(sessionId, localId));
-  void runtime.steerRun(runId, segmentId, input).then(
+  void owner.settle(runtime.steerRun(runId, segmentId, input)).then(
     () => {
       if (owner.isCurrent()) effect.settle();
     },

@@ -8,7 +8,7 @@ import {
 } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
-import { agentCommandOwner } from "../agentCommandOwner";
+import { agentCommandOwner, type AgentCommandEffect } from "../agentCommandOwner";
 
 /** Pin / unpin a session (sessions.update favorite) and refresh session summaries.
  *  Optimistic: flips the star in the list right away so the row reorders
@@ -21,19 +21,20 @@ export function useToggleFavorite(): (
   return useCallback(async (id, expectedRevision, favorite) => {
     const owner = agentCommandOwner();
     const runtime = agentRuntime();
+    let effect: AgentCommandEffect | undefined;
     // Cancel any in-flight sessions refetch before the optimistic write so a
     // background invalidate (workspace resync / reconnect) started earlier
     // can't resolve with the old favorite flag and un-flip the star.
-    await queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] });
-    if (!owner.isCurrent()) return;
-    const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
-    queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
-      old?.map((s) => (s.id === id ? { ...s, favorite } : s)),
-    );
-    const effect = owner.trackEffect(() =>
-      recoverAgentSessionSummaryField(prev, id, "favorite", favorite),
-    );
     try {
+      await owner.settle(queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] }));
+      owner.assertCurrent();
+      const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
+      queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
+        old?.map((s) => (s.id === id ? { ...s, favorite } : s)),
+      );
+      effect = owner.trackEffect(() =>
+        recoverAgentSessionSummaryField(prev, id, "favorite", favorite),
+      );
       const updated = await owner.settleSessionSummary(id, expectedRevision, (revision) =>
         runtime.updateSession({
           sessionId: id,
@@ -49,7 +50,7 @@ export function useToggleFavorite(): (
       void invalidateAgentSessions();
     } catch (err) {
       if (!owner.isCurrent()) return;
-      effect.rollback();
+      effect?.rollback();
       reportSessionError("favorite", err);
     }
   }, []);

@@ -20,8 +20,8 @@ export function useDeleteSession(): (id: string) => Promise<void> {
       // the query authoritative until Runtime commits the delete; treating a
       // local cache mutation as a server read can move the user even if the
       // command subsequently fails.
-      await runtime.deleteSession(id);
-      if (!owner.isCurrent()) return;
+      await owner.settle(runtime.deleteSession(id));
+      owner.assertCurrent();
       state.closeSession(id);
       void invalidateAgentSessions();
     } catch (err) {

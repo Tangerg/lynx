@@ -199,14 +199,25 @@ describe("useCreateSession", () => {
 
     await Promise.resolve();
     const successorStartedBeforeRetiredSettlement = successorCreate.mock.calls.length;
+    let retiredSettled = false;
+    void retired.then(() => {
+      retiredSettled = true;
+    });
+    await flushMicrotasks();
+    const retiredSettledBeforeOldRPC = retiredSettled;
     releaseRetired(fakeSession("retired"));
     try {
       await expect(retired).resolves.toBeNull();
       await expect(successor).resolves.toBe("successor");
       expect(successorStartedBeforeRetiredSettlement).toBe(1);
+      expect(retiredSettledBeforeOldRPC).toBe(true);
       expect(navigator().get().session).toBe("successor");
     } finally {
       disposeSuccessor.dispose();
     }
   });
 });
+
+async function flushMicrotasks(): Promise<void> {
+  for (let index = 0; index < 8; index += 1) await Promise.resolve();
+}

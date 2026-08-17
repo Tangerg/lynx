@@ -117,9 +117,16 @@ describe("rollbackSessionToBeforeRun", () => {
 
     const retired = rollbackSessionToBeforeRun("ses_1", "run_2");
     const disposeSuccessor = installAgentRuntimeGateway();
+    let retiredSettled = false;
+    void retired.then(() => {
+      retiredSettled = true;
+    });
+    await flushMicrotasks();
+    const retiredSettledBeforeOldRead = retiredSettled;
     read.resolve(material(snapshot()));
     try {
       await expect(retired).resolves.toEqual({ status: "unavailable" });
+      expect(retiredSettledBeforeOldRead).toBe(true);
       expect(successorRollback).not.toHaveBeenCalled();
     } finally {
       disposeSuccessor.dispose();
@@ -165,10 +172,17 @@ describe("forkAgentSessionAtRun", () => {
     const successor = forkAgentSessionAtRun("ses_1", "run_1");
     await Promise.resolve();
     const successorStartedBeforeRetiredSettlement = successorFork.mock.calls.length;
+    let retiredSettled = false;
+    void retired.then(() => {
+      retiredSettled = true;
+    });
+    await flushMicrotasks();
+    const retiredSettledBeforeOldRPC = retiredSettled;
     retiredFork.resolve({ id: "fork_retired" });
     try {
       await Promise.all([retired, successor]);
       expect(successorStartedBeforeRetiredSettlement).toBe(1);
+      expect(retiredSettledBeforeOldRPC).toBe(true);
       expect(navigator().get().session).toBe("fork_successor");
     } finally {
       disposeSuccessor.dispose();
@@ -194,6 +208,10 @@ function deferred<T>() {
     resolve = settle;
   });
   return { promise, resolve };
+}
+
+async function flushMicrotasks(): Promise<void> {
+  for (let index = 0; index < 8; index += 1) await Promise.resolve();
 }
 
 function run(id: string, createdAt: string): RunRef {

@@ -8,7 +8,7 @@ import {
 } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
-import { agentCommandOwner } from "../agentCommandOwner";
+import { agentCommandOwner, type AgentCommandEffect } from "../agentCommandOwner";
 
 /** Rename a session (sessions.update title) and refresh session summaries.
  *  Empty titles are rejected server-side (invalid_params) — callers trim
@@ -21,22 +21,21 @@ export function useRenameSession(): (
   return useCallback(async (id, expectedRevision, title) => {
     const owner = agentCommandOwner();
     const runtime = agentRuntime();
+    let effect: AgentCommandEffect | undefined;
     // Optimistic: paint the new title in the session summary list right away so the
     // row doesn't flash back to the old title while the RPC + refetch settle.
     // Cancel any in-flight sessions refetch FIRST: one started before this
     // optimistic write (a background workspace resync / reconnect invalidate)
     // would otherwise resolve with pre-rename data and clobber the optimistic
     // title. Snapshot after cancelling so rollback restores the right state.
-    await queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] });
-    if (!owner.isCurrent()) return;
-    const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
-    queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
-      old?.map((s) => (s.id === id ? { ...s, title } : s)),
-    );
-    const effect = owner.trackEffect(() =>
-      recoverAgentSessionSummaryField(prev, id, "title", title),
-    );
     try {
+      await owner.settle(queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] }));
+      owner.assertCurrent();
+      const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
+      queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
+        old?.map((s) => (s.id === id ? { ...s, title } : s)),
+      );
+      effect = owner.trackEffect(() => recoverAgentSessionSummaryField(prev, id, "title", title));
       const updated = await owner.settleSessionSummary(id, expectedRevision, (revision) =>
         runtime.updateSession({
           sessionId: id,
@@ -52,7 +51,7 @@ export function useRenameSession(): (
       void invalidateAgentSessions();
     } catch (err) {
       if (!owner.isCurrent()) return;
-      effect.rollback();
+      effect?.rollback();
       reportSessionError("rename", err);
     }
   }, []);

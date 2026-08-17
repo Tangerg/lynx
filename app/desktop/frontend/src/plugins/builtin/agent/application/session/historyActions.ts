@@ -46,8 +46,8 @@ export async function rollbackSessionToBeforeRun(
   // replacement between them retires the lease instead of splicing two clients.
   const runtime = agentRuntime();
   try {
-    const material = await runtime.loadSessionSnapshot(sessionId);
-    if (!lease.isCurrent()) return { status: "unavailable" };
+    const material = await owner.settle(runtime.loadSessionSnapshot(sessionId));
+    owner.assertCurrent();
     if (!material) return { status: "unavailable" };
     // This is a pre-command inspection, not a mounted projection commit. Its
     // associated read models must not replace what the UI currently owns.
@@ -66,14 +66,16 @@ export async function rollbackSessionToBeforeRun(
       // here would mean "drop all history", the opposite of files-only.
       return { status: "unavailable" };
     }
-    const result = await runtime.rollbackSession({
-      sessionId,
-      ...(keep ? { toRunId: keep } : {}),
-      ...(wantsFiles && keep ? { restoreType } : {}),
-    });
-    if (!lease.isCurrent()) return { status: "unavailable" };
-    await rehydrateSessionView(sessionId);
-    if (!lease.isCurrent()) return { status: "unavailable" };
+    const result = await owner.settle(
+      runtime.rollbackSession({
+        sessionId,
+        ...(keep ? { toRunId: keep } : {}),
+        ...(wantsFiles && keep ? { restoreType } : {}),
+      }),
+    );
+    owner.assertCurrent();
+    await owner.settle(rehydrateSessionView(sessionId));
+    owner.assertCurrent();
     const userInput = result.droppedRuns.find((dropped) => dropped.runId === runId)?.userInput;
     return {
       status: "committed",

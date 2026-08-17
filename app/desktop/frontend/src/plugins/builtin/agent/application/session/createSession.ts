@@ -41,25 +41,20 @@ async function createAndOpen({
   owner: AgentCommandOwner;
   runtime: AgentRuntimeGateway;
   state: AgentSessionStatePort;
-}): Promise<string | null> {
-  try {
-    const session = await runtime.createSession(cwd ? { cwd } : {});
-    if (!owner.isCurrent()) return null;
-    // Mark draft + queue the message BEFORE selecting, so the remount
-    // useAgentSession triggers sees both already in place.
-    state.markDraftSession(session.id);
-    if (firstInput?.parts.length)
-      state.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
-    state.selectSession(session.id); // opens + sets active → remounts chat
-    // Draft is filtered out of the Work Index; refetch so its graduation
-    // (and any backend-assigned title) lands promptly. A cwd create may
-    // also have minted a brand-new project.
-    void invalidateAgentSessions();
-    return session.id;
-  } catch (err) {
-    if (owner.isCurrent()) reportSessionError("create", err);
-    return null;
-  }
+}): Promise<string> {
+  const session = await runtime.createSession(cwd ? { cwd } : {});
+  owner.assertCurrent();
+  // Mark draft + queue the message BEFORE selecting, so the remount
+  // useAgentSession triggers sees both already in place.
+  state.markDraftSession(session.id);
+  if (firstInput?.parts.length)
+    state.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
+  state.selectSession(session.id); // opens + sets active → remounts chat
+  // Draft is filtered out of the Work Index; refetch so its graduation
+  // (and any backend-assigned title) lands promptly. A cwd create may
+  // also have minted a brand-new project.
+  void invalidateAgentSessions();
+  return session.id;
 }
 
 // Keyed by the request, because "join the one in flight" is only right for the
@@ -110,7 +105,12 @@ function doCreate(opts: CreateSessionOptions): Promise<string | null> {
   const key = joinKey(opts);
   const fresh = alreadyOnAFreshSession(opts, state, view);
   if (fresh) return Promise.resolve(fresh);
-  return owner.runSessionCreate(key, () => createAndOpen({ owner, runtime, state, ...opts }));
+  return owner
+    .runSessionCreate(key, () => createAndOpen({ owner, runtime, state, ...opts }))
+    .catch((error: unknown) => {
+      if (owner.isCurrent()) reportSessionError("create", error);
+      return null;
+    });
 }
 
 /** Imperative create for non-React callers (palette commands, keymap).

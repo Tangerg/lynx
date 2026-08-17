@@ -5,6 +5,7 @@ import { configureAgentRuntimeGateway, type AgentRuntimeGateway } from "../ports
 import { configureAgentSessionStatePort, type AgentSessionStatePort } from "../ports/sessionState";
 import { AGENT_SESSIONS_KEY, type AgentSessionSummary } from "./sessionQueries";
 import { useDeleteSession } from "./deleteSession";
+import { AgentCommandOwner } from "../agentCommandOwner";
 
 let restoreRuntime: (() => void) | undefined;
 let restoreState: (() => void) | undefined;
@@ -63,5 +64,43 @@ describe("useDeleteSession", () => {
     commit();
     await act(async () => deleting);
     expect(closeSession).toHaveBeenCalledWith("ses_a");
+  });
+
+  it("retires delete loading before an old non-cooperative RPC responds", async () => {
+    let commit!: () => void;
+    const deleteSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          commit = resolve;
+        }),
+    );
+    const closeSession = vi.fn();
+    restoreRuntime = configureAgentRuntimeGateway({
+      deleteSession,
+    } as unknown as AgentRuntimeGateway);
+    restoreState = configureAgentSessionStatePort({
+      closeSession,
+    } as unknown as AgentSessionStatePort);
+    const retiredOwner = AgentCommandOwner.install();
+    const { result } = renderHook(() => useDeleteSession());
+    const deleting = result.current("ses_a");
+    await Promise.resolve();
+    expect(deleteSession).toHaveBeenCalledOnce();
+
+    const successor = AgentCommandOwner.install();
+    let settled = false;
+    void deleting.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    const settledBeforeOldRPC = settled;
+
+    commit();
+    await deleting;
+    expect(settledBeforeOldRPC).toBe(true);
+    expect(closeSession).not.toHaveBeenCalled();
+    retiredOwner.dispose();
+    successor.dispose();
   });
 });

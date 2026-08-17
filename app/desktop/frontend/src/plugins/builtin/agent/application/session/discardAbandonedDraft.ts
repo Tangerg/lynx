@@ -28,8 +28,8 @@ export function discardAbandonedDraft(sessionId: string): void {
   if (!sessionId || !state.isDraftSession(sessionId)) return;
   if ((view.getSession(sessionId)?.view.messages.length ?? 0) > 0) return;
 
-  void runtime
-    .deleteSession(sessionId)
+  void owner
+    .settle(runtime.deleteSession(sessionId))
     .then(() => {
       if (owner.isCurrent()) return invalidateAgentSessions();
     })

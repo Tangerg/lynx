@@ -78,7 +78,7 @@ export class AgentCommandOwner {
 
   runSessionCreate<T>(key: string | null, execute: () => Promise<T>): Promise<T> {
     this.assertCurrent();
-    if (key === null) return execute();
+    if (key === null) return this.settle(execute());
     return this.#runSingleFlight(this.#creates, key, execute);
   }
 
@@ -116,7 +116,7 @@ export class AgentCommandOwner {
 
     const result = queue.tail.then(() => {
       this.assertCurrent();
-      return execute(Math.max(expectedRevision, queue.revision ?? expectedRevision));
+      return this.settle(execute(Math.max(expectedRevision, queue.revision ?? expectedRevision)));
     });
     const settled = result.then(
       (value) => {
@@ -192,7 +192,7 @@ export class AgentCommandOwner {
   ): Promise<T> {
     const existing = flights.get(key) as Promise<T> | undefined;
     if (existing) return existing;
-    const operation = execute();
+    const operation = this.settle(execute());
     const tracked = operation.finally(() => {
       if (flights.get(key) === tracked) flights.delete(key);
     });

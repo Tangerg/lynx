@@ -15,16 +15,16 @@ export function forkSessionAt(id: string, fromRunId?: string): Promise<void> {
   const runtime = agentRuntime();
   const state = agentSessionState();
   const key = fromRunId ? `${id}:${fromRunId}` : id;
-  return owner.runSessionFork(key, async () => {
-    try {
+  return owner
+    .runSessionFork(key, async () => {
       const fork = await runtime.forkSession({ sessionId: id, fromRunId });
-      if (!owner.isCurrent()) return;
+      owner.assertCurrent();
       state.selectSession(fork.id);
       void invalidateAgentSessions();
-    } catch (err) {
-      if (owner.isCurrent()) reportSessionError("fork", err);
-    }
-  });
+    })
+    .catch((error: unknown) => {
+      if (owner.isCurrent()) reportSessionError("fork", error);
+    });
 }
 
 export function useForkSession(): (id: string) => Promise<void> {
