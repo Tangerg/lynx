@@ -11,14 +11,18 @@ func registerHooks(registry *Registry) {
 		Name:      "hooks.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
+	}, func(service interface {
+		ListHooks(context.Context, protocol.ListHooksRequest) (*protocol.HooksListResult, error)
+	}, ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
 		return service.ListHooks(ctx, request)
 	})
 
 	CommandAck(registry, MethodMeta{
 		Name:      "hooks.setTrust",
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.SetHookTrustRequest) error {
+	}, func(service interface {
+		SetHookTrust(context.Context, protocol.SetHookTrustRequest) error
+	}, ctx context.Context, request protocol.SetHookTrustRequest) error {
 		return service.SetHookTrust(ctx, request)
 	})
 }

@@ -14,7 +14,6 @@ import (
 )
 
 type countingCancelService struct {
-	Service
 	calls atomic.Int32
 }
 

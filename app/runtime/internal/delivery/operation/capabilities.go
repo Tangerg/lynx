@@ -31,7 +31,13 @@ func (e *Endpoint) missingFeatureRequirements(
 	ctx context.Context,
 	required []string,
 ) ([]protocol.CapabilityRequirement, error) {
-	discovered, err := e.service.Discover(ctx)
+	discoverer, ok := e.target.(interface {
+		Discover(context.Context) (*protocol.DiscoverResponse, error)
+	})
+	if !ok || !capabilityAvailable(discoverer) {
+		return nil, errors.New("operation: target cannot handle runtime.discover")
+	}
+	discovered, err := discoverer.Discover(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("operation: read capabilities: %w", err)
 	}

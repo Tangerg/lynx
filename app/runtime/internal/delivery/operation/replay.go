@@ -49,7 +49,7 @@ func (r *replayStore) invoke(
 	parameters any,
 	key string,
 	execute func() Result,
-	service Service,
+	target any,
 ) Result {
 	if len(key) > maxIdempotencyKeyBytes {
 		return failed(NewFailure(protocol.ErrInvalidParams, "idempotency key must not exceed 255 bytes"))
@@ -71,7 +71,7 @@ func (r *replayStore) invoke(
 			return failed(r.persistenceFailure(err))
 		}
 		r.forgetPendingCompletion(key, fingerprint)
-		return r.replay(ctx, method, payload, service)
+		return r.replay(ctx, method, payload, target)
 	}
 
 	record, claimed, err := r.store.Claim(ctx, key, fingerprint)
@@ -85,7 +85,7 @@ func (r *replayStore) invoke(
 		if len(record.Payload) == 0 {
 			return failed(NewFailure(protocol.ErrIdempotencyInProgress, "the first execution has not completed"))
 		}
-		return r.replay(ctx, method, record.Payload, service)
+		return r.replay(ctx, method, record.Payload, target)
 	}
 
 	result := execute()
@@ -105,7 +105,7 @@ func (r *replayStore) invoke(
 	return result
 }
 
-func (r *replayStore) replay(ctx context.Context, method *Method, payload []byte, service Service) Result {
+func (r *replayStore) replay(ctx context.Context, method *Method, payload []byte, target any) Result {
 	var stored storedOutcome
 	if err := json.Unmarshal(payload, &stored); err != nil {
 		return failed(ProjectError(fmt.Errorf("idempotency: decode stored outcome: %w", err)))
@@ -129,7 +129,13 @@ func (r *replayStore) replay(ctx context.Context, method *Method, payload []byte
 	if !ok {
 		return failed(ProjectError(errors.New("idempotency: stored run-opening result has an invalid shape")))
 	}
-	_, events, err := service.SubscribeRun(ctx, protocol.SubscribeRunRequest{RunID: runID, SegmentID: segmentID})
+	subscriber, ok := target.(interface {
+		SubscribeRun(context.Context, protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error)
+	})
+	if !ok || !capabilityAvailable(subscriber) {
+		return failed(ProjectError(errors.New("operation: target cannot handle runs.subscribe")))
+	}
+	_, events, err := subscriber.SubscribeRun(ctx, protocol.SubscribeRunRequest{RunID: runID, SegmentID: segmentID})
 	switch {
 	case unattachable(err):
 		result.Events = emptyEventStream

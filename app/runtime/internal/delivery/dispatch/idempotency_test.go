@@ -13,7 +13,6 @@ import (
 )
 
 type blockingCancelRuntime struct {
-	operation.Service
 	calls   atomic.Int32
 	started chan struct{}
 	release chan struct{}

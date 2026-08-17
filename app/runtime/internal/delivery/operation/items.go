@@ -22,7 +22,9 @@ func registerItems(registry *Registry) {
 			Requires: []string{protocol.FeatureSubagents},
 		}},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+	}, func(service interface {
+		ListItems(context.Context, protocol.ListItemsRequest) (*protocol.ListItemsResponse, error)
+	}, ctx context.Context, request protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 		return service.ListItems(ctx, request)
 	})
 }

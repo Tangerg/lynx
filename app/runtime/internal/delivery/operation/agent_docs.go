@@ -11,7 +11,9 @@ func registerAgentDocs(registry *Registry) {
 		Name:      "agentDocs.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {
+	}, func(service interface {
+		ListAgentDocs(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error)
+	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {
 		return service.ListAgentDocs(ctx, request)
 	})
 }

@@ -11,7 +11,9 @@ func registerRecipes(registry *Registry) {
 		Name:      "recipes.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
+	}, func(service interface {
+		ListRecipes(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error)
+	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
 		return service.ListRecipes(ctx, request)
 	})
 }

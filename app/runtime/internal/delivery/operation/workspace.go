@@ -11,12 +11,16 @@ func registerWorkspace(registry *Registry) {
 		Name:      "workspaces.resolve",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error) {
+	}, func(service interface {
+		ResolveWorkspace(context.Context, protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error)
+	}, ctx context.Context, request protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error) {
 		return service.ResolveWorkspace(ctx, request)
 	})
 
 	Query(registry, MethodMeta{Name: "workspaces.list", Stability: stable},
-		func(service Service, ctx context.Context, _ struct{}) (*protocol.Page[protocol.WorkspaceSummary], error) {
+		func(service interface {
+			ListWorkspaces(context.Context) (*protocol.Page[protocol.WorkspaceSummary], error)
+		}, ctx context.Context, _ struct{}) (*protocol.Page[protocol.WorkspaceSummary], error) {
 			return service.ListWorkspaces(ctx)
 		})
 
@@ -30,7 +34,9 @@ func registerWorkspace(registry *Registry) {
 		},
 		CapabilityRules: requires(protocol.FeatureGit),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+	}, func(service interface {
+		ListWorkspaceFileChanges(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error)
+	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
 		return service.ListWorkspaceFileChanges(ctx, request)
 	})
 
@@ -43,7 +49,9 @@ func registerWorkspace(registry *Registry) {
 		},
 		CapabilityRules: requires(protocol.FeatureGit),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.GetDiffRequest) (*protocol.Diff, error) {
+	}, func(service interface {
+		GetWorkspaceDiff(context.Context, protocol.GetDiffRequest) (*protocol.Diff, error)
+	}, ctx context.Context, request protocol.GetDiffRequest) (*protocol.Diff, error) {
 		return service.GetWorkspaceDiff(ctx, request)
 	})
 
@@ -54,7 +62,9 @@ func registerWorkspace(registry *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
+	}, func(service interface {
+		GetWorkspaceFileHead(context.Context, protocol.GetFileHeadRequest) (*protocol.FileHead, error)
+	}, ctx context.Context, request protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
 		return service.GetWorkspaceFileHead(ctx, request)
 	})
 
@@ -65,7 +75,9 @@ func registerWorkspace(registry *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.GrepRequest) (*protocol.GrepResult, error) {
+	}, func(service interface {
+		GrepWorkspace(context.Context, protocol.GrepRequest) (*protocol.GrepResult, error)
+	}, ctx context.Context, request protocol.GrepRequest) (*protocol.GrepResult, error) {
 		return service.GrepWorkspace(ctx, request)
 	})
 
@@ -76,7 +88,9 @@ func registerWorkspace(registry *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
+	}, func(service interface {
+		ListWorkspaceFiles(context.Context, protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error)
+	}, ctx context.Context, request protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
 		return service.ListWorkspaceFiles(ctx, request)
 	})
 
@@ -87,7 +101,9 @@ func registerWorkspace(registry *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.ReadFileRequest) (*protocol.FileContent, error) {
+	}, func(service interface {
+		ReadWorkspaceFile(context.Context, protocol.ReadFileRequest) (*protocol.FileContent, error)
+	}, ctx context.Context, request protocol.ReadFileRequest) (*protocol.FileContent, error) {
 		return service.ReadWorkspaceFile(ctx, request)
 	})
 }

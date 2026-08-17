@@ -12,7 +12,9 @@ func registerKnowledge(registry *Registry) {
 			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
 		},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
+	}, func(service interface {
+		ListKnowledge(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error)
+	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
 		return service.ListKnowledge(ctx, request)
 	})
 
@@ -21,7 +23,9 @@ func registerKnowledge(registry *Registry) {
 			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
 		},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
+	}, func(service interface {
+		GetKnowledge(context.Context, protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error)
+	}, ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
 		return service.GetKnowledge(ctx, request)
 	})
 
@@ -31,7 +35,9 @@ func registerKnowledge(registry *Registry) {
 			protocol.ErrRevisionConflict.Error(),
 		},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
+	}, func(service interface {
+		UpdateKnowledge(context.Context, protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error)
+	}, ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
 		return service.UpdateKnowledge(ctx, request)
 	})
 }

@@ -8,7 +8,9 @@ import (
 
 func registerSessions(registry *Registry) {
 	Query(registry, MethodMeta{Name: "sessions.list", Stability: stable},
-		func(service Service, ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
+		func(service interface {
+			ListSessions(context.Context, protocol.PageQuery) (*protocol.Page[protocol.Session], error)
+		}, ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
 			return service.ListSessions(ctx, request)
 		})
 
@@ -16,7 +18,9 @@ func registerSessions(registry *Registry) {
 		Name:      "sessions.get",
 		Errors:    []string{protocol.ErrSessionNotFound.Error()},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.GetSessionRequest) (*protocol.Session, error) {
+	}, func(service interface {
+		GetSession(context.Context, string) (*protocol.Session, error)
+	}, ctx context.Context, request protocol.GetSessionRequest) (*protocol.Session, error) {
 		return service.GetSession(ctx, request.SessionID)
 	})
 
@@ -29,7 +33,9 @@ func registerSessions(registry *Registry) {
 			Requires: []string{protocol.FeatureSubagents},
 		}},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error) {
+	}, func(service interface {
+		GetSessionSnapshot(context.Context, protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error)
+	}, ctx context.Context, request protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error) {
 		return service.GetSessionSnapshot(ctx, request)
 	})
 
@@ -37,7 +43,9 @@ func registerSessions(registry *Registry) {
 		Name:      "sessions.create",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.CreateSessionRequest) (*protocol.Session, error) {
+	}, func(service interface {
+		CreateSession(context.Context, protocol.CreateSessionRequest) (*protocol.Session, error)
+	}, ctx context.Context, request protocol.CreateSessionRequest) (*protocol.Session, error) {
 		return service.CreateSession(ctx, request)
 	})
 
@@ -56,7 +64,9 @@ func registerSessions(registry *Registry) {
 			Requires: []string{protocol.FeatureRelocate},
 		}},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.UpdateSessionRequest) (*protocol.Session, error) {
+	}, func(service interface {
+		UpdateSession(context.Context, protocol.UpdateSessionRequest) (*protocol.Session, error)
+	}, ctx context.Context, request protocol.UpdateSessionRequest) (*protocol.Session, error) {
 		return service.UpdateSession(ctx, request)
 	})
 
@@ -64,7 +74,9 @@ func registerSessions(registry *Registry) {
 		Name:      "sessions.delete",
 		Errors:    []string{protocol.ErrSessionNotFound.Error()},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.DeleteSessionRequest) error {
+	}, func(service interface {
+		DeleteSession(context.Context, string) error
+	}, ctx context.Context, request protocol.DeleteSessionRequest) error {
 		return service.DeleteSession(ctx, request.SessionID)
 	})
 
@@ -75,7 +87,9 @@ func registerSessions(registry *Registry) {
 			protocol.ErrRunNotFound.Error(),
 		},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.ForkSessionRequest) (*protocol.Session, error) {
+	}, func(service interface {
+		ForkSession(context.Context, protocol.ForkSessionRequest) (*protocol.Session, error)
+	}, ctx context.Context, request protocol.ForkSessionRequest) (*protocol.Session, error) {
 		return service.ForkSession(ctx, request)
 	})
 
@@ -102,7 +116,9 @@ func registerSessions(registry *Registry) {
 			},
 		},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
+	}, func(service interface {
+		RollbackSession(context.Context, protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error)
+	}, ctx context.Context, request protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 		return service.RollbackSession(ctx, request)
 	})
 
@@ -111,7 +127,9 @@ func registerSessions(registry *Registry) {
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
+	}, func(service interface {
+		ExportSession(context.Context, protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error)
+	}, ctx context.Context, request protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
 		return service.ExportSession(ctx, request)
 	})
 
@@ -119,7 +137,9 @@ func registerSessions(registry *Registry) {
 		Name:            "sessions.import",
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
+	}, func(service interface {
+		ImportSession(context.Context, protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error)
+	}, ctx context.Context, request protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 		return service.ImportSession(ctx, request)
 	})
 }

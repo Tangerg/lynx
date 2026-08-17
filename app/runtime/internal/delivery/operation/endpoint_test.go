@@ -11,8 +11,36 @@ import (
 )
 
 type lifetimeService struct {
-	Service
 	streamStarted chan struct{}
+}
+
+type nilDiscoverService struct{}
+
+func (*nilDiscoverService) Discover(context.Context) (*protocol.DiscoverResponse, error) {
+	panic("typed-nil operation capability was invoked")
+}
+
+func TestEndpointRejectsMissingMethodCapability(t *testing.T) {
+	var typedNil *nilDiscoverService
+	for _, test := range []struct {
+		name   string
+		target any
+	}{
+		{name: "absent", target: struct{}{}},
+		{name: "typed nil", target: typedNil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result := New(test.target, Config{}).Invoke(
+				t.Context(),
+				"runtime.discover",
+				struct{}{},
+				Options{},
+			)
+			if !errors.Is(result.Failure, protocol.ErrInternalError) {
+				t.Fatalf("failure = %v, want internal_error", result.Failure)
+			}
+		})
+	}
 }
 
 func (s *lifetimeService) SubscribeRuntime(ctx context.Context, _ protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
@@ -86,7 +114,6 @@ func TestEndpointShutdownClaimsUnstartedStreamAndJoinsItsSource(t *testing.T) {
 }
 
 type joiningStreamService struct {
-	Service
 	started  chan struct{}
 	canceled chan struct{}
 	release  chan struct{}

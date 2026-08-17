@@ -12,7 +12,9 @@ func registerSkills(registry *Registry) {
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
+	}, func(service interface {
+		ListDiscoveredSkills(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error)
+	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
 		return service.ListDiscoveredSkills(ctx, request)
 	})
 
@@ -20,7 +22,9 @@ func registerSkills(registry *Registry) {
 		Name:            "skills.library.list",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ManagedSkill], error) {
+	}, func(service interface {
+		ListManagedSkills(context.Context) (*protocol.Page[protocol.ManagedSkill], error)
+	}, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ManagedSkill], error) {
 		return service.ListManagedSkills(ctx)
 	})
 
@@ -28,7 +32,9 @@ func registerSkills(registry *Registry) {
 		Name:            "skills.library.archive",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.SkillNameRequest) error {
+	}, func(service interface {
+		ArchiveSkill(context.Context, protocol.SkillNameRequest) error
+	}, ctx context.Context, request protocol.SkillNameRequest) error {
 		return service.ArchiveSkill(ctx, request)
 	})
 
@@ -36,7 +42,9 @@ func registerSkills(registry *Registry) {
 		Name:            "skills.library.restore",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.SkillNameRequest) error {
+	}, func(service interface {
+		RestoreSkill(context.Context, protocol.SkillNameRequest) error
+	}, ctx context.Context, request protocol.SkillNameRequest) error {
 		return service.RestoreSkill(ctx, request)
 	})
 
@@ -44,7 +52,9 @@ func registerSkills(registry *Registry) {
 		Name:            "skills.proposals.list",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
+	}, func(service interface {
+		ListSkillProposals(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error)
+	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
 		return service.ListSkillProposals(ctx, request)
 	})
 
@@ -52,7 +62,9 @@ func registerSkills(registry *Registry) {
 		Name:            "skills.proposals.approve",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.SkillProposalRef) error {
+	}, func(service interface {
+		ApproveSkillProposal(context.Context, protocol.SkillProposalRef) error
+	}, ctx context.Context, request protocol.SkillProposalRef) error {
 		return service.ApproveSkillProposal(ctx, request)
 	})
 
@@ -60,7 +72,9 @@ func registerSkills(registry *Registry) {
 		Name:            "skills.proposals.reject",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.SkillProposalRef) error {
+	}, func(service interface {
+		RejectSkillProposal(context.Context, protocol.SkillProposalRef) error
+	}, ctx context.Context, request protocol.SkillProposalRef) error {
 		return service.RejectSkillProposal(ctx, request)
 	})
 

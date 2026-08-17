@@ -15,10 +15,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-type lifecycleRuntime struct{ operation.Service }
+type lifecycleRuntime struct{}
 
 type streamingLifecycleRuntime struct {
-	operation.Service
 	subscribed chan struct{}
 }
 

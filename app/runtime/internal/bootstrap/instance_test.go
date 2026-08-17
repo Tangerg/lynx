@@ -158,7 +158,6 @@ func TestInstanceCloseRetainsResourcesUntilHostJoins(t *testing.T) {
 }
 
 type blockingInstanceOperationService struct {
-	operation.Service
 	started  chan struct{}
 	canceled chan struct{}
 	release  chan struct{}

@@ -23,7 +23,7 @@ type Registry struct {
 // and public bindings remain fully typed.
 type Method struct {
 	Meta   MethodMeta
-	invoke func(Service, context.Context, any) rawResult
+	invoke func(any, context.Context, any) rawResult
 }
 
 type rawResult struct {
@@ -36,7 +36,7 @@ func newRegistry() *Registry {
 	return &Registry{byName: make(map[string]*Method)}
 }
 
-func (r *Registry) add(meta MethodMeta, invoke func(Service, context.Context, any) rawResult) {
+func (r *Registry) add(meta MethodMeta, invoke func(any, context.Context, any) rawResult) {
 	if err := meta.Validate(); err != nil {
 		panic("operation: invalid method registration: " + err.Error())
 	}
@@ -97,10 +97,10 @@ func (r *Registry) StreamMethods() []string {
 	return out
 }
 
-func Query[Params, Response any](
+func Query[Capability, Params, Response any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(Service, context.Context, Params) (Response, error),
+	call func(Capability, context.Context, Params) (Response, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationQuery
@@ -108,10 +108,10 @@ func Query[Params, Response any](
 	registerUnary(registry, meta, call)
 }
 
-func Command[Params, Response any](
+func Command[Capability, Params, Response any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(Service, context.Context, Params) (Response, error),
+	call func(Capability, context.Context, Params) (Response, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationCommand
@@ -119,10 +119,10 @@ func Command[Params, Response any](
 	registerUnary(registry, meta, call)
 }
 
-func registerUnary[Params, Response any](
+func registerUnary[Capability, Params, Response any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(Service, context.Context, Params) (Response, error),
+	call func(Capability, context.Context, Params) (Response, error),
 ) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Response]()
@@ -131,38 +131,46 @@ func registerUnary[Params, Response any](
 		panic(fmt.Sprintf("operation: %s has invalid pagination shapes: %v", meta.Name, err))
 	}
 	meta.Pagination = pagination
-	registry.add(meta, func(service Service, ctx context.Context, parameters any) rawResult {
+	registry.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
 		typed, ok := parameters.(Params)
 		if !ok {
 			return rawResult{err: fmt.Errorf("operation: %s received parameters of type %T, want %s", meta.Name, parameters, meta.Params)}
 		}
-		value, err := call(service, ctx, typed)
+		capability, ok := target.(Capability)
+		if !ok || !capabilityAvailable(capability) {
+			return rawResult{err: fmt.Errorf("operation: target cannot handle %s", meta.Name)}
+		}
+		value, err := call(capability, ctx, typed)
 		return rawResult{value: value, err: err}
 	})
 }
 
-func CommandAck[Params any](
+func CommandAck[Capability, Params any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(Service, context.Context, Params) error,
+	call func(Capability, context.Context, Params) error,
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayResponse
 	meta.Params = reflect.TypeFor[Params]()
-	registry.add(meta, func(service Service, ctx context.Context, parameters any) rawResult {
+	registry.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
 		typed, ok := parameters.(Params)
 		if !ok {
 			return rawResult{err: fmt.Errorf("operation: %s received parameters of type %T, want %s", meta.Name, parameters, meta.Params)}
 		}
-		return rawResult{value: struct{}{}, err: call(service, ctx, typed)}
+		capability, ok := target.(Capability)
+		if !ok || !capabilityAvailable(capability) {
+			return rawResult{err: fmt.Errorf("operation: target cannot handle %s", meta.Name)}
+		}
+		return rawResult{value: struct{}{}, err: call(capability, ctx, typed)}
 	})
 }
 
-func Subscription[Params, Ack, Event any](
+func Subscription[Capability, Params, Ack, Event any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(Service, context.Context, Params) (Ack, iter.Seq[Event], error),
+	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
 	meta.Kind = KindStream
 	meta.Operation = OperationSubscription
@@ -170,10 +178,10 @@ func Subscription[Params, Ack, Event any](
 	registerStream(registry, meta, call)
 }
 
-func RunStreamCommand[Params, Ack, Event any](
+func RunStreamCommand[Capability, Params, Ack, Event any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(Service, context.Context, Params) (Ack, iter.Seq[Event], error),
+	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
 	meta.Kind = KindStream
 	meta.Operation = OperationCommand
@@ -181,22 +189,39 @@ func RunStreamCommand[Params, Ack, Event any](
 	registerStream(registry, meta, call)
 }
 
-func registerStream[Params, Ack, Event any](
+func registerStream[Capability, Params, Ack, Event any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(Service, context.Context, Params) (Ack, iter.Seq[Event], error),
+	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Ack]()
 	meta.Event = reflect.TypeFor[Event]()
-	registry.add(meta, func(service Service, ctx context.Context, parameters any) rawResult {
+	registry.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
 		typed, ok := parameters.(Params)
 		if !ok {
 			return rawResult{err: fmt.Errorf("operation: %s received parameters of type %T, want %s", meta.Name, parameters, meta.Params)}
 		}
-		ack, events, err := call(service, ctx, typed)
+		capability, ok := target.(Capability)
+		if !ok || !capabilityAvailable(capability) {
+			return rawResult{err: fmt.Errorf("operation: target cannot handle %s", meta.Name)}
+		}
+		ack, events, err := call(capability, ctx, typed)
 		return rawResult{value: ack, events: eraseEventType(events), err: err}
 	})
+}
+
+func capabilityAvailable(capability any) bool {
+	if capability == nil {
+		return false
+	}
+	value := reflect.ValueOf(capability)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return !value.IsNil()
+	default:
+		return true
+	}
 }
 
 func eraseEventType[Event any](events iter.Seq[Event]) iter.Seq[any] {

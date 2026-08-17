@@ -31,7 +31,7 @@ type Result struct {
 // Endpoint executes the one Runtime operation catalog independently of any
 // transport envelope.
 type Endpoint struct {
-	service              Service
+	target               any
 	idempotency          *replayStore
 	idempotencyNamespace string
 	invocations          *invocationGroup
@@ -49,7 +49,7 @@ type Config struct {
 }
 
 // New constructs a binding-neutral operation endpoint.
-func New(service Service, config Config) *Endpoint {
+func New(target any, config Config) *Endpoint {
 	store := config.IdempotencyStore
 	if store == nil {
 		store = newMemoryIdempotencyStore()
@@ -59,7 +59,7 @@ func New(service Service, config Config) *Endpoint {
 		lifetime = context.Background()
 	}
 	return &Endpoint{
-		service:              service,
+		target:               target,
 		idempotency:          newReplayStore(store),
 		idempotencyNamespace: config.IdempotencyNamespace,
 		invocations:          newInvocationGroup(lifetime),
@@ -137,7 +137,7 @@ func (e *Endpoint) Invoke(ctx context.Context, name string, parameters any, opti
 	if options.IdempotencyKey == "" || !method.Meta.Idempotency.Replays() {
 		result = execute()
 	} else {
-		result = e.idempotency.invoke(ctx, method, parameters, options.IdempotencyKey, execute, e.service)
+		result = e.idempotency.invoke(ctx, method, parameters, options.IdempotencyKey, execute, e.target)
 	}
 	if result.Events == nil {
 		release()
@@ -151,7 +151,7 @@ func (e *Endpoint) execute(ctx context.Context, method *Method, parameters any) 
 	if err := e.enforceCapabilities(ctx, method.Meta, parameters); err != nil {
 		return failed(err)
 	}
-	raw := method.invoke(e.service, ctx, parameters)
+	raw := method.invoke(e.target, ctx, parameters)
 	if raw.err != nil {
 		return failed(ProjectError(raw.err))
 	}

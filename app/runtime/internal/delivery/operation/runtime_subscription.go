@@ -22,7 +22,9 @@ func registerRuntimeSubscription(registry *Registry) {
 			Requires: []string{protocol.FeatureFileWatch},
 		}},
 		Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+	}, func(service interface {
+		SubscribeRuntime(context.Context, protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error)
+	}, ctx context.Context, request protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 		return service.SubscribeRuntime(ctx, request)
 	})
 }

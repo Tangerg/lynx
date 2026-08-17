@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -36,7 +35,6 @@ import (
 // sequence would let the bridge exit on its own and prove nothing about
 // disconnect.
 type blockingRuntime struct {
-	operation.Service
 	released chan struct{}
 }
 

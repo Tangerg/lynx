@@ -15,7 +15,9 @@ func registerPlan(registry *Registry) {
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeaturePlan),
 		Stability:       stable,
-	}, func(service Service, ctx context.Context, request protocol.GetPlanRequest) (*protocol.StateSnapshot, error) {
+	}, func(service interface {
+		GetPlan(context.Context, protocol.GetPlanRequest) (*protocol.StateSnapshot, error)
+	}, ctx context.Context, request protocol.GetPlanRequest) (*protocol.StateSnapshot, error) {
 		return service.GetPlan(ctx, request)
 	})
 }

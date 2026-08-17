@@ -1,5 +1,5 @@
-// Package server implements operation.Service by translating wire requests into
-// application use cases and projecting their results back to protocol values.
+// Package server translates binding-neutral operation requests into application
+// use cases and projects their results back to protocol values.
 package server
 
 import (
@@ -63,7 +63,7 @@ type Config struct {
 	PlanEnabled  bool
 }
 
-// Server is the operation.Service implementation exposed via [New].
+// Server is the complete operation handler target exposed via [New].
 type Server struct {
 	serverInfo protocol.ServerInfo
 

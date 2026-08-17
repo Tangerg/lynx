@@ -14,7 +14,6 @@ import (
 // capabilityRuntime is a Runtime that only answers discovery — enough to drive
 // the gate, since that is the only thing the gate reads.
 type capabilityRuntime struct {
-	operation.Service
 	features map[string]bool
 }
 
