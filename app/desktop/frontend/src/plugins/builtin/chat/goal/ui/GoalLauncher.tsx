@@ -12,7 +12,7 @@ import {
 import { useComposerModelPreference } from "@/plugins/builtin/chat/composer/public/modelPreference";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { onGoalLauncherRequest } from "../adapters/goalLauncherRequest";
-import { startGoal } from "../application/goalCommands";
+import { goalCommandWasRetired, startGoal } from "../application/goalCommands";
 import {
   parseGoalStartDraft,
   type GoalStartDraft,
@@ -150,7 +150,7 @@ function GoalLauncherPanel({
       setOpen(false);
       if (getComposerText().trim() === parsed.objective) setComposerText("");
     } catch (error) {
-      if (mounted.current && getActiveSessionId() === sessionId) {
+      if (!goalCommandWasRetired(error) && mounted.current && getActiveSessionId() === sessionId) {
         notifyError(rpcErrorText(error) ?? t("goal.error.start"));
       }
     } finally {

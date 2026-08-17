@@ -42,6 +42,7 @@ vi.mock("../application/goalQueries", () => ({
 
 vi.mock("../application/goalCommands", () => ({
   startGoal: model.startGoal,
+  goalCommandWasRetired: () => false,
 }));
 
 describe("GoalLauncher", () => {

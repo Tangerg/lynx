@@ -1,5 +1,12 @@
 import { getContainer } from "@/main/container";
-import { asSessionId, createUnaryMutationSettler, type Goal, type SessionSnapshot } from "@/rpc";
+import {
+  asSessionId,
+  createUnaryMutationSettler,
+  type Goal,
+  type LyraClient,
+  type SessionSnapshot,
+  type UnaryMutationSettler,
+} from "@/rpc";
 import { queryClient } from "@/lib/queryClient";
 import type { Contributor } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
@@ -9,7 +16,7 @@ import type {
   GoalCommandReceipt,
   GoalCommandsGateway,
 } from "../application/ports/goalCommandsGateway";
-import { configureGoalCommandsGateway } from "../application/ports/goalCommandsGateway";
+import { GoalCommandOwner } from "../application/goalCommands";
 import {
   GOAL_KEY,
   type GoalQuery,
@@ -63,28 +70,30 @@ export function commitRuntimeGoalMaterial(
 }
 
 class RuntimeGoalCommandsGateway implements GoalCommandsGateway {
-  readonly #mutations = createUnaryMutationSettler();
+  readonly #client: LyraClient;
+  #mutations: UnaryMutationSettler = createUnaryMutationSettler();
+
+  constructor(client: LyraClient) {
+    this.#client = client;
+  }
 
   async start(input: Parameters<GoalCommandsGateway["start"]>[0]) {
-    const client = getContainer().client();
     const goal = await this.#mutations.settle(goalMutationIdentity("start", input), (signal) =>
-      client.goals.start({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
+      this.#client.goals.start({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
     );
     return toGoalCommandReceipt(goal);
   }
 
   async stop(sessionId: string) {
-    const client = getContainer().client();
     const goal = await this.#mutations.settle(goalMutationIdentity("stop", sessionId), (signal) =>
-      client.goals.stop(asSessionId(sessionId), signal),
+      this.#client.goals.stop(asSessionId(sessionId), signal),
     );
     return toGoalCommandReceipt(goal);
   }
 
   async resume(sessionId: string) {
-    const client = getContainer().client();
     const goal = await this.#mutations.settle(goalMutationIdentity("resume", sessionId), (signal) =>
-      client.goals.resume(asSessionId(sessionId), signal),
+      this.#client.goals.resume(asSessionId(sessionId), signal),
     );
     return toGoalCommandReceipt(goal);
   }
@@ -94,8 +103,14 @@ class RuntimeGoalCommandsGateway implements GoalCommandsGateway {
   }
 }
 
-export function installGoalRuntimeAdapter(ctx: Contributor): () => void {
-  const gateway = new RuntimeGoalCommandsGateway();
+export interface GoalRuntimeAdapterInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installGoalRuntimeAdapter(ctx: Contributor): GoalRuntimeAdapterInstallation {
+  let gateway = new RuntimeGoalCommandsGateway(getContainer().client());
+  const commandOwner = GoalCommandOwner.install(gateway);
   const disposeMaterialCommitter = registerAgentSessionMaterialCommitter<SessionSnapshot>(
     (sessionId, snapshot) => {
       const available = runtimeCapability("goals");
@@ -117,10 +132,21 @@ export function installGoalRuntimeAdapter(ctx: Contributor): () => void {
       } satisfies GoalState;
     },
   });
-  const disposeGateway = configureGoalCommandsGateway(gateway);
-  return () => {
-    disposeMaterialCommitter();
-    disposeGateway();
-    gateway.dispose();
+  return {
+    replaceRuntimeGeneration() {
+      const successor = new RuntimeGoalCommandsGateway(getContainer().client());
+      if (!commandOwner.replaceRuntimeGeneration(successor)) {
+        successor.dispose();
+        return;
+      }
+      const predecessor = gateway;
+      gateway = successor;
+      predecessor.dispose();
+    },
+    dispose() {
+      disposeMaterialCommitter();
+      commandOwner.dispose();
+      gateway.dispose();
+    },
   };
 }

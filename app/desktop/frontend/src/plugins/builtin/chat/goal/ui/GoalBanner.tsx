@@ -9,7 +9,7 @@ import { formatRelative } from "@/lib/i18n/relativeTime";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
-import { resumeGoal, stopGoal } from "../application/goalCommands";
+import { goalCommandWasRetired, resumeGoal, stopGoal } from "../application/goalCommands";
 import {
   GOAL_STATUS_I18N,
   GOAL_STOP_I18N,
@@ -41,7 +41,11 @@ export function GoalBanner() {
   return (
     <AnimatePresence initial={false}>
       {goal && (
-        <GoalDisclosure key={JSON.stringify([goal.sessionId, goal.objective])} goal={goal} />
+        // Objective is editable business content, not incarnation identity: a
+        // stopped Goal may be replaced by another with the same words. Runtime
+        // does not expose a Goal id, so its immutable Session + creation stamp is
+        // the narrowest durable identity available to the read model.
+        <GoalDisclosure key={JSON.stringify([goal.sessionId, goal.createdAt])} goal={goal} />
       )}
     </AnimatePresence>
   );
@@ -64,8 +68,10 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
       if (goal.status === "active") await stopGoal(goal.sessionId);
       else await resumeGoal(goal.sessionId);
     } catch (error) {
-      const fallback = goal.status === "active" ? t("goal.error.stop") : t("goal.error.resume");
-      notifyError(rpcErrorText(error) ?? fallback);
+      if (!goalCommandWasRetired(error)) {
+        const fallback = goal.status === "active" ? t("goal.error.stop") : t("goal.error.resume");
+        notifyError(rpcErrorText(error) ?? fallback);
+      }
     } finally {
       commandInFlight.current = false;
       setBusy(false);

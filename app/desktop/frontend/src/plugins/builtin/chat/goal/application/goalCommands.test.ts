@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryObserver } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import {
-  configureGoalCommandsGateway,
-  type GoalCommandReceipt,
-  type GoalCommandsGateway,
-} from "./ports/goalCommandsGateway";
+import { type GoalCommandReceipt, type GoalCommandsGateway } from "./ports/goalCommandsGateway";
 import { GOAL_KEY, type GoalState } from "./goalQueries";
-import { GoalCommandSessionMismatchError, resumeGoal, startGoal, stopGoal } from "./goalCommands";
+import {
+  GoalCommandOwner,
+  GoalCommandSessionMismatchError,
+  goalCommandWasRetired,
+  resumeGoal,
+  startGoal,
+  stopGoal,
+} from "./goalCommands";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -18,6 +21,11 @@ function deferred<T>() {
 }
 
 let restoreGateway: (() => void) | undefined;
+
+function installGoalCommandOwnerForTest(gateway: GoalCommandsGateway): () => void {
+  const owner = GoalCommandOwner.install(gateway);
+  return () => owner.dispose();
+}
 
 afterEach(() => {
   restoreGateway?.();
@@ -60,7 +68,7 @@ describe("Goal lifecycle commands", () => {
     },
   ])("revalidates authoritative Goal state when $name settlement is ambiguous", async (test) => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-    restoreGateway = configureGoalCommandsGateway({
+    restoreGateway = installGoalCommandOwnerForTest({
       start: vi.fn().mockResolvedValue(receipt),
       stop: vi.fn().mockResolvedValue(receipt),
       resume: vi.fn().mockResolvedValue(receipt),
@@ -78,7 +86,7 @@ describe("Goal lifecycle commands", () => {
   it("preserves the command failure when authoritative revalidation also fails", async () => {
     const commandError = new Error("stop response lost");
     vi.spyOn(queryClient, "invalidateQueries").mockRejectedValue(new Error("query unavailable"));
-    restoreGateway = configureGoalCommandsGateway({
+    restoreGateway = installGoalCommandOwnerForTest({
       start: vi.fn().mockResolvedValue(receipt),
       stop: vi.fn().mockRejectedValue(commandError),
       resume: vi.fn().mockResolvedValue(receipt),
@@ -87,13 +95,24 @@ describe("Goal lifecycle commands", () => {
     await expect(stopGoal("ses_goal")).rejects.toBe(commandError);
   });
 
+  it("does not turn an accepted Goal command into a failure when projection repair fails", async () => {
+    vi.spyOn(queryClient, "invalidateQueries").mockRejectedValue(new Error("query unavailable"));
+    restoreGateway = installGoalCommandOwnerForTest({
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: vi.fn().mockResolvedValue(receipt),
+      resume: vi.fn().mockResolvedValue(receipt),
+    });
+
+    await expect(stopGoal("ses_goal")).resolves.toBeUndefined();
+  });
+
   it("keeps goals.get as the sole author of the standing read model", async () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
     queryClient.setQueryData([GOAL_KEY, { sessionId: "ses_goal" }], {
       available: true,
       goal: { ...goal, used: { ...goal.used, runs: 2 } },
     });
-    restoreGateway = configureGoalCommandsGateway({
+    restoreGateway = installGoalCommandOwnerForTest({
       start: vi.fn().mockResolvedValue(receipt),
       stop: vi.fn().mockResolvedValue(receipt),
       resume: vi.fn().mockResolvedValue(receipt),
@@ -116,7 +135,7 @@ describe("Goal lifecycle commands", () => {
     const stopping = deferred<GoalCommandReceipt>();
     const stop = vi.fn(() => stopping.promise);
     const resume = vi.fn().mockResolvedValue(receipt);
-    restoreGateway = configureGoalCommandsGateway({
+    restoreGateway = installGoalCommandOwnerForTest({
       start: vi.fn().mockResolvedValue(receipt),
       stop,
       resume,
@@ -124,8 +143,7 @@ describe("Goal lifecycle commands", () => {
 
     const first = stopGoal("ses_goal");
     const second = resumeGoal("ses_goal");
-    await Promise.resolve();
-    expect(stop).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(stop).toHaveBeenCalledOnce());
     expect(resume).not.toHaveBeenCalled();
 
     stopping.resolve({ sessionId: "ses_goal" });
@@ -139,7 +157,7 @@ describe("Goal lifecycle commands", () => {
     vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(revalidated.promise);
     const stop = vi.fn().mockResolvedValue(receipt);
     const resume = vi.fn().mockResolvedValue(receipt);
-    restoreGateway = configureGoalCommandsGateway({
+    restoreGateway = installGoalCommandOwnerForTest({
       start: vi.fn().mockResolvedValue(receipt),
       stop,
       resume,
@@ -156,13 +174,104 @@ describe("Goal lifecycle commands", () => {
     expect(resume).toHaveBeenCalledOnce();
   });
 
+  it("retires in-flight and queued Goal commands when their owner is replaced", async () => {
+    vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+    const stopping = deferred<GoalCommandReceipt>();
+    const retiredStop = vi.fn(() => stopping.promise);
+    const retiredResume = vi.fn().mockResolvedValue(receipt);
+    const disposePredecessor = installGoalCommandOwnerForTest({
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: retiredStop,
+      resume: retiredResume,
+    });
+    restoreGateway = disposePredecessor;
+
+    const inFlight = stopGoal("ses_goal");
+    const queued = resumeGoal("ses_goal");
+    let inFlightOutcome = "pending";
+    let queuedOutcome = "pending";
+    const observedInFlight = inFlight.then(
+      () => {
+        inFlightOutcome = "resolved";
+      },
+      () => {
+        inFlightOutcome = "retired";
+      },
+    );
+    const observedQueued = queued.then(
+      () => {
+        queuedOutcome = "resolved";
+      },
+      () => {
+        queuedOutcome = "retired";
+      },
+    );
+    await vi.waitFor(() => expect(retiredStop).toHaveBeenCalledOnce());
+
+    const successorResume = vi.fn().mockResolvedValue(receipt);
+    const disposeSuccessor = installGoalCommandOwnerForTest({
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: vi.fn().mockResolvedValue(receipt),
+      resume: successorResume,
+    });
+    restoreGateway = () => {
+      disposeSuccessor();
+      disposePredecessor();
+    };
+    await vi.waitFor(() => expect(inFlightOutcome).toBe("retired"));
+    await vi.waitFor(() => expect(queuedOutcome).toBe("retired"));
+    const outcomesAtReplacement = [inFlightOutcome, queuedOutcome];
+
+    stopping.resolve(receipt);
+    await Promise.all([observedInFlight, observedQueued]);
+
+    expect(outcomesAtReplacement).toEqual(["retired", "retired"]);
+    expect(retiredResume).not.toHaveBeenCalled();
+    expect(successorResume).not.toHaveBeenCalled();
+  });
+
+  it("gives a Runtime successor a new gateway without lending it queued predecessor intents", async () => {
+    vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+    const stopping = deferred<GoalCommandReceipt>();
+    const retiredStop = vi.fn(() => stopping.promise);
+    const retiredResume = vi.fn().mockResolvedValue(receipt);
+    const owner = GoalCommandOwner.install({
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: retiredStop,
+      resume: retiredResume,
+    });
+    restoreGateway = () => owner.dispose();
+
+    const inFlight = stopGoal("ses_goal").catch((error: unknown) => error);
+    const queued = resumeGoal("ses_goal").catch((error: unknown) => error);
+    await vi.waitFor(() => expect(retiredStop).toHaveBeenCalledOnce());
+
+    const successorResume = vi.fn().mockResolvedValue(receipt);
+    expect(
+      owner.replaceRuntimeGeneration({
+        start: vi.fn().mockResolvedValue(receipt),
+        stop: vi.fn().mockResolvedValue(receipt),
+        resume: successorResume,
+      }),
+    ).toBe(true);
+
+    expect(goalCommandWasRetired(await inFlight)).toBe(true);
+    expect(goalCommandWasRetired(await queued)).toBe(true);
+    expect(retiredResume).not.toHaveBeenCalled();
+    expect(successorResume).not.toHaveBeenCalled();
+
+    await expect(resumeGoal("ses_goal")).resolves.toBeUndefined();
+    expect(successorResume).toHaveBeenCalledOnce();
+    stopping.resolve(receipt);
+  });
+
   it("does not let a delayed command response regress newer autonomous state", async () => {
     vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
     queryClient.setQueryData([GOAL_KEY, { sessionId: "ses_goal" }], {
       available: true,
       goal: { ...goal, used: { ...goal.used, runs: 2 } },
     });
-    restoreGateway = configureGoalCommandsGateway({
+    restoreGateway = installGoalCommandOwnerForTest({
       start: vi.fn().mockResolvedValue(receipt),
       stop: vi.fn().mockResolvedValue(receipt),
       resume: vi.fn().mockResolvedValue(receipt),
@@ -195,7 +304,7 @@ describe("Goal lifecycle commands", () => {
           updatedAt: "2026-08-12T08:01:00Z",
         },
       };
-      restoreGateway = configureGoalCommandsGateway({
+      restoreGateway = installGoalCommandOwnerForTest({
         start: vi.fn().mockResolvedValue(receipt),
         stop: vi.fn().mockResolvedValue(receipt),
         resume: vi.fn().mockResolvedValue(receipt),
@@ -211,7 +320,7 @@ describe("Goal lifecycle commands", () => {
 
   it("rejects a mutation response addressed to another Session and still revalidates", async () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-    restoreGateway = configureGoalCommandsGateway({
+    restoreGateway = installGoalCommandOwnerForTest({
       start: vi.fn().mockResolvedValue(receipt),
       stop: vi.fn().mockResolvedValue({ sessionId: "ses_other" }),
       resume: vi.fn().mockResolvedValue(receipt),

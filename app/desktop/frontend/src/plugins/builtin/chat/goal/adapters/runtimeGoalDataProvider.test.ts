@@ -9,9 +9,12 @@ import { RpcTransportError, type Goal, type LyraClient, type MutationPromise } f
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import type { Contributor } from "@/plugins/sdk";
 import { GOAL_KEY, type GoalQuery, type GoalState } from "../application/goalQueries";
-import { installGoalRuntimeAdapter } from "./runtimeGoalCommandsGateway";
+import {
+  installGoalRuntimeAdapter,
+  type GoalRuntimeAdapterInstallation,
+} from "./runtimeGoalCommandsGateway";
 import { contributeForTest } from "@/plugins/sdk/testKernel";
-import { goalCommandsGateway } from "../application/ports/goalCommandsGateway";
+import { startGoal } from "../application/goalCommands";
 
 afterEach(async () => {
   await resetContainer();
@@ -39,10 +42,10 @@ describe("Runtime Goal data provider", () => {
       client: () => ({ goals: { start: retiredStart } }) as unknown as LyraClient,
     });
     const contributor = { contribute: vi.fn() } as unknown as Contributor;
-    let disposeAdapter = installGoalRuntimeAdapter(contributor);
+    let adapter = installGoalRuntimeAdapter(contributor);
 
-    await expect(goalCommandsGateway().start(input)).rejects.toBe(transportFailure);
-    disposeAdapter();
+    await expect(startGoal(input)).rejects.toBe(transportFailure);
+    adapter.dispose();
 
     const successorStart = vi.fn(
       () =>
@@ -54,13 +57,13 @@ describe("Runtime Goal data provider", () => {
     setContainer({
       client: () => ({ goals: { start: successorStart } }) as unknown as LyraClient,
     });
-    disposeAdapter = installGoalRuntimeAdapter(contributor);
+    adapter = installGoalRuntimeAdapter(contributor);
     try {
-      await expect(goalCommandsGateway().start(input)).resolves.toEqual({ sessionId: "ses_1" });
+      await expect(startGoal(input)).resolves.toBeUndefined();
       expect(successorStart).toHaveBeenCalledOnce();
       expect(retiredRetry).not.toHaveBeenCalled();
     } finally {
-      disposeAdapter();
+      adapter.dispose();
     }
   });
 
@@ -69,9 +72,9 @@ describe("Runtime Goal data provider", () => {
     setContainer({
       client: () => ({ goals: { get } }) as unknown as LyraClient,
     });
-    let disposeAdapter!: () => void;
+    let adapter!: GoalRuntimeAdapterInstallation;
     await contributeForTest((ctx) => {
-      disposeAdapter = installGoalRuntimeAdapter(ctx);
+      adapter = installGoalRuntimeAdapter(ctx);
     });
     try {
       const fetcher = lookupDataProvider<GoalState, GoalQuery>(GOAL_KEY);
@@ -84,7 +87,7 @@ describe("Runtime Goal data provider", () => {
 
       expect(get).toHaveBeenCalledWith("ses_goal_generation", controller.signal);
     } finally {
-      disposeAdapter();
+      adapter.dispose();
     }
   });
 });

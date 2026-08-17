@@ -1,5 +1,3 @@
-import { createSingletonPort } from "@/lib/ports/singletonPort";
-
 export interface GoalCommandBudget {
   maxRuns?: number;
   maxCostUsd?: number;
@@ -26,8 +24,3 @@ export interface GoalCommandsGateway {
   stop(sessionId: string): Promise<GoalCommandReceipt>;
   resume(sessionId: string): Promise<GoalCommandReceipt>;
 }
-
-const port = createSingletonPort<GoalCommandsGateway>("Goal commands gateway is not configured");
-
-export const configureGoalCommandsGateway = port.configure;
-export const goalCommandsGateway = port.get;

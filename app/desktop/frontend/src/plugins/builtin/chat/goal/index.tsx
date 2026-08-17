@@ -6,6 +6,7 @@ import { installGoalRuntimeAdapter } from "./adapters/runtimeGoalCommandsGateway
 import { goalBannerSlot, goalLauncherSlot } from "./application/goalContributions";
 import { GoalBanner } from "./ui/GoalBanner";
 import { GoalLauncher } from "./ui/GoalLauncher";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 const BANNER = "chat.banner.top:goal";
 
@@ -33,8 +34,16 @@ const GOAL_SLASH_COMMAND: SlashCommandSpec = {
 
 export default definePlugin({
   name: "lyra.builtin.goal",
+  requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
-    const disposeGateway = installGoalRuntimeAdapter(ctx);
+    const runtimeAdapter = installGoalRuntimeAdapter(ctx);
+    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
+      const next = ctx.runtime.runtimeGeneration();
+      if (next === runtimeGeneration) return;
+      runtimeGeneration = next;
+      runtimeAdapter.replaceRuntimeGeneration();
+    });
     contributeLayout(ctx, "chat.banner.top", goalBannerSlot(GoalBanner));
     contributeLayout(ctx, "composer.toolbar.end", goalLauncherSlot(GoalLauncher));
     // Setting the goal and reading it back are both answered by the banner, which
@@ -46,6 +55,9 @@ export default definePlugin({
       ctx.contribute(TOOL_STANDING_SURFACE, BANNER, { key });
     }
     ctx.contribute(SLASH_COMMAND, GOAL_SLASH_COMMAND, { key: "/goal" });
-    ctx.cleanup(disposeGateway);
+    ctx.cleanup(() => {
+      unsubscribeRuntime();
+      runtimeAdapter.dispose();
+    });
   },
 });

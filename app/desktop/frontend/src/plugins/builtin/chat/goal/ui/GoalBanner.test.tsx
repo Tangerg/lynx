@@ -26,6 +26,7 @@ const model = vi.hoisted(() => ({
 vi.mock("../application/goalCommands", () => ({
   stopGoal: model.stopGoal,
   resumeGoal: model.resumeGoal,
+  goalCommandWasRetired: () => false,
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
@@ -83,6 +84,25 @@ describe("GoalBanner disclosure identity", () => {
     model.sessionId = "session-b";
     model.goal = { ...model.goal, sessionId: "session-b", objective: "Ship beta" };
     rerender(<GoalBanner />);
+    expect(
+      screen.getByRole("button", { name: "Show the allowance" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
+  it("retires disclosure state for a new Goal incarnation with the same objective", () => {
+    const { rerender } = render(<GoalBanner />);
+    fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
+    expect(
+      screen.getByRole("button", { name: "Hide the allowance" }).getAttribute("aria-expanded"),
+    ).toBe("true");
+
+    model.goal = {
+      ...model.goal,
+      createdAt: "2026-08-12T09:00:00Z",
+      updatedAt: "2026-08-12T09:00:00Z",
+    };
+    rerender(<GoalBanner />);
+
     expect(
       screen.getByRole("button", { name: "Show the allowance" }).getAttribute("aria-expanded"),
     ).toBe("false");
