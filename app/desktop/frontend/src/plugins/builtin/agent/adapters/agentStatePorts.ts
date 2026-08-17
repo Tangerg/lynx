@@ -39,19 +39,20 @@ function getLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
 }
 
 /**
- * Go to a session. Two halves of one move: the tab set remembers it is open, and
- * the location says it is where the user is — leaving any promoted view, so
- * picking a session lands you in its conversation.
+ * Enter a Session identity. Two halves of one move: the tab set remembers it is
+ * open, and the location says it is where the user is. Promoted material belongs
+ * to the predecessor Session and retires at this identity boundary; the dock is
+ * deliberately omitted because its per-Session scope owner restores that memory.
  */
-function goToSession(id: string): void {
+function goToSession(id: string, options?: { replace?: boolean }): void {
   const store = useAgentSessionStore.getState();
-  store.holdOpen(id);
+  if (id !== "") store.holdOpen(id);
   // Recorded here rather than by a subscriber on the location: ports are
   // installed while plugins load, which is before the router (and so the
   // Navigator) exists. Memory is a consequence of the move, so the mover keeps
   // it — and there is one mover.
   store.rememberSession(id);
-  navigator().go({ session: id, view: null });
+  navigator().go({ session: id, view: null }, options);
 }
 
 export function installAgentStatePorts(): () => void {
@@ -91,13 +92,17 @@ export function installAgentStatePorts(): () => void {
     selectSession: goToSession,
     closeSession: (id) => {
       const store = useAgentSessionStore.getState();
+      const currentSessionId = activeSessionId();
       const next = closeOpenSession(
-        { activeSessionId: activeSessionId(), openSessionIds: store.openSessionIds },
+        { activeSessionId: currentSessionId, openSessionIds: store.openSessionIds },
         id,
       );
       store.release(id);
-      store.rememberSession(next.activeSessionId);
-      navigator().go({ session: next.activeSessionId });
+      if (next.activeSessionId === currentSessionId) {
+        store.rememberSession(next.activeSessionId);
+        return;
+      }
+      goToSession(next.activeSessionId);
     },
     useDraftSessionIds: () => useAgentSessionStore((state) => state.draftSessionIds),
     isDraftSession: (id) => useAgentSessionStore.getState().draftSessionIds.has(id),
@@ -120,9 +125,10 @@ export function installAgentStatePorts(): () => void {
       // establish a direct live deep-link as held-open. Keep cold-start memory
       // aligned with that accepted location; otherwise the next launch replays
       // the identity we just proved stale.
-      store.rememberSession(next.activeSessionId);
       if (next.activeSessionId !== activeSessionId()) {
-        navigator().go({ session: next.activeSessionId }, { replace: true });
+        goToSession(next.activeSessionId, { replace: true });
+      } else {
+        store.rememberSession(next.activeSessionId);
       }
     },
     restoreLastSession: () => {
