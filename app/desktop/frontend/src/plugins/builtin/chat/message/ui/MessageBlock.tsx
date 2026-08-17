@@ -8,7 +8,11 @@ import {
   messageActionsVisibility,
   type MessageActionsVisibility,
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
-import { messageBlocksRenderInstant, messageCitations } from "../application/messageBlockModel";
+import {
+  messageActionMaterialization,
+  messageBlocksRenderInstant,
+  messageCitations,
+} from "../application/messageBlockModel";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { formatClock } from "@/lib/i18n/relativeTime";
@@ -59,10 +63,11 @@ function MessageBlockInner({
 
   const content = renderMessageBlocks(row, blockCtx);
 
-  const actionsClass = cn(
-    "flex shrink-0 transition-[opacity,visibility] duration-[var(--dur-fast)]",
-    ACTIONS_VISIBILITY[messageActionsVisibility({ isRunning, isLast })],
-  );
+  const actionsVisibility = messageActionsVisibility({
+    materialization: messageActionMaterialization(row),
+    isRunning,
+    isLast,
+  });
 
   const roleLabel = t(isUser ? "role.user" : "role.assistant");
   const stamp = formatClock(msg.createdAt);
@@ -134,16 +139,19 @@ function MessageBlockInner({
               different side per role now that a user turn hugs the trailing edge. With
               the inset always on the left, the bar under a right-aligned bubble grew
               leftward and its last glyph sat ~5px inside the text it belongs to. */}
-          <div
-            className={cn(
-              actionsClass,
-              isUser
-                ? "-mr-[calc((var(--control-height-sm)-var(--icon-sm))/2)]"
-                : "-ml-[calc((var(--control-height-sm)-var(--icon-sm))/2)]",
-            )}
-          >
-            <Slot name="message.actions" />
-          </div>
+          {actionsVisibility !== "absent" && (
+            <div
+              className={cn(
+                "flex shrink-0 transition-[opacity,visibility] duration-[var(--dur-fast)]",
+                ACTIONS_VISIBILITY[actionsVisibility],
+                isUser
+                  ? "-mr-[calc((var(--control-height-sm)-var(--icon-sm))/2)]"
+                  : "-ml-[calc((var(--control-height-sm)-var(--icon-sm))/2)]",
+              )}
+            >
+              <Slot name="message.actions" />
+            </div>
+          )}
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>
@@ -170,13 +178,16 @@ export const MessageBlock = memo(MessageBlockInner);
 // the only view that renders the bar. Hover reveal stays in CSS (`group-hover` /
 // `focus-within`) rather than JS so a hovering pointer never triggers a render;
 // the ancestor carrying `.group` is the message container below.
-// The bar stays IN FLOW in every state, so the turn always reserves the row it
-// may reveal. Hanging the transient states outside the box (`absolute top-full`)
+// Once a turn settles, the bar stays IN FLOW in every visibility state, so the turn
+// always reserves the row it may reveal. Active turns mount no bar: reserving terminal
+// controls below material that is still growing makes that row chase the streaming
+// tail, and a transient root-attention change can make it flash. Hanging the settled
+// transient states outside the box (`absolute top-full`)
 // looks like it saves the gap and does not: every message carries
 // `content-visibility: auto`, whose paint containment clips anything drawn past
 // its edge, so the bar came out sliced. Reserved space is also the only version
 // where pointing at a turn doesn't move the text under the pointer.
-const ACTIONS_VISIBILITY: Record<MessageActionsVisibility, string> = {
+const ACTIONS_VISIBILITY: Record<Exclude<MessageActionsVisibility, "absent">, string> = {
   // `invisible`, not `pointer-events-none opacity-0`: transparency stops the pointer
   // but not the keyboard, so every message in a streaming run held two focusable
   // buttons nobody could see and nothing could reveal. `visibility` also keeps the

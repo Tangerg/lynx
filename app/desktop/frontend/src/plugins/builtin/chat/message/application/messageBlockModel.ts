@@ -1,4 +1,6 @@
 import type { ContentBlock, MessageRole, ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
+import type { MessageActionMaterialization } from "@/plugins/builtin/chat/message-actions/public/messageActions";
 import {
   planRenderUnits,
   type MessageRenderUnit,
@@ -61,4 +63,39 @@ export function messageBlockRenderUnits(
 
 export function messageBlocksRenderInstant(role: MessageRole): boolean {
   return role === "user";
+}
+
+/**
+ * Whether the turn still owns material that can change beneath its action row.
+ *
+ * Root attention is deliberately not part of this value. A connection transition can
+ * briefly lose the active Run before snapshot/event recovery reattaches it, while the
+ * turn's own block, ToolCall, or delegated Run remains explicitly non-terminal. Those
+ * item-local facts are the durable authority for whether terminal actions may exist.
+ */
+export function messageActionMaterialization(row: TranscriptRow): MessageActionMaterialization {
+  for (const block of row.message.blocks) {
+    if (blockOwnsActiveMaterial(block)) return "active";
+    if (block.kind !== "tool") continue;
+    const call = row.facts.toolCalls[block.toolCallId];
+    if (call?.status === "running" || call?.status === "requires-action") return "active";
+  }
+
+  for (const narratives of Object.values(row.facts.delegatedRuns)) {
+    if (narratives.some(({ run }) => run.status !== "finished")) return "active";
+  }
+
+  return "settled";
+}
+
+function blockOwnsActiveMaterial(block: ContentBlock): boolean {
+  switch (block.kind) {
+    case "text":
+    case "reasoning":
+    case "approval":
+    case "question":
+      return block.status === "running" || block.status === "requires-action";
+    default:
+      return false;
+  }
 }

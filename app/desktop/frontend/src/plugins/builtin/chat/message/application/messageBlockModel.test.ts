@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { ContentBlock, ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type {
+  AgentRunView,
+  ContentBlock,
+  ToolCall,
+} from "@/plugins/builtin/agent/public/viewState";
+import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { CitationSource } from "@/plugins/sdk";
 import {
+  messageActionMaterialization,
   messageBlockRenderUnits,
   messageBlocksRenderInstant,
   messageCitations,
@@ -115,6 +121,57 @@ describe("messageBlocksRenderInstant", () => {
   });
 });
 
+describe("messageActionMaterialization", () => {
+  it("keeps a streaming tail and an HITL boundary actionless even without root attention", () => {
+    expect(messageActionMaterialization(row([text("partial", "running")]))).toBe("active");
+    expect(
+      messageActionMaterialization(
+        row([
+          {
+            kind: "question",
+            status: "requires-action",
+            questions: [],
+          },
+        ]),
+      ),
+    ).toBe("active");
+  });
+
+  it("keeps actions absent while a tool or delegated run still owns the turn", () => {
+    const runningTool = tool("tool_1", "shell", "exec");
+    runningTool.status = "running";
+    expect(messageActionMaterialization(row([toolBlock("tool_1")], { tool_1: runningTool }))).toBe(
+      "active",
+    );
+
+    expect(
+      messageActionMaterialization({
+        ...row([toolBlock("tool_1")]),
+        facts: {
+          toolCalls: {},
+          delegatedRuns: {
+            tool_1: [
+              {
+                run: agentRun("waiting"),
+                messages: [],
+              },
+            ],
+          },
+        },
+      }),
+    ).toBe("active");
+  });
+
+  it("materializes actions for complete and recovery-incomplete output", () => {
+    expect(messageActionMaterialization(row([text("done")]))).toBe("settled");
+    expect(
+      messageActionMaterialization(
+        row([{ kind: "text", text: "preserved partial", status: "incomplete" }]),
+      ),
+    ).toBe("settled");
+  });
+});
+
 // The plan was on screen twice: in the banner that stands above the transcript, and
 // again as the tool row that wrote it. A tool with a surface of its own has nothing
 // left to say in the narrative — and it has to leave before the units are planned, or
@@ -161,3 +218,36 @@ describe("narratedBlocks", () => {
     ]);
   });
 });
+
+function row(blocks: ContentBlock[], toolCalls: Record<string, ToolCall> = {}): TranscriptRow {
+  return {
+    message: {
+      id: "message_1",
+      role: "assistant" as const,
+      runId: "run_1",
+      blocks,
+    },
+    facts: { toolCalls, delegatedRuns: {} },
+  };
+}
+
+function agentRun(status: AgentRunView["status"]): AgentRunView {
+  return {
+    id: "delegated_1",
+    sessionId: "session_1",
+    parentRunId: "run_1",
+    rootRunId: "run_1",
+    spawnedByItemId: "tool_1",
+    status,
+    activeSegmentId: status === "finished" ? null : "segment_1",
+    outcome: status === "finished" ? { type: "completed" } : null,
+    metrics: {
+      steps: 0,
+      activeDurationMillis: 0,
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+    },
+    progress: null,
+    createdAt: "2026-08-17T00:00:00.000Z",
+    finishedAt: status === "finished" ? "2026-08-17T00:00:01.000Z" : null,
+  };
+}
