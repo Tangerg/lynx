@@ -3,7 +3,7 @@
 // static per runtime build) and agent-connected MCP servers (mcp.* — live
 // 5-state lifecycle, expandable rows).
 
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
 import {
@@ -26,9 +26,12 @@ import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/sessio
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
+  diagnosticToolInvocationWasRetired,
+  diagnosticToolMaterialGeneration,
   formatDiagnosticToolResult,
   invokeDiagnosticTool,
   parseDiagnosticToolArguments,
+  subscribeDiagnosticToolMaterialGeneration,
 } from "@/plugins/builtin/workspace/application/diagnosticTool";
 import {
   type BuiltinToolRowViewModel,
@@ -89,7 +92,20 @@ function BuiltinToolsSection() {
   );
 }
 
-function DiagnosticToolRow({
+export function DiagnosticToolRow(props: {
+  tool: BuiltinToolRowViewModel;
+  cwd?: string;
+  enabled: boolean;
+}) {
+  const generation = useSyncExternalStore(
+    subscribeDiagnosticToolMaterialGeneration,
+    diagnosticToolMaterialGeneration,
+    diagnosticToolMaterialGeneration,
+  );
+  return <DiagnosticToolRowMaterial key={generation} {...props} />;
+}
+
+function DiagnosticToolRowMaterial({
   tool,
   cwd,
   enabled,
@@ -131,7 +147,9 @@ function DiagnosticToolRow({
       });
       setResult(formatDiagnosticToolResult(value));
     } catch (cause) {
-      setError(rpcErrorText(cause) ?? t("tools.diagnostics.error.invoke"));
+      if (!diagnosticToolInvocationWasRetired(cause)) {
+        setError(rpcErrorText(cause) ?? t("tools.diagnostics.error.invoke"));
+      }
     } finally {
       runningRef.current = false;
       setRunning(false);

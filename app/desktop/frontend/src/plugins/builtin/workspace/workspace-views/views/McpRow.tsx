@@ -1,20 +1,23 @@
 import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Icon, IconButton, Pressable, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
+import { rpcErrorText } from "@/lib/rpcErrors";
+import { notifyError } from "@/plugins/sdk";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/classNames";
-import type { MCPServerSummary } from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import {
+  type MCPServerSummary,
+  mcpServerMutationWasRetired,
   reconnectMCPServer,
-  useMCPServerToolConfigs,
-} from "@/plugins/builtin/workspace/application/toolCatalog";
+} from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
+import { useMCPServerToolConfigs } from "@/plugins/builtin/workspace/application/toolCatalog";
 
 // MCP server row — appears in the Tools workspace view. Status pill mirrors
-// the wire lifecycle (AUX_API §5.1); the reconnect button's loading state is
-// `status === "connecting"` — pushed via mcp.serverChanged, never invented
-// locally (reconnect guarantees connecting → terminal ordering, §5.2).
+// the wire lifecycle (AUX_API §5.1). The button adds only an admission latch
+// until the owner repairs that projection; connecting → terminal remains the
+// Runtime event stream's authoritative state (§5.2).
 // i18n key → pill classes. Labels are resolved at render via t().
 const STATUS_CLASSES: Record<MCPServerSummary["status"], { key: string; classes: string }> = {
   disabled: { key: "tools.status.off", classes: "bg-surface-2 text-fg-faint" },
@@ -77,11 +80,30 @@ function McpAuthGuide({ server }: { server: string }) {
 export function McpRow({ server }: { server: MCPServerSummary }) {
   const t = useT();
   const pill = STATUS_CLASSES[server.status];
-  const connecting = server.status === "connecting";
+  const reconnectingRef = useRef(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const connecting = reconnecting || server.status === "connecting";
   // Click the row to expand its tool list — the "N tools" badge finally has
   // a detail behind it.
   const [open, setOpen] = useState(false);
   const panelId = useId();
+
+  const reconnect = async (): Promise<void> => {
+    if (connecting || reconnectingRef.current || server.status === "disabled") return;
+    reconnectingRef.current = true;
+    setReconnecting(true);
+    try {
+      await reconnectMCPServer(server.id);
+    } catch (cause) {
+      if (!mcpServerMutationWasRetired(cause)) {
+        notifyError(rpcErrorText(cause) ?? t("tools.reconnectFailed", { server: server.id }));
+      }
+    } finally {
+      reconnectingRef.current = false;
+      setReconnecting(false);
+    }
+  };
+
   return (
     <div>
       <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-hover transition-colors">
@@ -123,7 +145,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
           iconSize="sm"
           title={t("tools.reconnect")}
           disabled={connecting || server.status === "disabled"}
-          onClick={() => reconnectMCPServer(t, server.id)}
+          onClick={() => void reconnect()}
           className={cn(connecting && "animate-spin")}
         />
       </div>

@@ -2,8 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { queryClient } from "@/lib/queryClient";
-import { authorizeMCPServer, setMCPServerEnabled } from "../application/mcpServerConfig";
-import { mcpServerGateway } from "../application/ports/mcpServerGateway";
+import {
+  authorizeMCPServer,
+  createMCPServer,
+  reconnectMCPServer,
+  setMCPServerEnabled,
+} from "../application/mcpServerConfig";
 import { MCP_SERVERS_KEY, type MCPServerSettings } from "../application/mcpServerQueries";
 import { installMCPServerGateway } from "./runtimeMcpServerGateway";
 
@@ -32,7 +36,7 @@ describe("runtimeMcpServerGateway", () => {
     uninstall = installMCPServerGateway().dispose;
 
     await expect(
-      mcpServerGateway().create({
+      createMCPServer({
         name: "local-tools",
         transport: "stdio",
         enabled: true,
@@ -62,7 +66,7 @@ describe("runtimeMcpServerGateway", () => {
     setContainer({ client: () => ({ mcp: { update } }) as unknown as LyraClient });
     uninstall = installMCPServerGateway().dispose;
 
-    await expect(mcpServerGateway().setEnabled("cloud", false)).resolves.toMatchObject({
+    await expect(setMCPServerEnabled("cloud", false)).resolves.toMatchObject({
       name: "cloud",
       status: "disabled",
       enabled: false,
@@ -143,6 +147,51 @@ describe("runtimeMcpServerGateway", () => {
       message: "mcp_server_mutation_generation_retired",
     });
     expect(getSuccessor).not.toHaveBeenCalled();
+  });
+
+  it("binds reconnect to the exact Runtime client captured by its installation", async () => {
+    const reconnectRetired = vi.fn().mockResolvedValue(undefined);
+    setContainer({
+      client: () => ({ mcp: { reconnect: reconnectRetired } }) as unknown as LyraClient,
+    });
+    uninstall = installMCPServerGateway().dispose;
+
+    const reconnectSuccessor = vi.fn().mockResolvedValue(undefined);
+    setContainer({
+      client: () => ({ mcp: { reconnect: reconnectSuccessor } }) as unknown as LyraClient,
+    });
+
+    await reconnectMCPServer("cloud");
+
+    expect(reconnectRetired).toHaveBeenCalledWith("cloud");
+    expect(reconnectSuccessor).not.toHaveBeenCalled();
+  });
+
+  it("retires an admitted reconnect when a successor Host takes ownership", async () => {
+    const retired = deferred<void>();
+    const reconnectRetired = vi.fn(() => retired.promise);
+    setContainer({
+      client: () => ({ mcp: { reconnect: reconnectRetired } }) as unknown as LyraClient,
+    });
+    const retiredInstallation = installMCPServerGateway();
+    const reconnect = rejected(reconnectMCPServer("cloud"));
+    await vi.waitFor(() => expect(reconnectRetired).toHaveBeenCalledOnce());
+
+    const reconnectSuccessor = vi.fn().mockResolvedValue(undefined);
+    setContainer({
+      client: () => ({ mcp: { reconnect: reconnectSuccessor } }) as unknown as LyraClient,
+    });
+    const successorInstallation = installMCPServerGateway();
+    uninstall = () => {
+      successorInstallation.dispose();
+      retiredInstallation.dispose();
+    };
+
+    retired.resolve();
+    await expect(reconnect).resolves.toMatchObject({
+      message: "mcp_server_mutation_generation_retired",
+    });
+    expect(reconnectSuccessor).not.toHaveBeenCalled();
   });
 });
 

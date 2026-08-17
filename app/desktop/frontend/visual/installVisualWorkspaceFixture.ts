@@ -14,7 +14,7 @@ import {
 import {
   MCP_SERVERS_KEY,
   type MCPServerSettings,
-} from "@/plugins/builtin/settings/mcp-servers/public/queries";
+} from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
 import { localeEn } from "@/plugins/builtin/i18n/locales/en";
 import { installWorkspaceErrorClassifier } from "@/plugins/builtin/workspace/adapters/runtimeWorkspaceErrorClassifier";
 import {

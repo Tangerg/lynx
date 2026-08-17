@@ -30,6 +30,10 @@ export function deleteMCPServer(name: string): Promise<void> {
   return MCPServerMutationOwner.current().delete(name);
 }
 
+export function reconnectMCPServer(name: string): Promise<void> {
+  return MCPServerMutationOwner.current().reconnect(name);
+}
+
 export function useCreateMCPServer(): (input: MCPServerInput) => Promise<void> {
   return useCallback((input) => createMCPServer(input).then(() => undefined), []);
 }

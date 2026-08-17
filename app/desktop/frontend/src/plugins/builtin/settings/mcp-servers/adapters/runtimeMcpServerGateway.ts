@@ -14,7 +14,6 @@ import type {
 import type { MCPServerInput } from "../application/mcpServerInput";
 import { mcpServerSettings } from "./runtimeMcpServerProjection";
 import {
-  configureMCPServerGateway,
   type MCPAuthorizationAttempt as AuthorizationAttempt,
   type MCPServerGateway,
 } from "../application/ports/mcpServerGateway";
@@ -112,6 +111,9 @@ function runtimeMCPServerGateway(client: LyraClient): MCPServerGateway {
       const saved = await client.mcp.update({ server: name, enabled });
       return mcpServerSettings(saved);
     },
+    async reconnect(name) {
+      await client.mcp.reconnect(name);
+    },
     async createAuthorizationAttempt(name, signal) {
       const attempt = await client.mcp.authorizationAttempts.create(name, signal);
       return authorizationAttempt(attempt);
@@ -138,12 +140,10 @@ export interface MCPServerGatewayInstallation {
 export function installMCPServerGateway(): MCPServerGatewayInstallation {
   const gateway = runtimeMCPServerGateway(getContainer().client());
   const mutationOwner = MCPServerMutationOwner.install(gateway);
-  const disposeGateway = configureMCPServerGateway(gateway);
   return {
     replaceRuntimeGeneration: () => mutationOwner.replaceRuntimeGeneration(),
     dispose() {
       mutationOwner.dispose();
-      disposeGateway();
     },
   };
 }

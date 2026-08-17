@@ -1,13 +1,11 @@
 import type { Translate } from "@/lib/i18n";
-import { notifyError } from "@/plugins/sdk";
 import type { Tone } from "@/lib/tone";
 import { TOOL_FAMILIES, TOOL_ICON_BY_NAME, toolFamilyId } from "@/lib/toolFamilies";
 import {
   useMCPServers,
   useMCPTools,
   type MCPServerSummary,
-} from "@/plugins/builtin/settings/mcp-servers/public/queries";
-import { toolCatalogGateway } from "./ports/toolCatalogGateway";
+} from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
 import { useWorkspaceBuiltinTools, type BuiltinToolSummary } from "./workspaceQueries";
 
 export interface BuiltinToolSafetyPill {
@@ -62,17 +60,6 @@ export function useMCPServerConfigs() {
 
 export function useMCPServerToolConfigs(server: string) {
   return useMCPTools({ server });
-}
-
-export function reconnectMCPServer(t: Translate, server: string): void {
-  toolCatalogGateway()
-    .reconnectMCPServer(server)
-    .catch((err: unknown) => {
-      // A console line reads as "the button did nothing" — the same reason session
-      // mutations all report through one notifier.
-      console.warn("[mcp] reconnect failed:", err);
-      notifyError(t("tools.reconnectFailed", { server }));
-    });
 }
 
 export function toolCatalogViewModel(servers: readonly MCPServerSummary[]): ToolCatalogViewModel {

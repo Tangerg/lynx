@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
-import type { MCPServerSummary } from "@/plugins/builtin/settings/mcp-servers/public/queries";
+import type { MCPServerSummary } from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
 import {
   builtinToolCatalogViewModel,
   builtinToolSafetyTone,

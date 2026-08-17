@@ -8,6 +8,7 @@ const inertGateway = {
   update: vi.fn(),
   delete: vi.fn(),
   setEnabled: vi.fn(),
+  reconnect: vi.fn(),
   test: vi.fn(),
 } as const;
 

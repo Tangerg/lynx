@@ -4,7 +4,7 @@ import { installConversationArchiveGateway } from "./adapters/runtimeConversatio
 import { installWorkspaceKnowledgeGateway } from "./adapters/runtimeKnowledgeGateway";
 import { installAgentMemoryGateway } from "./adapters/runtimeAgentMemoryGateway";
 import { installSkillCurationGateway } from "./adapters/runtimeSkillCurationGateway";
-import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway";
+import { installDiagnosticToolGateway } from "./adapters/runtimeDiagnosticToolGateway";
 import { installWorkspaceErrorClassifier } from "./adapters/runtimeWorkspaceErrorClassifier";
 import { installWorkspaceNavigationPort } from "./adapters/navigationStatePort";
 import { installBrowserFileTransfer } from "./adapters/browserFileTransfer";
@@ -26,13 +26,14 @@ export default definePlugin({
     const codebase = installCodebaseGateway();
     const knowledge = installWorkspaceKnowledgeGateway();
     const skillCuration = installSkillCurationGateway();
+    const diagnosticTool = installDiagnosticToolGateway();
     const disposers = [
       installConversationArchiveGateway(),
       () => knowledge.dispose(),
       () => codebase.dispose(),
       () => agentMemory.dispose(),
       () => skillCuration.dispose(),
-      installToolCatalogGateway(),
+      () => diagnosticTool.dispose(),
       installWorkspaceErrorClassifier(),
       installWorkspaceNavigationPort(),
       installBrowserFileTransfer(),
@@ -51,6 +52,7 @@ export default definePlugin({
           skillCuration.replaceRuntimeGeneration();
           codebase.replaceRuntimeGeneration();
           agentMemory.replaceRuntimeGeneration();
+          diagnosticTool.replaceRuntimeGeneration();
         },
       },
     };

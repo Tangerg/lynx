@@ -21,17 +21,14 @@ interface MCPServerMutation<T> {
 class MCPServerMutationGeneration {
   readonly #gateway: MCPServerGateway;
   readonly #lifetime = new AbortController();
-  readonly #retirement: Promise<void>;
   readonly #retiredError = new MCPServerMutationRetiredError();
-  #signalRetirement!: () => void;
+  readonly #settlers = new Set<() => void>();
   readonly #tails = new Map<string, Promise<void>>();
+  readonly #reconnects = new Map<string, Promise<void>>();
   #retired = false;
 
   constructor(gateway: MCPServerGateway) {
     this.#gateway = gateway;
-    this.#retirement = new Promise<void>((resolve) => {
-      this.#signalRetirement = resolve;
-    });
   }
 
   create(input: MCPServerInput): Promise<MCPServerSettings> {
@@ -62,6 +59,22 @@ class MCPServerMutationGeneration {
     });
   }
 
+  reconnect(name: string): Promise<void> {
+    const admitted = this.#reconnects.get(name);
+    if (admitted) return admitted;
+
+    const reconnect = this.#run(name, {
+      execute: () => this.#gateway.reconnect(name),
+      commit: () => undefined,
+    });
+    this.#reconnects.set(name, reconnect);
+    void reconnect.then(
+      () => this.#forgetReconnect(name, reconnect),
+      () => this.#forgetReconnect(name, reconnect),
+    );
+    return reconnect;
+  }
+
   test(input: MCPServerInput): Promise<MCPServerTestOutcome> {
     return this.#execute(() => this.#gateway.test(input));
   }
@@ -86,7 +99,10 @@ class MCPServerMutationGeneration {
     if (this.#retired) return;
     this.#retired = true;
     this.#lifetime.abort(this.#retiredError);
-    this.#signalRetirement();
+    for (const settle of [...this.#settlers]) settle();
+    this.#settlers.clear();
+    this.#tails.clear();
+    this.#reconnects.clear();
   }
 
   #run<T>(identity: string, mutation: MCPServerMutation<T>): Promise<T> {
@@ -129,16 +145,37 @@ class MCPServerMutationGeneration {
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    return Promise.race([
-      operation,
-      this.#retirement.then(() => {
-        throw this.#retiredError;
-      }),
-    ]);
+    this.#assertCurrent();
+    return new Promise<T>((resolve, reject) => {
+      let pending = true;
+      const finish = () => {
+        if (!pending) return false;
+        pending = false;
+        this.#settlers.delete(retire);
+        return true;
+      };
+      const retire = () => {
+        if (finish()) reject(this.#retiredError);
+      };
+      this.#settlers.add(retire);
+      operation.then(
+        (value) => {
+          if (finish()) resolve(value);
+        },
+        (error: unknown) => {
+          if (finish()) reject(error);
+        },
+      );
+      if (this.#retired) retire();
+    });
   }
 
   #assertCurrent(): void {
     if (this.#retired) throw this.#retiredError;
+  }
+
+  #forgetReconnect(name: string, reconnect: Promise<void>): void {
+    if (this.#reconnects.get(name) === reconnect) this.#reconnects.delete(name);
   }
 }
 
@@ -184,6 +221,10 @@ export class MCPServerMutationOwner {
 
   delete(name: string): Promise<void> {
     return this.#generation.delete(name);
+  }
+
+  reconnect(name: string): Promise<void> {
+    return this.#generation.reconnect(name);
   }
 
   test(input: MCPServerInput): Promise<MCPServerTestOutcome> {

@@ -24,7 +24,7 @@ import {
 import {
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
-} from "@/plugins/builtin/settings/mcp-servers/public/queries";
+} from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
 import {
   WORKSPACE_DIFF_KEY,
   WORKSPACE_AGENT_MEMORY_KEY,
