@@ -24,10 +24,11 @@ export default definePlugin({
   },
   setup(ctx) {
     const agentMemory = installAgentMemoryGateway();
+    const codebase = installCodebaseGateway();
     const disposers = [
-      installCodebaseGateway(),
       installConversationArchiveGateway(),
       installWorkspaceKnowledgeGateway(),
+      () => codebase.dispose(),
       () => agentMemory.dispose(),
       installSkillLibraryGateway(),
       installSkillProposalsGateway(),
@@ -45,7 +46,10 @@ export default definePlugin({
         forgetSessionScopes: forgetWorkspaceSessionScopes,
       },
       mutationLifecycle: {
-        replaceRuntimeGeneration: agentMemory.replaceRuntimeGeneration,
+        replaceRuntimeGeneration() {
+          codebase.replaceRuntimeGeneration();
+          agentMemory.replaceRuntimeGeneration();
+        },
       },
     };
   },

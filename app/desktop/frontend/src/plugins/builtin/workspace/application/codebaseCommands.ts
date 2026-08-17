@@ -1,22 +1,13 @@
-// @codebase actions (codebase.search / reindex). Both refresh the codebase
-// status query so the view's status header reflects the new index state.
-
-import { queryClient } from "@/lib/queryClient";
 import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
-  CODEBASE_STATUS_KEY,
-  commitCodebaseReindexStarted,
   providerRoleIsAvailable,
   useCodebaseStatus,
   useEmbeddingRole,
   useProviders,
 } from "@/plugins/builtin/settings/providers/public/queries";
-import {
-  codebaseGateway,
-  type CodebaseReindexOperation,
-  type CodebaseSearchHit,
-} from "./ports/codebaseGateway";
+import type { CodebaseReindexOperation, CodebaseSearchHit } from "./ports/codebaseGateway";
+import { CodebaseCommandOwner, codebaseCommandWasRetired } from "./codebaseCommandOwner";
 
 export type { CodebaseSearchHit } from "./ports/codebaseGateway";
 
@@ -44,14 +35,11 @@ export async function searchCodebase(
   query: string,
   limit = 12,
 ): Promise<CodebaseSearchHit[]> {
-  const hits = await codebaseGateway().search({ cwd, query, limit });
-  await queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] });
-  return hits;
+  return CodebaseCommandOwner.current().search(cwd, query, limit);
 }
 
 export async function reindexCodebase(cwd: string | undefined): Promise<CodebaseReindexOperation> {
-  const operation = await codebaseGateway().reindex(cwd);
-  commitCodebaseReindexStarted({ cwd }, operation.operationId);
-  await queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] });
-  return operation;
+  return CodebaseCommandOwner.current().reindex(cwd);
 }
+
+export { codebaseCommandWasRetired };

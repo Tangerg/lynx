@@ -3,10 +3,11 @@
 // the index state + a reindex button. Backed by codebase.* — needs an embedding
 // model configured in Settings → Providers (else it points the user there).
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { EmptyState, IconButton, PillButton, Pressable, SearchField, SkeletonList } from "@/ui";
 import {
   type CodebaseSearchHit,
+  codebaseCommandWasRetired,
   reindexCodebase,
   searchCodebase,
   useCodebaseSearchConfig,
@@ -38,39 +39,6 @@ function statusLabel(state: CodebaseStatusProjection["state"], t: ReturnType<typ
 function CodebaseTab() {
   const t = useT();
   const { cwd, available, enabled, resolving, status } = useCodebaseSearchConfig();
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [reindexing, setReindexing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const statusView = codebaseStatusViewModel(status);
-  const resultsView = codebaseSearchViewModel(hits);
-
-  const run = async () => {
-    if (!query.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      setHits(await searchCodebase(cwd, query.trim()));
-    } catch (e) {
-      setError(rpcErrorText(e) ?? t("codebase.error"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const reindex = async () => {
-    if (reindexing || status?.operationId) return;
-    setReindexing(true);
-    setError(null);
-    try {
-      await reindexCodebase(cwd);
-    } catch (e) {
-      setError(rpcErrorText(e) ?? t("codebase.error"));
-    } finally {
-      setReindexing(false);
-    }
-  };
 
   if (!available) {
     return (
@@ -103,6 +71,61 @@ function CodebaseTab() {
       </WorkspaceViewLayout>
     );
   }
+
+  return <CodebaseWorkspaceSurface key={cwd ?? ""} cwd={cwd} status={status} />;
+}
+
+type CodebaseWorkspaceSurfaceProps = Pick<
+  ReturnType<typeof useCodebaseSearchConfig>,
+  "cwd" | "status"
+>;
+
+export function CodebaseWorkspaceSurface({ cwd, status }: CodebaseWorkspaceSurfaceProps) {
+  const t = useT();
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [reindexing, setReindexing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const searchPending = useRef(false);
+  const reindexPending = useRef(false);
+  const statusView = codebaseStatusViewModel(status);
+  const resultsView = codebaseSearchViewModel(hits);
+
+  const run = async () => {
+    const request = query.trim();
+    if (!request || searchPending.current) return;
+    searchPending.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      setHits(await searchCodebase(cwd, request));
+    } catch (cause) {
+      if (!codebaseCommandWasRetired(cause)) {
+        setError(rpcErrorText(cause) ?? t("codebase.error"));
+      }
+    } finally {
+      searchPending.current = false;
+      setBusy(false);
+    }
+  };
+
+  const reindex = async () => {
+    if (reindexPending.current || status?.operationId) return;
+    reindexPending.current = true;
+    setReindexing(true);
+    setError(null);
+    try {
+      await reindexCodebase(cwd);
+    } catch (cause) {
+      if (!codebaseCommandWasRetired(cause)) {
+        setError(rpcErrorText(cause) ?? t("codebase.error"));
+      }
+    } finally {
+      reindexPending.current = false;
+      setReindexing(false);
+    }
+  };
 
   return (
     <WorkspaceViewLayout
