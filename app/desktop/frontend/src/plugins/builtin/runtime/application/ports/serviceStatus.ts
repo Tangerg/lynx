@@ -1,7 +1,8 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { RuntimeServiceFailure, RuntimeServiceObservation } from "../runtimeService";
 
-export type RuntimeServicePhase = "checking" | "ready" | "degraded" | "unhealthy" | "unavailable";
+export type RuntimeServicePhase =
+  "checking" | "reconnecting" | "ready" | "degraded" | "unhealthy" | "unavailable";
 
 export interface RuntimeServiceSnapshot {
   phase: RuntimeServicePhase;

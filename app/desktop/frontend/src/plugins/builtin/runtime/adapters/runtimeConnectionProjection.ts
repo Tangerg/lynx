@@ -34,6 +34,15 @@ function initialConnectionState(): RuntimeConnectionState {
   };
 }
 
+function reconnectingConnectionState(): RuntimeConnectionState {
+  return {
+    connectionGeneration: null,
+    processGeneration: null,
+    capabilities: null,
+    service: { phase: "reconnecting", observation: null, failure: null },
+  };
+}
+
 export const useRuntimeConnectionStore = create<RuntimeConnectionState>(() =>
   initialConnectionState(),
 );
@@ -170,7 +179,7 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
     // ends unexpectedly, the generation is no longer capable of admitting
     // commands, queries, mutations, or material writers — even if the same
     // Runtime process will answer the recovery inspection a moment later.
-    useRuntimeConnectionStore.setState(initialConnectionState(), true);
+    useRuntimeConnectionStore.setState(reconnectingConnectionState(), true);
     return this.#controller.recover();
   }
 

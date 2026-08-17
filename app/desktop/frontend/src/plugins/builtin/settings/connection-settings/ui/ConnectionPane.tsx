@@ -17,6 +17,7 @@ import { SettingRow, SettingsGroup } from "../../public";
 
 const STATUS_TONE: Record<RuntimeServicePhase, "ok" | "running" | "waiting" | "err"> = {
   checking: "running",
+  reconnecting: "running",
   ready: "ok",
   degraded: "waiting",
   unhealthy: "err",
@@ -25,6 +26,7 @@ const STATUS_TONE: Record<RuntimeServicePhase, "ok" | "running" | "waiting" | "e
 
 const STATUS_KEY: Record<RuntimeServicePhase, string> = {
   checking: "settings.connection.status.checking",
+  reconnecting: "settings.connection.status.reconnecting",
   ready: "settings.connection.status.ready",
   degraded: "settings.connection.status.degraded",
   unhealthy: "settings.connection.status.unhealthy",
@@ -151,7 +153,9 @@ export function ConnectionPane() {
                 type="button"
                 variant="soft"
                 size="sm"
-                disabled={refreshing || service.phase === "checking"}
+                disabled={
+                  refreshing || service.phase === "checking" || service.phase === "reconnecting"
+                }
                 onClick={() => void refresh()}
               >
                 {t("settings.connection.status.refresh")}

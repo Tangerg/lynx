@@ -392,6 +392,12 @@ export const de: Record<string, string> = {
   "settings.connection.apply": "Anwenden und neu laden",
   "settings.connection.reset": "Auf Standard zurücksetzen",
   "settings.connection.status.checking": "Runtime wird geprüft…",
+  "settings.connection.status.reconnecting": "Verbindung wird wiederhergestellt…",
+  "runtime.connection.reconnecting":
+    "Die Runtime-Verbindung wurde unterbrochen. Verbindung wird wiederhergestellt…",
+  "runtime.connection.unavailable":
+    "Die Runtime ist nicht verfügbar. Lyra versucht weiterhin, die Verbindung herzustellen.",
+  "runtime.connection.settings": "Verbindungseinstellungen",
   "settings.connection.status.ready": "Bereit",
   "settings.connection.status.degraded": "Eingeschränkt",
   "settings.connection.status.unhealthy": "Nicht betriebsbereit",

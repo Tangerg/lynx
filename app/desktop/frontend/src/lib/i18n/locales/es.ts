@@ -390,6 +390,11 @@ export const es: Record<string, string> = {
   "settings.connection.apply": "Aplicar y recargar",
   "settings.connection.reset": "Restaurar predeterminado",
   "settings.connection.status.checking": "Comprobando el runtime…",
+  "settings.connection.status.reconnecting": "Reconectando…",
+  "runtime.connection.reconnecting": "Se perdió la conexión con el runtime. Reconectando…",
+  "runtime.connection.unavailable":
+    "El runtime no está disponible. Lyra seguirá intentando reconectarse.",
+  "runtime.connection.settings": "Ajustes de conexión",
   "settings.connection.status.ready": "Listo",
   "settings.connection.status.degraded": "Degradado",
   "settings.connection.status.unhealthy": "No operativo",

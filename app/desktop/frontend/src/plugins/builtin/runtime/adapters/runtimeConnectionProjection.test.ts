@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeatureCapability, ServerCapabilities } from "@/rpc";
-import type {
-  RuntimeConnectionInspection,
-  RuntimeConnectionInspector,
+import {
+  RUNTIME_SERVICE_RETRY_BASE_MS,
+  type RuntimeConnectionInspection,
+  type RuntimeConnectionInspector,
 } from "../application/runtimeService";
 import { runtimeCapabilities } from "../application/ports/capabilities";
 import { runtimeServiceStatus } from "../application/ports/serviceStatus";
@@ -253,6 +254,7 @@ describe("runtime connection projection", () => {
     expect(inspector.inspect).toHaveBeenCalledTimes(3);
     expect(signals[0]?.aborted).toBe(true);
     expect(owner.connectionGeneration()).toBeNull();
+    expect(useRuntimeConnectionStore.getState().service.phase).toBe("reconnecting");
 
     settleRetiredInspection(inspection());
     await retiredInspection;
@@ -273,6 +275,40 @@ describe("runtime connection projection", () => {
     expect(connectionChanges).toHaveBeenCalledTimes(2);
     unsubscribe();
     owner.dispose();
+  });
+
+  it("keeps a failed recovery disconnected until an automatic retry publishes a successor", async () => {
+    vi.useFakeTimers();
+    try {
+      const inspector: RuntimeConnectionInspector<ServerCapabilities> = {
+        inspect: vi
+          .fn<RuntimeConnectionInspector<ServerCapabilities>["inspect"]>()
+          .mockResolvedValueOnce(inspection())
+          .mockRejectedValueOnce(new Error("connection refused"))
+          .mockResolvedValueOnce(inspection()),
+      };
+      const owner = startRuntimeConnection(inspector);
+      await vi.advanceTimersByTimeAsync(0);
+      const predecessorGeneration = owner.connectionGeneration();
+      expect(predecessorGeneration).not.toBeNull();
+
+      await owner.reportConnectionLoss(predecessorGeneration!);
+      expect(useRuntimeConnectionStore.getState()).toMatchObject({
+        connectionGeneration: null,
+        processGeneration: null,
+        capabilities: null,
+        service: { phase: "unavailable" },
+      });
+
+      await vi.advanceTimersByTimeAsync(RUNTIME_SERVICE_RETRY_BASE_MS);
+      const successorGeneration = owner.connectionGeneration();
+      expect(successorGeneration).not.toBeNull();
+      expect(successorGeneration).not.toBe(predecessorGeneration);
+      expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
+      owner.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the successor read port installed while capability subscribers reconcile", async () => {

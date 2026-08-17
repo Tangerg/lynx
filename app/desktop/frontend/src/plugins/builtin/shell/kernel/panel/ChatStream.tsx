@@ -23,7 +23,7 @@ import {
 import { useUiStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ComposerSurface } from "./ComposerSurface";
-import { FloatingComposer } from "./FloatingComposer";
+import { FloatingComposer, RuntimeConnectionNotice } from "./FloatingComposer";
 import { COMPOSER_OVERLAY_PROPERTY, READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { CwdMissingBanner } from "./CwdMissingBanner";
 import { MessageStream, type MessageStreamController } from "./MessageStream";
@@ -187,7 +187,10 @@ export function ChatStream({ onSend }: Props) {
               {t("welcome.title")}
             </h1>
           </div>
-          <div className={cn(READING_COLUMN, READING_GUTTER)}>{composer}</div>
+          <div className={cn(READING_COLUMN, READING_GUTTER)}>
+            <RuntimeConnectionNotice />
+            {composer}
+          </div>
           <div className={cn(READING_COLUMN, READING_GUTTER, "empty:hidden")}>
             <Slot name="chat.empty" />
           </div>

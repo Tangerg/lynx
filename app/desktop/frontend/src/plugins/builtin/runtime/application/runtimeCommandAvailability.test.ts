@@ -13,6 +13,7 @@ describe("runtime command availability", () => {
   it("rejects commands before the first inspection and after a disconnect", () => {
     for (const snapshot of [
       { phase: "checking", observation: null, failure: null },
+      { phase: "reconnecting", observation: null, failure: null },
       {
         phase: "unavailable",
         observation: null,
