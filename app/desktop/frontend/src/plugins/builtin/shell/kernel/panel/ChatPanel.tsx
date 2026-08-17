@@ -1,10 +1,11 @@
-import { Activity } from "react";
+import { Activity, Fragment, type ReactNode } from "react";
 import { dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { CatalogPicker, type CatalogPickerGroup, type IconName } from "@/ui";
 import {
   AgentContentCard,
+  AgentContextDock,
   type AgentDockTab,
   AgentDockTabs,
   AgentDockToggle,
@@ -40,7 +41,6 @@ import { DockResizer } from "./DockResizer";
 import { HeaderDiffStat } from "./HeaderDiffStat";
 import { ViewPlacementProvider } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
-import { SessionOwnedDock } from "./SessionOwnedDock";
 import { useT } from "@/lib/i18n";
 
 function viewIcon(name: string | undefined): IconName | undefined {
@@ -49,6 +49,22 @@ function viewIcon(name: string | undefined): IconName | undefined {
 
 interface Props {
   onSend: (input: UserInput) => boolean;
+}
+
+/** Retires every mounted workspace view at the exact Session boundary.
+ *
+ * Dock and promoted/full placement are two presentations of the same plugin
+ * view state. Neither may lend transient selection, loading, copied, error or
+ * scroll material to the next Session just because the view id survived.
+ */
+function SessionOwnedWorkspaceState({
+  sessionId,
+  children,
+}: {
+  sessionId: string;
+  children: ReactNode;
+}) {
+  return <Fragment key={sessionId}>{children}</Fragment>;
 }
 
 function AddDockViewPicker({
@@ -153,9 +169,11 @@ export function ChatPanel({ onSend }: Props) {
   return (
     <AgentContentCard label={t("shell.region.workspace")}>
       {activeMainView !== null && (
-        <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
-          <WorkspaceViewBody viewId={activeMainView} />
-        </ViewPlacementProvider>
+        <SessionOwnedWorkspaceState sessionId={activeSessionId}>
+          <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
+            <WorkspaceViewBody viewId={activeMainView} />
+          </ViewPlacementProvider>
+        </SessionOwnedWorkspaceState>
       )}
       {/* The conversation steps aside for a full-window view; it does not get torn down
           for one. `Activity` keeps it mounted and hides it (`display: none`), running
@@ -213,10 +231,11 @@ export function ChatPanel({ onSend }: Props) {
               did not occupy on the previous frame, and the first view opened in a session
               is exactly the case where there is no previous frame to leave unless the
               flank was already there, held outside the window by its end margin. */}
-          <SessionOwnedDock sessionId={activeSessionId}>
-            <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
-            <div className="relative min-h-0 flex-1">
-              {/* Every open tab stays mounted within the current Session so switching
+          <SessionOwnedWorkspaceState sessionId={activeSessionId}>
+            <AgentContextDock>
+              <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
+              <div className="relative min-h-0 flex-1">
+                {/* Every open tab stays mounted within the current Session so switching
                     between them keeps each
                     one's scroll, selection and expansion — but only the visible one is
                     allowed to be doing anything. `Activity` is what separates those:
@@ -228,17 +247,18 @@ export function ChatPanel({ onSend }: Props) {
                     and `aria-hidden` this used to carry were saying the same thing a
                     third and fourth time, and three mechanisms for one state is three
                     places to disagree. */}
-              {dock.viewIds.map((viewId) => (
-                <Activity key={viewId} mode={viewId === dock.activeViewId ? "visible" : "hidden"}>
-                  <div data-dock-view-id={viewId} className="absolute inset-0 flex flex-col">
-                    <ViewPlacementProvider value={placementFor(viewId, "dock")}>
-                      <WorkspaceViewBody viewId={viewId} />
-                    </ViewPlacementProvider>
-                  </div>
-                </Activity>
-              ))}
-            </div>
-          </SessionOwnedDock>
+                {dock.viewIds.map((viewId) => (
+                  <Activity key={viewId} mode={viewId === dock.activeViewId ? "visible" : "hidden"}>
+                    <div data-dock-view-id={viewId} className="absolute inset-0 flex flex-col">
+                      <ViewPlacementProvider value={placementFor(viewId, "dock")}>
+                        <WorkspaceViewBody viewId={viewId} />
+                      </ViewPlacementProvider>
+                    </div>
+                  </Activity>
+                ))}
+              </div>
+            </AgentContextDock>
+          </SessionOwnedWorkspaceState>
           {/* Pinned to the row's trailing corner rather than placed in either bar — see
               AgentDockToggle. Last in the row so it paints over the flank it moves. */}
           <div className="agent-dock-control">
