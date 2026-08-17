@@ -88,4 +88,33 @@ describe("useProbe", () => {
     });
     expect(result.current.probe).toEqual({ state: "idle" });
   });
+
+  it("retires completed and in-flight feedback when its material generation changes", async () => {
+    const slow = deferred<{ ok: boolean; error?: string }>();
+    const { result, rerender } = renderHook(({ generation }) => useProbe(generation), {
+      initialProps: { generation: 1 },
+    });
+
+    await act(async () => {
+      await result.current.run(async () => ({ ok: true }), "fallback");
+    });
+    expect(result.current.probe).toEqual({ state: "ok" });
+
+    rerender({ generation: 2 });
+    expect(result.current.probe).toEqual({ state: "idle" });
+
+    let done!: Promise<void>;
+    act(() => {
+      done = result.current.run(() => slow.promise, "fallback");
+    });
+    expect(result.current.probe).toEqual({ state: "busy" });
+
+    rerender({ generation: 3 });
+    expect(result.current.probe).toEqual({ state: "idle" });
+    await act(async () => {
+      slow.resolve({ ok: false, error: "retired result" });
+      await done;
+    });
+    expect(result.current.probe).toEqual({ state: "idle" });
+  });
 });

@@ -1,5 +1,6 @@
 import type { QueryFilters } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { SkillCurationGateway, SkillProposalHandle } from "./ports/skillCurationGateway";
 import {
   WORKSPACE_MANAGED_SKILLS_KEY,
@@ -27,9 +28,8 @@ interface SkillCurationCommand {
 
 class SkillCurationGeneration {
   readonly #gateway: SkillCurationGateway;
-  readonly #settlers = new Set<() => void>();
+  readonly #cohort = new RetirableTaskCohort(new SkillCurationRetiredError());
   readonly #tails = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: SkillCurationGateway) {
     this.#gateway = gateway;
@@ -76,10 +76,7 @@ class SkillCurationGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    for (const settle of [...this.#settlers]) settle();
-    this.#settlers.clear();
+    this.#cohort.retire();
     this.#tails.clear();
   }
 
@@ -89,7 +86,7 @@ class SkillCurationGeneration {
       try {
         await this.#settle(command.execute());
       } catch (error) {
-        if (this.#retired) throw error;
+        if (this.#cohort.retired) throw error;
         await this.#repair(command.repair());
         throw error;
       }
@@ -117,40 +114,18 @@ class SkillCurationGeneration {
         ),
       );
     } catch (error) {
-      if (this.#retired) throw error;
+      if (this.#cohort.retired) throw error;
       // The accepted command already committed every fact it proved. Runtime
       // events and the next read retain the projection repair path.
     }
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    this.#assertCurrent();
-    return new Promise<T>((resolve, reject) => {
-      let pending = true;
-      const finish = () => {
-        if (!pending) return false;
-        pending = false;
-        this.#settlers.delete(retire);
-        return true;
-      };
-      const retire = () => {
-        if (finish()) reject(new SkillCurationRetiredError());
-      };
-      this.#settlers.add(retire);
-      operation.then(
-        (value) => {
-          if (finish()) resolve(value);
-        },
-        (error: unknown) => {
-          if (finish()) reject(error);
-        },
-      );
-      if (this.#retired) retire();
-    });
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw new SkillCurationRetiredError();
+    this.#cohort.assertCurrent();
   }
 }
 

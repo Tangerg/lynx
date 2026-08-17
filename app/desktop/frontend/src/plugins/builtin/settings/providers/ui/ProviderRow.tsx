@@ -3,6 +3,7 @@ import { Button, Icon, ProviderIcon, TextField } from "@/ui";
 import {
   type ProviderConfiguration,
   providerMutationWasRetired,
+  useProviderMutationMaterialGeneration,
   useUpdateProvider,
   useTestProvider,
 } from "../application/providerConfig";
@@ -22,7 +23,8 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
   const test = useTestProvider();
   const [draft, setDraft] = useState(() => initialProviderCredentialsDraft(p));
   const [saving, setSaving] = useState(false);
-  const { probe, reset, fail, run } = useProbe();
+  const materialGeneration = useProviderMutationMaterialGeneration();
+  const { probe, reset, fail, run } = useProbe(materialGeneration);
 
   const enabled = p.apiKeyMasked !== "";
   // Env keys are read-only at the source, but a typed key still overrides them.

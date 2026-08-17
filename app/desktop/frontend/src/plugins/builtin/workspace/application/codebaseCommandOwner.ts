@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import {
   CODEBASE_STATUS_KEY,
   commitCodebaseReindexStarted,
@@ -19,9 +20,8 @@ class CodebaseCommandRetiredError extends Error {
 
 class CodebaseCommandGeneration {
   readonly #gateway: CodebaseGateway;
-  readonly #settlers = new Set<() => void>();
+  readonly #cohort = new RetirableTaskCohort(new CodebaseCommandRetiredError());
   readonly #reindexTails = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: CodebaseGateway) {
     this.#gateway = gateway;
@@ -58,10 +58,7 @@ class CodebaseCommandGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    for (const settle of [...this.#settlers]) settle();
-    this.#settlers.clear();
+    this.#cohort.retire();
     this.#reindexTails.clear();
   }
 
@@ -81,40 +78,18 @@ class CodebaseCommandGeneration {
         }),
       );
     } catch (error) {
-      if (this.#retired) throw error;
+      if (this.#cohort.retired) throw error;
       // The exact command response remains authoritative. Runtime events and
       // the next status read retain the repair path.
     }
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    this.#assertCurrent();
-    return new Promise<T>((resolve, reject) => {
-      let pending = true;
-      const finish = () => {
-        if (!pending) return false;
-        pending = false;
-        this.#settlers.delete(retire);
-        return true;
-      };
-      const retire = () => {
-        if (finish()) reject(new CodebaseCommandRetiredError());
-      };
-      this.#settlers.add(retire);
-      operation.then(
-        (value) => {
-          if (finish()) resolve(value);
-        },
-        (error: unknown) => {
-          if (finish()) reject(error);
-        },
-      );
-      if (this.#retired) retire();
-    });
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw new CodebaseCommandRetiredError();
+    this.#cohort.assertCurrent();
   }
 }
 

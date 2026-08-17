@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createKeyedSerialTaskQueue, createSerialTaskQueue } from "./serialTaskQueue";
+import {
+  createKeyedSerialTaskQueue,
+  createSerialTaskQueue,
+  RetirableTaskCohort,
+} from "./taskQueue";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -11,7 +15,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-describe("serial task queue", () => {
+describe("task queues and cohorts", () => {
   it("runs tasks in submission order", async () => {
     const first = deferred<string>();
     const second = vi.fn().mockResolvedValue("second");
@@ -57,5 +61,20 @@ describe("serial task queue", () => {
     await expect(firstAResult).resolves.toBe("first-a");
     await expect(secondAResult).resolves.toBe("second-a");
     await expect(firstBResult).resolves.toBe("first-b");
+  });
+
+  it("retires only pending cohort settlements and ignores non-cooperative late results", async () => {
+    const retired = new Error("generation retired");
+    const cohort = new RetirableTaskCohort(retired);
+    await expect(cohort.settle(Promise.resolve("completed"))).resolves.toBe("completed");
+
+    const late = deferred<string>();
+    const settlement = cohort.settle(late.promise);
+    cohort.retire();
+    await expect(settlement).rejects.toBe(retired);
+
+    late.resolve("stale");
+    await Promise.resolve();
+    expect(() => cohort.assertCurrent()).toThrow(retired);
   });
 });

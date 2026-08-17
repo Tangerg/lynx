@@ -1,5 +1,6 @@
 import { HOOKS_KEY } from "./hookQueries";
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 
 export interface HookTrustGateway {
   setProjectTrust(projectRoot: string, trusted: boolean): Promise<void>;
@@ -15,17 +16,12 @@ class HookTrustMutationRetiredError extends Error {
 
 class HookTrustMutationGeneration {
   readonly #gateway: HookTrustGateway;
-  readonly #retirement: Promise<void>;
   readonly #retiredError = new HookTrustMutationRetiredError();
-  #signalRetirement!: () => void;
+  readonly #cohort = new RetirableTaskCohort(this.#retiredError);
   readonly #tails = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: HookTrustGateway) {
     this.#gateway = gateway;
-    this.#retirement = new Promise<void>((resolve) => {
-      this.#signalRetirement = resolve;
-    });
   }
 
   setProjectTrust(projectRoot: string, trusted: boolean): Promise<void> {
@@ -57,9 +53,8 @@ class HookTrustMutationGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    this.#signalRetirement();
+    this.#cohort.retire();
+    this.#tails.clear();
   }
 
   async #repairProjection(): Promise<void> {
@@ -73,16 +68,11 @@ class HookTrustMutationGeneration {
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    return Promise.race([
-      operation,
-      this.#retirement.then(() => {
-        throw this.#retiredError;
-      }),
-    ]);
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw this.#retiredError;
+    this.#cohort.assertCurrent();
   }
 }
 

@@ -4,6 +4,7 @@ import {
   type MCPServerSettings,
   type MCPTransport,
   mcpServerMutationWasRetired,
+  useMCPServerMutationMaterialGeneration,
   useCreateMCPServer,
   useDeleteMCPServer,
   useTestMCPServer,
@@ -43,7 +44,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   const [draft, setDraft] = useState<MCPServerDraft>(() => initialMCPServerDraft(server));
 
   const [saving, setSaving] = useState(false);
-  const { probe, reset, fail, run } = useProbe();
+  const materialGeneration = useMCPServerMutationMaterialGeneration();
+  const { probe, reset, fail, run } = useProbe(materialGeneration);
 
   const hasAuthStored = (server?.authorizationMasked ?? "") !== "";
   const hasHeadersStored = Object.keys(server?.headersMasked ?? {}).length > 0;

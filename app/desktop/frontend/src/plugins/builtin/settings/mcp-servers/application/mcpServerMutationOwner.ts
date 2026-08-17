@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { MCPServerInput } from "./mcpServerInput";
 import { MCP_SERVERS_KEY, MCP_TOOLS_KEY, type MCPServerSettings } from "./mcpServerQueries";
 import type { MCPServerGateway, MCPServerTestOutcome } from "./ports/mcpServerGateway";
@@ -22,10 +23,9 @@ class MCPServerMutationGeneration {
   readonly #gateway: MCPServerGateway;
   readonly #lifetime = new AbortController();
   readonly #retiredError = new MCPServerMutationRetiredError();
-  readonly #settlers = new Set<() => void>();
+  readonly #cohort = new RetirableTaskCohort(this.#retiredError);
   readonly #tails = new Map<string, Promise<void>>();
   readonly #reconnects = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: MCPServerGateway) {
     this.#gateway = gateway;
@@ -96,11 +96,9 @@ class MCPServerMutationGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
+    if (this.#cohort.retired) return;
     this.#lifetime.abort(this.#retiredError);
-    for (const settle of [...this.#settlers]) settle();
-    this.#settlers.clear();
+    this.#cohort.retire();
     this.#tails.clear();
     this.#reconnects.clear();
   }
@@ -145,33 +143,11 @@ class MCPServerMutationGeneration {
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    this.#assertCurrent();
-    return new Promise<T>((resolve, reject) => {
-      let pending = true;
-      const finish = () => {
-        if (!pending) return false;
-        pending = false;
-        this.#settlers.delete(retire);
-        return true;
-      };
-      const retire = () => {
-        if (finish()) reject(this.#retiredError);
-      };
-      this.#settlers.add(retire);
-      operation.then(
-        (value) => {
-          if (finish()) resolve(value);
-        },
-        (error: unknown) => {
-          if (finish()) reject(error);
-        },
-      );
-      if (this.#retired) retire();
-    });
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw this.#retiredError;
+    this.#cohort.assertCurrent();
   }
 
   #forgetReconnect(name: string, reconnect: Promise<void>): void {
@@ -183,6 +159,8 @@ class MCPServerMutationGeneration {
  * one exact Plugin Host and Runtime generation. */
 export class MCPServerMutationOwner {
   static #active: MCPServerMutationOwner | null = null;
+  static #materialGeneration = 0;
+  static readonly #materialListeners = new Set<() => void>();
 
   readonly #gateway: MCPServerGateway;
   #generation: MCPServerMutationGeneration;
@@ -198,6 +176,7 @@ export class MCPServerMutationOwner {
     const owner = new MCPServerMutationOwner(gateway);
     MCPServerMutationOwner.#active = owner;
     predecessor?.dispose();
+    MCPServerMutationOwner.#advanceMaterialGeneration();
     return owner;
   }
 
@@ -205,6 +184,15 @@ export class MCPServerMutationOwner {
     const owner = MCPServerMutationOwner.#active;
     if (!owner || owner.#disposed) throw new Error("MCP server mutation owner is not installed");
     return owner;
+  }
+
+  static materialGeneration(): number {
+    return MCPServerMutationOwner.#materialGeneration;
+  }
+
+  static subscribeMaterialGeneration(listener: () => void): () => void {
+    MCPServerMutationOwner.#materialListeners.add(listener);
+    return () => MCPServerMutationOwner.#materialListeners.delete(listener);
   }
 
   create(input: MCPServerInput): Promise<MCPServerSettings> {
@@ -240,13 +228,22 @@ export class MCPServerMutationOwner {
     const predecessor = this.#generation;
     this.#generation = new MCPServerMutationGeneration(this.#gateway);
     predecessor.retire();
+    MCPServerMutationOwner.#advanceMaterialGeneration();
   }
 
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (MCPServerMutationOwner.#active === this) MCPServerMutationOwner.#active = null;
+    if (MCPServerMutationOwner.#active === this) {
+      MCPServerMutationOwner.#active = null;
+      MCPServerMutationOwner.#advanceMaterialGeneration();
+    }
+  }
+
+  static #advanceMaterialGeneration(): void {
+    MCPServerMutationOwner.#materialGeneration += 1;
+    for (const listener of MCPServerMutationOwner.#materialListeners) listener();
   }
 }
 

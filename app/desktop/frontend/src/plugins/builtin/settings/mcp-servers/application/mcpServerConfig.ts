@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { type MCPServerSettings, useMCPServers } from "./mcpServerQueries";
 import type { MCPServerInput } from "./mcpServerInput";
 import type { MCPServerTestOutcome } from "./ports/mcpServerGateway";
@@ -12,6 +12,14 @@ export { mcpServerMutationWasRetired };
 
 export function useMCPServerConfigs() {
   return useMCPServers();
+}
+
+export function useMCPServerMutationMaterialGeneration(): number {
+  return useSyncExternalStore(
+    MCPServerMutationOwner.subscribeMaterialGeneration,
+    MCPServerMutationOwner.materialGeneration,
+    MCPServerMutationOwner.materialGeneration,
+  );
 }
 
 export function createMCPServer(input: MCPServerInput): Promise<MCPServerSettings> {

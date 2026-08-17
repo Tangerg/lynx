@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type {
   AgentMemoryAddInput,
   AgentMemoryDecision,
@@ -25,17 +26,12 @@ interface AgentMemoryMutation<T> {
 
 class AgentMemoryMutationGeneration {
   readonly #gateway: AgentMemoryGateway;
-  readonly #retirement: Promise<void>;
   readonly #retiredError = new AgentMemoryMutationRetiredError();
-  #signalRetirement!: () => void;
+  readonly #cohort = new RetirableTaskCohort(this.#retiredError);
   readonly #tails = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: AgentMemoryGateway) {
     this.#gateway = gateway;
-    this.#retirement = new Promise<void>((resolve) => {
-      this.#signalRetirement = resolve;
-    });
   }
 
   review(id: string, decision: AgentMemoryDecision): Promise<void> {
@@ -71,9 +67,8 @@ class AgentMemoryMutationGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    this.#signalRetirement();
+    this.#cohort.retire();
+    this.#tails.clear();
   }
 
   #run<T>(identity: string, mutation: AgentMemoryMutation<T>): Promise<T> {
@@ -108,16 +103,11 @@ class AgentMemoryMutationGeneration {
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    return Promise.race([
-      operation,
-      this.#retirement.then(() => {
-        throw this.#retiredError;
-      }),
-    ]);
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw this.#retiredError;
+    this.#cohort.assertCurrent();
   }
 }
 

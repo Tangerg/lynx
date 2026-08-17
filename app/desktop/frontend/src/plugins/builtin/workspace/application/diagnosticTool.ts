@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type {
   DiagnosticToolGateway,
   InvokeDiagnosticToolInput,
@@ -34,9 +35,8 @@ class DiagnosticToolGenerationRetiredError extends Error {
 class DiagnosticToolGeneration {
   readonly #gateway: DiagnosticToolGateway;
   readonly #retiredError = new DiagnosticToolGenerationRetiredError();
-  readonly #settlers = new Set<() => void>();
+  readonly #cohort = new RetirableTaskCohort(this.#retiredError);
   readonly #tails = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: DiagnosticToolGateway) {
     this.#gateway = gateway;
@@ -62,41 +62,16 @@ class DiagnosticToolGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    for (const settle of [...this.#settlers]) settle();
-    this.#settlers.clear();
+    this.#cohort.retire();
     this.#tails.clear();
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    this.#assertCurrent();
-    return new Promise<T>((resolve, reject) => {
-      let pending = true;
-      const finish = () => {
-        if (!pending) return false;
-        pending = false;
-        this.#settlers.delete(retire);
-        return true;
-      };
-      const retire = () => {
-        if (finish()) reject(this.#retiredError);
-      };
-      this.#settlers.add(retire);
-      operation.then(
-        (value) => {
-          if (finish()) resolve(value);
-        },
-        (error: unknown) => {
-          if (finish()) reject(error);
-        },
-      );
-      if (this.#retired) retire();
-    });
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw this.#retiredError;
+    this.#cohort.assertCurrent();
   }
 }
 

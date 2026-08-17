@@ -1,5 +1,6 @@
 import type { QueryFilters } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import {
   WorkspaceKnowledgeRevisionConflictError,
   type WorkspaceKnowledgeDocument,
@@ -23,9 +24,8 @@ class WorkspaceKnowledgeGenerationRetiredError extends Error {
 
 class KnowledgeGeneration {
   readonly #gateway: WorkspaceKnowledgeGateway;
-  readonly #settlers = new Set<() => void>();
+  readonly #cohort = new RetirableTaskCohort(new WorkspaceKnowledgeGenerationRetiredError());
   readonly #saveTails = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: WorkspaceKnowledgeGateway) {
     this.#gateway = gateway;
@@ -46,7 +46,7 @@ class KnowledgeGeneration {
         try {
           saved = await this.#settle(this.#gateway.save(input));
         } catch (error) {
-          if (this.#retired) throw error;
+          if (this.#cohort.retired) throw error;
           await this.#repair(knowledgeRepair(input));
           throw error;
         }
@@ -69,10 +69,7 @@ class KnowledgeGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    for (const settle of [...this.#settlers]) settle();
-    this.#settlers.clear();
+    this.#cohort.retire();
     this.#saveTails.clear();
   }
 
@@ -84,40 +81,18 @@ class KnowledgeGeneration {
         ),
       );
     } catch (error) {
-      if (this.#retired) throw error;
+      if (this.#cohort.retired) throw error;
       // Accepted writes have already committed every fact proved by their
       // response. Runtime events and a later read retain the repair path.
     }
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    this.#assertCurrent();
-    return new Promise<T>((resolve, reject) => {
-      let pending = true;
-      const finish = () => {
-        if (!pending) return false;
-        pending = false;
-        this.#settlers.delete(retire);
-        return true;
-      };
-      const retire = () => {
-        if (finish()) reject(new WorkspaceKnowledgeGenerationRetiredError());
-      };
-      this.#settlers.add(retire);
-      operation.then(
-        (value) => {
-          if (finish()) resolve(value);
-        },
-        (error: unknown) => {
-          if (finish()) reject(error);
-        },
-      );
-      if (this.#retired) retire();
-    });
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw new WorkspaceKnowledgeGenerationRetiredError();
+    this.#cohort.assertCurrent();
   }
 }
 

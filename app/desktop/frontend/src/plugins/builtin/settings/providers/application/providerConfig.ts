@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { t } from "@/lib/i18n";
 import {
   type ProviderConfiguration,
@@ -19,6 +19,14 @@ export type { ProviderConfiguration };
 
 export function useProviderConfigs() {
   return useProviders();
+}
+
+export function useProviderMutationMaterialGeneration(): number {
+  return useSyncExternalStore(
+    ProviderMutationOwner.subscribeMaterialGeneration,
+    ProviderMutationOwner.materialGeneration,
+    ProviderMutationOwner.materialGeneration,
+  );
 }
 
 export function useProviderRoleConfig() {

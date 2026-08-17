@@ -16,6 +16,19 @@ afterEach(() => {
 });
 
 describe("ProviderMutationOwner", () => {
+  it("publishes one material generation for install, Runtime replacement, and final disposal", () => {
+    const start = ProviderMutationOwner.materialGeneration();
+    owner = ProviderMutationOwner.install({} as ProviderGateway);
+    expect(ProviderMutationOwner.materialGeneration()).toBe(start + 1);
+
+    owner.replaceRuntimeGeneration();
+    expect(ProviderMutationOwner.materialGeneration()).toBe(start + 2);
+
+    owner.dispose();
+    expect(ProviderMutationOwner.materialGeneration()).toBe(start + 3);
+    owner = undefined;
+  });
+
   it("retires one Runtime generation without settling its commands into the successor", async () => {
     const retired = deferred<ProviderConfiguration>();
     const updateProvider = vi

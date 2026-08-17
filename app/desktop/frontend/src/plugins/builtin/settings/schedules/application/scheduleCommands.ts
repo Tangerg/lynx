@@ -1,5 +1,6 @@
 import { SCHEDULES_KEY, useSchedules } from "./scheduleQueries";
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { ScheduleConfig, ScheduleConfigInput, ScheduledRunIdentity } from "./scheduleConfig";
 import { selectAgentSession } from "@/plugins/builtin/agent/public/session";
 export type { ScheduleConfig, ScheduleConfigInput } from "./scheduleConfig";
@@ -28,18 +29,13 @@ class ScheduleMutationRetiredError extends Error {
 
 class ScheduleMutationGeneration {
   readonly #gateway: ScheduleGateway;
-  readonly #retirement: Promise<void>;
   readonly #retiredError = new ScheduleMutationRetiredError();
-  #signalRetirement!: () => void;
+  readonly #cohort = new RetirableTaskCohort(this.#retiredError);
   readonly #tails = new Map<string, Promise<void>>();
   readonly #accepted = new Map<string, ScheduleConfig>();
-  #retired = false;
 
   constructor(gateway: ScheduleGateway) {
     this.#gateway = gateway;
-    this.#retirement = new Promise<void>((resolve) => {
-      this.#signalRetirement = resolve;
-    });
   }
 
   create(input: ScheduleConfigInput): Promise<ScheduleConfig> {
@@ -93,9 +89,9 @@ class ScheduleMutationGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    this.#signalRetirement();
+    this.#cohort.retire();
+    this.#tails.clear();
+    this.#accepted.clear();
   }
 
   #run<T>(
@@ -169,16 +165,11 @@ class ScheduleMutationGeneration {
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    return Promise.race([
-      operation,
-      this.#retirement.then(() => {
-        throw this.#retiredError;
-      }),
-    ]);
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw this.#retiredError;
+    this.#cohort.assertCurrent();
   }
 }
 

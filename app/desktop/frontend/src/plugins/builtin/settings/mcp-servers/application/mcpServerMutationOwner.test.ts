@@ -16,6 +16,19 @@ afterEach(() => {
 });
 
 describe("MCPServerMutationOwner", () => {
+  it("publishes one material generation for install, Runtime replacement, and final disposal", () => {
+    const start = MCPServerMutationOwner.materialGeneration();
+    owner = MCPServerMutationOwner.install({} as MCPServerGateway);
+    expect(MCPServerMutationOwner.materialGeneration()).toBe(start + 1);
+
+    owner.replaceRuntimeGeneration();
+    expect(MCPServerMutationOwner.materialGeneration()).toBe(start + 2);
+
+    owner.dispose();
+    expect(MCPServerMutationOwner.materialGeneration()).toBe(start + 3);
+    owner = undefined;
+  });
+
   it("retires one Runtime generation without draining commands through its successor", async () => {
     const retired = deferred<MCPServerSettings>();
     const setEnabled = vi

@@ -1,3 +1,5 @@
+import { RetirableTaskCohort } from "@/lib/taskQueue";
+
 export class AgentCommandRetiredError extends Error {
   override readonly name = "AgentCommandRetiredError";
 
@@ -39,10 +41,10 @@ export class AgentCommandOwner {
   readonly #rollbackSessions = new Set<string>();
   readonly #sessionSummaryQueues = new Map<string, SessionSummaryQueue>();
   readonly #effects = new Set<AgentCommandEffect>();
-  readonly #settlers = new Set<() => void>();
+  readonly #retiredError = new AgentCommandRetiredError();
+  readonly #cohort = new RetirableTaskCohort(this.#retiredError);
   #approvalModeTail: Promise<void> = Promise.resolve();
   #approvalRulesTail: Promise<void> = Promise.resolve();
-  #retired = false;
 
   private constructor() {}
 
@@ -61,37 +63,17 @@ export class AgentCommandOwner {
   }
 
   isCurrent(): boolean {
-    return !this.#retired && AgentCommandOwner.#active === this;
+    return !this.#cohort.retired && AgentCommandOwner.#active === this;
   }
 
   assertCurrent(): void {
-    if (!this.isCurrent()) throw new AgentCommandRetiredError();
+    if (AgentCommandOwner.#active !== this) throw this.#retiredError;
+    this.#cohort.assertCurrent();
   }
 
   settle<T>(operation: Promise<T>): Promise<T> {
     this.assertCurrent();
-    return new Promise<T>((resolve, reject) => {
-      let pending = true;
-      const finish = () => {
-        if (!pending) return false;
-        pending = false;
-        this.#settlers.delete(retire);
-        return true;
-      };
-      const retire = () => {
-        if (finish()) reject(new AgentCommandRetiredError());
-      };
-      this.#settlers.add(retire);
-      operation.then(
-        (value) => {
-          if (finish()) resolve(value);
-        },
-        (error: unknown) => {
-          if (finish()) reject(error);
-        },
-      );
-      if (!this.isCurrent()) retire();
-    });
+    return this.#cohort.settle(operation);
   }
 
   runSessionCreate<T>(key: string | null, execute: () => Promise<T>): Promise<T> {
@@ -198,7 +180,7 @@ export class AgentCommandOwner {
   }
 
   dispose(): void {
-    if (this.#retired) return;
+    if (this.#cohort.retired) return;
     if (AgentCommandOwner.#active === this) AgentCommandOwner.#active = null;
     this.#retire();
   }
@@ -219,10 +201,8 @@ export class AgentCommandOwner {
   }
 
   #retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    for (const settle of [...this.#settlers]) settle();
-    this.#settlers.clear();
+    if (this.#cohort.retired) return;
+    this.#cohort.retire();
     this.#creates.clear();
     this.#forks.clear();
     this.#rollbackSessions.clear();

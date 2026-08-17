@@ -1,5 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
-import { createKeyedSerialTaskQueue } from "@/lib/serialTaskQueue";
+import { createKeyedSerialTaskQueue } from "@/lib/taskQueue";
 import { GOAL_KEY } from "./goalQueries";
 import {
   goalCommandsGateway,

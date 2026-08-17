@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { ProviderGateway, ProviderTestOutcome, ProviderUpdate } from "./ports/providerGateway";
 import type { ProviderConfiguration, ProviderRole } from "./providerModels";
 import {
@@ -25,17 +26,12 @@ interface ProviderMutation<T> {
 
 class ProviderMutationGeneration {
   readonly #gateway: ProviderGateway;
-  readonly #retirement: Promise<void>;
   readonly #retiredError = new ProviderMutationRetiredError();
-  #signalRetirement!: () => void;
+  readonly #cohort = new RetirableTaskCohort(this.#retiredError);
   readonly #tails = new Map<string, Promise<void>>();
-  #retired = false;
 
   constructor(gateway: ProviderGateway) {
     this.#gateway = gateway;
-    this.#retirement = new Promise<void>((resolve) => {
-      this.#signalRetirement = resolve;
-    });
   }
 
   updateProvider(input: ProviderUpdate): Promise<ProviderConfiguration> {
@@ -67,9 +63,8 @@ class ProviderMutationGeneration {
   }
 
   retire(): void {
-    if (this.#retired) return;
-    this.#retired = true;
-    this.#signalRetirement();
+    this.#cohort.retire();
+    this.#tails.clear();
   }
 
   #run<T>(identity: string, mutation: ProviderMutation<T>): Promise<T> {
@@ -113,16 +108,11 @@ class ProviderMutationGeneration {
   }
 
   #settle<T>(operation: Promise<T>): Promise<T> {
-    return Promise.race([
-      operation,
-      this.#retirement.then(() => {
-        throw this.#retiredError;
-      }),
-    ]);
+    return this.#cohort.settle(operation);
   }
 
   #assertCurrent(): void {
-    if (this.#retired) throw this.#retiredError;
+    this.#cohort.assertCurrent();
   }
 }
 
@@ -130,6 +120,8 @@ class ProviderMutationGeneration {
  * and Runtime generation. */
 export class ProviderMutationOwner {
   static #active: ProviderMutationOwner | null = null;
+  static #materialGeneration = 0;
+  static readonly #materialListeners = new Set<() => void>();
 
   readonly #gateway: ProviderGateway;
   #generation: ProviderMutationGeneration;
@@ -145,6 +137,7 @@ export class ProviderMutationOwner {
     const owner = new ProviderMutationOwner(gateway);
     ProviderMutationOwner.#active = owner;
     predecessor?.dispose();
+    ProviderMutationOwner.#advanceMaterialGeneration();
     return owner;
   }
 
@@ -152,6 +145,15 @@ export class ProviderMutationOwner {
     const owner = ProviderMutationOwner.#active;
     if (!owner || owner.#disposed) throw new Error("Provider mutation owner is not installed");
     return owner;
+  }
+
+  static materialGeneration(): number {
+    return ProviderMutationOwner.#materialGeneration;
+  }
+
+  static subscribeMaterialGeneration(listener: () => void): () => void {
+    ProviderMutationOwner.#materialListeners.add(listener);
+    return () => ProviderMutationOwner.#materialListeners.delete(listener);
   }
 
   updateProvider(input: ProviderUpdate): Promise<ProviderConfiguration> {
@@ -179,13 +181,22 @@ export class ProviderMutationOwner {
     const predecessor = this.#generation;
     this.#generation = new ProviderMutationGeneration(this.#gateway);
     predecessor.retire();
+    ProviderMutationOwner.#advanceMaterialGeneration();
   }
 
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (ProviderMutationOwner.#active === this) ProviderMutationOwner.#active = null;
+    if (ProviderMutationOwner.#active === this) {
+      ProviderMutationOwner.#active = null;
+      ProviderMutationOwner.#advanceMaterialGeneration();
+    }
+  }
+
+  static #advanceMaterialGeneration(): void {
+    ProviderMutationOwner.#materialGeneration += 1;
+    for (const listener of ProviderMutationOwner.#materialListeners) listener();
   }
 }
 

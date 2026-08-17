@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
@@ -8,19 +8,37 @@ type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; re
  * A monotonic token guards every {@link run}: a result whose token is no longer
  * current — a newer run started, or `reset` bumped it — is dropped, so a slow
  * test cannot overwrite the state of a save the user kicked off afterwards.
+ * An optional material generation retires both completed feedback and in-flight
+ * results without remounting or discarding the caller's draft fields.
  * `reset` invalidates any in-flight run and clears the readout; `fail` sets an
  * error directly (for flows, like delete, that don't need the de-race guard).
  */
-export function useProbe() {
-  const [probe, setProbe] = useState<Probe>({ state: "idle" });
+export function useProbe(materialGeneration?: unknown) {
+  const generation = useRef(materialGeneration);
   const seq = useRef(0);
+  const [material, setMaterial] = useState<{ generation: unknown; probe: Probe }>(() => ({
+    generation: materialGeneration,
+    probe: { state: "idle" },
+  }));
+  useLayoutEffect(() => {
+    if (Object.is(generation.current, materialGeneration)) return;
+    generation.current = materialGeneration;
+    seq.current++;
+  }, [materialGeneration]);
+  const probe = Object.is(material.generation, materialGeneration)
+    ? material.probe
+    : ({ state: "idle" } satisfies Probe);
+
+  const publish = (next: Probe) => {
+    setMaterial({ generation: generation.current, probe: next });
+  };
 
   const reset = () => {
     seq.current++;
-    setProbe({ state: "idle" });
+    publish({ state: "idle" });
   };
 
-  const fail = (reason: string) => setProbe({ state: "error", reason });
+  const fail = (reason: string) => publish({ state: "error", reason });
 
   const run = async (
     op: () => Promise<{ ok: boolean; error?: string }>,
@@ -28,15 +46,16 @@ export function useProbe() {
     ignoreError?: (error: unknown) => boolean,
   ) => {
     const token = ++seq.current;
-    setProbe({ state: "busy" });
+    const admittedGeneration = generation.current;
+    publish({ state: "busy" });
     try {
       const r = await op();
-      if (seq.current !== token) return;
-      setProbe(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? fallback });
+      if (seq.current !== token || !Object.is(generation.current, admittedGeneration)) return;
+      publish(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? fallback });
     } catch (err) {
-      if (seq.current !== token) return;
+      if (seq.current !== token || !Object.is(generation.current, admittedGeneration)) return;
       if (ignoreError?.(err)) {
-        setProbe({ state: "idle" });
+        publish({ state: "idle" });
         return;
       }
       fail(err instanceof Error ? err.message : fallback);
