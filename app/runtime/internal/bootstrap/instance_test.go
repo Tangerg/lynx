@@ -179,7 +179,10 @@ func TestInstanceCloseJoinsAcceptedOperationsBeforeClosingResources(t *testing.T
 		canceled: make(chan struct{}),
 		release:  make(chan struct{}),
 	}
-	endpoint := operation.New(service, operation.Config{Lifetime: runtimeContext})
+	endpoint, err := operation.New(service, operation.Config{Lifetime: runtimeContext})
+	if err != nil {
+		t.Fatal(err)
+	}
 	schedulerDone := make(chan struct{})
 	close(schedulerDone)
 	resourceClosed := make(chan struct{})

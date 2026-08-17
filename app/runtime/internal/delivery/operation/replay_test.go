@@ -123,7 +123,7 @@ func (s *flakyCompletionStore) Complete(ctx context.Context, record idempotency.
 
 func TestEndpointRejectsIdempotencyStoreMismatchBeforeBusinessAdmission(t *testing.T) {
 	service := &countingCancelService{}
-	endpoint := New(service, Config{IdempotencyNamespace: "idp_store_b"})
+	endpoint := mustNewEndpoint(t, service, Config{IdempotencyNamespace: "idp_store_b"})
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
 	refused := endpoint.Invoke(t.Context(), "runs.cancel", request, Options{
@@ -211,7 +211,7 @@ func TestCompletionFailureRetriesWithoutRepeatingCommand(t *testing.T) {
 	service := &countingCancelService{}
 	store := &flakyCompletionStore{Store: newMemoryIdempotencyStore()}
 	store.failures.Store(1)
-	endpoint := New(service, Config{IdempotencyStore: store})
+	endpoint := mustNewEndpoint(t, service, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "cancel-once"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
@@ -239,7 +239,7 @@ func TestAwaitShutdownFlushesKnownCompletionBeforeStoreClosure(t *testing.T) {
 	backing := newMemoryIdempotencyStore()
 	store := &flakyCompletionStore{Store: backing}
 	store.failures.Store(1)
-	endpoint := New(service, Config{IdempotencyStore: store})
+	endpoint := mustNewEndpoint(t, service, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "flush-on-shutdown"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
@@ -255,7 +255,7 @@ func TestAwaitShutdownFlushesKnownCompletionBeforeStoreClosure(t *testing.T) {
 	}
 
 	reopenedService := &countingCancelService{}
-	reopened := New(reopenedService, Config{IdempotencyStore: backing})
+	reopened := mustNewEndpoint(t, reopenedService, Config{IdempotencyStore: backing})
 	response, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
 		t.Context(), reopened, "runs.cancel", request, options,
 	)
@@ -275,7 +275,7 @@ func TestAwaitShutdownKeepsFailedPendingCompletionForRetry(t *testing.T) {
 	backing := newMemoryIdempotencyStore()
 	store := &flakyCompletionStore{Store: backing}
 	store.failures.Store(2)
-	endpoint := New(service, Config{IdempotencyStore: store})
+	endpoint := mustNewEndpoint(t, service, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "retry-shutdown-flush"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
@@ -294,7 +294,7 @@ func TestAwaitShutdownKeepsFailedPendingCompletionForRetry(t *testing.T) {
 	}
 
 	reopenedService := &countingCancelService{}
-	reopened := New(reopenedService, Config{IdempotencyStore: backing})
+	reopened := mustNewEndpoint(t, reopenedService, Config{IdempotencyStore: backing})
 	if _, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
 		t.Context(), reopened, "runs.cancel", request, options,
 	); err != nil {
@@ -310,7 +310,7 @@ func TestAwaitShutdownFlushHonorsOwnerCancellation(t *testing.T) {
 	store := &cancellationAwareCompletionStore{
 		Store: backing, entered: make(chan struct{}), release: make(chan struct{}),
 	}
-	endpoint := New(&countingCancelService{}, Config{IdempotencyStore: store})
+	endpoint := mustNewEndpoint(t, &countingCancelService{}, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "cancel-shutdown-flush"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
@@ -347,7 +347,7 @@ func TestAwaitShutdownFlushHonorsOwnerCancellation(t *testing.T) {
 func TestLostCompletionClaimIsReacquiredWithoutRepeatingCommand(t *testing.T) {
 	service := &countingCancelService{}
 	store := &claimLostOnceStore{backing: newMemoryIdempotencyStore()}
-	endpoint := New(service, Config{IdempotencyStore: store})
+	endpoint := mustNewEndpoint(t, service, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "recover-lost-claim"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
@@ -404,7 +404,7 @@ func TestPendingCompletionReplaysDurableFirstResult(t *testing.T) {
 		backing:        newMemoryIdempotencyStore(),
 		durablePayload: durablePayload,
 	}
-	endpoint := New(service, Config{IdempotencyStore: store})
+	endpoint := mustNewEndpoint(t, service, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "durable-first-result"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
@@ -431,7 +431,7 @@ func TestPendingCompletionReplaysDurableFirstResult(t *testing.T) {
 func TestPendingCompletionRejectsKeyReuse(t *testing.T) {
 	store := &flakyCompletionStore{Store: newMemoryIdempotencyStore()}
 	store.failures.Store(1)
-	endpoint := New(&countingCancelService{}, Config{IdempotencyStore: store})
+	endpoint := mustNewEndpoint(t, &countingCancelService{}, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "bound-key"}
 
 	_, _ = Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](

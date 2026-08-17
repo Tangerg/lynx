@@ -27,6 +27,7 @@ type toolEnvironment struct {
 
 func buildToolEnvironment(
 	ctx context.Context,
+	lifetime context.Context,
 	cfg Config,
 	approvalPolicy *approvals.RuntimePolicy,
 	mcpConnectionSettings mcpEnvironment,
@@ -38,7 +39,12 @@ func buildToolEnvironment(
 	skillStore *skillauthoring.Store,
 	skillProposals builtin.SkillProposalSubmitter,
 ) (toolEnvironment, error) {
-	mcpPool, mcpTools, err := mcpconnection.Open(ctx, mcpConnectionSettings.servers, cfg.MCPOAuthSessions)
+	mcpPool, mcpTools, err := mcpconnection.Open(
+		ctx,
+		lifetime,
+		mcpConnectionSettings.servers,
+		cfg.MCPOAuthSessions,
+	)
 	if err != nil {
 		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
 	}
@@ -47,6 +53,7 @@ func buildToolEnvironment(
 		closers: []ShutdownResource{mcpPool},
 	}
 	buildConfig := toolset.BuildConfig{
+		Lifetime:        lifetime,
 		DefaultCWD:      cfg.DefaultWorkspacePath,
 		UserHome:        cfg.UserHome,
 		SkillsUserDir:   cfg.SkillsUserDir,

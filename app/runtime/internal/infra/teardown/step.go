@@ -4,6 +4,7 @@ package teardown
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/completion"
@@ -48,7 +49,7 @@ func (step *Step) Begin(ctx context.Context) *Attempt {
 		return completedAttempt(nil)
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return completedAttempt(errors.New("teardown: context is required"))
 	}
 	if err := ctx.Err(); err != nil {
 		return completedAttempt(err)
@@ -75,7 +76,7 @@ func (attempt *Attempt) Wait(ctx context.Context) error {
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("teardown: wait context is required")
 	}
 	if err := completion.Wait(ctx, attempt.state.done); err != nil {
 		return err

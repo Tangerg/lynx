@@ -443,7 +443,7 @@ func protocolRuntimeConfig(t *testing.T, stores *persistence.Bundle, model chat.
 
 func buildProtocolRuntime(t *testing.T, cfg Config, cwd string) (*Host, *runtimeserver.Server) {
 	t.Helper()
-	assembly := NewAssembly(cfg)
+	assembly := NewAssembly(t.Context(), cfg)
 	host, err := BuildAssembly(t.Context(), assembly)
 	if err != nil {
 		_ = CloseAssembly(assembly)

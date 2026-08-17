@@ -16,7 +16,7 @@ import (
 func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Endpoint: operation.New(&fakeRuntime{}, operation.Config{}),
+		Endpoint: newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:     ":0",
 		ServerInfo: protocol.ServerInfo{
 			Name: "lyra-test", Version: "0.0.0",
@@ -171,7 +171,7 @@ func TestReadinessContainsProbePanic(t *testing.T) {
 
 func TestNewServerRejectsAmbiguousHealthProbes(t *testing.T) {
 	base := lyrahttp.Config{
-		Endpoint:        operation.New(&fakeRuntime{}, operation.Config{}),
+		Endpoint:        newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,

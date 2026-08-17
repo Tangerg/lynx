@@ -30,12 +30,25 @@ var tracer = otel.Tracer("lynx/lyra/infra/mcp")
 // FATAL (validated before any dial); a reachability failure is TOLERATED
 // (recorded "failed" and skipped). An empty config still yields a live,
 // initially-empty Connections so runtime configuration can add servers later.
-func Dial(ctx context.Context, servers []ServerConfig, oauthSessions OAuthSessionStore) (*Connections, []toolcontract.Tool, error) {
+func Dial(
+	ctx context.Context,
+	lifetime context.Context,
+	servers []ServerConfig,
+	oauthSessions OAuthSessionStore,
+) (*Connections, []toolcontract.Tool, error) {
+	if ctx == nil {
+		return nil, nil, errors.New("mcp: startup context is required")
+	}
+	if lifetime == nil {
+		return nil, nil, errors.New("mcp: lifetime is required")
+	}
 	// Always carry a client, even with zero servers: the registry starts empty
 	// and the common path is a 0-server boot followed by a runtime Configure,
 	// which re-dials with this client.
 	if len(servers) == 0 {
-		return &Connections{client: newClient(), oauthSessions: oauthSessions}, nil, nil
+		return &Connections{
+			lifetime: lifetime, client: newClient(), oauthSessions: oauthSessions,
+		}, nil, nil
 	}
 	servers = slices.Clone(servers)
 	for i := range servers {
@@ -56,7 +69,7 @@ func Dial(ctx context.Context, servers []ServerConfig, oauthSessions OAuthSessio
 			return nil, nil, fmt.Errorf("mcp: invalid server %q: %w", srv.Name, verr)
 		}
 		if srv.Transport == TransportHTTP && srv.OAuthHandler == nil && !srv.hasStaticAuthorization() {
-			handler, err := restoreOAuthHandler(ctx, oauthSessions, srv.Name, srv.Endpoint)
+			handler, err := restoreOAuthHandler(ctx, lifetime, oauthSessions, srv.Name, srv.Endpoint)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -68,7 +81,7 @@ func Dial(ctx context.Context, servers []ServerConfig, oauthSessions OAuthSessio
 	// per-server handlers (sampling / list-changed), so they share it. Retained
 	// so Reconnect / Configure can re-dial with it.
 	client := newClient()
-	c := &Connections{client: client, oauthSessions: oauthSessions}
+	c := &Connections{lifetime: lifetime, client: client, oauthSessions: oauthSessions}
 
 	ctx, span := tracer.Start(ctx, "mcp.dial_servers",
 		trace.WithAttributes(attribute.Int("mcp.server.count", len(servers))))
@@ -79,7 +92,7 @@ func Dial(ctx context.Context, servers []ServerConfig, oauthSessions OAuthSessio
 	for _, srv := range servers {
 		configuredServer := &server{config: srv, oauth: srv.OAuthHandler}
 		configuredServer.config.OAuthHandler = nil
-		session, cancelSession, derr := dial(ctx, client, srv)
+		session, cancelSession, derr := dial(ctx, lifetime, client, srv)
 		if derr != nil {
 			configuredServer.state = dialStatus(derr)
 			if configuredServer.state == mcpserver.ConnectionNeedsAuth {

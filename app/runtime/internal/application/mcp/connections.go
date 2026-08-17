@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -46,10 +47,10 @@ func (c *Coordinator) connectionTarget(ctx context.Context, name string) (mcpser
 	if c.registry == nil || c.statusReader == nil || c.connectionControl == nil {
 		return mcpserver.Server{}, errConnectionUnavailable
 	}
-	registryCtx := context.Background()
-	if ctx != nil {
-		registryCtx = context.WithoutCancel(ctx)
+	if ctx == nil {
+		return mcpserver.Server{}, errors.New("mcp: connection context is required")
 	}
+	registryCtx := context.WithoutCancel(ctx)
 	srv, ok, err := c.registry.Get(registryCtx, name)
 	if err != nil {
 		return mcpserver.Server{}, fmt.Errorf("mcp: read MCP server %q: %w", name, err)

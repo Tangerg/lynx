@@ -164,7 +164,7 @@ func (c *Connections) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("mcp: shutdown context is required")
 	}
 	c.mu.Lock()
 	if !c.closed {
@@ -216,8 +216,12 @@ func (c *Connections) closeAll(attempt *shutdownAttempt) {
 
 	var errs []error
 	for _, session := range sessions {
-		if err := c.closeSession(context.Background(), session); err != nil {
-			errs = append(errs, err)
+		attempt := c.beginSessionClose(session)
+		if attempt != nil {
+			<-attempt.done
+			if attempt.err != nil {
+				errs = append(errs, attempt.err)
+			}
 		}
 	}
 
@@ -232,13 +236,26 @@ func (c *Connections) closeSession(ctx context.Context, session *sdkmcp.ClientSe
 		return nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("mcp: session close context is required")
+	}
+	attempt := c.beginSessionClose(session)
+	if attempt == nil {
+		return nil
 	}
 
+	select {
+	case <-attempt.done:
+		return attempt.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *Connections) beginSessionClose(session *sdkmcp.ClientSession) *sessionCloseAttempt {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	owned := c.sessions[session]
 	if owned == nil {
-		c.mu.Unlock()
 		return nil
 	}
 	attempt := owned.close
@@ -247,14 +264,7 @@ func (c *Connections) closeSession(ctx context.Context, session *sdkmcp.ClientSe
 		owned.close = attempt
 		go c.closeSessionAttempt(session, owned, attempt)
 	}
-	c.mu.Unlock()
-
-	select {
-	case <-attempt.done:
-		return attempt.err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return attempt
 }
 
 func (c *Connections) closeSessionAttempt(

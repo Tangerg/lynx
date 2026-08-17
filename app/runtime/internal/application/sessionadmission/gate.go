@@ -5,6 +5,7 @@ package sessionadmission
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -267,7 +268,7 @@ func (g *Gate) ActiveSessions() map[string]bool {
 // wins that race.
 func (g *Gate) WaitRunStartable(ctx context.Context, sessionID, cwd string) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("session admission: wait context is required")
 	}
 	for {
 		g.mu.Lock()

@@ -26,10 +26,9 @@ const clientShutdownTimeout = 2 * time.Second
 // startClient launches spec's server with its working directory at root,
 // wires its stdio to a JSON-RPC connection, and completes the LSP initialize
 // handshake. The returned client is ready for queries; the caller owns it and
-// must call close. ctx scopes only the synchronous handshake; the connection's
-// own read loop is detached from it (it must outlive the call that started it —
-// the server stays warm for the engine's lifetime) while keeping ctx's trace
-// span via context.WithoutCancel.
+// must call close. ctx is component-owned rather than request-owned. The
+// connection's read loop is detached from the launch attempt because it stays
+// warm until Servers closes it, while retaining the component trace values.
 func startClient(ctx context.Context, spec ServerSpec, root string) (*client, error) {
 	// The process belongs to the cached client, not this initialization call;
 	// CommandContext would kill a healthy server when the handshake ctx ends.
@@ -59,16 +58,18 @@ func startClient(ctx context.Context, spec ServerSpec, root string) (*client, er
 	// WithoutCancel: the read loop outlives this call (the connection is cached
 	// and reused) so it must not die when ctx ends, but keeping ctx's values
 	// preserves the trace span instead of severing it with context.Background().
-	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	shutdownBase := context.WithoutCancel(ctx)
+	connCtx, cancel := context.WithCancel(shutdownBase)
 	c := &client{
-		spec:    spec,
-		root:    root,
-		cmd:     cmd,
-		cancel:  cancel,
-		wait:    wait,
-		open:    map[string]openDoc{},
-		diags:   map[string]diagSet{},
-		updated: make(chan struct{}),
+		spec:         spec,
+		root:         root,
+		cmd:          cmd,
+		cancel:       cancel,
+		wait:         wait,
+		shutdownBase: shutdownBase,
+		open:         map[string]openDoc{},
+		diags:        map[string]diagSet{},
+		updated:      make(chan struct{}),
 	}
 	stream := jsonrpc2.NewBufferedStream(pipes, jsonrpc2.VSCodeObjectCodec{})
 	c.conn = jsonrpc2.NewConn(connCtx, stream, jsonrpc2.AsyncHandler(c))
@@ -109,7 +110,7 @@ func (c *client) initialize(ctx context.Context) error {
 // Safe to call more than once.
 func (c *client) close() error {
 	c.closeOnce.Do(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), clientShutdownTimeout)
+		ctx, cancel := context.WithTimeout(c.shutdownBase, clientShutdownTimeout)
 		defer cancel()
 
 		// Protocol shutdown is advisory: a crashed or wedged server still needs

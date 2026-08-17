@@ -138,7 +138,15 @@ func (f *oauthFlow) close(ctx context.Context) {
 // newOAuthHandler builds the interactive authorization-code handler for one
 // sign-in, registering the flow's loopback redirect via Dynamic Client
 // Registration so no client id need be preconfigured.
-func newOAuthHandler(flow *oauthFlow, store OAuthSessionStore, server, endpoint string) (auth.OAuthHandler, error) {
+func newOAuthHandler(
+	flow *oauthFlow,
+	lifetime context.Context,
+	store OAuthSessionStore,
+	server, endpoint string,
+) (auth.OAuthHandler, error) {
+	if lifetime == nil {
+		return nil, errors.New("mcp oauth: lifetime is required")
+	}
 	origin, err := oauthOrigin(endpoint)
 	if err != nil {
 		return nil, err
@@ -167,10 +175,10 @@ func newOAuthHandler(flow *oauthFlow, store OAuthSessionStore, server, endpoint 
 				cfg,
 				token,
 				func(updatedConfig *oauth2.Config, updatedToken *oauth2.Token) error {
-					return persistOAuthSession(context.Background(), store, server, origin, updatedConfig, updatedToken)
+					return persistOAuthSession(lifetime, store, server, origin, updatedConfig, updatedToken)
 				},
 			)
-			return invalidateRejectedTokens(source, store, server), nil
+			return invalidateRejectedTokens(source, lifetime, store, server), nil
 		}
 	}
 	return auth.NewAuthorizationCodeHandler(config)

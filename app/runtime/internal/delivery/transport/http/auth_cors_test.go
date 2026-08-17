@@ -72,7 +72,7 @@ func newGatedServer(t *testing.T) *httptest.Server {
 func newGatedServerWithOrigins(t *testing.T, origins []string) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Endpoint:        operation.New(&fakeRuntime{}, operation.Config{}),
+		Endpoint:        newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,

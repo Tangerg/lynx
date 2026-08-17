@@ -130,7 +130,7 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
-	built, err := Build(t.Context(), BuildConfig{
+	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(),
 		DefaultCWD:   t.TempDir(),
 		UserHome:     t.TempDir(),
 		PlanMode:     policy,
@@ -178,7 +178,7 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
-	built, err := Build(t.Context(), BuildConfig{
+	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(),
 		DefaultCWD:         t.TempDir(),
 		UserHome:           t.TempDir(),
 		SkillsUserDir:      t.TempDir(), // backs skill

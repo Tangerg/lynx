@@ -70,7 +70,7 @@ func (request *executorRequest[T]) await(ctx context.Context) (T, error) {
 		return zero, errors.New("runs: await malformed executor request")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return zero, errors.New("runs: executor request context is required")
 	}
 	select {
 	case result := <-request.result:

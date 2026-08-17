@@ -172,6 +172,7 @@ type savingTokenSource struct {
 type invalidatingTokenSource struct {
 	mu          sync.Mutex
 	source      oauth2.TokenSource
+	lifetime    context.Context
 	store       OAuthSessionStore
 	server      string
 	invalidated bool
@@ -230,7 +231,7 @@ func (source *invalidatingTokenSource) Token() (*oauth2.Token, error) {
 		return token, err
 	}
 	source.invalidated = true
-	removeErr := source.store.RemoveOAuthSession(context.Background(), source.server)
+	removeErr := source.store.RemoveOAuthSession(source.lifetime, source.server)
 	return nil, &dialError{
 		kind: dialErrorNeedsAuth,
 		err:  errors.Join(errStoredOAuthRejected, err, removeErr),
@@ -251,11 +252,18 @@ func oauthCredentialRejected(err error) bool {
 			retrieveErr.Response.StatusCode == http.StatusForbidden)
 }
 
-func invalidateRejectedTokens(source oauth2.TokenSource, store OAuthSessionStore, server string) oauth2.TokenSource {
+func invalidateRejectedTokens(
+	source oauth2.TokenSource,
+	lifetime context.Context,
+	store OAuthSessionStore,
+	server string,
+) oauth2.TokenSource {
 	if store == nil {
 		return source
 	}
-	return &invalidatingTokenSource{source: source, store: store, server: server}
+	return &invalidatingTokenSource{
+		source: source, lifetime: lifetime, store: store, server: server,
+	}
 }
 
 // restoredOAuthHandler deliberately does not start an interactive browser flow
@@ -289,9 +297,17 @@ func (handler *restoredOAuthHandler) Authorize(ctx context.Context, _ *http.Requ
 	return errors.Join(errStoredOAuthRejected, responseErr, removeErr)
 }
 
-func restoreOAuthHandler(ctx context.Context, store OAuthSessionStore, server, endpoint string) (auth.OAuthHandler, error) {
+func restoreOAuthHandler(
+	ctx context.Context,
+	lifetime context.Context,
+	store OAuthSessionStore,
+	server, endpoint string,
+) (auth.OAuthHandler, error) {
 	if store == nil {
 		return nil, nil
+	}
+	if lifetime == nil {
+		return nil, errors.New("mcp oauth: lifetime is required")
 	}
 	origin, err := oauthOrigin(endpoint)
 	if err != nil {
@@ -315,13 +331,13 @@ func restoreOAuthHandler(ctx context.Context, store OAuthSessionStore, server, e
 		return nil, nil
 	}
 	source := newSavingTokenSource(
-		cfg.TokenSource(context.Background(), token),
+		cfg.TokenSource(lifetime, token),
 		cfg,
 		token,
 		func(updatedConfig *oauth2.Config, updatedToken *oauth2.Token) error {
-			return persistOAuthSession(context.Background(), store, server, origin, updatedConfig, updatedToken)
+			return persistOAuthSession(lifetime, store, server, origin, updatedConfig, updatedToken)
 		},
 	)
-	source = invalidateRejectedTokens(source, store, server)
+	source = invalidateRejectedTokens(source, lifetime, store, server)
 	return &restoredOAuthHandler{source: source, store: store, server: server}, nil
 }

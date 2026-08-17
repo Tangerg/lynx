@@ -29,6 +29,7 @@ func RecoverStartup(ctx context.Context, stack Stack) error {
 }
 
 type hostLifetime struct {
+	context         context.Context
 	closeMu         sync.Mutex
 	stopping        bool
 	closed          bool

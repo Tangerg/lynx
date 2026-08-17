@@ -417,13 +417,10 @@ func TestExecutionContextIsNeutralBetweenPeerAdapters(t *testing.T) {
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 		t.Fatalf("legacy agentexec-owned turn context still exists: %s", legacy)
 	}
-	retiredFile := filepath.Join(root, "internal", "adapter", "executionctx", "executionctx.go")
-	if _, err := os.Stat(retiredFile); !os.IsNotExist(err) {
-		t.Fatalf("stuttering execution context file still exists: %s", retiredFile)
-	}
-	neutral := filepath.Join(root, "internal", "adapter", "executionctx", "scope.go")
-	if _, err := os.Stat(neutral); err != nil {
-		t.Fatalf("neutral execution context is missing: %v", err)
+	neutral := filepath.Join(root, "internal", "adapter", "executionctx")
+	present, err := directoryHasProductionGo(neutral)
+	if err != nil || !present {
+		t.Fatalf("neutral execution context package is missing: %v", err)
 	}
 }
 

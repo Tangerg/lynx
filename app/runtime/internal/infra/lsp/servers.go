@@ -36,8 +36,9 @@ const diagnosticsSettle = 3 * time.Second
 // for concurrent use: many sessions share it, each scoped to its own workspace
 // root via the root argument the tools pass.
 type Servers struct {
-	table  *serverTable
-	launch clientLauncher
+	lifetime context.Context
+	table    *serverTable
+	launch   clientLauncher
 
 	mu       sync.Mutex
 	clients  map[string]*client      // key: root + "\x00" + server name
@@ -64,13 +65,17 @@ type clientStart struct {
 
 // NewServers builds a server set over specs (see DefaultServers for the
 // built-in table). It starts no processes — servers launch lazily on first use.
-func NewServers(specs []ServerSpec) *Servers {
+func NewServers(lifetime context.Context, specs []ServerSpec) (*Servers, error) {
+	if lifetime == nil {
+		return nil, errors.New("lsp: lifetime is required")
+	}
 	return &Servers{
+		lifetime: lifetime,
 		table:    newServerTable(specs),
 		launch:   startClient,
 		clients:  map[string]*client{},
 		starting: map[string]*clientStart{},
-	}
+	}, nil
 }
 
 func clientKey(root, name string) string { return root + "\x00" + name }
@@ -112,7 +117,7 @@ func (s *Servers) clientFor(ctx context.Context, root string, spec ServerSpec) (
 		return nil, err
 	}
 
-	startCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	startCtx, cancel := context.WithCancel(s.lifetime)
 	pending := &clientStart{done: make(chan struct{}), cancel: cancel}
 	s.starting[key] = pending
 	launch := s.launch

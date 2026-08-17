@@ -10,8 +10,18 @@ import (
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
+func newTestCodeIntel(t *testing.T) *codeintel.Analyzer {
+	t.Helper()
+	analyzer, err := codeintel.New(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = analyzer.Close() })
+	return analyzer
+}
+
 func TestResolverRegistersExactlyOneMutationVocabulary(t *testing.T) {
-	built, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
+	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(), DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -38,8 +48,7 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		}
 		return candidate
 	}
-	analyzer := codeintel.New(nil)
-	t.Cleanup(func() { _ = analyzer.Close() })
+	analyzer := newTestCodeIntel(t)
 	resolver, err := newResolver(resolverDeps{
 		DefaultCWD: t.TempDir(),
 		Online:     []toolcontract.Tool{named(domaintool.WebFetch)},
@@ -101,16 +110,25 @@ func manifestTools(manifest Manifest) []toolcontract.Tool {
 }
 
 func TestBuildRequiresExplicitProcessPaths(t *testing.T) {
-	if _, err := Build(t.Context(), BuildConfig{UserHome: t.TempDir()}); err == nil {
+	validPaths := BuildConfig{Lifetime: t.Context(), DefaultCWD: t.TempDir(), UserHome: t.TempDir()}
+	var missingContext context.Context
+	if _, err := Build(missingContext, validPaths); err == nil {
+		t.Fatal("Build accepted a nil startup context")
+	}
+	validPaths.Lifetime = nil
+	if _, err := Build(t.Context(), validPaths); err == nil {
+		t.Fatal("Build accepted a nil process lifetime")
+	}
+	if _, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(), UserHome: t.TempDir()}); err == nil {
 		t.Fatal("Build accepted an empty default CWD")
 	}
-	if _, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir()}); err == nil {
+	if _, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(), DefaultCWD: t.TempDir()}); err == nil {
 		t.Fatal("Build accepted an empty user home")
 	}
-	if _, err := Build(t.Context(), BuildConfig{DefaultCWD: "relative", UserHome: t.TempDir()}); err == nil {
+	if _, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(), DefaultCWD: "relative", UserHome: t.TempDir()}); err == nil {
 		t.Fatal("Build accepted a relative default CWD")
 	}
-	if _, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir(), UserHome: "relative"}); err == nil {
+	if _, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(), DefaultCWD: t.TempDir(), UserHome: "relative"}); err == nil {
 		t.Fatal("Build accepted a relative user home")
 	}
 }

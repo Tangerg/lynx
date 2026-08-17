@@ -47,7 +47,7 @@ func (dispatcher *interactionDispatcher) Dispatch(
 ) (agent.Settlement, error) {
 	ctx, finishDispatch := dispatcher.session.beginDispatch(ctx, request)
 	defer finishDispatch()
-	attempt := newDispatchAttempt(request.ID())
+	attempt := newDispatchAttempt(ctx, request.ID())
 	defer attempt.close()
 	settlement, err := dispatcher.inner.Dispatch(withDispatchAttempt(ctx, attempt), request, emit)
 	if projectionErr := attempt.indeterminateFailure(); projectionErr != nil {

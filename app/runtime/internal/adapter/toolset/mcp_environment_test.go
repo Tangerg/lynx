@@ -137,7 +137,7 @@ func TestToolEnvironmentDialsMCPServer(t *testing.T) {
 // entries with the same Name must abort tool construction rather than
 // silently overwriting.
 func TestToolEnvironmentRejectsDuplicateMCPNames(t *testing.T) {
-	_, _, err := mcpconnection.Open(context.Background(), []mcpserver.Server{
+	_, _, err := mcpconnection.Open(context.Background(), t.Context(), []mcpserver.Server{
 		{Name: "dup", Transport: mcpserver.TransportStreamableHTTP, URL: "http://example.invalid/"},
 		{Name: "dup", Transport: mcpserver.TransportStreamableHTTP, URL: "http://other.invalid/"},
 	}, nil)
@@ -150,7 +150,7 @@ func TestToolEnvironmentRejectsDuplicateMCPNames(t *testing.T) {
 // failures at build time so operators don't discover the
 // problem on the first tool call.
 func TestToolEnvironmentRejectsBadMCPEndpoint(t *testing.T) {
-	_, _, err := mcpconnection.Open(context.Background(), []mcpserver.Server{
+	_, _, err := mcpconnection.Open(context.Background(), t.Context(), []mcpserver.Server{
 		{Name: "bad", Transport: mcpserver.TransportStreamableHTTP}, // empty URL fails validation
 	}, nil)
 	if err == nil {
@@ -204,7 +204,7 @@ func TestToolEnvironmentDialsStdioMCP(t *testing.T) {
 // TestToolEnvironmentRejectsEmptyStdioCommand mirrors the
 // HTTP empty-endpoint guard for the stdio path.
 func TestToolEnvironmentRejectsEmptyStdioCommand(t *testing.T) {
-	_, _, err := mcpconnection.Open(context.Background(), []mcpserver.Server{{
+	_, _, err := mcpconnection.Open(context.Background(), t.Context(), []mcpserver.Server{{
 		Name:      "bad",
 		Transport: mcpserver.TransportStdio,
 	}}, nil)
@@ -269,11 +269,11 @@ func TestToolEnvironmentReconnectsMCP(t *testing.T) {
 
 func mustMCPToolEnvironment(t *testing.T, servers []mcpserver.Server) (toolset.Built, *mcpconnection.Pool) {
 	t.Helper()
-	pool, mcpTools, err := mcpconnection.Open(t.Context(), servers, nil)
+	pool, mcpTools, err := mcpconnection.Open(t.Context(), t.Context(), servers, nil)
 	if err != nil {
 		t.Fatalf("Open MCP pool: %v", err)
 	}
-	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
+	built, err := toolset.Build(t.Context(), toolset.BuildConfig{Lifetime: t.Context(),
 		DefaultCWD: t.TempDir(), UserHome: t.TempDir(), MCPTools: mcpTools,
 	})
 	if err != nil {

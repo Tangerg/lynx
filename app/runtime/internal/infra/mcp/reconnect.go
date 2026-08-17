@@ -64,7 +64,7 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	restored := cfg.OAuthHandler
 	if cfg.Transport == TransportHTTP && restored == nil && !cfg.hasStaticAuthorization() {
 		var err error
-		restored, err = restoreOAuthHandler(ctx, c.oauthSessions, cfg.Name, cfg.Endpoint)
+		restored, err = restoreOAuthHandler(ctx, c.lifetime, c.oauthSessions, cfg.Name, cfg.Endpoint)
 		if err != nil {
 			return err
 		}
@@ -165,7 +165,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 		return errors.Join(closeErr, err)
 	}
 	defer flow.close(ctx)
-	handler, err := newOAuthHandler(flow, c.oauthSessions, cfg.Name, cfg.Endpoint)
+	handler, err := newOAuthHandler(flow, c.lifetime, c.oauthSessions, cfg.Name, cfg.Endpoint)
 	if err != nil {
 		c.failAttempt(attempt)
 		return errors.Join(closeErr, err)
@@ -185,7 +185,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 // just-authorized handler for this session's later reconnects; the plain dials
 // reuse an existing one and pass false).
 func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, keepHandler bool) error {
-	session, cancelSession, err := dial(attempt.ctx, c.client, cfg)
+	session, cancelSession, err := dial(attempt.ctx, c.lifetime, c.client, cfg)
 	var verifiedTools []toolcontract.Tool
 	if err == nil {
 		// Prove the session is usable before publishing it as connected.

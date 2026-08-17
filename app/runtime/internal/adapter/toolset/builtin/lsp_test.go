@@ -26,12 +26,21 @@ func lspTool(t *testing.T, ci *codeintel.Analyzer) toolcontract.Tool {
 	return nil
 }
 
+func newTestAnalyzer(t *testing.T) *codeintel.Analyzer {
+	t.Helper()
+	analyzer, err := codeintel.New(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = analyzer.Close() })
+	return analyzer
+}
+
 // TestLSPToolUnsupportedFile checks the tool-layer contract: a query on a file
 // type with no configured server returns a plain message (the model adapts),
 // not an error that would halt the loop.
 func TestLSPToolUnsupportedFile(t *testing.T) {
-	ci := codeintel.New(nil)
-	t.Cleanup(func() { _ = ci.Close() })
+	ci := newTestAnalyzer(t)
 
 	out, err := lspTool(t, ci).Call(context.Background(), `{"operation":"hover","path":"notes.txt","line":1,"character":1}`)
 	if err != nil {
@@ -47,8 +56,7 @@ func TestLSPToolUnsupportedFile(t *testing.T) {
 // operations (implementation, incoming/outgoing calls) are accepted + routed
 // (returning the no-server message under the default servers, not an error).
 func TestLSPToolValidation(t *testing.T) {
-	ci := codeintel.New(nil)
-	t.Cleanup(func() { _ = ci.Close() })
+	ci := newTestAnalyzer(t)
 	lsp := lspTool(t, ci)
 
 	if _, err := lsp.Call(context.Background(), `{"operation":"bogus"}`); err == nil {

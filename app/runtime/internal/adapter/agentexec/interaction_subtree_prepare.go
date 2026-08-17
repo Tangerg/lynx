@@ -53,7 +53,9 @@ func (session *interactionSession) prepareWaitingSubtreeCancellation(
 	reason string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return runs.PreparedWaitingSubtreeCancellation{}, errors.New(
+			"agentexec: waiting subtree preparation context is required",
+		)
 	}
 	if _, bounded := ctx.Deadline(); !bounded {
 		return runs.PreparedWaitingSubtreeCancellation{}, errors.New(

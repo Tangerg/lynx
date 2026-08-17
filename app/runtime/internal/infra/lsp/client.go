@@ -21,6 +21,9 @@ type client struct {
 	conn   *jsonrpc2.Conn
 	cancel context.CancelFunc // tears down the connection's read loop
 	wait   <-chan error       // exactly one goroutine owns cmd.Wait
+	// shutdownBase retains the process-lifetime values while allowing Close to
+	// use its own bounded graceful-shutdown budget after lifetime cancellation.
+	shutdownBase context.Context
 
 	closeOnce sync.Once
 	closeErr  error

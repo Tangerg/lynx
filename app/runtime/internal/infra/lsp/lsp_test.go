@@ -45,7 +45,15 @@ func newTestServers(t *testing.T) *Servers {
 	if _, err := exec.LookPath("gopls"); err != nil {
 		t.Skip("gopls not installed; skipping LSP integration test")
 	}
-	servers := NewServers(DefaultServers())
+	return mustNewServers(t, DefaultServers())
+}
+
+func mustNewServers(t *testing.T, specs []ServerSpec) *Servers {
+	t.Helper()
+	servers, err := NewServers(t.Context(), specs)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { _ = servers.Close() })
 	return servers
 }
@@ -143,7 +151,7 @@ func TestServers_Diagnostics(t *testing.T) {
 }
 
 func TestServers_UnsupportedFile(t *testing.T) {
-	servers := NewServers(DefaultServers())
+	servers := mustNewServers(t, DefaultServers())
 	t.Cleanup(func() { _ = servers.Close() })
 	if servers.Supported("notes.txt") {
 		t.Error("Supported(.txt) = true, want false")
@@ -165,7 +173,7 @@ func TestNewServersSnapshotsSpecs(t *testing.T) {
 		Extensions:  []string{".before"},
 		RootMarkers: []string{"before.mod"},
 	}}
-	servers := NewServers(specs)
+	servers := mustNewServers(t, specs)
 	t.Cleanup(func() { _ = servers.Close() })
 	specs[0].Args[0] = "after"
 	specs[0].Extensions[0] = ".after"
@@ -176,8 +184,15 @@ func TestNewServersSnapshotsSpecs(t *testing.T) {
 	}
 }
 
+func TestNewServersRequiresLifetime(t *testing.T) {
+	var missingLifetime context.Context
+	if servers, err := NewServers(missingLifetime, nil); err == nil || servers != nil {
+		t.Fatalf("NewServers without lifetime = (%v, %v), want nil servers and non-nil error", servers, err)
+	}
+}
+
 func TestServersShareConcurrentStartup(t *testing.T) {
-	servers := NewServers(nil)
+	servers := mustNewServers(t, nil)
 	t.Cleanup(func() { _ = servers.Close() })
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -230,7 +245,7 @@ func TestServersShareConcurrentStartup(t *testing.T) {
 }
 
 func TestServersCloseCancelsAndJoinsStartupCleanup(t *testing.T) {
-	servers := NewServers(nil)
+	servers := mustNewServers(t, nil)
 	started := make(chan struct{})
 	cleanupErr := errors.New("close late client")
 	servers.launch = func(ctx context.Context, _ ServerSpec, _ string) (*client, error) {
@@ -257,7 +272,7 @@ func TestServersCloseCancelsAndJoinsStartupCleanup(t *testing.T) {
 }
 
 func TestServersCallerCancellationDoesNotCancelSharedStartup(t *testing.T) {
-	servers := NewServers(nil)
+	servers := mustNewServers(t, nil)
 	t.Cleanup(func() { _ = servers.Close() })
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -307,8 +322,40 @@ func TestServersCallerCancellationDoesNotCancelSharedStartup(t *testing.T) {
 	}
 }
 
+func TestServersLifetimeCancellationStopsSharedStartup(t *testing.T) {
+	lifetime, stopLifetime := context.WithCancel(context.Background())
+	servers, err := NewServers(lifetime, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = servers.Close() })
+	started := make(chan struct{})
+	servers.launch = func(ctx context.Context, _ ServerSpec, _ string) (*client, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	clientErr := make(chan error, 1)
+	root := t.TempDir()
+	go func() {
+		_, err := servers.clientFor(context.Background(), root, ServerSpec{Name: "test"})
+		clientErr <- err
+	}()
+	<-started
+	stopLifetime()
+	select {
+	case err := <-clientErr:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("clientFor error = %v, want process lifetime cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("process lifetime cancellation did not stop shared startup")
+	}
+}
+
 func TestServersCanceledCallerDoesNotStartClient(t *testing.T) {
-	servers := NewServers(nil)
+	servers := mustNewServers(t, nil)
 	t.Cleanup(func() { _ = servers.Close() })
 	var calls atomic.Int32
 	servers.launch = func(context.Context, ServerSpec, string) (*client, error) {
@@ -333,7 +380,7 @@ func TestWorkspaceSymbolsReportsEveryStartupFailure(t *testing.T) {
 			t.Fatalf("write marker %s: %v", marker, err)
 		}
 	}
-	servers := NewServers([]ServerSpec{
+	servers := mustNewServers(t, []ServerSpec{
 		{Name: "go", Extensions: []string{".go"}, RootMarkers: []string{"go.mod"}},
 		{Name: "typescript", Extensions: []string{".ts"}, RootMarkers: []string{"package.json"}},
 	})

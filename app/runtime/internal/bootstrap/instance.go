@@ -131,7 +131,14 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 	assemblyConfig.RecoveryOwnership = ownership
 	assemblyConfig.UserHome = cfg.UserHome
 	assemblyConfig.DefaultWorkspacePath = cfg.DefaultWorkspacePath
-	assembly := NewAssembly(assemblyConfig)
+	runtimeContext, stopRuntime := context.WithCancel(context.Background())
+	runtimeOwned := true
+	defer func() {
+		if runtimeOwned {
+			stopRuntime()
+		}
+	}()
+	assembly := NewAssembly(runtimeContext, assemblyConfig)
 	storesOwned = false
 	defer func() { err = errors.Join(err, CloseAssembly(assembly)) }()
 
@@ -163,12 +170,14 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 		return nil, config.Settings{}, err
 	}
 
-	runtimeContext, stopRuntime := context.WithCancel(context.Background())
-	endpoint := operation.New(service, operation.Config{
+	endpoint, err := operation.New(service, operation.Config{
 		IdempotencyStore:     host.Stack.IdempotencyStore,
 		IdempotencyNamespace: idempotencyNamespace,
 		Lifetime:             runtimeContext,
 	})
+	if err != nil {
+		return nil, config.Settings{}, err
+	}
 	databaseChangesDone, err := stores.StartExternalChangeObserver(runtimeContext, func() {
 		host.Stack.PublishInvalidation.Notify(invalidation.Notice{Resource: invalidation.Resync})
 	})
@@ -197,6 +206,7 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 		databaseChangesDone: databaseChangesDone,
 		recoveryDone:        recoveryDone,
 	}
+	runtimeOwned = false
 	hostOwned = false
 	return instance, settings, nil
 }

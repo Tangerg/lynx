@@ -34,12 +34,17 @@ var (
 // Open establishes the enabled MCP connections present at runtime startup.
 // Unreachable but valid servers remain in the pool as failed, matching the
 // infrastructure pool's normal boot semantics.
-func Open(ctx context.Context, servers []mcpserver.Server, oauthSessions mcp.OAuthSessionStore) (*Pool, []toolcontract.Tool, error) {
+func Open(
+	ctx context.Context,
+	lifetime context.Context,
+	servers []mcpserver.Server,
+	oauthSessions mcp.OAuthSessionStore,
+) (*Pool, []toolcontract.Tool, error) {
 	configs, err := configsFromServers(servers)
 	if err != nil {
 		return nil, nil, err
 	}
-	inner, toolset, err := mcp.Dial(ctx, configs, oauthSessions)
+	inner, toolset, err := mcp.Dial(ctx, lifetime, configs, oauthSessions)
 	if err != nil {
 		return nil, nil, err
 	}

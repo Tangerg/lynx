@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"sync"
 )
@@ -78,7 +79,7 @@ func (g *invocationGroup) BeginShutdown() {
 
 func (g *invocationGroup) AwaitShutdown(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("operation: shutdown context is required")
 	}
 	select {
 	case <-g.done:

@@ -18,6 +18,24 @@ import (
 
 const interactionTestBuildID = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
+func TestInteractionExecutorRequiresProcessLifetime(t *testing.T) {
+	client, err := chatclient.New(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		return interactionTextResponse("unused"), nil
+	}), chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
+		DefaultClient:          client,
+		ImplementationIdentity: "interaction-executor-test-build",
+		ConfigurationIdentity:  "interaction-executor-test-config",
+		BuildID:                interactionTestBuildID,
+	})
+	if err == nil || executor != nil {
+		t.Fatalf("NewInteractionExecutor without lifetime = (%v, %v), want nil executor and non-nil error", executor, err)
+	}
+}
+
 func TestInteractionExecutorRunsRootFromCompleteWorkingContext(t *testing.T) {
 	var captured []chat.Message
 	model := chat.ModelFunc(func(_ context.Context, request *chat.Request) (*chat.Response, error) {
@@ -109,6 +127,30 @@ func TestInteractionExecutorDoesNotBindRunLifetimeToCallerContext(t *testing.T) 
 	}
 }
 
+func TestInteractionExecutorBindsRunLifetimeToProcessOwner(t *testing.T) {
+	lifetime, stopLifetime := context.WithCancel(context.Background())
+	modelContext := make(chan context.Context, 1)
+	model := chat.ModelFunc(func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
+		modelContext <- ctx
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	executor := newTestInteractionExecutorWithLifetime(t, lifetime, model)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), func() {
+		runContext := <-modelContext
+		stopLifetime()
+		select {
+		case <-runContext.Done():
+		case <-time.After(time.Second):
+			t.Fatal("process lifetime cancellation did not reach the Run")
+		}
+	})
+	ended := payloadsOf[runs.SegmentEnded](events)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeCanceled {
+		t.Fatalf("segment end after process cancellation = %#v", ended)
+	}
+}
+
 func TestInteractionExecutorReportsDispatcherPanicAsUnknownEffect(t *testing.T) {
 	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		panic("provider panic")
@@ -194,12 +236,21 @@ func TestInteractionSegmentDurationExcludesTimeBeforeContinuation(t *testing.T) 
 }
 
 func newTestInteractionExecutor(t *testing.T, model chat.Model) *InteractionExecutor {
+	return newTestInteractionExecutorWithLifetime(t, t.Context(), model)
+}
+
+func newTestInteractionExecutorWithLifetime(
+	t *testing.T,
+	lifetime context.Context,
+	model chat.Model,
+) *InteractionExecutor {
 	t.Helper()
 	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
+		Lifetime:      lifetime,
 		DefaultClient: client, ImplementationIdentity: "interaction-executor-test-build",
 		ConfigurationIdentity: "interaction-executor-test-config", DefaultMaxModelCalls: 4,
 		BuildID: interactionTestBuildID,

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -137,7 +136,7 @@ func TestDispatchDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 		Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"value":1}`, protocol.ProtocolVersion)),
 	}
 	original := string(req.Params)
-	New(operation.New(nil, operation.Config{})).Dispatch(context.Background(), req)
+	New(newOperationEndpoint(t, nil)).Dispatch(context.Background(), req)
 	if got := string(req.Params); got != original {
 		t.Fatalf("Dispatch mutated caller params: got %s, want %s", got, original)
 	}
@@ -238,7 +237,7 @@ func TestExtractRequestMetaRejectsUnknownFields(t *testing.T) {
 
 func dispatchMetadataFailure(t *testing.T, request *transport.Request) *transport.Error {
 	t.Helper()
-	result := New(operation.New(nil, operation.Config{})).Dispatch(t.Context(), request)
+	result := New(newOperationEndpoint(t, nil)).Dispatch(t.Context(), request)
 	if result.Response == nil {
 		return nil
 	}

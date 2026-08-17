@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"reflect"
@@ -43,27 +44,26 @@ type Config struct {
 	IdempotencyStore     idempotency.Store
 	IdempotencyNamespace string
 	// Lifetime ends every in-flight operation and stream owned by this Runtime
-	// instance. A nil Lifetime keeps the endpoint alive until each caller's
-	// context ends, which is useful for focused tests.
+	// instance. Required: accepted streams may outlive their request context and
+	// must still have one process-owned cancellation root.
 	Lifetime context.Context
 }
 
 // New constructs a binding-neutral operation endpoint.
-func New(target any, config Config) *Endpoint {
+func New(target any, config Config) (*Endpoint, error) {
+	if config.Lifetime == nil {
+		return nil, errors.New("operation: lifetime is required")
+	}
 	store := config.IdempotencyStore
 	if store == nil {
 		store = newMemoryIdempotencyStore()
-	}
-	lifetime := config.Lifetime
-	if lifetime == nil {
-		lifetime = context.Background()
 	}
 	return &Endpoint{
 		target:               target,
 		idempotency:          newReplayStore(store),
 		idempotencyNamespace: config.IdempotencyNamespace,
-		invocations:          newInvocationGroup(lifetime),
-	}
+		invocations:          newInvocationGroup(config.Lifetime),
+	}, nil
 }
 
 // BeginShutdown rejects new calls and cancels every accepted call or stream.

@@ -15,11 +15,13 @@ import (
 )
 
 func TestConnectSessionLifetimeDoesNotInheritHandshakeDeadline(t *testing.T) {
+	owner, stopOwner := context.WithCancel(context.Background())
 	var lifetime context.Context
-	session, cancel, err := connectSession(t.Context(), time.Hour, func(ctx context.Context) (*sdkmcp.ClientSession, error) {
+	session, cancel, err := connectSession(t.Context(), owner, time.Hour, func(ctx context.Context) (*sdkmcp.ClientSession, error) {
 		lifetime = ctx
 		return new(sdkmcp.ClientSession), nil
 	})
+	defer cancel()
 	if err != nil || session == nil {
 		t.Fatalf("connectSession = (%v, %v), want session", session, err)
 	}
@@ -31,17 +33,17 @@ func TestConnectSessionLifetimeDoesNotInheritHandshakeDeadline(t *testing.T) {
 		t.Fatalf("live session lifetime ended after handshake: %v", lifetime.Err())
 	default:
 	}
-	cancel()
+	stopOwner()
 	select {
 	case <-lifetime.Done():
 	case <-time.After(time.Second):
-		t.Fatal("session owner cancellation did not end the live lifetime")
+		t.Fatal("process lifetime cancellation did not end the live session")
 	}
 }
 
 func TestConnectSessionHandshakeTimeoutCancelsInFlightConnect(t *testing.T) {
 	started := make(chan struct{})
-	_, _, err := connectSession(t.Context(), 20*time.Millisecond, func(ctx context.Context) (*sdkmcp.ClientSession, error) {
+	_, _, err := connectSession(t.Context(), t.Context(), 20*time.Millisecond, func(ctx context.Context) (*sdkmcp.ClientSession, error) {
 		close(started)
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -91,14 +93,14 @@ func TestServerConfigValidate(t *testing.T) {
 }
 
 func TestDialValidatesBeforeDialing(t *testing.T) {
-	_, _, err := dial(context.Background(), nil,
+	_, _, err := dial(context.Background(), t.Context(), nil,
 		ServerConfig{Name: "x", Transport: TransportHTTP})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Endpoint is required")
 }
 
 func TestDialNilClient(t *testing.T) {
-	_, _, err := dial(context.Background(), nil,
+	_, _, err := dial(context.Background(), t.Context(), nil,
 		ServerConfig{Name: "x", Transport: TransportHTTP, Endpoint: "https://e/"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "client must not be nil")

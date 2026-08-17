@@ -48,7 +48,7 @@ func acquireDirectory(ctx context.Context, directory string) (*Lease, error) {
 }
 
 func tryDirectory(directory string) (*Lease, error) {
-	return directoryLease(context.Background(), directory, true)
+	return directoryLease(nil, directory, true)
 }
 
 func directoryLease(ctx context.Context, directory string, nonblocking bool) (*Lease, error) {

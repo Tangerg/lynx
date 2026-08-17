@@ -110,7 +110,7 @@ func (change *interactionWaitingSubtreeChange) Continue(ctx context.Context) err
 		return errors.New("agentexec: invalid waiting Interaction subtree change")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("agentexec: waiting Interaction subtree continuation context is required")
 	}
 	change.mu.Lock()
 	defer change.mu.Unlock()

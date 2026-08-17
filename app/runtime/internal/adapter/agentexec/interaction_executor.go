@@ -62,6 +62,10 @@ type RestoreScopeValidator interface {
 // executable Interaction adapter or behavior-affecting dispatcher configuration
 // changes, so Agent Framework Deployment references remain honest.
 type InteractionExecutorConfig struct {
+	// Lifetime is the process-owned root for every Interaction staged by this
+	// executor. Request contexts may bound staging and commands, but accepted
+	// execution must outlive the request that created it.
+	Lifetime                  context.Context
 	BuildID                   string
 	DefaultClient             *chatclient.Client
 	ChatResolver              InteractionChatResolver
@@ -94,7 +98,8 @@ type InteractionExecutorConfig struct {
 // root owns an independent Engine and exactly one Interaction Process; the
 // Application owns durable Run state and consumes only [runs.ExecutorEvent].
 type InteractionExecutor struct {
-	config InteractionExecutorConfig
+	lifetime context.Context
+	config   InteractionExecutorConfig
 
 	mu       sync.Mutex
 	sessions map[string]*interactionSession
@@ -106,6 +111,9 @@ type InteractionExecutor struct {
 // Engine, goroutine, model call, or tool call; those resources are per staged
 // root execution.
 func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecutor, error) {
+	if config.Lifetime == nil {
+		return nil, errors.New("agentexec: Interaction lifetime is required")
+	}
 	if config.DefaultClient == nil && isNilInteractionCapability(config.ChatResolver) {
 		return nil, errors.New("agentexec: Interaction requires a chat client or resolver")
 	}
@@ -175,7 +183,13 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 	if config.DefaultMaxModelCalls == 0 {
 		config.DefaultMaxModelCalls = defaultInteractionModelCalls
 	}
-	return &InteractionExecutor{config: config, sessions: make(map[string]*interactionSession)}, nil
+	lifetime := config.Lifetime
+	config.Lifetime = nil
+	return &InteractionExecutor{
+		lifetime: lifetime,
+		config:   config,
+		sessions: make(map[string]*interactionSession),
+	}, nil
 }
 
 // ValidateRootStart rejects inputs the Interaction cannot represent.
@@ -238,7 +252,7 @@ func (executor *InteractionExecutor) assembleInteraction(
 	if err != nil {
 		return nil, err
 	}
-	session := newInteractionSession(ref, start, executor.config)
+	session := newInteractionSession(executor.lifetime, ref, start, executor.config)
 	observedClient, err := newObservedInteractionClient(client, session)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: observe Interaction client: %w", err)
@@ -667,7 +681,10 @@ func (executor *InteractionExecutor) validateRestoreScope(
 }
 
 func discardRestoredInteraction(session *interactionSession, process *agent.Process) {
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+	cleanupCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(session.lifetime.context),
+		authoritativeProjectionTimeout,
+	)
 	defer cancel()
 	_ = process.Kill(cleanupCtx, interactionReleaseReason)
 	_, _ = process.Await(cleanupCtx)

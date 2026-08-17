@@ -26,8 +26,8 @@ type interactionLifetime struct {
 	reconcilers sync.WaitGroup
 }
 
-func newInteractionLifetime() interactionLifetime {
-	lifetime, stop := context.WithCancel(context.Background())
+func newInteractionLifetime(parent context.Context) interactionLifetime {
+	lifetime, stop := context.WithCancel(parent)
 	return interactionLifetime{
 		context:     lifetime,
 		stop:        stop,
@@ -79,9 +79,6 @@ func (lifetime *interactionLifetime) sendAuthoritative(
 }
 
 func (lifetime *interactionLifetime) bind(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	bound, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(lifetime.context, cancel)
 	return bound, func() {

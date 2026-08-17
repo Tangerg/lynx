@@ -99,6 +99,7 @@ type Stack struct {
 
 type toolEnvironmentBuilder func(
 	context.Context,
+	context.Context,
 	Config,
 	*approvals.RuntimePolicy,
 	mcpEnvironment,
@@ -121,15 +122,20 @@ type Assembly struct {
 }
 
 // NewAssembly acquires cfg.Resources and returns a single-use Host builder.
-func NewAssembly(cfg Config) *Assembly {
-	return newAssembly(cfg, buildToolEnvironment)
+func NewAssembly(lifetime context.Context, cfg Config) *Assembly {
+	return newAssembly(lifetime, cfg, buildToolEnvironment)
 }
 
-func newAssembly(cfg Config, buildTools toolEnvironmentBuilder) *Assembly {
+func newAssembly(
+	lifetime context.Context,
+	cfg Config,
+	buildTools toolEnvironmentBuilder,
+) *Assembly {
 	return &Assembly{
 		cfg:        cfg,
 		buildTools: buildTools,
 		lifetime: &hostLifetime{
+			context:       lifetime,
 			hostResources: shutdownResources(cfg.Resources),
 		},
 	}
@@ -149,6 +155,9 @@ func BuildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 	if a.lifetime == nil || a.buildTools == nil {
 		return nil, errors.New("runtime: uninitialized Assembly")
+	}
+	if a.lifetime.context == nil {
+		return nil, errors.New("runtime: Assembly lifetime is required")
 	}
 	a.started = true
 	host, err := buildAssembly(ctx, a)
@@ -177,7 +186,43 @@ func CloseAssembly(a *Assembly) error {
 	return closeHostLifetime(a.lifetime)
 }
 
+// assemblyFoundation is the completed dependency graph shared by the Session,
+// Run, recovery, and delivery composition phase. It is deliberately ephemeral:
+// resource ownership remains in hostLifetime and the successful Host.
+type assemblyFoundation struct {
+	cfg                      Config
+	lifetime                 *hostLifetime
+	conversationServices     conversationEnvironment
+	modelServices            modelEnvironment
+	applicationInvalidations notificationRelay[invalidation.Notice]
+	approvalPolicy           *approvals.RuntimePolicy
+	goalStore                goals.Store
+	planCoordinator          *planapp.Coordinator
+	mcpConnectionSettings    mcpEnvironment
+	scheduleCoordinator      *schedules.Coordinator
+	workspaceScope           *workspace.Scope
+	agentMemoryCoordinator   *agentmemoryapp.Coordinator
+	workspaceAuthoredWatch   *workspace.AuthoredWatch
+	workspaceKnowledge       *workspace.Knowledge
+	workspaceSkills          *workspace.Skills
+	toolRuntime              toolEnvironment
+	workingContexts          *agentexec.WorkingContextComposer
+	interactionExecutor      *agentexec.InteractionExecutor
+	toolRegistry             toolset.DiagnosticRegistry
+	workspaceCheckpoints     *checkpointstore.Checkpoints
+}
+
 func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
+	foundation, err := buildAssemblyFoundation(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	return buildAssemblyCore(ctx, foundation)
+}
+
+// buildAssemblyFoundation composes model, policy, workspace, and tool
+// capabilities before the Session/Run lifecycle can be constructed.
+func buildAssemblyFoundation(ctx context.Context, a *Assembly) (*assemblyFoundation, error) {
 	cfg := a.cfg
 	buildTools := a.buildTools
 	lifetime := a.lifetime
@@ -284,7 +329,20 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		applicationInvalidations.Publish,
 	)
 	skillMaintenance := workspace.NewSkillMaintenance(idleSkillSweeper, workspaceAuthoredWatch, applicationInvalidations.Publish)
-	toolRuntime, err := buildTools(ctx, cfg, approvalPolicy, mcpConnectionSettings, modelServices.agentMemorySearch, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, workspaceSkills)
+	toolRuntime, err := buildTools(
+		ctx,
+		lifetime.context,
+		cfg,
+		approvalPolicy,
+		mcpConnectionSettings,
+		modelServices.agentMemorySearch,
+		scheduleCoordinator,
+		goalReader,
+		goalReporter,
+		planCoordinator,
+		skillStore,
+		workspaceSkills,
+	)
 	lifetime.toolResources = slices.Clone(toolRuntime.closers)
 	if err != nil {
 		return nil, err
@@ -305,7 +363,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		modelServices.utilityClient, modelServices.liveEmbedder.ResolveMemory,
 	)
 	interactionConfig := agentexec.InteractionExecutorConfig{
-		BuildID: cfg.BuildID, DefaultClient: cfg.ChatClient, ChatResolver: modelServices.chatResolver,
+		Lifetime: lifetime.context,
+		BuildID:  cfg.BuildID, DefaultClient: cfg.ChatClient, ChatResolver: modelServices.chatResolver,
 		ImplementationIdentity: cfg.BuildID,
 		ConfigurationIdentity:  "lyra.runtime.interaction.v1",
 		StreamModelResponses:   true,
@@ -341,6 +400,54 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// rollback only when git is present + a dir is configured; the same adapter
 	// backs the run-segment boundary snapshot and the sessions file restorer.
 	workspaceCheckpoints := checkpointstore.NewCheckpoints(cfg.CheckpointDir)
+	return &assemblyFoundation{
+		cfg:                      cfg,
+		lifetime:                 lifetime,
+		conversationServices:     conversationServices,
+		modelServices:            modelServices,
+		applicationInvalidations: applicationInvalidations,
+		approvalPolicy:           approvalPolicy,
+		goalStore:                goalStore,
+		planCoordinator:          planCoordinator,
+		mcpConnectionSettings:    mcpConnectionSettings,
+		scheduleCoordinator:      scheduleCoordinator,
+		workspaceScope:           workspaceScope,
+		agentMemoryCoordinator:   agentMemoryCoordinator,
+		workspaceAuthoredWatch:   workspaceAuthoredWatch,
+		workspaceKnowledge:       workspaceKnowledge,
+		workspaceSkills:          workspaceSkills,
+		toolRuntime:              toolRuntime,
+		workingContexts:          workingContexts,
+		interactionExecutor:      interactionExecutor,
+		toolRegistry:             toolRegistry,
+		workspaceCheckpoints:     workspaceCheckpoints,
+	}, nil
+}
+
+// buildAssemblyCore composes the Session/Run lifecycle, startup recovery, and
+// delivery-facing Stack from a complete foundation.
+func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Host, error) {
+	cfg := foundation.cfg
+	lifetime := foundation.lifetime
+	conversationServices := foundation.conversationServices
+	modelServices := foundation.modelServices
+	applicationInvalidations := foundation.applicationInvalidations
+	approvalPolicy := foundation.approvalPolicy
+	goalStore := foundation.goalStore
+	planCoordinator := foundation.planCoordinator
+	mcpConnectionSettings := foundation.mcpConnectionSettings
+	scheduleCoordinator := foundation.scheduleCoordinator
+	workspaceScope := foundation.workspaceScope
+	agentMemoryCoordinator := foundation.agentMemoryCoordinator
+	workspaceAuthoredWatch := foundation.workspaceAuthoredWatch
+	workspaceKnowledge := foundation.workspaceKnowledge
+	workspaceSkills := foundation.workspaceSkills
+	toolRuntime := foundation.toolRuntime
+	workingContexts := foundation.workingContexts
+	interactionExecutor := foundation.interactionExecutor
+	toolRegistry := foundation.toolRegistry
+	workspaceCheckpoints := foundation.workspaceCheckpoints
+	var err error
 
 	// Sandbox isolation for a run whose session is marked Isolated: its tools
 	// operate in a throwaway copy of the project directory, the shell OS-jailed.

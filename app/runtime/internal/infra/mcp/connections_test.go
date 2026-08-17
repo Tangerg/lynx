@@ -66,7 +66,7 @@ func (t catalogTool) Definition() chat.ToolDefinition {
 func (catalogTool) Call(context.Context, string) (string, error) { return "", nil }
 
 func TestConnectionsRejectMutationsAfterShutdown(t *testing.T) {
-	c := &Connections{client: newClient()}
+	c := &Connections{lifetime: t.Context(), client: newClient()}
 	if err := c.Shutdown(t.Context()); err != nil {
 		t.Fatalf("Shutdown: %v", err)
 	}
@@ -95,6 +95,16 @@ func TestConnectionsRejectMutationsAfterShutdown(t *testing.T) {
 	}
 }
 
+func TestDialRequiresStartupAndProcessLifetimes(t *testing.T) {
+	var missingContext context.Context
+	if connections, _, err := Dial(missingContext, t.Context(), nil, nil); err == nil || connections != nil {
+		t.Fatalf("Dial without startup context = (%v, %v), want nil connections and non-nil error", connections, err)
+	}
+	if connections, _, err := Dial(t.Context(), nil, nil, nil); err == nil || connections != nil {
+		t.Fatalf("Dial without process lifetime = (%v, %v), want nil connections and non-nil error", connections, err)
+	}
+}
+
 func TestNilConnectionsRejectRemoval(t *testing.T) {
 	var connections *Connections
 	if err := connections.Detach("server"); !errors.Is(err, ErrConnectionsUnavailable) {
@@ -103,7 +113,7 @@ func TestNilConnectionsRejectRemoval(t *testing.T) {
 }
 
 func TestConnectionsShutdownCancelsAndJoinsAttempts(t *testing.T) {
-	c := &Connections{}
+	c := &Connections{lifetime: t.Context()}
 	target := &server{config: ServerConfig{Name: "server"}}
 	c.servers = []*server{target}
 	c.mu.Lock()
@@ -139,7 +149,7 @@ func TestConnectionsShutdownRetriesOnlyFailedSessionClosures(t *testing.T) {
 			return nil
 		},
 	}
-	c := &Connections{
+	c := &Connections{lifetime: t.Context(),
 		closed:   true,
 		sessions: map[*sdkmcp.ClientSession]*ownedSession{session: owned},
 	}
@@ -159,7 +169,7 @@ func TestConnectionsShutdownRetriesOnlyFailedSessionClosures(t *testing.T) {
 }
 
 func TestConnectionAttemptsSupersedePerServer(t *testing.T) {
-	c := &Connections{}
+	c := &Connections{lifetime: t.Context()}
 	first := &server{config: ServerConfig{Name: "first"}}
 	second := &server{config: ServerConfig{Name: "second"}}
 	c.servers = []*server{first, second}
@@ -201,7 +211,7 @@ func TestCloneServerConfigOwnsMutableFields(t *testing.T) {
 }
 
 func TestPublishToolsUsesVerifiedSnapshotsInServerOrder(t *testing.T) {
-	c := &Connections{servers: []*server{
+	c := &Connections{lifetime: t.Context(), servers: []*server{
 		{
 			config:  ServerConfig{Name: "alpha"},
 			session: new(sdkmcp.ClientSession),
@@ -229,7 +239,7 @@ func TestPublishToolsUsesVerifiedSnapshotsInServerOrder(t *testing.T) {
 }
 
 func TestDetachPublishesRemainingSnapshot(t *testing.T) {
-	c := &Connections{servers: []*server{
+	c := &Connections{lifetime: t.Context(), servers: []*server{
 		{config: ServerConfig{Name: "remove"}, tools: []toolcontract.Tool{catalogTool("remove_read")}},
 		{
 			config:  ServerConfig{Name: "keep"},
@@ -263,7 +273,7 @@ func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
 	t.Cleanup(httpServer.Close)
 
 	config := ServerConfig{Name: "remote", Transport: TransportHTTP, Endpoint: httpServer.URL}
-	c, initial, err := Dial(t.Context(), []ServerConfig{config}, nil)
+	c, initial, err := Dial(t.Context(), t.Context(), []ServerConfig{config}, nil)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -301,7 +311,7 @@ func TestConfiguredSessionOutlivesRequestScope(t *testing.T) {
 	))
 	t.Cleanup(httpServer.Close)
 
-	connections, _, err := Dial(t.Context(), nil, nil)
+	connections, _, err := Dial(t.Context(), t.Context(), nil, nil)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -338,7 +348,7 @@ func TestSessionLedgerOwnsReplacementUntilClose(t *testing.T) {
 	t.Cleanup(httpServer.Close)
 
 	config := ServerConfig{Name: "ledger", Transport: TransportHTTP, Endpoint: httpServer.URL}
-	c, _, err := Dial(t.Context(), []ServerConfig{config}, nil)
+	c, _, err := Dial(t.Context(), t.Context(), []ServerConfig{config}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +387,7 @@ func TestDialQuarantinesCrossServerPublicToolNameCollision(t *testing.T) {
 	))
 	t.Cleanup(httpServer.Close)
 
-	c, initial, err := Dial(t.Context(), []ServerConfig{
+	c, initial, err := Dial(t.Context(), t.Context(), []ServerConfig{
 		{Name: "a.b", Transport: TransportHTTP, Endpoint: httpServer.URL},
 		{Name: "a_b", Transport: TransportHTTP, Endpoint: httpServer.URL},
 	}, nil)
@@ -408,7 +418,7 @@ func TestConfigureRejectsCrossServerPublicToolNameCollision(t *testing.T) {
 	))
 	t.Cleanup(firstHTTP.Close)
 
-	c, initial, err := Dial(t.Context(), []ServerConfig{{
+	c, initial, err := Dial(t.Context(), t.Context(), []ServerConfig{{
 		Name: "a_b", Transport: TransportHTTP, Endpoint: firstHTTP.URL,
 	}}, nil)
 	if err != nil {
@@ -459,7 +469,7 @@ func TestReconnectQuarantinesNewCrossServerPublicToolNameCollision(t *testing.T)
 	))
 	t.Cleanup(secondHTTP.Close)
 
-	c, initial, err := Dial(t.Context(), []ServerConfig{
+	c, initial, err := Dial(t.Context(), t.Context(), []ServerConfig{
 		{Name: "a_b", Transport: TransportHTTP, Endpoint: firstHTTP.URL},
 		{Name: "a", Transport: TransportHTTP, Endpoint: secondHTTP.URL},
 	}, nil)

@@ -6,6 +6,7 @@ package taskgroup
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 	"sync"
@@ -129,7 +130,7 @@ func (g *Group) Cancel() {
 // a shutdown timeout becomes observable instead of silently leaking work.
 func (g *Group) Wait(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("taskgroup: wait context is required")
 	}
 	g.mu.Lock()
 	done := g.doneLocked()

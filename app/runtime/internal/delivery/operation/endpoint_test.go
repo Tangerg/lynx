@@ -16,6 +16,24 @@ type lifetimeService struct {
 
 type nilDiscoverService struct{}
 
+func mustNewEndpoint(t *testing.T, target any, config Config) *Endpoint {
+	t.Helper()
+	if config.Lifetime == nil {
+		config.Lifetime = t.Context()
+	}
+	endpoint, err := New(target, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return endpoint
+}
+
+func TestEndpointRequiresProcessLifetime(t *testing.T) {
+	if endpoint, err := New(struct{}{}, Config{}); err == nil || endpoint != nil {
+		t.Fatalf("New without lifetime = (%v, %v), want nil endpoint and non-nil error", endpoint, err)
+	}
+}
+
 func (*nilDiscoverService) Discover(context.Context) (*protocol.DiscoverResponse, error) {
 	panic("typed-nil operation capability was invoked")
 }
@@ -30,7 +48,7 @@ func TestEndpointRejectsMissingMethodCapability(t *testing.T) {
 		{name: "typed nil", target: typedNil},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			result := New(test.target, Config{}).Invoke(
+			result := mustNewEndpoint(t, test.target, Config{}).Invoke(
 				t.Context(),
 				"runtime.discover",
 				struct{}{},
@@ -53,7 +71,7 @@ func (s *lifetimeService) SubscribeRuntime(ctx context.Context, _ protocol.Runti
 func TestEndpointLifetimeEndsStreamsAndRejectsLaterCalls(t *testing.T) {
 	lifetime, stop := context.WithCancel(context.Background())
 	service := &lifetimeService{streamStarted: make(chan struct{})}
-	endpoint := New(service, Config{Lifetime: lifetime})
+	endpoint := mustNewEndpoint(t, service, Config{Lifetime: lifetime})
 	result := endpoint.Invoke(t.Context(), "runtime.subscribe", protocol.RuntimeSubscribeRequest{
 		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
 	}, Options{})
@@ -86,7 +104,7 @@ func TestEndpointLifetimeEndsStreamsAndRejectsLaterCalls(t *testing.T) {
 func TestEndpointShutdownClaimsUnstartedStreamAndJoinsItsSource(t *testing.T) {
 	lifetime, stop := context.WithCancel(context.Background())
 	service := &lifetimeService{streamStarted: make(chan struct{})}
-	endpoint := New(service, Config{Lifetime: lifetime})
+	endpoint := mustNewEndpoint(t, service, Config{Lifetime: lifetime})
 	result := endpoint.Invoke(t.Context(), "runtime.subscribe", protocol.RuntimeSubscribeRequest{
 		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
 	}, Options{})
@@ -137,7 +155,7 @@ func TestEndpointShutdownWaitsForStartedStreamSourceToReturn(t *testing.T) {
 		canceled: make(chan struct{}),
 		release:  make(chan struct{}),
 	}
-	endpoint := New(service, Config{})
+	endpoint := mustNewEndpoint(t, service, Config{})
 	result := endpoint.Invoke(t.Context(), "runtime.subscribe", protocol.RuntimeSubscribeRequest{
 		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
 	}, Options{})

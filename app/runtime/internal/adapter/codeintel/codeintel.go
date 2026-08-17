@@ -38,13 +38,21 @@ type Analyzer struct {
 	servers *lsp.Servers
 }
 
-// New builds an Analyzer over the given language-server table. An empty table
-// falls back to the built-in LSP server table.
-func New(servers []ServerSpec) *Analyzer {
+// New builds an Analyzer over the given language-server table and the
+// process-owned lifetime from which lazy language-server launches derive.
+// An empty table falls back to the built-in LSP server table.
+func New(lifetime context.Context, servers []ServerSpec) (*Analyzer, error) {
+	if lifetime == nil {
+		return nil, errors.New("codeintel: lifetime is required")
+	}
 	if len(servers) == 0 {
 		servers = defaultServers()
 	}
-	return &Analyzer{servers: lsp.NewServers(lspServerSpecs(servers))}
+	set, err := lsp.NewServers(lifetime, lspServerSpecs(servers))
+	if err != nil {
+		return nil, err
+	}
+	return &Analyzer{servers: set}, nil
 }
 
 func defaultServers() []ServerSpec {

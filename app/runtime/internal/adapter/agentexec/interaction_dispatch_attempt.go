@@ -24,8 +24,8 @@ type dispatchAttempt struct {
 	projectionErr error
 }
 
-func newDispatchAttempt(effectID agent.EffectID) *dispatchAttempt {
-	failure, fail := context.WithCancelCause(context.Background())
+func newDispatchAttempt(parent context.Context, effectID agent.EffectID) *dispatchAttempt {
+	failure, fail := context.WithCancelCause(context.WithoutCancel(parent))
 	return &dispatchAttempt{effectID: effectID, failure: failure, fail: fail}
 }
 

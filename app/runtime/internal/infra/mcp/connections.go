@@ -53,6 +53,7 @@ type ownedSession struct {
 // sink is invoked with the rebuilt model-facing tool set after a reconnect, so
 // the engine can hot-swap the live set into its resolver.
 type Connections struct {
+	lifetime context.Context
 	mu       sync.Mutex
 	servers  []*server
 	client   *sdkmcp.Client

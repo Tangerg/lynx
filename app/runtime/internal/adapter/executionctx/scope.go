@@ -18,9 +18,6 @@ type runCapabilitiesKey struct{}
 // WithScope returns a context carrying scope. The value is immutable and safe
 // to share across the complete delegation tree.
 func WithScope(ctx context.Context, scope runs.ExecutionScope) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, scopeKey{}, scope)
 }
 
@@ -36,9 +33,6 @@ func Scope(ctx context.Context) (runs.ExecutionScope, bool) {
 // WithRunCapabilities carries the frozen product Run contract through tool
 // execution without placing Runtime policy inside Agent Framework state.
 func WithRunCapabilities(ctx context.Context, capabilities run.Capabilities) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, runCapabilitiesKey{}, capabilities.Clone())
 }
 

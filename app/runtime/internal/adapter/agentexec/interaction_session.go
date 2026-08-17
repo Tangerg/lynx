@@ -94,6 +94,7 @@ const (
 )
 
 func newInteractionSession(
+	lifetime context.Context,
 	ref runs.ExecutorRef,
 	start runs.RootExecutionStart,
 	config InteractionExecutorConfig,
@@ -103,7 +104,7 @@ func newInteractionSession(
 		provider = config.Provider
 	}
 	return &interactionSession{
-		ref: ref, scope: rootExecutionScope(start), lifetime: newInteractionLifetime(),
+		ref: ref, scope: rootExecutionScope(start), lifetime: newInteractionLifetime(lifetime),
 		state: interactionState{
 			pendingSteers:        make(map[agent.SignalID]pendingInteractionSteer),
 			delegateCalls:        make(map[delegateCallIdentity]*managedDelegateCall),
@@ -142,6 +143,9 @@ func (session *interactionSession) beginDispatch(
 	request agent.EffectRequest,
 ) (context.Context, func()) {
 	bound, cancel := context.WithCancelCause(ctx)
+	stopLifetimeBinding := context.AfterFunc(session.lifetime.context, func() {
+		cancel(context.Cause(session.lifetime.context))
+	})
 	key := interactionDispatchKey(request)
 	session.state.mu.Lock()
 	if session.state.rootCancellationRequested || session.inCanceledSubtreeLocked(request.ProcessID()) {
@@ -157,6 +161,7 @@ func (session *interactionSession) beginDispatch(
 		session.state.mu.Lock()
 		delete(session.state.activeDispatches, key)
 		session.state.mu.Unlock()
+		stopLifetimeBinding()
 		cancel(nil)
 	}
 }
@@ -281,7 +286,7 @@ func (session *interactionSession) submitSteer(
 	content []transcript.ContentBlock,
 ) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("agentexec: steer context is required")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -504,7 +509,7 @@ func (session *interactionSession) reconcileExecutionState() {
 		case <-session.lifetime.context.Done():
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+		ctx, cancel := context.WithTimeout(session.lifetime.context, authoritativeProjectionTimeout)
 		progressed, err := session.reconcileCompletedDelegateChildren(ctx)
 		cancel()
 		if err != nil {
@@ -531,7 +536,7 @@ func (session *interactionSession) publishWaitingBoundary() bool {
 	if process.Status() != agent.StatusWaiting {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+	ctx, cancel := context.WithTimeout(session.lifetime.context, authoritativeProjectionTimeout)
 	defer cancel()
 	snapshot, interruptions, found, err := session.captureHumanInputBarrier(ctx)
 	if err != nil {
@@ -624,7 +629,7 @@ func executorCheckpointsEqual(left, right runs.ExecutorCheckpoint) bool {
 }
 
 func (session *interactionSession) reportUnknownEffects() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+	ctx, cancel := context.WithTimeout(session.lifetime.context, authoritativeProjectionTimeout)
 	defer cancel()
 	ids, err := session.unknownEffectIDs(ctx)
 	if err != nil || len(ids) == 0 {
@@ -650,9 +655,10 @@ func (session *interactionSession) reportUnknownEffects() bool {
 }
 
 func (session *interactionSession) await() {
-	result, err := session.state.process.Await(context.Background())
+	joinCtx := context.WithoutCancel(session.lifetime.context)
+	result, err := session.state.process.Await(joinCtx)
 	if err == nil {
-		projectionCtx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+		projectionCtx, cancel := context.WithTimeout(joinCtx, authoritativeProjectionTimeout)
 		_, err = session.reconcileCompletedDelegateChildren(projectionCtx)
 		cancel()
 	}

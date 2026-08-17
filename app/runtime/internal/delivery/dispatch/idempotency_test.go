@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -40,7 +39,7 @@ func canceledRootResponse(runID string) *protocol.CancelRunResponse {
 
 func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	runtime := &blockingCancelRuntime{started: make(chan struct{}), release: make(chan struct{})}
-	router := New(operation.New(runtime, operation.Config{}))
+	router := New(newOperationEndpoint(t, runtime))
 	ctx := transport.WithIdempotencyKey(context.Background(), "cancel-once")
 	first, err := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	if err != nil {

@@ -33,8 +33,12 @@ func (r *streamingLifecycleRuntime) SubscribeRuntime(
 
 func newLifecycleServer(t *testing.T, configure func(*Config)) *Server {
 	t.Helper()
+	endpoint, err := operation.New(lifecycleRuntime{}, operation.Config{Lifetime: t.Context()})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := Config{
-		Endpoint:        operation.New(lifecycleRuntime{}, operation.Config{}),
+		Endpoint:        endpoint,
 		Addr:            "127.0.0.1:0",
 		ServerInfo:      protocol.ServerInfo{Name: "test", Version: "1"},
 		ProtocolVersion: "test",
@@ -67,7 +71,11 @@ func TestShutdownCancelsLongLivedTransportHandler(t *testing.T) {
 	defer cancelWait()
 	runtime := &streamingLifecycleRuntime{subscribed: make(chan struct{})}
 	srv := newLifecycleServer(t, func(cfg *Config) {
-		cfg.Endpoint = operation.New(runtime, operation.Config{})
+		endpoint, err := operation.New(runtime, operation.Config{Lifetime: t.Context()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.Endpoint = endpoint
 	})
 	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"runtime.subscribe","params":{"topics":["skills.changed"]}}`)
 	req := httptest.NewRequest(stdhttp.MethodPost, "/v2/rpc", body)

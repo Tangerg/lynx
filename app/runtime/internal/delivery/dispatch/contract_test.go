@@ -17,6 +17,15 @@ type capabilityRuntime struct {
 	features map[string]bool
 }
 
+func newOperationEndpoint(t *testing.T, target any) *operation.Endpoint {
+	t.Helper()
+	endpoint, err := operation.New(target, operation.Config{Lifetime: t.Context()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return endpoint
+}
+
 func (r *capabilityRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
 	advertised := make(map[string]protocol.FeatureCapability, len(r.features))
 	for name, enabled := range r.features {
@@ -49,7 +58,7 @@ func (r *capabilityRuntime) RollbackSession(context.Context, protocol.RollbackSe
 
 func call(t *testing.T, features map[string]bool, method, params string) *transport.Response {
 	t.Helper()
-	d := New(operation.New(&capabilityRuntime{features: features}, operation.Config{}))
+	d := New(newOperationEndpoint(t, &capabilityRuntime{features: features}))
 	res := d.Dispatch(t.Context(), &transport.Request{
 		ID: transport.StringID("1"), Method: method, Params: json.RawMessage(params),
 	})

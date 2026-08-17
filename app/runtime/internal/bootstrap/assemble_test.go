@@ -183,7 +183,7 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			cfg := runtimeConfigWithRequiredDeps(t)
 			tt.edit(&cfg)
 
-			assembly := NewAssembly(cfg)
+			assembly := NewAssembly(t.Context(), cfg)
 			_, err := BuildAssembly(t.Context(), assembly)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("Assembly.Build error = %v, want containing %q", err, tt.want)
@@ -195,7 +195,7 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 
 func TestAssemblyCloseBeforeBuildReleasesResourcesAndConsumesBuilder(t *testing.T) {
 	var closed atomic.Int32
-	assembly := NewAssembly(Config{
+	assembly := NewAssembly(t.Context(), Config{
 		Resources: []ShutdownResource{closerFunc(func() error {
 			closed.Add(1)
 			return nil
@@ -227,8 +227,9 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		return nil
 	})}
 
-	assembly := newAssembly(cfg, func(
+	assembly := newAssembly(t.Context(), cfg, func(
 		ctx context.Context,
+		lifetime context.Context,
 		cfg Config,
 		policy *approvals.RuntimePolicy,
 		mcpConnectionSettings mcpEnvironment,
@@ -240,7 +241,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		skillStore *skillauthoring.Store,
 		skillProposals builtin.SkillProposalSubmitter,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, lifetime, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -270,7 +271,8 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 	buildErr := errors.New("tool environment failed")
 	var closed atomic.Int32
 
-	assembly := newAssembly(cfg, func(
+	assembly := newAssembly(t.Context(), cfg, func(
+		context.Context,
 		context.Context,
 		Config,
 		*approvals.RuntimePolicy,
@@ -315,8 +317,9 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		return nil
 	})}
 
-	assembly := newAssembly(cfg, func(
+	assembly := newAssembly(t.Context(), cfg, func(
 		ctx context.Context,
+		lifetime context.Context,
 		cfg Config,
 		policy *approvals.RuntimePolicy,
 		mcpConnectionSettings mcpEnvironment,
@@ -328,7 +331,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		skillStore *skillauthoring.Store,
 		skillProposals builtin.SkillProposalSubmitter,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, lifetime, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -371,8 +374,9 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	var toolClosed atomic.Int32
 
-	assembly := newAssembly(cfg, func(
+	assembly := newAssembly(t.Context(), cfg, func(
 		ctx context.Context,
+		lifetime context.Context,
 		cfg Config,
 		policy *approvals.RuntimePolicy,
 		mcpConnectionSettings mcpEnvironment,
@@ -384,7 +388,7 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		skillStore *skillauthoring.Store,
 		skillProposals builtin.SkillProposalSubmitter,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, lifetime, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -504,7 +508,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		t.Fatalf("save executor checkpoint: %v", err)
 	}
 
-	assembly := NewAssembly(cfg)
+	assembly := NewAssembly(t.Context(), cfg)
 	host, err := BuildAssembly(ctx, assembly)
 	if err != nil {
 		t.Fatalf("Assembly.Build: %v", err)

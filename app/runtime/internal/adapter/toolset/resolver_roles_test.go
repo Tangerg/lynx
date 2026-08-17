@@ -40,7 +40,7 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
-	built, err := Build(t.Context(), BuildConfig{
+	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(),
 		DefaultCWD: t.TempDir(),
 		UserHome:   t.TempDir(),
 		PlanMode:   policy,
@@ -90,7 +90,7 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 }
 
 func TestGoalToolsAreRootOnlyAndOutcomeRequiresGoalRunProvenance(t *testing.T) {
-	built, err := Build(t.Context(), BuildConfig{
+	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(),
 		DefaultCWD: t.TempDir(), UserHome: t.TempDir(),
 		// Deliberately inactive: manifest membership must remain tied to the Run's
 		// frozen incarnation even when mutable Goal state pauses for HITL.
@@ -145,7 +145,7 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresGoalRunProvenance(t *testing.T) {
 }
 
 func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
-	built, err := Build(t.Context(), BuildConfig{
+	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(),
 		DefaultCWD:     t.TempDir(),
 		UserHome:       t.TempDir(),
 		SkillProposals: allWiredSkillProposals{},
@@ -178,7 +178,7 @@ func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 }
 
 func TestResolverAcceptsOnlyCanonicalRoleNames(t *testing.T) {
-	built, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
+	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(), DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

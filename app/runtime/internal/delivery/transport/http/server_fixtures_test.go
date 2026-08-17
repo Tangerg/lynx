@@ -68,12 +68,22 @@ func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 	return newTestServerFor(t, api), api
 }
 
+func newTestEndpoint(t *testing.T, target any, config operation.Config) *operation.Endpoint {
+	t.Helper()
+	config.Lifetime = t.Context()
+	endpoint, err := operation.New(target, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return endpoint
+}
+
 // newTestServerFor serves a caller-supplied Runtime through the same config, so a
 // test that needs a different fake still exercises one server setup.
 func newTestServerFor(t *testing.T, api any) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Endpoint:        operation.New(api, operation.Config{IdempotencyNamespace: "idp_test"}),
+		Endpoint:        newTestEndpoint(t, api, operation.Config{IdempotencyNamespace: "idp_test"}),
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,

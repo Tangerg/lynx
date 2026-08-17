@@ -275,7 +275,7 @@ func (r *replayStore) claimWithin(
 // map so a later Close can retry without executing their commands again.
 func (r *replayStore) flushPending(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("idempotency: flush context is required")
 	}
 	var errs []error
 	for _, key := range r.pendingKeys() {

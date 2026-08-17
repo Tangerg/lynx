@@ -52,7 +52,8 @@
 | 公共 protocol | 唯一 binding-neutral DTO/validation/version owner；旧 internal path 已物理删除 | Retain exact owner | P19-02 完成 |
 | Typed operation | 唯一私有 catalog/invocation/policy owner；HTTP 与 embedded 已直接复用 | Retain exact owner | P19-03/P19-05 完成 |
 | Embedded Runtime | 公共 concrete binding 完整覆盖唯一 operation catalog；直接复用严格验证、能力、幂等、problem 与 replay，不建立 transport round-trip | Retain exact owner | P19-05 完成 |
-| Runtime instance lifecycle | `bootstrap.Instance` 唯一拥有装配、ownership-aware recovery、operation、worker 与 retryable Close；canonical data directory 仅在 setup/seeding 期间串行，多个 Runtime instance 可共享其 durable store | Retain exact owner | P19-04；P84 修订 |
+| Runtime instance lifecycle | `bootstrap.Instance` 唯一创建 Runtime root 并拥有 cancel/join；同一 root 显式注入 Assembly、operation、Interaction、Toolset、LSP、MCP/OAuth 与 workers，request/startup Context 不成为共享资源 owner；retryable Close 在依赖释放前完成 operation、worker 与 Host join。canonical data directory 仅在 setup/seeding 期间串行，多个 Runtime instance 可共享其 durable store | Retain exact owner | P19-04；P84 修订；P113-06 lifecycle closure |
+| Architecture fitness | 长期门禁守 DAG、package/词汇/state owner、合法构造、process context root、公共合同与持久化 shape；可执行编排使用统一复杂度预算，生成物、声明 catalog 与递归 validator 明确排除，不冻结历史 identifier、局部变量或声明文件位置 | Retain semantic guard | P113-06 取代历史布局台账 |
 | Consumer wiring | CLI/前端/TUI 均不在本阶段修改；Runtime 不提供旧接口适配 | Defer | P19 完成后专项 |
 
 ### 2.4 P20 真实 consumer 回归事实

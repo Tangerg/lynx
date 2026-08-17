@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
@@ -24,8 +23,7 @@ func TestMutationDiagnosticsAppendsProblems(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/edit\n\ngo 1.21\n"), 0o644); err != nil {
 		t.Fatalf("go.mod: %v", err)
 	}
-	ci := codeintel.New(nil)
-	t.Cleanup(func() { _ = ci.Close() })
+	ci := newTestCodeIntel(t)
 
 	// This stub isolates the decorator from the concrete filesystem adapter.
 	type mutationArgs struct {

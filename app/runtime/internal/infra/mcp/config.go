@@ -129,9 +129,16 @@ func (c ServerConfig) hasStaticAuthorization() bool {
 
 func dial(
 	ctx context.Context,
+	lifetime context.Context,
 	client *sdkmcp.Client,
 	cfg ServerConfig,
 ) (*sdkmcp.ClientSession, context.CancelFunc, error) {
+	if ctx == nil {
+		return nil, nil, errors.New("mcp: dial context is required")
+	}
+	if lifetime == nil {
+		return nil, nil, errors.New("mcp: session lifetime is required")
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, nil, err
 	}
@@ -165,7 +172,7 @@ func dial(
 			return nil, fmt.Errorf("mcp: unknown transport %d", cfg.Transport)
 		}
 	}
-	return connectSession(ctx, cfg.Timeout, connect)
+	return connectSession(ctx, lifetime, cfg.Timeout, connect)
 }
 
 // connectSession gives an MCP session a lifecycle distinct from the operation
@@ -177,13 +184,17 @@ func dial(
 // already being torn down.
 func connectSession(
 	parent context.Context,
+	lifetime context.Context,
 	timeout time.Duration,
 	connect func(context.Context) (*sdkmcp.ClientSession, error),
 ) (*sdkmcp.ClientSession, context.CancelFunc, error) {
 	if parent == nil {
-		parent = context.Background()
+		return nil, nil, errors.New("mcp: handshake context is required")
 	}
-	lifetimeCtx, cancelLifetime := context.WithCancel(context.WithoutCancel(parent))
+	if lifetime == nil {
+		return nil, nil, errors.New("mcp: session lifetime is required")
+	}
+	lifetimeCtx, cancelLifetime := context.WithCancel(lifetime)
 	handshakeCtx := parent
 	cancelHandshake := func() {}
 	if timeout > 0 {

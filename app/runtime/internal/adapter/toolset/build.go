@@ -27,6 +27,9 @@ import (
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
+	// Lifetime is the process-owned root for local capability resources that
+	// outlive the startup call and individual Tool invocations.
+	Lifetime      context.Context
 	DefaultCWD    string
 	UserHome      string
 	SkillsUserDir string
@@ -92,6 +95,12 @@ type Built struct {
 // their dedicated adapter before this function and supplied as an initial tool
 // snapshot; this package owns only the local and A2A capability lifecycle.
 func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
+	if ctx == nil {
+		return Built{}, errors.New("toolset: startup context is required")
+	}
+	if config.Lifetime == nil {
+		return Built{}, errors.New("toolset: lifetime is required")
+	}
 	if config.DefaultCWD == "" {
 		return Built{}, errors.New("toolset: default CWD is required")
 	}
@@ -112,7 +121,10 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// Code intelligence: one analyzer wrapping LSP clients; servers launch
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// analyzer keys by root, read per call off the blackboard).
-	codeIntel := codeintel.New(config.LSPServers)
+	codeIntel, err := codeintel.New(config.Lifetime, config.LSPServers)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build code intelligence: %w", err)
+	}
 	lspTools, err := builtin.BuildLSP(codeIntel, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
