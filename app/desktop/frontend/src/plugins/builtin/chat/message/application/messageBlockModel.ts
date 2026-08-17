@@ -68,12 +68,20 @@ export function messageBlocksRenderInstant(role: MessageRole): boolean {
 /**
  * Whether the turn still owns material that can change beneath its action row.
  *
- * Root attention is deliberately not part of this value. A connection transition can
- * briefly lose the active Run before snapshot/event recovery reattaches it, while the
- * turn's own block, ToolCall, or delegated Run remains explicitly non-terminal. Those
- * item-local facts are the durable authority for whether terminal actions may exist.
+ * Current/root attention is deliberately not part of this value. The exact Run named
+ * by the message owns the whole turn: completing one agentMessage Item does not settle
+ * controls while that Run can still append another Item, and a successor Run cannot
+ * settle its predecessor. Blocks, ToolCalls, delegated Runs, and the visible-text
+ * projection then narrow that lifecycle further.
  */
 export function messageActionMaterialization(row: TranscriptRow): MessageActionMaterialization {
+  if (
+    row.message.role === "assistant" &&
+    (row.runOwner.kind !== "owned" || row.runOwner.status !== "finished")
+  ) {
+    return "active";
+  }
+
   for (const block of row.message.blocks) {
     if (blockOwnsActiveMaterial(block)) return "active";
     if (block.kind !== "tool") continue;

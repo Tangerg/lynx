@@ -31,11 +31,31 @@ function row(status: "running" | "complete"): TranscriptRow {
         },
       ],
     },
+    runOwner: { kind: "owned", runId: "run-visible-material", status: "finished" },
     facts: { toolCalls: {}, delegatedRuns: {} },
   };
 }
 
 describe("MessageBlock action materialization", () => {
+  it("does not mount terminal controls when root attention drops before the exact Run settles", () => {
+    const exactRunStillStreaming = {
+      ...row("complete"),
+      runOwner: { kind: "owned", runId: "run-visible-material", status: "running" },
+    } as TranscriptRow;
+
+    render(
+      <MessageBlock
+        row={exactRunStillStreaming}
+        ctx={CTX}
+        sessionId="session-visible-material"
+        isLast
+        isRunning={false}
+      />,
+    );
+
+    expect(screen.queryByTestId("message.actions")).toBeNull();
+  });
+
   it("keeps terminal actions absent until the visible text generation has drained", () => {
     const { rerender } = render(
       <MessageBlock

@@ -26,7 +26,7 @@ interface Props {
    *  and any run IT spawned are already in here. */
   facts: TurnFacts;
   ctx: BlockCtx;
-  renderMessageBlocks: (row: TranscriptRow, ctx: BlockCtx) => ReactNode;
+  renderMessageBlocks: (row: Pick<TranscriptRow, "message" | "facts">, ctx: BlockCtx) => ReactNode;
 }
 
 export function DelegatedNarrative({

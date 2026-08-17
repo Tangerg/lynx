@@ -122,6 +122,30 @@ describe("messageBlocksRenderInstant", () => {
 });
 
 describe("messageActionMaterialization", () => {
+  it("keeps a completed Item actionless while its exact Run still owns more output", () => {
+    const streamingOwner = {
+      ...row([text("temporarily complete")]),
+      runOwner: { kind: "owned", runId: "run_1", status: "running" },
+    } as TranscriptRow;
+
+    expect(messageActionMaterialization(streamingOwner)).toBe("active");
+  });
+
+  it("does not treat an HITL pause or an unassigned assistant turn as terminal", () => {
+    expect(
+      messageActionMaterialization({
+        ...row([text("waiting")]),
+        runOwner: { kind: "owned", runId: "run_1", status: "waiting" },
+      }),
+    ).toBe("active");
+    expect(
+      messageActionMaterialization({
+        ...row([text("recovering")]),
+        runOwner: { kind: "unassigned" },
+      }),
+    ).toBe("active");
+  });
+
   it("keeps a streaming tail and an HITL boundary actionless even without root attention", () => {
     expect(messageActionMaterialization(row([text("partial", "running")]))).toBe("active");
     expect(
@@ -227,6 +251,7 @@ function row(blocks: ContentBlock[], toolCalls: Record<string, ToolCall> = {}): 
       runId: "run_1",
       blocks,
     },
+    runOwner: { kind: "owned", runId: "run_1", status: "finished" },
     facts: { toolCalls, delegatedRuns: {} },
   };
 }

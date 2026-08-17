@@ -87,6 +87,60 @@ describe("transcript rows", () => {
     expect(after.rows[1]?.message).toBe(grown);
   });
 
+  it("invalidates a row only when its exact Run crosses a lifecycle boundary", () => {
+    const turn = message("m1", [text("temporarily complete")]);
+    const running = run({
+      id: ROOT_RUN,
+      status: "running",
+      activeSegmentId: "segment-1",
+      outcome: null,
+      finishedAt: null,
+    });
+    const before = buildTranscriptRows(
+      view({ messages: [turn], runs: [running] }),
+      EMPTY_TRANSCRIPT_ROW_CACHE,
+    );
+
+    expect(before.rows[0]?.runOwner).toEqual({
+      kind: "owned",
+      runId: ROOT_RUN,
+      status: "running",
+    });
+
+    const progressOnly = buildTranscriptRows(
+      view({
+        messages: [turn],
+        runs: [
+          {
+            ...running,
+            progress: { activity: "still streaming" },
+          },
+        ],
+      }),
+      before.cache,
+    );
+    expect(progressOnly.rows[0]).toBe(before.rows[0]);
+
+    const finished = buildTranscriptRows(view({ messages: [turn] }), progressOnly.cache);
+    expect(finished.rows[0]).not.toBe(before.rows[0]);
+    expect(finished.rows[0]?.runOwner).toEqual({
+      kind: "owned",
+      runId: ROOT_RUN,
+      status: "finished",
+    });
+  });
+
+  it("keeps an optimistic turn explicitly unassigned until its durable Run arrives", () => {
+    const build = buildTranscriptRows(
+      view({
+        messages: [message("local", [text("draft")], null)],
+      }),
+      EMPTY_TRANSCRIPT_ROW_CACHE,
+    );
+
+    expect(build.rows[0]?.runOwner).toEqual({ kind: "unassigned" });
+  });
+
   it("leaves a turn showing no tool call alone when a tool streams its arguments", () => {
     const prose = message("m1", [text("hello")]);
     const withTool = message("m2", [toolBlock("t1")]);

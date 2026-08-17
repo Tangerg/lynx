@@ -184,7 +184,10 @@ export function renderUnit(unit: MessageRenderUnit, facts: TurnFacts, ctx: Block
 const standingTool = (name: string) =>
   lookupExtensionByKey(TOOL_STANDING_SURFACE, name) !== undefined;
 
-export function renderMessageBlocks({ message, facts }: TranscriptRow, ctx: BlockCtx) {
+export function renderMessageBlocks(
+  { message, facts }: Pick<TranscriptRow, "message" | "facts">,
+  ctx: BlockCtx,
+) {
   const units = messageBlockRenderUnits(
     narratedBlocks(message.blocks, facts.toolCalls, standingTool),
     facts.toolCalls,

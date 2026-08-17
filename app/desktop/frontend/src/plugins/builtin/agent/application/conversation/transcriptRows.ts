@@ -1,4 +1,9 @@
-import type { AgentSessionView, Message, ToolCall } from "@/plugins/sdk/types/agentSessionView";
+import type {
+  AgentRunStatus,
+  AgentSessionView,
+  Message,
+  ToolCall,
+} from "@/plugins/sdk/types/agentSessionView";
 import type { DelegatedRunNarrativesByItemId } from "../view/runTree";
 import { selectDelegatedRunNarratives, selectRootNarrativeMessages } from "../view/runTree";
 
@@ -20,9 +25,17 @@ export interface TurnFacts {
   delegatedRuns: DelegatedRunNarrativesByItemId;
 }
 
-/** One row of the transcript: a turn, and the facts it renders from. */
+/** The exact Run lifecycle that owns a transcript turn.
+ *
+ * The root narrative selector excludes material whose Run is absent. The remaining
+ * null case is therefore only an optimistic turn that has not received its Run id. */
+export type TranscriptRunOwner =
+  { kind: "unassigned" } | { kind: "owned"; runId: string; status: AgentRunStatus };
+
+/** One row of the transcript: a turn, its exact Run owner, and the facts it renders. */
 export interface TranscriptRow {
   message: Message;
+  runOwner: TranscriptRunOwner;
   facts: TurnFacts;
 }
 
@@ -78,19 +91,34 @@ export function buildTranscriptRows(
   const cache = new Map<string, CachedRow>();
 
   for (const message of messages) {
+    const runOwner = transcriptRunOwner(message, view);
     const { facts, identities } = readTurnFacts(message, view.toolCalls, delegated);
+    const rowIdentities = [runOwnerIdentity(runOwner), ...identities];
     const cached = previous.get(message.id);
-    if (cached !== undefined && sameIdentities(cached.identities, identities)) {
+    if (cached !== undefined && sameIdentities(cached.identities, rowIdentities)) {
       rows.push(cached.row);
       cache.set(message.id, cached);
       continue;
     }
-    const entry: CachedRow = { row: { message, facts }, identities };
+    const entry: CachedRow = { row: { message, runOwner, facts }, identities: rowIdentities };
     rows.push(entry.row);
     cache.set(message.id, entry);
   }
 
   return { rows, cache };
+}
+
+function transcriptRunOwner(message: Message, view: AgentSessionView): TranscriptRunOwner {
+  if (message.runId === null) return { kind: "unassigned" };
+  const run = view.runsById[message.runId];
+  if (!run) {
+    throw new Error(`agent.transcript.runMissing:message=${message.id};run=${message.runId}`);
+  }
+  return { kind: "owned", runId: run.id, status: run.status };
+}
+
+function runOwnerIdentity(owner: TranscriptRunOwner): string {
+  return owner.kind === "owned" ? `${owner.kind}:${owner.status}` : owner.kind;
 }
 
 /**
