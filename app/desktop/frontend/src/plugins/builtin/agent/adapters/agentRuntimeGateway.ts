@@ -8,6 +8,7 @@ import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities
 import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
 import { stageAgentSessionMaterialCommits } from "../application/ports/sessionMaterialCommitters";
 import { AgentCommandOwner } from "../application/agentCommandOwner";
+import { AgentSessionUsageOwner } from "../application/session/sessionUsage";
 
 class RuntimeAgentGateway implements AgentRuntimeGateway {
   readonly #sessionMutations = createUnaryMutationSettler();
@@ -140,9 +141,11 @@ export function installAgentRuntimeGateway(): () => void {
   // task from the previous Host must never resolve its dependencies through this one.
   const commandOwner = AgentCommandOwner.install();
   const gateway = new RuntimeAgentGateway();
+  const usageOwner = AgentSessionUsageOwner.install(gateway);
   const disposePort = configureAgentRuntimeGateway(gateway);
   return () => {
     commandOwner.dispose();
+    usageOwner.dispose();
     disposePort();
     gateway.dispose();
   };

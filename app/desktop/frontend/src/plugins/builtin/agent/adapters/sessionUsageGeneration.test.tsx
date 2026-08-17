@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,16 +8,20 @@ import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess } from "@/rpc/transports/memory.testkit";
 import { AGENT_SESSION_USAGE_KEY, useAgentSessionUsage } from "../application/session/sessionUsage";
 import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
+import { queryClient } from "@/lib/queryClient";
 
-let queryClient: QueryClient;
 let transport: ReturnType<typeof createMemoryTransport>;
 let client: ReturnType<typeof createLyraClient>;
 let restoreGateway: (() => void) | undefined;
 let unmountHook: (() => void) | undefined;
+let restoreQueryDefaults: (() => void) | undefined;
 
-async function waitForUsageRequest(index: number) {
+async function waitForUsageRequest(
+  index: number,
+  source: ReturnType<typeof createMemoryTransport> = transport,
+) {
   for (let attempt = 0; attempt < 50; attempt++) {
-    const request = transport.outbox().filter(({ method }) => method === "usage.session")[index];
+    const request = source.outbox().filter(({ method }) => method === "usage.session")[index];
     if (request) return request;
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -29,9 +33,17 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 beforeEach(() => {
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { experimental_prefetchInRender: true, retry: false } },
+  const defaults = queryClient.getDefaultOptions();
+  queryClient.setDefaultOptions({
+    ...defaults,
+    queries: {
+      ...defaults.queries,
+      experimental_prefetchInRender: true,
+      retry: false,
+    },
   });
+  restoreQueryDefaults = () => queryClient.setDefaultOptions(defaults);
+  queryClient.clear();
   transport = createMemoryTransport();
   client = createLyraClient(transport);
   setContainer({ client: () => client });
@@ -44,6 +56,8 @@ afterEach(async () => {
   restoreGateway?.();
   restoreGateway = undefined;
   queryClient.clear();
+  restoreQueryDefaults?.();
+  restoreQueryDefaults = undefined;
   await client.close();
   await resetContainer();
   vi.restoreAllMocks();
@@ -78,5 +92,42 @@ describe("mounted Session usage generation", () => {
     expect(firstSignal?.aborted).toBe(true);
     expect(send.mock.calls[1]?.[1]?.aborted).toBe(false);
     expect(hook.result.current.data?.inputTokens).toBe(21);
+  });
+
+  it("hands the cache writer to the successor Runtime gateway", async () => {
+    const retiredSend = vi.spyOn(transport, "send");
+    const hook = renderHook(() => useAgentSessionUsage("ses_usage"), { wrapper });
+    unmountHook = hook.unmount;
+    const retiredRequest = await waitForUsageRequest(0);
+    const retiredSignal = retiredSend.mock.calls[0]?.[1];
+
+    const successorTransport = createMemoryTransport();
+    const successorClient = createLyraClient(successorTransport);
+    const successorSend = vi.spyOn(successorTransport, "send");
+    setContainer({ client: () => successorClient });
+    let disposeSuccessor!: () => void;
+    await act(async () => {
+      disposeSuccessor = installAgentRuntimeGateway();
+      await Promise.resolve();
+    });
+    restoreGateway?.();
+    restoreGateway = undefined;
+    try {
+      const successorRequest = await waitForUsageRequest(0, successorTransport);
+      respondSuccess(successorTransport, successorRequest.id, {
+        inputTokens: 34,
+        outputTokens: 13,
+      });
+      await waitFor(() => expect(hook.result.current.data?.inputTokens).toBe(34));
+
+      expect(retiredSignal?.aborted).toBe(true);
+      expect(successorSend.mock.calls[0]?.[1]?.aborted).toBe(false);
+      respondSuccess(transport, retiredRequest.id, { inputTokens: 1, outputTokens: 1 });
+      await act(async () => Promise.resolve());
+      expect(hook.result.current.data?.inputTokens).toBe(34);
+    } finally {
+      disposeSuccessor();
+      await successorClient.close();
+    }
   });
 });
