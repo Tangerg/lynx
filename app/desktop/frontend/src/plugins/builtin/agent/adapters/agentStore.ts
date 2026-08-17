@@ -63,7 +63,7 @@ interface AgentStore {
   applyRunSnapshot: (sessionId: string, run: RunRef) => void;
   commitCancelResponse: (
     sessionId: string,
-    expectedViewRevision: number,
+    expected: { viewEpoch: number; viewRevision: number },
     response: CancelRunResponse,
   ) => boolean;
   appendLocalMessage: (sessionId: string, message: Message) => void;
@@ -200,11 +200,17 @@ export const useAgentStore = create<AgentStore>((set) => ({
       );
       return sessions === state.sessions ? state : { sessions };
     }),
-  commitCancelResponse: (sessionId, expectedViewRevision, response) => {
+  commitCancelResponse: (sessionId, expected, response) => {
     let committed = false;
     set((state) => {
       const entry = state.sessions[sessionId];
-      if (!entry || entry.viewRevision !== expectedViewRevision) return state;
+      if (
+        !entry ||
+        entry.viewEpoch !== expected.viewEpoch ||
+        entry.viewRevision !== expected.viewRevision
+      ) {
+        return state;
+      }
       const sessions = patchView(state.sessions, sessionId, (view) =>
         foldCancelRunResponse(view, runtimeCancelResult(response)),
       );

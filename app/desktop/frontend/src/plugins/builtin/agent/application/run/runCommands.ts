@@ -12,13 +12,20 @@ export function stopCurrentRootRun(): boolean {
   return stop();
 }
 
-/** Cancel a root or descendant in the active session. The command is accepted
- * only while that exact Run is non-terminal and a mounted driver owns it. */
-export function cancelActiveSessionRun(runId: string): boolean {
-  const sessionId = agentSessionState().getActiveSessionId();
+interface RunCommandTarget {
+  readonly sessionId: string;
+  readonly runId: string;
+}
+
+/** Cancel the exact root or descendant presented by a Session-owned surface.
+ * The command is accepted only while that composite target is non-terminal and
+ * its mounted Session driver still owns cancellation. */
+export function cancelSessionRun({ sessionId, runId }: RunCommandTarget): boolean {
   const entry = agentSessionView().getSession(sessionId);
   const run = entry?.view.runsById[runId];
-  if (!entry?.cancelRun || !run || run.status === "finished") return false;
+  if (!entry?.cancelRun || !run || run.sessionId !== sessionId || run.status === "finished") {
+    return false;
+  }
   entry.cancelRun(runId);
   return true;
 }

@@ -312,6 +312,157 @@ describe("useAgentSession run timing guards", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
+  it("does not fold a cancellation response after its Runtime generation retires", async () => {
+    const cancellation = deferred<CancelRunResponse>();
+    const cancel = vi.fn(() => cancellation.promise);
+    setContainer({
+      client: () => ({ runs: { cancel } }) as unknown as LyraClient,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, SID));
+    act(() => {
+      useAgentStore
+        .getState()
+        .applyRunEvents(SID, [startedRunEvent("run-retired-cancel", "seg-retired-cancel")]);
+      useAgentStore.getState().sessions[SID]!.cancelRun?.("run-retired-cancel");
+    });
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith("run-retired-cancel"));
+
+    act(() => {
+      const store = useAgentStore.getState();
+      store.retireProjectionGeneration([SID]);
+      void store.sessions[SID]!.synchronize?.("retire-live");
+    });
+
+    await act(async () => {
+      cancellation.resolve({
+        type: "root",
+        run: runRef({
+          id: "run-retired-cancel",
+          status: "finished",
+          activeSegmentId: undefined,
+          outcome: { type: "canceled" },
+          finishedAt: "2026-07-30T02:00:02.000Z",
+        }),
+      });
+      await cancellation.promise;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      useAgentStore.getState().sessions[SID]!.view.runsById["run-retired-cancel"],
+    ).toMatchObject({ status: "running", activeSegmentId: "seg-retired-cancel" });
+  });
+
+  it("admits successor cancellation only through the replacement Runtime client", async () => {
+    const predecessorCancellation = deferred<CancelRunResponse>();
+    const successorCancellation = deferred<CancelRunResponse>();
+    const predecessorCancel = vi.fn(() => predecessorCancellation.promise);
+    let successorAccepted = false;
+    const successorCancel = vi.fn(async () => {
+      const response = await successorCancellation.promise;
+      successorAccepted = true;
+      return response;
+    });
+    setContainer({
+      client: () => ({ runs: { cancel: predecessorCancel } }) as unknown as LyraClient,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, SID));
+    act(() => {
+      useAgentStore
+        .getState()
+        .applyRunEvents(SID, [startedRunEvent("run-replaced-cancel", "seg-replaced-cancel")]);
+      useAgentStore.getState().sessions[SID]!.cancelRun?.("run-replaced-cancel");
+    });
+    await waitFor(() => expect(predecessorCancel).toHaveBeenCalledOnce());
+
+    act(() => {
+      const store = useAgentStore.getState();
+      store.retireProjectionGeneration([SID]);
+      void store.sessions[SID]!.synchronize?.("retire-live");
+    });
+    const restoredRun = runRef({
+      id: "run-replaced-cancel",
+      status: "waiting",
+      activeSegmentId: undefined,
+    });
+    setContainer({
+      client: () =>
+        ({
+          sessions: {
+            snapshot: vi.fn().mockImplementation(() =>
+              Promise.resolve({
+                items: [],
+                runs: [
+                  successorAccepted
+                    ? runRef({
+                        id: "run-replaced-cancel",
+                        status: "finished",
+                        activeSegmentId: undefined,
+                        outcome: { type: "canceled" },
+                        finishedAt: "2026-07-30T02:00:03.000Z",
+                      })
+                    : restoredRun,
+                ],
+                interrupts: [],
+                state: { type: "plan", sessionId: SID, revision: 0, plan: [] },
+              }),
+            ),
+          },
+          runs: { cancel: successorCancel },
+        }) as unknown as LyraClient,
+    });
+
+    let replacement!: Promise<boolean>;
+    act(() => {
+      const store = useAgentStore.getState();
+      store.retireProjectionGeneration([SID]);
+      replacement = store.sessions[SID]!.synchronize!("replace-live");
+    });
+    await expect(replacement).resolves.toBe(true);
+    act(() => {
+      useAgentStore.getState().sessions[SID]!.cancelRun?.("run-replaced-cancel");
+    });
+    await waitFor(() => expect(successorCancel).toHaveBeenCalledOnce());
+
+    await act(async () => {
+      predecessorCancellation.resolve({
+        type: "root",
+        run: runRef({
+          id: "run-replaced-cancel",
+          status: "finished",
+          activeSegmentId: undefined,
+          outcome: { type: "canceled" },
+          finishedAt: "2026-07-30T02:00:02.000Z",
+        }),
+      });
+      await predecessorCancellation.promise;
+      await Promise.resolve();
+    });
+    expect(
+      useAgentStore.getState().sessions[SID]!.view.runsById["run-replaced-cancel"],
+    ).toMatchObject({ status: "waiting", activeSegmentId: null });
+
+    successorCancellation.resolve({
+      type: "root",
+      run: runRef({
+        id: "run-replaced-cancel",
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "canceled" },
+        finishedAt: "2026-07-30T02:00:03.000Z",
+      }),
+    });
+    await waitFor(() =>
+      expect(
+        useAgentStore.getState().sessions[SID]!.view.runsById["run-replaced-cancel"],
+      ).toMatchObject({ status: "finished", outcome: { type: "canceled" } }),
+    );
+    expect(predecessorCancel).toHaveBeenCalledOnce();
+  });
+
   it("preserves the run and surfaces a structured cancellation failure", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const cancel = vi.fn().mockRejectedValue(

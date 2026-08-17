@@ -8,9 +8,8 @@ describe("run cancellation controller", () => {
     const commitIfCurrent = vi.fn().mockReturnValue(false);
     const onSettled = vi.fn();
     const controller = createRunCancellationController({
-      isCancelled: () => false,
       markInteracted: vi.fn(),
-      readTarget: () => ({ terminal: false, viewRevision: 7 }),
+      readTarget: () => ({ terminal: false, viewEpoch: 3, viewRevision: 7 }),
       execute,
       commitIfCurrent,
       revalidateTerminal: vi.fn(),
@@ -21,7 +20,11 @@ describe("run cancellation controller", () => {
     controller.cancel("run_1");
 
     await vi.waitFor(() => expect(onSettled).toHaveBeenCalledOnce());
-    expect(commitIfCurrent).toHaveBeenCalledWith(response, 7);
+    expect(commitIfCurrent).toHaveBeenCalledWith(response, {
+      terminal: false,
+      viewEpoch: 3,
+      viewRevision: 7,
+    });
   });
 
   it("suppresses a command failure when authoritative projection is terminal", async () => {
@@ -29,9 +32,8 @@ describe("run cancellation controller", () => {
     const onFailure = vi.fn();
     const onSettled = vi.fn();
     const controller = createRunCancellationController({
-      isCancelled: () => false,
       markInteracted: vi.fn(),
-      readTarget: () => ({ terminal: false, viewRevision: 2 }),
+      readTarget: () => ({ terminal: false, viewEpoch: 1, viewRevision: 2 }),
       execute: vi.fn().mockRejectedValue(commandFailure),
       commitIfCurrent: vi.fn(),
       revalidateTerminal: vi.fn().mockResolvedValue(true),
@@ -49,9 +51,8 @@ describe("run cancellation controller", () => {
     const commandFailure = new Error("cancel failed");
     const onFailure = vi.fn();
     const controller = createRunCancellationController({
-      isCancelled: () => false,
       markInteracted: vi.fn(),
-      readTarget: () => ({ terminal: false, viewRevision: 2 }),
+      readTarget: () => ({ terminal: false, viewEpoch: 1, viewRevision: 2 }),
       execute: vi.fn().mockRejectedValue(commandFailure),
       commitIfCurrent: vi.fn(),
       revalidateTerminal: vi.fn().mockRejectedValue(new Error("offline")),
@@ -73,9 +74,8 @@ describe("run cancellation controller", () => {
         }),
     );
     const controller = createRunCancellationController({
-      isCancelled: () => false,
       markInteracted: vi.fn(),
-      readTarget: () => ({ terminal: false, viewRevision: 2 }),
+      readTarget: () => ({ terminal: false, viewEpoch: 1, viewRevision: 2 }),
       execute,
       commitIfCurrent: vi.fn().mockReturnValue(true),
       revalidateTerminal: vi.fn(),
@@ -89,5 +89,56 @@ describe("run cancellation controller", () => {
 
     resolve();
     await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+  });
+
+  it("retires an in-flight response before it can publish into a successor generation", async () => {
+    let resolve!: (response: { type: string }) => void;
+    const execute = vi.fn(
+      () =>
+        new Promise<{ type: string }>((settle) => {
+          resolve = settle;
+        }),
+    );
+    const commitIfCurrent = vi.fn();
+    const onSettled = vi.fn();
+    const onFailure = vi.fn();
+    const controller = createRunCancellationController({
+      markInteracted: vi.fn(),
+      readTarget: () => ({ terminal: false, viewEpoch: 4, viewRevision: 9 }),
+      execute,
+      commitIfCurrent,
+      revalidateTerminal: vi.fn(),
+      onSettled,
+      onFailure,
+    });
+
+    controller.cancel("run_retired");
+    controller.retire();
+    resolve({ type: "root" });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(commitIfCurrent).not.toHaveBeenCalled();
+    expect(onSettled).not.toHaveBeenCalled();
+    expect(onFailure).not.toHaveBeenCalled();
+  });
+
+  it("does not admit commands after retirement", () => {
+    const execute = vi.fn().mockResolvedValue({ type: "root" });
+    const controller = createRunCancellationController({
+      markInteracted: vi.fn(),
+      readTarget: () => ({ terminal: false, viewEpoch: 4, viewRevision: 9 }),
+      execute,
+      commitIfCurrent: vi.fn(),
+      revalidateTerminal: vi.fn(),
+      onSettled: vi.fn(),
+      onFailure: vi.fn(),
+    });
+
+    controller.retire();
+    controller.cancel("run_retired");
+
+    expect(execute).not.toHaveBeenCalled();
   });
 });

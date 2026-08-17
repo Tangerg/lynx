@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Button, Icon, StatusDot } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
-import { stopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
+import { cancelSessionRun } from "@/plugins/builtin/agent/public/run";
+import { useCurrentMessage, useCurrentMessageSessionId } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
@@ -57,6 +58,8 @@ function lastLine(text: string): string {
 export function ReasoningBlock({ text, status, superseded = false }: Props) {
   const t = useT();
   const runtimeAvailable = useRuntimeCommandsAvailable();
+  const sessionId = useCurrentMessageSessionId();
+  const runId = useCurrentMessage().runId;
   const streaming = status === "running";
   // null delegates to the domain policy; a boolean is the user's explicit
   // override. This is one state machine, not two booleans that can disagree.
@@ -179,13 +182,13 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
         </>
       }
       actions={
-        streaming ? (
+        streaming && runId ? (
           <Button
             variant="ghost"
             size="xs"
             disabled={!runtimeAvailable}
             onClick={() => {
-              stopCurrentRootRun();
+              cancelSessionRun({ sessionId, runId });
             }}
             className="text-fg-muted"
           >

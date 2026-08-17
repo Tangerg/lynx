@@ -187,38 +187,54 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       return true;
     };
 
-    const runCancellation = createRunCancellationController({
-      isCancelled: () => cancelled,
-      markInteracted: () => {
-        interacted = true;
-      },
-      readTarget: (runId) => {
-        const entry = store().sessions[sessionId];
-        const run = entry?.view.runsById[runId];
-        return entry && run
-          ? { terminal: run.status === "finished", viewRevision: entry.viewRevision }
-          : null;
-      },
-      execute: (runId) => client().runs.cancel(asRunId(runId)),
-      commitIfCurrent: (response, expectedViewRevision) =>
-        store().commitCancelResponse(sessionId, expectedViewRevision, response),
-      revalidateTerminal: (runId) => revalidateRunTermination(sessionId, runId),
-      onSettled: () => {
-        // Root cancellation ends the stream; child cancellation advances the
-        // parent onto a new segment. In both cases the currently attached
-        // segment has lost ownership, so release it before reconciliation.
-        abort?.abort();
-        projectionSynchronization?.request();
-        void queryClient.invalidateQueries({
-          queryKey: [AGENT_SESSION_USAGE_KEY, sessionId],
-        });
-      },
-      onFailure: (runId, error) => {
-        console.error("[agent] run cancellation failed:", sessionId, runId, error);
-        const problem = agentProblemFromRpcFailure(error);
-        if (problem) store().setCommandError(sessionId, problem);
-      },
-    });
+    const createCancellationGeneration = () => {
+      // A cancellation command and every fact it derives belong to the client
+      // which first admits work into this generation. Capture lazily so an idle
+      // Session does not require a client, but never resolve `client()` again
+      // after an RPC has crossed the generation boundary.
+      let generationClient: ReturnType<typeof client> | null = null;
+      const admittedClient = () => (generationClient ??= client());
+      return createRunCancellationController({
+        markInteracted: () => {
+          interacted = true;
+        },
+        readTarget: (runId) => {
+          const entry = store().sessions[sessionId];
+          const run = entry?.view.runsById[runId];
+          return entry && run
+            ? {
+                terminal: run.status === "finished",
+                viewEpoch: entry.viewEpoch,
+                viewRevision: entry.viewRevision,
+              }
+            : null;
+        },
+        execute: (runId) => admittedClient().runs.cancel(asRunId(runId)),
+        commitIfCurrent: (response, target) =>
+          store().commitCancelResponse(
+            sessionId,
+            { viewEpoch: target.viewEpoch, viewRevision: target.viewRevision },
+            response,
+          ),
+        revalidateTerminal: (runId) => revalidateRunTermination(sessionId, runId),
+        onSettled: () => {
+          // Root cancellation ends the stream; child cancellation advances the
+          // parent onto a new segment. In both cases the currently attached
+          // segment has lost ownership, so release it before reconciliation.
+          abort?.abort();
+          projectionSynchronization?.request();
+          void queryClient.invalidateQueries({
+            queryKey: [AGENT_SESSION_USAGE_KEY, sessionId],
+          });
+        },
+        onFailure: (runId, error) => {
+          console.error("[agent] run cancellation failed:", sessionId, runId, error);
+          const problem = agentProblemFromRpcFailure(error);
+          if (problem) store().setCommandError(sessionId, problem);
+        },
+      });
+    };
+    let runCancellation = createCancellationGeneration();
 
     const cancelRun = (runId: string): void => runCancellation.cancel(runId);
 
@@ -236,10 +252,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().setSynchronize(sessionId, (ownership) => {
       if (ownership === "replace-live" || ownership === "retire-live") {
         runOpening.retire();
+        runCancellation.retire();
         if (ownership === "retire-live") {
           projectionSynchronization?.retire();
           return Promise.resolve(false);
         }
+        runCancellation = createCancellationGeneration();
         return projectionSynchronization?.replace() ?? Promise.resolve(false);
       }
       return projectionSynchronization?.request() ?? Promise.resolve(false);
@@ -256,6 +274,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     return () => {
       cancelled = true;
       runOpening.retire();
+      runCancellation.retire();
       projectionSynchronization?.dispose();
       runPump.dispose();
       abort?.abort();

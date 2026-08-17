@@ -6,7 +6,7 @@ import type {
   TranscriptRow,
   TurnFacts,
 } from "@/plugins/builtin/agent/public/conversation";
-import { cancelActiveSessionRun } from "@/plugins/builtin/agent/public/run";
+import { cancelSessionRun } from "@/plugins/builtin/agent/public/run";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { useCitationSources, useCurrentMessageSessionId } from "@/plugins/sdk";
 import { openTimelineView } from "@/plugins/builtin/workspace/public/deeplinks";
@@ -46,7 +46,7 @@ export function DelegatedNarrative({
       siblingCount={siblingCount}
       hasMaterial={hasMaterial}
       onCancel={() => {
-        cancelActiveSessionRun(narrative.run.id);
+        cancelSessionRun({ sessionId: narrative.run.sessionId, runId: narrative.run.id });
       }}
       onOpenAudit={openTimelineView}
     >

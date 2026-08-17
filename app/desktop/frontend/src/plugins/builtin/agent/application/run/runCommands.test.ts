@@ -6,7 +6,7 @@ import {
   type AgentSessionViewEntry,
   type AgentSessionViewPort,
 } from "../ports/sessionView";
-import { cancelActiveSessionRun, stopCurrentRootRun } from "./runCommands";
+import { cancelSessionRun, stopCurrentRootRun } from "./runCommands";
 
 const disposers: Array<() => void> = [];
 
@@ -14,10 +14,10 @@ afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose();
 });
 
-function run(id: string, status: AgentRunView["status"]): AgentRunView {
+function run(id: string, status: AgentRunView["status"], sessionId = "session-1"): AgentRunView {
   return {
     id,
-    sessionId: "session-1",
+    sessionId,
     parentRunId: null,
     rootRunId: id,
     spawnedByItemId: null,
@@ -36,12 +36,19 @@ function run(id: string, status: AgentRunView["status"]): AgentRunView {
 }
 
 function configure(entry: AgentSessionViewEntry): void {
+  configureSessions("session-1", { "session-1": entry });
+}
+
+function configureSessions(
+  activeSessionId: string,
+  sessions: Record<string, AgentSessionViewEntry>,
+): void {
   disposers.push(
     configureAgentSessionStatePort({
-      getActiveSessionId: () => "session-1",
+      getActiveSessionId: () => activeSessionId,
     } as unknown as AgentSessionStatePort),
     configureAgentSessionViewPort({
-      getSession: () => entry,
+      getSession: (sessionId: string) => sessions[sessionId],
     } as unknown as AgentSessionViewPort),
   );
 }
@@ -67,7 +74,7 @@ describe("active Session Run commands", () => {
     expect(cancelRun).not.toHaveBeenCalled();
   });
 
-  it("cancels only an exact non-terminal Run in the active Session", () => {
+  it("cancels only an exact non-terminal Run in its owning Session", () => {
     const cancelRun = vi.fn();
     const running = run("run-running", "running");
     const finished = run("run-finished", "finished");
@@ -89,10 +96,44 @@ describe("active Session Run commands", () => {
       cancelRun,
     });
 
-    expect(cancelActiveSessionRun(running.id)).toBe(true);
-    expect(cancelActiveSessionRun(finished.id)).toBe(false);
-    expect(cancelActiveSessionRun("run-missing")).toBe(false);
+    expect(cancelSessionRun({ sessionId: "session-1", runId: running.id })).toBe(true);
+    expect(cancelSessionRun({ sessionId: "session-1", runId: finished.id })).toBe(false);
+    expect(cancelSessionRun({ sessionId: "session-1", runId: "run-missing" })).toBe(false);
     expect(cancelRun).toHaveBeenCalledOnce();
     expect(cancelRun).toHaveBeenCalledWith(running.id);
+  });
+
+  it("does not redirect a predecessor renderer command into the active successor Session", () => {
+    const predecessorCancel = vi.fn();
+    const successorCancel = vi.fn();
+    const predecessorRun = run("run-predecessor", "running", "session-predecessor");
+    const successorRun = run("run-successor", "running", "session-successor");
+    const entry = (
+      runView: AgentRunView,
+      cancelRun: (runId: string) => void,
+    ): AgentSessionViewEntry => ({
+      view: { ...EMPTY_AGENT_SESSION_VIEW, runsById: { [runView.id]: runView } },
+      viewEpoch: 0,
+      viewRevision: 0,
+      authoritativeRevision: 0,
+      stop: null,
+      send: null,
+      resume: null,
+      synchronize: null,
+      cancelRun,
+    });
+    configureSessions("session-successor", {
+      "session-predecessor": entry(predecessorRun, predecessorCancel),
+      "session-successor": entry(successorRun, successorCancel),
+    });
+
+    expect(
+      cancelSessionRun({
+        sessionId: "session-predecessor",
+        runId: "run-predecessor",
+      }),
+    ).toBe(true);
+    expect(predecessorCancel).toHaveBeenCalledWith("run-predecessor");
+    expect(successorCancel).not.toHaveBeenCalled();
   });
 });

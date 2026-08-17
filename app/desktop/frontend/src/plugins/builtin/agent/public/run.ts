@@ -1,5 +1,5 @@
 export {
-  cancelActiveSessionRun,
+  cancelSessionRun,
   dismissActiveSessionProblem,
   stopCurrentRootRun,
   useStopCurrentRootRun,

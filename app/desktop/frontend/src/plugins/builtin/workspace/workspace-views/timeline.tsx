@@ -16,7 +16,7 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
-  cancelActiveSessionRun,
+  cancelSessionRun,
   useActiveSessionRunTree,
   useActiveSessionTimeline,
 } from "@/plugins/builtin/agent/public/run";
@@ -164,7 +164,7 @@ function TimelineRunHeader({
           quiet
           title={t("agent.runTree.action.cancel")}
           onClick={() => {
-            cancelActiveSessionRun(run.id);
+            cancelSessionRun({ sessionId: run.sessionId, runId: run.id });
           }}
         />
       )}

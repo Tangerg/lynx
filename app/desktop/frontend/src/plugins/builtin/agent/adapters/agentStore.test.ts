@@ -124,6 +124,10 @@ const runRef = (partial: Partial<RunRef> = {}): RunRef => ({
 });
 
 const view = () => useAgentStore.getState().sessions[SID]!.view;
+const materialToken = () => {
+  const entry = useAgentStore.getState().sessions[SID]!;
+  return { viewEpoch: entry.viewEpoch, viewRevision: entry.viewRevision };
+};
 
 beforeEach(async () => {
   useAgentStore.getState().dropSession(SID);
@@ -147,8 +151,8 @@ describe("agentStore.commitCancelResponse", () => {
     );
     expect(selectCurrentRootRun(view())?.status).toBe("running");
 
-    const revision = useAgentStore.getState().sessions[SID]!.viewRevision;
-    useAgentStore.getState().commitCancelResponse(SID, revision, {
+    const token = materialToken();
+    useAgentStore.getState().commitCancelResponse(SID, token, {
       type: "root",
       run: runRef({
         status: "finished",
@@ -172,8 +176,8 @@ describe("agentStore.commitCancelResponse", () => {
     store.ensureSession(SID);
     store.applyRunEvents(SID, [runStarted("run_1", SID), runStarted("run_sibling", SID)].map(fold));
 
-    const revision = useAgentStore.getState().sessions[SID]!.viewRevision;
-    store.commitCancelResponse(SID, revision, {
+    const token = materialToken();
+    store.commitCancelResponse(SID, token, {
       type: "child",
       run: runRef({
         id: "run_child",
@@ -205,7 +209,7 @@ describe("agentStore.commitCancelResponse", () => {
     const store = useAgentStore.getState();
     store.ensureSession(SID);
     store.applyRunEvents(SID, [runStarted("run_1", SID)].map(fold));
-    const revision = useAgentStore.getState().sessions[SID]!.viewRevision;
+    const token = materialToken();
     store.applyRunSnapshot(
       SID,
       runRef({
@@ -216,7 +220,7 @@ describe("agentStore.commitCancelResponse", () => {
       }),
     );
 
-    const committed = store.commitCancelResponse(SID, revision, {
+    const committed = store.commitCancelResponse(SID, token, {
       type: "child",
       run: runRef({
         id: "run_child",
@@ -235,6 +239,30 @@ describe("agentStore.commitCancelResponse", () => {
       status: "finished",
       outcome: { type: "completed" },
       activeSegmentId: null,
+    });
+  });
+
+  it("rejects a delayed cancel snapshot after the event generation retires", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [runStarted("run_1", SID)].map(fold));
+    const token = materialToken();
+
+    store.retireProjectionGeneration([SID]);
+    const committed = store.commitCancelResponse(SID, token, {
+      type: "root",
+      run: runRef({
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "canceled" },
+        finishedAt: "2026-06-03T00:00:02.000Z",
+      }),
+    });
+
+    expect(committed).toBe(false);
+    expect(view().runsById.run_1).toMatchObject({
+      status: "running",
+      activeSegmentId: "seg_run_1",
     });
   });
 });

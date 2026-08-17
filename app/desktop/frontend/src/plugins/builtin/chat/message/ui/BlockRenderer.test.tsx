@@ -17,7 +17,7 @@ const CTX: BlockCtx = {
 
 const agentRunCommands = vi.hoisted(() => ({ cancel: vi.fn() }));
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
-  cancelActiveSessionRun: agentRunCommands.cancel,
+  cancelSessionRun: agentRunCommands.cancel,
 }));
 vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
   useRuntimeCommandsAvailable: () => true,
@@ -137,6 +137,9 @@ describe("delegated Run rendering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel this run" }));
 
     expect(agentRunCommands.cancel).toHaveBeenCalledOnce();
-    expect(agentRunCommands.cancel).toHaveBeenCalledWith("child-run");
+    expect(agentRunCommands.cancel).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      runId: "child-run",
+    });
   });
 });
