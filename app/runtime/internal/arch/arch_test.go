@@ -1588,6 +1588,62 @@ func TestDeliveryServerMatchesRegisteredOperationCapabilities(t *testing.T) {
 	}
 }
 
+// TestCoreRunStateUsesBehaviorOwners prevents the two long-lived orchestration
+// objects from regaining raw lock/channel/map state or the process-local Segment
+// mechanisms that P113 moved behind invariant-owning components.
+func TestCoreRunStateUsesBehaviorOwners(t *testing.T) {
+	root := moduleRoot(t)
+	checks := []struct {
+		path       string
+		structName string
+		forbidden  map[string]string
+		prefixes   map[string]string
+	}{
+		{
+			path:       filepath.Join(root, "internal", "application", "runs", "coordinator.go"),
+			structName: "Coordinator",
+			forbidden: map[string]string{
+				"taskgroup.Group":         "Segment task admission and join belong to segmentLifecycle",
+				"registry":                "live Segment addressability belongs to segmentLifecycle",
+				"sessionRunChanges":       "post-commit wakeups belong to runPublications",
+				"ExecutionObserver":       "executor observation belongs to segmentLifecycle",
+				"ExecutionReleaser":       "executor teardown belongs to segmentLifecycle",
+				"SegmentFinalizer":        "terminal maintenance belongs to segmentLifecycle",
+				"EventCommitter":          "write-before-publish ordering belongs to runPublications",
+				"TreeBarrierCommitter":    "tree barrier publication belongs to runPublications",
+				"WorkspaceChangeNotifier": "post-commit workspace notification belongs to runPublications",
+			},
+		},
+		{
+			path:       filepath.Join(root, "internal", "adapter", "agentexec", "interaction_session.go"),
+			structName: "interactionSession",
+			forbidden: map[string]string{
+				"sync.Mutex":         "shared state requires a named invariant owner",
+				"sync.Once":          "one-shot transitions belong to interactionLifetime",
+				"sync.WaitGroup":     "goroutine join belongs to interactionLifetime",
+				"context.Context":    "the lifecycle root belongs to interactionLifetime",
+				"context.CancelFunc": "lifecycle cancellation belongs to interactionLifetime",
+			},
+			prefixes: map[string]string{
+				"map[":  "shared maps require a named invariant owner",
+				"chan ": "channels belong to interactionLifetime",
+			},
+		},
+	}
+	for _, check := range checks {
+		for field, fieldType := range namedStructDirectFieldTypes(t, check.path, check.structName) {
+			if reason := check.forbidden[fieldType]; reason != "" {
+				t.Errorf("%s.%s directly stores %s; %s", check.structName, field, fieldType, reason)
+			}
+			for prefix, reason := range check.prefixes {
+				if strings.HasPrefix(fieldType, prefix) {
+					t.Errorf("%s.%s directly stores %s; %s", check.structName, field, fieldType, reason)
+				}
+			}
+		}
+	}
+}
+
 // TestWorkspaceChangeNoticeBelongsToWorkspace prevents the Run use case from
 // becoming the vocabulary owner for a workspace subscription signal.
 func TestWorkspaceChangeNoticeBelongsToWorkspace(t *testing.T) {
@@ -2278,6 +2334,39 @@ func namedStructFieldType(t *testing.T, path, structName, fieldName string) stri
 	}
 	t.Fatalf("%s: type %s not found", path, structName)
 	return ""
+}
+
+func namedStructDirectFieldTypes(t *testing.T, path, structName string) map[string]string {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, specification := range general.Specs {
+			named, ok := specification.(*ast.TypeSpec)
+			if !ok || named.Name.Name != structName {
+				continue
+			}
+			value, ok := named.Type.(*ast.StructType)
+			if !ok || value.Fields == nil {
+				t.Fatalf("%s: %s is not a struct", path, structName)
+			}
+			fields := make(map[string]string)
+			for _, field := range value.Fields.List {
+				for _, name := range field.Names {
+					fields[name.Name] = exprString(field.Type)
+				}
+			}
+			return fields
+		}
+	}
+	t.Fatalf("%s: type %s not found", path, structName)
+	return nil
 }
 
 // namedStructFieldTypeOptional is namedStructFieldType for an intentionally

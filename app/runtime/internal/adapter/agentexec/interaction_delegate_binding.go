@@ -45,10 +45,10 @@ func (session *interactionSession) installDeployments(deployments *interactionDe
 	if deployments == nil || !deployments.root.Valid() {
 		return errors.New("agentexec: install invalid Interaction deployments")
 	}
-	session.mu.Lock()
-	session.deployments = deployments
+	session.state.mu.Lock()
+	session.state.deployments = deployments
 	session.deployment = deployments.root
-	session.mu.Unlock()
+	session.state.mu.Unlock()
 	return nil
 }
 
@@ -62,9 +62,9 @@ func (session *interactionSession) registerDelegateCalls(
 	if !invocation.Valid() || message == nil {
 		return errors.New("agentexec: cannot register unattributed Delegate calls")
 	}
-	session.mu.Lock()
-	deployments := session.deployments
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	deployments := session.state.deployments
+	session.state.mu.Unlock()
 	if deployments == nil {
 		return errors.New("agentexec: Interaction deployments are unavailable")
 	}
@@ -101,16 +101,16 @@ func (session *interactionSession) registerDelegateCalls(
 				invocation.Relation(), invocation.ModelCallSequence(), toolCallIndex, call,
 			),
 		}
-		session.mu.Lock()
-		if prior := session.delegateCalls[identity]; prior != nil {
-			session.mu.Unlock()
+		session.state.mu.Lock()
+		if prior := session.state.delegateCalls[identity]; prior != nil {
+			session.state.mu.Unlock()
 			return fmt.Errorf(
 				"agentexec: Delegate child %q was registered more than once for parent %s",
 				childKey, invocation.Relation().ProcessID(),
 			)
 		}
-		session.delegateCalls[identity] = managedCall
-		session.mu.Unlock()
+		session.state.delegateCalls[identity] = managedCall
+		session.state.mu.Unlock()
 		toolCallIndex++
 	}
 	return nil
@@ -146,9 +146,9 @@ func (session *interactionSession) executorMember(
 	if relation.IsRoot() {
 		return member
 	}
-	session.mu.Lock()
-	managed := session.delegateChildren[relation.ProcessID()]
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	managed := session.state.delegateChildren[relation.ProcessID()]
+	session.state.mu.Unlock()
 	if managed == nil {
 		return member
 	}
@@ -164,10 +164,10 @@ func (session *interactionSession) executorMemberByProcessID(
 	if !processID.Valid() {
 		return runs.ExecutorMember{}, false
 	}
-	session.mu.Lock()
-	root := session.process
-	managed := session.delegateChildren[processID]
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	root := session.state.process
+	managed := session.state.delegateChildren[processID]
+	session.state.mu.Unlock()
 	if root != nil && root.ID() == processID {
 		return basicExecutorMember(root.Relation()), true
 	}

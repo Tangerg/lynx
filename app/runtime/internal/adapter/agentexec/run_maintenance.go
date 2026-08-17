@@ -51,15 +51,13 @@ func (session *interactionSession) maintainCompletedRoot() {
 	if session.maintenance == nil || session.start.SessionID == "" {
 		return
 	}
-	session.mu.Lock()
-	toolCalls := session.toolCalls
-	session.mu.Unlock()
+	toolCalls := session.accounting.toolCallCount()
 	preCompact := func(ctx context.Context) bool {
 		return session.lifecycleHooks == nil || session.lifecycleHooks.BeforeCompaction(
 			ctx, session.start.SessionID, session.start.CWD,
 		)
 	}
-	result := session.maintenance.Maintain(session.lifecycle, RunMaintenanceInput{
+	result := session.maintenance.Maintain(session.lifetime.context, RunMaintenanceInput{
 		SessionID:      session.start.SessionID,
 		CWD:            session.start.CWD,
 		ModelSelection: session.start.ModelSelection,
@@ -68,13 +66,13 @@ func (session *interactionSession) maintainCompletedRoot() {
 	})
 	for _, err := range result.Errors {
 		if err != nil {
-			trace.SpanFromContext(session.lifecycle).RecordError(
+			trace.SpanFromContext(session.lifetime.context).RecordError(
 				fmt.Errorf("agentexec: Run maintenance: %w", err),
 			)
 		}
 	}
 	if result.Compaction.Compacted {
-		session.send(runs.ExecutorEvent{
+		session.lifetime.send(runs.ExecutorEvent{
 			Member: runs.ExecutorMember{MemberID: session.processRootID().String()},
 			Payload: runs.CompactionBoundary{
 				MessagesBefore: result.Compaction.MessagesBefore,

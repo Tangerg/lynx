@@ -57,9 +57,9 @@ type SegmentFinalizer interface {
 	Finish(ctx context.Context, fin Finish) error
 }
 
-// ProjectionPorts groups the independently consumed Run projection ports for
-// composition. It is a value bundle, not a facade: Coordinator stores and uses
-// each capability separately, and implementations may provide them independently.
+// ProjectionPorts groups independently consumed Run projection ports only at
+// composition. Construction distributes them into the publication, waiting and
+// child-opening behavior owners; no runtime object retains this bundle.
 type ProjectionPorts struct {
 	Openings                    OpeningCommitter
 	ChildStarts                 ChildRunStartCommitter

@@ -57,11 +57,11 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 	if err != nil {
 		t.Fatal(err)
 	}
-	liveSession.mu.Lock()
-	boundaryAfterDiscard := liveSession.boundary
-	observerAfterDiscard := liveSession.observerWasAttached
-	statusAfterDiscard := liveSession.process.Status()
-	liveSession.mu.Unlock()
+	liveSession.state.mu.Lock()
+	boundaryAfterDiscard := liveSession.state.boundary
+	observerAfterDiscard := liveSession.state.observerWasAttached
+	statusAfterDiscard := liveSession.state.process.Status()
+	liveSession.state.mu.Unlock()
 	assertDiscardedWaitingCancellationState(
 		t,
 		boundaryAfterDiscard,

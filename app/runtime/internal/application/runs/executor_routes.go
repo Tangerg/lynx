@@ -53,7 +53,7 @@ func (c *Coordinator) openingRoutes(
 		CreatedAt:         spec.CreatedAt, UserInput: spec.Input,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
 		Capabilities: spec.effectiveCapabilities(),
-		Now:          c.now, CancelReason: cancellationReason(cancelReason, spec.RunID),
+		Now:          c.publications.nowUTC, CancelReason: cancellationReason(cancelReason, spec.RunID),
 	})
 	root := &executorRoute{
 		runID:          spec.RunID,
@@ -85,7 +85,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 		continuation: continuation,
 		cancelReason: cancelReason,
 		newSegmentID: c.newSegmentID,
-		now:          c.now,
+		now:          c.publications.nowUTC,
 		routes: &executorRoutes{
 			rootBound: true,
 			byMember:  make(map[string]*executorRoute, len(continuation.continuations)),
@@ -661,7 +661,7 @@ func (c *Coordinator) prepareChildOpening(
 		CreatedAt:      startedAt,
 		Limits:         child.limits,
 		Capabilities:   child.capabilities,
-		Now:            c.now,
+		Now:            c.publications.nowUTC,
 		CancelReason:   cancellationReason(owner.CancelReasonFor, child.runID),
 	})
 	if err := owner.bindExecutorMember(child.runID, member.MemberID); err != nil {
@@ -734,9 +734,9 @@ func (c *Coordinator) activatePreparedChild(
 	routes *executorRoutes,
 	prepared *preparedChildOpening,
 ) {
-	prepared.route.segmentStartedAt = c.now().UTC()
+	prepared.route.segmentStartedAt = c.publications.nowUTC()
 	routes.installChild(prepared.member, prepared.route)
-	c.publishRunMoved(spec.SessionID, prepared.route.runID)
+	c.publications.publishRunMoved(spec.SessionID, prepared.route.runID)
 }
 
 func cancellationReason(resolve func(string) string, runID string) func() string {

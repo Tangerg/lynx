@@ -250,7 +250,7 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 				t.Fatalf("prepare waiting cancellation: %v", err)
 			}
 			invalidations := &invalidationRecorder{}
-			coordinator := &Coordinator{invalidations: invalidations.publish}
+			coordinator := &Coordinator{publications: runPublications{invalidations: invalidations.publish}}
 
 			coordinator.publishWaitingChildCancellation(plan, transformation)
 
@@ -548,7 +548,7 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 	if commit.CommitID == "" || commit.RemainingPending != nil || commit.Resume == nil {
 		t.Fatalf("continuation commit = %+v, want a tree Resume", commit)
 	}
-	if _, live := coordinator.registry.Get(plan.root.run.ID()); !live {
+	if _, live := coordinator.segments.lookup(plan.root.run.ID()); !live {
 		t.Fatal("continued root has no live segment owner")
 	}
 }
@@ -643,7 +643,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 			t.Fatalf("failed continuation terminal = %+v, want internal error outcome", commit.Run)
 		}
 	}
-	if _, live := coordinator.registry.Get(plan.root.run.ID()); live {
+	if _, live := coordinator.segments.lookup(plan.root.run.ID()); live {
 		t.Fatal("failed continuation retained a live root owner")
 	}
 	if hasActiveSession(coordinator, plan.pending.SessionID) {

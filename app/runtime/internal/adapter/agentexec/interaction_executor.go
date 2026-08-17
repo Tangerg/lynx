@@ -324,7 +324,7 @@ func (executor *InteractionExecutor) interactionConfiguration(
 		Instructions           []corechat.Message        `json:"instructions,omitempty"`
 	}{
 		Identity: executor.config.ConfigurationIdentity,
-		Provider: session.provider, Model: start.ModelSelection.Model(),
+		Provider: session.accounting.providerName(), Model: start.ModelSelection.Model(),
 		MaxModelCalls: maxModelCalls, Streaming: executor.config.StreamModelResponses,
 		MaxConcurrentToolCalls: executor.config.MaxConcurrentToolCalls,
 		ToolResultThreshold:    executor.config.ToolResultThreshold,
@@ -441,18 +441,18 @@ func (executor *InteractionExecutor) Observe(
 	if err != nil {
 		return nil, err
 	}
-	if !session.attachObserver() {
+	if !session.state.attachObserver() {
 		return nil, errors.New("agentexec: Interaction execution already has an observer")
 	}
-	stopDetach := context.AfterFunc(ctx, session.detachObserver)
+	stopDetach := context.AfterFunc(ctx, session.state.detachObserver)
 	return func(yield func(runs.ExecutorEvent) bool) {
 		defer func() {
 			stopDetach()
-			session.detachObserver()
+			session.state.detachObserver()
 		}()
 		for {
 			select {
-			case event, open := <-session.events:
+			case event, open := <-session.lifetime.events:
 				if !open || !yield(event) {
 					return
 				}
@@ -472,15 +472,15 @@ func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.Execu
 	if err != nil {
 		return err
 	}
-	if !session.begin() {
+	if !session.state.begin() {
 		return errors.New("agentexec: Interaction execution was already begun")
 	}
-	if !session.observerAttached() {
+	if !session.state.observerAttached() {
 		session.failStart()
 		return errors.New("agentexec: Interaction execution must be observed before begin")
 	}
 	process, err := session.engine.Start(
-		runExecutionContext(session.lifecycle, session.scope, session.start),
+		runExecutionContext(session.lifetime.context, session.scope, session.start),
 		session.deployment,
 		session.input,
 	)
@@ -488,7 +488,7 @@ func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.Execu
 		session.failStart()
 		return fmt.Errorf("agentexec: start Interaction: %w", err)
 	}
-	session.setProcess(process)
+	session.state.setProcess(process)
 	session.startWorkers()
 	return nil
 }
@@ -604,7 +604,7 @@ func (executor *InteractionExecutor) restoreWaitingTree(
 		return err
 	}
 	process, err := session.engine.RestoreTree(
-		runExecutionContext(session.lifecycle, session.scope, session.start),
+		runExecutionContext(session.lifetime.context, session.scope, session.start),
 		session.deployment,
 		checkpoint.tree,
 	)
@@ -701,7 +701,7 @@ func (executor *InteractionExecutor) BeginContinuation(
 	}
 	// The previous Agent Process lifetime includes the human wait. Reset the
 	// executor's Segment clock before any answer can make that Process runnable.
-	session.startSegment()
+	session.segmentClock.start()
 	if err := session.deliverContinuationAnswers(ctx, prepared); err != nil {
 		return err
 	}
@@ -721,9 +721,9 @@ func (session *interactionSession) prepareContinuationAnswers(
 	ctx context.Context,
 	answers []runs.InterruptAnswer,
 ) ([]preparedInteractionAnswer, error) {
-	session.mu.Lock()
-	checkpoint := session.waitingCheckpoint.Clone()
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	checkpoint := session.state.waitingCheckpoint.Clone()
+	session.state.mu.Unlock()
 	checkpointState, err := decodeInteractionCheckpointPayload(checkpoint.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: decode staged Interaction checkpoint: %w", err)
@@ -901,7 +901,7 @@ func (executor *InteractionExecutor) RequestRootCancellation(
 	if err != nil {
 		return err
 	}
-	process := session.processHandle()
+	process := session.state.processHandle()
 	if process == nil {
 		return runs.ErrExecutorNotLive
 	}

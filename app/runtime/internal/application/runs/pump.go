@@ -33,7 +33,7 @@ func (c *Coordinator) pump(
 		owner:       owner,
 		routes:      routes,
 	}
-	pump.publisher = treePublisher{coordinator: c, rootSpec: spec, owner: owner}
+	pump.publisher = treePublisher{publications: &c.publications, rootSpec: spec, owner: owner}
 	pump.run()
 }
 
@@ -148,11 +148,6 @@ func (p *segmentPump) handleChildRunReservation(
 		return false
 	}
 	if !request.claim() {
-		return true
-	}
-	if p.coordinator.childStarts == nil {
-		err := errors.New("runs: child Run start persistence is unavailable")
-		_ = request.complete(ChildRunBinding{}, err)
 		return true
 	}
 	if existing := p.childStarts[event.Member.MemberID]; existing != nil {
@@ -406,7 +401,7 @@ func (p *segmentPump) handleUnknownEffects(
 	}
 	batch, err := route.reducer.reduce(SegmentEnded{
 		Reason: run.OutcomeLost, Failure: &failure,
-		Duration: route.activeDuration(p.coordinator.now().UTC()),
+		Duration: route.activeDuration(p.coordinator.publications.nowUTC()),
 	})
 	if err != nil {
 		return fmt.Errorf("runs: reduce unknown Effect loss: %w", err)
@@ -444,7 +439,7 @@ func (p *segmentPump) handleTreeBarrier(event ExecutorEvent, barrier TreeInterru
 		p.ownerCtx,
 		p.routes,
 		barrier,
-		p.coordinator.now().UTC(),
+		p.coordinator.publications.nowUTC(),
 	)
 	if err != nil {
 		p.fail(err)
@@ -631,7 +626,7 @@ func (p *segmentPump) synthesizeRoute(ctx context.Context, route *executorRoute)
 func (p *segmentPump) tearDownExecutor() {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
 	defer cancel()
-	if err := p.coordinator.releases.Release(ctx, p.spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
+	if err := p.coordinator.segments.release(ctx, p.spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
 		p.owner.completionErr = fmt.Errorf("runs: tear down executor %q: %w", p.spec.ExecutorID, err)
 		recordRunCleanupError(ctx, p.owner.completionErr)
 	}
@@ -639,13 +634,13 @@ func (p *segmentPump) tearDownExecutor() {
 
 func (p *segmentPump) finishBoundary() {
 	releaseMaintenance, maintenanceHeld := p.coordinator.admission.BeginMaintenance(p.spec.RunID)
-	entry, tracked := p.coordinator.registry.Get(p.spec.RunID)
+	entry, tracked := p.coordinator.segments.lookup(p.spec.RunID)
 	if tracked && !p.rootParked && entry.owner != nil {
 		entry.owner.stop()
 	}
 	if p.rootFinished {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
-		if err := p.coordinator.finalizer.Finish(ctx, Finish{
+		if err := p.coordinator.segments.finish(ctx, Finish{
 			SessionID:       p.spec.SessionID,
 			RunID:           p.spec.RunID,
 			CWD:             p.spec.CWD,
@@ -662,7 +657,7 @@ func (p *segmentPump) finishBoundary() {
 	// Closing the journal is the externally observable completion boundary. The
 	// synchronous maintenance fence and admission claim must be gone first.
 	p.owner.hub.close()
-	p.coordinator.registry.RemoveSegment(p.spec.RunID, p.spec.SegmentID)
+	p.coordinator.segments.remove(p.spec.RunID, p.spec.SegmentID)
 }
 
 func engineEventEndsSegment(event ExecutionFact) bool {

@@ -103,7 +103,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		runID = c.newRunID()
 	}
 	segmentID := c.newSegmentID()
-	createdAt := c.now().UTC()
+	createdAt := c.publications.nowUTC()
 	var sessionReplacement *SessionReplacement
 	if initialSession == nil && cmd.ModelSelection.Configured() {
 		model := cmd.ModelSelection.Model()
@@ -151,7 +151,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		}
 		return StartResult{}, err
 	}
-	c.publishRunMoved(sess.ID(), runID)
+	c.publications.publishRunMoved(sess.ID(), runID)
 	return StartResult{
 		RunID: runID, SegmentID: segmentID, SessionID: sess.ID(),
 		UserItemID: userMessageItemID(segmentID), Events: events,
@@ -230,7 +230,7 @@ func (c *Coordinator) validatePreparedExecution(ctx context.Context, ref Executo
 	if err := ref.ValidateFor(sessionID); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer cancel()
-		if cleanupErr := c.releases.Release(cleanupCtx, ref); cleanupErr != nil {
+		if cleanupErr := c.segments.release(cleanupCtx, ref); cleanupErr != nil {
 			return errors.Join(err, fmt.Errorf("runs: release invalid staged executor: %w", cleanupErr))
 		}
 		return err

@@ -572,7 +572,7 @@ func TestInteractionExecutorPollingFindsUnknownWhenDirectWakeIsLost(t *testing.T
 	}
 	// A nil wake channel makes the direct notification intentionally lossy while
 	// leaving the periodic public-state reconciliation active.
-	session.unknownWake = nil
+	session.lifetime.unknownWake = nil
 	sequence, err := executor.Observe(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)

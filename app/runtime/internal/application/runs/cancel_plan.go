@@ -127,7 +127,7 @@ func (c *Coordinator) readCancellationPlanSource(
 	if err != nil {
 		return cancellationPlanSource{}, err
 	}
-	live, liveFound := c.registry.Get(rootRunID)
+	live, liveFound := c.segments.lookup(rootRunID)
 	executor, memberIDsByRunID, err := c.resolveCancellationOwner(
 		ctx,
 		cmd.RunID,

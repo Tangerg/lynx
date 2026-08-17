@@ -32,11 +32,11 @@ func (executor *InteractionExecutor) CancelRunningSubtree(
 	if err != nil {
 		return fmt.Errorf("agentexec: parse running Interaction member: %w", err)
 	}
-	session.mu.Lock()
-	root := session.process
-	managed := session.delegateChildren[processID]
-	available := !session.finished && session.boundary == interactionBoundaryInactive
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	root := session.state.process
+	managed := session.state.delegateChildren[processID]
+	available := !session.state.finished && session.state.boundary == interactionBoundaryInactive
+	session.state.mu.Unlock()
 	if !available || root == nil {
 		return runs.ErrExecutorNotLive
 	}
@@ -47,7 +47,7 @@ func (executor *InteractionExecutor) CancelRunningSubtree(
 	if !found || process.Relation().RootID() != root.ID() {
 		return runs.ErrExecutorNotLive
 	}
-	controlCtx, cancel := session.lifecycleContext(ctx)
+	controlCtx, cancel := session.lifetime.bind(ctx)
 	defer cancel()
 	if err := process.RequestCancellation(
 		runExecutionContext(controlCtx, session.scope, session.start), reason,
@@ -66,7 +66,7 @@ func (executor *InteractionExecutor) CancelRunningSubtree(
 func (session *interactionSession) captureHumanInputBarrier(
 	ctx context.Context,
 ) (agent.TreeSnapshot, []runs.MemberInterruption, bool, error) {
-	root := session.processHandle()
+	root := session.state.processHandle()
 	if root == nil || root.Status() != agent.StatusWaiting {
 		return agent.TreeSnapshot{}, nil, false, errors.New("agentexec: Interaction root is not waiting")
 	}
@@ -141,13 +141,13 @@ func (session *interactionSession) pendingInterruptions(
 }
 
 func (session *interactionSession) unknownEffectIDs(ctx context.Context) ([]agent.EffectID, error) {
-	session.mu.Lock()
-	root := session.process
-	children := make([]agent.ProcessID, 0, len(session.delegateChildren))
-	for processID := range session.delegateChildren {
+	session.state.mu.Lock()
+	root := session.state.process
+	children := make([]agent.ProcessID, 0, len(session.state.delegateChildren))
+	for processID := range session.state.delegateChildren {
 		children = append(children, processID)
 	}
-	session.mu.Unlock()
+	session.state.mu.Unlock()
 	if root == nil {
 		return nil, runs.ErrExecutorNotLive
 	}
@@ -178,9 +178,9 @@ func (session *interactionSession) unknownEffectIDs(ctx context.Context) ([]agen
 }
 
 func (session *interactionSession) pausedProcessIDs() ([]agent.ProcessID, error) {
-	session.mu.Lock()
-	checkpoint := session.waitingCheckpoint.Clone()
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	checkpoint := session.state.waitingCheckpoint.Clone()
+	session.state.mu.Unlock()
 	state, err := decodeInteractionCheckpointPayload(checkpoint.Payload)
 	if err != nil {
 		return nil, err

@@ -18,9 +18,9 @@ func (session *interactionSession) admitProcess(
 		return errors.New("agentexec: Interaction received an invalid Process admission")
 	}
 	relation := admission.Relation()
-	session.mu.Lock()
-	deployments := session.deployments
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	deployments := session.state.deployments
+	session.state.mu.Unlock()
 	if deployments == nil {
 		return errors.New("agentexec: Interaction deployments are unavailable")
 	}
@@ -28,12 +28,12 @@ func (session *interactionSession) admitProcess(
 		if admission.DeploymentRef() != deployments.root.DeploymentRef() {
 			return errors.New("agentexec: Interaction root admission changed Deployment")
 		}
-		session.mu.Lock()
-		defer session.mu.Unlock()
-		if session.admittedProcessID.Valid() && session.admittedProcessID != relation.ProcessID() {
+		session.state.mu.Lock()
+		defer session.state.mu.Unlock()
+		if session.state.admittedProcessID.Valid() && session.state.admittedProcessID != relation.ProcessID() {
 			return errors.New("agentexec: Interaction root admission identity changed")
 		}
-		session.admittedProcessID = relation.ProcessID()
+		session.state.admittedProcessID = relation.ProcessID()
 		return nil
 	}
 	if !deployments.managedChild(admission.DeploymentRef()) {
@@ -42,9 +42,9 @@ func (session *interactionSession) admitProcess(
 	parentID, _ := relation.ParentID()
 	childKey, _ := relation.ChildKey()
 	identity := delegateCallIdentity{parentID: parentID, childKey: childKey}
-	session.mu.Lock()
-	managed := session.delegateCalls[identity]
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	managed := session.state.delegateCalls[identity]
+	session.state.mu.Unlock()
 	if managed == nil {
 		return errors.New("agentexec: child admission has no durably observed Delegate call")
 	}
@@ -128,9 +128,9 @@ func (session *interactionSession) acknowledgeProcessStartOutcome(
 	}
 	parentID, _ := relation.ParentID()
 	childKey, _ := relation.ChildKey()
-	session.mu.Lock()
-	managed := session.delegateCalls[delegateCallIdentity{parentID: parentID, childKey: childKey}]
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	managed := session.state.delegateCalls[delegateCallIdentity{parentID: parentID, childKey: childKey}]
+	session.state.mu.Unlock()
 	if managed == nil {
 		return errors.New("agentexec: child start outcome has no Delegate admission")
 	}
@@ -166,8 +166,8 @@ func (session *interactionSession) acknowledgeProcessStartOutcome(
 		)
 	}
 	managed.childProcessID = relation.ProcessID()
-	session.mu.Lock()
-	session.delegateChildren[relation.ProcessID()] = managed
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	session.state.delegateChildren[relation.ProcessID()] = managed
+	session.state.mu.Unlock()
 	return nil
 }

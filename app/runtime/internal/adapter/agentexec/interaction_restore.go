@@ -44,21 +44,20 @@ func (session *interactionSession) initializeRestoredContinuation(
 	if err != nil {
 		return fmt.Errorf("%w: restore Delegate bindings: %w", runs.ErrExecutorStateLost, err)
 	}
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	if session.begun || session.finished || session.process != nil {
+	session.accounting.restore(usageByProcess, carriedUsage)
+	session.state.mu.Lock()
+	defer session.state.mu.Unlock()
+	if session.state.begun || session.state.finished || session.state.process != nil {
 		return runs.ErrExecutionClaimed
 	}
-	session.process = root
-	session.admittedProcessID = root.ID()
-	session.begun = true
-	session.boundary = boundary
-	session.waitingCheckpoint = continuation.Checkpoint.Clone()
-	session.usageByProcess = usageByProcess
-	session.carriedUsage = carriedUsage
-	session.delegateCalls = delegateCalls
-	session.delegateChildren = delegateChildren
-	session.pendingSteers = checkpoint.pendingSteers
+	session.state.process = root
+	session.state.admittedProcessID = root.ID()
+	session.state.begun = true
+	session.state.boundary = boundary
+	session.state.waitingCheckpoint = continuation.Checkpoint.Clone()
+	session.state.delegateCalls = delegateCalls
+	session.state.delegateChildren = delegateChildren
+	session.state.pendingSteers = checkpoint.pendingSteers
 	return nil
 }
 
@@ -114,9 +113,9 @@ func (session *interactionSession) restoreDelegateCalls(
 	snapshots map[agent.ProcessID]agent.Snapshot,
 	members map[agent.ProcessID]runs.WaitingMember,
 ) (map[delegateCallIdentity]*managedDelegateCall, map[agent.ProcessID]*managedDelegateCall, error) {
-	session.mu.Lock()
-	deployments := session.deployments
-	session.mu.Unlock()
+	session.state.mu.Lock()
+	deployments := session.state.deployments
+	session.state.mu.Unlock()
 	if deployments == nil {
 		return nil, nil, errors.New("agentexec: Interaction deployments are unavailable")
 	}

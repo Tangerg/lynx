@@ -852,7 +852,7 @@ func TestCoordinatorRejectsUncommittedOpening(t *testing.T) {
 	if !errors.Is(err, run.ErrSessionBusy) {
 		t.Fatalf("openSegment error = %v, want ErrSessionBusy", err)
 	}
-	if _, ok := coordinator.registry.Get("run_1"); events != nil || ok {
+	if _, ok := coordinator.segments.lookup("run_1"); events != nil || ok {
 		t.Fatal("an uncommitted opening became visible")
 	}
 	if executor.releases() != 1 {
@@ -956,7 +956,7 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	case <-time.After(time.Second):
 		t.Fatal("terminal maintenance did not start")
 	}
-	if _, ok := coordinator.registry.Get("run_1"); !ok {
+	if _, ok := coordinator.segments.lookup("run_1"); !ok {
 		t.Fatal("terminal maintenance removed the run's cancellation join identity")
 	}
 	if !hasActiveSession(coordinator, "ses_1") {
@@ -1891,7 +1891,7 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 		if err != nil {
 			t.Fatalf("event[%d] cursor: %v", index, err)
 		}
-		if position.epoch != coordinator.epoch ||
+		if position.epoch != coordinator.segments.epoch ||
 			position.runID != testRunID ||
 			position.segmentID != testSegmentID ||
 			position.sequence != wantSequence {
@@ -2635,7 +2635,7 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 	if err == nil {
 		t.Fatal("openSegment must surface the executor error")
 	}
-	if _, ok := coordinator.registry.Get("run_1"); executor.releases() != 1 || ok {
+	if _, ok := coordinator.segments.lookup("run_1"); executor.releases() != 1 || ok {
 		t.Fatal("failed executor start was not torn down")
 	}
 }

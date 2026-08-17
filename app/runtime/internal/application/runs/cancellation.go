@@ -72,10 +72,10 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 		if errors.Is(requestErr, ErrRunFinished) {
 			return CancelResult{}, errors.Join(requestErr, entry.owner.wait(cleanupCtx))
 		}
-		c.registry.MarkCancel(plan.root.run.ID(), cmd.Reason)
+		c.segments.markCancel(plan.root.run.ID(), cmd.Reason)
 		return CancelResult{}, errors.Join(requestErr, entry.owner.wait(cleanupCtx))
 	}
-	c.registry.MarkCancel(plan.root.run.ID(), cmd.Reason)
+	c.segments.markCancel(plan.root.run.ID(), cmd.Reason)
 	if interruptCommitted {
 		// The interrupt transaction won before cancellation. Its pump owns the
 		// live admission until it has published and closed the parked segment;
@@ -228,7 +228,7 @@ func (c *Coordinator) cancelWaitingChild(
 	transformation, err := prepareWaitingCancellationTransformation(
 		plan,
 		cmd.Reason,
-		c.now().UTC(),
+		c.publications.nowUTC(),
 		prepared,
 	)
 	if err != nil {
@@ -310,7 +310,7 @@ func (c *Coordinator) waitingChildCancellationContinuation(
 			ctx,
 			plan.pending.SessionID,
 			plan.root.run.ID(),
-			c.now().UTC(),
+			c.publications.nowUTC(),
 		)
 		if lostErr != nil {
 			return WaitingContinuation{}, errors.Join(
@@ -451,7 +451,7 @@ func (c *Coordinator) recoverCommittedWaitingCancellation(
 	if err != nil {
 		return c.failCommittedWaitingCancellationRecovery(recoveryCtx, plan, err)
 	}
-	if err := c.releases.Release(recoveryCtx, plan.executor); err != nil &&
+	if err := c.segments.release(recoveryCtx, plan.executor); err != nil &&
 		!errors.Is(err, ErrExecutorNotLive) {
 		return fmt.Errorf(
 			"runs: release obsolete executor %q before restoring committed root Run %q: %w",
@@ -486,7 +486,7 @@ func (c *Coordinator) failCommittedWaitingCancellationRecovery(
 		ctx,
 		plan.pending.SessionID,
 		plan.root.run.ID(),
-		c.now().UTC(),
+		c.publications.nowUTC(),
 	); err != nil {
 		return errors.Join(
 			fmt.Errorf(
@@ -560,7 +560,7 @@ func (c *Coordinator) publishWaitingChildCancellation(
 		}
 	}
 	appendRunID(plan.root.run.ID())
-	c.publishWaitingSubtreeCanceled(
+	c.publications.publishWaitingSubtreeCanceled(
 		plan.pending.SessionID,
 		plan.root.run.ID(),
 		affected,
@@ -664,7 +664,7 @@ func (c *Coordinator) cancelKnownParkedRun(
 }
 
 func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelCommand, ref ExecutorRef) (CancelResult, error) {
-	terminal, err := c.terminations.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC())
+	terminal, err := c.terminations.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.publications.nowUTC())
 	if err != nil {
 		return CancelResult{}, err
 	}
@@ -672,7 +672,7 @@ func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelComm
 	// ends the run and drops the interrupt, and it is reached from here and from a
 	// resume that finds the park unresumable. Signaling here too would be a second
 	// author for one commit.
-	if err := c.releases.Release(ctx, ref); err != nil && !errors.Is(err, ErrExecutorNotLive) {
+	if err := c.segments.release(ctx, ref); err != nil && !errors.Is(err, ErrExecutorNotLive) {
 		return CancelResult{}, fmt.Errorf("runs: clean up canceled parked Run %q executor: %w", cmd.RunID, err)
 	}
 	return rootCancelResult(terminal)

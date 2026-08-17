@@ -50,7 +50,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}
 
 	claim := ResumeClaimCommit{
-		CommitID: newRunCommitID(), Expected: pending, Answers: answers, ClaimedAt: c.now().UTC(),
+		CommitID: newRunCommitID(), Expected: pending, Answers: answers, ClaimedAt: c.publications.nowUTC(),
 	}
 	claimed, err := c.resumeClaims.ClaimResume(ctx, claim)
 	if err != nil {
@@ -126,9 +126,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		if continuation.RunID == pending.RootRunID {
 			continue
 		}
-		c.publishRunMoved(pending.SessionID, continuation.RunID)
+		c.publications.publishRunMoved(pending.SessionID, continuation.RunID)
 	}
-	c.publishWaitingMoved(pending.SessionID, pending.RootRunID)
+	c.publications.publishWaitingMoved(pending.SessionID, pending.RootRunID)
 	result := StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}
 	if len(cmd.Input) > 0 {
 		// Named only when there is an item to name: the id is derived from the segment
@@ -176,7 +176,7 @@ func (c *Coordinator) failClaimedResume(
 		cleanupCtx,
 		pending.SessionID,
 		pending.RootRunID,
-		c.now().UTC(),
+		c.publications.nowUTC(),
 	); cleanupErr != nil {
 		return errors.Join(
 			cause,
@@ -185,7 +185,7 @@ func (c *Coordinator) failClaimedResume(
 	}
 	result := fmt.Errorf("%w: %w", ErrRunNotFound, cause)
 	if ref != nil {
-		if releaseErr := c.releases.Release(cleanupCtx, *ref); releaseErr != nil {
+		if releaseErr := c.segments.release(cleanupCtx, *ref); releaseErr != nil {
 			result = errors.Join(
 				result,
 				fmt.Errorf("runs: release lost continuation %q: %w", ref.ExecutorID, releaseErr),

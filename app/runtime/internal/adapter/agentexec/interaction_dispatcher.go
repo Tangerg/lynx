@@ -51,7 +51,7 @@ func (dispatcher *interactionDispatcher) Dispatch(
 	defer attempt.close()
 	settlement, err := dispatcher.inner.Dispatch(withDispatchAttempt(ctx, attempt), request, emit)
 	if projectionErr := attempt.indeterminateFailure(); projectionErr != nil {
-		dispatcher.session.wakeUnknownReconciliation()
+		dispatcher.session.lifetime.wakeUnknown()
 		return agent.Settlement{}, fmt.Errorf(
 			"agentexec: authoritative projection failed after external Effect %s: %w",
 			request.ID(), projectionErr,
@@ -61,7 +61,7 @@ func (dispatcher *interactionDispatcher) Dispatch(
 		// The inner Dispatcher already returns an indeterminate error to Engine.
 		// Wake the direct path as well; the periodic public-state reconciliation
 		// remains the loss-tolerant backstop.
-		dispatcher.session.wakeUnknownReconciliation()
+		dispatcher.session.lifetime.wakeUnknown()
 	}
 	return settlement, err
 }
@@ -239,7 +239,7 @@ func (model *observedInteractionModel) complete(
 	if err := model.session.flushDeltas(ctx); err != nil {
 		return err
 	}
-	fact, err := model.session.accountModelCall(invocation, callID, response)
+	fact, err := model.session.accounting.accountModelCall(invocation, callID, response)
 	if err != nil {
 		return err
 	}
@@ -251,7 +251,7 @@ func (model *observedInteractionModel) complete(
 		return err
 	}
 	if !invocation.Relation().IsRoot() {
-		model.session.recordCommittedModelReply(invocation.Relation().ProcessID(), fact.Message)
+		model.session.committedReplies.record(invocation.Relation().ProcessID(), fact.Message)
 	}
 	return model.session.registerDelegateCalls(invocation, choice.Message)
 }
@@ -311,7 +311,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		attempt.recordProjectionFailure(failure)
 		return "", failure
 	}
-	observed.session.recordToolCall()
+	observed.session.accounting.recordToolCall()
 	if denied {
 		if denialReason == "" {
 			denialReason = "tool call denied by policy"
@@ -325,7 +325,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 			attempt.recordProjectionFailure(failure)
 			return "", failure
 		}
-		observed.session.recordToolOutcome(call.Name, arguments, denialReason)
+		observed.session.toolOutcomes.record(call.Name, arguments, denialReason)
 		return denialReason, nil
 	}
 	ctx = toolset.WithToolAdvertiser(ctx, func(names ...string) error {
@@ -384,7 +384,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	if callErr != nil {
 		outcomeForLoop = "error:" + callErr.Error()
 	}
-	observed.session.recordToolOutcome(call.Name, arguments, outcomeForLoop)
+	observed.session.toolOutcomes.record(call.Name, arguments, outcomeForLoop)
 	if observed.interpreter != nil {
 		projected, projectionErr := observed.interpreter.ProjectOutcome(
 			projectionCtx, observed.start.SessionID, call.Name, callErr == nil,
@@ -397,7 +397,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 			// Tool outcome projection is a refetchable live hint (for example a Plan
 			// snapshot), not a second settlement fact. The canonical Tool result above
 			// is already committed; losing this hint cannot make the Effect unknown.
-			observed.session.send(runs.ExecutorEvent{Member: member, Payload: projected})
+			observed.session.lifetime.send(runs.ExecutorEvent{Member: member, Payload: projected})
 		}
 	}
 	if observed.hooks != nil {
@@ -485,10 +485,10 @@ func (observed *observedInteractionTool) applyDoomLoopBrake(
 	denied bool,
 	reason string,
 ) (tool.Arguments, bool, string, error) {
-	if denied || observed.session.repeatedToolOutcome(name, arguments) < interactionDoomLoopThreshold {
+	if denied || observed.session.toolOutcomes.repeated(name, arguments) < interactionDoomLoopThreshold {
 		return arguments, denied, reason, nil
 	}
-	observed.session.resetRepeatedToolOutcome()
+	observed.session.toolOutcomes.reset()
 	reason = fmt.Sprintf(
 		"%q has been called with the same arguments and unchanged result %d times; approve to continue or deny so the agent changes approach",
 		name, interactionDoomLoopThreshold,

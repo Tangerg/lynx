@@ -18,12 +18,12 @@ func (session *interactionSession) sendExecutorRequest(
 	ctx context.Context,
 	event runs.ExecutorEvent,
 ) error {
-	ctx, cancel := session.lifecycleContext(ctx)
+	ctx, cancel := session.lifetime.bind(ctx)
 	defer cancel()
 	select {
-	case session.events <- event:
+	case session.lifetime.events <- event:
 		return nil
-	case <-session.releasing:
+	case <-session.lifetime.releasing:
 		return errors.New("agentexec: execution released before executor request")
 	case <-ctx.Done():
 		return ctx.Err()
@@ -35,14 +35,14 @@ func (session *interactionSession) sendExecutorRequest(
 func (session *interactionSession) reconcileCompletedDelegateChildren(
 	ctx context.Context,
 ) (bool, error) {
-	session.childProjectionMu.Lock()
-	defer session.childProjectionMu.Unlock()
-	session.mu.Lock()
-	calls := make([]*managedDelegateCall, 0, len(session.delegateChildren))
-	for _, managed := range session.delegateChildren {
+	session.childProjection.lock()
+	defer session.childProjection.unlock()
+	session.state.mu.Lock()
+	calls := make([]*managedDelegateCall, 0, len(session.state.delegateChildren))
+	for _, managed := range session.state.delegateChildren {
 		calls = append(calls, managed)
 	}
-	session.mu.Unlock()
+	session.state.mu.Unlock()
 	slices.SortFunc(calls, func(left, right *managedDelegateCall) int {
 		if depth := int(right.parentRelation.Depth()+1) - int(left.parentRelation.Depth()+1); depth != 0 {
 			return depth
@@ -101,7 +101,7 @@ func (session *interactionSession) projectDelegateResult(
 	managed *managedDelegateCall,
 	result agent.Result,
 ) error {
-	committedReply, replyFound := session.committedModelReplyFor(result.ProcessID())
+	committedReply, replyFound := session.committedReplies.lookup(result.ProcessID())
 	managed.mu.Lock()
 	defer managed.mu.Unlock()
 	if result.ProcessID() != managed.childProcessID {
@@ -149,7 +149,7 @@ func (session *interactionSession) projectDelegateResult(
 			return fmt.Errorf("agentexec: publish delegated child terminal: %w", err)
 		}
 		managed.segmentProjected = true
-		session.forgetCommittedModelReply(result.ProcessID())
+		session.committedReplies.forget(result.ProcessID())
 	}
 	if err := session.finishDelegateTool(ctx, managed, parentResult, childFailure); err != nil {
 		return err

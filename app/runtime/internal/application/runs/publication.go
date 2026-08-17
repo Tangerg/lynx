@@ -20,9 +20,9 @@ type reductionPublication struct {
 // their persisted and live projections. Every child keeps its own Run/Segment
 // envelope while all events share the root Segment's journal and replay scope.
 type treePublisher struct {
-	coordinator *Coordinator
-	rootSpec    segmentSpec
-	owner       *runTreeOwner
+	publications *runPublications
+	rootSpec     segmentSpec
+	owner        *runTreeOwner
 }
 
 // publish validates a complete batch before any side effect, then commits every
@@ -70,7 +70,7 @@ func (p treePublisher) publish(
 			if commit.State == StateTerminalize && route.member.ParentID == "" {
 				commit.ObsoleteCheckpointRootID = route.member.MemberID
 			}
-			if err := p.coordinator.events.CommitEvent(ctx, commit); err != nil {
+			if err := p.publications.commitEvent(ctx, commit); err != nil {
 				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
 			}
 			if commit.State == StateTerminalize {
@@ -90,10 +90,10 @@ func (p treePublisher) publish(
 		p.append(route, reduced)
 	}
 	if publication.finished {
-		p.coordinator.publishRunMoved(p.rootSpec.SessionID, route.runID)
+		p.publications.publishRunMoved(p.rootSpec.SessionID, route.runID)
 	}
 	if goalCharged {
-		p.coordinator.publishGoalMoved(p.rootSpec.SessionID)
+		p.publications.publishGoalMoved(p.rootSpec.SessionID)
 	}
 	return publication, nil
 }
@@ -165,7 +165,7 @@ func (p treePublisher) publishAuthoritativeAtomically(
 		if err := combined.Validate(); err != nil {
 			return reductionPublication{}, fmt.Errorf("runs: validate authoritative fact: %w", err)
 		}
-		if err := p.coordinator.events.CommitEvent(ctx, combined); err != nil {
+		if err := p.publications.commitEvent(ctx, combined); err != nil {
 			return reductionPublication{}, fmt.Errorf("runs: commit authoritative fact: %w", err)
 		}
 		for _, item := range combined.Items {
@@ -206,7 +206,7 @@ func (p treePublisher) publishTerminalAtomically(
 	if err := combined.Validate(); err != nil {
 		return reductionPublication{}, fmt.Errorf("runs: validate atomic terminal: %w", err)
 	}
-	if err := p.coordinator.events.CommitEvent(ctx, combined); err != nil {
+	if err := p.publications.commitEvent(ctx, combined); err != nil {
 		return reductionPublication{}, fmt.Errorf("runs: commit atomic terminal: %w", err)
 	}
 	// The database owns one indivisible write-set, while the live tree still
@@ -219,9 +219,9 @@ func (p treePublisher) publishTerminalAtomically(
 	for _, reduced := range batch.events {
 		p.append(route, reduced)
 	}
-	p.coordinator.publishRunMoved(p.rootSpec.SessionID, route.runID)
+	p.publications.publishRunMoved(p.rootSpec.SessionID, route.runID)
 	if combined.GoalRun != nil {
-		p.coordinator.publishGoalMoved(p.rootSpec.SessionID)
+		p.publications.publishGoalMoved(p.rootSpec.SessionID)
 	}
 	return reductionPublication{published: true, finished: true}, nil
 }
@@ -307,7 +307,7 @@ func (p treePublisher) publishTreeBarrier(
 		return reductionPublication{}, err
 	}
 	committed, err := p.owner.commitInterrupt(ctx, func(interruptCtx context.Context) error {
-		if err := p.coordinator.barriers.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
+		if err := p.publications.commitTreeBarrier(interruptCtx, TreeBarrierCommit{
 			CommitID:   newRunCommitID(),
 			Pending:    projection.pending,
 			Runs:       projection.commits,
@@ -330,7 +330,7 @@ func (p treePublisher) publishTreeBarrier(
 	}
 	for _, projected := range projection.reductions {
 		projected.route.segmentFinished = true
-		p.coordinator.publishWaitingMoved(p.rootSpec.SessionID, projected.route.runID)
+		p.publications.publishWaitingMoved(p.rootSpec.SessionID, projected.route.runID)
 	}
 	return reductionPublication{published: true, finished: true, parked: true}, nil
 }
@@ -502,7 +502,7 @@ func suspendedInterrupts(events []RunEvent) []transcript.Interrupt {
 }
 
 func (p treePublisher) append(route *executorRoute, reduced reduction) {
-	event := p.coordinator.event(route.runID, route.segmentID, reduced)
+	event := p.publications.event(route.runID, route.segmentID, reduced)
 	if route.runID == p.rootSpec.RunID && reduced.Event.Terminal() {
 		// The client uses root segment.finished as the stream/completion boundary.
 		// Its facts are already durable, but publication must not outrun terminal
@@ -512,6 +512,6 @@ func (p treePublisher) append(route *executorRoute, reduced reduction) {
 		p.owner.hub.append(event)
 	}
 	if reduced.Nudge != nil {
-		p.coordinator.workspace.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
+		p.publications.nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
 	}
 }

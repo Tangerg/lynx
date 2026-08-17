@@ -1,6 +1,8 @@
 package runs
 
 import (
+	"context"
+	"iter"
 	"slices"
 	"sync"
 	"testing"
@@ -9,10 +11,29 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
+
+type gatedTerminalExecutor struct{ release <-chan struct{} }
+
+func (executor gatedTerminalExecutor) Observe(
+	ctx context.Context,
+	_ ExecutorRef,
+) (iter.Seq[ExecutorEvent], error) {
+	return func(yield func(ExecutorEvent) bool) {
+		select {
+		case <-executor.release:
+			yield(ExecutorEvent{
+				Member:  ExecutorMember{MemberID: "member_root"},
+				Payload: SegmentEnded{Reason: run.OutcomeCompleted},
+			})
+		case <-ctx.Done():
+		}
+	}, nil
+}
 
 // invalidationRecorder collects notices from the pump goroutine as well as the request
 // goroutine, so it is guarded.
@@ -60,7 +81,8 @@ func (r *invalidationRecorder) count(resource invalidation.Resource) int {
 // life have to reach that window, or it shows work that finished minutes ago as
 // still executing.
 func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
-	exec := &fakeExecutor{}
+	releaseTerminal := make(chan struct{})
+	exec := gatedTerminalExecutor{release: releaseTerminal}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
@@ -90,6 +112,7 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	if got := invalidations.resources(); !slices.Equal(got, []invalidation.Resource{invalidation.Runs, invalidation.Sessions}) {
 		t.Fatalf("published on start = %v, want the run and its session", got)
 	}
+	close(releaseTerminal)
 	consumeEvents(result.Events)
 	// Draining the stream ends the segment, and the synthesized terminal commits
 	// before the journal closes — so by here the run is durably finished.

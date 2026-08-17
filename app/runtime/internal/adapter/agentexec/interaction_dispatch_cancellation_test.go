@@ -25,18 +25,20 @@ func TestInteractionSessionSubtreeCancellationIsScopedAndCoversLateDescendants(t
 	})
 
 	session := &interactionSession{
-		delegateChildren: map[agent.ProcessID]*managedDelegateCall{
-			targetID:     {identity: delegateCallIdentity{parentID: rootID}},
-			descendantID: {identity: delegateCallIdentity{parentID: targetID}},
-			siblingID:    {identity: delegateCallIdentity{parentID: rootID}},
+		state: interactionState{
+			delegateChildren: map[agent.ProcessID]*managedDelegateCall{
+				targetID:     {identity: delegateCallIdentity{parentID: rootID}},
+				descendantID: {identity: delegateCallIdentity{parentID: targetID}},
+				siblingID:    {identity: delegateCallIdentity{parentID: rootID}},
+			},
+			activeDispatches: map[string]activeInteractionDispatch{
+				"root":       {processID: rootID, cancel: cancelRoot},
+				"target":     {processID: targetID, cancel: cancelTarget},
+				"descendant": {processID: descendantID, cancel: cancelDescendant},
+				"sibling":    {processID: siblingID, cancel: cancelSibling},
+			},
+			canceledSubtreeRoots: make(map[agent.ProcessID]struct{}),
 		},
-		activeDispatches: map[string]activeInteractionDispatch{
-			"root":       {processID: rootID, cancel: cancelRoot},
-			"target":     {processID: targetID, cancel: cancelTarget},
-			"descendant": {processID: descendantID, cancel: cancelDescendant},
-			"sibling":    {processID: siblingID, cancel: cancelSibling},
-		},
-		canceledSubtreeRoots: make(map[agent.ProcessID]struct{}),
 	}
 
 	session.cancelSubtreeDispatches(targetID)
@@ -46,12 +48,12 @@ func TestInteractionSessionSubtreeCancellationIsScopedAndCoversLateDescendants(t
 	assertInteractionDispatchRunning(t, siblingCtx, "sibling")
 
 	lateDescendantID := mustInteractionProcessID(t, "late-descendant")
-	session.mu.Lock()
-	session.delegateChildren[lateDescendantID] = &managedDelegateCall{
+	session.state.mu.Lock()
+	session.state.delegateChildren[lateDescendantID] = &managedDelegateCall{
 		identity: delegateCallIdentity{parentID: descendantID},
 	}
 	canceled := session.inCanceledSubtreeLocked(lateDescendantID)
-	session.mu.Unlock()
+	session.state.mu.Unlock()
 	if !canceled {
 		t.Fatal("late descendant did not inherit its ancestor's cancellation scope")
 	}

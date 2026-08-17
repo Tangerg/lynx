@@ -74,7 +74,7 @@ func (session *interactionSession) executorCheckpoint(
 			ChildRuns:      session.start.ChildRunAdmissionEnabled,
 			InterruptKinds: slices.Clone(session.start.InterruptKinds),
 		},
-		Usage: session.accountingSnapshot(),
+		Usage: session.accounting.snapshot(),
 	}
 	if err := checkpoint.Validate(); err != nil {
 		return runs.ExecutorCheckpoint{}, err

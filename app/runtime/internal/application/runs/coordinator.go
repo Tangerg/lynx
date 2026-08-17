@@ -12,7 +12,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -31,8 +30,6 @@ var ErrClosed = errors.New("runs: coordinator closed")
 // application events.
 type Coordinator struct {
 	rootStarts                         RootExecutionStarter
-	observations                       ExecutionObserver
-	releases                           ExecutionReleaser
 	rootCancellation                   RunningRootCancellationRequester
 	conversation                       ConversationReader
 	workingContexts                    WorkingContextComposer
@@ -46,18 +43,12 @@ type Coordinator struct {
 	activeRuns                         ActiveRunReader
 	interrupts                         PendingInterruptReader
 	terminations                       RunTerminationCommitter
-	openings                           OpeningCommitter
 	childStarts                        ChildRunStartCommitter
 	resumeClaims                       ResumeClaimCommitter
-	events                             EventCommitter
-	barriers                           TreeBarrierCommitter
 	checkpoints                        WaitingCheckpointReader
 	waitingSubtreeCancellations        WaitingSubtreeCancellationCommitter
-	workspace                          WorkspaceChangeNotifier
-	finalizer                          SegmentFinalizer
 	isolation                          IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
 	defaultModelSelection              modelref.Selection
-	now                                func() time.Time
 	newRunID                           func() string
 	newSegmentID                       func() string
 	// runs reads the durable run record. A subscribe or a steer that cannot be
@@ -68,22 +59,11 @@ type Coordinator struct {
 	// items resolves the exact parent tool projection a waiting child
 	// cancellation replaces.
 	items ItemProjection
-	// epoch identifies this Coordinator's event streams. Every cursor it mints
-	// carries it, so a cursor from a previous process names a buffer that no
-	// longer exists instead of resolving against a live one. It is minted once
-	// per Coordinator, which is what makes "a restart changes it" structural
-	// rather than remembered.
-	epoch      string
-	retention  Retention
-	tasks      taskgroup.Group
-	registry   registry
-	admission  *sessionadmission.Gate
-	runChanges sessionRunChanges
-	// invalidations tell clients that are NOT following this run that its lifecycle
-	// moved. The run's own stream carries the events themselves; this is the
-	// invalidation for everyone else, published only after the durable commit the
-	// event stands on. nil publishes nothing.
-	invalidations invalidation.Publish
+	// segments owns process-local Segment admission, replay and teardown;
+	// publications owns durable-write-before-notify ordering.
+	segments     segmentLifecycle
+	admission    *sessionadmission.Gate
+	publications runPublications
 }
 
 // Dependencies is the complete collaborator set for the user-visible run use
@@ -177,8 +157,6 @@ func NewCoordinator(deps Dependencies) (*Coordinator, error) {
 	}
 	return &Coordinator{
 		rootStarts:                         deps.RootStarts,
-		observations:                       deps.Observations,
-		releases:                           deps.Releases,
 		rootCancellation:                   deps.RootCancellation,
 		conversation:                       deps.Conversation,
 		workingContexts:                    deps.WorkingContexts,
@@ -192,26 +170,28 @@ func NewCoordinator(deps Dependencies) (*Coordinator, error) {
 		activeRuns:                         deps.Session.ActiveRuns,
 		interrupts:                         deps.Session.Interrupts,
 		terminations:                       deps.Session.Terminations,
-		openings:                           deps.Projection.Openings,
 		childStarts:                        deps.Projection.ChildStarts,
 		resumeClaims:                       deps.Projection.ResumeClaims,
-		events:                             deps.Projection.Events,
-		barriers:                           deps.Projection.Barriers,
 		checkpoints:                        deps.Projection.Checkpoints,
 		waitingSubtreeCancellations:        deps.Projection.WaitingSubtreeCancellations,
-		workspace:                          deps.Projection.Workspace,
-		finalizer:                          deps.Projection.Finalizer,
 		runs:                               deps.Runs,
 		items:                              deps.Items,
 		isolation:                          deps.Isolation,
 		defaultModelSelection:              deps.DefaultModelSelection,
-		now:                                deps.Now,
 		newRunID:                           deps.NewRunID,
 		newSegmentID:                       deps.NewSegmentID,
-		epoch:                              newReplayEpoch(),
-		retention:                          deps.Retention,
-		admission:                          deps.Admissions,
-		invalidations:                      deps.Invalidations,
+		segments: newSegmentLifecycle(
+			deps.Observations,
+			deps.Releases,
+			deps.Projection.Finalizer,
+			deps.Retention,
+		),
+		admission: deps.Admissions,
+		publications: newRunPublications(
+			deps.Projection,
+			deps.Invalidations,
+			deps.Now,
+		),
 	}, nil
 }
 
@@ -228,7 +208,7 @@ func nilDependency(value any) bool {
 // ReplayRetention is the window this Coordinator enforces. Discovery publishes
 // it from here rather than from a constant of its own: a number the client is
 // told and a number the runtime evicts by must be the same number.
-func (c *Coordinator) ReplayRetention() Retention { return c.retention }
+func (c *Coordinator) ReplayRetention() Retention { return c.segments.replayRetention() }
 
 // WaitSessionStartable lets an application-owned continuation wait until both
 // the live admission gate and the durable Session Run projection are
@@ -243,7 +223,7 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 		if err := c.admission.WaitRunStartable(ctx, sess.ID(), sess.CWD()); err != nil {
 			return err
 		}
-		changed, stopObserving := c.runChanges.observe(sess.ID())
+		changed, stopObserving := c.publications.changes.observe(sess.ID())
 		_, active, err := c.activeRuns.ActiveRun(ctx, sess.ID())
 		if err != nil {
 			stopObserving()
@@ -302,7 +282,7 @@ func (c *Coordinator) prepareSegmentStartup(
 	requestContext context.Context,
 	spec segmentSpec,
 ) (*segmentStartup, error) {
-	taskContext, releaseTask, attached := c.tasks.Attach(requestContext)
+	taskContext, releaseTask, attached := c.segments.attach(requestContext)
 	if !attached {
 		if spec.Continuation == nil {
 			return nil, c.rejectUnadmittedExecution(requestContext, spec.executorRef(), ErrClosed)
@@ -318,14 +298,12 @@ func (c *Coordinator) prepareSegmentStartup(
 		cancelRun:   cancelRun,
 		releaseTask: releaseTask,
 	}
-	executorEvents, err := c.observations.Observe(runContext, spec.executorRef())
+	executorEvents, err := c.segments.observe(runContext, spec.executorRef())
 	if err != nil {
 		return nil, startup.abort(err)
 	}
 	startup.executorEvents = executorEvents
-	startup.journal = newJournal(streamScope{
-		Epoch: c.epoch, RunID: spec.RunID, SegmentID: spec.SegmentID,
-	}, c.retention)
+	startup.journal = c.segments.newJournal(spec.RunID, spec.SegmentID)
 	startup.treeOwner = &runTreeOwner{
 		cancel:      cancelRun,
 		taskContext: taskContext,
@@ -376,7 +354,7 @@ func (startup *segmentStartup) activate(
 	if spec.admission != nil && !spec.admission.Admit(spec.RunID) {
 		panic("runs: committed opening without a pending admission")
 	}
-	startup.coordinator.registry.Open(Record{
+	startup.coordinator.segments.open(Record{
 		ID:             spec.RunID,
 		SegmentID:      spec.SegmentID,
 		SessionID:      spec.SessionID,
@@ -423,7 +401,7 @@ func (startup *segmentStartup) openingStream(requestContext context.Context) ite
 func (startup *segmentStartup) publishOpenings(openings []routeOpening) {
 	for _, opening := range openings {
 		for _, reduced := range opening.batch.events {
-			startup.journal.append(startup.coordinator.event(
+			startup.journal.append(startup.coordinator.publications.event(
 				opening.route.runID,
 				opening.route.segmentID,
 				reduced,
@@ -433,7 +411,7 @@ func (startup *segmentStartup) publishOpenings(openings []routeOpening) {
 }
 
 func (startup *segmentStartup) markSegmentsStarted() {
-	segmentStartedAt := startup.coordinator.now().UTC()
+	segmentStartedAt := startup.coordinator.publications.nowUTC()
 	for _, route := range startup.routes.admissionOrder {
 		route.segmentStartedAt = segmentStartedAt
 	}
@@ -470,7 +448,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 		opening.Resume = &rundomain.TreeResumeDraft{
 			RootRunID: spec.RunID,
 			SessionID: spec.SessionID,
-			ResumedAt: c.now().UTC(),
+			ResumedAt: c.publications.nowUTC(),
 			Runs:      make([]rundomain.ResumeDraft, 0, len(ordered)),
 		}
 	} else {
@@ -522,7 +500,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 	// An opening may carry no item commits at all — a resumed segment that only
 	// delivers an approval has nothing to append. Its durable projection is the
 	// admission or resume above, which is what makes the Run exist.
-	commitOpening := c.openings.CommitOpening
+	commitOpening := c.publications.commitOpening
 	if spec.CommitOpening != nil {
 		commitOpening = spec.CommitOpening
 	}
@@ -535,18 +513,6 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 	return openings, nil
 }
 
-// event builds the envelope for one reduced payload. Its stream position is NOT
-// set here — the journal assigns it while publishing, so sequence order and
-// publication order are the same order by construction.
-func (c *Coordinator) event(runID, segmentID string, reduced reduction) Event {
-	return Event{
-		RunID:     runID,
-		SegmentID: segmentID,
-		Timestamp: c.now().UTC(),
-		Payload:   reduced.Event,
-	}
-}
-
 // rejectUnadmittedExecution tears down a fresh execution that failed before its opening
 // write-set committed. The rejection cause and teardown failure are both
 // preserved: hiding the latter would report a clean rejection while leaking an
@@ -554,7 +520,7 @@ func (c *Coordinator) event(runID, segmentID string, reduced reduction) Event {
 func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref ExecutorRef, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	if err := c.releases.Release(cleanupCtx, ref); err != nil {
+	if err := c.segments.release(cleanupCtx, ref); err != nil {
 		cleanupErr := fmt.Errorf("runs: release unadmitted executor %q: %w", ref.ExecutorID, err)
 		return errors.Join(cause, cleanupErr)
 	}
@@ -629,7 +595,7 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 	if run.ActiveSegmentID() != segmentID {
 		return liveSegment{}, fmt.Errorf("%w: run %q is executing %q", ErrStaleSegment, runID, run.ActiveSegmentID())
 	}
-	live, ok := c.registry.Get(runID)
+	live, ok := c.segments.lookup(runID)
 	if !ok || live.owner == nil || live.owner.hub == nil {
 		// A Running record whose segment this process does not own. Restart recovery
 		// terminalizes orphans before the runtime serves, so this is a broken
@@ -654,7 +620,9 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 }
 
 // BeginShutdown prevents new runs and cancels every in-flight pump.
-func (c *Coordinator) BeginShutdown() { c.tasks.Cancel() }
+func (c *Coordinator) BeginShutdown() { c.segments.beginShutdown() }
 
 // AwaitShutdown joins every in-flight pump after [BeginShutdown].
-func (c *Coordinator) AwaitShutdown(ctx context.Context) error { return c.tasks.Wait(ctx) }
+func (c *Coordinator) AwaitShutdown(ctx context.Context) error {
+	return c.segments.awaitShutdown(ctx)
+}

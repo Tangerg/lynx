@@ -1,6 +1,67 @@
 package runs
 
-import "github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+import (
+	"context"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+)
+
+// runPublications owns the post-commit publication boundary: authoritative
+// opening/event/barrier writes, live event timestamps and workspace nudges, and
+// the read-model invalidations emitted only after those writes succeed.
+type runPublications struct {
+	openings      OpeningCommitter
+	events        EventCommitter
+	barriers      TreeBarrierCommitter
+	workspace     WorkspaceChangeNotifier
+	invalidations invalidation.Publish
+	changes       sessionRunChanges
+	now           func() time.Time
+}
+
+func newRunPublications(
+	projection ProjectionPorts,
+	invalidations invalidation.Publish,
+	now func() time.Time,
+) runPublications {
+	return runPublications{
+		openings:      projection.Openings,
+		events:        projection.Events,
+		barriers:      projection.Barriers,
+		workspace:     projection.Workspace,
+		invalidations: invalidations,
+		now:           now,
+	}
+}
+
+func (publications *runPublications) nowUTC() time.Time { return publications.now().UTC() }
+
+func (publications *runPublications) event(runID, segmentID string, reduced reduction) Event {
+	return Event{
+		RunID: runID, SegmentID: segmentID,
+		Timestamp: publications.nowUTC(), Payload: reduced.Event,
+	}
+}
+
+func (publications *runPublications) commitOpening(ctx context.Context, opening OpeningCommit) error {
+	return publications.openings.CommitOpening(ctx, opening)
+}
+
+func (publications *runPublications) commitEvent(ctx context.Context, commit EventCommit) error {
+	return publications.events.CommitEvent(ctx, commit)
+}
+
+func (publications *runPublications) commitTreeBarrier(
+	ctx context.Context,
+	barrier TreeBarrierCommit,
+) error {
+	return publications.barriers.CommitTreeBarrier(ctx, barrier)
+}
+
+func (publications *runPublications) nudge(cwd string, paths []string) {
+	publications.workspace.Nudge(cwd, paths)
+}
 
 // The run lifecycle's invalidations for clients that are not following this run.
 // They are published AFTER the durable transition they describe, from the same
@@ -14,9 +75,9 @@ import "github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 
 // publishRunMoved reports a run whose lifecycle position changed without touching
 // what it is waiting on: a run that started, or one that ended.
-func (c *Coordinator) publishRunMoved(sessionID, runID string) {
-	c.runChanges.notify(sessionID)
-	c.invalidations.Notify(
+func (publications *runPublications) publishRunMoved(sessionID, runID string) {
+	publications.changes.notify(sessionID)
+	publications.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, runID),
 		invalidation.InSession(invalidation.Sessions, sessionID),
 	)
@@ -24,9 +85,9 @@ func (c *Coordinator) publishRunMoved(sessionID, runID string) {
 
 // publishWaitingMoved reports a transition that also opened, answered or dropped
 // the session's open-interrupt set — a park, a resume, or a canceled park.
-func (c *Coordinator) publishWaitingMoved(sessionID, runID string) {
-	c.runChanges.notify(sessionID)
-	c.invalidations.Notify(
+func (publications *runPublications) publishWaitingMoved(sessionID, runID string) {
+	publications.changes.notify(sessionID)
+	publications.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, runID),
 		invalidation.InSession(invalidation.Interrupts, sessionID, runID),
 		invalidation.InSession(invalidation.Sessions, sessionID),
@@ -38,12 +99,12 @@ func (c *Coordinator) publishWaitingMoved(sessionID, runID string) {
 // parent whose spawning Item was settled, and every Run resumed when the final
 // external boundary disappeared. The interrupt notice remains root-addressed
 // because one Pending aggregate owns the whole barrier.
-func (c *Coordinator) publishWaitingSubtreeCanceled(
+func (publications *runPublications) publishWaitingSubtreeCanceled(
 	sessionID string,
 	rootRunID string,
 	affectedRunIDs []string,
 ) {
-	c.invalidations.Notify(
+	publications.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, affectedRunIDs...),
 		invalidation.InSession(invalidation.Interrupts, sessionID, rootRunID),
 		invalidation.InSession(invalidation.Sessions, sessionID),
@@ -54,6 +115,6 @@ func (c *Coordinator) publishWaitingSubtreeCanceled(
 // goal. The accounting rides the run's transaction, so nothing in the goal use case
 // sees this write — without a notice here, a client would watch a goal spend its
 // budget in silence.
-func (c *Coordinator) publishGoalMoved(sessionID string) {
-	c.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
+func (publications *runPublications) publishGoalMoved(sessionID string) {
+	publications.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
 }

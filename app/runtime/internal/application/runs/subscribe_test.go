@@ -79,9 +79,9 @@ func liveCoordinator(t *testing.T, record run.Run) (*Coordinator, *journal) {
 		Runs:     &fakeRunProjection{runs: map[string]run.Run{testRunID: record}},
 	})
 	hub := newJournal(streamScope{
-		Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID,
-	}, c.retention)
-	c.registry.Open(Record{ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", ExecutorID: "turn_1"},
+		Epoch: c.segments.epoch, RunID: testRunID, SegmentID: testSegmentID,
+	}, c.segments.retention)
+	c.segments.open(Record{ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", ExecutorID: "turn_1"},
 		&runTreeOwner{hub: hub})
 	return c, hub
 }
@@ -150,17 +150,17 @@ func TestSubscribeDoesNotRetargetAnOldSegmentToARacingResume(t *testing.T) {
 	projection := &racingRunProjection{value: runRecord(run.Running, "segment_old", "")}
 	coordinator := mustNewCoordinator(Dependencies{Runs: projection})
 	oldHub := newJournal(streamScope{
-		Epoch: coordinator.epoch, RunID: testRunID, SegmentID: "segment_old",
-	}, coordinator.retention)
+		Epoch: coordinator.segments.epoch, RunID: testRunID, SegmentID: "segment_old",
+	}, coordinator.segments.retention)
 	newHub := newJournal(streamScope{
-		Epoch: coordinator.epoch, RunID: testRunID, SegmentID: "segment_new",
-	}, coordinator.retention)
-	coordinator.registry.Open(
+		Epoch: coordinator.segments.epoch, RunID: testRunID, SegmentID: "segment_new",
+	}, coordinator.segments.retention)
+	coordinator.segments.open(
 		Record{ID: testRunID, SegmentID: "segment_old", SessionID: "ses_1", ExecutorID: "executor_old"},
 		&runTreeOwner{hub: oldHub},
 	)
 	projection.beforeReturn = func() {
-		coordinator.registry.Open(
+		coordinator.segments.open(
 			Record{ID: testRunID, SegmentID: "segment_new", SessionID: "ses_1", ExecutorID: "executor_new"},
 			&runTreeOwner{hub: newHub},
 		)
@@ -232,7 +232,7 @@ func TestSubscribeResumesFromTheHeadItWasHandedEarlier(t *testing.T) {
 func TestSubscribeRefusesACursorFromAnotherSegment(t *testing.T) {
 	c, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	hub.append(ev(true))
-	other := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: "seg_previous"}, c.retention)
+	other := newJournal(streamScope{Epoch: c.segments.epoch, RunID: testRunID, SegmentID: "seg_previous"}, c.segments.retention)
 	other.append(ev(true))
 	stale := other.tail().HeadCursor
 
@@ -321,8 +321,8 @@ func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 		Runs: &fakeRunProjection{runs: map[string]run.Run{testRunID: record}},
 	})
 	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
-	hub := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID}, c.retention)
-	c.registry.Open(Record{
+	hub := newJournal(streamScope{Epoch: c.segments.epoch, RunID: testRunID, SegmentID: testSegmentID}, c.segments.retention)
+	c.segments.open(Record{
 		ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", Capabilities: capabilities,
 	}, &runTreeOwner{hub: hub})
 

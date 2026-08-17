@@ -792,7 +792,7 @@ func TestInteractionExecutorDoesNotCheckpointOrReplayUnknownEffect(t *testing.T)
 	case <-time.After(time.Second):
 		t.Fatal("unknown Effect was not observed")
 	}
-	process := session.processHandle()
+	process := session.state.processHandle()
 	if process == nil {
 		t.Fatal("unknown Interaction has no Process")
 	}
