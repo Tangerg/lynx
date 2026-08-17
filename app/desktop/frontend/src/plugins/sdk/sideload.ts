@@ -128,9 +128,7 @@ export async function registerSideloadedPlugin(
       reference,
       ...(activation.includes("startup")
         ? {}
-        : // `install` takes AnyPlugin in 0.2.0; `Artifact.placeholder` still wants
-          // the fully-generic Plugin, so this one seam needs the cast.
-          { placeholder: placeholderFor(platform, manifest, activation[0]!) as never }),
+        : { placeholder: placeholderFor(platform, manifest, activation[0]!) }),
     });
     if (signal?.aborted) return false;
     trackInstallation(owner, manifest.name, registration, "sideload");

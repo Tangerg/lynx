@@ -26,8 +26,8 @@ afterEach(async () => {
   resetExtensionPointsForTest();
 });
 
-// A point is read straight off the Host in 0.2.0, so nothing has to be declared
-// up front; the array survives only as what the assertions read back through.
+// A point is read straight off the Host, so nothing has to be declared up front;
+// the array survives only as what the assertions read back through.
 function stand(plugins: AnyPlugin[]): Host {
   const next = createHost({ name: "test", onError: () => {} });
   for (const plugin of plugins) next.install(plugin);
