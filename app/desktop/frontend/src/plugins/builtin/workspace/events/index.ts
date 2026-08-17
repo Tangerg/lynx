@@ -22,10 +22,14 @@ import {
 import { createWorkspaceEventLoop } from "./application/workspaceEventLoop";
 import { startWorkspaceEventSubscription } from "./application/workspaceEventSubscription";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
+import { WORKSPACE_MUTATION_LIFECYCLE_PORTS } from "@/plugins/builtin/workspace/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.workspace-events",
-  requires: { runtime: RUNTIME_STREAM_PORTS },
+  requires: {
+    runtime: RUNTIME_STREAM_PORTS,
+    mutationLifecycle: WORKSPACE_MUTATION_LIFECYCLE_PORTS,
+  },
   setup(ctx) {
     const loop = createWorkspaceEventLoop({
       subscribe: ({ target, signal }) => subscribeRuntimeWorkspaceEvents(target, signal),
@@ -41,7 +45,10 @@ export default definePlugin({
       canSubscribe: canSubscribeWorkspaceEvents,
       runtimeGeneration: ctx.runtime.runtimeGeneration,
       subscribeConnection: ctx.runtime.subscribeConnection,
-      retireReadModels: retireWorkspaceReadModels,
+      retireReadModels: () => {
+        ctx.mutationLifecycle.replaceRuntimeGeneration();
+        retireWorkspaceReadModels();
+      },
       resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
       reportResolutionError: (error) =>
         console.warn("[workspace-events] target resolution failed:", error),

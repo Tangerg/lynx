@@ -17,6 +17,7 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
   addAgentMemory,
+  agentMemoryMutationWasRetired,
   deleteAgentMemory,
   reviewAgentMemory,
   setAgentMemoryPinned,
@@ -41,6 +42,7 @@ function useRowAction(): { busy: boolean; run: (op: () => Promise<void>) => void
       setBusy(true);
       op()
         .catch((err: unknown) => {
+          if (agentMemoryMutationWasRetired(err)) return;
           notifyError(err instanceof Error ? err.message : t("agentMemory.error"), {
             source: "knowledge",
           });

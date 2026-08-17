@@ -3,6 +3,7 @@ import { configureAgentMemoryGateway } from "../application/ports/agentMemoryGat
 import type { AgentMemoryGateway } from "../application/ports/agentMemoryGateway";
 import type { AgentMemoryItem } from "@/rpc";
 import type { AgentMemoryEntry } from "../application/workspaceQueries";
+import { AgentMemoryMutationOwner } from "../application/agentMemoryMutationOwner";
 
 function memoryEntry(item: AgentMemoryItem): AgentMemoryEntry {
   return {
@@ -42,6 +43,19 @@ const gateway: AgentMemoryGateway = {
   },
 };
 
-export function installAgentMemoryGateway(): () => void {
-  return configureAgentMemoryGateway(gateway);
+export interface AgentMemoryGatewayInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installAgentMemoryGateway(): AgentMemoryGatewayInstallation {
+  const mutationOwner = AgentMemoryMutationOwner.install(gateway);
+  const disposeGateway = configureAgentMemoryGateway(gateway);
+  return {
+    replaceRuntimeGeneration: () => mutationOwner.replaceRuntimeGeneration(),
+    dispose() {
+      mutationOwner.dispose();
+      disposeGateway();
+    },
+  };
 }

@@ -14,16 +14,21 @@ import {
   forgetWorkspaceSessionScopes,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { WORKSPACE_SCOPE_PORTS } from "@/plugins/builtin/workspace/public/ports";
+import { WORKSPACE_MUTATION_LIFECYCLE_PORTS } from "@/plugins/builtin/workspace/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.workspace-bootstrap",
-  provides: { scopes: WORKSPACE_SCOPE_PORTS },
+  provides: {
+    scopes: WORKSPACE_SCOPE_PORTS,
+    mutationLifecycle: WORKSPACE_MUTATION_LIFECYCLE_PORTS,
+  },
   setup(ctx) {
+    const agentMemory = installAgentMemoryGateway();
     const disposers = [
       installCodebaseGateway(),
       installConversationArchiveGateway(),
       installWorkspaceKnowledgeGateway(),
-      installAgentMemoryGateway(),
+      () => agentMemory.dispose(),
       installSkillLibraryGateway(),
       installSkillProposalsGateway(),
       installToolCatalogGateway(),
@@ -38,6 +43,9 @@ export default definePlugin({
       scopes: {
         activateSessionScope: activateWorkspaceSessionScope,
         forgetSessionScopes: forgetWorkspaceSessionScopes,
+      },
+      mutationLifecycle: {
+        replaceRuntimeGeneration: agentMemory.replaceRuntimeGeneration,
       },
     };
   },

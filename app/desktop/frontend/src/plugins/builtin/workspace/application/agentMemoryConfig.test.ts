@@ -6,8 +6,9 @@ import {
   deleteAgentMemory,
   setAgentMemoryPinned,
 } from "./agentMemoryConfig";
-import { configureAgentMemoryGateway, type AgentMemoryGateway } from "./ports/agentMemoryGateway";
+import type { AgentMemoryGateway } from "./ports/agentMemoryGateway";
 import { WORKSPACE_AGENT_MEMORY_KEY, type AgentMemoryEntry } from "./workspaceQueries";
+import { AgentMemoryMutationOwner } from "./agentMemoryMutationOwner";
 
 function memory(overrides: Partial<AgentMemoryEntry> = {}): AgentMemoryEntry {
   return {
@@ -35,6 +36,11 @@ function deferred<T>() {
 
 let uninstall: (() => void) | undefined;
 
+function installGateway(gateway: AgentMemoryGateway): void {
+  const owner = AgentMemoryMutationOwner.install(gateway);
+  uninstall = () => owner.dispose();
+}
+
 afterEach(() => {
   uninstall?.();
   uninstall = undefined;
@@ -55,7 +61,7 @@ describe("agent memory configuration", () => {
     const query = agentMemoryQuery("user", "/ignored");
     queryClient.setQueryData([WORKSPACE_AGENT_MEMORY_KEY, query], []);
     const saved = memory();
-    uninstall = configureAgentMemoryGateway({
+    installGateway({
       add: vi.fn().mockResolvedValue(saved),
     } as unknown as AgentMemoryGateway);
 
@@ -74,12 +80,11 @@ describe("agent memory configuration", () => {
       .fn()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
-    uninstall = configureAgentMemoryGateway({ setPinned } as unknown as AgentMemoryGateway);
+    installGateway({ setPinned } as unknown as AgentMemoryGateway);
 
     const pinned = setAgentMemoryPinned("memory_1", true);
     const unpinned = setAgentMemoryPinned("memory_1", false);
-    await Promise.resolve();
-    expect(setPinned).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(setPinned).toHaveBeenCalledTimes(1));
 
     first.resolve(memory({ pinned: true, updatedAt: "2026-08-12T12:00:01Z" }));
     await pinned;
@@ -99,14 +104,14 @@ describe("agent memory configuration", () => {
     const first = deferred<AgentMemoryEntry>();
     const setPinned = vi.fn().mockReturnValue(first.promise);
     const remove = vi.fn().mockResolvedValue(undefined);
-    uninstall = configureAgentMemoryGateway({
+    installGateway({
       setPinned,
       delete: remove,
     } as unknown as AgentMemoryGateway);
 
     const pinned = setAgentMemoryPinned("memory_1", true);
     const deleted = deleteAgentMemory("memory_1");
-    await Promise.resolve();
+    await vi.waitFor(() => expect(setPinned).toHaveBeenCalledOnce());
     expect(remove).not.toHaveBeenCalled();
 
     first.resolve(memory({ pinned: true, updatedAt: "2026-08-12T12:00:01Z" }));

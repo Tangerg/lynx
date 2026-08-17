@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
+import { queryClient } from "@/lib/queryClient";
+import { agentMemoryQuery, setAgentMemoryPinned } from "../application/agentMemoryConfig";
 import { agentMemoryGateway } from "../application/ports/agentMemoryGateway";
+import { WORKSPACE_AGENT_MEMORY_KEY, type AgentMemoryEntry } from "../application/workspaceQueries";
 import { installAgentMemoryGateway } from "./runtimeAgentMemoryGateway";
 
 let uninstall: (() => void) | undefined;
@@ -10,6 +13,7 @@ afterEach(() => {
   uninstall?.();
   uninstall = undefined;
   resetContainer();
+  queryClient.removeQueries({ queryKey: [WORKSPACE_AGENT_MEMORY_KEY] });
 });
 
 describe("runtimeAgentMemoryGateway", () => {
@@ -33,7 +37,7 @@ describe("runtimeAgentMemoryGateway", () => {
     setContainer({
       client: () => ({ agentMemory: { add, update } }) as unknown as LyraClient,
     });
-    uninstall = installAgentMemoryGateway();
+    uninstall = installAgentMemoryGateway().dispose;
 
     await expect(
       agentMemoryGateway().add({ scope: "user", content: item.content }),
@@ -44,4 +48,99 @@ describe("runtimeAgentMemoryGateway", () => {
       updatedAt: "2026-08-12T12:00:01Z",
     });
   });
+
+  it("retires in-flight and queued commands before a successor gateway is installed", async () => {
+    const query = agentMemoryQuery("user");
+    const retiredUpdate = deferred<ReturnType<typeof memoryItem>>();
+    const updateRetired = vi.fn(() => retiredUpdate.promise);
+    const updateSuccessor = vi
+      .fn()
+      .mockResolvedValue(
+        memoryItem({ content: "successor", pinned: false, updatedAt: "2026-08-17T12:00:02Z" }),
+      );
+    setContainer({
+      client: () => ({ agentMemory: { update: updateRetired } }) as unknown as LyraClient,
+    });
+    const retiredInstallation = installAgentMemoryGateway();
+    queryClient.setQueryData([WORKSPACE_AGENT_MEMORY_KEY, query], [memoryEntry()]);
+
+    const inFlight = setAgentMemoryPinned("memory_1", true);
+    const queued = setAgentMemoryPinned("memory_1", false);
+    const inFlightSettlement = rejected(inFlight);
+    const queuedSettlement = rejected(queued);
+    await vi.waitFor(() => expect(updateRetired).toHaveBeenCalledOnce());
+
+    setContainer({
+      client: () => ({ agentMemory: { update: updateSuccessor } }) as unknown as LyraClient,
+    });
+    const successorInstallation = installAgentMemoryGateway();
+    uninstall = () => {
+      successorInstallation.dispose();
+      retiredInstallation.dispose();
+    };
+    queryClient.setQueryData(
+      [WORKSPACE_AGENT_MEMORY_KEY, query],
+      [memoryEntry({ content: "successor", pinned: false })],
+    );
+
+    retiredUpdate.resolve(
+      memoryItem({ content: "retired", pinned: true, updatedAt: "2026-08-17T12:00:01Z" }),
+    );
+
+    await expect(inFlightSettlement).resolves.toMatchObject({
+      message: "agent_memory_mutation_generation_retired",
+    });
+    await expect(queuedSettlement).resolves.toMatchObject({
+      message: "agent_memory_mutation_generation_retired",
+    });
+    expect(updateSuccessor).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData<AgentMemoryEntry[]>([WORKSPACE_AGENT_MEMORY_KEY, query]),
+    ).toEqual([memoryEntry({ content: "successor", pinned: false })]);
+
+    const successorCommand = setAgentMemoryPinned("memory_1", false);
+    retiredInstallation.replaceRuntimeGeneration();
+    await expect(successorCommand).resolves.toBeUndefined();
+    expect(updateSuccessor).toHaveBeenCalledOnce();
+  });
 });
+
+function memoryItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "memory_1",
+    scope: "user" as const,
+    content: "Remember this",
+    origin: "user" as const,
+    status: "active" as const,
+    pinned: false,
+    createdAt: "2026-08-17T12:00:00Z",
+    updatedAt: "2026-08-17T12:00:00Z",
+    ...overrides,
+  };
+}
+
+function memoryEntry(overrides: Partial<AgentMemoryEntry> = {}): AgentMemoryEntry {
+  return {
+    ...memoryItem(),
+    sessionId: "",
+    day: "",
+    ...overrides,
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+function rejected(operation: Promise<unknown>): Promise<Error> {
+  return operation.then(
+    () => {
+      throw new Error("operation unexpectedly resolved");
+    },
+    (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
+  );
+}
