@@ -176,6 +176,7 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 			InterruptItemID: binding.InterruptItemID,
 			MemberID:        binding.MemberID,
 			RequestID:       binding.RequestID,
+			ToolCallID:      binding.ToolCallID,
 		}
 	}
 	return sqlite.InterruptRecord{
@@ -225,6 +226,7 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 			InterruptItemID: binding.InterruptItemID,
 			MemberID:        binding.MemberID,
 			RequestID:       binding.RequestID,
+			ToolCallID:      binding.ToolCallID,
 		}
 	}
 	return runs.Pending{

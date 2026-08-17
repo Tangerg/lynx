@@ -1572,6 +1572,7 @@ func testApprovalPending(memberID string, runCreatedAt time.Time) Pending {
 			InterruptItemID: interruptItemID,
 			MemberID:        memberID,
 			RequestID:       "request_1",
+			ToolCallID:      "call_1",
 		}},
 		Continuations: []Continuation{{
 			RunID:          "run_1",

@@ -30,7 +30,7 @@ type resumableItem struct {
 }
 
 func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBinding {
-	builder := newResumeBindingBuilder(continuation.approvalDecisions)
+	builder := newResumeBindingBuilder(continuation.approvalResolutions)
 	builder.addInterrupts(continuation.interrupts, runID)
 	if member, found := continuation.forRun(runID); found {
 		if err := builder.addTools(member); err != nil {
@@ -41,12 +41,12 @@ func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBindi
 }
 
 type resumeBindingBuilder struct {
-	binding           resumeBinding
-	approvalDecisions map[string]approval.Decision
+	binding             resumeBinding
+	approvalResolutions map[string]ToolApprovalResolution
 }
 
-func newResumeBindingBuilder(decisions map[string]approval.Decision) *resumeBindingBuilder {
-	return &resumeBindingBuilder{approvalDecisions: decisions, binding: resumeBinding{
+func newResumeBindingBuilder(resolutions map[string]ToolApprovalResolution) *resumeBindingBuilder {
+	return &resumeBindingBuilder{approvalResolutions: resolutions, binding: resumeBinding{
 		callItems: make(map[string]resumableItem),
 		toolItems: make(map[string]resumableItem),
 		byName:    make(map[string]resumableItem),
@@ -83,13 +83,14 @@ func (builder *resumeBindingBuilder) addInterrupts(interrupts []transcript.Inter
 		switch pending.Kind {
 		case interrupt.Approval:
 			if pending.Approval != nil && pending.Approval.Tool.Name != "" {
+				resolution := builder.approvalResolutions[pending.ItemID]
 				builder.addItem(
-					"",
+					resolution.CallID,
 					pending.Approval.Tool.Name,
 					argumentIdentity(pending.Approval.Tool.Arguments),
 					pending.ItemID,
 					pending.ItemOccurredAt,
-					builder.approvalDecisions[pending.ItemID],
+					resolution.Decision,
 				)
 			}
 		case interrupt.Question:

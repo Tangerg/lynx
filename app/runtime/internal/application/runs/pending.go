@@ -66,6 +66,12 @@ type InterruptBinding struct {
 	InterruptItemID string
 	MemberID        string
 	RequestID       string
+	// ToolCallID is the provider call identity of an approval boundary. It is
+	// intentionally private continuation data: edited arguments may change the
+	// invocation replayed after approval, so neither name nor arguments can own
+	// the resumed ToolCall identity. Questions leave it empty because their
+	// underlying tool is already carried as a drained Tool.
+	ToolCallID string
 }
 
 // InterruptAnswer is one validated decision bound to the exact executor
@@ -258,6 +264,7 @@ func (p Pending) validateInterrupts(runIDs map[string]struct{}) (map[string]tran
 func (p Pending) validateBindings(interruptsByItem map[string]transcript.Interrupt) error {
 	boundItems := make(map[string]struct{}, len(p.Bindings))
 	boundRequests := make(map[string]struct{}, len(p.Bindings))
+	boundToolCalls := make(map[string]struct{}, len(p.Bindings))
 	for index, binding := range p.Bindings {
 		for _, identity := range []struct {
 			name  string
@@ -271,7 +278,7 @@ func (p Pending) validateBindings(interruptsByItem map[string]transcript.Interru
 				return fmt.Errorf("interrupts: input-request binding[%d]: %w", index, err)
 			}
 		}
-		interrupt, exists := interruptsByItem[binding.InterruptItemID]
+		request, exists := interruptsByItem[binding.InterruptItemID]
 		if !exists {
 			return fmt.Errorf(
 				"interrupts: input-request binding[%d] names unknown item %q",
@@ -287,6 +294,29 @@ func (p Pending) validateBindings(interruptsByItem map[string]transcript.Interru
 				p.Interrupts[index].ItemID,
 			)
 		}
+		switch request.Kind {
+		case interrupt.Approval:
+			if err := validateRequiredIdentity("approval Tool call id", binding.ToolCallID); err != nil {
+				return fmt.Errorf("interrupts: input-request binding[%d]: %w", index, err)
+			}
+			key := binding.MemberID + "\x00" + binding.ToolCallID
+			if _, duplicate := boundToolCalls[key]; duplicate {
+				return fmt.Errorf(
+					"interrupts: member %q Tool call %q is bound more than once",
+					binding.MemberID,
+					binding.ToolCallID,
+				)
+			}
+			boundToolCalls[key] = struct{}{}
+		case interrupt.Question:
+			if binding.ToolCallID != "" {
+				return fmt.Errorf(
+					"interrupts: question item %q carries approval Tool call %q",
+					binding.InterruptItemID,
+					binding.ToolCallID,
+				)
+			}
+		}
 		continuation, exists := continuationForMember(p.Continuations, binding.MemberID)
 		if !exists {
 			return fmt.Errorf(
@@ -295,13 +325,33 @@ func (p Pending) validateBindings(interruptsByItem map[string]transcript.Interru
 				binding.MemberID,
 			)
 		}
-		if continuation.RunID != interrupt.RunID {
+		if continuation.RunID != request.RunID {
 			return fmt.Errorf(
 				"interrupts: item %q belongs to run %q but its input request belongs to run %q",
-				interrupt.ItemID,
-				interrupt.RunID,
+				request.ItemID,
+				request.RunID,
 				continuation.RunID,
 			)
+		}
+		if request.Kind == interrupt.Approval {
+			for _, tool := range continuation.DrainedTools {
+				if tool.CallID == binding.ToolCallID {
+					return fmt.Errorf(
+						"interrupts: approval Tool call %q is also drained for member %q",
+						binding.ToolCallID,
+						binding.MemberID,
+					)
+				}
+			}
+			for _, tool := range continuation.CommittedTools {
+				if tool.CallID == binding.ToolCallID {
+					return fmt.Errorf(
+						"interrupts: approval Tool call %q is already committed for member %q",
+						binding.ToolCallID,
+						binding.MemberID,
+					)
+				}
+			}
 		}
 		if _, duplicate := boundItems[binding.InterruptItemID]; duplicate {
 			return fmt.Errorf("interrupts: item %q is bound more than once", binding.InterruptItemID)

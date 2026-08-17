@@ -273,6 +273,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 				}},
 				Bindings: []runs.InterruptBinding{{
 					InterruptItemID: "item_1", MemberID: "member_1", RequestID: "request_1",
+					ToolCallID: "call_1",
 				}},
 				Continuations: []runs.Continuation{{
 					RunID: "run_1", MemberID: "member_1", RunCreatedAt: createdAt,

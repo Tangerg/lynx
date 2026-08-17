@@ -18,7 +18,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 			Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium", Rememberable: true,
 		},
 	}}, Bindings: []InterruptBinding{{
-		InterruptItemID: "item_approval", MemberID: "member_approval", RequestID: "request_approval",
+		InterruptItemID: "item_approval", MemberID: "member_approval", RequestID: "request_approval", ToolCallID: "call_approval",
 	}}}
 	answers, err := resolveResumeResponses(approvalPending, []ResumeResponse{{
 		ItemID: "item_approval",
@@ -104,7 +104,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"},
 			}},
 			Bindings: []InterruptBinding{{
-				InterruptItemID: "item_one_off", MemberID: "member_one_off", RequestID: "request_one_off",
+				InterruptItemID: "item_one_off", MemberID: "member_one_off", RequestID: "request_one_off", ToolCallID: "call_one_off",
 			}},
 		}, responses: []ResumeResponse{{
 			ItemID: "item_one_off", Kind: ApprovalResponseKind,
@@ -140,8 +140,8 @@ func TestResolveResumeResponsesPreservesCompleteBarrierInCanonicalOrder(t *testi
 			},
 		},
 		Bindings: []InterruptBinding{
-			{InterruptItemID: "item_a", MemberID: "member_a", RequestID: "request_a"},
-			{InterruptItemID: "item_b", MemberID: "member_b", RequestID: "request_b"},
+			{InterruptItemID: "item_a", MemberID: "member_a", RequestID: "request_a", ToolCallID: "call_a"},
+			{InterruptItemID: "item_b", MemberID: "member_b", RequestID: "request_b", ToolCallID: "call_b"},
 		},
 	}
 	answers, err := resolveResumeResponses(pending, []ResumeResponse{

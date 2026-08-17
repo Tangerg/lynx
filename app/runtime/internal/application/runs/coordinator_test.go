@@ -2498,6 +2498,47 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	}
 }
 
+func TestCoordinatorPersistsExactApprovalCallIdentityInTreeBarrier(t *testing.T) {
+	root := ExecutorMember{MemberID: "member_root"}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Member: root, Payload: ToolCallStarted{
+			CallID: "call_approval", ToolName: "shell", Arguments: `{"command":"pwd"}`,
+			SafetyClass: tool.SafetyClassExec,
+		}},
+		{Member: root, Payload: TreeInterrupted{
+			Checkpoint: testExecutorCheckpoint(),
+			Interruptions: []MemberInterruption{{
+				MemberID: root.MemberID, RequestID: "request_approval",
+				Interrupt: Interrupt{Kind: interrupt.Approval, Approval: &ApprovalPrompt{
+					CallID: "call_approval", ToolName: "shell", Arguments: `{"command":"pwd"}`,
+					SafetyClass: tool.SafetyClassExec, Risk: tool.RiskMedium,
+				}},
+			}},
+		}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	spec := testSegment()
+	spec.Capabilities = run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
+
+	stream, err := coordinator.openSegment(t.Context(), spec)
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	collectEvents(stream)
+
+	barriers := effects.barrierSnapshot()
+	if len(barriers) != 1 || len(barriers[0].Pending.Bindings) != 1 {
+		t.Fatalf("tree barriers = %+v, want one approval binding", barriers)
+	}
+	binding := barriers[0].Pending.Bindings[0]
+	if binding.MemberID != root.MemberID ||
+		binding.RequestID != "request_approval" ||
+		binding.ToolCallID != "call_approval" {
+		t.Fatalf("approval binding = %+v, want exact executor request and Tool call", binding)
+	}
+}
+
 func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testing.T) {
 	root := ExecutorMember{MemberID: "member_root"}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{

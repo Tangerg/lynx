@@ -474,6 +474,9 @@ func (p treePublisher) reduceInterruptedRoute(
 			MemberID:        interruption.MemberID,
 			RequestID:       interruption.RequestID,
 		}
+		if interruption.Interrupt.Approval != nil {
+			bindings[index].ToolCallID = interruption.Interrupt.Approval.CallID
+		}
 	}
 	continuation := Continuation{
 		RunID:          route.runID,

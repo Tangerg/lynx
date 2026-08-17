@@ -138,6 +138,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 			InterruptItemID: "item_approval",
 			MemberID:        "member_1",
 			RequestID:       "request_1",
+			ToolCallID:      "call_1",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID: "run_1", MemberID: "member_1", RunCreatedAt: time.Unix(1, 0).UTC(),
@@ -154,6 +155,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	}
 	root, _ := got.RootContinuation()
 	if root.MemberID != "member_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" ||
+		got.Bindings[0].ToolCallID != "call_1" ||
 		got.Interrupts[0].Approval == nil || got.Interrupts[0].Approval.Risk != tool.RiskHigh ||
 		got.Interrupts[0].Approval.Tool.Name != "shell" ||
 		got.Interrupts[0].Approval.Tool.Arguments.Canonical() != arguments.Canonical() ||

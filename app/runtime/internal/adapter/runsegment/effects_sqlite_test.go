@@ -1285,6 +1285,7 @@ func TestClaimResumeAtomicallyPersistsToolApprovalDecision(t *testing.T) {
 	pending.Interrupts[0].Approval = &transcript.Approval{
 		Tool: invocation, Risk: tool.RiskHigh,
 	}
+	pending.Bindings[0].ToolCallID = "call_approval_claim"
 	if err := pending.Validate(); err != nil {
 		t.Fatalf("approval Pending: %v", err)
 	}

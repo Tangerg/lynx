@@ -132,12 +132,15 @@ func serverPending(
 	}
 	bindings := make([]runs.InterruptBinding, len(open))
 	capabilities := run.Capabilities{}
-	for index, interrupt := range open {
-		capabilities.InterruptKinds = append(capabilities.InterruptKinds, interrupt.Kind)
+	for index, request := range open {
+		capabilities.InterruptKinds = append(capabilities.InterruptKinds, request.Kind)
 		bindings[index] = runs.InterruptBinding{
-			InterruptItemID: interrupt.ItemID,
+			InterruptItemID: request.ItemID,
 			MemberID:        memberID,
 			RequestID:       fmt.Sprintf("request_%s_%d", memberID, index),
+		}
+		if request.Kind == interrupt.Approval {
+			bindings[index].ToolCallID = fmt.Sprintf("call_%s_%d", memberID, index)
 		}
 	}
 	return runs.Pending{

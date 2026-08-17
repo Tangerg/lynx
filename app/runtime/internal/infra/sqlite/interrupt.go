@@ -57,6 +57,7 @@ type InterruptBindingRecord struct {
 	InterruptItemID string
 	MemberID        string
 	RequestID       string
+	ToolCallID      string
 }
 
 // DrainedToolRecord is the stored identity of an open tool invocation.
@@ -166,6 +167,7 @@ type interruptBindingRow struct {
 	InterruptItemID string `json:"interruptItemId"`
 	MemberID        string `json:"memberId"`
 	RequestID       string `json:"requestId"`
+	ToolCallID      string `json:"toolCallId,omitempty"`
 }
 
 // NewInterruptStore binds the SQLite interrupt registry to a database opened via

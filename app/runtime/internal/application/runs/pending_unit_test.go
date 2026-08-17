@@ -36,9 +36,11 @@ func TestResumeClaimDerivesExactToolApprovalResolutions(t *testing.T) {
 	}
 	if len(resolutions) != 2 ||
 		resolutions[0].Identity.ItemID != "item_grandchild" ||
+		resolutions[0].CallID != "call_grandchild" ||
 		resolutions[0].Invocation.Name != "shell" ||
 		resolutions[0].Decision != approval.Allow ||
 		resolutions[1].Identity.ItemID != "item_b" ||
+		resolutions[1].CallID != "call_b" ||
 		resolutions[1].Invocation.Name != "write" ||
 		resolutions[1].Decision != approval.Deny {
 		t.Fatalf("Tool approval resolutions = %+v", resolutions)
@@ -105,6 +107,40 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 				p.Bindings[0].RequestID += " "
 			},
 			want: "input request id has surrounding whitespace",
+		},
+		{
+			name: "approval Tool call identity is missing",
+			mutate: func(p *Pending) {
+				p.Bindings[0].ToolCallID = ""
+			},
+			want: "approval Tool call id is required",
+		},
+		{
+			name: "approval Tool call identity is not canonical",
+			mutate: func(p *Pending) {
+				p.Bindings[0].ToolCallID += " "
+			},
+			want: "approval Tool call id has surrounding whitespace",
+		},
+		{
+			name: "approval Tool call is also drained",
+			mutate: func(p *Pending) {
+				p.Continuations[0].DrainedTools = []DrainedTool{{
+					ItemID: "item_drained", ItemOccurredAt: p.CreatedAt,
+					CallID: "call_grandchild", Name: "shell", Arguments: `{}`,
+				}}
+			},
+			want: "approval Tool call \"call_grandchild\" is also drained",
+		},
+		{
+			name: "approval Tool call is already committed",
+			mutate: func(p *Pending) {
+				p.Continuations[0].CommittedTools = []CommittedTool{{
+					ItemID: "item_committed", CallID: "call_grandchild",
+					Name: "shell", Arguments: `{}`,
+				}}
+			},
+			want: "approval Tool call \"call_grandchild\" is already committed",
 		},
 		{
 			name: "interrupt identity is not canonical",
@@ -187,8 +223,8 @@ func validTreePending() Pending {
 			},
 		},
 		Bindings: []InterruptBinding{
-			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", RequestID: "request_grandchild"},
-			{InterruptItemID: "item_b", MemberID: "member_b", RequestID: "request_b"},
+			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", RequestID: "request_grandchild", ToolCallID: "call_grandchild"},
+			{InterruptItemID: "item_b", MemberID: "member_b", RequestID: "request_b", ToolCallID: "call_b"},
 		},
 		Continuations: []Continuation{
 			{

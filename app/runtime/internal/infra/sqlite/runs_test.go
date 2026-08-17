@@ -133,6 +133,9 @@ func pendingForRun(
 			MemberID:        memberID,
 			RequestID:       "request_" + copied[index].ItemID,
 		}
+		if copied[index].Kind == interrupt.Approval {
+			bindings[index].ToolCallID = "call_" + copied[index].ItemID
+		}
 	}
 	return runs.Pending{
 		RootRunID:    runID,

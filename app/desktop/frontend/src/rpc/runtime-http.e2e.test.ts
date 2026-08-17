@@ -256,7 +256,11 @@ function faultStreamOpening(method: string): { attempts: () => number; fetch: ty
   return { attempts: () => attempts, fetch: faultFetch };
 }
 
-function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolCall } {
+function scriptedReply(body: FakeChatRequest): {
+  text?: string;
+  tool?: FakeToolCall;
+  tools?: FakeToolCall[];
+} {
   const transcript = JSON.stringify(body.messages ?? []);
   const availableTools = new Set(
     (body.tools ?? []).flatMap((tool) => (tool.function?.name ? [tool.function.name] : [])),
@@ -298,6 +302,30 @@ function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolC
           ],
         }),
       },
+    };
+  }
+  if (
+    transcript.includes("E2E_PARALLEL_EDITED_TOOL") &&
+    availableTools.has("shell") &&
+    !hasToolResult
+  ) {
+    return {
+      tools: [
+        {
+          name: "shell",
+          arguments: JSON.stringify({
+            command: "printf approval-original",
+            description: "Print the original approval marker",
+          }),
+        },
+        {
+          name: "shell",
+          arguments: JSON.stringify({
+            command: "printf approval-sibling",
+            description: "Print the sibling approval marker",
+          }),
+        },
+      ],
     };
   }
   if (transcript.includes("E2E_APPROVAL") && availableTools.has("shell") && !hasToolResult) {
@@ -455,20 +483,22 @@ function writeChatCompletion(
   const id = `chatcmpl-e2e-${sequence}`;
   const model = body.model ?? "e2e-model";
   const reply = scriptedReply(body);
-  const finishReason = reply.tool ? "tool_calls" : "stop";
-  const message = reply.tool
-    ? {
-        role: "assistant",
-        content: "",
-        tool_calls: [
-          {
-            id: `call-e2e-${sequence}`,
+  const tools = reply.tools ?? (reply.tool ? [reply.tool] : []);
+  const finishReason = tools.length > 0 ? "tool_calls" : "stop";
+  const callID = (index: number) =>
+    index === 0 ? `call-e2e-${sequence}` : `call-e2e-${sequence}-${index}`;
+  const message =
+    tools.length > 0
+      ? {
+          role: "assistant",
+          content: "",
+          tool_calls: tools.map((tool, index) => ({
+            id: callID(index),
             type: "function",
-            function: { name: reply.tool.name, arguments: reply.tool.arguments },
-          },
-        ],
-      }
-    : { role: "assistant", content: reply.text };
+            function: { name: tool.name, arguments: tool.arguments },
+          })),
+        }
+      : { role: "assistant", content: reply.text };
 
   if (!body.stream) {
     response.writeHead(200, { "Content-Type": "application/json" });
@@ -485,40 +515,39 @@ function writeChatCompletion(
   }
 
   response.writeHead(200, { "Content-Type": "text/event-stream" });
-  const chunks = reply.tool
-    ? [
-        { choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] },
-        {
-          choices: [
-            {
-              index: 0,
-              delta: {
-                tool_calls: [
-                  {
-                    index: 0,
-                    id: `call-e2e-${sequence}`,
+  const chunks =
+    tools.length > 0
+      ? [
+          { choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] },
+          {
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: tools.map((tool, index) => ({
+                    index,
+                    id: callID(index),
                     type: "function",
-                    function: { name: reply.tool.name, arguments: reply.tool.arguments },
-                  },
-                ],
+                    function: { name: tool.name, arguments: tool.arguments },
+                  })),
+                },
+                finish_reason: null,
               },
-              finish_reason: null,
-            },
-          ],
-        },
-        { choices: [{ index: 0, delta: {}, finish_reason: finishReason }] },
-      ]
-    : [
-        {
-          choices: [
-            {
-              index: 0,
-              delta: { role: "assistant", content: reply.text },
-              finish_reason: finishReason,
-            },
-          ],
-        },
-      ];
+            ],
+          },
+          { choices: [{ index: 0, delta: {}, finish_reason: finishReason }] },
+        ]
+      : [
+          {
+            choices: [
+              {
+                index: 0,
+                delta: { role: "assistant", content: reply.text },
+                finish_reason: finishReason,
+              },
+            ],
+          },
+        ];
   for (const chunk of chunks) {
     response.write(
       `data: ${JSON.stringify({ id, object: "chat.completion.chunk", model, ...chunk })}\n\n`,
@@ -2388,6 +2417,120 @@ for await (const line of lines) {
 
     streamController.abort();
     await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("keeps one Tool Item when edited approval resumes beside a same-name sibling", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP edited parallel approval identity",
+    });
+    const started = await client.runs.start({
+      sessionId: asSessionId(session.id),
+      input: [
+        {
+          type: "text",
+          text: "E2E_PARALLEL_EDITED_TOOL run both commands after the first edited approval.",
+        },
+      ],
+    });
+    const runId = asRunId(started.result.runId);
+    const startEvents = await collectRunEvents(started.events);
+    expect(startEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "interrupt" },
+    });
+
+    const pending = await client.interrupts.list({ rootRunId: runId });
+    expect(pending.data).toHaveLength(1);
+    expect(pending.data[0]?.interrupts).toHaveLength(1);
+    const approval = pending.data[0]?.interrupts[0];
+    if (!approval || approval.type !== "approval") {
+      throw new Error("runtime did not persist the expected first parallel approval");
+    }
+    expect(approval.payload.tool).toMatchObject({
+      name: "shell",
+      arguments: { command: "printf approval-original" },
+    });
+
+    const resumed = await client.runs.resume({
+      runId,
+      responses: [
+        {
+          itemId: approval.itemId,
+          response: {
+            type: "approval",
+            decision: "approve",
+            editedArgs: {
+              command: "printf approval-edited",
+              description: "Print the edited approval marker",
+            },
+            remember: { scope: "session" },
+          },
+        },
+      ],
+    });
+    const firstResumeEvents = await collectRunEvents(resumed.events);
+    expect(firstResumeEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "interrupt" },
+    });
+
+    const firstLifecycle = [...startEvents, ...firstResumeEvents];
+    const starts = firstLifecycle.filter(
+      (event) => event.event.type === "item.started" && event.event.item.id === approval.itemId,
+    );
+    const completions = firstLifecycle.filter(
+      (event) => event.event.type === "item.completed" && event.event.item.id === approval.itemId,
+    );
+    expect(starts).toHaveLength(1);
+    expect(completions).toHaveLength(1);
+    const completedEvent = completions[0]?.event;
+    if (completedEvent?.type !== "item.completed" || completedEvent.item.type !== "toolCall") {
+      throw new Error("edited approval did not complete the original Tool Item");
+    }
+    expect(completedEvent.item).toMatchObject({
+      approvalDecision: "approve",
+      id: approval.itemId,
+      status: "completed",
+      tool: {
+        arguments: { command: "printf approval-edited" },
+      },
+    });
+    expect(JSON.stringify(completedEvent.item.tool?.result)).toContain("approval-edited");
+
+    const secondPending = await client.interrupts.list({ rootRunId: runId });
+    expect(secondPending.data).toHaveLength(1);
+    expect(secondPending.data[0]?.interrupts).toHaveLength(1);
+    const siblingApproval = secondPending.data[0]?.interrupts[0];
+    if (!siblingApproval || siblingApproval.type !== "approval") {
+      throw new Error("runtime did not persist the same-name sibling approval");
+    }
+    expect(siblingApproval.itemId).not.toBe(approval.itemId);
+    expect(siblingApproval.payload.tool).toMatchObject({
+      name: "shell",
+      arguments: { command: "printf approval-sibling" },
+    });
+
+    const completed = await client.runs.resume({
+      runId,
+      responses: [
+        {
+          itemId: siblingApproval.itemId,
+          response: { type: "approval", decision: "approve" },
+        },
+      ],
+    });
+    const finalEvents = await collectRunEvents(completed.events);
+    expect(finalEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "completed" },
+    });
+    await expect(client.interrupts.list({ rootRunId: runId })).resolves.toMatchObject({ data: [] });
+
+    const rules = await client.approval.listRules(asSessionId(session.id));
+    await Promise.all(rules.rules.map((rule) => client?.approval.forgetRule(rule.id)));
   }, 30_000);
 
   it("round-trips the runtime approval mode without changing run policy", async () => {

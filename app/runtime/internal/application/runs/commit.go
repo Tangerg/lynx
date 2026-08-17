@@ -89,6 +89,7 @@ type ClaimedResume struct {
 // transaction that consumes the Pending barrier.
 type ToolApprovalResolution struct {
 	Identity   transcript.ItemIdentity
+	CallID     string
 	Invocation transcript.ToolInvocation
 	Decision   approval.Decision
 }
@@ -96,6 +97,9 @@ type ToolApprovalResolution struct {
 func (resolution ToolApprovalResolution) Validate() error {
 	if err := resolution.Identity.Validate(); err != nil {
 		return err
+	}
+	if strings.TrimSpace(resolution.CallID) == "" || resolution.CallID != strings.TrimSpace(resolution.CallID) {
+		return errors.New("runs: approval Tool call identity is required without surrounding whitespace")
 	}
 	if err := resolution.Invocation.Validate(true); err != nil {
 		return fmt.Errorf("runs: approval Tool invocation: %w", err)
@@ -140,12 +144,18 @@ func (claim ResumeClaimCommit) Validate() error {
 
 // ToolApprovalResolutions derives the durable verdict for every accepted
 // approval response from the exact Pending snapshot. It deliberately carries
-// the original invocation: edited arguments apply to execution after approval,
-// not to the historical call the person reviewed.
+// the original prompt invocation so the answer claim validates the exact
+// reviewed boundary. Edited arguments become the approved execution input and
+// may therefore replace the invocation on the terminal Tool Item; Item and
+// provider call identities, rather than mutable arguments, preserve continuity.
 func (claim ResumeClaimCommit) ToolApprovalResolutions() ([]ToolApprovalResolution, error) {
 	answersByItem := make(map[string]InterruptAnswer, len(claim.Answers))
+	bindingsByItem := make(map[string]InterruptBinding, len(claim.Expected.Bindings))
 	for _, answer := range claim.Answers {
 		answersByItem[answer.InterruptItemID] = answer
+	}
+	for _, binding := range claim.Expected.Bindings {
+		bindingsByItem[binding.InterruptItemID] = binding
 	}
 	resolutions := make([]ToolApprovalResolution, 0, len(claim.Expected.Interrupts))
 	for _, request := range claim.Expected.Interrupts {
@@ -159,11 +169,16 @@ func (claim ResumeClaimCommit) ToolApprovalResolutions() ([]ToolApprovalResoluti
 		if !ok {
 			return nil, fmt.Errorf("approval item %q has no answer", request.ItemID)
 		}
+		binding, ok := bindingsByItem[request.ItemID]
+		if !ok {
+			return nil, fmt.Errorf("approval item %q has no continuation binding", request.ItemID)
+		}
 		resolution := ToolApprovalResolution{
 			Identity: transcript.ItemIdentity{
 				SessionID: claim.Expected.SessionID, RunID: request.RunID,
 				ItemID: request.ItemID, OccurredAt: request.ItemOccurredAt,
 			},
+			CallID:     binding.ToolCallID,
 			Invocation: request.Approval.Tool,
 			Decision:   approval.DecisionOf(answer.Resolution.Approved),
 		}

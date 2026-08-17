@@ -794,6 +794,64 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	}
 }
 
+func TestReducerResumeKeepsEditedApprovalIdentityBesideSameNameDrainedTool(t *testing.T) {
+	approvalAt := time.Unix(1, 0).UTC()
+	siblingAt := time.Unix(2, 0).UTC()
+	reviewed := transcript.ToolInvocation{
+		Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "rm old"}),
+	}
+	config := testReducerConfig()
+	config.SegmentID = "seg_resumed"
+	config.Continuation = testTreeContinuation(Pending{
+		RootRunID: "run_1", SessionID: "ses_1",
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_approval", ItemOccurredAt: approvalAt,
+			RunID: "run_1", Kind: interrupt.Approval,
+			Approval: &transcript.Approval{Tool: reviewed},
+		}},
+		Continuations: []Continuation{{
+			RunID: "run_1",
+			DrainedTools: []DrainedTool{{
+				ItemID: "item_sibling", ItemOccurredAt: siblingAt,
+				CallID: "call_sibling", Name: "shell", Arguments: `{"command":"pwd"}`,
+			}},
+		}},
+	})
+	config.Continuation.approvalResolutions = map[string]ToolApprovalResolution{
+		"item_approval": {
+			Identity: transcript.ItemIdentity{
+				SessionID: "ses_1", RunID: "run_1", ItemID: "item_approval", OccurredAt: approvalAt,
+			},
+			CallID: "call_approval", Invocation: reviewed, Decision: approval.Allow,
+		},
+	}
+
+	reducer := newReducer(config)
+	mustOpen(t, reducer)
+	started := mustReduce(t, reducer, ToolCallStarted{
+		CallID: "call_approval", ToolName: "shell",
+		Arguments: `{"command":"rm edited"}`, SafetyClass: tool.SafetyClassExec,
+	})
+	for _, reduced := range started {
+		if item, ok := reduced.Event.(ItemStarted); ok {
+			t.Fatalf("edited resumed approval minted Item %q, want existing item_approval", item.Item.ItemID)
+		}
+	}
+	if itemID, open := reducer.openToolItemID("call_approval"); !open || itemID != "item_approval" {
+		t.Fatalf("edited resumed approval item = %q/%t, want item_approval", itemID, open)
+	}
+	completed := completedItem(t, mustReduce(t, reducer, ToolCallFinished{
+		CallID: "call_approval", Result: testToolResult(t, "ok"),
+	}))
+	if completed.ID() != "item_approval" || completed.ApprovalDecision() != approval.Allow {
+		t.Fatalf("edited resumed approval completion = %+v, want original approved Item", completed.Snapshot())
+	}
+	invocation, present := completed.ToolInvocation()
+	if !present || invocation.Arguments.Canonical() != `{"command":"rm edited"}` {
+		t.Fatalf("edited resumed approval invocation = %+v/%t, want executed edited arguments", invocation, present)
+	}
+}
+
 func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	usage := mustReduce(t, reducer, UsageReported{
@@ -898,16 +956,27 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	approvalAt := time.Unix(1, 0).UTC()
 	questionAt := time.Unix(2, 0).UTC()
+	reviewed := transcript.ToolInvocation{
+		Name: "shell",
+		Arguments: testToolArguments(t, map[string]any{
+			"command": "go test", "description": "Run tests",
+		}),
+	}
 	config := testReducerConfig()
 	config.Continuation = testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", ItemOccurredAt: approvalAt, RunID: "run_1", Kind: interrupt.Approval, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}, Risk: "medium"}},
+			{ItemID: "item_approval", ItemOccurredAt: approvalAt, RunID: "run_1", Kind: interrupt.Approval, Approval: &transcript.Approval{Tool: reviewed, Risk: "medium"}},
 			{ItemID: "item_question", ItemOccurredAt: questionAt, RunID: "run_1", Kind: interrupt.Question, Question: question},
 		},
 	})
-	config.Continuation.approvalDecisions = map[string]approval.Decision{
-		"item_approval": approval.Allow,
+	config.Continuation.approvalResolutions = map[string]ToolApprovalResolution{
+		"item_approval": {
+			Identity: transcript.ItemIdentity{
+				SessionID: "ses_1", RunID: "run_1", ItemID: "item_approval", OccurredAt: approvalAt,
+			},
+			CallID: "call_1", Invocation: reviewed, Decision: approval.Allow,
+		},
 	}
 	reducer := newReducer(config)
 	opening := mustOpen(t, reducer)
