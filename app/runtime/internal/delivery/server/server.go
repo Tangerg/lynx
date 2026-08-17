@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
@@ -204,7 +205,7 @@ func deriveContractFacts(cfg Config) (contractFacts, error) {
 			schedules:   cfg.Schedules.Available() && cfg.ScheduleFiring.Available(),
 			codebase:    cfg.Codebase.Available(),
 		},
-		replay: replayLimitsFrom(cfg.Runs),
+		replay: replayLimitsFrom(cfg.Runs.ReplayRetention()),
 		mcpAuthorizationAttempts: protocol.MCPAuthorizationAttemptLimits{
 			RetentionSeconds: int(cfg.MCP.AuthorizationAttemptRetention().Seconds()),
 		},
@@ -281,8 +282,7 @@ func (s *Server) capabilities() protocol.ServerCapabilities {
 // process — so a cursor from another segment is refused as invalid and one from
 // another process as unavailable. Making those two refusals happen is what checks
 // this claim.
-func replayLimitsFrom(useCases runUseCases) protocol.RunReplayLimits {
-	retention := useCases.ReplayRetention()
+func replayLimitsFrom(retention runs.Retention) protocol.RunReplayLimits {
 	return protocol.RunReplayLimits{
 		Scope:     protocol.ReplayScopeRuntimeInstanceRootSegment,
 		MaxEvents: retention.MaxEvents,

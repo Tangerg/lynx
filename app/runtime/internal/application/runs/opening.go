@@ -16,9 +16,6 @@ import (
 // the command's acceptance point; executor activation continues behind the
 // package's lifecycle supervisor and cannot retain the accepted response.
 func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult, error) {
-	if err := c.requireStartDependencies(); err != nil {
-		return StartResult{}, err
-	}
 	if err := cmd.ValidateScheduledIdentity(); err != nil {
 		return StartResult{}, err
 	}
@@ -84,16 +81,14 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	draft.CWD = execCWD
 	draft.WorkspaceCWD = sess.CWD()
 	draft.Isolated = isolated
-	if c.workingContexts != nil {
-		draft.WorkingContext, err = c.workingContexts.ComposeWorkingContext(ctx, WorkingContextInput{
-			SessionID:  sess.ID(),
-			CWD:        execCWD,
-			PromptText: message,
-			Seed:       draft.WorkingContext,
-		})
-		if err != nil {
-			return StartResult{}, fmt.Errorf("runs: compose working context: %w", err)
-		}
+	draft.WorkingContext, err = c.workingContexts.ComposeWorkingContext(ctx, WorkingContextInput{
+		SessionID:  sess.ID(),
+		CWD:        execCWD,
+		PromptText: message,
+		Seed:       draft.WorkingContext,
+	})
+	if err != nil {
+		return StartResult{}, fmt.Errorf("runs: compose working context: %w", err)
 	}
 	ref, err := c.rootStarts.StageRoot(ctx, draft)
 	if err != nil {

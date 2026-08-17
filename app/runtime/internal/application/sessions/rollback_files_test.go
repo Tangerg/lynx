@@ -7,7 +7,7 @@ import (
 
 func TestMutationCompletionDetachesFromCallerCancellation(t *testing.T) {
 	mutations := new(observingMutations)
-	coordinator := New(Dependencies{Mutations: mutations})
+	coordinator := mustNewCoordinator(Dependencies{Mutations: mutations})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 

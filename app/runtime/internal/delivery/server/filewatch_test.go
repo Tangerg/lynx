@@ -320,7 +320,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 	// notifier, and the hub observes it (mapping to the wire files.changed).
 	fc := &testNotification[workspaceapp.FileChangeNotice]{}
 	s.observeFileChanges(fc.Observe)
-	effects := runsegment.New(runsegment.Config{PublishFileChanges: fc.Publish})
+	effects := runsegment.NewWorkspaceNotifier(fc.Publish)
 
 	effects.Nudge("/proj", []string{"src/a.go"})
 	select {

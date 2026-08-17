@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -121,12 +122,58 @@ type Dependencies struct {
 }
 
 // NewCoordinator builds the single owner of run use cases and live segments.
-func NewCoordinator(deps Dependencies) *Coordinator {
+func NewCoordinator(deps Dependencies) (*Coordinator, error) {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
 	if deps.Retention == (Retention{}) {
 		deps.Retention = DefaultRetention()
+	}
+	if deps.Retention.MaxEvents <= 0 || deps.Retention.MaxBytes <= 0 {
+		return nil, errors.New("runs: replay retention budgets must be positive")
+	}
+	required := []struct {
+		name  string
+		value any
+	}{
+		{"root execution starter", deps.RootStarts},
+		{"execution observer", deps.Observations},
+		{"execution releaser", deps.Releases},
+		{"root cancellation requester", deps.RootCancellation},
+		{"conversation reader", deps.Conversation},
+		{"working context composer", deps.WorkingContexts},
+		{"waiting execution continuer", deps.Continuation},
+		{"waiting execution restorer", deps.WaitingRestorer},
+		{"running execution steerer", deps.Steering},
+		{"running subtree canceler", deps.RunningSubtreeCanceler},
+		{"waiting subtree cancellation preparer", deps.WaitingSubtreeCancellationPreparer},
+		{"session reader", deps.Session.Reader},
+		{"session creator", deps.Session.Creator},
+		{"active run reader", deps.Session.ActiveRuns},
+		{"pending interrupt reader", deps.Session.Interrupts},
+		{"run termination committer", deps.Session.Terminations},
+		{"opening committer", deps.Projection.Openings},
+		{"child run start committer", deps.Projection.ChildStarts},
+		{"resume claim committer", deps.Projection.ResumeClaims},
+		{"event committer", deps.Projection.Events},
+		{"tree barrier committer", deps.Projection.Barriers},
+		{"waiting checkpoint reader", deps.Projection.Checkpoints},
+		{"waiting subtree cancellation committer", deps.Projection.WaitingSubtreeCancellations},
+		{"workspace change notifier", deps.Projection.Workspace},
+		{"segment finalizer", deps.Projection.Finalizer},
+		{"run projection", deps.Runs},
+		{"item projection", deps.Items},
+		{"admission gate", deps.Admissions},
+		{"run id generator", deps.NewRunID},
+		{"segment id generator", deps.NewSegmentID},
+	}
+	for _, dependency := range required {
+		if nilDependency(dependency.value) {
+			return nil, fmt.Errorf("runs: %s is required", dependency.name)
+		}
+	}
+	if deps.Isolation != nil && nilDependency(deps.Isolation) {
+		return nil, errors.New("runs: isolation provider must not be typed nil")
 	}
 	return &Coordinator{
 		rootStarts:                         deps.RootStarts,
@@ -165,7 +212,17 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		retention:                          deps.Retention,
 		admission:                          deps.Admissions,
 		invalidations:                      deps.Invalidations,
+	}, nil
+}
+
+func nilDependency(value any) bool {
+	if value == nil {
+		return true
 	}
+	kind := reflect.ValueOf(value).Kind()
+	return (kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface ||
+		kind == reflect.Map || kind == reflect.Pointer || kind == reflect.Slice) &&
+		reflect.ValueOf(value).IsNil()
 }
 
 // ReplayRetention is the window this Coordinator enforces. Discovery publishes
@@ -178,9 +235,6 @@ func (c *Coordinator) ReplayRetention() Retention { return c.retention }
 // free before attempting its own Start. It does not reserve either resource;
 // Start remains the authority that acquires them.
 func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string) error {
-	if c == nil || c.admission == nil || c.sessionReader == nil || c.activeRuns == nil {
-		return errors.New("runs: admission gate is unavailable")
-	}
 	sess, err := c.sessionReader.Get(ctx, sessionID)
 	if err != nil {
 		return err
@@ -216,12 +270,6 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 // from the request without losing its trace; request cancellation drops only
 // that subscriber.
 func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (iter.Seq[Event], error) {
-	if c.observations == nil {
-		return nil, errors.New("runs: executor is required")
-	}
-	if c.openings == nil || c.events == nil || c.barriers == nil || c.workspace == nil || c.finalizer == nil {
-		return nil, errors.New("runs: segment projection ports are required")
-	}
 	startup, err := c.prepareSegmentStartup(reqCtx, spec)
 	if err != nil {
 		return nil, err
@@ -559,9 +607,6 @@ func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subs
 // Both entry points into an executing run (subscribe and steer) resolve here, so
 // they cannot come to different conclusions about the same run.
 func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID string) (liveSegment, error) {
-	if c.runs == nil {
-		return liveSegment{}, errors.New("runs: run projection is required")
-	}
 	run, ok, err := c.runs.Run(ctx, runID)
 	if err != nil {
 		return liveSegment{}, fmt.Errorf("runs: read run %q: %w", runID, err)

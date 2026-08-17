@@ -12,13 +12,11 @@ package runsegment
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"slices"
+	"reflect"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -33,13 +31,6 @@ import (
 type SessionStore interface {
 	Insert(ctx context.Context, value session.Session) error
 	Save(ctx context.Context, expectedRevision uint64, replacement session.Session) error
-}
-
-// SessionTitles is the Application capability for best-effort initial title
-// generation. It rechecks first-writer semantics through Session behavior.
-type SessionTitles interface {
-	NeedsGeneratedTitle(ctx context.Context, id string) (bool, error)
-	ApplyGeneratedTitle(ctx context.Context, id, title string) error
 }
 
 // ScheduleFiringStore confirms the durable occurrence that owns a scheduled
@@ -228,34 +219,11 @@ type ConversationStore interface {
 	Count(ctx context.Context, sessionID string) (int, error)
 }
 
-// TitleGenerator derives an initial session title from its opening request.
-type TitleGenerator interface {
-	Generate(ctx context.Context, firstMessage string) (string, error)
-}
-
-// Checkpoints anchors the working tree at a terminal run boundary. Implemented
-// by the workspace adapter; defined here so the kernel depends on the behavior,
-// not the adapter package.
-type Checkpoints interface {
-	Snapshot(ctx context.Context, sessionID, cwd, runID string) error
-}
-
-// TaskLauncher starts request-detached work owned by its component lifecycle.
-type TaskLauncher interface {
-	Start(parent context.Context, task func(context.Context)) bool
-}
-
-// FileChangePublisher nudges live workspace subscribers after a tool-owned file
-// mutation. It is deliberately path-only so the persistence effect does not
-// acquire event-presentation responsibilities.
-type FileChangePublisher func(workspaceapp.FileChangeNotice)
-
 // Config bundles the Effects dependencies.
 type Config struct {
 	Interrupts          InterruptStore
 	ResumeClaims        ResumeClaimStore
 	Sessions            SessionStore
-	SessionTitles       SessionTitles
 	ScheduleFirings     ScheduleFiringStore
 	GoalRuns            GoalRunRecorder
 	Transcript          TranscriptStore
@@ -265,15 +233,11 @@ type Config struct {
 	ModelInvocations    ModelInvocationJournal
 	ToolInvocations     ToolInvocationJournal
 	Conversation        ConversationStore
-	Titles              TitleGenerator
 	State               RunStore
 	RunMetrics          RunMetricsWriter
 	ExecutorCheckpoints ExecutorCheckpointStore
 	ChildRunStarts      ChildRunStartReservationStore
 	Tx                  Transactor
-	Checkpoints         Checkpoints
-	Tasks               TaskLauncher
-	PublishFileChanges  FileChangePublisher
 }
 
 // Effects coordinates run-segment side effects. It is stateless beyond its
@@ -282,7 +246,6 @@ type Effects struct {
 	interrupts          InterruptStore
 	resumeClaims        ResumeClaimStore
 	sessions            SessionStore
-	sessionTitles       SessionTitles
 	scheduleFirings     ScheduleFiringStore
 	goalRuns            GoalRunRecorder
 	transcript          TranscriptStore
@@ -292,15 +255,11 @@ type Effects struct {
 	modelInvocations    ModelInvocationJournal
 	toolInvocations     ToolInvocationJournal
 	conversation        ConversationStore
-	titles              TitleGenerator
 	runState            RunStore
 	runMetrics          RunMetricsWriter
 	executorCheckpoints ExecutorCheckpointStore
 	childRunStarts      ChildRunStartReservationStore
 	tx                  Transactor
-	checkpoints         Checkpoints
-	tasks               TaskLauncher
-	publish             FileChangePublisher
 }
 
 var (
@@ -311,19 +270,55 @@ var (
 	_ runs.TreeBarrierCommitter                = (*Effects)(nil)
 	_ runs.WaitingCheckpointReader             = (*Effects)(nil)
 	_ runs.WaitingSubtreeCancellationCommitter = (*Effects)(nil)
-	_ runs.WorkspaceChangeNotifier             = (*Effects)(nil)
-	_ runs.SegmentFinalizer                    = (*Effects)(nil)
 )
 
 const runsegmentTracerName = "lynx/lyra/runsegment"
 
-// New returns an Effects coordinator.
-func New(cfg Config) *Effects {
+// New returns the durable Run-segment effects. Every dependency needed by the
+// supported write-sets is validated here; optional product capabilities remain
+// explicit through ScheduleFirings, GoalRuns, and ToolResults.
+func New(cfg Config) (*Effects, error) {
+	required := []struct {
+		name  string
+		value any
+	}{
+		{"interrupt store", cfg.Interrupts},
+		{"resume claim store", cfg.ResumeClaims},
+		{"session store", cfg.Sessions},
+		{"transcript store", cfg.Transcript},
+		{"item replacer", cfg.ItemReplacer},
+		{"tool approval store", cfg.ToolApprovals},
+		{"model invocation journal", cfg.ModelInvocations},
+		{"tool invocation journal", cfg.ToolInvocations},
+		{"conversation store", cfg.Conversation},
+		{"run store", cfg.State},
+		{"run metrics writer", cfg.RunMetrics},
+		{"executor checkpoint store", cfg.ExecutorCheckpoints},
+		{"child run start store", cfg.ChildRunStarts},
+		{"transactor", cfg.Tx},
+	}
+	for _, dependency := range required {
+		if nilDependency(dependency.value) {
+			return nil, fmt.Errorf("runsegment: %s is required", dependency.name)
+		}
+	}
+	optional := []struct {
+		name  string
+		value any
+	}{
+		{"schedule firing store", cfg.ScheduleFirings},
+		{"goal run recorder", cfg.GoalRuns},
+		{"tool result store", cfg.ToolResults},
+	}
+	for _, dependency := range optional {
+		if dependency.value != nil && nilDependency(dependency.value) {
+			return nil, fmt.Errorf("runsegment: optional %s must not be typed nil", dependency.name)
+		}
+	}
 	return &Effects{
 		interrupts:          cfg.Interrupts,
 		resumeClaims:        cfg.ResumeClaims,
 		sessions:            cfg.Sessions,
-		sessionTitles:       cfg.SessionTitles,
 		scheduleFirings:     cfg.ScheduleFirings,
 		goalRuns:            cfg.GoalRuns,
 		transcript:          cfg.Transcript,
@@ -333,16 +328,22 @@ func New(cfg Config) *Effects {
 		modelInvocations:    cfg.ModelInvocations,
 		toolInvocations:     cfg.ToolInvocations,
 		conversation:        cfg.Conversation,
-		titles:              cfg.Titles,
 		runState:            cfg.State,
 		runMetrics:          cfg.RunMetrics,
 		executorCheckpoints: cfg.ExecutorCheckpoints,
 		childRunStarts:      cfg.ChildRunStarts,
 		tx:                  cfg.Tx,
-		checkpoints:         cfg.Checkpoints,
-		tasks:               cfg.Tasks,
-		publish:             cfg.PublishFileChanges,
+	}, nil
+}
+
+func nilDependency(value any) bool {
+	if value == nil {
+		return true
 	}
+	kind := reflect.ValueOf(value).Kind()
+	return (kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface ||
+		kind == reflect.Map || kind == reflect.Pointer || kind == reflect.Slice) &&
+		reflect.ValueOf(value).IsNil()
 }
 
 // ReadWaitingCheckpoint returns the exact opaque recovery point selected by
@@ -351,19 +352,9 @@ func (e *Effects) ReadWaitingCheckpoint(
 	ctx context.Context,
 	rootMemberID string,
 ) (runs.ExecutorCheckpoint, error) {
-	if e.executorCheckpoints == nil {
-		return runs.ExecutorCheckpoint{}, errors.New("runsegment: executor checkpoint persistence is unavailable")
-	}
 	checkpoint, err := e.executorCheckpoints.LoadCheckpoint(ctx, rootMemberID)
 	if err != nil {
 		return runs.ExecutorCheckpoint{}, fmt.Errorf("runsegment: load waiting executor checkpoint: %w", err)
 	}
 	return checkpoint.Clone(), nil
-}
-
-// Nudge publishes a non-durable live workspace change to subscribers.
-func (e *Effects) Nudge(cwd string, paths []string) {
-	if e.publish != nil && len(paths) > 0 {
-		e.publish(workspaceapp.FileChangeNotice{CWD: cwd, Paths: slices.Clone(paths)})
-	}
 }

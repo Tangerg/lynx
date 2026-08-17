@@ -2,7 +2,6 @@ package sessions
 
 import (
 	"context"
-	"errors"
 	"sync"
 )
 
@@ -70,18 +69,11 @@ func heldWorkingTreeAdmission(release func()) WorkingTreeAdmission {
 // coherent with an existing executor continuation, such as export, import, or
 // editing execution workspace policy.
 func (c *Coordinator) ClaimIdleSession(ctx context.Context, sessionID string) (Admission, error) {
-	if c.admissions == nil {
-		return Admission{}, errors.New("sessions: admission gate is unavailable")
-	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
 		return Admission{}, ErrSessionBusy
 	}
 	admission := heldSessionAdmission(sessionID, release)
-	if c.interrupts == nil {
-		admission.Release()
-		return Admission{}, errors.New("sessions: interrupt store is unavailable")
-	}
 	open, err := c.interrupts.List(ctx, sessionID)
 	if err != nil {
 		admission.Release()
@@ -98,9 +90,6 @@ func (c *Coordinator) ClaimIdleSession(ctx context.Context, sessionID string) (A
 // explicitly consumes or terminalizes any parked Run it finds. It deliberately
 // does not reject open interrupts; callers must own that disposition atomically.
 func (c *Coordinator) ClaimSessionMutation(sessionID string) (Admission, error) {
-	if c.admissions == nil {
-		return Admission{}, errors.New("sessions: admission gate is unavailable")
-	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
 		return Admission{}, ErrSessionBusy

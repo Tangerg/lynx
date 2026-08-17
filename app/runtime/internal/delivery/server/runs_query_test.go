@@ -8,8 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -43,19 +41,6 @@ func (r *fakeInterruptReader) Get(_ context.Context, runID string) (runs.Pending
 		}
 	}
 	return runs.Pending{}, false, r.err
-}
-
-type activityRunStore struct {
-	runs []run.Run
-	err  error
-}
-
-func (s activityRunStore) ListRuns(context.Context, string) ([]run.Run, error) {
-	return s.runs, s.err
-}
-
-func (s activityRunStore) ListNonTerminalRuns(context.Context) ([]run.Run, error) {
-	return s.runs, s.err
 }
 
 // TestListRunsPublishesTheWholeHistoryNewestFirst is runs.list's delivery half: the
@@ -399,40 +384,6 @@ func TestListItemsReadsBackwardWhenAsked(t *testing.T) {
 	}
 	if len(page.Data) != 2 || page.Data[0].ID != "it_2" {
 		t.Fatalf("descending page = %+v, want the newest item first", page.Data)
-	}
-}
-
-func TestSessionStatesPreservesDurableRunReadFailure(t *testing.T) {
-	want := errors.New("run store unavailable")
-	coordinator := sessions.New(sessions.Dependencies{Runs: activityRunStore{err: want}})
-	if _, err := coordinator.Activities(t.Context(), []string{"ses_1", "ses_2"}); !errors.Is(err, want) {
-		t.Fatalf("Activities error = %v, want Run read failure", err)
-	}
-}
-
-func TestSessionStatesComeFromDurableRunLifecycle(t *testing.T) {
-	gate := new(sessionadmission.Gate)
-	release, ok := gate.AcquireSession("ses_maintenance")
-	if !ok {
-		t.Fatal("AcquireSession rejected an empty admission gate")
-	}
-	defer release()
-	coordinator := sessions.New(sessions.Dependencies{Admissions: gate, Runs: activityRunStore{runs: []run.Run{
-		runfixture.MustRestore(run.Snapshot{ID: "run_running", SessionID: "ses_running", State: run.Running}),
-		runfixture.MustRestore(run.Snapshot{ID: "run_waiting", SessionID: "ses_waiting", State: run.Waiting}),
-	}}})
-	activities, err := coordinator.Activities(
-		t.Context(),
-		[]string{"ses_running", "ses_waiting", "ses_idle", "ses_maintenance"},
-	)
-	if err != nil {
-		t.Fatalf("Activities: %v", err)
-	}
-	if activities["ses_running"] != sessions.ActivityRunning ||
-		activities["ses_waiting"] != sessions.ActivityWaiting ||
-		activities["ses_idle"] != sessions.ActivityIdle ||
-		activities["ses_maintenance"] != sessions.ActivityIdle {
-		t.Fatalf("Activities = %+v, want durable running/waiting/idle", activities)
 	}
 }
 

@@ -64,24 +64,9 @@ func (*blockingRunRuntime) BeginRoot(context.Context, runs.ExecutorRef) error { 
 // these tests are about the live stream — but the Run record cannot be: addressing
 // a live segment resolves through the durable projection, so a run that exists only
 // in the process registry is a run nothing can subscribe to.
-func (r *blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
-	return runsegment.New(runsegment.Config{
-		Transcript:   blockingTranscript{},
-		Conversation: blockingConversation{},
-		State:        r.runs,
-		Sessions:     r.sess,
-		Tx:           r.RunInTx,
-	})
+func (r *blockingRunRuntime) RunSegmentEffects() *runsegment.Effects {
+	return r.stubRuntime.RunSegmentEffects()
 }
-
-type blockingTranscript struct{}
-
-func (blockingTranscript) AppendItem(context.Context, transcript.Item) error { return nil }
-
-type blockingConversation struct{}
-
-func (blockingConversation) Write(context.Context, string, ...chat.Message) error { return nil }
-func (blockingConversation) Count(context.Context, string) (int, error)           { return 0, nil }
 
 // startLiveRun starts a run that blocks forever (via a blockingRunRuntime the
 // caller wired into the Server), waits until the coordinator has registered it,

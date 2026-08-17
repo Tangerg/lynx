@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -13,6 +15,35 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
+
+func TestNewRejectsMalformedDependencies(t *testing.T) {
+	var typedNilStore *emptySessionStore
+	for _, test := range []struct {
+		name string
+		deps Dependencies
+		want string
+	}{
+		{name: "empty", deps: Dependencies{}, want: "session store"},
+		{name: "typed nil", deps: Dependencies{Sessions: typedNilStore}, want: "session store"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := New(test.deps); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("New error = %v, want %q", err, test.want)
+			}
+		})
+	}
+
+	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}}}
+	deps := testDependencies(stores, Dependencies{
+		ExecutionReleaser: inertExecutionReleaser{},
+		Paths:             testCWDResolver{},
+		MaterialSnapshots: emptyMaterialSnapshotReader{},
+	})
+	deps.Plan = &PlanServices{}
+	if _, err := New(deps); err == nil || !strings.Contains(err.Error(), "plan boundary reader") {
+		t.Fatalf("New incomplete Plan error = %v", err)
+	}
+}
 
 type coordinatorStores struct {
 	interrupts    *coordinatorInterrupts
@@ -33,7 +64,7 @@ type testStores interface {
 	ForgetSession(string)
 }
 
-func (s coordinatorStores) Session() Store              { return nil }
+func (s coordinatorStores) Session() Store              { return emptySessionStore{} }
 func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
 func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
 func (s coordinatorStores) Runs() RunStore              { return emptyTranscript{} }
@@ -163,7 +194,7 @@ func newCoordinator(stores testStores, executions ExecutionReleaser) *Coordinato
 }
 
 func newCoordinatorWithAdmissions(stores testStores, executions ExecutionReleaser, admissions Admissions) *Coordinator {
-	return New(testDependencies(stores, Dependencies{
+	return mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: executions, Paths: testCWDResolver{}, Admissions: admissions,
 	}))
 }
@@ -199,9 +230,90 @@ func testDependencies(stores testStores, deps Dependencies) Dependencies {
 	deps.Transcript = stores.Transcript()
 	deps.Runs = stores.Runs()
 	deps.Snapshots = stores
+	if material, ok := stores.(MaterialSnapshotReader); ok {
+		deps.MaterialSnapshots = material
+	}
 	deps.Writes = stores
 	deps.Forgetter = stores
 	return deps
+}
+
+func mustNewCoordinator(deps Dependencies) *Coordinator {
+	defaults := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}}}
+	if deps.Sessions == nil {
+		deps.Sessions = defaults.Session()
+	}
+	if deps.Interrupts == nil {
+		deps.Interrupts = defaults.Interrupts()
+	}
+	if deps.Transcript == nil {
+		deps.Transcript = defaults.Transcript()
+	}
+	if deps.Runs == nil {
+		deps.Runs = defaults.Runs()
+	}
+	if deps.Snapshots == nil {
+		deps.Snapshots = defaults
+	}
+	if deps.MaterialSnapshots == nil {
+		deps.MaterialSnapshots = emptyMaterialSnapshotReader{}
+	}
+	if deps.Writes == nil {
+		deps.Writes = defaults
+	}
+	if deps.Forgetter == nil {
+		deps.Forgetter = defaults
+	}
+	if deps.ExecutionReleaser == nil {
+		deps.ExecutionReleaser = inertExecutionReleaser{}
+	}
+	if deps.Paths == nil {
+		deps.Paths = testCWDResolver{}
+	}
+	if deps.Admissions == nil {
+		deps.Admissions = new(testClaimer)
+	}
+	if deps.NewID == nil {
+		deps.NewID = func() string { return "ses_test" }
+	}
+	if deps.NewRunID == nil {
+		deps.NewRunID = func() string { return "run_test" }
+	}
+	if deps.NewItemID == nil {
+		deps.NewItemID = func() string { return "item_test" }
+	}
+	if deps.NewToolResultID == nil {
+		deps.NewToolResultID = toolresult.NewID
+	}
+	coordinator, err := New(deps)
+	if err != nil {
+		panic(err)
+	}
+	return coordinator
+}
+
+type inertExecutionReleaser struct{}
+
+func (inertExecutionReleaser) Release(context.Context, runs.ExecutorRef) error { return nil }
+
+type emptyMaterialSnapshotReader struct{}
+
+func (emptyMaterialSnapshotReader) ReadMaterialSnapshot(context.Context, string) (MaterialSnapshot, error) {
+	return MaterialSnapshot{}, nil
+}
+
+type emptySessionStore struct{}
+
+func (emptySessionStore) List(context.Context) ([]session.Session, error) { return nil, nil }
+func (emptySessionStore) ListPage(context.Context, bool, int64, string, int) ([]session.Session, error) {
+	return nil, nil
+}
+func (emptySessionStore) Get(context.Context, string) (session.Session, error) {
+	return session.Session{}, session.ErrNotFound
+}
+func (emptySessionStore) Insert(context.Context, session.Session) error { return nil }
+func (emptySessionStore) Save(context.Context, uint64, session.Session) error {
+	return nil
 }
 
 type testCWDResolver struct {

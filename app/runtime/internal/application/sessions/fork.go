@@ -2,7 +2,6 @@ package sessions
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 
@@ -112,12 +111,6 @@ func ResolveForkBoundary(msgs []chat.Message, runs []run.Run, fromRunID string) 
 // (§8.1). The application resolves the boundary and commits the branch through
 // its persistence port.
 func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
-	if c.snapshots == nil || c.writes == nil {
-		return session.Session{}, errors.New("sessions: fork persistence is unavailable")
-	}
-	if c.newID == nil {
-		return session.Session{}, errors.New("sessions: Session identity generator is unavailable")
-	}
 	snapshot, err := c.snapshots.ReadSnapshot(ctx, spec.ParentID)
 	if err != nil {
 		return session.Session{}, err

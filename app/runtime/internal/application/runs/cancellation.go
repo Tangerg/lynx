@@ -21,10 +21,6 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	if err != nil {
 		return CancelResult{}, err
 	}
-	if err := c.requireControlDependencies(); err != nil {
-		return CancelResult{}, err
-	}
-
 	plan, entry, live, err := c.cancellationPlanFor(ctx, cmd)
 	if err != nil {
 		return CancelResult{}, err
@@ -60,9 +56,6 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	}
 	cleanupCtx, cancel := entry.owner.cleanupContext(ctx)
 	defer cancel()
-	if c.rootCancellation == nil {
-		return CancelResult{}, errors.New("runs: root execution cancellation requester is required")
-	}
 	interruptCommitted, requestErr := entry.owner.requestCancel(
 		cleanupCtx,
 		cmd.Reason,
@@ -183,12 +176,6 @@ func (c *Coordinator) cancelWaitingChild(
 	cmd CancelCommand,
 	initial cancellationPlan,
 ) (result CancelResult, err error) {
-	if c.waitingSubtreeCancellations == nil {
-		return CancelResult{}, errors.New("runs: waiting subtree cancellation persistence is unavailable")
-	}
-	if c.newSegmentID == nil {
-		return CancelResult{}, errors.New("runs: segment id generator is required for waiting child cancellation")
-	}
 	sess, err := c.sessionReader.Get(ctx, initial.pending.SessionID)
 	if err != nil {
 		return CancelResult{}, err
@@ -212,9 +199,6 @@ func (c *Coordinator) cancelWaitingChild(
 		return CancelResult{}, err
 	}
 
-	if c.waitingSubtreeCancellationPreparer == nil || c.waitingRestorer == nil || c.checkpoints == nil {
-		return CancelResult{}, errors.New("runs: waiting subtree cancellation is unavailable")
-	}
 	continuation, err := c.waitingChildCancellationContinuation(cleanupCtx, sess, plan)
 	if err != nil {
 		return CancelResult{}, err

@@ -13,6 +13,8 @@ package sessions
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -220,8 +222,7 @@ type Coordinator struct {
 	interrupts        InterruptStore
 	transcript        TranscriptStore
 	runs              RunStore
-	boundaries        PlanBoundaries
-	planReplacements  PlanReplacements
+	plan              *PlanServices
 	snapshots         SnapshotReader
 	materialSnapshots MaterialSnapshotReader
 	writes            WriteSets
@@ -261,12 +262,13 @@ type Coordinator struct {
 // mutations cross one cohesive WriteSets transaction; reads and process-local
 // cleanup are independent ports rather than accessor methods on a store bag.
 type Dependencies struct {
-	Sessions          Store
-	Interrupts        InterruptStore
-	Transcript        TranscriptStore
-	Runs              RunStore
-	Boundaries        PlanBoundaries
-	PlanReplacements  PlanReplacements
+	Sessions   Store
+	Interrupts InterruptStore
+	Transcript TranscriptStore
+	Runs       RunStore
+	// Plan is nil when Plan support is disabled. When enabled, both the boundary
+	// history and replacement behavior are one capability and must be present.
+	Plan              *PlanServices
 	Snapshots         SnapshotReader
 	MaterialSnapshots MaterialSnapshotReader
 	Writes            WriteSets
@@ -298,17 +300,63 @@ type Dependencies struct {
 var ErrSessionBusy = errors.New("sessions: session busy")
 
 // New returns a Coordinator over deps.
-func New(deps Dependencies) *Coordinator {
+func New(deps Dependencies) (*Coordinator, error) {
 	if deps.Now == nil {
 		deps.Now = time.Now
+	}
+	required := []struct {
+		name  string
+		value any
+	}{
+		{"session store", deps.Sessions},
+		{"interrupt store", deps.Interrupts},
+		{"transcript store", deps.Transcript},
+		{"run store", deps.Runs},
+		{"snapshot reader", deps.Snapshots},
+		{"material snapshot reader", deps.MaterialSnapshots},
+		{"write sets", deps.Writes},
+		{"session forgetter", deps.Forgetter},
+		{"execution releaser", deps.ExecutionReleaser},
+		{"cwd resolver", deps.Paths},
+		{"admissions", deps.Admissions},
+		{"session id generator", deps.NewID},
+		{"run id generator", deps.NewRunID},
+		{"item id generator", deps.NewItemID},
+		{"tool result id generator", deps.NewToolResultID},
+	}
+	for _, dependency := range required {
+		if nilDependency(dependency.value) {
+			return nil, fmt.Errorf("sessions: %s is required", dependency.name)
+		}
+	}
+	optional := []struct {
+		name  string
+		value any
+	}{
+		{"workspace checkpoints", deps.Checkpoints},
+		{"sandbox discarder", deps.Sandbox},
+		{"goal mutation guard", deps.Goals},
+		{"workspace mutations", deps.Mutations},
+	}
+	for _, dependency := range optional {
+		if dependency.value != nil && nilDependency(dependency.value) {
+			return nil, fmt.Errorf("sessions: optional %s must not be typed nil", dependency.name)
+		}
+	}
+	if deps.Plan != nil {
+		if nilDependency(deps.Plan.Boundaries) {
+			return nil, errors.New("sessions: plan boundary reader is required when Plan support is enabled")
+		}
+		if nilDependency(deps.Plan.Replacements) {
+			return nil, errors.New("sessions: plan replacements are required when Plan support is enabled")
+		}
 	}
 	return &Coordinator{
 		sessions:          deps.Sessions,
 		interrupts:        deps.Interrupts,
 		transcript:        deps.Transcript,
 		runs:              deps.Runs,
-		boundaries:        deps.Boundaries,
-		planReplacements:  deps.PlanReplacements,
+		plan:              deps.Plan,
 		snapshots:         deps.Snapshots,
 		materialSnapshots: deps.MaterialSnapshots,
 		writes:            deps.Writes,
@@ -327,15 +375,22 @@ func New(deps Dependencies) *Coordinator {
 		newRunID:          deps.NewRunID,
 		newItemID:         deps.NewItemID,
 		newToolResultID:   deps.NewToolResultID,
+	}, nil
+}
+
+func nilDependency(value any) bool {
+	if value == nil {
+		return true
 	}
+	kind := reflect.ValueOf(value).Kind()
+	return (kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface ||
+		kind == reflect.Map || kind == reflect.Pointer || kind == reflect.Slice) &&
+		reflect.ValueOf(value).IsNil()
 }
 
 // ClaimWorkingTreeMutation reserves exclusive access to cwd's working tree for a
 // destructive mutation such as file rollback.
 func (c *Coordinator) ClaimWorkingTreeMutation(cwd string) (WorkingTreeAdmission, bool) {
-	if c.admissions == nil {
-		return WorkingTreeAdmission{}, false
-	}
 	release, ok := c.admissions.AcquireWorkingTreeMutation(cwd)
 	if !ok {
 		return WorkingTreeAdmission{}, false

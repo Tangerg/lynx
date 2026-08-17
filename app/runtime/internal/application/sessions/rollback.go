@@ -43,9 +43,6 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 		ctx,
 		[]string{sessionID},
 		func(ctx context.Context) error {
-			if c.writes == nil {
-				return errors.New("sessions: write sets are unavailable")
-			}
 			return c.writes.ApplyRollback(ctx, RollbackPlan{
 				SessionID:         sessionID,
 				KeepMessageMark:   boundary.KeepMessageMark,

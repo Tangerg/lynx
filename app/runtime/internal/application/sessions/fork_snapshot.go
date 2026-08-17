@@ -1,7 +1,6 @@
 package sessions
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
@@ -24,9 +23,6 @@ func (c *Coordinator) copyForkSnapshot(
 ) (Snapshot, error) {
 	if len(boundary.RunIDs) == 0 {
 		return Snapshot{Session: child, Messages: boundary.Messages, Plan: steps}, nil
-	}
-	if c.newRunID == nil || c.newItemID == nil {
-		return Snapshot{}, errors.New("sessions: fork transcript identity generators are unavailable")
 	}
 
 	selectedRunIDs := make(map[string]struct{}, len(boundary.RunIDs))
@@ -62,9 +58,6 @@ func (c *Coordinator) copyForkSnapshot(
 	for _, blob := range source.ToolResults {
 		if _, selected := selectedItemIDs[blob.ItemID]; !selected {
 			continue
-		}
-		if c.newToolResultID == nil {
-			return Snapshot{}, errors.New("sessions: fork tool-result identity generator is unavailable")
 		}
 		blobIDs[blob.ID] = c.newToolResultID()
 	}

@@ -74,7 +74,7 @@ func runRecord(state run.State, activeSegmentID, spawnedBy string) run.Run {
 // segment, so a test can address it without driving a whole run.
 func liveCoordinator(t *testing.T, record run.Run) (*Coordinator, *journal) {
 	t.Helper()
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Releases: &fakeExecutionPorts{},
 		Runs:     &fakeRunProjection{runs: map[string]run.Run{testRunID: record}},
 	})
@@ -139,7 +139,7 @@ func TestSubscribeRefusesWithTheReasonTheCallerCanActOn(t *testing.T) {
 }
 
 func TestSubscribeReportsAnUnknownRunAsNotFound(t *testing.T) {
-	c := NewCoordinator(Dependencies{Runs: &fakeRunProjection{}})
+	c := mustNewCoordinator(Dependencies{Runs: &fakeRunProjection{}})
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: "run_missing", SegmentID: testSegmentID})
 	if !errors.Is(err, ErrRunNotFound) {
 		t.Fatalf("Subscribe err = %v, want ErrRunNotFound", err)
@@ -148,7 +148,7 @@ func TestSubscribeReportsAnUnknownRunAsNotFound(t *testing.T) {
 
 func TestSubscribeDoesNotRetargetAnOldSegmentToARacingResume(t *testing.T) {
 	projection := &racingRunProjection{value: runRecord(run.Running, "segment_old", "")}
-	coordinator := NewCoordinator(Dependencies{Runs: projection})
+	coordinator := mustNewCoordinator(Dependencies{Runs: projection})
 	oldHub := newJournal(streamScope{
 		Epoch: coordinator.epoch, RunID: testRunID, SegmentID: "segment_old",
 	}, coordinator.retention)
@@ -296,7 +296,7 @@ func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing
 		Outcome: &outcome, Failure: &run.Failure{Kind: run.FailureLost},
 	})
 	projection := &fakeRunProjection{runs: map[string]run.Run{testRunID: recovered}}
-	restarted := NewCoordinator(Dependencies{Runs: projection})
+	restarted := mustNewCoordinator(Dependencies{Runs: projection})
 	_, err = restarted.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID, Cursor: before.HeadCursor,
 	})
@@ -317,7 +317,7 @@ func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing
 
 func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 	record := runRecord(run.Running, testSegmentID, "")
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Runs: &fakeRunProjection{runs: map[string]run.Run{testRunID: record}},
 	})
 	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
@@ -337,7 +337,7 @@ func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 // terminalizes orphans before the runtime serves. Reporting it as a business
 // refusal would teach the client something untrue about the run.
 func TestSubscribeReportsAMissingLiveStreamAsAnInternalFault(t *testing.T) {
-	c := NewCoordinator(Dependencies{Runs: &fakeRunProjection{
+	c := mustNewCoordinator(Dependencies{Runs: &fakeRunProjection{
 		runs: map[string]run.Run{testRunID: runRecord(run.Running, testSegmentID, "")},
 	}})
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
@@ -351,12 +351,12 @@ func TestSubscribeReportsAMissingLiveStreamAsAnInternalFault(t *testing.T) {
 }
 
 func TestReplayRetentionIsWhatTheCoordinatorEnforces(t *testing.T) {
-	c := NewCoordinator(Dependencies{})
+	c := mustNewCoordinator(Dependencies{})
 	if c.ReplayRetention() != DefaultRetention() {
 		t.Fatalf("retention = %+v, want %+v", c.ReplayRetention(), DefaultRetention())
 	}
 	custom := Retention{MaxEvents: 8, MaxBytes: 64}
-	if got := NewCoordinator(Dependencies{Retention: custom}).ReplayRetention(); got != custom {
+	if got := mustNewCoordinator(Dependencies{Retention: custom}).ReplayRetention(); got != custom {
 		t.Fatalf("retention = %+v, want %+v", got, custom)
 	}
 }

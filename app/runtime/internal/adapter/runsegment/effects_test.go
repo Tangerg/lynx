@@ -620,9 +620,9 @@ func TestNudgePublishesFileChange(t *testing.T) {
 		cwd   string
 		paths []string
 	}
-	effects := New(Config{PublishFileChanges: func(change workspaceapp.FileChangeNotice) {
+	effects := NewWorkspaceNotifier(func(change workspaceapp.FileChangeNotice) {
 		published.cwd, published.paths = change.CWD, change.Paths
-	}})
+	})
 
 	effects.Nudge("/work", []string{"a.go"})
 	if published.cwd != "/work" || len(published.paths) != 1 || published.paths[0] != "a.go" {
@@ -640,7 +640,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 		},
 		title: "Generated title",
 	}
-	effects := testEffects(stores, Config{
+	effects := testFinalizer(stores, FinalizerConfig{
 		Checkpoints: fakeCheckpoints{snapshotted: snapshotted},
 	})
 
@@ -663,7 +663,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 	}
 }
 
-func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
+func TestFinishOrdersCheckpointBeforeDetachedTitleMaintenance(t *testing.T) {
 	snapshotErr := errors.New("snapshot failed")
 	renameErr := errors.New("rename failed")
 	var operations []string
@@ -676,7 +676,7 @@ func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
 		title:      "Generated title",
 		operations: &operations,
 	}
-	effects := testEffects(stores, Config{
+	effects := testFinalizer(stores, FinalizerConfig{
 		Checkpoints: fakeCheckpoints{
 			operations: &operations,
 			err:        snapshotErr,
@@ -689,8 +689,8 @@ func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
 		CWD:             "/repo",
 		OpeningUserText: "hello",
 	})
-	if !errors.Is(err, snapshotErr) || !errors.Is(err, renameErr) {
-		t.Fatalf("Finish error = %v, want snapshot and rename failures", err)
+	if !errors.Is(err, snapshotErr) || errors.Is(err, renameErr) {
+		t.Fatalf("Finish error = %v, want only synchronous checkpoint failure", err)
 	}
 	want := []string{"checkpoint.snapshot", "session.get", "title.generate", "session.rename"}
 	if !slices.Equal(operations, want) {
@@ -701,9 +701,8 @@ func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
 func TestFinishWaitsForCheckpointBeforeReturning(t *testing.T) {
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
-	effects := New(Config{
+	effects := mustNewFinalizer(FinalizerConfig{
 		Checkpoints: fakeCheckpoints{started: started, release: release},
-		Tasks:       inlineTaskLauncher{},
 	})
 	done := make(chan error, 1)
 	go func() {
@@ -730,12 +729,10 @@ func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
 	titleErr := errors.New("background title failed")
 	provider, exporter := installRunsegmentTraceCapture(t)
 	ctx, span := provider.Tracer("test/runsegment").Start(t.Context(), "run")
-	effects := testEffects(&fakeStores{
+	effects := testFinalizer(&fakeStores{
 		session:  &fakeSession{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"})},
 		titleErr: titleErr,
-	}, Config{
-		Tasks: inlineTaskLauncher{},
-	})
+	}, FinalizerConfig{})
 
 	if err := effects.Finish(ctx, runs.Finish{SessionID: "ses_1", RunID: "run_1", OpeningUserText: "hello"}); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -781,15 +778,20 @@ func testEffects(stores *fakeStores, cfg Config) *Effects {
 	cfg.Interrupts = stores.interrupts
 	cfg.ResumeClaims = stores.interrupts
 	cfg.Sessions = stores.session
-	cfg.SessionTitles = stores.session
 	cfg.Transcript = stores.transcript
 	cfg.ToolResults = stores.toolResults
 	cfg.Conversation = stores
-	cfg.Titles = stores
 	if cfg.ExecutorCheckpoints == nil {
 		cfg.ExecutorCheckpoints = &recordingExecutorCheckpointStore{}
 	}
-	return New(cfg)
+	return mustNewEffects(cfg)
+}
+
+func testFinalizer(stores *fakeStores, cfg FinalizerConfig) *Finalizer {
+	cfg.Titles = &TitleMaintenance{
+		Sessions: stores.session, Generator: stores, Tasks: inlineTaskLauncher{},
+	}
+	return mustNewFinalizer(cfg)
 }
 
 func (s *fakeStores) Interrupts() InterruptStore   { return s.interrupts }
@@ -876,6 +878,17 @@ func (r *fakeRunState) Suspend(_ context.Context, run run.Run) error {
 
 func (r *fakeRunState) Terminalize(_ context.Context, run run.Run) error {
 	r.terminalized = append(r.terminalized, run)
+	return nil
+}
+
+func (*fakeRunState) UpdateMetrics(
+	context.Context,
+	string,
+	string,
+	string,
+	run.Metrics,
+	time.Time,
+) error {
 	return nil
 }
 

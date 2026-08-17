@@ -8,6 +8,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
+// PlanServices is the complete optional Plan capability. Grouping the two
+// collaborators prevents a runtime where boundary history is enabled but the
+// corresponding aggregate transition cannot be committed.
+type PlanServices struct {
+	Boundaries   PlanBoundaries
+	Replacements PlanReplacements
+}
+
 // PlanBoundary is a Plan recovered from a Run boundary: the value, and
 // whether that boundary recorded one at all. The difference is not cosmetic — an
 // unrecorded boundary must leave the live list untouched, while a recorded empty
@@ -24,13 +32,13 @@ type PlanBoundary struct {
 // which the caller must not turn into emptiness (an imported run's boundaries were
 // never captured; see [PlanBoundaries]).
 func (c *Coordinator) planBoundary(ctx context.Context, runID string) (PlanBoundary, error) {
-	if c.boundaries == nil {
+	if c.plan == nil {
 		return PlanBoundary{}, nil
 	}
 	if runID == "" {
 		return PlanBoundary{Recorded: true}, nil
 	}
-	steps, recorded, err := c.boundaries.Boundary(ctx, runID)
+	steps, recorded, err := c.plan.Boundaries.Boundary(ctx, runID)
 	if err != nil {
 		return PlanBoundary{}, err
 	}
@@ -45,10 +53,7 @@ func (c *Coordinator) prepareBoundaryPlanReplacement(
 	if !boundary.Recorded {
 		return nil, nil
 	}
-	if c.planReplacements == nil {
-		return nil, errors.New("sessions: Plan boundaries are enabled without Plan replacement use cases")
-	}
-	replacement, err := c.planReplacements.PrepareReplacement(ctx, sessionID, boundary.Steps)
+	replacement, err := c.plan.Replacements.PrepareReplacement(ctx, sessionID, boundary.Steps)
 	if err != nil {
 		return nil, err
 	}
@@ -59,10 +64,10 @@ func (c *Coordinator) prepareInitialPlanReplacement(steps []plan.Step) (*planapp
 	if len(steps) == 0 {
 		return nil, nil
 	}
-	if c.planReplacements == nil {
-		return nil, errors.New("sessions: cannot seed a Plan without Plan replacement use cases")
+	if c.plan == nil {
+		return nil, errors.New("sessions: cannot seed a Plan when Plan support is disabled")
 	}
-	replacement, err := c.planReplacements.PrepareInitial(steps)
+	replacement, err := c.plan.Replacements.PrepareInitial(steps)
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +79,13 @@ func (c *Coordinator) prepareRestoredPlanReplacement(
 	sessionID string,
 	steps []plan.Step,
 ) (*planapp.Replacement, error) {
-	if c.planReplacements == nil {
+	if c.plan == nil {
 		if len(steps) > 0 {
-			return nil, errors.New("sessions: cannot restore a Plan without Plan replacement use cases")
+			return nil, errors.New("sessions: cannot restore a Plan when Plan support is disabled")
 		}
 		return nil, nil
 	}
-	replacement, err := c.planReplacements.PrepareReplacement(ctx, sessionID, steps)
+	replacement, err := c.plan.Replacements.PrepareReplacement(ctx, sessionID, steps)
 	if err != nil {
 		return nil, err
 	}

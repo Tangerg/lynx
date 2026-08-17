@@ -19,17 +19,11 @@ type CWDResolver interface {
 
 // List returns every user-facing Session, newest-updated first.
 func (c *Coordinator) List(ctx context.Context) ([]session.Session, error) {
-	if c.sessions == nil {
-		return nil, errors.New("sessions: Session store is unavailable")
-	}
 	return c.sessions.List(ctx)
 }
 
 // Get returns one saved Session by identity.
 func (c *Coordinator) Get(ctx context.Context, id string) (session.Session, error) {
-	if c.sessions == nil {
-		return session.Session{}, errors.New("sessions: Session store is unavailable")
-	}
 	return c.sessions.Get(ctx, id)
 }
 
@@ -38,20 +32,11 @@ func (c *Coordinator) Get(ctx context.Context, id string) (session.Session, erro
 // filesystem failures remain errors so callers never receive a fabricated
 // workspace identity.
 func (c *Coordinator) InspectWorkspace(cwd string) (workspaceapp.Resolved, error) {
-	if c.paths == nil {
-		return workspaceapp.Resolved{}, errors.New("sessions: workspace inspector is unavailable")
-	}
 	return c.paths.Inspect(cwd)
 }
 
 // Create starts and persists a fresh root Session in an admitted workspace.
 func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Session, error) {
-	if c.sessions == nil {
-		return session.Session{}, errors.New("sessions: Session store is unavailable")
-	}
-	if c.newID == nil {
-		return session.Session{}, errors.New("sessions: Session identity generator is unavailable")
-	}
 	cwd, err := c.resolveSessionCWD(cwd)
 	if err != nil {
 		return session.Session{}, err
@@ -78,9 +63,6 @@ func (c *Coordinator) PrepareScheduled(
 	ctx context.Context,
 	id, title, cwd, model string,
 ) (current session.Session, initial *session.Session, err error) {
-	if c.sessions == nil {
-		return session.Session{}, nil, errors.New("sessions: Session store is unavailable")
-	}
 	existing, err := c.sessions.Get(ctx, id)
 	if err == nil {
 		return existing, nil, nil
@@ -119,9 +101,6 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 		}
 		defer admission.Release()
 	}
-	if c.sessions == nil {
-		return session.Session{}, errors.New("sessions: Session store is unavailable")
-	}
 	current, err := c.sessions.Get(ctx, id)
 	if err != nil {
 		return session.Session{}, err
@@ -155,9 +134,6 @@ func (c *Coordinator) NeedsGeneratedTitle(ctx context.Context, id string) (bool,
 // semantics. Concurrent Session edits are retried from their committed value;
 // once a user title exists, the generated title becomes a successful no-op.
 func (c *Coordinator) ApplyGeneratedTitle(ctx context.Context, id, title string) error {
-	if c.sessions == nil {
-		return errors.New("sessions: Session store is unavailable")
-	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -185,9 +161,6 @@ func (c *Coordinator) ApplyGeneratedTitle(ctx context.Context, id, title string)
 // resolveSessionCWD canonicalizes cwd and requires it to be an existing
 // directory, returning the shared workspace-admission sentinel on failure.
 func (c *Coordinator) resolveSessionCWD(cwd string) (string, error) {
-	if c.paths == nil {
-		return "", errors.Join(workspaceapp.ErrCWDUnavailable, errors.New("sessions: cwd resolver is unavailable"))
-	}
 	resolved, err := c.paths.ResolveExistingDir(cwd)
 	if err != nil {
 		return "", errors.Join(workspaceapp.ErrCWDUnavailable, err)

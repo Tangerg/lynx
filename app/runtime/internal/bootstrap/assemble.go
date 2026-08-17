@@ -392,8 +392,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Interrupts:        cfg.InterruptStore,
 		Transcript:        cfg.TranscriptStore,
 		Runs:              cfg.RunStore,
-		Boundaries:        cfg.PlanStore,
-		PlanReplacements:  planCoordinator,
 		Snapshots:         sessionStores,
 		MaterialSnapshots: sessionStores,
 		Writes:            sessionStores,
@@ -402,7 +400,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Paths:             workspacepath.Resolver{},
 		DefaultModel:      cfg.Model,
 		Checkpoints:       checkpointstore.NewSessionCheckpoints(workspaceCheckpoints),
-		Mutations:         cfg.WorkspaceMutationStore,
 		Admissions:        admissionGate,
 		Invalidations:     applicationInvalidations.Publish,
 		Now:               time.Now,
@@ -417,6 +414,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		},
 		NewToolResultID: toolresult.NewID,
 	}
+	if cfg.PlanStore != nil {
+		sessionDependencies.Plan = &sessions.PlanServices{
+			Boundaries: cfg.PlanStore, Replacements: planCoordinator,
+		}
+	}
+	if cfg.WorkspaceMutationStore != nil {
+		sessionDependencies.Mutations = cfg.WorkspaceMutationStore
+	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
 	if isolator != nil {
@@ -430,36 +435,56 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		goalMutations = goals.NewSessionMutations()
 		sessionDependencies.Goals = goalMutations
 	}
-	sessionCoordinator := sessions.New(sessionDependencies)
+	sessionCoordinator, err := sessions.New(sessionDependencies)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: construct Session coordinator: %w", err)
+	}
 	// The Run coordinator owns the Run lifecycle (§20). Its driven persistence
 	// adapter receives only Domain/Application-decided Session values; generated
 	// title maintenance returns through the Session Application capability.
 	runEffectTasks := &taskgroup.Group{}
 	lifetime.runEffectTasks = runEffectTasks
-	runSegmentEffects := runsegment.New(runsegment.Config{
+	runSegmentConfig := runsegment.Config{
 		Interrupts:          cfg.InterruptStore,
 		ResumeClaims:        cfg.InterruptStore,
 		Sessions:            cfg.SessionStore,
-		SessionTitles:       sessionCoordinator,
-		ScheduleFirings:     cfg.ScheduleStore,
-		GoalRuns:            cfg.GoalStore,
 		Transcript:          cfg.TranscriptStore,
 		ItemReplacer:        cfg.TranscriptStore,
 		ToolApprovals:       cfg.TranscriptStore,
-		ToolResults:         cfg.ToolResultStore,
 		ModelInvocations:    cfg.ModelInvocationStore,
 		ToolInvocations:     cfg.ToolInvocationStore,
 		Conversation:        conversationServices.store,
-		Titles:              sessiontitle.NewGenerator(modelServices.utilityClient),
 		State:               cfg.RunStore,
 		RunMetrics:          cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
 		ChildRunStarts:      cfg.ChildRunStartStore,
 		Tx:                  runsegment.Transactor(cfg.Transactor),
-		Checkpoints:         workspaceCheckpoints,
-		Tasks:               runEffectTasks,
-		PublishFileChanges:  fileChanges.Publish,
+	}
+	if cfg.ScheduleStore != nil {
+		runSegmentConfig.ScheduleFirings = cfg.ScheduleStore
+	}
+	if cfg.GoalStore != nil {
+		runSegmentConfig.GoalRuns = cfg.GoalStore
+	}
+	if cfg.ToolResultStore != nil {
+		runSegmentConfig.ToolResults = cfg.ToolResultStore
+	}
+	runSegmentEffects, err := runsegment.New(runSegmentConfig)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: construct Run-segment effects: %w", err)
+	}
+	runFinalizer, err := runsegment.NewFinalizer(runsegment.FinalizerConfig{
+		Checkpoints: workspaceCheckpoints,
+		Titles: &runsegment.TitleMaintenance{
+			Sessions:  sessionCoordinator,
+			Generator: sessiontitle.NewGenerator(modelServices.utilityClient),
+			Tasks:     runEffectTasks,
+		},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("runtime: construct Run finalizer: %w", err)
+	}
+	workspaceNotifier := runsegment.NewWorkspaceNotifier(fileChanges.Publish)
 	defaultRunModel, err := modelref.New(cfg.Provider, cfg.Model)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: default Run model selection: %w", err)
@@ -485,13 +510,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		},
 		Projection: runs.ProjectionPorts{
 			Openings:                    runSegmentEffects,
+			ChildStarts:                 runSegmentEffects,
 			Checkpoints:                 runSegmentEffects,
 			ResumeClaims:                runSegmentEffects,
 			Events:                      runSegmentEffects,
 			Barriers:                    runSegmentEffects,
 			WaitingSubtreeCancellations: runSegmentEffects,
-			Workspace:                   runSegmentEffects,
-			Finalizer:                   runSegmentEffects,
+			Workspace:                   workspaceNotifier,
+			Finalizer:                   runFinalizer,
 		},
 		Runs:                  cfg.RunStore,
 		Items:                 cfg.TranscriptStore,
@@ -511,7 +537,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if isolator != nil {
 		runDependencies.Isolation = isolator
 	}
-	runCoordinator := runs.NewCoordinator(runDependencies)
+	runCoordinator, err := runs.NewCoordinator(runDependencies)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: construct Run coordinator: %w", err)
+	}
 	lifetime.runCoordinator = runCoordinator
 	scheduleFiring := schedules.NewFiring(
 		cfg.ScheduleStore,

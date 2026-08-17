@@ -372,6 +372,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 ## 12. 当前结论
 
 - P113 已完成第一批所有权纠偏：Runtime 内建 Tool identity 直接归 `domain/tool`，原 `adapter/toolname` 物理删除；Bootstrap-only notification connection 与既有 observation seam 合并，原 `adapter/notification` 及其 one-method interface 壳物理删除；runmaintenance 只供测试调用的 receiver wrapper 同步移除。该批没有改变 Tool 字符串、Runtime Protocol、SQLite、Artifact 或 Agent Framework 合同。
+- P113 合法构造纵切已完成：Runs、Sessions 与 durable Run-segment effects 在 constructor boundary 拒绝缺失/typed-nil required dependency，运行期不再把非法对象降级成 use-case unavailable；Session Plan 是 boundary+replacement 的完整可选 capability。Runsegment 的 durable transaction effects、terminal maintenance 与 live workspace notification 已成为三个独立 owner，后两者不再扩大持久化 Config；Title maintenance 启用时必须同时具有 Session title use case、generator 与 lifecycle task launcher。公共合同与持久 shape 未改变。
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
 - P8 已将 Agent Framework vertical 原子切为唯一生产 owner；root、managed Delegate child、waiting subtree、termination、unknown 与 recovery 均由真实 Bootstrap consumer 验证；

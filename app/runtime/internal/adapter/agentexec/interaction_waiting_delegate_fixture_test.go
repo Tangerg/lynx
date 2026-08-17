@@ -64,7 +64,7 @@ func newWaitingDelegateFixture(t *testing.T, identity string) *waitingDelegateFi
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}
-	coordinator := runs.NewCoordinator(runs.Dependencies{
+	coordinator := mustNewRunCoordinator(t, runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
 		Conversation: delegateConversation{},
 		Session:      runs.SessionPorts{Reader: sessions, Creator: sessions, ActiveRuns: sessions},

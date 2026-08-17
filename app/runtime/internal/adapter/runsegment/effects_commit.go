@@ -20,9 +20,6 @@ func (e *Effects) ReserveChildRunStart(
 	ctx context.Context,
 	reservation runs.ChildRunStartReservation,
 ) error {
-	if e.tx == nil || e.childRunStarts == nil {
-		return errors.New("runsegment: child Run start persistence is unavailable")
-	}
 	record, err := childRunStartReservationRecord(reservation)
 	if err != nil {
 		return err
@@ -42,9 +39,6 @@ func (e *Effects) CommitStartedChildRun(
 	reservation runs.ChildRunStartReservation,
 	opening runs.OpeningCommit,
 ) error {
-	if e.tx == nil || e.childRunStarts == nil {
-		return errors.New("runsegment: child Run start persistence is unavailable")
-	}
 	record, err := childRunStartReservationRecord(reservation)
 	if err != nil {
 		return err
@@ -94,9 +88,6 @@ func (e *Effects) AbortChildRunStart(
 	ctx context.Context,
 	reservation runs.ChildRunStartReservation,
 ) error {
-	if e.tx == nil || e.childRunStarts == nil {
-		return errors.New("runsegment: child Run start persistence is unavailable")
-	}
 	record, err := childRunStartReservationRecord(reservation)
 	if err != nil {
 		return err
@@ -177,12 +168,6 @@ func (e *Effects) ClaimResume(
 	ctx context.Context,
 	claim runs.ResumeClaimCommit,
 ) (runs.ClaimedResume, error) {
-	if e.tx == nil {
-		return runs.ClaimedResume{}, errors.New("runsegment: transactor is unavailable")
-	}
-	if e.resumeClaims == nil || e.executorCheckpoints == nil || e.runState == nil {
-		return runs.ClaimedResume{}, errors.New("runsegment: resume-claim persistence is unavailable")
-	}
 	if err := claim.Validate(); err != nil {
 		return runs.ClaimedResume{}, fmt.Errorf("runsegment: invalid resume claim: %w", err)
 	}
@@ -195,15 +180,9 @@ func (e *Effects) ClaimResume(
 	if err != nil {
 		return runs.ClaimedResume{}, fmt.Errorf("runsegment: prepare answered questions: %w", err)
 	}
-	if len(questionReplacements) > 0 && e.itemReplacer == nil {
-		return runs.ClaimedResume{}, errors.New("runsegment: answered-question replacement is unavailable")
-	}
 	approvalResolutions, err := claim.ToolApprovalResolutions()
 	if err != nil {
 		return runs.ClaimedResume{}, fmt.Errorf("runsegment: prepare Tool approval resolutions: %w", err)
-	}
-	if len(approvalResolutions) > 0 && e.toolApprovals == nil {
-		return runs.ClaimedResume{}, errors.New("runsegment: Tool approval persistence is unavailable")
 	}
 	err = e.runInTx(ctx, func(ctx context.Context) error {
 		loaded, err := e.executorCheckpoints.LoadCheckpoint(ctx, root.MemberID)
@@ -312,9 +291,6 @@ func claimedResumeResult(claim runs.ResumeClaimCommit, checkpoint runs.ExecutorC
 // opening transcript projections land in that same transaction, so Start cannot
 // acknowledge a segment whose durable opening is missing.
 func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit) error {
-	if e.tx == nil {
-		return errors.New("runsegment: transactor is unavailable")
-	}
 	if err := opening.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid opening: %w", err)
 	}
@@ -387,13 +363,7 @@ func (e *Effects) admitOpening(ctx context.Context, opening runs.OpeningCommit) 
 	if opening.Admit == nil {
 		return errors.New("runsegment: opening admission is required")
 	}
-	if e.runState == nil {
-		return errors.New("runsegment: run-state persistence is unavailable")
-	}
 	if opening.InitialSession != nil {
-		if e.sessions == nil {
-			return errors.New("runsegment: session persistence is unavailable")
-		}
 		if err := e.sessions.Insert(ctx, *opening.InitialSession); err != nil {
 			return fmt.Errorf("runsegment: persist opening initial Session: %w", err)
 		}
@@ -402,9 +372,6 @@ func (e *Effects) admitOpening(ctx context.Context, opening runs.OpeningCommit) 
 		return err
 	}
 	if opening.SessionReplacement != nil {
-		if e.sessions == nil {
-			return errors.New("runsegment: session persistence is unavailable")
-		}
 		if err := e.sessions.Save(
 			ctx, opening.SessionReplacement.ExpectedRevision,
 			opening.SessionReplacement.State,
@@ -429,9 +396,6 @@ func (e *Effects) admitOpening(ctx context.Context, opening runs.OpeningCommit) 
 // transaction. A tree interruption is deliberately excluded: it must use
 // CommitTreeBarrier so no individual Run can publish a partial barrier.
 func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) error {
-	if e.tx == nil {
-		return errors.New("runsegment: transactor is unavailable")
-	}
 	if err := commit.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid event commit: %w", err)
 	}
@@ -451,20 +415,11 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 		if commit.ObsoleteCheckpointRootID == "" {
 			return nil
 		}
-		if e.executorCheckpoints == nil {
-			return errors.New("runsegment: executor checkpoint persistence is unavailable")
-		}
 		if err := e.executorCheckpoints.DeleteCheckpoints(ctx, commit.SessionID, []string{commit.ObsoleteCheckpointRootID}); err != nil {
 			return fmt.Errorf("runsegment: delete terminal executor checkpoint %q: %w", commit.ObsoleteCheckpointRootID, err)
 		}
-		if e.interrupts == nil {
-			return errors.New("runsegment: interrupt persistence is unavailable")
-		}
 		if err := e.interrupts.Delete(ctx, commit.SessionID, commit.RunID); err != nil {
 			return fmt.Errorf("runsegment: delete terminal interrupt for root Run %q: %w", commit.RunID, err)
-		}
-		if e.childRunStarts == nil {
-			return errors.New("runsegment: child Run start persistence is unavailable")
 		}
 		if err := e.childRunStarts.DeleteSession(ctx, commit.SessionID); err != nil {
 			return fmt.Errorf("runsegment: delete terminal child Run start reservations: %w", err)
@@ -507,9 +462,6 @@ func (e *Effects) reconcileRunCommit(
 	segmentID string,
 	commitID string,
 ) (bool, error) {
-	if e.runState == nil {
-		return false, nil
-	}
 	reconcileCtx, cancel := context.WithTimeout(
 		context.WithoutCancel(ctx),
 		runCommitReconciliationTimeout,
@@ -529,12 +481,6 @@ func (e *Effects) reconcileRunCommit(
 // order; persistence preserves that order while the transaction makes it
 // invisible until complete.
 func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrierCommit) error {
-	if e.tx == nil {
-		return errors.New("runsegment: transactor is unavailable")
-	}
-	if e.executorCheckpoints == nil {
-		return errors.New("runsegment: executor checkpoint persistence is unavailable")
-	}
 	if err := barrier.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid tree barrier: %w", err)
 	}
@@ -608,9 +554,6 @@ func (e *Effects) compensateFailedCommit(ctx context.Context, commit runs.EventC
 }
 
 func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) error {
-	if e.runState == nil {
-		return errors.New("runsegment: run-state persistence is unavailable")
-	}
 	if err := e.runState.RequireActiveSegment(ctx, commit.SessionID, commit.RunID, commit.SegmentID); err != nil {
 		return fmt.Errorf("runsegment: require active event Segment: %w", err)
 	}
@@ -620,9 +563,6 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 		}
 	}
 	if len(commit.ConversationMessages) != 0 {
-		if e.conversation == nil {
-			return errors.New("runsegment: conversation persistence is unavailable")
-		}
 		if err := e.conversation.Write(ctx, commit.SessionID, commit.ConversationMessages...); err != nil {
 			return fmt.Errorf("runsegment: append conversation messages: %w", err)
 		}
@@ -661,9 +601,6 @@ func (e *Effects) applyModelInvocations(ctx context.Context, commit runs.EventCo
 	if len(commit.ModelInvocations) == 0 {
 		return nil
 	}
-	if e.modelInvocations == nil {
-		return errors.New("runsegment: model-invocation persistence is unavailable")
-	}
 	for _, invocation := range commit.ModelInvocations {
 		var err error
 		switch invocation.State {
@@ -701,9 +638,6 @@ func (e *Effects) applyToolInvocations(ctx context.Context, commit runs.EventCom
 	if len(commit.ToolInvocations) == 0 {
 		return nil
 	}
-	if e.toolInvocations == nil {
-		return errors.New("runsegment: Tool-invocation persistence is unavailable")
-	}
 	for _, invocation := range commit.ToolInvocations {
 		var err error
 		switch invocation.State {
@@ -738,9 +672,6 @@ func (e *Effects) applyProgress(ctx context.Context, commit runs.EventCommit) er
 	if commit.Progress == nil {
 		return nil
 	}
-	if e.runMetrics == nil {
-		return errors.New("runsegment: Run-metrics persistence is unavailable")
-	}
 	if err := e.runMetrics.UpdateMetrics(
 		ctx,
 		commit.SessionID,
@@ -758,12 +689,6 @@ func (e *Effects) resumeTree(ctx context.Context, resume run.TreeResumeDraft) er
 	if err := resume.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid tree resume: %w", err)
 	}
-	if e.runState == nil {
-		return errors.New("runsegment: run-state persistence is unavailable")
-	}
-	if e.resumeClaims == nil {
-		return errors.New("runsegment: resume-claim persistence is unavailable")
-	}
 	if err := e.resumeClaims.RequireResumeClaim(ctx, resume.SessionID, resume.RootRunID); err != nil {
 		return fmt.Errorf("runsegment: require accepted answer claim: %w", err)
 	}
@@ -780,9 +705,6 @@ func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) e
 }
 
 func (e *Effects) openInterrupt(ctx context.Context, p runs.Pending) error {
-	if e.interrupts == nil {
-		return errors.New("runsegment: interrupt persistence is unavailable")
-	}
 	if err := e.interrupts.Open(ctx, p); err != nil {
 		return fmt.Errorf("runsegment: persist interrupt: %w", err)
 	}
@@ -790,9 +712,6 @@ func (e *Effects) openInterrupt(ctx context.Context, p runs.Pending) error {
 }
 
 func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
-	if e.transcript == nil {
-		return errors.New("runsegment: transcript persistence is unavailable")
-	}
 	if err := e.transcript.AppendItem(ctx, item); err != nil {
 		return err
 	}
@@ -819,9 +738,6 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error {
 	if commit.State == runs.StateUnchanged {
 		return nil
-	}
-	if e.runState == nil {
-		return errors.New("runsegment: run-state persistence is unavailable")
 	}
 	switch commit.State {
 	case runs.StateSuspend:
@@ -854,9 +770,6 @@ func (e *Effects) finishedRun(ctx context.Context, commit runs.EventCommit) (run
 	}
 	record := *commit.Run
 	if record.MessageMark() < 0 {
-		if e.conversation == nil {
-			return run.Run{}, errors.New("runsegment: message persistence is unavailable")
-		}
 		mark, err := e.conversation.Count(ctx, record.SessionID())
 		if err != nil {
 			return run.Run{}, fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)

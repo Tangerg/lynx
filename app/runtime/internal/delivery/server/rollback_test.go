@@ -240,7 +240,7 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 		CommitID: "event_commit_rollback",
 		Run:      &terminal,
 	}
-	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {
+	if err := rt.RunSegmentEffects().CommitEvent(ctx, commit); err != nil {
 		t.Fatalf("commit terminal run: %v", err)
 	}
 

@@ -15,9 +15,6 @@ import (
 // then durably opens the continuation Segment. That opening accepts the command;
 // semantic answer submission continues behind the Run lifecycle supervisor.
 func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResult, error) {
-	if err := c.requireResumeDependencies(); err != nil {
-		return StartResult{}, err
-	}
 	pending, found, err := c.interrupts.LookupOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return StartResult{}, err

@@ -173,7 +173,7 @@ func TestCancellationClassifiesResumeBetweenDurableReadsAsBusy(t *testing.T) {
 	runningSnapshot.ActiveSegmentID = "segment_resumed"
 	running := runfixture.MustRestore(runningSnapshot)
 
-	coordinator := NewCoordinator(Dependencies{
+	coordinator := mustNewCoordinator(Dependencies{
 		Runs: cancellationDriftProjection{
 			tree:    []run.Run{waiting},
 			current: running,
@@ -194,7 +194,7 @@ func TestCancellationPreservesPersistentMissingInterruptAsInvariantFault(t *test
 	createdAt := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
 	pending := testApprovalPending("member_root", createdAt)
 	waiting := runForPending(pending)
-	coordinator := NewCoordinator(Dependencies{
+	coordinator := mustNewCoordinator(Dependencies{
 		Runs: cancellationDriftProjection{
 			tree:    []run.Run{waiting},
 			current: waiting,

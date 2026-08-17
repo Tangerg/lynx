@@ -37,11 +37,13 @@ func (refusingBoundaries) Boundary(context.Context, string) ([]plan.Step, bool, 
 
 func boundaryCoordinator(stores testStores, boundaries PlanBoundaries) *Coordinator {
 	deps := testDependencies(stores, Dependencies{Paths: testCWDResolver{}})
-	deps.Boundaries = boundaries
-	deps.PlanReplacements = planapp.New(planapp.Dependencies{
-		Store: boundaryPlanStore{}, Now: func() time.Time { return time.Unix(100, 0) },
-	})
-	return New(deps)
+	deps.Plan = &PlanServices{
+		Boundaries: boundaries,
+		Replacements: planapp.New(planapp.Dependencies{
+			Store: boundaryPlanStore{}, Now: func() time.Time { return time.Unix(100, 0) },
+		}),
+	}
+	return mustNewCoordinator(deps)
 }
 
 type boundaryPlanStore struct{}

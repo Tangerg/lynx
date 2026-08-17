@@ -725,7 +725,7 @@ func waitingCancellationCoordinator(
 			plan.pending.RootRunID: plan.pending,
 		},
 	}
-	coordinator := NewCoordinator(Dependencies{
+	coordinator := mustNewCoordinator(Dependencies{
 		Observations:                       executor,
 		Releases:                           control,
 		Continuation:                       control,

@@ -16,9 +16,6 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 	ctx context.Context,
 	commit runs.WaitingSubtreeCancellationCommit,
 ) (runs.WaitingSubtreeCancellationResult, error) {
-	if err := e.requireWaitingCancellationStores(); err != nil {
-		return runs.WaitingSubtreeCancellationResult{}, err
-	}
 	if err := commit.Validate(); err != nil {
 		return runs.WaitingSubtreeCancellationResult{}, fmt.Errorf(
 			"runsegment: invalid waiting subtree cancellation: %w",
@@ -98,9 +95,6 @@ func (e *Effects) persistWaitingCancellationProjection(
 	commit runs.WaitingSubtreeCancellationCommit,
 ) error {
 	if len(commit.ConversationMessages) != 0 {
-		if e.conversation == nil {
-			return errors.New("runsegment: conversation persistence is unavailable")
-		}
 		if err := e.conversation.Write(ctx, commit.SessionID, commit.ConversationMessages...); err != nil {
 			return fmt.Errorf("runsegment: append waiting cancellation conversation result: %w", err)
 		}
@@ -287,21 +281,4 @@ func (e *Effects) reconcileWaitingCancellation(
 		)
 	}
 	return true, runs.WaitingSubtreeCancellationResult{TargetRun: target, RootRun: root}, nil
-}
-
-func (e *Effects) requireWaitingCancellationStores() error {
-	switch {
-	case e.tx == nil:
-		return errors.New("runsegment: transactor is unavailable")
-	case e.interrupts == nil:
-		return errors.New("runsegment: interrupt persistence is unavailable")
-	case e.runState == nil:
-		return errors.New("runsegment: run-state persistence is unavailable")
-	case e.itemReplacer == nil:
-		return errors.New("runsegment: transcript Item replacement is unavailable")
-	case e.executorCheckpoints == nil:
-		return errors.New("runsegment: executor checkpoint persistence is unavailable")
-	default:
-		return nil
-	}
 }

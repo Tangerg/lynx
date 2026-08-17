@@ -30,7 +30,7 @@ func (r *invalidationRecorder) resources() []invalidation.Resource {
 func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 	stores := newMutationStores("")
 	invalidations := &invalidationRecorder{}
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
 		Invalidations:     invalidations.publish,
@@ -57,7 +57,7 @@ func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 func TestFailedDeleteSessionPublishesNothing(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	invalidations := &invalidationRecorder{}
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
 		Invalidations:     invalidations.publish,

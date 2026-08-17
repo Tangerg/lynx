@@ -399,7 +399,7 @@ func (fixture *waitingCancellationSQLiteFixture) replaceEffects(
 		},
 	}
 	configure(&config)
-	fixture.effects = New(config)
+	fixture.effects = mustNewEffects(config)
 }
 
 func assertWaitingCancellationUnchanged(

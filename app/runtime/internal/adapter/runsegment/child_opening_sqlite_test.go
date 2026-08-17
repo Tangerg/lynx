@@ -1,4 +1,4 @@
-package runsegment_test
+package runsegment
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -33,7 +32,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	if err := runStore.Admit(t.Context(), root); err != nil {
 		t.Fatalf("admit root: %v", err)
 	}
-	effects := runsegment.New(runsegment.Config{
+	effects := mustNewEffects(Config{
 		State:      runStore,
 		Transcript: transcriptStore,
 		Tx: func(ctx context.Context, apply func(context.Context) error) error {
@@ -89,7 +88,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	}
 
 	rollbackErr := errors.New("reject parent item projection")
-	failingEffects := runsegment.New(runsegment.Config{
+	failingEffects := mustNewEffects(Config{
 		State: runStore,
 		Transcript: appendThenFail{
 			store: transcriptStore,
@@ -177,7 +176,7 @@ func TestStartedChildOpeningReconcilesOnlyItsExactWriteSet(t *testing.T) {
 	loseReceipt := false
 	commitCtx, cancelCommit := context.WithCancel(ctx)
 	t.Cleanup(cancelCommit)
-	effects := runsegment.New(runsegment.Config{
+	effects := mustNewEffects(Config{
 		State: runStore, Transcript: transcriptStore, ChildRunStarts: childStarts,
 		Tx: func(ctx context.Context, apply func(context.Context) error) error {
 			err := sqlite.RunInTx(ctx, db, apply)
@@ -220,7 +219,7 @@ func TestStartedChildOpeningReconcilesOnlyItsExactWriteSet(t *testing.T) {
 	if err != nil || len(items) != 1 || items[0].ID() != spawningItem.ID() {
 		t.Fatalf("child opening items = %#v err=%v, want one spawning Item", items, err)
 	}
-	requireSQLiteHealthy(t, ctx, db)
+	requireChildOpeningSQLiteHealthy(t, ctx, db)
 }
 
 type appendThenFail struct {
@@ -235,7 +234,7 @@ func (store appendThenFail) AppendItem(ctx context.Context, item transcript.Item
 	return store.err
 }
 
-func requireSQLiteHealthy(t *testing.T, ctx context.Context, db *sql.DB) {
+func requireChildOpeningSQLiteHealthy(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	var integrity string
 	if err := db.QueryRowContext(ctx, `PRAGMA integrity_check`).Scan(&integrity); err != nil || integrity != "ok" {

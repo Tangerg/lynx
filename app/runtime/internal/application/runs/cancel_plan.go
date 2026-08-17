@@ -308,9 +308,6 @@ func (c *Coordinator) loadWaitingCancellationItems(ctx context.Context, plan *ca
 	if plan == nil {
 		return errors.New("runs: waiting cancellation plan is required")
 	}
-	if c.items == nil {
-		return errors.New("runs: transcript item projection is required for waiting child cancellation")
-	}
 	item, found, err := c.items.Item(ctx, plan.target.run.Lineage().SpawnedByItemID)
 	if err != nil {
 		return fmt.Errorf(

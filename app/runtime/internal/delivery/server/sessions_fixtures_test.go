@@ -96,7 +96,7 @@ type testRuntime interface {
 	runs.RunningExecutionSteerer
 	runs.RunningSubtreeCanceler
 	runs.WaitingSubtreeCancellationPreparer
-	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
+	RunSegmentEffects() *runsegment.Effects
 }
 
 func serverPending(
@@ -224,6 +224,61 @@ func (emptyConversationReader) Read(context.Context, string) ([]chat.Message, er
 	return nil, nil
 }
 
+type passthroughRunWorkingContext struct{}
+
+func (passthroughRunWorkingContext) ComposeWorkingContext(
+	_ context.Context,
+	input runs.WorkingContextInput,
+) ([]chat.Message, error) {
+	return input.Seed, nil
+}
+
+type inertRunControl struct{}
+
+func (inertRunControl) RequestRootCancellation(context.Context, runs.ExecutorRef, string) error {
+	return nil
+}
+
+func (inertRunControl) RestoreWaitingExecution(
+	context.Context,
+	runs.WaitingContinuation,
+) (runs.ExecutorRef, error) {
+	return runs.ExecutorRef{}, errors.New("test runtime: waiting restoration is unavailable")
+}
+
+type inertRunProjection struct{}
+
+func (inertRunProjection) Run(context.Context, string) (run.Run, bool, error) {
+	return run.Run{}, false, nil
+}
+
+func (inertRunProjection) Tree(context.Context, string) ([]run.Run, error) {
+	return nil, nil
+}
+
+type inertItemProjection struct{}
+
+func (inertItemProjection) Item(context.Context, string) (transcript.Item, bool, error) {
+	return transcript.Item{}, false, nil
+}
+
+func nonNilRunProjection(projection runs.RunProjection) runs.RunProjection {
+	if projection == nil {
+		return inertRunProjection{}
+	}
+	return projection
+}
+
+func itemProjectionFor(rt testRuntime) runs.ItemProjection {
+	provider, ok := rt.(interface {
+		Transcript() *sqlite.TranscriptStore
+	})
+	if !ok || provider.Transcript() == nil {
+		return inertItemProjection{}
+	}
+	return provider.Transcript()
+}
+
 func (s stubRuntime) runProjection() runs.RunProjection {
 	if s.runs == nil {
 		return nil
@@ -280,28 +335,38 @@ func newTestServer(rt testRuntime) *Server {
 	if p, ok := rt.(conversationReaderProvider); ok {
 		conversation = p.conversationReader()
 	}
-	projectionWriter := rt.RunSegmentEffects(nil, nil)
-	s.runs = runs.NewCoordinator(runs.Dependencies{
+	projectionWriter := rt.RunSegmentEffects()
+	finalizer, err := runsegment.NewFinalizer(runsegment.FinalizerConfig{})
+	if err != nil {
+		panic(err)
+	}
+	workspaceNotifier := runsegment.NewWorkspaceNotifier(nil)
+	runCoordinator, err := runs.NewCoordinator(runs.Dependencies{
 		RootStarts:                         rt,
 		Observations:                       rt,
 		Releases:                           rt,
+		RootCancellation:                   inertRunControl{},
 		Conversation:                       conversation,
+		WorkingContexts:                    passthroughRunWorkingContext{},
 		Continuation:                       rt,
+		WaitingRestorer:                    inertRunControl{},
 		Steering:                           rt,
 		RunningSubtreeCanceler:             rt,
 		WaitingSubtreeCancellationPreparer: rt,
 		Session:                            sessionPorts,
 		Projection: runs.ProjectionPorts{
 			Openings:                    projectionWriter,
+			ChildStarts:                 projectionWriter,
 			Checkpoints:                 projectionWriter,
 			ResumeClaims:                projectionWriter,
 			Events:                      projectionWriter,
 			Barriers:                    projectionWriter,
 			WaitingSubtreeCancellations: projectionWriter,
-			Workspace:                   projectionWriter,
-			Finalizer:                   projectionWriter,
+			Workspace:                   workspaceNotifier,
+			Finalizer:                   finalizer,
 		},
-		Runs:       runProjection,
+		Runs:       nonNilRunProjection(runProjection),
+		Items:      itemProjectionFor(rt),
 		Admissions: admissions,
 		Now:        time.Now,
 		NewRunID: func() string {
@@ -311,6 +376,10 @@ func newTestServer(rt testRuntime) *Server {
 			return fmt.Sprintf("seg_test_%d", ids.Add(1))
 		},
 	})
+	if err != nil {
+		panic(err)
+	}
+	s.runs = runCoordinator
 	if p, ok := rt.(queriesCoordinatorProvider); ok {
 		s.queries = p.queriesCoordinator()
 	}
@@ -784,10 +853,6 @@ func (s stubMessageCounter) Write(ctx context.Context, id string, messages ...ch
 	return s.rt.SeedHistory(ctx, id, messages)
 }
 
-type stubTitleGenerator struct{}
-
-func (stubTitleGenerator) Generate(context.Context, string) (string, error) { return "", nil }
-
 // sessionsCoordinator builds the real lifecycle coordinator over the stub's
 // in-memory stores and execution release, so newTestServer can wire s.sessions the way the
 // composition root does — delivery drives every lifecycle write-set through it.
@@ -812,13 +877,11 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 	if s.runs != nil {
 		runStore = s.runs
 	}
-	return sessions.New(sessions.Dependencies{
-		Sessions:          s.sess,
-		Interrupts:        s.interrupts,
-		Transcript:        s.hist,
+	deps := sessions.Dependencies{
+		Sessions:          nonNilSessionStore(s.sess),
+		Interrupts:        nonNilSessionInterrupts(s.interrupts),
+		Transcript:        nonNilSessionTranscript(s.hist),
 		Runs:              runStore,
-		Boundaries:        s.plan,
-		PlanReplacements:  planapp.New(planapp.Dependencies{Store: s.plan, Now: time.Now}),
 		Snapshots:         stores,
 		MaterialSnapshots: stores,
 		Writes:            stores,
@@ -826,7 +889,6 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		ExecutionReleaser: stubExecutionReleaser{rt: s},
 		Paths:             workspacepath.Resolver{},
 		Checkpoints:       checkpoints,
-		Mutations:         s.muts,
 		Admissions:        admissions,
 		Now:               time.Now,
 		NewID: func() string {
@@ -839,7 +901,23 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 			return runs.NewItemID(fmt.Sprintf("fixture_%d", sessionFixtureSequence.Add(1)))
 		},
 		NewToolResultID: toolresult.NewID,
-	})
+	}
+	if s.plan != nil {
+		deps.Plan = &sessions.PlanServices{
+			Boundaries: s.plan,
+			Replacements: planapp.New(planapp.Dependencies{
+				Store: s.plan, Now: time.Now,
+			}),
+		}
+	}
+	if s.muts != nil {
+		deps.Mutations = s.muts
+	}
+	coordinator, err := sessions.New(deps)
+	if err != nil {
+		panic(err)
+	}
+	return coordinator
 }
 
 // emptySessionRunStore is the explicit no-Run dependency for delivery fixtures
@@ -856,19 +934,202 @@ func (emptySessionRunStore) ListNonTerminalRuns(context.Context) ([]run.Run, err
 	return nil, nil
 }
 
-func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects {
-	return runsegment.New(runsegment.Config{
-		Interrupts:         s.interrupts,
-		Sessions:           s.sess,
-		Transcript:         s.hist,
-		ToolResults:        s.toolResults,
-		Conversation:       stubMessageCounter{rt: s},
-		Titles:             stubTitleGenerator{},
-		State:              s.runStore(),
-		Tx:                 s.RunInTx,
-		Checkpoints:        checkpoints,
-		PublishFileChanges: publish,
-	})
+// inertRuntimeStores supplies explicit no-op collaborators to focused Delivery
+// fixtures. Production constructors stay strict; a fixture that does not mount
+// SQLite still names every capability instead of relying on a half-built object.
+type inertRuntimeStores struct{}
+
+func (inertRuntimeStores) List(context.Context) ([]session.Session, error) { return nil, nil }
+func (inertRuntimeStores) ListPage(context.Context, bool, int64, string, int) ([]session.Session, error) {
+	return nil, nil
+}
+func (inertRuntimeStores) Get(context.Context, string) (session.Session, error) {
+	return session.Session{}, session.ErrNotFound
+}
+func (inertRuntimeStores) Insert(context.Context, session.Session) error { return nil }
+func (inertRuntimeStores) Save(context.Context, uint64, session.Session) error {
+	return nil
+}
+func (inertRuntimeStores) ListRuns(context.Context, string) ([]run.Run, error) { return nil, nil }
+func (inertRuntimeStores) ListNonTerminalRuns(context.Context) ([]run.Run, error) {
+	return nil, nil
+}
+func (inertRuntimeStores) Open(context.Context, runs.Pending) error { return nil }
+func (inertRuntimeStores) Consume(context.Context, string, string) (runs.Pending, bool, error) {
+	return runs.Pending{}, false, nil
+}
+func (inertRuntimeStores) Delete(context.Context, string, string) error { return nil }
+func (inertRuntimeStores) GetInterrupt(context.Context, string) (runs.Pending, bool, error) {
+	return runs.Pending{}, false, nil
+}
+func (inertRuntimeStores) ClaimResume(
+	context.Context,
+	string,
+	string,
+	[]runs.InterruptAnswer,
+	time.Time,
+) (runs.Pending, bool, error) {
+	return runs.Pending{}, false, nil
+}
+func (inertRuntimeStores) RequireResumeClaim(context.Context, string, string) error { return nil }
+func (inertRuntimeStores) AppendItem(context.Context, transcript.Item) error        { return nil }
+func (inertRuntimeStores) Item(context.Context, string) (transcript.Item, bool, error) {
+	return transcript.Item{}, false, nil
+}
+func (inertRuntimeStores) ReplaceItem(context.Context, transcript.Item, transcript.Item) error {
+	return nil
+}
+func (inertRuntimeStores) StartModelInvocation(context.Context, string, string, string, string, time.Time) error {
+	return nil
+}
+func (inertRuntimeStores) CompleteModelInvocation(context.Context, string, string, string, string, time.Time, time.Time) error {
+	return nil
+}
+func (inertRuntimeStores) FailModelInvocation(context.Context, string, string, string, string, time.Time, time.Time) error {
+	return nil
+}
+func (inertRuntimeStores) MarkModelInvocationUnknown(context.Context, string, string, string, string, time.Time, time.Time) error {
+	return nil
+}
+func (inertRuntimeStores) StartToolInvocation(context.Context, string, string, string, string, string, time.Time) error {
+	return nil
+}
+func (inertRuntimeStores) CompleteToolInvocation(context.Context, string, string, string, string, string, time.Time, time.Time) error {
+	return nil
+}
+func (inertRuntimeStores) MarkToolInvocationIncomplete(context.Context, string, string, string, string, string, time.Time, time.Time) error {
+	return nil
+}
+func (inertRuntimeStores) SaveCheckpoint(context.Context, runs.ExecutorCheckpoint) error { return nil }
+func (inertRuntimeStores) LoadCheckpoint(context.Context, string) (runs.ExecutorCheckpoint, error) {
+	return runs.ExecutorCheckpoint{}, runs.ErrExecutorCheckpointNotFound
+}
+func (inertRuntimeStores) DeleteCheckpoints(context.Context, string, []string) error { return nil }
+func (inertRuntimeStores) Reserve(context.Context, sqlite.ChildRunStartReservationRecord) error {
+	return nil
+}
+func (inertRuntimeStores) Conclude(
+	context.Context,
+	sqlite.ChildRunStartReservationRecord,
+	sqlite.ChildRunStartConclusion,
+) (bool, error) {
+	return true, nil
+}
+func (inertRuntimeStores) DeleteSession(context.Context, string) error { return nil }
+
+type inertSessionInterrupts struct{ inertRuntimeStores }
+
+func (inertSessionInterrupts) List(context.Context, string) ([]runs.Pending, error) {
+	return nil, nil
+}
+func (inertSessionInterrupts) Get(context.Context, string) (runs.Pending, bool, error) {
+	return runs.Pending{}, false, nil
+}
+
+type inertSessionTranscript struct{ inertRuntimeStores }
+
+func (inertSessionTranscript) List(context.Context, string) ([]transcript.Item, error) {
+	return nil, nil
+}
+
+func nonNilSessionStore(store *sqlite.SessionStore) sessions.Store {
+	if store == nil {
+		return inertRuntimeStores{}
+	}
+	return store
+}
+
+func nonNilSessionInterrupts(store *persistence.InterruptStore) sessions.InterruptStore {
+	if store == nil {
+		return inertSessionInterrupts{}
+	}
+	return store
+}
+
+func nonNilSessionTranscript(store *sqlite.TranscriptStore) sessions.TranscriptStore {
+	if store == nil {
+		return inertSessionTranscript{}
+	}
+	return store
+}
+
+func nonNilRunsegmentInterrupts(store *persistence.InterruptStore, fallback inertRuntimeStores) runsegment.InterruptStore {
+	if store == nil {
+		return fallback
+	}
+	return store
+}
+
+func nonNilRunsegmentResumeClaims(store *persistence.InterruptStore, fallback inertRuntimeStores) runsegment.ResumeClaimStore {
+	if store == nil {
+		return fallback
+	}
+	return store
+}
+
+func nonNilRunsegmentSessions(store *sqlite.SessionStore, fallback inertRuntimeStores) runsegment.SessionStore {
+	if store == nil {
+		return fallback
+	}
+	return store
+}
+
+func nonNilRunsegmentTranscript(store *sqlite.TranscriptStore, fallback inertRuntimeStores) runsegment.TranscriptStore {
+	if store == nil {
+		return fallback
+	}
+	return store
+}
+
+func nonNilRunsegmentItems(store *sqlite.TranscriptStore, fallback inertRuntimeStores) runsegment.ItemReplacer {
+	if store == nil {
+		return fallback
+	}
+	return store
+}
+
+func nonNilRunsegmentApprovals(store *sqlite.TranscriptStore, fallback inertRuntimeStores) runsegment.ToolApprovalStore {
+	if store == nil {
+		return fallback
+	}
+	return store
+}
+
+func runMetricsFor(state runsegment.RunStore) runsegment.RunMetricsWriter {
+	metrics, ok := state.(runsegment.RunMetricsWriter)
+	if !ok {
+		panic("test Run store does not implement metrics writes")
+	}
+	return metrics
+}
+
+func (s stubRuntime) RunSegmentEffects() *runsegment.Effects {
+	stores := inertRuntimeStores{}
+	state := s.runStore()
+	cfg := runsegment.Config{
+		Interrupts:          nonNilRunsegmentInterrupts(s.interrupts, stores),
+		ResumeClaims:        nonNilRunsegmentResumeClaims(s.interrupts, stores),
+		Sessions:            nonNilRunsegmentSessions(s.sess, stores),
+		Transcript:          nonNilRunsegmentTranscript(s.hist, stores),
+		ItemReplacer:        nonNilRunsegmentItems(s.hist, stores),
+		ToolApprovals:       nonNilRunsegmentApprovals(s.hist, stores),
+		ModelInvocations:    stores,
+		ToolInvocations:     stores,
+		Conversation:        stubMessageCounter{rt: s},
+		State:               state,
+		RunMetrics:          runMetricsFor(state),
+		ExecutorCheckpoints: stores,
+		ChildRunStarts:      stores,
+		Tx:                  s.RunInTx,
+	}
+	if s.toolResults != nil {
+		cfg.ToolResults = s.toolResults
+	}
+	effects, err := runsegment.New(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return effects
 }
 
 // runStore is the real Run table when the fixture has one, so a committed
@@ -914,6 +1175,9 @@ func (stubRunState) SuspendBarrier(context.Context, run.Run, string, string) err
 }
 func (stubRunState) RunCommitCommitted(context.Context, string, string, string, string) (bool, error) {
 	return false, nil
+}
+func (stubRunState) UpdateMetrics(context.Context, string, string, string, run.Metrics, time.Time) error {
+	return nil
 }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call

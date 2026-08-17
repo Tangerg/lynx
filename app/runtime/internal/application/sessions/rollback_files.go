@@ -58,9 +58,6 @@ type RollbackResult struct {
 // sibling's tool writes never take the checkpoint lock, so the mutation must see
 // any in-flight run on the tree, not just this session's.
 func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (RollbackResult, error) {
-	if c.sessions == nil {
-		return RollbackResult{}, errors.New("sessions: session store is unavailable")
-	}
 	currentSession, err := c.sessions.Get(ctx, spec.SessionID)
 	if err != nil {
 		return RollbackResult{}, err
@@ -86,9 +83,6 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 		defer workingTreeMutation.Release()
 	}
 
-	if c.transcript == nil || c.runs == nil {
-		return RollbackResult{}, errors.New("sessions: transcript store is unavailable")
-	}
 	resolvedBoundary, err := c.resolveRollbackBoundary(ctx, spec.SessionID, spec.ToRunID)
 	if err != nil {
 		return result, err
@@ -225,9 +219,6 @@ func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context) error {
 func (c *Coordinator) recoverRollback(ctx context.Context, m WorkspaceMutation) error {
 	var boundary transcript.Boundary
 	if m.RestoreHistory {
-		if c.runs == nil {
-			return errors.New("sessions: run store is unavailable")
-		}
 		runs, err := c.runs.ListRuns(ctx, m.SessionID)
 		if err != nil {
 			return err

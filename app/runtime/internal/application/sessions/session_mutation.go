@@ -27,17 +27,11 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 		ctx,
 		[]string{sessionID},
 		func(commitCtx context.Context) error {
-			if c.interrupts == nil {
-				return errors.New("sessions: interrupt store is unavailable")
-			}
 			open, err := c.interrupts.List(commitCtx, sessionID)
 			if err != nil {
 				return err
 			}
 			pending = append(pending, open...)
-			if c.writes == nil {
-				return errors.New("sessions: write sets are unavailable")
-			}
 			return c.writes.ApplyDelete(commitCtx, DeletePlan{SessionID: sessionID})
 		},
 		func(ctx context.Context) error {
@@ -68,9 +62,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 func (c *Coordinator) dropSessionResources(sessionIDs []string, action string) []error {
 	var errs []error
 	for _, sessionID := range sessionIDs {
-		if c.forgetter != nil {
-			c.forgetter.ForgetSession(sessionID)
-		}
+		c.forgetter.ForgetSession(sessionID)
 		if c.checkpoints != nil {
 			if err := c.checkpoints.DropSession(sessionID); err != nil {
 				errs = append(errs, fmt.Errorf("sessions: drop checkpoints for %s session %q: %w", action, sessionID, err))
@@ -138,9 +130,6 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		ctx,
 		[]string{sessionID},
 		func(ctx context.Context) error {
-			if c.writes == nil {
-				return errors.New("sessions: write sets are unavailable")
-			}
 			return c.writes.ApplyRestore(ctx, restorePlan(snapshot, sessionReplacement, planReplacement))
 		},
 		func(context.Context) error {
@@ -169,9 +158,6 @@ func (c *Coordinator) prepareSessionRestore(
 	ctx context.Context,
 	restored session.Session,
 ) (SessionReplacement, error) {
-	if c.sessions == nil {
-		return SessionReplacement{}, errors.New("sessions: Session store is unavailable")
-	}
 	current, err := c.sessions.Get(ctx, restored.ID())
 	if errors.Is(err, session.ErrNotFound) {
 		return InitialSessionReplacement(restored)

@@ -14,7 +14,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	caps := capabilitiesFor(featureAvailability{
 		knowledge: true, git: true, fileWatch: true, plan: true,
 		goals: true, agentMemory: true, schedules: true, codebase: true,
-	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.IdempotencyLimits{RetentionSeconds: 86_400, Namespace: "idp_test"}, protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
+	}, replayLimitsFrom(runs.DefaultRetention()), protocol.IdempotencyLimits{RetentionSeconds: 86_400, Namespace: "idp_test"}, protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,
@@ -76,7 +76,7 @@ func TestCapabilitiesAdvertiseThePublishedVocabulary(t *testing.T) {
 
 	caps := capabilitiesFor(
 		featureAvailability{},
-		replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})),
+		replayLimitsFrom(runs.DefaultRetention()),
 		protocol.IdempotencyLimits{RetentionSeconds: 86_400, Namespace: "idp_test"},
 		protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73},
 	)

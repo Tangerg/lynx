@@ -2,7 +2,6 @@ package sessions
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -50,9 +49,6 @@ func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[
 	if len(sessionIDs) == 0 {
 		return activities, nil
 	}
-	if c.runs == nil {
-		return nil, errors.New("sessions: run store is unavailable")
-	}
 	requested := make(map[string]struct{}, len(sessionIDs))
 	for _, id := range sessionIDs {
 		requested[id] = struct{}{}
@@ -95,9 +91,6 @@ const viewPageLimit = 100
 // cursor. The page is bounded by the query, so only the sessions being returned
 // are resolved against the filesystem and the live-run registry.
 func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int) (pagination.Page[View], error) {
-	if c.sessions == nil {
-		return pagination.Page[View]{}, errors.New("sessions: session store is unavailable")
-	}
 	anchor, err := pagination.Decode(cursor, viewPageNamespace, nil)
 	if err != nil {
 		return pagination.Page[View]{}, err
@@ -139,9 +132,6 @@ func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int
 
 // View resolves one session's complete application read model.
 func (c *Coordinator) View(ctx context.Context, id string) (View, error) {
-	if c.sessions == nil {
-		return View{}, errors.New("sessions: session store is unavailable")
-	}
 	value, err := c.sessions.Get(ctx, id)
 	if err != nil {
 		return View{}, err
@@ -206,9 +196,6 @@ func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]Vi
 }
 
 func (c *Coordinator) view(value session.Session, activity Activity) (View, error) {
-	if c.paths == nil {
-		return View{}, errors.New("sessions: workspace inspector is unavailable")
-	}
 	workspace, err := c.paths.Inspect(value.CWD())
 	if err != nil {
 		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.CWD(), err)

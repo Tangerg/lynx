@@ -2,7 +2,6 @@ package sessions
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -30,9 +29,6 @@ type MaterialSnapshot struct {
 // either precede or follow the storage transaction and can never split the
 // returned Run, interrupt, transcript, and Plan facts.
 func (c *Coordinator) MaterialSnapshot(ctx context.Context, sessionID string) (MaterialSnapshot, error) {
-	if c.materialSnapshots == nil {
-		return MaterialSnapshot{}, errors.New("sessions: material snapshot reader is unavailable")
-	}
 	snapshot, err := c.materialSnapshots.ReadMaterialSnapshot(ctx, sessionID)
 	if err != nil {
 		return MaterialSnapshot{}, err

@@ -28,9 +28,6 @@ func (c *Coordinator) ExportSession(ctx context.Context, sessionID string) (Expo
 		return ExportResult{}, err
 	}
 	defer admission.Release()
-	if c.snapshots == nil {
-		return ExportResult{}, errors.New("sessions: snapshot reader is unavailable")
-	}
 	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
 	if err != nil {
 		return ExportResult{}, err

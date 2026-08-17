@@ -65,7 +65,7 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	invalidations := &invalidationRecorder{}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		RootStarts:    control,
 		Observations:  exec,
 		Releases:      control,
@@ -118,7 +118,7 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 	invalidations := &invalidationRecorder{}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		RootStarts:    control,
 		Observations:  exec,
 		Releases:      control,

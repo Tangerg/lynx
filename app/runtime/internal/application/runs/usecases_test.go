@@ -364,7 +364,7 @@ func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, 
 		NewSegmentID:                       func() string { return "seg_new" },
 	}
 	deps.Admissions = new(sessionadmission.Gate)
-	return NewCoordinator(deps)
+	return mustNewCoordinator(deps)
 }
 
 func mustUseCaseSelection(provider, model string) modelref.Selection {
@@ -1623,7 +1623,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 		operations: &operations,
 	}
 	control := &fakeExecutionPorts{operations: &operations}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Releases: control, Session: testSessionPorts(sessions),
 		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForPending(pending),
@@ -1654,7 +1654,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 
 func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
 	finished := runRecord(run.Completed, "", "")
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Releases:   &fakeExecutionPorts{},
 		Session:    testSessionPorts(&fakeRunSessions{}),
 		Runs:       &fakeRunProjection{runs: map[string]run.Run{"run_1": finished}},
@@ -1668,7 +1668,7 @@ func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
 }
 
 func TestCancelUnknownRunReportsNotFound(t *testing.T) {
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Releases:   &fakeExecutionPorts{},
 		Session:    testSessionPorts(&fakeRunSessions{}),
 		Runs:       &fakeRunProjection{},
@@ -1683,7 +1683,7 @@ func TestCancelUnknownRunReportsNotFound(t *testing.T) {
 
 func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 	child := runRecord(run.Running, "seg_child", "item_parent")
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Releases:   &fakeExecutionPorts{},
 		Session:    testSessionPorts(&fakeRunSessions{}),
 		Runs:       &fakeRunProjection{runs: map[string]run.Run{"run_1": child}},
@@ -1845,7 +1845,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	projection := &fakeRunProjection{runs: map[string]run.Run{
 		"run_1": runForSegment(testSegment()),
 	}}
-	coordinator := NewCoordinator(Dependencies{
+	coordinator := mustNewCoordinator(Dependencies{
 		Observations:           executor,
 		Releases:               control,
 		RunningSubtreeCanceler: control,
@@ -1898,7 +1898,7 @@ func TestCancelParkedRunReportsExecutorReleaseFailureAfterDurableCommit(t *testi
 		"run_1": pending,
 	}}
 	control := &fakeExecutionPorts{releaseErr: cleanupErr}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Releases: control, Session: testSessionPorts(sessions),
 		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForPending(pending),
@@ -1920,7 +1920,7 @@ func TestCancelLiveRunReportsExecutorReleaseFailureAndStillTerminalizes(t *testi
 	executor := &fakeExecutor{block: true, releaseErr: cleanupErr}
 	effects := &fakeEffects{}
 	control := &fakeExecutionPorts{releaseErr: cleanupErr}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForSegment(testSegment()),
@@ -1949,7 +1949,7 @@ func TestCancelLiveRunDefaultsOmittedReasonAtApplicationBoundary(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	effects := &fakeEffects{}
 	control := &fakeExecutionPorts{requestRootCancel: executor.requestRootCancellation}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Observations: executor, Releases: control, RootCancellation: control,
 		Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]run.Run{
@@ -2041,7 +2041,7 @@ func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 	}}}
 	effects := &fakeEffects{terminalStarted: terminalStarted, terminalRelease: releaseTerminal}
 	control := &fakeExecutionPorts{}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForSegment(testSegment()),
@@ -2119,7 +2119,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	spec.Capabilities = run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(sessions), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForSegment(spec),
@@ -2171,7 +2171,7 @@ func TestCancelTreatsAlreadyReleasedExecutorAsIdempotentSuccess(t *testing.T) {
 		"run_1": pending,
 	}}
 	control := &fakeExecutionPorts{releaseErr: ErrExecutorNotLive}
-	c := NewCoordinator(Dependencies{
+	c := mustNewCoordinator(Dependencies{
 		Releases: control, Session: testSessionPorts(sessions),
 		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForPending(pending),

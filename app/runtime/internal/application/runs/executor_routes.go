@@ -624,9 +624,6 @@ func (c *Coordinator) prepareChildOpening(
 	if err := spawningItem.Validate(); err != nil {
 		return nil, fmt.Errorf("runs: open child member %q spawning item: %w", member.MemberID, err)
 	}
-	if c.newRunID == nil || c.newSegmentID == nil {
-		return nil, errors.New("runs: child opening requires run and segment identity generators")
-	}
 	childRunID := c.newRunID()
 	if childRunID == "" {
 		return nil, errors.New("runs: child opening generated an empty run id")

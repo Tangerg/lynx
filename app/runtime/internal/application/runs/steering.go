@@ -17,9 +17,6 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 	if err != nil {
 		return err
 	}
-	if c.steering == nil {
-		return errors.New("runs: execution steerer is required")
-	}
 	rec := live.record
 	if err := c.steering.SubmitSteer(ctx, ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {
 		if errors.Is(err, ErrExecutorNotLive) {

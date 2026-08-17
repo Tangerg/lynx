@@ -14,18 +14,90 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
+// SessionTitles is the Application capability for best-effort initial title
+// generation. It rechecks first-writer semantics through Session behavior.
+type SessionTitles interface {
+	NeedsGeneratedTitle(ctx context.Context, id string) (bool, error)
+	ApplyGeneratedTitle(ctx context.Context, id, title string) error
+}
+
+// TitleGenerator derives an initial session title from its opening request.
+type TitleGenerator interface {
+	Generate(ctx context.Context, firstMessage string) (string, error)
+}
+
+// Checkpoints anchors the working tree at a terminal run boundary.
+type Checkpoints interface {
+	Snapshot(ctx context.Context, sessionID, cwd, runID string) error
+}
+
+// TaskLauncher starts request-detached work owned by its component lifecycle.
+type TaskLauncher interface {
+	Start(parent context.Context, task func(context.Context)) bool
+}
+
+// TitleMaintenance is the complete optional generated-title capability.
+type TitleMaintenance struct {
+	Sessions  SessionTitles
+	Generator TitleGenerator
+	Tasks     TaskLauncher
+}
+
+// FinalizerConfig declares the two independent terminal-maintenance features.
+// A nil Checkpoints disables workspace snapshots; a nil Titles disables title
+// generation. Enabled features must be complete at construction.
+type FinalizerConfig struct {
+	Checkpoints Checkpoints
+	Titles      *TitleMaintenance
+}
+
+// Finalizer owns post-boundary maintenance. It is deliberately separate from
+// durable Effects because neither title generation nor workspace snapshots
+// participate in the Run transaction.
+type Finalizer struct {
+	checkpoints   Checkpoints
+	sessionTitles SessionTitles
+	titles        TitleGenerator
+	tasks         TaskLauncher
+}
+
+var _ runs.SegmentFinalizer = (*Finalizer)(nil)
+
+func NewFinalizer(cfg FinalizerConfig) (*Finalizer, error) {
+	if cfg.Checkpoints != nil && nilDependency(cfg.Checkpoints) {
+		return nil, errors.New("runsegment: optional checkpoints must not be typed nil")
+	}
+	finalizer := &Finalizer{checkpoints: cfg.Checkpoints}
+	if cfg.Titles == nil {
+		return finalizer, nil
+	}
+	if nilDependency(cfg.Titles.Sessions) {
+		return nil, errors.New("runsegment: session titles are required when title maintenance is enabled")
+	}
+	if nilDependency(cfg.Titles.Generator) {
+		return nil, errors.New("runsegment: title generator is required when title maintenance is enabled")
+	}
+	if nilDependency(cfg.Titles.Tasks) {
+		return nil, errors.New("runsegment: task launcher is required when title maintenance is enabled")
+	}
+	finalizer.sessionTitles = cfg.Titles.Sessions
+	finalizer.titles = cfg.Titles.Generator
+	finalizer.tasks = cfg.Titles.Tasks
+	return finalizer, nil
+}
+
 // Finish establishes the terminal file boundary before returning, then starts
 // title generation off the live path. The checkpoint is a sequencing fence: the
 // run admission remains held by the caller until it completes, so a following
 // run cannot write into the preceding run's snapshot. Title generation does not
 // define the boundary and may continue asynchronously. A parked run is
 // resumable, not a boundary, so it does neither.
-func (e *Effects) Finish(ctx context.Context, fin runs.Finish) error {
+func (e *Finalizer) Finish(ctx context.Context, fin runs.Finish) error {
 	if fin.Parked {
 		return nil
 	}
 	needsSnapshot := e.checkpoints != nil && fin.CWD != ""
-	needsTitle := strings.TrimSpace(fin.OpeningUserText) != ""
+	needsTitle := e.sessionTitles != nil && strings.TrimSpace(fin.OpeningUserText) != ""
 	if !needsSnapshot && !needsTitle {
 		return nil
 	}
@@ -44,9 +116,6 @@ func (e *Effects) Finish(ctx context.Context, fin runs.Finish) error {
 		return observeTerminalMaintenance(ctx, fin, "title", func(ctx context.Context) error {
 			return e.title(ctx, fin.SessionID, fin.OpeningUserText)
 		})
-	}
-	if e.tasks == nil {
-		return errors.Join(append(errs, title(ctx))...)
 	}
 	if !e.tasks.Start(ctx, func(ctx context.Context) { _ = title(ctx) }) {
 		rejected := fmt.Errorf("runsegment: terminal maintenance for run %q was rejected during shutdown", fin.RunID)
@@ -73,14 +142,14 @@ func observeTerminalMaintenance(ctx context.Context, fin runs.Finish, operation 
 	return err
 }
 
-func (e *Effects) snapshot(ctx context.Context, sessionID, cwd, runID string) error {
+func (e *Finalizer) snapshot(ctx context.Context, sessionID, cwd, runID string) error {
 	if err := e.checkpoints.Snapshot(ctx, sessionID, cwd, runID); err != nil {
 		return fmt.Errorf("runsegment: snapshot workspace for run %q: %w", runID, err)
 	}
 	return nil
 }
 
-func (e *Effects) title(ctx context.Context, sessionID, prompt string) error {
+func (e *Finalizer) title(ctx context.Context, sessionID, prompt string) error {
 	if e.sessionTitles == nil {
 		return errors.New("runsegment: Session title use cases are unavailable")
 	}

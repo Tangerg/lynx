@@ -55,7 +55,7 @@ func TestDeleteSessionStopsBeforeExecutorReleaseOnApplyFailure(t *testing.T) {
 
 func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 	stores := newMutationStores("")
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
 		Goals:             mutationGoalGuard{operations: &stores.operations},
@@ -72,7 +72,7 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 
 func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 	stores := newMutationStores("apply.delete")
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
 		Goals:             mutationGoalGuard{operations: &stores.operations},
@@ -89,7 +89,7 @@ func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
 	quiesceErr := errors.New("goal quiesce failed")
 	stores := newMutationStores("")
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
 		Goals:             mutationGoalGuard{operations: &stores.operations, quiesceErr: quiesceErr},
@@ -130,7 +130,7 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 	checkpointErr := errors.New("checkpoint cleanup failed")
 	stores := newMutationStores("")
 	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations, err: executionErr},
 		Paths:             testCWDResolver{},
 		Checkpoints:       checkpoints,
@@ -152,7 +152,7 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	sandboxErr := errors.New("sandbox discard failed")
 	stores := newMutationStores("")
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
 		Checkpoints:       &mutationCheckpoints{operations: &stores.operations},
@@ -177,7 +177,7 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 func TestRollbackReportsParkedExecutorReleaseFailure(t *testing.T) {
 	executionErr := errors.New("execution release failed")
 	stores := newMutationStores("")
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations, err: executionErr},
 		Paths:             testCWDResolver{},
 	}))
@@ -263,7 +263,7 @@ func TestRestoreSessionRejectsUnresolvableCWDBeforeMutation(t *testing.T) {
 	stores := newMutationStores("")
 	stores.pending = map[string][]runs.Pending{}
 	want := errors.New("missing workspace")
-	coordinator := New(testDependencies(stores, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{err: want},
 	}))

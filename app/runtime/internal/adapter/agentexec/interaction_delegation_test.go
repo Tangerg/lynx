@@ -62,7 +62,7 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}
-	coordinator := runs.NewCoordinator(runs.Dependencies{
+	coordinator := mustNewRunCoordinator(t, runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
 		Conversation: delegateConversation{},
 		Session:      runs.SessionPorts{Reader: sessions, Creator: sessions, ActiveRuns: sessions},
@@ -192,7 +192,7 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 			close(cancelAccepted)
 		},
 	}
-	coordinator := runs.NewCoordinator(runs.Dependencies{
+	coordinator := mustNewRunCoordinator(t, runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
 		Conversation: delegateConversation{}, RunningSubtreeCanceler: runningSubtreeCanceler,
 		Session: runs.SessionPorts{
@@ -459,7 +459,7 @@ func runDelegateTree(
 	projection := newDelegateProjection()
 	var identityMu sync.Mutex
 	runSequence, segmentSequence := 0, 0
-	coordinator := runs.NewCoordinator(runs.Dependencies{
+	coordinator := mustNewRunCoordinator(t, runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
 		Conversation: delegateConversation{},
 		Session:      runs.SessionPorts{Reader: sessions, Creator: sessions, ActiveRuns: sessions},

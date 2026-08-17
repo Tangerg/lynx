@@ -705,7 +705,7 @@ func testCoordinator(executor interface {
 	ExecutionObserver
 	ExecutionReleaser
 }, effects completeTestProjectionPorts) *Coordinator {
-	return NewCoordinator(Dependencies{
+	return mustNewCoordinator(Dependencies{
 		Observations: executor,
 		Releases:     executor,
 		Projection:   testProjectionPorts(effects),

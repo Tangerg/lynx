@@ -113,7 +113,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 		sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"}),
 	}}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{
+	c := mustNewCoordinator(testDependencies(stores, Dependencies{
 		Paths: testCWDResolver{resolved: "/resolved/project"},
 		Now:   func() time.Time { return time.Unix(2, 0).UTC() },
 		NewID: func() string { return "ses_created" },
@@ -148,7 +148,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
 	store := &crudSessionStore{getErr: session.ErrNotFound}
 	createdAt := time.Unix(9, 0).UTC()
-	coordinator := New(testDependencies(&crudStores{session: store}, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
 		Paths: testCWDResolver{resolved: "/resolved/scheduled"},
 		Now:   func() time.Time { return createdAt },
 	}))
@@ -177,7 +177,7 @@ func TestPrepareScheduledReusesCommittedAggregateWithoutWorkspaceAdmission(t *te
 		ID: "ses_scheduled", Title: "Existing", CWD: "/existing", Model: "existing-model",
 	})
 	store := &crudSessionStore{current: existing}
-	coordinator := New(testDependencies(&crudStores{session: store}, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
 		Paths: testCWDResolver{err: errors.New("must not inspect workspace")},
 	}))
 
@@ -197,7 +197,7 @@ func TestGeneratedTitleLosesToConcurrentUserTitle(t *testing.T) {
 		ID: "ses_1", CWD: "/repo", StartedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0),
 	})
 	store := &generatedTitleRaceStore{crudSessionStore: &crudSessionStore{current: current}}
-	coordinator := New(testDependencies(&crudStores{session: store}, Dependencies{
+	coordinator := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
 		Now: func() time.Time { return time.Unix(3, 0).UTC() },
 	}))
 
@@ -213,7 +213,7 @@ func TestGeneratedTitleLosesToConcurrentUserTitle(t *testing.T) {
 }
 
 func TestViewUsesConfiguredDefaultModel(t *testing.T) {
-	c := New(Dependencies{Paths: testCWDResolver{}, DefaultModel: "claude-opus-4-8"})
+	c := mustNewCoordinator(Dependencies{Paths: testCWDResolver{}, DefaultModel: "claude-opus-4-8"})
 
 	view, err := c.view(sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/repo"}), ActivityIdle)
 	if err != nil {
@@ -228,7 +228,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := new(testClaimer)
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
+	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
 	ctx := context.Background()
 
 	title := "  Renamed  "
@@ -269,7 +269,7 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
+	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
 	cwd := "/requested/project"
 
 	_, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &cwd})
@@ -300,7 +300,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 					"run_1": {RootRunID: "run_1", SessionID: "ses_1"},
 				}},
 			}
-			coordinator := New(testDependencies(stores, Dependencies{
+			coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 				Paths:      testCWDResolver{resolved: "/resolved/project"},
 				Admissions: new(testClaimer),
 			}))
@@ -319,7 +319,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{err: errors.New("cwd unavailable")}}))
+	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testCWDResolver{err: errors.New("cwd unavailable")}}))
 
 	blank := "  "
 	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
@@ -404,7 +404,7 @@ func TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor(t *testing.T) {
 		crudSessionStore: &crudSessionStore{},
 		rows:             sessionRows("ses_1", "ses_2", "ses_3"),
 	}
-	c := New(testDependencies(&crudStores{session: store}, Dependencies{
+	c := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
 		Paths: testCWDResolver{resolved: "/repo"},
 	}))
 	ctx := t.Context()
