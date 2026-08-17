@@ -1,5 +1,4 @@
 import { getContainer } from "@/main/container";
-import { configureAgentMemoryGateway } from "../application/ports/agentMemoryGateway";
 import type { AgentMemoryGateway } from "../application/ports/agentMemoryGateway";
 import type { AgentMemoryItem } from "@/rpc";
 import type { AgentMemoryEntry } from "../application/workspaceQueries";
@@ -50,12 +49,8 @@ export interface AgentMemoryGatewayInstallation {
 
 export function installAgentMemoryGateway(): AgentMemoryGatewayInstallation {
   const mutationOwner = AgentMemoryMutationOwner.install(gateway);
-  const disposeGateway = configureAgentMemoryGateway(gateway);
   return {
     replaceRuntimeGeneration: () => mutationOwner.replaceRuntimeGeneration(),
-    dispose() {
-      mutationOwner.dispose();
-      disposeGateway();
-    },
+    dispose: () => mutationOwner.dispose(),
   };
 }

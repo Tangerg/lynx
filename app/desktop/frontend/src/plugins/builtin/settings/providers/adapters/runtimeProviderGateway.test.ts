@@ -2,9 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { queryClient } from "@/lib/queryClient";
-import { updateProvider } from "../application/providerConfig";
-import { providerGateway } from "../application/ports/providerGateway";
-import { PROVIDERS_KEY } from "../application/providerQueries";
+import {
+  setEmbeddingRole as saveEmbeddingRole,
+  setUtilityRole as saveUtilityRole,
+  updateProvider,
+} from "../application/providerConfig";
+import {
+  EMBEDDING_ROLE_KEY,
+  PROVIDERS_KEY,
+  UTILITY_ROLE_KEY,
+} from "../application/providerQueries";
 import type { ProviderConfiguration } from "../application/providerModels";
 import { installProviderGateway } from "./runtimeProviderGateway";
 
@@ -15,6 +22,8 @@ afterEach(() => {
   uninstall = undefined;
   resetContainer();
   queryClient.removeQueries({ queryKey: [PROVIDERS_KEY] });
+  queryClient.removeQueries({ queryKey: [UTILITY_ROLE_KEY] });
+  queryClient.removeQueries({ queryKey: [EMBEDDING_ROLE_KEY] });
 });
 
 describe("runtimeProviderGateway", () => {
@@ -34,7 +43,7 @@ describe("runtimeProviderGateway", () => {
     uninstall = installProviderGateway().dispose;
 
     await expect(
-      providerGateway().updateProvider({
+      updateProvider({
         provider: "openai-compatible",
         apiKey: "sk-test",
         baseUrl: "https://models.example.test/v1",
@@ -58,12 +67,20 @@ describe("runtimeProviderGateway", () => {
     });
     uninstall = installProviderGateway().dispose;
 
-    await expect(
-      providerGateway().setUtilityRole({ provider: "openai", model: "chat-1" }),
-    ).resolves.toEqual({ provider: "openai", model: "chat-1" });
-    await expect(
-      providerGateway().setEmbeddingRole({ provider: "openai", model: "embed-1" }),
-    ).resolves.toEqual({ provider: "openai", model: "embed-1" });
+    await expect(saveUtilityRole({ provider: "openai", model: "chat-1" })).resolves.toEqual({
+      ok: true,
+    });
+    await expect(saveEmbeddingRole({ provider: "openai", model: "embed-1" })).resolves.toEqual({
+      ok: true,
+    });
+    expect(queryClient.getQueryData([UTILITY_ROLE_KEY])).toEqual({
+      provider: "openai",
+      model: "chat-1",
+    });
+    expect(queryClient.getQueryData([EMBEDDING_ROLE_KEY])).toEqual({
+      provider: "openai",
+      model: "embed-1",
+    });
   });
 
   it("retires in-flight and queued provider commands before installing a successor", async () => {

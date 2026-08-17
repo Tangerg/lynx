@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { queryClient } from "@/lib/queryClient";
-import { agentMemoryQuery, setAgentMemoryPinned } from "../application/agentMemoryConfig";
-import { agentMemoryGateway } from "../application/ports/agentMemoryGateway";
+import {
+  addAgentMemory,
+  agentMemoryQuery,
+  setAgentMemoryPinned,
+} from "../application/agentMemoryConfig";
 import { WORKSPACE_AGENT_MEMORY_KEY, type AgentMemoryEntry } from "../application/workspaceQueries";
 import { installAgentMemoryGateway } from "./runtimeAgentMemoryGateway";
 
@@ -39,14 +42,14 @@ describe("runtimeAgentMemoryGateway", () => {
     });
     uninstall = installAgentMemoryGateway().dispose;
 
-    await expect(
-      agentMemoryGateway().add({ scope: "user", content: item.content }),
-    ).resolves.toMatchObject({ id: "memory_1", scope: "user", sessionId: "", day: "" });
-    await expect(agentMemoryGateway().setPinned("memory_1", true)).resolves.toMatchObject({
+    await expect(addAgentMemory({ scope: "user", content: item.content })).resolves.toMatchObject({
       id: "memory_1",
-      pinned: true,
-      updatedAt: "2026-08-12T12:00:01Z",
+      scope: "user",
+      sessionId: "",
+      day: "",
     });
+    await expect(setAgentMemoryPinned("memory_1", true)).resolves.toBeUndefined();
+    expect(update).toHaveBeenCalledWith({ id: "memory_1", pinned: true });
   });
 
   it("retires in-flight and queued commands before a successor gateway is installed", async () => {

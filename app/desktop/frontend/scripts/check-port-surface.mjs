@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Port-surface guard — every method a `*Port` interface declares must have a caller.
+// Port-surface guard — every method a `*Port` interface and every configured singleton
+// accessor must have a production caller.
 //
 // WHY THIS EXISTS, when `knip` already hunts dead code: knip cannot see this one.
 // A port method is implemented as an exported function in the adapter and handed to
@@ -32,8 +33,11 @@
 // facade its consumers go through is a caller. Skipping whole files called two more live
 // clauses dead.
 //
-// Tests do NOT count: a clause only a test exercises is still a clause the app does
-// not need.
+// Tests do NOT count: a clause or accessor only a test exercises is still a contract
+// the app does not need. In particular, `export const gateway = port.get` is not a
+// harmless test seam: it publishes a second command path around any richer owner that
+// production uses, and makes the composition root install/retire global state solely
+// so an adapter test can call its private mapping directly.
 //
 // The rule under-reports rather than over-reports. A port method whose name collides
 // with a common one (`.get(`, `.subscribe(`) will look reachable through some unrelated
@@ -108,6 +112,7 @@ const searchable = sources
   .map((file) => withoutPortDeclarations(file.text, portsIn(file.text)));
 
 const dead = [];
+const bypasses = [];
 for (const file of sources) {
   if (isTest(file.rel)) continue;
   for (const port of portsIn(file.text)) {
@@ -116,6 +121,14 @@ for (const file of sources) {
       const destructured = new RegExp(`\\{[^}]*\\b${method}\\b[^}]*\\}\\s*=`);
       const called = searchable.some((text) => member.test(text) || destructured.test(text));
       if (!called) dead.push(`${file.rel}  ${port.name}.${method}()`);
+    }
+  }
+
+  for (const match of file.text.matchAll(/export const (\w+) = \w+\.get;/g)) {
+    const accessor = match[1];
+    const call = new RegExp(`\\b${accessor}\\s*\\(`);
+    if (!searchable.some((text) => call.test(text))) {
+      bypasses.push(`${file.rel}  ${accessor}()`);
     }
   }
 }
@@ -128,4 +141,14 @@ if (dead.length > 0) {
   console.error("and its adapter wiring, or call it. If a caller is coming, it is not yet owed.");
   process.exit(1);
 }
-console.log("check-port-surface: every port clause has a caller");
+if (bypasses.length > 0) {
+  console.error(
+    `check-port-surface: ${bypasses.length} singleton port accessor(s) have no product caller\n`,
+  );
+  for (const entry of bypasses) console.error(`  ${entry}`);
+  console.error("");
+  console.error("A test must enter through the same owner/facade as the product. Delete the");
+  console.error("test-only accessor and redundant port installation; do not preserve a bypass.");
+  process.exit(1);
+}
+console.log("check-port-surface: every port clause and singleton accessor has a product caller");

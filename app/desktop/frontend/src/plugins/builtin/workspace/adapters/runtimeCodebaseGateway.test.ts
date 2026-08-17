@@ -4,7 +4,6 @@ import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { CODEBASE_STATUS_KEY } from "@/plugins/builtin/settings/providers/public/queries";
 import { reindexCodebase, searchCodebase } from "../application/codebaseCommands";
-import { codebaseGateway } from "../application/ports/codebaseGateway";
 import { installCodebaseGateway, type CodebaseGatewayInstallation } from "./runtimeCodebaseGateway";
 
 const installations: CodebaseGatewayInstallation[] = [];
@@ -27,7 +26,7 @@ describe("runtimeCodebaseGateway", () => {
     setContainer({ client: () => ({ workspaces: { open } }) as unknown as LyraClient });
     install();
 
-    await expect(codebaseGateway().reindex("/repo")).resolves.toEqual({ operationId: "op_1" });
+    await expect(reindexCodebase("/repo")).resolves.toEqual({ operationId: "op_1" });
     expect(open).toHaveBeenCalledWith({ path: "/repo" });
   });
 

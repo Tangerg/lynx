@@ -1,4 +1,3 @@
-import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { ProviderConfiguration, ProviderRole } from "../providerModels";
 
 export interface ProviderUpdate {
@@ -20,8 +19,3 @@ export interface ProviderGateway {
   testProvider(provider: string): Promise<ProviderTestOutcome>;
   errorMessage(error: unknown): string | undefined;
 }
-
-const port = createSingletonPort<ProviderGateway>("Provider gateway is not configured");
-
-export const installProviderGateway = port.configure;
-export const providerGateway = port.get;

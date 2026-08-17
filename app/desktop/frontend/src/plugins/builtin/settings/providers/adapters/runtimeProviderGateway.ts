@@ -1,7 +1,6 @@
 import { getContainer } from "@/main/container";
 import { describeProblem, rpcErrorText } from "@/lib/rpcErrors";
 import type { LyraClient, Provider, ProviderConfigChange } from "@/rpc";
-import { installProviderGateway as registerProviderGateway } from "../application/ports/providerGateway";
 import type { ProviderGateway } from "../application/ports/providerGateway";
 import type { ProviderConfiguration } from "../application/providerModels";
 import { ProviderMutationOwner } from "../application/providerMutationOwner";
@@ -62,12 +61,8 @@ export interface ProviderGatewayInstallation {
 export function installProviderGateway(): ProviderGatewayInstallation {
   const gateway = runtimeProviderGateway(getContainer().client());
   const mutationOwner = ProviderMutationOwner.install(gateway);
-  const disposeGateway = registerProviderGateway(gateway);
   return {
     replaceRuntimeGeneration: () => mutationOwner.replaceRuntimeGeneration(),
-    dispose() {
-      mutationOwner.dispose();
-      disposeGateway();
-    },
+    dispose: () => mutationOwner.dispose(),
   };
 }

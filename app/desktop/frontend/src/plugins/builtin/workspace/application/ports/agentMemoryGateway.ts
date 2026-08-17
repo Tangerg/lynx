@@ -1,4 +1,3 @@
-import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentMemoryEntry } from "../workspaceQueries";
 
 export type AgentMemoryDecision = "approve" | "reject";
@@ -20,8 +19,3 @@ export interface AgentMemoryGateway {
   delete(id: string): Promise<void>;
   add(input: AgentMemoryAddInput): Promise<AgentMemoryEntry>;
 }
-
-const port = createSingletonPort<AgentMemoryGateway>("Agent memory gateway is not configured");
-
-export const configureAgentMemoryGateway = port.configure;
-export const agentMemoryGateway = port.get;

@@ -1,4 +1,3 @@
-import { createSingletonPort } from "@/lib/ports/singletonPort";
 export interface CodebaseSearchHit {
   path: string;
   startLine: number;
@@ -19,8 +18,3 @@ export interface CodebaseGateway {
   }): Promise<CodebaseSearchHit[]>;
   reindex(cwd: string | undefined): Promise<CodebaseReindexOperation>;
 }
-
-const port = createSingletonPort<CodebaseGateway>("Codebase gateway is not configured");
-
-export const configureCodebaseGateway = port.configure;
-export const codebaseGateway = port.get;

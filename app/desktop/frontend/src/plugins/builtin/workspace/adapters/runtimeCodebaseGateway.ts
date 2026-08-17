@@ -1,6 +1,5 @@
 import { getContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
-import { configureCodebaseGateway } from "../application/ports/codebaseGateway";
 import type { CodebaseGateway } from "../application/ports/codebaseGateway";
 import { CodebaseCommandOwner } from "../application/codebaseCommandOwner";
 
@@ -28,12 +27,8 @@ export interface CodebaseGatewayInstallation {
 export function installCodebaseGateway(): CodebaseGatewayInstallation {
   const gateway = runtimeCodebaseGateway(getContainer().client());
   const commandOwner = CodebaseCommandOwner.install(gateway);
-  const disposeGateway = configureCodebaseGateway(gateway);
   return {
     replaceRuntimeGeneration: () => commandOwner.replaceRuntimeGeneration(),
-    dispose() {
-      commandOwner.dispose();
-      disposeGateway();
-    },
+    dispose: () => commandOwner.dispose(),
   };
 }
