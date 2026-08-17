@@ -25,7 +25,7 @@ import {
   setRetainedValueCleared,
 } from "../application/mcpServerDraft";
 import { ToolControls } from "./ToolControls";
-import { useProbe } from "../../public";
+import { useAsyncFeedback } from "../../public";
 
 interface Props {
   server?: MCPServerSettings;
@@ -45,7 +45,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
   const [saving, setSaving] = useState(false);
   const materialGeneration = useMCPServerMutationMaterialGeneration();
-  const { probe, reset, fail, run } = useProbe(materialGeneration);
+  const { feedback, reset, fail, run } = useAsyncFeedback(materialGeneration);
 
   const hasAuthStored = (server?.authorizationMasked ?? "") !== "";
   const hasHeadersStored = Object.keys(server?.headersMasked ?? {}).length > 0;
@@ -266,10 +266,10 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
         <PillButton
           variant="outlined"
           size="sm"
-          disabled={!valid || probe.state === "busy"}
+          disabled={!valid || feedback.state === "busy"}
           onClick={() => void onTest()}
         >
-          {probe.state === "busy" ? t("mcp.testing") : t("mcp.test")}
+          {feedback.state === "busy" ? t("mcp.testing") : t("mcp.test")}
         </PillButton>
         <PillButton variant="outlined" size="sm" onClick={onCancel}>
           {t("common.cancel")}
@@ -280,16 +280,16 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           </PillButton>
         )}
 
-        {probe.state === "ok" && (
+        {feedback.state === "ok" && (
           <span className="inline-flex items-center gap-1 text-ui-md text-success">
             <Icon name="check" size="sm" /> {t("mcp.connectionOk")}
           </span>
         )}
-        {probe.state === "error" && (
+        {feedback.state === "error" && (
           <span className="inline-flex min-w-0 items-center gap-1 text-ui-md text-negative">
             <Icon name="alert" size="sm" />
-            <span className="truncate" title={probe.reason}>
-              {probe.reason}
+            <span className="truncate" title={feedback.reason}>
+              {feedback.reason}
             </span>
           </span>
         )}

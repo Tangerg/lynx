@@ -14,7 +14,7 @@ import {
   providerCredentialsValid,
 } from "../application/providerDraft";
 import { useT } from "@/lib/i18n";
-import { useProbe } from "../../public";
+import { useAsyncFeedback } from "../../public";
 import { cn } from "@/lib/classNames";
 
 export function ProviderRow({ p }: { p: ProviderConfiguration }) {
@@ -24,7 +24,7 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
   const [draft, setDraft] = useState(() => initialProviderCredentialsDraft(p));
   const [saving, setSaving] = useState(false);
   const materialGeneration = useProviderMutationMaterialGeneration();
-  const { probe, reset, fail, run } = useProbe(materialGeneration);
+  const { feedback, reset, fail, run } = useAsyncFeedback(materialGeneration);
 
   const enabled = p.apiKeyMasked !== "";
   // Env keys are read-only at the source, but a typed key still overrides them.
@@ -119,10 +119,10 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
         <Button
           variant="outline"
           size="sm"
-          disabled={!enabled || probe.state === "busy"}
+          disabled={!enabled || feedback.state === "busy"}
           onClick={onTest}
         >
-          {probe.state === "busy" ? t("providers.testing") : t("providers.test")}
+          {feedback.state === "busy" ? t("providers.testing") : t("providers.test")}
         </Button>
         {hasStoredKey && (
           <Button variant="ghost" size="sm" disabled={saving} onClick={onClearKey}>
@@ -130,16 +130,16 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
           </Button>
         )}
 
-        {probe.state === "ok" && (
+        {feedback.state === "ok" && (
           <span className="inline-flex items-center gap-1 text-ui-md text-success">
             <Icon name="check" size="sm" /> {t("providers.connectionOk")}
           </span>
         )}
-        {probe.state === "error" && (
+        {feedback.state === "error" && (
           <span className="inline-flex min-w-0 items-center gap-1 text-ui-md text-negative">
             <Icon name="alert" size="sm" />
-            <span className="truncate" title={probe.reason}>
-              {probe.reason}
+            <span className="truncate" title={feedback.reason}>
+              {feedback.reason}
             </span>
           </span>
         )}

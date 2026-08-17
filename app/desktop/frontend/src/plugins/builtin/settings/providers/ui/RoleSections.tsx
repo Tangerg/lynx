@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { Button, DropdownMenu, Icon, ProviderIcon, Surface } from "@/ui";
 import {
   type ProviderConfiguration,
@@ -7,9 +6,11 @@ import {
   setEmbeddingRole,
   setUtilityRole,
   useEmbeddingModelConfig,
+  useProviderMutationMaterialGeneration,
   useUtilityModelConfig,
 } from "../application/providerConfig";
 import { useT } from "@/lib/i18n";
+import { useAsyncFeedback } from "../../public";
 
 const triggerClass =
   "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-[0.5px] border-field bg-canvas pl-2 pr-2.5 text-ui-md font-medium text-fg whitespace-nowrap transition-colors hover:bg-hover data-[popup-open]:bg-selected";
@@ -49,23 +50,20 @@ function RoleSectionShell({
 export function UtilityModelSection() {
   const t = useT();
   const { role, modelOptions, selected, isSet, isAvailable, isError } = useUtilityModelConfig();
-  const [error, setError] = useState<string | null>(null);
+  const materialGeneration = useProviderMutationMaterialGeneration();
+  const { feedback, run } = useAsyncFeedback(materialGeneration);
+  const busy = feedback.state === "busy";
 
-  const pick = async (next: { provider: string; model: string } | null): Promise<void> => {
-    setError(null);
-    try {
-      const res = await setUtilityRole(next ?? {});
-      if (!res.ok) setError(res.error ?? t("providers.utility.error"));
-    } catch (error) {
-      if (!providerMutationWasRetired(error)) throw error;
-    }
-  };
+  const pick = (next: { provider: string; model: string } | null): Promise<void> =>
+    run(() => setUtilityRole(next ?? {}), t("providers.utility.error"), providerMutationWasRetired);
 
   return (
     <RoleSectionShell
       title={t("providers.utility.title")}
       description={t("providers.utility.desc")}
-      error={error ?? (isError ? t("providers.models.error") : null)}
+      error={
+        feedback.state === "error" ? feedback.reason : isError ? t("providers.models.error") : null
+      }
       note={
         isSet && !isAvailable ? (
           <p className="text-ui-md leading-snug text-fg-muted">{t("providers.notConfigured")}</p>
@@ -80,10 +78,16 @@ export function UtilityModelSection() {
               variant="outline"
               size="md"
               press={false}
+              disabled={busy}
               aria-label={t("providers.utility.title")}
               className={triggerClass}
             >
-              {isSet && role?.provider ? (
+              {busy ? (
+                <>
+                  <Icon name="loop" size="xs" className="animate-spin text-fg-muted" />
+                  <span className="text-fg-muted">{t("providers.saving")}</span>
+                </>
+              ) : isSet && role?.provider ? (
                 <>
                   <ProviderIcon provider={role.provider} size="sm" />
                   <span className="max-w-[160px] truncate font-mono text-ui-sm">
@@ -93,7 +97,7 @@ export function UtilityModelSection() {
               ) : (
                 <span className="text-fg-muted">{t("providers.utility.main")}</span>
               )}
-              <Icon name="chevron-down" size="xs" className="text-fg-muted" />
+              {!busy && <Icon name="chevron-down" size="xs" className="text-fg-muted" />}
             </Button>
           }
         />
@@ -130,25 +134,22 @@ export function UtilityModelSection() {
 export function EmbeddingModelSection() {
   const t = useT();
   const { role, capableProviders, isSet, isAvailable } = useEmbeddingModelConfig();
-  const [error, setError] = useState<string | null>(null);
+  const materialGeneration = useProviderMutationMaterialGeneration();
+  const { feedback, run } = useAsyncFeedback(materialGeneration);
+  const busy = feedback.state === "busy";
 
-  const pick = async (p: ProviderConfiguration | null): Promise<void> => {
-    setError(null);
-    try {
-      const res = await setEmbeddingRole(
-        p ? { provider: p.id, model: p.defaultEmbeddingModel || "" } : {},
-      );
-      if (!res.ok) setError(res.error ?? t("providers.embedding.error"));
-    } catch (error) {
-      if (!providerMutationWasRetired(error)) throw error;
-    }
-  };
+  const pick = (p: ProviderConfiguration | null): Promise<void> =>
+    run(
+      () => setEmbeddingRole(p ? { provider: p.id, model: p.defaultEmbeddingModel || "" } : {}),
+      t("providers.embedding.error"),
+      providerMutationWasRetired,
+    );
 
   return (
     <RoleSectionShell
       title={t("providers.embedding.title")}
       description={t("providers.embedding.desc")}
-      error={error}
+      error={feedback.state === "error" ? feedback.reason : null}
       note={
         isSet && !isAvailable ? (
           <p className="text-ui-md leading-snug text-fg-muted">{t("providers.notConfigured")}</p>
@@ -165,10 +166,16 @@ export function EmbeddingModelSection() {
               variant="outline"
               size="md"
               press={false}
+              disabled={busy}
               aria-label={t("providers.embedding.title")}
               className={triggerClass}
             >
-              {isSet && role?.provider ? (
+              {busy ? (
+                <>
+                  <Icon name="loop" size="xs" className="animate-spin text-fg-muted" />
+                  <span className="text-fg-muted">{t("providers.saving")}</span>
+                </>
+              ) : isSet && role?.provider ? (
                 <>
                   <ProviderIcon provider={role.provider} size="sm" />
                   <span className="max-w-[160px] truncate font-mono text-ui-sm">{role.model}</span>
@@ -176,7 +183,7 @@ export function EmbeddingModelSection() {
               ) : (
                 <span className="text-fg-muted">{t("providers.embedding.off")}</span>
               )}
-              <Icon name="chevron-down" size="xs" className="text-fg-muted" />
+              {!busy && <Icon name="chevron-down" size="xs" className="text-fg-muted" />}
             </Button>
           }
         />

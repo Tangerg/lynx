@@ -1,36 +1,39 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
-type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
+export type AsyncFeedback =
+  { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
 /**
  * Drive an inline async-operation indicator with stale-result de-racing.
  *
  * A monotonic token guards every {@link run}: a result whose token is no longer
  * current — a newer run started, or `reset` bumped it — is dropped, so a slow
- * test cannot overwrite the state of a save the user kicked off afterwards.
+ * operation cannot overwrite feedback for a newer intent or replacement resource.
  * An optional material generation retires both completed feedback and in-flight
  * results without remounting or discarding the caller's draft fields.
  * `reset` invalidates any in-flight run and clears the readout; `fail` sets an
  * error directly (for flows, like delete, that don't need the de-race guard).
  */
-export function useProbe(materialGeneration?: unknown) {
+export function useAsyncFeedback(materialGeneration?: unknown) {
   const generation = useRef(materialGeneration);
   const seq = useRef(0);
-  const [material, setMaterial] = useState<{ generation: unknown; probe: Probe }>(() => ({
-    generation: materialGeneration,
-    probe: { state: "idle" },
-  }));
+  const [material, setMaterial] = useState<{ generation: unknown; feedback: AsyncFeedback }>(
+    () => ({
+      generation: materialGeneration,
+      feedback: { state: "idle" },
+    }),
+  );
   useLayoutEffect(() => {
     if (Object.is(generation.current, materialGeneration)) return;
     generation.current = materialGeneration;
     seq.current++;
   }, [materialGeneration]);
-  const probe = Object.is(material.generation, materialGeneration)
-    ? material.probe
-    : ({ state: "idle" } satisfies Probe);
+  const feedback = Object.is(material.generation, materialGeneration)
+    ? material.feedback
+    : ({ state: "idle" } satisfies AsyncFeedback);
 
-  const publish = (next: Probe) => {
-    setMaterial({ generation: generation.current, probe: next });
+  const publish = (next: AsyncFeedback) => {
+    setMaterial({ generation: generation.current, feedback: next });
   };
 
   const reset = () => {
@@ -62,5 +65,5 @@ export function useProbe(materialGeneration?: unknown) {
     }
   };
 
-  return { probe, reset, fail, run };
+  return { feedback, reset, fail, run };
 }
