@@ -603,11 +603,9 @@ export const zhTW: Record<string, string> = {
   "knowledge.disabled.title": "知識功能已關閉",
   "knowledge.disabled.sub": "此執行時未宣告知識功能。",
   "knowledge.save": "儲存",
-  "knowledge.loading": "載入中…",
   "knowledge.saving": "儲存中…",
   "knowledge.revert": "還原",
   "knowledge.saveError": "知識儲存失敗",
-  "knowledge.loadError": "無法重新整理知識內容",
   "knowledge.updated": "已更新",
   "knowledge.aria": "{{path}} 的知識內容",
 

@@ -783,11 +783,9 @@ export const zh: Record<string, string> = {
   "knowledge.disabled.title": "知识功能已关闭",
   "knowledge.disabled.sub": "此运行时未声明知识功能。",
   "knowledge.save": "保存",
-  "knowledge.loading": "加载中…",
   "knowledge.saving": "保存中…",
   "knowledge.revert": "撤销",
   "knowledge.saveError": "知识保存失败",
-  "knowledge.loadError": "无法刷新知识内容",
   "knowledge.updated": "已更新",
   "knowledge.aria": "{{path}} 的知识内容",
 

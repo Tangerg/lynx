@@ -1,4 +1,3 @@
-import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { WorkspaceKnowledgeScope } from "../workspaceQueries";
 
 export interface WorkspaceKnowledgeUpdateInput {
@@ -31,10 +30,3 @@ export class WorkspaceKnowledgeRevisionConflictError extends Error {
     this.name = "WorkspaceKnowledgeRevisionConflictError";
   }
 }
-
-const port = createSingletonPort<WorkspaceKnowledgeGateway>(
-  "Workspace knowledge gateway is not configured",
-);
-
-export const configureWorkspaceKnowledgeGateway = port.configure;
-export const workspaceKnowledgeGateway = port.get;

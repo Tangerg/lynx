@@ -24,10 +24,11 @@ export default definePlugin({
   setup(ctx) {
     const agentMemory = installAgentMemoryGateway();
     const codebase = installCodebaseGateway();
+    const knowledge = installWorkspaceKnowledgeGateway();
     const skillCuration = installSkillCurationGateway();
     const disposers = [
       installConversationArchiveGateway(),
-      installWorkspaceKnowledgeGateway(),
+      () => knowledge.dispose(),
       () => codebase.dispose(),
       () => agentMemory.dispose(),
       () => skillCuration.dispose(),
@@ -46,6 +47,7 @@ export default definePlugin({
       },
       mutationLifecycle: {
         replaceRuntimeGeneration() {
+          knowledge.replaceRuntimeGeneration();
           skillCuration.replaceRuntimeGeneration();
           codebase.replaceRuntimeGeneration();
           agentMemory.replaceRuntimeGeneration();

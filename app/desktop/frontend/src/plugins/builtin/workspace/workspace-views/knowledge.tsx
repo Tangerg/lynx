@@ -11,19 +11,13 @@ import { notifyError } from "@/plugins/sdk";
 import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
+  KnowledgeDraft,
   loadWorkspaceKnowledge,
   isWorkspaceKnowledgeRevisionConflict,
   saveWorkspaceKnowledge,
-  useWorkspaceKnowledge,
-} from "@/plugins/builtin/workspace/application/knowledgeConfig";
-import {
-  editKnowledge,
-  isKnowledgeDirty,
-  openedKnowledgeEditor,
-  rebaseKnowledgeDraft,
-  reconcileKnowledgeSnapshot,
-  settleKnowledgeSave,
-} from "@/plugins/builtin/workspace/application/knowledgeEditor";
+  workspaceKnowledgeWasRetired,
+} from "@/plugins/builtin/workspace/application/knowledge";
+import { useWorkspaceKnowledge } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   type WorkspaceKnowledgeRowViewModel,
   workspaceKnowledgeViewModel,
@@ -41,21 +35,19 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
   };
   const latestListedDocument = useRef(listedDocument);
   latestListedDocument.current = listedDocument;
-  const [editor, setEditor] = useState(() => openedKnowledgeEditor(listedDocument));
-  const [loading, setLoading] = useState(false);
+  const [editor, setEditor] = useState(() => KnowledgeDraft.open(listedDocument));
   const [saving, setSaving] = useState(false);
-  const loadSequence = useRef(0);
   // Synchronous latch — `saving` state lags a render, so a double-click before
   // the disabled state applies would otherwise fire two knowledge.update writes.
   const savingRef = useRef(false);
-  const dirty = isKnowledgeDirty(editor);
+  const dirty = editor.dirty;
 
   // Event-driven list refetches refresh clean editors in place. Dirty drafts
   // deliberately keep their baseline until save, where CAS either commits or
   // rebases them onto the latest exact document.
   useEffect(() => {
     setEditor((current) =>
-      reconcileKnowledgeSnapshot(current, {
+      current.reconcile({
         content: row.content,
         revision: row.revision,
         ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
@@ -64,40 +56,7 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
   }, [row.content, row.revision, row.updatedAt]);
 
   const toggle = (): void => {
-    if (open) {
-      loadSequence.current += 1;
-      setLoading(false);
-      setOpen(false);
-      return;
-    }
-    setOpen(true);
-    // A collapsed dirty editor is an intentional local draft. Reopening must
-    // never let a later server read replace it.
-    if (dirty) return;
-
-    const sequence = ++loadSequence.current;
-    setLoading(true);
-    loadWorkspaceKnowledge({ scope: row.scope, cwd })
-      .then((document) => {
-        if (loadSequence.current === sequence) setEditor(openedKnowledgeEditor(document));
-      })
-      .catch((err: unknown) => {
-        if (loadSequence.current !== sequence) return;
-        setEditor(
-          openedKnowledgeEditor({
-            content: row.content,
-            revision: row.revision,
-            ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
-          }),
-        );
-        notifyError(t("knowledge.loadError"), {
-          description: err instanceof Error ? err.message : String(err),
-          source: "knowledge",
-        });
-      })
-      .finally(() => {
-        if (loadSequence.current === sequence) setLoading(false);
-      });
+    setOpen((current) => !current);
   };
 
   const save = (): void => {
@@ -113,23 +72,25 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
       expectedRevision,
     })
       .then((saved) => {
-        setEditor((current) => settleKnowledgeSave(current, saved, latestListedDocument.current));
+        setEditor((current) => current.settleSave(saved, latestListedDocument.current));
       })
-      .catch(async (err: unknown) => {
-        if (isWorkspaceKnowledgeRevisionConflict(err)) {
+      .catch(async (error: unknown) => {
+        if (workspaceKnowledgeWasRetired(error)) return;
+        if (isWorkspaceKnowledgeRevisionConflict(error)) {
           // Refresh the expected revision, but retain the user's draft. A
           // deliberate second save can then replace the newly observed value;
           // an accidental stale save never can.
           try {
             const latest = await loadWorkspaceKnowledge({ scope: row.scope, cwd });
-            setEditor((current) => rebaseKnowledgeDraft(current, latest));
-          } catch {
+            setEditor((current) => current.rebase(latest));
+          } catch (readError) {
+            if (workspaceKnowledgeWasRetired(readError)) return;
             // The original conflict remains the actionable failure. A later
-            // event/reopen will retry the authoritative read.
+            // save will retry the authoritative read.
           }
         }
         notifyError(t("knowledge.saveError"), {
-          description: err instanceof Error ? err.message : String(err),
+          description: error instanceof Error ? error.message : String(error),
           source: "knowledge",
         });
       })
@@ -166,30 +127,19 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
           <TextArea
             aria-label={t("knowledge.aria", { path: row.path })}
             value={editor.draft}
-            disabled={loading}
-            aria-busy={loading}
-            onChange={(e) => setEditor((current) => editKnowledge(current, e.target.value))}
+            onChange={(e) => setEditor((current) => current.edit(e.target.value))}
             spellCheck={false}
             rows={12}
             className="text-fg-soft"
           />
           <div className="flex items-center gap-2">
-            <PillButton
-              size="sm"
-              variant="accent"
-              disabled={!dirty || saving || loading}
-              onClick={save}
-            >
-              {loading
-                ? t("knowledge.loading")
-                : saving
-                  ? t("knowledge.saving")
-                  : t("knowledge.save")}
+            <PillButton size="sm" variant="accent" disabled={!dirty || saving} onClick={save}>
+              {saving ? t("knowledge.saving") : t("knowledge.save")}
             </PillButton>
             <PillButton
               size="sm"
-              disabled={!dirty || saving || loading}
-              onClick={() => setEditor((current) => editKnowledge(current, current.content))}
+              disabled={!dirty || saving}
+              onClick={() => setEditor((current) => current.revert())}
             >
               {t("knowledge.revert")}
             </PillButton>

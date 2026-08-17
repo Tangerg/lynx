@@ -1,44 +1,51 @@
 import { getContainer } from "@/main/container";
-import { isErrorType } from "@/rpc";
-import {
-  configureWorkspaceKnowledgeGateway,
-  WorkspaceKnowledgeRevisionConflictError,
-} from "../application/ports/knowledgeGateway";
+import { isErrorType, type KnowledgeEntry, type LyraClient } from "@/rpc";
+import { KnowledgeOwner } from "../application/knowledge";
+import { WorkspaceKnowledgeRevisionConflictError } from "../application/ports/knowledgeGateway";
 import type { WorkspaceKnowledgeGateway } from "../application/ports/knowledgeGateway";
 
-const gateway: WorkspaceKnowledgeGateway = {
-  async read(input) {
-    const workspace = await getContainer()
-      .client()
-      .workspaces.open(input.cwd ? { path: input.cwd } : undefined);
-    const entry = await workspace.knowledge.get(input.scope);
-    return {
-      content: entry.content,
-      revision: entry.revision,
-      ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
-    };
-  },
-  async save(input) {
-    const { cwd, ...update } = input;
-    const workspace = await getContainer()
-      .client()
-      .workspaces.open(cwd ? { path: cwd } : undefined);
-    try {
-      const entry = await workspace.knowledge.update(update);
-      return {
-        content: entry.content,
-        revision: entry.revision,
-        ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
-      };
-    } catch (error) {
-      if (isErrorType(error, "revision_conflict")) {
-        throw new WorkspaceKnowledgeRevisionConflictError();
+function runtimeKnowledgeGateway(client: LyraClient): WorkspaceKnowledgeGateway {
+  return {
+    async read(input) {
+      const workspace = await client.workspaces.open(input.cwd ? { path: input.cwd } : undefined);
+      const entry = await workspace.knowledge.get(input.scope);
+      return knowledgeDocument(entry, input.scope);
+    },
+    async save(input) {
+      const { cwd, ...update } = input;
+      const workspace = await client.workspaces.open(cwd ? { path: cwd } : undefined);
+      try {
+        const entry = await workspace.knowledge.update(update);
+        return knowledgeDocument(entry, input.scope);
+      } catch (error) {
+        if (isErrorType(error, "revision_conflict")) {
+          throw new WorkspaceKnowledgeRevisionConflictError();
+        }
+        throw error;
       }
-      throw error;
-    }
-  },
-};
+    },
+  };
+}
 
-export function installWorkspaceKnowledgeGateway(): () => void {
-  return configureWorkspaceKnowledgeGateway(gateway);
+function knowledgeDocument(entry: KnowledgeEntry, scope: KnowledgeEntry["scope"]) {
+  if (entry.scope !== scope) throw new Error("Workspace Knowledge response scope mismatch");
+  return {
+    content: entry.content,
+    revision: entry.revision,
+    ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
+  };
+}
+
+export interface WorkspaceKnowledgeGatewayInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installWorkspaceKnowledgeGateway(): WorkspaceKnowledgeGatewayInstallation {
+  const gateway = runtimeKnowledgeGateway(getContainer().client());
+  const owner = KnowledgeOwner.install(gateway);
+  return {
+    replaceRuntimeGeneration: () => owner.replaceRuntimeGeneration(),
+    dispose: () => owner.dispose(),
+  };
 }

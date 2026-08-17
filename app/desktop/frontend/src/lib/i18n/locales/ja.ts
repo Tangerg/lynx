@@ -606,11 +606,9 @@ export const ja: Record<string, string> = {
   "knowledge.disabled.title": "知識はオフです",
   "knowledge.disabled.sub": "このランタイムは知識機能を提供していません。",
   "knowledge.save": "保存",
-  "knowledge.loading": "読み込み中…",
   "knowledge.saving": "保存中…",
   "knowledge.revert": "元に戻す",
   "knowledge.saveError": "知識の保存に失敗しました",
-  "knowledge.loadError": "知識を更新できませんでした",
   "knowledge.updated": "更新済み",
   "knowledge.aria": "{{path}} の知識内容",
 
