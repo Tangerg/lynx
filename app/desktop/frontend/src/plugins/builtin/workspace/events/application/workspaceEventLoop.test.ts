@@ -250,6 +250,133 @@ describe("workspace event loop", () => {
     await run;
   });
 
+  it("terminates a subscription opening that never settles", async () => {
+    vi.useFakeTimers();
+    const outer = new AbortController();
+    let openingSignal: AbortSignal | undefined;
+    let resolveOpening!: (events: AsyncIterable<{ type: "resync"; sequence: number }>) => void;
+    const opening = new Promise<AsyncIterable<{ type: "resync"; sequence: number }>>((resolve) => {
+      resolveOpening = resolve;
+    });
+    const closeLateStream = vi.fn(async () => ({ value: undefined, done: true }) as const);
+    const reportDisconnect = vi.fn();
+    const loop = createWorkspaceEventLoop({
+      subscribe: vi.fn(({ signal }) => {
+        openingSignal = signal;
+        return opening;
+      }),
+      handleEvent: vi.fn(),
+      invalidateAll: vi.fn(),
+      reportDisconnect,
+      openingTimeoutMs: 50,
+    });
+
+    const run = loop.start(outer.signal);
+    await vi.advanceTimersByTimeAsync(49);
+    expect(reportDisconnect).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(openingSignal?.aborted).toBe(true);
+    expect(reportDisconnect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "WorkspaceEventOpeningTimeoutError",
+        message: "runtime_event_subscription_opening_timeout",
+      }),
+    );
+    resolveOpening({
+      [Symbol.asyncIterator]: () => ({
+        next: vi.fn(),
+        return: closeLateStream,
+      }),
+    });
+    await vi.waitFor(() => expect(closeLateStream).toHaveBeenCalledOnce());
+
+    outer.abort();
+    await vi.runAllTimersAsync();
+    await run;
+  });
+
+  it("releases the opening deadline after the event tail is accepted", async () => {
+    vi.useFakeTimers();
+    const outer = new AbortController();
+    let streamSignal: AbortSignal | undefined;
+    const invalidateAll = vi.fn();
+    const reportDisconnect = vi.fn();
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ signal }) {
+        streamSignal = signal;
+        return (async function* () {
+          await new Promise<void>((resolve) => {
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+          yield* [];
+        })();
+      },
+      handleEvent: vi.fn(),
+      invalidateAll,
+      reportDisconnect,
+      openingTimeoutMs: 50,
+    });
+
+    const run = loop.start(outer.signal);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(invalidateAll).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(streamSignal?.aborted).toBe(false);
+    expect(reportDisconnect).not.toHaveBeenCalled();
+    outer.abort();
+    await vi.runAllTimersAsync();
+    await run;
+  });
+
+  it("recovers from a timed-out opening through the normal reconnect owner", async () => {
+    vi.useFakeTimers();
+    const outer = new AbortController();
+    let resolveRetired!: (events: AsyncIterable<{ type: "resync"; sequence: number }>) => void;
+    const retired = new Promise<AsyncIterable<{ type: "resync"; sequence: number }>>((resolve) => {
+      resolveRetired = resolve;
+    });
+    let calls = 0;
+    const invalidateAll = vi.fn();
+    const reportDisconnect = vi.fn();
+    const loop = createWorkspaceEventLoop({
+      subscribe: vi.fn(({ signal }) => {
+        calls += 1;
+        if (calls === 1) return retired;
+        return Promise.resolve(
+          (async function* () {
+            await new Promise<void>((resolve) => {
+              signal.addEventListener("abort", () => resolve(), { once: true });
+            });
+            yield* [];
+          })(),
+        );
+      }),
+      handleEvent: vi.fn(),
+      invalidateAll,
+      reportDisconnect,
+      openingTimeoutMs: 50,
+    });
+
+    const run = loop.start(outer.signal);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(reportDisconnect).toHaveBeenCalledOnce();
+    resolveRetired(
+      (async function* () {
+        yield* [];
+      })(),
+    );
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toBe(2);
+    expect(invalidateAll).toHaveBeenCalledOnce();
+
+    outer.abort();
+    await vi.runAllTimersAsync();
+    await run;
+  });
+
   it("cancels an in-flight subscription opening before retargeting", async () => {
     const outer = new AbortController();
     const subscribed: Array<{ type: "none" } | { type: "workspace"; cwd?: string }> = [];

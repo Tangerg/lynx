@@ -2,8 +2,17 @@ import type { WorkspaceEventLike } from "../domain/eventInvalidation";
 
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_CAP_MS = 30_000;
+const EVENT_OPENING_TIMEOUT_MS = 10_000;
 const RETARGET = Symbol("workspace-events.retarget");
 const ABORTED = Symbol("workspace-events.aborted");
+
+class WorkspaceEventOpeningTimeoutError extends Error {
+  override readonly name = "WorkspaceEventOpeningTimeoutError";
+
+  constructor() {
+    super("runtime_event_subscription_opening_timeout");
+  }
+}
 
 export interface WorkspaceEventLoopDeps {
   subscribe(input: {
@@ -13,6 +22,7 @@ export interface WorkspaceEventLoopDeps {
   handleEvent(ev: WorkspaceEventLike): void;
   invalidateAll(): void;
   reportDisconnect(error?: unknown): void;
+  openingTimeoutMs?: number;
 }
 
 export interface WorkspaceEventLoop {
@@ -90,7 +100,11 @@ async function subscribeLoop(
     let failure: unknown;
     try {
       const opening = deps.subscribe({ target: watchTarget(), signal: iter.signal });
-      const events = await settleBeforeAbort(opening, iter.signal, disposeIterable);
+      const events = await settleOpening(
+        opening,
+        iter,
+        deps.openingTimeoutMs ?? EVENT_OPENING_TIMEOUT_MS,
+      );
       if (events === ABORTED) continue;
       // A transport may resolve its opening promise at the same instant a
       // retarget abort wins. Do not publish the stale subscription's initial
@@ -158,6 +172,43 @@ async function subscribeLoop(
     }
     attempt += 1;
   }
+}
+
+/** Give the response-stream handshake a terminal lifecycle without applying a
+ * wall-clock limit to the accepted stream. Reject the deadline before aborting
+ * so this cohort reports a connection failure rather than looking like an
+ * ordinary retarget; settleBeforeAbort keeps a non-cooperative late opening
+ * observed and retires the foreign iterable when it eventually arrives. */
+function settleOpening<T>(
+  operation: Promise<AsyncIterable<T>>,
+  controller: AbortController,
+  timeoutMs: number,
+): Promise<AsyncIterable<T> | typeof ABORTED> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let deadlineSettled = false;
+  let releaseDeadline!: () => void;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    releaseDeadline = () => {
+      if (deadlineSettled) return;
+      deadlineSettled = true;
+      reject();
+    };
+    timer = setTimeout(() => {
+      timer = undefined;
+      deadlineSettled = true;
+      const error = new WorkspaceEventOpeningTimeoutError();
+      reject(error);
+      controller.abort(error);
+    }, timeoutMs);
+  });
+  return Promise.race([
+    settleBeforeAbort(operation, controller.signal, disposeIterable),
+    deadline,
+  ]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+    releaseDeadline();
+  });
 }
 
 /**
