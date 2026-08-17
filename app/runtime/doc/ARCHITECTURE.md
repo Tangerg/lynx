@@ -293,7 +293,7 @@ Delivery 只依赖公共 Protocol、Application 和必要的 Domain projection v
 
 ### 6.6 Bootstrap、Config、Embedded 与 Cmd
 
-私有 Runtime instance builder 是唯一组合根：创建 concrete dependency、组装 consumer port、在短期 setup lease 内打开并初始化共享数据目录、执行有所有权判断的恢复、启动有 owner 的后台任务并按逆序关闭资源。HTTP executable 和公共 `embedded.Open` 都只能调用它，不得各自复制装配图；多个进程可各自持有一个完整 Runtime instance 并共享同一私有数据目录。
+私有 Runtime instance builder 是唯一组合根：创建 concrete dependency、组装 consumer port、在短期 setup lease 内打开并初始化共享数据目录、执行有所有权判断的恢复、启动有 owner 的后台任务并按逆序关闭资源。`bootstrap.OpenInstance` 创建每个 instance 唯一的 Runtime context root，并把它显式注入 Assembly、operation Endpoint、Interaction executor、Toolset、LSP、MCP/OAuth 与 workers；该 instance 同时拥有 cancel 和完整 join。HTTP executable 和公共 `embedded.Open` 都只能调用它，不得各自复制装配图；多个进程可各自持有一个完整 Runtime instance 并共享同一私有数据目录。
 
 Bootstrap 不提供业务 API，不成为 service locator，不让运行时对象反向取得完整 Stack。公共 `embedded.Runtime` 只持有私有 instance 与 operation endpoint，提供完整 `Open/Close` 和类型化方法，不泄露内部资源。Config 只解析外部设置和完成静态验证，不执行业务选择。Cmd 只负责进程参数、BuildID、信号、HTTP listener 与 Runtime 生命周期。
 
@@ -450,7 +450,7 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 
 边界规则：
 
-- Tool name、description、参数名和 schema 只有一份权威定义；
+- 内建 Tool 的 model-facing name 由既有 `domain/tool` vocabulary 唯一拥有；description、参数名和 schema 由具体 Tool definition 唯一拥有，不为常量建立 Adapter 微包；
 - schema 与执行使用同一 strict typed decode 路径；
 - Runtime policy 不进入通用 `tool.Tool`；
 - Tool 不取得 Engine、Process 或完整 Runtime Stack；
@@ -477,6 +477,8 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 ## 11. 并发和生命周期
 
 - 每个 goroutine 必须有 owner、停止条件和 join 路径；
+- 只有 Runtime Instance/Host 或真正的 process transport owner 可以创建 ambient context root；component constructor 必须接收 owner lifetime，required lifetime 缺失即构造失败；
+- startup/handshake/request context 只约束当前调用。共享 resource 与 accepted execution 不能继承第一个请求；需要保留 trace values 且脱离 request cancellation 时，必须同时存在另一个 owner lifetime、cancel 和 join；
 - Application owns Run pump、Goal loop、Schedule loop 和维护任务的生命周期；
 - Agent Framework owns Process/Effect/child loop；
 - agentexec 可以为一棵 live root tree 保存准确的 Engine、Process handles 和 admission reconciliation state；它们由一个 tree session 拥有并在终态/release 时整体销毁，不形成跨 Run 的全局 lifecycle registry；
@@ -485,7 +487,7 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 - Delegate/Planning/Workflow 每个 Framework child 都是真 Process；并发 child、单父 child、tree process 总量和产品 child Run fan-out 必须同时受配置上限约束，不提供无界 `Map`/N-way fork；
 - 慢 Delivery subscriber 不得阻塞或改变 Run 终态；
 - cancel、terminal、waiting 和 resume 的线性化点必须有行为测试；
-- Engine 使用 Run-owned lifecycle context，不使用短命 Delivery request context；请求返回或连接断开不得隐式取消仍在执行的 Run；
+- Engine 使用 Runtime-owned lifecycle context，不使用短命 Delivery request context；请求返回或连接断开不得隐式取消仍在执行的 Run。Runtime root cancellation 必须经 agentexec dispatch boundary 到达在途 model/Tool effect，再由 Agent Framework 在 safe settlement 后决定 Process 终态；
 - 同一共享数据目录内，每个 Session 同时只有一个 mutation/Run writer；Run 对 physical working tree 持共享 lease，rollback/restore 等破坏性工作树变更持独占 lease；Goal autonomous drive 同一 Session 只有一个进程 owner；这些 kernel lease 在进程死亡时释放，不使用 heartbeat、TTL 或时钟猜测；
 - boot 与存活期 recovery 先由跨进程 sweep lease 选出单一执行者，并固定 Run-before-Goal 顺序；新 Runtime 在开始服务前等待当前 winner 并完成自己的复核，存活期 sweep 则非阻塞跳过。Run recovery 仍只在取得目标 Session lease 后接管，Goal recovery 仍竞争 live drive lease，cleanup 必须按已接管 Session 精确执行，禁止对共享数据库做全局 callback/checkpoint sweep；
 - Application process-local wake-only fan-out 不保存产品状态：observation 只在活跃 waiter 存在时持有 generation 并提供显式 disposer，通知只关闭当代 channel，消费者醒来后重读 durable projection；

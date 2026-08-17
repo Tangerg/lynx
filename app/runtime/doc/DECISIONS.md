@@ -433,7 +433,7 @@
 
 ## ADR-RT-063：内部边界以唯一行为 owner 和合法构造为准
 
-- 状态：已接受，P113 实施中；取代 ADR-RT-025 中“notification relay 归 Adapter”的物理落点结论，并修订 P14/P17 以后把历史文件位置当作长期架构事实的门禁方式；不改变六环依赖 DAG、公共 Protocol、SQLite 或 Agent Framework 合同。
+- 状态：已接受，P113 已完成；取代 ADR-RT-025 中“notification relay 归 Adapter”的物理落点结论，并修订 P14/P17 以后把历史文件位置当作长期架构事实的门禁方式；不改变六环依赖 DAG、公共 Protocol、SQLite 或 Agent Framework 合同。
 - 背景：P14–P18 曾按当时调用图消除大量 umbrella 和伪共享 package，但随后继续演进暴露出新的反例：`adapter/toolname` 只有常量却单独成为 package，而 `domain/tool` 已明确拥有 model-facing Tool vocabulary；通用 `adapter/notification.Relay` 没有外部语义翻译或 SDK 防腐，只被 Bootstrap 构造两次；runs/sessions/runsegment 的构造参数与对象字段镜像且允许无效依赖延迟到运行期；operation 用 87 方法 `Service` 让 registry 依赖实现者全集；核心协调器和 interaction session 又把不同并发不变量放进同一字段/锁面。与此同时，架构测试保留大量历史名称和精确文件位置，使安全重构需要同步维护旧实施台账。
 - 决策：package 必须拥有独立领域词汇、外部防腐、技术机制或可单独验证的不变量。仅供一个相邻 owner 使用、没有独立变化原因的常量、转发器、配置镜像和一方法接口直接收回该 owner；不通过 alias、forwarder 或新 `common` package 保留旧路径。Runtime 内建 Tool identity 归 `domain/tool` 的唯一 model-facing vocabulary；进程内通知连接是 Bootstrap composition closure，producer 与 Delivery 分别只取得 publish/observe 函数，不再建立 Adapter package 或 implementor-owned interface。
 - 决策：构造函数必须建立可运行对象或返回错误。required collaborator 在构造阶段验证，optional capability 必须由显式 nil 语义或独立 constructor 表达；构造参数分组只用于提高调用可读性，不能原样存成运行时 facade。消费端口按调用点定义；operation catalog 绑定 method-specific typed closure，不要求 Server 实现所有 operation 的胖接口。

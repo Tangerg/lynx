@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P112 已完成；P113 Runtime 内部所有权与构造边界治本清理执行中
+> 状态：P1–P113 已完成
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -120,7 +120,7 @@
 | P110 | Desktop dougong 0.3.0 旧兼容缝清零 | P109 + lazy Artifact placeholder declaration 复核 | 已完成 |
 | P111 | Desktop 左右结构面板 spring 与渲染隔离收敛 | P110 + Codex App Shell / 长对话 trace / WebKit 证据 | 已完成 |
 | P112 | Runtime 重启后挂载 Session material 单代际收敛 | P111 + SQLite 同事务 Goal / Desktop winning view commit / SIGKILL 证据 | 已完成 |
-| P113 | Runtime 内部所有权、合法构造与状态边界治本清理 | P112 + 当前 import/call/lock graph + ADR-RT-063 | 执行中 |
+| P113 | Runtime 内部所有权、合法构造与状态边界治本清理 | P112 + 当前 import/call/lock graph + ADR-RT-063 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -2069,7 +2069,7 @@
 - [x] P113-04 删除 `delivery/operation.Service` 的 87 方法实现者胖接口，使 method catalog 绑定 method-specific typed closure/窄能力，同时保持 HTTP 与 embedded 共用唯一 operation pipeline；
 - [x] P113-05 按锁、生命周期与不变量重塑 `runs.Coordinator` 和 `agentexec.interactionSession` 的 package-private state owner，并删除 Dependencies/Config 到对象字段的一比一镜像；不建立新微包、service locator 或存储 façade；
 - [x] P113-06 收敛内部 nil Context fallback 与 lifecycle root，移除历史词汇/精确文件位置型架构守卫，保留并强化 DAG、唯一 owner、公共合同和持久化语义门禁；建立只覆盖可执行编排的复杂度预算；
-- [ ] P113-07 更新 Architecture/Standards/Execution Plan/Capability Ledger/Contract facts，执行 Runtime 全量 build、vet、staticcheck、lint、deadcode、test、race、generator、architecture 与文档事实门禁；每个纵切独立提交并推送。
+- [x] P113-07 更新 Architecture/Standards/Execution Plan/Capability Ledger/Contract facts，执行 Runtime 全量 build、vet、staticcheck、lint、deadcode、test、race、generator、architecture 与文档事实门禁；每个纵切独立提交并推送。
 
 ### 验收
 
@@ -2084,6 +2084,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P113-07（final facts / release gates） | 六份 Runtime 权威文档已统一到最终 owner graph：`domain/tool` 是内建 Tool identity owner，Bootstrap composition closure 取代 notification 微包，required constructor 建立合法对象，operation catalog 只依赖 method-specific capability，Runs/Interaction 共享状态按并发不变量分 owner，Instance 唯一创建并关闭 Runtime lifetime；历史实现台账不再冒充架构规则。公共 `protocol`、`embedded.Runtime`、87-operation catalog、SQLite epoch 75、Session Artifact v19 与 Agent Framework public shape 全部保持当前唯一版本，generator 与 public Go API baseline 零漂移。production-Go directory census 从 109 降到 107，减少的正是两个无独立变化轴的 package，没有以新 package 补回。P113 七项工作均完成，实施纵切独立提交并推送，没有 alias、shim、forwarder、compat path、service locator 或无 owner goroutine | Runtime standalone `go build ./...`、`go vet ./...`、`staticcheck ./...`、`golangci-lint run ./...`（0 issue）、`deadcode -test ./...`（零输出）、`go mod tidy -diff`、`go test ./... -count=1`、`go test -race ./... -count=1`、`go generate ./...`、architecture/documentation facts 与 `git diff --check` 全绿 |
 | 2026-08-17 | P113-06（process lifetime / semantic fitness guards） | `bootstrap.OpenInstance` 现在创建唯一 Runtime root，并显式传给 Assembly、operation Endpoint、Interaction executor、Toolset、LSP、MCP/OAuth 与进程 workers；startup/handshake/request Context 只约束当前调用，accepted Run 和共享 capability resource 不再偶然继承首个请求。Interaction dispatch boundary 同时接 product cancellation 与 Runtime owner cancellation，补上 Agent Framework 为 safe effect settlement 使用 `WithoutCancel` 后的协作取消链；行为测试双向证明 caller cancel 不误杀 Run、owner cancel 会终止在途 model/Tool effect。LSP lazy launch、MCP live session 与 operation stream 具有相同 owner 证明；相关 constructor breaking 为 required lifetime，内部 wait/shutdown/continuation 不再把 nil Context 静默替换成 immortal root。历史 identifier ledger、精确文件名/声明位置和测试便利 API 黑名单被删除，保留 package absence、DAG、当前唯一 owner、公共/持久 shape 等语义门禁；新增 AST fitness guard 只允许 Instance/Host/HTTP process owner 创建 ambient root，并对 Application/Adapter/Delivery/Bootstrap 的 production executable orchestration 统一施加 cyclomatic 32 预算，排除生成物、声明 catalog 与本质递归 validator。该门禁发现并促使 Bootstrap 将 500 行单体构造流按 foundation 与 Session/Run core 两个真实阶段重组，没有新 package、函数白名单或抬高阈值。公共 Protocol、SQLite、Artifact 与 Agent Framework shape 均未改变 | Runtime standalone `go test ./... -count=1`、`go vet ./...`、`go mod tidy -diff`、`golangci-lint run ./...`（0 issue）、`go generate ./...`、architecture 与 diff hygiene 全绿；agentexec/toolset/MCP/LSP/operation/Bootstrap/arch focused race 全绿 |
 | 2026-08-17 | P113-05（core state and lifecycle owners） | `interactionSession` 从 53 个直持字段收敛到 19 个，只组合明确的 Process/Delegate state、lifetime、child projection、accounting、Tool repetition、committed reply 与 Segment clock owner。usage/checkpoint、重复 Tool 结果、Delegate 回复、Segment 计时不再争用 Process tree mutex；checkpoint 以固定 accounting→state 锁序同时复制 usage 与 pending steer，原子快照不变。`Coordinator` 从 39 个字段收敛到 27 个：`segmentLifecycle` 独占 task attach/join、executor observe/release、replay journal、live registry 与 terminal finalization；`runPublications` 独占 opening/event/barrier 的 durable-write-before-live-publication、时间、workspace nudge、Session waiter wake 与 read-model invalidation。无新 package、service locator、Config holder 或兼容 façade；同时删除 constructor 已证明 ChildStarts 后仍存在的延迟 unavailable 分支。架构门禁禁止两个核心对象重新直持 raw sync/map/channel/lifecycle root 或已迁出的 Segment/publication mechanisms。公共 Protocol、SQLite、Artifact 与 Agent Framework shape 均未改变 | Runtime standalone `go test ./... -count=1`、`go vet ./...`、`go mod tidy -diff`、`golangci-lint run ./...`、`go generate ./...`、diff hygiene 全绿；runs/agentexec/arch focused race 全绿，失效通知时序用例另以显式 terminal gate 连跑 20 次通过 |
 | 2026-08-17 | P113-04（method-specific operation capabilities） | `delivery/operation.Service` 与其 87 方法全集物理删除；每条 catalog registration 现在在调用点声明唯一匿名窄 capability，generic registry 只在 type-erasure waist 恢复该精确类型，缺失与 typed-nil handler 均形成受控 internal failure。Endpoint、idempotency replay、HTTP 与 embedded 继续共用同一 operation pipeline，focused test fake 不再嵌入 nil 胖接口。架构门禁从“Server implements 巨型接口”改为语义双向覆盖：87 条注册各有唯一 handler capability、每个 capability 存在于生产 Server、Server 除 lifecycle `Close` 外没有未注册导出方法，并禁止旧 `service.go` 回流。公共 Protocol、生成合同、SQLite、Artifact 与 Agent Framework shape 均未改变 | Runtime standalone `go test ./... -count=1`、`go vet ./...`、`go mod tidy -diff`、`golangci-lint run ./...` 全绿且 lint 0 issue；operation/dispatch/HTTP/bootstrap/architecture focused race 全绿；`go generate ./...` 零漂移，architecture 禁用缓存测试与 `git diff --check` 通过 |

@@ -137,7 +137,9 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 不使用反射 DI container、service locator 或 package globals；
 - 所有 closers 只有一个 owner，逆序、幂等关闭；
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
-- optional capability 只在真实配置关闭时为 nil/absent，不通过半可用对象推迟错误。
+- required collaborator 和 lifetime 在 constructor boundary 完整验证；constructor 必须返回可运行对象或 error，不能把半初始化对象和延迟 `unavailable` 分支交给用例；
+- optional capability 只在真实配置关闭时为 nil/absent；多个依赖共同构成一项能力时用一个显式 capability group 表达，不能允许半启用。
+- `bootstrap.OpenInstance` 创建每个 Runtime 唯一的 context root，并拥有 cancel 与 join；Assembly、operation、Interaction、Toolset、LSP、MCP/OAuth 和 workers 只消费注入 lifetime，不另造 immortal root。
 - HTTP host 与 embedded 共用同一 Runtime instance builder；共享目录 setup、所有权恢复、后台任务与资源关闭不能各装配一套。
 - canonical data directory 必须是 `0700` 私有目录；setup lease 只包围 store 打开与 schema/config seeding，不能扩张为 Runtime 全生命周期单实例锁。失败 Open 要逆序回滚，失败 Close 保留未关闭资源并允许重试。
 - 每次 Session mutation/Run 必须取得跨进程 Session writer lease；Run 同时取得 physical working tree shared lease，rollback/restore 等破坏性操作取得 exclusive lease。Goal drive 和恢复器必须竞争同一 owner identity；恢复先选举一个跨进程 sweep winner并固定 Run-before-Goal 顺序，startup 必须等待 winner 后复核，存活期可以非阻塞跳过，cleanup 只能作用于已取得的 Session。
@@ -240,6 +242,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 ### 5.2 Types
 
 - 零值有清晰语义；无合法零值的类型只能通过构造函数创建；
+- required dependency、typed nil、非法 limit/path/identity 必须在构造返回前拒绝；构造参数分组不能原样保存在对象中形成 config façade；
 - immutable 小值优先按值返回；拥有 mutex、resource 或 identity 的类型用 pointer；
 - slice/map/`[]byte` 跨边界 defensive copy；
 - 不用 `any`、反射或 map bag 逃避领域建模；wire type erasure 只在协议/Framework owner 明确的边界；
@@ -267,9 +270,11 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 
 - I/O、锁等待、admission、stream、long-running operation 首参数为 context；
 - 不把 context 存进 entity/config/snapshot；
+- process/component lifetime 可以由资源 owner 保存，但必须来自 constructor 显式注入；request/startup context 不得存成共享资源 lifetime；
 - Provider/network/process 必须有明确 timeout 或上层 deadline；
 - 后台任务需要继承 trace values 但脱离 request cancel 时使用 `context.WithoutCancel`，并由 Host 生命周期另行取消；
-- 不用 `context.Background()` 掩盖 owner 缺失。
+- 内部 API 收到 nil Context 必须明确返回错误或按 Go 合同暴露 programmer error，不得静默替换为 `context.Background()`；
+- 只有 Runtime Instance/Host 和真正的 process transport owner 可以创建 `context.Background()` root，其余组件从 owner lifetime 派生；
 - Run execution 必须使用 Run owner 的 lifecycle context；Delivery request context 只约束 admission/request handling，不能在响应返回时误杀已接受的 Run。
 
 ### 5.6 Concurrency
