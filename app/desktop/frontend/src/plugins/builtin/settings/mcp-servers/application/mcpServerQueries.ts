@@ -1,4 +1,3 @@
-import { queryClient } from "@/lib/queryClient";
 import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
 
 export type MCPTransport = "stdio" | "streamableHttp";
@@ -59,15 +58,6 @@ const MCP_ICON: Record<string, string> = {
 
 export function mcpServerIcon(name: string): string {
   return MCP_ICON[name] ?? "tool";
-}
-
-export function commitMCPServerSaved(saved: MCPServerSettings): void {
-  queryClient.setQueryData<MCPServerSettings[]>([MCP_SERVERS_KEY], (current) => {
-    if (!current) return current;
-    const index = current.findIndex((server) => server.id === saved.id);
-    if (index < 0) return [...current, saved];
-    return current.map((server) => (server.id === saved.id ? saved : server));
-  });
 }
 
 export const useMCPServers = createDataQuery<MCPServerSettings[]>(MCP_SERVERS_KEY);

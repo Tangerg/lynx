@@ -3,6 +3,7 @@ import { Icon, PillButton, Segmented, Surface, Switch, TextField } from "@/ui";
 import {
   type MCPServerSettings,
   type MCPTransport,
+  mcpServerMutationWasRetired,
   useCreateMCPServer,
   useDeleteMCPServer,
   useTestMCPServer,
@@ -68,13 +69,15 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       else await create(input);
       onDone();
     } catch (err) {
+      if (mcpServerMutationWasRetired(err)) return;
       fail(err instanceof Error ? err.message : t("mcp.error.save"));
     } finally {
       setSaving(false);
     }
   };
 
-  const onTest = () => run(() => test(buildInput()), t("mcp.error.test"));
+  const onTest = () =>
+    run(() => test(buildInput()), t("mcp.error.test"), mcpServerMutationWasRetired);
 
   const onDelete = async () => {
     if (!server) return;
@@ -83,7 +86,9 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       await remove(server.name);
       onDone();
     } catch (err) {
+      if (mcpServerMutationWasRetired(err)) return;
       fail(err instanceof Error ? err.message : t("mcp.error.remove"));
+    } finally {
       setSaving(false);
     }
   };

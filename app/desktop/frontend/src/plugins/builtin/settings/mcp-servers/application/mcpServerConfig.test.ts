@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { MCP_SERVERS_KEY, type MCPServerSettings } from "./mcpServerQueries";
 import { createMCPServer, deleteMCPServer, setMCPServerEnabled } from "./mcpServerConfig";
-import { configureMCPServerGateway, type MCPServerGateway } from "./ports/mcpServerGateway";
+import type { MCPServerGateway } from "./ports/mcpServerGateway";
+import { MCPServerMutationOwner } from "./mcpServerMutationOwner";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -31,6 +32,11 @@ function server(overrides: Partial<MCPServerSettings> = {}): MCPServerSettings {
 
 let uninstall: (() => void) | undefined;
 
+function installGateway(gateway: MCPServerGateway): void {
+  const owner = MCPServerMutationOwner.install(gateway);
+  uninstall = () => owner.dispose();
+}
+
 afterEach(() => {
   uninstall?.();
   uninstall = undefined;
@@ -47,7 +53,7 @@ describe("MCP server configuration", () => {
       command: "tool-server",
       url: undefined,
     });
-    uninstall = configureMCPServerGateway({
+    installGateway({
       create: vi.fn().mockResolvedValue(created),
     } as unknown as MCPServerGateway);
 
@@ -73,17 +79,15 @@ describe("MCP server configuration", () => {
       .fn<(name: string, enabled: boolean) => Promise<MCPServerSettings>>()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
-    uninstall = configureMCPServerGateway({ setEnabled } as unknown as MCPServerGateway);
+    installGateway({ setEnabled } as unknown as MCPServerGateway);
 
     const disabled = setMCPServerEnabled("cloud", false);
     const enabled = setMCPServerEnabled("cloud", true);
-    await Promise.resolve();
-    expect(setEnabled).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(setEnabled).toHaveBeenCalledTimes(1));
 
     first.resolve(server({ status: "disabled", enabled: false }));
     await expect(disabled).resolves.toMatchObject({ enabled: false });
-    await Promise.resolve();
-    expect(setEnabled).toHaveBeenNthCalledWith(2, "cloud", true);
+    await vi.waitFor(() => expect(setEnabled).toHaveBeenNthCalledWith(2, "cloud", true));
 
     second.resolve(server({ status: "connected", enabled: true, tools: 2, toolCount: 2 }));
     await expect(enabled).resolves.toMatchObject({ status: "connected", enabled: true });
@@ -99,7 +103,7 @@ describe("MCP server configuration", () => {
     const first = deferred<MCPServerSettings>();
     const setEnabled = vi.fn().mockReturnValue(first.promise);
     const remove = vi.fn().mockResolvedValue(undefined);
-    uninstall = configureMCPServerGateway({
+    installGateway({
       setEnabled,
       delete: remove,
     } as unknown as MCPServerGateway);
@@ -122,7 +126,7 @@ describe("MCP server configuration", () => {
       .fn<(name: string, enabled: boolean) => Promise<MCPServerSettings>>()
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce(server({ status: "connected" }));
-    uninstall = configureMCPServerGateway({ setEnabled } as unknown as MCPServerGateway);
+    installGateway({ setEnabled } as unknown as MCPServerGateway);
 
     const rejected = setMCPServerEnabled("cloud", false);
     const accepted = setMCPServerEnabled("cloud", true);

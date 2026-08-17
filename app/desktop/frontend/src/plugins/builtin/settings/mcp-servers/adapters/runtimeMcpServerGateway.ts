@@ -8,6 +8,7 @@ import type {
   MCPConnectionInput,
   MCPEnvironmentChange,
   MCPHeadersChange,
+  LyraClient,
   UpdateMCPServerRequest,
 } from "@/rpc";
 import type { MCPServerInput } from "../application/mcpServerInput";
@@ -17,6 +18,7 @@ import {
   type MCPAuthorizationAttempt as AuthorizationAttempt,
   type MCPServerGateway,
 } from "../application/ports/mcpServerGateway";
+import { MCPServerMutationOwner } from "../application/mcpServerMutationOwner";
 
 function authorizationChange(value: string | null | undefined): MCPAuthorizationChange | undefined {
   if (value === undefined) return undefined;
@@ -93,39 +95,55 @@ function authorizationAttempt(attempt: MCPAuthorizationAttempt): AuthorizationAt
   }
 }
 
-const gateway: MCPServerGateway = {
-  async create(input) {
-    const saved = await getContainer().client().mcp.create(candidate(input));
-    return mcpServerSettings(saved);
-  },
-  async update(name, input) {
-    const saved = await getContainer().client().mcp.update(updateRequest(name, input));
-    return mcpServerSettings(saved);
-  },
-  async delete(name) {
-    await getContainer().client().mcp.delete(name);
-  },
-  async setEnabled(name, enabled) {
-    const saved = await getContainer().client().mcp.update({ server: name, enabled });
-    return mcpServerSettings(saved);
-  },
-  async createAuthorizationAttempt(name, signal) {
-    const attempt = await getContainer().client().mcp.authorizationAttempts.create(name, signal);
-    return authorizationAttempt(attempt);
-  },
-  async getAuthorizationAttempt(id, signal) {
-    const attempt = await getContainer().client().mcp.authorizationAttempts.get(id, signal);
-    return authorizationAttempt(attempt);
-  },
-  async test(input) {
-    const result = await getContainer().client().mcp.test(candidate(input));
-    return {
-      ok: result.ok,
-      error: result.ok ? undefined : (describeProblem(result.error) ?? t("mcp.error.test")),
-    };
-  },
-};
+function runtimeMCPServerGateway(client: LyraClient): MCPServerGateway {
+  return {
+    async create(input) {
+      const saved = await client.mcp.create(candidate(input));
+      return mcpServerSettings(saved);
+    },
+    async update(name, input) {
+      const saved = await client.mcp.update(updateRequest(name, input));
+      return mcpServerSettings(saved);
+    },
+    async delete(name) {
+      await client.mcp.delete(name);
+    },
+    async setEnabled(name, enabled) {
+      const saved = await client.mcp.update({ server: name, enabled });
+      return mcpServerSettings(saved);
+    },
+    async createAuthorizationAttempt(name, signal) {
+      const attempt = await client.mcp.authorizationAttempts.create(name, signal);
+      return authorizationAttempt(attempt);
+    },
+    async getAuthorizationAttempt(id, signal) {
+      const attempt = await client.mcp.authorizationAttempts.get(id, signal);
+      return authorizationAttempt(attempt);
+    },
+    async test(input) {
+      const result = await client.mcp.test(candidate(input));
+      return {
+        ok: result.ok,
+        error: result.ok ? undefined : (describeProblem(result.error) ?? t("mcp.error.test")),
+      };
+    },
+  };
+}
 
-export function installMCPServerGateway(): () => void {
-  return configureMCPServerGateway(gateway);
+export interface MCPServerGatewayInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installMCPServerGateway(): MCPServerGatewayInstallation {
+  const gateway = runtimeMCPServerGateway(getContainer().client());
+  const mutationOwner = MCPServerMutationOwner.install(gateway);
+  const disposeGateway = configureMCPServerGateway(gateway);
+  return {
+    replaceRuntimeGeneration: () => mutationOwner.replaceRuntimeGeneration(),
+    dispose() {
+      mutationOwner.dispose();
+      disposeGateway();
+    },
+  };
 }

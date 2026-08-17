@@ -3,6 +3,7 @@ import { IconButton, PillButton, StatusDot, Switch } from "@/ui";
 import {
   type MCPServerSettings,
   type MCPTransport,
+  mcpServerMutationWasRetired,
   useAuthorizeMCPServer,
   useSetMCPServerEnabled,
 } from "../application/mcpServerConfig";
@@ -52,6 +53,7 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
     try {
       await setEnabled(server.name, enabled);
     } catch (err) {
+      if (mcpServerMutationWasRetired(err)) return;
       notifyError(err instanceof Error ? err.message : t("mcp.error.toggle"), { source: "mcp" });
     }
   };
@@ -64,7 +66,7 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
     try {
       await authorize(server.name, controller.signal);
     } catch (err) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || mcpServerMutationWasRetired(err)) return;
       notifyError(err instanceof Error ? err.message : t("mcp.error.signIn"), { source: "mcp" });
     } finally {
       if (authorizationController.current === controller) {

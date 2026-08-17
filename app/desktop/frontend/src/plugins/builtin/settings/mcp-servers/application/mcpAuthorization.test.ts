@@ -1,10 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { authorizeMCPServer } from "./mcpServerConfig";
-import {
-  configureMCPServerGateway,
-  type MCPAuthorizationAttempt,
-  type MCPServerGateway,
-} from "./ports/mcpServerGateway";
+import { type MCPAuthorizationAttempt, type MCPServerGateway } from "./ports/mcpServerGateway";
+import { MCPServerMutationOwner } from "./mcpServerMutationOwner";
 
 const inertGateway = {
   create: vi.fn(),
@@ -15,6 +12,11 @@ const inertGateway = {
 } as const;
 
 let disposeGateway: () => void = () => undefined;
+
+function installGateway(gateway: MCPServerGateway): void {
+  const owner = MCPServerMutationOwner.install(gateway);
+  disposeGateway = () => owner.dispose();
+}
 
 afterEach(() => {
   disposeGateway();
@@ -30,7 +32,7 @@ describe("MCP authorization attempts", () => {
       .fn<(id: string) => Promise<MCPAuthorizationAttempt>>()
       .mockResolvedValueOnce({ id: "mcpauth_1", status: "pending" })
       .mockResolvedValueOnce({ id: "mcpauth_1", status: "succeeded" });
-    disposeGateway = configureMCPServerGateway({
+    installGateway({
       ...inertGateway,
       createAuthorizationAttempt: vi.fn().mockResolvedValue({ id: "mcpauth_1", status: "pending" }),
       getAuthorizationAttempt,
@@ -40,12 +42,20 @@ describe("MCP authorization attempts", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await authorization;
 
-    expect(getAuthorizationAttempt).toHaveBeenNthCalledWith(1, "mcpauth_1", undefined);
-    expect(getAuthorizationAttempt).toHaveBeenNthCalledWith(2, "mcpauth_1", undefined);
+    expect(getAuthorizationAttempt).toHaveBeenNthCalledWith(
+      1,
+      "mcpauth_1",
+      expect.any(AbortSignal),
+    );
+    expect(getAuthorizationAttempt).toHaveBeenNthCalledWith(
+      2,
+      "mcpauth_1",
+      expect.any(AbortSignal),
+    );
   });
 
   it("surfaces a failed terminal attempt without parsing transport errors", async () => {
-    disposeGateway = configureMCPServerGateway({
+    installGateway({
       ...inertGateway,
       createAuthorizationAttempt: vi.fn().mockResolvedValue({
         id: "mcpauth_2",

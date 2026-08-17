@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Icon, PillButton, Surface, TextArea, TextButton } from "@/ui";
-import { useCreateMCPServer } from "../application/mcpServerConfig";
+import { mcpServerMutationWasRetired, useCreateMCPServer } from "../application/mcpServerConfig";
 import { notifyInfo } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { parseMcpImport } from "../application/mcpImport";
@@ -23,6 +23,7 @@ export function JsonImport() {
       setText("");
       setOpen(false);
     } catch (err) {
+      if (mcpServerMutationWasRetired(err)) return;
       setError(err instanceof Error ? err.message : t("mcp.import.error"));
     } finally {
       setBusy(false);
