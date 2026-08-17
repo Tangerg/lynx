@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,6 +115,15 @@ func TestGetSessionSnapshotKeepsCapabilityAndExistenceRefusals(t *testing.T) {
 	})); err != nil {
 		t.Fatalf("suspend waiting Run: %v", err)
 	}
+	if err := rt.hist.AppendItem(t.Context(), itemfixture.MustRestore(itemfixture.Input{
+		ID: "interrupt_run_waiting", RunID: "run_waiting", SessionID: "ses_1",
+		Kind: transcript.QuestionItem, OccurredAt: createdAt,
+		Question: &transcript.Question{
+			Fields: []transcript.QuestionField{{Prompt: "Continue?"}},
+		},
+	})); err != nil {
+		t.Fatalf("append question Item: %v", err)
+	}
 	if err := rt.interrupts.Open(t.Context(), serverPending(
 		"run_waiting", "ses_1", "exec_waiting", "member_waiting", nil, createdAt,
 	)); err != nil {
@@ -126,6 +136,39 @@ func TestGetSessionSnapshotKeepsCapabilityAndExistenceRefusals(t *testing.T) {
 	_, err = s.GetSessionSnapshot(t.Context(), protocol.GetSessionSnapshotRequest{SessionID: "ses_missing"})
 	if !errors.Is(err, protocol.ErrSessionNotFound) {
 		t.Fatalf("missing Session error = %v, want session_not_found", err)
+	}
+}
+
+func TestGetSessionSnapshotRejectsOwnerlessInterruptMaterial(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putTestSession(t, rt)
+	createdAt := time.Date(2026, 8, 14, 4, 0, 0, 0, time.UTC)
+	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}
+	if err := rt.runs.Admit(t.Context(), run.Draft{
+		SegmentID: "seg_waiting", RunID: "run_waiting", SessionID: "ses_1",
+		Capabilities: capabilities, CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("admit waiting Run: %v", err)
+	}
+	if err := rt.runs.Suspend(t.Context(), runfixture.MustRestore(run.Snapshot{
+		ID: "run_waiting", SessionID: "ses_1", State: run.Waiting,
+		Capabilities: capabilities, CreatedAt: createdAt, UpdatedAt: createdAt,
+		MessageMark: run.UnknownMessageMark,
+	})); err != nil {
+		t.Fatalf("suspend waiting Run: %v", err)
+	}
+	if err := rt.interrupts.Open(t.Context(), serverPending(
+		"run_waiting", "ses_1", "exec_waiting", "member_waiting", nil, createdAt,
+	)); err != nil {
+		t.Fatalf("open interrupt: %v", err)
+	}
+
+	ctx := withClientCapabilities(protocol.ClientCapabilities{
+		InterruptTypes: []protocol.InterruptType{protocol.InterruptQuestion},
+	})
+	_, err := s.GetSessionSnapshot(ctx, protocol.GetSessionSnapshotRequest{SessionID: "ses_1"})
+	if err == nil || !strings.Contains(err.Error(), "interrupt Item \"interrupt_run_waiting\"") {
+		t.Fatalf("snapshot error = %v, want ownerless interrupt material rejected", err)
 	}
 }
 

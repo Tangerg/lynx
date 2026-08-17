@@ -1025,13 +1025,18 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 			"validatePendingRunTree(pending, parkedRuns)",
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
-			"validateRecoveryContinuation(active, tree.root, continuation)",
-			"pending.Capabilities.Equal(tree.root.Capabilities())",
+			"pending.ValidateProjection(values, items)",
 		},
 		filepath.Join("internal", "application", "runs", "continuation_validation.go"): {
+			"validatePendingRunTree(p, treeRuns)",
+			"root.Capabilities().Equal(pending.Capabilities)",
+			"validateContinuationRunFacts(pending.RootRunID, value, continuation)",
 			"value.Metrics().Equal(continuation.Metrics)",
 			"value.Limits() != continuation.Limits",
 			"value.ModelSelection() != continuation.ModelSelection",
+		},
+		filepath.Join("internal", "application", "sessions", "material_snapshot.go"): {
+			"pending.ValidateProjection(snapshot.Runs, snapshot.Items)",
 		},
 		filepath.Join("internal", "application", "sessions", "parked_terminalization.go"): {
 			"run.Metrics().Equal(continuation.Metrics)",

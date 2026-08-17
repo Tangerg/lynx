@@ -2419,7 +2419,7 @@ for await (const line of lines) {
     await runtimeEvents.return?.();
   }, 30_000);
 
-  it("keeps one Tool Item when edited approval resumes beside a same-name sibling", async () => {
+  it("keeps one Tool Item when edited approval resumes beside a same-name sibling after SIGKILL", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
     const session = await client.sessions.create({
@@ -2453,6 +2453,12 @@ for await (const line of lines) {
       name: "shell",
       arguments: { command: "printf approval-original" },
     });
+
+    await client.close();
+    client = undefined;
+    await killRuntimeProcess();
+    await startRuntimeProcess();
+    client = createRuntimeClient();
 
     const resumed = await client.runs.resume({
       runId,

@@ -936,7 +936,7 @@ func coherentRecoveryPark(t *testing.T) (rundomain.Run, Pending, transcript.Item
 	item := itemfixture.MustRestore(itemfixture.Input{
 		ID: interrupt.ItemID, SessionID: run.SessionID(), RunID: run.ID(),
 		Kind:     transcript.QuestionItem,
-		Question: question, OccurredAt: pending.CreatedAt,
+		Question: question, OccurredAt: interrupt.ItemOccurredAt,
 	})
 	return run, pending, item
 }

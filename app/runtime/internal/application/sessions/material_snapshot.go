@@ -61,7 +61,7 @@ func (snapshot MaterialSnapshot) Validate() error {
 		}
 		runsByID[record.ID()] = record
 	}
-	itemsByID := make(map[string]struct{}, len(snapshot.Items))
+	itemsByID := make(map[string]transcript.Item, len(snapshot.Items))
 	for _, item := range snapshot.Items {
 		if err := item.Validate(); err != nil {
 			return fmt.Errorf("sessions: material snapshot Item %q: %w", item.ID(), err)
@@ -69,17 +69,24 @@ func (snapshot MaterialSnapshot) Validate() error {
 		if item.SessionID() != sessionID {
 			return fmt.Errorf("sessions: material snapshot Item %q belongs to Session %q, want %q", item.ID(), item.SessionID(), sessionID)
 		}
-		if _, found := runsByID[item.RunID()]; !found {
+		owner, found := runsByID[item.RunID()]
+		if !found {
 			return fmt.Errorf("sessions: material snapshot Item %q references unknown Run %q", item.ID(), item.RunID())
+		}
+		if item.Status() == transcript.ItemRunning && owner.State().IsTerminal() {
+			return fmt.Errorf("sessions: material snapshot terminal Run Item %q is still running", item.ID())
 		}
 		if _, duplicate := itemsByID[item.ID()]; duplicate {
 			return fmt.Errorf("sessions: material snapshot repeats Item %q", item.ID())
 		}
-		itemsByID[item.ID()] = struct{}{}
+		itemsByID[item.ID()] = item
+	}
+	if err := validateSnapshotRunTree(snapshot.Runs, itemsByID); err != nil {
+		return fmt.Errorf("sessions: material snapshot Run tree: %w", err)
 	}
 	interruptsByRoot := make(map[string]struct{}, len(snapshot.Interrupts))
 	for _, pending := range snapshot.Interrupts {
-		if err := pending.Validate(); err != nil {
+		if err := pending.ValidateProjection(snapshot.Runs, snapshot.Items); err != nil {
 			return fmt.Errorf("sessions: material snapshot interrupt %q: %w", pending.RootRunID, err)
 		}
 		if pending.SessionID != sessionID {
@@ -96,6 +103,19 @@ func (snapshot MaterialSnapshot) Validate() error {
 			return fmt.Errorf("sessions: material snapshot repeats interrupt root %q", pending.RootRunID)
 		}
 		interruptsByRoot[pending.RootRunID] = struct{}{}
+	}
+	for _, record := range snapshot.Runs {
+		if record.State() != run.Waiting {
+			continue
+		}
+		rootRunID := record.Lineage().TreeRootID(record.ID())
+		if _, found := interruptsByRoot[rootRunID]; !found {
+			return fmt.Errorf(
+				"sessions: material snapshot waiting Run %q has no Pending owner for root %q",
+				record.ID(),
+				rootRunID,
+			)
+		}
 	}
 	if err := snapshot.Plan.Validate(); err != nil {
 		return fmt.Errorf("sessions: material snapshot Plan: %w", err)

@@ -4,7 +4,73 @@ import (
 	"fmt"
 
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
+
+// ValidateProjection proves that one Pending barrier is the complete owner of
+// the durable Run and transcript facts a mounted client will receive. Values
+// may contain the Session's full history; only this barrier's Run tree is
+// selected, while every referenced Item is resolved from the complete Item set.
+func (p Pending) ValidateProjection(values []rundomain.Run, items []transcript.Item) error {
+	treeRuns := make([]rundomain.Run, 0, len(p.Continuations))
+	for _, value := range values {
+		if value.Lineage().TreeRootID(value.ID()) == p.RootRunID {
+			treeRuns = append(treeRuns, value)
+		}
+	}
+	if err := validatePendingRunTree(p, treeRuns); err != nil {
+		return err
+	}
+
+	active := make(map[string]rundomain.Run, len(p.Continuations))
+	for _, value := range treeRuns {
+		if !value.State().IsTerminal() {
+			active[value.ID()] = value
+		}
+	}
+	itemsByID := indexPendingItems(items)
+	interruptItems, err := validatePendingInterruptItems(
+		p.RootRunID,
+		p.SessionID,
+		active,
+		p.Interrupts,
+		itemsByID,
+	)
+	if err != nil {
+		return err
+	}
+	drainedItems := make(map[string]struct{})
+	for _, continuation := range p.Continuations {
+		for _, drained := range continuation.DrainedTools {
+			drainedItems[drained.ItemID] = struct{}{}
+		}
+	}
+	if err := validatePendingRunningItems(
+		p.RootRunID,
+		active,
+		items,
+		interruptItems,
+		drainedItems,
+	); err != nil {
+		return err
+	}
+	claimedItems := make(map[string]string, len(interruptItems))
+	for itemID := range interruptItems {
+		claimedItems[itemID] = "interrupt"
+	}
+	for _, continuation := range p.Continuations {
+		if err := validatePendingContinuationTools(
+			p.RootRunID,
+			p.SessionID,
+			continuation,
+			itemsByID,
+			claimedItems,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // validatePendingRunTree cross-checks the complete active Run tree before a
 // continuation can drive an executor or a lifecycle transformation. Terminal

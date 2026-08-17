@@ -75,7 +75,7 @@ func bootstrapCheckpoint(rootMemberID, sessionID string) runsapp.ExecutorCheckpo
 
 func bootstrapPending(
 	runID, sessionID, memberID, itemID string,
-	runCreatedAt, barrierCreatedAt time.Time,
+	runCreatedAt, itemOccurredAt, barrierCreatedAt time.Time,
 ) runsapp.Pending {
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	return runsapp.Pending{
@@ -86,7 +86,7 @@ func bootstrapPending(
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: itemID, ItemOccurredAt: parkCreatedAt,
+			ItemID: itemID, ItemOccurredAt: itemOccurredAt,
 			RunID:    runID,
 			Kind:     interrupt.Question,
 			Question: question,
@@ -250,6 +250,7 @@ func parkWithGoalLease(
 		sessionID,
 		memberID,
 		"item_"+runID,
+		parkCreatedAt,
 		parkCreatedAt,
 		time.Unix(0, 0).UTC(),
 	)

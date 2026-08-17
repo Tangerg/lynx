@@ -496,6 +496,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		"item_park",
 		createdAt,
 		parkedAt,
+		parkedAt,
 	)); err != nil {
 		t.Fatalf("open interrupt: %v", err)
 	}
