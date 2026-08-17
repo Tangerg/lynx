@@ -14,7 +14,7 @@ import type {
   WorkspaceProjectSummary,
   WorkspaceDiff,
 } from "@/plugins/builtin/workspace/public/queries";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import { createLyraClient, JSONRPC_VERSION } from "@/rpc";
@@ -299,6 +299,61 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     expect(value).toEqual([
       { id: "gpt-test", provider: "openai", label: "GPT Test", multimodal: true },
     ]);
+  });
+
+  it("keeps one multi-stage provider read on its admitted client generation", async () => {
+    const retiredTransport = createMemoryTransport();
+    const retiredClient = createLyraClient(retiredTransport);
+    const successorTransport = createMemoryTransport();
+    const successorClient = createLyraClient(successorTransport);
+    try {
+      setContainer({ client: () => retiredClient });
+      await loadPluginsForTest(defaultDataProviders);
+      const fetcher = lookupDataProvider("models");
+      if (!fetcher) throw new Error('no provider for "models"');
+
+      const pending = fetcher();
+      const providersRequest = await waitForRequest(retiredTransport, "providers.list");
+      setContainer({ client: () => successorClient });
+      respondSuccess(retiredTransport, providersRequest.id, {
+        data: [{ id: "openai", apiKeyMasked: "sk****42" }],
+      });
+
+      await vi.waitFor(() => {
+        expect(
+          [...retiredTransport.outbox(), ...successorTransport.outbox()].some(
+            ({ method }) => method === "models.list",
+          ),
+        ).toBe(true);
+      });
+      const retiredModelsRequest = retiredTransport
+        .outbox()
+        .find(({ method }) => method === "models.list");
+      const successorModelsRequest = successorTransport
+        .outbox()
+        .find(({ method }) => method === "models.list");
+      const actualTransport = retiredModelsRequest ? retiredTransport : successorTransport;
+      const actualRequest = retiredModelsRequest ?? successorModelsRequest;
+      if (!actualRequest) throw new Error("models.list was not requested");
+      respondSuccess(actualTransport, actualRequest.id, { data: [] });
+      await pending;
+
+      expect(retiredModelsRequest).toBeDefined();
+      expect(successorModelsRequest).toBeUndefined();
+
+      const successorPending = fetcher();
+      const successorProvidersRequest = await waitForRequest(successorTransport, "providers.list");
+      respondSuccess(successorTransport, successorProvidersRequest.id, { data: [] });
+      await successorPending;
+      expect(
+        retiredTransport.outbox().filter(({ method }) => method === "providers.list"),
+      ).toHaveLength(1);
+      expect(
+        successorTransport.outbox().filter(({ method }) => method === "providers.list"),
+      ).toHaveLength(1);
+    } finally {
+      await Promise.all([retiredClient.close(), successorClient.close()]);
+    }
   });
 
   it("models: preserves a Runtime failure instead of presenting an empty catalog", async () => {
