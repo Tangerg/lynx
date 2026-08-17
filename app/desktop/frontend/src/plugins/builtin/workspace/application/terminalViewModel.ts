@@ -1,34 +1,28 @@
 import type { Translate } from "@/lib/i18n";
 import type { WorkspaceCommandActivity } from "./toolActivity";
 
-export interface TerminalViewModel {
-  commands: WorkspaceCommandActivity[];
-  commandCount: number;
-  tailSignature: number;
-  selectedCommandId: string;
-  isEmpty: boolean;
-}
+export class TerminalViewModel {
+  readonly commands: readonly WorkspaceCommandActivity[];
+  readonly commandCount: number;
+  readonly latestCommandId: string;
+  readonly isEmpty: boolean;
 
-export function terminalViewModel(
-  commands: readonly WorkspaceCommandActivity[],
-  selectedToolId = "",
-): TerminalViewModel {
-  let tailSignature = commands.length;
-  for (const command of commands) {
-    tailSignature += command.output.length;
+  private constructor(commands: readonly WorkspaceCommandActivity[]) {
+    this.commands = Object.freeze(commands.map((command) => Object.freeze({ ...command })));
+    this.commandCount = commands.length;
+    this.latestCommandId = commands.at(-1)?.id ?? "";
+    this.isEmpty = commands.length === 0;
   }
 
-  const selectedCommandId = commands.some((command) => command.id === selectedToolId)
-    ? selectedToolId
-    : (commands.at(-1)?.id ?? "");
+  static from(commands: readonly WorkspaceCommandActivity[]): TerminalViewModel {
+    return new TerminalViewModel(commands);
+  }
 
-  return {
-    commands: Array.from(commands),
-    commandCount: commands.length,
-    tailSignature,
-    selectedCommandId,
-    isEmpty: commands.length === 0,
-  };
+  selectedCommandId(selectedToolId: string): string {
+    return this.commands.some((command) => command.id === selectedToolId)
+      ? selectedToolId
+      : this.latestCommandId;
+  }
 }
 
 export function terminalSubtext(

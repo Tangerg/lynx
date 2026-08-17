@@ -3,7 +3,7 @@ import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionToolCalls } from "@/plugins/builtin/agent/public/run";
 import { workspaceCommandActivitiesFromAgentTools } from "../application/toolActivity";
-import { terminalSubtext, terminalViewModel } from "../application/terminalViewModel";
+import { TerminalViewModel, terminalSubtext } from "../application/terminalViewModel";
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -18,16 +18,16 @@ import {
 // just consolidates the command-category tools into one terminal-like surface.
 // (A user-interactive PTY is deliberately out of the runtime's scope, so this is
 // a read-only log of what the agent ran, not an input terminal.)
-function TerminalTab() {
+export function TerminalWorkspaceSurface() {
   const t = useT();
   const toolCalls = useActiveSessionToolCalls();
   const selectedToolId = useSelectedWorkspaceToolId();
   const selectTool = useSelectWorkspaceTool();
   const view = useMemo(
-    () => terminalViewModel(workspaceCommandActivitiesFromAgentTools(toolCalls), selectedToolId),
-    [selectedToolId, toolCalls],
+    () => TerminalViewModel.from(workspaceCommandActivitiesFromAgentTools(toolCalls)),
+    [toolCalls],
   );
-  const latestCommandId = view.commands.at(-1)?.id ?? "";
+  const selectedCommandId = view.selectedCommandId(selectedToolId);
 
   // Terminal semantics: open at the bottom (latest command) and tail live
   // output — but only while the user is pinned to the bottom, so scrolling up
@@ -45,23 +45,23 @@ function TerminalTab() {
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
   useLayoutEffect(() => {
-    if (!view.selectedCommandId) {
+    if (!selectedCommandId) {
       pinnedRef.current = true;
       return;
     }
-    pinnedRef.current = latestCommandId === view.selectedCommandId;
+    pinnedRef.current = view.latestCommandId === selectedCommandId;
     scrollRef.current
       ?.querySelector<HTMLElement>("[data-command-selected]")
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [latestCommandId, view.selectedCommandId]);
+  }, [selectedCommandId, view.latestCommandId]);
   useEffect(() => {
-    if (view.selectedCommandId !== selectedToolId) selectTool(view.selectedCommandId);
-  }, [selectTool, selectedToolId, view.selectedCommandId]);
+    if (selectedCommandId !== selectedToolId) selectTool(selectedCommandId);
+  }, [selectTool, selectedCommandId, selectedToolId]);
   useEffect(() => {
     if (!pinnedRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [view.tailSignature]);
+  }, [view]);
 
   return (
     <WorkspaceViewLayout
@@ -77,7 +77,7 @@ function TerminalTab() {
           sub={t("terminal.empty.sub")}
         />
       ) : (
-        <CommandLog commands={view.commands} selectedCommandId={view.selectedCommandId} />
+        <CommandLog commands={view.commands} selectedCommandId={selectedCommandId} />
       )}
     </WorkspaceViewLayout>
   );
@@ -89,5 +89,5 @@ export const terminalView = defineWorkspaceView({
   icon: "terminal",
   order: 60,
   splittable: true,
-  component: TerminalTab,
+  component: TerminalWorkspaceSurface,
 });
