@@ -17,7 +17,10 @@ import { installAgentDefaultSessionPort } from "@/plugins/builtin/agent/adapters
 import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
 import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentStatePorts";
 import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/adapters/composerStatePorts";
-import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeCapabilityStore";
+import {
+  installRuntimeCapabilityPort,
+  resetRuntimeConnectionForTest,
+} from "@/plugins/builtin/runtime/adapters/runtimeConnectionProjection";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 
 // Before the ports: installing them subscribes to the location.
@@ -43,6 +46,7 @@ beforeEach(async () => {
   installAgentRuntimeGateway();
   installComposerStatePorts();
   installWorkspaceNavigationPort();
+  resetRuntimeConnectionForTest();
   installRuntimeCapabilityPort();
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });

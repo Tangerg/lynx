@@ -9,10 +9,13 @@ import {
   type ReadinessStatus,
   type SidecarClient,
 } from "@/rpc";
-import { useRuntimeStore } from "./adapters/runtimeCapabilityStore";
-import { useRuntimeServiceStore } from "./adapters/runtimeServiceStore";
+import {
+  resetRuntimeConnectionForTest,
+  useRuntimeConnectionStore,
+} from "./adapters/runtimeConnectionProjection";
 import runtimePlugin from "./index";
 import { removeInstallation } from "@/plugins/sdk/kernel";
+import { startKernel, stopKernel } from "@/plugins/sdk/bootstrap";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 
 // Typed, not cast. What this test asserts is that discovery reaches the store at
@@ -77,8 +80,7 @@ function stubContainer(
 afterEach(async () => {
   await resetKernelForTest();
   resetContainer();
-  useRuntimeStore.getState().clear();
-  useRuntimeServiceStore.getState().clear();
+  resetRuntimeConnectionForTest();
   vi.restoreAllMocks();
 });
 
@@ -90,7 +92,7 @@ describe("runtime plugin", () => {
     await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
-      expect(useRuntimeStore.getState().capabilities).not.toBeNull();
+      expect(useRuntimeConnectionStore.getState().capabilities).not.toBeNull();
     });
     expect(discover).toHaveBeenCalledOnce();
   });
@@ -102,7 +104,7 @@ describe("runtime plugin", () => {
     await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
-      expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("ready");
+      expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
     });
     expect(sidecar.info).toHaveBeenCalledOnce();
     expect(sidecar.liveness).toHaveBeenCalledOnce();
@@ -117,7 +119,7 @@ describe("runtime plugin", () => {
     await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
-      expect(useRuntimeServiceStore.getState().snapshot).toMatchObject({
+      expect(useRuntimeConnectionStore.getState().service).toMatchObject({
         phase: "unavailable",
         failure: { reason: "failed", detail: "connection refused" },
       });
@@ -125,18 +127,18 @@ describe("runtime plugin", () => {
   });
 
   it("degrades without publishing stale capabilities when discovery fails", async () => {
-    useRuntimeStore.getState().replace(discovery.capabilities);
+    useRuntimeConnectionStore.setState({ capabilities: discovery.capabilities });
     stubContainer(vi.fn().mockRejectedValue(new Error("method not found")));
 
     await loadPluginsForTest(runtimePlugin);
 
     await vi.waitFor(() => {
-      expect(useRuntimeServiceStore.getState().snapshot).toMatchObject({
+      expect(useRuntimeConnectionStore.getState().service).toMatchObject({
         phase: "unavailable",
         failure: { reason: "failed", detail: "method not found" },
       });
     });
-    expect(useRuntimeStore.getState().capabilities).toBeNull();
+    expect(useRuntimeConnectionStore.getState().capabilities).toBeNull();
   });
 
   it("does not publish a discovery result after the plugin is unloaded", async () => {
@@ -157,7 +159,7 @@ describe("runtime plugin", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(useRuntimeStore.getState().capabilities).toBeNull();
+    expect(useRuntimeConnectionStore.getState().capabilities).toBeNull();
   });
 
   it("automatically rediscovers and republishes capabilities after a cold-start outage", async () => {
@@ -171,13 +173,13 @@ describe("runtime plugin", () => {
 
       await loadPluginsForTest(runtimePlugin);
       await vi.advanceTimersByTimeAsync(0);
-      expect(useRuntimeStore.getState().capabilities).toBeNull();
-      expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("unavailable");
+      expect(useRuntimeConnectionStore.getState().capabilities).toBeNull();
+      expect(useRuntimeConnectionStore.getState().service.phase).toBe("unavailable");
 
       await vi.advanceTimersByTimeAsync(1_000);
       expect(discover).toHaveBeenCalledTimes(2);
-      expect(useRuntimeStore.getState().capabilities).toEqual(discovery.capabilities);
-      expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("ready");
+      expect(useRuntimeConnectionStore.getState().capabilities).toEqual(discovery.capabilities);
+      expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
     } finally {
       vi.useRealTimers();
     }
@@ -202,10 +204,36 @@ describe("runtime plugin", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(useRuntimeServiceStore.getState().snapshot).toEqual({
+    expect(useRuntimeConnectionStore.getState().service).toEqual({
       phase: "checking",
       observation: null,
       failure: null,
     });
+  });
+
+  it("does not let a retired Runtime installation clear its successor projection", async () => {
+    stubContainer(vi.fn().mockResolvedValue(discovery));
+    const retired = await startKernel([runtimePlugin]);
+    let successor: Awaited<ReturnType<typeof startKernel>> | undefined;
+    try {
+      await vi.waitFor(() => {
+        expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
+      });
+
+      stubContainer(vi.fn().mockResolvedValue(discovery));
+      successor = await startKernel([runtimePlugin]);
+      await vi.waitFor(() => {
+        expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
+        expect(useRuntimeConnectionStore.getState().capabilities).toEqual(discovery.capabilities);
+      });
+
+      await stopKernel(retired);
+
+      expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
+      expect(useRuntimeConnectionStore.getState().capabilities).toEqual(discovery.capabilities);
+    } finally {
+      if (successor) await stopKernel(successor);
+      else await stopKernel(retired);
+    }
   });
 });

@@ -9,8 +9,6 @@ export interface RuntimeCapabilityPort {
   /** What the server advertised, or null before discovery. */
   negotiated(): ServerCapabilities | null;
   subscribe(onChange: () => void): () => void;
-  replace(capabilities: ServerCapabilities): void;
-  clear(): void;
 }
 
 const port = createSingletonPort<RuntimeCapabilityPort>(

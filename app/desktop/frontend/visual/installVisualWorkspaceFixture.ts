@@ -1,7 +1,7 @@
 import { queryClient } from "@/lib/queryClient";
 import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 import shortcutsSettings from "@/plugins/builtin/command/shortcuts";
-import { useRuntimeStore } from "@/plugins/builtin/runtime/adapters/runtimeCapabilityStore";
+import { useRuntimeConnectionStore } from "@/plugins/builtin/runtime/adapters/runtimeConnectionProjection";
 import { kernelSettings } from "@/plugins/builtin/shell/kernel";
 import appearanceSettings from "@/plugins/builtin/settings/appearance";
 import providersSettings from "@/plugins/builtin/settings/providers";
@@ -439,7 +439,7 @@ export async function installVisualWorkspaceFixture(
   );
 
   installWorkspaceErrorClassifier();
-  useRuntimeStore.getState().replace(VISUAL_CAPABILITIES);
+  useRuntimeConnectionStore.setState({ capabilities: VISUAL_CAPABILITIES });
   queryClient.setQueryDefaults([WORKSPACE_DIFF_KEY], {
     retry: false,
     staleTime: Infinity,
