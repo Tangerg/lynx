@@ -3,6 +3,7 @@ import { PillButton, Pressable, Surface, TextArea, TextField } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   createSchedule,
+  scheduleMutationWasRetired,
   updateSchedule,
   type ScheduleConfig,
 } from "../application/scheduleCommands";
@@ -51,6 +52,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
       }
       onDone();
     } catch (err) {
+      if (scheduleMutationWasRetired(err)) return;
       notifyError(rpcErrorText(err) ?? t("schedules.error.save"));
     } finally {
       setBusy(false);

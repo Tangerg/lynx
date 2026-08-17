@@ -4,6 +4,7 @@ import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   deleteSchedule,
   runScheduleNow,
+  scheduleMutationWasRetired,
   setScheduleEnabled,
   type ScheduleConfig,
 } from "../application/scheduleCommands";
@@ -54,6 +55,7 @@ export function ScheduleRow({ schedule }: { schedule: ScheduleConfig }) {
     try {
       await fn();
     } catch (err) {
+      if (scheduleMutationWasRetired(err)) return;
       notifyError(rpcErrorText(err) ?? t("schedules.error.save"));
     }
   };

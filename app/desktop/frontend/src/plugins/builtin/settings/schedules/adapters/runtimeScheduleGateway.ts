@@ -1,7 +1,6 @@
 import { getContainer } from "@/main/container";
-import type { CreateScheduleRequest, Schedule } from "@/rpc";
-import { configureScheduleGateway } from "../application/ports/scheduleGateway";
-import type { ScheduleGateway } from "../application/ports/scheduleGateway";
+import type { CreateScheduleRequest, LyraClient, Schedule } from "@/rpc";
+import { ScheduleMutationOwner, type ScheduleGateway } from "../application/scheduleCommands";
 import type { ScheduleConfig, ScheduleConfigInput } from "../application/scheduleConfig";
 
 function scheduleInput(input: ScheduleConfigInput): CreateScheduleRequest {
@@ -21,41 +20,52 @@ function scheduleConfig(schedule: Schedule): ScheduleConfig {
   };
 }
 
-const gateway: ScheduleGateway = {
-  async create(input) {
-    return scheduleConfig(await getContainer().client().schedules.create(scheduleInput(input)));
-  },
-  async update(input) {
-    return scheduleConfig(
-      await getContainer()
-        .client()
-        .schedules.update({
+function runtimeScheduleGateway(client: LyraClient): ScheduleGateway {
+  return {
+    async create(input) {
+      return scheduleConfig(await client.schedules.create(scheduleInput(input)));
+    },
+    async update(input) {
+      return scheduleConfig(
+        await client.schedules.update({
           ...scheduleInput(input),
           ...(input.cwd ? {} : { workspaceMode: "default" }),
           id: input.id,
           expectedRevision: input.revision,
           enabled: input.enabled,
         }),
-    );
-  },
-  async setEnabled(schedule, enabled) {
-    return scheduleConfig(
-      await getContainer().client().schedules.update({
-        id: schedule.id,
-        expectedRevision: schedule.revision,
-        enabled,
-      }),
-    );
-  },
-  async remove(id) {
-    await getContainer().client().schedules.delete(id);
-  },
-  async runNow(id) {
-    const run = await getContainer().client().schedules.runNow(id);
-    return { sessionId: run.sessionId, runId: run.runId };
-  },
-};
+      );
+    },
+    async setEnabled(schedule, enabled) {
+      return scheduleConfig(
+        await client.schedules.update({
+          id: schedule.id,
+          expectedRevision: schedule.revision,
+          enabled,
+        }),
+      );
+    },
+    async remove(id) {
+      await client.schedules.delete(id);
+    },
+    async runNow(id) {
+      const run = await client.schedules.runNow(id);
+      return { sessionId: run.sessionId, runId: run.runId };
+    },
+  };
+}
 
-export function installScheduleGateway(): () => void {
-  return configureScheduleGateway(gateway);
+export interface ScheduleGatewayInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installScheduleGateway(): ScheduleGatewayInstallation {
+  const owner = ScheduleMutationOwner.install(runtimeScheduleGateway(getContainer().client()));
+  return {
+    replaceRuntimeGeneration: () => owner.replaceRuntimeGeneration(),
+    dispose() {
+      owner.dispose();
+    },
+  };
 }
