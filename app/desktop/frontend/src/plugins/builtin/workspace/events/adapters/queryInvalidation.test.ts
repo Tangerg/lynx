@@ -226,7 +226,7 @@ describe("workspace session projection invalidation", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(controller.signal);
+    const run = loop.start(controller.signal, "connection_1");
     await latest;
     controller.abort();
     await run;

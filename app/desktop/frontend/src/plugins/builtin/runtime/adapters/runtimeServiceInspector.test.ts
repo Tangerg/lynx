@@ -70,7 +70,7 @@ describe("runtime service inspector", () => {
     const signal = new AbortController().signal;
 
     await expect(runtimeServiceInspector().inspect(signal)).resolves.toEqual({
-      generation: "runtime_1",
+      processGeneration: "runtime_1",
       service: {
         server: { name: "lyra", version: "1.2.3" },
         protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },

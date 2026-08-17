@@ -35,15 +35,15 @@ export default definePlugin({
       subscribe: ({ target, signal }) => subscribeRuntimeWorkspaceEvents(target, signal),
       handleEvent: invalidateWorkspaceEvent,
       invalidateAll: invalidateWorkspaceEverything,
-      reportDisconnect: () => {
-        void ctx.runtime.verifyServiceConnection();
+      reportDisconnect: (connectionGeneration) => {
+        void ctx.runtime.reportConnectionLoss(connectionGeneration);
       },
     });
 
     const disposeProjectIndex = installProjectIndexRefresh();
     const disposeSubscription = startWorkspaceEventSubscription({
       canSubscribe: canSubscribeWorkspaceEvents,
-      runtimeGeneration: ctx.runtime.runtimeGeneration,
+      connectionGeneration: ctx.runtime.connectionGeneration,
       subscribeConnection: ctx.runtime.subscribeConnection,
       retireReadModels: () => {
         ctx.mutationLifecycle.replaceRuntimeGeneration();

@@ -5,12 +5,11 @@ import type {
   RuntimeConnectionInspector,
 } from "../application/runtimeService";
 import { runtimeCapabilities } from "../application/ports/capabilities";
+import { runtimeServiceStatus } from "../application/ports/serviceStatus";
 import {
   resetRuntimeConnectionForTest,
-  runtimeConnectionGeneration,
   runtimeSupportsTopic,
   startRuntimeConnection,
-  subscribeRuntimeConnection,
   useRuntimeConnectionStore,
   useServerFeature,
 } from "./runtimeConnectionProjection";
@@ -58,7 +57,7 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
 
 function inspection(capabilities = makeCaps()): RuntimeConnectionInspection<ServerCapabilities> {
   return {
-    generation: "runtime_1",
+    processGeneration: "runtime_1",
     capabilities,
     service: {
       server: { name: "lyra", version: "1.2.3" },
@@ -76,7 +75,8 @@ describe("runtime connection projection", () => {
 
   it("starts empty before discovery", () => {
     expect(useRuntimeConnectionStore.getState()).toMatchObject({
-      generation: null,
+      connectionGeneration: null,
+      processGeneration: null,
       capabilities: null,
       service: { phase: "checking" },
     });
@@ -94,17 +94,40 @@ describe("runtime connection projection", () => {
     expect(typeof useServerFeature).toBe("function");
   });
 
-  it("publishes process generation changes even when capabilities keep the same identity", () => {
+  it("publishes process generation changes even when capabilities keep the same identity", async () => {
     const capabilities = makeCaps();
     const changed = vi.fn();
-    const unsubscribe = subscribeRuntimeConnection(changed);
+    let settleInspection: (value: RuntimeConnectionInspection<ServerCapabilities>) => void = () =>
+      undefined;
+    const owner = startRuntimeConnection({
+      inspect: vi.fn(
+        () =>
+          new Promise<RuntimeConnectionInspection<ServerCapabilities>>((resolve) => {
+            settleInspection = resolve;
+          }),
+      ),
+    });
+    const unsubscribe = owner.subscribeConnection(changed);
 
-    useRuntimeConnectionStore.setState({ generation: "runtime_retired", capabilities });
-    useRuntimeConnectionStore.setState({ generation: "runtime_successor", capabilities });
+    useRuntimeConnectionStore.setState({
+      connectionGeneration: "connection_retired",
+      processGeneration: "runtime_retired",
+      capabilities,
+    });
+    useRuntimeConnectionStore.setState({
+      connectionGeneration: "connection_successor",
+      processGeneration: "runtime_successor",
+      capabilities,
+    });
 
     expect(changed).toHaveBeenCalledTimes(2);
-    expect(runtimeConnectionGeneration()).toBe("runtime_successor");
+    expect(owner.connectionGeneration()).toBe("connection_successor");
     unsubscribe();
+    settleInspection(inspection());
+    await vi.waitFor(() =>
+      expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready"),
+    );
+    owner.dispose();
   });
 
   it("retires an old inspector and keeps its late result and disposer out of the successor", async () => {
@@ -121,6 +144,8 @@ describe("runtime connection projection", () => {
       ),
     };
     const retired = startRuntimeConnection(retiredInspector);
+    const retiredChanges = vi.fn();
+    const unsubscribeRetired = retired.subscribeConnection(retiredChanges);
     const successorCapabilities = makeCaps({ runtimeTopics: ["mcp.changed"] });
     const successor = startRuntimeConnection({
       inspect: vi.fn().mockResolvedValue(inspection(successorCapabilities)),
@@ -138,10 +163,18 @@ describe("runtime connection projection", () => {
 
     expect(useRuntimeConnectionStore.getState().capabilities).toBe(successorCapabilities);
     expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
+    const successorGeneration = successor.connectionGeneration();
+    expect(successorGeneration).not.toBeNull();
+    expect(retired.connectionGeneration()).toBeNull();
+    await retired.reportConnectionLoss(successorGeneration!);
+    expect(successor.connectionGeneration()).toBe(successorGeneration);
+    expect(retiredChanges).not.toHaveBeenCalled();
+    unsubscribeRetired();
 
     successor.dispose();
     expect(useRuntimeConnectionStore.getState()).toMatchObject({
-      generation: null,
+      connectionGeneration: null,
+      processGeneration: null,
       capabilities: null,
       service: { phase: "checking" },
     });
@@ -163,6 +196,81 @@ describe("runtime connection projection", () => {
 
     expect(observed).not.toContainEqual({ phase: "ready", hasCapabilities: false });
     expect(observed.at(-1)).toEqual({ phase: "ready", hasCapabilities: true });
+    unsubscribe();
+    owner.dispose();
+  });
+
+  it("keeps one connection generation across healthy inspections of the same process", async () => {
+    const inspector = { inspect: vi.fn().mockResolvedValue(inspection()) };
+    const owner = startRuntimeConnection(inspector);
+    await vi.waitFor(() => expect(owner.connectionGeneration()).not.toBeNull());
+    const admitted = owner.connectionGeneration();
+
+    await runtimeServiceStatus().refresh();
+
+    expect(inspector.inspect).toHaveBeenCalledTimes(2);
+    expect(owner.connectionGeneration()).toBe(admitted);
+    owner.dispose();
+  });
+
+  it("withdraws a lost event-stream generation before its verification settles", async () => {
+    let settleRetiredInspection: (
+      value: RuntimeConnectionInspection<ServerCapabilities>,
+    ) => void = () => undefined;
+    let settleRecovery: (value: RuntimeConnectionInspection<ServerCapabilities>) => void = () =>
+      undefined;
+    const signals: AbortSignal[] = [];
+    const inspector: RuntimeConnectionInspector<ServerCapabilities> = {
+      inspect: vi
+        .fn<RuntimeConnectionInspector<ServerCapabilities>["inspect"]>()
+        .mockResolvedValueOnce(inspection())
+        .mockImplementationOnce(
+          (signal) =>
+            new Promise<RuntimeConnectionInspection<ServerCapabilities>>((resolve) => {
+              signals.push(signal);
+              settleRetiredInspection = resolve;
+            }),
+        )
+        .mockImplementationOnce(
+          (signal) =>
+            new Promise<RuntimeConnectionInspection<ServerCapabilities>>((resolve) => {
+              signals.push(signal);
+              settleRecovery = resolve;
+            }),
+        ),
+    };
+    const owner = startRuntimeConnection(inspector);
+    await vi.waitFor(() => expect(owner.connectionGeneration()).not.toBeNull());
+    const predecessorGeneration = owner.connectionGeneration()!;
+    const connectionChanges = vi.fn();
+    const unsubscribe = owner.subscribeConnection(connectionChanges);
+    const retiredInspection = runtimeServiceStatus().refresh();
+    await vi.waitFor(() => expect(inspector.inspect).toHaveBeenCalledTimes(2));
+
+    const recovery = owner.reportConnectionLoss(predecessorGeneration);
+    await Promise.resolve();
+
+    expect(inspector.inspect).toHaveBeenCalledTimes(3);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(owner.connectionGeneration()).toBeNull();
+
+    settleRetiredInspection(inspection());
+    await retiredInspection;
+    await Promise.resolve();
+    expect(owner.connectionGeneration()).toBeNull();
+
+    // The Runtime process survived, but the recovered transport/event tail is a
+    // distinct connection generation.
+    settleRecovery(inspection());
+    await recovery;
+    const successorGeneration = owner.connectionGeneration();
+    expect(successorGeneration).not.toBeNull();
+    expect(successorGeneration).not.toBe(predecessorGeneration);
+    expect(connectionChanges).toHaveBeenCalledTimes(2);
+
+    await owner.reportConnectionLoss(predecessorGeneration);
+    expect(owner.connectionGeneration()).toBe(successorGeneration);
+    expect(connectionChanges).toHaveBeenCalledTimes(2);
     unsubscribe();
     owner.dispose();
   });

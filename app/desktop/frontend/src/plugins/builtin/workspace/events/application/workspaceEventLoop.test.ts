@@ -31,7 +31,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(controller.signal);
+    const run = loop.start(controller.signal, "connection_1");
     await done;
     controller.abort();
     await run;
@@ -61,7 +61,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(controller.signal);
+    const run = loop.start(controller.signal, "connection_1");
     await received;
     controller.abort();
     await run;
@@ -96,7 +96,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(controller.signal);
+    const run = loop.start(controller.signal, "connection_1");
     await done;
     controller.abort();
     await run;
@@ -136,7 +136,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(controller.signal);
+    const run = loop.start(controller.signal, "connection_1");
     await done;
     controller.abort();
     await run;
@@ -169,7 +169,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await reached;
 
     reached = new Promise<void>((resolve) => {
@@ -205,11 +205,14 @@ describe("workspace event loop", () => {
       reportDisconnect,
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await vi.advanceTimersByTimeAsync(0);
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(reportDisconnect).toHaveBeenCalledOnce();
-    expect(reportDisconnect).toHaveBeenCalledWith(expect.objectContaining({ message: "offline" }));
+    expect(reportDisconnect).toHaveBeenCalledWith(
+      "connection_1",
+      expect.objectContaining({ message: "offline" }),
+    );
     expect(subscribe.mock.calls[0]?.[0].target).toEqual({ type: "none" });
 
     loop.retarget({ type: "workspace", cwd: "/new-repo" });
@@ -240,14 +243,37 @@ describe("workspace event loop", () => {
       reportDisconnect,
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await vi.advanceTimersByTimeAsync(0);
 
     expect(reportDisconnect).toHaveBeenCalledOnce();
-    expect(reportDisconnect).toHaveBeenCalledWith(undefined);
+    expect(reportDisconnect).toHaveBeenCalledWith("connection_1", undefined);
     outer.abort();
     await vi.advanceTimersByTimeAsync(0);
     await run;
+  });
+
+  it("does not retain a reconnect timer after connection withdrawal aborts its generation", async () => {
+    vi.useFakeTimers();
+    const outer = new AbortController();
+    const subscribe = vi.fn().mockResolvedValue(
+      (async function* () {
+        yield* [];
+      })(),
+    );
+    const loop = createWorkspaceEventLoop({
+      subscribe,
+      handleEvent: vi.fn(),
+      invalidateAll: vi.fn(),
+      reportDisconnect: () => outer.abort(),
+    });
+
+    const run = loop.start(outer.signal, "connection_retired");
+    await vi.advanceTimersByTimeAsync(0);
+    await run;
+
+    expect(subscribe).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("terminates a subscription opening that never settles", async () => {
@@ -271,13 +297,14 @@ describe("workspace event loop", () => {
       openingTimeoutMs: 50,
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await vi.advanceTimersByTimeAsync(49);
     expect(reportDisconnect).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
     expect(openingSignal?.aborted).toBe(true);
     expect(reportDisconnect).toHaveBeenCalledWith(
+      "connection_1",
       expect.objectContaining({
         name: "WorkspaceEventOpeningTimeoutError",
         message: "runtime_event_subscription_opening_timeout",
@@ -318,7 +345,7 @@ describe("workspace event loop", () => {
       openingTimeoutMs: 50,
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await vi.advanceTimersByTimeAsync(0);
     expect(invalidateAll).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(500);
@@ -359,7 +386,7 @@ describe("workspace event loop", () => {
       openingTimeoutMs: 50,
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await vi.advanceTimersByTimeAsync(50);
     expect(reportDisconnect).toHaveBeenCalledOnce();
     resolveRetired(
@@ -408,7 +435,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await Promise.resolve();
     loop.retarget({ type: "workspace", cwd: "/new-repo" });
     await newSubscription;
@@ -445,7 +472,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await vi.waitFor(() => expect(subscribed).toHaveLength(1));
     loop.retarget({ type: "workspace", cwd: "/new-repo" });
     try {
@@ -502,7 +529,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await vi.waitFor(() => expect(releaseNext).toBeTypeOf("function"));
     loop.retarget({ type: "workspace", cwd: "/new-repo" });
     try {
@@ -551,7 +578,7 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const run = loop.start(outer.signal);
+    const run = loop.start(outer.signal, "connection_1");
     await Promise.resolve();
     loop.retarget({ type: "workspace", cwd: "/new-repo" });
     resolveOld(
@@ -593,10 +620,10 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const firstRun = loop.start(first.signal);
+    const firstRun = loop.start(first.signal, "connection_1");
     await Promise.resolve();
     first.abort();
-    const secondRun = loop.start(second.signal);
+    const secondRun = loop.start(second.signal, "connection_2");
     await secondOpened;
     loop.retarget({ type: "workspace", cwd: "/recovered" });
     await vi.waitFor(() => expect(subscribed).toContain("/recovered"));
@@ -631,9 +658,9 @@ describe("workspace event loop", () => {
       reportDisconnect: vi.fn(),
     });
 
-    const firstRun = loop.start(first.signal);
+    const firstRun = loop.start(first.signal, "connection_1");
     await vi.waitFor(() => expect(subscriptionSignals).toHaveLength(1));
-    const secondRun = loop.start(second.signal);
+    const secondRun = loop.start(second.signal, "connection_2");
     await twice;
 
     expect(first.signal.aborted).toBe(false);

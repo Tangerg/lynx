@@ -20,7 +20,7 @@ const observation: RuntimeServiceObservation = {
 };
 
 const inspection: RuntimeConnectionInspection<ServerCapabilities> = {
-  generation: "runtime_1",
+  processGeneration: "runtime_1",
   service: observation,
   capabilities: {
     runEvents: [],
@@ -89,14 +89,14 @@ describe("runtime service controller", () => {
     expect(target.replace).toHaveBeenCalledWith(inspection);
   });
 
-  it("silently verifies a consumer-reported connection loss", async () => {
+  it("silently recovers a consumer-reported connection loss", async () => {
     const inspector: RuntimeConnectionInspector<ServerCapabilities> = {
       inspect: vi.fn().mockRejectedValue(new Error("connection refused")),
     };
     const target = sink();
     const controller = createRuntimeServiceController(inspector, target);
 
-    await controller.verify();
+    await controller.recover();
 
     expect(target.checking).not.toHaveBeenCalled();
     expect(target.unavailable).toHaveBeenCalledWith({
@@ -105,7 +105,7 @@ describe("runtime service controller", () => {
     });
   });
 
-  it("takes a fresh verification snapshot after an older inspection settles", async () => {
+  it("supersedes an older inspection before starting recovery", async () => {
     let settle: (value: RuntimeConnectionInspection<ServerCapabilities>) => void = () => undefined;
     const inspector: RuntimeConnectionInspector<ServerCapabilities> = {
       inspect: vi
@@ -122,14 +122,15 @@ describe("runtime service controller", () => {
     const controller = createRuntimeServiceController(inspector, target);
 
     const older = controller.refresh();
-    const verification = controller.verify();
-    expect(inspector.inspect).toHaveBeenCalledOnce();
-    settle(inspection);
+    const recovery = controller.recover();
+    expect(inspector.inspect).toHaveBeenCalledTimes(2);
     await older;
-    await verification;
+    settle(inspection);
+    await recovery;
+    await Promise.resolve();
 
     expect(inspector.inspect).toHaveBeenCalledTimes(2);
-    expect(target.replace).toHaveBeenCalledWith(inspection);
+    expect(target.replace).not.toHaveBeenCalled();
     expect(target.unavailable).toHaveBeenCalledWith({
       reason: "failed",
       detail: "connection refused",

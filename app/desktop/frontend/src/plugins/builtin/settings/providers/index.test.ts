@@ -31,12 +31,12 @@ describe("providers plugin Runtime generation wiring", () => {
       setup() {
         return {
           stream: {
-            runtimeGeneration: () => generation,
+            connectionGeneration: () => generation,
             subscribeConnection(onChange: () => void) {
               subscribers.add(onChange);
               return () => subscribers.delete(onChange);
             },
-            verifyServiceConnection: vi.fn(),
+            reportConnectionLoss: vi.fn(),
           },
         };
       },

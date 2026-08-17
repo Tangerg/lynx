@@ -21,12 +21,12 @@ export interface WorkspaceEventLoopDeps {
   }): Promise<AsyncIterable<WorkspaceEventLike>>;
   handleEvent(ev: WorkspaceEventLike): void;
   invalidateAll(): void;
-  reportDisconnect(error?: unknown): void;
+  reportDisconnect(connectionGeneration: string, error?: unknown): void;
   openingTimeoutMs?: number;
 }
 
 export interface WorkspaceEventLoop {
-  start(signal: AbortSignal): Promise<void>;
+  start(signal: AbortSignal, connectionGeneration: string): Promise<void>;
   retarget(target: WorkspaceWatchTarget): void;
 }
 
@@ -51,7 +51,7 @@ export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): Workspac
   let generation = 0;
 
   return {
-    start(signal) {
+    start(signal, connectionGeneration) {
       // The loop itself owns the one active subscription generation. Callers
       // normally withdraw capability before restarting, but correctness must
       // not depend on that ordering: a repeated start atomically supersedes
@@ -66,6 +66,7 @@ export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): Workspac
       return subscribeLoop(
         deps,
         cohort.signal,
+        connectionGeneration,
         () => watchTarget,
         (next) => {
           if (generation === ownGeneration) iterAbort = next;
@@ -88,6 +89,7 @@ export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): Workspac
 async function subscribeLoop(
   deps: WorkspaceEventLoopDeps,
   signal: AbortSignal,
+  connectionGeneration: string,
   watchTarget: () => WorkspaceWatchTarget,
   setIterAbort: (controller: AbortController | null) => void,
 ): Promise<void> {
@@ -155,9 +157,13 @@ async function subscribeLoop(
       continue;
     }
     // An RPC stream ending without outer cancellation is also a connection
-    // signal. Let the Runtime context verify and withdraw capabilities promptly
+    // signal. Let the Runtime context withdraw this exact connection and recover
     // instead of allowing this consumer to guess global connection health.
-    deps.reportDisconnect(failure);
+    deps.reportDisconnect(connectionGeneration, failure);
+    // The connection owner withdraws the generation synchronously. That aborts
+    // this exact loop before its asynchronous recovery inspection begins; do not
+    // leave a predecessor reconnect timer behind that boundary.
+    if (signal.aborted) return;
     const backoff = new AbortController();
     setIterAbort(backoff);
     const abortBackoff = () => backoff.abort();
@@ -297,6 +303,10 @@ function settleWithinTurn<T>(operation: Promise<T>): Promise<TurnSettlement<T>> 
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
     const timer = setTimeout(done, ms);
     function done(): void {
       clearTimeout(timer);

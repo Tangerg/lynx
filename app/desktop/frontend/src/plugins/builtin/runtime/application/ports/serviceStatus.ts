@@ -13,7 +13,6 @@ export interface RuntimeServiceStatusPort {
   useSnapshot(): RuntimeServiceSnapshot;
   snapshot(): RuntimeServiceSnapshot;
   refresh(): Promise<void>;
-  verify(): Promise<void>;
 }
 
 const port = createSingletonPort<RuntimeServiceStatusPort>(

@@ -11,11 +11,11 @@ export default definePlugin({
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = runtimeRunsGateway();
-    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    let connectionGeneration = ctx.runtime.connectionGeneration();
     const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
-      const next = ctx.runtime.runtimeGeneration();
-      if (next === runtimeGeneration) return;
-      runtimeGeneration = next;
+      const next = ctx.runtime.connectionGeneration();
+      if (next === connectionGeneration) return;
+      connectionGeneration = next;
       gateway.replaceRuntimeGeneration();
     });
     ctx.contribute(

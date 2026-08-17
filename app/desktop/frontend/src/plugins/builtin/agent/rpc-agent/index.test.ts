@@ -131,12 +131,12 @@ class RuntimeGenerationFixture {
       provides: { stream: RUNTIME_STREAM_PORTS },
       setup: () => ({
         stream: {
-          runtimeGeneration: () => this.#generation,
+          connectionGeneration: () => this.#generation,
           subscribeConnection: (onChange: () => void) => {
             this.#subscribers.add(onChange);
             return () => this.#subscribers.delete(onChange);
           },
-          verifyServiceConnection: vi.fn(),
+          reportConnectionLoss: vi.fn(),
         },
       }),
     });

@@ -46,7 +46,7 @@ function assertRuntimeIdentity(info: RuntimeInfo, discovery: DiscoverResponse): 
   }
 }
 
-function assertRuntimeGeneration(
+function assertRuntimeProcessGeneration(
   info: RuntimeInfo,
   liveness: LivenessStatus,
   readiness: ReadinessStatus,
@@ -88,7 +88,12 @@ export function runtimeServiceInspector(): RuntimeConnectionInspector<ServerCapa
       }
       assertEndpointIdentity(info);
       assertRuntimeIdentity(info, discovery);
-      const generation = assertRuntimeGeneration(info, liveness, readiness, discovery);
+      const processGeneration = assertRuntimeProcessGeneration(
+        info,
+        liveness,
+        readiness,
+        discovery,
+      );
       if (liveness.status !== "ok") throw new Error("Runtime liveness check failed");
 
       const checks: RuntimeServiceObservation["checks"] = {};
@@ -96,7 +101,7 @@ export function runtimeServiceInspector(): RuntimeConnectionInspector<ServerCapa
         checks[name] = serviceHealth(health);
       }
       return {
-        generation,
+        processGeneration,
         service: {
           server: { name: info.server.name, version: info.server.version },
           protocol: {

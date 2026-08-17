@@ -4,9 +4,9 @@
 import { service } from "dougong";
 
 export interface RuntimeStreamPorts {
-  runtimeGeneration: () => string | null;
+  connectionGeneration: () => string | null;
   subscribeConnection: (onChange: () => void) => () => void;
-  verifyServiceConnection: () => Promise<void>;
+  reportConnectionLoss: (expectedGeneration: string) => Promise<void>;
 }
 
 export const RUNTIME_STREAM_PORTS = service<RuntimeStreamPorts>("lyra.runtime.streamPorts");

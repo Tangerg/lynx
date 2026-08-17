@@ -5,7 +5,7 @@ export type WorkspaceCwdResolution =
 
 export interface WorkspaceEventSubscriptionPorts {
   canSubscribe: () => boolean;
-  runtimeGeneration: () => string | null;
+  connectionGeneration: () => string | null;
   subscribeConnection: (onChange: () => void) => () => void;
   retireReadModels: () => void;
   resolveWorkspaceCwd: (signal: AbortSignal) => Promise<WorkspaceCwdResolution>;
@@ -16,7 +16,7 @@ export interface WorkspaceEventSubscriptionPorts {
 
 class RuntimeEventLoopOwner {
   #observedConnection = false;
-  #generation: string | null = null;
+  #connectionGeneration: string | null = null;
   #abort: AbortController | null = null;
 
   constructor(
@@ -24,9 +24,10 @@ class RuntimeEventLoopOwner {
     private readonly retireReadModels: () => void,
   ) {}
 
-  reconcile(generation: string | null, canSubscribe: boolean): void {
-    const generationChanged = this.#observedConnection && this.#generation !== generation;
-    const shouldStream = generation !== null && canSubscribe;
+  reconcile(connectionGeneration: string | null, canSubscribe: boolean): void {
+    const generationChanged =
+      this.#observedConnection && this.#connectionGeneration !== connectionGeneration;
+    const shouldStream = connectionGeneration !== null && canSubscribe;
     if (this.#observedConnection && !generationChanged && (this.#abort !== null) === shouldStream)
       return;
 
@@ -38,12 +39,12 @@ class RuntimeEventLoopOwner {
     this.#abort?.abort();
     this.#abort = null;
     this.#observedConnection = true;
-    this.#generation = generation;
+    this.#connectionGeneration = connectionGeneration;
     if (!shouldStream) return;
 
     const abort = new AbortController();
     this.#abort = abort;
-    void this.loop.start(abort.signal);
+    void this.loop.start(abort.signal, connectionGeneration);
   }
 
   dispose(): void {
@@ -120,7 +121,7 @@ export function startWorkspaceEventSubscription(
 
   const reconcileConnection = (): void => {
     if (controller.signal.aborted) return;
-    eventLoop.reconcile(ports.runtimeGeneration(), ports.canSubscribe());
+    eventLoop.reconcile(ports.connectionGeneration(), ports.canSubscribe());
   };
 
   reconcileConnection();

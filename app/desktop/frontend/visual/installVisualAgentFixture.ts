@@ -144,7 +144,7 @@ const fileHeadProvider = definePlugin({
  * left the port unconfigured did not render a degraded banner — it threw out of
  * the first component to ask, so every screenshot in four spec files was of an
  * error boundary. Deterministic by construction: one frozen observation, and
- * refresh/verify do nothing, because a golden must not depend on a probe.
+ * refresh does nothing, because a golden must not depend on a probe.
  */
 function installVisualRuntimeServiceStatusPort(): void {
   const snapshot = {
@@ -162,7 +162,6 @@ function installVisualRuntimeServiceStatusPort(): void {
     useSnapshot: () => snapshot,
     snapshot: () => snapshot,
     refresh: () => Promise.resolve(),
-    verify: () => Promise.resolve(),
   });
 }
 

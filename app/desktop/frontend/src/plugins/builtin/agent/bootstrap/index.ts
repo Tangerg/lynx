@@ -23,11 +23,11 @@ export default definePlugin({
     const disposeState = installAgentStatePorts();
     const disposeDefaultSession = installAgentDefaultSessionPort();
     const runtimeGateway = installAgentRuntimeGateway();
-    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    let connectionGeneration = ctx.runtime.connectionGeneration();
     const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
-      const next = ctx.runtime.runtimeGeneration();
-      if (next === runtimeGeneration) return;
-      runtimeGeneration = next;
+      const next = ctx.runtime.connectionGeneration();
+      if (next === connectionGeneration) return;
+      connectionGeneration = next;
       runtimeGateway.replaceRuntimeGeneration();
     });
     const disposeInterruptResponses = installInterruptResponseCoordinator();

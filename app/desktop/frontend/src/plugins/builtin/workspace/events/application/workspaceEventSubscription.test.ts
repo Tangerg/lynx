@@ -28,7 +28,7 @@ function subscriptionPorts(
   };
   return {
     canSubscribe: vi.fn(() => true),
-    runtimeGeneration: vi.fn(() => "runtime_1"),
+    connectionGeneration: vi.fn(() => "runtime_1"),
     subscribeConnection: vi.fn(() => vi.fn()),
     retireReadModels: vi.fn(),
     resolveWorkspaceCwd: vi.fn().mockResolvedValue({ status: "resolved", cwd: "/repo" }),
@@ -46,7 +46,7 @@ describe("startWorkspaceEventSubscription", () => {
     startWorkspaceEventSubscription(ports);
 
     expect(ports.loop.start).toHaveBeenCalledOnce();
-    expect(ports.loop.start).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(ports.loop.start).toHaveBeenCalledWith(expect.any(AbortSignal), "runtime_1");
   });
 
   it("starts once when the capability is advertised later", () => {
@@ -107,7 +107,7 @@ describe("startWorkspaceEventSubscription", () => {
     let generation = "runtime_retired";
     const signals: AbortSignal[] = [];
     const ports = subscriptionPorts({
-      runtimeGeneration: () => generation,
+      connectionGeneration: () => generation,
       subscribeConnection: (listener) => {
         onConnectionChange = listener;
         return vi.fn();
@@ -139,7 +139,7 @@ describe("startWorkspaceEventSubscription", () => {
     let generation = "runtime_retired";
     const order: string[] = [];
     const ports = subscriptionPorts({
-      runtimeGeneration: () => generation,
+      connectionGeneration: () => generation,
       subscribeConnection: (listener) => {
         onConnectionChange = listener;
         return vi.fn();
@@ -161,6 +161,41 @@ describe("startWorkspaceEventSubscription", () => {
     expect(order).toEqual(["retire", "start"]);
   });
 
+  it("retires the exact disconnected generation before admitting its recovered tail", () => {
+    let onConnectionChange: (() => void) | undefined;
+    let generation: string | null = "connection_retired";
+    const order: string[] = [];
+    const signals: AbortSignal[] = [];
+    const ports = subscriptionPorts({
+      connectionGeneration: () => generation,
+      subscribeConnection: (listener) => {
+        onConnectionChange = listener;
+        return vi.fn();
+      },
+      retireReadModels: () => order.push("retire"),
+      loop: {
+        start: vi.fn(async (signal, connectionGeneration) => {
+          signals.push(signal);
+          order.push(`start:${connectionGeneration}`);
+        }),
+        retarget: vi.fn(),
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    order.length = 0;
+    generation = null;
+    onConnectionChange?.();
+
+    expect(signals[0]?.aborted).toBe(true);
+    expect(order).toEqual(["retire"]);
+
+    generation = "connection_recovered";
+    onConnectionChange?.();
+    expect(order).toEqual(["retire", "retire", "start:connection_recovered"]);
+    expect(signals[1]?.aborted).toBe(false);
+  });
+
   it("retires reads admitted while disconnected before the first recovered tail", () => {
     let onConnectionChange: (() => void) | undefined;
     let generation: string | null = null;
@@ -168,7 +203,7 @@ describe("startWorkspaceEventSubscription", () => {
     const order: string[] = [];
     const ports = subscriptionPorts({
       canSubscribe: () => advertised,
-      runtimeGeneration: () => generation,
+      connectionGeneration: () => generation,
       subscribeConnection: (listener) => {
         onConnectionChange = listener;
         return vi.fn();

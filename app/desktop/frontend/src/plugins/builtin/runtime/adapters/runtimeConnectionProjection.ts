@@ -9,20 +9,26 @@ import {
   createRuntimeServiceController,
   type RuntimeConnectionInspection,
   type RuntimeConnectionInspector,
-  type RuntimeGeneration,
+  type RuntimeProcessGeneration,
   type RuntimeServiceController,
   type RuntimeServiceFailure,
 } from "../application/runtimeService";
 
+/** Process-local capability identifying one admitted client/server connection.
+ *  A reconnect to the same Runtime process still creates a successor identity. */
+export type RuntimeConnectionGeneration = string;
+
 interface RuntimeConnectionState {
-  generation: RuntimeGeneration | null;
+  connectionGeneration: RuntimeConnectionGeneration | null;
+  processGeneration: RuntimeProcessGeneration | null;
   capabilities: ServerCapabilities | null;
   service: RuntimeServiceSnapshot;
 }
 
 function initialConnectionState(): RuntimeConnectionState {
   return {
-    generation: null,
+    connectionGeneration: null,
+    processGeneration: null,
     capabilities: null,
     service: { phase: "checking", observation: null, failure: null },
   };
@@ -65,23 +71,6 @@ function subscribeRuntimeCapabilities(onChange: () => void): () => void {
   });
 }
 
-/** Observe the atomic connection identity + capability projection. */
-export function subscribeRuntimeConnection(onChange: () => void): () => void {
-  let current = useRuntimeConnectionStore.getState();
-  return useRuntimeConnectionStore.subscribe((state) => {
-    if (state.generation === current.generation && state.capabilities === current.capabilities) {
-      current = state;
-      return;
-    }
-    current = state;
-    onChange();
-  });
-}
-
-export function runtimeConnectionGeneration(): RuntimeGeneration | null {
-  return useRuntimeConnectionStore.getState().generation;
-}
-
 /** Install the read-only capability boundary used by tests without a Runtime owner. */
 export function installRuntimeCapabilityPort(): () => void {
   return configureRuntimeCapabilityPort({
@@ -95,10 +84,19 @@ export function installRuntimeCapabilityPort(): () => void {
 }
 
 export interface RuntimeConnectionOwner {
+  connectionGeneration(): RuntimeConnectionGeneration | null;
+  subscribeConnection(onChange: () => void): () => void;
+  reportConnectionLoss(expectedGeneration: RuntimeConnectionGeneration): Promise<void>;
   dispose(): void;
 }
 
 let activeConnection: RuntimeConnectionOwnerImplementation | null = null;
+let connectionGenerationSequence = 0;
+
+function nextConnectionGeneration(processGeneration: RuntimeProcessGeneration): string {
+  connectionGenerationSequence += 1;
+  return `${processGeneration}:${connectionGenerationSequence}`;
+}
 
 class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
   readonly #controller: RuntimeServiceController;
@@ -117,13 +115,35 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
       useSnapshot: () => useRuntimeConnectionStore((state) => state.service),
       snapshot: () => useRuntimeConnectionStore.getState().service,
       refresh: () => this.#controller.refresh(),
-      verify: () => this.#controller.verify(),
     });
   }
 
   start(): void {
     if (!this.#ownsGeneration()) return;
     this.#controller.start();
+  }
+
+  connectionGeneration(): RuntimeConnectionGeneration | null {
+    return this.#ownsGeneration()
+      ? useRuntimeConnectionStore.getState().connectionGeneration
+      : null;
+  }
+
+  subscribeConnection(onChange: () => void): () => void {
+    if (!this.#ownsGeneration()) return () => undefined;
+    let current = useRuntimeConnectionStore.getState();
+    return useRuntimeConnectionStore.subscribe((state) => {
+      if (!this.#ownsGeneration()) return;
+      if (
+        state.connectionGeneration === current.connectionGeneration &&
+        state.capabilities === current.capabilities
+      ) {
+        current = state;
+        return;
+      }
+      current = state;
+      onChange();
+    });
   }
 
   dispose(): void {
@@ -141,6 +161,19 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
     }
   }
 
+  reportConnectionLoss(expectedGeneration: RuntimeConnectionGeneration): Promise<void> {
+    if (!this.#ownsGeneration()) return Promise.resolve();
+    const current = useRuntimeConnectionStore.getState();
+    if (current.connectionGeneration !== expectedGeneration) return Promise.resolve();
+
+    // The stream is an ordered member of this connection generation. Once it
+    // ends unexpectedly, the generation is no longer capable of admitting
+    // commands, queries, mutations, or material writers — even if the same
+    // Runtime process will answer the recovery inspection a moment later.
+    useRuntimeConnectionStore.setState(initialConnectionState(), true);
+    return this.#controller.recover();
+  }
+
   #ownsGeneration(): boolean {
     return !this.#disposed && activeConnection === this;
   }
@@ -155,8 +188,15 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
 
   #replace(inspection: RuntimeConnectionInspection<ServerCapabilities>): void {
     if (!this.#ownsGeneration()) return;
+    const current = useRuntimeConnectionStore.getState();
+    const connectionGeneration =
+      current.connectionGeneration !== null &&
+      current.processGeneration === inspection.processGeneration
+        ? current.connectionGeneration
+        : nextConnectionGeneration(inspection.processGeneration);
     useRuntimeConnectionStore.setState({
-      generation: inspection.generation,
+      connectionGeneration,
+      processGeneration: inspection.processGeneration,
       capabilities: inspection.capabilities,
       service: {
         phase: inspection.service.health,
@@ -169,7 +209,8 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
   #unavailable(failure: RuntimeServiceFailure): void {
     if (!this.#ownsGeneration()) return;
     useRuntimeConnectionStore.setState({
-      generation: null,
+      connectionGeneration: null,
+      processGeneration: null,
       capabilities: null,
       service: { phase: "unavailable", observation: null, failure },
     });
@@ -177,7 +218,7 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
 }
 
 /**
- * Claim the process-local Runtime connection generation. The claim retires the
+ * Claim the process-local Runtime connection owner. The claim retires the
  * previous controller before publishing an empty successor projection, so old
  * inspections, timers, and disposers can no longer write or clear current state.
  */

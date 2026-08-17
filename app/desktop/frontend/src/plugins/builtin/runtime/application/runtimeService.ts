@@ -7,12 +7,12 @@ export interface RuntimeServiceObservation {
   checks: Record<string, RuntimeServiceHealth>;
 }
 
-/** Opaque identity of one Runtime process incarnation. */
-export type RuntimeGeneration = string;
+/** Opaque identity reported by one Runtime process incarnation. */
+export type RuntimeProcessGeneration = string;
 
 export interface RuntimeConnectionInspection<Capabilities> {
   /** The exact process generation observed by every member of this inspection. */
-  generation: RuntimeGeneration;
+  processGeneration: RuntimeProcessGeneration;
   service: RuntimeServiceObservation;
   capabilities: Capabilities;
 }
@@ -33,7 +33,9 @@ export type RuntimeServiceFailure = { reason: "timeout" } | { reason: "failed"; 
 export interface RuntimeServiceController {
   start(): void;
   refresh(): Promise<void>;
-  verify(): Promise<void>;
+  /** Supersede any inspection admitted before a proven transport loss and inspect
+   *  again without waiting for that predecessor to cooperate. */
+  recover(): Promise<void>;
   dispose(): void;
 }
 
@@ -131,8 +133,12 @@ export function createRuntimeServiceController<Capabilities>(
       })
       .finally(() => {
         releaseDeadline();
-        if (attempt?.controller === controller) attempt = null;
-        if (!active || !monitoring) return;
+        const ownsAttempt = attempt?.controller === controller;
+        if (ownsAttempt) attempt = null;
+        // A forced recovery publishes its successor attempt before this retired
+        // one settles. Its cleanup may neither clear the successor nor install a
+        // competing retry/poll timer.
+        if (!active || !monitoring || !ownsAttempt) return;
         if (succeeded) {
           scheduleNext(RUNTIME_SERVICE_HEALTHY_POLL_MS);
           return;
@@ -155,13 +161,19 @@ export function createRuntimeServiceController<Capabilities>(
     refresh() {
       return inspect(true);
     },
-    verify() {
-      // A stream can fail while a periodic inspection that observed the old
-      // connection is still settling. Wait for that cohort, then force a fresh
-      // snapshot; returning the stale coalesced result would defer withdrawal
-      // until the next healthy poll.
-      const current = attempt?.promise;
-      return current ? current.then(() => inspect(false)) : inspect(false);
+    recover() {
+      if (!active) return Promise.resolve();
+      clearSchedule();
+      const predecessor = attempt;
+      if (predecessor) {
+        // Abort is the cooperative path. Releasing the inspection deadline is
+        // the non-cooperative path that lets the successor start in this turn;
+        // the foreign promise remains observed by Promise.race.
+        attempt = null;
+        predecessor.controller.abort();
+        predecessor.releaseDeadline();
+      }
+      return inspect(false);
     },
     dispose() {
       if (!active) return;
