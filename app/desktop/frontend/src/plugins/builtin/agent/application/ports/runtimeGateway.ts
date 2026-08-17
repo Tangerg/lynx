@@ -13,6 +13,15 @@ export interface AgentSessionSnapshot {
   state?: AgentPlanStateSnapshot;
 }
 
+/** One authoritative material read plus the adapter-owned read models derived
+ * from the same Runtime transaction. Application commits the companion facts
+ * only after its material Agent projection wins the view token; the callback
+ * must be synchronous and no-throw. */
+export interface AgentSessionMaterialRead {
+  snapshot: AgentSessionSnapshot;
+  commitAssociatedReadModels(): void;
+}
+
 export interface AgentSessionUsage {
   inputTokens?: number;
   outputTokens?: number;
@@ -44,7 +53,7 @@ export interface AgentRuntimeGateway {
   loadSessionSnapshot(
     sessionId: string,
     signal?: AbortSignal,
-  ): Promise<AgentSessionSnapshot | null>;
+  ): Promise<AgentSessionMaterialRead | null>;
   loadSessionUsage(sessionId: string, signal?: AbortSignal): Promise<AgentSessionUsage>;
   rollbackSession(input: {
     sessionId: string;

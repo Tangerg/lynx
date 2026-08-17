@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -21,6 +22,7 @@ type MaterialSnapshot struct {
 	Runs       []run.Run
 	Interrupts []runs.Pending
 	Plan       plan.State
+	Goal       *goal.Goal
 }
 
 // MaterialSnapshot reads the complete mounted-session projection at one
@@ -119,6 +121,18 @@ func (snapshot MaterialSnapshot) Validate() error {
 	}
 	if err := snapshot.Plan.Validate(); err != nil {
 		return fmt.Errorf("sessions: material snapshot Plan: %w", err)
+	}
+	if snapshot.Goal != nil {
+		if err := snapshot.Goal.ValidateSnapshot(); err != nil {
+			return fmt.Errorf("sessions: material snapshot Goal: %w", err)
+		}
+		if snapshot.Goal.SessionID != sessionID {
+			return fmt.Errorf(
+				"sessions: material snapshot Goal belongs to Session %q, want %q",
+				snapshot.Goal.SessionID,
+				sessionID,
+			)
+		}
 	}
 	return nil
 }

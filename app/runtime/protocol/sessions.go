@@ -42,12 +42,14 @@ type GetSessionSnapshotRequest struct {
 
 // SessionSnapshot is one transactionally coherent material read of the facts a
 // live client folds together. State is absent when this Runtime does not expose
-// the Plan capability.
+// the Plan capability. Goal is absent when Goal mode is unavailable or this
+// Session has no standing objective.
 type SessionSnapshot struct {
 	Items      []Item                `json:"items"`
 	Runs       []RunRef              `json:"runs"`
 	Interrupts []PendingInterruptSet `json:"interrupts"`
 	State      *StateSnapshot        `json:"state,omitempty"`
+	Goal       *Goal                 `json:"goal,omitempty"`
 }
 
 // DeleteSessionRequest identifies the session removed by sessions.delete.

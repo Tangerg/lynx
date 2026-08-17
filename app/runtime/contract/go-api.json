@@ -7244,6 +7244,11 @@
               "name": "State",
               "type": "*StateSnapshot",
               "tag": "json:\"state,omitempty\""
+            },
+            {
+              "name": "Goal",
+              "type": "*Goal",
+              "tag": "json:\"goal,omitempty\""
             }
           ]
         },

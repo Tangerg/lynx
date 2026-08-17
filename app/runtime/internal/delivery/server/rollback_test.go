@@ -33,6 +33,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 		history:     map[string][]chat.Message{},
 		hist:        sqlite.NewTranscriptStore(db),
 		runs:        sqlite.NewRunStore(db),
+		goals:       sqlite.NewGoalStore(db),
 		toolResults: sqlite.NewToolResultStore(db),
 		interrupts:  persistence.NewInterruptStore(sqlite.NewInterruptStore(db)),
 		muts:        persistence.NewWorkspaceMutationStore(sqlite.NewWorkspaceMutationStore(db)),

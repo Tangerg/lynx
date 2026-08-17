@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -20,6 +22,7 @@ import (
 func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true
+	s.features.goals = true
 	putTestSession(t, rt)
 
 	createdAt := time.Date(2026, 8, 14, 2, 0, 0, 0, time.UTC)
@@ -71,6 +74,16 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	if err := rt.plan.Save(t.Context(), "ses_1", 0, state); err != nil {
 		t.Fatalf("save Plan: %v", err)
 	}
+	standingGoal, err := goal.New(
+		"ses_1", "Finish the recovery", modelref.Selection{}, goal.Budget{}, capabilities,
+		"goal_snapshot", createdAt,
+	)
+	if err != nil {
+		t.Fatalf("prepare Goal: %v", err)
+	}
+	if _, applied, err := rt.goals.Save(t.Context(), standingGoal, goal.Version{}); err != nil || !applied {
+		t.Fatalf("save Goal: applied=%t err=%v", applied, err)
+	}
 
 	ctx := withClientCapabilities(protocol.ClientCapabilities{
 		InterruptTypes: []protocol.InterruptType{protocol.InterruptQuestion},
@@ -94,6 +107,9 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	}
 	if snapshot.State == nil || snapshot.State.Revision != 1 || len(snapshot.State.Plan) != 1 {
 		t.Fatalf("State = %+v, want Plan revision 1", snapshot.State)
+	}
+	if snapshot.Goal == nil || snapshot.Goal.Objective != "Finish the recovery" || snapshot.Goal.Status != protocol.GoalActive {
+		t.Fatalf("Goal = %+v, want the active standing objective", snapshot.Goal)
 	}
 }
 

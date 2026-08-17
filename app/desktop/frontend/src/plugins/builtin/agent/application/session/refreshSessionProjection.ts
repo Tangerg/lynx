@@ -43,13 +43,15 @@ export async function revalidateAgentSessionProjection(
   if (!token) return null;
 
   const read = agentRuntime().loadSessionSnapshot(sessionId, options.signal);
-  const snapshot = options.signal ? await settleBeforeAbort(read, options.signal) : await read;
-  if (snapshot === ABORTED) return null;
-  if (!snapshot || (options.canCommit && !options.canCommit())) return null;
-  const view = projectAgentSessionSnapshot(snapshot);
+  const material = options.signal ? await settleBeforeAbort(read, options.signal) : await read;
+  if (material === ABORTED) return null;
+  if (!material || (options.canCommit && !options.canCommit())) return null;
+  const view = projectAgentSessionSnapshot(material.snapshot);
+  const committed = viewPort.commitViewRefresh(sessionId, token, view);
+  if (committed) material.commitAssociatedReadModels();
   return {
     authoritativeView: view,
-    committed: viewPort.commitViewRefresh(sessionId, token, view),
+    committed,
   };
 }
 
@@ -96,7 +98,7 @@ export interface MountedAgentSessionSynchronization {
 
 export function synchronizeMountedAgentSessions(
   request: MountedAgentSessionSynchronization = {},
-): void {
+): readonly string[] {
   const sessions = agentSessionView().getSessions();
   const mountedIds = Object.keys(sessions);
   const requested = request.sessionIds ? new Set(request.sessionIds) : null;
@@ -108,4 +110,5 @@ export function synchronizeMountedAgentSessions(
     if (synchronize) void synchronize(request.ownership);
     else void refreshAgentSessionProjection(sessionId);
   }
+  return targets;
 }

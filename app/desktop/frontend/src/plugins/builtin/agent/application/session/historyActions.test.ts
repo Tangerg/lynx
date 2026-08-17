@@ -3,6 +3,7 @@ import type { AgentRunFact as RunRef } from "@/plugins/sdk";
 import {
   configureAgentRuntimeGateway,
   type AgentRuntimeGateway,
+  type AgentSessionMaterialRead,
   type AgentSessionSnapshot,
 } from "../ports/runtimeGateway";
 import { configureAgentSessionViewPort, type AgentSessionViewPort } from "../ports/sessionView";
@@ -57,7 +58,7 @@ describe("rollbackSessionToBeforeRun", () => {
       ],
     });
     restoreRuntime = configureAgentRuntimeGateway({
-      loadSessionSnapshot: vi.fn().mockResolvedValue(snapshot()),
+      loadSessionSnapshot: vi.fn().mockResolvedValue(material(snapshot())),
       rollbackSession,
     } as unknown as AgentRuntimeGateway);
 
@@ -75,8 +76,8 @@ describe("rollbackSessionToBeforeRun", () => {
   });
 
   it("admits only one destructive history rewrite per Session", async () => {
-    let release!: (value: AgentSessionSnapshot) => void;
-    const firstRead = new Promise<AgentSessionSnapshot>((resolve) => {
+    let release!: (value: AgentSessionMaterialRead) => void;
+    const firstRead = new Promise<AgentSessionMaterialRead>((resolve) => {
       release = resolve;
     });
     const rollbackSession = vi.fn().mockResolvedValue({ droppedRuns: [] });
@@ -92,7 +93,7 @@ describe("rollbackSessionToBeforeRun", () => {
     await expect(rollbackSessionToBeforeRun("ses_1", "run_2")).resolves.toEqual({
       status: "inFlight",
     });
-    release(snapshot());
+    release(material(snapshot()));
     await expect(first).resolves.toMatchObject({ status: "committed" });
     expect(rollbackSession).toHaveBeenCalledOnce();
   });
@@ -102,11 +103,13 @@ describe("rollbackSessionToBeforeRun", () => {
     async (restoreType) => {
       const rollbackSession = vi.fn();
       restoreRuntime = configureAgentRuntimeGateway({
-        loadSessionSnapshot: vi.fn().mockResolvedValue({
-          runs: [run("run_1", "2026-08-12T00:00:00.000Z")],
-          items: [],
-          pendingInterruptSets: [],
-        }),
+        loadSessionSnapshot: vi.fn().mockResolvedValue(
+          material({
+            runs: [run("run_1", "2026-08-12T00:00:00.000Z")],
+            items: [],
+            pendingInterruptSets: [],
+          }),
+        ),
         rollbackSession,
       } as unknown as AgentRuntimeGateway);
 
@@ -124,6 +127,10 @@ function snapshot(): AgentSessionSnapshot {
     items: [],
     pendingInterruptSets: [],
   };
+}
+
+function material(value: AgentSessionSnapshot): AgentSessionMaterialRead {
+  return { snapshot: value, commitAssociatedReadModels: vi.fn() };
 }
 
 function run(id: string, createdAt: string): RunRef {

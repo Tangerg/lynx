@@ -6,6 +6,7 @@ import { agentInputToContentBlocks, contentBlocksToAgentInput } from "./wireInpu
 import { runtimePlanState } from "./runtimePlanState";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
+import { stageAgentSessionMaterialCommits } from "../application/ports/sessionMaterialCommitters";
 
 const sessionMutationSettler = createUnaryMutationSettler();
 
@@ -53,10 +54,13 @@ const gateway: AgentRuntimeGateway = {
     try {
       const snapshot = await client.sessions.snapshot(sid, includeDescendants, signal);
       return {
-        items: snapshot.items.map(runtimeItem),
-        runs: snapshot.runs.map(runtimeRunFact),
-        pendingInterruptSets: snapshot.interrupts.map(runtimePendingInterruptSet),
-        ...(snapshot.state ? { state: runtimePlanState(snapshot.state) } : {}),
+        snapshot: {
+          items: snapshot.items.map(runtimeItem),
+          runs: snapshot.runs.map(runtimeRunFact),
+          pendingInterruptSets: snapshot.interrupts.map(runtimePendingInterruptSet),
+          ...(snapshot.state ? { state: runtimePlanState(snapshot.state) } : {}),
+        },
+        commitAssociatedReadModels: stageAgentSessionMaterialCommits(sessionId, snapshot),
       };
     } catch (error) {
       if (isErrorType(error, "session_not_found")) return null;

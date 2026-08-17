@@ -97,6 +97,12 @@ func (s *Server) GetSessionSnapshot(ctx context.Context, in protocol.GetSessionS
 		state := presentPlanState(in.SessionID, snapshot.Plan)
 		out.State = &state
 	}
+	if s.features.goals && snapshot.Goal != nil {
+		out.Goal, err = presentGoal(*snapshot.Goal)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
 }
 

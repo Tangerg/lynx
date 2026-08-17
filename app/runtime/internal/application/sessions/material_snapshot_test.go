@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -134,6 +135,20 @@ func TestMaterialSnapshotRejectsRunningItemOwnedByTerminalRun(t *testing.T) {
 	err := snapshot.Validate()
 	if err == nil || !strings.Contains(err.Error(), "terminal Run Item \"item_approval\" is still running") {
 		t.Fatalf("Validate() error = %v, want terminal Run/running Item contradiction rejected", err)
+	}
+}
+
+func TestMaterialSnapshotRejectsGoalFromAnotherSession(t *testing.T) {
+	snapshot := validMaterialSnapshot()
+	snapshot.Goal = &goal.Goal{
+		SessionID: "ses_other", Objective: "wrong owner", Status: goal.StatusActive,
+		IncarnationID: "goal_other", Revision: 1,
+		CreatedAt: snapshot.Runs[0].CreatedAt(), UpdatedAt: snapshot.Runs[0].CreatedAt(),
+	}
+
+	err := snapshot.Validate()
+	if err == nil || !strings.Contains(err.Error(), "Goal belongs to Session \"ses_other\"") {
+		t.Fatalf("Validate() error = %v, want foreign Goal rejected", err)
 	}
 }
 

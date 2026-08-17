@@ -39,7 +39,7 @@ import { createWorkspaceEventLoop } from "../application/workspaceEventLoop";
 beforeEach(() => {
   cancelQueries.mockClear();
   invalidateQueries.mockClear();
-  synchronizeMountedAgentSessions.mockClear();
+  synchronizeMountedAgentSessions.mockReset();
 });
 
 describe("workspace session projection invalidation", () => {
@@ -80,6 +80,18 @@ describe("workspace session projection invalidation", () => {
     expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
       ownership: "replace-live",
     });
+  });
+
+  it("keeps a mounted Goal inside the same full-resync material generation", () => {
+    synchronizeMountedAgentSessions.mockReturnValue(["ses_mounted"]);
+
+    invalidateWorkspaceEverything();
+
+    expect(cancelQueries).toHaveBeenCalledWith();
+    const options = invalidateQueries.mock.calls[0]?.[0];
+    expect(options?.predicate({ queryKey: ["goal", { sessionId: "ses_mounted" }] })).toBe(false);
+    expect(options?.predicate({ queryKey: ["goal", { sessionId: "ses_other" }] })).toBe(true);
+    expect(options?.predicate({ queryKey: ["providers"] })).toBe(true);
   });
 
   it("refreshes every read affected by external settings mutations", () => {
@@ -142,6 +154,33 @@ describe("workspace session projection invalidation", () => {
       { queryKey: ["goal", { sessionId: "ses_b" }], exact: true },
     ]);
     expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
+  });
+
+  it("does not start an independent Goal writer for a mounted scoped material resync", () => {
+    synchronizeMountedAgentSessions.mockReturnValue(["ses_mounted"]);
+
+    invalidateWorkspaceEvent({
+      type: "resync",
+      sequence: 1,
+      topics: ["runs.changed", "goals.changed"],
+      sessionIds: ["ses_mounted", "ses_unmounted"],
+    });
+
+    expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
+      sessionIds: ["ses_mounted", "ses_unmounted"],
+    });
+    expect(cancelQueries).toHaveBeenCalledWith({
+      queryKey: ["goal", { sessionId: "ses_mounted" }],
+      exact: true,
+    });
+    expect(invalidateQueries).not.toHaveBeenCalledWith({
+      queryKey: ["goal", { sessionId: "ses_mounted" }],
+      exact: true,
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["goal", { sessionId: "ses_unmounted" }],
+      exact: true,
+    });
   });
 
   it("keeps Goal and mounted HITL/Plan/Run/Tool on one monotonic recovery boundary", async () => {

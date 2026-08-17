@@ -4332,6 +4332,10 @@ for await (const line of lines) {
         reason: { code: "awaitingInput" },
       });
       await expect(client.sessions.snapshot(goalSessionId)).resolves.toMatchObject({
+        goal: {
+          status: "paused",
+          reason: { code: "awaitingInput" },
+        },
         runs: [expect.objectContaining({ id: waitingRunId, status: "waiting" })],
         interrupts: [
           expect.objectContaining({
@@ -4347,6 +4351,20 @@ for await (const line of lines) {
         status: "paused",
         reason: { code: "runNotCompleted", detail: "lost" },
         used: { runs: 1 },
+      });
+      await expect(client.sessions.snapshot(activeGoalSessionId)).resolves.toMatchObject({
+        goal: {
+          status: "paused",
+          reason: { code: "runNotCompleted", detail: "lost" },
+          used: { runs: 1 },
+        },
+        runs: expect.arrayContaining([
+          expect.objectContaining({
+            id: activeGoalRunId,
+            status: "finished",
+            outcome: expect.objectContaining({ type: "lost" }),
+          }),
+        ]),
       });
       const controller = new AbortController();
       const subscription = await client.runtimeEvents.subscribe(

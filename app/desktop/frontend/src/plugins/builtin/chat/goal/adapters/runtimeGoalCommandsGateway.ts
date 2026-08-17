@@ -1,8 +1,10 @@
 import { getContainer } from "@/main/container";
-import { asSessionId, createUnaryMutationSettler, type Goal } from "@/rpc";
+import { asSessionId, createUnaryMutationSettler, type Goal, type SessionSnapshot } from "@/rpc";
+import { queryClient } from "@/lib/queryClient";
 import type { Contributor } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
+import { registerAgentSessionMaterialCommitter } from "@/plugins/builtin/agent/public/sessionMaterial";
 import type {
   GoalCommandReceipt,
   GoalCommandsGateway,
@@ -48,6 +50,20 @@ export function toGoalCommandReceipt(goal: Pick<Goal, "sessionId">): GoalCommand
   return { sessionId: goal.sessionId };
 }
 
+/** Commit the Goal carried by sessions.snapshot. That snapshot is the mounted
+ * Session's transactionally coherent owner; this function keeps QueryClient
+ * mechanics and Runtime DTO translation outside Agent Application. */
+export function commitRuntimeGoalMaterial(
+  sessionId: string,
+  goal: Goal | undefined,
+  available: boolean,
+): void {
+  queryClient.setQueryData<GoalState>([GOAL_KEY, { sessionId }], {
+    available,
+    goal: available && goal ? toGoalReadModel(goal) : null,
+  });
+}
+
 const gateway: GoalCommandsGateway = {
   async start(input) {
     const client = getContainer().client();
@@ -75,6 +91,12 @@ const gateway: GoalCommandsGateway = {
 };
 
 export function installGoalRuntimeAdapter(ctx: Contributor): () => void {
+  const disposeMaterialCommitter = registerAgentSessionMaterialCommitter<SessionSnapshot>(
+    (sessionId, snapshot) => {
+      const available = runtimeCapability("goals");
+      return () => commitRuntimeGoalMaterial(sessionId, snapshot.goal, available);
+    },
+  );
   ctx.contribute(DATA_PROVIDER, {
     key: GOAL_KEY,
     fetcher: async (params, signal) => {
@@ -90,5 +112,9 @@ export function installGoalRuntimeAdapter(ctx: Contributor): () => void {
       } satisfies GoalState;
     },
   });
-  return configureGoalCommandsGateway(gateway);
+  const disposeGateway = configureGoalCommandsGateway(gateway);
+  return () => {
+    disposeMaterialCommitter();
+    disposeGateway();
+  };
 }

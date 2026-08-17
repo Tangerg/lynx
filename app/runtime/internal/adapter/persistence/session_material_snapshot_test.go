@@ -2,33 +2,37 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
-type blockingPlanProjection struct {
-	*sqlite.PlanStore
+type blockingGoalProjection struct {
+	*sqlite.GoalStore
 	entered chan struct{}
 	release chan struct{}
 }
 
-func (projection *blockingPlanProjection) State(ctx context.Context, sessionID string) (plan.State, error) {
+func (projection *blockingGoalProjection) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	close(projection.entered)
 	select {
 	case <-projection.release:
 	case <-ctx.Done():
-		return plan.State{}, ctx.Err()
+		return goal.Goal{}, false, ctx.Err()
 	}
-	return projection.PlanStore.State(ctx, sessionID)
+	return projection.GoalStore.Get(ctx, sessionID)
 }
 
-func TestReadMaterialSnapshotKeepsSessionAndPlanOnOneTransaction(t *testing.T) {
+func TestReadMaterialSnapshotKeepsSessionPlanAndGoalOnOneTransaction(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "runtime.db")
 	readerDB, err := sqlite.Open(t.Context(), databasePath)
 	if err != nil {
@@ -62,13 +66,26 @@ func TestReadMaterialSnapshotKeepsSessionAndPlanOnOneTransaction(t *testing.T) {
 	if err := writerPlanStore.Save(ctx, original.ID(), 0, originalPlan); err != nil {
 		t.Fatalf("seed Plan: %v", err)
 	}
-	blockingPlan := &blockingPlanProjection{
-		PlanStore: readerPlanStore, entered: make(chan struct{}), release: make(chan struct{}),
+	readerGoalStore := sqlite.NewGoalStore(readerDB)
+	writerGoalStore := sqlite.NewGoalStore(writerDB)
+	originalGoal, err := goal.New(
+		original.ID(), "before", modelref.Selection{}, goal.Budget{}, run.Capabilities{},
+		"goal_before", createdAt,
+	)
+	if err != nil {
+		t.Fatalf("prepare Goal: %v", err)
+	}
+	originalGoal, applied, err := writerGoalStore.Save(ctx, originalGoal, goal.Version{})
+	if err != nil || !applied {
+		t.Fatalf("seed Goal: applied=%t err=%v", applied, err)
+	}
+	blockingGoal := &blockingGoalProjection{
+		GoalStore: readerGoalStore, entered: make(chan struct{}), release: make(chan struct{}),
 	}
 	stores := NewSessionStores(SessionStoresConfig{
 		Sessions: readerSessionStore, Transcript: sqlite.NewTranscriptStore(readerDB),
 		Interrupts: NewInterruptStore(sqlite.NewInterruptStore(readerDB)),
-		Runs:       sqlite.NewRunStore(readerDB), Plan: blockingPlan,
+		Runs:       sqlite.NewRunStore(readerDB), Plan: readerPlanStore, Goals: blockingGoal,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, readerDB, fn)
 		},
@@ -77,6 +94,7 @@ func TestReadMaterialSnapshotKeepsSessionAndPlanOnOneTransaction(t *testing.T) {
 	snapshotResult := make(chan struct {
 		snapshotRevision uint64
 		planRevision     uint64
+		goalRevision     int64
 		err              error
 	}, 1)
 	go func() {
@@ -84,10 +102,11 @@ func TestReadMaterialSnapshotKeepsSessionAndPlanOnOneTransaction(t *testing.T) {
 		snapshotResult <- struct {
 			snapshotRevision uint64
 			planRevision     uint64
+			goalRevision     int64
 			err              error
-		}{snapshot.Session.Revision(), snapshot.Plan.Revision(), err}
+		}{snapshot.Session.Revision(), snapshot.Plan.Revision(), snapshot.Goal.Revision, err}
 	}()
-	<-blockingPlan.entered
+	<-blockingGoal.entered
 
 	updatedTitle := "after"
 	updatedSession, changed, err := original.Apply(session.Patch{
@@ -102,33 +121,48 @@ func TestReadMaterialSnapshotKeepsSessionAndPlanOnOneTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare Plan replacement: %v", err)
 	}
+	updatedGoal := originalGoal.Clone()
+	updatedGoal.Pause(goal.ReasonRuntimeRestarted, "", createdAt.Add(time.Second))
 	writerDone := make(chan error, 1)
 	go func() {
 		writerDone <- sqlite.RunInTx(ctx, writerDB, func(ctx context.Context) error {
 			if err := writerSessionStore.Save(ctx, original.Revision(), updatedSession); err != nil {
 				return err
 			}
-			return writerPlanStore.Save(ctx, original.ID(), originalPlan.Revision(), updatedPlan)
+			if err := writerPlanStore.Save(ctx, original.ID(), originalPlan.Revision(), updatedPlan); err != nil {
+				return err
+			}
+			_, applied, err := writerGoalStore.Save(ctx, updatedGoal, originalGoal.Version())
+			if err == nil && !applied {
+				return errors.New("replace Goal: CAS did not apply")
+			}
+			return err
 		})
 	}()
 	if err := <-writerDone; err != nil {
 		t.Fatalf("commit concurrent successor state: %v", err)
 	}
-	close(blockingPlan.release)
+	close(blockingGoal.release)
 
 	read := <-snapshotResult
 	if read.err != nil {
 		t.Fatalf("ReadMaterialSnapshot: %v", read.err)
 	}
-	if read.snapshotRevision != 1 || read.planRevision != 1 {
-		t.Fatalf("snapshot revisions = Session:%d Plan:%d, want 1/1", read.snapshotRevision, read.planRevision)
+	if read.snapshotRevision != 1 || read.planRevision != 1 || read.goalRevision != 1 {
+		t.Fatalf(
+			"snapshot revisions = Session:%d Plan:%d Goal:%d, want 1/1/1",
+			read.snapshotRevision, read.planRevision, read.goalRevision,
+		)
 	}
-	stores.plan = readerPlanStore
+	stores.goals = readerGoalStore
 	after, err := stores.ReadMaterialSnapshot(ctx, original.ID())
 	if err != nil {
 		t.Fatalf("read successor snapshot: %v", err)
 	}
-	if after.Session.Revision() != 2 || after.Plan.Revision() != 2 {
-		t.Fatalf("successor revisions = Session:%d Plan:%d, want 2/2", after.Session.Revision(), after.Plan.Revision())
+	if after.Session.Revision() != 2 || after.Plan.Revision() != 2 || after.Goal.Revision != 2 {
+		t.Fatalf(
+			"successor revisions = Session:%d Plan:%d Goal:%d, want 2/2/2",
+			after.Session.Revision(), after.Plan.Revision(), after.Goal.Revision,
+		)
 	}
 }

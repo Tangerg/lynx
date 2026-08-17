@@ -46,9 +46,11 @@ export async function rollbackSessionToBeforeRun(
   if (rollbackSessions.has(sessionId)) return { status: "inFlight" };
   rollbackSessions.add(sessionId);
   try {
-    const snapshot = await agentRuntime().loadSessionSnapshot(sessionId);
-    if (!snapshot) return { status: "unavailable" };
-    const view = projectAgentSessionSnapshot(snapshot);
+    const material = await agentRuntime().loadSessionSnapshot(sessionId);
+    if (!material) return { status: "unavailable" };
+    // This is a pre-command inspection, not a mounted projection commit. Its
+    // associated read models must not replace what the UI currently owns.
+    const view = projectAgentSessionSnapshot(material.snapshot);
     const roots = selectRootRuns(view);
     const index = roots.findIndex((run) => run.id === runId);
     if (index < 0) return { status: "unavailable" };

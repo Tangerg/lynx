@@ -23,7 +23,7 @@ func registerSessions(registry *Registry) {
 	Query(registry, MethodMeta{
 		Name:         "sessions.snapshot",
 		Errors:       []string{protocol.ErrSessionNotFound.Error()},
-		Materializes: []string{"items.list", "runs.list", "interrupts.list", "plan.get"},
+		Materializes: []string{"items.list", "runs.list", "interrupts.list", "plan.get", "goals.get"},
 		CapabilityRules: []CapabilityRule{{
 			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureSubagents},

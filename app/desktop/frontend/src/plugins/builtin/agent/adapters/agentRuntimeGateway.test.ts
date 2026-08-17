@@ -12,12 +12,16 @@ import { createMutationPromise } from "@/rpc/mutation";
 import * as runtimeCapabilities from "@/plugins/builtin/runtime/public/capabilities";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
+import { registerAgentSessionMaterialCommitter } from "../application/ports/sessionMaterialCommitters";
 
 let uninstall: (() => void) | undefined;
+let uninstallMaterialCommitter: (() => void) | undefined;
 
 afterEach(() => {
   uninstall?.();
   uninstall = undefined;
+  uninstallMaterialCommitter?.();
+  uninstallMaterialCommitter = undefined;
   resetContainer();
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -127,6 +131,12 @@ describe("agentRuntimeGateway", () => {
     "reads one coherent snapshot with descendants supported=$supported",
     async ({ supported }) => {
       vi.spyOn(runtimeCapabilities, "runtimeCapability").mockReturnValue(supported);
+      const commitMaterial = vi.fn();
+      const stageMaterial = vi.fn(
+        (_sessionId: string, material: { goal?: { objective: string } }) => () =>
+          commitMaterial(material.goal?.objective),
+      );
+      uninstallMaterialCommitter = registerAgentSessionMaterialCommitter(stageMaterial);
       const readSnapshot = vi.fn().mockResolvedValue({
         items: [],
         runs: [],
@@ -136,6 +146,15 @@ describe("agentRuntimeGateway", () => {
           sessionId: "ses_1",
           revision: 4,
           plan: [{ id: "step_1", description: "Verify boundaries", status: "in_progress" }],
+        },
+        goal: {
+          sessionId: "ses_1",
+          objective: "Recover every mounted read",
+          status: "active",
+          budget: {},
+          used: { runs: 1, costUsd: 0.25, steps: 2 },
+          createdAt: "2026-08-17T00:00:00Z",
+          updatedAt: "2026-08-17T00:01:00Z",
         },
       });
       setContainer({
@@ -149,11 +168,21 @@ describe("agentRuntimeGateway", () => {
       const snapshot = await agentRuntime().loadSessionSnapshot("ses_1");
 
       expect(readSnapshot).toHaveBeenCalledWith(asSessionId("ses_1"), supported, undefined);
-      expect(snapshot?.state).toEqual({
+      expect(snapshot?.snapshot.state).toEqual({
         type: "plan",
         revision: 4,
         plan: [{ id: "step_1", text: "Verify boundaries", status: "active" }],
       });
+      expect(stageMaterial).toHaveBeenCalledWith(
+        "ses_1",
+        expect.objectContaining({
+          goal: expect.objectContaining({ objective: "Recover every mounted read" }),
+        }),
+      );
+      expect(commitMaterial).not.toHaveBeenCalled();
+
+      snapshot?.commitAssociatedReadModels();
+      expect(commitMaterial).toHaveBeenCalledWith("Recover every mounted read");
     },
   );
 

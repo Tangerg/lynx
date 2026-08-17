@@ -2994,6 +2994,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     version: allOf([integer(), minimum(19), maximum(19)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionSnapshot: object({
+    goal: ref(() => CHECKS.Goal),
     interrupts: array(ref(() => CHECKS.PendingInterruptSet)),
     items: array(ref(() => CHECKS.Item)),
     runs: array(ref(() => CHECKS.RunRef)),

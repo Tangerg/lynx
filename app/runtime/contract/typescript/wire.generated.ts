@@ -1388,6 +1388,7 @@ export interface SessionArtifact {
 }
 
 export interface SessionSnapshot {
+  goal?: Goal;
   interrupts: PendingInterruptSet[];
   items: Item[];
   runs: RunRef[];

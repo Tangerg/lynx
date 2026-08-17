@@ -88,19 +88,30 @@ export function invalidateWorkspaceTargets(
     replaceWorkspaceReadModels();
     return;
   }
+  // One scoped resync may name Goal together with Run/HITL/Plan. Start the
+  // transactionally coherent mounted-session replacement once, before walking
+  // the query targets, and keep those Goal keys out of an independent writer.
+  const materialSessionIds = targets.includes("agentSessionProjection")
+    ? new Set(synchronizeMountedAgentSessions({ sessionIds }) ?? [])
+    : new Set<string>();
   for (const target of targets) {
     if (target === "all") continue;
     if (target === "agentSessionProjection") {
-      synchronizeMountedAgentSessions({ sessionIds });
       continue;
     }
     if (target === "goal" && sessionIds?.length) {
       for (const sessionId of new Set(sessionIds)) {
-        replaceCachedRead({
+        const options = {
           queryKey: [GOAL_KEY, { sessionId }],
           exact: true,
-        });
+        } as const;
+        if (materialSessionIds.has(sessionId)) void queryClient.cancelQueries(options);
+        else replaceCachedRead(options);
       }
+      continue;
+    }
+    if (target === "goal" && materialSessionIds.size > 0) {
+      replaceGoalReadsExcept(materialSessionIds);
       continue;
     }
     replaceCachedRead({ queryKey: [QUERY_KEYS[target]] });
@@ -116,10 +127,45 @@ export function invalidateWorkspaceEverything(): void {
 }
 
 function replaceWorkspaceReadModels(): void {
-  replaceCachedRead();
   // The material session projection is not a query-cache entry. Replace its
-  // live generation on the same boundary as Goal and every other cached read.
-  synchronizeMountedAgentSessions({ ownership: "replace-live" });
+  // live generation first. Its sessions.snapshot successor now carries Goal
+  // from the same SQLite transaction, so an independent goals.get writer for a
+  // mounted Session would split the generation this boundary is replacing.
+  const mountedSessionIds = new Set(
+    synchronizeMountedAgentSessions({ ownership: "replace-live" }) ?? [],
+  );
+  if (mountedSessionIds.size === 0) {
+    replaceCachedRead();
+    return;
+  }
+  void queryClient.cancelQueries();
+  void queryClient.invalidateQueries({
+    predicate: (query) => !isMountedGoalRead(query.queryKey, mountedSessionIds),
+  });
+}
+
+function replaceGoalReadsExcept(mountedSessionIds: ReadonlySet<string>): void {
+  const queryKey = [GOAL_KEY] as const;
+  void queryClient.cancelQueries({ queryKey });
+  void queryClient.invalidateQueries({
+    queryKey,
+    predicate: (query) => !isMountedGoalRead(query.queryKey, mountedSessionIds),
+  });
+}
+
+function isMountedGoalRead(
+  queryKey: readonly unknown[],
+  mountedSessionIds: ReadonlySet<string>,
+): boolean {
+  if (queryKey[0] !== GOAL_KEY) return false;
+  const params = queryKey[1];
+  return (
+    typeof params === "object" &&
+    params !== null &&
+    "sessionId" in params &&
+    typeof params.sessionId === "string" &&
+    mountedSessionIds.has(params.sessionId)
+  );
 }
 
 export function replaceCachedRead(options?: {

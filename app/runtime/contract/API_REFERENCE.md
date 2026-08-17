@@ -14,7 +14,7 @@ Protocol `2026-08-17` (minimum supported `2026-08-17`) · 87 methods
 | `runtime.discover` | query | unary | none | none | — | — | — |
 | `sessions.list` | query | unary | none | cursor | — | — | — |
 | `sessions.get` | query | unary | none | none | — | — | `session_not_found` |
-| `sessions.snapshot` | query | unary | none | none | `items.list`, `runs.list`, `interrupts.list`, `plan.get` | `subagents` | `session_not_found`, `capability_not_negotiated` |
+| `sessions.snapshot` | query | unary | none | none | `items.list`, `runs.list`, `interrupts.list`, `plan.get`, `goals.get` | `subagents` | `session_not_found`, `capability_not_negotiated` |
 | `sessions.create` | command | unary | replayResponse | none | — | — | `workspace_unavailable` |
 | `sessions.update` | command | unary | replayResponse | none | — | `relocate` | `session_not_found`, `revision_conflict`, `workspace_unavailable`, `capability_not_negotiated` |
 | `sessions.delete` | command | unary | replayResponse | none | — | — | `session_not_found` |

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentSessionSnapshot, AgentRuntimeGateway } from "../ports/runtimeGateway";
+import type {
+  AgentSessionMaterialRead,
+  AgentSessionSnapshot,
+  AgentRuntimeGateway,
+} from "../ports/runtimeGateway";
 import { configureAgentRuntimeGateway } from "../ports/runtimeGateway";
 import { useAgentStore } from "../../adapters/agentStore";
 import {
@@ -20,6 +24,13 @@ function snapshot(revision: number): AgentSessionSnapshot {
       plan: [],
     },
   };
+}
+
+function material(
+  value: AgentSessionSnapshot,
+  commitAssociatedReadModels = vi.fn(),
+): AgentSessionMaterialRead {
+  return { snapshot: value, commitAssociatedReadModels };
 }
 
 function deferred<T>() {
@@ -49,7 +60,8 @@ describe("refreshAgentSessionProjection", () => {
   it("keeps the old projection visible until the complete read commits", async () => {
     useAgentStore.getState().setCommandError(SESSION_ID, { code: "old" });
     const visible = useAgentStore.getState().sessions[SESSION_ID]!.view;
-    const read = deferred<AgentSessionSnapshot>();
+    const read = deferred<AgentSessionMaterialRead>();
+    const commitAssociatedReadModels = vi.fn();
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
@@ -57,16 +69,19 @@ describe("refreshAgentSessionProjection", () => {
     const refreshing = refreshAgentSessionProjection(SESSION_ID);
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view).toBe(visible);
 
-    read.resolve(snapshot(1));
+    read.resolve(material(snapshot(1), commitAssociatedReadModels));
     await expect(refreshing).resolves.toMatchObject({
       commandError: null,
       shared: { plan: { revision: 1 } },
     });
+    expect(commitAssociatedReadModels).toHaveBeenCalledOnce();
   });
 
   it("discards an older read when a newer refresh starts", async () => {
-    const older = deferred<AgentSessionSnapshot>();
-    const newer = deferred<AgentSessionSnapshot>();
+    const older = deferred<AgentSessionMaterialRead>();
+    const newer = deferred<AgentSessionMaterialRead>();
+    const commitOlder = vi.fn();
+    const commitNewer = vi.fn();
     const loadSessionSnapshot = vi
       .fn()
       .mockImplementationOnce(() => older.promise)
@@ -77,42 +92,47 @@ describe("refreshAgentSessionProjection", () => {
 
     const olderRefresh = refreshAgentSessionProjection(SESSION_ID);
     const newerRefresh = refreshAgentSessionProjection(SESSION_ID);
-    newer.resolve(snapshot(2));
+    newer.resolve(material(snapshot(2), commitNewer));
     await expect(newerRefresh).resolves.toMatchObject({
       shared: { plan: { revision: 2 } },
     });
-    older.resolve(snapshot(1));
+    older.resolve(material(snapshot(1), commitOlder));
     await expect(olderRefresh).resolves.toBeNull();
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan).toMatchObject({
       revision: 2,
     });
+    expect(commitNewer).toHaveBeenCalledOnce();
+    expect(commitOlder).not.toHaveBeenCalled();
   });
 
   it("discards a read that raced with a live projection write", async () => {
-    const read = deferred<AgentSessionSnapshot>();
+    const read = deferred<AgentSessionMaterialRead>();
+    const commitAssociatedReadModels = vi.fn();
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
 
     const refreshing = refreshAgentSessionProjection(SESSION_ID);
     useAgentStore.getState().setCommandError(SESSION_ID, { code: "live" });
-    read.resolve(snapshot(1));
+    read.resolve(material(snapshot(1), commitAssociatedReadModels));
 
     await expect(refreshing).resolves.toBeNull();
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toEqual({
       code: "live",
     });
+    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
   });
 
   it("returns authoritative facts even when a newer local write rejects their commit", async () => {
-    const read = deferred<AgentSessionSnapshot>();
+    const read = deferred<AgentSessionMaterialRead>();
+    const commitAssociatedReadModels = vi.fn();
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
 
     const revalidating = revalidateAgentSessionProjection(SESSION_ID);
     useAgentStore.getState().setCommandError(SESSION_ID, { code: "live" });
-    read.resolve(snapshot(4));
+    read.resolve(material(snapshot(4), commitAssociatedReadModels));
 
     await expect(revalidating).resolves.toMatchObject({
       committed: false,
@@ -121,6 +141,7 @@ describe("refreshAgentSessionProjection", () => {
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toEqual({
       code: "live",
     });
+    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
   });
 
   it("leaves the prior projection intact when the durable read fails", async () => {
@@ -146,7 +167,8 @@ describe("refreshAgentSessionProjection", () => {
   });
 
   it("retires a non-cooperative snapshot read without allowing a late commit", async () => {
-    const read = deferred<AgentSessionSnapshot>();
+    const read = deferred<AgentSessionMaterialRead>();
+    const commitAssociatedReadModels = vi.fn();
     const controller = new AbortController();
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
@@ -158,10 +180,11 @@ describe("refreshAgentSessionProjection", () => {
     controller.abort();
     await expect(refreshing).resolves.toBeNull();
 
-    read.resolve(snapshot(9));
+    read.resolve(material(snapshot(9), commitAssociatedReadModels));
     await Promise.resolve();
     const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
       { revision?: number } | null | undefined;
     expect(plan?.revision).not.toBe(9);
+    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
   });
 });

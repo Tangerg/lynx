@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -181,6 +182,7 @@ type stubRuntime struct {
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
 	hist        *sqlite.TranscriptStore   // durable Item history
 	runs        *sqlite.RunStore          // durable Run records (rollback/fork read runs)
+	goals       *sqlite.GoalStore         // autonomous objective included in mounted material reads
 	toolResults *sqlite.ToolResultStore
 	plan        *sqlite.PlanStore                   // session-scoped state: exported, restored, dropped with the session
 	interrupts  *persistence.InterruptStore         // open-interrupt registry (rollback clears dropped)
@@ -560,8 +562,20 @@ func (s stubLifecycleStores) ReadMaterialSnapshot(ctx context.Context, id string
 			return sessions.MaterialSnapshot{}, err
 		}
 	}
+	var currentGoal *goal.Goal
+	if s.rt.goals != nil {
+		stored, found, err := s.rt.goals.Get(ctx, id)
+		if err != nil {
+			return sessions.MaterialSnapshot{}, err
+		}
+		if found {
+			stored = stored.Clone()
+			currentGoal = &stored
+		}
+	}
 	return sessions.MaterialSnapshot{
 		Session: ses, Items: items, Runs: records, Interrupts: pending, Plan: state,
+		Goal: currentGoal,
 	}, nil
 }
 

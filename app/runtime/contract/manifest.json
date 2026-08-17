@@ -69,7 +69,8 @@
         "items.list",
         "runs.list",
         "interrupts.list",
-        "plan.get"
+        "plan.get",
+        "goals.get"
       ],
       "stability": "stable"
     },

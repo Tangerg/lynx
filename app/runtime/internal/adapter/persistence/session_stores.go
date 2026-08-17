@@ -79,6 +79,7 @@ type childRunStartReservationCleaner interface {
 }
 
 type goalStore interface {
+	Get(ctx context.Context, sessionID string) (goal.Goal, bool, error)
 	Clear(ctx context.Context, sessionID string) error
 	RecordRun(ctx context.Context, record goal.RunRecord) error
 }
@@ -132,8 +133,20 @@ func (s *SessionStores) ReadMaterialSnapshot(ctx context.Context, sessionID stri
 				return err
 			}
 		}
+		var currentGoal *goal.Goal
+		if s.goals != nil {
+			stored, found, err := s.goals.Get(ctx, sessionID)
+			if err != nil {
+				return err
+			}
+			if found {
+				stored = stored.Clone()
+				currentGoal = &stored
+			}
+		}
 		snapshot = sessions.MaterialSnapshot{
 			Session: ses, Items: items, Runs: runs, Interrupts: interrupts, Plan: state,
+			Goal: currentGoal,
 		}
 		return nil
 	})

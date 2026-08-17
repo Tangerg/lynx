@@ -105,7 +105,7 @@ func TestGeneratedMethodsPublishMaterializedQueryFacts(t *testing.T) {
 	if index < 0 {
 		t.Fatal("sessions.snapshot is absent from the manifest")
 	}
-	want := []string{"items.list", "runs.list", "interrupts.list", "plan.get"}
+	want := []string{"items.list", "runs.list", "interrupts.list", "plan.get", "goals.get"}
 	if got := manifest.Methods[index].Materializes; !slices.Equal(got, want) {
 		t.Fatalf("sessions.snapshot materializes = %v, want %v", got, want)
 	}

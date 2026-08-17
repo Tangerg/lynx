@@ -7857,6 +7857,9 @@
     "SessionSnapshot": {
       "type": "object",
       "properties": {
+        "goal": {
+          "$ref": "#/$defs/Goal"
+        },
         "interrupts": {
           "type": "array",
           "items": {
