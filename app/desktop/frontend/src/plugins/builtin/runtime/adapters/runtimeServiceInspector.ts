@@ -2,6 +2,7 @@ import { getContainer } from "@/main/container";
 import {
   HTTP_ENDPOINTS,
   type DiscoverResponse,
+  type LivenessStatus,
   type ReadinessStatus,
   type RuntimeInfo,
   type ServerCapabilities,
@@ -45,6 +46,23 @@ function assertRuntimeIdentity(info: RuntimeInfo, discovery: DiscoverResponse): 
   }
 }
 
+function assertRuntimeGeneration(
+  info: RuntimeInfo,
+  liveness: LivenessStatus,
+  readiness: ReadinessStatus,
+  discovery: DiscoverResponse,
+): string {
+  const generation = info.server.instanceId;
+  if (
+    liveness.instanceId !== generation ||
+    readiness.instanceId !== generation ||
+    discovery.serverInfo.instanceId !== generation
+  ) {
+    throw new Error("Runtime inspection observed different Runtime process generations");
+  }
+  return generation;
+}
+
 /** Translate typed sidecar responses into Runtime context service facts. */
 export function runtimeServiceInspector(): RuntimeConnectionInspector<ServerCapabilities> {
   const sidecar = getContainer().sidecar();
@@ -70,6 +88,7 @@ export function runtimeServiceInspector(): RuntimeConnectionInspector<ServerCapa
       }
       assertEndpointIdentity(info);
       assertRuntimeIdentity(info, discovery);
+      const generation = assertRuntimeGeneration(info, liveness, readiness, discovery);
       if (liveness.status !== "ok") throw new Error("Runtime liveness check failed");
 
       const checks: RuntimeServiceObservation["checks"] = {};
@@ -77,6 +96,7 @@ export function runtimeServiceInspector(): RuntimeConnectionInspector<ServerCapa
         checks[name] = serviceHealth(health);
       }
       return {
+        generation,
         service: {
           server: { name: info.server.name, version: info.server.version },
           protocol: {

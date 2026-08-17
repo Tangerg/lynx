@@ -26,6 +26,7 @@ import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel
 const discovery: DiscoverResponse = {
   protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
   serverInfo: {
+    instanceId: "runtime_1",
     name: "lyra-runtime",
     version: "1.2.3",
     defaultWorkspace: { path: "/w" },
@@ -50,7 +51,7 @@ function healthySidecar(): SidecarClient {
   return {
     info: vi.fn().mockResolvedValue({
       protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
-      server: { name: "lyra-runtime", version: "1.2.3" },
+      server: { name: "lyra-runtime", version: "1.2.3", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
         rpc: HTTP_ENDPOINTS.rpc.path,
@@ -59,8 +60,8 @@ function healthySidecar(): SidecarClient {
         readiness: HTTP_ENDPOINTS.readiness.path,
       },
     }),
-    liveness: vi.fn().mockResolvedValue({ status: "ok" }),
-    readiness: vi.fn().mockResolvedValue({ status: "ok" }),
+    liveness: vi.fn().mockResolvedValue({ status: "ok", instanceId: "runtime_1" }),
+    readiness: vi.fn().mockResolvedValue({ status: "ok", instanceId: "runtime_1" }),
   };
 }
 
@@ -200,7 +201,7 @@ describe("runtime plugin", () => {
     await vi.waitFor(() => expect(sidecar.readiness).toHaveBeenCalledOnce());
     await removeInstallation(runtimePlugin.name);
 
-    resolveReadiness({ status: "ok" });
+    resolveReadiness({ status: "ok", instanceId: "runtime_1" });
     await Promise.resolve();
     await Promise.resolve();
 

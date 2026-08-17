@@ -28,7 +28,8 @@ function subscriptionPorts(
   };
   return {
     canSubscribe: vi.fn(() => true),
-    subscribeCapabilities: vi.fn(() => vi.fn()),
+    runtimeGeneration: vi.fn(() => "runtime_1"),
+    subscribeConnection: vi.fn(() => vi.fn()),
     resolveWorkspaceCwd: vi.fn().mockResolvedValue({ status: "resolved", cwd: "/repo" }),
     reportResolutionError: vi.fn(),
     subscribeWorkspaceCwdInputs: vi.fn(() => vi.fn()),
@@ -48,12 +49,12 @@ describe("startWorkspaceEventSubscription", () => {
   });
 
   it("starts once when the capability is advertised later", () => {
-    let onCapabilitiesChange: (() => void) | undefined;
+    let onConnectionChange: (() => void) | undefined;
     let advertised = false;
     const ports = subscriptionPorts({
       canSubscribe: () => advertised,
-      subscribeCapabilities: (listener) => {
-        onCapabilitiesChange = listener;
+      subscribeConnection: (listener) => {
+        onConnectionChange = listener;
         return vi.fn();
       },
     });
@@ -62,20 +63,20 @@ describe("startWorkspaceEventSubscription", () => {
     expect(ports.loop.start).not.toHaveBeenCalled();
 
     advertised = true;
-    onCapabilitiesChange?.();
-    onCapabilitiesChange?.();
+    onConnectionChange?.();
+    onConnectionChange?.();
 
     expect(ports.loop.start).toHaveBeenCalledOnce();
   });
 
   it("stops and reopens the event loop when discovery withdraws and restores streaming", () => {
-    let onCapabilitiesChange: (() => void) | undefined;
+    let onConnectionChange: (() => void) | undefined;
     let advertised = true;
     const signals: AbortSignal[] = [];
     const ports = subscriptionPorts({
       canSubscribe: () => advertised,
-      subscribeCapabilities: (listener) => {
-        onCapabilitiesChange = listener;
+      subscribeConnection: (listener) => {
+        onConnectionChange = listener;
         return vi.fn();
       },
       loop: {
@@ -91,12 +92,44 @@ describe("startWorkspaceEventSubscription", () => {
     expect(signals[0]?.aborted).toBe(false);
 
     advertised = false;
-    onCapabilitiesChange?.();
+    onConnectionChange?.();
     expect(signals[0]?.aborted).toBe(true);
 
     advertised = true;
-    onCapabilitiesChange?.();
+    onConnectionChange?.();
     expect(signals).toHaveLength(2);
+    expect(signals[1]?.aborted).toBe(false);
+  });
+
+  it("supersedes the event loop when a ready Runtime is replaced in place", () => {
+    let onConnectionChange: (() => void) | undefined;
+    let generation = "runtime_retired";
+    const signals: AbortSignal[] = [];
+    const ports = subscriptionPorts({
+      runtimeGeneration: () => generation,
+      subscribeConnection: (listener) => {
+        onConnectionChange = listener;
+        return vi.fn();
+      },
+      loop: {
+        start: vi.fn(async (signal) => {
+          signals.push(signal);
+        }),
+        retarget: vi.fn(),
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    expect(signals).toHaveLength(1);
+
+    onConnectionChange?.();
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(false);
+
+    generation = "runtime_successor";
+    onConnectionChange?.();
+    expect(signals).toHaveLength(2);
+    expect(signals[0]?.aborted).toBe(true);
     expect(signals[1]?.aborted).toBe(false);
   });
 
@@ -366,7 +399,7 @@ describe("startWorkspaceEventSubscription", () => {
   });
 
   it("unsubscribes, aborts the loop signal, and suppresses late retargets on dispose", async () => {
-    const unsubscribeCapabilities = vi.fn();
+    const unsubscribeConnection = vi.fn();
     const unsubscribeCwdInputs = vi.fn();
     const cwd =
       deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
@@ -380,7 +413,7 @@ describe("startWorkspaceEventSubscription", () => {
     const ports = subscriptionPorts({
       loop,
       resolveWorkspaceCwd: vi.fn().mockReturnValue(cwd.promise),
-      subscribeCapabilities: vi.fn(() => unsubscribeCapabilities),
+      subscribeConnection: vi.fn(() => unsubscribeConnection),
       subscribeWorkspaceCwdInputs: vi.fn(() => unsubscribeCwdInputs),
     });
 
@@ -389,7 +422,7 @@ describe("startWorkspaceEventSubscription", () => {
     cwd.resolve({ status: "resolved", cwd: "/repo" });
     await tick();
 
-    expect(unsubscribeCapabilities).toHaveBeenCalledOnce();
+    expect(unsubscribeConnection).toHaveBeenCalledOnce();
     expect(unsubscribeCwdInputs).toHaveBeenCalledOnce();
     expect(loopSignal?.aborted).toBe(true);
     expect(loop.retarget).toHaveBeenCalledOnce();

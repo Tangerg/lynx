@@ -5,11 +5,36 @@ export type WorkspaceCwdResolution =
 
 export interface WorkspaceEventSubscriptionPorts {
   canSubscribe: () => boolean;
-  subscribeCapabilities: (onChange: () => void) => () => void;
+  runtimeGeneration: () => string | null;
+  subscribeConnection: (onChange: () => void) => () => void;
   resolveWorkspaceCwd: (signal: AbortSignal) => Promise<WorkspaceCwdResolution>;
   reportResolutionError: (error: unknown) => void;
   subscribeWorkspaceCwdInputs: (onChange: (change: WorkspaceCwdInputChange) => void) => () => void;
   loop: WorkspaceEventLoop;
+}
+
+class RuntimeEventLoopOwner {
+  #generation: string | null = null;
+  #abort: AbortController | null = null;
+
+  constructor(private readonly loop: WorkspaceEventLoop) {}
+
+  replace(generation: string | null): void {
+    if (generation !== null && this.#abort !== null && this.#generation === generation) return;
+    this.#abort?.abort();
+    this.#abort = null;
+    this.#generation = null;
+    if (generation === null) return;
+
+    const abort = new AbortController();
+    this.#generation = generation;
+    this.#abort = abort;
+    void this.loop.start(abort.signal);
+  }
+
+  dispose(): void {
+    this.replace(null);
+  }
 }
 
 export type WorkspaceCwdInputChange = "identity" | "projection";
@@ -21,7 +46,7 @@ export function startWorkspaceEventSubscription(
   ports: WorkspaceEventSubscriptionPorts,
 ): () => void {
   const controller = new AbortController();
-  let loopAbort: AbortController | null = null;
+  const eventLoop = new RuntimeEventLoopOwner(ports.loop);
   let retargetGeneration = 0;
   let resolutionAbort: AbortController | null = null;
 
@@ -78,30 +103,22 @@ export function startWorkspaceEventSubscription(
     resolveTarget(generation);
   };
 
-  const reconcileCapability = (): void => {
+  const reconcileConnection = (): void => {
     if (controller.signal.aborted) return;
-    if (ports.canSubscribe()) {
-      if (loopAbort) return;
-      loopAbort = new AbortController();
-      void ports.loop.start(loopAbort.signal);
-      return;
-    }
-    loopAbort?.abort();
-    loopAbort = null;
+    eventLoop.replace(ports.canSubscribe() ? ports.runtimeGeneration() : null);
   };
 
-  reconcileCapability();
-  const unsubscribeCapabilities = ports.subscribeCapabilities(reconcileCapability);
+  reconcileConnection();
+  const unsubscribeConnection = ports.subscribeConnection(reconcileConnection);
   retarget("identity");
   const unsubscribeCwdInputs = ports.subscribeWorkspaceCwdInputs(retarget);
 
   return () => {
     retargetGeneration += 1;
     resolutionAbort?.abort();
-    unsubscribeCapabilities();
+    unsubscribeConnection();
     unsubscribeCwdInputs();
-    loopAbort?.abort();
-    loopAbort = null;
+    eventLoop.dispose();
     controller.abort();
   };
 }

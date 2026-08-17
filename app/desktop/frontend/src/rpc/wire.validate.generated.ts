@@ -1484,8 +1484,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, []),
   LivenessState: enumOf(["ok"]),
   LivenessStatus: object({
+    instanceId: text(),
     status: ref(() => CHECKS.LivenessState),
-  }, ["status"]),
+  }, ["instanceId", "status"]),
   MCPAuthorizationAttempt: allOf([
     object({
       createdAt: text(),
@@ -2299,8 +2300,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["path", "workspace"]),
   ReadinessStatus: object({
     checks: record(ref(() => CHECKS.HealthStatus)),
+    instanceId: text(),
     status: ref(() => CHECKS.HealthStatus),
-  }, ["status"]),
+  }, ["instanceId", "status"]),
   Recipe: object({
     argumentHint: text(),
     body: text(),
@@ -2825,9 +2827,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     runtimeSubscription: ref(() => CHECKS.SubscriptionLimits),
   }, ["idempotency", "mcpAuthorizationAttempts", "runReplay", "runtimeSubscription"]),
   RuntimeServerInfo: object({
+    instanceId: text(),
     name: text(),
     version: text(),
-  }, ["name", "version"]),
+  }, ["instanceId", "name", "version"]),
   RuntimeSubscribeRequest: object({
     topics: allOf([array(ref(() => CHECKS.RuntimeTopic)), minItems(1), uniqueItems()]),
     watches: array(ref(() => CHECKS.WatchSpec)),
@@ -2970,9 +2973,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ServerInfo: object({
     defaultWorkspace: ref(() => CHECKS.WorkspaceRef),
     home: text(),
+    instanceId: text(),
     name: text(),
     version: text(),
-  }, ["defaultWorkspace", "home", "name", "version"]),
+  }, ["defaultWorkspace", "home", "instanceId", "name", "version"]),
   Session: object({
     createdAt: text(),
     favorite: flag(),

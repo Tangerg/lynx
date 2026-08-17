@@ -113,6 +113,9 @@ func NewServer(cfg Config) (*Server, error) {
 	if cfg.ProtocolVersion == "" {
 		return nil, errors.New("http: ProtocolVersion is required")
 	}
+	if cfg.ServerInfo.InstanceID == "" {
+		return nil, errors.New("http: ServerInfo.InstanceID is required")
+	}
 	seenProbes := make(map[string]struct{}, len(cfg.HealthProbes))
 	for _, probe := range cfg.HealthProbes {
 		if probe.Name == "" {

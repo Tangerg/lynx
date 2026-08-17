@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runtimeownership"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
@@ -157,6 +159,7 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 	}
 
 	serverInfo := cfg.ServerInfo
+	serverInfo.InstanceID = "runtime_" + uuid.NewString()
 	if serverInfo.Name == "" {
 		serverInfo.Name = "runtime"
 	}

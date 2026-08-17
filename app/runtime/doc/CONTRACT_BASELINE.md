@@ -37,8 +37,8 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 |---|---|
 | `contract/manifest.json` | `f96a1dd7170c59d3817a932a47dbe9e9c34d88bf6307a15cad77fbced726ebc7` |
 | `contract/openrpc.json` | `ec6f63f6ef00d43c6792f07543fc6ac2d0bfe374810dcb8b07538b38f9a88d8e` |
-| `contract/schema.json` | `8a75810134fe31e30d94d4aecfad862332fdfdb9767f8dfebc7aba2864d53d7d` |
-| `contract/go-api.json` | `3ab6c25805b9c64bde6104a9303ea73b6bc86718820a3f114fc1f4c9c384fd2b` |
+| `contract/schema.json` | `c622d0991a878a8d90c42ee67ecfc9abff89f20011009a54a94a5ced838c04cc` |
+| `contract/go-api.json` | `ea4fdbb34bc0cf556934d81dfa86e2591b56452c66ab791d38357e865bdb9962` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 

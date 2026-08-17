@@ -8,8 +8,9 @@ import (
 )
 
 type RuntimeServerInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	InstanceID string `json:"instanceId"`
+	Name       string `json:"name"`
+	Version    string `json:"version"`
 }
 
 type RuntimeInfoEndpoints struct {
@@ -32,8 +33,12 @@ type RuntimeInfo struct {
 
 func newInfoResponse(server protocol.ServerInfo, currentVersion string) RuntimeInfo {
 	return RuntimeInfo{
-		Protocol:  protocol.ProtocolRange{Current: currentVersion, MinSupported: protocol.MinProtocolVersion},
-		Server:    RuntimeServerInfo{Name: server.Name, Version: server.Version},
+		Protocol: protocol.ProtocolRange{Current: currentVersion, MinSupported: protocol.MinProtocolVersion},
+		Server: RuntimeServerInfo{
+			InstanceID: server.InstanceID,
+			Name:       server.Name,
+			Version:    server.Version,
+		},
 		Transport: HTTPTransport,
 		Endpoints: RuntimeInfoEndpoints{
 			RPC:       endpointPath(endpointRPC),
@@ -59,21 +64,26 @@ type LivenessState string
 const LivenessOK LivenessState = "ok"
 
 type LivenessStatus struct {
-	Status LivenessState `json:"status"`
+	InstanceID string        `json:"instanceId"`
+	Status     LivenessState `json:"status"`
 }
 
 func (s *Server) handleLiveness(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(LivenessStatus{Status: LivenessOK}); err != nil {
+	if err := json.NewEncoder(w).Encode(LivenessStatus{
+		InstanceID: s.info.Server.InstanceID,
+		Status:     LivenessOK,
+	}); err != nil {
 		return
 	}
 }
 
 type ReadinessStatus struct {
-	Status HealthStatus            `json:"status"`
-	Checks map[string]HealthStatus `json:"checks,omitempty"`
+	InstanceID string                  `json:"instanceId"`
+	Status     HealthStatus            `json:"status"`
+	Checks     map[string]HealthStatus `json:"checks,omitempty"`
 }
 
 func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +98,11 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 
-	if err := json.NewEncoder(w).Encode(ReadinessStatus{Status: overall, Checks: checks}); err != nil {
+	if err := json.NewEncoder(w).Encode(ReadinessStatus{
+		InstanceID: s.info.Server.InstanceID,
+		Status:     overall,
+		Checks:     checks,
+	}); err != nil {
 		return
 	}
 }

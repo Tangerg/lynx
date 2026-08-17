@@ -7,8 +7,10 @@ import type {
 import { runtimeCapabilities } from "../application/ports/capabilities";
 import {
   resetRuntimeConnectionForTest,
+  runtimeConnectionGeneration,
   runtimeSupportsTopic,
   startRuntimeConnection,
+  subscribeRuntimeConnection,
   useRuntimeConnectionStore,
   useServerFeature,
 } from "./runtimeConnectionProjection";
@@ -56,6 +58,7 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
 
 function inspection(capabilities = makeCaps()): RuntimeConnectionInspection<ServerCapabilities> {
   return {
+    generation: "runtime_1",
     capabilities,
     service: {
       server: { name: "lyra", version: "1.2.3" },
@@ -73,6 +76,7 @@ describe("runtime connection projection", () => {
 
   it("starts empty before discovery", () => {
     expect(useRuntimeConnectionStore.getState()).toMatchObject({
+      generation: null,
       capabilities: null,
       service: { phase: "checking" },
     });
@@ -88,6 +92,19 @@ describe("runtime connection projection", () => {
     expect(runtimeSupportsTopic("files.changed")).toBe(true);
     expect(runtimeSupportsTopic("knowledge.changed")).toBe(false);
     expect(typeof useServerFeature).toBe("function");
+  });
+
+  it("publishes process generation changes even when capabilities keep the same identity", () => {
+    const capabilities = makeCaps();
+    const changed = vi.fn();
+    const unsubscribe = subscribeRuntimeConnection(changed);
+
+    useRuntimeConnectionStore.setState({ generation: "runtime_retired", capabilities });
+    useRuntimeConnectionStore.setState({ generation: "runtime_successor", capabilities });
+
+    expect(changed).toHaveBeenCalledTimes(2);
+    expect(runtimeConnectionGeneration()).toBe("runtime_successor");
+    unsubscribe();
   });
 
   it("retires an old inspector and keeps its late result and disposer out of the successor", async () => {
@@ -124,6 +141,7 @@ describe("runtime connection projection", () => {
 
     successor.dispose();
     expect(useRuntimeConnectionStore.getState()).toMatchObject({
+      generation: null,
       capabilities: null,
       service: { phase: "checking" },
     });

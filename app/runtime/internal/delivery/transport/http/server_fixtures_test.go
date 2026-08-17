@@ -14,6 +14,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const testRuntimeInstanceID = "runtime_test"
+
 // fakeRuntime implements only the operations exercised by transport tests.
 type fakeRuntime struct {
 	canceledRuns   []string
@@ -24,7 +26,7 @@ func (f *fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, err
 	return &protocol.DiscoverResponse{
 		Protocol: protocol.SupportedProtocolRange(),
 		ServerInfo: protocol.ServerInfo{
-			Name: "lyra-test", Version: "0.0.0",
+			Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID,
 			DefaultWorkspace: protocol.WorkspaceRef{Path: "/workspace"}, Home: "/home",
 		},
 		Capabilities: validTestCapabilities(),
@@ -85,7 +87,7 @@ func newTestServerFor(t *testing.T, api any) *httptest.Server {
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
 		Endpoint:        newTestEndpoint(t, api, operation.Config{IdempotencyNamespace: "idp_test"}),
 		Addr:            ":0",
-		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
+		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
 		ProtocolVersion: testProtocolVersion,
 	})
 	if err != nil {

@@ -14,7 +14,7 @@ describe("SidecarClient", () => {
   it("info() returns public bootstrap metadata", async () => {
     const fetchStub = makeFetch(200, {
       protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
-      server: { name: "lyra-core", version: "0.8.1" },
+      server: { name: "lyra-core", version: "0.8.1", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
         rpc: "/v2/rpc",
@@ -26,11 +26,16 @@ describe("SidecarClient", () => {
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     const info = await client.info();
     expect(info.server.name).toBe("lyra-core");
+    expect(info.server.instanceId).toBe("runtime_1");
     expect(info.protocol.current).toBe(PROTOCOL_VERSION);
   });
 
   it("readiness() accepts 503 with its diagnostic body", async () => {
-    const fetchStub = makeFetch(503, { status: "unhealthy", checks: { storage: "unhealthy" } });
+    const fetchStub = makeFetch(503, {
+      status: "unhealthy",
+      instanceId: "runtime_1",
+      checks: { storage: "unhealthy" },
+    });
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     await expect(client.readiness()).resolves.toMatchObject({
       status: "unhealthy",
@@ -86,7 +91,9 @@ describe("SidecarClient", () => {
     const seen: string[] = [];
     const stub = vi.fn(async (url: string) => {
       seen.push(url);
-      return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+      return new Response(JSON.stringify({ status: "ok", instanceId: "runtime_1" }), {
+        status: 200,
+      });
     });
     const client = createSidecarClient({
       baseUrl: "http://x/",

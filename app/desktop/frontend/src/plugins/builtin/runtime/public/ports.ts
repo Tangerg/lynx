@@ -4,7 +4,8 @@
 import { service } from "dougong";
 
 export interface RuntimeStreamPorts {
-  subscribeCapabilities: (onChange: () => void) => () => void;
+  runtimeGeneration: () => string | null;
+  subscribeConnection: (onChange: () => void) => () => void;
   verifyServiceConnection: () => Promise<void>;
 }
 

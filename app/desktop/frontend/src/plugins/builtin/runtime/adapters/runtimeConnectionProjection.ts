@@ -9,17 +9,20 @@ import {
   createRuntimeServiceController,
   type RuntimeConnectionInspection,
   type RuntimeConnectionInspector,
+  type RuntimeGeneration,
   type RuntimeServiceController,
   type RuntimeServiceFailure,
 } from "../application/runtimeService";
 
 interface RuntimeConnectionState {
+  generation: RuntimeGeneration | null;
   capabilities: ServerCapabilities | null;
   service: RuntimeServiceSnapshot;
 }
 
 function initialConnectionState(): RuntimeConnectionState {
   return {
+    generation: null,
     capabilities: null,
     service: { phase: "checking", observation: null, failure: null },
   };
@@ -60,6 +63,23 @@ function subscribeRuntimeCapabilities(onChange: () => void): () => void {
     current = state.capabilities;
     onChange();
   });
+}
+
+/** Observe the atomic connection identity + capability projection. */
+export function subscribeRuntimeConnection(onChange: () => void): () => void {
+  let current = useRuntimeConnectionStore.getState();
+  return useRuntimeConnectionStore.subscribe((state) => {
+    if (state.generation === current.generation && state.capabilities === current.capabilities) {
+      current = state;
+      return;
+    }
+    current = state;
+    onChange();
+  });
+}
+
+export function runtimeConnectionGeneration(): RuntimeGeneration | null {
+  return useRuntimeConnectionStore.getState().generation;
 }
 
 /** Install the read-only capability boundary used by tests without a Runtime owner. */
@@ -136,6 +156,7 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
   #replace(inspection: RuntimeConnectionInspection<ServerCapabilities>): void {
     if (!this.#ownsGeneration()) return;
     useRuntimeConnectionStore.setState({
+      generation: inspection.generation,
       capabilities: inspection.capabilities,
       service: {
         phase: inspection.service.health,
@@ -148,6 +169,7 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
   #unavailable(failure: RuntimeServiceFailure): void {
     if (!this.#ownsGeneration()) return;
     useRuntimeConnectionStore.setState({
+      generation: null,
       capabilities: null,
       service: { phase: "unavailable", observation: null, failure },
     });

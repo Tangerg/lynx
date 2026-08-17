@@ -243,7 +243,9 @@ discover（可选）→ operate → host/transport disconnect
 ```
 
 runtime 是无状态 JSON-RPC 服务：业务方法**不要求**先调用 discovery。client 可在启动时调用 `runtime.discover`
-或 HTTP `GET /v2/info` 读取 serverInfo / capabilities，但这只是信息查询，不改变连接状态。
+读取完整 serverInfo / capabilities；HTTP client 也可用 `GET /v2/info` 读取最小 binding 与进程身份，但这些都只是
+信息查询，不改变连接状态。`ServerInfo.instanceId` 每次 Runtime 进程启动都重新生成，不是持久 identity、replay scope
+或 idempotency namespace。
 
 协议版本、clientInfo、clientCapabilities 随每个 request 的 `params._meta` 发送。server 用这份 request-scoped
 metadata 判断本次 run / subscription 能否产出某些事件或 HITL interrupt；不把 client 能力写成 runtime 进程全局状态。
@@ -953,7 +955,7 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 
 ## 9. Capabilities 与请求能力
 
-`ServerCapabilities`（`runtime.discover` / `GET /v2/info`）由六部分组成，每部分都是**runtime 真做得到的事**：
+`ServerCapabilities`（仅由 `runtime.discover` 返回）由六部分组成，每部分都是**runtime 真做得到的事**：
 
 | 字段               | 含义                                                                                                       |
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |

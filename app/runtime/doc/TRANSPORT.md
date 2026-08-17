@@ -404,7 +404,7 @@ sidecar 端点不走 JSON-RPC（扁平 JSON、无需 discovery、无鉴权）。
 liveness/readiness、反代 upstream 健康检查 —— 这些要的是"不套 envelope、无鉴权"的端点。
 | 需求                                            | HTTP                   |
 | ----------------------------------------------- | ---------------------- |
-| 运行信息（serverInfo / version / capabilities） | sidecar `GET /v2/info` |
+| 最小 binding / 协议 / 进程身份                  | sidecar `GET /v2/info` |
 | 存活探测                                        | `GET /v2/health/live`  |
 | 就绪探测                                        | `GET /v2/health/ready` |
 
@@ -416,17 +416,23 @@ liveness/readiness、反代 upstream 健康检查 —— 这些要的是"不套 
 ### 12.1 `GET /v2/health/live` 与 `GET /v2/health/ready`
 
 ```json
-{ "status": "ok" }
+{ "instanceId": "runtime_019c765b-2f8f-7e36-a2b4-31cb11f48d10", "status": "ok" }
 ```
 
-live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
+live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。两者的 `instanceId` 必须与同一进程的
+`/v2/info.server.instanceId` 和 `runtime.discover.serverInfo.instanceId` 完全一致。client 只有在一次 inspection 的
+四份 identity 全部一致时才能提交 ready；进程交错期间拼出的 cohort 必须整体丢弃。
 
 ### 12.2 `GET /v2/info`
 
 ```json
 {
   "protocol": { "current": "2026-08-17", "minSupported": "2026-08-17" },
-  "server": { "name": "lyra-runtime", "version": "0.0.0" },
+  "server": {
+    "instanceId": "runtime_019c765b-2f8f-7e36-a2b4-31cb11f48d10",
+    "name": "lyra-runtime",
+    "version": "0.0.0"
+  },
   "transport": "http",
   "endpoints": {
     "rpc": "/v2/rpc",
@@ -436,6 +442,9 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
   }
 }
 ```
+
+`instanceId` 是不透明、每次进程启动都变化的 incarnation identity；不得持久化为业务 identity，也不得替代
+discovery 中跨重启稳定的 idempotency namespace。
 
 ## 13. CORS
 

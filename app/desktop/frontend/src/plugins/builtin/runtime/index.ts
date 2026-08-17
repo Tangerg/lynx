@@ -2,8 +2,11 @@ import { CONFIG, definePlugin } from "@/plugins/sdk";
 import { installRuntimeEndpointConfiguration } from "./adapters/runtimeEndpointConfiguration";
 import { installRuntimeMutationJournalStorage } from "./adapters/runtimeMutationJournalStorage";
 import { runtimeServiceInspector } from "./adapters/runtimeServiceInspector";
-import { startRuntimeConnection } from "./adapters/runtimeConnectionProjection";
-import { subscribeRuntimeCapabilities } from "./public/capabilities";
+import {
+  runtimeConnectionGeneration,
+  startRuntimeConnection,
+  subscribeRuntimeConnection,
+} from "./adapters/runtimeConnectionProjection";
 import { verifyRuntimeServiceConnection } from "./public/serviceStatus";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
@@ -22,7 +25,8 @@ export default definePlugin({
     });
     return {
       stream: {
-        subscribeCapabilities: subscribeRuntimeCapabilities,
+        runtimeGeneration: runtimeConnectionGeneration,
+        subscribeConnection: subscribeRuntimeConnection,
         verifyServiceConnection: verifyRuntimeServiceConnection,
       },
     };

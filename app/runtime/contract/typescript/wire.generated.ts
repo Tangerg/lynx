@@ -780,6 +780,7 @@ export interface ListRunsRequest {
 export type LivenessState = "ok";
 
 export interface LivenessStatus {
+  instanceId: string;
   status: LivenessState;
 }
 
@@ -1095,6 +1096,7 @@ export interface ReadFileRequest {
 
 export interface ReadinessStatus {
   checks?: Record<string, HealthStatus>;
+  instanceId: string;
   status: HealthStatus;
 }
 
@@ -1293,6 +1295,7 @@ export interface RuntimeLimits {
 }
 
 export interface RuntimeServerInfo {
+  instanceId: string;
   name: string;
   version: string;
 }
@@ -1361,6 +1364,7 @@ export interface ServerCapabilities {
 export interface ServerInfo {
   defaultWorkspace: WorkspaceRef;
   home: string;
+  instanceId: string;
   name: string;
   version: string;
 }

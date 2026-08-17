@@ -490,7 +490,7 @@ func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 		GitAvailable:           stack.GitAvailable,
 		PlanEnabled:            stack.PlanEnabled,
 		ServerInfo: protocol.ServerInfo{
-			Name: "conformance-test", Version: "0.0.0-test",
+			Name: "conformance-test", Version: "0.0.0-test", InstanceID: "runtime_test",
 			DefaultWorkspace: protocol.WorkspaceRef{Path: cwd}, Home: cwd,
 		},
 		IdempotencyLimits: protocol.IdempotencyLimits{

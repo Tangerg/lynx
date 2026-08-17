@@ -19,7 +19,7 @@ func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Serv
 		Endpoint: newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:     ":0",
 		ServerInfo: protocol.ServerInfo{
-			Name: "lyra-test", Version: "0.0.0",
+			Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID,
 			DefaultWorkspace: protocol.WorkspaceRef{Path: "/secret/project"}, Home: "/secret/home",
 		},
 		ProtocolVersion: testProtocolVersion,
@@ -47,8 +47,9 @@ func TestInfoIsMinimalAndTyped(t *testing.T) {
 			MinSupported string `json:"minSupported"`
 		} `json:"protocol"`
 		Server struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
+			Name       string `json:"name"`
+			Version    string `json:"version"`
+			InstanceID string `json:"instanceId"`
 		} `json:"server"`
 		Transport string `json:"transport"`
 		Endpoints struct {
@@ -64,7 +65,7 @@ func TestInfoIsMinimalAndTyped(t *testing.T) {
 	if body.Protocol.Current != testProtocolVersion || body.Protocol.MinSupported != testProtocolVersion {
 		t.Fatalf("protocol = %+v", body.Protocol)
 	}
-	if body.Server.Name != "lyra-test" || body.Server.Version != "0.0.0" {
+	if body.Server.Name != "lyra-test" || body.Server.Version != "0.0.0" || body.Server.InstanceID != testRuntimeInstanceID {
 		t.Fatalf("server = %+v", body.Server)
 	}
 	if body.Transport != "http" {
@@ -117,6 +118,16 @@ func TestLivenessDoesNotCallReadinessProbes(t *testing.T) {
 	if calls.Load() != 0 {
 		t.Fatalf("readiness probe calls = %d", calls.Load())
 	}
+	var body struct {
+		InstanceID string `json:"instanceId"`
+		Status     string `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Status != "ok" || body.InstanceID != testRuntimeInstanceID {
+		t.Fatalf("liveness = %+v", body)
+	}
 }
 
 func TestReadinessReportsWorstProbe(t *testing.T) {
@@ -139,13 +150,14 @@ func TestReadinessReportsWorstProbe(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
-		Status string            `json:"status"`
-		Checks map[string]string `json:"checks"`
+		InstanceID string            `json:"instanceId"`
+		Status     string            `json:"status"`
+		Checks     map[string]string `json:"checks"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Status != "unhealthy" || body.Checks["runtime"] != "ok" || body.Checks["storage"] != "unhealthy" {
+	if body.InstanceID != testRuntimeInstanceID || body.Status != "unhealthy" || body.Checks["runtime"] != "ok" || body.Checks["storage"] != "unhealthy" {
 		t.Fatalf("readiness = %+v", body)
 	}
 }
@@ -169,11 +181,23 @@ func TestReadinessContainsProbePanic(t *testing.T) {
 	}
 }
 
+func TestNewServerRequiresRuntimeInstanceIdentity(t *testing.T) {
+	_, err := lyrahttp.NewServer(lyrahttp.Config{
+		Endpoint:        newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
+		Addr:            ":0",
+		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
+		ProtocolVersion: testProtocolVersion,
+	})
+	if err == nil {
+		t.Fatal("NewServer accepted a binding without Runtime instance identity")
+	}
+}
+
 func TestNewServerRejectsAmbiguousHealthProbes(t *testing.T) {
 	base := lyrahttp.Config{
 		Endpoint:        newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
-		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
+		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
 		ProtocolVersion: testProtocolVersion,
 	}
 	tests := []struct {

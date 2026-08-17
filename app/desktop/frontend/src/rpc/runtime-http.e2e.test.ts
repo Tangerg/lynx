@@ -856,26 +856,37 @@ for await (const line of lines) {
     if (!client) throw new Error("runtime client was not initialized");
 
     const sidecar = createSidecarClient({ baseUrl });
-    await expect(sidecar.liveness()).resolves.toEqual({ status: "ok" });
-    await expect(sidecar.readiness()).resolves.toMatchObject({ status: "ok" });
-    await expect(sidecar.info()).resolves.toMatchObject({
+    const liveness = await sidecar.liveness();
+    const readiness = await sidecar.readiness();
+    const info = await sidecar.info();
+    expect(liveness).toMatchObject({ status: "ok" });
+    expect(readiness).toMatchObject({ status: "ok" });
+    expect(info).toMatchObject({
       protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
       transport: "http",
     });
 
     const discovery = await client.runtime.discover();
+    expect([
+      info.server.instanceId,
+      liveness.instanceId,
+      readiness.instanceId,
+      discovery.serverInfo.instanceId,
+    ]).toEqual(Array(4).fill(discovery.serverInfo.instanceId));
     expect(discovery.protocol).toEqual({
       current: PROTOCOL_VERSION,
       minSupported: PROTOCOL_VERSION,
     });
     expect(discovery.capabilities.limits.idempotency.namespace).toMatch(/^idp_[0-9a-f]{32}$/);
-    await expect(client.runtime.discover()).resolves.toMatchObject({
+    const repeatDiscovery = await client.runtime.discover();
+    expect(repeatDiscovery).toMatchObject({
       capabilities: {
         limits: {
           idempotency: { namespace: discovery.capabilities.limits.idempotency.namespace },
         },
       },
     });
+    expect(repeatDiscovery.serverInfo.instanceId).toBe(discovery.serverInfo.instanceId);
     expect(discovery.capabilities.streamingMethods).toContain("runtime.subscribe");
 
     const staleStoreTitle = "must not enter replacement Runtime";
@@ -4199,7 +4210,8 @@ for await (const line of lines) {
     await startRuntimeProcess();
     client = createRuntimeClient();
 
-    await expect(client.runtime.discover()).resolves.toMatchObject({
+    const afterRestart = await client.runtime.discover();
+    expect(afterRestart).toMatchObject({
       capabilities: {
         limits: {
           idempotency: {
@@ -4208,6 +4220,7 @@ for await (const line of lines) {
         },
       },
     });
+    expect(afterRestart.serverInfo.instanceId).not.toBe(beforeRestart.serverInfo.instanceId);
     await expect(client.sessions.get(asSessionId(durable.id))).resolves.toMatchObject({
       id: durable.id,
       title: durable.title,
@@ -4300,7 +4313,8 @@ for await (const line of lines) {
       await startRuntimeProcess();
       client = createRuntimeClient();
 
-      await expect(client.runtime.discover()).resolves.toMatchObject({
+      const afterKill = await client.runtime.discover();
+      expect(afterKill).toMatchObject({
         capabilities: {
           limits: {
             idempotency: {
@@ -4309,6 +4323,7 @@ for await (const line of lines) {
           },
         },
       });
+      expect(afterKill.serverInfo.instanceId).not.toBe(beforeKill.serverInfo.instanceId);
       const planSnapshot = await client.sessions.snapshot(asSessionId(planSession.id));
       expect(planSnapshot).toMatchObject({
         state: {

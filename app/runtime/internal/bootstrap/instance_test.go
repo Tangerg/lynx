@@ -55,7 +55,9 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 		DataDirectory:        t.TempDir(),
 		ConfigDirectories:    []string{t.TempDir()},
 		BuildID:              "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		ServerInfo:           protocol.ServerInfo{Name: "test-runtime", Version: "test-version"},
+		ServerInfo: protocol.ServerInfo{
+			Name: "test-runtime", Version: "test-version", InstanceID: "runtime_caller_owned",
+		},
 	}
 	instance, _, err := OpenInstance(t.Context(), cfg)
 	if err != nil {
@@ -70,6 +72,9 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	discovery, ok := result.Value.(*protocol.DiscoverResponse)
 	if !ok || discovery.ServerInfo.Name != "test-runtime" || discovery.ServerInfo.Home != cfg.UserHome {
 		t.Fatalf("runtime.discover result = %+v", result.Value)
+	}
+	if discovery.ServerInfo.InstanceID == "" || discovery.ServerInfo.InstanceID == cfg.ServerInfo.InstanceID {
+		t.Fatalf("runtime.discover instance identity = %q, want a fresh Bootstrap-owned identity", discovery.ServerInfo.InstanceID)
 	}
 	namespace := discovery.Capabilities.Limits.Idempotency.Namespace
 	if namespace == "" {
@@ -86,6 +91,9 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	secondDiscovery, ok := secondResult.Value.(*protocol.DiscoverResponse)
 	if !ok || secondDiscovery.Capabilities.Limits.Idempotency.Namespace != namespace {
 		t.Fatalf("second idempotency namespace = %+v, want %q", secondResult.Value, namespace)
+	}
+	if secondDiscovery.ServerInfo.InstanceID == discovery.ServerInfo.InstanceID {
+		t.Fatalf("second Runtime instance identity = %q, want a fresh identity", secondDiscovery.ServerInfo.InstanceID)
 	}
 	if err := second.Close(); err != nil {
 		t.Fatalf("close second instance: %v", err)
@@ -105,6 +113,10 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	reopenedDiscovery, ok := reopenedResult.Value.(*protocol.DiscoverResponse)
 	if !ok || reopenedDiscovery.Capabilities.Limits.Idempotency.Namespace != namespace {
 		t.Fatalf("reopened idempotency namespace = %+v, want %q", reopenedResult.Value, namespace)
+	}
+	if reopenedDiscovery.ServerInfo.InstanceID == discovery.ServerInfo.InstanceID ||
+		reopenedDiscovery.ServerInfo.InstanceID == secondDiscovery.ServerInfo.InstanceID {
+		t.Fatalf("reopened Runtime instance identity = %q, want a fresh identity", reopenedDiscovery.ServerInfo.InstanceID)
 	}
 	if err := reopened.Close(); err != nil {
 		t.Fatalf("close reopened instance: %v", err)

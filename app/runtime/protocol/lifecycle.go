@@ -13,11 +13,14 @@ type ClientInfo struct {
 	Version string `json:"version"`
 }
 
-// ServerInfo identifies the runtime + its serve directory context. The full
-// value is returned by runtime.discover; the public /v2/info sidecar projects
-// only name and version. DefaultWorkspace/Home seed the client's cold-start
-// filesystem context.
+// ServerInfo identifies one Runtime serving incarnation and its serve directory
+// context. InstanceID is fresh for every Bootstrap instance (one per standalone
+// process) and must never be used as a durable storage or idempotency namespace.
+// The full value is returned by runtime.discover; the public /v2/info sidecar
+// projects only public process identity. DefaultWorkspace/Home seed the client's
+// cold-start filesystem context.
 type ServerInfo struct {
+	InstanceID       string       `json:"instanceId"`
 	Name             string       `json:"name"`
 	Version          string       `json:"version"`
 	DefaultWorkspace WorkspaceRef `json:"defaultWorkspace"`

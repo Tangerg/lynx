@@ -20,6 +20,7 @@ const observation: RuntimeServiceObservation = {
 };
 
 const inspection: RuntimeConnectionInspection<ServerCapabilities> = {
+  generation: "runtime_1",
   service: observation,
   capabilities: {
     runEvents: [],

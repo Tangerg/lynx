@@ -174,6 +174,9 @@ func (cfg Config) validate() error {
 	if cfg.WorkspaceAuthoredWatch == nil {
 		return errors.New("server: authored workspace observation is required")
 	}
+	if cfg.ServerInfo.InstanceID == "" {
+		return errors.New("server: ServerInfo.InstanceID is required")
+	}
 	return nil
 }
 

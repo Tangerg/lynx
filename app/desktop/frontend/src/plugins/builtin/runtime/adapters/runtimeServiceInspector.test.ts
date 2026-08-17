@@ -12,6 +12,7 @@ import { runtimeServiceInspector } from "./runtimeServiceInspector";
 const discovery: DiscoverResponse = {
   protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
   serverInfo: {
+    instanceId: "runtime_1",
     name: "lyra",
     version: "1.2.3",
     defaultWorkspace: { path: "/workspace" },
@@ -40,7 +41,7 @@ function sidecar(overrides: Partial<SidecarClient> = {}): SidecarClient {
   return {
     info: vi.fn().mockResolvedValue({
       protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
-      server: { name: "lyra", version: "1.2.3" },
+      server: { name: "lyra", version: "1.2.3", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
         rpc: HTTP_ENDPOINTS.rpc.path,
@@ -49,10 +50,12 @@ function sidecar(overrides: Partial<SidecarClient> = {}): SidecarClient {
         readiness: HTTP_ENDPOINTS.readiness.path,
       },
     }),
-    liveness: vi.fn().mockResolvedValue({ status: "ok" }),
-    readiness: vi
-      .fn()
-      .mockResolvedValue({ status: "degraded", checks: { database: "ok", git: "degraded" } }),
+    liveness: vi.fn().mockResolvedValue({ status: "ok", instanceId: "runtime_1" }),
+    readiness: vi.fn().mockResolvedValue({
+      status: "degraded",
+      instanceId: "runtime_1",
+      checks: { database: "ok", git: "degraded" },
+    }),
     ...overrides,
   };
 }
@@ -67,6 +70,7 @@ describe("runtime service inspector", () => {
     const signal = new AbortController().signal;
 
     await expect(runtimeServiceInspector().inspect(signal)).resolves.toEqual({
+      generation: "runtime_1",
       service: {
         server: { name: "lyra", version: "1.2.3" },
         protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
@@ -87,7 +91,7 @@ describe("runtime service inspector", () => {
     const client = sidecar({
       info: vi.fn().mockResolvedValue({
         protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
-        server: { name: "lyra", version: "1.2.3" },
+        server: { name: "lyra", version: "1.2.3", instanceId: "runtime_1" },
         transport: "http",
         endpoints: {
           rpc: "/v3/rpc",
@@ -117,6 +121,39 @@ describe("runtime service inspector", () => {
 
     await expect(runtimeServiceInspector().inspect(new AbortController().signal)).rejects.toThrow(
       "different servers",
+    );
+  });
+
+  it("refuses one inspection stitched across Runtime process generations", async () => {
+    const client = sidecar({
+      info: vi.fn().mockResolvedValue({
+        protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+        server: { name: "lyra", version: "1.2.3", instanceId: "runtime_retired" },
+        transport: "http",
+        endpoints: {
+          rpc: HTTP_ENDPOINTS.rpc.path,
+          info: HTTP_ENDPOINTS.info.path,
+          liveness: HTTP_ENDPOINTS.liveness.path,
+          readiness: HTTP_ENDPOINTS.readiness.path,
+        },
+      }),
+      liveness: vi.fn().mockResolvedValue({ status: "ok", instanceId: "runtime_retired" }),
+      readiness: vi.fn().mockResolvedValue({
+        status: "ok",
+        instanceId: "runtime_successor",
+      }),
+    });
+    const successor = {
+      ...discovery,
+      serverInfo: { ...discovery.serverInfo, instanceId: "runtime_successor" },
+    } satisfies DiscoverResponse;
+    setContainer({
+      sidecar: () => client,
+      client: () => runtimeClient(vi.fn().mockResolvedValue(successor)),
+    });
+
+    await expect(runtimeServiceInspector().inspect(new AbortController().signal)).rejects.toThrow(
+      "different Runtime process generations",
     );
   });
 

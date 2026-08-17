@@ -3641,11 +3641,15 @@
     "LivenessStatus": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string"
+        },
         "status": {
           "$ref": "#/$defs/LivenessState"
         }
       },
       "required": [
+        "instanceId",
         "status"
       ]
     },
@@ -5889,11 +5893,15 @@
             "$ref": "#/$defs/HealthStatus"
           }
         },
+        "instanceId": {
+          "type": "string"
+        },
         "status": {
           "$ref": "#/$defs/HealthStatus"
         }
       },
       "required": [
+        "instanceId",
         "status"
       ]
     },
@@ -7282,6 +7290,9 @@
     "RuntimeServerInfo": {
       "type": "object",
       "properties": {
+        "instanceId": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -7290,6 +7301,7 @@
         }
       },
       "required": [
+        "instanceId",
         "name",
         "version"
       ]
@@ -7746,6 +7758,9 @@
         "home": {
           "type": "string"
         },
+        "instanceId": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -7756,6 +7771,7 @@
       "required": [
         "defaultWorkspace",
         "home",
+        "instanceId",
         "name",
         "version"
       ]

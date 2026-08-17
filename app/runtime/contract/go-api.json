@@ -7102,6 +7102,11 @@
           "kind": "struct",
           "fields": [
             {
+              "name": "InstanceID",
+              "type": "string",
+              "tag": "json:\"instanceId\""
+            },
+            {
               "name": "Name",
               "type": "string",
               "tag": "json:\"name\""

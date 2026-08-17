@@ -38,7 +38,8 @@ export default definePlugin({
     const disposeProjectIndex = installProjectIndexRefresh();
     const disposeSubscription = startWorkspaceEventSubscription({
       canSubscribe: canSubscribeWorkspaceEvents,
-      subscribeCapabilities: ctx.runtime.subscribeCapabilities,
+      runtimeGeneration: ctx.runtime.runtimeGeneration,
+      subscribeConnection: ctx.runtime.subscribeConnection,
       resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
       reportResolutionError: (error) =>
         console.warn("[workspace-events] target resolution failed:", error),
