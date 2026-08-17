@@ -10,9 +10,13 @@ import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import { useApprovalSubmit } from "./useApprovalSubmit";
-import { discardStagedInterruptResponses } from "./interruptResponseCoordinator";
+import {
+  discardStagedInterruptResponses,
+  installInterruptResponseCoordinator,
+} from "./interruptResponseCoordinator";
 
 const SID = "ses_1";
+let disposeCoordinator: () => void = () => undefined;
 
 // ensureSession seeds the slice before setResume — mirrors useAgentSession,
 // which mounts then binds the imperative actions. Required now that
@@ -47,12 +51,14 @@ function seedPending(itemId: string): void {
 }
 
 afterEach(() => {
+  disposeCoordinator();
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
 });
 beforeEach(() => {
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
+  disposeCoordinator = installInterruptResponseCoordinator();
 });
 
 describe("useApprovalSubmit", () => {

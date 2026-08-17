@@ -2,11 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { navigator } from "@/lib/navigation";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import type { PendingInterruptGroup } from "@/plugins/sdk/types/agentSessionView";
-import { discardStagedInterruptResponses } from "./interruptResponseCoordinator";
+import {
+  discardStagedInterruptResponses,
+  installInterruptResponseCoordinator,
+} from "./interruptResponseCoordinator";
 import { submitPendingApproval } from "./submitPendingApproval";
 
 const SESSION_ID = "ses_keyboard_barrier";
 const ROOT_RUN_ID = "run_root";
+let disposeCoordinator: () => void = () => undefined;
 
 function seedPending(groups: PendingInterruptGroup[]): void {
   const store = useAgentStore.getState();
@@ -20,9 +24,11 @@ beforeEach(() => {
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
   navigator().go({ session: SESSION_ID });
+  disposeCoordinator = installInterruptResponseCoordinator();
 });
 
 afterEach(() => {
+  disposeCoordinator();
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
 });

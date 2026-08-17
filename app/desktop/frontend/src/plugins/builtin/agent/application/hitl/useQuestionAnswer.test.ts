@@ -8,9 +8,13 @@ import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import { useQuestionAnswer } from "./useQuestionAnswer";
-import { discardStagedInterruptResponses } from "./interruptResponseCoordinator";
+import {
+  discardStagedInterruptResponses,
+  installInterruptResponseCoordinator,
+} from "./interruptResponseCoordinator";
 
 const SID = "ses_1";
+let disposeCoordinator: () => void = () => undefined;
 
 // ensureSession seeds the slice before setResume — the store no longer
 // resurrects an absent session, so the binding must follow a mount (as
@@ -45,12 +49,14 @@ function seedPending(itemId: string): void {
 }
 
 afterEach(() => {
+  disposeCoordinator();
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
 });
 beforeEach(() => {
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
+  disposeCoordinator = installInterruptResponseCoordinator();
 });
 
 describe("useQuestionAnswer", () => {

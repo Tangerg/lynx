@@ -4,7 +4,7 @@ import { installAgentDefaultSessionPort } from "../adapters/agentDefaultSessionP
 import { installAgentRuntimeGateway } from "../adapters/agentRuntimeGateway";
 import { installAgentStatePorts } from "../adapters/agentStatePorts";
 import { contributeRuntimePendingWork } from "../adapters/runtimePendingWorkProvider";
-import { installInterruptResponseReconciliation } from "../application/hitl/interruptResponseCoordinator";
+import { installInterruptResponseCoordinator } from "../application/hitl/interruptResponseCoordinator";
 import {
   getActiveSessionId,
   getAgentSessionLifecycleSnapshot,
@@ -21,7 +21,7 @@ export default definePlugin({
     const disposeState = installAgentStatePorts();
     const disposeDefaultSession = installAgentDefaultSessionPort();
     const disposeRuntime = installAgentRuntimeGateway();
-    const disposeInterruptResponses = installInterruptResponseReconciliation();
+    const disposeInterruptResponses = installInterruptResponseCoordinator();
     // After the ports it reads through.
     const disposeDraftCleanup = installAbandonedDraftCleanup();
     ctx.cleanup(() => {

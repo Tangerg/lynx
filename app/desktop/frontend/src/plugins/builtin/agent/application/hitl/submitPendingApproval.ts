@@ -6,8 +6,7 @@
 //
 // Returns true when an approval is pending or staged (so the keybinding never
 // falls through into chat send while the barrier is open), false when the set
-// contains no approval. The module-level in-flight set covers the card-less
-// callback lifetime; the coordinator owns cross-card deduplication and rollback.
+// contains no approval. The coordinator owns staging, deduplication and rollback.
 
 import { agentSessionState } from "../ports/sessionState";
 import { agentSessionView } from "../ports/sessionView";
@@ -16,8 +15,6 @@ import type { ApprovalDecision } from "../../domain/hitl";
 import { WIRE_DECISION } from "./wireDecision";
 import { resumeInterrupt } from "./useInterruptResume";
 import { interruptResponseIsStaged } from "./interruptResponseCoordinator";
-
-const inFlight = new Set<string>();
 
 export function submitPendingApproval(decision: ApprovalDecision): boolean {
   const sid = agentSessionState().getActiveSessionId();
@@ -55,20 +52,12 @@ export function submitPendingApproval(decision: ApprovalDecision): boolean {
     return true;
   }
 
-  if (inFlight.has(itemId)) return true; // already submitting — swallow the repeat press
-  inFlight.add(itemId);
-  const clear = () => inFlight.delete(itemId);
-  if (
-    !resumeInterrupt(
-      sid,
-      oi.rootRunId,
-      itemId,
-      { type: "approval", decision: WIRE_DECISION[decision] },
-      { decision },
-      { onSettled: clear, onError: clear },
-    )
-  ) {
-    clear(); // no resume binding (rare race) — don't leak the latch
-  }
+  resumeInterrupt(
+    sid,
+    oi.rootRunId,
+    itemId,
+    { type: "approval", decision: WIRE_DECISION[decision] },
+    { decision },
+  );
   return true;
 }

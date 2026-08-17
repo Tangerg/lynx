@@ -3,13 +3,14 @@ import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import type { PendingInterruptGroup } from "@/plugins/sdk/types/agentSessionView";
 import {
   discardStagedInterruptResponses,
-  installInterruptResponseReconciliation,
+  installInterruptResponseCoordinator,
   interruptResponseIsStaged,
   stageInterruptResponse,
 } from "./interruptResponseCoordinator";
 
 const SESSION_ID = "ses_barrier";
 const ROOT_RUN_ID = "run_root";
+let disposeCoordinator: () => void = () => undefined;
 
 function seedPending(groups: PendingInterruptGroup[]): void {
   const store = useAgentStore.getState();
@@ -39,9 +40,11 @@ function groups(): PendingInterruptGroup[] {
 beforeEach(() => {
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
+  disposeCoordinator = installInterruptResponseCoordinator();
 });
 
 afterEach(() => {
+  disposeCoordinator();
   discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
 });
@@ -178,7 +181,7 @@ describe("interrupt response coordinator", () => {
       vi.fn(() => true),
     );
     const onError = vi.fn();
-    const dispose = installInterruptResponseReconciliation();
+    const dispose = installInterruptResponseCoordinator();
 
     stageInterruptResponse(
       SESSION_ID,
@@ -209,7 +212,7 @@ describe("interrupt response coordinator", () => {
     const questionSettled = vi.fn();
     const approvalError = vi.fn();
     const questionError = vi.fn();
-    const dispose = installInterruptResponseReconciliation();
+    const dispose = installInterruptResponseCoordinator();
 
     stageInterruptResponse(
       SESSION_ID,
@@ -243,5 +246,90 @@ describe("interrupt response coordinator", () => {
     expect(approvalSettled).not.toHaveBeenCalled();
     expect(questionSettled).not.toHaveBeenCalled();
     dispose();
+  });
+
+  it("does not let a retired reconciliation clear its successor's staged barrier", () => {
+    seedPending(groups());
+    useAgentStore.getState().setResume(
+      SESSION_ID,
+      vi.fn(() => true),
+    );
+    const retired = installInterruptResponseCoordinator();
+    const successor = installInterruptResponseCoordinator();
+    const onError = vi.fn();
+
+    stageInterruptResponse(
+      SESSION_ID,
+      ROOT_RUN_ID,
+      "approval_a",
+      { type: "approval", decision: "approve" },
+      { decision: "approved" },
+      { onError },
+    );
+    retired();
+
+    expect(interruptResponseIsStaged(SESSION_ID, ROOT_RUN_ID, "approval_a")).toBe(true);
+    expect(onError).not.toHaveBeenCalled();
+    successor();
+  });
+
+  it("retires the old submitted barrier before its successor accepts the same identity", () => {
+    seedPending(groups());
+    let retiredAccept: (() => void) | undefined;
+    const retiredResume = vi.fn((_runId, _responses, onSettled) => {
+      retiredAccept = onSettled;
+      return true;
+    });
+    useAgentStore.getState().setResume(SESSION_ID, retiredResume);
+    const retiredApprovalSettled = vi.fn();
+    const retiredQuestionSettled = vi.fn();
+    const retiredApprovalError = vi.fn();
+    const retiredQuestionError = vi.fn();
+    const retired = installInterruptResponseCoordinator();
+
+    stageInterruptResponse(
+      SESSION_ID,
+      ROOT_RUN_ID,
+      "approval_a",
+      { type: "approval", decision: "approve" },
+      { decision: "approved" },
+      { onSettled: retiredApprovalSettled, onError: retiredApprovalError },
+    );
+    stageInterruptResponse(
+      SESSION_ID,
+      ROOT_RUN_ID,
+      "question_b",
+      { type: "answer", answers: [["Retired"]] },
+      { answered: true, answers: [["Retired"]] },
+      { onSettled: retiredQuestionSettled, onError: retiredQuestionError },
+    );
+    expect(retiredResume).toHaveBeenCalledOnce();
+
+    const successor = installInterruptResponseCoordinator();
+    const successorResume = vi.fn(() => true);
+    useAgentStore.getState().setResume(SESSION_ID, successorResume);
+    const successorError = vi.fn();
+
+    expect(retiredApprovalError).toHaveBeenCalledOnce();
+    expect(retiredQuestionError).toHaveBeenCalledOnce();
+    expect(
+      stageInterruptResponse(
+        SESSION_ID,
+        ROOT_RUN_ID,
+        "approval_a",
+        { type: "approval", decision: "deny" },
+        { decision: "declined" },
+        { onError: successorError },
+      ),
+    ).toBe(true);
+
+    retiredAccept?.();
+
+    expect(interruptResponseIsStaged(SESSION_ID, ROOT_RUN_ID, "approval_a")).toBe(true);
+    expect(successorError).not.toHaveBeenCalled();
+    expect(retiredApprovalSettled).not.toHaveBeenCalled();
+    expect(retiredQuestionSettled).not.toHaveBeenCalled();
+    retired();
+    successor();
   });
 });
