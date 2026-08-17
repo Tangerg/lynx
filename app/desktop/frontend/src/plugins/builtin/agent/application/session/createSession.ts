@@ -2,10 +2,11 @@ import type { AgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 import { useCallback } from "react";
 import { invalidateAgentSessions } from "./sessionQueries";
-import { agentRuntime } from "../ports/runtimeGateway";
-import { agentSessionState } from "../ports/sessionState";
-import { agentSessionView } from "../ports/sessionView";
+import { agentRuntime, type AgentRuntimeGateway } from "../ports/runtimeGateway";
+import { agentSessionState, type AgentSessionStatePort } from "../ports/sessionState";
+import { agentSessionView, type AgentSessionViewPort } from "../ports/sessionView";
 import { reportSessionError } from "./reportSessionError";
+import { agentCommandOwner, type AgentCommandOwner } from "../agentCommandOwner";
 
 export interface CreateSessionOptions {
   /** Queue this as the session's first message input (welcome composer). */
@@ -30,35 +31,37 @@ export interface CreateSessionOptions {
  * the typed text, which the chat flushes on remount (useAgentSession).
  */
 async function createAndOpen({
+  owner,
+  runtime,
+  state,
   firstInput,
   firstRunOptions,
   cwd,
-}: CreateSessionOptions): Promise<string | null> {
+}: CreateSessionOptions & {
+  owner: AgentCommandOwner;
+  runtime: AgentRuntimeGateway;
+  state: AgentSessionStatePort;
+}): Promise<string | null> {
   try {
-    const session = await agentRuntime().createSession(cwd ? { cwd } : {});
-    const store = agentSessionState();
+    const session = await runtime.createSession(cwd ? { cwd } : {});
+    if (!owner.isCurrent()) return null;
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.
-    store.markDraftSession(session.id);
+    state.markDraftSession(session.id);
     if (firstInput?.parts.length)
-      store.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
-    store.selectSession(session.id); // opens + sets active → remounts chat
+      state.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
+    state.selectSession(session.id); // opens + sets active → remounts chat
     // Draft is filtered out of the Work Index; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.
     void invalidateAgentSessions();
     return session.id;
   } catch (err) {
-    reportSessionError("create", err);
+    if (owner.isCurrent()) reportSessionError("create", err);
     return null;
   }
 }
 
-// In-flight latch: every "New" entry point (rail "+", ⌘N, palette command) fires
-// bare, and sessions.create is a full round-trip — a double-click inside that
-// window would otherwise create two backend sessions. Re-entrant calls join the
-// pending create instead.
-//
 // Keyed by the request, because "join the one in flight" is only right for the
 // SAME request. It used to join any of them, so a create that carried a cwd (the
 // project "+") could be handed a session in the runtime's default directory
@@ -66,9 +69,6 @@ async function createAndOpen({
 // the window got back someone else's session while its typed message was never
 // queued anywhere. `chatSend` fires that create and never inspects the id, so the
 // text simply vanished.
-let inflight: Promise<string | null> | null = null;
-let inflightKey: string | null = null;
-
 /** The requests that may share one create, or null for one that may not: a queued
  *  first message belongs to exactly one session. */
 function joinKey(opts: CreateSessionOptions): string | null {
@@ -90,31 +90,27 @@ function joinKey(opts: CreateSessionOptions): string | null {
  * conversation they asked to leave. A `cwd` or a queued first message means the
  * caller wants a specific session, not just a blank one, so those always create.
  */
-function alreadyOnAFreshSession(opts: CreateSessionOptions): string | null {
+function alreadyOnAFreshSession(
+  opts: CreateSessionOptions,
+  state: AgentSessionStatePort,
+  view: AgentSessionViewPort,
+): string | null {
   if (opts.cwd !== undefined || opts.firstInput) return null;
-  const sessionId = agentSessionState().getActiveSessionId();
-  if (!sessionId || !agentSessionState().isDraftSession(sessionId)) return null;
-  const messages = agentSessionView().getSession(sessionId)?.view.messages ?? [];
+  const sessionId = state.getActiveSessionId();
+  if (!sessionId || !state.isDraftSession(sessionId)) return null;
+  const messages = view.getSession(sessionId)?.view.messages ?? [];
   return messages.length === 0 ? sessionId : null;
 }
 
 function doCreate(opts: CreateSessionOptions): Promise<string | null> {
+  const owner = agentCommandOwner();
+  const runtime = agentRuntime();
+  const state = agentSessionState();
+  const view = agentSessionView();
   const key = joinKey(opts);
-  if (inflight && key !== null && key === inflightKey) return inflight;
-  const fresh = alreadyOnAFreshSession(opts);
+  const fresh = alreadyOnAFreshSession(opts, state, view);
   if (fresh) return Promise.resolve(fresh);
-  const pending = createAndOpen(opts).finally(() => {
-    // A later create may already own the latch.
-    if (inflight === pending) {
-      inflight = null;
-      inflightKey = null;
-    }
-  });
-  if (key !== null) {
-    inflight = pending;
-    inflightKey = key;
-  }
-  return pending;
+  return owner.runSessionCreate(key, () => createAndOpen({ owner, runtime, state, ...opts }));
 }
 
 /** Imperative create for non-React callers (palette commands, keymap).

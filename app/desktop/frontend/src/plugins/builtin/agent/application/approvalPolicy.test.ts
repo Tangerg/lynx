@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
+import { setContainer } from "@/main/container";
+import type { LyraClient } from "@/rpc";
+import { installAgentRuntimeGateway } from "../adapters/agentRuntimeGateway";
 import { configureAgentRuntimeGateway, type AgentRuntimeGateway } from "./ports/runtimeGateway";
 import { setApprovalMode } from "./approvalPolicy";
 import { APPROVAL_MODE_KEY } from "./approvalPolicyQueries";
@@ -68,5 +71,32 @@ describe("approval policy", () => {
     await expect(rejected).rejects.toThrow("not saved");
     await expect(accepted).resolves.toBe("yolo");
     expect(setMode).toHaveBeenNthCalledWith(2, "yolo");
+  });
+
+  it("does not serialize the successor behind an old Plugin Host mode change", async () => {
+    const retiredMode = deferred<ApprovalMode>();
+    uninstall = configureAgentRuntimeGateway({
+      setApprovalMode: vi.fn(() => retiredMode.promise),
+    } as unknown as AgentRuntimeGateway);
+    const retired = setApprovalMode("safe");
+
+    const successorSetMode = vi.fn().mockResolvedValue({ mode: "yolo" });
+    setContainer({
+      client: () => ({ approval: { setMode: successorSetMode } }) as unknown as LyraClient,
+    });
+    const disposeSuccessor = installAgentRuntimeGateway();
+    const successor = setApprovalMode("yolo");
+    await Promise.resolve();
+    const successorStartedBeforeRetiredSettlement = successorSetMode.mock.calls.length;
+    retiredMode.resolve("safe");
+    try {
+      await Promise.allSettled([retired, successor]);
+      expect(successorStartedBeforeRetiredSettlement).toBe(1);
+      expect(successorSetMode).toHaveBeenCalledTimes(1);
+      expect(successorSetMode).toHaveBeenCalledWith("yolo");
+      expect(queryClient.getQueryData([APPROVAL_MODE_KEY])).toBe("yolo");
+    } finally {
+      disposeSuccessor();
+    }
   });
 });

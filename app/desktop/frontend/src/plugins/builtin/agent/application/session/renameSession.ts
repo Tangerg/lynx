@@ -8,7 +8,7 @@ import {
 } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
-import { settleSessionSummaryMutation } from "./sessionSummaryMutationSettlement";
+import { agentCommandOwner } from "../agentCommandOwner";
 
 /** Rename a session (sessions.update title) and refresh session summaries.
  *  Empty titles are rejected server-side (invalid_params) — callers trim
@@ -19,6 +19,8 @@ export function useRenameSession(): (
   title: string,
 ) => Promise<void> {
   return useCallback(async (id, expectedRevision, title) => {
+    const owner = agentCommandOwner();
+    const runtime = agentRuntime();
     // Optimistic: paint the new title in the session summary list right away so the
     // row doesn't flash back to the old title while the RPC + refetch settle.
     // Cancel any in-flight sessions refetch FIRST: one started before this
@@ -26,24 +28,31 @@ export function useRenameSession(): (
     // would otherwise resolve with pre-rename data and clobber the optimistic
     // title. Snapshot after cancelling so rollback restores the right state.
     await queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] });
+    if (!owner.isCurrent()) return;
     const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
     queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
       old?.map((s) => (s.id === id ? { ...s, title } : s)),
     );
+    const effect = owner.trackEffect(() =>
+      recoverAgentSessionSummaryField(prev, id, "title", title),
+    );
     try {
-      const updated = await settleSessionSummaryMutation(id, expectedRevision, (revision) =>
-        agentRuntime().updateSession({
+      const updated = await owner.settleSessionSummary(id, expectedRevision, (revision) =>
+        runtime.updateSession({
           sessionId: id,
           expectedRevision: revision,
           title,
         }),
       );
+      owner.assertCurrent();
       queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
         old?.map((s) => (s.id === id ? { ...s, revision: updated.revision } : s)),
       );
+      effect.settle();
       void invalidateAgentSessions();
     } catch (err) {
-      recoverAgentSessionSummaryField(prev, id, "title", title);
+      if (!owner.isCurrent()) return;
+      effect.rollback();
       reportSessionError("rename", err);
     }
   }, []);

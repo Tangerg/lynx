@@ -4,22 +4,27 @@
 import { APPROVAL_MODE_KEY, APPROVAL_RULES_KEY } from "./approvalPolicyQueries";
 import type { ApprovalMode } from "../domain/hitl";
 import { queryClient } from "@/lib/queryClient";
-import { createSerialTaskQueue } from "@/lib/serialTaskQueue";
 import { agentRuntime } from "./ports/runtimeGateway";
-
-const modeChanges = createSerialTaskQueue();
+import { agentCommandOwner } from "./agentCommandOwner";
 
 export function setApprovalMode(mode: ApprovalMode): Promise<ApprovalMode> {
-  return modeChanges.run(async () => {
-    const saved = await agentRuntime().setApprovalMode(mode);
+  const owner = agentCommandOwner();
+  const runtime = agentRuntime();
+  return owner.serializeApprovalMode(async () => {
+    const saved = await runtime.setApprovalMode(mode);
+    owner.assertCurrent();
     queryClient.setQueryData([APPROVAL_MODE_KEY], saved);
     await queryClient.invalidateQueries({ queryKey: [APPROVAL_MODE_KEY] });
+    owner.assertCurrent();
     return saved;
   });
 }
 
 /** Forget one persisted approval rule by id (clear-all = loop the visible ids). */
 export async function forgetRule(id: string): Promise<void> {
-  await agentRuntime().forgetApprovalRule(id);
+  const owner = agentCommandOwner();
+  const runtime = agentRuntime();
+  await runtime.forgetApprovalRule(id);
+  if (!owner.isCurrent()) return;
   await queryClient.invalidateQueries({ queryKey: [APPROVAL_RULES_KEY] });
 }

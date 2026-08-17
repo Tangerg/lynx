@@ -7,6 +7,7 @@ import { runtimePlanState } from "./runtimePlanState";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
 import { stageAgentSessionMaterialCommits } from "../application/ports/sessionMaterialCommitters";
+import { AgentCommandOwner } from "../application/agentCommandOwner";
 
 class RuntimeAgentGateway implements AgentRuntimeGateway {
   readonly #sessionMutations = createUnaryMutationSettler();
@@ -135,9 +136,13 @@ class RuntimeAgentGateway implements AgentRuntimeGateway {
 }
 
 export function installAgentRuntimeGateway(): () => void {
+  // Retire command continuations before publishing a successor gateway. A queued
+  // task from the previous Host must never resolve its dependencies through this one.
+  const commandOwner = AgentCommandOwner.install();
   const gateway = new RuntimeAgentGateway();
   const disposePort = configureAgentRuntimeGateway(gateway);
   return () => {
+    commandOwner.dispose();
     disposePort();
     gateway.dispose();
   };

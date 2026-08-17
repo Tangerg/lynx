@@ -2,6 +2,7 @@ import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { agentSessionView } from "../ports/sessionView";
 import { invalidateAgentSessions } from "./sessionQueries";
+import { agentCommandOwner } from "../agentCommandOwner";
 
 /**
  * Delete the draft the user just navigated away from, if they never used it.
@@ -20,11 +21,19 @@ import { invalidateAgentSessions } from "./sessionQueries";
  * draft-marked), where it can be deleted like any other.
  */
 export function discardAbandonedDraft(sessionId: string): void {
-  if (!sessionId || !agentSessionState().isDraftSession(sessionId)) return;
-  if ((agentSessionView().getSession(sessionId)?.view.messages.length ?? 0) > 0) return;
+  const owner = agentCommandOwner();
+  const state = agentSessionState();
+  const view = agentSessionView();
+  const runtime = agentRuntime();
+  if (!sessionId || !state.isDraftSession(sessionId)) return;
+  if ((view.getSession(sessionId)?.view.messages.length ?? 0) > 0) return;
 
-  void agentRuntime()
+  void runtime
     .deleteSession(sessionId)
-    .then(() => invalidateAgentSessions())
-    .catch((err: unknown) => console.warn("[session] discarding unused draft failed:", err));
+    .then(() => {
+      if (owner.isCurrent()) return invalidateAgentSessions();
+    })
+    .catch((err: unknown) => {
+      if (owner.isCurrent()) console.warn("[session] discarding unused draft failed:", err);
+    });
 }

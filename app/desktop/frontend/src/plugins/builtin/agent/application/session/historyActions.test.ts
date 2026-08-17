@@ -1,5 +1,9 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentRunFact as RunRef } from "@/plugins/sdk";
+import { setContainer } from "@/main/container";
+import type { LyraClient } from "@/rpc";
+import { navigator } from "@/lib/navigation";
+import { installAgentRuntimeGateway } from "../../adapters/agentRuntimeGateway";
 import {
   configureAgentRuntimeGateway,
   type AgentRuntimeGateway,
@@ -7,7 +11,7 @@ import {
   type AgentSessionSnapshot,
 } from "../ports/runtimeGateway";
 import { configureAgentSessionViewPort, type AgentSessionViewPort } from "../ports/sessionView";
-import { rollbackSessionToBeforeRun } from "./historyActions";
+import { forkAgentSessionAtRun, rollbackSessionToBeforeRun } from "./historyActions";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 let restoreRuntime: (() => void) | undefined;
@@ -98,6 +102,30 @@ describe("rollbackSessionToBeforeRun", () => {
     expect(rollbackSession).toHaveBeenCalledOnce();
   });
 
+  it("does not attach an old snapshot inspection to the successor rollback writer", async () => {
+    const read = deferred<AgentSessionMaterialRead>();
+    restoreRuntime = configureAgentRuntimeGateway({
+      loadSessionSnapshot: vi.fn(() => read.promise),
+    } as unknown as AgentRuntimeGateway);
+    restoreView = configureAgentSessionViewPort({
+      getSession: () => ({ synchronize: vi.fn().mockResolvedValue(true) }),
+    } as unknown as AgentSessionViewPort);
+    const successorRollback = vi.fn().mockResolvedValue({ droppedRuns: [] });
+    setContainer({
+      client: () => ({ sessions: { rollback: successorRollback } }) as unknown as LyraClient,
+    });
+
+    const retired = rollbackSessionToBeforeRun("ses_1", "run_2");
+    const disposeSuccessor = installAgentRuntimeGateway();
+    read.resolve(material(snapshot()));
+    try {
+      await expect(retired).resolves.toEqual({ status: "unavailable" });
+      expect(successorRollback).not.toHaveBeenCalled();
+    } finally {
+      disposeSuccessor();
+    }
+  });
+
   it.each(["files", "both"] as const)(
     "does not degrade first-turn %s restore into destructive history rollback",
     async (restoreType) => {
@@ -121,6 +149,33 @@ describe("rollbackSessionToBeforeRun", () => {
   );
 });
 
+describe("forkAgentSessionAtRun", () => {
+  it("does not join an old fork or let its response navigate the successor", async () => {
+    const retiredFork = deferred<{ id: string }>();
+    restoreRuntime = configureAgentRuntimeGateway({
+      forkSession: vi.fn(() => retiredFork.promise),
+    } as unknown as AgentRuntimeGateway);
+    const successorFork = vi.fn().mockResolvedValue({ id: "fork_successor" });
+    setContainer({
+      client: () => ({ sessions: { fork: successorFork } }) as unknown as LyraClient,
+    });
+
+    const retired = forkAgentSessionAtRun("ses_1", "run_1");
+    const disposeSuccessor = installAgentRuntimeGateway();
+    const successor = forkAgentSessionAtRun("ses_1", "run_1");
+    await Promise.resolve();
+    const successorStartedBeforeRetiredSettlement = successorFork.mock.calls.length;
+    retiredFork.resolve({ id: "fork_retired" });
+    try {
+      await Promise.all([retired, successor]);
+      expect(successorStartedBeforeRetiredSettlement).toBe(1);
+      expect(navigator().get().session).toBe("fork_successor");
+    } finally {
+      disposeSuccessor();
+    }
+  });
+});
+
 function snapshot(): AgentSessionSnapshot {
   return {
     runs: [run("run_1", "2026-08-12T00:00:00.000Z"), run("run_2", "2026-08-12T00:01:00.000Z")],
@@ -131,6 +186,14 @@ function snapshot(): AgentSessionSnapshot {
 
 function material(value: AgentSessionSnapshot): AgentSessionMaterialRead {
   return { snapshot: value, commitAssociatedReadModels: vi.fn() };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
 }
 
 function run(id: string, createdAt: string): RunRef {

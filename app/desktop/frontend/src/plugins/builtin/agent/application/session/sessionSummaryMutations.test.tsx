@@ -5,6 +5,9 @@ import { configureAgentRuntimeGateway, type AgentRuntimeGateway } from "../ports
 import { useToggleFavorite } from "./favoriteSession";
 import { useRenameSession } from "./renameSession";
 import { AGENT_SESSIONS_KEY, type AgentSessionSummary } from "./sessionQueries";
+import { setContainer } from "@/main/container";
+import type { LyraClient } from "@/rpc";
+import { installAgentRuntimeGateway } from "../../adapters/agentRuntimeGateway";
 
 let restoreRuntime: (() => void) | undefined;
 
@@ -122,6 +125,48 @@ describe("optimistic Session summary mutations", () => {
     expect(queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY])).toEqual([
       { ...session(), title: "after", favorite: undefined, revision: 4 },
     ]);
+  });
+
+  it("retires old optimistic effects and starts the successor queue independently", async () => {
+    queryClient.setQueryData([AGENT_SESSIONS_KEY], [session()]);
+    vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+    const retiredUpdate = deferred<{ revision: number }>();
+    const retiredUpdateCall = vi.fn(() => retiredUpdate.promise);
+    restoreRuntime = configureAgentRuntimeGateway({
+      updateSession: retiredUpdateCall,
+    } as unknown as AgentRuntimeGateway);
+    const renameHook = renderHook(() => useRenameSession());
+    const favoriteHook = renderHook(() => useToggleFavorite());
+
+    const renaming = renameHook.result.current("ses_deleted", 3, "retired title");
+    await vi.waitFor(() =>
+      expect(
+        queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY])?.[0]?.title,
+      ).toBe("retired title"),
+    );
+    await vi.waitFor(() => expect(retiredUpdateCall).toHaveBeenCalledTimes(1));
+
+    const successorUpdate = vi.fn().mockResolvedValue({ revision: 4 });
+    setContainer({
+      client: () => ({ sessions: { update: successorUpdate } }) as unknown as LyraClient,
+    });
+    const disposeSuccessor = installAgentRuntimeGateway();
+    try {
+      expect(
+        queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY])?.[0]?.title,
+      ).toBe("before");
+
+      const favoriting = favoriteHook.result.current("ses_deleted", 3, true);
+      await vi.waitFor(() => expect(successorUpdate).toHaveBeenCalledTimes(1));
+      retiredUpdate.resolve({ revision: 99 });
+      await act(async () => Promise.all([renaming, favoriting]));
+
+      expect(queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY])).toEqual([
+        { ...session(), favorite: true, revision: 4 },
+      ]);
+    } finally {
+      disposeSuccessor();
+    }
   });
 });
 

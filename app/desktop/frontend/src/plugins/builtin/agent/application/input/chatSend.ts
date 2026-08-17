@@ -11,6 +11,7 @@ import { agentSessionView } from "../ports/sessionView";
 import { getActiveSessionId, useActiveSessionId } from "../session/activeSession";
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
 import { selectCurrentRootRun } from "../view/runTree";
+import { agentCommandOwner } from "../agentCommandOwner";
 
 type SendToAgent = (input: AgentInput, options?: AgentRunStartOptions) => boolean;
 type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
@@ -112,31 +113,40 @@ function steerRunningTurn({
   runOptions,
 }: SteerRunningTurnInput): boolean {
   if (input.parts.length === 0) return false;
-  const localId = mintSteerBubble(sessionId, input);
+  const owner = agentCommandOwner();
   const runtime = agentRuntime();
-  void runtime.steerRun(runId, segmentId, input).catch((err: unknown) => {
-    agentSessionView().dropMessage(sessionId, localId);
-    // The run this steer addressed is no longer executing: it finished, parked, or
-    // moved to another segment while the person was typing. Sending the input as a
-    // fresh turn is what they meant, and it is the runtime — not a guess here —
-    // that says which of those happened.
-    if (runtime.isRunGone(err)) {
-      if (send?.(input, runOptions) !== true) {
-        // The Run parked rather than finished. The input remains in composer
-        // history, but it was not accepted as a new turn; make that explicit
-        // instead of silently discarding an optimistic steer.
-        notifyError(describeRpcError(err) ?? t("session.error.steer"), { source: "session" });
+  const view = agentSessionView();
+  const localId = mintSteerBubble(view, sessionId, input);
+  const effect = owner.trackEffect(() => view.dropMessage(sessionId, localId));
+  void runtime.steerRun(runId, segmentId, input).then(
+    () => {
+      if (owner.isCurrent()) effect.settle();
+    },
+    (err: unknown) => {
+      if (!owner.isCurrent()) return;
+      effect.rollback();
+      // The run this steer addressed is no longer executing: it finished, parked, or
+      // moved to another segment while the person was typing. Sending the input as a
+      // fresh turn is what they meant, and it is the runtime — not a guess here —
+      // that says which of those happened.
+      if (runtime.isRunGone(err)) {
+        if (send?.(input, runOptions) !== true) {
+          // The Run parked rather than finished. The input remains in composer
+          // history, but it was not accepted as a new turn; make that explicit
+          // instead of silently discarding an optimistic steer.
+          notifyError(describeRpcError(err) ?? t("session.error.steer"), { source: "session" });
+        }
+        return;
       }
-      return;
-    }
-    // Any other failure means the steer may or may not have reached the loop, so
-    // the optimistic bubble goes either way: if it did land, the runtime streams
-    // the real userMessage Item back and the fold shows it. Leaving the bubble up
-    // was the one outcome that lies — the message sits there looking sent, with
-    // no reply and nothing said about why.
-    console.error("[session] steer failed:", err);
-    notifyError(describeRpcError(err) ?? t("session.error.steer"), { source: "session" });
-  });
+      // Any other failure means the steer may or may not have reached the loop, so
+      // the optimistic bubble goes either way: if it did land, the runtime streams
+      // the real userMessage Item back and the fold shows it. Leaving the bubble up
+      // was the one outcome that lies — the message sits there looking sent, with
+      // no reply and nothing said about why.
+      console.error("[session] steer failed:", err);
+      notifyError(describeRpcError(err) ?? t("session.error.steer"), { source: "session" });
+    },
+  );
   return true;
 }
 
@@ -162,8 +172,12 @@ function sendFreshTurn({
   return true;
 }
 
-function mintSteerBubble(sessionId: string, input: AgentInput): string {
+function mintSteerBubble(
+  view: ReturnType<typeof agentSessionView>,
+  sessionId: string,
+  input: AgentInput,
+): string {
   const id = `${OPTIMISTIC_STEER_MESSAGE_PREFIX}${++steerSeq}`;
-  agentSessionView().appendLocalUserMessage(sessionId, id, input);
+  view.appendLocalUserMessage(sessionId, id, input);
   return id;
 }

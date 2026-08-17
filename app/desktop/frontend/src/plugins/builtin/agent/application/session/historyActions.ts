@@ -9,16 +9,12 @@ import { selectRootNarrativeMessages, selectRootRuns } from "../view/runTree";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
 import { projectAgentSessionSnapshot } from "./sessionSnapshot";
+import { agentCommandOwner } from "../agentCommandOwner";
 
 export type SessionRollbackResult =
   | { status: "committed"; userInput?: AgentInput }
   | { status: "unavailable" }
   | { status: "inFlight" };
-
-// Rollback rewrites the complete Session history/state boundary. Two different
-// rollback commands for one Session cannot be meaningfully interleaved, and a
-// double-fired action must not truncate twice and then run its follow-up twice.
-const rollbackSessions = new Set<string>();
 
 export interface ActiveAgentConversation {
   sessionId: string;
@@ -43,10 +39,15 @@ export async function rollbackSessionToBeforeRun(
   runId: string,
   restoreType: RestoreType = "history",
 ): Promise<SessionRollbackResult> {
-  if (rollbackSessions.has(sessionId)) return { status: "inFlight" };
-  rollbackSessions.add(sessionId);
+  const owner = agentCommandOwner();
+  const lease = owner.beginSessionRollback(sessionId);
+  if (!lease) return { status: "inFlight" };
+  // One captured gateway owns both the pre-command inspection and the write. A
+  // replacement between them retires the lease instead of splicing two clients.
+  const runtime = agentRuntime();
   try {
-    const material = await agentRuntime().loadSessionSnapshot(sessionId);
+    const material = await runtime.loadSessionSnapshot(sessionId);
+    if (!lease.isCurrent()) return { status: "unavailable" };
     if (!material) return { status: "unavailable" };
     // This is a pre-command inspection, not a mounted projection commit. Its
     // associated read models must not replace what the UI currently owns.
@@ -65,19 +66,24 @@ export async function rollbackSessionToBeforeRun(
       // here would mean "drop all history", the opposite of files-only.
       return { status: "unavailable" };
     }
-    const result = await agentRuntime().rollbackSession({
+    const result = await runtime.rollbackSession({
       sessionId,
       ...(keep ? { toRunId: keep } : {}),
       ...(wantsFiles && keep ? { restoreType } : {}),
     });
+    if (!lease.isCurrent()) return { status: "unavailable" };
     await rehydrateSessionView(sessionId);
+    if (!lease.isCurrent()) return { status: "unavailable" };
     const userInput = result.droppedRuns.find((dropped) => dropped.runId === runId)?.userInput;
     return {
       status: "committed",
       ...(userInput ? { userInput } : {}),
     };
+  } catch (error) {
+    if (!lease.isCurrent()) return { status: "unavailable" };
+    throw error;
   } finally {
-    rollbackSessions.delete(sessionId);
+    lease.release();
   }
 }
 

@@ -12,6 +12,7 @@ import type { LyraClient, Methods } from "@/rpc";
 import { asSessionId } from "@/rpc";
 import { agentTextInput } from "../../domain/input";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
 import { useCreateSession } from "./createSession";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -177,5 +178,35 @@ describe("useCreateSession", () => {
     expect(await second).toBe("new-3");
     expect(create).toHaveBeenCalledTimes(1);
     expect(useAgentSessionStore.getState().openSessionIds).toEqual(["new-3"]);
+  });
+
+  it("does not join or publish a create owned by a replaced Plugin Host", async () => {
+    let releaseRetired!: (value: ReturnType<typeof fakeSession>) => void;
+    const retiredCreate = vi.fn(
+      () =>
+        new Promise<ReturnType<typeof fakeSession>>((resolve) => {
+          releaseRetired = resolve;
+        }),
+    );
+    stubCreate(retiredCreate as unknown as Methods["sessions"]["create"]);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+    const retired = result.current();
+
+    const successorCreate = vi.fn().mockResolvedValue(fakeSession("successor"));
+    stubCreate(successorCreate);
+    const disposeSuccessor = installAgentRuntimeGateway();
+    const successor = result.current();
+
+    await Promise.resolve();
+    const successorStartedBeforeRetiredSettlement = successorCreate.mock.calls.length;
+    releaseRetired(fakeSession("retired"));
+    try {
+      await expect(retired).resolves.toBeNull();
+      await expect(successor).resolves.toBe("successor");
+      expect(successorStartedBeforeRetiredSettlement).toBe(1);
+      expect(navigator().get().session).toBe("successor");
+    } finally {
+      disposeSuccessor();
+    }
   });
 });
