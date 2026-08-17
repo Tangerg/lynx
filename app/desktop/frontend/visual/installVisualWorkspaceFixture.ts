@@ -45,7 +45,7 @@ import { PENDING_WORK_KEY, type PendingWorkItem } from "@/plugins/builtin/agent/
 import { CONTEXT_DOCK_DESTINATION, DATA_PROVIDER, SHORTCUT, definePlugin } from "@/plugins/sdk";
 import type { AnyPlugin } from "dougong";
 import type { FeatureCapability, ServerCapabilities } from "@/rpc";
-import { useContextDockStore } from "@/state/contextDockStore";
+import { useContextDockStore, WorkspaceFileFocus } from "@/state/contextDockStore";
 import { useUiStore } from "@/state/uiStore";
 import { navigator } from "@/lib/navigation";
 import { VISUAL_SESSION_ID } from "./agentSessionSnapshots";
@@ -470,7 +470,7 @@ export async function installVisualWorkspaceFixture(
       "timeline",
     ],
     lastViewId: dockViewId,
-    activeFile: ACTIVE_DIFF_FILE,
+    fileFocus: WorkspaceFileFocus.empty().moveTo(ACTIVE_DIFF_FILE),
     fileViewer: { path: ACTIVE_DIFF_FILE, line: 6 },
     selectedToolId: "",
     expandedToolIds: new Set(),

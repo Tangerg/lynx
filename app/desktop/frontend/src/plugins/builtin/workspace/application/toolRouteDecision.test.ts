@@ -19,14 +19,14 @@ describe("decideWorkspaceToolRoute", () => {
   it("routes edit tools to the diff view and exposes the focused file", () => {
     expect(decideWorkspaceToolRoute(tool({ category: "fileEdit", label: "src/app.ts" }))).toEqual({
       view: "diff",
-      activeFile: "src/app.ts",
+      fileFocus: "src/app.ts",
     });
   });
 
   it("does not treat multi-file labels as file paths", () => {
     expect(decideWorkspaceToolRoute(tool({ category: "fileEdit", label: "3 files" }))).toEqual({
       view: "diff",
-      activeFile: undefined,
+      fileFocus: "",
     });
   });
 

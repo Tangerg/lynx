@@ -37,7 +37,7 @@ export function installWorkspaceNavigationPort(): () => void {
       viewIds: useContextDockStore((state) => state.dockViewIds),
       activeViewId: navigator().use((location) => location.dock),
     }),
-    useActiveFile: () => useContextDockStore((state) => state.activeFile),
+    useFileFocus: () => useContextDockStore((state) => state.fileFocus),
     useFileViewer: () => useContextDockStore((state) => state.fileViewer),
     useSettingsPaneTarget: () => navigator().use((location) => location.settings),
     useExpandedToolIds: () => useContextDockStore((state) => state.expandedToolIds),
@@ -96,7 +96,7 @@ export function installWorkspaceNavigationPort(): () => void {
     dock: dockSnapshot,
     setSettingsPane: (pane) => navigator().go({ settings: pane }),
     settingsPaneTarget: () => navigator().get().settings,
-    setActiveFile: (path) => useContextDockStore.getState().setActiveFile(path),
+    focusFile: (path) => useContextDockStore.getState().focusFile(path),
     openFile: (path, line) => {
       useContextDockStore.getState().setFileViewer(path, line);
       useContextDockStore.getState().openDockTab("file");

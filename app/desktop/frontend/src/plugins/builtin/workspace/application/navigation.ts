@@ -2,6 +2,7 @@ import {
   workspaceNavigation,
   type WorkspaceColumnWidth,
   type WorkspaceDockSnapshot,
+  type WorkspaceFileFocusSnapshot,
   type WorkspaceFileViewer,
 } from "./ports/navigationState";
 
@@ -15,8 +16,8 @@ export function useWorkspaceDock(): WorkspaceDockSnapshot {
   return workspaceNavigation().useDock();
 }
 
-export function useActiveWorkspaceFile(): string {
-  return workspaceNavigation().useActiveFile();
+export function useWorkspaceFileFocus(): WorkspaceFileFocusSnapshot {
+  return workspaceNavigation().useFileFocus();
 }
 
 export function useWorkspaceFileViewer(): WorkspaceFileViewer | null {
@@ -132,12 +133,12 @@ export function clearWorkspaceSettingsPaneTarget(): void {
 }
 
 export function openWorkspaceDiffForFile(path: string): void {
-  workspaceNavigation().setActiveFile(path);
+  workspaceNavigation().focusFile(path);
   workspaceNavigation().openViewInDock("diff");
 }
 
 export function focusWorkspaceFile(path: string): void {
-  workspaceNavigation().setActiveFile(path);
+  workspaceNavigation().focusFile(path);
 }
 
 export function openWorkspaceFile(path: string, line?: number): void {

@@ -16,7 +16,7 @@ export {
   reconcileWorkspaceToolSelection,
   selectWorkspaceDockView,
   selectWorkspaceChat,
-  useActiveWorkspaceFile,
+  useWorkspaceFileFocus,
   useActiveWorkspaceViewId,
   showWorkspaceDock,
   toggleWorkspaceDock,

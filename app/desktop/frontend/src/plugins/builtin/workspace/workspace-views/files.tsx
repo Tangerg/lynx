@@ -1,6 +1,6 @@
 // Built-in plugin: "Files" workspace view — the working-tree summary from
 // workspace.changes.list (AUX_API §2.2). Selecting a row updates the
-// shared active-file state and opens the Diff tab.
+// shared file-focus intent and opens the Diff tab.
 
 import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
@@ -14,7 +14,7 @@ import {
 } from "@/plugins/builtin/workspace/application/fileChangesViewModel";
 import {
   openWorkspaceDiffForFile,
-  useActiveWorkspaceFile,
+  useWorkspaceFileFocus,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -24,7 +24,7 @@ function FilesView() {
   const t = useT();
   const gitEnabled = useWorkspaceCapability("git");
   const workspace = useActiveSessionWorkspace();
-  const activeFile = useActiveWorkspaceFile();
+  const fileFocus = useWorkspaceFileFocus();
   // Scoped to the ACTIVE session's cwd. No session deliberately uses the
   // default workspace; an unresolved selected session disables the read.
   const {
@@ -36,7 +36,7 @@ function FilesView() {
     gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
   );
   const items = files ?? [];
-  const view = fileChangesViewModel(items, activeFile);
+  const view = fileChangesViewModel(items, fileFocus.path);
   const notARepo = isVcsUnavailable(error);
 
   return (
@@ -66,7 +66,7 @@ function FilesView() {
       >
         {(rows) => (
           <FilesChanged
-            view={fileChangesViewModel(rows, activeFile)}
+            view={fileChangesViewModel(rows, fileFocus.path)}
             onSelect={openWorkspaceDiffForFile}
           />
         )}

@@ -10,7 +10,7 @@ import { useConfigStore } from "@/plugins/sdk/config";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { useNotificationStore } from "@/plugins/sdk/notifications";
 import { resetKernelForTest } from "@/plugins/sdk/testKernel";
-import { useContextDockStore } from "@/state/contextDockStore";
+import { useContextDockStore, WorkspaceFileFocus } from "@/state/contextDockStore";
 import { configureNavigator } from "@/lib/navigation";
 import { createMemoryNavigator } from "@/lib/navigation.testkit";
 import { installAgentDefaultSessionPort } from "@/plugins/builtin/agent/adapters/agentDefaultSessionPort";
@@ -56,7 +56,7 @@ beforeEach(async () => {
     sessionScopes: new Map(),
     dockViewIds: [],
     lastViewId: null,
-    activeFile: "",
+    fileFocus: WorkspaceFileFocus.empty(),
     fileViewer: null,
     selectedToolId: "",
     expandedToolIds: new Set<string>(),

@@ -1,5 +1,5 @@
 import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
-import { useActiveWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
+import { useWorkspaceFileFocus } from "@/plugins/builtin/workspace/public/navigation";
 import { isVcsUnavailable } from "./vcsAvailability";
 import type { WorkspaceDiff, WorkspaceDiffQuery, WorkspaceFileDiff } from "./workspaceQueries";
 import { useWorkspaceDiff } from "./workspaceQueries";
@@ -39,13 +39,13 @@ export interface WorkspaceDiffFileHeader {
 export function useWorkspaceDiffView(mode: WorkspaceDiffMode) {
   const gitEnabled = useWorkspaceCapability("git");
   const workspace = useActiveSessionWorkspace();
-  const activeFile = useActiveWorkspaceFile();
+  const fileFocus = useWorkspaceFileFocus();
   const query = useWorkspaceDiff(
     gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd, mode } : undefined,
   );
   const view = workspaceDiffViewModel(query.data);
   return {
-    activeFile,
+    fileFocus,
     data: query.data,
     files: view.files,
     isLoading: query.isLoading || workspace.status === "resolving",

@@ -13,6 +13,6 @@ export function openWorkspaceViewForTool(tool: ToolCall): void {
   if (!route) return;
 
   selectWorkspaceTool(activity.id);
-  if (route.activeFile) focusWorkspaceFile(route.activeFile);
+  if (route.fileFocus !== undefined) focusWorkspaceFile(route.fileFocus);
   openWorkspaceViewInDock(route.view);
 }

@@ -11,7 +11,7 @@
 // hover action: the row that already knows how to carry all three had four consumers,
 // every one of them in the left sidebar.
 //
-// Selecting a row sets the shared activeFile state and opens the Diff view.
+// Selecting a row publishes a file-focus intent and opens the Diff view.
 import type {
   FileChangeRowViewModel,
   FileChangesViewModel,

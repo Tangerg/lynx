@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { useContextDockStore } from "@/state/contextDockStore";
+import { useContextDockStore, WorkspaceFileFocus } from "@/state/contextDockStore";
 import { navigator } from "@/lib/navigation";
 import { hasWorkspaceViewForTool, openWorkspaceViewForTool } from "./toolRouting";
 import { workspaceCommandActivitiesFromAgentTools } from "./toolActivity";
@@ -23,7 +23,7 @@ describe("openWorkspaceViewForTool", () => {
       dockViewIds: [],
       lastViewId: null,
       selectedToolId: "",
-      activeFile: "",
+      fileFocus: WorkspaceFileFocus.empty(),
     });
   });
 
@@ -44,13 +44,17 @@ describe("openWorkspaceViewForTool", () => {
     openWorkspaceViewForTool(toolCall({ id: "t2", name: "edit", fn: "src/app.ts" }));
     expect(navigator().get().dock).toBe("diff");
     expect(navigator().get().view).toBeNull();
-    expect(useContextDockStore.getState().activeFile).toBe("src/app.ts");
+    expect(useContextDockStore.getState().fileFocus).toMatchObject({
+      path: "src/app.ts",
+      revision: 1,
+    });
   });
 
   it("does not feed a multi-file edit label to the diff's active-file focus", () => {
+    useContextDockStore.getState().focusFile("src/old.ts");
     openWorkspaceViewForTool(toolCall({ id: "t3", name: "edit", fn: "3 files" }));
     expect(navigator().get().dock).toBe("diff");
-    expect(useContextDockStore.getState().activeFile).toBe("");
+    expect(useContextDockStore.getState().fileFocus).toMatchObject({ path: "", revision: 2 });
   });
 
   it("promotes no view for inline-only categories", () => {

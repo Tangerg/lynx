@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useContextDockStore } from "@/state/contextDockStore";
+import { useContextDockStore, WorkspaceFileFocus } from "@/state/contextDockStore";
 import { navigator } from "@/lib/navigation";
 import {
   closeActiveWorkspaceDockView,
@@ -23,7 +23,7 @@ function reset() {
     sessionScopes: new Map(),
     dockViewIds: [],
     lastViewId: null,
-    activeFile: "",
+    fileFocus: WorkspaceFileFocus.empty(),
     fileViewer: null,
     selectedToolId: "",
     expandedToolIds: new Set<string>(),

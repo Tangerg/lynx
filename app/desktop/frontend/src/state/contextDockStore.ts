@@ -15,11 +15,26 @@ export interface WorkspaceFileViewer {
   line: number;
 }
 
+export class WorkspaceFileFocus {
+  private constructor(
+    readonly path: string,
+    readonly revision: number,
+  ) {}
+
+  static empty(): WorkspaceFileFocus {
+    return new WorkspaceFileFocus("", 0);
+  }
+
+  moveTo(path: string): WorkspaceFileFocus {
+    return new WorkspaceFileFocus(path, this.revision + 1);
+  }
+}
+
 interface ContextDockSessionScope {
   /** The open tab set. Collapsing the dock is lossless: this survives it. */
   dockViewIds: string[];
   lastViewId: string | null;
-  activeFile: string;
+  fileFocus: WorkspaceFileFocus;
   fileViewer: WorkspaceFileViewer | null;
   selectedToolId: string;
   expandedToolIds: Set<string>;
@@ -41,7 +56,7 @@ interface ContextDockActions {
   /** The destination a re-open should return to, given a fallback. */
   dockTabToShow: (defaultViewId: string) => string;
   rememberDockView: (id: string) => void;
-  setActiveFile: (path: string) => void;
+  focusFile: (path: string) => void;
   setFileViewer: (path: string, line?: number) => void;
   setSelectedToolId: (id: string) => void;
   revealTool: (id: string) => void;
@@ -53,7 +68,7 @@ interface ContextDockActions {
 
 function emptySessionScope(): ContextDockSessionScope {
   return {
-    activeFile: "",
+    fileFocus: WorkspaceFileFocus.empty(),
     fileViewer: null,
     selectedToolId: "",
     expandedToolIds: new Set<string>(),
@@ -64,7 +79,7 @@ function emptySessionScope(): ContextDockSessionScope {
 
 function cloneSessionScope(scope: ContextDockSessionScope): ContextDockSessionScope {
   return {
-    activeFile: scope.activeFile,
+    fileFocus: scope.fileFocus,
     fileViewer: scope.fileViewer ? { ...scope.fileViewer } : null,
     selectedToolId: scope.selectedToolId,
     expandedToolIds: new Set(scope.expandedToolIds),
@@ -84,7 +99,7 @@ export const useContextDockStore = create<ContextDockState & ContextDockActions>
   sessionScopes: new Map<string, ContextDockSessionScope>(),
   dockViewIds: [],
   lastViewId: null,
-  activeFile: "",
+  fileFocus: WorkspaceFileFocus.empty(),
   fileViewer: null,
   selectedToolId: "",
   expandedToolIds: new Set<string>(),
@@ -115,7 +130,7 @@ export const useContextDockStore = create<ContextDockState & ContextDockActions>
       : (dockViewIds[0] ?? defaultViewId);
   },
   rememberDockView: (id) => set({ lastViewId: id }),
-  setActiveFile: (path) => set({ activeFile: path }),
+  focusFile: (path) => set((state) => ({ fileFocus: state.fileFocus.moveTo(path) })),
   setFileViewer: (path, line) => set({ fileViewer: { path, line: line ?? 0 } }),
   setSelectedToolId: (id) => set({ selectedToolId: id }),
   revealTool: (id) => {

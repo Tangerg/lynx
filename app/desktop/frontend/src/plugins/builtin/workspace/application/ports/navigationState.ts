@@ -5,6 +5,11 @@ export interface WorkspaceFileViewer {
   line: number;
 }
 
+export interface WorkspaceFileFocusSnapshot {
+  readonly path: string;
+  readonly revision: number;
+}
+
 /** A resizable column of the content card: its width and the setter a drag
  *  commits to. Both edges of the card (drawer, dock) are sized this way. */
 export interface WorkspaceColumnWidth {
@@ -21,7 +26,7 @@ export interface WorkspaceDockSnapshot {
 export interface WorkspaceNavigationPort {
   useActiveViewId(): string | null;
   useDock(): WorkspaceDockSnapshot;
-  useActiveFile(): string;
+  useFileFocus(): WorkspaceFileFocusSnapshot;
   useFileViewer(): WorkspaceFileViewer | null;
   useSettingsPaneTarget(): string | null;
   useExpandedToolIds(): Set<string>;
@@ -43,7 +48,7 @@ export interface WorkspaceNavigationPort {
   dock(): WorkspaceDockSnapshot;
   setSettingsPane(pane: string | null): void;
   settingsPaneTarget(): string | null;
-  setActiveFile(path: string): void;
+  focusFile(path: string): void;
   openFile(path: string, line?: number): void;
   selectedToolId(): string;
   setSelectedTool(id: string): void;

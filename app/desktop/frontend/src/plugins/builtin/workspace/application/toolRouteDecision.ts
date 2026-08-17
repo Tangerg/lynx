@@ -4,7 +4,7 @@ type WorkspaceToolViewId = string;
 
 export interface WorkspaceToolRoute {
   view: WorkspaceToolViewId;
-  activeFile?: string;
+  fileFocus?: string;
 }
 
 const MULTI_FILE_LABEL = /^\d+ files$/;
@@ -23,7 +23,7 @@ export function decideWorkspaceToolRoute(tool: WorkspaceToolActivity): Workspace
   if (tool.category === "fileEdit" || tool.category === "read") {
     return {
       view: "diff",
-      activeFile: tool.label && !MULTI_FILE_LABEL.test(tool.label) ? tool.label : undefined,
+      fileFocus: tool.label && !MULTI_FILE_LABEL.test(tool.label) ? tool.label : "",
     };
   }
 

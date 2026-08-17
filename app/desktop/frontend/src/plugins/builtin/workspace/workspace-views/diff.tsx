@@ -108,24 +108,22 @@ function FileCard({
   );
 }
 
-function ReviewPanel() {
+export function DiffWorkspaceSurface() {
   const t = useT();
   const [mode, setMode] = useState<WorkspaceDiffMode>("worktree");
   const [layout, setLayout] = useState<DiffLayout>("unified");
   const [navigatorOpen, setNavigatorOpen] = useState(true);
   const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set());
-  const { activeFile, files, gitEnabled, isError, isLoading, notARepo, view } =
+  const { fileFocus, files, gitEnabled, isError, isLoading, notARepo, view } =
     useWorkspaceDiffView(mode);
   const hasFiles = (files?.length ?? 0) > 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollToFile = (path: string) => {
     const anchor = scrollRef.current?.querySelector(`[${FILE_ANCHOR}="${CSS.escape(path)}"]`);
-    anchor?.scrollIntoView({ block: "start" });
-  };
-  const selectFile = (path: string) => {
-    focusWorkspaceFile(path);
-    scrollToFile(path);
+    if (!anchor) return false;
+    anchor.scrollIntoView({ block: "start" });
+    return true;
   };
   const toggleFile = (path: string) => {
     setCollapsedFiles((previous) => {
@@ -135,16 +133,15 @@ function ReviewPanel() {
     });
   };
 
-  // Open ON the file the user came in for — a transcript file reference, a Files
-  // row — once, right after the diff first renders. Once per mount: a later mode
-  // switch must not yank a reviewer who has since scrolled elsewhere, and
-  // reopening the view remounts this component, which re-anchors.
-  const anchoredRef = useRef(false);
+  const consumedFocusRevision = useRef(-1);
+  // Diff data can be replaced by a mode switch or Runtime resync without the
+  // user asking to move. Only a new focus revision is a navigation intent.
   useEffect(() => {
-    if (anchoredRef.current || !files || files.length === 0) return;
-    anchoredRef.current = true;
-    if (activeFile) scrollToFile(activeFile);
-  }, [activeFile, files]);
+    if (!files || consumedFocusRevision.current === fileFocus.revision) return;
+    if (!fileFocus.path || scrollToFile(fileFocus.path)) {
+      consumedFocusRevision.current = fileFocus.revision;
+    }
+  }, [fileFocus.path, fileFocus.revision, files]);
 
   const sub = view.subtext ? (
     <>
@@ -197,8 +194,8 @@ function ReviewPanel() {
           navigatorOpen && hasFiles ? (
             <ReviewFileTree
               files={files ?? []}
-              selectedPath={activeFile}
-              onSelectFile={selectFile}
+              selectedPath={fileFocus.path}
+              onSelectFile={focusWorkspaceFile}
               onClose={() => setNavigatorOpen(false)}
             />
           ) : undefined
@@ -272,5 +269,5 @@ export const diffView = defineWorkspaceView({
   badge: DiffTabBadge,
   order: 40,
   splittable: true,
-  component: ReviewPanel,
+  component: DiffWorkspaceSurface,
 });

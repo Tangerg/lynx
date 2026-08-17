@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useContextDockStore } from "./contextDockStore";
+import { useContextDockStore, WorkspaceFileFocus } from "./contextDockStore";
 
 const EMPTY = {
   activeSessionScopeId: null,
   sessionScopes: new Map(),
   dockViewIds: [],
   lastViewId: null,
-  activeFile: "",
+  fileFocus: WorkspaceFileFocus.empty(),
   fileViewer: null,
   selectedToolId: "",
   expandedToolIds: new Set<string>(),
@@ -86,19 +86,30 @@ describe("what a re-open returns to", () => {
 });
 
 describe("per-session scopes", () => {
+  it("gives repeated file-focus intents distinct revisions", () => {
+    dock().focusFile("a.ts");
+    const first = dock().fileFocus;
+
+    dock().focusFile("a.ts");
+
+    expect(first).toMatchObject({ path: "a.ts", revision: 1 });
+    expect(dock().fileFocus).toMatchObject({ path: "a.ts", revision: 2 });
+    expect(dock().fileFocus).not.toBe(first);
+  });
+
   it("keeps each session's tabs and returns the destination it remembers", () => {
     dock().activateSessionScope("s1");
     dock().openDockTab("diff");
     dock().rememberDockView("diff");
-    dock().setActiveFile("a.ts");
+    dock().focusFile("a.ts");
 
     expect(dock().activateSessionScope("s2")).toBeNull();
     expect(dock().dockViewIds).toEqual([]);
-    expect(dock().activeFile).toBe("");
+    expect(dock().fileFocus).toMatchObject({ path: "", revision: 0 });
 
     expect(dock().activateSessionScope("s1")).toBe("diff");
     expect(dock().dockViewIds).toEqual(["diff"]);
-    expect(dock().activeFile).toBe("a.ts");
+    expect(dock().fileFocus).toMatchObject({ path: "a.ts", revision: 1 });
   });
 
   it("is a no-op for the session already in scope", () => {
