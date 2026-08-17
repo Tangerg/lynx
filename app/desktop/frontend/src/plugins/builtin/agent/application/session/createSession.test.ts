@@ -206,7 +206,7 @@ describe("useCreateSession", () => {
       expect(successorStartedBeforeRetiredSettlement).toBe(1);
       expect(navigator().get().session).toBe("successor");
     } finally {
-      disposeSuccessor();
+      disposeSuccessor.dispose();
     }
   });
 });

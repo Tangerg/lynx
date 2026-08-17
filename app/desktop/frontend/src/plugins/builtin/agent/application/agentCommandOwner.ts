@@ -39,7 +39,9 @@ export class AgentCommandOwner {
   readonly #rollbackSessions = new Set<string>();
   readonly #sessionSummaryQueues = new Map<string, SessionSummaryQueue>();
   readonly #effects = new Set<AgentCommandEffect>();
+  readonly #settlers = new Set<() => void>();
   #approvalModeTail: Promise<void> = Promise.resolve();
+  #approvalRulesTail: Promise<void> = Promise.resolve();
   #retired = false;
 
   private constructor() {}
@@ -64,6 +66,32 @@ export class AgentCommandOwner {
 
   assertCurrent(): void {
     if (!this.isCurrent()) throw new AgentCommandRetiredError();
+  }
+
+  settle<T>(operation: Promise<T>): Promise<T> {
+    this.assertCurrent();
+    return new Promise<T>((resolve, reject) => {
+      let pending = true;
+      const finish = () => {
+        if (!pending) return false;
+        pending = false;
+        this.#settlers.delete(retire);
+        return true;
+      };
+      const retire = () => {
+        if (finish()) reject(new AgentCommandRetiredError());
+      };
+      this.#settlers.add(retire);
+      operation.then(
+        (value) => {
+          if (finish()) resolve(value);
+        },
+        (error: unknown) => {
+          if (finish()) reject(error);
+        },
+      );
+      if (!this.isCurrent()) retire();
+    });
   }
 
   runSessionCreate<T>(key: string | null, execute: () => Promise<T>): Promise<T> {
@@ -127,9 +155,22 @@ export class AgentCommandOwner {
     this.assertCurrent();
     const result = this.#approvalModeTail.then(() => {
       this.assertCurrent();
-      return execute();
+      return this.settle(execute());
     });
     this.#approvalModeTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  serializeApprovalRules<T>(execute: () => Promise<T>): Promise<T> {
+    this.assertCurrent();
+    const result = this.#approvalRulesTail.then(() => {
+      this.assertCurrent();
+      return this.settle(execute());
+    });
+    this.#approvalRulesTail = result.then(
       () => undefined,
       () => undefined,
     );
@@ -180,15 +221,22 @@ export class AgentCommandOwner {
   #retire(): void {
     if (this.#retired) return;
     this.#retired = true;
+    for (const settle of [...this.#settlers]) settle();
+    this.#settlers.clear();
     this.#creates.clear();
     this.#forks.clear();
     this.#rollbackSessions.clear();
     this.#sessionSummaryQueues.clear();
     this.#approvalModeTail = Promise.resolve();
+    this.#approvalRulesTail = Promise.resolve();
     for (const effect of [...this.#effects]) effect.rollback();
   }
 }
 
 export function agentCommandOwner(): AgentCommandOwner {
   return AgentCommandOwner.current();
+}
+
+export function agentCommandWasRetired(error: unknown): boolean {
+  return error instanceof AgentCommandRetiredError;
 }

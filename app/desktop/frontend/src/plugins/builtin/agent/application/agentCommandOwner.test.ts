@@ -25,4 +25,20 @@ describe("AgentCommandOwner", () => {
     expect(() => successor.assertCurrent()).not.toThrow();
     successor.dispose();
   });
+
+  it("settles admitted work immediately when its generation retires", async () => {
+    const retired = AgentCommandOwner.install();
+    let settleOperation!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      settleOperation = resolve;
+    });
+    const operation = retired.settle(pending);
+
+    const successor = AgentCommandOwner.install();
+
+    await expect(operation).rejects.toMatchObject({ message: "agent_command_owner_retired" });
+    settleOperation();
+    await pending;
+    successor.dispose();
+  });
 });

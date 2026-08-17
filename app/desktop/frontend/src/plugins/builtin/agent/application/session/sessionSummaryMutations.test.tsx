@@ -165,7 +165,7 @@ describe("optimistic Session summary mutations", () => {
         { ...session(), favorite: true, revision: 4 },
       ]);
     } finally {
-      disposeSuccessor();
+      disposeSuccessor.dispose();
     }
   });
 });

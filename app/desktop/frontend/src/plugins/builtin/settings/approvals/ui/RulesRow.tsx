@@ -1,5 +1,6 @@
 import { DataView, IconButton, TextButton } from "@/ui";
 import {
+  agentCommandWasRetired,
   forgetApprovalRule,
   forgetApprovalRules,
   type ApprovalRuleSummary,
@@ -27,6 +28,7 @@ export function RulesRow() {
     try {
       await forgetApprovalRule(id);
     } catch (err) {
+      if (agentCommandWasRetired(err)) return;
       notifyError(rpcErrorText(err) ?? t("approvals.error.forget"));
     }
   };
@@ -34,6 +36,7 @@ export function RulesRow() {
     try {
       await forgetApprovalRules(rows);
     } catch (err) {
+      if (agentCommandWasRetired(err)) return;
       notifyError(rpcErrorText(err) ?? t("approvals.error.forget"));
     }
   };

@@ -122,7 +122,7 @@ describe("rollbackSessionToBeforeRun", () => {
       await expect(retired).resolves.toEqual({ status: "unavailable" });
       expect(successorRollback).not.toHaveBeenCalled();
     } finally {
-      disposeSuccessor();
+      disposeSuccessor.dispose();
     }
   });
 
@@ -171,7 +171,7 @@ describe("forkAgentSessionAtRun", () => {
       expect(successorStartedBeforeRetiredSettlement).toBe(1);
       expect(navigator().get().session).toBe("fork_successor");
     } finally {
-      disposeSuccessor();
+      disposeSuccessor.dispose();
     }
   });
 });

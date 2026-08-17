@@ -7,12 +7,15 @@ import { createLyraClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess } from "@/rpc/transports/memory.testkit";
 import { AGENT_SESSION_USAGE_KEY, useAgentSessionUsage } from "../application/session/sessionUsage";
-import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
+import {
+  installAgentRuntimeGateway,
+  type AgentRuntimeGatewayInstallation,
+} from "./agentRuntimeGateway";
 import { queryClient } from "@/lib/queryClient";
 
 let transport: ReturnType<typeof createMemoryTransport>;
 let client: ReturnType<typeof createLyraClient>;
-let restoreGateway: (() => void) | undefined;
+let restoreGateway: AgentRuntimeGatewayInstallation | undefined;
 let unmountHook: (() => void) | undefined;
 let restoreQueryDefaults: (() => void) | undefined;
 
@@ -53,7 +56,7 @@ beforeEach(() => {
 afterEach(async () => {
   unmountHook?.();
   unmountHook = undefined;
-  restoreGateway?.();
+  restoreGateway?.dispose();
   restoreGateway = undefined;
   queryClient.clear();
   restoreQueryDefaults?.();
@@ -65,7 +68,7 @@ afterEach(async () => {
 
 describe("mounted Session usage generation", () => {
   it("does not let an empty handoff settlement invalidate a later query", async () => {
-    restoreGateway?.();
+    restoreGateway?.dispose();
     restoreGateway = undefined;
     await act(async () => Promise.resolve());
     queryClient.clear();
@@ -136,12 +139,12 @@ describe("mounted Session usage generation", () => {
     const successorClient = createLyraClient(successorTransport);
     const successorSend = vi.spyOn(successorTransport, "send");
     setContainer({ client: () => successorClient });
-    let disposeSuccessor!: () => void;
+    let disposeSuccessor!: AgentRuntimeGatewayInstallation;
     await act(async () => {
       disposeSuccessor = installAgentRuntimeGateway();
       await Promise.resolve();
     });
-    restoreGateway?.();
+    restoreGateway?.dispose();
     restoreGateway = undefined;
     try {
       const successorRequest = await waitForUsageRequest(0, successorTransport);
@@ -157,7 +160,7 @@ describe("mounted Session usage generation", () => {
       await act(async () => Promise.resolve());
       expect(hook.result.current.data?.inputTokens).toBe(34);
     } finally {
-      disposeSuccessor();
+      disposeSuccessor.dispose();
       await successorClient.close();
     }
   });

@@ -1,5 +1,10 @@
 import { Icon, Pressable } from "@/ui";
-import { APPROVAL_MODES, saveApprovalMode, type ApprovalMode } from "../application/approvalConfig";
+import {
+  agentCommandWasRetired,
+  APPROVAL_MODES,
+  saveApprovalMode,
+  type ApprovalMode,
+} from "../application/approvalConfig";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
@@ -11,6 +16,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
     try {
       await saveApprovalMode(next);
     } catch (err) {
+      if (agentCommandWasRetired(err)) return;
       notifyError(rpcErrorText(err) ?? t("approvals.error.mode"));
     }
   };

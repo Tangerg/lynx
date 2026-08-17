@@ -12,22 +12,32 @@ import {
   subscribeAgentSessionLifecycle,
 } from "@/plugins/builtin/agent/public/session";
 import { AGENT_SESSION_PORTS } from "@/plugins/builtin/agent/public/ports";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.agent-bootstrap",
+  requires: { runtime: RUNTIME_STREAM_PORTS },
   provides: { sessions: AGENT_SESSION_PORTS },
   setup(ctx) {
     contributeRuntimePendingWork(ctx);
     const disposeState = installAgentStatePorts();
     const disposeDefaultSession = installAgentDefaultSessionPort();
-    const disposeRuntime = installAgentRuntimeGateway();
+    const runtimeGateway = installAgentRuntimeGateway();
+    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
+      const next = ctx.runtime.runtimeGeneration();
+      if (next === runtimeGeneration) return;
+      runtimeGeneration = next;
+      runtimeGateway.replaceRuntimeGeneration();
+    });
     const disposeInterruptResponses = installInterruptResponseCoordinator();
     // After the ports it reads through.
     const disposeDraftCleanup = installAbandonedDraftCleanup();
     ctx.cleanup(() => {
       disposeDraftCleanup();
       disposeInterruptResponses();
-      disposeRuntime();
+      unsubscribeRuntime();
+      runtimeGateway.dispose();
       disposeDefaultSession();
       disposeState();
     });

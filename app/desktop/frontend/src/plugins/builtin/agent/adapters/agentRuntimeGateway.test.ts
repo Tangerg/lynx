@@ -13,14 +13,17 @@ import { asRunId, asSegmentId, asSessionId } from "@/rpc";
 import { createMutationPromise } from "@/rpc/mutation";
 import * as runtimeCapabilities from "@/plugins/builtin/runtime/public/capabilities";
 import { agentRuntime } from "../application/ports/runtimeGateway";
-import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
+import {
+  installAgentRuntimeGateway,
+  type AgentRuntimeGatewayInstallation,
+} from "./agentRuntimeGateway";
 import { registerAgentSessionMaterialCommitter } from "../application/ports/sessionMaterialCommitters";
 
-let uninstall: (() => void) | undefined;
+let uninstall: AgentRuntimeGatewayInstallation | undefined;
 let uninstallMaterialCommitter: (() => void) | undefined;
 
 afterEach(() => {
-  uninstall?.();
+  uninstall?.dispose();
   uninstall = undefined;
   uninstallMaterialCommitter?.();
   uninstallMaterialCommitter = undefined;
@@ -52,7 +55,7 @@ describe("agentRuntimeGateway", () => {
     uninstall = installAgentRuntimeGateway();
 
     await expect(agentRuntime().createSession({ cwd: "/repo" })).rejects.toBe(transportFailure);
-    uninstall();
+    uninstall.dispose();
     uninstall = undefined;
 
     const successorCreate = vi.fn(
@@ -93,7 +96,7 @@ describe("agentRuntimeGateway", () => {
     uninstall = installAgentRuntimeGateway();
 
     const creating = agentRuntime().createSession({ cwd: "/repo" });
-    uninstall();
+    uninstall.dispose();
     uninstall = undefined;
 
     await expect(creating).rejects.toBeInstanceOf(UnaryMutationSettlementClosedError);

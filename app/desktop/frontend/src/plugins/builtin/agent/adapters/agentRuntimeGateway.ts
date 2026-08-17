@@ -11,7 +11,7 @@ import { AgentCommandOwner } from "../application/agentCommandOwner";
 import { AgentSessionUsageOwner } from "../application/session/sessionUsage";
 
 class RuntimeAgentGateway implements AgentRuntimeGateway {
-  readonly #sessionMutations = createUnaryMutationSettler();
+  #sessionMutations = createUnaryMutationSettler();
 
   async createSession(input: Parameters<AgentRuntimeGateway["createSession"]>[0]) {
     const client = getContainer().client();
@@ -131,22 +131,44 @@ class RuntimeAgentGateway implements AgentRuntimeGateway {
     await getContainer().client().approval.forgetRule(id);
   }
 
+  replaceRuntimeGeneration(): void {
+    const predecessor = this.#sessionMutations;
+    this.#sessionMutations = createUnaryMutationSettler();
+    predecessor.dispose();
+  }
+
   dispose(): void {
     this.#sessionMutations.dispose();
   }
 }
 
-export function installAgentRuntimeGateway(): () => void {
+export interface AgentRuntimeGatewayInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installAgentRuntimeGateway(): AgentRuntimeGatewayInstallation {
   // Retire command continuations before publishing a successor gateway. A queued
   // task from the previous Host must never resolve its dependencies through this one.
-  const commandOwner = AgentCommandOwner.install();
+  let commandOwner = AgentCommandOwner.install();
   const gateway = new RuntimeAgentGateway();
-  const usageOwner = AgentSessionUsageOwner.install(gateway);
+  let usageOwner = AgentSessionUsageOwner.install(gateway);
   const disposePort = configureAgentRuntimeGateway(gateway);
-  return () => {
-    commandOwner.dispose();
-    usageOwner.dispose();
-    disposePort();
-    gateway.dispose();
+  let disposed = false;
+  return {
+    replaceRuntimeGeneration() {
+      if (disposed) return;
+      gateway.replaceRuntimeGeneration();
+      commandOwner = AgentCommandOwner.install();
+      usageOwner = AgentSessionUsageOwner.install(gateway);
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      commandOwner.dispose();
+      usageOwner.dispose();
+      disposePort();
+      gateway.dispose();
+    },
   };
 }

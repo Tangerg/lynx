@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
-import { setContainer } from "@/main/container";
+import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { installAgentRuntimeGateway } from "../adapters/agentRuntimeGateway";
 import { configureAgentRuntimeGateway, type AgentRuntimeGateway } from "./ports/runtimeGateway";
-import { setApprovalMode } from "./approvalPolicy";
-import { APPROVAL_MODE_KEY } from "./approvalPolicyQueries";
+import { forgetRules, setApprovalMode } from "./approvalPolicy";
+import {
+  APPROVAL_MODE_KEY,
+  APPROVAL_RULES_KEY,
+  type ApprovalRuleSummary,
+} from "./approvalPolicyQueries";
 import type { ApprovalMode } from "../domain/hitl";
 
 function deferred<T>() {
@@ -24,6 +28,9 @@ afterEach(() => {
   uninstall?.();
   uninstall = undefined;
   queryClient.removeQueries({ queryKey: [APPROVAL_MODE_KEY] });
+  queryClient.removeQueries({ queryKey: [APPROVAL_RULES_KEY] });
+  vi.restoreAllMocks();
+  resetContainer();
 });
 
 describe("approval policy", () => {
@@ -96,7 +103,79 @@ describe("approval policy", () => {
       expect(successorSetMode).toHaveBeenCalledWith("yolo");
       expect(queryClient.getQueryData([APPROVAL_MODE_KEY])).toBe("yolo");
     } finally {
-      disposeSuccessor();
+      disposeSuccessor.dispose();
+    }
+  });
+
+  it("keeps accepted rule deletions when a later item in the batch fails", async () => {
+    const failure = new Error("second delete failed");
+    const forgetApprovalRule = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(failure);
+    uninstall = configureAgentRuntimeGateway({
+      forgetApprovalRule,
+    } as unknown as AgentRuntimeGateway);
+    const key = [APPROVAL_RULES_KEY, { sessionId: "ses_1" }];
+    queryClient.setQueryData(key, [rule("rule-1"), rule("rule-2")]);
+    vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+
+    await expect(forgetRules(["rule-1", "rule-2"])).rejects.toBe(failure);
+    expect(queryClient.getQueryData(key)).toEqual([rule("rule-2")]);
+  });
+
+  it("keeps an accepted rule deletion successful when cache repair fails", async () => {
+    uninstall = configureAgentRuntimeGateway({
+      forgetApprovalRule: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AgentRuntimeGateway);
+    const key = [APPROVAL_RULES_KEY, { sessionId: "ses_1" }];
+    queryClient.setQueryData(key, [rule("rule-1")]);
+    vi.spyOn(queryClient, "invalidateQueries").mockRejectedValue(new Error("cache unavailable"));
+
+    await expect(forgetRules(["rule-1"])).resolves.toBeUndefined();
+    expect(queryClient.getQueryData(key)).toEqual([]);
+  });
+
+  it("does not continue a rule batch through a successor Plugin Host", async () => {
+    const retiredWrite = deferred<void>();
+    const forgetRetired = vi.fn(() => retiredWrite.promise);
+    const forgetSuccessor = vi.fn().mockResolvedValue(undefined);
+    setContainer({
+      client: () => ({ approval: { forgetRule: forgetRetired } }) as unknown as LyraClient,
+    });
+    const retiredInstallation = installAgentRuntimeGateway();
+    const command = rejected(forgetRules(["rule-1", "rule-2"]));
+    await vi.waitFor(() => expect(forgetRetired).toHaveBeenCalledOnce());
+
+    setContainer({
+      client: () => ({ approval: { forgetRule: forgetSuccessor } }) as unknown as LyraClient,
+    });
+    const successorInstallation = installAgentRuntimeGateway();
+    try {
+      await expect(command).resolves.toMatchObject({ message: "agent_command_owner_retired" });
+      expect(forgetSuccessor).not.toHaveBeenCalled();
+    } finally {
+      retiredWrite.resolve();
+      successorInstallation.dispose();
+      retiredInstallation.dispose();
     }
   });
 });
+
+function rule(id: string): ApprovalRuleSummary {
+  return {
+    id,
+    scope: "global",
+    tool: "shell",
+    decision: "allow",
+  };
+}
+
+function rejected(operation: Promise<unknown>): Promise<Error> {
+  return operation.then(
+    () => {
+      throw new Error("operation unexpectedly resolved");
+    },
+    (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
+  );
+}
