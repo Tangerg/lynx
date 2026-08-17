@@ -26,7 +26,7 @@ import {
   useCurrentRootMetrics,
   useCurrentRootRunId,
 } from "./agentViewSelectors";
-import { useAgentStore } from "./agentStore";
+import { AgentViewRefreshOwner, useAgentStore } from "./agentStore";
 
 function activeSessionId(): string {
   return navigator().get().session;
@@ -56,6 +56,9 @@ function goToSession(id: string): void {
 }
 
 export function installAgentStatePorts(): () => void {
+  // Claim before publishing successor ports. From this point an old port retained by
+  // an in-flight snapshot can no longer commit into the shared material store.
+  const refreshOwner = AgentViewRefreshOwner.install();
   const disposeSessionState = configureAgentSessionStatePort({
     useActiveSessionId: () => navigator().use((location) => location.session),
     getActiveSessionId: activeSessionId,
@@ -166,15 +169,15 @@ export function installAgentStatePorts(): () => void {
           localUserMessage(messageId, agentInputToContentBlocks(input)),
         ),
     beginViewRefresh: (sessionId, invalidateQueuedRunEvents) =>
-      useAgentStore.getState().beginViewRefresh(sessionId, invalidateQueuedRunEvents),
-    commitViewRefresh: (sessionId, token, view) =>
-      useAgentStore.getState().commitViewRefresh(sessionId, token, view),
+      refreshOwner.begin(sessionId, invalidateQueuedRunEvents),
+    commitViewRefresh: (sessionId, token, view) => refreshOwner.commit(sessionId, token, view),
     clearProblem: (sessionId) => useAgentStore.getState().clearProblem(sessionId),
     resolveInterrupt: (sessionId, itemId, settled, resolvedAt) =>
       useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled, resolvedAt),
     subscribeSessions: (onChange) => useAgentStore.subscribe((state) => onChange(state.sessions)),
   });
   return () => {
+    refreshOwner.dispose();
     disposeViewState();
     disposeSessionState();
   };

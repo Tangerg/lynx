@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, RunEvent, RunRef, SegmentOutcome, StreamEvent } from "@/rpc";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import { useAgentStore } from "./agentStore";
+import { AgentViewRefreshOwner, useAgentStore } from "./agentStore";
 import { selectCurrentRootRun } from "../application/view/runTree";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
@@ -266,6 +266,38 @@ describe("agentStore.applyRunSnapshot", () => {
 });
 
 describe("agentStore authoritative refresh", () => {
+  it("rejects an old writer token after a successor generation takes ownership", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    const retired = AgentViewRefreshOwner.install();
+    const retiredToken = retired.begin(SID, false)!;
+
+    const successor = AgentViewRefreshOwner.install();
+
+    expect(retired.commit(SID, retiredToken, EMPTY_AGENT_SESSION_VIEW)).toBe(false);
+    expect(retired.begin(SID, false)).toBeNull();
+    successor.dispose();
+    retired.dispose();
+  });
+
+  it("does not let a stale disposer retire the successor writer", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    const retired = AgentViewRefreshOwner.install();
+    const successor = AgentViewRefreshOwner.install();
+    retired.dispose();
+
+    const token = successor.begin(SID, false)!;
+    expect(
+      successor.commit(SID, token, {
+        ...EMPTY_AGENT_SESSION_VIEW,
+        shared: { marker: "successor" },
+      }),
+    ).toBe(true);
+    expect(view().shared).toEqual({ marker: "successor" });
+    successor.dispose();
+  });
+
   it("keeps the current view visible until a complete snapshot commits", () => {
     const store = useAgentStore.getState();
     store.ensureSession(SID);

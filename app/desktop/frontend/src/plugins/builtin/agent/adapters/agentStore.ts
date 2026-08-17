@@ -306,6 +306,49 @@ export const useAgentStore = create<AgentStore>((set) => ({
     }),
 }));
 
+/**
+ * Exact Plugin Host generation allowed to commit authoritative snapshot reads.
+ *
+ * Refresh sequence and view revision order writes within one generation. They cannot
+ * distinguish an old port object retained across adapter replacement, because both
+ * objects target this process-wide store. This owner adds that missing outer identity:
+ * installing a successor synchronously revokes every token held by its predecessor,
+ * and a stale disposer can retire only itself.
+ */
+export class AgentViewRefreshOwner {
+  static #active: AgentViewRefreshOwner | null = null;
+
+  #disposed = false;
+
+  private constructor() {}
+
+  static install(): AgentViewRefreshOwner {
+    const owner = new AgentViewRefreshOwner();
+    AgentViewRefreshOwner.#active = owner;
+    return owner;
+  }
+
+  begin(sessionId: string, invalidateQueuedRunEvents: boolean): AgentViewRefreshToken | null {
+    if (!this.#ownsGeneration()) return null;
+    return useAgentStore.getState().beginViewRefresh(sessionId, invalidateQueuedRunEvents);
+  }
+
+  commit(sessionId: string, token: AgentViewRefreshToken, view: AgentSessionView): boolean {
+    if (!this.#ownsGeneration()) return false;
+    return useAgentStore.getState().commitViewRefresh(sessionId, token, view);
+  }
+
+  dispose(): void {
+    if (this.#disposed) return;
+    this.#disposed = true;
+    if (AgentViewRefreshOwner.#active === this) AgentViewRefreshOwner.#active = null;
+  }
+
+  #ownsGeneration(): boolean {
+    return !this.#disposed && AgentViewRefreshOwner.#active === this;
+  }
+}
+
 // Prune sessions no longer held open. The view slice (messages, toolCalls,
 // shared, plan) can be megabytes of streamed markdown per session — without
 // this it accumulates forever.

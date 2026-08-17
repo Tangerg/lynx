@@ -6,6 +6,7 @@ import type {
 } from "../ports/runtimeGateway";
 import { configureAgentRuntimeGateway } from "../ports/runtimeGateway";
 import { useAgentStore } from "../../adapters/agentStore";
+import { installAgentStatePorts } from "../../adapters/agentStatePorts";
 import {
   refreshAgentSessionProjection,
   revalidateAgentSessionProjection,
@@ -186,5 +187,33 @@ describe("refreshAgentSessionProjection", () => {
       { revision?: number } | null | undefined;
     expect(plan?.revision).not.toBe(9);
     expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+  });
+
+  it("rejects an old port's snapshot and companion material after adapter replacement", async () => {
+    const read = deferred<AgentSessionMaterialRead>();
+    const commitAssociatedReadModels = vi.fn();
+    restoreRuntime = configureAgentRuntimeGateway({
+      loadSessionSnapshot: vi.fn(() => read.promise),
+    } as unknown as AgentRuntimeGateway);
+    const disposeRetiredState = installAgentStatePorts();
+    let disposeSuccessorState: (() => void) | undefined;
+    try {
+      const refreshing = refreshAgentSessionProjection(SESSION_ID);
+      disposeSuccessorState = installAgentStatePorts();
+
+      read.resolve(material(snapshot(10), commitAssociatedReadModels));
+
+      await expect(refreshing).resolves.toBeNull();
+      const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
+        { revision?: number } | null | undefined;
+      expect(plan?.revision).not.toBe(10);
+      expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+    } finally {
+      disposeRetiredState();
+      disposeSuccessorState?.();
+      // This test replaces the process-local application ports. Leave the isolated
+      // test worker with one live generation for any later test in the same module.
+      installAgentStatePorts();
+    }
   });
 });
