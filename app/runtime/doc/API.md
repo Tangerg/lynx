@@ -1009,9 +1009,8 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 1. 完成 discovery，并在读取前建立所需 `runtime.subscribe` generation；
 2. `sessions.list` / `sessions.get` 对账身份；
-3. 对每个已挂载 Session 调一次 `sessions.snapshot`，在同一数据库提交点恢复 Items、Runs、HITL 与 Plan；
-4. Goal 与其他独立 capability resource 继续调用各自 recovery query（例如 `goals.get`）：它们拥有不同生命周期，
-   不能仅为减少请求数而塞进 Agent material view；
+3. 对每个已挂载 Session 调一次 `sessions.snapshot`，在同一数据库提交点恢复 Items、Runs、HITL、Plan 与 Goal；消费者必须把响应视为一个 material unit，并且只在该读取仍拥有当前 view generation 时整体提交；
+4. 未挂载 Goal 与其他不属于 Session material 的 capability resource 继续调用各自 recovery query；不能把独立资源目录或筛选语义扩进 `sessions.snapshot`；
 5. 折叠读取期间到达的失效事件并按需重读；`runs.resume` 应答 interrupt（payload 自包含，无需额外 join，§4.8）。
 
 ### 10.3 还原 Run 树

@@ -53,11 +53,11 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 当前协议版本为 `2026-08-17`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
-Session/Item/Run/open Interrupt/Plan 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
+Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval
 payload，running Item 必须由 active continuation 唯一认领，terminal Run 不得保留 running Item。Persistence 在一个 SQLite transaction 内读取全部事实，Delivery
-按调用方 capability 原样投影或整体拒绝，不能裁剪 waiting set。Desktop 只走这一路恢复 HITL、Plan、Run/Tool；
-独立分页资源接口继续存在，Goal 继续由 `goals.get` 的独立生命周期 owner 读取。该 additive method 不改变
+按调用方 capability 原样投影或整体拒绝，不能裁剪 waiting set。Desktop 只走这一路恢复已挂载 Session 的 HITL、Plan、Goal、Run/Tool，
+并且只有赢得当前 view generation 的响应可以提交整份 material；独立分页资源接口继续存在，未挂载 Goal 才继续由 `goals.get` 读取。该 additive method 不改变
 `protocolVersion`、Artifact version 或 SQLite epoch，也不授权旧四读 fallback。
 `manifest.methods[].materializes` 只声明复合 query 原子承载的独立事实族，供合同审计和 consumer gate 区分
 服务端组合读取与孤儿能力；它不继承目标 query 的筛选/分页语义，也不建立 alias 或客户端 fallback。

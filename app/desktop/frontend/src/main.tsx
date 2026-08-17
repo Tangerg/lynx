@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
-import type { Root } from "react-dom/client";
 import App from "./App";
 import { disposeContainer, initializeDesktopHost } from "./main/container";
+import { DesktopRenderer } from "./main/renderer";
 import { applyWindowChrome, watchWindowChrome } from "./main/windowChrome";
 import { configureHostTeardown, publishHostBridge } from "./plugins/host/hostBridge";
 // Fonts: the native OS stack (SF Pro / PingFang on macOS) — see globals.css
@@ -21,21 +21,24 @@ import "./styles/globals.css";
 // agent subscribe, ref-counted plugin loader, etc.) for true double-invoke
 // safety.
 
-let stopWatchingWindowChrome = () => {};
-let root: Root | undefined;
+const renderer = new DesktopRenderer({
+  initializeDesktopHost,
+  prepareWindowChrome: applyWindowChrome,
+  watchWindowChrome,
+  mount() {
+    const container = document.getElementById("root");
+    const root = createRoot(container!);
+    root.render(<App />);
+    return root;
+  },
+  closeRuntime: disposeContainer,
+  reportFailure(scope, error) {
+    console.error(`[desktop] ${scope} failed:`, error);
+  },
+});
+
 configureHostTeardown(() => {
-  try {
-    root?.unmount();
-  } catch (error) {
-    console.error("[desktop] React root teardown failed:", error);
-  }
-  root = undefined;
-  try {
-    stopWatchingWindowChrome();
-  } catch (error) {
-    console.error("[desktop] window chrome teardown failed:", error);
-  }
-  void disposeContainer().catch((error: unknown) => {
+  void renderer.dispose().catch((error: unknown) => {
     console.error("[desktop] teardown failed:", error);
   });
 });
@@ -43,19 +46,6 @@ configureHostTeardown(() => {
 // bootstrap. PluginProvider republishes the same idempotent bridge after mount.
 publishHostBridge();
 
-async function start(): Promise<void> {
-  try {
-    await initializeDesktopHost();
-  } catch (error) {
-    console.error("[desktop] host bootstrap failed:", error);
-  }
-  // Before the first render: the header's height comes from the window frame, and
-  // laying it out at the declared height first would move every row on screen once.
-  await applyWindowChrome();
-  stopWatchingWindowChrome = watchWindowChrome();
-  const container = document.getElementById("root");
-  root = createRoot(container!);
-  root.render(<App />);
-}
-
-void start();
+void renderer.start().catch((error: unknown) => {
+  console.error("[desktop] startup failed:", error);
+});

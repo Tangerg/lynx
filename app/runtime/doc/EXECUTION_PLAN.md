@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P113 已完成
+> 状态：P1–P113 已完成；P114 进行中
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,13 +10,15 @@
 
 当前实施 goal 已授权：
 
-- 对 `app/runtime` 做内部治本式清理：纠正 package 所有权、删除无价值微包/胖接口/config 镜像、让构造阶段拒绝无效依赖，并按锁与不变量拆解核心共享状态；
-- 允许内部 breaking change，旧 package、constructor、interface 和物理架构守卫直接删除，不建立 alias、shim、forwarder 或 dual path；
-- 公共 `protocol + embedded.Runtime`、SQLite shape、Session Artifact 与 Agent Framework 合同默认保持不变；只有实现中证明当前公共合同本身错误时，才按既有 baseline 流程一次前移；
-- 每完成一个可独立验收批次，同步本计划和 Capability Ledger 并执行对应质量门禁；
-- 仅修改 `app/runtime` 及不可避免的直接编译爆炸半径；不借架构清理重写产品行为或触碰无关 Desktop/CLI/TUI 工作。
+- 对 `app/runtime`、`app/desktop` 与不可避免的直接合同爆炸半径做反证式全链路清零；修复必须落在状态所有权、生命周期、事务边界或领域不变量，允许 breaking change，禁止 alias、shim、compat patch、dual path、刷新绕过和延时掩盖；
+- 真实产品严格为一个 client 对一个 server；优先验证单客户端内 renderer replacement/window close、Runtime 断线/重启/SIGKILL、事务失败、成功回执丢失、Session 切换、Dock 折叠/恢复、compaction 与 HITL continuation 的真实交错，不堆砌无业务意义的多客户端高并发 race；
+- mutation、query、event stream 与 material snapshot 必须服从唯一 generation owner；HITL、Plan、Goal、Run、Tool、Terminal、Diff、审批与 Session navigation 不得跨代拼接、复活旧状态或永久 loading；
+- 后端以 `/Users/tangerg/Desktop/codex/codex-rs` 中 Codex 的 Rust 实现为只读重点参考，逐项记录其进程恢复、事件代际、取消与 durable state 不变量中可吸收和不采纳的部分；取长补短，不机械照搬其模块形状或产品词汇；
+- 前端参考仅限 `/Users/tangerg/Desktop/study` 中 Codex、zcode 与 minimax 的解包 UI：Codex 为样式、交互反馈和页面心智模型的主参考，zcode/minimax 只作补充对照；像素级复刻必须服从 Lyra 已冻结的 Work Index / Agent Narrative / Context Dock 信息架构、真实数据 owner 和现有主题系统；
+- Runtime 只能通过 `adapter/agentexec` 接入 Agent Framework；Agent inner ring 不得依赖 Runtime、RPC、Desktop、SQLite、持久化或产品终态词汇，Application、Adapter、Infra、Delivery 与 Agent Framework 边界继续由机器守卫；
+- 每完成一个独立可验证批次，同步本计划和 Capability Ledger，执行单元测试、SQLite 不变量、Frontend 全门禁、异步泄露与真实恢复验收，精确暂存、提交并推送；不得修改或暂存 `app/cli`，并保留全部无关工作区改动。
 
-本 goal 以当前 import/call/lock graph 而不是历史 P14/P17 文件布局作为事实。Agent Framework 仍只拥有中性进程与 Effect 语义；Runtime 的 Run、授权、HITL、Store、transaction、投影和 provider policy 均不得泄露进入 Agent。
+本 goal 以当前生产 ownership、失败窗口和 reference evidence 为事实，不以历史文件布局或外部 UI 的目录结构为规范。参考实现只能帮助发现不变量与交互证据，不能成为第二真相源。
 
 ## 2. 全程约束
 
@@ -121,6 +123,7 @@
 | P111 | Desktop 左右结构面板 spring 与渲染隔离收敛 | P110 + Codex App Shell / 长对话 trace / WebKit 证据 | 已完成 |
 | P112 | Runtime 重启后挂载 Session material 单代际收敛 | P111 + SQLite 同事务 Goal / Desktop winning view commit / SIGKILL 证据 | 已完成 |
 | P113 | Runtime 内部所有权、合法构造与状态边界治本清理 | P112 + 当前 import/call/lock graph + ADR-RT-063 | 已完成 |
+| P114 | 单 client/server 全链路 generation、恢复与 Desktop 产品接线清零 | P113 + renderer/Runtime failure matrix + Codex Rust/UI 对照证据 | 进行中 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -2080,10 +2083,42 @@
 - 公共 Protocol、SQLite、Artifact 和 Agent Framework shape 若未被本轮改变，生成物与 baseline digest 必须零漂移；若改变则同批一次前移且无双读；
 - Runtime 全量门禁绿色，工作区无无关改动和空目录。
 
-## 93. 进度记录
+## 93. P114 — 单 client/server 全链路 generation、恢复与 Desktop 产品接线清零
+
+### 目标
+
+以唯一 renderer/Runtime event generation 和充血生命周期 owner 为核心，先用真实失败交错证明旧 mutation、RPC response、query writer、stream callback、teardown settlement 与 material snapshot 能否越权写入 successor，再从 composition root、Application transaction、Runtime recovery 和 read-model ownership 上一次性消除缺陷。最终 Run Summary、Terminal、Diff、Tool selection、Goal、Plan、HITL/审批与 Session navigation 在冷启动、断线、Runtime 重启/SIGKILL、回执丢失、compaction、Session/Dock 切换和 renderer replacement 下只呈现同一代事实。
+
+### 参考基线与产出
+
+- 后端主参考：`/Users/tangerg/Desktop/codex/codex-rs` 的 Rust 代码。重点对照进程 incarnation、事件/请求身份、断线恢复、持久状态重建、取消和迟到 settlement；每个采用点必须映射到 Lyra 的 Domain/Application/Adapter/Infra/Delivery owner，每个不采用点记录产品或架构理由；
+- 前端主参考：`/Users/tangerg/Desktop/study/codex` 解包 UI；补充参考仅为同目录的 zcode/minimax。重点对照 Run Summary、Terminal、Diff、Tool/审批卡、Goal/Plan、Session navigation、Dock、loading/empty/error feedback 和长对话页面心智模型；
+- 参考不是兼容合同。不得复制 Codex 的 Rust/React package 结构、私有产品词汇或第二套状态流；像素级复刻以真实接线、Lyra theme token、Wails v3 和三段式 workspace model 为边界；
+- P114 的每个完成批次在进度记录中同时写明红色反例、根因 owner、参考证据、未采纳项、生产改动与门禁结果，避免“参考过了”成为不可审计口号。
+
+### 工作项
+
+- [ ] P114-01 建立 renderer replacement/final close 单 owner：旧 bootstrap、mutation/RPC、query/material writer、stream callback 与 teardown settlement 全部在同步 retirement 后失去提交权；replacement、重复 dispose、迟到响应与冷启动 mutation handoff 共享唯一 generation identity；
+- [ ] P114-02 建立 Runtime process/event generation：覆盖冷启动、断线、同 endpoint 重启、SIGKILL、事务失败和成功回执丢失；重复、乱序和迟到事件只在所属 incarnation 内推进，survivor read model 由一次权威 recovery 接管；
+- [ ] P114-03 逐项审计 mutation/query/optimistic cache/event/material snapshot 的共同 read model，删除多 writer 与独立刷新旁路，使 Session/HITL/Plan/Goal/Run/Tool/usage/navigation 都有准确的 Application owner和提交边界；
+- [ ] P114-04 完成 Desktop 真实接线反证与修复：Run Summary、Terminal、Diff、Tool selection、Goal、Plan、审批在多轮长对话、compaction、HITL continuation、Session切换、Dock折叠/恢复和renderer替换中保持 exact identity；
+- [ ] P114-05 按 Codex 主参考、zcode/minimax 补充参考完成 UI 对照台账和像素级打磨；先证明 interaction/data wiring，再调整 theme token、布局、状态反馈和细节，不以静态 mock 截图掩盖生命周期问题；
+- [ ] P114-06 持续执行 Runtime 单元/SQLite 不变量、Frontend 全门禁与 `--detectAsyncLeaks`、真实 HTTP/进程恢复和必要的 Wails/browser 产品验证；少做脱离产品的定向 race/fuzz；
+- [ ] P114-07 每个独立纵切更新本文和 Capability Ledger，精确暂存本批文件、提交并推送；agent-browser 使用后关闭全部会话并确认无 daemon、Chrome、测试或 Runtime 残留，不关闭用户已有 Wails/Vite 进程，始终不修改或暂存 `app/cli`。
+
+### 验收
+
+- final close 是不可逆边界：旧 renderer 的任何异步 continuation 都不能创建 root/client、更新 token/capability/query/material 或释放 successor owner；重复 dispose 共享一个 settlement；
+- Runtime restart 形成新的明确 event generation，旧 connection 的 response/event/stream tail 不得进入新代；冷恢复一次收敛 HITL、Plan、Goal、Run、Tool 与 navigation，不出现永久 loading；
+- mounted read model 不再由 query cache、optimistic writer、event fold 和 material snapshot 多路独立提交；每个 mutation response 只提交自己证明的事实，不能以全量 refresh 代替所有权；
+- Codex Rust/UI、zcode/minimax 的参考输入均有可追溯结论，采纳的机制符合 Lyra 边界，不采纳项有明确理由；
+- 全量门禁、真实 SIGKILL/回执丢失/事务失败恢复和 SQLite invariant 绿色；`app/cli` 与无关改动保持未触碰，每批已提交并推送，测试和浏览器辅助进程清零。
+
+## 94. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P114-01a（renderer bootstrap / final-close owner） | 两条红色反例分别稳定证明：旧 `initializeDesktopHost` 可在 reset 已发布 successor、successor 已恢复 `successor-token` 后迟到把全局 bootstrap 改回 `retired-token`，新 RPC 因而实际发送旧 Authorization；final close 在 bootstrap 或 window-chrome await 期间胜出后，旧 `main.tsx` 仍会继续安装 watcher 与 React root。现在 bootstrap/local-token 状态内聚到 exact container owner，desktop replacement、container reset 与 close 都同步撤销旧代提交权；新增充血 `DesktopRenderer` 状态机统一拥有 bootstrap、window chrome、watcher、React root 与 Runtime close，close 不可逆，重复 dispose 共享唯一 settlement，startup fatal failure 也收敛到同一 close owner。只读对照 Codex main-process：其 primary renderer startup 将 readiness 与 webContents replacement/destroyed 竞速，并在 continuation 前复核 origin identity；webview attach 同时核对 `rendererInstanceId + hostGeneration`。本批吸收“异步边界前后都由 exact owner 裁决”的不变量，不复制 Electron webContents、多窗口 registry 或 Browser sidebar host graph，因为 Lyra 产品是单 Wails renderer/单 server。P114 总目标已正式写入，并明确后端 Codex Rust、前端 Codex 主参考与 zcode/minimax 补充参考的可审计产出；同步修正 P112 后三处仍把 mounted Goal 描述为独立 `goals.get` 的陈旧合同文本 | 红测修复前精确收到 `Bearer retired-token`，修复后 focused 2 files / 13 tests通过。Frontend `npm run check` 为295 files / 1760 tests，完整 `--detectAsyncLeaks` 同为295 / 1760且零泄露；type/lint/format/knip/circular/context/layer/port/API consumer/design/token/chrome/locales/bootstrap/bundle全绿，87/87 operations + 3/3 sidecars + 16/16 events保持覆盖。Desktop Wails v3 Go test/vet/build通过（仅既有macOS linker warning）；Runtime architecture/document facts与SQLite baseline focused tests通过。未使用agent-browser，`app/cli`未修改或暂存 |
 | 2026-08-17 | P113-07（final facts / release gates） | 六份 Runtime 权威文档已统一到最终 owner graph：`domain/tool` 是内建 Tool identity owner，Bootstrap composition closure 取代 notification 微包，required constructor 建立合法对象，operation catalog 只依赖 method-specific capability，Runs/Interaction 共享状态按并发不变量分 owner，Instance 唯一创建并关闭 Runtime lifetime；历史实现台账不再冒充架构规则。公共 `protocol`、`embedded.Runtime`、87-operation catalog、SQLite epoch 75、Session Artifact v19 与 Agent Framework public shape 全部保持当前唯一版本，generator 与 public Go API baseline 零漂移。production-Go directory census 从 109 降到 107，减少的正是两个无独立变化轴的 package，没有以新 package 补回。P113 七项工作均完成，实施纵切独立提交并推送，没有 alias、shim、forwarder、compat path、service locator 或无 owner goroutine | Runtime standalone `go build ./...`、`go vet ./...`、`staticcheck ./...`、`golangci-lint run ./...`（0 issue）、`deadcode -test ./...`（零输出）、`go mod tidy -diff`、`go test ./... -count=1`、`go test -race ./... -count=1`、`go generate ./...`、architecture/documentation facts 与 `git diff --check` 全绿 |
 | 2026-08-17 | P113-06（process lifetime / semantic fitness guards） | `bootstrap.OpenInstance` 现在创建唯一 Runtime root，并显式传给 Assembly、operation Endpoint、Interaction executor、Toolset、LSP、MCP/OAuth 与进程 workers；startup/handshake/request Context 只约束当前调用，accepted Run 和共享 capability resource 不再偶然继承首个请求。Interaction dispatch boundary 同时接 product cancellation 与 Runtime owner cancellation，补上 Agent Framework 为 safe effect settlement 使用 `WithoutCancel` 后的协作取消链；行为测试双向证明 caller cancel 不误杀 Run、owner cancel 会终止在途 model/Tool effect。LSP lazy launch、MCP live session 与 operation stream 具有相同 owner 证明；相关 constructor breaking 为 required lifetime，内部 wait/shutdown/continuation 不再把 nil Context 静默替换成 immortal root。历史 identifier ledger、精确文件名/声明位置和测试便利 API 黑名单被删除，保留 package absence、DAG、当前唯一 owner、公共/持久 shape 等语义门禁；新增 AST fitness guard 只允许 Instance/Host/HTTP process owner 创建 ambient root，并对 Application/Adapter/Delivery/Bootstrap 的 production executable orchestration 统一施加 cyclomatic 32 预算，排除生成物、声明 catalog 与本质递归 validator。该门禁发现并促使 Bootstrap 将 500 行单体构造流按 foundation 与 Session/Run core 两个真实阶段重组，没有新 package、函数白名单或抬高阈值。公共 Protocol、SQLite、Artifact 与 Agent Framework shape 均未改变 | Runtime standalone `go test ./... -count=1`、`go vet ./...`、`go mod tidy -diff`、`golangci-lint run ./...`（0 issue）、`go generate ./...`、architecture 与 diff hygiene 全绿；agentexec/toolset/MCP/LSP/operation/Bootstrap/arch focused race 全绿 |
 | 2026-08-17 | P113-05（core state and lifecycle owners） | `interactionSession` 从 53 个直持字段收敛到 19 个，只组合明确的 Process/Delegate state、lifetime、child projection、accounting、Tool repetition、committed reply 与 Segment clock owner。usage/checkpoint、重复 Tool 结果、Delegate 回复、Segment 计时不再争用 Process tree mutex；checkpoint 以固定 accounting→state 锁序同时复制 usage 与 pending steer，原子快照不变。`Coordinator` 从 39 个字段收敛到 27 个：`segmentLifecycle` 独占 task attach/join、executor observe/release、replay journal、live registry 与 terminal finalization；`runPublications` 独占 opening/event/barrier 的 durable-write-before-live-publication、时间、workspace nudge、Session waiter wake 与 read-model invalidation。无新 package、service locator、Config holder 或兼容 façade；同时删除 constructor 已证明 ChildStarts 后仍存在的延迟 unavailable 分支。架构门禁禁止两个核心对象重新直持 raw sync/map/channel/lifecycle root 或已迁出的 Segment/publication mechanisms。公共 Protocol、SQLite、Artifact 与 Agent Framework shape 均未改变 | Runtime standalone `go test ./... -count=1`、`go vet ./...`、`go mod tidy -diff`、`golangci-lint run ./...`、`go generate ./...`、diff hygiene 全绿；runs/agentexec/arch focused race 全绿，失效通知时序用例另以显式 terminal gate 连跑 20 次通过 |

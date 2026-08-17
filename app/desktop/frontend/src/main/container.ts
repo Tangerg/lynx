@@ -31,17 +31,10 @@ export interface Container {
   desktop: DesktopHostClient;
 }
 
-let desktopBootstrap: DesktopBootstrap | null = null;
-
-function localTokenFor(endpoint: string): string | undefined {
-  const local = desktopBootstrap?.localRuntime;
-  if (!local) return undefined;
-  const normalized = endpoint.replace(/\/+$/, "");
-  return normalized === local.endpoint.replace(/\/+$/, "") ? local.localToken : undefined;
-}
-
 interface DefaultContainerOwner {
   readonly container: Container;
+  initializeDesktopHost(desktop: DesktopHostClient): Promise<void>;
+  replaceDesktopHost(): void;
   dispose(): Promise<void>;
 }
 
@@ -53,6 +46,8 @@ function defaultContainer(): DefaultContainerOwner {
   } | null = null;
   let sidecar: { endpoint: string; client: SidecarClient } | null = null;
   const retiring = new Set<Promise<void>>();
+  let desktopBootstrap: DesktopBootstrap | null = null;
+  let bootstrapGeneration = 0;
   let closed = false;
   let disposal: Promise<void> | undefined;
   const assertOpen = () => {
@@ -65,6 +60,12 @@ function defaultContainer(): DefaultContainerOwner {
       .catch(() => undefined)
       .finally(() => retiring.delete(closing));
     retiring.add(closing);
+  };
+  const localTokenFor = (endpoint: string): string | undefined => {
+    const local = desktopBootstrap?.localRuntime;
+    if (!local) return undefined;
+    const normalized = endpoint.replace(/\/+$/, "");
+    return normalized === local.endpoint.replace(/\/+$/, "") ? local.localToken : undefined;
   };
   const container: Container = {
     client: () => {
@@ -109,9 +110,24 @@ function defaultContainer(): DefaultContainerOwner {
   };
   return {
     container,
+    async initializeDesktopHost(desktop) {
+      assertOpen();
+      const generation = ++bootstrapGeneration;
+      desktopBootstrap = null;
+      const bootstrap = await desktop.bootstrap();
+      if (closed || generation !== bootstrapGeneration) return;
+      desktopBootstrap = bootstrap;
+    },
+    replaceDesktopHost() {
+      assertOpen();
+      bootstrapGeneration += 1;
+      desktopBootstrap = null;
+    },
     dispose() {
       if (disposal) return disposal;
       closed = true;
+      bootstrapGeneration += 1;
+      desktopBootstrap = null;
       if (shared) retire(shared.client);
       shared = null;
       sidecar = null;
@@ -131,13 +147,15 @@ export function getContainer(): Container {
 /** Test seam — swap any subset of gateways with fakes. Other slots stay
  *  on the current defaults. */
 export function setContainer(next: Partial<Container>): void {
-  if (next.desktop) desktopBootstrap = null;
+  if (next.desktop) defaultOwner.replaceDesktopHost();
   instance = { ...instance, ...next };
 }
 
 /** Load app-owned bootstrap data before any plugin can construct an RPC client. */
 export async function initializeDesktopHost(): Promise<void> {
-  desktopBootstrap = await instance.desktop.bootstrap();
+  const owner = defaultOwner;
+  const desktop = instance.desktop;
+  await owner.initializeDesktopHost(desktop);
 }
 
 /** Begin final application teardown. The composition root only closes the
@@ -154,7 +172,6 @@ export function disposeContainer(): Promise<void> {
 export async function resetContainer(): Promise<void> {
   const retired = defaultOwner;
   defaultOwner = defaultContainer();
-  desktopBootstrap = null;
   instance = defaultOwner.container;
   await retired.dispose();
 }

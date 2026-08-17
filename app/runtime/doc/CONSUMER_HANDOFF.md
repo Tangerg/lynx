@@ -89,14 +89,15 @@ identity changes revoke the old watch immediately, while a projection update for
 the same active Session keeps the existing watch until a different target is
 resolved, preventing duplicate subscriptions during cache catch-up.
 
-P83-22 adds the stable query `sessions.snapshot`. A mounted Session consumer must
+P83-22 adds the stable query `sessions.snapshot`, and P112 extends its existing
+material boundary to the Session Goal. A mounted Session consumer must
 use this single transactionally coherent response for complete Items, durable
-Runs, open Interrupt sets, and optional Plan state; it must not reconstruct that
+Runs, open Interrupt sets, optional Plan state, and the optional Goal; it must not reconstruct that
 material view with parallel `items.list` / `runs.list` / `interrupts.list` /
 `plan.get` calls or retain that four-read path as a fallback. `includeDescendants`
-has the same `features.subagents` gate as `runs.list`. Goal remains an independent
-resource read (`goals.get`) because its lifecycle and frontend cache owner are
-separate from the Agent material projection.
+has the same `features.subagents` gate as `runs.list`. The consumer commits the
+Goal only when the same snapshot wins the mounted Agent view generation; an
+independent `goals.get` writer remains valid only for an unmounted Goal read.
 
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;

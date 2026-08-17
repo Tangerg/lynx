@@ -102,6 +102,54 @@ describe("main/container", () => {
     expect(getContainer().client()).toBe(second);
   });
 
+  it("does not let a retired bootstrap overwrite the successor Runtime identity", async () => {
+    let resolveRetired!: (value: Awaited<ReturnType<DesktopHostClient["bootstrap"]>>) => void;
+    const retiredBootstrap = new Promise<Awaited<ReturnType<DesktopHostClient["bootstrap"]>>>(
+      (resolve) => {
+        resolveRetired = resolve;
+      },
+    );
+    const desktop = (bootstrap: DesktopHostClient["bootstrap"]): DesktopHostClient => ({
+      bootstrap,
+      chooseWorkingDirectory: async () => null,
+      windowChrome: async () => null,
+    });
+
+    setContainer({ desktop: desktop(() => retiredBootstrap) });
+    const retiredInitialization = initializeDesktopHost();
+
+    await resetContainer();
+    setContainer({
+      desktop: desktop(async () => ({
+        localRuntime: {
+          endpoint: "http://127.0.0.1:17171",
+          localToken: "successor-token",
+        },
+        sideloadedPlugins: [],
+        sideloadIssues: [],
+      })),
+    });
+    await initializeDesktopHost();
+
+    resolveRetired({
+      localRuntime: {
+        endpoint: "http://127.0.0.1:17171",
+        localToken: "retired-token",
+      },
+      sideloadedPlugins: [],
+      sideloadIssues: [],
+    });
+    await retiredInitialization;
+
+    const request = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("request captured"));
+    await expect(getContainer().client().runtime.discover()).rejects.toThrow("request captured");
+
+    const headers = new Headers(request.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Authorization")).toBe("Bearer successor-token");
+  });
+
   it("sidecar() returns a cached client for the active endpoint", async () => {
     const first = getContainer().sidecar();
     expect(getContainer().sidecar()).toBe(first);
