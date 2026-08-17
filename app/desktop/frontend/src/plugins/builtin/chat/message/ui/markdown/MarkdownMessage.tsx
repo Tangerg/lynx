@@ -20,6 +20,7 @@ import { rehypeStreamCaret } from "./rehypeStreamCaret";
 import { normalizeMarkdownMath } from "./preprocess";
 import { remarkLiteralUnknownHtml } from "./remarkLiteralUnknownHtml";
 import { useCommitThrottle, useStreamReveal } from "./streamReveal";
+import { useVisibleTextMaterial } from "../messageVisibleMaterial";
 import "remark-github-blockquote-alert/alert.css";
 
 // Ceiling on how often the revealed text feeds the markdown re-parse while
@@ -93,6 +94,7 @@ export function MarkdownMessage(props: Props) {
   // crisp on first paint — there's no stream to keep responsive.
   const deferred = useDeferredValue(committed);
   const source = instant ? committed : deferred;
+  useVisibleTextMaterial(source === text);
 
   // Normalize model-emitted math delimiters + guard currency BEFORE remark-math
   // parses. Must run on the whole body ahead of block-splitting so a display
