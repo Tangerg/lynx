@@ -3,13 +3,15 @@
 // the index state + a reindex button. Backed by codebase.* — needs an embedding
 // model configured in Settings → Providers (else it points the user there).
 
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { EmptyState, IconButton, PillButton, Pressable, SearchField, SkeletonList } from "@/ui";
 import {
   type CodebaseSearchHit,
   codebaseCommandWasRetired,
+  codebaseMaterialGeneration,
   reindexCodebase,
   searchCodebase,
+  subscribeCodebaseMaterialGeneration,
   useCodebaseSearchConfig,
 } from "../application/codebaseCommands";
 import {
@@ -81,8 +83,33 @@ type CodebaseWorkspaceSurfaceProps = Pick<
 >;
 
 export function CodebaseWorkspaceSurface({ cwd, status }: CodebaseWorkspaceSurfaceProps) {
-  const t = useT();
+  const materialGeneration = useSyncExternalStore(
+    subscribeCodebaseMaterialGeneration,
+    codebaseMaterialGeneration,
+    codebaseMaterialGeneration,
+  );
   const [query, setQuery] = useState("");
+  return (
+    <CodebaseSearchMaterial
+      key={materialGeneration}
+      cwd={cwd}
+      status={status}
+      query={query}
+      setQuery={setQuery}
+    />
+  );
+}
+
+function CodebaseSearchMaterial({
+  cwd,
+  status,
+  query,
+  setQuery,
+}: CodebaseWorkspaceSurfaceProps & {
+  query: string;
+  setQuery: (query: string) => void;
+}) {
+  const t = useT();
   const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [reindexing, setReindexing] = useState(false);

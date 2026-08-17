@@ -7,7 +7,12 @@ import {
   useProviders,
 } from "@/plugins/builtin/settings/providers/public/queries";
 import type { CodebaseReindexOperation, CodebaseSearchHit } from "./ports/codebaseGateway";
-import { CodebaseCommandOwner, codebaseCommandWasRetired } from "./codebaseCommandOwner";
+import {
+  CodebaseCommandOwner,
+  codebaseCommandWasRetired,
+  codebaseMaterialGeneration,
+  subscribeCodebaseMaterialGeneration,
+} from "./codebaseCommandOwner";
 
 export type { CodebaseSearchHit } from "./ports/codebaseGateway";
 
@@ -42,4 +47,8 @@ export async function reindexCodebase(cwd: string | undefined): Promise<Codebase
   return CodebaseCommandOwner.current().reindex(cwd);
 }
 
-export { codebaseCommandWasRetired };
+export {
+  codebaseCommandWasRetired,
+  codebaseMaterialGeneration,
+  subscribeCodebaseMaterialGeneration,
+};

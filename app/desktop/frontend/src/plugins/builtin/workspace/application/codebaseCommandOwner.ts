@@ -97,6 +97,8 @@ class CodebaseCommandGeneration {
  * and Runtime generation. */
 export class CodebaseCommandOwner {
   static #active: CodebaseCommandOwner | null = null;
+  static #materialGeneration = 0;
+  static readonly #materialListeners = new Set<() => void>();
 
   readonly #gateway: CodebaseGateway;
   #generation: CodebaseCommandGeneration;
@@ -112,6 +114,7 @@ export class CodebaseCommandOwner {
     const owner = new CodebaseCommandOwner(gateway);
     CodebaseCommandOwner.#active = owner;
     predecessor?.dispose();
+    CodebaseCommandOwner.#advanceMaterialGeneration();
     return owner;
   }
 
@@ -119,6 +122,15 @@ export class CodebaseCommandOwner {
     const owner = CodebaseCommandOwner.#active;
     if (!owner || owner.#disposed) throw new Error("Codebase command owner is not installed");
     return owner;
+  }
+
+  static materialGeneration(): number {
+    return CodebaseCommandOwner.#materialGeneration;
+  }
+
+  static subscribeMaterialGeneration(listener: () => void): () => void {
+    CodebaseCommandOwner.#materialListeners.add(listener);
+    return () => CodebaseCommandOwner.#materialListeners.delete(listener);
   }
 
   search(cwd: string | undefined, query: string, limit = 12): Promise<CodebaseSearchHit[]> {
@@ -134,16 +146,33 @@ export class CodebaseCommandOwner {
     const predecessor = this.#generation;
     this.#generation = new CodebaseCommandGeneration(this.#gateway);
     predecessor.retire();
+    CodebaseCommandOwner.#advanceMaterialGeneration();
   }
 
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (CodebaseCommandOwner.#active === this) CodebaseCommandOwner.#active = null;
+    if (CodebaseCommandOwner.#active === this) {
+      CodebaseCommandOwner.#active = null;
+      CodebaseCommandOwner.#advanceMaterialGeneration();
+    }
+  }
+
+  static #advanceMaterialGeneration(): void {
+    CodebaseCommandOwner.#materialGeneration += 1;
+    for (const listener of CodebaseCommandOwner.#materialListeners) listener();
   }
 }
 
 export function codebaseCommandWasRetired(error: unknown): boolean {
   return error instanceof CodebaseCommandRetiredError;
+}
+
+export function codebaseMaterialGeneration(): number {
+  return CodebaseCommandOwner.materialGeneration();
+}
+
+export function subscribeCodebaseMaterialGeneration(listener: () => void): () => void {
+  return CodebaseCommandOwner.subscribeMaterialGeneration(listener);
 }

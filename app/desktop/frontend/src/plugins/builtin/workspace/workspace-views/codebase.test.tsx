@@ -38,6 +38,27 @@ describe("CodebaseWorkspaceSurface", () => {
     });
     expect(screen.queryByText("old.ts:1")).toBeNull();
   });
+
+  it("retires visible search material with its Runtime generation while preserving the query", async () => {
+    const search = vi
+      .fn()
+      .mockResolvedValue([
+        { path: "retired.ts", startLine: 7, endLine: 7, snippet: "retired", score: 0.9 },
+      ] satisfies CodebaseSearchHit[]);
+    owner = CodebaseCommandOwner.install({ search } as unknown as CodebaseGateway);
+    const status = { state: "ready" as const, fileCount: 1, chunkCount: 1 };
+    render(<CodebaseWorkspaceSurface cwd="/repo" status={status} />);
+
+    const input = screen.getByRole("searchbox");
+    fireEvent.change(input, { target: { value: "owner" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await screen.findByText("retired.ts:7-7");
+
+    act(() => owner!.replaceRuntimeGeneration());
+
+    expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("owner");
+    expect(screen.queryByText("retired.ts:7-7")).toBeNull();
+  });
 });
 
 function deferred<T>() {
