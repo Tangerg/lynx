@@ -8,6 +8,11 @@ import { rpcAgentSource } from "./application/rpcAgentSource";
 export default definePlugin({
   name: "lyra.builtin.rpc-agent",
   setup(ctx) {
-    ctx.contribute(AGENT_SOURCE, rpcAgentSource(t, getActiveSessionId, runtimeRunsGateway));
+    const gateway = runtimeRunsGateway();
+    ctx.contribute(
+      AGENT_SOURCE,
+      rpcAgentSource(t, getActiveSessionId, () => gateway),
+    );
+    ctx.cleanup(() => gateway.dispose());
   },
 });

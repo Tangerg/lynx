@@ -174,6 +174,28 @@ describe("run opening settlement", () => {
     expect(open).toHaveBeenCalledTimes(1);
     expect(retry).toHaveBeenCalledOnce();
   });
+
+  it("revokes an accepted event stream when its adapter generation is disposed", async () => {
+    let acceptedSignal: AbortSignal | undefined;
+    const settler = createRunOpeningSettler();
+    await expect(
+      settler.settle(
+        "runs.start:ses_1",
+        (signal) =>
+          replayableMutation(async (_key, attempt) => {
+            acceptedSignal = attempt.signal;
+            return "accepted";
+          }, signal),
+        undefined,
+        60_000,
+      ),
+    ).resolves.toBe("accepted");
+    expect(acceptedSignal?.aborted).toBe(false);
+
+    settler.dispose();
+
+    expect(acceptedSignal?.aborted).toBe(true);
+  });
 });
 
 function rejectWhenAborted(signal: AbortSignal): Promise<never> {

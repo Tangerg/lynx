@@ -50,6 +50,7 @@ export {
   createUnaryMutationSettler,
   settleUnaryMutation,
   UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
+  UnaryMutationSettlementClosedError,
 } from "./mutationSettlement";
 export type { UnaryMutationSettler } from "./mutationSettlement";
 export { createMethods } from "./methods";

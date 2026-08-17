@@ -6,6 +6,8 @@ import {
   UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
   type LyraClient,
   type Methods,
+  type MutationPromise,
+  UnaryMutationSettlementClosedError,
 } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId } from "@/rpc";
 import { createMutationPromise } from "@/rpc/mutation";
@@ -28,6 +30,79 @@ afterEach(() => {
 });
 
 describe("agentRuntimeGateway", () => {
+  it("does not hand a retained create promise to a replacement adapter generation", async () => {
+    const transportFailure = new RpcTransportError("retired response was lost");
+    const retiredRetry = vi.fn(
+      () =>
+        Object.assign(Promise.resolve({ id: asSessionId("ses_retired") }), {
+          idempotencyKey: "retired-create",
+          retry: vi.fn(),
+        }) as MutationPromise<{ id: ReturnType<typeof asSessionId> }>,
+    );
+    const retiredCreate = vi.fn(
+      () =>
+        Object.assign(Promise.reject(transportFailure), {
+          idempotencyKey: "retired-create",
+          retry: retiredRetry,
+        }) as MutationPromise<{ id: ReturnType<typeof asSessionId> }>,
+    );
+    setContainer({
+      client: () => ({ sessions: { create: retiredCreate } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    await expect(agentRuntime().createSession({ cwd: "/repo" })).rejects.toBe(transportFailure);
+    uninstall();
+    uninstall = undefined;
+
+    const successorCreate = vi.fn(
+      () =>
+        Object.assign(Promise.resolve({ id: asSessionId("ses_successor") }), {
+          idempotencyKey: "successor-create",
+          retry: vi.fn(),
+        }) as MutationPromise<{ id: ReturnType<typeof asSessionId> }>,
+    );
+    setContainer({
+      client: () => ({ sessions: { create: successorCreate } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    await expect(agentRuntime().createSession({ cwd: "/repo" })).resolves.toEqual({
+      id: "ses_successor",
+    });
+    expect(successorCreate).toHaveBeenCalledOnce();
+    expect(retiredRetry).not.toHaveBeenCalled();
+  });
+
+  it("refuses a create response that settles after its adapter generation is disposed", async () => {
+    let settleRetired!: (value: { id: ReturnType<typeof asSessionId> }) => void;
+    const retired = new Promise<{ id: ReturnType<typeof asSessionId> }>((resolve) => {
+      settleRetired = resolve;
+    });
+    let attemptSignal: AbortSignal | undefined;
+    const create = vi.fn((_params, signal?: AbortSignal) => {
+      attemptSignal = signal;
+      return Object.assign(retired, {
+        idempotencyKey: "retired-create",
+        retry: vi.fn(),
+      }) as MutationPromise<{ id: ReturnType<typeof asSessionId> }>;
+    });
+    setContainer({
+      client: () => ({ sessions: { create } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    const creating = agentRuntime().createSession({ cwd: "/repo" });
+    uninstall();
+    uninstall = undefined;
+
+    await expect(creating).rejects.toBeInstanceOf(UnaryMutationSettlementClosedError);
+    expect(attemptSignal?.aborted).toBe(true);
+
+    settleRetired({ id: asSessionId("ses_retired") });
+    await retired;
+  });
+
   it("replays a timed-out create with the same mutation identity and a fresh signal", async () => {
     vi.useFakeTimers();
     const keys: string[] = [];

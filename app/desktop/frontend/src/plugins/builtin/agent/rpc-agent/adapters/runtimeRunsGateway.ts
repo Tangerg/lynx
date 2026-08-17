@@ -1,9 +1,11 @@
 import { getContainer } from "@/main/container";
 import { asItemId, asRunId, asSegmentId, asSessionId, type StartRunResponse } from "@/rpc";
-import type { RpcRunsGateway } from "../application/rpcAgentDriver";
+import type {
+  RpcRunResumeParams,
+  RpcRunsGateway,
+  RpcRunStartParams,
+} from "../application/rpcAgentDriver";
 import { createRunOpeningSettler } from "./runOpeningSettlement";
-
-const runOpeningSettler = createRunOpeningSettler();
 
 function runOpeningIdentity(method: "start" | "resume", params: unknown): string {
   return JSON.stringify([`runs.${method}`, params]);
@@ -19,31 +21,44 @@ function runOpeningIdentity(method: "start" | "resume", params: unknown): string
  * the rule was written down for `defaults/` only, so it read as a local
  * exception rather than the shape it is.
  */
-export function runtimeRunsGateway(): RpcRunsGateway {
-  return {
-    start: async ({ sessionId, ...params }, signal) => {
-      const client = getContainer().client();
-      const { result, events } = await runOpeningSettler.settle(
-        runOpeningIdentity("start", { sessionId, ...params }),
-        (attemptSignal) =>
-          client.runs.start({ ...params, sessionId: asSessionId(sessionId) }, attemptSignal),
-        signal,
-      );
-      return { result: brandStartedRun(result), events };
-    },
-    resume: async (params, signal) => {
-      const client = getContainer().client();
-      const { result, events } = await runOpeningSettler.settle(
-        runOpeningIdentity("resume", params),
-        (attemptSignal) => client.runs.resume(params, attemptSignal),
-        signal,
-      );
-      return {
-        result: { runId: asRunId(result.runId), segmentId: asSegmentId(result.segmentId) },
-        events,
-      };
-    },
-  };
+export interface RuntimeRunsGateway extends RpcRunsGateway {
+  dispose(): void;
+}
+
+class DefaultRuntimeRunsGateway implements RuntimeRunsGateway {
+  readonly #openings = createRunOpeningSettler();
+
+  async start({ sessionId, ...params }: RpcRunStartParams, signal?: AbortSignal) {
+    const client = getContainer().client();
+    const { result, events } = await this.#openings.settle(
+      runOpeningIdentity("start", { sessionId, ...params }),
+      (attemptSignal) =>
+        client.runs.start({ ...params, sessionId: asSessionId(sessionId) }, attemptSignal),
+      signal,
+    );
+    return { result: brandStartedRun(result), events };
+  }
+
+  async resume(params: RpcRunResumeParams, signal?: AbortSignal) {
+    const client = getContainer().client();
+    const { result, events } = await this.#openings.settle(
+      runOpeningIdentity("resume", params),
+      (attemptSignal) => client.runs.resume(params, attemptSignal),
+      signal,
+    );
+    return {
+      result: { runId: asRunId(result.runId), segmentId: asSegmentId(result.segmentId) },
+      events,
+    };
+  }
+
+  dispose(): void {
+    this.#openings.dispose();
+  }
+}
+
+export function runtimeRunsGateway(): RuntimeRunsGateway {
+  return new DefaultRuntimeRunsGateway();
 }
 
 /**

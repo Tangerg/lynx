@@ -2,6 +2,14 @@ import { mutationSettlementIsUnknown, type MutationPromise } from "./mutation";
 
 export const UNARY_MUTATION_ATTEMPT_TIMEOUT_MS = 30_000;
 
+export class UnaryMutationSettlementClosedError extends Error {
+  override readonly name = "UnaryMutationSettlementClosedError";
+
+  constructor() {
+    super("Unary mutation settlement owner is closed");
+  }
+}
+
 interface PendingUnaryMutation<T> {
   mutation: MutationPromise<T>;
 }
@@ -17,6 +25,8 @@ export interface UnaryMutationSettler {
     open: (signal: AbortSignal) => MutationPromise<T>,
     timeoutMs?: number,
   ): Promise<T>;
+  /** Revoke this adapter generation and release every process-local identity. */
+  dispose(): void;
 }
 
 interface UnaryMutationAttempt {
@@ -27,7 +37,10 @@ interface UnaryMutationAttempt {
   dispose(): void;
 }
 
-function createUnaryMutationAttempt(timeoutMs: number): UnaryMutationAttempt {
+function createUnaryMutationAttempt(
+  timeoutMs: number,
+  lifetime: AbortSignal,
+): UnaryMutationAttempt {
   const controller = new AbortController();
   let expired = false;
   let deadlineSettled = false;
@@ -49,13 +62,31 @@ function createUnaryMutationAttempt(timeoutMs: number): UnaryMutationAttempt {
     rejectDeadline(error);
   }, timeoutMs);
 
+  function detachLifetime() {
+    lifetime.removeEventListener("abort", abortFromLifetime);
+  }
+
   const clearDeadline = () => {
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
+    detachLifetime();
     if (deadlineSettled) return;
     deadlineSettled = true;
     resolveDeadline();
   };
+  function abortFromLifetime() {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+    detachLifetime();
+    const reason = lifetime.reason ?? new UnaryMutationSettlementClosedError();
+    if (!controller.signal.aborted) controller.abort(reason);
+    if (deadlineSettled) return;
+    deadlineSettled = true;
+    rejectDeadline(reason);
+  }
+
+  if (lifetime.aborted) abortFromLifetime();
+  else lifetime.addEventListener("abort", abortFromLifetime, { once: true });
 
   return {
     signal: controller.signal,
@@ -76,6 +107,7 @@ function driveUnaryMutation<T>(
   mutation: MutationPromise<T>,
   first: UnaryMutationAttempt,
   timeoutMs: number,
+  lifetime: AbortSignal,
   markUnknown: () => void,
   replaceMutation: (mutation: MutationPromise<T>) => void,
 ): Promise<T> {
@@ -93,7 +125,7 @@ function driveUnaryMutation<T>(
       }
     }
 
-    const retry = createUnaryMutationAttempt(timeoutMs);
+    const retry = createUnaryMutationAttempt(timeoutMs, lifetime);
     const replay = mutation.retry({ signal: retry.signal });
     replaceMutation(replay);
     try {
@@ -117,8 +149,11 @@ function driveUnaryMutation<T>(
 export function createUnaryMutationSettler(): UnaryMutationSettler {
   const pending = new Map<string, PendingUnaryMutation<unknown>[]>();
   const replaying = new Map<string, Promise<unknown>>();
+  const lifetime = new AbortController();
+  let disposed = false;
 
   const retain = (identity: string, record: PendingUnaryMutation<unknown>) => {
+    if (disposed) return;
     const queue = pending.get(identity) ?? [];
     queue.push(record);
     pending.set(identity, queue);
@@ -137,6 +172,7 @@ export function createUnaryMutationSettler(): UnaryMutationSettler {
       open: (signal: AbortSignal) => MutationPromise<T>,
       timeoutMs: number = UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
     ): Promise<T> {
+      if (disposed) return Promise.reject(new UnaryMutationSettlementClosedError());
       const activeReplay = replaying.get(identity) as Promise<T> | undefined;
       if (activeReplay) return activeReplay;
 
@@ -145,7 +181,7 @@ export function createUnaryMutationSettler(): UnaryMutationSettler {
       // application owner, not the transport adapter, decides whether to join.
       const retained = take<T>(identity);
 
-      const first = createUnaryMutationAttempt(timeoutMs);
+      const first = createUnaryMutationAttempt(timeoutMs, lifetime.signal);
       let mutation: MutationPromise<T>;
       try {
         mutation = retained
@@ -165,6 +201,7 @@ export function createUnaryMutationSettler(): UnaryMutationSettler {
         mutation,
         first,
         timeoutMs,
+        lifetime.signal,
         () => {
           unknown = true;
         },
@@ -185,6 +222,13 @@ export function createUnaryMutationSettler(): UnaryMutationSettler {
         });
       if (retained) replaying.set(identity, tracked as Promise<unknown>);
       return tracked;
+    },
+    dispose(): void {
+      if (disposed) return;
+      disposed = true;
+      lifetime.abort(new UnaryMutationSettlementClosedError());
+      pending.clear();
+      replaying.clear();
     },
   };
 }

@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcTransportError } from "./errors";
 import type { MutationPromise } from "./mutation";
-import { createUnaryMutationSettler, settleUnaryMutation } from "./mutationSettlement";
+import {
+  createUnaryMutationSettler,
+  settleUnaryMutation,
+  UnaryMutationSettlementClosedError,
+} from "./mutationSettlement";
 
 afterEach(() => vi.useRealTimers());
 
@@ -131,5 +135,38 @@ describe("settleUnaryMutation", () => {
 
     await expect(Promise.all([first, second])).resolves.toEqual(["committed", "committed"]);
     expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it("revokes an in-flight attempt when its adapter generation is disposed", async () => {
+    let settleRetired!: (value: string) => void;
+    const retired = new Promise<string>((resolve) => {
+      settleRetired = resolve;
+    });
+    let attemptSignal: AbortSignal | undefined;
+    let mutation!: MutationPromise<string>;
+    mutation = Object.assign(retired, {
+      idempotencyKey: "retired-key",
+      retry: vi.fn(() => mutation),
+    });
+    const settler = createUnaryMutationSettler();
+    const settlement = settler.settle(
+      "sessions.create:/repo",
+      (signal) => {
+        attemptSignal = signal;
+        return mutation;
+      },
+      60_000,
+    );
+
+    settler.dispose();
+
+    await expect(settlement).rejects.toBeInstanceOf(UnaryMutationSettlementClosedError);
+    expect(attemptSignal?.aborted).toBe(true);
+    await expect(
+      settler.settle("sessions.create:/repo", () => resolvedMutation("successor")),
+    ).rejects.toBeInstanceOf(UnaryMutationSettlementClosedError);
+
+    settleRetired("late retired response");
+    await retired;
   });
 });

@@ -8,27 +8,33 @@ import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities
 import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
 import { stageAgentSessionMaterialCommits } from "../application/ports/sessionMaterialCommitters";
 
-const sessionMutationSettler = createUnaryMutationSettler();
+class RuntimeAgentGateway implements AgentRuntimeGateway {
+  readonly #sessionMutations = createUnaryMutationSettler();
 
-const gateway: AgentRuntimeGateway = {
-  async createSession(input) {
+  async createSession(input: Parameters<AgentRuntimeGateway["createSession"]>[0]) {
     const client = getContainer().client();
-    const session = await sessionMutationSettler.settle(
+    const session = await this.#sessionMutations.settle(
       JSON.stringify(["sessions.create", input.cwd ?? null]),
       (signal) =>
         client.sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, signal),
     );
     return { id: session.id };
-  },
-  async deleteSession(sessionId) {
+  }
+
+  async deleteSession(sessionId: string) {
     try {
       await getContainer().client().sessions.delete(asSessionId(sessionId));
     } catch (error) {
       if (isErrorType(error, "session_not_found")) return;
       throw error;
     }
-  },
-  async updateSession({ sessionId, cwd, ...patch }) {
+  }
+
+  async updateSession({
+    sessionId,
+    cwd,
+    ...patch
+  }: Parameters<AgentRuntimeGateway["updateSession"]>[0]) {
     const updated = await getContainer()
       .client()
       .sessions.update({
@@ -37,8 +43,9 @@ const gateway: AgentRuntimeGateway = {
         ...(cwd ? { workspace: { path: cwd } } : {}),
       });
     return { revision: updated.revision };
-  },
-  async forkSession(input) {
+  }
+
+  async forkSession(input: Parameters<AgentRuntimeGateway["forkSession"]>[0]) {
     const fork = await getContainer()
       .client()
       .sessions.fork({
@@ -46,8 +53,9 @@ const gateway: AgentRuntimeGateway = {
         ...(input.fromRunId ? { fromRunId: asRunId(input.fromRunId) } : {}),
       });
     return { id: fork.id };
-  },
-  async loadSessionSnapshot(sessionId, signal) {
+  }
+
+  async loadSessionSnapshot(sessionId: string, signal?: AbortSignal) {
     const client = getContainer().client();
     const sid = asSessionId(sessionId);
     const includeDescendants = runtimeCapability("subagents");
@@ -66,11 +74,13 @@ const gateway: AgentRuntimeGateway = {
       if (isErrorType(error, "session_not_found")) return null;
       throw error;
     }
-  },
-  loadSessionUsage(sessionId, signal) {
+  }
+
+  loadSessionUsage(sessionId: string, signal?: AbortSignal) {
     return getContainer().client().usage.session(asSessionId(sessionId), signal);
-  },
-  async rollbackSession(input) {
+  }
+
+  async rollbackSession(input: Parameters<AgentRuntimeGateway["rollbackSession"]>[0]) {
     const response = await getContainer()
       .client()
       .sessions.rollback({
@@ -86,31 +96,49 @@ const gateway: AgentRuntimeGateway = {
           : {}),
       })),
     };
-  },
-  async steerRun(runId, segmentId, input) {
+  }
+
+  async steerRun(
+    runId: string,
+    segmentId: string,
+    input: Parameters<AgentRuntimeGateway["steerRun"]>[2],
+  ) {
     await getContainer()
       .client()
       .runs.steer(asRunId(runId), asSegmentId(segmentId), agentInputToContentBlocks(input));
-  },
-  isRunGone(error) {
+  }
+
+  isRunGone(error: unknown) {
     return (
       isErrorType(error, "run_not_found") ||
       isErrorType(error, "run_finished") ||
       isErrorType(error, "run_waiting") ||
       isErrorType(error, "stale_segment")
     );
-  },
-  isReplayLost(error) {
+  }
+
+  isReplayLost(error: unknown) {
     return isErrorType(error, "replay_unavailable") || isErrorType(error, "replay_cursor_invalid");
-  },
-  async setApprovalMode(mode) {
+  }
+
+  async setApprovalMode(mode: Parameters<AgentRuntimeGateway["setApprovalMode"]>[0]) {
     return (await getContainer().client().approval.setMode(mode)).mode;
-  },
-  async forgetApprovalRule(id) {
+  }
+
+  async forgetApprovalRule(id: string) {
     await getContainer().client().approval.forgetRule(id);
-  },
-};
+  }
+
+  dispose(): void {
+    this.#sessionMutations.dispose();
+  }
+}
 
 export function installAgentRuntimeGateway(): () => void {
-  return configureAgentRuntimeGateway(gateway);
+  const gateway = new RuntimeAgentGateway();
+  const disposePort = configureAgentRuntimeGateway(gateway);
+  return () => {
+    disposePort();
+    gateway.dispose();
+  };
 }

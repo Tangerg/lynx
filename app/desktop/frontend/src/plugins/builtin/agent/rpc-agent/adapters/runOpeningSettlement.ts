@@ -2,6 +2,14 @@ import { mutationSettlementIsUnknown, type MutationPromise } from "@/rpc";
 
 export const RUN_OPENING_ATTEMPT_TIMEOUT_MS = 30_000;
 
+export class RunOpeningSettlementClosedError extends Error {
+  override readonly name = "RunOpeningSettlementClosedError";
+
+  constructor() {
+    super("Run opening settlement owner is closed");
+  }
+}
+
 interface OpeningAttempt {
   readonly signal: AbortSignal;
   readonly deadlineExpired: () => boolean;
@@ -21,6 +29,8 @@ export interface RunOpeningSettler {
     parent?: AbortSignal,
     timeoutMs?: number,
   ): Promise<T>;
+  /** Revoke this adapter generation, including any accepted event stream. */
+  dispose(): void;
 }
 
 function abortReason(signal: AbortSignal): unknown {
@@ -145,8 +155,11 @@ function driveRunOpening<T>(
 export function createRunOpeningSettler(): RunOpeningSettler {
   const pending = new Map<string, PendingRunOpening<unknown>[]>();
   const replaying = new Map<string, Promise<unknown>>();
+  const lifetime = new AbortController();
+  let disposed = false;
 
   const retain = (identity: string, record: PendingRunOpening<unknown>) => {
+    if (disposed) return;
     const queue = pending.get(identity) ?? [];
     queue.push(record);
     pending.set(identity, queue);
@@ -166,11 +179,13 @@ export function createRunOpeningSettler(): RunOpeningSettler {
       parent?: AbortSignal,
       timeoutMs: number = RUN_OPENING_ATTEMPT_TIMEOUT_MS,
     ): Promise<T> {
+      if (disposed) return Promise.reject(new RunOpeningSettlementClosedError());
       const activeReplay = replaying.get(identity) as Promise<T> | undefined;
       if (activeReplay) return activeReplay;
       const retained = take<T>(identity);
+      const ownership = parent ? AbortSignal.any([parent, lifetime.signal]) : lifetime.signal;
 
-      const first = createOpeningAttempt(parent, timeoutMs);
+      const first = createOpeningAttempt(ownership, timeoutMs);
       let mutation: MutationPromise<T>;
       try {
         mutation = retained
@@ -189,7 +204,7 @@ export function createRunOpeningSettler(): RunOpeningSettler {
       const settlement = driveRunOpening(
         mutation,
         first,
-        parent,
+        ownership,
         timeoutMs,
         () => {
           unknown = true;
@@ -211,6 +226,13 @@ export function createRunOpeningSettler(): RunOpeningSettler {
         });
       if (retained) replaying.set(identity, tracked as Promise<unknown>);
       return tracked;
+    },
+    dispose(): void {
+      if (disposed) return;
+      disposed = true;
+      lifetime.abort(new RunOpeningSettlementClosedError());
+      pending.clear();
+      replaying.clear();
     },
   };
 }

@@ -17,8 +17,6 @@ import {
   type GoalState,
 } from "../application/goalQueries";
 
-const goalMutationSettler = createUnaryMutationSettler();
-
 function goalMutationIdentity(method: "start" | "stop" | "resume", input: unknown): string {
   return JSON.stringify([`goals.${method}`, input]);
 }
@@ -64,33 +62,40 @@ export function commitRuntimeGoalMaterial(
   });
 }
 
-const gateway: GoalCommandsGateway = {
-  async start(input) {
+class RuntimeGoalCommandsGateway implements GoalCommandsGateway {
+  readonly #mutations = createUnaryMutationSettler();
+
+  async start(input: Parameters<GoalCommandsGateway["start"]>[0]) {
     const client = getContainer().client();
-    const goal = await goalMutationSettler.settle(goalMutationIdentity("start", input), (signal) =>
+    const goal = await this.#mutations.settle(goalMutationIdentity("start", input), (signal) =>
       client.goals.start({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
     );
     return toGoalCommandReceipt(goal);
-  },
-  async stop(sessionId) {
+  }
+
+  async stop(sessionId: string) {
     const client = getContainer().client();
-    const goal = await goalMutationSettler.settle(
-      goalMutationIdentity("stop", sessionId),
-      (signal) => client.goals.stop(asSessionId(sessionId), signal),
+    const goal = await this.#mutations.settle(goalMutationIdentity("stop", sessionId), (signal) =>
+      client.goals.stop(asSessionId(sessionId), signal),
     );
     return toGoalCommandReceipt(goal);
-  },
-  async resume(sessionId) {
+  }
+
+  async resume(sessionId: string) {
     const client = getContainer().client();
-    const goal = await goalMutationSettler.settle(
-      goalMutationIdentity("resume", sessionId),
-      (signal) => client.goals.resume(asSessionId(sessionId), signal),
+    const goal = await this.#mutations.settle(goalMutationIdentity("resume", sessionId), (signal) =>
+      client.goals.resume(asSessionId(sessionId), signal),
     );
     return toGoalCommandReceipt(goal);
-  },
-};
+  }
+
+  dispose(): void {
+    this.#mutations.dispose();
+  }
+}
 
 export function installGoalRuntimeAdapter(ctx: Contributor): () => void {
+  const gateway = new RuntimeGoalCommandsGateway();
   const disposeMaterialCommitter = registerAgentSessionMaterialCommitter<SessionSnapshot>(
     (sessionId, snapshot) => {
       const available = runtimeCapability("goals");
@@ -116,5 +121,6 @@ export function installGoalRuntimeAdapter(ctx: Contributor): () => void {
   return () => {
     disposeMaterialCommitter();
     disposeGateway();
+    gateway.dispose();
   };
 }

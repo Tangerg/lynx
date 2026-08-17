@@ -6,6 +6,7 @@ import {
   asSegmentId,
   RpcTransportError,
   type LyraClient,
+  type MutationPromise,
   type RunEvent,
 } from "@/rpc";
 import { createMutationPromise } from "@/rpc/mutation";
@@ -20,6 +21,74 @@ afterEach(() => {
 async function* noEvents(): AsyncIterable<RunEvent> {}
 
 describe("runtimeRunsGateway", () => {
+  it("does not hand a retained opening to a replacement gateway generation", async () => {
+    const params = { sessionId: "ses_1", input: [{ type: "text" as const, text: "ship it" }] };
+    const transportFailure = new RpcTransportError("retired opening response was lost");
+    const retiredRetry = vi.fn(
+      () =>
+        Object.assign(
+          Promise.resolve({
+            result: {
+              runId: asRunId("run_retired"),
+              segmentId: asSegmentId("seg_retired"),
+              userItemId: asItemId("item_retired"),
+            },
+            events: noEvents(),
+          }),
+          { idempotencyKey: "retired-run-start", retry: vi.fn() },
+        ) as MutationPromise<{
+          result: {
+            runId: ReturnType<typeof asRunId>;
+            segmentId: ReturnType<typeof asSegmentId>;
+            userItemId: ReturnType<typeof asItemId>;
+          };
+          events: AsyncIterable<RunEvent>;
+        }>,
+    );
+    const retiredStart = vi.fn(
+      () =>
+        Object.assign(Promise.reject(transportFailure), {
+          idempotencyKey: "retired-run-start",
+          retry: retiredRetry,
+        }) as ReturnType<LyraClient["runs"]["start"]>,
+    );
+    setContainer({
+      client: () => ({ runs: { start: retiredStart } }) as unknown as LyraClient,
+    });
+    const retiredGateway = runtimeRunsGateway();
+
+    await expect(retiredGateway.start(params)).rejects.toBe(transportFailure);
+
+    const successorStart = vi.fn(
+      () =>
+        Object.assign(
+          Promise.resolve({
+            result: {
+              runId: asRunId("run_successor"),
+              segmentId: asSegmentId("seg_successor"),
+              userItemId: asItemId("item_successor"),
+            },
+            events: noEvents(),
+          }),
+          { idempotencyKey: "successor-run-start", retry: vi.fn() },
+        ) as ReturnType<LyraClient["runs"]["start"]>,
+    );
+    setContainer({
+      client: () => ({ runs: { start: successorStart } }) as unknown as LyraClient,
+    });
+    const successorGateway = runtimeRunsGateway();
+
+    await expect(successorGateway.start(params)).resolves.toMatchObject({
+      result: {
+        runId: "run_successor",
+        segmentId: "seg_successor",
+        userItemId: "item_successor",
+      },
+    });
+    expect(successorStart).toHaveBeenCalledOnce();
+    expect(retiredRetry).not.toHaveBeenCalled();
+  });
+
   it("keeps one runs.start identity across a product-level retry", async () => {
     vi.useFakeTimers();
     const keys: string[] = [];
