@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Icon } from "@/ui/icons";
-import { copyText } from "@/lib/clipboard";
+import { useCopyFeedback } from "@/lib/useCopyFeedback";
 import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/highlight/shiki";
 import { getCachedHighlight, setCachedHighlight } from "@/lib/highlight/shikiCache";
@@ -41,8 +41,8 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const [html, setHtml] = useState<string | null>(
     () => getCachedHighlight(lang, shikiTheme, debouncedCode) ?? null,
   );
-  const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const { copied, copy } = useCopyFeedback(code);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
   // Don't fold while the stream is in flight — collapsing a growing
@@ -83,29 +83,6 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     };
   }, [lang, debouncedCode, shikiTheme]);
 
-  // setTimeout id for the "Copied" → idle flip. Tracked so we can clear
-  // it on unmount (otherwise a fast-mount/unmount or re-copy stacks
-  // timers and fires setState on an unmounted component).
-  const copyTimerRef = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-    },
-    [],
-  );
-
-  const onCopy = () => {
-    void copyText(code).then((ok) => {
-      if (!ok) return; // clipboard unavailable — don't flash a false "Copied"
-      setCopied(true);
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = window.setTimeout(() => {
-        setCopied(false);
-        copyTimerRef.current = null;
-      }, 1500);
-    });
-  };
-
   // Streaming → raw <pre> fallback; settled → swap to highlighted.
   // Falls back indefinitely if the highlighter never resolves.
   const showHighlighted = !isSettling && html !== null;
@@ -136,7 +113,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
         <IconButton
           icon={copied ? "check" : "copy"}
           size="xs"
-          onClick={onCopy}
+          onClick={() => void copy()}
           title={copied ? t("message.code.copied") : t("message.code.copy")}
           // Visible at rest, not on hover. The bar's other content is a
           // three-letter language tag, and a block without a filename left it

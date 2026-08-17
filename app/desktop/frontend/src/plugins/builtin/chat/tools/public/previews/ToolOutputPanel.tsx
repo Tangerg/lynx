@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { type AnsiSpan, type AnsiTone, hasAnsi, parseAnsi } from "@/lib/ansi";
 import { cn } from "@/lib/classNames";
-import { copyText } from "@/lib/clipboard";
+import { useCopyFeedback } from "@/lib/useCopyFeedback";
 import { useT } from "@/lib/i18n";
 import { Badge, Icon, IconButton, TextButton } from "@/ui";
 import { LinkedText } from "@/plugins/builtin/chat/file-references/public/LinkedText";
@@ -81,12 +81,13 @@ export function ToolOutputPanel({
 }: ToolOutputPanelProps) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const lines = useMemo(() => {
     const trimmed = output?.replace(/\n+$/, "") ?? "";
     return trimmed === "" ? [] : trimmed.split("\n");
   }, [output]);
+  const copyMaterial = lines.join("\n");
+  const { copied, copy } = useCopyFeedback(copyMaterial);
 
   const hidden = lines.length - COLLAPSED_LINES;
   const shown = expanded ? lines : lines.slice(0, COLLAPSED_LINES);
@@ -129,13 +130,7 @@ export function ToolOutputPanel({
           icon={copied ? "check" : "copy"}
           size="xs"
           title={t(copied ? "tools.output.copied" : "tools.output.copy")}
-          onClick={() => {
-            void copyText(lines.join("\n")).then((ok) => {
-              if (!ok) return;
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 1500);
-            });
-          }}
+          onClick={() => void copy()}
           className={cn(
             "absolute right-1 top-1 opacity-0 transition-opacity",
             "group-hover/output:opacity-100 group-focus-within/output:opacity-100",
