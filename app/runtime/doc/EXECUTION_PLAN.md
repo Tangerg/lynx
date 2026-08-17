@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P110 已完成；第二轮反证式全链路缺陷清零持续进行
+> 状态：P1–P111 已完成；第二轮反证式全链路缺陷清零持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -119,6 +119,7 @@
 | P108 | 挂载 Session read model 闭包与恢复校验单源收敛 | P107 + ownerless HITL / partial approval / SIGKILL restart 反例 | 已完成 |
 | P109 | Desktop dougong 0.3.0 合同升级 | P108 + Plugin/Installation generics / Platform trust boundary / lifetime 回归 | 已完成 |
 | P110 | Desktop dougong 0.3.0 旧兼容缝清零 | P109 + lazy Artifact placeholder declaration 复核 | 已完成 |
+| P111 | Desktop 左右结构面板 spring 与渲染隔离收敛 | P110 + Codex App Shell / 长对话 trace / WebKit 证据 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -2011,10 +2012,32 @@
 - Frontend 完整门禁与异步泄露检测保持 293 files / 1751 tests且零泄露；
 - dougong package family 继续唯一解析为 0.3.0，生产和插件测试源码不再出现 dougong 0.2.0 兼容语义。
 
-## 90. 进度记录
+## 90. P111 — Desktop 左右结构面板 spring 与渲染隔离收敛
+
+### 目标
+
+以真实长对话与右侧 Context Dock 量化左、右 flank 展开/收起的卡顿来源，对照 study/Codex 的 App Shell 实现，使两侧共享一个可中断的结构 progress 与渲染隔离边界；不以盲目缩短 duration、React 逐帧状态或双动画路径掩盖问题。
+
+### 工作项
+
+- [x] P111-01 在独立 production visual fixture 上冻结旧实现证据：长对话左栏 32 帧、max rAF 16.7ms、零 long task；右栏同样零持续掉帧，证明主因是 300ms 近匀速让正文在整个 gesture 内持续可见重排，而非 React render 风暴；
+- [x] P111-02 只读对照 study/Codex App Shell，确认左右宽度均由同一个 Motion progress与 `type=spring, duration=.5, bounce=.1` 驱动，固定宽度面板内部以 `contain: layout paint` 隔离；不使用已排除的 Claude 前端参考；
+- [x] P111-03 将同一 500ms / 0.1-bounce spring按 25ms 均匀采样为原生 CSS `linear()`，以 `drawerProgress` 成为 Visual Style、appearance fallback 与 pre-paint CSS 三处受 bootstrap gate约束的唯一事实；左右 flank、spacer、corner yield与边界阴影共同消费，React不增加 animation-frame owner；
+- [x] P111-04 为 Drawer surface 与 Context Dock 建立 `contain: layout paint`，保持两者完整 measure、交互挂载、resize与 delayed visibility语义不变；
+- [x] P111-05 增加 Chromium/WebKit结构 motion 回归，固定两侧 spring、containment 与 reduced-motion唯一 authority；保留 Runtime、Protocol、Artifact、SQLite、Desktop Agent inner ring 与 Go Agent Framework 合同，`app/cli` 不修改、不暂存；
+- [x] P111-06 使用 agent-browser 完成真实交互与 trace 后关闭全部 session及独立 visual Vite，确认无 agent-browser、Chromium、Playwright、测试或 Runtime残留；用户原有 Wails/Vite开发进程保持不动。
+
+### 验收
+
+- 改后右侧 512px Dock 的 100/200/300ms travel约为 43%/86%/98%，39帧中 max rAF 16.8ms且无 >20ms帧；左侧稳定重复 run为max 16.8ms，结构移动在约300ms完成，余下仅sub-pixel settle；
+- Chromium trace 的 Layout / UpdateLayoutTree / Paint / PrePaint 单次峰值分别从 0.326 / 1.728 / 0.871 / 1.236ms降至 0.300 / 1.468 / 0.573 / 0.668ms；
+- Frontend `npm run check` 为293 files / 1751 tests，完整 `--detectAsyncLeaks` 同为293 / 1751且零泄露；visual Chromium + WebKit全矩阵281/281通过，87/87 operations、3/3 sidecars、16/16 events与production bundle gate保持完整。
+
+## 91. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P111（Desktop structural panel spring） | 反证 trace显示旧左、右栏在独立长对话/Context Dock fixture均无long task或持续掉帧，卡顿感不是React重复render，而是300ms近匀速让reading plane在整个gesture内持续以可见速度重排。只读对照study/Codex确认其App Shell用唯一Motion progress驱动左右宽度，参数为500ms/0.1-bounce spring，并隔离固定宽度面板内部layout/paint。现在Lyra把同一spring按25ms采样为原生CSS `linear()`，以`drawerProgress`统一Visual Style、appearance fallback与pre-paint CSS；左右flank、spacer、corner yield和边界阴影继续同钟，React不新增逐帧owner。Drawer和Context Dock内部建立`contain: layout paint`，完整measure、挂载、resize、visibility和reduced-motion语义不变；未采用已排除的Claude参考 | 右侧512px Dock在100/200/300ms约完成43%/86%/98%，39帧max rAF 16.8ms且零>20ms；左侧稳定run max 16.8ms。trace中Layout/UpdateLayoutTree/Paint/PrePaint峰值由0.326/1.728/0.871/1.236ms降至0.300/1.468/0.573/0.668ms。Frontend `npm run check`与完整`--detectAsyncLeaks`均为293 files/1751 tests且零泄露；Chromium+WebKit visual 281/281，87/87 operations+3/3 sidecars+16/16 events及bundle gate通过。agent-browser全部session与独立visual Vite已关闭，无agent-browser/Chromium/Playwright/测试/Runtime残留；用户原有Wails/Vite未触碰，`app/cli`未修改或暂存 |
 | 2026-08-17 | P110（dougong 0.3.0 compatibility seam removal） | P109 后继续审核 0.3.0 declaration 的真实消费时发现，lazy sideload Artifact 仍携带一处针对 0.2.0 `placeholder` generic 差异的 `as never` 与陈旧注释；它虽然不阻断升级，却让“直接接受 0.3.0 trust boundary”在源码层不完整。现在 `placeholderFor` 的 `AnyPlugin` 直接进入 `Artifact.placeholder`，kernel 回归也不再把当前 Host read contract绑定到历史版本号。Discovery 按真实产品清单继续顺序注册，因此没有为虚构的同任务抢占增加锁；Host/Platform lifecycle与安装 identity均不变化 | 0.2.0兼容语义源码扫描归零；Frontend typecheck与sideload/kernel/discovery focused strict suite 3 files / 17 tests通过。Frontend `npm run check` 与完整 `--detectAsyncLeaks` 均为 293 files / 1751 tests且零泄露；dougong family仍唯一解析为0.3.0，未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P109（dougong 0.3.0） | 按用户发布版本将 Desktop 唯一插件运行时从 dougong 0.2.0 升级到 0.3.0；umbrella 与 core/platform/reactive 四包保持同一代且依赖树无重复。发布 declaration diff 显示 0.3.0 收紧 Plugin/Installation generic identity、将 Platform Artifact config明确为 opaque trust-boundary input，并把 normalized Plugin 与 capability property-function variance设为唯一合同；现有 Lyra SDK/Host边界直接满足这些 breaking corrections，typecheck零错误，因此没有新增 cast、兼容 wrapper或双 API。Runtime与公共合同不变 | `npm install` audit零漏洞，`npm ls`证明四包唯一 0.3.0；PluginProvider、Plugins pane、kernel/bootstrap、sideload/lazy activation/discovery focused strict suite 6 files / 28 tests通过。Frontend `npm run check` 与完整 `--detectAsyncLeaks` 均为 293 files / 1751 tests且零泄露，87/87 operations + 3/3 sidecars + 16/16 events保持消费，production bundle gate通过；未使用 agent-browser，`app/cli` 未修改或暂存 |
 | 2026-08-17 | P108（mounted Pending projection closure） | `sessions.snapshot` 的 SQLite reader 本来已经提供单 transaction 时间一致性，但 Application 只核对 Pending root Run，未把 Interrupt 解析回 Transcript Item；因此 ownerless HITL、Item occurrence漂移、已写 approval decision却仍保留 Pending、Continuation/Run事实漂移等原子但不合法的组合可能进入 Desktop，且启动恢复会作出更严格的另一裁决。现在 `Pending.ValidateProjection` 唯一拥有 parked Continuation→Run→Item 闭包，online material snapshot与boot recovery共同调用；exact Session/Run/Item/occurrence、typed payload、accepted-decision空值、全部 active Run continuation facts、running Item认领及 drained/committed Tool一致性一次验证。Material Snapshot进一步复用 Run lineage closure，拒绝 waiting Run无 Pending owner及 terminal Run/running Item。真实 edited approval E2E在第一次 Pending后 SIGKILL Runtime，再重启完成 edited approval与同名 sibling第二次审批；公共合同与SQLite shape不变 | ownerless Interrupt 红测修复前稳定返回 nil；修复后 Application coherent/缺失 Item/occurrence/payload/partial approval/continuation drift/ownership与 Delivery wire refusal回归全绿，boot recovery复用由架构守卫固定。Runtime `go test ./... -count=1 -timeout=10m`、5 包定向 race与 `go vet ./...` 通过；SIGKILL focused E2E 1/1通过。Frontend `npm run check` 与完整 `--detectAsyncLeaks` 均为 293 files / 1751 tests且零泄露，87/87 operations + 3/3 sidecars + 16/16 events保持消费；Desktop Wails v3 Go test/vet/build通过（仅既有 macOS linker warning）。未使用 agent-browser，`app/cli` 未修改或暂存 |
@@ -2196,6 +2219,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 91. 本轮里程碑
+## 92. 本轮里程碑
 
-P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100–P101 明确右侧 Context Dock 的 renderer/session 交接并把对话 Tool identity 接通到 Terminal；P102–P103 让 Run Summary 只按 authoritative root outcome宣告状态，并以 exact Run而不是最后一个 continuation Segment作为全程聚合边界；P104 让 mounted Dock view-local state服从 exact Session owner；P105 让 Run Summary 的 Tool material在 live 与 durable snapshot路径收敛，不再依赖冷恢复无法重建的瞬时 start observation；P106 让 ToolCall 自己持有唯一已接受的人类审批事实；P107 再把编辑后执行的恢复身份从 name/arguments 猜测收敛为 Application-private exact provider CallID，使单客户端并行同名 Tool 仍保持唯一 Item lifecycle；P108 把 parked Continuation→Run→Transcript Item 的领域闭包收敛为在线挂载与启动恢复共享的唯一校验，使 SQLite snapshot 的时间一致性与 Application 领域一致性共同成立；P109–P110 将 Desktop 插件 Host/Platform/Reactive 升级到同代 dougong 0.3.0，并清除最后一处面向 0.2.0 declaration 的 lazy Artifact 类型绕过，真实直接接受收紧后的 trust-boundary 合同。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。
+P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100–P101 明确右侧 Context Dock 的 renderer/session 交接并把对话 Tool identity 接通到 Terminal；P102–P103 让 Run Summary 只按 authoritative root outcome宣告状态，并以 exact Run而不是最后一个 continuation Segment作为全程聚合边界；P104 让 mounted Dock view-local state服从 exact Session owner；P105 让 Run Summary 的 Tool material在 live 与 durable snapshot路径收敛，不再依赖冷恢复无法重建的瞬时 start observation；P106 让 ToolCall 自己持有唯一已接受的人类审批事实；P107 再把编辑后执行的恢复身份从 name/arguments 猜测收敛为 Application-private exact provider CallID，使单客户端并行同名 Tool 仍保持唯一 Item lifecycle；P108 把 parked Continuation→Run→Transcript Item 的领域闭包收敛为在线挂载与启动恢复共享的唯一校验，使 SQLite snapshot 的时间一致性与 Application 领域一致性共同成立；P109–P110 将 Desktop 插件 Host/Platform/Reactive 升级到同代 dougong 0.3.0，并清除最后一处面向 0.2.0 declaration 的 lazy Artifact 类型绕过，真实直接接受收紧后的 trust-boundary 合同；P111 进一步用 Codex 同源 spring progress 与 layout/paint containment统一左右结构面板的交互时钟，消除长对话中近匀速重排造成的拖滞感。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。第二轮继续从真实产品交错与新反例推进，`app/cli` 始终只读且不暂存。

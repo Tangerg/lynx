@@ -182,22 +182,26 @@ for (const [field, token] of Object.entries(MIRRORED_DURATIONS)) {
   );
 }
 
-// The drawer's curve travels with its duration and is mirrored the same three ways.
-const curveOf = (src) =>
+// The drawer's sampled spring travels with its duration and is mirrored the same three
+// ways. Keep the comparison textual: a missing or reordered stop changes velocity even
+// when the endpoints still happen to be zero and one.
+const drawerProgressOf = (src) =>
   src
-    .match(/\beaseDrawer:\s*\[([^\]]+)\]/)?.[1]
+    .match(/\bdrawerProgress:\s*\[([^\]]+)\]/)?.[1]
     .replace(/\s+/g, " ")
+    .replace(/,\s*$/, "")
     .trim();
-const paintedCurve = css
-  .match(/--ease-drawer:\s*cubic-bezier\(([^)]+)\)/)?.[1]
+const paintedDrawerProgress = css
+  .match(/--ease-drawer:\s*linear\(([^)]+)\)/)?.[1]
   .replace(/\s+/g, " ")
   .trim();
 expect(
-  curveOf(styleMotion) !== undefined &&
-    curveOf(fallbackMotion) === curveOf(styleMotion) &&
-    paintedCurve === curveOf(styleMotion),
-  `easeDrawer is [${curveOf(styleMotion)}] in the shipped style, [${curveOf(fallbackMotion)}] in ` +
-    `the appearance fallback, and cubic-bezier(${paintedCurve}) in globals.css`,
+  drawerProgressOf(styleMotion) !== undefined &&
+    drawerProgressOf(fallbackMotion) === drawerProgressOf(styleMotion) &&
+    paintedDrawerProgress === drawerProgressOf(styleMotion),
+  `drawerProgress is [${drawerProgressOf(styleMotion)}] in the shipped style, ` +
+    `[${drawerProgressOf(fallbackMotion)}] in the appearance fallback, and ` +
+    `linear(${paintedDrawerProgress}) in globals.css`,
 );
 
 if (failures.length > 0) {

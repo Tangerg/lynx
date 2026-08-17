@@ -13,6 +13,7 @@ interface FixtureRoute {
   fixture: "agent" | "shell" | "workspace";
   state: string;
   theme?: "light" | "dark";
+  motion?: "full";
   fontSize?: number;
 }
 
@@ -22,6 +23,7 @@ async function openFixture(page: Page, route: FixtureRoute): Promise<void> {
     state: route.state,
     theme: route.theme ?? "light",
   });
+  if (route.motion) query.set("motion", route.motion);
   if (route.fontSize !== undefined) query.set("font-size", String(route.fontSize));
 
   await page.goto(`/visual/?${query}`);
@@ -37,10 +39,15 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 }
 
 test("WebKit shell preserves minimum geometry and drawer focus handoff", async ({ page }) => {
-  await openFixture(page, { fixture: "shell", state: "populated" });
+  await openFixture(page, { fixture: "shell", state: "populated", motion: "full" });
 
   await expect(page.getByRole("complementary", { name: "Work index" })).toBeVisible();
   await expect(page.getByRole("button", { name: "lynx 6" })).toBeVisible();
+  const drawer = page.locator(".agent-drawer");
+  await expect(drawer).toHaveCSS("transition-duration", "0.5s, 0.5s, 0s");
+  expect(
+    await drawer.evaluate((element) => getComputedStyle(element).transitionTimingFunction),
+  ).toContain("linear(");
   await expectNoPageOverflow(page);
 
   await page.getByRole("button", { name: "Hide sidebar" }).click();

@@ -751,11 +751,11 @@
   --dur-med-base: 200ms;
   --dur-disclosure-base: 220ms;
   --dur-slow-base: 360ms;
-  /* Long enough that a flank's travel lands in frames the eye can follow — the
-     measurements and the reasoning live on `drawerMs` in visualStyles/tokens.ts,
-     which publishes this at runtime; this is the first-paint mirror and the two
-     have to agree. */
-  --dur-drawer-base: 300ms;
+  /* The formal duration of the structural-panel spring. Most travel finishes in its
+     first 300ms; the remaining clock is the sub-pixel settle. The measurements and the
+     reasoning live on `drawerMs` in visualStyles/tokens.ts, which publishes this at
+     runtime; this is the first-paint mirror and the two have to agree. */
+  --dur-drawer-base: 500ms;
   --animation-duration: calc(var(--dur-fast-base) * var(--motion-scale));
   --ease-out: cubic-bezier(0.3, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
@@ -1238,16 +1238,37 @@ html.theme-dark {
      the two line up across the seam — the single number the macOS traffic-light
      gutter is centred against. First-paint mirror of the visual style. */
   --surface-header-height: 42px;
-  /* Drawer slide. One duration + curve for both flanks, their spacers, the yielded
+  /* Drawer slide. One duration + progress function for both flanks, their spacers, the yielded
      window-control strips, the seam corner and the card's depth shadow, so they move as
      one object.
-     A rigid body travelling: near-uniform speed, with a ramp at each end so it neither
-     parks nor stops dead. The reasoning and the measurements behind the four numbers
-     live on `easeDrawer` in visualStyles/tokens.ts, which publishes this at runtime —
-     what is here is the first-paint mirror, and the two have to say the same thing or
-     the frame before hydration moves on a different curve. */
+     These evenly spaced values sample the same 500ms / 0.1-bounce spring Codex uses:
+     decisive travel first, then a sub-pixel settle. `drawerProgress` in
+     visualStyles/tokens.ts publishes it at runtime; this first-paint mirror must say
+     the same thing so hydration cannot change clocks mid-gesture. */
   --dur-drawer: calc(var(--dur-drawer-base) * var(--motion-scale));
-  --ease-drawer: cubic-bezier(0.3, 0.12, 0.7, 0.88);
+  --ease-drawer: linear(
+    0,
+    0.06981,
+    0.21761,
+    0.38345,
+    0.53716,
+    0.66615,
+    0.76765,
+    0.84375,
+    0.89859,
+    0.93672,
+    0.96233,
+    0.97894,
+    0.98929,
+    0.99544,
+    0.99887,
+    1.00061,
+    1.00135,
+    1.00152,
+    1.00142,
+    1.00119,
+    1
+  );
 }
 
 html,
@@ -1377,6 +1398,9 @@ html.theme-dark {
   height: 100%;
   min-width: 0;
   flex-direction: column;
+  /* The drawer keeps its full measure while its edge travels. Isolating its tree is
+     what keeps the shell's per-frame width work from walking every sidebar descendant. */
+  contain: layout paint;
   background: var(--app-drawer-surface);
   box-shadow: var(--app-pane-wash-end) var(--seam-wash);
 }
@@ -1678,6 +1702,9 @@ html.theme-dark {
   flex: 0 0 var(--dock-measure);
   flex-direction: column;
   overflow: hidden;
+  /* Same boundary as the drawer and Codex's panel viewport: the dock itself moves as
+     one fixed-width body, so its descendants never participate in the row's reflow. */
+  contain: layout paint;
   margin-inline-end: 0;
   background: var(--app-dock-surface);
   transition:

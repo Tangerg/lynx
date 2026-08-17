@@ -151,7 +151,7 @@ function visualStyleMotionTokens(motion: VisualStyleMotion): Record<string, stri
     "ease-out": bezier(motion.easeOut),
     "ease-in-out": bezier(motion.easeInOut),
     "ease-emphasized": bezier(motion.easeEmphasized),
-    "ease-drawer": bezier(motion.easeDrawer),
+    "ease-drawer": `linear(${motion.drawerProgress.join(", ")})`,
     "press-scale": String(motion.pressScale),
   };
 }

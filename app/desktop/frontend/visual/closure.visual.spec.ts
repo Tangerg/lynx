@@ -126,7 +126,9 @@ for (const route of ACCESSIBILITY_ROUTES) {
   });
 }
 
-test("motion preference and OS reduced motion share one final authority", async ({ page }) => {
+test("structural panels share one spring, containment, and reduced-motion authority", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await openFixture(page, {
     fixture: "shell",
@@ -144,6 +146,10 @@ test("motion preference and OS reduced motion share one final authority", async 
   // design value moved.
   const declared = `${WORKBENCH_MOTION.drawerMs / 1000}s`;
   await expect(drawer).toHaveCSS("transition-duration", `${declared}, ${declared}, 0s`);
+  await expect(drawer.locator(".agent-drawer-surface")).toHaveCSS("contain", "layout paint");
+  expect(
+    await drawer.evaluate((element) => getComputedStyle(element).transitionTimingFunction),
+  ).toContain("linear(");
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(drawer).toHaveCSS("transition-duration", "0.001s");
@@ -152,6 +158,22 @@ test("motion preference and OS reduced motion share one final authority", async 
   await openFixture(page, { fixture: "shell", state: "populated", theme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
   await expect(page.locator(".agent-drawer")).toHaveCSS("transition-duration", "0.001s");
+
+  // The trailing flank consumes the same token and isolates the same fixed-width
+  // descendant tree. A different curve here would put the two sides of one workspace
+  // back on visibly different clocks.
+  await openFixture(page, {
+    fixture: "workspace",
+    state: "dock-light",
+    theme: "light",
+    motion: "full",
+  });
+  const dock = page.locator(".agent-context-dock");
+  await expect(dock).toHaveCSS("transition-duration", `${declared}, 0s`);
+  await expect(dock).toHaveCSS("contain", "layout paint");
+  expect(
+    await dock.evaluate((element) => getComputedStyle(element).transitionTimingFunction),
+  ).toContain("linear(");
 });
 
 test("coarse pointers receive real 44px controls without overlapping hit targets", async ({

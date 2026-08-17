@@ -254,40 +254,30 @@ export const WORKBENCH_MOTION = {
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  // A flank's travel is not only an edge moving, it is also the reading plane taking a
-  // new measure, and the two have to finish together. That is what rules the curve
-  // (see easeDrawer) — it turned out not to rule the DURATION, which is what this was
-  // held short for. The 240ms that failed failed on the sheet curve, which was 92% done
-  // at 40% of the clock; a near-uniform curve cannot come apart that way at any length.
+  // The App Shell changes two things at once: a flank travels and the reading plane
+  // takes its measure. Codex drives that relationship from one interruptible progress
+  // value with a 500ms / 0.1-bounce spring. These samples are that spring at 25ms
+  // intervals, published as native CSS `linear()` so the browser owns interruption and
+  // reversal without subscribing React to animation frames.
   //
-  // What the length does rule is how far the flank jumps between one frame and the
-  // next, and that is the whole of the difference from the reference. Measured against
-  // the real window, on a 592px dock: 180ms is 11 frames peaking at 69px of travel per
-  // frame, 300ms is 18 frames peaking at 41. Nothing is dropping frames at either
-  // length — a text-dense panel simply cannot be tracked by the eye in 69px steps
-  // without reading as judder, because UI has no motion blur to fill the gap. Swapping
-  // the curve for the reference's own `ease` at a fixed length moved the peak by one
-  // pixel, so the curve was never the variable.
-  //
-  // 300ms is the reference's figure. Arrival lands softer for the same reason: the last
-  // interpolated step is 17px rather than 24.
-  drawerMs: 300,
+  // A trace of the previous 300ms near-uniform curve on the long transcript dropped no
+  // frames (max rAF interval 16.7ms), but at 150ms it was only halfway across: the text
+  // kept reflowing at visible speed for the whole gesture and read as drag. The spring
+  // reaches 54% / 90% / 99% at 100 / 200 / 300ms, then spends its remaining clock on a
+  // sub-pixel settle. It is both more immediate and easier to track even though its
+  // formal duration is longer.
+  drawerMs: 500,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],
-  // A rigid body travelling: near-uniform speed with a real ramp at each end.
-  // Measured as multiples of the mean speed — this enters and leaves at 0.58x and peaks
-  // at 1.26x. The two curves it replaces each failed at one end. The sheet curve
-  // [0.32, 0.72, 0, 1] entered at 2.53x and left at 0.01x, so it was 92% done at 40% of
-  // the duration: the edge parked while the plane behind it was still re-laying out, and
-  // one gesture on two apparent clocks is what reads as incoherent. Pure linear
-  // [0, 0, 1, 1] fixed that and broke the other end — full speed into a dead stop, which
-  // reads as a jerk, and because the eye judges arrival by deceleration a curve that
-  // never decelerates also reads as slower at the same duration.
-  // Not the `easeInOut` above, which is the same idea overdone: 0.16x at the ends is a
-  // crawl and 1.82x in the middle is a visible surge.
-  // `--ease-drawer` in globals.css mirrors this for the frame before it is published.
-  easeDrawer: [0.3, 0.12, 0.7, 0.88],
+  // `--ease-drawer` in globals.css mirrors these values for the frame before the visual
+  // style is published. A sampled spring, rather than a fitted cubic, preserves the
+  // reference's tiny overshoot; native CSS transition reversal keeps an interrupted
+  // gesture continuous without adding an animation-frame owner in React.
+  drawerProgress: [
+    0, 0.06981, 0.21761, 0.38345, 0.53716, 0.66615, 0.76765, 0.84375, 0.89859, 0.93672, 0.96233,
+    0.97894, 0.98929, 0.99544, 0.99887, 1.00061, 1.00135, 1.00152, 1.00142, 1.00119, 1,
+  ],
   pressScale: 0.98,
 } as const;
 

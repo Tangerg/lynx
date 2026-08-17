@@ -59,7 +59,8 @@ export interface VisualStyleMotion {
   easeOut: readonly [number, number, number, number];
   easeInOut: readonly [number, number, number, number];
   easeEmphasized: readonly [number, number, number, number];
-  easeDrawer: readonly [number, number, number, number];
+  /** Evenly spaced samples of the structural-panel spring, published as CSS `linear()`. */
+  drawerProgress: readonly [number, number, ...number[]];
   pressScale: number;
 }
 
@@ -77,11 +78,14 @@ const DEFAULT_MOTION: VisualStyleMotion = {
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  drawerMs: 300,
+  drawerMs: 500,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],
-  easeDrawer: [0.3, 0.12, 0.7, 0.88],
+  drawerProgress: [
+    0, 0.06981, 0.21761, 0.38345, 0.53716, 0.66615, 0.76765, 0.84375, 0.89859, 0.93672, 0.96233,
+    0.97894, 0.98929, 0.99544, 0.99887, 1.00061, 1.00135, 1.00152, 1.00142, 1.00119, 1,
+  ],
   pressScale: 0.98,
 };
 

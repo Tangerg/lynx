@@ -26,11 +26,11 @@ const TEST_MOTION = {
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  drawerMs: 300,
+  drawerMs: 500,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],
-  easeDrawer: [0.32, 0.72, 0, 1],
+  drawerProgress: [0, 0.5, 1],
   pressScale: 0.96,
 } as const;
 
@@ -331,6 +331,7 @@ describe("visual-style contract", () => {
     expect(root.style.getPropertyValue("--app-content-shadow")).toBe("none");
     expect(root.style.getPropertyValue("--dur-fast-base")).toBe("150ms");
     expect(root.style.getPropertyValue("--ease-out")).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+    expect(root.style.getPropertyValue("--ease-drawer")).toBe("linear(0, 0.5, 1)");
   });
 
   it("removes tokens omitted by the next visual style", async () => {
