@@ -471,6 +471,7 @@ export const ja: Record<string, string> = {
   "runSummary.status.done": "完了",
   "runSummary.status.errored": "エラー",
   "runSummary.status.running": "実行中",
+  "runSummary.status.waiting": "入力待ち",
   "runSummary.status.unknown": "不明",
   "runSummary.section.changedFiles": "変更されたファイル",
   "runSummary.section.readFiles": "読み取ったファイル",

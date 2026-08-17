@@ -478,6 +478,7 @@ export const fr: Record<string, string> = {
   "runSummary.status.done": "Terminé",
   "runSummary.status.errored": "Erreur",
   "runSummary.status.running": "En cours",
+  "runSummary.status.waiting": "En attente d’une réponse",
   "runSummary.status.unknown": "Inconnu",
   "runSummary.section.changedFiles": "Fichiers modifiés",
   "runSummary.section.readFiles": "Fichiers lus",

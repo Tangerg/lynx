@@ -25,8 +25,7 @@ const view = (
 ): Parameters<typeof deriveLatestRun>[0] => ({
   timeline: [],
   toolCalls: {},
-  runId: "r1",
-  running: false,
+  attention: { status: "finished", runId: "r1" },
   outcome: null,
   ...patch,
 });
@@ -38,7 +37,7 @@ describe("deriveLatestRun", () => {
 
   it("uses the selected root boundary and ignores another Run's entries", () => {
     const v = view({
-      runId: "r2",
+      attention: { status: "finished", runId: "r2" },
       timeline: [
         entry({ kind: "run-start", runId: "r1" }),
         entry({ kind: "run-end", runId: "r1", status: "ok" }),
@@ -48,7 +47,7 @@ describe("deriveLatestRun", () => {
     });
     const d = deriveLatestRun(v);
     expect(d?.runId).toBe("r2");
-    expect(d?.status).toBe("unknown"); // running:false, no terminal in slice
+    expect(d?.status).toBe("unknown"); // finished attention without a terminal is incomplete material
   });
 
   it("keeps the whole Run across HITL continuation Segment starts", () => {
@@ -245,9 +244,26 @@ describe("deriveLatestRun", () => {
 
     const running = view({
       timeline: [entry({ kind: "run-start", runId: "r1" })],
-      running: true,
+      attention: { status: "running", runId: "r1" },
     });
     expect(deriveLatestRun(running)?.status).toBe("running");
+  });
+
+  it("does not collapse an HITL-waiting Run into unknown", () => {
+    const waiting = view({
+      timeline: [
+        entry({ kind: "run-start", runId: "r1" }),
+        entry({
+          kind: "approval-request",
+          runId: "r1",
+          refId: "approval-1",
+          summary: "go test ./...",
+        }),
+      ],
+      attention: { status: "waiting", runId: "r1" },
+    });
+
+    expect(deriveLatestRun(waiting)?.status).toBe("waiting");
   });
 
   it("does not report canceled and limit outcomes as successful", () => {

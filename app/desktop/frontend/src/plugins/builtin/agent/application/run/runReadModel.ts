@@ -6,14 +6,14 @@ import type {
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
 import { agentSessionView } from "../ports/sessionView";
-import type { AgentRunTreeNode } from "../view/runTree";
+import type { AgentRootAttention, AgentRunTreeNode } from "../view/runTree";
 
-export function useIsCurrentRootRunning(): boolean {
-  return agentSessionView().useCurrentRootAttention().status === "running";
+export function useCurrentRootAttention(): AgentRootAttention {
+  return agentSessionView().useCurrentRootAttention();
 }
 
-export function useCurrentRootRunId(): string | null {
-  return agentSessionView().useCurrentRootRunId();
+export function useIsCurrentRootRunning(): boolean {
+  return useCurrentRootAttention().status === "running";
 }
 
 export function useCurrentRootOutcome(): AgentRunOutcome | null {

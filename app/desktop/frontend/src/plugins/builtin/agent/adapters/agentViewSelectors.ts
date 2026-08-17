@@ -65,10 +65,6 @@ export function useCurrentRootMetrics(): AgentRunMetrics | null {
   return useActiveAgentView((view) => selectCurrentRootRun(view)?.metrics ?? null);
 }
 
-export function useCurrentRootRunId(): string | null {
-  return useCurrentRoot()?.id ?? null;
-}
-
 export function useAgentToolCalls(): Record<string, ToolCall> {
   return useActiveAgentView((view) => view.toolCalls);
 }

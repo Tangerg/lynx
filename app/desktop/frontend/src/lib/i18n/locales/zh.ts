@@ -604,6 +604,7 @@ export const zh: Record<string, string> = {
   "runSummary.status.done": "完成",
   "runSummary.status.errored": "出错",
   "runSummary.status.running": "运行中",
+  "runSummary.status.waiting": "等待输入",
   "runSummary.status.unknown": "未知",
   "runSummary.section.changedFiles": "变更的文件",
   "runSummary.section.readFiles": "读取的文件",

@@ -9,9 +9,9 @@ export {
   useActiveSessionRunTree,
   useActiveSessionTimeline,
   useActiveSessionToolCalls,
+  useCurrentRootAttention,
   useCurrentRootMetrics,
   useCurrentRootOutcome,
-  useCurrentRootRunId,
   useIsCurrentRootRunning,
 } from "../application/run/runReadModel";
 export {

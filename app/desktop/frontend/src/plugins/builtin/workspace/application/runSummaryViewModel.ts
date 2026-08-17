@@ -47,6 +47,10 @@ const STATUS_BADGE_BY_STATUS: Record<RunDigest["status"], RunSummaryBadge> = {
     labelKey: "runSummary.status.running",
     tone: "accent",
   },
+  waiting: {
+    labelKey: "runSummary.status.waiting",
+    tone: "warning",
+  },
   unknown: {
     labelKey: "runSummary.status.unknown",
     tone: "neutral",

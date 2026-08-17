@@ -52,7 +52,7 @@ describe("runSummaryViewModel", () => {
     });
   });
 
-  it("projects running and unknown status badges", () => {
+  it("projects running, waiting, and unknown status badges", () => {
     expect(
       runSummaryViewModel(t, digest({ status: "running", endedAt: null }), { now: 3_400 }),
     ).toMatchObject({
@@ -61,6 +61,13 @@ describe("runSummaryViewModel", () => {
         labelKey: "runSummary.status.running",
         tone: "accent",
       },
+    });
+
+    expect(
+      runSummaryViewModel(t, digest({ status: "waiting", endedAt: null })).statusBadge,
+    ).toEqual({
+      labelKey: "runSummary.status.waiting",
+      tone: "warning",
     });
 
     expect(runSummaryViewModel(t, digest({ status: "unknown" })).statusBadge).toEqual({

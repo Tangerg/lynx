@@ -79,7 +79,6 @@ export interface AgentSessionViewPort {
   useCurrentRootAttention(): AgentRootAttention;
   useCurrentRootOutcome(): AgentRunOutcome | null;
   useCurrentRootMetrics(): AgentRunMetrics | null;
-  useCurrentRootRunId(): string | null;
   useToolCalls(): Record<string, ToolCall>;
   useSessionTimeline(): TimelineEntry[];
   useRootNarrativeMessages(): Message[];

@@ -24,7 +24,6 @@ import {
   useAgentToolCalls,
   useCurrentRootOutcome,
   useCurrentRootMetrics,
-  useCurrentRootRunId,
 } from "./agentViewSelectors";
 import { AgentViewRefreshOwner, useAgentStore } from "./agentStore";
 
@@ -142,7 +141,6 @@ export function installAgentStatePorts(): () => void {
     useCurrentRootAttention,
     useCurrentRootOutcome,
     useCurrentRootMetrics,
-    useCurrentRootRunId,
     useToolCalls: useAgentToolCalls,
     useSessionTimeline: useAgentSessionTimeline,
     useRootNarrativeMessages,

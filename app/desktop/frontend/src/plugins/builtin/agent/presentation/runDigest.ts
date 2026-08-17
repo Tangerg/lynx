@@ -14,6 +14,7 @@ import type {
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../domain/toolCategory";
+import type { AgentRootAttention } from "../application/view/runTree";
 
 export interface ApprovalDigest {
   command: string;
@@ -35,7 +36,7 @@ export interface RunDigest {
   runId: string | null;
   startedAt: number | null;
   endedAt: number | null;
-  status: "running" | "ok" | "err" | "canceled" | "limit" | "unknown";
+  status: "running" | "waiting" | "ok" | "err" | "canceled" | "limit" | "unknown";
   changedFiles: ChangedFile[];
   readFiles: string[];
   commands: CommandDigest[];
@@ -46,8 +47,7 @@ export interface RunDigest {
 export interface RunDigestSource {
   timeline: TimelineEntry[];
   toolCalls: Record<string, ToolCall>;
-  runId: string | null;
-  running: boolean;
+  attention: AgentRootAttention;
   outcome: AgentRunOutcome | null;
 }
 
@@ -75,15 +75,16 @@ function argPath(args: string): string {
 }
 
 export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
-  if (!source.runId) return null;
+  if (!source.attention.runId) return null;
+  const runId = source.attention.runId;
   // A session timeline interleaves root and descendant Runs. The summary owns
   // one selected root, so child boundaries and tools cannot displace it.
   const startIdx = source.timeline.findIndex(
-    (entry) => entry.kind === "run-start" && entry.runId === source.runId,
+    (entry) => entry.kind === "run-start" && entry.runId === runId,
   );
   if (startIdx < 0) return null;
 
-  const slice = source.timeline.slice(startIdx).filter((entry) => entry.runId === source.runId);
+  const slice = source.timeline.slice(startIdx).filter((entry) => entry.runId === runId);
   // startIdx came from a successful in-bounds find above, so slice[0] exists.
   const startEntry = slice[0]!;
   const terminal = slice.find(
@@ -94,7 +95,7 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
     runId: startEntry.runId,
     startedAt: startEntry.ts,
     endedAt: terminal?.ts ?? null,
-    status: runDigestStatus(terminal, source.running, source.outcome),
+    status: runDigestStatus(terminal, source.attention, source.outcome),
     changedFiles: [],
     readFiles: [],
     commands: [],
@@ -133,7 +134,7 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
   // where the args, status, added/removed counts already live.
   for (const id of materializedTools) {
     const tool = source.toolCalls[id];
-    if (!tool || tool.runId !== source.runId) continue;
+    if (!tool || tool.runId !== runId) continue;
     if (tool.approvalDecision && !timelineApprovalRefs.has(id)) {
       digest.approvals.push({
         command: tool.command ?? tool.fn,
@@ -166,10 +167,14 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
 
 function runDigestStatus(
   terminal: TimelineEntry | undefined,
-  running: boolean,
+  attention: AgentRootAttention,
   outcome: AgentRunOutcome | null,
 ): RunDigest["status"] {
-  if (!terminal) return running ? "running" : "unknown";
+  if (!terminal) {
+    if (attention.status === "running") return "running";
+    if (attention.status === "waiting") return "waiting";
+    return "unknown";
+  }
   if (terminal.kind === "run-error") return "err";
   switch (outcome?.type) {
     case "completed":

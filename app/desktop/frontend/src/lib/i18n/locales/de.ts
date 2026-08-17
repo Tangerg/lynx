@@ -478,6 +478,7 @@ export const de: Record<string, string> = {
   "runSummary.status.done": "Fertig",
   "runSummary.status.errored": "Fehler",
   "runSummary.status.running": "Läuft",
+  "runSummary.status.waiting": "Wartet auf Eingabe",
   "runSummary.status.unknown": "Unbekannt",
   "runSummary.section.changedFiles": "Geänderte Dateien",
   "runSummary.section.readFiles": "Gelesene Dateien",

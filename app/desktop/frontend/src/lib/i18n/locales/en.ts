@@ -624,6 +624,7 @@ export const en: Record<string, string> = {
   "runSummary.status.done": "Done",
   "runSummary.status.errored": "Errored",
   "runSummary.status.running": "Running",
+  "runSummary.status.waiting": "Needs input",
   "runSummary.status.unknown": "Unknown",
   "runSummary.section.changedFiles": "Changed files",
   "runSummary.section.readFiles": "Read files",

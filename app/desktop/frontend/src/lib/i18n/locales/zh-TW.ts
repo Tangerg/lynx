@@ -471,6 +471,7 @@ export const zhTW: Record<string, string> = {
   "runSummary.status.done": "完成",
   "runSummary.status.errored": "出錯",
   "runSummary.status.running": "執行中",
+  "runSummary.status.waiting": "等待輸入",
   "runSummary.status.unknown": "未知",
   "runSummary.section.changedFiles": "變更的檔案",
   "runSummary.section.readFiles": "讀取的檔案",

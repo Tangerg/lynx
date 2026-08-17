@@ -469,6 +469,7 @@ export const ko: Record<string, string> = {
   "runSummary.status.done": "완료",
   "runSummary.status.errored": "오류",
   "runSummary.status.running": "실행 중",
+  "runSummary.status.waiting": "입력 대기",
   "runSummary.status.unknown": "알 수 없음",
   "runSummary.section.changedFiles": "변경된 파일",
   "runSummary.section.readFiles": "읽은 파일",
