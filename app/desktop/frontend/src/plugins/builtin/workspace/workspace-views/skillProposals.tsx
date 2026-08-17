@@ -18,7 +18,8 @@ import {
 import {
   approveSkillProposal,
   rejectSkillProposal,
-} from "@/plugins/builtin/workspace/application/skillProposalsConfig";
+  skillCurationWasRetired,
+} from "@/plugins/builtin/workspace/application/skillCuration";
 import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 
 function SkillProposalsTab() {
@@ -73,10 +74,12 @@ function SkillProposalRow({ proposal }: { proposal: SkillProposal }) {
       setBusy(true);
       try {
         await run();
-      } catch (err) {
-        notifyError(err instanceof Error ? err.message : t("skillProposals.error"), {
-          source: "skills",
-        });
+      } catch (error) {
+        if (!skillCurationWasRetired(error)) {
+          notifyError(error instanceof Error ? error.message : t("skillProposals.error"), {
+            source: "skills",
+          });
+        }
       } finally {
         actionPending.current = false;
         setBusy(false);

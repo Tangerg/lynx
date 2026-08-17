@@ -3,8 +3,7 @@ import { installCodebaseGateway } from "./adapters/runtimeCodebaseGateway";
 import { installConversationArchiveGateway } from "./adapters/runtimeConversationArchiveGateway";
 import { installWorkspaceKnowledgeGateway } from "./adapters/runtimeKnowledgeGateway";
 import { installAgentMemoryGateway } from "./adapters/runtimeAgentMemoryGateway";
-import { installSkillLibraryGateway } from "./adapters/runtimeSkillLibraryGateway";
-import { installSkillProposalsGateway } from "./adapters/runtimeSkillProposalsGateway";
+import { installSkillCurationGateway } from "./adapters/runtimeSkillCurationGateway";
 import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway";
 import { installWorkspaceErrorClassifier } from "./adapters/runtimeWorkspaceErrorClassifier";
 import { installWorkspaceNavigationPort } from "./adapters/navigationStatePort";
@@ -25,13 +24,13 @@ export default definePlugin({
   setup(ctx) {
     const agentMemory = installAgentMemoryGateway();
     const codebase = installCodebaseGateway();
+    const skillCuration = installSkillCurationGateway();
     const disposers = [
       installConversationArchiveGateway(),
       installWorkspaceKnowledgeGateway(),
       () => codebase.dispose(),
       () => agentMemory.dispose(),
-      installSkillLibraryGateway(),
-      installSkillProposalsGateway(),
+      () => skillCuration.dispose(),
       installToolCatalogGateway(),
       installWorkspaceErrorClassifier(),
       installWorkspaceNavigationPort(),
@@ -47,6 +46,7 @@ export default definePlugin({
       },
       mutationLifecycle: {
         replaceRuntimeGeneration() {
+          skillCuration.replaceRuntimeGeneration();
           codebase.replaceRuntimeGeneration();
           agentMemory.replaceRuntimeGeneration();
         },

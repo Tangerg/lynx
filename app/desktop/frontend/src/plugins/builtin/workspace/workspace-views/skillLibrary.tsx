@@ -17,7 +17,8 @@ import {
 import {
   archiveSkill,
   restoreSkill,
-} from "@/plugins/builtin/workspace/application/skillLibraryConfig";
+  skillCurationWasRetired,
+} from "@/plugins/builtin/workspace/application/skillCuration";
 
 function SkillLibraryTab() {
   const t = useT();
@@ -87,10 +88,12 @@ function SkillRow({ skill }: { skill: ManagedSkill }) {
     setBusy(true);
     try {
       await (archived ? restoreSkill(skill.name) : archiveSkill(skill.name));
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : t("skillLibrary.error"), {
-        source: "skills",
-      });
+    } catch (error) {
+      if (!skillCurationWasRetired(error)) {
+        notifyError(error instanceof Error ? error.message : t("skillLibrary.error"), {
+          source: "skills",
+        });
+      }
     } finally {
       actionPending.current = false;
       setBusy(false);
