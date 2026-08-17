@@ -25,11 +25,13 @@ import { renderBlock, renderMessageBlocks } from "./BlockRenderer";
 function MessageBlockInner({
   row,
   ctx,
+  sessionId,
   isLast,
   isRunning,
 }: {
   row: TranscriptRow;
   ctx: BlockCtx;
+  sessionId: string;
   /** Last turn in the thread — its action bar stays pinned open. */
   isLast: boolean;
   /** A run is streaming — action bars stay hidden until it settles.
@@ -39,6 +41,7 @@ function MessageBlockInner({
   const msg = row.message;
   const isUser = msg.role === "user";
   const t = useT();
+  const messageContext = useMemo(() => ({ sessionId, message: msg }), [sessionId, msg]);
 
   const sources = useCitationSources();
   const citations = useMemo(() => messageCitations(msg.blocks, sources), [msg.blocks, sources]);
@@ -49,7 +52,7 @@ function MessageBlockInner({
   // hooks so rules-of-hooks holds.
   if (msg.role === "system") {
     return (
-      <MessageContext.Provider value={msg}>
+      <MessageContext.Provider value={messageContext}>
         <div className={MESSAGE_CONTENT_CLASS}>
           {msg.blocks.map((block, index) => renderBlock(block, index, row.facts, ctx))}
         </div>
@@ -73,7 +76,7 @@ function MessageBlockInner({
   const stamp = formatClock(msg.createdAt);
 
   return (
-    <MessageContext.Provider value={msg}>
+    <MessageContext.Provider value={messageContext}>
       <CitationContext.Provider value={citations}>
         {/* A caption line over a full-width body, not an avatar gutter beside a
             narrowed one. Who is speaking is a two-word fact you read once per

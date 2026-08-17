@@ -182,8 +182,8 @@ export type {
 } from "./types";
 export type { NotificationEntry, NotificationLevel } from "./types";
 
-// Per-message context hook. The context + hook live in the SDK (the
+// Per-message context hooks. The context + hooks live in the SDK (the
 // plugin-integration seam) so plugin authors only ever import from
 // `@/plugins/sdk`; kernel UI (`MessageBlock`) imports the Provider from
 // `./messageContext` directly.
-export { useCurrentMessage } from "./messageContext";
+export { useCurrentMessage, useCurrentMessageSessionId } from "./messageContext";

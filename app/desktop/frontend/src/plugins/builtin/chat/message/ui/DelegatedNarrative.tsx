@@ -8,7 +8,7 @@ import type {
 } from "@/plugins/builtin/agent/public/conversation";
 import { cancelActiveSessionRun } from "@/plugins/builtin/agent/public/run";
 import { MessageContext } from "@/plugins/sdk/messageContext";
-import { useCitationSources } from "@/plugins/sdk";
+import { useCitationSources, useCurrentMessageSessionId } from "@/plugins/sdk";
 import { openTimelineView } from "@/plugins/builtin/workspace/public/deeplinks";
 import { messageBlocksRenderInstant, messageCitations } from "../application/messageBlockModel";
 import { CitationContext } from "./CitationContext";
@@ -76,6 +76,7 @@ function DelegatedMessage({
   ctx: BlockCtx;
   renderMessageBlocks: Props["renderMessageBlocks"];
 }) {
+  const sessionId = useCurrentMessageSessionId();
   const sources = useCitationSources();
   const citations = useMemo(
     () => messageCitations(message.blocks, sources),
@@ -84,9 +85,10 @@ function DelegatedMessage({
   const blockCtx: BlockCtx = messageBlocksRenderInstant(message.role)
     ? { ...ctx, textReveal: "instant" }
     : ctx;
+  const messageContext = useMemo(() => ({ sessionId, message }), [sessionId, message]);
 
   return (
-    <MessageContext.Provider value={message}>
+    <MessageContext.Provider value={messageContext}>
       <CitationContext.Provider value={citations}>
         <div
           className={cn(

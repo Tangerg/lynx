@@ -57,7 +57,7 @@ const RAIL =
   "absolute top-0 bottom-[var(--composer-overlay,0px)] z-1 hidden w-[var(--reading-rail-width)] flex-col @min-[1152px]:flex pointer-events-none [&>*]:pointer-events-auto right-[calc(50%+var(--reading-column-max)/2)]";
 
 export function ChatStream({ onSend }: Props) {
-  const resetKey = useActiveSessionId();
+  const sessionId = useActiveSessionId();
   const rows = useActiveConversationRows();
   const toolCalls = useActiveSessionToolCalls();
 
@@ -151,7 +151,7 @@ export function ChatStream({ onSend }: Props) {
     <div className={cn(READING_COLUMN, READING_GUTTER, "shrink-0")}>
       {/* Keyed on the session so the relocate input never carries a
           half-typed path across a session switch. */}
-      <CwdMissingBanner key={resetKey} />
+      <CwdMissingBanner key={sessionId} />
       <RunErrorBanner />
       <Slot
         name="chat.banner.top"
@@ -211,11 +211,11 @@ export function ChatStream({ onSend }: Props) {
             down the edge of the text; the pane's own edge is where every other
             application puts it and the only place it isn't in the way. */}
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
+          <ChatErrorBoundary resetKey={sessionId} label={`session:${sessionId}`}>
             <MessageStream
               rows={rows}
               ctx={ctx}
-              resetKey={resetKey}
+              sessionId={sessionId}
               controllerRef={messageStreamRef}
             />
           </ChatErrorBoundary>

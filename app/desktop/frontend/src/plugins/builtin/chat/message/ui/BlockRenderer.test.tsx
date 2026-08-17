@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRunView, Message, ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import type { TurnFacts } from "@/plugins/builtin/agent/public/conversation";
+import { MessageContext } from "@/plugins/sdk/messageContext";
 import type { BlockCtx } from "./BlockRenderer";
 import { renderBlock } from "./BlockRenderer";
 
@@ -69,6 +70,15 @@ function message(id: string, runId: string, toolCallId: string): Message {
   };
 }
 
+function renderRootTool(toolCallId: string, facts: TurnFacts) {
+  const rootMessage = message("root-message", "root-run", toolCallId);
+  return render(
+    <MessageContext.Provider value={{ sessionId: "session-1", message: rootMessage }}>
+      {renderBlock(rootMessage.blocks[0]!, 0, facts, CTX)}
+    </MessageContext.Provider>,
+  );
+}
+
 describe("delegated Run rendering", () => {
   it("mounts child and nested narratives under their exact parent task Items", () => {
     const parentTool = tool("task-root");
@@ -97,7 +107,7 @@ describe("delegated Run rendering", () => {
       },
     };
 
-    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, facts, CTX));
+    renderRootTool(parentTool.id, facts);
     expect(screen.getAllByText("Sub-agent")).toHaveLength(1);
     expect(screen.queryByText("No narrative material yet.")).toBeNull();
 
@@ -123,7 +133,7 @@ describe("delegated Run rendering", () => {
       },
     };
 
-    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, facts, CTX));
+    renderRootTool(parentTool.id, facts);
     fireEvent.click(screen.getByRole("button", { name: "Cancel this run" }));
 
     expect(agentRunCommands.cancel).toHaveBeenCalledOnce();

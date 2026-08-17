@@ -1,32 +1,35 @@
-// Feedback action (assistant messages only) — thumbs up / down wired to
-// `feedback.create`. The wire is write-only (no read-back API), so the settled
-// rating lives in a session-lifetime map — same scope as the approval "remember"
-// decisions. Re-rating re-submits; the runtime treats each as a new event.
-
-import { useEffect, useState } from "react";
-import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { contributeLayout, definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import {
+  contributeLayout,
+  definePlugin,
+  useCurrentMessage,
+  useCurrentMessageSessionId,
+} from "@/plugins/sdk";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
+import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import type { MessageFeedbackRating } from "./domain/feedback";
 import { canRateMessage } from "./application/messageActionAvailability";
 import { messageFeedbackActionSlot } from "./application/messageActionContributions";
-import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
-import { installRuntimeFeedbackPort } from "./adapters/runtimeFeedback";
+import { messageFeedbackWasRetired, useMessageFeedback } from "./public/feedback";
+import { installRuntimeFeedbackGateway } from "./adapters/runtimeFeedback";
 import { MessageActionButton } from "./MessageActionButton";
 
 function FeedbackButtons() {
-  const t = useT();
   const msg = useCurrentMessage();
-  const [rated, setRated] = useState(() => messageFeedbackRating(msg.id));
-  useEffect(() => {
-    setRated(messageFeedbackRating(msg.id));
-  }, [msg.id]);
   if (!canRateMessage(msg)) return null;
+  return <RateableFeedbackButtons msg={msg} />;
+}
+
+function RateableFeedbackButtons({ msg }: { msg: Message }) {
+  const t = useT();
+  const sessionId = useCurrentMessageSessionId();
+  const feedback = useMessageFeedback(sessionId, msg);
 
   const rate = (rating: MessageFeedbackRating): void => {
-    if (rated === rating) return;
-    setRated(rating);
-    void submitMessageFeedback(msg, rating).catch(() => setRated(messageFeedbackRating(msg.id)));
+    if (feedback.rating === rating) return;
+    void feedback.submit(rating).catch((error: unknown) => {
+      if (!messageFeedbackWasRetired(error)) console.warn("[feedback] create failed:", error);
+    });
   };
 
   return (
@@ -35,17 +38,17 @@ function FeedbackButtons() {
         icon="thumbs-up"
         title={t("msgActions.good")}
         role={msg.role}
-        aria-pressed={rated === "positive"}
+        aria-pressed={feedback.rating === "positive"}
         onClick={() => rate("positive")}
-        className={cn(rated === "positive" && "text-success")}
+        className={feedback.rating === "positive" ? "text-success" : undefined}
       />
       <MessageActionButton
         icon="thumbs-down"
         title={t("msgActions.poor")}
         role={msg.role}
-        aria-pressed={rated === "negative"}
+        aria-pressed={feedback.rating === "negative"}
         onClick={() => rate("negative")}
-        className={cn(rated === "negative" && "text-negative")}
+        className={feedback.rating === "negative" ? "text-negative" : undefined}
       />
     </>
   );
@@ -53,9 +56,20 @@ function FeedbackButtons() {
 
 export const messageFeedback = definePlugin({
   name: "lyra.builtin.message-feedback",
+  requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
-    const disposeFeedback = installRuntimeFeedbackPort();
+    const gateway = installRuntimeFeedbackGateway();
+    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
+      const next = ctx.runtime.runtimeGeneration();
+      if (next === runtimeGeneration) return;
+      runtimeGeneration = next;
+      gateway.replaceRuntimeGeneration();
+    });
     contributeLayout(ctx, "message.actions", messageFeedbackActionSlot(FeedbackButtons));
-    ctx.cleanup(disposeFeedback);
+    ctx.cleanup(() => {
+      unsubscribeRuntime();
+      gateway.dispose();
+    });
   },
 });

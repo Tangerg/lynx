@@ -20,7 +20,7 @@ import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
 import { transcriptTurnContentVisibility } from "./transcriptTurnContentVisibility";
 
-// Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
+// Chat scroll surface, backed by use-stick-to-bottom. `sessionId`
 // re-keys the subtree on session switch so a new thread lands at the
 // bottom. That landing is `initial="instant"` (a jump, not an animation):
 // a smooth initial replays a visible top→bottom scroll through the whole
@@ -32,8 +32,8 @@ import { transcriptTurnContentVisibility } from "./transcriptTurnContentVisibili
 interface Props {
   rows: readonly TranscriptRow[];
   ctx: BlockCtx;
-  /** Re-key on change to reset scroll position + follow state. */
-  resetKey: string;
+  /** Exact transcript owner; also re-keys scroll position + follow state. */
+  sessionId: string;
   controllerRef?: Ref<MessageStreamController>;
 }
 
@@ -115,6 +115,7 @@ const TURN_GAP = {
 interface TurnProps {
   row: TranscriptRow;
   ctx: BlockCtx;
+  sessionId: string;
   isLast: boolean;
   isRunning: boolean;
   /** A new calendar day starts here. Decided by the list, because it is a relationship
@@ -136,6 +137,7 @@ interface TurnProps {
 const TranscriptTurn = memo(function TranscriptTurn({
   row,
   ctx,
+  sessionId,
   isLast,
   isRunning,
   opensDay,
@@ -171,13 +173,19 @@ const TranscriptTurn = memo(function TranscriptTurn({
         // hugged the text they came out sliced.
         className={cn(READING_GUTTER, TURN_GAP[gap], transcriptTurnContentVisibility(isLast))}
       >
-        <MessageBlock row={row} ctx={ctx} isLast={isLast} isRunning={isRunning} />
+        <MessageBlock
+          row={row}
+          ctx={ctx}
+          sessionId={sessionId}
+          isLast={isLast}
+          isRunning={isRunning}
+        />
       </motion.div>
     </>
   );
 });
 
-export function MessageStream({ rows, ctx, resetKey, controllerRef }: Props) {
+export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
   // While a run streams, content grows continuously; the default `resize`
   // spring (stiffness 0.05 / mass 1.25) is too sluggish to track it and the
   // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
@@ -255,7 +263,7 @@ export function MessageStream({ rows, ctx, resetKey, controllerRef }: Props) {
 
   return (
     <StickToBottom
-      key={resetKey}
+      key={sessionId}
       contextRef={stickContextRef}
       className="panel-scroll msg-scroll"
       initial="instant"
@@ -284,6 +292,7 @@ export function MessageStream({ rows, ctx, resetKey, controllerRef }: Props) {
                 key={row.message.id}
                 row={row}
                 ctx={ctx}
+                sessionId={sessionId}
                 isLast={index === rows.length - 1}
                 isRunning={running}
                 opensDay={opensDay}
