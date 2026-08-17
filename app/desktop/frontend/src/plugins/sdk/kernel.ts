@@ -96,6 +96,13 @@ export function kernelHost(): Host {
   return host;
 }
 
+/** Exact owner of the currently published contribution generation. Internal
+ * readers use this identity to distinguish a Host replacement from a change
+ * inside the same Host without widening the public plugin SDK. */
+export function publishedKernel(): Host | undefined {
+  return host;
+}
+
 export function trackInstallation(
   owner: Host,
   name: string,
