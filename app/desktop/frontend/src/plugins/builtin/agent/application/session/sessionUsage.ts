@@ -1,3 +1,4 @@
+import type { Query } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import type { AgentRuntimeGateway, AgentSessionUsage } from "../ports/runtimeGateway";
@@ -58,19 +59,26 @@ export class AgentSessionUsageOwner {
   dispose(): void {
     if (this.#retired) return;
     const current = AgentSessionUsageOwner.#active === this;
+    const cachedWriters = current ? this.#cachedWriters() : undefined;
     if (current) AgentSessionUsageOwner.#active = null;
     this.#retire();
-    if (current) {
-      void queryClient.cancelQueries({ queryKey: [AGENT_SESSION_USAGE_KEY] });
+    if (cachedWriters && cachedWriters.size > 0) {
+      void queryClient.cancelQueries({ predicate: (query) => cachedWriters.has(query) });
     }
   }
 
   #replaceCachedWriter(): void {
-    const options = { queryKey: [AGENT_SESSION_USAGE_KEY] } as const;
-    void queryClient.cancelQueries(options).then(() => {
+    const cachedWriters = this.#cachedWriters();
+    if (cachedWriters.size === 0) return;
+    const ownedWriter = (query: Query) => cachedWriters.has(query);
+    void queryClient.cancelQueries({ predicate: ownedWriter }).then(() => {
       if (this.#retired || AgentSessionUsageOwner.#active !== this) return;
-      void queryClient.invalidateQueries(options);
+      void queryClient.resetQueries({ predicate: ownedWriter });
     });
+  }
+
+  #cachedWriters(): ReadonlySet<Query> {
+    return new Set(queryClient.getQueryCache().findAll({ queryKey: [AGENT_SESSION_USAGE_KEY] }));
   }
 
   #assertCurrent(): void {

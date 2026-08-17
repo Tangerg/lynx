@@ -64,6 +64,37 @@ afterEach(async () => {
 });
 
 describe("mounted Session usage generation", () => {
+  it("does not let an empty handoff settlement invalidate a later query", async () => {
+    restoreGateway?.();
+    restoreGateway = undefined;
+    await act(async () => Promise.resolve());
+    queryClient.clear();
+
+    let releaseHandoff!: () => void;
+    const handoffSettlement = new Promise<void>((resolve) => {
+      releaseHandoff = resolve;
+    });
+    const cancelQueries = vi
+      .spyOn(queryClient, "cancelQueries")
+      .mockReturnValueOnce(handoffSettlement);
+    restoreGateway = installAgentRuntimeGateway();
+
+    const hook = renderHook(() => useAgentSessionUsage("ses_future"), { wrapper });
+    unmountHook = hook.unmount;
+    const request = await waitForUsageRequest(0);
+    respondSuccess(transport, request.id, { inputTokens: 13, outputTokens: 5 });
+    await waitFor(() => expect(hook.result.current.data?.inputTokens).toBe(13));
+
+    await act(async () => {
+      releaseHandoff();
+      await handoffSettlement;
+      await Promise.resolve();
+    });
+
+    expect(transport.outbox().filter(({ method }) => method === "usage.session")).toHaveLength(1);
+    expect(cancelQueries).not.toHaveBeenCalled();
+  });
+
   it("aborts the pre-event transport before committing the successor read", async () => {
     const send = vi.spyOn(transport, "send");
     const hook = renderHook(() => useAgentSessionUsage("ses_usage"), { wrapper });
