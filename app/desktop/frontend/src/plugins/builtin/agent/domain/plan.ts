@@ -1,14 +1,15 @@
 /** One Plan step in the Agent product vocabulary. Runtime wire spelling and
  * field names are translated before this value crosses the Adapter boundary. */
 export interface PlanStep {
-  id: string;
-  text: string;
-  status: "done" | "active" | "pending";
+  readonly id: string;
+  readonly text: string;
+  readonly status: "done" | "active" | "pending";
 }
 
-/** Session-scoped latest Plan value. Revision is ordering, not presentation. */
+/** Session-scoped latest Plan value. Revision orders deliveries and identifies
+ * one exact whole replacement; it is not derived from mutable Plan content. */
 export interface AgentPlanStateSnapshot {
-  type: "plan";
-  revision: number;
-  plan: PlanStep[];
+  readonly type: "plan";
+  readonly revision: number;
+  readonly plan: readonly PlanStep[];
 }

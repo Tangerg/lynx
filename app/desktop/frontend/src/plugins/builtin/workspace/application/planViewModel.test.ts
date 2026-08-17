@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
-import type { PlanStep } from "@/plugins/builtin/agent/public/plan";
+import { SessionPlan, type PlanStep } from "@/plugins/builtin/agent/public/plan";
 import { planSubtext, planViewModel } from "./planViewModel";
 
 const step = (over: Partial<PlanStep>): PlanStep => ({
@@ -10,13 +10,16 @@ const step = (over: Partial<PlanStep>): PlanStep => ({
   ...over,
 });
 
+const plan = (steps: readonly PlanStep[]) =>
+  SessionPlan.fromSnapshot("ses-plan", { revision: 1, plan: steps });
+
 describe("planViewModel", () => {
   it("counts completed steps without reordering the plan", () => {
     const first = step({ id: "p1", status: "done" });
     const second = step({ id: "p2", status: "active" });
     const third = step({ id: "p3", status: "pending" });
 
-    expect(planViewModel(true, [first, second, third])).toEqual({
+    expect(planViewModel(true, plan([first, second, third]))).toEqual({
       steps: [first, second, third],
       done: 1,
       total: 3,
@@ -25,7 +28,7 @@ describe("planViewModel", () => {
   });
 
   it("projects an empty plan", () => {
-    expect(planViewModel(true, [])).toEqual({
+    expect(planViewModel(true, plan([]))).toEqual({
       steps: [],
       done: 0,
       total: 0,
@@ -37,7 +40,7 @@ describe("planViewModel", () => {
   // saying "no plan yet" there reads as "the agent hasn't planned", not "this build
   // cannot".
   it("reports an ungated runtime as unavailable rather than empty", () => {
-    expect(planViewModel(false, []).state).toBe("unavailable");
+    expect(planViewModel(false, plan([])).state).toBe("unavailable");
   });
 });
 

@@ -5,27 +5,25 @@ import { IconButton, StepMark, StepRow } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
-import { useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
 import { type PlanStep, useSessionPlan } from "@/plugins/builtin/agent/public/plan";
 import { planBannerState, type PlanBannerState } from "../application/progress";
 
 export function PlanProgressBanner() {
-  const steps = useSessionPlan();
-  const runId = useCurrentRootRunId();
-  const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
-  const progress = planBannerState(steps, runId, dismissedRunId);
+  const plan = useSessionPlan();
+  const [dismissedPlanIdentity, setDismissedPlanIdentity] = useState<string | null>(null);
+  const progress = planBannerState(plan, dismissedPlanIdentity);
 
   const dismiss = (event: MouseEvent) => {
     event.stopPropagation();
-    setDismissedRunId(runId ?? "");
+    setDismissedPlanIdentity(plan.identity);
   };
 
   return (
     <AnimatePresence initial={false}>
       {progress.visible && progress.current && (
         <PlanDisclosure
-          key={runId}
-          steps={steps}
+          key={plan.identity}
+          steps={plan.steps}
           progress={progress}
           current={progress.current}
           onDismiss={dismiss}
@@ -41,7 +39,7 @@ function PlanDisclosure({
   current,
   onDismiss,
 }: {
-  steps: PlanStep[];
+  steps: readonly PlanStep[];
   progress: PlanBannerState;
   current: PlanStep;
   onDismiss: (event: MouseEvent) => void;

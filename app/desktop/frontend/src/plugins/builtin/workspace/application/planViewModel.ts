@@ -1,5 +1,9 @@
 import type { Translate } from "@/lib/i18n";
-import { useSessionPlan, type PlanStep } from "@/plugins/builtin/agent/public/plan";
+import {
+  useSessionPlan,
+  type PlanStep,
+  type SessionPlan,
+} from "@/plugins/builtin/agent/public/plan";
 import { useWorkspaceCapability } from "./workspaceCapabilities";
 
 export type PlanState = "unavailable" | "empty" | "ready";
@@ -17,17 +21,14 @@ export function usePlanView(): PlanViewModel {
   return planViewModel(useWorkspaceCapability("plan"), useSessionPlan());
 }
 
-export function planViewModel(enabled: boolean, steps: readonly PlanStep[]): PlanViewModel {
-  let done = 0;
-  for (const step of steps) {
-    if (step.status === "done") done += 1;
-  }
+export function planViewModel(enabled: boolean, plan: SessionPlan): PlanViewModel {
+  const { done, total } = plan.progress();
 
   return {
-    steps,
+    steps: plan.steps,
     done,
-    total: steps.length,
-    state: !enabled ? "unavailable" : steps.length === 0 ? "empty" : "ready",
+    total,
+    state: !enabled ? "unavailable" : total === 0 ? "empty" : "ready",
   };
 }
 

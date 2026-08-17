@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { PlanStep } from "../../domain/plan";
 import { agentSessionView } from "../ports/sessionView";
+import { useActiveSessionId } from "../session/activeSession";
 
 export type { PlanStep } from "../../domain/plan";
 
@@ -17,19 +18,47 @@ const TOOL_STEP_STATUS: Record<string, PlanStep["status"]> = {
   pending: "pending",
 };
 
-const NO_STEPS: PlanStep[] = [];
+const NO_STEPS: readonly PlanStep[] = Object.freeze([]);
 
-/** The snapshot the fold lands under `shared.plan`. Only the list is read here:
- *  `revision` decides which of two deliveries is later, which is the fold's
- *  business, not a reader's. */
+/** The snapshot the fold lands under `shared.plan`. Revision first orders
+ * deliveries in the fold, then identifies the accepted whole replacement to
+ * mounted readers; content is never asked to serve as identity. */
 interface SharedPlan {
+  revision?: number;
   plan?: readonly PlanStep[];
 }
 
-export function planSteps(snapshot: SharedPlan | undefined): PlanStep[] {
+export function planSteps(snapshot: SharedPlan | undefined): readonly PlanStep[] {
   const steps = snapshot?.plan;
   if (!steps || steps.length === 0) return NO_STEPS;
-  return steps.map((step) => ({ ...step }));
+  return Object.freeze(steps.map((step) => Object.freeze({ ...step })));
+}
+
+/** Immutable presentation of one exact Session-scoped Plan replacement. The
+ * Runtime revision is a whole-replacement identity; Session is included because
+ * two mounted Sessions can legitimately hold the same revision. */
+export class SessionPlan {
+  readonly identity: string;
+  readonly revision: number;
+  readonly steps: readonly PlanStep[];
+
+  private constructor(sessionId: string, revision: number, steps: readonly PlanStep[]) {
+    this.identity = JSON.stringify([sessionId, revision]);
+    this.revision = revision;
+    this.steps = steps;
+  }
+
+  static fromSnapshot(sessionId: string, snapshot: SharedPlan | undefined): SessionPlan {
+    return new SessionPlan(sessionId, snapshot?.revision ?? 0, planSteps(snapshot));
+  }
+
+  activeStep(): PlanStep | undefined {
+    return activePlanStep(this.steps);
+  }
+
+  progress(): { done: number; total: number } {
+    return planProgress(this.steps);
+  }
 }
 
 /**
@@ -46,7 +75,7 @@ export function planSteps(snapshot: SharedPlan | undefined): PlanStep[] {
  * a second answer to "what are the steps" that goes stale the moment the marks
  * change.
  */
-export function planStepsFromArguments(args: unknown): PlanStep[] {
+export function planStepsFromArguments(args: unknown): readonly PlanStep[] {
   if (typeof args !== "object" || args === null) return NO_STEPS;
   const steps = (args as { steps?: unknown }).steps;
   if (!Array.isArray(steps) || steps.length === 0) return NO_STEPS;
@@ -72,7 +101,7 @@ export function planStepsFromArguments(args: unknown): PlanStep[] {
  * streaming) is not an empty plan, but it renders as one — a half-written plan is
  * not a thing to draw, and the preview's own pending state covers the gap.
  */
-export function planStepsFromToolArgs(args: string): PlanStep[] {
+export function planStepsFromToolArgs(args: string): readonly PlanStep[] {
   if (args === "") return NO_STEPS;
   try {
     return planStepsFromArguments(JSON.parse(args));
@@ -101,13 +130,13 @@ export function planProgress(steps: readonly PlanStep[]): { done: number; total:
 }
 
 /**
- * The active session's plan.
+ * The active Session's exact Plan replacement.
  *
- * Memoised on the snapshot object the fold swaps in, so a reader that feeds a
- * render context (ChatStream's ctx, a `memo` boundary) keeps a stable array
- * across unrelated renders.
+ * Memoised on Session identity and the snapshot object the fold swaps in, so a
+ * reader keeps one stable rich model across unrelated renders.
  */
-export function useSessionPlan(): PlanStep[] {
+export function useSessionPlan(): SessionPlan {
+  const sessionId = useActiveSessionId();
   const snapshot = agentSessionView().useSharedState<SharedPlan>("plan");
-  return useMemo(() => planSteps(snapshot), [snapshot]);
+  return useMemo(() => SessionPlan.fromSnapshot(sessionId, snapshot), [sessionId, snapshot]);
 }

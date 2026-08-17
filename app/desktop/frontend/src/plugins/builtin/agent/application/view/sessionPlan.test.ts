@@ -5,6 +5,7 @@ import {
   planSteps,
   planStepsFromArguments,
   planStepsFromToolArgs,
+  SessionPlan,
 } from "./sessionPlan";
 
 describe("planSteps", () => {
@@ -27,6 +28,34 @@ describe("planSteps", () => {
   it("has no steps without a snapshot", () => {
     expect(planSteps(undefined)).toEqual([]);
     expect(planSteps({})).toEqual([]);
+  });
+});
+
+describe("SessionPlan", () => {
+  const snapshot = {
+    revision: 7,
+    plan: [{ id: "1", text: "Inspect", status: "active" as const }],
+  };
+
+  it("uses exact Session and whole-replacement revision as identity", () => {
+    const current = SessionPlan.fromSnapshot("ses-a", snapshot);
+    expect(SessionPlan.fromSnapshot("ses-a", snapshot).identity).toBe(current.identity);
+    expect(SessionPlan.fromSnapshot("ses-a", { ...snapshot, revision: 8 }).identity).not.toBe(
+      current.identity,
+    );
+    expect(SessionPlan.fromSnapshot("ses-b", snapshot).identity).not.toBe(current.identity);
+  });
+
+  it("owns active-step and completion behavior", () => {
+    const plan = SessionPlan.fromSnapshot("ses-a", {
+      revision: 8,
+      plan: [
+        { id: "1", text: "Inspect", status: "done" },
+        { id: "2", text: "Fix", status: "active" },
+      ],
+    });
+    expect(plan.activeStep()?.text).toBe("Fix");
+    expect(plan.progress()).toEqual({ done: 1, total: 2 });
   });
 });
 

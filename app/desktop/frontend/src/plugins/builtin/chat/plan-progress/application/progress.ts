@@ -1,4 +1,4 @@
-import { activePlanStep, planProgress, type PlanStep } from "@/plugins/builtin/agent/public/plan";
+import type { PlanStep, SessionPlan } from "@/plugins/builtin/agent/public/plan";
 
 /**
  * The banner's own state: what the plan is, plus whether to be on screen.
@@ -17,13 +17,12 @@ export interface PlanBannerState {
 }
 
 export function planBannerState(
-  steps: readonly PlanStep[],
-  runId: string | null,
-  dismissedRunId: string | null,
+  plan: SessionPlan,
+  dismissedPlanIdentity: string | null,
 ): PlanBannerState {
-  const { done, total } = planProgress(steps);
-  const current = activePlanStep(steps);
-  const dismissed = runId !== null && runId === dismissedRunId;
+  const { done, total } = plan.progress();
+  const current = plan.activeStep();
+  const dismissed = plan.identity === dismissedPlanIdentity;
 
   return {
     visible: current !== undefined && !dismissed,
