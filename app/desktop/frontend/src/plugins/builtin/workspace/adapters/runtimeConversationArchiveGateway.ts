@@ -1,23 +1,36 @@
 import { getContainer } from "@/main/container";
-import { asSessionId, type SessionArtifact } from "@/rpc";
-import { configureConversationArchiveGateway } from "../application/ports/conversationArchiveGateway";
+import { asSessionId, type LyraClient, type SessionArtifact } from "@/rpc";
+import { ConversationArchiveOwner } from "../application/conversationExport";
 import type { ConversationArchiveGateway } from "../application/ports/conversationArchiveGateway";
+import { browserFileTransfer } from "./browserFileTransfer";
 
-const gateway: ConversationArchiveGateway = {
-  async exportConversation(sessionId, format) {
-    return getContainer().client().sessions.export(asSessionId(sessionId), format);
-  },
-  async importConversation(artifact) {
-    const { session } = await getContainer()
-      .client()
-      .sessions.import(artifact as SessionArtifact);
-    return {
-      id: session.id,
-      title: session.title,
-    };
-  },
-};
+function runtimeConversationArchiveGateway(client: LyraClient): ConversationArchiveGateway {
+  return {
+    async exportConversation(sessionId, format) {
+      return client.sessions.export(asSessionId(sessionId), format);
+    },
+    async importConversation(artifact) {
+      const { session } = await client.sessions.import(artifact as SessionArtifact);
+      return {
+        id: session.id,
+        title: session.title,
+      };
+    },
+  };
+}
 
-export function installConversationArchiveGateway(): () => void {
-  return configureConversationArchiveGateway(gateway);
+export interface ConversationArchiveGatewayInstallation {
+  replaceRuntimeGeneration(): void;
+  dispose(): void;
+}
+
+export function installConversationArchiveGateway(): ConversationArchiveGatewayInstallation {
+  const owner = ConversationArchiveOwner.install({
+    gateway: runtimeConversationArchiveGateway(getContainer().client()),
+    files: browserFileTransfer(),
+  });
+  return {
+    replaceRuntimeGeneration: () => owner.replaceRuntimeGeneration(),
+    dispose: () => owner.dispose(),
+  };
 }

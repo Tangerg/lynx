@@ -1,4 +1,4 @@
-import { configureFileTransferPort } from "../application/ports/fileTransfer";
+import type { FileTransferPort } from "../application/ports/fileTransfer";
 
 // How a browser hands a file to the user and takes one back.
 //
@@ -26,17 +26,27 @@ function downloadFile(filename: string, content: string, mime: string): void {
 function pickTextFile(accept: string): Promise<string | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
+    let pending = true;
+    const settle = (text: string | null) => {
+      if (!pending) return;
+      pending = false;
+      input.onchange = null;
+      input.removeEventListener("cancel", cancel);
+      resolve(text);
+    };
+    const cancel = () => settle(null);
     input.type = "file";
     input.accept = accept;
+    input.addEventListener("cancel", cancel, { once: true });
     input.onchange = () => {
       const file = input.files?.[0];
-      if (!file) return resolve(null);
-      void file.text().then(resolve, () => resolve(null));
+      if (!file) return settle(null);
+      void file.text().then(settle, () => settle(null));
     };
     input.click();
   });
 }
 
-export function installBrowserFileTransfer(): () => void {
-  return configureFileTransferPort({ download: downloadFile, pickText: pickTextFile });
+export function browserFileTransfer(): FileTransferPort {
+  return { download: downloadFile, pickText: pickTextFile };
 }

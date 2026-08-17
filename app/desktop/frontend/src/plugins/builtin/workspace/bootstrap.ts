@@ -7,7 +7,6 @@ import { installSkillCurationGateway } from "./adapters/runtimeSkillCurationGate
 import { installDiagnosticToolGateway } from "./adapters/runtimeDiagnosticToolGateway";
 import { installWorkspaceErrorClassifier } from "./adapters/runtimeWorkspaceErrorClassifier";
 import { installWorkspaceNavigationPort } from "./adapters/navigationStatePort";
-import { installBrowserFileTransfer } from "./adapters/browserFileTransfer";
 import {
   activateWorkspaceSessionScope,
   forgetWorkspaceSessionScopes,
@@ -27,8 +26,9 @@ export default definePlugin({
     const knowledge = installWorkspaceKnowledgeGateway();
     const skillCuration = installSkillCurationGateway();
     const diagnosticTool = installDiagnosticToolGateway();
+    const conversationArchive = installConversationArchiveGateway();
     const disposers = [
-      installConversationArchiveGateway(),
+      () => conversationArchive.dispose(),
       () => knowledge.dispose(),
       () => codebase.dispose(),
       () => agentMemory.dispose(),
@@ -36,7 +36,6 @@ export default definePlugin({
       () => diagnosticTool.dispose(),
       installWorkspaceErrorClassifier(),
       installWorkspaceNavigationPort(),
-      installBrowserFileTransfer(),
     ];
     ctx.cleanup(() => {
       for (let index = disposers.length - 1; index >= 0; index--) disposers[index]!();
@@ -53,6 +52,7 @@ export default definePlugin({
           codebase.replaceRuntimeGeneration();
           agentMemory.replaceRuntimeGeneration();
           diagnosticTool.replaceRuntimeGeneration();
+          conversationArchive.replaceRuntimeGeneration();
         },
       },
     };

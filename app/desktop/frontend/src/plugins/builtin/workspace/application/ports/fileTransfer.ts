@@ -1,5 +1,3 @@
-import { createSingletonPort } from "@/lib/ports/singletonPort";
-
 /**
  * Handing a file to the user, and taking one back.
  *
@@ -13,8 +11,3 @@ export interface FileTransferPort {
   /** Resolves the chosen file's text, or null when the picker is cancelled. */
   pickText(accept: string): Promise<string | null>;
 }
-
-const port = createSingletonPort<FileTransferPort>("File transfer port is not configured");
-
-export const configureFileTransferPort = port.configure;
-export const fileTransfer = port.get;
