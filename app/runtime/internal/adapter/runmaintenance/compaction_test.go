@@ -600,7 +600,7 @@ func TestTrimForBudget_PreviewsOldNotRecentAndDoesNotMutate(t *testing.T) {
 	}
 	c := NewCompactor(nil, nil, nil, CompactionConfig{KeepRecent: 2}) // boundary = 4-2 = 2
 
-	trimmed, changed := c.trimForBudget(msgs)
+	trimmed, changed := trimForBudgetBefore(msgs, len(msgs)-c.keepRecent)
 	if !changed {
 		t.Fatal("expected the old oversized parts to be trimmed")
 	}

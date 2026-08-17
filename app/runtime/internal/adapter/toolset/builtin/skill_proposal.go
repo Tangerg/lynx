@@ -9,8 +9,8 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 const proposalDescription = `Propose a reusable Skill for future work.
@@ -53,7 +53,7 @@ func NewProposal(proposals SkillProposalSubmitter, defaultWorkspacePath string) 
 		return nil, nil
 	}
 	return toolcontract.NewFunc[proposalArgs, proposalResult](
-		toolcontract.FuncConfig{Name: toolname.ProposeSkill, Description: proposalDescription},
+		toolcontract.FuncConfig{Name: tool.ProposeSkill, Description: proposalDescription},
 		(&proposer{proposals: proposals, defaultWorkspacePath: defaultWorkspacePath}).run,
 	)
 }

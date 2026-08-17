@@ -12,11 +12,11 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	goalstate "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 const createDescription = `Create and start a persistent autonomous Goal for the current session.
@@ -124,7 +124,7 @@ func NewCreate(starter GoalStarter) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[createArgs, goalResult](
-		toolcontract.FuncConfig{Name: toolname.CreateGoal, Description: createDescription},
+		toolcontract.FuncConfig{Name: tool.CreateGoal, Description: createDescription},
 		(&creator{goals: starter}).create,
 	)
 }
@@ -135,7 +135,7 @@ func NewGet(reader GoalReader) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[getArgs, goalResult](
-		toolcontract.FuncConfig{Name: toolname.GetGoal, Description: getDescription},
+		toolcontract.FuncConfig{Name: tool.GetGoal, Description: getDescription},
 		(&getter{goals: reader}).get,
 	)
 }
@@ -146,7 +146,7 @@ func NewReport(reporter GoalOutcomeReporter) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[reportArgs, string](
-		toolcontract.FuncConfig{Name: toolname.ReportGoalOutcome, Description: reportDescription},
+		toolcontract.FuncConfig{Name: tool.ReportGoalOutcome, Description: reportDescription},
 		(&outcomeReporter{goals: reporter}).report,
 	)
 }

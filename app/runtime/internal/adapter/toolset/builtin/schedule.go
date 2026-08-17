@@ -8,10 +8,10 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	scheduledomain "github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 type createScheduleArgs struct {
@@ -72,7 +72,7 @@ func BuildSchedules(coordinator ScheduleManagement) ([]toolcontract.Tool, error)
 	t := &scheduleManagementTools{coordinator: coordinator}
 	list, err := toolcontract.NewFunc[struct{}, scheduleListResponse](
 		toolcontract.FuncConfig{
-			Name:        toolname.ListSchedules,
+			Name:        tool.ListSchedules,
 			Description: "List recurring Agent Run schedules and their ids, instructions, cron expressions, model choices, and next-run state. Use this before deleting or replacing a schedule when its exact id is unknown.",
 		},
 		t.list,
@@ -82,7 +82,7 @@ func BuildSchedules(coordinator ScheduleManagement) ([]toolcontract.Tool, error)
 	}
 	create, err := toolcontract.NewFunc[createScheduleArgs, scheduleResponse](
 		toolcontract.FuncConfig{
-			Name: toolname.CreateSchedule,
+			Name: tool.CreateSchedule,
 			Description: "Create an enabled recurring schedule that starts a new Agent Run from self-contained instructions at each five-field cron occurrence. " +
 				"Use only when the user explicitly asks for recurring automated work; do not use for the current request, a one-off future action, or an autonomous Goal.",
 		},
@@ -93,7 +93,7 @@ func BuildSchedules(coordinator ScheduleManagement) ([]toolcontract.Tool, error)
 	}
 	deleteSchedule, err := toolcontract.NewFunc[deleteScheduleArgs, scheduleDeleteResponse](
 		toolcontract.FuncConfig{
-			Name:        toolname.DeleteSchedule,
+			Name:        tool.DeleteSchedule,
 			Description: "Permanently delete one recurring Agent Run schedule by its exact schedule_id. Use list_schedules first when the id is uncertain. To change a schedule, delete it and create the replacement explicitly.",
 		},
 		t.delete,

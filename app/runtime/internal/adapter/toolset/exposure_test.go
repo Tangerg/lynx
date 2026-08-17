@@ -7,7 +7,6 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -22,7 +21,7 @@ func TestResolverRegistersExactlyOneMutationVocabulary(t *testing.T) {
 		t.Fatalf("Manifest: %v", err)
 	}
 	names := definitionNames(manifestTools(manifest))
-	if !names[toolname.ApplyPatch] || names["edit"] || names["write"] {
+	if !names[domaintool.ApplyPatch] || names["edit"] || names["write"] {
 		t.Fatalf("mutation vocabulary = %v, want apply_patch only", names)
 	}
 }
@@ -43,22 +42,22 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	t.Cleanup(func() { _ = analyzer.Close() })
 	resolver, err := newResolver(resolverDeps{
 		DefaultCWD: t.TempDir(),
-		Online:     []toolcontract.Tool{named(toolname.WebFetch)},
+		Online:     []toolcontract.Tool{named(domaintool.WebFetch)},
 		A2A:        []toolcontract.Tool{named("remote_agent")},
-		LSP:        []toolcontract.Tool{named(toolname.LSP)},
-		Shell:      []toolcontract.Tool{named(toolname.Shell)},
-		AskUser:    named(toolname.AskUser),
-		EnterPlan:  named(toolname.EnterPlanMode),
-		ExitPlan:   named(toolname.ExitPlanMode),
-		Plan:       named(toolname.SetPlan),
+		LSP:        []toolcontract.Tool{named(domaintool.LSP)},
+		Shell:      []toolcontract.Tool{named(domaintool.Shell)},
+		AskUser:    named(domaintool.AskUser),
+		EnterPlan:  named(domaintool.EnterPlanMode),
+		ExitPlan:   named(domaintool.ExitPlanMode),
+		Plan:       named(domaintool.SetPlan),
 		ScheduleTools: []toolcontract.Tool{
-			named(toolname.ListSchedules), named(toolname.CreateSchedule), named(toolname.DeleteSchedule),
+			named(domaintool.ListSchedules), named(domaintool.CreateSchedule), named(domaintool.DeleteSchedule),
 		},
-		ToolResult:         named(toolname.ReadToolResult),
-		AgentMemorySearch:  named(toolname.SearchMemory),
-		ConversationSearch: named(toolname.SearchConversations),
-		GoalGet:            named(toolname.GetGoal),
-		ProposeSkill:       named(toolname.ProposeSkill),
+		ToolResult:         named(domaintool.ReadToolResult),
+		AgentMemorySearch:  named(domaintool.SearchMemory),
+		ConversationSearch: named(domaintool.SearchConversations),
+		GoalGet:            named(domaintool.GetGoal),
+		ProposeSkill:       named(domaintool.ProposeSkill),
 		CodeIntel:          analyzer,
 		ReadTracker:        newReadTracker(),
 	})
@@ -75,9 +74,9 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	registered := definitionNames(manifestTools(manifest))
 	advertised := definitionNames(manifest.Visible)
 	for _, name := range []string{
-		toolname.Read, toolname.Glob, toolname.Grep, toolname.ApplyPatch, toolname.Shell, toolname.AskUser,
-		toolname.EnterPlanMode, toolname.ExitPlanMode, toolname.SetPlan, toolname.ReadToolResult,
-		toolname.GetGoal, toolname.SearchTools,
+		domaintool.Read, domaintool.Glob, domaintool.Grep, domaintool.ApplyPatch, domaintool.Shell, domaintool.AskUser,
+		domaintool.EnterPlanMode, domaintool.ExitPlanMode, domaintool.SetPlan, domaintool.ReadToolResult,
+		domaintool.GetGoal, domaintool.SearchTools,
 	} {
 		if !advertised[name] {
 			t.Errorf("direct tool %q missing from initial manifest: %v", name, advertised)

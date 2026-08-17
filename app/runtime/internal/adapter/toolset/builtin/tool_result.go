@@ -17,7 +17,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
@@ -64,7 +64,7 @@ func NewToolResultReader(store ToolResultStore) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[toolResultReadArgs, string](
-		toolcontract.FuncConfig{Name: toolname.ReadToolResult, Description: toolResultDescription},
+		toolcontract.FuncConfig{Name: tool.ReadToolResult, Description: toolResultDescription},
 		(&toolResultReader{store: store}).read,
 	)
 }

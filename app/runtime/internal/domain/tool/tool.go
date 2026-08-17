@@ -8,6 +8,42 @@ const (
 	GroupDelegated = "delegated"
 )
 
+// Runtime-owned model-facing tool identities. Names are domain vocabulary:
+// constructors, policy, presentation, execution, and recovery all refer to
+// this single authority instead of keeping caller-local copies.
+const (
+	ApplyPatch          = "apply_patch"
+	AskUser             = "ask_user"
+	CreateGoal          = "create_goal"
+	CreateSchedule      = "create_schedule"
+	DeleteSchedule      = "delete_schedule"
+	DelegateTask        = "delegate_task"
+	EnterPlanMode       = "enter_plan_mode"
+	ExitPlanMode        = "exit_plan_mode"
+	GetGoal             = "get_goal"
+	Glob                = "glob"
+	Grep                = "grep"
+	HTTPRequest         = "http_request"
+	ListSchedules       = "list_schedules"
+	ListSkills          = "list_skills"
+	LoadSkill           = "load_skill"
+	LSP                 = "lsp"
+	ProposeSkill        = "propose_skill"
+	Read                = "read"
+	ReadShellOutput     = "read_shell_output"
+	ReadSkillResource   = "read_skill_resource"
+	ReadToolResult      = "read_tool_result"
+	ReportGoalOutcome   = "report_goal_outcome"
+	SearchConversations = "search_conversations"
+	SearchMemory        = "search_memory"
+	SearchTools         = "search_tools"
+	SetPlan             = "set_plan"
+	Shell               = "shell"
+	StopShell           = "stop_shell"
+	WebFetch            = "web_fetch"
+	WebSearch           = "web_search"
+)
+
 // Tool is the metadata of one registered tool. Schema is the JSON Schema
 // the model is shown; SafetyClass drives the default approval flow
 // (see approvals.RuntimePolicy).

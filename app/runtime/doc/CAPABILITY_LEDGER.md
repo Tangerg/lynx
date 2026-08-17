@@ -299,21 +299,21 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | task group | `application/taskgroup` | Application coordinator 启动 request-detached work；Bootstrap 只构造、注入和关闭该 Application lifecycle owner，Delivery 不消费 |
 | path identity | `infra/pathidentity` | filesystem/symlink identity 是技术机制，Adapter 单向消费 Infra |
 | secret masking | `application/secrets` | model/MCP 两个 Application consumer 共享 presentation-boundary policy |
-| notification relay | `adapter/notification` | Bootstrap 只组装，producer/Delivery 各见其最小 method set；避免与 Agent Framework Signal 同名 |
+| process-local notification connection | Bootstrap `notification_source.go` closure | 只连接 composition-time producer 与 Delivery observer；两侧各得到 publish/observe function，不建立 Adapter package、implementor-owned interface 或产品事件总线 |
 
 `internal/component` 已物理删除；永久架构守卫把根级跨环 capability 与 Application-owned shared mechanism 分开约束。前者不得依赖任何产品 ring，后者不得吸收 Domain 语言或 Adapter/Infra/Delivery/Bootstrap 实现职责。
 
 ### 9.2 Adapter/Infra
 
 - 原混合 `adapter/maintenance` 已按真实 owner 物理拆分：`runmaintenance` 只拥有 clean-Run 边界的 history compaction、memory consolidation、Skill proposal mining 与 idle-Skill archival；`sessiontitle` 只生成 Session title；`utilitymodel` 只提供辅助能力共享的 middleware-free 单次模型调用。旧目录、`llm.go`、`extraction.go`、`skillmine.go`、`skillcurate.go` 与 `title.go` 均由架构守卫禁止回流；
-- `codebaseindex`、`codeintel`、`executionctx`、`hooks`、`isolation`、`mcpconnection`、`modelcatalog`、`modelclient`、`persistence`、`providerregistry`、`runrecovery`、`runsegment`、`skillproposal`、`toolname`、`toolset`、`workspace` 与 `workspacepath` 已逐个按调用图审计：均拥有应用值映射、外部错误翻译、跨机制组合、安全策略、稳定模型词汇或 transaction write-set，不是同名 Infra 方法的包装；
+- `codebaseindex`、`codeintel`、`executionctx`、`hooks`、`isolation`、`mcpconnection`、`modelcatalog`、`modelclient`、`persistence`、`providerregistry`、`runrecovery`、`runsegment`、`skillproposal`、`toolset`、`workspace` 与 `workspacepath` 按当前调用图继续拥有应用值映射、外部错误翻译、跨机制组合、安全策略或 transaction write-set；P113 已删除没有独立防腐/变化轴的 `adapter/toolname` 与 `adapter/notification`；
 - 原单消费者 `adapter/pricing` 只读取与 `modelcatalog` 相同的静态模型目录且无独立变化轴，已收回 `modelcatalog.Pricing`；其余小 Adapter 均有明确 Application port、外部 SDK 防腐、安全策略或多个消费者证据，不按文件数机械合并；
 - SQLite、knowledge-file、Git、exec、sandbox、LSP、MCP/A2A client、checkpoint、telemetry、path identity 与 advisory lock 只提供 technical mechanism，保留 Infra；Runtime ownership Adapter 将短期 data-directory setup、Session writer、working-tree shared/exclusive 与 Goal drive identity 映射到中性 advisory-lock 原语，Knowledge document CAS 继续独立翻译自身生命周期/错误；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零；
 - 原 `infra/storage` 无行为 umbrella 已删除：SQLite 直接归 `infra/sqlite`，LYRA.md 文件布局与原子替换归 `infra/knowledgefile`；原误置于 Adapter 的进程级 OTel global 配置归 `infra/telemetry`。三个 package 分别只因数据库、知识文件和进程遥测而变化，不再共享泛化 storage/observability 目录；
 - MCP live registry 中的已配置服务器状态统一称为 `configuredServer`，从 live projection 移除且等待关闭的连接统一称为 `detachedSession`，按名称过滤的 API 参数称为 `serverName`；进程内连接生命周期不再依赖 `ms`/`old` 等上下文猜测；
 - `workspacepath` 原有第二份 symlink/containment 判定已删除，统一消费 `infra/pathidentity` 的 physical identity；Adapter 只保留 Application path-policy 错误与相对路径投影；
 - `agentexec` 已按 root execution、effect attribution、waiting/restore、Delegate admission/projection、tree mutation 分离变化原因；Delegate 的 model input/description 是 Interaction executor 独占的策略合同，已从单消费者 `toolset/delegation` 回归该 ACL；没有第二 controller、scheduler、mailbox、private wire owner 或为了文件拆分制造的子 package；
-- 原先每个 Runtime built-in tool 一个目录的 `toolset/{agentmemorysearch,askuser,conversationsearch,goal,lsp,offload,plan,schedule,shell,skill}` 已按共同变化轴收敛为 `toolset/builtin`，文件继续按能力家族组织；deferred discovery 回归 Resolver owner，稳定 model-facing identity 从误称 catalog 的 cycle-workaround package 收敛为多消费者 `adapter/toolname`。Run Application 的 process-local lifecycle owner 仍统一为 `runTreeOwner`；Toolset 的 manifest assembly、Call decorator、schedule/shell command group 与 deferred search ranking 分别由 `manifestBuilder`、`callDecorator`、`scheduleManagementTools`、`commandTools`、`discoverableTool`/`rankedTool` 表意；这些全是 Runtime 私有 owner，不进入 Agent Framework；
+- 原先每个 Runtime built-in tool 一个目录的 `toolset/{agentmemorysearch,askuser,conversationsearch,goal,lsp,offload,plan,schedule,shell,skill}` 已按共同变化轴收敛为 `toolset/builtin`，文件继续按能力家族组织；deferred discovery 回归 Resolver owner，稳定 model-facing identity 在 P113 进一步从常量-only Adapter package 收回已有 `domain/tool` vocabulary。Run Application 的 process-local lifecycle owner 仍统一为 `runTreeOwner`；Toolset 的 manifest assembly、Call decorator、schedule/shell command group 与 deferred search ranking分别由准确私有行为表达，不进入 Agent Framework；
 - Chat provider catalog 以 `ProviderOpenAICompatible`/`ProviderAnthropicCompatible` 准确表达 caller-defined compatible endpoint，以 `buildOpenAIModel`/`buildAnthropicModel` 表达模型 adapter 构造；Ollama 的 chat/embedding 同样只在 Infra composition 内消费 provider-scoped OpenAI-compatible protocol 与 `/v1` endpoint，不再为客户端能力引入完整 Ollama 服务端 module；`Compat` 不再伪装成兼容层，`Native` 不再混称厂商 wire、宿主平台或 Framework 执行能力；
 - Hook wire root、codebase in-memory corpus、MCP current dial/mutation scope/tool-list snapshot、usage fold bucket 与 teardown attempt backing state 分别使用 `hooksFile`、`cachedCorpus`、`activeDial`、`mutationScope`、`toolListTarget`、`usageAccumulator`、`attemptState`，不再依赖 `config`/`loaded`/`dial`/`mutation`/`target`/`accumulator`/`attempt` 的上下文猜测；具体错误结构统一使用 `Error` 后缀，注释与测试同步，不保留旧别名；
 - `persistence.SessionStores` 仍是 Session aggregate 原子 write-set 的单一 Adapter，但 rollback boundary/drop projection、workspace restore intent/cleanup、restore projection rebuild、parked terminal cleanup/terminalize/Goal record 已各归准确私有行为；portable snapshot 的 Run/parent index、cycle detection 与 resolved-root lineage 由单一 `snapshotRunTree` 拥有，不存在只转发 `Transactor` 的伪抽象；
@@ -371,6 +371,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ## 12. 当前结论
 
+- P113 已完成第一批所有权纠偏：Runtime 内建 Tool identity 直接归 `domain/tool`，原 `adapter/toolname` 物理删除；Bootstrap-only notification connection 与既有 observation seam 合并，原 `adapter/notification` 及其 one-method interface 壳物理删除；runmaintenance 只供测试调用的 receiver wrapper 同步移除。该批没有改变 Tool 字符串、Runtime Protocol、SQLite、Artifact 或 Agent Framework 合同。
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
 - P8 已将 Agent Framework vertical 原子切为唯一生产 owner；root、managed Delegate child、waiting subtree、termination、unknown 与 recovery 均由真实 Bootstrap consumer 验证；

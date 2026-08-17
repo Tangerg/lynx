@@ -13,7 +13,7 @@ func TestSkillInvalidationPublishesWorkspaceRefresh(t *testing.T) {
 	s := newWorkspaceServer(t.TempDir())
 	s.workspaceHub = newWorkspaceHub()
 	notifier := new(testNotification[invalidation.Notice])
-	s.observeInvalidations(notifier)
+	s.observeInvalidations(notifier.Observe)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

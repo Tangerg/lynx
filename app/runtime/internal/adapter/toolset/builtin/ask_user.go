@@ -10,9 +10,9 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // askUserArgs is the model-facing argument shape; [toolcontract.NewFunc] derives
@@ -77,7 +77,7 @@ func NewAskUser(interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	t := &asker{interrupt: interrupt}
 	return toolcontract.NewFunc[askUserArgs, string](
 		toolcontract.FuncConfig{
-			Name:        toolname.AskUser,
+			Name:        tool.AskUser,
 			Description: "Ask the user one to four questions and wait for their answers. Use this only when progress requires a decision, clarification, or information only the user can provide, not for routine progress updates. Give two to four `options` for a multiple-choice question and put the recommended option first; the user may still provide a custom answer. Omit `options` for free text, and set `multi_select` only when options are present and more than one may apply.",
 		},
 		t.ask,
@@ -93,7 +93,7 @@ func (t *asker) ask(ctx context.Context, a askUserArgs) (string, error) {
 		return "", err
 	}
 	in := runs.QuestionPrompt{
-		ToolName:  toolname.AskUser,
+		ToolName:  tool.AskUser,
 		Arguments: arguments,
 		Fields:    a.toFields(),
 	}
@@ -104,7 +104,7 @@ func (t *asker) ask(ctx context.Context, a askUserArgs) (string, error) {
 	// First pass interrupts (bubbles up, parks); resume returns the human's
 	// structured answers at this same call site.
 	res, err := t.interrupt(ctx,
-		interrupt.Key(interrupt.Question.String(), toolname.AskUser, arguments),
+		interrupt.Key(interrupt.Question.String(), tool.AskUser, arguments),
 		pending,
 	)
 	if err != nil {

@@ -11,8 +11,8 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 const agentMemorySearchDefaultLimit = 8
@@ -54,7 +54,7 @@ func NewAgentMemorySearch(search AgentMemorySearch) (toolcontract.Tool, error) {
 
 func agentMemorySearchDefinition() toolcontract.FuncConfig {
 	return toolcontract.FuncConfig{
-		Name: toolname.SearchMemory,
+		Name: tool.SearchMemory,
 		Description: "Search curated long-term memory for the current project, including durable decisions, " +
 			"conventions, and user preferences from earlier work. Use it when needed context is not already in " +
 			"the prompt. This is distilled memory, not raw conversation history; use search_conversations to " +

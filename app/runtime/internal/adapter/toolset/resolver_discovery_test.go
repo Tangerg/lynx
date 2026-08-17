@@ -5,7 +5,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -65,7 +64,7 @@ func TestResolverOffersSearchToolsOverDeferredCatalog(t *testing.T) {
 func TestResolverDefersRuntimeToolsWithoutMCP(t *testing.T) {
 	manifest := resolveRootManifest(t, nil)
 	advertised := definitionNames(manifest.Visible)
-	for _, direct := range []string{toolname.Read, toolname.Glob, toolname.Grep, toolname.ApplyPatch, toolname.Shell, toolname.SearchTools} {
+	for _, direct := range []string{domaintool.Read, domaintool.Glob, domaintool.Grep, domaintool.ApplyPatch, domaintool.Shell, domaintool.SearchTools} {
 		if !advertised[direct] {
 			t.Errorf("initial manifest = %v, missing direct tool %q", advertised, direct)
 		}

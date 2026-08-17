@@ -11,7 +11,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 )
 
@@ -109,7 +109,7 @@ func BuildShell(shells *exec.Shells, defaultCWD string) ([]toolcontract.Tool, er
 
 	shellTool, err := toolcontract.NewFunc[shellArgs, string](
 		toolcontract.FuncConfig{
-			Name: toolname.Shell,
+			Name: tool.Shell,
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
 				"Set description to a concise action label that explains the command's purpose while it runs. " +
 				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, and `read` tools instead; use `apply_patch` for file changes. Reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
@@ -123,7 +123,7 @@ func BuildShell(shells *exec.Shells, defaultCWD string) ([]toolcontract.Tool, er
 	}
 	outputTool, err := toolcontract.NewFunc[shellOutputArgs, string](
 		toolcontract.FuncConfig{
-			Name:        toolname.ReadShellOutput,
+			Name:        tool.ReadShellOutput,
 			Description: "Read only the new output produced by a background shell since the previous read and report whether it is still running. Set wait=true to wait event-first for exit instead of sleep polling; bound that wait with timeout_millis for servers or watchers.",
 		},
 		t.output,
@@ -133,7 +133,7 @@ func BuildShell(shells *exec.Shells, defaultCWD string) ([]toolcontract.Tool, er
 	}
 	killTool, err := toolcontract.NewFunc[shellIDArgs, string](
 		toolcontract.FuncConfig{
-			Name:        toolname.StopShell,
+			Name:        tool.StopShell,
 			Description: "Stop one background shell by the shell_id returned from shell.",
 		},
 		t.kill,

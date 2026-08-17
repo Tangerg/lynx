@@ -9,7 +9,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -52,7 +52,7 @@ func NewConversationSearch(search ConversationSearch) (toolcontract.Tool, error)
 
 func conversationSearchDefinition() toolcontract.FuncConfig {
 	return toolcontract.FuncConfig{
-		Name: toolname.SearchConversations,
+		Name: tool.SearchConversations,
 		Description: "Search raw transcripts from earlier conversations by keyword and return matching excerpts " +
 			"with speaker and date. Use it to determine whether a topic, decision, error, or approach was discussed " +
 			"before. Use search_memory for curated durable facts and grep for source code.",

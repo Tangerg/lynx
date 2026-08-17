@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -153,7 +152,7 @@ func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 	arguments := `{"questions":[{"question":"Which value?"}]}`
 	model := &observationScriptModel{responses: []*chat.Response{
 		interactionToolResponse(chat.ToolCall{
-			ID: "ask_user_call", Name: toolname.AskUser, Arguments: arguments,
+			ID: "ask_user_call", Name: domaintool.AskUser, Arguments: arguments,
 		}, 1, 1),
 		interactionUsageTextResponse("continued after the answer", 1, 1),
 	}}
@@ -173,7 +172,7 @@ func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 	})
 	starts := payloadsOf[runs.ToolCallStarted](beforeAnswer)
 	if len(barrier.Interruptions) != 1 || barrier.Interruptions[0].Interrupt.Question == nil ||
-		barrier.Interruptions[0].Interrupt.Question.ToolName != toolname.AskUser ||
+		barrier.Interruptions[0].Interrupt.Question.ToolName != domaintool.AskUser ||
 		len(starts) != 1 || barrier.Interruptions[0].Interrupt.Question.CallID != starts[0].CallID {
 		t.Fatalf("ask_user interruption = %#v", barrier.Interruptions)
 	}
@@ -371,7 +370,7 @@ func TestInteractionExecutorCancellationStopsApprovedForegroundShell(t *testing.
 	}
 	model := &observationScriptModel{responses: []*chat.Response{
 		interactionToolResponse(chat.ToolCall{
-			ID: "shell_call", Name: toolname.Shell,
+			ID: "shell_call", Name: domaintool.Shell,
 			Arguments: `{"command":"sleep 30","description":"Wait until canceled"}`,
 		}, 1, 1),
 	}}

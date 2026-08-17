@@ -11,7 +11,6 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
@@ -227,7 +226,7 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 	}
 	// Agent Framework advertises delegate_task from the Interaction Definition rather than
 	// the ordinary Tool manifest.
-	existing[toolname.DelegateTask] = true
+	existing[tool.DelegateTask] = true
 
 	declared := make(map[string]bool)
 	var unreachable []string

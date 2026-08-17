@@ -10,7 +10,7 @@ import (
 func TestScheduleInvalidationProjectsToARuntimeSignal(t *testing.T) {
 	notifier := &testNotification[invalidation.Notice]{}
 	s := &Server{workspaceHub: newWorkspaceHub()}
-	s.observeInvalidations(notifier)
+	s.observeInvalidations(notifier.Observe)
 	events, unsubscribe := s.workspaceHub.subscribe()
 	defer unsubscribe()
 

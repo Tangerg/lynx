@@ -115,7 +115,7 @@ func (c *Compactor) tokenTrigger(contextWindow int) int {
 // CompactIfNeeded inspects sessionID's history. When either trigger
 // (message count or estimated token footprint, see [shouldCompact]) is
 // breached it runs a ladder, cheapest rung first: a non-LLM trim of oversized
-// tool-call arguments and old tool-result bodies (see [Compactor.trimForBudget]);
+// tool-call arguments and old tool-result bodies (see trimForBudgetBefore);
 // only if that leaves the footprint over budget is the older slice summarized by
 // the LLM and the store rewritten as [summary, recent...]. A trim that suffices
 // on its own rewrites history silently and reports no boundary (Compacted stays

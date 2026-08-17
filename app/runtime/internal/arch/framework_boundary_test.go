@@ -601,8 +601,8 @@ func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 
 // TestToolsetDoesNotDependOnAgentexec prevents peer adapters from recreating a
 // consumer port under the execution adapter and then importing it backwards.
-// Generic tool vocabulary belongs to domain/tool, concrete identities stay in
-// adapter/toolname, and the HITL capability belongs to the runs consumer contract.
+// Generic tool vocabulary and concrete identities belong to domain/tool, and
+// the HITL capability belongs to the runs consumer contract.
 func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 	root := moduleRoot(t)
 	legacy := filepath.Join(root, "internal", "adapter", "agentexec", "toolport")
@@ -633,7 +633,7 @@ func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 }
 
 // TestAgentexecDoesNotDuplicateConcreteToolNames keeps shared model-facing
-// identities in adapter/toolname. Interaction may own its delegate contract
+// identities in domain/tool. Interaction may own its delegate contract
 // because delegation is an execution-strategy capability; it still consumes the
 // canonical name and cannot duplicate unrelated built-in identities.
 func TestAgentexecDoesNotDuplicateConcreteToolNames(t *testing.T) {
@@ -664,11 +664,15 @@ func TestAgentexecDoesNotDuplicateConcreteToolNames(t *testing.T) {
 }
 
 // TestRuntimeOwnedToolNamesComeFromVocabulary prevents constructors from opening a
-// second identity source beside adapter/toolname. Dynamically discovered MCP and
+// second identity source beside domain/tool. Dynamically discovered MCP and
 // A2A names remain values; only authored string literals in Name fields are
 // forbidden here.
 func TestRuntimeOwnedToolNamesComeFromVocabulary(t *testing.T) {
 	root := moduleRoot(t)
+	legacy := filepath.Join(root, "internal", "adapter", "toolname")
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatalf("legacy concrete tool-name owner exists: %s (stat error %v)", legacy, err)
+	}
 	dir := filepath.Join(root, "internal", "adapter", "toolset")
 	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -695,7 +699,7 @@ func TestRuntimeOwnedToolNamesComeFromVocabulary(t *testing.T) {
 				return true
 			}
 			relative, _ := filepath.Rel(root, path)
-			t.Errorf("%s authors Name %s; use adapter/toolname for a built-in identity", relative, literal.Value)
+			t.Errorf("%s authors Name %s; use domain/tool for a built-in identity", relative, literal.Value)
 			return true
 		})
 		return nil

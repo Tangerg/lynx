@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P112 已完成；第二轮反证式全链路缺陷清零在本里程碑封板
+> 状态：P1–P112 已完成；P113 Runtime 内部所有权与构造边界治本清理执行中
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,14 +10,13 @@
 
 当前实施 goal 已授权：
 
-- 以 `app/runtime` 作为后端唯一业务入口，同时启动 Desktop 前端做真实端到端联调；允许修改全仓直接爆炸半径并执行 breaking correction；
-- 在已完成并冻结的 P19 公共 `protocol + embedded.Runtime` 基线上，以真实 CLI consumer、终端行为、SQLite 与日志证据复核完整链路；
-- 修改 Agent Framework、`app/runtime` 与 Desktop 直接爆炸半径，治本修复 Effect identity、waiting/resume/recovery、授权/HITL、取消和权威投影之间可复现的不一致；当前 goal 只读审计 `app/cli`，不修改也不暂存该模块；
+- 对 `app/runtime` 做内部治本式清理：纠正 package 所有权、删除无价值微包/胖接口/config 镜像、让构造阶段拒绝无效依赖，并按锁与不变量拆解核心共享状态；
+- 允许内部 breaking change，旧 package、constructor、interface 和物理架构守卫直接删除，不建立 alias、shim、forwarder 或 dual path；
+- 公共 `protocol + embedded.Runtime`、SQLite shape、Session Artifact 与 Agent Framework 合同默认保持不变；只有实现中证明当前公共合同本身错误时，才按既有 baseline 流程一次前移；
 - 每完成一个可独立验收批次，同步本计划和 Capability Ledger 并执行对应质量门禁；
-- 允许 breaking change，不建立兼容路径；本轮新增的 Tool cancellation 产品语义以一次协议、Artifact 与 SQLite epoch 前移完整发布，不保留双份 vocabulary。
-- 当前真实产品模型严格为一个 client 对一个 server；测试优先冻结单客户端内部的真实异步交错，不以多客户端竞争或无业务意义的高并发 race 代替产品证据。
+- 仅修改 `app/runtime` 及不可避免的直接编译爆炸半径；不借架构清理重写产品行为或触碰无关 Desktop/CLI/TUI 工作。
 
-本 goal 同时审计真实 Desktop/CLI/TUI consumer。Agent Framework 仍只拥有中性进程与 Effect 语义；Runtime 的 Run、授权、HITL、Store、transaction、投影和 provider policy 均未泄露进入 Agent。
+本 goal 以当前 import/call/lock graph 而不是历史 P14/P17 文件布局作为事实。Agent Framework 仍只拥有中性进程与 Effect 语义；Runtime 的 Run、授权、HITL、Store、transaction、投影和 provider policy 均不得泄露进入 Agent。
 
 ## 2. 全程约束
 
@@ -121,6 +120,7 @@
 | P110 | Desktop dougong 0.3.0 旧兼容缝清零 | P109 + lazy Artifact placeholder declaration 复核 | 已完成 |
 | P111 | Desktop 左右结构面板 spring 与渲染隔离收敛 | P110 + Codex App Shell / 长对话 trace / WebKit 证据 | 已完成 |
 | P112 | Runtime 重启后挂载 Session material 单代际收敛 | P111 + SQLite 同事务 Goal / Desktop winning view commit / SIGKILL 证据 | 已完成 |
+| P113 | Runtime 内部所有权、合法构造与状态边界治本清理 | P112 + 当前 import/call/lock graph + ADR-RT-063 | 执行中 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -2055,10 +2055,36 @@
 - 真实 HTTP Runtime SIGKILL 恢复回归 1/1 通过，同一 `sessions.snapshot` 同时恢复 durable HITL、Plan、Goal、Run 与 Tool；
 - Runtime 全量 Go、focused race、contract generation/architecture/static gates、Desktop Go gate与 Frontend 全门禁通过；Frontend 与完整异步泄露检测均为 294 files / 1756 tests且零泄露，87/87 operations、3/3 sidecars、16/16 events保持完整。
 
-## 92. 进度记录
+## 92. P113 — Runtime 内部所有权、合法构造与状态边界治本清理
+
+### 目标
+
+以当前生产消费者、变化原因、构造不变量和并发 ownership 为证据，删除 Runtime 内部已经失去边界价值的 package/interface/config façade；使核心对象只能以有效状态构造，operation catalog 只依赖每个方法真实消费的能力，runs/interaction session 的共享状态按锁与生命周期建立明确 owner。清理必须减少第二真相源和维护面，不能通过拆出更多微包、加 wrapper 或硬编码历史文件位置来改善表面指标。
+
+### 工作项
+
+- [x] P113-01 完成六份 Runtime owner 文档、Domain 专项设计、当前 import/call graph、package/接口/构造器/Context/复杂度与架构守卫审计；新增 ADR-RT-063 冻结 superseding 规则；
+- [x] P113-02 将内建 Tool identity 从零行为 `adapter/toolname` 收回 `domain/tool`，将两处 Bootstrap-only notification relay 收回现有 composition source，删除两个旧 package、接口壳和 runmaintenance 测试专用死方法；
+- [ ] P113-03 让 runs、sessions、runsegment constructor 校验 required dependencies 并返回错误；删除 Dependencies/Config 到对象字段的一比一镜像和无法构造即失败的延迟 nil path；
+- [ ] P113-04 删除 `delivery/operation.Service` 的 87 方法实现者胖接口，使 method catalog 绑定 method-specific typed closure/窄能力，同时保持 HTTP 与 embedded 共用唯一 operation pipeline；
+- [ ] P113-05 按锁、生命周期与不变量重塑 `runs.Coordinator` 和 `agentexec.interactionSession` 的 package-private state owner；不建立新微包、service locator 或存储 façade；
+- [ ] P113-06 收敛内部 nil Context fallback 与 lifecycle root，移除历史词汇/精确文件位置型架构守卫，保留并强化 DAG、唯一 owner、公共合同和持久化语义门禁；建立只覆盖可执行编排的复杂度预算；
+- [ ] P113-07 更新 Architecture/Standards/Execution Plan/Capability Ledger/Contract facts，执行 Runtime 全量 build、vet、staticcheck、lint、deadcode、test、race、generator、architecture 与文档事实门禁；每个纵切独立提交并推送。
+
+### 验收
+
+- `adapter/toolname`、`adapter/notification`、胖 operation Service、无效构造路径和历史物理布局门禁均物理删除，不存在 alias/forwarder/compat path；
+- 每个 required dependency 在 constructor boundary 被证明，运行期不依赖偶然 nil panic 或静默降级；
+- runs 与 interaction session 的每个共享 map/cancel/owner 集合都有单一同步 owner，race 与 lifecycle stress tests 证明 join/retire/replace 顺序；
+- package 数量、接口面和核心对象字段/方法维护面实质下降；复杂度预算不以移动代码或拆微包规避；
+- 公共 Protocol、SQLite、Artifact 和 Agent Framework shape 若未被本轮改变，生成物与 baseline digest 必须零漂移；若改变则同批一次前移且无双读；
+- Runtime 全量门禁绿色，工作区无无关改动和空目录。
+
+## 93. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-17 | P113-02（vocabulary / composition micro-package removal） | 当前 owner 复核推翻 P17 的两个物理落点：内建 Tool identity 是 `domain/tool` 已拥有的 model-facing vocabulary，不是 Adapter 防腐；通用 Relay 只在 Bootstrap 构造两次，没有外部翻译或独立变化轴。30 个稳定 Tool 字符串原子收回 `domain/tool`，构造、policy、presentation、Agent ACL 与 Bootstrap 共同消费；`adapter/toolname` 物理删除。notification publish/observe 收回既有 Bootstrap source，以 closure 分别交出两个函数，Delivery 改用 consumer-owned function boundary；`adapter/notification` 和 implementor-owned one-method interface 物理删除。runmaintenance 同时删除仅测试调用的 receiver wrapper，测试直接覆盖真实 production behavior。ADR-RT-063、Tool System 与 Capability Ledger 同步，不留 alias/forwarder/旧 import | Runtime standalone `go test ./... -count=1`、`go vet ./...`、`go mod tidy -diff`、`golangci-lint run ./...` 全绿且 lint 0 issue；Bootstrap/Toolset/Builtin/Agentexec/Delivery/Domain Tool/runmaintenance focused race全绿；architecture guard确认旧 Tool identity owner 物理缺失且内建 Name 不出现第二字面量 owner，`git diff --check`通过。Protocol、contract生成物、SQLite、Artifact与Agent Framework shape未变化 |
 | 2026-08-17 | P112（mounted material single generation） | `sessions.snapshot` 原先虽在一个 SQLite transaction 内读取 Session、Items、Runs、Interrupts与Plan，却遗漏同 Session Goal；Desktop 另发 `goals.get`，使Runtime重启/resync可能把两个durable generation拼进同一挂载页面。现在Application `MaterialSnapshot`拥有并校验Goal，Persistence在同一reader transaction读取全部material，Protocol/operation/generated contract同步声明Goal。Desktop gateway把响应建模为material unit-of-work，仅在Agent projection赢得view token后提交伴生Goal；旧代、abort、live-write胜出、rollback预读与插件dispose均不能提交。generic published port保持Agent→Goal为零且Runtime DTO止于adapter；full/scoped resync取消独立mounted Goal writer，未挂载Goal仍正常refetch | 独立reader/writer SQLite反例证明并发提交时旧snapshot保持Session/Plan/Goal `1/1/1`、下一读统一为`2/2/2`；foreign owner fail closed。Runtime `go test ./...`、focused race、tidy/vet/build、contract与arch门禁通过；Desktop Go test/vet/build通过；真实HTTP SIGKILL恢复1/1通过。Frontend `npm run check`与完整`--detectAsyncLeaks`均为294 files/1756 tests且零泄露，87/87 operations+3/3 sidecars+16/16 events及bundle gate通过。未使用agent-browser，`app/cli`未修改或暂存 |
 | 2026-08-17 | P111（Desktop structural panel spring） | 反证 trace显示旧左、右栏在独立长对话/Context Dock fixture均无long task或持续掉帧，卡顿感不是React重复render，而是300ms近匀速让reading plane在整个gesture内持续以可见速度重排。只读对照study/Codex确认其App Shell用唯一Motion progress驱动左右宽度，参数为500ms/0.1-bounce spring，并隔离固定宽度面板内部layout/paint。现在Lyra把同一spring按25ms采样为原生CSS `linear()`，以`drawerProgress`统一Visual Style、appearance fallback与pre-paint CSS；左右flank、spacer、corner yield和边界阴影继续同钟，React不新增逐帧owner。Drawer和Context Dock内部建立`contain: layout paint`，完整measure、挂载、resize、visibility和reduced-motion语义不变；未采用已排除的Claude参考 | 右侧512px Dock在100/200/300ms约完成43%/86%/98%，39帧max rAF 16.8ms且零>20ms；左侧稳定run max 16.8ms。trace中Layout/UpdateLayoutTree/Paint/PrePaint峰值由0.326/1.728/0.871/1.236ms降至0.300/1.468/0.573/0.668ms。Frontend `npm run check`与完整`--detectAsyncLeaks`均为293 files/1751 tests且零泄露；Chromium+WebKit visual 281/281，87/87 operations+3/3 sidecars+16/16 events及bundle gate通过。agent-browser全部session与独立visual Vite已关闭，无agent-browser/Chromium/Playwright/测试/Runtime残留；用户原有Wails/Vite未触碰，`app/cli`未修改或暂存 |
 | 2026-08-17 | P110（dougong 0.3.0 compatibility seam removal） | P109 后继续审核 0.3.0 declaration 的真实消费时发现，lazy sideload Artifact 仍携带一处针对 0.2.0 `placeholder` generic 差异的 `as never` 与陈旧注释；它虽然不阻断升级，却让“直接接受 0.3.0 trust boundary”在源码层不完整。现在 `placeholderFor` 的 `AnyPlugin` 直接进入 `Artifact.placeholder`，kernel 回归也不再把当前 Host read contract绑定到历史版本号。Discovery 按真实产品清单继续顺序注册，因此没有为虚构的同任务抢占增加锁；Host/Platform lifecycle与安装 identity均不变化 | 0.2.0兼容语义源码扫描归零；Frontend typecheck与sideload/kernel/discovery focused strict suite 3 files / 17 tests通过。Frontend `npm run check` 与完整 `--detectAsyncLeaks` 均为 293 files / 1751 tests且零泄露；dougong family仍唯一解析为0.3.0，未使用 agent-browser，`app/cli` 未修改或暂存 |
@@ -2242,6 +2268,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 93. 本轮里程碑
+## 94. 前一轮里程碑
 
 P93–P97 已将 terminal、普通 Event、fresh/resume/child opening、tree barrier、waiting-child cancellation 与 HITL answer claim 的 SQLite COMMIT 回执不明统一收敛到 exact Application command identity；P98–P99 把同一 identity discipline落实到 Desktop plugin composition root与安装事实；P100–P101 明确右侧 Context Dock 的 renderer/session 交接并把对话 Tool identity 接通到 Terminal；P102–P103 让 Run Summary 只按 authoritative root outcome宣告状态，并以 exact Run而不是最后一个 continuation Segment作为全程聚合边界；P104 让 mounted Dock view-local state服从 exact Session owner；P105 让 Run Summary 的 Tool material在 live 与 durable snapshot路径收敛，不再依赖冷恢复无法重建的瞬时 start observation；P106 让 ToolCall 自己持有唯一已接受的人类审批事实；P107 再把编辑后执行的恢复身份从 name/arguments 猜测收敛为 Application-private exact provider CallID，使单客户端并行同名 Tool 仍保持唯一 Item lifecycle；P108 把 parked Continuation→Run→Transcript Item 的领域闭包收敛为在线挂载与启动恢复共享的唯一校验，使 SQLite snapshot 的时间一致性与 Application 领域一致性共同成立；P109–P110 将 Desktop 插件 Host/Platform/Reactive 升级到同代 dougong 0.3.0，并清除最后一处面向 0.2.0 declaration 的 lazy Artifact 类型绕过，真实直接接受收紧后的 trust-boundary 合同；P111 进一步用 Codex 同源 spring progress 与 layout/paint containment统一左右结构面板的交互时钟，消除长对话中近匀速重排造成的拖滞感；P112 最终把挂载 Session 的 HITL、Plan、Goal、Run、Tool 收进同一个 Runtime material transaction与Desktop winning-view commit，使重启、重连、冷启动和乱序刷新不再拼接两个 durable generation。Runtime 与 Agent Framework 边界保持不变，不建立兼容双路径。本轮里程碑在 P112 封板，`app/cli` 始终只读且不暂存。

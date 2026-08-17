@@ -21,7 +21,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -109,7 +109,7 @@ func NewDiscovery(withheld []toolcontract.Tool) (*Discovery, error) {
 	}
 	inner, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
-			Name:        toolname.SearchTools,
+			Name:        tool.SearchTools,
 			Description: t.buildDescription(),
 		},
 		t.search,

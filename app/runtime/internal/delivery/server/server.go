@@ -26,7 +26,7 @@ type Config struct {
 	Usage     usageUseCases
 	Feedback  feedbackUseCases
 
-	FileChanges notificationSource[workspaceapp.FileChangeNotice]
+	FileChanges func(func(workspaceapp.FileChangeNotice))
 
 	// ServerInfo identifies this runtime on the wire. Name and Version receive
 	// development defaults when absent.
@@ -36,7 +36,7 @@ type Config struct {
 
 	Schedules      scheduleManagementUseCases
 	ScheduleFiring scheduleFiringUseCases
-	Invalidations  notificationSource[invalidation.Notice]
+	Invalidations  func(func(invalidation.Notice))
 
 	// Goals exposes the autonomous Goal use cases. nil
 	// makes goals.* report capability_not_negotiated.
@@ -115,10 +115,6 @@ type featureAvailability struct {
 	agentMemory bool
 	schedules   bool
 	codebase    bool
-}
-
-type notificationSource[T any] interface {
-	Observe(sink func(T))
 }
 
 // Close rejects new runtime subscriptions. Existing streams retain their

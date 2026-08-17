@@ -6,8 +6,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-func (s *Server) observeFileChanges(source notificationSource[workspaceapp.FileChangeNotice]) {
-	source.Observe(func(change workspaceapp.FileChangeNotice) {
+func (s *Server) observeFileChanges(observe func(func(workspaceapp.FileChangeNotice))) {
+	observe(func(change workspaceapp.FileChangeNotice) {
 		s.workspaceHub.publish(protocol.RuntimeEvent{
 			Type:      protocol.RuntimeFilesChanged,
 			Workspace: workspaceRefFromPath(change.CWD),
@@ -16,8 +16,8 @@ func (s *Server) observeFileChanges(source notificationSource[workspaceapp.FileC
 	})
 }
 
-func (s *Server) observeInvalidations(source notificationSource[invalidation.Notice]) {
-	source.Observe(func(notice invalidation.Notice) {
+func (s *Server) observeInvalidations(observe func(func(invalidation.Notice))) {
+	observe(func(notice invalidation.Notice) {
 		if event, ok := runtimeEventFor(notice); ok {
 			s.workspaceHub.publish(event)
 		}

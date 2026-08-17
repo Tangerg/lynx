@@ -319,7 +319,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 	// Wire the production seam: the run effects publish nudges through the
 	// notifier, and the hub observes it (mapping to the wire files.changed).
 	fc := &testNotification[workspaceapp.FileChangeNotice]{}
-	s.observeFileChanges(fc)
+	s.observeFileChanges(fc.Observe)
 	effects := runsegment.New(runsegment.Config{PublishFileChanges: fc.Publish})
 
 	effects.Nudge("/proj", []string{"src/a.go"})

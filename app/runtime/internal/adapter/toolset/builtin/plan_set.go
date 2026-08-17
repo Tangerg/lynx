@@ -8,8 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 const setDescription = `Set the current session's execution plan.
@@ -45,7 +45,7 @@ func newSet(plans planReplacer) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[setArgs, string](
-		toolcontract.FuncConfig{Name: toolname.SetPlan, Description: setDescription},
+		toolcontract.FuncConfig{Name: tool.SetPlan, Description: setDescription},
 		(&setter{plans: plans}).set,
 	)
 }

@@ -30,19 +30,10 @@ const (
 	ladderResultCap = 2000
 )
 
-// trimForBudget replaces oversized tool-call arguments and tool-result bodies in
-// the messages OLDER than the keep-recent window with previews, returning a
-// COPY (never mutating the input's shared parts) and whether anything changed.
-// The recent window is left untouched — the model most likely still needs its
-// full detail. Copy-on-write: unchanged messages are shared, so a no-op trim
-// allocates nothing.
-func (c *Compactor) trimForBudget(msgs []chat.Message) ([]chat.Message, bool) {
-	return trimForBudgetBefore(msgs, len(msgs)-c.keepRecent)
-}
-
 // trimForBudgetBefore applies the deterministic rung only to the portion a
 // following summary is allowed to replace. Computing the safe turn boundary
-// first prevents an expanded recent window from being silently trimmed.
+// first prevents an expanded recent window from being silently trimmed. It
+// returns a copy without mutating shared parts; a no-op trim allocates nothing.
 func trimForBudgetBefore(msgs []chat.Message, boundary int) ([]chat.Message, bool) {
 	if boundary <= 0 {
 		return msgs, false

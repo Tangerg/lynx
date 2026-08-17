@@ -527,7 +527,7 @@
 
 ### 批次 11
 
-- 将 Runtime 内建工具身份收敛到无执行依赖的 `adapter/toolname`；Runtime 自有构造器、安全等级、标准策略例外、activity、结果展示和成功调用投影都引用该身份，不再维护 `toolName*`、delegation/offload 私有别名和独立 safety switch；
+- 将 Runtime 内建工具身份收敛到 `domain/tool` 的唯一 model-facing vocabulary；Runtime 自有构造器、安全等级、标准策略例外、activity、结果展示和成功调用投影都引用该身份，不再维护 Adapter 常量包、`toolName*`、delegation/offload 私有别名和独立 safety switch；
 - 根 toolset 的 descriptor catalog 成为跨切面行为单源。Presenter 与 Interpreter 只查询 descriptor；每个可构造内建工具必须有 descriptor，每个 descriptor 必须有可构造工具，未知 MCP/A2A 名称仍 fail-closed 为 Exec 且使用通用展示；
 - breaking change 删除 `edit` / `write` 的 Runtime 注册、resolver 分支、私有 guard、presentation 和测试 profile。所有模型只获得 `apply_patch`，继续完整复用 read-before-mutation、stale-read、path lock、protected path、auto-format 和 post-mutation diagnostics；
 - 删除按 provider/model 字符串推断 mutation dialect 的 `useApplyPatch`，同步移除 Toolset `DefaultModel` 构造参数。模型目录新增或改名不会再悄然改变工具 vocabulary；

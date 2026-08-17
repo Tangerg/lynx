@@ -535,7 +535,7 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "adapter", "toolset", "sessionsearch"):               "Runtime-owned model tools belong to toolset/builtin",
 		filepath.Join("internal", "adapter", "toolset", "agentmemorysearch"):           "Runtime-owned model tools belong to toolset/builtin",
 		filepath.Join("internal", "adapter", "toolset", "askuser"):                     "Runtime-owned model tools belong to toolset/builtin",
-		filepath.Join("internal", "adapter", "toolset", "catalog"):                     "stable model-facing names belong to adapter/toolname",
+		filepath.Join("internal", "adapter", "toolset", "catalog"):                     "stable model-facing names belong to domain/tool",
 		filepath.Join("internal", "adapter", "toolset", "conversationsearch"):          "Runtime-owned model tools belong to toolset/builtin",
 		filepath.Join("internal", "adapter", "toolset", "delegation"):                  "Interaction delegation contracts belong to adapter/agentexec",
 		filepath.Join("internal", "adapter", "toolset", "discovery"):                   "deferred discovery is part of toolset resolution",

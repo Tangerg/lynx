@@ -7,7 +7,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 const enterDescription = `Enter read-only Plan mode for the current session.
@@ -27,7 +27,7 @@ func newEnter(modes planEnterPolicy) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[enterArgs, string](
-		toolcontract.FuncConfig{Name: toolname.EnterPlanMode, Description: enterDescription},
+		toolcontract.FuncConfig{Name: tool.EnterPlanMode, Description: enterDescription},
 		(&enterer{modes: modes}).enter,
 	)
 }

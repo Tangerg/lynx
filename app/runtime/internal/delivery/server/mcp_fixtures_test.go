@@ -129,6 +129,6 @@ func serverWithMCP(cfg mcpapp.Config) *Server {
 	mcpInvalidations := &testNotification[invalidation.Notice]{}
 	cfg.Invalidations = mcpInvalidations.Publish
 	s := &Server{mcp: mcpapp.New(cfg), workspaceHub: newWorkspaceHub()}
-	s.observeInvalidations(mcpInvalidations)
+	s.observeInvalidations(mcpInvalidations.Observe)
 	return s
 }

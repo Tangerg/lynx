@@ -14,14 +14,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/notification"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runrecovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/sessiontitle"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -49,6 +47,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
@@ -86,11 +85,11 @@ type Stack struct {
 	OwnershipRecovery *ownershiprecovery.Coordinator
 	// FileChanges carries committed workspace mutation scopes to protocol
 	// subscribers without exposing a wire event to the producer.
-	FileChanges NotificationSource[workspace.FileChangeNotice]
+	FileChanges func(func(workspace.FileChangeNotice))
 	// Invalidations bridges committed read-model changes to the delivery hub,
 	// which alone names each wire topic. Producers are the use cases that own the
 	// mutation; Bootstrap only connects their shared application vocabulary.
-	Invalidations       NotificationSource[invalidation.Notice]
+	Invalidations       func(func(invalidation.Notice))
 	PublishInvalidation invalidation.Publish
 	ScheduleFiring      *schedules.Firing
 	IdempotencyStore    idempotency.Store
@@ -225,7 +224,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// rather than one per resource because the
 	// producers publish the same shape (a resource plus the ids that moved), and the
 	// wire vocabulary belongs to delivery either way.
-	applicationInvalidations := &notification.Relay[invalidation.Notice]{}
+	applicationInvalidations := newNotificationRelay[invalidation.Notice]()
 	approvalPolicy, err := approvals.NewRuntimePolicy(
 		cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore, applicationInvalidations.Publish,
 	)
@@ -329,7 +328,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if cfg.ToolResultStore != nil {
 		interactionConfig.ToolResultStore = cfg.ToolResultStore
 		interactionConfig.ToolResultThreshold = cfg.ToolResultThreshold
-		interactionConfig.ToolResultReaderName = toolname.ReadToolResult
+		interactionConfig.ToolResultReaderName = tool.ReadToolResult
 	}
 	interactionExecutor, err := agentexec.NewInteractionExecutor(interactionConfig)
 	if err != nil {
@@ -358,7 +357,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		}))
 	}
 
-	fileChanges := &notification.Relay[workspace.FileChangeNotice]{}
+	fileChanges := newNotificationRelay[workspace.FileChangeNotice]()
 	admissionGate := sessionadmission.New(cfg.SessionOwnership)
 	sessionStores := persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions:            cfg.SessionStore,
@@ -622,8 +621,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Codebase:            codebaseCoordinator,
 			Runs:                runCoordinator,
 			OwnershipRecovery:   ownershipRecovery,
-			FileChanges:         fileChanges,
-			Invalidations:       applicationInvalidations,
+			FileChanges:         fileChanges.Observe,
+			Invalidations:       applicationInvalidations.Observe,
 			PublishInvalidation: applicationInvalidations.Publish,
 			ScheduleFiring:      scheduleFiring,
 			IdempotencyStore:    cfg.IdempotencyStore,
