@@ -24,6 +24,7 @@ function seed(commandError: AgentProblem | null, shared: Record<string, unknown>
     view: { ...EMPTY_AGENT_SESSION_VIEW, commandError, shared },
     viewEpoch: 0,
     viewRevision: 0,
+    authoritativeRevision: 0,
     refreshSequence: 0,
     stop: null,
     send: null,

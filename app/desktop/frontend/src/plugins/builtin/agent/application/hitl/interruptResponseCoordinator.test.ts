@@ -198,7 +198,7 @@ describe("interrupt response coordinator", () => {
     dispose();
   });
 
-  it("retires a submitting batch when authoritative projection shows a remote continuation", () => {
+  it("retires a submitting batch when authoritative projection proves continuation", () => {
     seedPending(groups());
     let accept: (() => void) | undefined;
     let reject: (() => boolean | void) | undefined;
@@ -231,8 +231,8 @@ describe("interrupt response coordinator", () => {
       { onSettled: questionSettled, onError: questionError },
     );
 
-    // Another client consumed the atomic set while this client's resume ack
-    // remained in flight. The durable projection is now the only answer.
+    // Runtime consumed the atomic set while its resume acknowledgement remained
+    // in flight. The durable projection is now the only answer.
     seedPending([]);
 
     expect(approvalError).toHaveBeenCalledOnce();
@@ -246,6 +246,65 @@ describe("interrupt response coordinator", () => {
     expect(approvalSettled).not.toHaveBeenCalled();
     expect(questionSettled).not.toHaveBeenCalled();
     dispose();
+  });
+
+  it("releases an ambiguous submission only after the successor projection keeps its barrier open", () => {
+    seedPending(groups());
+    let retiredAccept: (() => void) | undefined;
+    const retiredResume = vi.fn((_runId, _responses, onSettled) => {
+      retiredAccept = onSettled;
+      return true;
+    });
+    useAgentStore.getState().setResume(SESSION_ID, retiredResume);
+    const approvalSettled = vi.fn();
+    const questionSettled = vi.fn();
+    const approvalError = vi.fn();
+    const questionError = vi.fn();
+
+    stageInterruptResponse(
+      SESSION_ID,
+      ROOT_RUN_ID,
+      "approval_a",
+      { type: "approval", decision: "approve" },
+      { decision: "approved" },
+      { onSettled: approvalSettled, onError: approvalError },
+    );
+    stageInterruptResponse(
+      SESSION_ID,
+      ROOT_RUN_ID,
+      "question_b",
+      { type: "answer", answers: [["Postgres"]] },
+      { answered: true, answers: [["Postgres"]] },
+      { onSettled: questionSettled, onError: questionError },
+    );
+    expect(retiredResume).toHaveBeenCalledOnce();
+
+    // Runtime replacement revokes the old command generation before durable
+    // truth is available. The cards must stay latched through that gap so the
+    // same atomic barrier cannot be submitted twice.
+    useAgentStore.getState().retireProjectionGeneration([SESSION_ID]);
+    expect(interruptResponseIsStaged(SESSION_ID, ROOT_RUN_ID, "approval_a")).toBe(true);
+    expect(approvalError).not.toHaveBeenCalled();
+    expect(questionError).not.toHaveBeenCalled();
+
+    // A material write is not durable settlement proof. In particular, a
+    // connection problem or successor live event may advance the visible view
+    // before the recovery snapshot has committed.
+    useAgentStore.getState().setCommandError(SESSION_ID, { code: "transport_error" });
+    expect(interruptResponseIsStaged(SESSION_ID, ROOT_RUN_ID, "approval_a")).toBe(true);
+    expect(approvalError).not.toHaveBeenCalled();
+
+    // The successor's authoritative snapshot proves the resume did not
+    // commit: the exact pending set is still open. It must release the retired
+    // submission so the user can retry instead of remaining permanently busy.
+    seedPending(groups());
+    expect(approvalError).toHaveBeenCalledOnce();
+    expect(questionError).toHaveBeenCalledOnce();
+    expect(interruptResponseIsStaged(SESSION_ID, ROOT_RUN_ID, "approval_a")).toBe(false);
+
+    retiredAccept?.();
+    expect(approvalSettled).not.toHaveBeenCalled();
+    expect(questionSettled).not.toHaveBeenCalled();
   });
 
   it("does not let a retired reconciliation clear its successor's staged barrier", () => {

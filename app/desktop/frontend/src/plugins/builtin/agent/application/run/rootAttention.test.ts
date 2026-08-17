@@ -51,6 +51,7 @@ function entry(value: AgentSessionView): AgentSessionViewEntry {
     view: value,
     viewEpoch: 0,
     viewRevision: 0,
+    authoritativeRevision: 0,
     stop: null,
     send: null,
     resume: null,

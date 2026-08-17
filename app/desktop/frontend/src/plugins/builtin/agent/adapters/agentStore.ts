@@ -36,6 +36,10 @@ interface SessionEntry {
    *  compare this revision before replacing the view, so a fetch started
    *  before a user action or live event cannot overwrite it. */
   viewRevision: number;
+  /** Changes only when a durable authoritative projection commits. Command
+   * recovery uses this boundary instead of mistaking a live event or local
+   * optimistic write for proof of remote mutation settlement. */
+  authoritativeRevision: number;
   /** Latest refresh request for this session. A newer read supersedes an older
    *  in-flight read even while the material view itself is unchanged. */
   refreshSequence: number;
@@ -123,6 +127,7 @@ const emptyEntry = (): SessionEntry => ({
   view: EMPTY_AGENT_SESSION_VIEW,
   viewEpoch: 0,
   viewRevision: 0,
+  authoritativeRevision: 0,
   refreshSequence: 0,
   stop: null,
   send: null,
@@ -255,6 +260,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       return patchSessionState(state, sessionId, {
         view,
         viewRevision: entry.viewRevision + 1,
+        authoritativeRevision: entry.authoritativeRevision + 1,
       });
     });
     return committed;

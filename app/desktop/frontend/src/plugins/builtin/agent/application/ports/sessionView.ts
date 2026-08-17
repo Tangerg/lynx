@@ -60,6 +60,9 @@ export interface AgentSessionViewEntry {
   view: AgentSessionView;
   viewEpoch: number;
   viewRevision: number;
+  /** Monotonic commits of durable authoritative projections. Unlike
+   * `viewRevision`, live events and optimistic writes do not advance it. */
+  authoritativeRevision: number;
   stop: StopCurrentRootRunAction | null;
   send: SendAgentInputAction | null;
   resume: ResumeRunAction | null;
