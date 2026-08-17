@@ -6,6 +6,7 @@ import {
   discardStagedInterruptResponses,
   installInterruptResponseCoordinator,
 } from "./interruptResponseCoordinator";
+import { registerApprovalActions } from "./useApprovalSubmit";
 import { submitPendingApproval } from "./submitPendingApproval";
 
 const SESSION_ID = "ses_keyboard_barrier";
@@ -97,5 +98,83 @@ describe("submitPendingApproval", () => {
     );
 
     expect(submitPendingApproval("approved")).toBe(false);
+  });
+
+  it("does not borrow a mounted approval card from another Session", () => {
+    seedPending([
+      {
+        sessionId: SESSION_ID,
+        runId: ROOT_RUN_ID,
+        rootRunId: ROOT_RUN_ID,
+        interrupts: [{ itemId: "approval_same", kind: "approval" }],
+      },
+    ]);
+    const resume = vi.fn(() => true);
+    useAgentStore.getState().setResume(SESSION_ID, resume);
+    const retiredApprove = vi.fn();
+    const unregister = registerApprovalActions("ses_retired", ROOT_RUN_ID, "approval_same", {
+      approve: retiredApprove,
+      decline: vi.fn(),
+    });
+
+    try {
+      expect(submitPendingApproval("approved")).toBe(true);
+      expect(retiredApprove).not.toHaveBeenCalled();
+      expect(resume).toHaveBeenCalledOnce();
+    } finally {
+      unregister();
+    }
+  });
+
+  it("does not borrow a mounted approval card from another root Run", () => {
+    seedPending([
+      {
+        sessionId: SESSION_ID,
+        runId: ROOT_RUN_ID,
+        rootRunId: ROOT_RUN_ID,
+        interrupts: [{ itemId: "approval_same", kind: "approval" }],
+      },
+    ]);
+    const resume = vi.fn(() => true);
+    useAgentStore.getState().setResume(SESSION_ID, resume);
+    const retiredApprove = vi.fn();
+    const unregister = registerApprovalActions(SESSION_ID, "run_retired", "approval_same", {
+      approve: retiredApprove,
+      decline: vi.fn(),
+    });
+
+    try {
+      expect(submitPendingApproval("approved")).toBe(true);
+      expect(retiredApprove).not.toHaveBeenCalled();
+      expect(resume).toHaveBeenCalledOnce();
+    } finally {
+      unregister();
+    }
+  });
+
+  it("uses the mounted card only for the exact approval owner", () => {
+    seedPending([
+      {
+        sessionId: SESSION_ID,
+        runId: ROOT_RUN_ID,
+        rootRunId: ROOT_RUN_ID,
+        interrupts: [{ itemId: "approval_exact", kind: "approval" }],
+      },
+    ]);
+    const resume = vi.fn(() => true);
+    useAgentStore.getState().setResume(SESSION_ID, resume);
+    const approve = vi.fn();
+    const unregister = registerApprovalActions(SESSION_ID, ROOT_RUN_ID, "approval_exact", {
+      approve,
+      decline: vi.fn(),
+    });
+
+    try {
+      expect(submitPendingApproval("approved")).toBe(true);
+      expect(approve).toHaveBeenCalledOnce();
+      expect(resume).not.toHaveBeenCalled();
+    } finally {
+      unregister();
+    }
   });
 });

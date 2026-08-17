@@ -21,13 +21,72 @@ export interface ApprovalSubmitOptions {
   rememberScope?: RememberScope;
 }
 
+export interface ApprovalActions {
+  approve: () => void;
+  decline: () => void;
+}
+
+interface ApprovalActionOwner {
+  sessionId: string;
+  rootRunId: string;
+  itemId: string;
+}
+
+interface ApprovalActionEntry {
+  owner: ApprovalActionOwner;
+  actions: ApprovalActions;
+}
+
+class ApprovalActionRegistry {
+  readonly #entries = new Map<string, ApprovalActionEntry>();
+
+  register(owner: ApprovalActionOwner, actions: ApprovalActions): () => void {
+    const key = this.#key(owner);
+    const entry = { owner, actions };
+    this.#entries.set(key, entry);
+    return () => {
+      if (this.#entries.get(key) === entry) this.#entries.delete(key);
+    };
+  }
+
+  find(owner: ApprovalActionOwner): ApprovalActions | undefined {
+    return this.#entries.get(this.#key(owner))?.actions;
+  }
+
+  #key(owner: ApprovalActionOwner): string {
+    return JSON.stringify([owner.sessionId, owner.rootRunId, owner.itemId]);
+  }
+}
+
+const approvalActionRegistry = new ApprovalActionRegistry();
+
+/** Internal keyboard bridge registration. Product cards bind through the
+ * identity-capturing registrar returned by useApprovalSubmit. */
+export function registerApprovalActions(
+  sessionId: string,
+  rootRunId: string,
+  itemId: string,
+  actions: ApprovalActions,
+): () => void {
+  return approvalActionRegistry.register({ sessionId, rootRunId, itemId }, actions);
+}
+
+export function getApprovalActions(
+  sessionId: string,
+  rootRunId: string,
+  itemId: string,
+): ApprovalActions | undefined {
+  return approvalActionRegistry.find({ sessionId, rootRunId, itemId });
+}
+
 export interface ApprovalSubmit {
   submit: (decision: ApprovalDecision, opts?: ApprovalSubmitOptions) => void;
   pending: ApprovalDecision | null;
+  registerActions: (actions: ApprovalActions) => () => void;
 }
 
-export function useApprovalSubmit(runId?: string, itemId?: string): ApprovalSubmit {
-  const { pending, resume } = useInterruptResume<ApprovalDecision>(runId, itemId);
+export function useApprovalSubmit(rootRunId?: string, itemId?: string): ApprovalSubmit {
+  const { pending, resume, sessionId } = useInterruptResume<ApprovalDecision>(rootRunId, itemId);
 
   const submit = useCallback(
     (decision: ApprovalDecision, opts?: ApprovalSubmitOptions) => {
@@ -45,5 +104,13 @@ export function useApprovalSubmit(runId?: string, itemId?: string): ApprovalSubm
     [resume],
   );
 
-  return { submit, pending };
+  const registerActions = useCallback(
+    (actions: ApprovalActions) => {
+      if (!rootRunId || !itemId) return () => undefined;
+      return registerApprovalActions(sessionId, rootRunId, itemId, actions);
+    },
+    [itemId, rootRunId, sessionId],
+  );
+
+  return { submit, pending, registerActions };
 }

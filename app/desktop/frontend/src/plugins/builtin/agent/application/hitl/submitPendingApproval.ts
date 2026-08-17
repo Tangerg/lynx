@@ -10,7 +10,7 @@
 
 import { agentSessionState } from "../ports/sessionState";
 import { agentSessionView } from "../ports/sessionView";
-import { getApprovalActions } from "./approvalActions";
+import { getApprovalActions } from "./useApprovalSubmit";
 import type { ApprovalDecision } from "../../domain/hitl";
 import { WIRE_DECISION } from "./wireDecision";
 import { resumeInterrupt } from "./useInterruptResume";
@@ -45,7 +45,7 @@ export function submitPendingApproval(decision: ApprovalDecision): boolean {
   // Prefer the mounted card's own submit so the shortcut applies its edited
   // args + remember exactly like its buttons. Direct staging below is only for
   // the no-card-mounted fallback.
-  const actions = getApprovalActions(itemId);
+  const actions = getApprovalActions(sid, oi.rootRunId, itemId);
   if (actions) {
     if (decision === "approved") actions.approve();
     else actions.decline();

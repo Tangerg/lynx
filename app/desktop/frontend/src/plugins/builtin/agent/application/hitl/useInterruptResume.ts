@@ -71,5 +71,5 @@ export function useInterruptResume<P>(runId?: string, itemId?: string) {
     [runId, itemId, sessionId],
   );
 
-  return { pending, resume };
+  return { pending, resume, sessionId };
 }
