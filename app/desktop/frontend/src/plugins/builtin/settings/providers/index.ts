@@ -3,6 +3,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installProviderGateway } from "./adapters/runtimeProviderGateway";
 import { providersSettingsPane } from "./application/providersContributions";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 const ProvidersPane = lazy(() =>
   import("./ui/ProvidersPane").then(({ ProvidersPane }) => ({ default: ProvidersPane })),
@@ -10,9 +11,20 @@ const ProvidersPane = lazy(() =>
 
 export default definePlugin({
   name: "lyra.builtin.providers-pane",
+  requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
-    const disposeGateway = installProviderGateway();
+    const gateway = installProviderGateway();
+    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
+      const next = ctx.runtime.runtimeGeneration();
+      if (next === runtimeGeneration) return;
+      runtimeGeneration = next;
+      gateway.replaceRuntimeGeneration();
+    });
     registerSettingsPane(ctx, providersSettingsPane(ProvidersPane));
-    ctx.cleanup(disposeGateway);
+    ctx.cleanup(() => {
+      unsubscribeRuntime();
+      gateway.dispose();
+    });
   },
 });

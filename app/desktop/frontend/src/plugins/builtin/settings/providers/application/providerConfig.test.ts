@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { EMBEDDING_ROLE_KEY, PROVIDERS_KEY, UTILITY_ROLE_KEY } from "./providerQueries";
 import { setEmbeddingRole, setUtilityRole, updateProvider } from "./providerConfig";
-import { installProviderGateway, type ProviderGateway } from "./ports/providerGateway";
+import type { ProviderGateway } from "./ports/providerGateway";
 import type { ProviderConfiguration, ProviderRole } from "./providerModels";
+import { ProviderMutationOwner } from "./providerMutationOwner";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -16,6 +17,11 @@ function deferred<T>() {
 }
 
 let uninstall: (() => void) | undefined;
+
+function installGateway(gateway: ProviderGateway): void {
+  const owner = ProviderMutationOwner.install(gateway);
+  uninstall = () => owner.dispose();
+}
 
 afterEach(() => {
   uninstall?.();
@@ -42,7 +48,7 @@ describe("provider configuration", () => {
       embeddingCapable: true,
       defaultEmbeddingModel: "embed-1",
     };
-    uninstall = installProviderGateway({
+    installGateway({
       updateProvider: vi.fn().mockResolvedValue(saved),
     } as unknown as ProviderGateway);
 
@@ -62,23 +68,23 @@ describe("provider configuration", () => {
       .fn<(role: ProviderRole) => Promise<ProviderRole>>()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
-    uninstall = installProviderGateway({
+    installGateway({
       setUtilityRole: setUtilityRoleGateway,
       errorMessage: () => undefined,
     } as unknown as ProviderGateway);
 
     const rejected = setUtilityRole({ provider: "openai", model: "first" });
     const accepted = setUtilityRole({ provider: "openai", model: "second" });
-    await Promise.resolve();
-    expect(setUtilityRoleGateway).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(setUtilityRoleGateway).toHaveBeenCalledTimes(1));
 
     first.reject(new Error("invalid first role"));
     await expect(rejected).resolves.toEqual({ ok: false, error: "invalid first role" });
-    await Promise.resolve();
-    expect(setUtilityRoleGateway).toHaveBeenNthCalledWith(2, {
-      provider: "openai",
-      model: "second",
-    });
+    await vi.waitFor(() =>
+      expect(setUtilityRoleGateway).toHaveBeenNthCalledWith(2, {
+        provider: "openai",
+        model: "second",
+      }),
+    );
 
     second.resolve({ provider: "openai", model: "second" });
     await expect(accepted).resolves.toEqual({ ok: true });
@@ -93,16 +99,17 @@ describe("provider configuration", () => {
     const embedding = deferred<ProviderRole>();
     const setUtilityRoleGateway = vi.fn().mockReturnValue(utility.promise);
     const setEmbeddingRoleGateway = vi.fn().mockReturnValue(embedding.promise);
-    uninstall = installProviderGateway({
+    installGateway({
       setUtilityRole: setUtilityRoleGateway,
       setEmbeddingRole: setEmbeddingRoleGateway,
     } as unknown as ProviderGateway);
 
     const utilityResult = setUtilityRole({ provider: "openai", model: "chat-1" });
     const embeddingResult = setEmbeddingRole({ provider: "openai", model: "embed-1" });
-    await Promise.resolve();
-    expect(setUtilityRoleGateway).toHaveBeenCalledTimes(1);
-    expect(setEmbeddingRoleGateway).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(setUtilityRoleGateway).toHaveBeenCalledTimes(1);
+      expect(setEmbeddingRoleGateway).toHaveBeenCalledTimes(1);
+    });
 
     utility.resolve({ provider: "openai", model: "chat-1" });
     embedding.resolve({ provider: "openai", model: "embed-1" });
@@ -121,7 +128,7 @@ describe("provider configuration", () => {
       .fn()
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce(saved);
-    uninstall = installProviderGateway({
+    installGateway({
       updateProvider: updateProviderGateway,
     } as unknown as ProviderGateway);
 

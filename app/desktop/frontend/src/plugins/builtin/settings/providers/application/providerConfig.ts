@@ -1,25 +1,16 @@
 import { useCallback } from "react";
 import { t } from "@/lib/i18n";
 import {
-  CODEBASE_STATUS_KEY,
-  commitEmbeddingRoleSaved,
-  commitProviderSaved,
-  commitUtilityRoleSaved,
-  EMBEDDING_ROLE_KEY,
-  MODELS_KEY,
   type ProviderConfiguration,
-  PROVIDERS_KEY,
-  UTILITY_ROLE_KEY,
   providerRoleIsAvailable,
   useEmbeddingRole,
   useModels,
   useProviders,
   useUtilityRole,
 } from "./providerQueries";
-import { queryClient } from "@/lib/queryClient";
-import { createSerialTaskQueue } from "@/lib/serialTaskQueue";
 import type { ProviderRole } from "./providerModels";
-import { providerGateway, type ProviderUpdate } from "./ports/providerGateway";
+import type { ProviderUpdate } from "./ports/providerGateway";
+import { ProviderMutationOwner, providerMutationWasRetired } from "./providerMutationOwner";
 
 // Provider configuration mutations (providers.update / providers.test).
 // Counterpart to the read-side useProviders() query.
@@ -74,25 +65,10 @@ export function useEmbeddingModelConfig() {
   };
 }
 
-/**
- * Atomically update a provider's key / baseUrl (providers.update) and refetch the
- * providers + models lists so the pane and the composer picker pick up the
- * new enablement immediately.
- */
-const providerChanges = createSerialTaskQueue();
-const utilityRoleChanges = createSerialTaskQueue();
-const embeddingRoleChanges = createSerialTaskQueue();
+export { providerMutationWasRetired };
 
 export async function updateProvider(input: ProviderUpdate): Promise<ProviderConfiguration> {
-  return providerChanges.run(async () => {
-    const saved = await providerGateway().updateProvider(input);
-    commitProviderSaved(saved);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: [PROVIDERS_KEY] }),
-      queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),
-    ]);
-    return saved;
-  });
+  return ProviderMutationOwner.current().updateProvider(input);
 }
 
 export function useUpdateProvider(): (input: ProviderUpdate) => Promise<ProviderConfiguration> {
@@ -111,20 +87,18 @@ export function useUpdateProvider(): (input: ProviderUpdate) => Promise<Provider
  * utility-role query is refetched so the pane reflects the stored value.
  */
 export async function setUtilityRole(role: ProviderRole): Promise<TestOutcome> {
-  return utilityRoleChanges.run(async () => {
-    try {
-      const saved = await providerGateway().setUtilityRole(role);
-      commitUtilityRoleSaved(saved);
-      await queryClient.invalidateQueries({ queryKey: [UTILITY_ROLE_KEY] });
-      return { ok: true };
-    } catch (e) {
-      const detail = providerGateway().errorMessage(e);
-      return {
-        ok: false,
-        error: detail ?? (e instanceof Error ? e.message : t("providers.utility.error")),
-      };
-    }
-  });
+  const owner = ProviderMutationOwner.current();
+  try {
+    await owner.setUtilityRole(role);
+    return { ok: true };
+  } catch (error) {
+    if (providerMutationWasRetired(error)) throw error;
+    const detail = owner.errorMessage(error);
+    return {
+      ok: false,
+      error: detail ?? (error instanceof Error ? error.message : t("providers.utility.error")),
+    };
+  }
 }
 
 /**
@@ -135,23 +109,18 @@ export async function setUtilityRole(role: ProviderRole): Promise<TestOutcome> {
  * the embedding-role + codebase-status queries on success.
  */
 export async function setEmbeddingRole(role: ProviderRole): Promise<TestOutcome> {
-  return embeddingRoleChanges.run(async () => {
-    try {
-      const saved = await providerGateway().setEmbeddingRole(role);
-      commitEmbeddingRoleSaved(saved);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [EMBEDDING_ROLE_KEY] }),
-        queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] }),
-      ]);
-      return { ok: true };
-    } catch (e) {
-      const detail = providerGateway().errorMessage(e);
-      return {
-        ok: false,
-        error: detail ?? (e instanceof Error ? e.message : t("providers.embedding.error")),
-      };
-    }
-  });
+  const owner = ProviderMutationOwner.current();
+  try {
+    await owner.setEmbeddingRole(role);
+    return { ok: true };
+  } catch (error) {
+    if (providerMutationWasRetired(error)) throw error;
+    const detail = owner.errorMessage(error);
+    return {
+      ok: false,
+      error: detail ?? (error instanceof Error ? error.message : t("providers.embedding.error")),
+    };
+  }
 }
 
 export interface TestOutcome {
@@ -167,7 +136,7 @@ export interface TestOutcome {
  */
 export function useTestProvider(): (provider: string) => Promise<TestOutcome> {
   return useCallback(async (provider) => {
-    const res = await providerGateway().testProvider(provider);
+    const res = await ProviderMutationOwner.current().testProvider(provider);
     return {
       ok: res.ok,
       error: res.ok ? undefined : (res.error ?? t("providers.error.test")),

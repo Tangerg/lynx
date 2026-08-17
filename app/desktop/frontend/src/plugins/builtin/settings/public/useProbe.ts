@@ -22,7 +22,11 @@ export function useProbe() {
 
   const fail = (reason: string) => setProbe({ state: "error", reason });
 
-  const run = async (op: () => Promise<{ ok: boolean; error?: string }>, fallback: string) => {
+  const run = async (
+    op: () => Promise<{ ok: boolean; error?: string }>,
+    fallback: string,
+    ignoreError?: (error: unknown) => boolean,
+  ) => {
     const token = ++seq.current;
     setProbe({ state: "busy" });
     try {
@@ -31,6 +35,10 @@ export function useProbe() {
       setProbe(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? fallback });
     } catch (err) {
       if (seq.current !== token) return;
+      if (ignoreError?.(err)) {
+        setProbe({ state: "idle" });
+        return;
+      }
       fail(err instanceof Error ? err.message : fallback);
     }
   };

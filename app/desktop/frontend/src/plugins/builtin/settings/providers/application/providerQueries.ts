@@ -49,20 +49,6 @@ export const UTILITY_ROLE_KEY = "utility-role";
 export const EMBEDDING_ROLE_KEY = "embedding-role";
 export const CODEBASE_STATUS_KEY = "codebase-status";
 
-export function commitProviderSaved(saved: ProviderConfiguration): void {
-  queryClient.setQueryData<ProviderConfiguration[]>([PROVIDERS_KEY], (current) =>
-    current?.map((provider) => (provider.id === saved.id ? saved : provider)),
-  );
-}
-
-export function commitUtilityRoleSaved(saved: ProviderRole): void {
-  queryClient.setQueryData([UTILITY_ROLE_KEY], saved);
-}
-
-export function commitEmbeddingRoleSaved(saved: ProviderRole): void {
-  queryClient.setQueryData([EMBEDDING_ROLE_KEY], saved);
-}
-
 export function commitCodebaseReindexStarted(
   query: CodebaseStatusQuery,
   operationId: string,

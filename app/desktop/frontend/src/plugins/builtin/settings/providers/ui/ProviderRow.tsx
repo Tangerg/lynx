@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Icon, ProviderIcon, TextField } from "@/ui";
 import {
   type ProviderConfiguration,
+  providerMutationWasRetired,
   useUpdateProvider,
   useTestProvider,
 } from "../application/providerConfig";
@@ -37,6 +38,7 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
       const saved = await update(providerCredentialsInput(p, draft));
       setDraft(initialProviderCredentialsDraft(saved));
     } catch (err) {
+      if (providerMutationWasRetired(err)) return;
       fail(err instanceof Error ? err.message : t("providers.error.save"));
     } finally {
       setSaving(false);
@@ -50,13 +52,14 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
       const saved = await update({ provider: p.id, apiKey: null });
       setDraft(initialProviderCredentialsDraft(saved));
     } catch (err) {
+      if (providerMutationWasRetired(err)) return;
       fail(err instanceof Error ? err.message : t("providers.error.save"));
     } finally {
       setSaving(false);
     }
   };
 
-  const onTest = () => run(() => test(p.id), t("providers.error.test"));
+  const onTest = () => run(() => test(p.id), t("providers.error.test"), providerMutationWasRetired);
 
   return (
     <div className="rounded-md px-3 py-3 transition-colors hover:bg-hover">

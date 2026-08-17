@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button, DropdownMenu, Icon, ProviderIcon, Surface } from "@/ui";
 import {
   type ProviderConfiguration,
+  providerMutationWasRetired,
   setEmbeddingRole,
   setUtilityRole,
   useEmbeddingModelConfig,
@@ -52,8 +53,12 @@ export function UtilityModelSection() {
 
   const pick = async (next: { provider: string; model: string } | null): Promise<void> => {
     setError(null);
-    const res = await setUtilityRole(next ?? {});
-    if (!res.ok) setError(res.error ?? t("providers.utility.error"));
+    try {
+      const res = await setUtilityRole(next ?? {});
+      if (!res.ok) setError(res.error ?? t("providers.utility.error"));
+    } catch (error) {
+      if (!providerMutationWasRetired(error)) throw error;
+    }
   };
 
   return (
@@ -129,10 +134,14 @@ export function EmbeddingModelSection() {
 
   const pick = async (p: ProviderConfiguration | null): Promise<void> => {
     setError(null);
-    const res = await setEmbeddingRole(
-      p ? { provider: p.id, model: p.defaultEmbeddingModel || "" } : {},
-    );
-    if (!res.ok) setError(res.error ?? t("providers.embedding.error"));
+    try {
+      const res = await setEmbeddingRole(
+        p ? { provider: p.id, model: p.defaultEmbeddingModel || "" } : {},
+      );
+      if (!res.ok) setError(res.error ?? t("providers.embedding.error"));
+    } catch (error) {
+      if (!providerMutationWasRetired(error)) throw error;
+    }
   };
 
   return (

@@ -9,6 +9,7 @@ const hooks = vi.hoisted(() => ({
 }));
 
 vi.mock("../application/providerConfig", () => ({
+  providerMutationWasRetired: () => false,
   useUpdateProvider: () => hooks.update,
   useTestProvider: () => hooks.test,
 }));

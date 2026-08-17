@@ -39,6 +39,21 @@ describe("useProbe", () => {
     expect(result.current.probe).toEqual({ state: "error", reason: "network down" });
   });
 
+  it("returns an ignored lifecycle settlement to idle", async () => {
+    const { result } = renderHook(() => useProbe());
+    const retired = new Error("generation retired");
+    await act(async () => {
+      await result.current.run(
+        async () => {
+          throw retired;
+        },
+        "fallback",
+        (error) => error === retired,
+      );
+    });
+    expect(result.current.probe).toEqual({ state: "idle" });
+  });
+
   it("drops a superseded run's result", async () => {
     const { result } = renderHook(() => useProbe());
     const slow = deferred<{ ok: boolean; error?: string }>();
