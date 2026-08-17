@@ -22,11 +22,13 @@ function runOpeningIdentity(method: "start" | "resume", params: unknown): string
  * exception rather than the shape it is.
  */
 export interface RuntimeRunsGateway extends RpcRunsGateway {
+  /** Retire every opening and stream admitted by the previous Runtime process. */
+  replaceRuntimeGeneration(): void;
   dispose(): void;
 }
 
 class DefaultRuntimeRunsGateway implements RuntimeRunsGateway {
-  readonly #openings = createRunOpeningSettler();
+  #openings = createRunOpeningSettler();
 
   async start({ sessionId, ...params }: RpcRunStartParams, signal?: AbortSignal) {
     const client = getContainer().client();
@@ -50,6 +52,12 @@ class DefaultRuntimeRunsGateway implements RuntimeRunsGateway {
       result: { runId: asRunId(result.runId), segmentId: asSegmentId(result.segmentId) },
       events,
     };
+  }
+
+  replaceRuntimeGeneration(): void {
+    const predecessor = this.#openings;
+    this.#openings = createRunOpeningSettler();
+    predecessor.dispose();
   }
 
   dispose(): void {

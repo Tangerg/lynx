@@ -138,4 +138,51 @@ describe("runtimeRunsGateway", () => {
     expect(start).toHaveBeenCalledOnce();
     expect(keys).toEqual(["logical-run-start", "logical-run-start", "logical-run-start"]);
   });
+
+  it("does not lend a retained runs.resume identity to a successor Runtime process", async () => {
+    const params = { runId: asRunId("run_1"), responses: [] };
+    const transportFailure = new RpcTransportError("retired resume response was lost");
+    const retiredRetry = vi.fn(() =>
+      Object.assign(
+        Promise.resolve({
+          result: { runId: asRunId("run_1"), segmentId: asSegmentId("seg_retired") },
+          events: noEvents(),
+        }),
+        { idempotencyKey: "retired-run-resume", retry: vi.fn() },
+      ),
+    );
+    const retiredResume = vi.fn(
+      () =>
+        Object.assign(Promise.reject(transportFailure), {
+          idempotencyKey: "retired-run-resume",
+          retry: retiredRetry,
+        }) as ReturnType<LyraClient["runs"]["resume"]>,
+    );
+    setContainer({
+      client: () => ({ runs: { resume: retiredResume } }) as unknown as LyraClient,
+    });
+    const gateway = runtimeRunsGateway();
+
+    await expect(gateway.resume(params)).rejects.toBe(transportFailure);
+
+    const successorResume = vi.fn(() =>
+      Object.assign(
+        Promise.resolve({
+          result: { runId: asRunId("run_1"), segmentId: asSegmentId("seg_successor") },
+          events: noEvents(),
+        }),
+        { idempotencyKey: "successor-run-resume", retry: vi.fn() },
+      ),
+    );
+    setContainer({
+      client: () => ({ runs: { resume: successorResume } }) as unknown as LyraClient,
+    });
+    gateway.replaceRuntimeGeneration();
+
+    await expect(gateway.resume(params)).resolves.toMatchObject({
+      result: { runId: "run_1", segmentId: "seg_successor" },
+    });
+    expect(successorResume).toHaveBeenCalledOnce();
+    expect(retiredRetry).not.toHaveBeenCalled();
+  });
 });

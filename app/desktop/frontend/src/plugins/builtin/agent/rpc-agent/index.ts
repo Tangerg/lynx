@@ -4,15 +4,27 @@ import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { runtimeRunsGateway } from "./adapters/runtimeRunsGateway";
 import { rpcAgentSource } from "./application/rpcAgentSource";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.rpc-agent",
+  requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = runtimeRunsGateway();
+    let runtimeGeneration = ctx.runtime.runtimeGeneration();
+    const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
+      const next = ctx.runtime.runtimeGeneration();
+      if (next === runtimeGeneration) return;
+      runtimeGeneration = next;
+      gateway.replaceRuntimeGeneration();
+    });
     ctx.contribute(
       AGENT_SOURCE,
       rpcAgentSource(t, getActiveSessionId, () => gateway),
     );
-    ctx.cleanup(() => gateway.dispose());
+    ctx.cleanup(() => {
+      unsubscribeRuntime();
+      gateway.dispose();
+    });
   },
 });
