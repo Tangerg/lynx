@@ -7,10 +7,7 @@ import { TerminalViewModel, terminalSubtext } from "../application/terminalViewM
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import {
-  useSelectedWorkspaceToolId,
-  useSelectWorkspaceTool,
-} from "@/plugins/builtin/workspace/public/navigation";
+import { useSelectedWorkspaceToolId } from "@/plugins/builtin/workspace/public/navigation";
 
 // The agent's command log (G5). Each command's output streams via
 // item.delta{toolOutput} → item.completed — 613 confirmed that's already on
@@ -22,7 +19,6 @@ export function TerminalWorkspaceSurface() {
   const t = useT();
   const toolCalls = useActiveSessionToolCalls();
   const selectedToolId = useSelectedWorkspaceToolId();
-  const selectTool = useSelectWorkspaceTool();
   const view = useMemo(
     () => TerminalViewModel.from(workspaceCommandActivitiesFromAgentTools(toolCalls)),
     [toolCalls],
@@ -54,9 +50,6 @@ export function TerminalWorkspaceSurface() {
       ?.querySelector<HTMLElement>("[data-command-selected]")
       ?.scrollIntoView?.({ block: "nearest" });
   }, [selectedCommandId, view.latestCommandId]);
-  useEffect(() => {
-    if (selectedCommandId !== selectedToolId) selectTool(selectedCommandId);
-  }, [selectTool, selectedCommandId, selectedToolId]);
   useEffect(() => {
     if (!pinnedRef.current) return;
     const el = scrollRef.current;

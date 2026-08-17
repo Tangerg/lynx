@@ -47,6 +47,17 @@ function command(result: string, status: ToolCall["status"]): ToolCall {
   };
 }
 
+function fileEdit(): ToolCall {
+  return {
+    id: "file-edit-1",
+    runId: "run-1",
+    name: "write",
+    fn: "src/app.ts",
+    args: '{"path":"src/app.ts"}',
+    status: "ok",
+  };
+}
+
 beforeEach(() => {
   projection.toolCalls = { "cmd-1": command("1234567", "running") };
   projection.selectedToolId = "cmd-1";
@@ -54,6 +65,19 @@ beforeEach(() => {
 });
 
 describe("TerminalWorkspaceSurface", () => {
+  it("does not replace an exact non-command Tool selection while mounted", () => {
+    projection.toolCalls = {
+      "cmd-1": command("1234567", "running"),
+      "file-edit-1": fileEdit(),
+    };
+    projection.selectedToolId = "file-edit-1";
+
+    render(<TerminalWorkspaceSurface />);
+
+    expect(projection.selectTool).not.toHaveBeenCalled();
+    expect(screen.getByText("test").closest("[data-command-selected]")).toBeTruthy();
+  });
+
   it("tails an equal-length authoritative replacement while pinned", () => {
     const view = render(<TerminalWorkspaceSurface />);
     const scroller = screen.getByTestId("terminal-scroll");
