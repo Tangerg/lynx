@@ -479,6 +479,12 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
 
   const markdown = page.locator(".md").filter({ hasText: "Structural primitives" });
   const styles = await markdown.evaluate((root) => {
+    const h2 = Array.from(root.querySelectorAll("h2")).find((heading) =>
+      heading.textContent?.includes("Architecture review"),
+    );
+    const h3 = Array.from(root.querySelectorAll("h3")).find((heading) =>
+      heading.textContent?.includes("Structural primitives"),
+    );
     const primaryList = Array.from(root.querySelectorAll("ul")).find((list) =>
       list.textContent?.includes("Primary marker"),
     );
@@ -487,8 +493,14 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     const taskList = root.querySelector("ol.contains-task-list");
     const quote = root.querySelector("blockquote");
     const rule = root.querySelector("hr");
-    if (!nestedList || !deepList || !taskList || !quote || !rule) return null;
+    if (!h2 || !h3 || !nestedList || !deepList || !taskList || !quote || !rule) return null;
+    const h2Style = getComputedStyle(h2);
+    const h3Style = getComputedStyle(h3);
     return {
+      h2Size: h2Style.fontSize,
+      h2Margin: `${h2Style.marginBlockStart} ${h2Style.marginBlockEnd}`,
+      h3Size: h3Style.fontSize,
+      h3Margin: `${h3Style.marginBlockStart} ${h3Style.marginBlockEnd}`,
       nestedMarker: getComputedStyle(nestedList).listStyleType,
       deepMarker: getComputedStyle(deepList).listStyleType,
       taskMarker: getComputedStyle(taskList).listStyleType,
@@ -499,6 +511,10 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   });
 
   expect(styles).not.toBeNull();
+  expect.soft(styles?.h2Size).toBe("20px");
+  expect.soft(styles?.h2Margin).toBe("20px 10px");
+  expect.soft(styles?.h3Size).toBe("17px");
+  expect.soft(styles?.h3Margin).toBe("20px 10px");
   expect.soft(styles?.nestedMarker).toBe("circle");
   expect.soft(styles?.deepMarker).toBe("square");
   expect.soft(styles?.taskMarker).toBe("none");
