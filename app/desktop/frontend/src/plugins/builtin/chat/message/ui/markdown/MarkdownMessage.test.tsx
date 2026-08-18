@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { getHighlighter } from "@/lib/highlight/shiki";
 import { MarkdownMessage } from "./MarkdownMessage";
@@ -63,15 +63,14 @@ describe("markdownMessage", () => {
     expect(container.textContent ?? "").toContain("const x = 1;");
   });
 
-  it("keeps a fenced block without a language in the code-block surface", () => {
+  it("keeps a fenced block without a language in the code-block surface", async () => {
     const src = "before\n```\ncommand --flag\n```\nafter";
     const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
+    await act(async () => Promise.resolve());
 
     expect(container.querySelector(".shiki-block")).toBeTruthy();
     expect(container.querySelector(".shiki-block pre")?.textContent).toBe("command --flag");
-    expect(container.querySelector(".shiki-block button")?.getAttribute("aria-label")).toBe(
-      "Copy code",
-    );
+    expect(container.querySelector('.shiki-block button[aria-label="Copy code"]')).toBeTruthy();
   });
 
   it("renders a streaming-partial code block (no closer yet)", () => {

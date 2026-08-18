@@ -303,6 +303,23 @@ test("long content remains inside the reading column without horizontal overflow
   await expect(page.locator('[data-slot="composer-root"]')).toBeVisible();
 });
 
+test("code blocks stay readable and expose the wrap control", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=long-content");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const code = page.locator(".shiki-block");
+  await expect(code).toContainText("Execute(context.Context");
+  const wrap = code.getByRole("button", { name: "Enable word wrap" });
+  await expect(wrap).toHaveAttribute("aria-pressed", "false");
+  await wrap.click();
+
+  await expect(code.getByRole("button", { name: "Disable word wrap" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(code.locator('.shiki-body[data-wrap="true"]')).toHaveCount(1);
+});
+
 // The three seams around the reading plane are one primitive, and the top one is the
 // easy one to lose: half a device pixel, so the raster comparison can pass on its
 // absence, and the bars sit in their region's own colour with the body scrolling

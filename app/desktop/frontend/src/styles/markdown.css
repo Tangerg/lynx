@@ -311,6 +311,11 @@
   color: var(--color-text-soft);
   white-space: pre;
 }
+.shiki-block .shiki-body[data-wrap="true"] .shiki,
+.shiki-block .shiki-body.shiki-fallback[data-wrap="true"] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .shiki-block .shiki::-webkit-scrollbar,
 .shiki-block .shiki-fallback::-webkit-scrollbar {
   height: 8px;

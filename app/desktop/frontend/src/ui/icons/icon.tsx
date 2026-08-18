@@ -65,7 +65,9 @@ import {
   ThumbsUp,
   Trash2,
   TriangleAlert,
+  UnfoldHorizontal,
   User,
+  WrapText,
   Wrench,
   X,
   Zap,
@@ -192,7 +194,9 @@ export type IconName =
   | "calendar-x"
   | "target"
   | "crosshair"
-  | "clipboard-check";
+  | "clipboard-check"
+  | "unfold-horizontal"
+  | "wrap-text";
 
 // Mapping from our project's icon vocabulary to lucide components.
 // Names on the left are the project's IconName tokens used at every
@@ -292,6 +296,8 @@ const ICON_MAP = {
   target: Target,
   crosshair: Crosshair,
   "clipboard-check": ClipboardCheck,
+  "unfold-horizontal": UnfoldHorizontal,
+  "wrap-text": WrapText,
 } satisfies Record<IconName, LucideIcon>;
 
 /**

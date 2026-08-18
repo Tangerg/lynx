@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import { Icon } from "@/ui/icons";
 import { useCopyFeedback } from "@/lib/useCopyFeedback";
 import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/highlight/shiki";
@@ -9,7 +8,6 @@ import { useShikiTheme } from "@/lib/highlight/useCodeHighlight";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { IconButton } from "./icon-button";
-import { Pressable } from "./pressable";
 
 interface Props {
   lang: string;
@@ -23,9 +21,7 @@ interface Props {
 
 // We debounce `code` so the Shiki tokenizer (3-10ms per pass) doesn't
 // run on every stream-reveal delta during streaming. While it's settling,
-// raw code shows in a <pre> fallback. Blocks longer than this auto-fold
-// once the stream finishes.
-const FOLD_LINE_THRESHOLD = 24;
+// raw code shows in a <pre> fallback.
 
 export function ShikiCodeBlock({ lang, code, file }: Props) {
   const t = useT();
@@ -41,13 +37,8 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const [html, setHtml] = useState<string | null>(
     () => getCachedHighlight(lang, shikiTheme, debouncedCode) ?? null,
   );
-  const [expanded, setExpanded] = useState(false);
+  const [wrapCode, setWrapCode] = useState(false);
   const { copied, copy } = useCopyFeedback(code);
-
-  const lineCount = useMemo(() => code.split("\n").length, [code]);
-  // Don't fold while the stream is in flight — collapsing a growing
-  // block hides the agent's progress.
-  const folded = !expanded && !isSettling && lineCount > FOLD_LINE_THRESHOLD;
 
   useEffect(() => {
     // Fast path — cache hit means we never wake the async highlighter.
@@ -94,7 +85,6 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
       className={cn(
         "shiki-block group/code my-3 overflow-hidden rounded-md font-mono text-code",
         "bg-sunken",
-        folded && "folded",
       )}
     >
       {/* Header — the card's own material over the recessed body, so the bar
@@ -111,6 +101,15 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
         )}
         <span className="min-w-1 flex-1" />
         <IconButton
+          icon={wrapCode ? "wrap-text" : "unfold-horizontal"}
+          size="xs"
+          active={wrapCode}
+          aria-pressed={wrapCode}
+          onClick={() => setWrapCode((current) => !current)}
+          title={t(wrapCode ? "message.code.wrap.disable" : "message.code.wrap.enable")}
+          className="text-fg-faint hover:bg-hover hover:text-fg"
+        />
+        <IconButton
           icon={copied ? "check" : "copy"}
           size="xs"
           onClick={() => void copy()}
@@ -123,41 +122,19 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           className={cn(copied ? "text-success" : "text-fg-faint hover:bg-hover hover:text-fg")}
         />
       </div>
-      {folded ? (
-        <Pressable
-          type="button"
-          onClick={() => setExpanded(true)}
-          title={t("message.code.expand")}
-          className={FOLD_TOGGLE}
-        >
-          <Icon name="code" size="xs" />
-          <span>{t("message.code.showLines", { count: lineCount })}</span>
-        </Pressable>
+      {showHighlighted ? (
+        <div
+          className="shiki-body"
+          data-wrap={wrapCode}
+          dangerouslySetInnerHTML={{ __html: html! }}
+        />
       ) : (
-        <>
-          {showHighlighted ? (
-            <div className="shiki-body" dangerouslySetInnerHTML={{ __html: html! }} />
-          ) : (
-            // `shiki-fallback` is a CSS hook — the markdown.css rule sets
-            // colour + whitespace-pre on this pre while we wait for Shiki.
-            <pre className="shiki-body shiki-fallback m-0">{code}</pre>
-          )}
-          {lineCount > FOLD_LINE_THRESHOLD && !isSettling && (
-            <Pressable
-              type="button"
-              onClick={() => setExpanded(false)}
-              title={t("message.code.collapse")}
-              className={FOLD_TOGGLE}
-            >
-              <Icon name="minimize" size="xs" />
-              <span>{t("message.code.collapseLabel")}</span>
-            </Pressable>
-          )}
-        </>
+        // `shiki-fallback` is a CSS hook — the markdown.css rule sets
+        // colour + whitespace-pre on this pre while we wait for Shiki.
+        <pre className="shiki-body shiki-fallback m-0" data-wrap={wrapCode}>
+          {code}
+        </pre>
       )}
     </div>
   );
 }
-
-const FOLD_TOGGLE =
-  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2 font-sans text-ui-sm font-medium text-fg-muted tracking-normal transition-[background,color] duration-[var(--dur-color)] hover:bg-hover hover:text-fg";
