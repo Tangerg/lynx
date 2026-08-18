@@ -1,5 +1,5 @@
-import type { PropsWithChildren } from "react";
-import { render, screen } from "@testing-library/react";
+import { createRef, type MutableRefObject, type PropsWithChildren } from "react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { BlockCtx } from "@/plugins/builtin/chat/message/public/rendering";
@@ -42,20 +42,37 @@ vi.mock("motion/react", () => ({
 }));
 
 vi.mock("use-stick-to-bottom", () => {
-  const StickToBottom = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
-    Content: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  });
+  const context = {
+    isAtBottom: true,
+    scrollRef: { current: null as HTMLDivElement | null },
+    scrollToBottom: vi.fn(),
+  };
+  const StickToBottom = Object.assign(
+    ({
+      children,
+      contextRef,
+    }: PropsWithChildren<{ contextRef?: MutableRefObject<typeof context | null> }>) => {
+      if (contextRef) contextRef.current = context;
+      return <div>{children}</div>;
+    },
+    {
+      Content: ({
+        children,
+        scrollClassName,
+      }: PropsWithChildren<{ scrollClassName?: string }>) => (
+        <div ref={(node) => (context.scrollRef.current = node)} className={scrollClassName}>
+          {children}
+        </div>
+      ),
+    },
+  );
   return {
     StickToBottom,
-    useStickToBottomContext: () => ({
-      isAtBottom: true,
-      scrollRef: { current: null },
-      scrollToBottom: vi.fn(),
-    }),
+    useStickToBottomContext: () => context,
   };
 });
 
-import { MessageStream } from "./MessageStream";
+import { MessageStream, type MessageStreamController } from "./MessageStream";
 
 const CTX: BlockCtx = {
   onSelectTool: vi.fn(),
@@ -147,5 +164,43 @@ describe("MessageStream terminal footer materialization", () => {
     expect(screen.getByTestId("root-run-outcome").closest("[data-turn-id]")?.dataset.turnId).toBe(
       "assistant-terminal-footer",
     );
+  });
+});
+
+describe("MessageStream initial bottom reconciliation", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not take the transcript back after the reader scrolls away", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+    const controllerRef = createRef<MessageStreamController>();
+
+    render(
+      <MessageStream
+        rows={[transcriptRow("running")]}
+        ctx={CTX}
+        sessionId="session-reader-scroll"
+        controllerRef={controllerRef}
+      />,
+    );
+
+    const viewport = document.querySelector<HTMLDivElement>(".msg-scroll-viewport");
+    expect(viewport).not.toBeNull();
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+
+    act(() => controllerRef.current?.settleInitialBottom());
+    expect(viewport?.scrollTop).toBe(1_000);
+
+    // A wheel/pointer interaction makes the reading position user-owned. The
+    // mount reconciliation may not keep writing the old tail on later frames.
+    if (viewport) viewport.scrollTop = 240;
+    act(() => vi.advanceTimersToNextFrame());
+
+    expect(viewport?.scrollTop).toBe(240);
   });
 });
