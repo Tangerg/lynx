@@ -1,36 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import type { Message } from "@/plugins/builtin/agent/public/viewState";
-import { MessageContext } from "@/plugins/sdk/messageContext";
+import { describe, expect, it } from "vitest";
 import { ReasoningBlock } from "./ReasoningBlock";
 
-const agentRunCommands = vi.hoisted(() => ({
-  cancelExact: vi.fn(),
-  stopCurrent: vi.fn(),
-}));
-
-vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
-  useRuntimeCommandsAvailable: () => true,
-}));
-
-vi.mock("@/plugins/builtin/agent/public/run", () => ({
-  cancelSessionRun: agentRunCommands.cancelExact,
-  stopCurrentRootRun: agentRunCommands.stopCurrent,
-}));
-
-const MESSAGE: Message = {
-  id: "reasoning-message",
-  role: "assistant",
-  runId: "run-predecessor",
-  blocks: [],
-};
-
 function renderReasoning(status: "running" | "complete", text: string) {
-  return render(
-    <MessageContext.Provider value={{ sessionId: "session-predecessor", message: MESSAGE }}>
-      <ReasoningBlock text={text} status={status} />
-    </MessageContext.Provider>,
-  );
+  return render(<ReasoningBlock text={text} status={status} />);
 }
 
 describe("ReasoningBlock disclosure policy", () => {
@@ -64,7 +37,5 @@ describe("ReasoningBlock disclosure policy", () => {
     renderReasoning("running", "A predecessor renderer is still settling.");
 
     expect(screen.queryByRole("button", { name: /Answer now/ })).toBeNull();
-    expect(agentRunCommands.cancelExact).not.toHaveBeenCalled();
-    expect(agentRunCommands.stopCurrent).not.toHaveBeenCalled();
   });
 });

@@ -747,7 +747,6 @@ export const zhTW: Record<string, string> = {
   "reasoning.thinking": "思考中…",
   "reasoning.thought": "思考",
   "reasoning.interrupted": "已中斷",
-  "reasoning.answerNow": "直接回答",
   "vcs.gitNotAvailable": "Git 不可用",
   "vcs.gitNotAvailableSub": "此執行時的 PATH 中沒有 git 二進位檔案。",
   "vcs.notARepo": "非 Git 儲存庫",

@@ -928,7 +928,6 @@ export const zh: Record<string, string> = {
   "reasoning.thinking": "思考中…",
   "reasoning.thought": "思考",
   "reasoning.interrupted": "已中断",
-  "reasoning.answerNow": "直接回答",
   "vcs.gitNotAvailable": "Git 不可用",
   "vcs.gitNotAvailableSub": "此运行时的 PATH 中没有 git 二进制文件。",
   "vcs.notARepo": "不是 Git 仓库",

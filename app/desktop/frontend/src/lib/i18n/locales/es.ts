@@ -752,7 +752,6 @@ export const es: Record<string, string> = {
   "reasoning.thinking": "Pensando…",
   "reasoning.thought": "Pensamiento",
   "reasoning.interrupted": "interrumpido",
-  "reasoning.answerNow": "Responder ahora",
   "vcs.gitNotAvailable": "Git no disponible",
   "vcs.gitNotAvailableSub": "Este runtime no tiene un binario git en su PATH.",
   "vcs.notARepo": "No es un repositorio Git",

@@ -1053,7 +1053,6 @@ export const en: Record<string, string> = {
   "reasoning.thinking": "Thinking…",
   "reasoning.thought": "Thought",
   "reasoning.interrupted": "interrupted",
-  "reasoning.answerNow": "Answer now",
 
   // ── VCS gate ──
   "vcs.gitNotAvailable": "Git not available",

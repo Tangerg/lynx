@@ -744,7 +744,6 @@ export const ja: Record<string, string> = {
   "reasoning.thinking": "考えています…",
   "reasoning.thought": "思考",
   "reasoning.interrupted": "中断",
-  "reasoning.answerNow": "今すぐ回答",
   "vcs.gitNotAvailable": "Git を利用できません",
   "vcs.gitNotAvailableSub": "このランタイムの PATH に git バイナリがありません。",
   "vcs.notARepo": "Git リポジトリではありません",

@@ -756,7 +756,6 @@ export const de: Record<string, string> = {
   "reasoning.thinking": "Denkt nach…",
   "reasoning.thought": "Gedacht",
   "reasoning.interrupted": "unterbrochen",
-  "reasoning.answerNow": "Jetzt antworten",
   "vcs.gitNotAvailable": "Git nicht verfügbar",
   "vcs.gitNotAvailableSub": "Diese Runtime hat kein git-Binary im PATH.",
   "vcs.notARepo": "Kein Git-Repository",
