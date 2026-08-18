@@ -181,6 +181,25 @@ test("the active plan stays with the composer instead of claiming the transcript
   expect(composerBox!.y - (planBox!.y + planBox!.height)).toBeLessThanOrEqual(16);
 });
 
+test("the standing goal stays in the composer stack instead of claiming the transcript header", async ({
+  page,
+}) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=running");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const goal = page.getByRole("button", { name: "Show the allowance" });
+  const composer = page.locator('[data-slot="composer-root"]');
+  const goalBox = await goal.boundingBox();
+  const composerBox = await composer.boundingBox();
+
+  expect(goalBox).not.toBeNull();
+  expect(composerBox).not.toBeNull();
+  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeGreaterThanOrEqual(0);
+  // Plan may occupy the row between Goal and composer, but both are one compact
+  // composer-owned stack. A transcript-header Goal is hundreds of pixels away.
+  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeLessThanOrEqual(160);
+});
+
 test("composer keeps one production edge and 6/8 footer inset", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=empty");
   await page.locator("html[data-visual-ready]").waitFor();
