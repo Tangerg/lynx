@@ -196,6 +196,29 @@ describe("markdownMessage", () => {
     expect(container.querySelectorAll("li").length).toBe(3);
   });
 
+  it("marks directional prose and Han paragraphs like Codex", () => {
+    const src = [
+      "# عنوان",
+      "",
+      "中文第一段。",
+      "",
+      "中文第二段。",
+      "",
+      "- عنصر",
+      "",
+      "1. خطوة",
+      "",
+      "> اقتباس",
+    ].join("\n");
+    const { container } = render(<MarkdownMessage text={src} reveal="instant" />);
+
+    expect(container.querySelector('h1[dir="auto"]')).toBeTruthy();
+    expect(container.querySelectorAll('p[data-markdown-han-text="true"]')).toHaveLength(2);
+    expect(container.querySelector('ul[dir="auto"]')).toBeTruthy();
+    expect(container.querySelector('ol[dir="auto"]')).toBeTruthy();
+    expect(container.querySelector('blockquote[dir="auto"]')).toBeTruthy();
+  });
+
   it("drops fade-in wrappers for the instant reveal mode", () => {
     const { container } = render(<MarkdownMessage text="Hello world" reveal="instant" />);
     expect(container.querySelectorAll("span.fade-in").length).toBe(0);
