@@ -183,4 +183,42 @@ describe("QuestionCard choice semantics", () => {
     expect(answer).toBeTruthy();
     expect(answer!.className).toContain("whitespace-pre-wrap");
   });
+
+  it("presents multiple questions one at a time and advances without losing the draft", () => {
+    render(
+      <QuestionCard
+        status="requires-action"
+        runId="run-1"
+        itemId="question-7"
+        questions={[
+          {
+            type: "choice",
+            header: "Gate",
+            prompt: "Which gate should run next?",
+            multiple: false,
+            allowCustom: false,
+            options: [
+              { label: "Race detector", description: "" },
+              { label: "Visual suite", description: "" },
+            ],
+          },
+          {
+            type: "text",
+            header: "Context",
+            prompt: "Describe the constraints.",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("1 of 2")).toBeTruthy();
+    expect(screen.queryByText("Describe the constraints.")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Race detector" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByText("2 of 2")).toBeTruthy();
+    expect(screen.getByText("Describe the constraints.")).toBeTruthy();
+    expect(screen.queryByText("Which gate should run next?")).toBeNull();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
+  });
 });
