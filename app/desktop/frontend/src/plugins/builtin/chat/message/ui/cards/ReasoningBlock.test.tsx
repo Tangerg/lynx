@@ -60,15 +60,11 @@ describe("ReasoningBlock disclosure policy", () => {
     expect(body.className).toContain("pl-6");
   });
 
-  it("cancels the exact Session and Run presented by a predecessor renderer", () => {
+  it("does not disguise Run cancellation as an Answer now activity action", () => {
     renderReasoning("running", "A predecessor renderer is still settling.");
 
-    fireEvent.click(screen.getByRole("button", { name: /Answer now/ }));
-
-    expect(agentRunCommands.cancelExact).toHaveBeenCalledWith({
-      sessionId: "session-predecessor",
-      runId: "run-predecessor",
-    });
+    expect(screen.queryByRole("button", { name: /Answer now/ })).toBeNull();
+    expect(agentRunCommands.cancelExact).not.toHaveBeenCalled();
     expect(agentRunCommands.stopCurrent).not.toHaveBeenCalled();
   });
 });
