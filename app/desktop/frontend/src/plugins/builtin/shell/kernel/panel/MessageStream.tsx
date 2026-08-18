@@ -205,27 +205,34 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
   const terminalTurnIndex = currentRoot.terminalTurnIndex(rows);
   const stickContextRef = useRef<StickToBottomContext>(null);
 
-  // The library observes geometry, but an async Markdown renderer mutates its
-  // subtree before the resulting size/scroll events. At first mount those later
-  // events can make the library classify its own layout correction as an escape
-  // and strand the tail. Reconcile in the mutation microtask, while the library's
-  // authoritative follow bit still describes the position before that layout.
-  // A real wheel/scroll escape flips it false, so this observer never writes a
-  // reader-owned position and owns no parallel scroll state or clock.
+  // The library observes the content box, but two tail-height sources sit outside
+  // that measurement: async Markdown mutates the subtree before its size event,
+  // and the measured composer clearance changes padding in the border box. At a
+  // compact height the latter can add the only overflow, so a content-box observer
+  // never follows it and leaves the blocking HITL action under the composer.
+  // Reconcile both signals against the library's authoritative follow bit and its
+  // exact target; a real reader escape still withdraws writes, with no parallel
+  // scroll state or clock.
   useLayoutEffect(() => {
     const stickContext = stickContextRef.current;
     const viewport = stickContext?.scrollRef.current;
     const content = viewport?.firstElementChild;
     if (!stickContext || !viewport || !content) return;
 
-    const observer = new MutationObserver(() => {
+    const reconcileFollowingTail = () => {
       const current = stickContextRef.current;
       const currentViewport = current?.scrollRef.current;
       if (!current?.isAtBottom || !currentViewport) return;
-      currentViewport.scrollTop = currentViewport.scrollHeight;
-    });
-    observer.observe(content, { childList: true, characterData: true, subtree: true });
-    return () => observer.disconnect();
+      currentViewport.scrollTop = current.state.calculatedTargetScrollTop;
+    };
+    const mutationObserver = new MutationObserver(reconcileFollowingTail);
+    const borderBoxObserver = new ResizeObserver(reconcileFollowingTail);
+    mutationObserver.observe(content, { childList: true, characterData: true, subtree: true });
+    borderBoxObserver.observe(content, { box: "border-box" });
+    return () => {
+      mutationObserver.disconnect();
+      borderBoxObserver.disconnect();
+    };
   }, [sessionId]);
 
   // Keep the scroll library behind MessageStream's local controller. The
@@ -251,7 +258,10 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
         // animation, and its ordinary wheel/scroll escape owns every later
         // interaction. A bounded RAF loop here used to overwrite a reader-owned
         // position until its unrelated clock expired.
-        viewport.scrollTop = viewport.scrollHeight;
+        // Use the library's exact target rather than scrollHeight. Its target is
+        // one pixel above the browser maximum; overshooting then being corrected
+        // upward can otherwise be misread as a reader escape during first layout.
+        viewport.scrollTop = stickContext.state.calculatedTargetScrollTop;
         void stickContext.scrollToBottom({
           animation: "instant",
           ignoreEscapes: true,

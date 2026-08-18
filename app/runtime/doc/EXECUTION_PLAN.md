@@ -28,6 +28,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - UI 精修继续服从现有 theme/design-system token、单一 edge mechanism、最小 40px 可点击区域、键盘焦点、reduced motion、CJK/长路径/长标题、tabular numerals、容器宽度与 Retina device-pixel 约束；不以额外 chrome、卡片、圆角或动画代替信息层级。
 - 完成前运行 Frontend 全门禁与 `--detectAsyncLeaks`、三栏完整 visual/WCAG/light-dark/Retina 矩阵、必要的 Runtime/Desktop gates、Wails v3 production package，以及 fresh database、renderer replacement、Runtime restart/SIGKILL 的真实产品 smoke；自动化会话、daemon、临时数据库和测试进程必须清理。
 - 左栏首个 production 反例已锁定：project-row `+` 的 `sessions.create` 被 command owner 拒绝并返回空 identity 后，`useWorkIndexActions` 仍无条件聚焦 composer，焦点落回旧 Session 并制造创建成功的假反馈。唯一修复 owner 是该 action 的异步完成语义；现在仅在返回新 Session identity 后聚焦，与顶层 New 和目录选择入口一致，不增加 optimistic navigation、toast 旁路或第二 Session writer。
+- 中栏紧凑窗口反例已闭环：在 1280×577 首次打开 waiting/question 时，Approve/Submit 的底边分别落到 composer 内 53px/89px。`use-stick-to-bottom` 只观察 content box，而 ChatStream 的实测 composer 净空通过 transcript padding 改变 border box；最终净空没有进入 follow lifecycle，初始视口停在尾部之外。`MessageStream` 仍是唯一滚动 owner，现在以同一个 follow fact 同时消费 subtree mutation 与 border-box ResizeObserver，并写库自己的精确 target，用户逃逸后保持 reader-owned 位置；未增加 timer、第二 scroll state 或 HITL 专用滚动旁路。紧凑 waiting/question、既有 tail clearance 与 reader escape 共 6 项 browser 反例及定向 unit/typecheck 全绿。
 
 ### P117 红例、参考裁决与完成结论（2026-08-18）
 

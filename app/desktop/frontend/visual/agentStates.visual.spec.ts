@@ -337,9 +337,11 @@ for (const { state, action } of [
     await expect(button).toBeVisible();
     await expect
       .poll(() =>
-        page.locator(".msg-scroll-viewport").evaluate((element) =>
-          Number.parseFloat(getComputedStyle(element).getPropertyValue("--composer-overlay")),
-        ),
+        page
+          .locator(".msg-scroll-viewport")
+          .evaluate((element) =>
+            Number.parseFloat(getComputedStyle(element).getPropertyValue("--composer-overlay")),
+          ),
       )
       .toBeGreaterThan(0);
 

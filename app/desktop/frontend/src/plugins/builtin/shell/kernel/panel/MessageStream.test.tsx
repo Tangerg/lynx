@@ -44,6 +44,12 @@ vi.mock("use-stick-to-bottom", () => {
     isAtBottom: true,
     scrollRef: { current: null as HTMLDivElement | null },
     scrollToBottom: vi.fn(),
+    state: {
+      get calculatedTargetScrollTop() {
+        const viewport = context.scrollRef.current;
+        return viewport ? Math.max(viewport.scrollHeight - viewport.clientHeight - 1, 0) : 0;
+      },
+    },
   };
   const StickToBottom = Object.assign(
     ({
@@ -189,7 +195,7 @@ describe("MessageStream initial bottom reconciliation", () => {
     });
 
     act(() => controllerRef.current?.settleInitialBottom());
-    expect(viewport?.scrollTop).toBe(1_000);
+    expect(viewport?.scrollTop).toBe(599);
 
     // A wheel/pointer interaction makes the reading position user-owned. The
     // mount reconciliation may not keep writing the old tail on later frames.
