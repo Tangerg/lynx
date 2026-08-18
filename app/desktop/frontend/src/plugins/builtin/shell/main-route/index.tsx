@@ -8,11 +8,10 @@
 import { AgentClientPage } from "@/pages/AgentClientPage";
 import { definePlugin } from "@/plugins/sdk";
 import { ROUTE } from "@/plugins/sdk/kernelPoints";
-import { mainRoute } from "./application/mainRouteContribution";
 
 export default definePlugin({
   name: "lyra.builtin.main-route",
   setup(ctx) {
-    ctx.contribute(ROUTE, mainRoute(AgentClientPage));
+    ctx.contribute(ROUTE, { id: "main", path: "/", order: 0, component: AgentClientPage });
   },
 });

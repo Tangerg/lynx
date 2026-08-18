@@ -9,7 +9,6 @@ import { writeToClipboard } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n";
 import { contributeLayout, definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canCopyMessage } from "./application/messageActionAvailability";
-import { messageCopyActionSlot } from "./application/messageActionContributions";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
 import { MessageActionButton } from "./MessageActionButton";
 
@@ -82,6 +81,6 @@ function CopyItem({
 export const messageCopy = definePlugin({
   name: "lyra.builtin.message-copy",
   setup(ctx) {
-    contributeLayout(ctx, "message.actions", messageCopyActionSlot(CopyButton));
+    contributeLayout(ctx, "message.actions", { id: "copy", order: 0, component: CopyButton });
   },
 });

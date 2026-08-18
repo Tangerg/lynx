@@ -4,7 +4,7 @@
 import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
-import { pluginsSettingsPane } from "./application/pluginsPaneContributions";
+import { PLUGINS_PANE } from "../public/panes";
 
 const PluginsPane = lazy(() =>
   import("./ui/PluginsPane").then(({ PluginsPane }) => ({ default: PluginsPane })),
@@ -13,6 +13,13 @@ const PluginsPane = lazy(() =>
 export default definePlugin({
   name: "lyra.builtin.plugins-pane",
   setup(ctx) {
-    registerSettingsPane(ctx, pluginsSettingsPane(PluginsPane));
+    registerSettingsPane(ctx, {
+      id: PLUGINS_PANE,
+      label: "settings.pane.plugins",
+      group: "integrations",
+      icon: "tool",
+      order: 99,
+      component: PluginsPane,
+    });
   },
 });

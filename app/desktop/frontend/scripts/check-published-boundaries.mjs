@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
+import ts from "typescript";
 
 const SRC = join(process.cwd(), "src");
 const TEXT_EXT = /\.(ts|tsx|md)$/;
@@ -73,6 +74,32 @@ function code(text) {
   return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
 
+function onlyProjectsContributionObjects(rel, text) {
+  if (!/\/application\/[^/]*Contributions?\.tsx?$/.test(rel)) return false;
+  const source = ts.createSourceFile(
+    basename(rel),
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    rel.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const exportedFunctions = source.statements.filter(
+    (statement) =>
+      ts.isFunctionDeclaration(statement) &&
+      statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword),
+  );
+  if (exportedFunctions.length === 0) return false;
+  return exportedFunctions.every((fn) => {
+    if (!fn.body || fn.body.statements.length !== 1) return false;
+    const statement = fn.body.statements[0];
+    return (
+      ts.isReturnStatement(statement) &&
+      statement.expression !== undefined &&
+      ts.isObjectLiteralExpression(statement.expression)
+    );
+  });
+}
+
 const isWire = (rel) => rel.startsWith("rpc/");
 const isShared = (rel) => rel.startsWith("lib/");
 
@@ -123,6 +150,14 @@ for (const file of files(SRC)) {
 
   if (!isTest && /\.tsx?$/.test(rel)) {
     collectVocabulary(rel, text);
+
+    if (onlyProjectsContributionObjects(rel, text)) {
+      violations.push({
+        file: rel,
+        reason:
+          "application contribution module only projects object literals — declare static registration at the plugin entry",
+      });
+    }
 
     // Runtime wire vocabulary is translated at the Agent Adapter boundary.
     // Letting Application, Domain, or Public import `rpc` makes transport DTOs

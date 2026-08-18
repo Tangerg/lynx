@@ -7,12 +7,16 @@
 // The numbers stay in its tooltip, where they cost no layout at all.
 
 import { contributeLayout, definePlugin } from "@/plugins/sdk";
-import { composerContextUsageSlot } from "./application/contextUsageContributions";
 import { ContextUsageGauge } from "./ui/ContextUsageGauge";
 
 export default definePlugin({
   name: "lyra.builtin.context-usage",
   setup(ctx) {
-    contributeLayout(ctx, "composer.toolbar.start", composerContextUsageSlot(ContextUsageGauge));
+    contributeLayout(ctx, "composer.toolbar.start", {
+      // After the model it measures: the window reads as that control's consequence.
+      id: "context-usage",
+      order: 3,
+      component: ContextUsageGauge,
+    });
   },
 });

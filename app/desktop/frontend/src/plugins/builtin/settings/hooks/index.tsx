@@ -5,8 +5,8 @@
 import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { HOOKS_PANE } from "../public/panes";
 import { installHookTrustGateway } from "./adapters/runtimeHookTrustGateway";
-import { hooksSettingsPane } from "./application/hooksContributions";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 const HooksPane = lazy(() =>
@@ -25,7 +25,14 @@ export default definePlugin({
       connectionGeneration = next;
       gateway.replaceRuntimeGeneration();
     });
-    registerSettingsPane(ctx, hooksSettingsPane(HooksPane));
+    registerSettingsPane(ctx, {
+      id: HOOKS_PANE,
+      label: "settings.pane.hooks",
+      group: "agent",
+      icon: "lightning",
+      order: 57,
+      component: HooksPane,
+    });
     ctx.cleanup(() => {
       unsubscribeRuntime();
       gateway.dispose();

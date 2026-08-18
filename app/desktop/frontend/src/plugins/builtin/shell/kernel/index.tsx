@@ -12,11 +12,6 @@ import { useReconcilePersistedAgentSessions } from "@/plugins/builtin/agent/publ
 import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useDefaultChatSession } from "@/plugins/builtin/agent/public/defaultSession";
-import {
-  kernelChatSlot,
-  kernelSettingsView,
-  kernelSidebarSlot,
-} from "./application/kernelContributions";
 
 function KernelChat() {
   // Drop persisted refs to sessions the backend no longer has BEFORE binding
@@ -38,20 +33,27 @@ function KernelSidebar() {
 export const kernelChat = definePlugin({
   name: "lyra.builtin.kernel-chat",
   setup(ctx) {
-    contributeLayout(ctx, "app.main", kernelChatSlot(KernelChat));
+    contributeLayout(ctx, "app.main", { id: "chat", order: 0, component: KernelChat });
   },
 });
 
 export const kernelSidebar = definePlugin({
   name: "lyra.builtin.kernel-sidebar",
   setup(ctx) {
-    contributeLayout(ctx, "app.sidebar", kernelSidebarSlot(KernelSidebar));
+    contributeLayout(ctx, "app.sidebar", { id: "sidebar", order: 0, component: KernelSidebar });
   },
 });
 
 export const kernelSettings = definePlugin({
   name: "lyra.builtin.kernel-settings",
   setup(ctx) {
-    ctx.contribute(WORKSPACE_VIEW, kernelSettingsView(SettingsPage));
+    ctx.contribute(WORKSPACE_VIEW, {
+      id: "settings",
+      title: "settings.title",
+      icon: "settings",
+      // Last in the palette and never in the dock: settings is a whole-window surface.
+      order: 200,
+      component: SettingsPage,
+    });
   },
 });

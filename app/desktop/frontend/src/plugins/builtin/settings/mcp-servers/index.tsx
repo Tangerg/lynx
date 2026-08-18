@@ -1,9 +1,9 @@
 import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { MCP_SERVERS_PANE } from "../public/panes";
 import { installMCPServerGateway } from "./adapters/runtimeMcpServerGateway";
 import { registerMCPDataProviders } from "./adapters/runtimeMcpDataProviders";
-import { mcpServersSettingsPane } from "./application/mcpServersContributions";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 const McpServersPane = lazy(() =>
@@ -23,7 +23,14 @@ export default definePlugin({
       gateway.replaceRuntimeGeneration();
     });
     registerMCPDataProviders(ctx);
-    registerSettingsPane(ctx, mcpServersSettingsPane(McpServersPane));
+    registerSettingsPane(ctx, {
+      id: MCP_SERVERS_PANE,
+      label: "settings.pane.mcpServers",
+      group: "integrations",
+      icon: "tool",
+      order: 56,
+      component: McpServersPane,
+    });
     ctx.cleanup(() => {
       unsubscribeRuntime();
       gateway.dispose();

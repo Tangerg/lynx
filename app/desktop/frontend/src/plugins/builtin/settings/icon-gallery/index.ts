@@ -7,10 +7,7 @@ import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { registerSettingsPane } from "../public";
-import {
-  brandIconsSettingsPane,
-  iconGalleryWorkspaceView,
-} from "./application/iconGalleryContributions";
+import { BRAND_ICONS_PANE } from "../public/panes";
 
 const IconGallery = lazy(() =>
   import("./ui/IconGallery").then(({ IconGallery }) => ({ default: IconGallery })),
@@ -22,8 +19,21 @@ const IconShowcase = lazy(() =>
 export default definePlugin({
   name: "lyra.builtin.icon-gallery",
   setup(ctx) {
-    ctx.contribute(WORKSPACE_VIEW, iconGalleryWorkspaceView(IconGallery));
+    ctx.contribute(WORKSPACE_VIEW, {
+      id: "icon-gallery",
+      title: "workspace.view.title.iconGallery",
+      icon: "spark",
+      order: 60,
+      component: IconGallery,
+    });
 
-    registerSettingsPane(ctx, brandIconsSettingsPane(IconShowcase));
+    registerSettingsPane(ctx, {
+      id: BRAND_ICONS_PANE,
+      label: "settings.pane.brandIcons",
+      group: "advanced",
+      icon: "spark",
+      order: 110,
+      component: IconShowcase,
+    });
   },
 });

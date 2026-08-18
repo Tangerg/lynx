@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品按一个 client/一个 server 设计。SQLite 仍是 durable winner；客户端 generation 只决定谁有权提交当前投影。
-- P113/P114 已完成；P115 已授权并完成 Mutation Journal 与 Frontend lifecycle owner 收敛，后续维护性批次仍在执行。
+- P113/P114 已完成；P115 已授权并完成 Mutation Journal、Frontend lifecycle owner 与无价值分层收敛，Runtime 内部批次仍在执行。
 
 ## 2. 架构与所有权
 
@@ -137,6 +137,7 @@
 - required dependency 已从运行期偶然性提升为构造/启动期合同。
 - shared map、cancel set、replacement、join 和 retirement 必须由单一并发对象拥有。
 - 文件/package 按 change reason 和边界拆分，不按行数拆分；只有一个调用者、没有独立不变量/生命周期/替换价值的微模块应吸回 owner。
+- 静态 extension registration 直接属于 plugin composition entry；只投影 `{id, order, component}` 等对象字面量的 application factory 与对应 literal-only test 不构成独立边界。保留的 contribution module 必须拥有策略、行为、映射不变量或跨 context published language。
 - 通用 helper 只在确有多个独立消费者且语义稳定时存在；不为测试便利暴露 singleton accessor 或 raw owner getter。
 - 空目录、迁移 alias、compat adapter、双状态 codec、刷新旁路和 shadow owner 不属于当前架构。
 

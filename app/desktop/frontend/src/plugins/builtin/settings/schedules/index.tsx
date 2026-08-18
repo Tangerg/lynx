@@ -1,8 +1,8 @@
 import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { SCHEDULES_PANE } from "../public/panes";
 import { installScheduleGateway } from "./adapters/runtimeScheduleGateway";
-import { schedulesSettingsPane } from "./application/schedulesContributions";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 const SchedulesPane = lazy(() =>
@@ -21,7 +21,14 @@ export default definePlugin({
       connectionGeneration = next;
       gateway.replaceRuntimeGeneration();
     });
-    registerSettingsPane(ctx, schedulesSettingsPane(SchedulesPane));
+    registerSettingsPane(ctx, {
+      id: SCHEDULES_PANE,
+      label: "settings.pane.schedules",
+      group: "agent",
+      icon: "clock",
+      order: 58,
+      component: SchedulesPane,
+    });
     ctx.cleanup(() => {
       unsubscribeRuntime();
       gateway.dispose();

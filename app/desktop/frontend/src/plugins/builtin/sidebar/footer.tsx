@@ -9,7 +9,6 @@ import { isLightTheme, toggleThemeScheme } from "@/plugins/builtin/theme/public/
 import { Slot } from "@/plugins/host/Slot";
 import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
-import { sidebarFooterSlot } from "./application/sidebarContributions";
 
 function ThemeToggle() {
   const t = useT();
@@ -60,6 +59,10 @@ function SidebarFooter() {
 export const sidebarFooter = definePlugin({
   name: "lyra.builtin.sidebar-footer",
   setup(ctx) {
-    contributeLayout(ctx, "sidebar.footer", sidebarFooterSlot(SidebarFooter));
+    contributeLayout(ctx, "sidebar.footer", {
+      id: "user-card",
+      order: 0,
+      component: SidebarFooter,
+    });
   },
 });

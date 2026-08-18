@@ -1,6 +1,6 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P114 已完成并形成里程碑；P115 已授权，Mutation Journal 与 Frontend lifecycle owner 收敛已完成，当前执行无价值分层清理。
+> 状态：P0–P114 已完成并形成里程碑；P115 已授权，Frontend 三个收敛批次已完成，当前执行 Runtime Bootstrap composition 重塑。
 >
 > 最近基线：2026-08-18，commit `babec316e`。
 
@@ -17,7 +17,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 - P115 已于 2026-08-18 授权，设计与验收 owner 为
   [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md)。
-- Batch 0 已固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；Batch 1 已将 Mutation Journal 重建为 durable unresolved-command identity 与 renderer-local commit authority 两个职责；Batch 2 已收敛 Frontend lifecycle publication/retirement。当前执行 Batch 3，合并没有独立不变量的 facade 与 contribution 分层。
+- Batch 0 已固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；Batch 1 已重建 Mutation Journal；Batch 2 已收敛 Frontend lifecycle publication/retirement；Batch 3 已合并没有独立不变量的 facade 与 contribution 分层。当前执行 Batch 4，重塑 Runtime Bootstrap composition 与资源生命周期。
 - breaking change 被允许，但只用于建立更准确的唯一合同；禁止以 breaking change 为名制造并行实现或迁移半成品。
 - `app/cli` 不在本计划授权范围内，不得修改或暂存。
 - 保留所有无关工作区改动；每个独立批次精确暂存、提交并推送。
@@ -87,3 +87,5 @@ P115 已完成上述准入审计：R1–R5 均由审计时的生产代码和既�
 Batch 1 已删除 Mutation Journal 的 legacy codec、migration、persisted owner/lease、heartbeat、leader election、claimable 与 settled 状态。当前唯一 storage shape 只持久化未决命令的 salted fingerprint、idempotency key、Runtime endpoint/namespace 和 retention boundary；请求参数不落盘。renderer 提交权由进程内 exact object identity 拥有，replacement 先发布 successor 再同步退休 predecessor；前任迟到 response、error 和 dispose 均不能删除或结算后继身份。相同 Runtime store 可从未决记录恢复 exact key，endpoint/namespace replacement 则删除旧 scope 并生成新身份。定向验收覆盖 3 个 test files / 44 tests。
 
 Batch 2 已删除 15 个业务 Owner 各自复制的 `static #active` publication/retirement 模板，并把 Runtime connection 与 HITL response coordinator 的同类 module-global 交接纳入同一机制。`publicationSlot.ts` 只拥有 process-local exact object identity、successor-first publication 和 exact withdrawal，不持有业务 task、cache、event、error 或 material；各 concrete owner 继续拥有 serialization、abort、projection repair 和 typed retirement。Singleton application port 复用该 identity primitive。Recipes plugin final cleanup 现在 fencing 晚到 fetch，并删除自己留下的 inactive query，修复了可稳定复现的 async timer leak。定向 owner/lifecycle 验收覆盖 30 个 test files / 159 tests。
+
+Batch 3 已把 30 个只投影静态 extension spec 的 application contribution module 吸回各插件 composition entry，并删除只复述对象字面量的测试。Composer contribution 混合文件被拆除，只保留有真实键位语义的 `composerKeyBindings`；tool family、default command policy、Session search behavior 与 Work Index published facade 因独立不变量继续保留。`check:published-boundaries` 现在按 AST 拒绝“所有 exported function 都只返回对象字面量”的 application contribution module，不依赖具体历史路径白名单。Chat search 新增 `messages` / `transcript` 可发现关键词，用单文件真实功能修改证明 registration 触达面已收敛到 owner entry。

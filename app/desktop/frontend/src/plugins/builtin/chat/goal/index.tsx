@@ -3,7 +3,6 @@ import { SLASH_COMMAND, TOOL_STANDING_SURFACE } from "@/plugins/sdk/kernelPoints
 import { t } from "@/lib/i18n";
 import { requestGoalLauncher } from "./adapters/goalLauncherRequest";
 import { installGoalRuntimeAdapter } from "./adapters/runtimeGoalCommandsGateway";
-import { goalBannerSlot, goalLauncherSlot } from "./application/goalContributions";
 import { GoalBanner } from "./ui/GoalBanner";
 import { GoalLauncher } from "./ui/GoalLauncher";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
@@ -44,8 +43,18 @@ export default definePlugin({
       connectionGeneration = next;
       runtimeAdapter.replaceRuntimeGeneration();
     });
-    contributeLayout(ctx, "chat.banner.top", goalBannerSlot(GoalBanner));
-    contributeLayout(ctx, "composer.toolbar.end", goalLauncherSlot(GoalLauncher));
+    contributeLayout(ctx, "chat.banner.top", {
+      // Above the plan: the goal is the standing order.
+      id: "goal",
+      order: 0,
+      component: GoalBanner,
+    });
+    contributeLayout(ctx, "composer.toolbar.end", {
+      // Before Send because Goal mode changes how the draft is executed.
+      id: "goal-launcher",
+      order: 90,
+      component: GoalLauncher,
+    });
     // Setting the goal and reading it back are both answered by the banner, which
     // carries the objective, the status and every budget axis for the whole session.
     //

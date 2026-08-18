@@ -9,7 +9,6 @@ import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import type { MessageFeedbackRating } from "./domain/feedback";
 import { canRateMessage } from "./application/messageActionAvailability";
-import { messageFeedbackActionSlot } from "./application/messageActionContributions";
 import { messageFeedbackWasRetired, useMessageFeedback } from "./public/feedback";
 import { installRuntimeFeedbackGateway } from "./adapters/runtimeFeedback";
 import { MessageActionButton } from "./MessageActionButton";
@@ -66,7 +65,11 @@ export const messageFeedback = definePlugin({
       connectionGeneration = next;
       gateway.replaceRuntimeGeneration();
     });
-    contributeLayout(ctx, "message.actions", messageFeedbackActionSlot(FeedbackButtons));
+    contributeLayout(ctx, "message.actions", {
+      id: "feedback",
+      order: 15,
+      component: FeedbackButtons,
+    });
     ctx.cleanup(() => {
       unsubscribeRuntime();
       gateway.dispose();

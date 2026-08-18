@@ -16,11 +16,6 @@ import { contributeLayout, notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
-import {
-  composerApprovalSlot,
-  composerAttachSlot,
-  composerModelSlot,
-} from "./application/composerContributions";
 import { useAddComposerImageFiles } from "./public/attachments";
 import {
   useComposerModelPreference,
@@ -209,8 +204,20 @@ function ApprovalModePill() {
 export const composerToolbar = definePlugin({
   name: "lyra.builtin.composer-toolbar",
   setup(ctx) {
-    contributeLayout(ctx, "composer.toolbar.start", composerAttachSlot(AttachButton));
-    contributeLayout(ctx, "composer.toolbar.start", composerApprovalSlot(ApprovalModePill));
-    contributeLayout(ctx, "composer.toolbar.start", composerModelSlot(ModelPicker));
+    contributeLayout(ctx, "composer.toolbar.start", {
+      id: "attach",
+      order: 0,
+      component: AttachButton,
+    });
+    contributeLayout(ctx, "composer.toolbar.start", {
+      id: "approval",
+      order: 1,
+      component: ApprovalModePill,
+    });
+    contributeLayout(ctx, "composer.toolbar.start", {
+      id: "model",
+      order: 2,
+      component: ModelPicker,
+    });
   },
 });

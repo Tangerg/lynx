@@ -2,7 +2,7 @@ import { submitPendingApproval } from "@/plugins/builtin/agent/public/hitl";
 import { stopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
-import { composerKeyBindings } from "./application/composerContributions";
+import { composerKeyBindings } from "./application/composerKeyBindings";
 import {
   recallNextHistoryFromKey,
   recallPreviousHistoryFromKey,

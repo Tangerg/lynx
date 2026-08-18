@@ -1,8 +1,8 @@
 import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { PROVIDERS_PANE } from "../public/panes";
 import { installProviderGateway } from "./adapters/runtimeProviderGateway";
-import { providersSettingsPane } from "./application/providersContributions";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 const ProvidersPane = lazy(() =>
@@ -21,7 +21,14 @@ export default definePlugin({
       connectionGeneration = next;
       gateway.replaceRuntimeGeneration();
     });
-    registerSettingsPane(ctx, providersSettingsPane(ProvidersPane));
+    registerSettingsPane(ctx, {
+      id: PROVIDERS_PANE,
+      label: "settings.pane.providers",
+      group: "models",
+      icon: "spark",
+      order: 50,
+      component: ProvidersPane,
+    });
     ctx.cleanup(() => {
       unsubscribeRuntime();
       gateway.dispose();

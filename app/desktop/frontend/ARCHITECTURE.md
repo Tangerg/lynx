@@ -704,6 +704,8 @@ export default definePlugin({
 > 内置：放 `plugins/builtin/<domain>/<name>/index.ts(x)`，在 `builtin/index.ts` 合适分组 import + 加进数组。
 > 外置：构建成 ESM，把 React/motion/SDK 标 external 去引用 `window.__LYRA__`，放 `~/.lyra/plugins/<id>/index.js`；Wails Host Bridge 读取源码后交给前端作为 module blob 加载。
 
+静态 registration 是 plugin composition，不是 application use case。只返回 `{ id, order, component }` 或同类 extension spec 的 factory 必须直接写在插件入口；不得为它单建 `application/*Contributions.ts` 和只复述字面量的测试。只有 contribution module 自己拥有稳定策略或行为时才保留，例如 Composer key-binding 语义、默认命令集合、tool family 映射，或跨 context 的 SDK published-language facade。`check:published-boundaries` 会拒绝只投影对象字面量的 application contribution module。
+
 **自定义内容块的类型注册**（让 TS 满意）：
 
 ```ts

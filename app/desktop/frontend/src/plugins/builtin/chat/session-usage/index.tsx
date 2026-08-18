@@ -6,12 +6,15 @@
 // glanceable facts about the thing you are reading, none of which move anything.
 
 import { contributeLayout, definePlugin } from "@/plugins/sdk";
-import { sessionUsageStatusSlot } from "./application/sessionUsageContributions";
 import { SessionUsageChip } from "./ui/SessionUsageChip";
 
 export default definePlugin({
   name: "lyra.builtin.session-usage",
   setup(ctx) {
-    contributeLayout(ctx, "chat.header.meta", sessionUsageStatusSlot(SessionUsageChip));
+    contributeLayout(ctx, "chat.header.meta", {
+      id: "session-usage",
+      order: 10,
+      component: SessionUsageChip,
+    });
   },
 });

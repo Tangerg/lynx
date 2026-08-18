@@ -5,7 +5,6 @@
 import { useT } from "@/lib/i18n";
 import { contributeLayout, definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canEditMessage } from "./application/messageActionAvailability";
-import { messageEditActionSlot } from "./application/messageActionContributions";
 import { editMessageInComposer } from "./public/messageActions";
 import { MessageActionButton } from "./MessageActionButton";
 
@@ -27,6 +26,6 @@ function EditButton() {
 export const messageEdit = definePlugin({
   name: "lyra.builtin.message-edit",
   setup(ctx) {
-    contributeLayout(ctx, "message.actions", messageEditActionSlot(EditButton));
+    contributeLayout(ctx, "message.actions", { id: "edit", order: 5, component: EditButton });
   },
 });

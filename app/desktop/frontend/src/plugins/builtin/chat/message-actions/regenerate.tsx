@@ -4,7 +4,6 @@
 import { useT } from "@/lib/i18n";
 import { contributeLayout, definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canRegenerateMessage } from "./application/messageActionAvailability";
-import { messageRegenerateActionSlot } from "./application/messageActionContributions";
 import { regenerateMessage } from "./public/messageActions";
 import { MessageActionButton } from "./MessageActionButton";
 
@@ -26,6 +25,10 @@ function RegenerateButton() {
 export const messageRegenerate = definePlugin({
   name: "lyra.builtin.message-regenerate",
   setup(ctx) {
-    contributeLayout(ctx, "message.actions", messageRegenerateActionSlot(RegenerateButton));
+    contributeLayout(ctx, "message.actions", {
+      id: "regenerate",
+      order: 10,
+      component: RegenerateButton,
+    });
   },
 });
