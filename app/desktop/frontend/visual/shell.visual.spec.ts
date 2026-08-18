@@ -11,6 +11,7 @@ interface ShellRoute {
   theme: VisualShellTheme;
   state: VisualWorkIndexState;
   sidebar?: "expanded" | "collapsed";
+  motion?: "full";
 }
 
 async function openShell(page: Page, route: ShellRoute): Promise<void> {
@@ -20,6 +21,7 @@ async function openShell(page: Page, route: ShellRoute): Promise<void> {
     state: route.state,
     sidebar: route.sidebar ?? "expanded",
   });
+  if (route.motion) query.set("motion", route.motion);
   await page.goto(`${VISUAL_URL}?${query}`);
   await page.locator("html[data-visual-ready]").waitFor();
 }
@@ -79,6 +81,34 @@ test("Work Index search opens the shared session finder and restores focus", asy
   await page.keyboard.press("Escape");
   await expect(page.getByRole("combobox", { name: "Search sessions…" })).toHaveCount(0);
   await expect(launcher).toBeFocused();
+});
+
+test("an overflowing Session title reveals its remaining text and full identity", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await openShell(page, { theme: "light", state: "populated", motion: "full" });
+  await waitForWorkIndexState(page, "populated");
+
+  const title =
+    "Validate a deliberately long mixed CJK / English session title without breaking the row";
+  const row = page.getByRole("button", { name: new RegExp(title) });
+  const viewport = row.locator(".truncate-fade");
+  await expect
+    .poll(() => viewport.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeGreaterThan(0);
+
+  const trackLeft = (): Promise<number> =>
+    viewport.evaluate((element) =>
+      (element.firstElementChild ?? element).getBoundingClientRect().left,
+    );
+  const restingLeft = await trackLeft();
+  await row.hover();
+  await expect.poll(trackLeft).toBeLessThan(restingLeft - 1);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await row.hover();
+  await expect(page.getByRole("tooltip").filter({ hasText: title })).toBeVisible();
 });
 
 test("destructive session dialog traps, dismisses, and returns focus", async ({ page }) => {
