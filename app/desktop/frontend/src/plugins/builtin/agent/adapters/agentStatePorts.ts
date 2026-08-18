@@ -14,7 +14,7 @@ import { configureAgentSessionViewPort } from "../application/ports/sessionView"
 import {
   getCurrentSessionView,
   useAgentAction,
-  useCurrentRootAttention,
+  useCurrentRootRun,
   useAgentProblem,
   useRootNarrativeMessages,
   useRunTree,
@@ -22,8 +22,6 @@ import {
   useAgentSessionTimeline,
   useAgentSharedState,
   useAgentToolCalls,
-  useCurrentRootOutcome,
-  useCurrentRootMetrics,
 } from "./agentViewSelectors";
 import { AgentViewRefreshOwner, useAgentStore } from "./agentStore";
 
@@ -144,9 +142,7 @@ export function installAgentStatePorts(): () => void {
   });
 
   const disposeViewState = configureAgentSessionViewPort({
-    useCurrentRootAttention,
-    useCurrentRootOutcome,
-    useCurrentRootMetrics,
+    useCurrentRootRun,
     useToolCalls: useAgentToolCalls,
     useSessionTimeline: useAgentSessionTimeline,
     useRootNarrativeMessages,

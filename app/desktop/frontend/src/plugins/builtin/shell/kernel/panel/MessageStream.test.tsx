@@ -4,10 +4,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { BlockCtx } from "@/plugins/builtin/chat/message/public/rendering";
 
-const { rootRunning } = vi.hoisted(() => ({ rootRunning: { current: true } }));
+const { root } = vi.hoisted(() => ({
+  root: {
+    current: {
+      running: true,
+      terminalTurnIndex: () => -1,
+    },
+  },
+}));
 
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
-  useIsCurrentRootRunning: () => rootRunning.current,
+  useCurrentRootMaterial: () => root.current,
 }));
 
 vi.mock("@/plugins/builtin/chat/message/public/rendering", async (importOriginal) => {
@@ -28,7 +35,9 @@ vi.mock("@/lib/appearance", () => ({ useMotionOff: () => false }));
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: PropsWithChildren) => children,
   motion: {
-    div: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    div: ({ children, "data-turn-id": turnId }: PropsWithChildren<{ "data-turn-id"?: string }>) => (
+      <div data-turn-id={turnId}>{children}</div>
+    ),
   },
 }));
 
@@ -76,19 +85,40 @@ function transcriptRow(status: "running" | "complete"): TranscriptRow {
   };
 }
 
+function optimisticUserRow(): TranscriptRow {
+  return {
+    message: {
+      id: "local-successor-user",
+      runId: null,
+      role: "user",
+      blocks: [
+        {
+          kind: "text",
+          itemId: "local-successor-text",
+          text: "Start another run",
+          status: "complete",
+        },
+      ],
+    },
+    runOwner: { kind: "unassigned" },
+    facts: { toolCalls: {}, delegatedRuns: {} },
+  };
+}
+
 describe("MessageStream terminal footer materialization", () => {
   afterEach(() => {
     document.documentElement.removeAttribute("data-motion");
+    root.current = { running: true, terminalTurnIndex: () => -1 };
   });
 
   it("keeps the Run outcome out of layout until the terminal visible generation settles", async () => {
-    rootRunning.current = true;
+    root.current = { running: true, terminalTurnIndex: () => -1 };
     const { rerender } = render(
       <MessageStream rows={[transcriptRow("running")]} ctx={CTX} sessionId="session-footer" />,
     );
     expect(screen.queryByTestId("root-run-outcome")).toBeNull();
 
-    rootRunning.current = false;
+    root.current = { running: false, terminalTurnIndex: () => 0 };
     rerender(
       <MessageStream rows={[transcriptRow("complete")]} ctx={CTX} sessionId="session-footer" />,
     );
@@ -101,5 +131,21 @@ describe("MessageStream terminal footer materialization", () => {
     );
 
     expect(await screen.findByTestId("root-run-outcome")).toBeTruthy();
+  });
+
+  it("keeps a finished Run outcome with its exact turn while a successor user message is unassigned", () => {
+    root.current = { running: false, terminalTurnIndex: () => 0 };
+
+    render(
+      <MessageStream
+        rows={[transcriptRow("complete"), optimisticUserRow()]}
+        ctx={CTX}
+        sessionId="session-footer"
+      />,
+    );
+
+    expect(screen.getByTestId("root-run-outcome").closest("[data-turn-id]")?.dataset.turnId).toBe(
+      "assistant-terminal-footer",
+    );
   });
 });

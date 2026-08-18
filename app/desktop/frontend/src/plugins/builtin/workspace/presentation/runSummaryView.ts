@@ -3,19 +3,23 @@ import type { RunDigest } from "@/plugins/builtin/agent/public/runDigest";
 import {
   useActiveSessionTimeline,
   useActiveSessionToolCalls,
-  useCurrentRootAttention,
-  useCurrentRootOutcome,
+  useCurrentRootMaterial,
 } from "@/plugins/builtin/agent/public/run";
 import { deriveLatestRun } from "@/plugins/builtin/agent/public/runDigest";
 
 export function useLatestRunDigest(): RunDigest | null {
   const timeline = useActiveSessionTimeline();
   const toolCalls = useActiveSessionToolCalls();
-  const attention = useCurrentRootAttention();
-  const outcome = useCurrentRootOutcome();
+  const root = useCurrentRootMaterial();
 
   return useMemo(
-    () => deriveLatestRun({ timeline, toolCalls, attention, outcome }),
-    [timeline, toolCalls, attention, outcome],
+    () =>
+      deriveLatestRun({
+        timeline,
+        toolCalls,
+        attention: root.attention,
+        outcome: root.outcome,
+      }),
+    [timeline, toolCalls, root],
   );
 }

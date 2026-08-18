@@ -2,7 +2,7 @@ import { Gauge, Tooltip } from "@/ui";
 import { fmtTokens } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
-import { useCurrentRootMetrics } from "@/plugins/builtin/agent/public/run";
+import { useCurrentRootMaterial } from "@/plugins/builtin/agent/public/run";
 import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selectedModel";
 import { contextUsageReadout } from "../application/contextUsageReadout";
 
@@ -11,7 +11,7 @@ const CROWDED = 0.9;
 
 export function ContextUsageGauge() {
   const t = useT();
-  const metrics = useCurrentRootMetrics();
+  const metrics = useCurrentRootMaterial().metrics;
   const model = useSelectedModel();
   const readout = contextUsageReadout(metrics?.usage.inputTokens, model?.contextWindow);
   if (!readout) return null;

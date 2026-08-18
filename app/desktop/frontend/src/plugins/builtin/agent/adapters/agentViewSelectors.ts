@@ -2,8 +2,6 @@ import { useMemo, useRef } from "react";
 import { navigator } from "@/lib/navigation";
 import type {
   AgentProblem,
-  AgentRunMetrics,
-  AgentRunOutcome,
   AgentSessionView,
   Message,
   TimelineEntry,
@@ -16,7 +14,7 @@ import {
   selectRunTree,
   selectVisibleProblem,
 } from "../application/view/runTree";
-import type { AgentRootAttention, AgentRunTreeNode } from "../application/view/runTree";
+import type { AgentRunTreeNode } from "../application/view/runTree";
 import {
   buildTranscriptRows,
   EMPTY_TRANSCRIPT_ROW_CACHE,
@@ -36,7 +34,7 @@ function useActiveAgentView<T>(select: (view: AgentSessionView) => T): T {
   );
 }
 
-function useCurrentRoot() {
+export function useCurrentRootRun() {
   return useActiveAgentView(selectCurrentRootRun);
 }
 
@@ -47,22 +45,6 @@ export function useAgentAction(
 ): StopCurrentRootRunAction | SendAgentInputAction | null {
   const sessionId = navigator().use((location) => location.session);
   return useAgentStore((state) => state.sessions[sessionId]?.[kind] ?? null);
-}
-
-export function useCurrentRootAttention(): AgentRootAttention {
-  const root = useCurrentRoot();
-  return useMemo(
-    () => (root ? { status: root.status, runId: root.id } : { status: "idle", runId: null }),
-    [root],
-  );
-}
-
-export function useCurrentRootOutcome(): AgentRunOutcome | null {
-  return useActiveAgentView((view) => selectCurrentRootRun(view)?.outcome ?? null);
-}
-
-export function useCurrentRootMetrics(): AgentRunMetrics | null {
-  return useActiveAgentView((view) => selectCurrentRootRun(view)?.metrics ?? null);
 }
 
 export function useAgentToolCalls(): Record<string, ToolCall> {

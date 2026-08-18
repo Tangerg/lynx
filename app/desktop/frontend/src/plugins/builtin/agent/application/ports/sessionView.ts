@@ -5,14 +5,13 @@ import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
 import type { WireDecision } from "../hitl/wireDecision";
 import type {
   AgentProblem,
-  AgentRunMetrics,
-  AgentRunOutcome,
+  AgentRunView,
   AgentSessionView,
   Message,
   TimelineEntry,
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
-import type { AgentRootAttention, AgentRunTreeNode } from "../view/runTree";
+import type { AgentRunTreeNode } from "../view/runTree";
 import type { TranscriptRow } from "../conversation/transcriptRows";
 
 export type ResolvePatch = {
@@ -76,9 +75,9 @@ export interface AgentViewRefreshToken {
 }
 
 export interface AgentSessionViewPort {
-  useCurrentRootAttention(): AgentRootAttention;
-  useCurrentRootOutcome(): AgentRunOutcome | null;
-  useCurrentRootMetrics(): AgentRunMetrics | null;
+  /** One exact root Run snapshot. Consumers derive attention, metrics and
+   * outcome from this identity instead of independently sampled fragments. */
+  useCurrentRootRun(): AgentRunView | null;
   useToolCalls(): Record<string, ToolCall>;
   useSessionTimeline(): TimelineEntry[];
   useRootNarrativeMessages(): Message[];

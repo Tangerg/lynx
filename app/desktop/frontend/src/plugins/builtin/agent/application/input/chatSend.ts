@@ -12,6 +12,7 @@ import { getActiveSessionId, useActiveSessionId } from "../session/activeSession
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
 import { selectCurrentRootRun } from "../view/runTree";
 import { agentCommandOwner } from "../agentCommandOwner";
+import { useCurrentRootMaterial } from "../run/runReadModel";
 
 type SendToAgent = (input: AgentInput, options?: AgentRunStartOptions) => boolean;
 type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
@@ -72,8 +73,8 @@ export function useChatSend(): (input: AgentInput) => boolean {
 export function useCanSendToAgent(): boolean {
   const sessionId = useActiveSessionId();
   const send = agentSessionView().useAction("send");
-  const attention = agentSessionView().useCurrentRootAttention();
-  return canAcceptChatInput(sessionId, Boolean(send), attention.status);
+  const root = useCurrentRootMaterial();
+  return canAcceptChatInput(sessionId, Boolean(send), root.status);
 }
 
 export function canAcceptChatInput(

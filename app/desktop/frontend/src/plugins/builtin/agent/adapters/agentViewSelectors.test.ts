@@ -12,12 +12,7 @@ import { navigator } from "@/lib/navigation";
 import { afterEach, describe, expect, it } from "vitest";
 import { EMPTY_AGENT_SESSION_VIEW, type AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
-import {
-  useAgentProblem,
-  useAgentSharedState,
-  useCurrentRootAttention,
-  useCurrentRootOutcome,
-} from "./agentViewSelectors";
+import { useAgentProblem, useAgentSharedState, useCurrentRootRun } from "./agentViewSelectors";
 
 function seed(commandError: AgentProblem | null, shared: Record<string, unknown>) {
   return {
@@ -66,7 +61,7 @@ describe("agent view selectors react to session switch", () => {
     expect(result.current).toBe("B");
   });
 
-  it("keeps the root attention snapshot referentially stable between unchanged renders", () => {
+  it("keeps the exact root Run referentially stable between unchanged renders", () => {
     const running = {
       id: "run-1",
       sessionId: "a",
@@ -95,15 +90,15 @@ describe("agent view selectors react to session switch", () => {
     });
     navigator().go({ session: "a" });
 
-    const { result, rerender } = renderHook(() => useCurrentRootAttention());
+    const { result, rerender } = renderHook(() => useCurrentRootRun());
     const first = result.current;
     rerender();
 
     expect(result.current).toBe(first);
-    expect(result.current).toEqual({ status: "running", runId: "run-1" });
+    expect(result.current).toBe(running);
   });
 
-  it("does not re-render the root outcome subscriber for unrelated projection writes", () => {
+  it("does not re-render the exact root Run subscriber for unrelated projection writes", () => {
     const outcome = { type: "completed" as const };
     const finished = {
       id: "run-1",
@@ -136,9 +131,9 @@ describe("agent view selectors react to session switch", () => {
     let renders = 0;
     const { result } = renderHook(() => {
       renders += 1;
-      return useCurrentRootOutcome();
+      return useCurrentRootRun();
     });
-    expect(result.current).toBe(outcome);
+    expect(result.current).toBe(finished);
 
     act(() =>
       useAgentStore.setState((state) => {
@@ -157,6 +152,6 @@ describe("agent view selectors react to session switch", () => {
     );
 
     expect(renders).toBe(1);
-    expect(result.current).toBe(outcome);
+    expect(result.current).toBe(finished);
   });
 });

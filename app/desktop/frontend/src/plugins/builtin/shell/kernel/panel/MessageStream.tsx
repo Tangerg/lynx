@@ -16,7 +16,10 @@ import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Divider, Loader } from "@/ui";
 import { COMPOSER_CLEARANCE, READING_COLUMN, READING_GUTTER } from "./readingColumn";
-import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
+import {
+  useCurrentRootMaterial,
+  type CurrentRootMaterial,
+} from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
 import { transcriptTurnContentVisibility } from "./transcriptTurnContentVisibility";
 
@@ -118,6 +121,7 @@ interface TurnProps {
   sessionId: string;
   isLast: boolean;
   isRunning: boolean;
+  terminalRun: CurrentRootMaterial | null;
   /** A new calendar day starts here. Decided by the list, because it is a relationship
    *  between two turns and no turn can see the one above it. */
   opensDay: boolean;
@@ -140,6 +144,7 @@ const TranscriptTurn = memo(function TranscriptTurn({
   sessionId,
   isLast,
   isRunning,
+  terminalRun,
   opensDay,
   gap,
 }: TurnProps) {
@@ -180,9 +185,9 @@ const TranscriptTurn = memo(function TranscriptTurn({
           isLast={isLast}
           isRunning={isRunning}
           terminalFooter={
-            isLast && !isRunning ? (
+            terminalRun ? (
               <div className="mt-4">
-                <RootRunOutcome />
+                <RootRunOutcome material={terminalRun} />
               </div>
             ) : undefined
           }
@@ -198,7 +203,9 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
   // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
   // and keep the smooth catch-up only when idle (re-open / history load).
   // `running` flips only at run boundaries, so this never churns per token.
-  const running = useIsCurrentRootRunning();
+  const currentRoot = useCurrentRootMaterial();
+  const running = currentRoot.running;
+  const terminalTurnIndex = currentRoot.terminalTurnIndex(rows);
   const motionOff = useMotionOff();
   const stickContextRef = useRef<StickToBottomContext>(null);
   const initialSettleFrameRef = useRef<number | null>(null);
@@ -302,6 +309,7 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
                 sessionId={sessionId}
                 isLast={index === rows.length - 1}
                 isRunning={running}
+                terminalRun={index === terminalTurnIndex ? currentRoot : null}
                 opensDay={opensDay}
                 gap={
                   previousRole === undefined

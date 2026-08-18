@@ -2,7 +2,7 @@ import type { IconName } from "@/ui";
 import { isAgentRunFailure, type AgentRunOutcome } from "@/plugins/builtin/agent/public/viewState";
 import { Divider, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { useCurrentRootMetrics, useCurrentRootOutcome } from "@/plugins/builtin/agent/public/run";
+import type { CurrentRootMaterial } from "@/plugins/builtin/agent/public/run";
 import { runCloseReadout, type RunCloseReadout } from "../application/runCloseModel";
 
 /**
@@ -17,10 +17,9 @@ import { runCloseReadout, type RunCloseReadout } from "../application/runCloseMo
  * "Completed" was the flattest moment on the page, and the run already knew how long
  * it took, how many steps it spent and what it billed.
  */
-export function RootRunOutcome() {
+export function RootRunOutcome({ material }: { material: CurrentRootMaterial }) {
   const t = useT();
-  const outcome = useCurrentRootOutcome();
-  const metrics = useCurrentRootMetrics();
+  const { outcome, metrics } = material;
   if (!outcome || isAgentRunFailure(outcome)) return null;
 
   const face = CLOSE_FACE[outcome.type];

@@ -9,11 +9,10 @@ export {
   useActiveSessionRunTree,
   useActiveSessionTimeline,
   useActiveSessionToolCalls,
-  useCurrentRootAttention,
-  useCurrentRootMetrics,
-  useCurrentRootOutcome,
+  useCurrentRootMaterial,
   useIsCurrentRootRunning,
 } from "../application/run/runReadModel";
+export { CurrentRootMaterial } from "../application/run/runReadModel";
 export {
   subscribeAnySessionRunning,
   subscribeRootRunSettlements,
