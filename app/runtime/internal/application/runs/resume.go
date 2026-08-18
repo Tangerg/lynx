@@ -14,7 +14,7 @@ import (
 // hand-off and invalidates its checkpoint, stages the exact live/restored tree,
 // then durably opens the continuation Segment. That opening accepts the command;
 // semantic answer submission continues behind the Run lifecycle supervisor.
-func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResult, error) {
+func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result StartResult, err error) {
 	pending, found, err := c.interrupts.LookupOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return StartResult{}, err
@@ -56,14 +56,19 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
+	attempt := c.ownClaimedResume(pending)
+	defer func() {
+		err = attempt.fail(ctx, err)
+		if err != nil {
+			result = StartResult{}
+		}
+	}()
 	if err := validateClaimedResume(claimed, pending, answers, sess); err != nil {
-		return StartResult{}, c.failClaimedResume(ctx, pending, nil, err)
+		return StartResult{}, err
 	}
 	rootContinuation, ok := pending.RootContinuation()
 	if !ok {
-		return StartResult{}, c.failClaimedResume(
-			ctx, pending, nil, errors.New("runs: pending interrupt set has no root continuation"),
-		)
+		return StartResult{}, errors.New("runs: pending interrupt set has no root continuation")
 	}
 	ref, err := c.continuation.StageContinuation(ctx, WaitingContinuation{
 		SessionID: pending.SessionID, ExecutorID: pending.ExecutorID,
@@ -73,30 +78,25 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		ChildRunAdmissionEnabled: pending.Capabilities.ChildRuns,
 	})
 	if err != nil {
-		return StartResult{}, c.failClaimedResume(ctx, pending, nil, err)
+		return StartResult{}, err
 	}
-	if err := ref.ValidateFor(pending.SessionID); err != nil {
-		return StartResult{}, c.failClaimedResume(ctx, pending, &ref, err)
+	attempt.ownStagedExecution(&c.segments, ref)
+	if err := attempt.staged.validateFor(pending.SessionID); err != nil {
+		return StartResult{}, err
 	}
 	segmentID := c.newSegmentID()
 	createdAt := rootContinuation.RunCreatedAt
 	pendingCopy := pending
 	continuation, err := treeContinuationFromPending(pendingCopy)
 	if err != nil {
-		return StartResult{}, c.failClaimedResume(
-			ctx, pending, &ref, fmt.Errorf("runs: prepare tree continuation: %w", err),
-		)
+		return StartResult{}, fmt.Errorf("runs: prepare tree continuation: %w", err)
 	}
 	approvalResolutions, err := claim.ToolApprovalResolutions()
 	if err != nil {
-		return StartResult{}, c.failClaimedResume(
-			ctx, pending, &ref, fmt.Errorf("runs: prepare Tool approval continuation: %w", err),
-		)
+		return StartResult{}, fmt.Errorf("runs: prepare Tool approval continuation: %w", err)
 	}
 	if err := continuation.bindToolApprovalResolutions(approvalResolutions); err != nil {
-		return StartResult{}, c.failClaimedResume(
-			ctx, pending, &ref, fmt.Errorf("runs: bind Tool approval continuation: %w", err),
-		)
+		return StartResult{}, fmt.Errorf("runs: bind Tool approval continuation: %w", err)
 	}
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:             cmd.RunID,
@@ -118,8 +118,11 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		},
 	})
 	if err != nil {
-		return StartResult{}, c.failClaimedResume(ctx, pending, &ref, err)
+		return StartResult{}, err
 	}
+	// A successful opening transferred the staged tree to the Segment lifecycle.
+	// On failure, the attempt still owns it and compensates durable state first.
+	attempt.accept()
 	// The continuation is durably accepted, which consumed the whole open set: the
 	// run is running again and nothing in this session is waiting on a person.
 	for _, continuation := range pending.Continuations {
@@ -129,7 +132,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		c.publications.publishRunMoved(pending.SessionID, continuation.RunID)
 	}
 	c.publications.publishWaitingMoved(pending.SessionID, pending.RootRunID)
-	result := StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}
+	result = StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}
 	if len(cmd.Input) > 0 {
 		// Named only when there is an item to name: the id is derived from the segment
 		// the same way a fresh run derives it, so the client reconciles its optimistic
@@ -162,37 +165,6 @@ func validateClaimedResume(
 		return err
 	}
 	return validateCheckpointSessionScope(claimed.Checkpoint, sess)
-}
-
-func (c *Coordinator) failClaimedResume(
-	ctx context.Context,
-	pending Pending,
-	ref *ExecutorRef,
-	cause error,
-) error {
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
-	defer cancel()
-	if cleanupErr := c.terminations.ApplyRunLost(
-		cleanupCtx,
-		pending.SessionID,
-		pending.RootRunID,
-		c.publications.nowUTC(),
-	); cleanupErr != nil {
-		return errors.Join(
-			cause,
-			fmt.Errorf("runs: recover claimed resume %q as lost: %w", pending.RootRunID, cleanupErr),
-		)
-	}
-	result := fmt.Errorf("%w: %w", ErrRunNotFound, cause)
-	if ref != nil {
-		if releaseErr := c.segments.release(cleanupCtx, *ref); releaseErr != nil {
-			result = errors.Join(
-				result,
-				fmt.Errorf("runs: release lost continuation %q: %w", ref.ExecutorID, releaseErr),
-			)
-		}
-	}
-	return result
 }
 
 func waitingMembersFromPending(pending Pending) []WaitingMember {

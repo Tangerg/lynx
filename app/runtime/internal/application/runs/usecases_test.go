@@ -743,6 +743,35 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	}
 }
 
+func TestStartReleasesStagedExecutionWhenSessionReplacementPreparationFails(t *testing.T) {
+	exec := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	coordinator := newUseCaseCoordinator(exec, control, sessions, effects)
+	coordinator.publications.now = func() time.Time { return time.Time{} }
+
+	_, err := coordinator.Start(t.Context(), StartCommand{
+		SessionID:      "ses_1",
+		ModelSelection: mustUseCaseSelection("provider", "model"),
+		Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	})
+	if !errors.Is(err, session.ErrInvalid) {
+		t.Fatalf("Start error = %v, want invalid Session replacement time", err)
+	}
+	if len(control.released) != 1 || control.released[0] != control.startRef {
+		t.Fatalf("staged execution releases = %+v, want exact staged executor once", control.released)
+	}
+	if control.activated || len(effects.openings) != 0 {
+		t.Fatalf("failed preparation reached opening: activated=%v openings=%d", control.activated, len(effects.openings))
+	}
+	if admission, ok := coordinator.admission.AcquireRun("ses_1", "/work"); !ok {
+		t.Fatal("failed Start retained Session admission")
+	} else {
+		admission.Release()
+	}
+}
+
 func TestStartRejectsPartialScheduledIdentityBeforeSideEffects(t *testing.T) {
 	for _, command := range []StartCommand{
 		{RunID: "run_1"},

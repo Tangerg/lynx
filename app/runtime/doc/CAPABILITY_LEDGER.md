@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品按一个 client/一个 server 设计。SQLite 仍是 durable winner；客户端 generation 只决定谁有权提交当前投影。
-- P113/P114 已完成；P115 已授权并完成 Mutation Journal、Frontend lifecycle owner 与无价值分层收敛，Runtime 内部批次仍在执行。
+- P113/P114 已完成；P115 已授权并完成 Mutation Journal、Frontend lifecycle owner、无价值分层、Bootstrap composition 与 Runs 行为对象收敛，当前只剩注释、门禁和完整验收收口。
 
 ## 2. 架构与所有权
 
@@ -32,6 +32,7 @@
 - Run pump 是 authoritative model/tool observation 的唯一 reducer owner；外部调用事实只有在完整 write-set 提交后才能替换 live state。
 - `sessions.snapshot` 在一个应用用例中校验并组装挂载 Session 的 HITL、Plan、Goal、Run、Tool material closure。
 - fresh start、resume、child admission、waiting barrier、cancellation 和 terminalization 都有明确 command identity 与事务结算规则。
+- staged executor 在 Segment opening 前由 `stagedExecutionHandoff` 唯一拥有；claimed Resume 由 `claimedResumeAttempt` 统一执行 durable `RunLost` 后的 continuation cleanup，不再依赖每个错误分支手写补偿。
 
 ### 2.3 Adapter / Infra / Delivery
 
@@ -93,6 +94,7 @@
 - Runtime 每次启动发布新的 opaque `instanceId`；info/live/ready/discovery 必须同源一致，Desktop 才提交 ready inspection。
 - 同 endpoint、同版本重启仍形成新 process/event generation。旧 response、event iterator、stream callback 和 teardown 只能结算旧代。
 - SIGKILL 后 SQLite durable material、HITL、Plan、Goal、Run、Tool 与 navigation 通过权威 snapshot/stream handoff 恢复，不拼接旧进程内存。
+- boot reconciliation 的 Session writer claims 由 exact-once `recoverySessionClaims` 持有并逆序释放；`recoveryPlanner` 继续独占 ownership-scoped snapshot 到 atomic `RecoveryCommit` 的推导。
 - transaction failure 与 success receipt loss 分别由 rollback 和 exact marker proof 处理，不靠刷新、延时重试或 optimistic 猜测。
 
 ## 6. Desktop 真实接线

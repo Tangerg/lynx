@@ -15,7 +15,7 @@ import (
 // tree, stages execution, and commits the Run opening. That durable opening is
 // the command's acceptance point; executor activation continues behind the
 // package's lifecycle supervisor and cannot retain the accepted response.
-func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult, error) {
+func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result StartResult, err error) {
 	if err := cmd.ValidateScheduledIdentity(); err != nil {
 		return StartResult{}, err
 	}
@@ -94,7 +94,14 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, err
 	}
-	if err := c.validatePreparedExecution(ctx, ref, sess.ID()); err != nil {
+	staged := c.segments.ownStagedExecution(ref)
+	defer func() {
+		err = staged.abandon(ctx, err, "staged root execution")
+		if err != nil {
+			result = StartResult{}
+		}
+	}()
+	if err := staged.validateFor(sess.ID()); err != nil {
 		return StartResult{}, err
 	}
 
@@ -117,6 +124,9 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 			}
 		}
 	}
+	// A fresh Segment owns rejection as soon as openSegment is entered. Until
+	// this exact hand-off, every preparation failure remains Start's responsibility.
+	ref = staged.transfer()
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:              runID,
 		SegmentID:          segmentID,
@@ -224,16 +234,4 @@ func (c *Coordinator) executionCWD(ctx context.Context, sess session.Session) (c
 		return "", false, fmt.Errorf("%w: %w", ErrIsolationUnavailable, err)
 	}
 	return copyDir, true, nil
-}
-
-func (c *Coordinator) validatePreparedExecution(ctx context.Context, ref ExecutorRef, sessionID string) error {
-	if err := ref.ValidateFor(sessionID); err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
-		defer cancel()
-		if cleanupErr := c.segments.release(cleanupCtx, ref); cleanupErr != nil {
-			return errors.Join(err, fmt.Errorf("runs: release invalid staged executor: %w", cleanupErr))
-		}
-		return err
-	}
-	return nil
 }

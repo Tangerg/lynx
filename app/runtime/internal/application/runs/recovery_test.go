@@ -233,13 +233,14 @@ func TestRecoveryDoesNotPublishBeforeItsCommitSucceeds(t *testing.T) {
 		runs: []rundomain.Run{abandoned}, transcripts: map[string][]transcript.Item{},
 		messageMarks: map[string]int{}, commitErr: commitErr,
 	}
+	admissions := &selectiveRecoveryAdmissions{released: map[string]int{}}
 	var notices []invalidation.Notice
 	recovery, err := NewRecovery(
 		store,
 		waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
 			return true, nil
 		}),
-		new(sessionadmission.Gate),
+		admissions,
 		func(notice invalidation.Notice) { notices = append(notices, notice) },
 	)
 	if err != nil {
@@ -250,6 +251,9 @@ func TestRecoveryDoesNotPublishBeforeItsCommitSucceeds(t *testing.T) {
 	}
 	if len(notices) != 0 {
 		t.Fatalf("failed recovery published notices: %+v", notices)
+	}
+	if admissions.released[abandoned.SessionID()] != 1 {
+		t.Fatalf("failed recovery releases = %+v, want exact claimed Session once", admissions.released)
 	}
 }
 

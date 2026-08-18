@@ -1359,6 +1359,21 @@ func TestCoreRunStateUsesBehaviorOwners(t *testing.T) {
 			},
 		},
 		{
+			path:       filepath.Join(root, "internal", "application", "runs", "execution_handoff.go"),
+			structName: "claimedResumeAttempt",
+			forbidden: map[string]string{
+				"ExecutionReleaser": "staged execution cleanup belongs to stagedExecutionHandoff",
+			},
+		},
+		{
+			path:       filepath.Join(root, "internal", "application", "runs", "recovery.go"),
+			structName: "Recovery",
+			forbidden: map[string]string{
+				"[]func()":            "Session claim release belongs to recoverySessionClaims",
+				"map[string]struct{}": "claimed Session identity belongs to recoverySessionClaims",
+			},
+		},
+		{
 			path:       filepath.Join(root, "internal", "adapter", "agentexec", "interaction_session.go"),
 			structName: "interactionSession",
 			forbidden: map[string]string{

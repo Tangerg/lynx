@@ -202,12 +202,12 @@ func NewRecovery(
 // and opaque executor checkpoint remain coherent. Every other non-terminal tree
 // is recovered as run_lost in one application transaction.
 func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
-	active, claimed, release, err := r.claimAbandonedSessions(ctx)
+	claims, err := r.claimAbandonedSessions(ctx)
 	if err != nil {
 		return 0, err
 	}
-	defer release()
-	planner, err := newRecoveryPlanner(ctx, r, active, claimed)
+	defer claims.release()
+	planner, err := newRecoveryPlanner(ctx, r, claims)
 	if err != nil {
 		return 0, err
 	}
@@ -220,6 +220,31 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 	}
 	r.publishRecoveredReadModels(commit)
 	return reconciled, nil
+}
+
+// recoverySessionClaims owns the Session writer claims for one reconciliation
+// pass. The claimed snapshot and release stack cannot be separated, and release
+// is exact-once across every planning or commit failure.
+type recoverySessionClaims struct {
+	active     []rundomain.Run
+	sessionIDs map[string]struct{}
+	releases   []func()
+	released   bool
+}
+
+func (claims *recoverySessionClaims) includes(sessionID string) bool {
+	_, ok := claims.sessionIDs[sessionID]
+	return ok
+}
+
+func (claims *recoverySessionClaims) release() {
+	if claims == nil || claims.released {
+		return
+	}
+	claims.released = true
+	for index := len(claims.releases) - 1; index >= 0; index-- {
+		claims.releases[index]()
+	}
 }
 
 // publishRecoveredReadModels reports only the durable fact scopes this recovery
@@ -284,10 +309,10 @@ func (r *Recovery) publishRecoveredReadModels(commit RecoveryCommit) {
 
 func (r *Recovery) claimAbandonedSessions(
 	ctx context.Context,
-) ([]rundomain.Run, map[string]struct{}, func(), error) {
+) (*recoverySessionClaims, error) {
 	candidates, err := r.store.ListNonTerminalRuns(ctx)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("runs: load recovery candidates: %w", err)
+		return nil, fmt.Errorf("runs: load recovery candidates: %w", err)
 	}
 	ids := make([]string, 0, len(candidates))
 	seen := make(map[string]struct{}, len(candidates))
@@ -299,41 +324,40 @@ func (r *Recovery) claimAbandonedSessions(
 		ids = append(ids, candidate.SessionID())
 	}
 	slices.Sort(ids)
-	claimed := make(map[string]struct{}, len(ids))
-	releases := make([]func(), 0, len(ids))
+	claims := &recoverySessionClaims{
+		sessionIDs: make(map[string]struct{}, len(ids)),
+		releases:   make([]func(), 0, len(ids)),
+	}
 	for _, sessionID := range ids {
 		if release, ok := r.admissions.AcquireSession(sessionID); ok {
-			claimed[sessionID] = struct{}{}
-			releases = append(releases, release)
-		}
-	}
-	releaseAll := func() {
-		for index := len(releases) - 1; index >= 0; index-- {
-			releases[index]()
+			claims.sessionIDs[sessionID] = struct{}{}
+			claims.releases = append(claims.releases, release)
 		}
 	}
 	current, err := r.store.ListNonTerminalRuns(ctx)
 	if err != nil {
-		releaseAll()
-		return nil, nil, nil, fmt.Errorf("runs: reload claimed recovery Runs: %w", err)
+		claims.release()
+		return nil, fmt.Errorf("runs: reload claimed recovery Runs: %w", err)
 	}
-	active := make([]rundomain.Run, 0, len(current))
+	claims.active = make([]rundomain.Run, 0, len(current))
 	for _, candidate := range current {
-		if _, ok := claimed[candidate.SessionID()]; ok {
-			active = append(active, candidate)
+		if claims.includes(candidate.SessionID()) {
+			claims.active = append(claims.active, candidate)
 		}
 	}
-	return active, claimed, releaseAll, nil
+	return claims, nil
 }
 
 func newRecoveryPlanner(
 	ctx context.Context,
 	recovery *Recovery,
-	active []rundomain.Run,
-	claimed map[string]struct{},
+	claims *recoverySessionClaims,
 ) (*recoveryPlanner, error) {
 	if recovery == nil {
 		return nil, errors.New("runs: recovery use case is required")
+	}
+	if claims == nil {
+		return nil, errors.New("runs: recovery Session claims are required")
 	}
 	pending, err := recovery.store.ListPendingInterrupts(ctx)
 	if err != nil {
@@ -347,8 +371,8 @@ func newRecoveryPlanner(
 	if err != nil {
 		return nil, fmt.Errorf("runs: load open Tool invocations for recovery: %w", err)
 	}
-	activeRoots := make(map[string]struct{}, len(active))
-	for _, value := range active {
+	activeRoots := make(map[string]struct{}, len(claims.active))
+	for _, value := range claims.active {
 		activeRoots[value.Lineage().TreeRootID(value.ID())] = struct{}{}
 	}
 	pending = slices.DeleteFunc(pending, func(open Pending) bool {
@@ -356,12 +380,10 @@ func newRecoveryPlanner(
 		return !ok
 	})
 	modelInvocations = slices.DeleteFunc(modelInvocations, func(open OpenModelInvocation) bool {
-		_, ok := claimed[open.SessionID]
-		return !ok
+		return !claims.includes(open.SessionID)
 	})
 	toolInvocations = slices.DeleteFunc(toolInvocations, func(open OpenToolInvocation) bool {
-		_, ok := claimed[open.SessionID]
-		return !ok
+		return !claims.includes(open.SessionID)
 	})
 	pendingByRun := make(map[string]Pending, len(pending))
 	checkpointOwners := make(map[string]string, len(pending))
@@ -385,7 +407,7 @@ func newRecoveryPlanner(
 		pendingByRun[open.RootRunID] = open
 	}
 
-	trees, err := groupRecoveryRunTrees(active)
+	trees, err := groupRecoveryRunTrees(claims.active)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +424,7 @@ func newRecoveryPlanner(
 		preserved:     make(map[string]struct{}, len(trees)),
 		finishedAt:    recovery.now().UTC(),
 	}
-	for sessionID := range claimed {
+	for sessionID := range claims.sessionIDs {
 		planner.commit.RecoveredSessionIDs = append(planner.commit.RecoveredSessionIDs, sessionID)
 	}
 	slices.Sort(planner.commit.RecoveredSessionIDs)
@@ -410,7 +432,7 @@ func newRecoveryPlanner(
 	// fact it closes. Wall time can move backward across a reboot, so derive the
 	// observation timestamp from the complete boot snapshot instead of allowing
 	// a regressed clock to make otherwise-recoverable state permanently invalid.
-	for _, active := range active {
+	for _, active := range claims.active {
 		planner.observeTime(active.UpdatedAt())
 	}
 	for _, open := range pending {

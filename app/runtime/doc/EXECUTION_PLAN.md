@@ -1,6 +1,6 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P114 已完成并形成里程碑；P115 已授权，Frontend 与 Bootstrap 收敛批次已完成，当前执行 `application/runs` 行为对象重塑。
+> 状态：P0–P114 已完成并形成里程碑；P115 已授权，Batch 1–5 已完成，当前执行注释与门禁收口。
 >
 > 最近基线：2026-08-18，commit `babec316e`。
 
@@ -17,7 +17,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 - P115 已于 2026-08-18 授权，设计与验收 owner 为
   [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md)。
-- Batch 0 已固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；Batch 1 已重建 Mutation Journal；Batch 2 已收敛 Frontend lifecycle publication/retirement；Batch 3 已合并没有独立不变量的 facade 与 contribution 分层；Batch 4 已重塑 Runtime Bootstrap composition 与资源生命周期。当前执行 Batch 5，按锁、生命周期和事务不变量重塑 `application/runs` 内部行为对象。
+- Batch 0 已固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；Batch 1 已重建 Mutation Journal；Batch 2 已收敛 Frontend lifecycle publication/retirement；Batch 3 已合并没有独立不变量的 facade 与 contribution 分层；Batch 4 已重塑 Runtime Bootstrap composition 与资源生命周期；Batch 5 已按锁、生命周期和事务不变量收敛 `application/runs` 的隐式交接。当前执行 Batch 6 注释、长期门禁和完整验收收口。
 - breaking change 被允许，但只用于建立更准确的唯一合同；禁止以 breaking change 为名制造并行实现或迁移半成品。
 - `app/cli` 不在本计划授权范围内，不得修改或暂存。
 - 保留所有无关工作区改动；每个独立批次精确暂存、提交并推送。
@@ -91,3 +91,5 @@ Batch 2 已删除 15 个业务 Owner 各自复制的 `static #active` publicatio
 Batch 3 已把 30 个只投影静态 extension spec 的 application contribution module 吸回各插件 composition entry，并删除只复述对象字面量的测试。Composer contribution 混合文件被拆除，只保留有真实键位语义的 `composerKeyBindings`；tool family、default command policy、Session search behavior 与 Work Index published facade 因独立不变量继续保留。`check:published-boundaries` 现在按 AST 拒绝“所有 exported function 都只返回对象字面量”的 application contribution module，不依赖具体历史路径白名单。Chat search 新增 `messages` / `transcript` 可发现关键词，用单文件真实功能修改证明 registration 触达面已收敛到 owner entry。
 
 Batch 4 已删除向 Instance、Delivery 和测试传播 concrete coordinator 的宽 `Stack`，并删除把 18 个裸依赖聚合后立即逐项解包的 `assemblyFoundation`。Assembly 现在顺序构造 policy、workspace、execution 三个 package-private capsule；tool builder 从 12 参数函数 seam 收敛为单一 feature dependency value，且所有 tool closer 与 executor 在失败返回前先转交 `hostLifetime`。Host 私有 application capsule 直接持有 `server.Config` consumer surface、Session startup recovery、scheduler/recovery workers 与窄 idempotency port；Instance 只调用 capsule 行为。operation service/endpoint 形成 `operationDelivery` lifecycle capsule，external-change observer 启动失败时同步停止 admissions、取消 endpoint 并等待退出。架构门禁要求 Host 零 exported field、Delivery consumer config 与窄可靠性 port 不得退化为 Stack locator，并继续以闭集限制 Bootstrap receiver 只能拥有 construction/lifecycle 行为。
+
+Batch 5 从五条产品纵切复核 Runs owner。fresh Start 原先在 `StageRoot` 成功后、Session model replacement 准备失败时没有 owner 释放 executor；现在 `stagedExecutionHandoff` 唯一拥有 stage→opening 窗口，并在 transfer 前任一失败精确释放。HITL Resume 原先由多处分支手写 `RunLost → Release`；现在 `claimedResumeAttempt` 独占已消费 durable claim 和 staged continuation，严格先提交 `RunLost`，成功后才把 executor 交给 Segment lifecycle。boot recovery 的 active slice、claimed map 和 reverse-release closure 已收回 exact-once `recoverySessionClaims`，write-set 仍只由 `recoveryPlanner` 生成。running root/child cancel 继续由带锁 `runTreeOwner`/child-cancellation arbiter 拥有；waiting-child cancel 继续由 immutable `waitingCancellationTransformation` 与 one-shot `WaitingSubtreeChange` 拥有，因为它们已经对应真实事务和 executor apply/discard 边界。`SessionPorts`/`ProjectionPorts` 经消费者审计后保留为 composition-only grouping；Coordinator 仍按窄消费能力存储，不把它们升级为 locator 或 mirror config。

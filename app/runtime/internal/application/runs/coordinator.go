@@ -246,6 +246,9 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 // openSegment attaches an already-staged executor stream, atomically commits
 // admission/resume plus opening projections, registers the live owner, then
 // activates and pumps according to the command's explicit settlement boundary.
+// A fresh caller transfers executor ownership on entry, so startup rejection
+// releases it. A continuation caller retains failure ownership until the durable
+// opening succeeds because its claim/change transaction defines cleanup order.
 // The Run lifetime is detached
 // from the request without losing its trace; request cancellation drops only
 // that subscriber.
@@ -262,9 +265,10 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 }
 
 // segmentStartup owns the reversible process-local resources between executor
-// staging and durable Run opening. Once activate registers the tree owner and
-// launches the lifecycle task, that task owns activation, pumping, cleanup and
-// task release instead.
+// staging and durable Run opening. It also owns fresh-executor rejection; a
+// continuation remains borrowed until its opening commits. Once activate
+// registers the tree owner and launches the lifecycle task, that task owns
+// activation, pumping, executor cleanup and task release instead.
 type segmentStartup struct {
 	coordinator    *Coordinator
 	spec           segmentSpec
