@@ -255,6 +255,23 @@ describe("markdownMessage", () => {
     );
   });
 
+  it("names checked and unchecked task markers from their visible task text", () => {
+    const src = [
+      "- [x] Preserve the durable fact",
+      "- [ ] 验证 projected view",
+      "",
+      "  Keep this loose follow-up in the same task.",
+    ].join("\n");
+    render(<MarkdownMessage text={src} reveal="instant" />);
+
+    const complete = screen.getByRole("checkbox", { name: "Preserve the durable fact" });
+    const pending = screen.getByRole("checkbox", { name: "验证 projected view" });
+    expect(complete.getAttribute("aria-label")).toBe("Preserve the durable fact");
+    expect(complete.getAttribute("checked")).not.toBeNull();
+    expect(pending.getAttribute("aria-label")).toBe("验证 projected view");
+    expect(pending.getAttribute("checked")).toBeNull();
+  });
+
   it("marks directional prose and Han paragraphs like Codex", () => {
     const src = [
       "# عنوان",
