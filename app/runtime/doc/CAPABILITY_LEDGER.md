@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P116 C1–C3 已实施，最终系统验收待完成。
+> 状态：当前能力快照；P116 C1–C3 与最终系统验收均已完成。
 >
 > 基线日期：2026-08-18。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P115 已完成；P116 已完成 claimed Resume 补偿、Mutation Journal durable identity 校准与 published-boundary 静态守卫审计。
+- P113–P116 已完成；P116 已完成 claimed Resume 补偿、Mutation Journal durable identity 校准与 published-boundary 静态守卫审计。
 
 ## 2. 架构与所有权
 
@@ -157,12 +157,12 @@
 | Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`    |
 | Production shell   | Wails v3 Go test/vet/build、生产冷启动、Runtime health/discovery 与 fresh database smoke           |
 
-最近完整基线为 Frontend 308 files / 1925 tests，普通与 `--detectAsyncLeaks` 全绿；Runtime standalone 全量 test/vet/build 及 Runs/Bootstrap/SQLite/HTTP/architecture race 通过；Desktop Go test/vet/build、Wails v3 production package、fresh database 冷启动与真实 SIGKILL replacement smoke 通过。SIGKILL 前后 `instanceId` 换代、local token 保持一致，存活 Desktop 恢复后的 RPC 全部为 200。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
+最近完整基线为 Frontend 308 files / 1926 tests，普通与 `--detectAsyncLeaks` 全绿；Runtime standalone 全量 test/vet/build 与全包 race 通过；Desktop Go test/vet/build、Wails v3 production package、fresh database 冷启动与真实 SIGKILL replacement smoke 通过。隔离 smoke 中 Runtime PID 37363→37494、`instanceId` 换代、local token 哈希保持一致，Desktop 进程存活，loopback established connections 维持 12，前后 discovery/RPC 均为 200。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P116 范围内的三个生产/门禁问题均已闭环；只剩本阶段的完整 Frontend async leak、Runtime/SQLite race、Desktop production build、fresh database 与真实 restart/SIGKILL 系统验收。
+- P116 范围内没有已知未闭环项；新的生产变更必须建立新阶段授权与红色产品反例。
 
 ## 11. 当前结论
 
-P0–P115 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner；P116 又消除了 claimed-state 自身不可见、transport binding 冒充 durable identity，以及一次性重构语法被永久制度化三处耦合。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P116 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner；P116 又消除了 claimed-state 自身不可见、transport binding 冒充 durable identity，以及一次性重构语法被永久制度化三处耦合。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

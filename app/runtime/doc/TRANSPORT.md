@@ -168,9 +168,10 @@ admission 之前先与当前 durable store identity 比较；不匹配返回 `id
 claim 时清理过期结果。没有 outcome 的 reservation 不按时间自动释放：进程崩溃后，时间流逝无法证明此前业务写入没有 commit，
 自动释放会让同 key 第二次运行 handler。调用方若明确选择新的逻辑操作，必须使用新 key。
 
-`runtime.discover.capabilities.limits.idempotency.namespace` 是 durable replay store 的 opaque 身份，不是路径或凭证。需要跨客户端
-进程保存未决 key 时，客户端必须同时绑定规范化 endpoint 与该 namespace；同 URL 指向被删除/重建的数据目录时 namespace 会变化，
-旧 key 必须 fail closed，不得投递到新 store。客户端只持久化 method/params 的不可逆匹配指纹、key、scope 与 retention 时间，不能把
+`runtime.discover.capabilities.limits.idempotency.namespace` 是 durable replay store 的 opaque 身份，不是路径、凭证或 transport
+binding。需要跨客户端进程保存未决 key 时，客户端只用该 namespace 绑定 durable store；同一逻辑 Runtime 改用 HTTP、socket、
+同进程 binding 或不同 endpoint 不得退休 exact key。数据目录被删除/重建时 namespace 会变化，旧 key 必须 fail closed，不得投递到
+新 store。客户端只持久化 method/params 的不可逆匹配指纹、key、namespace 与 retention 时间，不能把
 prompt、credential、文件内容或完整 params 写进 retry journal。取得确定 JSON-RPC 结果后立即删除记录；transport/protocol 结算不确定
 时才保留。同进程的两个同形 fresh intent 仍必须获得不同 key，不能因 journal lookup 被合并。
 

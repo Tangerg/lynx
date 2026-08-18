@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P115 已完成并形成里程碑；P116 正在实施。
+> 状态：P0–P116 已完成并形成里程碑；当前没有新的生产实施授权。
 >
-> 最近基线：2026-08-18，P115 完整验收；P116 C1–C3 已完成定向验收。
+> 最近基线：2026-08-18，P116 完整验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,12 +15,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P116 已于 2026-08-18 获得实施授权，唯一设计与验收范围为
+- P116 已于 2026-08-18 完成，唯一设计与验收范围为
   [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md) 第 12 节 C1–C3；P115 的其他 breaking surface 不延续。
 - C1 已完成：`ClaimResume` 把 durable interrupt 置为 `resuming` 后，claimed owner 使用其已持有的 claim 提交匹配 `resuming` 的唯一 terminal write-set，durable commit 后才释放 executor；普通 `Get`、fallback、retry 和第二 recovery path 均未扩张。
 - C2 已完成：单 Desktop、同一 durable namespace 仅更换 transport binding 的红例证明未决 mutation 曾被错误退休；endpoint 已从 journal identity、public scope 与当前唯一 persisted shape 直接删除，未增加 alias、registry、migration 或兼容双读。
 - C3 已完成：`check:published-boundaries` 的 exported object-literal 规则只冻结文件名与函数体语法，不能识别跨 context/public surface 泄露且无独立消费者；该规则已删除，import DAG、published surface 与 consumer ownership 守卫保持全绿。
-- 每项先红测再修改、独立提交推送；最终运行 Frontend 全门禁与 async leak、Runtime standalone/race、Desktop Wails production build、fresh database 冷启动及真实 Runtime restart/SIGKILL。P116 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+- 三项均先红测再修改并独立提交推送；Frontend 全门禁与 async leak、Runtime standalone/race、Desktop Wails production build、fresh database 冷启动及真实 Runtime restart/SIGKILL 最终验收均通过。P116 未修改或暂存 `app/cli`，也未覆盖无关工作区改动。
+- 当前没有新的生产实施授权；下一阶段仍须重新满足第 6 节准入条件。
 
 ## 2. 长期产品与架构约束
 
@@ -56,10 +57,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P113     | Runtime 内部坏味道治本清理                                                                                      | 合法构造、required dependency、共享并发 owner 与 package 粒度收敛；只为单一调用者存在的微模块被吸回真正 owner                                                                             |
 | P114     | 单 Desktop/逻辑 Runtime 的进程恢复、真实接线和 UI 打磨                                                          | renderer、Runtime process、command、query 与 material 在真实替换点服从 exact owner；断线、重启、SIGKILL、迟到响应和长对话产品路径完成反证闭环                                             |
 | P115     | 前后端可维护性治本收敛                                                                                          | durable unresolved-command、lifecycle publication、Frontend extension、Bootstrap resource 与 Runs execution handoff 各自回到唯一 owner；真实 SIGKILL 验收补齐 path-owned local credential |
+| P116     | 真实产品拓扑下的恢复与守卫校准                                                                                  | claimed Resume 由 claim owner 原子补偿；Mutation Journal 只认 durable namespace；删除不能表达架构边界的一次性 object-literal 语法守卫                                                     |
 
 ## 5. 当前里程碑结论
 
-P113–P115 共同建立了以下不可回退的心智模型：
+P113–P116 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -71,7 +73,7 @@ P113–P115 共同建立了以下不可回退的心智模型：
 - local transport token 由 durable data path 拥有，不属于 Runtime process generation；`instanceId` 换代不撤销仍存活 Desktop 的认证能力。
 - 流式输出期间，消息底部反馈/操作区服从可见 turn 的稳定 material 边界，不能跟随每个 delta 反复挂载造成闪烁。
 
-最近一次完整验收基线：Frontend 308 files / 1925 tests 与严格异步泄露门禁全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；Runtime standalone 全量 test/vet/build 和 Runs/Bootstrap/SQLite/HTTP/architecture race 全绿；Desktop Wails v3 Go test/vet/build、生产 `.app` 打包和 fresh database 冷启动通过。真实 SIGKILL 让 Runtime 发布新 `instanceId` 后，path-owned token 保持同一值，存活 Desktop 自动恢复 discovery/RPC 且 successor 请求全部为 200。
+最近一次完整验收基线：Frontend 308 files / 1926 tests 与严格异步泄露门禁全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；Runtime standalone 全量 test/vet/build 与全包 race 全绿；Desktop Wails v3 Go test/vet/build、生产 `.app` 打包和 fresh database 冷启动通过。隔离 smoke 中真实 SIGKILL 让 Runtime 从 PID 37363 换为 37494，`instanceId` 从 `runtime_a2261e09-31b5-4438-ba03-fa5d054cb17c` 换为 `runtime_f8dbc8f2-f651-44ce-8500-b3f82ba5a327`；path-owned token 哈希保持一致，Desktop 进程存活，loopback established connections 保持 12，前后 discovery/RPC 均为 200。
 
 ## 6. 新阶段准入
 
