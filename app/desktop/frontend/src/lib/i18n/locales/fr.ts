@@ -66,6 +66,8 @@ export const fr: Record<string, string> = {
   "message.image.view": "Voir l'image jointe",
   "message.image.preview": "Ouvrir l’aperçu de l’image",
   "message.image.unavailable": "Image indisponible",
+  "message.image.previous": "Image précédente",
+  "message.image.next": "Image suivante",
   "message.svg.generatedAlt": "Image générée par l’assistant",
   "message.mermaid.enlarge": "Agrandir le diagramme",
   "message.mermaid.loading": "Chargement du diagramme Mermaid",

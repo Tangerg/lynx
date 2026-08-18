@@ -137,23 +137,25 @@ const sharedMarkdownComponents: Components = {
   p({ children }) {
     const images = imageOnlyParagraph(children);
     if (images && images.length > 1) {
+      const galleryImages = images.map((image, index) =>
+        cloneElement(image, { key: `${image.props.src ?? index}-${index}`, allowWide: true }),
+      );
       return (
         <p className="md-media-paragraph md-media-grid" data-markdown-image-grid="true">
-          {images.map((image, index) =>
-            cloneElement(image, { key: `${image.props.src ?? "media"}-${index}`, allowWide: true }),
-          )}
+          {galleryImages}
         </p>
       );
     }
     if (images?.length === 1) {
       const image = images[0]!;
+      const wideImage = cloneElement(image, { key: image.props.src ?? 0, allowWide: true });
       return (
         <p
           className="md-media-paragraph md-media-wide-block"
           data-wide-markdown-block="true"
           data-wide-markdown-block-kind="image"
         >
-          {cloneElement(image, { key: `${image.props.src ?? "media"}-0`, allowWide: true })}
+          {wideImage}
         </p>
       );
     }

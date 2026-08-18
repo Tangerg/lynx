@@ -66,6 +66,8 @@ export const es: Record<string, string> = {
   "message.image.view": "Ver imagen adjunta",
   "message.image.preview": "Abrir vista previa de la imagen",
   "message.image.unavailable": "Imagen no disponible",
+  "message.image.previous": "Imagen anterior",
+  "message.image.next": "Imagen siguiente",
   "message.svg.generatedAlt": "Imagen generada por el asistente",
   "message.mermaid.enlarge": "Ampliar diagrama",
   "message.mermaid.loading": "Cargando diagrama Mermaid",

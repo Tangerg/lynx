@@ -69,6 +69,8 @@ export const zh: Record<string, string> = {
   "message.image.view": "查看附带的图片",
   "message.image.preview": "打开图片预览",
   "message.image.unavailable": "图片不可用",
+  "message.image.previous": "上一张图片",
+  "message.image.next": "下一张图片",
   "message.svg.generatedAlt": "助手生成的图片",
   "message.mermaid.enlarge": "放大图表",
   "message.mermaid.loading": "正在加载 Mermaid 图表",

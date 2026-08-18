@@ -65,6 +65,8 @@ export const ja: Record<string, string> = {
   "message.image.view": "添付画像を表示",
   "message.image.preview": "画像プレビューを開く",
   "message.image.unavailable": "画像を表示できません",
+  "message.image.previous": "前の画像",
+  "message.image.next": "次の画像",
   "message.svg.generatedAlt": "アシスタントが生成した画像",
   "message.mermaid.enlarge": "図を拡大",
   "message.mermaid.loading": "Mermaid 図を読み込み中",

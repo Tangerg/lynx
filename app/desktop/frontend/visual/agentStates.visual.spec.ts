@@ -439,11 +439,18 @@ for (const theme of ["light", "dark"] as const) {
     expect(remoteRequests).toBe(0);
 
     const preview = page.getByRole("button", { name: "Inline architecture" });
+    await expect(page.locator('[data-markdown-image-grid="true"] > button')).toHaveCount(2);
     await expect(preview.locator("img")).toHaveAttribute("loading", "lazy");
     await preview.evaluate((button) => button.parentElement?.scrollIntoView({ block: "center" }));
     await expect(preview).toBeVisible();
     await expect(preview).toHaveScreenshot(`markdown-image-${theme}.png`);
     await preview.click();
+    const dialog = page.getByRole("dialog", { name: "Inline architecture" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveScreenshot(`markdown-image-lightbox-${theme}.png`);
+    await page.getByRole("button", { name: "Next image" }).click();
+    await expect(page.getByRole("dialog", { name: "Inline detail" })).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
     await expect(page.getByRole("dialog", { name: "Inline architecture" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Inline architecture" })).toHaveCount(0);

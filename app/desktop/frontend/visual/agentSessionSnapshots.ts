@@ -456,7 +456,7 @@ const LONG_RESPONSE = message(
     "| Run lifecycle | Application | 18 |",
     "| Execution capability | Framework | 7 |",
     "",
-    "![Inline architecture](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNDAgOTYiIHdpZHRoPSIyNDAiIGhlaWdodD0iOTYiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iOTYiIHJ4PSIxNiIgZmlsbD0iI2U4ZWVmYyIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9IjQ4IiByPSIyMiIgZmlsbD0iIzM1NzRmMCIvPjwvc3ZnPg==)",
+    "![Inline architecture](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNDAgOTYiIHdpZHRoPSIyNDAiIGhlaWdodD0iOTYiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iOTYiIHJ4PSIxNiIgZmlsbD0iI2U4ZWVmYyIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9IjQ4IiByPSIyMiIgZmlsbD0iIzM1NzRmMCIvPjwvc3ZnPg==) ![Inline detail](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNDAgOTYiIHdpZHRoPSIyNDAiIGhlaWdodD0iOTYiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iOTYiIHJ4PSIxNiIgZmlsbD0iI2U4ZWVmYyIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9IjQ4IiByPSIyMiIgZmlsbD0iIzM1NzRmMCIvPjwvc3ZnPg==)",
     "",
     "![Tracking pixel](https://tracker.example/pixel.png)",
     "",

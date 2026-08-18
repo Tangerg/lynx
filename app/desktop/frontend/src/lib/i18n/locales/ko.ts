@@ -65,6 +65,8 @@ export const ko: Record<string, string> = {
   "message.image.view": "첨부 이미지 보기",
   "message.image.preview": "이미지 미리보기 열기",
   "message.image.unavailable": "이미지를 사용할 수 없음",
+  "message.image.previous": "이전 이미지",
+  "message.image.next": "다음 이미지",
   "message.svg.generatedAlt": "어시스턴트가 생성한 이미지",
   "message.mermaid.enlarge": "다이어그램 확대",
   "message.mermaid.loading": "Mermaid 다이어그램 로드 중",
