@@ -322,6 +322,32 @@ for (const state of ["long-content", "question", "delegated"] as const) {
   });
 }
 
+for (const { state, action } of [
+  { state: "waiting", action: "Approve" },
+  { state: "question", action: "Submit" },
+] as const) {
+  test(`compact ${state} opens with its blocking action above the composer`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 577 });
+    await page.goto(`/visual/?fixture=agent&theme=light&state=${state}`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const composer = page.locator('[data-slot="composer-root"]');
+    const button = page.getByRole("button", { name: action, exact: true });
+    await expect(composer).toBeVisible();
+    await expect(button).toBeVisible();
+    await expect
+      .poll(() =>
+        page.locator(".msg-scroll-viewport").evaluate((element) =>
+          Number.parseFloat(getComputedStyle(element).getPropertyValue("--composer-overlay")),
+        ),
+      )
+      .toBeGreaterThan(0);
+
+    const clearance = await Promise.all([button.boundingBox(), composer.boundingBox()]);
+    expect(clearance[0]!.y + clearance[0]!.height).toBeLessThanOrEqual(clearance[1]!.y);
+  });
+}
+
 test("async transcript materialization follows only while the reader stays at the tail", async ({
   page,
 }) => {
