@@ -3,7 +3,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { WORKBENCH_MOTION } from "@/plugins/builtin/theme/visualStyles/tokens";
 import { VISUAL_AGENT_STATES } from "./agentSessionSnapshots";
 import { VISUAL_WORK_INDEX_STATES } from "./shellFixtureStates";
-import { VISUAL_WORKSPACE_STATES } from "./workspaceFixtureStates";
+import { VISUAL_WORKSPACE_STATES, VISUAL_WORKSPACE_VIEWPORT } from "./workspaceFixtureStates";
 import { en } from "@/lib/i18n/locales/en";
 
 // Named from the catalogue, not copied out of it. This string had seven literal copies
@@ -23,6 +23,16 @@ interface FixtureRoute {
 }
 
 async function openFixture(page: Page, route: FixtureRoute): Promise<void> {
+  const viewport = page.viewportSize();
+  if (
+    route.fixture === "workspace" &&
+    route.state !== "settings" &&
+    viewport !== null &&
+    viewport.width < VISUAL_WORKSPACE_VIEWPORT.width
+  ) {
+    await page.setViewportSize({ width: VISUAL_WORKSPACE_VIEWPORT.width, height: viewport.height });
+  }
+
   const query = new URLSearchParams({
     fixture: route.fixture,
     state: route.state,
@@ -102,9 +112,6 @@ const ACCESSIBILITY_ROUTES: readonly FixtureRoute[] = [
 
 for (const route of ACCESSIBILITY_ROUTES) {
   test(`WCAG audit ${route.fixture} ${route.state} ${route.theme}`, async ({ page }) => {
-    if (route.fixture === "workspace" && route.state === "dock-review") {
-      await page.setViewportSize({ width: 1440, height: 900 });
-    }
     await openFixture(page, route);
 
     // No exclusions. Platform window controls are outside the document, while every
@@ -346,7 +353,9 @@ for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
 // The goldens could not see it: a cut line and a short line look identical.
 //
 // Run at the smallest window the shell allows and the largest UI type a user can
-// pick, because that is where a column runs out of room first.
+// pick. Dock routes move to the canonical two-column viewport in `openFixture`:
+// below that width the product intentionally folds the material, and the narrow
+// presentation boundary has its own workspace test.
 for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
   test(`no text is cut off with no way to read it — ${route.fixture} ${route.state}`, async ({
     page,
@@ -631,7 +640,7 @@ for (const theme of ["light", "dark"] as const) {
   test(`Retina closure ${theme}`, async ({ browser }) => {
     const { context, page } = await closurePage(browser, {
       deviceScaleFactor: 2,
-      viewport: { width: 1440, height: 900 },
+      viewport: VISUAL_WORKSPACE_VIEWPORT,
     });
     try {
       await openFixture(page, { fixture: "agent", state: "waiting", theme });

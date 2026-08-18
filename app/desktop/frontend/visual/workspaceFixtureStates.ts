@@ -5,12 +5,16 @@
  * Chosen against three constraints rather than picked: wide enough that the review
  * split renders side by side (>= the 560 at which the navigator withdraws — the
  * seeded 520 put every golden on the collapsed side of that line, so the file
- * navigator appeared in no screenshot at all), narrow enough to survive at 1440
- * (`maxDockWidth` = 592 there) so the clamp specs can prove a preference is kept,
- * and wide enough to be clamped at 1120 (max 432) so they can prove it is not
- * overwritten.
+ * navigator appeared in no screenshot at all), narrow enough to survive at the
+ * canonical 1472px viewport (`maxDockWidth` = 576 there) so the clamp specs can
+ * prove a preference is kept,
+ * and wide enough to become unavailable at 1120 so they can prove the preference
+ * is not overwritten when the whole dock folds.
  */
 export const VISUAL_DOCK_WIDTH_PX = 576;
+
+/** The smallest canonical fixture viewport that preserves both seeded columns. */
+export const VISUAL_WORKSPACE_VIEWPORT = { width: 1472, height: 900 } as const;
 
 /**
  * What the review golden is shot at, and it is deliberately not the width above.

@@ -4,6 +4,7 @@ import { DOCK_MIN_WIDTH_PX } from "@/lib/shellGeometry";
 import {
   VISUAL_DOCK_WIDTH_PX,
   VISUAL_REVIEW_VIEWPORT,
+  VISUAL_WORKSPACE_VIEWPORT,
   VISUAL_WORKSPACE_STATES,
   type VisualWorkspaceState,
   type VisualWorkspaceTheme,
@@ -15,7 +16,7 @@ const SETTINGS_SEARCH = { name: en["settings.searchPlaceholder"]! };
 const ACTIVE_FILE_PATH =
   "app/desktop/frontend/src/plugins/builtin/shell/kernel/panel/DockResizer.tsx";
 
-test.use({ viewport: { width: 1472, height: 900 } });
+test.use({ viewport: VISUAL_WORKSPACE_VIEWPORT });
 
 interface WorkspaceRoute {
   state: VisualWorkspaceState;
