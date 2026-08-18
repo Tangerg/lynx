@@ -507,6 +507,13 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     const primaryList = Array.from(root.querySelectorAll("ul")).find((list) =>
       list.textContent?.includes("Primary marker"),
     );
+    const leadParagraph = Array.from(root.querySelectorAll(":scope > p")).find((paragraph) =>
+      paragraph.textContent?.includes("The consumer owns persistence policy"),
+    );
+    const leadList = leadParagraph?.nextElementSibling;
+    const proseParagraph = Array.from(root.querySelectorAll(":scope > p")).find((paragraph) =>
+      paragraph.textContent?.includes("A deliberately long final paragraph"),
+    );
     const nestedList = primaryList?.querySelector(":scope > li > ul");
     const deepList = nestedList?.querySelector(":scope > li > ul");
     const rtlList = Array.from(root.querySelectorAll("ul")).find((list) =>
@@ -515,16 +522,34 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     const taskList = root.querySelector("ol.contains-task-list");
     const quote = root.querySelector("blockquote");
     const rule = root.querySelector("hr");
-    if (!h2 || !h3 || !nestedList || !deepList || !rtlList || !taskList || !quote || !rule)
+    if (
+      !h2 ||
+      !h3 ||
+      !leadParagraph ||
+      !(leadList instanceof HTMLUListElement) ||
+      !proseParagraph ||
+      !nestedList ||
+      !deepList ||
+      !rtlList ||
+      !taskList ||
+      !quote ||
+      !rule
+    )
       return null;
     const h2Style = getComputedStyle(h2);
     const h3Style = getComputedStyle(h3);
+    const leadParagraphStyle = getComputedStyle(leadParagraph);
+    const leadListStyle = getComputedStyle(leadList);
+    const proseParagraphStyle = getComputedStyle(proseParagraph);
     const rtlListStyle = getComputedStyle(rtlList);
     return {
       h2Size: h2Style.fontSize,
       h2Margin: `${h2Style.marginBlockStart} ${h2Style.marginBlockEnd}`,
       h3Size: h3Style.fontSize,
       h3Margin: `${h3Style.marginBlockStart} ${h3Style.marginBlockEnd}`,
+      leadParagraphMargin: `${leadParagraphStyle.marginBlockStart} ${leadParagraphStyle.marginBlockEnd}`,
+      leadListMargin: `${leadListStyle.marginBlockStart} ${leadListStyle.marginBlockEnd}`,
+      proseParagraphMargin: `${proseParagraphStyle.marginBlockStart} ${proseParagraphStyle.marginBlockEnd}`,
       rtlDirection: rtlListStyle.direction,
       rtlStartPadding: rtlListStyle.paddingInlineStart,
       rtlEndPadding: rtlListStyle.paddingInlineEnd,
@@ -542,6 +567,9 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.h2Margin).toBe("20px 10px");
   expect.soft(styles?.h3Size).toBe("17px");
   expect.soft(styles?.h3Margin).toBe("20px 10px");
+  expect.soft(styles?.leadParagraphMargin).toBe("0px 10px");
+  expect.soft(styles?.leadListMargin).toBe("0px 10px");
+  expect.soft(styles?.proseParagraphMargin).toBe("0px 11px");
   expect.soft(styles?.rtlDirection).toBe("rtl");
   expect.soft(styles?.rtlStartPadding).toBe("21px");
   expect.soft(styles?.rtlEndPadding).toBe("0px");
