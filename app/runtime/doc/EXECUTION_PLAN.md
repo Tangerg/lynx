@@ -26,7 +26,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 - production Desktop 已复现：无 active Session 时打开 Context Dock，会把 Runtime 默认 workspace 投影成当前资源管理器内容；唯一 presentation owner 是 `ChatPanel` 的 exact active-Session 边界，默认 workspace 不是 Session material。
 - Work Index 行为测试已锁定：顶层“新建会话”必须继承点击时 active Session 的 cwd；目录选择属于 Projects 的新增入口，不再与全局新会话并列成两个竞争动作。Codex 主参考采用“New chat 延续当前 local project”与 Projects 标题栏新增项目的机制；拒绝其 projectless、多 connection、remote project 分支，因为 Lyra 产品拓扑不包含这些身份。
-- provider 不可用时已复现多个新 Session 都停留在“未命名会话”；该问题暂只登记证据，待证明 title authoritative fact 的现有 owner 后再决定是否需要进入 Runtime，不在 Frontend 增加第二标题 writer。
+- provider 不可用时已复现多个新 Session 都停留在“未命名会话”。Runtime 代码审计确认 `runsegment.Finalizer` 是唯一 title maintenance owner，`sessions.Coordinator` 以 first-writer 语义持久提交；第二批红例锁定 generator 返回 provider error 时，同一维护链会丢弃可由 opening user text 确定生成的有界 fallback。该缺口只进入内部 Runtime adapter，不在 Frontend 增加第二标题 writer，也不改变 Protocol、Artifact、SQLite schema、公共 Go API 或 Agent Framework baseline。
 - 首批可失败测试只覆盖上述已成立边界；Zcode/Minimax 仅在后续恢复反馈或 workspace 密度需要第二证据时使用，不为已由 Codex 与 Lyra owner 共同确定的交互再引入第三套词汇。
 - 首个根因纵切已完成：顶层 New Session 绑定 active Session 的 exact cwd，Projects 标题栏唯一拥有目录选择入口，无 active Session 时 ChatPanel 不挂载 Dock view 或 toggle。隔离 Runtime 实测两次 `sessions.create` 均落在 `/private/tmp/lyra-p117-b1-project`，欢迎页不再出现 Dock 入口；定向 11 tests、typecheck、lint、design-system、interactive chrome 与 8 locale 守卫全绿。
 

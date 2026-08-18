@@ -751,6 +751,28 @@ func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
 	t.Fatal("background maintenance failure was not recorded on the run span")
 }
 
+func TestFinishPersistsUsableFallbackWhenTitleGenerationFails(t *testing.T) {
+	titleErr := errors.New("background title failed")
+	renamed := make(chan string, 1)
+	effects := testFinalizer(&fakeStores{
+		session: &fakeSession{
+			sess:    sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"}),
+			renamed: renamed,
+		},
+		title:    "Diagnose provider outage",
+		titleErr: titleErr,
+	}, FinalizerConfig{})
+
+	if err := effects.Finish(t.Context(), runs.Finish{
+		SessionID: "ses_1", RunID: "run_1", OpeningUserText: "Diagnose provider outage",
+	}); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if got := waitString(t, renamed); got != "Diagnose provider outage" {
+		t.Fatalf("fallback title = %q, want persisted deterministic title", got)
+	}
+}
+
 func waitString(t *testing.T, ch <-chan string) string {
 	t.Helper()
 	select {

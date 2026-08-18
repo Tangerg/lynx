@@ -1,10 +1,26 @@
 package sessiontitle
 
 import (
+	"context"
+	"errors"
+	"iter"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
+
+type failingTitleModel struct{ err error }
+
+func (m failingTitleModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	return nil, m.err
+}
+
+func (m failingTitleModel) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) { yield(nil, m.err) }
+}
 
 func TestSanitizeTitle(t *testing.T) {
 	cases := []struct{ name, in, want string }{
@@ -29,5 +45,22 @@ func TestSanitizeTitleCapsRunes(t *testing.T) {
 	got := sanitizeTitle(strings.Repeat("word ", 40)) // ~200 chars, > titleMaxRunes
 	if n := utf8.RuneCountInString(got); n > titleMaxRunes {
 		t.Fatalf("title not capped to %d runes: got %d (%q)", titleMaxRunes, n, got)
+	}
+}
+
+func TestGenerateReturnsOpeningMessageFallbackWhenProviderFails(t *testing.T) {
+	providerErr := errors.New("provider unavailable")
+	client, err := chatclient.New(failingTitleModel{err: providerErr}, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generator := NewGenerator(func(context.Context) *chatclient.Client { return client })
+
+	got, err := generator.Generate(t.Context(), "  Diagnose provider outage  \ninclude the request log")
+	if !errors.Is(err, providerErr) {
+		t.Fatalf("Generate error = %v, want provider failure", err)
+	}
+	if got != "Diagnose provider outage" {
+		t.Fatalf("Generate title = %q, want deterministic opening-message fallback", got)
 	}
 }
