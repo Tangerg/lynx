@@ -16,9 +16,8 @@ export const TEXT_PREVIEW_CLASS =
 // stacked on it. (Deliberately NOT a bg-fg dark panel: bg-fg inverts per theme,
 // so it would turn bright in dark mode.)
 //
-// This is the ONLY fill inside a preview, and it is why the disclosure body has
-// none: the two used to be the same `bg-sunken`, so a well sat inside a well and
-// the whole expanded row read flat.
+// This is the ONLY fill inside a preview; the disclosure body remains the ground
+// so nested output reads as a well rather than another flat surface.
 export const CODE_PREVIEW_CLASS =
   "max-h-60 overflow-y-auto rounded-sm bg-sunken px-3 py-2.5 font-mono text-code leading-relaxed text-fg-soft";
 

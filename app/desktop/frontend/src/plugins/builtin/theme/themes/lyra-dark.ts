@@ -83,8 +83,7 @@ export default defineColorThemePlugin({
   },
   // Desaturated and lifted so they carry meaning on the warm near-black without
   // vibrating against it — and lifted far enough to clear AA on every ground each
-  // one lands on, which for negative means the card and its own wash, not just the
-  // canvas it used to be measured against.
+  // one lands on, which for negative means the card and its own wash, not just canvas.
   semantic: {
     negative: "#e68a8a",
     warning: "#d6a750",

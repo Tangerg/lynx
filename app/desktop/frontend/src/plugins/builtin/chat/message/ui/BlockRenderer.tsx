@@ -152,8 +152,7 @@ export function renderBlock(
  *
  * The wrapper carries the vertical rhythm, and this is the only place that can: a
  * seam is a relationship between two units, so no card can know its own distance
- * from a neighbour it has never heard of (see renderUnitRhythm — cards used to try,
- * with eight different answers). It also exists so the narrative outline can scroll
+ * from a neighbour it has never heard of (see renderUnitRhythm). It also exists so the narrative outline can scroll
  * to a block without every card learning about anchors, and it is where the React
  * key lives, which is what makes `renderUnitAnchor`'s identity rule apply to every
  * block kind at once instead of to the two that remembered to ask for it.

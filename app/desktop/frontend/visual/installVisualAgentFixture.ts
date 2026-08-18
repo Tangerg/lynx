@@ -114,7 +114,7 @@ function visualAgentRuntimeGateway(state: VisualAgentState): AgentRuntimeGateway
 // The read preview asks the workspace for a file's head, which is a data provider and
 // not part of the tool result — so without one the preview rendered empty here and the
 // component that draws it appeared in no test. One line is deliberately far longer than
-// the column it is read in, which is where it used to lose its tail.
+// the column it is read in to verify that its tail remains reachable.
 const fileHeadProvider = definePlugin({
   name: "lyra.visual.file-head",
   setup(ctx) {

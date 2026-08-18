@@ -172,10 +172,8 @@ export type IconName =
   | "bot"
   | "question"
   | "star"
-  // One glyph per built-in tool. The vocabulary used to run 16 glyphs across 32
-  // tools — `list` stood for five unrelated calls and `search` for four — so a
-  // scrolled transcript read as one repeated shape and told a reader nothing
-  // about what the agent had been doing.
+  // Built-in tools use distinct glyphs so a scrolled transcript preserves the
+  // kind of work performed instead of collapsing unrelated calls into one mark.
   | "scroll"
   | "replace"
   | "text-search"

@@ -1,12 +1,8 @@
 // The active appearance, as leaf code sees it.
 //
 // Leaf modules use it for scheme-aware rendering and style-aware motion without
-// reaching into the preference store or plugin registry. Those reads used to
-// import `useUiStore` (and the colour-theme registry) directly from `lib`,
-// which inverted the ring — and worse, laundered an edge the layer guard
-// forbids: `ui/atoms/shiki-code-block` reached the global preference store and
-// the plugin registry *through* `lib/highlight`, so the design system depended
-// on both without ever importing them.
+// reaching into the preference store or plugin registry, which would invert the
+// dependency ring from leaf UI into application composition.
 //
 // So the dependency runs the other way. This holds a passive snapshot; the
 // context that owns appearance (theme) publishes into it from the painter — the
@@ -111,10 +107,8 @@ export function publishScheme(next: Scheme): void {
  *
  * For the code that can't use a token — an SVG generator handed literal colours,
  * a canvas — and has to read the computed values instead. It needs to know WHEN
- * to re-read, and only the painter knows that. The alternative is what the mermaid
- * block used to do: subscribe to the two preferences it guessed were relevant
- * (theme, accent) and silently keep stale colours when a third one (contrast,
- * which moves the whole surface ladder) changed.
+ * to re-read, and only the painter knows that. Consumers subscribe to appearance
+ * replacement rather than guessing which preferences affect computed colours.
  */
 export function publishTokens(): void {
   tokenRevision += 1;

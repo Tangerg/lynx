@@ -4,11 +4,9 @@ import { cn } from "@/lib/classNames";
 /**
  * The composer's card — a pane of glass resting on the transcript.
  *
- * ONE edge mechanism, and it is a shadow. A real 1px border used to own it, which
- * is correct for a control that sits IN a surface and wrong for one that floats
- * over a document: a hard line drew a box around the input while the three region
- * seams around it separate by cast, so the composer was the only object on screen
- * still outlined. The ring in `--shadow-composer-depth` implies the edge and the
+ * ONE edge mechanism, and it is a shadow. A hard control border is wrong for an
+ * object floating over a document whose region seams separate by cast. The ring
+ * in `--shadow-composer-depth` implies the edge and the
  * cast under it puts the panel above the page; both live in that one token, so a
  * style that wants a drawn border spells it there and nothing here changes.
  *

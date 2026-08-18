@@ -351,8 +351,7 @@ function categoryFields(
       //
       // Two shapes, not three: the runtime's presenter merges stdout/stderr and
       // projects every shell result to `{ output, exitCode }` before it reaches
-      // the wire, so the raw `{stdout, stderr, exit_code}` dialect this used to
-      // also accept can no longer arrive. What remains is that envelope and the
+      // the wire. What remains is that envelope and the
       // plain-string ack of run_in_background ("Started background shell …").
       const merged = asString(result?.output) ?? asString(tool.result);
       return {

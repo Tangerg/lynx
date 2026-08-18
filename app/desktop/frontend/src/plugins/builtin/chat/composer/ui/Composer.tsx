@@ -116,9 +116,7 @@ export function Composer({
           /* Both bounds are in `lh` — THIS element's own line-height — so the
              resting height and the ceiling track the type ladder instead of a
              pixel guess that goes wrong the moment the user changes their text
-             size. The ceiling used to be written twice and disagree: `max-h-48`
-             (192px) in the class and 160px in an autosize effect, which set an
-             inline height and therefore always won. */
+             size. One expression owns autosize and the visible ceiling. */
           className="max-h-[6lh] min-h-[1.5lh] p-0 placeholder:tracking-normal"
         />
       </div>

@@ -110,19 +110,12 @@
      Reach for `field` when a local control needs an editable edge — never for
      laying out regions.
      `divider` is the exception and it is NOT a region tool: it is the rule beside a
-     label inside content — a day separator, a compaction marker, a menu separator.
-     It used to be transparent here while the palette shipped 7% ink under the same
-     name, so `bg-divider` and `bg-[var(--color-divider)]` were one name with two
-     behaviours, and four callsites hand-picked an ink alpha (0.06 / 0.07 / 0.08)
-     rather than reach for a utility that drew nothing. */
+     label inside content — a day separator, a compaction marker, a menu separator. */
   --color-line: transparent;
   --color-line-soft: transparent;
   --color-divider: var(--color-divider);
 
-  /* Scrim — the fill that puts everything behind a modal out of play. One value,
-     because four surfaces had four (a confirm dialog at 40/20, a lightbox at 60/25,
-     the command palette at 35, the drop overlay at 4% ink) and two of them spelled
-     it with Tailwind's literal `black`, inside the design-system ring. */
+  /* Scrim — the single fill that puts everything behind a modal out of play. */
   --color-scrim: var(--color-scrim);
 
   /* Media — chrome drawn over content the theme does not own: a thumbnail, an
@@ -145,31 +138,22 @@
   --color-field-strong: var(--color-border-soft);
 
   /* Interaction fill — the pointer is over this, or this is the chosen one.
-     Two values for the whole app, because before them every callsite picked its
-     own: eleven different spellings of "neutral hover" (`fg/2%` through `fg/8%`
-     plus three surface swaps) meant the same gesture answered at four times the
-     strength depending on which panel you were in. An ink wash rather than a
-     surface step, so a row lights up the same over a card, a menu or the drawer.
+     Two values govern the whole app. An ink wash rather than a surface step lets
+     a row light up consistently over a card, a menu or the drawer.
      The strength itself belongs to the visual style (`--wash-*`), which ties it
      to the same ladder step the regions use — a fixed alpha cannot be right in
      both schemes at once. Reach for these, never for a bare `hover:bg-fg/[…]`. */
   --color-hover: var(--wash-hover);
   --color-selected: var(--wash-selected);
 
-  /* Semantic tone fills — two intensities, named because the app already had
-     both and had lost count of them. A `wash` tints a surface (an error banner,
+  /* Semantic tone fills — two explicit intensities. A `wash` tints a surface (an error banner,
      a warning row, the selected mode); a `badge` is the chip that sits ON such a
-     surface, which is why one value cannot serve: a 10% pill on a 10% card is
-     invisible. Callsites were choosing per-place and had drifted to six alphas
-     for negative alone (5 / 6 / 10 / 12 / 15 / 25). Reach for these, never for a
-     bare `bg-negative/12`.
+     surface, which is why one value cannot serve: equal tint strengths make the
+     pill disappear into the card. Reach for these, never a bare tone alpha.
      Both mix from `--tone-*`, the SIGNAL tone, not from the pinned semantic — see
      :root for why a tint mixed from an ink comes out as dirt.
-     `badge` is 18% because that is where the hue becomes visible AS a hue: over
-     white it renders at ~12.5% saturation, and the reference sheet's identical chip
-     measures 12.5%. At the 15% it used to be it came out at 10.6% — close enough to
-     `--color-sunken`'s 6.8% that a page full of soft chips counted as grey, which is
-     most of why this UI read as washed out however the rhythm was set. */
+     `badge` is 18% because over white it renders near the reference chip's measured
+     12.5% saturation and remains visibly distinct from the sunken surface. */
   --color-negative-wash: color-mix(in srgb, var(--tone-negative) 10%, transparent);
   --color-warning-wash: color-mix(in srgb, var(--tone-warning) 10%, transparent);
   --color-success-wash: color-mix(in srgb, var(--tone-success) 10%, transparent);
@@ -283,17 +267,11 @@
      directly (the composer's inline pickers, the drag-to-drop overlay). Anything a
      Base UI part drives transitions instead — see FLOATING_MOTION, which needs the
      symmetry a keyframe cannot give it. */
-  /* Keyframe durations ride `--motion-scale`, the same as every `--dur-*` token.
-     They used to be bare literals, which meant the app had TWO speed authorities
-     and the keyframe one ignored the user's Motion preference entirely: Off and
-     "reduce" were caught by the blanket 1ms rules at the bottom of this file, but
-     Fast and Slow reached every transition and not one animation. A popover that
-     rises at a fixed 140ms next to a message that enters at a scaled one is the
-     same gesture keeping two different clocks. */
+  /* Keyframe durations ride `--motion-scale`, the same as every `--dur-*` token,
+     so Off, Reduce, Fast and Slow govern transitions and animations together. */
   --animate-sweep: lyra-sweep calc(1300ms * var(--motion-scale)) linear infinite;
   /* Kept for the ONE case a transform cannot express: text shimmer clips its
-     gradient to the glyphs, so the paint IS the effect. One element, bounded cost —
-     unlike a skeleton list, which was eight. */
+     gradient to the glyphs, so the paint IS the effect. One element, bounded cost. */
   --animate-shimmer: lyra-shimmer calc(1400ms * var(--motion-scale)) linear infinite;
   --animate-pulse-dot: lyra-pulse calc(1600ms * var(--motion-scale)) ease-in-out infinite;
   --animate-rise-in: lyra-rise-in calc(140ms * var(--motion-scale)) cubic-bezier(0.3, 0, 0, 1);
@@ -493,11 +471,8 @@
 
   /* Ink — near-black with the palette's own cool cast rather than a neutral grey.
      Keep in step with `themes/lyra-light.ts`. */
-  /* Four inks, and they have to be four STEPS. `faint` used to sit 9 units under
-     `muted`, a quarter of the distance every other step takes — so a timestamp and
-     a tool's label were the same grey and the ladder was really three inks wearing
-     four names. Even steps of ~0x1d per channel are what makes the tertiary layer
-     read as tertiary. */
+  /* Four inks, and they have to be four even STEPS. Roughly 0x1d per channel keeps
+     timestamps, secondary labels and tertiary copy visibly distinct. */
   --color-text: #1e1f22;
   --color-text-bright: #000000;
   --color-text-soft: #3d4147;
@@ -521,11 +496,8 @@
   --color-divider: rgb(0 0 0 / 0.05);
   --color-scrim: rgb(0 0 0 / 0.22);
   /* Scrollbar thumb, as a percentage of the scheme's OWN ink rather than a grey.
-     Two schemes used to need two rules here: the literals were picked on light
-     and overshot on dark, and one of them was 90° off the palette's hue, so the
-     single chrome that overlays the reading plane was the only thing on screen
-     from another colour family. A percentage of `--color-text` is a light bar on
-     dark and a dark bar on light without anyone choosing twice. */
+     This yields a light bar on dark and a dark bar on light while remaining in
+     the palette's colour family. */
   /* A gauge's dial. A fraction of the INDICATOR's own ink rather than a border
      token, so the track follows the mark wherever its tone goes — including into
      `warning`. `currentColor` in a custom property resolves where it is USED, so
@@ -565,11 +537,8 @@
      deliberately asymmetric (red reads heavier than green at equal alpha, so it
      gets less). `-meta` / `-code` are INK and can never be scheme-independent: a
      near-white green was unreadable on the light tint it sat on, at 1.36:1.
-     The HUE is no longer spelled here. These used to carry their own greens and
-     reds — #37904c where `--color-success` is #2a713e — on the correct reasoning
-     that a large-area fill needs a different tone than a punchy status mark, and
-     the wrong mechanism: a second hand-picked truth per scheme. `--tone-*` is that
-     fill tone, derived. Alphas are pre-baked per role (row tint / sign + meta) and
+     `--tone-*` derives the large-area fill hue from the punchier status mark, so
+     each semantic has one hue authority. Alphas are pre-baked per role (row tint / sign + meta) and
      consumed via var() rather than Tailwind utilities, because the row's mark is
      injected as inline CSS into Shiki-highlighted HTML. */
   --color-diff-added-tint: color-mix(in srgb, var(--tone-success) 11%, transparent);
@@ -1178,10 +1147,8 @@ html.theme-dark {
   --color-diff-deleted-meta: #e68a8a;
   --color-diff-deleted-code: #f2cccc;
 
-  /* Lifted until it clears AA on every ground it lands on — the card, and its own
-     wash, which is made FROM it, so lightening the ink lightens the backdrop too and
-     the pair converges rather than separating. It used to be measured against the
-     canvas alone, the one surface where it passed. */
+  /* Lifted until it clears AA on every ground it lands on — the card and its own
+     wash. Because the wash is derived from the ink, both surfaces must be measured. */
   --color-negative: #e68a8a;
   --color-warning: #d6a750;
   --color-info: #6e9bf4;
@@ -1195,8 +1162,7 @@ html.theme-dark {
  *  collapses to zero width; both animate in lockstep. Because the content
  *  card outranks the drawer on z-index, collapsing slides the sidebar
  *  *under* the card and the card never moves — the motion "goes over".
- *  The previous shell was `grid-template-columns`, and a template swap
- *  cannot be interpolated, which is why collapsing snapped.
+ *  A grid template swap cannot express this interpolated travel.
  *
  *  Everything here is unlayered on purpose: these rules own structural
  *  geometry (heights, seam pseudo-elements, clip paths) that a call site
@@ -1308,10 +1274,8 @@ html.theme-dark {
 
    Centred on the WINDOW CONTROLS, not on the header: this control sits at the end of
    their cluster and reads as the fourth item in that row, so it has to share their
-   baseline. The header's own centre is a pixel away from theirs, and being aligned to
-   the wrong one of the two is what made the platform's controls unusable here before
-   — measured against the titlebar this window actually has, they sit 20px down where
-   a 42px header centres at 21. */
+   baseline. The header's own centre is a pixel away: measured against this titlebar,
+   the platform controls sit 20px down while a 42px header centres at 21. */
 .agent-window-sidebar-control {
   position: absolute;
   inset-block-start: 0;
@@ -1537,10 +1501,7 @@ html.theme-dark {
 
 /* Pane resizer — the shell's seam rail and this splitter are the same gesture on
    the two edges of one reading plane, so they answer the same way: DEEPEN the
-   boundary the pane already carries. It used to draw a 2px rule of its own
-   instead, which is why dragging the dock grew a hard line and dragging the
-   drawer did not — one edge of the workspace answering in a vocabulary the
-   region model has no other use for. The intensified value is the seam rail's,
+   boundary the pane already carries. The intensified value is the seam rail's,
    spelled once for both. */
 .agent-pane-resizer:is(:hover, :focus-visible, :active) + .agent-pane-split {
   --split-boundary: var(--boundary-emphasis);
@@ -1610,11 +1571,7 @@ html.theme-dark {
    Page identity starts after that strip without mounting another control.
 
    The yielded strip travels on the drawer's clock because the edge it clears is
-   travelling. Yielded instantly, it was the one discontinuity in the whole gesture and
-   it pointed the wrong way: at frame one the bar's contents jumped 94px to the RIGHT —
-   the width of the strip — and then slid 256px back to the LEFT with the panel, so
-   350px of movement bought 162px of displacement and the session title visibly
-   bounced off its own destination. Interpolated, the two add up: the card's leading
+   travelling. Interpolated, the two movements add up: the card's leading
    edge falls by the drawer's width while this inset rises by the strip's, on one curve,
    and the title travels the difference once in the direction it is going.
    It cannot underlap the controls on the way: at every point of the travel the sum is
@@ -1654,8 +1611,7 @@ html.theme-dark {
 /* The same split when the pane is the LEADING one and the line belongs to its
    trailing edge (the settings rail). An attribute rather than a second class:
    which edge carries the line is a property of the pane, not a different kind of
-   line — and the rail used to draw its own at a control-edge token, so the app
-   had two answers for one boundary. A separate token rather than a mirrored
+   line. A separate token rather than a mirrored
    calculation: an inset box-shadow cannot be flipped in CSS, and a style that
    divides with a cast rather than a line needs to say both directions anyway. */
 .agent-pane-split[data-split-side="end"] {
@@ -1682,13 +1638,8 @@ html.theme-dark {
    flank's leading edge along, and the card's `overflow: hidden` clips whatever has left
    the window. The measure is one expression used twice, so the two cannot disagree —
    see dockWidth.ts for why the percentages inside it survive to be resolved here.
-   It used to animate `flex-basis`, which shrinks the box the content is laid out in: the
-   tab strip went 440px → 0, the diff re-wrapped at every width on the way, and the whole
-   flank crumpled inward while the drawer on the other side of the same window slid out
-   intact. Measured mid-gesture: 124 of 323 elements inside it were being re-laid-out per
-   frame; now none are, for the same ~3ms of layout. Two mechanisms for one gesture is
-   what read as incoherent — before that it was `display: none`, which is not a state a
-   transition can start from or land on, so one side slid and the other blinked.
+   Keeping the content box at full measure avoids re-wrapping its tab strip and diff
+   during travel; the negative margin changes only its claimed outer space.
    `visibility` is delayed by the duration on the way out and immediate on the way back,
    the same two-line trick the drawer uses, because a panel that goes invisible at frame
    one has nothing left to animate.
@@ -1723,8 +1674,8 @@ html.theme-dark {
    trailing corner gives the toggle its strip, and gives it on the flank's clock because
    the corner is being handed over while the flank travels. The dock's own bar yields it
    unconditionally — it is only ever at that corner when it is on screen at all — so only
-   the conversation's bar has anything to interpolate. Both ends of that bar are now
-   yields that travel, which is the whole of what made the gesture read as one motion. */
+   the conversation's bar has anything to interpolate. Both ends travel on the same
+   clock so the gesture reads as one motion. */
 .agent-dock-row[data-dock="collapsed"] .agent-surface-header[data-window-corner] {
   padding-inline-end: var(--dock-control-span);
 }

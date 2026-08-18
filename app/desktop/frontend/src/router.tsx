@@ -60,9 +60,8 @@ function locationFrom(read: (key: string) => unknown): AppLocation {
 // before any plugin loads, which is what the Navigator needs: ports are
 // installed while plugins load and several of them read or subscribe to the
 // location immediately, whereas the router cannot be built until those same
-// plugins have registered their routes. Binding the Navigator to the router
-// instead of the history made that a boot-order race with no honest fix at the
-// call sites.
+// plugins have registered their routes. The Navigator therefore binds directly
+// to history rather than depending on the later router construction boundary.
 const history = createBrowserHistory();
 
 function readLocation(): AppLocation {
@@ -157,8 +156,8 @@ declare module "@tanstack/react-router" {
   }
 }
 
-// Built once, on first access. It used to be rebuilt on every AppRouter render,
-// which was invisible only because AppRouter renders once.
+// Built once on first access: route identity must remain stable across AppRouter
+// renders after the plugin registry has supplied the initial route set.
 let instance: ReturnType<typeof buildRouter> | null = null;
 
 function appRouter(): ReturnType<typeof buildRouter> {

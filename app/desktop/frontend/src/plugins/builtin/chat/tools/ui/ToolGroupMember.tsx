@@ -16,13 +16,8 @@ interface Props {
 /**
  * One call inside a group, as a FLAT row.
  *
- * A group of four reads used to be six rows across three indent levels, each child
- * wearing the full disclosure grammar: its own chevron, its own copy of the glyph the
- * group already showed, its own gutter. Sixteen marks to say "read four files", and
- * the only thing distinguishing the levels was indent — which is why it read as one
- * undifferentiated pile.
- *
- * So the members lose nested disclosure chrome and the list gets a rule between
+ * Members have no independent disclosure state, so they omit nested disclosure
+ * chrome and the list gets a rule between
  * rows instead. The one identity mark remains: it is the visual contract that a
  * read, search and language query do not collapse into indistinguishable text.
  *

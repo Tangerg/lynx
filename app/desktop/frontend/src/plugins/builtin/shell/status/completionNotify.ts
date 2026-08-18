@@ -62,11 +62,8 @@ export const completionNotify = definePlugin({
     // Prime notification permission at load (window focused → prompt allowed).
     ensureOsNotifyPermission();
     // Subscribe to run settlements only once the app is READY. The agent
-    // view-state port is bound by the agent bootstrap plugin's setup, so doing
-    // this at module-eval (as this file used to) ran before any setup and threw
-    // "Agent view state port is not configured" — which, thrown from module
-    // code in the manifest import chain, crashed the whole load and blanked the
-    // window. onReady fires after markAppReady, when every setup has run.
+    // view-state port is bound by plugin setup. onReady fires after markAppReady,
+    // when every setup has run, so module evaluation cannot race that dependency.
     let unsubscribe: (() => void) | undefined;
     ctx.contribute(READY_HANDLER, () => {
       unsubscribe = subscribeRootRunSettlements(onSettled);

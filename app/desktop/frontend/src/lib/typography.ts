@@ -1,9 +1,7 @@
 // UI type ladder — every chrome text size in the app derives from ONE base size.
 //
-// Why a derived ladder instead of per-callsite pixel values: the app previously
-// carried 16 distinct hardcoded `text-[Npx]` values across ~390 callsites, which
-// is how a UI ends up with 11px and 11.5px text side by side. A ladder makes the
-// steps enumerable, keeps them on a whole-pixel grid, and gives the user's base
+// A derived ladder makes the supported steps enumerable, keeps them on a
+// whole-pixel grid, and gives the user's base
 // size preference a single place to act.
 //
 // The steps are absolute px, never rem: geometry (header height, row height,
@@ -15,13 +13,10 @@
 // through the supported range; 14 is only the clean first-paint and preference
 // fallback, not a second fixed-size path.
 //
-// Nothing sits between the base and `prose`. There used to be a step at 1.08
-// (15px), and 65 call sites had reached for it to mean two different things — a
-// dialog or pane TITLE, and a chrome label wanting a little more presence. It
-// could be neither: 1px under reading text and 1px over the chrome reads as
-// whichever of the two it is next to. Neither reference has a step there
+// Nothing sits between the base and `prose`: a one-pixel intermediate cannot
+// distinguish a title from a chrome label. Neither reference has a step there
 // (ChatGPT runs 11/12/14, Claude 10/11/12/13/14); both put titles in a separate
-// editorial ladder, which is where ours went.
+// editorial ladder, which is where ours belongs.
 
 export const UI_FONT_SIZE_DEFAULT_PX = 14;
 export const UI_FONT_SIZE_MIN_PX = 11;

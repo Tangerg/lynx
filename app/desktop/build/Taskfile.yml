@@ -1,7 +1,6 @@
-# Tasks shared by every platform target. Trimmed from what `wails3 init` scaffolds: the
-# yarn/pnpm/bun runners, server mode, the Docker images and the CSS-vendoring task are all
-# gone, because this project is npm and desktop, and carrying the other branches would
-# mean four ways to run one command that nobody uses three of.
+# Tasks shared by every platform target. The supported build surface is npm plus the
+# desktop host; alternate package-manager, server, container, and CSS-vendoring branches
+# have no product owner here.
 #
 # `generate:bindings` is deliberately absent. v3 can emit typed wrappers into
 # frontend/bindings, but the two methods that cross this boundary are already declared —

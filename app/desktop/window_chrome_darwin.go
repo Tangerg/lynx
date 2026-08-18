@@ -62,17 +62,8 @@ import "unsafe"
 // the header the app draws around them can be laid out against the real numbers
 // rather than against remembered ones.
 //
-// The app used to hide the three frame buttons and draw its own, for one reason:
-// nothing inside a webview can see where AppKit put them, so the gutter that
-// reserves room for them was a literal. That literal was wrong. Measured on
-// macOS 26 with this window's exact options, the marks centre 16pt down at
-// x 16 / 39 / 62 on a 23pt pitch; the drawn ones sat 21pt down at 20 / 40 / 60 on
-// a 20pt pitch — 4-5pt off the frame they were imitating, in both axes. Hiding
-// them also cost the behaviours that belong to the real buttons and cannot be
-// re-sent from our side: the zoom button's tiling menu (halves, quarters, fill,
-// arrange, full screen, move to display) and option-click to fit rather than fill.
-//
-// So the buttons are the platform's again and the arithmetic is measured. Two
+// Web content cannot see AppKit's control geometry, and hiding the native buttons
+// would discard platform behavior such as the zoom button's tiling menu. Two
 // numbers cross the boundary, and they are the two the app cannot otherwise know:
 // where the cluster ends, which is where the header's first control may begin, and
 // the marks' centre line, which is what that control centres on.
@@ -81,12 +72,9 @@ import "unsafe"
 // another name — that number belongs to the visual style, and handing the frame a
 // second claim on it would leave one value with two owners.
 //
-// The window is passed IN, as the handle v3 hands out for it. This used to walk
-// `[NSApp windows]` and take the first one with a close button, which is a guess, and
-// v3 is explicitly a multi-window framework: a second window, a sheet or a file dialog
-// can all stand at the head of that list, and then the header lays itself out around
-// somebody else's frame. A nil handle is a real answer and means "no window yet" —
-// v3 returns one before the window exists and after it is destroyed.
+// The exact Wails window handle is passed in; inspecting an application-global
+// window list could select a sheet or file dialog. A nil handle means no window yet,
+// which is valid before creation and after destruction.
 func nativeWindowChrome(window unsafe.Pointer) (controlsCentreY, controlsInlineEnd float64, measured bool) {
 	metrics := C.windowChromeMetrics(window)
 	return float64(metrics.controlsCentreY), float64(metrics.controlsInlineEnd), metrics.measured != 0

@@ -195,8 +195,7 @@ const RUNNING_TOOL: Item = {
 };
 
 // One turn holding all three activity shells, because the shells are the whole of
-// the differentiation between a glance, a product and trouble — and until this state
-// existed no golden rendered a failed or a refused tool call at all. A read is a
+// the differentiation between a glance, a product and trouble. A read is a
 // line, a command is a card, a failure and a refusal are flagged, and the two flags
 // carry different tones on purpose: a refusal is a decision, not a fault.
 const SHELL_READ: Item = {
@@ -315,8 +314,7 @@ const SHELL_EDIT: Item = {
               type: "context",
               leftLine: 41,
               rightLine: 41,
-              // Long on purpose: a row that fits proves nothing about a row that
-              // does not, and the inline diff used to cut the overflow away.
+              // Long on purpose: a row that fits proves nothing about overflow.
               code: "func (s *Store) Commit(ctx context.Context, session *Session, records []Record, opts CommitOptions) (Receipt, error) {",
             },
             { type: "deleted", leftLine: 42, code: "\tif err := s.flush(); err != nil {" },
@@ -965,7 +963,7 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentE
   ],
   // One frame earlier than `running`: the answer is open and empty. Nothing here is
   // superseded yet, so the thinking stays readable and the live tool work stays
-  // unfolded — the empty block used to count as the answer and fold all of it.
+  // unfolded; an empty answer is not yet replacement material.
   "answer-opening": [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
     tailEvent(2, { type: "item.completed", item: RUNNING_SET_PLAN }),

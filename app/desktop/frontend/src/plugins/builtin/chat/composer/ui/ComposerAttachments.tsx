@@ -69,9 +69,8 @@ export function ComposerAttachments({
 /**
  * The files the draft references, as chips.
  *
- * An `@path` in the text is an attachment, and it used to look like prose — the same
- * ink as the sentence around it, so what a turn was carrying was something you worked
- * out by re-reading your own message. Derived from the draft on every render rather
+ * An `@path` in the text is an attachment and needs a distinct visual identity.
+ * Derived from the draft on every render rather
  * than tracked, because the text is what gets sent: a second list could disagree with
  * the message.
  */

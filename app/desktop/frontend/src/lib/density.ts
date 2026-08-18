@@ -25,10 +25,9 @@ const SCALE: Readonly<Record<UiDensity, number>> = {
 const BASE_PX = {
   /* Derived, not chosen: a row is one line of chrome type plus its inset, which
      is `14px * 1.5 + 2 * 4px` — 29, rounded to the even 30 so a centred hairline
-     never lands on a half pixel. All three desktop references compute it the same
-     way and land on the same number. At 36 the row was carrying half a line of
-     air it had no content for, which is what made a full index read as a short
-     list that had been spaced out to look considered. */
+     never lands on a half pixel. All three desktop references compute the same
+     number; extra height would add air with no content role and make a full index
+     read like a short, artificially spaced list. */
   rowHeight: 30,
   /* The gap between a row's glyph and its label. Same 8px the reference gives it,
      and the same 8px the row's own inset already uses — one number for "the

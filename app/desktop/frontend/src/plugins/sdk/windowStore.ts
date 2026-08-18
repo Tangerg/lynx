@@ -1,13 +1,11 @@
 // The document title, composed from three independent claims on it.
 //
 // A working dot, an unread count and a base title are each set by a different
-// plugin, and each used to write `document.title` directly — so whichever wrote
-// last erased the other two. One composer owns the string; the three setters own
-// a field each.
+// plugin. One composer owns the string; the three setters own one field each so
+// no claim can erase another.
 //
-// Its own store rather than a slice of the plugin registry, which is where it
-// used to live: the registry held it only because the registry was the one
-// module every plugin could already reach.
+// Its own store rather than a plugin-registry slice: title composition is window
+// state, not extension registration.
 
 import { create } from "zustand";
 

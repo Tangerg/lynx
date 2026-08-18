@@ -105,8 +105,7 @@ function applyColorTheme(
   root.classList.add(`theme-${scheme}`);
 
   // The accent's hover and press shades follow the LIVE accent, not the theme's
-  // declared one. They used to come from the token map, so picking an accent
-  // moved the fill but left its two interaction states on the theme's blue.
+  // declared one, keeping every interaction state on the selected hue.
   const liveAccent = scheme === "light" ? lightAccent(accent) : accent;
   appliedColorTokens = replaceTokens(appliedColorTokens, {
     ...spec?.tokens,

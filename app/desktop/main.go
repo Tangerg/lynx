@@ -76,11 +76,8 @@ func desktopWindowOptions() application.WebviewWindowOptions {
 				FullSizeContent:      true,
 				UseToolbar:           true,
 				HideToolbarSeparator: true,
-				// The reason an Objective-C file used to exist here. v2 owned whether there
-				// was a toolbar but not its style, and the automatic style resolves, on a
-				// transparent-titlebar window, to a 66pt titlebar with the marks 26pt down —
-				// far below where a tool window's header sits. v3 owns the style, so the app
-				// declares it rather than reaching into AppKit to set it after the fact.
+				// Automatic style resolves a transparent-titlebar window to a 66pt titlebar,
+				// placing the controls below the app header. Declare compact style at creation.
 				ToolbarStyle: application.MacToolbarStyleUnifiedCompact,
 			},
 			Appearance: application.NSAppearanceNameAqua,

@@ -8,9 +8,8 @@ import { CHAT_MIN_WIDTH_PX, DOCK_MIN_WIDTH_PX } from "@/lib/shellGeometry";
 // CSS with no render involved. The stored width only reaches React on release, so a
 // drag costs one re-render instead of one per pointer event.
 //
-// A px width, clamped against the row — the same model as the drawer. It used to
-// be a fraction of the row, which meant the dock's width changed meaning as the
-// window resized and the two edges of the card were sized by different ideas.
+// A px width clamped against the row — the same model as the drawer — gives both
+// edges of the card one sizing vocabulary across window resizes.
 export const DOCK_WIDTH_PROPERTY = "--dock-width";
 
 /**

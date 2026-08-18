@@ -2,10 +2,8 @@
 //
 // The four scalars below are the whole answer to "what am I looking at": which
 // session, which surface fills the content card, which dock destination is
-// beside it, which settings pane is open. They used to be fields in two stores,
-// which meant history could not contain them — there was nothing to go back to.
-// They now live in the router's search params, and this is the contract the app
-// reads and writes them through.
+// beside it, which settings pane is open. They live in router search params so
+// browser history contains the complete location; this is the app's read/write contract.
 //
 // THE OWNERSHIP RULE, because getting it wrong is how a URL becomes a mirror:
 // the location owns where you ARE; stores own what you KEPT (which dock tabs are

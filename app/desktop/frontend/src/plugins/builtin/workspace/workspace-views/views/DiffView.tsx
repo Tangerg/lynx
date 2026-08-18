@@ -94,9 +94,7 @@ function computeWordRanges(rows: WorkspaceDiffRow[]): Map<WorkspaceDiffRow, [num
 
 // The code cell. `pre-wrap` keeps indentation and still wraps, which is the only
 // mechanism that loses nothing here: this pane holds a file tree beside the diff, so
-// the code column measures ~125px, and it used to be `pre` inside `overflow-hidden`
-// — no wrap, no scrollbar, nothing in the ancestry scrolling. Every line longer than
-// the column lost its tail with no ellipsis and no way to reach it. A markdown code
+// the code column measures ~125px with no horizontal scroller. A markdown code
 // block scrolls instead, and can: it owns the whole reading column.
 //
 // `wrap-anywhere` and not `break-words`: it also makes the min-content width one

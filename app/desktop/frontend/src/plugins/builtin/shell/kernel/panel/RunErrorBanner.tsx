@@ -39,10 +39,8 @@ function findLastUserText(): string {
 // Resending the same text cannot clear these — the credential, the request
 // shape, or the provider's verdict on it is what has to change.
 //
-// This used to read a `retryable` flag off the wire, which never worked: the
-// runtime omits the field when false, so the guard could not tell "don't retry"
-// from "nothing said" and was silently always true. Behavior branches on the
-// symbolic type, which is the one thing a problem always carries.
+// Behavior branches on the required symbolic type. An optional boolean cannot
+// distinguish an explicit refusal from an omitted value.
 const UNRETRYABLE: readonly string[] = ["invalid_api_key", "invalid_params", "provider_rejected"];
 
 // RunErrorBanner — surfaces an run error.

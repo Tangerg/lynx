@@ -77,9 +77,8 @@ function PlanDisclosure({
         }
         // The bar is the row's full bottom edge (see AgentActivityDisclosure) and the
         // count stays in the meta column: one of them is seen while scrolling past,
-        // the other is read when the reader stops. Both used to be in the meta
-        // column, where the bar had 40px to express the difference between a plan
-        // half done and one nearly finished.
+        // the other is read when the reader stops. Full width keeps progress
+        // states visually distinguishable without reading the count.
         progress={{
           value: progress.percent,
           label: t("plan.complete", { done: progress.done, total: progress.total }),
@@ -112,10 +111,7 @@ function PlanDisclosure({
               })
         }
       >
-        {/* The same row the Plan panel draws. This list used to spell the
-            step's ink a third time AND truncate every line to one — so a
-            step too long to fit was unreadable in the one place a reader
-            had explicitly opened to read it, while the panel wrapped it. */}
+        {/* The same row the Plan panel draws; long steps remain readable here. */}
         <ul className="flex flex-col">
           {steps.map((step) => (
             <li key={step.id}>

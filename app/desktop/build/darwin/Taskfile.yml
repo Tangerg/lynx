@@ -46,16 +46,10 @@ tasks:
       GOOS: darwin
       CGO_ENABLED: 1
       GOARCH: '{{.ARCH | default ARCH}}'
-      # 10.13, not the 12.0 the scaffold ships, because that is the floor the framework
-      # itself declares (every wails/v3 darwin file carries
-      # `-mmacosx-version-min=10.13`). Asking for 12.0 while the framework asks for 10.13
-      # is what made every build print twenty `ld: warning: object file ... was built for
-      # newer 'macOS' version (26.0) than being linked (11.0)` lines: on arm64 the link
-      # target is clamped to 11.0, and Go compiles its own cgo support objects with
-      # whatever CGO_CFLAGS says — 12.0 exceeds the link, so each one warns. Matching the
-      # framework makes them agree, and it lowers what the compiler may assume rather
-      # than what the app requires: the real runtime floor is the plist's
-      # LSMinimumSystemVersion and, on Apple silicon, 11.0 regardless.
+      # Match the 10.13 minimum carried by every Wails darwin cgo source. A higher cgo
+      # target conflicts with the arm64 linker's 11.0 floor and produces deployment-target
+      # warnings. The packaged runtime floor remains the plist's LSMinimumSystemVersion
+      # (and 11.0 on Apple silicon); these flags only bound compiler assumptions.
       CGO_CFLAGS: "-mmacosx-version-min=10.13"
       CGO_LDFLAGS: "-mmacosx-version-min=10.13"
       MACOSX_DEPLOYMENT_TARGET: "10.13"
@@ -123,11 +117,9 @@ tasks:
         --window-height "{{.DMG_WINDOW_HEIGHT}}"
         {{if .DMG_FILES}}--files "{{.DMG_FILES}}"{{end}}
     vars:
-      # No default background or Finder file icon: the scaffold ships Wails-branded
-      # artwork for both, and a template's logo is not this app's. Both flags are
-      # optional, so unset means the tool's own plain treatment; pass them to use art
-      # this project actually owns. The volume icon is the real app icon, generated
-      # from build/appicon.png.
+      # Background and Finder file art stay unset unless the project supplies owned
+      # assets; the packager's plain treatment is the default. The volume icon is the
+      # app icon generated from build/appicon.png.
       DMG_BACKGROUND: '{{.DMG_BACKGROUND | default ""}}'
       DMG_VOLUME_ICON: '{{.DMG_VOLUME_ICON | default "build/darwin/icons.icns"}}'
       DMG_FILE_ICON: '{{.DMG_FILE_ICON | default ""}}'

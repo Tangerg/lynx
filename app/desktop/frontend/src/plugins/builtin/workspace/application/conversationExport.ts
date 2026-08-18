@@ -28,10 +28,7 @@ function timestampForFilename(date: Date): string {
 }
 
 // The role's display name belongs to whoever contributed the role — MESSAGE_ROLE
-// carries the catalog key, resolved here at export time. The fold used to bake a
-// hardcoded English copy onto every message, duplicating both this registry and
-// the locale catalog it reads from; the registry then held resolved text, which
-// froze it in the locale the app booted in.
+// carries the catalog key, resolved here at export time so the current locale owns copy.
 function roleDisplayName(role: Message["role"]): string {
   const key = lookupExtensionByKey(MESSAGE_ROLE, role)?.displayName;
   return key ? t(key) : role;

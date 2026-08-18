@@ -11,9 +11,7 @@ import { toolIconFor, toolRoutingKey } from "@/plugins/builtin/chat/tools/public
  * The mark of a folded wave: what it opened with.
  *
  * One mark, because the row has one slot for it (see AgentActivityDisclosure's
- * gutter). This used to return the strip of every KIND the wave held, collapsing
- * runs of the same one — good information, and the row could only ever draw the
- * first of it. What the wave DID now rides in the label as words, which is a slot
+ * gutter). What the wave DID rides in the label as words, which is a slot
  * that can hold a tally without pushing anything sideways.
  */
 export function waveGlyph(

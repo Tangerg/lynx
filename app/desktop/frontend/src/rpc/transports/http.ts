@@ -71,7 +71,7 @@ export interface HttpTransportConfig {
   /** Runtime base URL, e.g. "http://127.0.0.1:17171". No trailing slash. */
   baseUrl: string;
   /**
-   * Local-loopback process gate token (read from `~/.lyra/local-token` by the
+   * Local-loopback data-directory gate token (read from `~/.lyra/local-token` by the
    * host shell, passed in here). Sent as `Authorization: Bearer`. Not a
    * user-auth credential — see docs/protocol/TRANSPORT.md §11.
    */

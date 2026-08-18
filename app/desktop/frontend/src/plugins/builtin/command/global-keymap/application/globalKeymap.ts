@@ -36,9 +36,7 @@ export function globalCommandShortcuts(lookupCommand: CommandLookup): ShortcutSp
   });
 }
 
-/** Escape closes the workspace view. It used to first ask whether the command
- *  palette was open — cmdk owned Escape while it was, so the guard kept one key
- *  from meaning two things. With the palette gone there is only the one meaning. */
+/** Escape has one application meaning: close the active workspace view. */
 export function workspaceEscapeShortcut(
   t: Translate,
   closeActiveWorkspaceView: () => boolean,

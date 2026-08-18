@@ -106,10 +106,8 @@ export interface ToolCall {
 export interface Message {
   id: string;
   role: MessageRole;
-  /** Raw ISO-8601, from the wire. The fold used to carry a second, pre-formatted
-   *  copy of this — which froze the wording at fold time, so a language switch
-   *  never reached messages already on screen, and did it in hardcoded English.
-   *  Formatting is the caller's, at render.
+  /** Raw ISO-8601 from the wire. Formatting belongs to the caller at render so
+   *  locale changes reach messages already on screen.
    *
    *  Optional because a synthesized assistant turn has no Item of its own: it
    *  takes the timestamp of the Item whose first block opened it, and where even

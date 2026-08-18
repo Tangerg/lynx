@@ -21,8 +21,7 @@ export interface AgentSessionStatePort {
   /**
    * Go to a session: hold it open and make it the place the user is. Leaves any
    * promoted view behind — selecting a session means looking at that
-   * conversation, which is why this used to need a "selection epoch" the
-   * workspace watched for re-selection. One move, so no counter.
+   * conversation. One navigation owns the move, so no selection counter is needed.
    */
   selectSession(id: string): void;
   closeSession(id: string): void;

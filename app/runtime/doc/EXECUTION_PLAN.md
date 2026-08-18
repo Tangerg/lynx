@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P114 已完成并形成里程碑；P115 已授权，Batch 1–5 已完成，当前执行注释与门禁收口。
+> 状态：P0–P115 已完成并形成里程碑；当前无新的生产实施授权。
 >
-> 最近基线：2026-08-18，commit `babec316e`。
+> 最近基线：2026-08-18，P115 完整验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,12 +15,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P115 已于 2026-08-18 授权，设计与验收 owner 为
+- P115 已于 2026-08-18 完成，设计与验收 owner 为
   [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md)。
-- Batch 0 已固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；Batch 1 已重建 Mutation Journal；Batch 2 已收敛 Frontend lifecycle publication/retirement；Batch 3 已合并没有独立不变量的 facade 与 contribution 分层；Batch 4 已重塑 Runtime Bootstrap composition 与资源生命周期；Batch 5 已按锁、生命周期和事务不变量收敛 `application/runs` 的隐式交接。当前执行 Batch 6 注释、长期门禁和完整验收收口。
-- breaking change 被允许，但只用于建立更准确的唯一合同；禁止以 breaking change 为名制造并行实现或迁移半成品。
-- `app/cli` 不在本计划授权范围内，不得修改或暂存。
-- 保留所有无关工作区改动；每个独立批次精确暂存、提交并推送。
+- Batch 0–6 已依次完成反例与 owner 冻结、Mutation Journal 重建、Frontend lifecycle publication/retirement 收敛、无独立不变量分层合并、Runtime Bootstrap capsule 化、Runs 执行交接对象化，以及注释/长期门禁/真实生产验收。
+- 当前没有新的生产代码 Goal；下一阶段必须重新满足第 6 节准入，不能把 P115 的 breaking 授权延续为开放范围。
+- P115 未修改或暂存 `app/cli`，并保留所有无关工作区改动。
 
 ## 2. 长期产品与架构约束
 
@@ -54,10 +53,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P98–P112 | Desktop Plugin Host、sideload、Context Dock、Tool/Terminal、Run Summary、审批事实、material snapshot | 插件与 renderer 生命周期收敛；挂载 Session 的 HITL/Plan/Goal/Run/Tool 以一次 material transaction 恢复 |
 | P113 | Runtime 内部坏味道治本清理 | 合法构造、required dependency、共享并发 owner 与 package 粒度收敛；只为单一调用者存在的微模块被吸回真正 owner |
 | P114 | 单 client/server generation、恢复、真实 Desktop 接线和 UI 打磨 | renderer/Runtime/command/query/material 服从 exact generation；真实断线、重启、SIGKILL、迟到响应和长对话产品路径完成反证闭环 |
+| P115 | 前后端可维护性治本收敛 | durable unresolved-command、lifecycle publication、Frontend extension、Bootstrap resource 与 Runs execution handoff 各自回到唯一 owner；真实 SIGKILL 验收补齐 path-owned local credential |
 
 ## 5. 当前里程碑结论
 
-P113/P114 共同建立了以下不可回退的心智模型：
+P113–P115 共同建立了以下不可回退的心智模型：
 
 - renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 都有显式 generation；generation 是提交能力，不只是日志字段。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启也是 replacement。SQLite durable identity 与进程 incarnation 分离。
@@ -66,9 +66,10 @@ P113/P114 共同建立了以下不可回退的心智模型：
 - durable mutation 以事务 marker/identity 判断“已提交但成功回执丢失”；不得靠重试猜测或本地 optimistic 状态冒充服务端事实。
 - Run Summary、Terminal、Diff、Tool selection、Goal、Plan、审批、Session/Dock navigation 只消费所属 Session 与 generation 的权威投影。
 - Desktop 冷启动依赖在 composition root 显式声明；Composer、Recipes 和 Workspace Events 的 session ports 不再依赖偶然安装顺序。
+- local transport token 由 durable data path 拥有，不属于 Runtime process generation；`instanceId` 换代不撤销仍存活 Desktop 的认证能力。
 - 流式输出期间，消息底部反馈/操作区服从可见 turn 的稳定 material 边界，不能跟随每个 delta 反复挂载造成闪烁。
 
-最近一次完整验收基线：Frontend 331 files / 1976 tests 与异步泄露门禁全绿；Runtime 全量 test、SQLite/architecture invariant、vet、build 全绿；Desktop Wails v3 test/vet/build 和生产冷启动通过。精确命令、环境和逐批结果保留在冻结快照及对应提交中。
+最近一次完整验收基线：Frontend 308 files / 1925 tests 与严格异步泄露门禁全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；Runtime standalone 全量 test/vet/build 和 Runs/Bootstrap/SQLite/HTTP/architecture race 全绿；Desktop Wails v3 Go test/vet/build、生产 `.app` 打包和 fresh database 冷启动通过。真实 SIGKILL 让 Runtime 发布新 `instanceId` 后，path-owned token 保持同一值，存活 Desktop 自动恢复 discovery/RPC 且 successor 请求全部为 200。
 
 ## 6. 新阶段准入
 
@@ -93,3 +94,5 @@ Batch 3 已把 30 个只投影静态 extension spec 的 application contribution
 Batch 4 已删除向 Instance、Delivery 和测试传播 concrete coordinator 的宽 `Stack`，并删除把 18 个裸依赖聚合后立即逐项解包的 `assemblyFoundation`。Assembly 现在顺序构造 policy、workspace、execution 三个 package-private capsule；tool builder 从 12 参数函数 seam 收敛为单一 feature dependency value，且所有 tool closer 与 executor 在失败返回前先转交 `hostLifetime`。Host 私有 application capsule 直接持有 `server.Config` consumer surface、Session startup recovery、scheduler/recovery workers 与窄 idempotency port；Instance 只调用 capsule 行为。operation service/endpoint 形成 `operationDelivery` lifecycle capsule，external-change observer 启动失败时同步停止 admissions、取消 endpoint 并等待退出。架构门禁要求 Host 零 exported field、Delivery consumer config 与窄可靠性 port 不得退化为 Stack locator，并继续以闭集限制 Bootstrap receiver 只能拥有 construction/lifecycle 行为。
 
 Batch 5 从五条产品纵切复核 Runs owner。fresh Start 原先在 `StageRoot` 成功后、Session model replacement 准备失败时没有 owner 释放 executor；现在 `stagedExecutionHandoff` 唯一拥有 stage→opening 窗口，并在 transfer 前任一失败精确释放。HITL Resume 原先由多处分支手写 `RunLost → Release`；现在 `claimedResumeAttempt` 独占已消费 durable claim 和 staged continuation，严格先提交 `RunLost`，成功后才把 executor 交给 Segment lifecycle。boot recovery 的 active slice、claimed map 和 reverse-release closure 已收回 exact-once `recoverySessionClaims`，write-set 仍只由 `recoveryPlanner` 生成。running root/child cancel 继续由带锁 `runTreeOwner`/child-cancellation arbiter 拥有；waiting-child cancel 继续由 immutable `waitingCancellationTransformation` 与 one-shot `WaitingSubtreeChange` 拥有，因为它们已经对应真实事务和 executor apply/discard 边界。`SessionPorts`/`ProjectionPorts` 经消费者审计后保留为 composition-only grouping；Coordinator 仍按窄消费能力存储，不把它们升级为 locator 或 mirror config。
+
+Batch 6 把生产注释收敛为当前约束、owner 和机制说明，并删除迁移故事与已经失效的实现考古。最终真实 Wails + fresh SQLite 验收额外发现：predecessor Runtime 被 SIGKILL 后，successor 为同一路径生成新 local token，存活 Desktop 只持有启动时凭据，自动重连因此稳定返回 401。红测证明同一路径两次打开得到不同 token；根因不是 Desktop 缺少刷新，而是 data-path credential 被错误绑定到 process generation。现在 `OpenLocalToken` 读取并校验现有 0600/32-byte credential，只在路径缺失时通过完整临时候选与原子 hard-link 发布新值；Runtime `instanceId` 继续正常换代，Desktop 不增加 401 特判、token hot reload 或第二 credential lifecycle。真实复跑中 `instanceId` 已变化、token 哈希保持一致，恢复后的 discovery 与 RPC 全部为 200。

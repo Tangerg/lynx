@@ -140,9 +140,7 @@ function SkillProposalRow({ proposal }: { proposal: SkillProposal }) {
           </PillButton>
         </div>
       </div>
-      {/* The instructions ARE what is being approved. They used to be absent from the
-          protocol, so this queue asked for a decision about bytes it never showed;
-          they arrive with the proposal now and the reviewer can read them first. */}
+      {/* The instructions ARE what is being approved, so the reviewer sees them first. */}
       {proposal.instructions && (
         <>
           <TextButton

@@ -153,10 +153,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         (result) => {
           store().reconcileMessageIdentity(sessionId, optimistic.localId, result.userItemId);
           // The run was accepted, so this session now holds a conversation: it
-          // graduates out of draft and into the session list. This used to fire
-          // the moment the attempt started, which promoted a session whose only
-          // message was then dropped by the failure path below — an empty row in
-          // the sidebar for a message the runtime never took.
+          // graduates out of draft and into the session list only at acceptance.
           useAgentSessionStore.getState().graduateDraft(sessionId);
         },
         // The run never opened (channel-a error, e.g. session_busy because the

@@ -113,9 +113,7 @@ const FORBIDDEN = {
   sdk: [...UI],
   // Stores are below the UI — and below the plugin system. A store holds the
   // preference; deciding what it should become from the extension registry is a
-  // context's job. `theme` used to reach the THEME registry from here (to pick
-  // the next theme on toggle, and to paint tokens onto the document), which put
-  // presentation and plugin knowledge in the layer that is meant to hold values.
+  // context's job; presentation and plugin knowledge cannot enter the value layer.
   // Type-only imports of the SDK's contract types stay allowed — madge's graph
   // is value-level, so those don't appear here anyway.
   state: [...UI, "sdk", "plugins-glue"],

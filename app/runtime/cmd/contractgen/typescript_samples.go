@@ -12,9 +12,9 @@ import (
 //
 // Contract §11.3 asks that the Go round-trip, the TypeScript validator and the JSON
 // Schema each check the same batch of hand-written fixtures. "The same batch" needs
-// one statement of which file is which shape, and the binding is that statement —
-// projected here rather than restated, which is what the TypeScript side used to do
-// with a parallel list of `wire<T>(sample)` pins.
+// one statement of which file is which shape, and the binding is that statement. A
+// generated projection prevents a parallel TypeScript list from becoming a second
+// contract index.
 //
 // The samples themselves stay hand-written. §11.3 forbids generating a fixture and
 // then proving it with a schema from the same source, and it is right to: a fixture

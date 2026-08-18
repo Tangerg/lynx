@@ -5,9 +5,8 @@ interface ProgressBarProps {
   value: number;
   /**
    * What is at this percentage. Required, because a bar is a `progressbar` and a
-   * progressbar with no name is announced as a bare number — every one in the app
-   * was, since nothing here used to accept a name and so nothing passed one. Each
-   * caller already displays the answer beside the bar.
+   * progressbar with no name is announced as a bare number. Each caller already
+   * displays the answer beside the bar.
    */
   label: string;
   className?: string;

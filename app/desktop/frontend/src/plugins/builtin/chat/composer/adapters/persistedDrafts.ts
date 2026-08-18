@@ -1,7 +1,7 @@
 // The storage boundary for composer drafts: what gets written to disk, and what
 // it is allowed to be when it comes back. Untrusted input is validated here
-// because here is where it enters — the schema used to sit in `domain/`, which
-// made the domain depend on a validation library for a fact about localStorage.
+// because here is where it enters; the domain remains independent of localStorage
+// and its validation library.
 //
 // Only the text is durable. Staged images and pastes are meant to be sent
 // immediately and are heavy, so they are dropped on reload rather than persisted.

@@ -10,10 +10,9 @@ import { replaceCachedRead } from "./queryInvalidation";
  *
  * A project row IS a view over the agent's sessions — their cwds, and how many
  * sessions each one holds — so it goes stale exactly when that collection does.
- * The agent used to announce this itself, by invalidating the workspace's query
- * key spelled as the literal `"projects"`: importing the owner's constant would
- * have made the two contexts circular, so the string hid the edge that the cycle
- * check would otherwise have refused.
+ * This adapter owns the cross-context edge: the agent publishes Session facts,
+ * while workspace invalidates its own named query without creating a reverse
+ * dependency or hiding the query identity in a string literal.
  *
  * Query-cache lifecycle events are deliberately not the signal. The project
  * read depends only on Session identity, cwd, and updated time; status changes,

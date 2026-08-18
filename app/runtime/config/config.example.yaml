@@ -57,7 +57,7 @@ baseURL: ""
 server:
   listen: 127.0.0.1:17171   # loopback endpoint for local protocol clients
   noLocalToken: false       # true = disable the local-process gate (dev / same-origin)
-  localTokenPath: ""        # default: $HOME/.lyra/local-token
+  localTokenPath: ""        # default: $HOME/.lyra/local-token; path owns the durable token
   # Empty uses the exact Wails + repository Vite origins built into the Runtime.
   # Add origins only for a different browser client; "*" is development-only.
   corsOrigins: []

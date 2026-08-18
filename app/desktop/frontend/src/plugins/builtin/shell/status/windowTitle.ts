@@ -22,9 +22,7 @@ export const windowTitle = definePlugin({
   setup(ctx) {
     // Subscribe to the "any run working" signal only once the app is READY.
     // subscribeAnySessionRunning reads the agent view-state port, which another
-    // plugin's setup binds — a module-eval subscription (as this file used to
-    // do) ran before that setup and threw "Agent view state port is not
-    // configured", crashing the manifest import chain and blanking the window.
+    // plugin's setup binds; readiness orders that dependency after all setup.
     let unsubscribe: (() => void) | undefined;
     ctx.contribute(READY_HANDLER, () => {
       unsubscribe = subscribeAnySessionRunning((working) => ctx.window.setWorking(working));

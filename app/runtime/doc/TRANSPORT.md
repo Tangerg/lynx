@@ -386,15 +386,15 @@ idempotency namespace 作为 `Idempotency-Namespace` 随每次 attempt 发送，
 
 loopback HTTP 必须防止任意本地网页 / 本地进程访问 runtime。
 
-推荐：
+约束：
 
-- 运行时初始化时生成随机 token；
-- 存到 owner-only 权限的用户私有文件；
+- 数据目录没有 token 时生成随机值，并以 owner-only 权限原子发布到用户私有文件；
+- token 由该 durable path 拥有，Runtime `instanceId` 换代或 SIGKILL 重启时复用同一值；凭据轮换是显式删除/替换该文件后的新初始化，不从进程 generation 推导；
 - `/v2/rpc` 要求 `Authorization: Bearer <token>`；token 缺失/错误返 `401` + `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）；
 - `/v2/health/live`、`/v2/health/ready` 免 token；
 - `/v2/info` 仅在不含 secret 时免 token。
 
-token 是本地进程门禁，**不是用户鉴权**（协议层零 user 概念，见 API.md §15）。
+token 是本地 transport 门禁，**不是用户鉴权**（协议层零 user 概念，见 API.md §15）。
 
 ## 12. Sidecar 端点（HTTP 专属）
 

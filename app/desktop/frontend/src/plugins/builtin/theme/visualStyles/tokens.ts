@@ -119,8 +119,7 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
 
   // Row states ride the SAME step as the surface ladder, so a hovered row is
   // exactly one rung of separation whatever the scheme and wherever the contrast
-  // slider sits. Pinning them at fixed alphas is what made hover invisible on
-  // dark and heavy-handed on light.
+  // slider sits. Fixed alphas cannot preserve that rung across light and dark schemes.
   "wash-hover": "color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 0.75), transparent)",
   "wash-selected": "color-mix(in srgb, var(--color-text) var(--depth-step), transparent)",
 
@@ -213,9 +212,7 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // panel, which has no value delta to lean on because it can land over anything.
   // A floating surface's edge, and it is the region step itself — the reference
   // draws its `elevation-stroke` at exactly the same weight as its heaviest border
-  // (12% of the ink) and adds nothing on top. This used to mix raw ink INTO the
-  // border to reach ~25%, which put the darkest line in the window around the
-  // lightest thing in it.
+  // (12% of the ink) and adds nothing on top.
   "seam-line": "var(--color-border-soft)",
 
   // ---- Elevation ---------------------------------------------------------

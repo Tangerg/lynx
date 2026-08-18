@@ -1,10 +1,7 @@
 // Recent work — the sessions no project claims.
 //
-// Every session started outside a registered folder used to conjure a project
-// group named after its directory's last segment, so a session in `/tmp` opened
-// a "tmp" project that meant nothing and sat next to real ones. They belong in
-// one flat, newest-first list instead, and the section disappears entirely when
-// there is nothing homeless — an empty state here would be a caption on a
+// Sessions outside registered folders belong in one flat newest-first list. The
+// section disappears when there is nothing homeless; an empty state would caption a
 // concept the user never has to learn.
 
 import { SectionLabel } from "@/ui";

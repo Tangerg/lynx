@@ -23,8 +23,7 @@ export function CompactionBlock({
 
   return (
     <div>
-      {/* The rules come from the Divider atom; this used to draw its own pair, at a
-          third alpha for the same idea. Clickable when a summary is available. */}
+      {/* The rules come from Divider. Clickable when a summary is available. */}
       <Divider>
         {summary ? (
           <TextButton

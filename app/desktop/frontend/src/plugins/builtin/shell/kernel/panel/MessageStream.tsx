@@ -264,10 +264,8 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
     [],
   );
 
-  // No empty branch: the only caller mounts this once a transcript exists, and the
-  // empty home is its own layout (centred, no scroller). The branch that used to be
-  // here rendered a second copy of the `chat.empty` slot inside a stick-to-bottom
-  // scroller that nothing could ever scroll.
+  // No empty branch: the only caller mounts this once a transcript exists, while
+  // empty home is its own centred layout without a scroller.
 
   // The last day seen, carried across the map below. A turn with no timestamp neither
   // opens a day nor breaks the chain — absent is not a different day, it is no

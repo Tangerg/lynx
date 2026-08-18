@@ -51,11 +51,8 @@ test("HITL approval settles through the exact Run and Item identity", async ({ p
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-item", "item_approval");
 });
 
-// The edge is the only thing at the container level that says "this stopped the
-// run to ask you something", and it is reached through a variant that spent its
-// whole life rendering nothing — the two entries in the map were byte-identical, so
-// a caller passing `warning` got no cue at all. Assert the tone reaches the box,
-// and that it leaves with the question.
+// The edge is the container-level cue that this question stopped the Run. Assert the
+// warning variant reaches the box and leaves when the question settles.
 test("a pending approval carries a warning edge and a settled one carries none", async ({
   page,
 }) => {
@@ -64,8 +61,8 @@ test("a pending approval carries a warning edge and a settled one carries none",
 
   const shell = page.locator('[data-slot="hitl-shell"]');
   await expect(shell).toHaveCSS("border-top-width", "1px");
-  // The tone, not merely a line: this box used to be edgeless, and a neutral
-  // hairline here would pass a width-only check while saying nothing.
+  // Pin the warning tone, not merely the line width; a neutral hairline carries no
+  // pending-approval meaning.
   const edge = await shell.evaluate((element) => getComputedStyle(element).borderTopColor);
   const warning = await page.evaluate(() => {
     const probe = document.createElement("div");
@@ -253,9 +250,8 @@ test("long content remains inside the reading column without horizontal overflow
 // absence, and the bars sit in their region's own colour with the body scrolling
 // under them — with no seam the session title and the first line of a message share
 // one field of white.
-// Asserted on the MECHANISM, not on one bar: the edge used to hang off a bespoke
-// class, which is why the page identity got one and the dock's tab strip — the bar
-// right beside it, in the same visual row — got none.
+// Assert the shared mechanism so every chrome bar in the same visual row receives the
+// same seam contract.
 test("every chrome bar that takes a bottom edge wears the style edge", async ({ page }) => {
   await page.goto("/visual/?fixture=workspace&theme=light&state=dock-light");
   await page.locator("html[data-visual-ready]").waitFor();
@@ -426,9 +422,9 @@ test("an expanded tool row reports its subject and what it changed", async ({ pa
   expect(clipping.directoryClipped).toBe(true);
   // The directory gives way FIRST and gives way further — that is the ordering this
   // pins, and it is the whole point of the atom. "The filename is never touched" is a
-  // stronger claim than the layout can keep: a name wider than the column it is read in
-  // has to ellipsize, because the alternative is pushing the row past its container,
-  // which is what it used to do. It is still whole in the DOM, and in the title.
+  // stronger claim than the layout can keep: a name wider than its column must
+  // ellipsize rather than push the row past its container. It remains whole in the DOM
+  // and in the title.
   expect(clipping.directoryLost).toBeGreaterThan(clipping.filenameLost);
   expect(clipping.filenameText).toBe("specialisedPreviewProjections.ts");
   // `+2 −1` from the call's own diff rows, drawn by the atom the diff views use —

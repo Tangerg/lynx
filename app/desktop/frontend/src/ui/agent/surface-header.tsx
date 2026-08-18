@@ -42,13 +42,9 @@ export function AgentSurfaceHeader({
 /**
  * The plane-level dock toggle — the drawer toggle's mirror, and for the same reason.
  *
- * The flank used to be opened by a button in the conversation's bar and closed by a
- * different button in its own, which is one affordance in one place (the plane's
- * trailing corner) implemented as two controls that changed owner. The handover was
- * visible: hiding the flank mounted the first button and shifted the bar's trailing
- * cluster 26px on the frame the travel began. It was also the wrong ergonomics — a
- * toggle that belongs to whichever bar reaches the corner is a toggle that moves out
- * from under the cursor that just used it.
+ * One persistent control owns both states at the plane's trailing corner. It must
+ * not change bar, move under the cursor, or shift adjacent tools while the flank
+ * travels.
  */
 export function AgentDockToggle({
   open,

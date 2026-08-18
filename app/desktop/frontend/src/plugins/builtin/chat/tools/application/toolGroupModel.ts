@@ -9,10 +9,8 @@ export type ToolGroupPinnedState = boolean | null;
 
 export interface ToolGroupModel {
   summary: string;
-  /** The tool the group is mostly made of — the renderer resolves its glyph
-   *  through the icon registry, the same path a single row takes. A collapsed
-   *  group used to show a hardcoded magnifier, so a fold of five reads and a fold
-   *  of five greps were the same picture, and neither was a search. */
+  /** The tool the group is mostly made of; the renderer resolves its glyph through
+   *  the same icon registry as a single row. */
   dominantTool: string;
   count: number;
   needsAttention: boolean;

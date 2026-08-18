@@ -63,9 +63,8 @@ function parse(input: string | number | Date | undefined | null): Date | null {
 /**
  * Absolute date + time — for turn separators, schedule rows and exported
  * transcripts. The year appears only when it isn't this one, and the 12- vs
- * 24-hour choice comes from the locale rather than from the callsite: three
- * places used to decide it themselves, one of them hardcoding English AM/PM and
- * another falling back to the OS locale instead of the app's.
+ * 24-hour choice comes from the app locale rather than individual callsites or
+ * the host OS locale.
  *
  * Returns "" on unparseable input so the caller can render a fallback.
  */

@@ -62,10 +62,8 @@ export function Segmented<T extends string | number>({
               "focus-visible:outline-none",
             )}
           >
-            {/* The chip TRAVELS. It used to be the active segment's own fill, which
-                means it could only appear and disappear — the one thing a CSS
-                transition cannot do is move a property from one element to another,
-                and a lifted chip that teleports is the giveaway that a control was
+            {/* The chip TRAVELS. A per-segment fill could only appear and disappear;
+                a lifted chip that teleports is the giveaway that a control was
                 painted rather than built. macOS slides its own. */}
             {String(opt.value) === String(value) && (
               <motion.span

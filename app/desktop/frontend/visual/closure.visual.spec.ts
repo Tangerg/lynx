@@ -107,10 +107,8 @@ for (const route of ACCESSIBILITY_ROUTES) {
     }
     await openFixture(page, route);
 
-    // No exclusions. There used to be one, for hand-drawn window controls whose
-    // 14px marks sat under WCAG 2.2's 24px target minimum; the window's controls
-    // are the platform's again, so they are outside the document and outside this
-    // audit by construction rather than by exemption.
+    // No exclusions. Platform window controls are outside the document, while every
+    // application-owned target remains inside this audit.
     const results = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze();
     expect(
       results.violations,
@@ -230,12 +228,9 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
 });
 
-// One column per row. A `line` row has no box, so the indent is the only thing saying
-// what belongs to what — and its disclosed body used to start at a fixed 32px while its
-// label started wherever the mark's width left it: 56, 60, 68 or 84, because a folded
-// wave's strip is as wide as its glyph count. Two waves in one transcript put their
-// labels 16px apart, and every body sat 24 to 72px left of the label naming it, which
-// reads as belonging to the row above.
+// One column per row. A `line` row has no box, so its label and disclosed body must
+// share the same computed column even when folded-wave glyph counts give neighboring
+// rows different leading widths.
 for (const state of ["waves", "tool-shells", "delegated", "narrative"] as const) {
   test(`a disclosed body starts on its own label's column — ${state}`, async ({ page }) => {
     await openFixture(page, { fixture: "agent", state });

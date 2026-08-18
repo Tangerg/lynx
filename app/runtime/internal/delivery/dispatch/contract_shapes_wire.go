@@ -366,11 +366,9 @@ func registerEventUnions(s *Shapes) {
 		},
 	})
 
-	// Every variant is an invalidation: `sequence` plus the ids that moved. What a
-	// variant may NOT carry is the resource's new value — mcp.changed used to carry a
-	// status, a tool count and an error, which made the stream a second source of
-	// truth for something mcp.servers answers, and the two drifted the moment a frame
-	// was dropped.
+	// Every variant is an invalidation: `sequence` plus the ids that moved. A variant
+	// may NOT carry the resource's new value or become a second source of truth for
+	// the authoritative query after a dropped frame.
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.RuntimeEvent](),
 		Discriminator: "type",

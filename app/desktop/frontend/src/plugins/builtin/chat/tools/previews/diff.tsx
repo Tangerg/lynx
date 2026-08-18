@@ -44,9 +44,7 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
   // (no call-scoped diff) or until the completed item carries one; each file's
   // path becomes a hunk-style separator row so MAX_DIFF_ROWS stays one slice.
   const { rows, truncated, hiddenRows } = useDiffToolPreview(tool, MAX_DIFF_ROWS);
-  // A write has no diff rows and no git history to make some from, so the body used to
-  // be blank — a row that had just written a file showed a path and a link to a diff
-  // that did not exist. What it wrote is in its own arguments.
+  // A write has no diff rows or git history; its arguments are the previewable body.
   const written = rows.length === 0 ? (tool.written ?? []) : [];
   if (rows.length === 0) {
     return (

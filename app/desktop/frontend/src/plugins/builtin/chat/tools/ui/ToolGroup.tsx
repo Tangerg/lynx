@@ -21,8 +21,8 @@ interface Props {
  * still running or has errored, then settles closed once they finish — unless
  * the user has pinned it open or closed.
  *
- * The `line` shell is what the doc comment used to only claim: a summary row and
- * indented children, no enclosing card. Its children are read-only calls, so they
+ * The `line` shell is a summary row with indented children and no enclosing card.
+ * Its children are read-only calls, so they
  * are lines too — a card around a stack of lines would put the weight back.
  */
 export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand, superseded }: Props) {

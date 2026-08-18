@@ -41,8 +41,7 @@ export interface ToolCatalogViewModel {
 }
 
 // A safety class reads as a tone; which fill and ink that tone wears is the
-// Badge's business, not this layer's. These used to be Tailwind strings, tested
-// as Tailwind strings — presentation decided one floor too low.
+// Badge's business, not this layer's. Application exposes semantic tone only.
 const TONE_BY_SAFETY: Record<string, Tone> = {
   safe: "accent",
   write: "warning",

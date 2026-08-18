@@ -10,10 +10,8 @@ import { cn } from "@/lib/classNames";
  * callsites, at three different ink alphas, because the centred variant lived here
  * and the left-aligned one had nowhere to be.
  *
- * The rule is `bg-divider`, and that utility is the reason this atom stopped
- * hand-picking an alpha: it used to compile to `transparent` while the palette
- * shipped 7% ink under the same name, so reaching for the token drew nothing and
- * every caller guessed instead.
+ * The rule is `bg-divider`; one palette token owns its ink so callers never choose
+ * local alphas.
  *
  * `intent` only tunes the icon chip's ink. The label always takes `fg-faint`: this
  * shape marks a boundary in the reading, and a boundary that competes with the

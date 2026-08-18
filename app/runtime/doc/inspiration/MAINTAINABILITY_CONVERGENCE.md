@@ -1,6 +1,6 @@
 # 前后端可维护性治本收敛提案
 
-> 状态：P115 已授权 Goal 设计与验收 owner。
+> 状态：P115 已完成并通过完整验收。
 >
 > 适用范围：`app/runtime`、`app/desktop` 与 `app/desktop/frontend`；`app/cli` 明确不在范围内。
 >

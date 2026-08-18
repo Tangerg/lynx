@@ -1,9 +1,7 @@
 // Built-in plugin: the palette's command set.
 //
-// Eight commands, all static. It used to also mint one command per workspace
-// view and one per theme accent, rebuilt reactively off both registries — which
-// put roughly thirty rows in a palette that holds eight actions, and buried them
-// under twenty-one panels and four colour names.
+// Eight static application actions. Workspace destinations and theme accents
+// belong to their own selection surfaces rather than command registration.
 //
 // Both had a better home already. Panels belong to the Context Dock's own picker,
 // which groups them by scope and shows which are open; the palette reaches the

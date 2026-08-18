@@ -22,9 +22,8 @@ import {
   useSetComposerModelPreference,
 } from "./public/modelPreference";
 
-// The trigger wears the selected model's provider mark. It used to carry a
-// StatusDot pinned to "idle" — a control that looks like it reports state and
-// never does; provider health is not something this app models.
+// The trigger wears the selected model's provider mark. Provider health is not
+// part of this app's state, so the control carries no status indicator.
 function ModelPicker() {
   const t = useT();
   const { data: models = [], isLoading, isError } = useModels();

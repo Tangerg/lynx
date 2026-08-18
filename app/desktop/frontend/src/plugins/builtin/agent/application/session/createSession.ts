@@ -57,13 +57,9 @@ async function createAndOpen({
   return session.id;
 }
 
-// Keyed by the request, because "join the one in flight" is only right for the
-// SAME request. It used to join any of them, so a create that carried a cwd (the
-// project "+") could be handed a session in the runtime's default directory
-// instead of the project's — and worse, a welcome-composer send that landed in
-// the window got back someone else's session while its typed message was never
-// queued anywhere. `chatSend` fires that create and never inspects the id, so the
-// text simply vanished.
+// Keyed by the request, because only identical creates may join. Requests with
+// different cwd inputs must never receive one another's Session identity, and a
+// queued first message belongs to exactly one create.
 /** The requests that may share one create, or null for one that may not: a queued
  *  first message belongs to exactly one session. */
 function joinKey(opts: CreateSessionOptions): string | null {
@@ -75,10 +71,8 @@ function joinKey(opts: CreateSessionOptions): string | null {
  *
  * "New session" asks to be put in front of an empty composer — it is a
  * destination, not an instruction to allocate. The empty-composer screen is any
- * active session with no messages, so pressing "New" while already there used to
- * mint a second backend session that looked exactly the same, and the first one
- * stayed on the runtime as a draft the session list filters out: invisible, and
- * one more per press.
+ * active session with no messages, so selecting that destination is a no-op when
+ * the user is already there.
  *
  * Only a DRAFT counts. An ordinary session also reads as message-less while its
  * history is still loading, and reusing that would drop the user back into a

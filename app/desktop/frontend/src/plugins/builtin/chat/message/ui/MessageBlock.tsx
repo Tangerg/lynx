@@ -107,9 +107,7 @@ function MessageBlockInner({
             inside, and a 38px gutter was taking it from every code block, diff
             and table below. */}
           {/* A user turn hugs the trailing edge and takes only the width its words need;
-            an assistant turn is the document and takes the whole measure. Both used to
-            be full-width panels, so the transcript read as two kinds of document
-            alternating instead of a document with asides in it. 77% is the reference's
+            an assistant turn is the document and takes the whole measure. 77% is the reference's
             cap and it matters: without one, a pasted paragraph becomes a full-width
             panel again and the distinction disappears exactly when the turn is long. */}
           <div className={cn("group relative flex min-w-0 flex-col gap-2", isUser && "items-end")}>
@@ -194,11 +192,8 @@ function MessageBlockInner({
 //     so during pure text streaming only the tail row is new.
 //   * `ctx` holds no session data at all, so nothing a run does can invalidate it.
 //
-// Both halves are load-bearing and the second one used to be false: `ctx` carried the
-// session's tool-call map and its delegated-run narratives, and the narratives were
-// rebuilt from scratch on every delta. That gave every message a new `ctx` on every
-// token, so this memo never bailed once during a run — with 200 messages on screen,
-// 199× redundant renders per token, each one re-planning its render units.
+// Both halves are load-bearing: each turn receives context narrowed to its own
+// tool calls and delegated narratives, so unrelated deltas do not invalidate it.
 export const MessageBlock = memo(MessageBlockInner);
 
 // How each action-bar visibility state looks. The state machine is the

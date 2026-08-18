@@ -321,10 +321,7 @@ function ToolsTab() {
       >
         {(rows) => rows.map((s) => <McpRow key={s.id} server={s} />)}
       </DataView>
-      {/* Outside the DataView, so it is there in every state. It used to live in the
-          non-empty branch, which withheld the way to connect a server from exactly
-          the install that has none — and left this pane with no focusable content at
-          all, which is a scroll region a keyboard cannot reach. */}
+      {/* Outside DataView so every state, including empty, can connect a server. */}
       <TextButton size="sm" onClick={openMcpSettings} className="px-4 pt-3.5 pb-4.5 leading-body">
         <Icon name="settings" size="xs" />
         {t("tools.footer")}

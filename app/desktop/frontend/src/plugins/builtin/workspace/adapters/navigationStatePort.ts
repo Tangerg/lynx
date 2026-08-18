@@ -44,10 +44,8 @@ export function installWorkspaceNavigationPort(): () => void {
     useSelectedToolId: () => useContextDockStore((state) => state.selectedToolId),
     useSelectTool: () => useContextDockStore((state) => state.setSelectedToolId),
     useToggleTool: () => useContextDockStore((state) => state.toggleExpandedTool),
-    // The drawer follows the user's preference and nothing else. It used to be
-    // forced collapsed while a dock view was open, which left the toggle looking
-    // enabled while doing nothing — the dock is a resizable column, so the room
-    // it needs is the user's to give.
+    // The drawer follows the user's preference and nothing else. The dock is a
+    // separate resizable column, so opening it cannot override that preference.
     useSidebarDrawer: () => ({
       collapsed: useUiStore((state) => state.sidebarCollapsed),
       toggle: useUiStore((state) => state.toggleSidebar),

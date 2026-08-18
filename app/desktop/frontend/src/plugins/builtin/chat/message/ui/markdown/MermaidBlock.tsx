@@ -46,9 +46,7 @@ export function MermaidBlock({ code }: Props) {
   const t = useT();
   // Mermaid is handed literal colours, so this reads the computed tokens — and
   // needs re-reading whenever the painter rewrites them. The revision is that
-  // signal. It used to be `theme` + `accent` off the preference store, which
-  // named two of the inputs and missed the rest: a contrast change moves
-  // --color-surface-2 through --depth-step, and the diagram kept the old grey.
+  // signal and covers every input, including contrast-derived surface depth.
   const tokenRevision = useTokenRevision();
   const [debouncedCode] = useDebouncedValue(code, { wait: 300 });
   const isSettling = code !== debouncedCode;

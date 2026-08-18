@@ -12,10 +12,8 @@ import { selectDelegatedRunNarratives, selectRootNarrativeMessages } from "../vi
  *
  * The narrowing is the whole point. A turn that shows no tool call holds an empty map,
  * so a tool streaming its arguments elsewhere in the session cannot invalidate it. The
- * transcript used to hand every turn the session's entire `toolCalls` map inside one
- * shared render context, which meant every turn's inputs changed on every delta of
- * every other turn — and no memoisation downstream could recover from that, because
- * the inputs really had changed.
+ * projection hands each turn only its own tool calls, keeping unrelated stream deltas
+ * out of that turn's render inputs.
  *
  * Reaches through delegation transitively: a delegated turn renders with the facts of
  * the turn that spawned it, and a subagent may delegate again.

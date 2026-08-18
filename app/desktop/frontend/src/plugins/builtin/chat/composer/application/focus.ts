@@ -1,10 +1,5 @@
 // Focusing the composer is a capability of the composer, not a DOM lookup any
-// caller may perform. It used to be the latter: the textarea carried a
-// `composer-input` class purely as a query target, and two callers — the global
-// keymap command (a different plugin entirely) and the edit-message action —
-// each did their own `document.querySelector`. The context facade existed the
-// whole time; this capability just wasn't on it, so callers routed around it
-// through the DOM, where no import guard can see them.
+// caller may perform. Callers cannot depend on its internal selector or mount shape.
 //
 // A module-level handle rather than a threaded ref: there is exactly one composer
 // per window, and the callers sit on the far side of two context boundaries. A

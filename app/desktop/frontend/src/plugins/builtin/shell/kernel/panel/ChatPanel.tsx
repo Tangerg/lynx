@@ -243,10 +243,8 @@ export function ChatPanel({ onSend }: Props) {
                     stops watching the tree and a terminal stops following output,
                     instead of polling forever behind `display: none`.
 
-                    It owns the hiding too, with `display: none !important` — the `inert`
-                    and `aria-hidden` this used to carry were saying the same thing a
-                    third and fourth time, and three mechanisms for one state is three
-                    places to disagree. */}
+                    `Activity` also owns hiding with `display: none !important`, so
+                    visibility and effect activity cannot disagree. */}
                 {dock.viewIds.map((viewId) => (
                   <Activity key={viewId} mode={viewId === dock.activeViewId ? "visible" : "hidden"}>
                     <div data-dock-view-id={viewId} className="absolute inset-0 flex flex-col">

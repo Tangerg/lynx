@@ -14,10 +14,7 @@
     <script>
       (function () {
         // No matchMedia reads as light — the same answer the theme context's
-        // system-appearance adapter gives, and the same one a display with no
-        // dark mode gives. The two used to disagree (this said dark), a divergence
-        // nothing would have caught until a WebView without the API opened the app
-        // into the wrong scheme.
+        // system-appearance adapter and a display without dark mode give.
         var systemDark =
           !!window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         var scheme = systemDark ? "dark" : "light";

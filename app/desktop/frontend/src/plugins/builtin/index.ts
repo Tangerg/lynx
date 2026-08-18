@@ -163,11 +163,8 @@ const messageRendering: AnyPlugin[] = [
 
 // Tool rendering — previews, header actions, icon glyph map.
 //
-// Exported because the visual fixture renders transcripts and used to hand-pick four
-// of these, so the components for the rest — including the diff and grep previews the
-// canonical snapshots carry results for — drew raw JSON in every fixture while
-// production drew the real thing. A list to be kept in sync by hand is a list that
-// drifts silently.
+// Exported so the visual fixture installs the same complete rendering registry as
+// production; a hand-picked preview list would drift and render valid tools as JSON.
 export const toolPreviewPlugins: AnyPlugin[] = [
   shellPreview,
   diff,

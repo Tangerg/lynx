@@ -83,11 +83,9 @@ export function errorType(data: unknown): string | undefined {
 }
 
 // The per-occurrence `detail` a ProblemData carried (§8.3), and nothing else.
-// It used to fall back to the symbolic `type`, which meant every caller wanting
-// words got "session_busy" whenever the runtime had no note to add — and, worse,
-// filled the field that signals "the runtime said nothing", so the layers that
-// own copy never got their turn. Callers that need words use lib/rpcErrors
-// (describeProblem / rpcErrorText); branch logic uses errorType.
+// Absence must remain observable so the layer that owns user-facing copy can
+// supply it. Callers needing words use lib/rpcErrors (describeProblem /
+// rpcErrorText); branch logic uses errorType.
 export function errorDetail(data: unknown): string | undefined {
   if (data && typeof data === "object") {
     const d = (data as { detail?: unknown }).detail;

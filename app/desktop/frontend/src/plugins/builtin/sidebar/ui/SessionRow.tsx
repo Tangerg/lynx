@@ -175,8 +175,7 @@ export function SessionRow({
           )}
         </ContextMenu.Content>
       </ContextMenu.Root>
-      {/* Deleting a session is final — the runtime has no restore — so it asks
-          first. The menu item used to delete on the way out of the menu. */}
+      {/* Deleting a Session is final — the Runtime has no restore — so it asks first. */}
       {onDelete && (
         <ConfirmDialog
           open={confirmingDelete}

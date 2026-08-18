@@ -26,11 +26,8 @@ type ActivityLeading = { icon: IconName; leading?: never } | { icon?: never; lea
 // around the mark (8 + 8) + the slot (20).
 //
 // ONE slot, for every row. A mark identifies the row; it is not a place to put content.
-// A folded wave's marks-of-what-is-inside used to live here and were as wide as their
-// count, so they pushed the label — two waves put their labels 16px apart, a
-// four-glyph strip overran the label outright, and no row's text landed where another's
-// did. Anything a row wants to say beyond "what kind of row am I" belongs in the label
-// or the trailing slot, which can be as wide as they like.
+// Anything beyond "what kind of row am I" belongs in the label or trailing slot;
+// varying the mark width would move labels out of alignment between rows.
 // A line starts on the reading edge, then spends 12px on its chevron, two 8px
 // gaps and 16px on the unframed identity mark. Its body starts under its label.
 // Cards keep the wider 20px tray and 12px gaps inside their own inset.
@@ -270,10 +267,8 @@ export function AgentActivityDisclosure({
           role="region"
           aria-labelledby={triggerId}
           className={cn(
-            // No fill on the body, either shell. It used to be `bg-sunken`, and
-            // every preview that shows program output or JSON puts its own
-            // `bg-sunken` well inside it — a well cut into a well, which reads
-            // flat. The card is the ground; the wells inside it are the depth.
+            // No fill on the body, either shell. The card is the ground; previews
+            // of program output or JSON provide the nested depth themselves.
             // A `line` row has no box, so the indent is the only thing saying what
             // belongs to what: its body has to start on its label's column. A card
             // groups with its FILL, so its body takes the card's own padding — the

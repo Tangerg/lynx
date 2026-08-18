@@ -81,12 +81,8 @@ export function workspaceDiffViewModel(data: WorkspaceDiff | undefined): Workspa
 /**
  * The paths and figures a file's card announces itself with.
  *
- * The two paths stay two paths. Joined into one string with an arrow in the
- * middle — which is what this used to return — the header had nothing left to
- * render but a plain truncation, and a plain truncation of a path deletes the
- * filename and keeps the shared prefix every other row in the list also has.
- * Where the characters are spent is the view's decision, and it cannot make it
- * without knowing where one path ends and the next begins.
+ * The two paths stay distinct so the view can truncate each around its filename
+ * and allocate space without parsing a presentation string.
  */
 export function workspaceDiffFileHeader(file: WorkspaceFileDiff): WorkspaceDiffFileHeader {
   return {

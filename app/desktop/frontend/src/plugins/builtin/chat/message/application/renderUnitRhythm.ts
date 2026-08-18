@@ -41,10 +41,8 @@ export function unitVoice(unit: MessageRenderUnit): UnitVoice {
  *
  * The absolute values are both references' measured answer: 20px where the voice
  * changes (JetBrains sets 20 between an assistant turn's blocks, Nova 18–26), and
- * 6px between adjacent activity rows (JetBrains 7 between tool rows). They used to
- * be 14 and 2 — which packed the account of the work against the answer it led to
- * tightly enough that the two read as one block of text, and put two adjacent
- * CARDS 2px apart, where the fills touch and stop reading as two objects.
+ * 6px between adjacent activity rows (JetBrains 7 between tool rows). This keeps
+ * work distinct from the answer while grouping adjacent activity rows.
  */
 const SEAM: Record<UnitVoice, Record<UnitVoice, string>> = {
   process: { process: "mt-1.5", prose: "mt-5", panel: "mt-4" },
@@ -65,9 +63,7 @@ export function unitSeamClass(
  *
  * The other half of the hierarchy, and the half that works horizontally: the answer
  * owns the full measure, and the account of how it was reached is an aside set in
- * from it. Everything used to share one left edge, so a column of tool rows and the
- * sentence they led to were the same object at different heights — vertical distance
- * alone cannot say which of two things is subordinate to the other.
+ * from it. Vertical distance alone cannot express that subordination.
  *
  * One step, and only where prose is a sibling. Inside a folded wave every member is
  * process, so indenting them all shifts the group without saying anything about it —

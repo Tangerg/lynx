@@ -32,9 +32,7 @@ const INVALID = {
 } as const;
 
 // The type step is here and not per size: a field is large by height and inset, not by
-// type. With nothing on the ladder between the chrome step and reading text, `lg` used to
-// reach for the step in between and got a field whose text was 1px off everything around
-// it. Only the composer's textarea steps up, and it does so because what is typed there
+// type. Only the composer's textarea steps up, and it does so because what is typed there
 // is read back as a message.
 const BASE =
   "w-full min-w-0 text-ui-md text-fg outline-none transition-colors placeholder:text-fg-faint " +

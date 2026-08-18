@@ -21,11 +21,8 @@ export function syncWorkspaceSessionLifecycle(
 
 /**
  * Keep the dock's per-session memory pointed at the session the user is in.
- *
- * There used to be a second rule here — "any re-selection returns to the chat" —
- * driven by a counter the session store bumped on every select. Going to a
- * session is now one navigation that clears the promoted view itself, so the
- * counter, the snapshot type that carried it, and this branch are all gone.
+ * Navigation itself owns clearing a promoted view; lifecycle synchronization
+ * only activates the current scope and forgets scopes for closed sessions.
  */
 export function bindWorkspaceSessionNavigation(ports: WorkspaceSessionNavigationPorts): () => void {
   ports.activateSessionScope(ports.activeSessionId());

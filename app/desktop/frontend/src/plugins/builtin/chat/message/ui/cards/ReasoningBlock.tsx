@@ -106,8 +106,7 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
   //
   // While it is still thinking the preview is the TAIL, not the head: a folded row
   // showing the opening of a thought that has run for twenty seconds is a row that
-  // stopped reporting. It used to show nothing at all in that state, which is what a
-  // folded row looked like for the whole time the model was working.
+  // stopped reporting. The tail keeps a folded streaming row visibly current.
   const preview = streaming
     ? lastLine(text).slice(-PREVIEW_LAYOUT_BOUND)
     : text.slice(0, PREVIEW_LAYOUT_BOUND);

@@ -65,8 +65,7 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
                 <span className="text-right font-mono text-ui-2xs tabular-nums text-fg-faint select-none">
                   {match.line}
                 </span>
-                {/* The line, whole. It used to be `truncate whitespace-nowrap`, so the
-                    match a person searched for was often past the cut. */}
+                {/* Preserve the whole matching line; the match may be beyond the prefix. */}
                 <span className="min-w-0 whitespace-pre-wrap wrap-anywhere font-mono text-ui-sm text-fg-muted">
                   {match.text}
                 </span>

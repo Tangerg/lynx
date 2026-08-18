@@ -41,9 +41,8 @@ export interface BuiltinContentBlockMap {
   approval: {
     kind: "approval";
     status: BlockStatus;
-    /** The tool whose call needs a decision. The card turns this into a headline
-     *  at render; the fold used to bake an English one in, which froze it against
-     *  a language switch. Absent when the runtime named no tool. */
+    /** The tool whose call needs a decision. The card localizes its headline at
+     *  render. Absent when the runtime named no tool. */
     toolName?: string;
     command: string;
     reason: string;

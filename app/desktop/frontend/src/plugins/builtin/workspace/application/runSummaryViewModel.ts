@@ -7,9 +7,8 @@ type ApprovalDigest = RunDigest["approvals"][number];
 type ChangedFile = RunDigest["changedFiles"][number];
 type CommandDigest = RunDigest["commands"][number];
 
-// A label plus the tone it reads in. Not a className: which fill or ink a tone
-// wears is the view's business, and these strings used to be Tailwind — pinned
-// as Tailwind in the tests — decided one floor below the layer that renders them.
+// A label plus the tone it reads in. Not a className: the rendering layer owns
+// which fill or ink expresses that semantic tone.
 export interface RunSummaryBadge {
   labelKey: string;
   tone: Tone;

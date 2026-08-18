@@ -40,7 +40,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 		if tokenPath == "" {
 			tokenPath = filepath.Join(paths.dataDirectory, "local-token")
 		}
-		t, err := lyrahttp.IssueLocalToken(tokenPath)
+		t, err := lyrahttp.OpenLocalToken(tokenPath)
 		if err != nil {
 			return err
 		}

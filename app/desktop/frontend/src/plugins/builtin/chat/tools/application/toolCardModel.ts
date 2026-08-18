@@ -54,9 +54,7 @@ export function toolCardModel(t: Translate, tool: ToolCall): ToolCardModel {
   };
 }
 
-/** Denied used to fall through to neutral, which painted a refused call the same
- *  as a successful one — the `stop` glyph was the only difference, and at 12px it
- *  is not one you notice while scrolling. */
+/** A denied call is negative so refusal remains visible while scrolling. */
 function toolCardTone(tool: ToolCall): "neutral" | "warning" | "negative" {
   if (tool.status === "err") return "negative";
   if (tool.status === "requires-action" || tool.status === "denied") return "warning";

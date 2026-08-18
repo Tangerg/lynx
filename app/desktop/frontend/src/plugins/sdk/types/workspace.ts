@@ -58,10 +58,7 @@ export interface WorkspaceViewSpec {
    *
    * Required in practice for anything a user can reach: every Context Dock
    * destination opens in the dock, so a view that cannot live there is a one-way
-   * trip with no way back (see dockDestinations.test). The example this comment
-   * used to give for `false` — notifications — has been splittable for as long
-   * as it has been a destination, and the default cost one round of believing
-   * a full-area view was a thing a dock view could be.
+   * trip with no way back (see dockDestinations.test).
    */
   splittable?: boolean;
   /** The body component. Receives no props. */

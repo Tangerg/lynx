@@ -156,9 +156,8 @@ export function toolDiffStat(tool: ToolCall): { added: number; removed: number }
  *
  * The runtime's own answer, stamped on the toolCall Item — the same table the
  * approval gate consults, so the row's weight and the gate's decision cannot
- * disagree. This used to be a hand-kept list of tool names here, which is a second
- * answer to a question the protocol already answers, and it went stale the moment
- * a tool was renamed.
+ * disagree. A presentation-side list would duplicate protocol policy and become
+ * stale when tools change.
  */
 export function isReadOnlyTool(tool: ToolCall): boolean {
   return tool.safetyClass === "safe";
@@ -199,9 +198,8 @@ export function toolGroupNeedsAttention(tools: readonly ToolCall[]): boolean {
  * re-read every time.
  *
  * Both callers show it in the LABEL and keep a total in the meta column — the
- * summary says what happened, the total says how much is behind the row. A
- * breakdown alone used to be the whole row and undercounted, because a folded
- * round holds conclusions as well as calls and only calls can be classified.
+ * summary says what happened, the total says how much is behind the row. The
+ * total includes conclusions that cannot be classified as calls.
  */
 const ACTIVITY_FAMILIES = ["read", "search", "lookup", "write", "run", "fetch"] as const;
 

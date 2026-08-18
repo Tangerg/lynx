@@ -1,13 +1,10 @@
 // Built-in plugin: the review panel — the change as a whole, one collapsible
 // card per file, with a changed-file navigator beside it.
 //
-// The panel shows the WHOLE change, not the focused file. It used to scope its
-// query to the active file, which made "click a file" and "see the change" the
-// same gesture: opening a file's diff replaced the file list with it, so the one
-// thing a reviewer needs — where this file sits in the change — was what the
-// click threw away. The active file is now a focus target (what the navigator
+// The panel shows the WHOLE change, not just the focused file, preserving where
+// each file sits in the change. The active file is a focus target (what the navigator
 // highlights, what the panel scrolls to on open), and the diff is always the
-// whole comparison. Structured per-file diff from workspace.diff.get (AUX_API §2.3).
+// whole comparison. Structured per-file diff comes from workspace.diff.get (AUX_API §2.3).
 
 import { useEffect, useId, useRef, useState } from "react";
 import { DataView, DiffStat, FilePath, Icon, Pressable, ScrollArea, Segmented } from "@/ui";

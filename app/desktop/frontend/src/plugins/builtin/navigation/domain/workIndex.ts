@@ -26,8 +26,7 @@ export interface WorkGroup {
  * A session belongs to a project when its directory is one the workspace knows;
  * everything else — scratch directories, sessions started before a folder was
  * picked — is recent work with no home yet. Two lists rather than one tree
- * because the alternative is inventing a project out of a path, which is how a
- * session in `/tmp` used to open a group called "tmp" that meant nothing.
+ * because inventing a project from an arbitrary path gives scratch work a false home.
  */
 export interface WorkIndexContent {
   groups: WorkGroup[];

@@ -273,15 +273,15 @@ func TestCORSDisallowedOrigin(t *testing.T) {
 	}
 }
 
-// TestIssueLocalToken — IssueLocalToken creates the file at the
+// TestOpenLocalToken — OpenLocalToken creates the file at the
 // requested path with mode 0600 and returns a non-empty token.
-func TestIssueLocalToken(t *testing.T) {
+func TestOpenLocalToken(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nested", "token")
 
-	tok, err := lyrahttp.IssueLocalToken(path)
+	tok, err := lyrahttp.OpenLocalToken(path)
 	if err != nil {
-		t.Fatalf("IssueLocalToken: %v", err)
+		t.Fatalf("OpenLocalToken: %v", err)
 	}
 	if tok.Value == "" {
 		t.Fatalf("empty token value")
@@ -305,11 +305,36 @@ func TestIssueLocalToken(t *testing.T) {
 	}
 }
 
-func TestIssueLocalTokenRequiresExplicitPath(t *testing.T) {
-	if _, err := lyrahttp.IssueLocalToken(""); err == nil {
-		t.Fatal("IssueLocalToken accepted an empty path")
+func TestOpenLocalTokenSurvivesRuntimeReplacement(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "local-token")
+	predecessor, err := lyrahttp.OpenLocalToken(path)
+	if err != nil {
+		t.Fatalf("open predecessor local token: %v", err)
 	}
-	if _, err := lyrahttp.IssueLocalToken("relative-token"); err == nil {
-		t.Fatal("IssueLocalToken accepted a relative path")
+	successor, err := lyrahttp.OpenLocalToken(path)
+	if err != nil {
+		t.Fatalf("open successor local token: %v", err)
+	}
+	if successor.Value != predecessor.Value {
+		t.Fatalf("successor token = %q, want durable predecessor token %q", successor.Value, predecessor.Value)
+	}
+}
+
+func TestOpenLocalTokenRejectsInvalidDurableCredential(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "local-token")
+	if err := os.WriteFile(path, []byte("not-a-token"), 0o600); err != nil {
+		t.Fatalf("write invalid local token: %v", err)
+	}
+	if _, err := lyrahttp.OpenLocalToken(path); err == nil {
+		t.Fatal("OpenLocalToken accepted an invalid durable credential")
+	}
+}
+
+func TestOpenLocalTokenRequiresExplicitPath(t *testing.T) {
+	if _, err := lyrahttp.OpenLocalToken(""); err == nil {
+		t.Fatal("OpenLocalToken accepted an empty path")
+	}
+	if _, err := lyrahttp.OpenLocalToken("relative-token"); err == nil {
+		t.Fatal("OpenLocalToken accepted a relative path")
 	}
 }

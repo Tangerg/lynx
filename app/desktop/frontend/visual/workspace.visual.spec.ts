@@ -112,9 +112,8 @@ async function waitForWorkspaceState(page: Page, state: VisualWorkspaceState): P
     await expect(page.getByRole("button", { name: en["settings.theme"]! })).toBeVisible();
     return;
   }
-  // Not a fallthrough. This used to end with the Settings assertion as its default,
-  // so a state added later was not merely unasserted — it was asserted against the
-  // wrong surface, and read as "Settings does not render".
+  // Exhaustiveness belongs here: an added state must declare its own ready boundary
+  // instead of being diagnosed against an unrelated surface.
   throw new Error(`No expectation declared for workspace state "${state}"`);
 }
 

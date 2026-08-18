@@ -7,8 +7,7 @@ import { t } from "@/lib/i18n";
 import { notifyError } from "@/plugins/sdk";
 
 /** The mutations that report through here. A closed set because each one names
- *  a catalog key: the copy used to interpolate the action into an English
- *  sentence, which no locale but English could ever render. */
+ *  a localized catalog key rather than interpolating an English action. */
 export type SessionMutation = "create" | "delete" | "rename" | "fork" | "favorite" | "relocate";
 
 export function reportSessionError(

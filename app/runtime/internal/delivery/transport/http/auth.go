@@ -12,9 +12,9 @@ import (
 	"strings"
 )
 
-// LocalToken is the transport's per-process gate token. It only protects
-// against other processes on the same machine — it is NOT user authentication.
-// A trusted local client reads the token from Path and sends
+// LocalToken is the transport's data-directory gate token. It only protects
+// the loopback transport — it is NOT user authentication. A trusted local client
+// reads the token from Path and sends
 //
 //	Authorization: Bearer <Value>
 //
@@ -25,10 +25,12 @@ type LocalToken struct {
 	Path  string
 }
 
-// IssueLocalToken generates a fresh 32-byte token, base64-encodes it, and writes
-// it to path with mode 0600 (parent dir 0700). The executable supplies the
-// process-owned data path; Transport never discovers host directories.
-func IssueLocalToken(path string) (*LocalToken, error) {
+// OpenLocalToken loads the token owned by path, creating a random 32-byte value
+// with mode 0600 when the path has no token. Runtime process replacement keeps
+// the same value so a live local client can authenticate the successor without
+// acquiring a second credential lifecycle. The executable supplies the durable
+// data path; Transport never discovers host directories.
+func OpenLocalToken(path string) (*LocalToken, error) {
 	if path == "" {
 		return nil, errors.New("local token: path is required")
 	}
@@ -36,17 +38,74 @@ func IssueLocalToken(path string) (*LocalToken, error) {
 		return nil, errors.New("local token: path must be absolute")
 	}
 
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return nil, fmt.Errorf("local token: read random: %w", err)
+	token, err := readLocalToken(path)
+	if err == nil {
+		return token, nil
 	}
-	value := base64.RawURLEncoding.EncodeToString(buf)
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("local token: mkdir: %w", err)
 	}
-	if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
-		return nil, fmt.Errorf("local token: write file: %w", err)
+	value, err := newLocalTokenValue()
+	if err != nil {
+		return nil, err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".local-token-*")
+	if err != nil {
+		return nil, fmt.Errorf("local token: create candidate: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err := temporary.WriteString(value); err != nil {
+		temporary.Close()
+		return nil, fmt.Errorf("local token: write candidate: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return nil, fmt.Errorf("local token: sync candidate: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return nil, fmt.Errorf("local token: close candidate: %w", err)
+	}
+	if err := os.Link(temporaryPath, path); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return readLocalToken(path)
+		}
+		return nil, fmt.Errorf("local token: publish candidate: %w", err)
+	}
+	return &LocalToken{Value: value, Path: path}, nil
+}
+
+func newLocalTokenValue() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("local token: read random: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func readLocalToken(path string) (*LocalToken, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("local token: path must be a regular file")
+	}
+	if permissions := info.Mode().Perm(); permissions != 0o600 {
+		return nil, fmt.Errorf("local token: permissions are %04o, want 0600", permissions)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("local token: read file: %w", err)
+	}
+	value := strings.TrimSpace(string(data))
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil || len(decoded) != 32 {
+		return nil, errors.New("local token: file does not contain one 32-byte token")
 	}
 	return &LocalToken{Value: value, Path: path}, nil
 }

@@ -15,9 +15,7 @@ import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/servi
 // The composer's action target: one control whose glyph changes across steer /
 // send / stop, so the place you click never moves.
 //
-// A DISC, and deliberately the only one in the window. This used to be a rounded
-// square, reasoned as "every other control here is a rounded rectangle, so a lone
-// disc reads as a different kit" — but that is the argument backwards. The
+// A DISC, and deliberately the only one in the window. The
 // controls beside it are ghosts: no fill, no edge, they are labels you can press.
 // This one is the solid primary, and being a different shape is how it says so
 // without shouting in colour. The reference sits its send on the same row of

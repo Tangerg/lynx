@@ -4,9 +4,7 @@ import type { PlanStep, SessionPlan } from "@/plugins/builtin/agent/public/plan"
  * The banner's own state: what the plan is, plus whether to be on screen.
  *
  * Only the visibility is decided here. Which step is current and how many are
- * done are the plan's own projection — this module used to answer both again,
- * with `currentPlanStep` disagreeing with `activePlanStep` about a plan whose
- * active step follows an untouched one.
+ * done are the Plan projection's facts and are not re-derived here.
  */
 export interface PlanBannerState {
   visible: boolean;

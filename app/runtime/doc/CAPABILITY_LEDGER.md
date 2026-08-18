@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品按一个 client/一个 server 设计。SQLite 仍是 durable winner；客户端 generation 只决定谁有权提交当前投影。
-- P113/P114 已完成；P115 已授权并完成 Mutation Journal、Frontend lifecycle owner、无价值分层、Bootstrap composition 与 Runs 行为对象收敛，当前只剩注释、门禁和完整验收收口。
+- P113–P115 已完成；Mutation Journal、Frontend lifecycle owner、静态 extension、Bootstrap composition、Runs 执行交接与 local transport credential 均已收敛并完成真实验收。
 
 ## 2. 架构与所有权
 
@@ -93,6 +93,7 @@
 
 - Runtime 每次启动发布新的 opaque `instanceId`；info/live/ready/discovery 必须同源一致，Desktop 才提交 ready inspection。
 - 同 endpoint、同版本重启仍形成新 process/event generation。旧 response、event iterator、stream callback 和 teardown 只能结算旧代。
+- local transport token 由 durable data path 唯一拥有：首次以 0600 完整候选原子发布，后续 Runtime generation 读取并严格校验同一 32-byte credential；显式删除/替换文件才构成凭据轮换。
 - SIGKILL 后 SQLite durable material、HITL、Plan、Goal、Run、Tool 与 navigation 通过权威 snapshot/stream handoff 恢复，不拼接旧进程内存。
 - boot reconciliation 的 Session writer claims 由 exact-once `recoverySessionClaims` 持有并逆序释放；`recoveryPlanner` 继续独占 ownership-scoped snapshot 到 atomic `RecoveryCommit` 的推导。
 - transaction failure 与 success receipt loss 分别由 rollback 和 exact marker proof 处理，不靠刷新、延时重试或 optimistic 猜测。
@@ -156,8 +157,8 @@
 | Frontend | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks` |
 | Production shell | Wails v3 Go test/vet/build、生产冷启动、Runtime health/discovery 与 fresh database smoke |
 
-最近完整基线为 Frontend 331 files / 1976 tests；Runtime 与 Desktop 全量 test/vet/build 通过。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
+最近完整基线为 Frontend 308 files / 1925 tests，普通与 `--detectAsyncLeaks` 全绿；Runtime standalone 全量 test/vet/build 及 Runs/Bootstrap/SQLite/HTTP/architecture race 通过；Desktop Go test/vet/build、Wails v3 production package、fresh database 冷启动与真实 SIGKILL replacement smoke 通过。SIGKILL 前后 `instanceId` 换代、local token 保持一致，存活 Desktop 恢复后的 RPC 全部为 200。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 当前结论
 
-P0–P114 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation 和 read-model owner。后续工作必须从新的红色产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P115 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner。后续工作必须从新的红色产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

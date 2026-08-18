@@ -36,10 +36,7 @@ interface Props {
 
 // The turn map hangs off the reading column's leading edge, OUT of its flow.
 //
-// It used to be a flex sibling, and the column sat at the midpoint of the two
-// gutters instead of the pane's. Reserving those gutters was itself a repair: a
-// rail that collapsed when its turn had nothing to show used to drag the
-// transcript sideways mid-scroll. Positioned absolutely against the centre line,
+// Positioned absolutely against the centre line,
 // neither failure is reachable — the rail can appear, disappear or change width
 // and the text does not move, because the text's position never depended on it.
 //

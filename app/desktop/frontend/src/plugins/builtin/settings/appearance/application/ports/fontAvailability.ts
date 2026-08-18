@@ -5,10 +5,8 @@ import { createSingletonPort } from "@/lib/ports/singletonPort";
  *
  * A port because the candidate list is ours (a curated cross-platform set) while
  * the probe is the browser's: `document.fonts.check()`, chosen because
- * `queryLocalFonts()` is permission-gated and absent in WebKit. The two used to
- * live in one application module, which put a `document` call in the layer that
- * is supposed to be answerable without one — and made the curated list
- * untestable without a DOM.
+ * `queryLocalFonts()` is permission-gated and absent in WebKit. Keeping the probe
+ * behind this port leaves the curated application list testable without a DOM.
  */
 export interface FontAvailabilityPort {
   isAvailable(family: string): boolean;
