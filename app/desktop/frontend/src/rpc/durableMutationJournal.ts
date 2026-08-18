@@ -1,4 +1,4 @@
-const JOURNAL_VERSION = 1;
+const JOURNAL_VERSION = 2;
 const MAX_ENTRIES = 256;
 const ENTRY_PREFIX = "entry:";
 
@@ -10,9 +10,6 @@ export interface MutationJournalStorage {
 }
 
 export interface MutationJournalScope {
-  /** Normalized transport endpoint. An identical Runtime store reached through a
-   * different configured endpoint is deliberately a different client scope. */
-  endpoint: string;
   /** Opaque identity published by the Runtime's durable idempotency store. */
   namespace: string;
   retentionSeconds: number;
@@ -41,7 +38,6 @@ export class MutationJournalCapacityError extends MutationJournalError {
 interface JournalEntry {
   version: typeof JOURNAL_VERSION;
   salt: string;
-  endpoint: string;
   namespace: string;
   fingerprint: string;
   idempotencyKey: string;
@@ -84,9 +80,9 @@ function validEntry(value: unknown): value is JournalEntry {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const entry = value as Partial<JournalEntry>;
   return (
+    Object.keys(value).length === 7 &&
     entry.version === JOURNAL_VERSION &&
     validText(entry.salt, 255) &&
-    validText(entry.endpoint, 2_048) &&
     validText(entry.namespace, 255) &&
     typeof entry.fingerprint === "string" &&
     /^[0-9a-f]{32}$/.test(entry.fingerprint) &&
@@ -103,16 +99,9 @@ function entryKey(idempotencyKey: string): string {
   return `${ENTRY_PREFIX}${encodeURIComponent(idempotencyKey)}`;
 }
 
-function normalizedEndpoint(endpoint: string): string {
-  return endpoint.replace(/\/+$/, "");
-}
-
 function validScope(scope: MutationJournalScope | null | undefined): scope is MutationJournalScope {
   if (!scope) return false;
-  const endpoint = normalizedEndpoint(scope.endpoint);
   return (
-    endpoint.length > 0 &&
-    endpoint.length <= 2_048 &&
     validText(scope.namespace, 255) &&
     Number.isInteger(scope.retentionSeconds) &&
     scope.retentionSeconds > 0
@@ -222,7 +211,6 @@ function sameEntry(left: JournalEntry, right: JournalEntry): boolean {
   return (
     left.version === right.version &&
     left.salt === right.salt &&
-    left.endpoint === right.endpoint &&
     left.namespace === right.namespace &&
     left.fingerprint === right.fingerprint &&
     left.idempotencyKey === right.idempotencyKey &&
@@ -257,12 +245,12 @@ export function openDurableMutationJournal(
         "Runtime mutation store identity is temporarily unavailable",
       );
     }
-    return { ...scope, endpoint: normalizedEndpoint(scope.endpoint) };
+    return scope;
   };
 
   const validateIdentity = (identity: DurableMutationIdentity, scope: MutationJournalScope) => {
     const entry = identity.entry;
-    if (entry.endpoint !== scope.endpoint || entry.namespace !== scope.namespace) {
+    if (entry.namespace !== scope.namespace) {
       throw new MutationJournalOwnershipError(
         "Runtime mutation identity belongs to a replaced Runtime store",
       );
@@ -283,23 +271,17 @@ export function openDurableMutationJournal(
       if (preferredKey !== undefined && !validText(preferredKey, 255)) {
         throw new MutationJournalError("Runtime mutation identity candidate is invalid");
       }
-      const endpoint = normalizedEndpoint(scope.endpoint);
       const currentTime = options.now();
       const retentionMs = scope.retentionSeconds * 1_000;
       let entries = loadEntries(options.storage);
       for (const entry of entries) {
-        if (
-          entry.expiresAt <= currentTime ||
-          entry.endpoint !== endpoint ||
-          entry.namespace !== scope.namespace
-        ) {
+        if (entry.expiresAt <= currentTime || entry.namespace !== scope.namespace) {
           removeEntry(entry);
         }
       }
       entries = loadEntries(options.storage);
       const canonicalCommand = `${method}\u0000${canonicalJSON(params)}`;
       const matches = (entry: JournalEntry) =>
-        entry.endpoint === endpoint &&
         entry.namespace === scope.namespace &&
         entry.fingerprint === fingerprint(`${entry.salt}\u0000${canonicalCommand}`);
       const preferred =
@@ -328,7 +310,6 @@ export function openDurableMutationJournal(
         entry = {
           version: JOURNAL_VERSION,
           salt,
-          endpoint,
           namespace: scope.namespace,
           fingerprint: fingerprint(`${salt}\u0000${canonicalCommand}`),
           idempotencyKey: preferredKey ?? crypto.randomUUID(),

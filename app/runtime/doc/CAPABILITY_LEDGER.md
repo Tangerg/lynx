@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P116 C1 已实施，C2–C3 待处理。
+> 状态：当前能力快照；P116 C1–C2 已实施，C3 待处理。
 >
 > 基线日期：2026-08-18。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P115 已完成；Mutation Journal、Frontend lifecycle owner、静态 extension、Bootstrap composition、Runs 执行交接与 local transport credential 均已收敛并完成真实验收。
+- P113–P115 已完成；P116 已完成 claimed Resume 补偿与 Mutation Journal durable identity 校准，静态 published-boundary 语法守卫仍待审计。
 
 ## 2. 架构与所有权
 
@@ -110,9 +110,9 @@
 
 ### 6.2 Mutation、query 与 material
 
-- Desktop durable mutation journal 只持久化当前唯一 shape 的未决命令身份：salted fingerprint、idempotency key、Runtime endpoint/namespace 与 retention boundary；请求参数、renderer owner、generation、lease、heartbeat 和 settlement 状态不落盘。
+- Desktop durable mutation journal 只持久化当前 v2 shape 的未决命令身份：salted fingerprint、idempotency key、Runtime durable namespace 与 retention boundary；transport endpoint、请求参数、renderer owner、generation、lease、heartbeat 和 settlement 状态不落盘。
 - renderer-local exact object identity 是 mutation response/error/cleanup 的唯一提交权。replacement 先发布 successor 再退休 predecessor；旧异步结果和旧 disposer 不能删除 successor 复用的 durable identity。
-- 同一 Runtime durable namespace 可在 renderer/client 重建后恢复 exact idempotency key。当前实现还把 transport endpoint 纳入 persisted scope；这属于待反证的 binding/store identity 耦合，不是新的逻辑服务端合同。
+- 同一 Runtime durable namespace 可在 renderer/client 重建以及 HTTP/socket/in-process binding 变化后恢复 exact idempotency key；只有 namespace 变化或 retention 到期才退休该 durable identity。
 - command owner 持有 single-flight/serialization、optimistic effect 的补偿、navigation 和迟到 settlement；裸 gateway/singleton locator 不能绕过 owner。
 - DATA_PROVIDER read 在入口一次捕获 Runtime client 与 query generation；多阶段 RPC 不跨 transport 拼接。
 - query handoff 捕获交接时真实 Query identity，迟到 cancel/reset 不能命中交接后才创建的 successor Query。
@@ -161,12 +161,8 @@
 
 ## 10. 已知未闭环
 
-- `ClaimResume` 会把 waiting record 原子改为 `resuming`，但 claimed Resume 的失败补偿仍调用只读取 `open` record 的 parked-run terminalization。下一阶段需要先用行为测试证明该交错，再让 resume claim owner 直接完成准确的 lost transition；不能通过 open/resuming 双读或 fallback 修补。
-- Mutation Journal 当前把 endpoint 与 durable namespace 一起持久化。产品允许同一逻辑 Runtime 改用 socket、同进程 binding 或重建 loopback transport，因此 endpoint 是否应该参与 durable command identity 必须由单 Desktop 真实交接反例决定；不能引入 endpoint alias、server history 或多 connection registry。
-- 静态架构门禁若只拒绝某类 exported object-literal factory，而不能表达跨 context 泄露或真实消费者边界，应随对应历史形态删除，不能把一次性重构规则变成永久语法制度。
-
-这些条目是下一阶段候选反例，不构成生产实施授权。
+- P116 C3 正在审计静态架构门禁：若 exported object-literal factory 语法规则不能表达跨 context 泄露或真实消费者边界，就应随对应历史形态删除，不能把一次性重构规则变成永久语法制度。
 
 ## 11. 当前结论
 
-P0–P115 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner。后续工作必须从新的红色产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P115 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner；P116 C1–C2 又消除了 claimed-state 自身不可见与 transport binding 冒充 durable identity 两处耦合。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

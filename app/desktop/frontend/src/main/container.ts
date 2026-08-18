@@ -86,7 +86,6 @@ function defaultContainer(): DefaultContainerOwner {
                 const idempotency = negotiatedCapabilities()?.limits.idempotency;
                 return idempotency
                   ? {
-                      endpoint: baseUrl,
                       namespace: idempotency.namespace,
                       retentionSeconds: idempotency.retentionSeconds,
                     }

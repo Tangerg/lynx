@@ -254,7 +254,6 @@ describe("methods factory", () => {
     const persistentJournal = createMutationJournal({
       storage,
       scope: () => ({
-        endpoint: "http://127.0.0.1:17171",
         namespace,
         retentionSeconds: 86_400,
       }),
@@ -300,7 +299,6 @@ describe("methods factory", () => {
       scope: () =>
         scopeAvailable
           ? {
-              endpoint: "http://127.0.0.1:17171",
               namespace: "idp_runtime_store",
               retentionSeconds: 86_400,
             }
@@ -350,7 +348,6 @@ describe("methods factory", () => {
       keys: () => [...values.keys()],
     };
     const scope = () => ({
-      endpoint: "http://127.0.0.1:17171",
       namespace: "idp_runtime_store",
       retentionSeconds: 86_400,
     });
@@ -406,7 +403,6 @@ describe("methods factory", () => {
       keys: () => [...values.keys()],
     };
     const scope = () => ({
-      endpoint: "http://127.0.0.1:17171",
       namespace: "idp_runtime_store",
       retentionSeconds: 86_400,
     });
@@ -466,7 +462,6 @@ describe("methods factory", () => {
     const persistentJournal = createMutationJournal({
       storage,
       scope: () => ({
-        endpoint: "http://127.0.0.1:17171",
         namespace: "idp_runtime_store",
         retentionSeconds: 86_400,
       }),

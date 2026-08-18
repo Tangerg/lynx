@@ -36,7 +36,6 @@ class MemoryStorage implements MutationJournalStorage {
 
 function scope(namespace = "idp_runtime_store"): MutationJournalScope {
   return {
-    endpoint: "http://127.0.0.1:17171/",
     namespace,
     retentionSeconds: 86_400,
   };
@@ -93,7 +92,6 @@ describe("mutation journal", () => {
     const entry = storage.get(storage.keys()[0]!) as Record<string, unknown>;
     expect(Object.keys(entry).sort()).toEqual([
       "createdAt",
-      "endpoint",
       "expiresAt",
       "fingerprint",
       "idempotencyKey",
@@ -146,6 +144,20 @@ describe("mutation journal", () => {
     replayResult.resolve("successor result");
     await expect(replay).resolves.toBe("successor result");
     expect(storage.keys()).toEqual([]);
+  });
+
+  it("reuses an unresolved identity when the same Runtime store changes transport binding", () => {
+    const storage = new MemoryStorage();
+    const bind = (endpoint: string) => ({ endpoint, journal: journal(storage) });
+    const predecessor = bind("http://127.0.0.1:17171");
+    const pending = predecessor.journal.reserve("runs.start", { prompt: "hello" })!;
+
+    const successor = bind("http://127.0.0.1:27272");
+    const replay = successor.journal.reserve("runs.start", { prompt: "hello" })!;
+
+    expect(successor.endpoint).not.toBe(predecessor.endpoint);
+    expect(replay.idempotencyKey).toBe(pending.idempotencyKey);
+    expect(storage.keys()).toHaveLength(1);
   });
 
   it("retains an ambiguous result and reuses its exact identity on explicit retry", async () => {
@@ -206,6 +218,21 @@ describe("mutation journal", () => {
     const corrupted = new MemoryStorage();
     corrupted.values.set("entry:broken", { version: 1 });
     expect(() => journal(corrupted).reserve("runs.start", {})).toThrow(MutationJournalStorageError);
+
+    const endpointShape = new MemoryStorage();
+    endpointShape.values.set("entry:old-key", {
+      version: 2,
+      salt: "salt",
+      endpoint: "http://127.0.0.1:17171",
+      namespace: "idp_runtime_store",
+      fingerprint: "0".repeat(32),
+      idempotencyKey: "old-key",
+      createdAt: 1,
+      expiresAt: 2,
+    });
+    expect(() => journal(endpointShape).reserve("runs.start", {})).toThrow(
+      MutationJournalStorageError,
+    );
 
     const storage = new MemoryStorage();
     const current = journal(storage);
