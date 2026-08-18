@@ -1,8 +1,8 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P118 已完成。
+> 状态：当前能力快照；P118 已完成，P119 实施中。
 >
-> 基线日期：2026-08-18。
+> 基线日期：2026-08-19。
 
 本文只回答“现在具备什么能力、谁拥有它、用什么证据守住”。详细 wire/storage 版本见
 [`CONTRACT_BASELINE.md`](CONTRACT_BASELINE.md)，实施历史见
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P118 已完成；P118 已完成 Work Index、Agent Narrative 与 Context Dock 的 Codex 对齐、权威前端接线和 production renderer/Runtime 恢复验收。
+- P113–P118 已完成；P119 正在继续 Work Index、Agent Narrative 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收。
 
 ## 2. 架构与所有权
 
@@ -139,6 +139,8 @@
 - File preview 的 generic `File` tab 与 material identity 分工明确：dock view bar 从同一 `viewer.path` 呈现左侧截断的 exact path，并与 line count/truncation 同行；full placement 继续以 path 为 title。文件选择、query 参数、syntax grammar 与可见身份不再分叉。
 - Timeline 在 Runtime 不可接收命令时继续呈现 exact Session/Run 审计事实，但 locate/cancel 共同由 Runtime command capability 禁用；恢复后沿同一 owner 重新可用，不从 connection phase 复制第二布尔状态。
 - 右栏 tab strip 保留可读标签；active identity 变化时由 tab owner 执行 nearest scrolling，strip 自己的 scroll geometry 驱动 start/end edge fade。renderer 恢复或 picker 打开末尾 tab 后选中身份始终可见，两侧隐藏内容也有明确提示。
+- 中栏 Markdown presentation 由一个 renderer owner 统一持有：semantic rich/plain table copy 与展开预览、Shiki code wrap/copy、HTML/SVG fence 隔离、Mermaid、selection copy、matched citation、image-only grouping、message-scoped image gallery、inline/fenced LTR isolation、Han/RTL direction、Codex heading/list/task/blockquote/rule rhythm 均消费同一 message material。模型 raw HTML 只允许无属性 basic inline 标签与 `br`；远程图片、style、native disclosure/layout 和属性注入不会成为活动 DOM。图库只在 nearest exact message-content root 开放，并排除 nested delegated message，不持久化、不注册全局 owner。
+- Agent message 的 authoritative phase 尚未进入公共能力：当前 Protocol/persistence/Artifact/SDK 不能区分 commentary 与 final answer。Frontend 保持现有 durable transcript 顺序，不从 streaming/位置/文案推断分组；该能力必须先获 Runtime Protocol、SQLite/Artifact 与 public generated surface 的 breaking-surface 授权。
 
 ## 7. 公共合同
 

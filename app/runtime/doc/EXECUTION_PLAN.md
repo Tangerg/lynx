@@ -29,6 +29,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 左栏继续逐项验证全局动作、Projects、project row、Session row、目录选择、创建/关闭/切换与离线撤权；中栏验证 transcript/streaming/composer/HITL/Plan/Goal/Steer/scroll；右栏验证 Run Summary/Terminal/Diff/File/Timeline/Tool/Settings 的身份、material、命令 capability、空态与恢复态。
 - UI 精修继续服从现有 theme/design-system token、单一 edge mechanism、最小 40px hit area、键盘焦点、reduced motion、CJK/长路径/长标题、tabular numerals、容器宽度与 Retina device-pixel 约束；不以额外 chrome、卡片、圆角或动画代替信息层级。
 - 完成前运行 Frontend 全门禁与 `--detectAsyncLeaks`、三栏完整 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵、必要的 Runtime/Desktop gates、Wails v3 production package/codesign，以及 fresh database、renderer replacement、Runtime restart/SIGKILL 的真实产品 smoke；关闭本阶段自动化会话与进程，清理临时数据库、Playwright 和 Go build/test cache。
+- P119 内容区首轮纵切已闭环：production Markdown renderer 现在以同一 message-content root 统一协议图片与 Markdown 图片灯箱，支持前后按钮、左右键、Escape，并隔离 nested delegated message；表格保留 semantic DOM 与 rich/plain clipboard，同时提供 Codex 式展开预览和显式关闭。代码块/HTML fence、SVG、Mermaid、selection copy、citation、图片 grouping、inline/fenced bidi isolation、标题、blockquote、task/nested/RTL list 与 horizontal rule 均由现有 Markdown presentation owner 对齐；模型 HTML 只接受无属性的 Codex basic inline 集合，`style`、原生 disclosure/layout 与属性注入保持 inert/literal。未增加 remote fetch、全局图库、第二内容模型或 Runtime 依赖。
+- 上述内容纵切的每个成立缺口均先以独立红测推送，再提交根修复；当前 Frontend 全量为 321 files / 1989 tests，typecheck/lint/format/locales/style/design-system/token/chrome 门禁全绿，长内容 Chromium light/dark、RTL/CJK 与 WebKit 18px smoke 全绿。P119 尚未执行最终 async-leak、三栏全集、production package/codesign 和 fresh DB/renderer/Runtime SIGKILL 封板矩阵，不能据此宣告阶段完成。
+- Codex 的 commentary 与 final answer 精确分组仍缺权威 `agentMessage.phase` 事实。若补齐会同时影响 Runtime Protocol Item、transcript persistence、SQLite JSON codec、Artifact import/export、公共 Go/生成 TypeScript surface、Frontend published SDK 与 fold/render planner；在取得显式 breaking-surface 授权前，Frontend 不按顺序、流式状态或文本形态猜测 phase，也不增加第二 transcript writer。
 
 ### P118 准入与完成条件（2026-08-18）
 
