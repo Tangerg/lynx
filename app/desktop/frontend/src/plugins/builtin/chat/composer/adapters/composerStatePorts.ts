@@ -1,8 +1,5 @@
 import { disposeOnHmr } from "@/lib/hmr";
-import {
-  getAgentSessionLifecycleSnapshot,
-  subscribeAgentSessionLifecycle,
-} from "@/plugins/builtin/agent/public/session";
+import type { AgentSessionPorts } from "@/plugins/builtin/agent/public/ports";
 import { replaceDraft } from "../application/draft";
 import { configureComposerStatePort } from "../application/ports/state";
 import { composerDraftPort } from "./composerDraftPort";
@@ -10,7 +7,7 @@ import { useComposerStore } from "./composerStore";
 
 let stopSessionSync: (() => void) | null = null;
 
-export function installComposerStatePorts(): () => void {
+export function installComposerStatePorts(sessions: AgentSessionPorts): () => void {
   const disposePort = configureComposerStatePort({
     useText: () => useComposerStore((state) => state.value),
     useSetText: () => useComposerStore((state) => state.setValue),
@@ -37,23 +34,23 @@ export function installComposerStatePorts(): () => void {
     },
     useSetModelPreference: () => useComposerStore((state) => state.setModel),
   });
-  const disposeSessionSync = installComposerSessionSync();
+  const disposeSessionSync = installComposerSessionSync(sessions);
   return () => {
     disposeSessionSync();
     disposePort();
   };
 }
 
-function installComposerSessionSync(): () => void {
+function installComposerSessionSync(sessions: AgentSessionPorts): () => void {
   stopSessionSync?.();
-  const stop = subscribeAgentSessionLifecycle(({ activeSessionId, openSessionIds }) => {
+  const stop = sessions.subscribeLifecycle(({ activeSessionId, openSessionIds }) => {
     const composer = useComposerStore.getState();
     composer.loadSession(activeSessionId);
     composer.pruneDrafts(new Set(openSessionIds));
   });
   stopSessionSync = stop;
 
-  const initial = getAgentSessionLifecycleSnapshot();
+  const initial = sessions.lifecycleSnapshot();
   useComposerStore.getState().loadSession(initial.activeSessionId);
   useComposerStore.getState().pruneDrafts(new Set(initial.openSessionIds));
   return () => {

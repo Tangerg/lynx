@@ -5,13 +5,8 @@ import { RpcError } from "@/rpc";
 import { resolveActiveSessionWorkspaceCwd } from "./sessionWorkspaceCwd";
 
 const { activeSessionId, getSession } = vi.hoisted(() => ({
-  activeSessionId: vi.fn<() => string | null>(() => null),
+  activeSessionId: vi.fn<() => string>(() => ""),
   getSession: vi.fn(),
-}));
-
-vi.mock("@/plugins/builtin/agent/public/session", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/plugins/builtin/agent/public/session")>()),
-  getActiveSessionId: activeSessionId,
 }));
 
 vi.mock("@/main/container", () => ({
@@ -21,16 +16,16 @@ vi.mock("@/main/container", () => ({
 }));
 
 afterEach(() => {
-  activeSessionId.mockReturnValue(null);
+  activeSessionId.mockReturnValue("");
   getSession.mockReset();
   queryClient.removeQueries({ queryKey: [AGENT_SESSIONS_KEY] });
 });
 
 describe("active session workspace resolution", () => {
   it("resolves no active session to the runtime default workspace", async () => {
-    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).resolves.toEqual({
-      status: "resolved",
-    });
+    await expect(
+      resolveActiveSessionWorkspaceCwd({ activeSessionId }, new AbortController().signal),
+    ).resolves.toEqual({ status: "resolved" });
     expect(getSession).not.toHaveBeenCalled();
   });
 
@@ -38,10 +33,9 @@ describe("active session workspace resolution", () => {
     activeSessionId.mockReturnValue("ses_cached");
     queryClient.setQueryData([AGENT_SESSIONS_KEY], [{ id: "ses_cached", cwd: "/cached/repo" }]);
 
-    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).resolves.toEqual({
-      status: "resolved",
-      cwd: "/cached/repo",
-    });
+    await expect(
+      resolveActiveSessionWorkspaceCwd({ activeSessionId }, new AbortController().signal),
+    ).resolves.toEqual({ status: "resolved", cwd: "/cached/repo" });
     expect(getSession).not.toHaveBeenCalled();
   });
 
@@ -51,7 +45,7 @@ describe("active session workspace resolution", () => {
     getSession.mockResolvedValue({ workspace: { ref: { path: "/draft/repo" } } });
     const signal = new AbortController().signal;
 
-    await expect(resolveActiveSessionWorkspaceCwd(signal)).resolves.toEqual({
+    await expect(resolveActiveSessionWorkspaceCwd({ activeSessionId }, signal)).resolves.toEqual({
       status: "resolved",
       cwd: "/draft/repo",
     });
@@ -68,17 +62,17 @@ describe("active session workspace resolution", () => {
       }),
     );
 
-    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).resolves.toEqual({
-      status: "unavailable",
-    });
+    await expect(
+      resolveActiveSessionWorkspaceCwd({ activeSessionId }, new AbortController().signal),
+    ).resolves.toEqual({ status: "unavailable" });
   });
 
   it("preserves a transient read failure for the subscription retry owner", async () => {
     activeSessionId.mockReturnValue("ses_remote");
     getSession.mockRejectedValue(new Error("offline"));
 
-    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).rejects.toThrow(
-      "offline",
-    );
+    await expect(
+      resolveActiveSessionWorkspaceCwd({ activeSessionId }, new AbortController().signal),
+    ).rejects.toThrow("offline");
   });
 });

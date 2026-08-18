@@ -16,6 +16,13 @@ import { createMemoryNavigator } from "@/lib/navigation.testkit";
 import { installAgentDefaultSessionPort } from "@/plugins/builtin/agent/adapters/agentDefaultSessionPort";
 import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
 import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentStatePorts";
+import {
+  getAgentSessionLifecycleSnapshot,
+  getActiveSessionId,
+  subscribeAgentSessionLifecycle,
+  subscribeActiveSessionId,
+} from "@/plugins/builtin/agent/public/session";
+import type { AgentSessionPorts } from "@/plugins/builtin/agent/public/ports";
 import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/adapters/composerStatePorts";
 import {
   installRuntimeCapabilityPort,
@@ -23,12 +30,19 @@ import {
 } from "@/plugins/builtin/runtime/adapters/runtimeConnectionProjection";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 
+const testAgentSessionPorts: AgentSessionPorts = {
+  activeSessionId: getActiveSessionId,
+  lifecycleSnapshot: getAgentSessionLifecycleSnapshot,
+  subscribeActiveSessionId,
+  subscribeLifecycle: subscribeAgentSessionLifecycle,
+};
+
 // Before the ports: installing them subscribes to the location.
 configureNavigator(createMemoryNavigator());
 installAgentStatePorts();
 installAgentDefaultSessionPort();
 installAgentRuntimeGateway();
-installComposerStatePorts();
+installComposerStatePorts(testAgentSessionPorts);
 installWorkspaceNavigationPort();
 installRuntimeCapabilityPort();
 
@@ -44,7 +58,7 @@ beforeEach(async () => {
   installAgentStatePorts();
   installAgentDefaultSessionPort();
   installAgentRuntimeGateway();
-  installComposerStatePorts();
+  installComposerStatePorts(testAgentSessionPorts);
   installWorkspaceNavigationPort();
   resetRuntimeConnectionForTest();
   installRuntimeCapabilityPort();

@@ -1,10 +1,9 @@
 import { getContainer } from "@/main/container";
 import { queryClient } from "@/lib/queryClient";
+import type { AgentSessionPorts } from "@/plugins/builtin/agent/public/ports";
 import {
   AGENT_SESSIONS_KEY,
-  getActiveSessionId,
   subscribeAgentSessionProjection,
-  subscribeActiveSessionId,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
 import { asSessionId, isErrorType } from "@/rpc";
@@ -14,9 +13,10 @@ import type {
 } from "../application/workspaceEventSubscription";
 
 export async function resolveActiveSessionWorkspaceCwd(
+  sessions: Pick<AgentSessionPorts, "activeSessionId">,
   signal: AbortSignal,
 ): Promise<WorkspaceCwdResolution> {
-  const id = getActiveSessionId();
+  const id = sessions.activeSessionId();
   if (!id) return { status: "resolved" };
   const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([AGENT_SESSIONS_KEY]);
   const cached = list?.find((session) => session.id === id);
@@ -32,11 +32,13 @@ export async function resolveActiveSessionWorkspaceCwd(
 }
 
 export function subscribeWorkspaceCwdInputs(
+  sessions: Pick<AgentSessionPorts, "activeSessionId" | "subscribeActiveSessionId">,
   onChange: (change: WorkspaceCwdInputChange) => void,
 ): () => void {
-  const unsubSession = subscribeActiveSessionId(() => onChange("identity"));
-  const unsubCache = subscribeAgentSessionProjection(sessionWorkspaceRevision, () =>
-    onChange("projection"),
+  const unsubSession = sessions.subscribeActiveSessionId(() => onChange("identity"));
+  const unsubCache = subscribeAgentSessionProjection(
+    (projection) => sessionWorkspaceRevision(sessions.activeSessionId(), projection),
+    () => onChange("projection"),
   );
   return () => {
     unsubSession();
@@ -44,8 +46,10 @@ export function subscribeWorkspaceCwdInputs(
   };
 }
 
-function sessionWorkspaceRevision(sessions: readonly AgentSessionSummary[] | undefined): string {
-  const active = getActiveSessionId();
-  const session = sessions?.find(({ id }) => id === active);
-  return JSON.stringify([active, session ? session.cwd : null]);
+function sessionWorkspaceRevision(
+  activeSessionId: string,
+  sessions: readonly AgentSessionSummary[] | undefined,
+): string {
+  const session = sessions?.find(({ id }) => id === activeSessionId);
+  return JSON.stringify([activeSessionId, session ? session.cwd : null]);
 }

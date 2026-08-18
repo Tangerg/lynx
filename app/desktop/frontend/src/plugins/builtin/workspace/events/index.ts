@@ -5,6 +5,7 @@
 // live in their owning layers under this bounded context.
 
 import { definePlugin } from "@/plugins/sdk";
+import { AGENT_SESSION_PORTS } from "@/plugins/builtin/agent/public/ports";
 import { installProjectIndexRefresh } from "./adapters/projectIndexRefresh";
 import {
   invalidateWorkspaceEvent,
@@ -34,6 +35,7 @@ export default definePlugin({
     runtime: RUNTIME_STREAM_PORTS,
     serverScope: RUNTIME_SERVER_SCOPE_PORTS,
     mutationLifecycle: WORKSPACE_MUTATION_LIFECYCLE_PORTS,
+    sessions: AGENT_SESSION_PORTS,
   },
   setup(ctx) {
     const loop = createWorkspaceEventLoop({
@@ -55,10 +57,11 @@ export default definePlugin({
         ctx.mutationLifecycle.replaceRuntimeGeneration();
         retireWorkspaceReadModels();
       },
-      resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
+      resolveWorkspaceCwd: (signal) => resolveActiveSessionWorkspaceCwd(ctx.sessions, signal),
       reportResolutionError: (error) =>
         console.warn("[workspace-events] target resolution failed:", error),
-      subscribeWorkspaceCwdInputs,
+      subscribeWorkspaceCwdInputs: (onChange) =>
+        subscribeWorkspaceCwdInputs(ctx.sessions, onChange),
       loop,
     });
 

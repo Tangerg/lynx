@@ -2,12 +2,11 @@ import type { Disposable, Contributor } from "@/plugins/sdk";
 import { queryClient } from "@/lib/queryClient";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
+import type { AgentSessionPorts } from "@/plugins/builtin/agent/public/ports";
 import {
   AGENT_SESSIONS_KEY,
   activeSessionWorkspaceSelection,
-  getActiveSessionId,
   subscribeAgentSessionProjection,
-  subscribeActiveSessionId,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
 import { RECIPES_KEY, type RecipesQuery } from "./recipeQueries";
@@ -59,7 +58,10 @@ function recipeSignature(recipes: Recipe[]): string {
     .join(RECIPE_SIGNATURE_ROW_SEPARATOR);
 }
 
-export function installRecipeSlashCommands(ctx: Contributor): () => void {
+export function installRecipeSlashCommands(
+  ctx: Contributor,
+  sessionPorts: AgentSessionPorts,
+): () => void {
   let dynamic: Disposable[] = [];
   let lastSignature = "";
 
@@ -85,7 +87,7 @@ export function installRecipeSlashCommands(ctx: Contributor): () => void {
   const refresh = () => {
     const current = ++generation;
     const sessions = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
-    const query = recipeWorkspaceQuery(getActiveSessionId(), sessions);
+    const query = recipeWorkspaceQuery(sessionPorts.activeSessionId(), sessions);
     // Remove commands from the previous project immediately. An active id whose
     // Session row has not arrived is not permission to fall back to the Runtime's
     // default workspace.
@@ -103,7 +105,7 @@ export function installRecipeSlashCommands(ctx: Contributor): () => void {
   };
 
   refresh();
-  const unsubscribeSession = subscribeActiveSessionId(refresh);
+  const unsubscribeSession = sessionPorts.subscribeActiveSessionId(refresh);
   const unsubscribeQuery = subscribeAgentSessionProjection(sessionWorkspaceRevision, refresh);
 
   return () => {
