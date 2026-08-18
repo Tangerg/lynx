@@ -1,30 +1,39 @@
 import type { Highlighter } from "shiki";
 import { useEffect, useMemo, useRef } from "react";
 import { stripCodeWrapper, useCodeHighlighter } from "@/lib/highlight/useCodeHighlight";
+import { langFromPath, resolveLang } from "@/lib/highlight/shiki";
 import { cn } from "@/lib/classNames";
 
 // Whole-file viewer (workspace.files.read) — the target of a clickable file:line
 // reference. The file is highlighted in ONE Shiki pass and split into per-line
 // HTML (Shiki separates source lines by a literal newline inside <code>), so a
 // large file costs one highlight call, not one per line. The target line is
-// scrolled to centre and tinted. Lang is hardcoded like DiffView — approximate
-// highlighting on non-TS files, but text/line-numbers/scroll are exact.
+// scrolled to centre and tinted.
 
 // Split a full highlight into per-line inner HTML by stripping the <pre><code>
 // wrapper and splitting on the newlines Shiki places between line spans.
-function highlightLines(h: Highlighter, code: string, theme: string): string[] {
-  return stripCodeWrapper(h.codeToHtml(code, { lang: "typescript", theme }), "").split("\n");
+function highlightLines(h: Highlighter, code: string, theme: string, path: string): string[] {
+  const lang = resolveLang(h, langFromPath(path));
+  return stripCodeWrapper(h.codeToHtml(code, { lang, theme }), "").split("\n");
 }
 
-export function FileView({ content, targetLine }: { content: string; targetLine: number }) {
+export function FileView({
+  path,
+  content,
+  targetLine,
+}: {
+  path: string;
+  content: string;
+  targetLine: number;
+}) {
   const { highlighter, theme: shikiTheme } = useCodeHighlighter();
 
   // Plain lines drive the gutter + the fallback render; the highlighted variant
   // (when ready) renders inline. Both have the same length, so they align.
   const plain = useMemo(() => content.split("\n"), [content]);
   const highlighted = useMemo(
-    () => (highlighter ? highlightLines(highlighter, content, shikiTheme) : null),
-    [highlighter, content, shikiTheme],
+    () => (highlighter ? highlightLines(highlighter, content, shikiTheme, path) : null),
+    [highlighter, content, shikiTheme, path],
   );
 
   // Centre the target line once it (and the content) are in the DOM.

@@ -39,7 +39,13 @@ function FileViewTab() {
         empty={{ icon: "filetext", title: t("file.empty.title"), sub: t("file.empty.sub") }}
         error={{ icon: "filetext", title: t("file.error.title"), sub: t("file.error.sub") }}
       >
-        {(items) => <FileView content={items[0]!.content} targetLine={viewer?.line ?? 0} />}
+        {(items) => (
+          <FileView
+            path={viewer?.path ?? ""}
+            content={items[0]!.content}
+            targetLine={viewer?.line ?? 0}
+          />
+        )}
       </DataView>
     </WorkspaceViewLayout>
   );
