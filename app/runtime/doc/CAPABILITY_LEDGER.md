@@ -139,8 +139,10 @@
 - File preview 的 generic `File` tab 与 material identity 分工明确：dock view bar 从同一 `viewer.path` 呈现左侧截断的 exact path，并与 line count/truncation 同行；full placement 继续以 path 为 title。文件选择、query 参数、syntax grammar 与可见身份不再分叉。
 - Timeline 在 Runtime 不可接收命令时继续呈现 exact Session/Run 审计事实，但 locate/cancel 共同由 Runtime command capability 禁用；恢复后沿同一 owner 重新可用，不从 connection phase 复制第二布尔状态。
 - 右栏 tab strip 保留可读标签；active identity 变化时由 tab owner 执行 nearest scrolling，strip 自己的 scroll geometry 驱动 start/end edge fade。renderer 恢复或 picker 打开末尾 tab 后选中身份始终可见，两侧隐藏内容也有明确提示。
-- 中栏 Markdown presentation 由一个 renderer owner 统一持有：semantic rich/plain table copy 与展开预览、Shiki code wrap/copy、HTML/SVG fence 隔离、Mermaid、selection copy、matched citation、image-only grouping、message-scoped image gallery、inline/fenced LTR isolation、Han/RTL direction、Codex heading/list/task/blockquote/rule rhythm 均消费同一 message material。模型 raw HTML 只允许无属性 basic inline 标签与 `br`；远程图片、style、native disclosure/layout 和属性注入不会成为活动 DOM。图库只在 nearest exact message-content root 开放，并排除 nested delegated message，不持久化、不注册全局 owner。
+- 中栏 Markdown presentation 由一个 renderer owner 统一持有：semantic rich/plain table copy 与展开预览、Shiki code wrap/copy、HTML/SVG fence 隔离、Mermaid、selection copy、matched citation、image-only grouping、message-scoped image gallery、inline/fenced LTR isolation、Han/RTL direction、Codex heading/paragraph/list/task/blockquote/rule rhythm 均消费同一 message material。图库在 nearest exact message-content root 内提供全屏 90% 黑色画布、显式关闭、前后/方向键导航、Escape、100–400% 缩放与切图重置，并排除 nested delegated message；代码块使用同材质 14px sans caption、4×8px header、8px source inset，且不设人工高度上限。模型 raw HTML 只允许无属性 basic inline 标签与 `br`；远程图片、style、native disclosure/layout 和属性注入不会成为活动 DOM。上述能力不持久化、不注册全局 owner。
+- context compaction 使用左对齐 quiet activity row 而非居中 divider；压缩图标保持可见，Runtime 提供 summary 时沿同一可键盘操作的 disclosure 展开，不增加第二 transcript/material owner。
 - Agent message 的 authoritative phase 尚未进入公共能力：当前 Protocol/persistence/Artifact/SDK 不能区分 commentary 与 final answer。Frontend 保持现有 durable transcript 顺序，不从 streaming/位置/文案推断分组；该能力必须先获 Runtime Protocol、SQLite/Artifact 与 public generated surface 的 breaking-surface 授权。
+- 图片预览 Download 尚未进入公共能力：Frontend 没有 Desktop 原生 save-file owner；在获准增加 Desktop binding/生成 surface 前，不以浏览器下载伪装桌面能力。
 
 ## 7. 公共合同
 
