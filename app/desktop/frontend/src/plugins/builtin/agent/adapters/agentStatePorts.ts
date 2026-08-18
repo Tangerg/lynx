@@ -20,7 +20,7 @@ import {
   useRunTree,
   useTranscriptRows,
   useAgentSessionTimeline,
-  useAgentSharedState,
+  useAgentSharedMaterial,
   useAgentToolCalls,
 } from "./agentViewSelectors";
 import { AgentViewRefreshOwner, useAgentStore } from "./agentStore";
@@ -149,7 +149,7 @@ export function installAgentStatePorts(): () => void {
     useTranscriptRows,
     useRunTree,
     useProblem: useAgentProblem,
-    useSharedState: useAgentSharedState,
+    useSharedMaterial: useAgentSharedMaterial,
     useAction: useAgentAction,
     getCurrentView: getCurrentSessionView,
     getSessions: () => useAgentStore.getState().sessions,

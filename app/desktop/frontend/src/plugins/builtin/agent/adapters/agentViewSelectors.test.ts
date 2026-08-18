@@ -1,4 +1,4 @@
-// Regression: useAgentProblem / useAgentSharedState must react to an
+// Regression: useAgentProblem / useAgentSharedMaterial must react to an
 // activeSessionId switch, not just to agent-store mutations. They read the
 // active session's view, and activeSessionId lives in a SEPARATE store
 // (useAgentSessionStore); if the switch isn't a reactive dependency, a
@@ -12,7 +12,7 @@ import { navigator } from "@/lib/navigation";
 import { afterEach, describe, expect, it } from "vitest";
 import { EMPTY_AGENT_SESSION_VIEW, type AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
-import { useAgentProblem, useAgentSharedState, useCurrentRootRun } from "./agentViewSelectors";
+import { useAgentProblem, useAgentSharedMaterial, useCurrentRootRun } from "./agentViewSelectors";
 
 function seed(commandError: AgentProblem | null, shared: Record<string, unknown>) {
   return {
@@ -48,17 +48,20 @@ describe("agent view selectors react to session switch", () => {
     expect(result.current?.message).toBe("B");
   });
 
-  it("useAgentSharedState follows activeSessionId", () => {
+  it("useAgentSharedMaterial follows activeSessionId with its exact projection generation", () => {
     useAgentStore.setState({
-      sessions: { a: seed(null, { k: "A" }), b: seed(null, { k: "B" }) },
+      sessions: {
+        a: seed(null, { k: "A" }),
+        b: { ...seed(null, { k: "B" }), viewEpoch: 4 },
+      },
     });
     navigator().go({ session: "a" });
 
-    const { result } = renderHook(() => useAgentSharedState<string>("k"));
-    expect(result.current).toBe("A");
+    const { result } = renderHook(() => useAgentSharedMaterial<string>("k"));
+    expect(result.current).toEqual({ generation: 0, value: "A" });
 
     act(() => navigator().go({ session: "b" }));
-    expect(result.current).toBe("B");
+    expect(result.current).toEqual({ generation: 4, value: "B" });
   });
 
   it("keeps the exact root Run referentially stable between unchanged renders", () => {

@@ -11,7 +11,7 @@ const step = (over: Partial<PlanStep>): PlanStep => ({
 });
 
 const plan = (steps: readonly PlanStep[]) =>
-  SessionPlan.fromSnapshot("ses-plan", { revision: 1, plan: steps });
+  SessionPlan.fromSnapshot("ses-plan", 1, { revision: 1, plan: steps });
 
 describe("planViewModel", () => {
   it("counts completed steps without reordering the plan", () => {

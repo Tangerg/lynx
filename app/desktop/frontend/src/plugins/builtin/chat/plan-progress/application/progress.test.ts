@@ -13,7 +13,7 @@ const step = (id: number, text: string, status: PlanStep["status"]): PlanStep =>
 // only the banner's question: be on screen, or not.
 describe("planBannerState", () => {
   const plan = [step(1, "done", "done"), step(2, "current", "active"), step(3, "next", "pending")];
-  const material = SessionPlan.fromSnapshot("ses-1", { revision: 3, plan });
+  const material = SessionPlan.fromSnapshot("ses-1", 1, { revision: 3, plan });
 
   it("reports the plan while a step is still in flight", () => {
     expect(planBannerState(material, null)).toMatchObject({
@@ -30,7 +30,7 @@ describe("planBannerState", () => {
   });
 
   it("stays down once the plan is finished", () => {
-    const done = SessionPlan.fromSnapshot("ses-1", {
+    const done = SessionPlan.fromSnapshot("ses-1", 1, {
       revision: 4,
       plan: [step(1, "done", "done")],
     });

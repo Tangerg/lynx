@@ -259,7 +259,8 @@ export interface AgentSessionView {
   /**
    * Backend-owned shared state — v2 state.snapshot. Free-form
    * JSON the agent maintains and the UI observes; plugins subscribe to
-   * subtrees via `useSharedState(path)`. Empty by default.
+   * generation-bound subtrees through the Agent Session view port. Empty by
+   * default.
    */
   shared: Record<string, unknown>;
 }

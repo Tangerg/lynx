@@ -35,21 +35,33 @@ export function planSteps(snapshot: SharedPlan | undefined): readonly PlanStep[]
 }
 
 /** Immutable presentation of one exact Session-scoped Plan replacement. The
- * Runtime revision is a whole-replacement identity; Session is included because
- * two mounted Sessions can legitimately hold the same revision. */
+ * Runtime revision is a whole-replacement identity inside one projection
+ * generation; generation prevents a server/recovery successor with the same
+ * Session and revision from inheriting predecessor presentation state. */
 export class SessionPlan {
   readonly identity: string;
+  readonly generation: number;
   readonly revision: number;
   readonly steps: readonly PlanStep[];
 
-  private constructor(sessionId: string, revision: number, steps: readonly PlanStep[]) {
-    this.identity = JSON.stringify([sessionId, revision]);
+  private constructor(
+    sessionId: string,
+    generation: number,
+    revision: number,
+    steps: readonly PlanStep[],
+  ) {
+    this.identity = JSON.stringify([sessionId, generation, revision]);
+    this.generation = generation;
     this.revision = revision;
     this.steps = steps;
   }
 
-  static fromSnapshot(sessionId: string, snapshot: SharedPlan | undefined): SessionPlan {
-    return new SessionPlan(sessionId, snapshot?.revision ?? 0, planSteps(snapshot));
+  static fromSnapshot(
+    sessionId: string,
+    generation: number,
+    snapshot: SharedPlan | undefined,
+  ): SessionPlan {
+    return new SessionPlan(sessionId, generation, snapshot?.revision ?? 0, planSteps(snapshot));
   }
 
   activeStep(): PlanStep | undefined {
@@ -137,6 +149,9 @@ export function planProgress(steps: readonly PlanStep[]): { done: number; total:
  */
 export function useSessionPlan(): SessionPlan {
   const sessionId = useActiveSessionId();
-  const snapshot = agentSessionView().useSharedState<SharedPlan>("plan");
-  return useMemo(() => SessionPlan.fromSnapshot(sessionId, snapshot), [sessionId, snapshot]);
+  const material = agentSessionView().useSharedMaterial<SharedPlan>("plan");
+  return useMemo(
+    () => SessionPlan.fromSnapshot(sessionId, material.generation, material.value),
+    [material, sessionId],
+  );
 }

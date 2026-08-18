@@ -5,6 +5,7 @@ import { PlanProgressBanner } from "./PlanProgressBanner";
 
 const model = vi.hoisted(() => ({
   sessionId: "ses-a",
+  generation: 1,
   revision: 1,
   steps: [
     {
@@ -20,7 +21,7 @@ vi.mock("@/plugins/builtin/agent/public/plan", async (importOriginal) => {
   return {
     ...original,
     useSessionPlan: () =>
-      original.SessionPlan.fromSnapshot(model.sessionId, {
+      original.SessionPlan.fromSnapshot(model.sessionId, model.generation, {
         revision: model.revision,
         plan: model.steps,
       }),
@@ -30,6 +31,7 @@ vi.mock("@/plugins/builtin/agent/public/plan", async (importOriginal) => {
 describe("PlanProgressBanner disclosure identity", () => {
   beforeEach(() => {
     model.sessionId = "ses-a";
+    model.generation = 1;
     model.revision = 1;
     model.steps = [{ id: "step-1", text: "Inspect", status: "active" }];
   });
@@ -82,5 +84,16 @@ describe("PlanProgressBanner disclosure identity", () => {
     rerender(<PlanProgressBanner />);
 
     expect(screen.queryByText("Other Session plan")).not.toBeNull();
+  });
+
+  it("does not lend dismissal across projection generations with the same Session and revision", () => {
+    const { rerender } = render(<PlanProgressBanner />);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss plan banner" }));
+
+    model.generation = 2;
+    model.steps = [{ id: "step-1", text: "Successor server plan", status: "active" }];
+    rerender(<PlanProgressBanner />);
+
+    expect(screen.queryByText("Successor server plan")).not.toBeNull();
   });
 });

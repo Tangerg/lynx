@@ -37,17 +37,18 @@ describe("SessionPlan", () => {
     plan: [{ id: "1", text: "Inspect", status: "active" as const }],
   };
 
-  it("uses exact Session and whole-replacement revision as identity", () => {
-    const current = SessionPlan.fromSnapshot("ses-a", snapshot);
-    expect(SessionPlan.fromSnapshot("ses-a", snapshot).identity).toBe(current.identity);
-    expect(SessionPlan.fromSnapshot("ses-a", { ...snapshot, revision: 8 }).identity).not.toBe(
+  it("uses exact projection generation, Session and whole-replacement revision as identity", () => {
+    const current = SessionPlan.fromSnapshot("ses-a", 2, snapshot);
+    expect(SessionPlan.fromSnapshot("ses-a", 2, snapshot).identity).toBe(current.identity);
+    expect(SessionPlan.fromSnapshot("ses-a", 2, { ...snapshot, revision: 8 }).identity).not.toBe(
       current.identity,
     );
-    expect(SessionPlan.fromSnapshot("ses-b", snapshot).identity).not.toBe(current.identity);
+    expect(SessionPlan.fromSnapshot("ses-b", 2, snapshot).identity).not.toBe(current.identity);
+    expect(SessionPlan.fromSnapshot("ses-a", 3, snapshot).identity).not.toBe(current.identity);
   });
 
   it("owns active-step and completion behavior", () => {
-    const plan = SessionPlan.fromSnapshot("ses-a", {
+    const plan = SessionPlan.fromSnapshot("ses-a", 2, {
       revision: 8,
       plan: [
         { id: "1", text: "Inspect", status: "done" },

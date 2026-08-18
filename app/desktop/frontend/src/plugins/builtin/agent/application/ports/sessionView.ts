@@ -74,6 +74,14 @@ export interface AgentViewRefreshToken {
   viewRevision: number;
 }
 
+/** One shared-state value together with the mounted projection generation that
+ * admitted it. Local presentation state must not cross this boundary even when
+ * a successor server reuses the same Session and domain revision. */
+export interface AgentSharedMaterial<T> {
+  readonly generation: number;
+  readonly value: T | undefined;
+}
+
 export interface AgentSessionViewPort {
   /** One exact root Run snapshot. Consumers derive attention, metrics and
    * outcome from this identity instead of independently sampled fragments. */
@@ -85,7 +93,7 @@ export interface AgentSessionViewPort {
   useTranscriptRows(): readonly TranscriptRow[];
   useRunTree(): AgentRunTreeNode[];
   useProblem(): AgentProblem | null;
-  useSharedState<T = unknown>(path?: string): T | undefined;
+  useSharedMaterial<T = unknown>(path?: string): AgentSharedMaterial<T>;
   useAction(kind: "stop"): StopCurrentRootRunAction | null;
   useAction(kind: "send"): SendAgentInputAction | null;
   getCurrentView(): AgentSessionView;
