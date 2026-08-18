@@ -196,6 +196,17 @@ describe("markdownMessage", () => {
     }
   });
 
+  it("opens a semantic Codex preview for a wide Markdown table", () => {
+    const src = "| Name | Count |\n|---|---:|\n| alpha | 12 |";
+    render(<MarkdownMessage text={src} reveal="instant" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand table" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Table preview" });
+    expect(dialog.querySelector("table")?.textContent).toContain("alpha");
+    expect(dialog.querySelector("table")?.getAttribute("dir")).toBe("auto");
+  });
+
   it("marks directional and numeric table material like Codex", () => {
     const src = "| Name | Count |\n|---|---:|\n| alpha | 12 |";
     const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
