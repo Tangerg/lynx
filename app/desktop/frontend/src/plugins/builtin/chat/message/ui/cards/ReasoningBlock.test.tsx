@@ -26,6 +26,15 @@ describe("ReasoningBlock disclosure policy", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("keeps settled reasoning prose inside the disclosure body", () => {
+    renderReasoning("complete", "Hidden rationale that should not compete with the answer");
+
+    expect(screen.getByRole("button", { name: /Thought/ })).toBeTruthy();
+    expect(
+      screen.queryByText("Hidden rationale that should not compete with the answer"),
+    ).toBeNull();
+  });
+
   it("sets expanded reasoning apart as an indented aside instead of a card", () => {
     renderReasoning("running", "Inspect the protocol boundary");
 
