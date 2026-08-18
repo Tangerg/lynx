@@ -164,7 +164,7 @@ export const ko: Record<string, string> = {
   "goal.expand": "예산 보기",
   "goal.collapse": "예산 숨기기",
   "goal.action.start": "목표 모드 시작",
-  "goal.action.stop": "목표 중지",
+  "goal.action.pause": "목표 일시 중지",
   "goal.action.resume": "목표 재개",
   "goal.start.title": "자율 목표 시작",
   "goal.start.description": "런타임이 이 목표를 향해 계속 새 턴을 시작합니다.",
@@ -176,7 +176,7 @@ export const ko: Record<string, string> = {
   "goal.start.uncapped": "비워 둔 항목에는 한도가 적용되지 않습니다.",
   "goal.start.running": "시작 중…",
   "goal.error.start": "목표를 시작할 수 없습니다",
-  "goal.error.stop": "목표를 중지할 수 없습니다",
+  "goal.error.pause": "목표를 일시 중지할 수 없습니다",
   "goal.error.resume": "목표를 계속할 수 없습니다",
   "slash.goal": "에이전트가 계속 추구할 목표를 설정합니다",
   "goal.error.unavailable":

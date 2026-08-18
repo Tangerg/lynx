@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
-import { Badge, ProgressBar, TextButton } from "@/ui";
+import { Badge, IconButton, ProgressBar } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { fmtCost } from "@/lib/format";
@@ -69,7 +69,7 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
       else await resumeGoal(goal.sessionId);
     } catch (error) {
       if (!goalCommandWasRetired(error)) {
-        const fallback = goal.status === "active" ? t("goal.error.stop") : t("goal.error.resume");
+        const fallback = goal.status === "active" ? t("goal.error.pause") : t("goal.error.resume");
         notifyError(rpcErrorText(error) ?? fallback);
       }
     } finally {
@@ -103,15 +103,16 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
               </Badge>
             )}
             {canChangeStatus && (
-              <TextButton
+              <IconButton
                 type="button"
-                size="sm"
-                tone={goal.status === "active" ? "negative" : "accent"}
+                size="xs"
+                icon={goal.status === "active" ? "pause" : "play"}
+                quiet
+                title={t(goal.status === "active" ? "goal.action.pause" : "goal.action.resume")}
                 disabled={busy || !runtimeAvailable}
+                aria-busy={busy}
                 onClick={() => void changeStatus()}
-              >
-                {goal.status === "active" ? t("goal.action.stop") : t("goal.action.resume")}
-              </TextButton>
+              />
             )}
           </div>
         }

@@ -165,7 +165,7 @@ export const fr: Record<string, string> = {
   "goal.expand": "Afficher le budget",
   "goal.collapse": "Masquer le budget",
   "goal.action.start": "Lancer l’objectif",
-  "goal.action.stop": "Arrêter l’objectif",
+  "goal.action.pause": "Mettre l’objectif en pause",
   "goal.action.resume": "Reprendre l’objectif",
   "goal.start.title": "Lancer un objectif autonome",
   "goal.start.description": "Le runtime lancera des tours successifs pour poursuivre cet objectif.",
@@ -177,7 +177,7 @@ export const fr: Record<string, string> = {
   "goal.start.uncapped": "Laissez une limite vide pour ne pas plafonner cette ressource.",
   "goal.start.running": "Lancement…",
   "goal.error.start": "Impossible de lancer l’objectif",
-  "goal.error.stop": "Impossible d’arrêter l’objectif",
+  "goal.error.pause": "Impossible de mettre l’objectif en pause",
   "goal.error.resume": "Impossible de reprendre l’objectif",
   "slash.goal": "Définir un objectif que l’agent continue de poursuivre",
   "goal.error.unavailable":

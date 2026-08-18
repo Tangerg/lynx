@@ -177,7 +177,7 @@ export const en: Record<string, string> = {
   "goal.expand": "Show the allowance",
   "goal.collapse": "Hide the allowance",
   "goal.action.start": "Start Goal",
-  "goal.action.stop": "Stop goal",
+  "goal.action.pause": "Pause goal",
   "goal.action.resume": "Resume goal",
   "goal.start.title": "Start an autonomous goal",
   "goal.start.description": "The runtime will keep starting turns toward this objective.",
@@ -189,7 +189,7 @@ export const en: Record<string, string> = {
   "goal.start.uncapped": "Leave a limit blank to keep that allowance uncapped.",
   "goal.start.running": "Starting…",
   "goal.error.start": "Could not start the goal",
-  "goal.error.stop": "Could not stop the goal",
+  "goal.error.pause": "Could not pause the goal",
   "goal.error.resume": "Could not resume the goal",
   "slash.goal": "Set a goal the agent keeps pursuing",
   "goal.error.unavailable":

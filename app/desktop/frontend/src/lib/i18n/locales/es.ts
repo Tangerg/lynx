@@ -165,7 +165,7 @@ export const es: Record<string, string> = {
   "goal.expand": "Mostrar el margen",
   "goal.collapse": "Ocultar el margen",
   "goal.action.start": "Iniciar objetivo",
-  "goal.action.stop": "Detener objetivo",
+  "goal.action.pause": "Pausar objetivo",
   "goal.action.resume": "Reanudar objetivo",
   "goal.start.title": "Iniciar un objetivo autónomo",
   "goal.start.description": "El runtime seguirá iniciando turnos para avanzar hacia este objetivo.",
@@ -177,7 +177,7 @@ export const es: Record<string, string> = {
   "goal.start.uncapped": "Deja un límite vacío para no limitar ese recurso.",
   "goal.start.running": "Iniciando…",
   "goal.error.start": "No se pudo iniciar el objetivo",
-  "goal.error.stop": "No se pudo detener el objetivo",
+  "goal.error.pause": "No se pudo pausar el objetivo",
   "goal.error.resume": "No se pudo reanudar el objetivo",
   "slash.goal": "Define un objetivo que el agente siga persiguiendo",
   "goal.error.unavailable":

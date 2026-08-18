@@ -164,7 +164,7 @@ export const ja: Record<string, string> = {
   "goal.expand": "予算を表示",
   "goal.collapse": "予算を隠す",
   "goal.action.start": "目標モードを開始",
-  "goal.action.stop": "ゴールを停止",
+  "goal.action.pause": "ゴールを一時停止",
   "goal.action.resume": "ゴールを再開",
   "goal.start.title": "自律目標を開始",
   "goal.start.description": "ランタイムがこの目標に向けてターンを継続的に開始します。",
@@ -176,7 +176,7 @@ export const ja: Record<string, string> = {
   "goal.start.uncapped": "空欄の項目には上限を設定しません。",
   "goal.start.running": "開始中…",
   "goal.error.start": "目標を開始できませんでした",
-  "goal.error.stop": "目標を停止できませんでした",
+  "goal.error.pause": "目標を一時停止できませんでした",
   "goal.error.resume": "目標を再開できませんでした",
   "slash.goal": "エージェントが追い続ける目標を設定する",
   "goal.error.unavailable":
