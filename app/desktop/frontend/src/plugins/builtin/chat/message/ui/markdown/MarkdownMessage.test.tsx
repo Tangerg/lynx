@@ -131,6 +131,30 @@ describe("markdownMessage", () => {
     expect(trigger?.querySelector("img")?.getAttribute("loading")).toBe("lazy");
   });
 
+  it("promotes image-only paragraphs into Codex wide and gallery media blocks", () => {
+    const first =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const second =
+      "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    const { container } = render(
+      <MarkdownMessage
+        text={`![Architecture](${first})\n\n![Before](${first}) ![After](${second})`}
+        reveal="instant"
+      />,
+    );
+
+    const wide = container.querySelector<HTMLParagraphElement>(
+      'p[data-wide-markdown-block="true"]',
+    );
+    expect(wide?.querySelector('button[aria-label="Architecture"]')).toBeTruthy();
+
+    const gallery = container.querySelector<HTMLParagraphElement>(
+      'p[data-markdown-image-grid="true"]',
+    );
+    expect(gallery).toBeTruthy();
+    expect(gallery?.querySelectorAll(":scope > button")).toHaveLength(2);
+  });
+
   it("keeps GFM tables semantic and exposes the Codex copy action", async () => {
     const src = "| Name | Count |\n|---|---:|\n| alpha | 12 |";
     const writeText = vi.fn().mockResolvedValue(undefined);
