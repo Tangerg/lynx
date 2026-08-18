@@ -1,6 +1,6 @@
 # Desktop 恢复体验与 UI 精修里程碑建议
 
-> 状态：P117 候选，尚未授权生产代码。
+> 状态：P117 完成定义；授权、实施与验收状态由 Execution Plan 拥有。
 >
 > 适用范围：`app/desktop`、`app/desktop/frontend`；只有真实产品反例证明权威事实缺失时，才进入 `app/runtime`。`app/cli` 明确不在范围内。
 >

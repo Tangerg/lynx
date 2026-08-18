@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P116 已封板，P117 Desktop workspace、Session title 与 production visual composition 纵切已完成。
+> 状态：当前能力快照；P117 已封板。
 >
 > 基线日期：2026-08-18。
 
@@ -155,22 +155,22 @@
 
 ## 9. 验收证据
 
-| 维度               | 当前守卫                                                                                                                                                                                                                                                                                                    |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain/Application | aggregate/use-case 单元测试、事务失败与状态迁移反例                                                                                                                                                                                                                                                         |
-| Agent Framework    | public baseline、architecture import gate、snapshot/interaction/child recovery tests                                                                                                                                                                                                                        |
-| SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery                                                                                                                                                                                                          |
-| Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff                                                                                                                                                                                                                  |
-| Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests                                                                                                                                                                                                           |
-| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service 和 command/interrupt lifecycle owner，当前 agent/workspace/closure 矩阵 255 tests 覆盖 HITL、Dock、WCAG、长内容、IME、Retina 与 light/dark golden |
-| Production shell   | Wails v3 Go test/vet/build、生产冷启动、Runtime health/discovery 与 fresh database smoke                                                                                                                                                                                                                    |
+| 维度               | 当前守卫                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Domain/Application | aggregate/use-case 单元测试、事务失败与状态迁移反例                                                                                                                                                                                                                                                                                                          |
+| Agent Framework    | public baseline、architecture import gate、snapshot/interaction/child recovery tests                                                                                                                                                                                                                                                                         |
+| SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery                                                                                                                                                                                                                                                           |
+| Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff                                                                                                                                                                                                                                                                   |
+| Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests                                                                                                                                                                                                                                                            |
+| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure 矩阵 274 tests 覆盖 streaming、HITL、Session/Dock、WCAG、长内容、IME、Retina 与 light/dark golden |
+| Production shell   | Wails v3 Go test/vet/build、production `.app` package、renderer reload、Runtime health/discovery 与 fresh database/SIGKILL smoke                                                                                                                                                                                                                             |
 
-最近完整基线为 Frontend 308 files / 1926 tests，普通与 `--detectAsyncLeaks` 全绿；Runtime standalone 全量 test/vet/build 与全包 race 通过；Desktop Go test/vet/build、Wails v3 production package、fresh database 冷启动与真实 SIGKILL replacement smoke 通过。隔离 smoke 中 Runtime PID 37363→37494、`instanceId` 换代、local token 哈希保持一致，Desktop 进程存活，loopback established connections 维持 12，前后 discovery/RPC 均为 200。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
+最近完整基线为 Frontend 313 files / 1945 tests，普通与 `--detectAsyncLeaks` 全绿；99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure visual 274 tests 全绿。Runtime standalone 全量 test/vet/build、Desktop Go test/vet 与 Wails v3 production package 通过。fresh HOME/SQLite smoke 中 renderer reload 保留 exact Session 与 `explorer` Dock；Runtime PID 32453→85165、`instanceId` 换代，Desktop PID 31650 保持，断线时所有 Session 创建入口撤权且原 workspace 可读，恢复后原窗口重新获得命令能力；空 draft 连续 New 前后 SQLite Session 数保持 1。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P117 仍需完成 streaming、HITL continuation、renderer replacement、Runtime restart、Run/Terminal/Diff/Goal/Plan 的完整可见恢复矩阵与 Wails production 验收。
+- P117 完成定义内没有已知未闭环项；新问题必须重新形成真实红例并取得阶段授权。
 
 ## 11. 当前结论
 
-P0–P116 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner；P116 又消除了 claimed-state 自身不可见、transport binding 冒充 durable identity，以及一次性重构语法被永久制度化三处耦合。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P117 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P117 又让左侧 Work Index、中央 transcript 和右侧 Context Dock 在 renderer replacement 与 Runtime restart 前后共享 exact Session、reader-owned scroll 和 command capability。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

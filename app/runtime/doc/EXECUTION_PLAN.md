@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P116 已完成并形成里程碑；P117 正在实施。
+> 状态：P0–P117 已完成并形成里程碑。
 >
-> 最近基线：2026-08-18，P116 完整验收；P117 已完成授权登记，正在建立可见红例。
+> 最近基线：2026-08-18，P117 完整验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -22,7 +22,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 每个成立问题由唯一 presentation owner 根修复，不增加第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、timer 竞态掩盖或通用 Owner/Coordinator/状态机。每批独立提交推送，最终运行 Frontend 全门禁与 async leak、Wails production build 及必要的真实恢复验收。
 - P117 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
 
-### P117 首批红例与参考裁决（2026-08-18）
+### P117 红例、参考裁决与完成结论（2026-08-18）
 
 - production Desktop 已复现：无 active Session 时打开 Context Dock，会把 Runtime 默认 workspace 投影成当前资源管理器内容；唯一 presentation owner 是 `ChatPanel` 的 exact active-Session 边界，默认 workspace 不是 Session material。
 - Work Index 行为测试已锁定：顶层“新建会话”必须继承点击时 active Session 的 cwd；目录选择属于 Projects 的新增入口，不再与全局新会话并列成两个竞争动作。Codex 主参考采用“New chat 延续当前 local project”与 Projects 标题栏新增项目的机制；拒绝其 projectless、多 connection、remote project 分支，因为 Lyra 产品拓扑不包含这些身份。
@@ -39,6 +39,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - Timeline 恢复态红例已闭环：Runtime connection 不可接收命令时，中央 delegated Run card 已禁用 Cancel，右栏 Timeline 的同一 Run Stop 却曾仍可点击并尝试投递。Timeline 的 locate 与 cancel 现在都消费同一 `runtimeAvailable` capability；断线/恢复期间 Run 审计事实仍可读，命令按钮同步禁用且不会调用 cancel owner。没有复制 connection phase、点击后补错误 toast 或让只读投影冒充可写 Runtime。
 - 右栏 tab overflow 红例已闭环：renderer 恢复到末尾 tab 或 picker 打开末尾 tab 时，旧实现只更新 active destination，没有把 active tab 带回可见区；首次 nearest-scroll 验证又证明单向 trailing fade 不成立——向右后的左边缘从 `preview` 半词硬切入，用户看不出左侧还有 tab。`AgentDockTabs` 现在仅在 active identity 变化时 nearest-scroll，并由 strip 自己的 scroll geometry 维护 start/end DOM presentation attributes，双向 edge fade 只表达实际隐藏内容。该局部 ResizeObserver 只观察 strip 与 tab box，不写 React/Dock/URL 状态，不轮询或驱动导航。
 - production Wails 的真实 Runtime SIGKILL 又暴露左栏命令撤权缺口：连接 banner 已呈现“Runtime 暂时不可用”，composer 与 Goal 已禁用，顶层 New Session、Projects 目录入口和 project-row `+` 却仍会投递 `sessions.create`，最终只留下失败 toast；同一审计还确认顶层 New 为继承 active cwd 传入 `{cwd}` 后，绕过了 Session owner 既有的空 draft destination 复用语义，连续点击会分配第二个隐藏 draft。Work Index 现在分别投影“active workspace 可创建”与“指定目录可创建”两项 capability，事件处理时再次读取同一 Runtime command owner；native picker 跨 await 返回后也重新证明 command capability。palette/快捷键的 New 同样在命令入口撤权。顶层 New 以 `reuseFreshDraft` 明示自己已证明 cwd 属于 active Session，只复用该空 draft；Projects 的显式 cwd 创建仍始终新建。未增加离线队列、toast 旁路、第二 connection 状态或 timer。
+- P117 最终 recovery smoke 使用 fresh HOME/SQLite 与 production-equivalent Wails 二进制：renderer reload 后 URL 仍指向同一 Session 与 `explorer` Dock；空 draft 连续 New 前后 SQLite Session 数保持 1。SIGKILL Runtime 后 Desktop PID 保持 31650，顶层 New、Add Project、project-row `+` 与 `⌘N` 同步撤权且没有失败 toast，Session、资源树和 Dock 仍可读；后继 Runtime 以 PID 85165 和新 `instanceId` 启动后，原窗口自动清除连接告警并恢复命令能力，没有 reload、离线队列或本地 optimistic 拼接。Frontend 普通与 `--detectAsyncLeaks` 均为 313 files / 1945 tests，agent/shell/workspace/closure visual 274 tests 全绿；Runtime 全量 test/vet/build、Desktop Go test/vet 与 Wails production `.app` package 全绿。
 
 ## 2. 长期产品与架构约束
 
@@ -75,10 +76,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P114     | 单 Desktop/逻辑 Runtime 的进程恢复、真实接线和 UI 打磨                                                          | renderer、Runtime process、command、query 与 material 在真实替换点服从 exact owner；断线、重启、SIGKILL、迟到响应和长对话产品路径完成反证闭环                                             |
 | P115     | 前后端可维护性治本收敛                                                                                          | durable unresolved-command、lifecycle publication、Frontend extension、Bootstrap resource 与 Runs execution handoff 各自回到唯一 owner；真实 SIGKILL 验收补齐 path-owned local credential |
 | P116     | 真实产品拓扑下的恢复与守卫校准                                                                                  | claimed Resume 由 claim owner 原子补偿；Mutation Journal 只认 durable namespace；删除不能表达架构边界的一次性 object-literal 语法守卫                                                     |
+| P117     | Desktop 恢复反馈与 Codex 对齐的三栏 UI 精修                                                                     | Work Index、transcript 与 Context Dock 服从 exact Session、reader-owned scroll 和 Runtime command capability；renderer reload 与 Runtime SIGKILL 后原窗口原 workspace 可见恢复            |
 
 ## 5. 当前里程碑结论
 
-P113–P116 共同建立了以下不可回退的心智模型：
+P113–P117 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -90,7 +92,7 @@ P113–P116 共同建立了以下不可回退的心智模型：
 - local transport token 由 durable data path 拥有，不属于 Runtime process generation；`instanceId` 换代不撤销仍存活 Desktop 的认证能力。
 - 流式输出期间，消息底部反馈/操作区服从可见 turn 的稳定 material 边界，不能跟随每个 delta 反复挂载造成闪烁。
 
-最近一次完整验收基线：Frontend 308 files / 1926 tests 与严格异步泄露门禁全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；Runtime standalone 全量 test/vet/build 与全包 race 全绿；Desktop Wails v3 Go test/vet/build、生产 `.app` 打包和 fresh database 冷启动通过。隔离 smoke 中真实 SIGKILL 让 Runtime 从 PID 37363 换为 37494，`instanceId` 从 `runtime_a2261e09-31b5-4438-ba03-fa5d054cb17c` 换为 `runtime_f8dbc8f2-f651-44ce-8500-b3f82ba5a327`；path-owned token 哈希保持一致，Desktop 进程存活，loopback established connections 保持 12，前后 discovery/RPC 均为 200。
+最近一次完整验收基线：Frontend 313 files / 1945 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure visual 274 tests 覆盖 streaming、HITL、Session/Dock、WCAG、IME、Retina 与 light/dark golden。Runtime standalone 全量 test/vet/build、Desktop Wails v3 Go test/vet 与生产 `.app` 打包通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 保留 exact Session 与 `explorer` Dock；Runtime SIGKILL 让 PID 32453 换为 85165，Desktop PID 31650 未变，原窗口自动撤权并恢复，空 draft 连续 New 前后 SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 
@@ -103,5 +105,4 @@ P113–P116 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。当前建议的下一里程碑是
-[`Desktop 恢复体验与 UI 精修`](inspiration/DESKTOP_RECOVERY_EXPERIENCE.md)。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P117 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
