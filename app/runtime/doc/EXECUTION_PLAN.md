@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P116 已完成并形成里程碑；当前没有新的生产实施授权。
+> 状态：P0–P116 已完成并形成里程碑；P117 正在实施。
 >
-> 最近基线：2026-08-18，P116 完整验收。
+> 最近基线：2026-08-18，P116 完整验收；P117 已完成授权登记，正在建立可见红例。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,13 +15,12 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P116 已于 2026-08-18 完成，唯一设计与验收范围为
-  [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md) 第 12 节 C1–C3；P115 的其他 breaking surface 不延续。
-- C1 已完成：`ClaimResume` 把 durable interrupt 置为 `resuming` 后，claimed owner 使用其已持有的 claim 提交匹配 `resuming` 的唯一 terminal write-set，durable commit 后才释放 executor；普通 `Get`、fallback、retry 和第二 recovery path 均未扩张。
-- C2 已完成：单 Desktop、同一 durable namespace 仅更换 transport binding 的红例证明未决 mutation 曾被错误退休；endpoint 已从 journal identity、public scope 与当前唯一 persisted shape 直接删除，未增加 alias、registry、migration 或兼容双读。
-- C3 已完成：`check:published-boundaries` 的 exported object-literal 规则只冻结文件名与函数体语法，不能识别跨 context/public surface 泄露且无独立消费者；该规则已删除，import DAG、published surface 与 consumer ownership 守卫保持全绿。
-- 三项均先红测再修改并独立提交推送；Frontend 全门禁与 async leak、Runtime standalone/race、Desktop Wails production build、fresh database 冷启动及真实 Runtime restart/SIGKILL 最终验收均通过。P116 未修改或暂存 `app/cli`，也未覆盖无关工作区改动。
-- 当前没有新的生产实施授权；下一阶段仍须重新满足第 6 节准入条件。
+- P117 已于 2026-08-18 获得实施授权，唯一目标与完成定义为
+  [`inspiration/DESKTOP_RECOVERY_EXPERIENCE.md`](inspiration/DESKTOP_RECOVERY_EXPERIENCE.md)：从 production Desktop 的真实可见红例出发，统一恢复反馈、稳定 UI 区域和核心 agent workspace 的信息层级。
+- 默认改动范围仅为 `app/desktop` 与 `app/desktop/frontend`。只有红例证明缺少权威事实时才进入 Runtime；突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK 前必须重新报告爆炸半径并取得确认。
+- 第一批只建立 loading、streaming、HITL continuation、Session/Dock、renderer replacement 与 Runtime restart 的证据矩阵和失败测试；问题不能形成真实产品反例时，不以视觉偏好或并发猜测修改生产 owner。
+- 每个成立问题由唯一 presentation owner 根修复，不增加第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、timer 竞态掩盖或通用 Owner/Coordinator/状态机。每批独立提交推送，最终运行 Frontend 全门禁与 async leak、Wails production build 及必要的真实恢复验收。
+- P117 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
 
 ## 2. 长期产品与架构约束
 
