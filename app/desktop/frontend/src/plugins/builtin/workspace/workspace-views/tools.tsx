@@ -26,6 +26,7 @@ import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/sessio
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
+  type DiagnosticArgumentsParseResult,
   diagnosticToolInvocationWasRetired,
   diagnosticToolMaterialGeneration,
   formatDiagnosticToolResult,
@@ -102,59 +103,27 @@ export function DiagnosticToolRow(props: {
     diagnosticToolMaterialGeneration,
     diagnosticToolMaterialGeneration,
   );
-  return <DiagnosticToolRowMaterial key={generation} {...props} />;
+  return <DiagnosticToolRowPresentation materialGeneration={generation} {...props} />;
 }
 
-function DiagnosticToolRowMaterial({
+type DiagnosticArgumentsError = Extract<DiagnosticArgumentsParseResult, { ok: false }>["reason"];
+
+function DiagnosticToolRowPresentation({
   tool,
   cwd,
   enabled,
+  materialGeneration,
 }: {
   tool: BuiltinToolRowViewModel;
   cwd?: string;
   enabled: boolean;
+  materialGeneration: number;
 }) {
   const t = useT();
   const panelId = useId();
-  const runningRef = useRef(false);
   const [open, setOpen] = useState(false);
   const [argumentsText, setArgumentsText] = useState("{}");
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [argumentsInvalid, setArgumentsInvalid] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const schema = JSON.stringify(tool.parameters, null, 2);
-
-  const invoke = async (): Promise<void> => {
-    if (!enabled || runningRef.current) return;
-    const parsed = parseDiagnosticToolArguments(argumentsText);
-    if (!parsed.ok) {
-      setArgumentsInvalid(true);
-      setError(t(`tools.diagnostics.error.${parsed.reason}`));
-      return;
-    }
-
-    runningRef.current = true;
-    setRunning(true);
-    setArgumentsInvalid(false);
-    setError(null);
-    setResult(null);
-    try {
-      const value = await invokeDiagnosticTool({
-        name: tool.name,
-        arguments: parsed.value,
-        ...(cwd ? { cwd } : {}),
-      });
-      setResult(formatDiagnosticToolResult(value));
-    } catch (cause) {
-      if (!diagnosticToolInvocationWasRetired(cause)) {
-        setError(rpcErrorText(cause) ?? t("tools.diagnostics.error.invoke"));
-      }
-    } finally {
-      runningRef.current = false;
-      setRunning(false);
-    }
-  };
+  const [argumentsError, setArgumentsError] = useState<DiagnosticArgumentsError | null>(null);
 
   return (
     <div className="flex flex-col">
@@ -189,62 +158,134 @@ function DiagnosticToolRowMaterial({
         </span>
       </Pressable>
       <Collapsible open={open}>
-        <div id={panelId} className="flex flex-col gap-2.5 px-4 pt-1 pb-3 pl-[58px]">
-          <label className="flex flex-col gap-1 text-ui-xs font-medium text-fg-muted">
-            {t("tools.diagnostics.arguments")}
-            <TextArea
-              value={argumentsText}
-              rows={5}
-              font="mono"
-              invalid={argumentsInvalid}
-              aria-invalid={argumentsInvalid}
-              disabled={running}
-              spellCheck={false}
-              onChange={(event) => {
-                setArgumentsText(event.target.value);
-                setArgumentsInvalid(false);
-                if (error) setError(null);
-              }}
-            />
-          </label>
-          <div>
-            <span className="text-ui-xs font-medium text-fg-muted">
-              {t("tools.diagnostics.schema")}
-            </span>
-            <pre className="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-sunken px-3 py-2 font-mono text-ui-xs leading-body text-fg-soft">
-              {schema}
-            </pre>
-          </div>
-          <div className="flex items-center gap-2">
-            <PillButton
-              size="sm"
-              variant="accent"
-              disabled={!enabled || running}
-              onClick={() => void invoke()}
-            >
-              {running ? t("tools.diagnostics.running") : t("tools.diagnostics.run")}
-            </PillButton>
-            {error && (
-              <span className="text-ui-xs text-negative" aria-live="polite">
-                {error}
-              </span>
-            )}
-          </div>
-          {result !== null && (
-            <div>
-              <span className="text-ui-xs font-medium text-fg-muted">
-                {t("tools.diagnostics.result")}
-              </span>
-              <pre
-                className="mt-1 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-sunken px-3 py-2 font-mono text-ui-xs leading-body text-fg-soft"
-                aria-live="polite"
-              >
-                {result}
-              </pre>
-            </div>
-          )}
-        </div>
+        <DiagnosticToolInvocationMaterial
+          key={materialGeneration}
+          tool={tool}
+          cwd={cwd}
+          enabled={enabled}
+          panelId={panelId}
+          argumentsText={argumentsText}
+          argumentsError={argumentsError}
+          onArgumentsTextChange={setArgumentsText}
+          onArgumentsError={setArgumentsError}
+        />
       </Collapsible>
+    </div>
+  );
+}
+
+function DiagnosticToolInvocationMaterial({
+  tool,
+  cwd,
+  enabled,
+  panelId,
+  argumentsText,
+  argumentsError,
+  onArgumentsTextChange,
+  onArgumentsError,
+}: {
+  tool: BuiltinToolRowViewModel;
+  cwd?: string;
+  enabled: boolean;
+  panelId: string;
+  argumentsText: string;
+  argumentsError: DiagnosticArgumentsError | null;
+  onArgumentsTextChange: (value: string) => void;
+  onArgumentsError: (error: DiagnosticArgumentsError | null) => void;
+}) {
+  const t = useT();
+  const runningRef = useRef(false);
+  const [running, setRunning] = useState(false);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const schema = JSON.stringify(tool.parameters, null, 2);
+  const error = argumentsError ? t(`tools.diagnostics.error.${argumentsError}`) : runtimeError;
+
+  const invoke = async (): Promise<void> => {
+    if (!enabled || runningRef.current) return;
+    const parsed = parseDiagnosticToolArguments(argumentsText);
+    if (!parsed.ok) {
+      onArgumentsError(parsed.reason);
+      return;
+    }
+
+    runningRef.current = true;
+    setRunning(true);
+    onArgumentsError(null);
+    setRuntimeError(null);
+    setResult(null);
+    try {
+      const value = await invokeDiagnosticTool({
+        name: tool.name,
+        arguments: parsed.value,
+        ...(cwd ? { cwd } : {}),
+      });
+      setResult(formatDiagnosticToolResult(value));
+    } catch (cause) {
+      if (!diagnosticToolInvocationWasRetired(cause)) {
+        setRuntimeError(rpcErrorText(cause) ?? t("tools.diagnostics.error.invoke"));
+      }
+    } finally {
+      runningRef.current = false;
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div id={panelId} className="flex flex-col gap-2.5 px-4 pt-1 pb-3 pl-[58px]">
+      <label className="flex flex-col gap-1 text-ui-xs font-medium text-fg-muted">
+        {t("tools.diagnostics.arguments")}
+        <TextArea
+          value={argumentsText}
+          rows={5}
+          font="mono"
+          invalid={argumentsError !== null}
+          aria-invalid={argumentsError !== null}
+          disabled={running}
+          spellCheck={false}
+          onChange={(event) => {
+            onArgumentsTextChange(event.target.value);
+            onArgumentsError(null);
+            if (runtimeError) setRuntimeError(null);
+          }}
+        />
+      </label>
+      <div>
+        <span className="text-ui-xs font-medium text-fg-muted">
+          {t("tools.diagnostics.schema")}
+        </span>
+        <pre className="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-sunken px-3 py-2 font-mono text-ui-xs leading-body text-fg-soft">
+          {schema}
+        </pre>
+      </div>
+      <div className="flex items-center gap-2">
+        <PillButton
+          size="sm"
+          variant="accent"
+          disabled={!enabled || running}
+          onClick={() => void invoke()}
+        >
+          {running ? t("tools.diagnostics.running") : t("tools.diagnostics.run")}
+        </PillButton>
+        {error && (
+          <span className="text-ui-xs text-negative" aria-live="polite">
+            {error}
+          </span>
+        )}
+      </div>
+      {result !== null && (
+        <div>
+          <span className="text-ui-xs font-medium text-fg-muted">
+            {t("tools.diagnostics.result")}
+          </span>
+          <pre
+            className="mt-1 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-sunken px-3 py-2 font-mono text-ui-xs leading-body text-fg-soft"
+            aria-live="polite"
+          >
+            {result}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
