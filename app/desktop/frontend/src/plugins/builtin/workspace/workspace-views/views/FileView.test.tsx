@@ -1,21 +1,33 @@
 import { render } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const highlighter = vi.hoisted(() => ({
-  codeToHtml: vi.fn(() => "<pre><code><span>highlighted</span></code></pre>"),
-  getLoadedLanguages: vi.fn(() => ["go", "text"]),
-}));
+const projection = vi.hoisted(() => {
+  const highlighter = {
+    codeToHtml: vi.fn(() => "<pre><code><span>highlighted</span></code></pre>"),
+    getLoadedLanguages: vi.fn(() => ["go", "text"]),
+  };
+  return { highlighter, currentHighlighter: highlighter as typeof highlighter | null };
+});
 
 vi.mock("@/lib/highlight/useCodeHighlight", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/highlight/useCodeHighlight")>()),
-  useCodeHighlighter: () => ({ highlighter, theme: "test-theme" }),
+  useCodeHighlighter: () => ({ highlighter: projection.currentHighlighter, theme: "test-theme" }),
 }));
 
 import { FileView } from "./FileView";
 
+let nativeScrollIntoView: typeof HTMLElement.prototype.scrollIntoView | undefined;
+
 beforeEach(() => {
-  highlighter.codeToHtml.mockClear();
-  highlighter.getLoadedLanguages.mockClear();
+  projection.currentHighlighter = projection.highlighter;
+  projection.highlighter.codeToHtml.mockClear();
+  projection.highlighter.getLoadedLanguages.mockClear();
+  nativeScrollIntoView = HTMLElement.prototype.scrollIntoView;
+});
+
+afterEach(() => {
+  if (nativeScrollIntoView) HTMLElement.prototype.scrollIntoView = nativeScrollIntoView;
+  else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
 });
 
 describe("FileView syntax ownership", () => {
@@ -24,9 +36,23 @@ describe("FileView syntax ownership", () => {
 
     render(<FileView path="cmd/main.go" content={content} targetLine={0} />);
 
-    expect(highlighter.codeToHtml).toHaveBeenCalledWith(content, {
+    expect(projection.highlighter.codeToHtml).toHaveBeenCalledWith(content, {
       lang: "go",
       theme: "test-theme",
     });
+  });
+
+  it("does not replay the target-line navigation when Shiki materializes", () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    projection.currentHighlighter = null;
+    const content = "package main\nfunc main() {}";
+    const view = render(<FileView path="cmd/main.go" content={content} targetLine={2} />);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+    projection.currentHighlighter = projection.highlighter;
+    view.rerender(<FileView path="cmd/main.go" content={content} targetLine={2} />);
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 });
