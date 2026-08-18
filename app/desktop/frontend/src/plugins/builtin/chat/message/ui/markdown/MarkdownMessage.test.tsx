@@ -96,6 +96,17 @@ describe("markdownMessage", () => {
     expect(container.querySelector(".shiki-body code")).toBeNull();
   });
 
+  it("keeps HTML fences as inert, copyable source code", async () => {
+    const src =
+      '```html\n<!doctype html><html><body><script>parent.postMessage("ran", "*")</script></body></html>\n```';
+    const { container } = render(<MarkdownMessage text={src} reveal="instant" />);
+    await act(async () => Promise.resolve());
+
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector(".shiki-block")?.textContent).toContain("parent.postMessage");
+    expect(container.querySelector('.shiki-block button[aria-label="Copy code"]')).toBeTruthy();
+  });
+
   it("does not fetch remote Markdown images in the restricted desktop surface", () => {
     const src = "![Tracking pixel](https://tracker.example/pixel.png)";
     const { container } = render(<MarkdownMessage text={src} reveal="instant" />);
