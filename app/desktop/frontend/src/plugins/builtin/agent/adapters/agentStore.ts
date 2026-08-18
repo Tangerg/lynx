@@ -52,6 +52,10 @@ interface SessionEntry {
 
 interface AgentStore {
   sessions: Record<string, SessionEntry>;
+  /** Monotonic high-water mark for every mounted projection generation in this
+   * renderer. Session material may be pruned, but its retired identity must
+   * never become available to a later remount of the same Session. */
+  projectionGenerationSequence: number;
 
   /**
    * Fold a batch of {event, runId} into the named session's view state with a
@@ -124,9 +128,9 @@ interface AgentStore {
   ) => void;
 }
 
-const emptyEntry = (): SessionEntry => ({
+const emptyEntry = (viewEpoch: number): SessionEntry => ({
   view: EMPTY_AGENT_SESSION_VIEW,
-  viewEpoch: 0,
+  viewEpoch,
   viewRevision: 0,
   authoritativeRevision: 0,
   refreshSequence: 0,
@@ -179,6 +183,7 @@ function patchSessionState(
 
 export const useAgentStore = create<AgentStore>((set) => ({
   sessions: {},
+  projectionGenerationSequence: 0,
   applyRunEvents: (sessionId, events) =>
     set((state) => {
       if (events.length === 0) return state;
@@ -230,25 +235,35 @@ export const useAgentStore = create<AgentStore>((set) => ({
       return sessions === state.sessions ? state : { sessions };
     }),
   ensureSession: (sessionId) =>
-    set((state) =>
-      state.sessions[sessionId]
-        ? state
-        : { sessions: { ...state.sessions, [sessionId]: emptyEntry() } },
-    ),
+    set((state) => {
+      if (state.sessions[sessionId]) return state;
+      const viewEpoch = state.projectionGenerationSequence + 1;
+      return {
+        sessions: { ...state.sessions, [sessionId]: emptyEntry(viewEpoch) },
+        projectionGenerationSequence: viewEpoch,
+      };
+    }),
   beginViewRefresh: (sessionId, invalidateQueuedRunEvents) => {
     let token: AgentViewRefreshToken | null = null;
     set((state) => {
       const entry = state.sessions[sessionId];
       if (!entry) return state;
       const requestSequence = entry.refreshSequence + 1;
+      const viewEpoch = invalidateQueuedRunEvents
+        ? state.projectionGenerationSequence + 1
+        : entry.viewEpoch;
       token = {
         requestSequence,
         viewRevision: entry.viewRevision,
       };
-      return patchSessionState(state, sessionId, {
+      const sessions = patchSession(state.sessions, sessionId, {
         refreshSequence: requestSequence,
-        ...(invalidateQueuedRunEvents ? { viewEpoch: entry.viewEpoch + 1 } : {}),
+        viewEpoch,
       });
+      return {
+        sessions,
+        ...(invalidateQueuedRunEvents ? { projectionGenerationSequence: viewEpoch } : {}),
+      };
     });
     return token;
   },
@@ -274,32 +289,38 @@ export const useAgentStore = create<AgentStore>((set) => ({
   },
   retireProjectionGeneration: (sessionIds) =>
     set((state) => {
+      const viewEpoch = state.projectionGenerationSequence + 1;
       let sessions = state.sessions;
       for (const sessionId of new Set(sessionIds)) {
         const entry = sessions[sessionId];
         if (!entry) continue;
         sessions = patchSession(sessions, sessionId, {
           refreshSequence: entry.refreshSequence + 1,
-          viewEpoch: entry.viewEpoch + 1,
+          viewEpoch,
         });
       }
-      return sessions === state.sessions ? state : { sessions };
+      return sessions === state.sessions
+        ? state
+        : { sessions, projectionGenerationSequence: viewEpoch };
     }),
   replaceServerScope: (sessionIds) =>
     set((state) => {
+      const viewEpoch = state.projectionGenerationSequence + 1;
       let sessions = state.sessions;
       for (const sessionId of new Set(sessionIds)) {
         const entry = sessions[sessionId];
         if (!entry) continue;
         sessions = patchSession(sessions, sessionId, {
           view: EMPTY_AGENT_SESSION_VIEW,
-          viewEpoch: entry.viewEpoch + 1,
+          viewEpoch,
           viewRevision: entry.viewRevision + 1,
           authoritativeRevision: 0,
           refreshSequence: entry.refreshSequence + 1,
         });
       }
-      return sessions === state.sessions ? state : { sessions };
+      return sessions === state.sessions
+        ? state
+        : { sessions, projectionGenerationSequence: viewEpoch };
     }),
   reconcileMessageIdentity: (sessionId, fromId, toId) =>
     set((state) => {

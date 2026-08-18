@@ -510,6 +510,31 @@ describe("agentStore.resolveInterrupt", () => {
 });
 
 describe("agentStore never resurrects a dropped session", () => {
+  it("does not reuse a retired projection generation when the same Session is remounted", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    const predecessorGeneration = useAgentStore.getState().sessions[SID]!.viewEpoch;
+
+    store.dropSession(SID);
+    store.ensureSession(SID);
+
+    expect(useAgentStore.getState().sessions[SID]!.viewEpoch).toBeGreaterThan(
+      predecessorGeneration,
+    );
+  });
+
+  it("assigns one exact generation to every mounted Session retired by the same boundary", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.ensureSession("ses_peer");
+
+    store.retireProjectionGeneration([SID, "ses_peer"]);
+
+    const sessions = useAgentStore.getState().sessions;
+    expect(sessions[SID]!.viewEpoch).toBe(sessions.ses_peer!.viewEpoch);
+    store.dropSession("ses_peer");
+  });
+
   // Closing a session mid-stream: the prune subscriber drops the slice
   // synchronously, but a late rAF flush / in-flight snapshot / the unmount
   // cleanup nulling send-stop all run afterwards. None may re-seed a ghost
