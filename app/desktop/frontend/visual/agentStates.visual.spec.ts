@@ -214,6 +214,48 @@ test("the standing goal stays in the composer stack instead of claiming the tran
   expect(goalBox!.y + goalBox!.height).toBeLessThanOrEqual(composerBox!.y + composerBox!.height);
 });
 
+for (const theme of ["light", "dark"] as const) {
+  test(`a ${theme} user turn uses the Codex-neutral bubble material and geometry`, async ({
+    page,
+  }) => {
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=idle`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    // Codex gives the human turn a stable semantic hook and a neutral ink wash:
+    // the bubble distinguishes ownership without turning every prompt into an
+    // accent/status callout. Pin both schemes because a light-only assertion can
+    // accidentally accept a translucent accent whose dark result is much louder.
+    const bubble = page.locator("[data-user-message-bubble]");
+    await expect(bubble).toHaveCount(1);
+    await expect(bubble).toContainText("Review the Runtime boundary");
+
+    const material = await bubble.evaluate((element) => {
+      const probe = document.createElement("div");
+      probe.style.background = "color-mix(in srgb, var(--color-text) 5%, transparent)";
+      document.body.append(probe);
+      const expectedBackground = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+
+      const actual = getComputedStyle(element);
+      return {
+        background: actual.backgroundColor,
+        expectedBackground,
+        maxWidth: actual.maxWidth,
+        padding: [actual.paddingTop, actual.paddingRight, actual.paddingBottom, actual.paddingLeft],
+        radius: actual.borderRadius,
+      };
+    });
+
+    expect(material).toEqual({
+      background: material.expectedBackground,
+      expectedBackground: material.expectedBackground,
+      maxWidth: "77%",
+      padding: ["8px", "12px", "8px", "12px"],
+      radius: "16px",
+    });
+  });
+}
+
 test("composer keeps one production edge and 6/8 footer inset", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=empty");
   await page.locator("html[data-visual-ready]").waitFor();
