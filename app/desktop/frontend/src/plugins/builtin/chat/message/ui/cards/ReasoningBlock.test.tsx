@@ -46,6 +46,14 @@ describe("ReasoningBlock disclosure policy", () => {
     expect(body.className).toContain("pl-6");
   });
 
+  it("carries live state on the Thinking label instead of a trailing status dot", () => {
+    renderReasoning("running", "Inspect the protocol boundary");
+
+    const trigger = screen.getByRole("button", { name: "Thinking" });
+    expect(trigger.querySelector(".animate-shimmer")).not.toBeNull();
+    expect(trigger.querySelector(".animate-pulse-dot")).toBeNull();
+  });
+
   it("does not disguise Run cancellation as an Answer now activity action", () => {
     renderReasoning("running", "A predecessor renderer is still settling.");
 
