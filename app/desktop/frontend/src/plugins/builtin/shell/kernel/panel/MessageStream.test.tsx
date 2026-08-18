@@ -30,8 +30,6 @@ vi.mock("@/plugins/host/Slot", () => ({
   Slot: ({ name }: { name: string }) => <div data-testid={name} />,
 }));
 
-vi.mock("@/lib/appearance", () => ({ useMotionOff: () => false }));
-
 vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: PropsWithChildren) => children,
   motion: {

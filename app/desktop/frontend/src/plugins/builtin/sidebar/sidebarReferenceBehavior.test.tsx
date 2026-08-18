@@ -72,11 +72,11 @@ describe("Codex-aligned Work Index actions", () => {
       </>,
     );
 
-    expect((screen.getByRole("button", { name: "New session" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
-    expect((screen.getByRole("button", { name: "Add project" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(
+      (screen.getByRole("button", { name: "New session" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Add project" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 });

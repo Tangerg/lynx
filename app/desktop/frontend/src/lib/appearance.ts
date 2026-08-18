@@ -115,11 +115,7 @@ export function publishTokens(): void {
   announce();
 }
 
-/** Publish the motion multiplier the painter just applied. CSS-driven motion
- *  needs no notification — the presets read this when an animation starts, and a
- *  running one keeps the scale it began with. Behaviour that lives outside CSS
- *  does: a scroll library easing its own frames has to be told to stop, so this
- *  announces and `useMotionOff` re-renders its handful of readers. */
+/** Publish the motion multiplier the painter just applied. */
 export function publishMotionScale(next: number): void {
   if (scale === next) return;
   scale = next;
@@ -151,13 +147,6 @@ function snapshot(): Scheme {
 /** Reactive read — re-renders on a theme switch. */
 export function useScheme(): Scheme {
   return useSyncExternalStore(subscribe, snapshot);
-}
-
-/** Reactive read of the motion preference, for the few behaviours CSS cannot
- *  reach — a scroll library easing its own frames, say. CSS-driven motion should
- *  keep using `--motion-scale` rather than re-rendering to learn this. */
-export function useMotionOff(): boolean {
-  return useSyncExternalStore(subscribe, () => scale === 0);
 }
 
 /** An opaque, monotonic stamp of the last token repaint — an invalidation key for
