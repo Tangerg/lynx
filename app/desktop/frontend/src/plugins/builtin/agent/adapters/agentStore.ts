@@ -253,6 +253,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
         ? state.projectionGenerationSequence + 1
         : entry.viewEpoch;
       token = {
+        generation: viewEpoch,
         requestSequence,
         viewRevision: entry.viewRevision,
       };
@@ -273,6 +274,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const entry = state.sessions[sessionId];
       if (
         !entry ||
+        entry.viewEpoch !== token.generation ||
         entry.refreshSequence !== token.requestSequence ||
         entry.viewRevision !== token.viewRevision
       ) {

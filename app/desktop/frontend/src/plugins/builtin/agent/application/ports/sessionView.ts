@@ -70,8 +70,11 @@ export interface AgentSessionViewEntry {
 }
 
 export interface AgentViewRefreshToken {
-  requestSequence: number;
-  viewRevision: number;
+  /** Exact mounted projection generation that admitted this read. Session-local
+   * counters restart after a close/remount and cannot identify its successor. */
+  readonly generation: number;
+  readonly requestSequence: number;
+  readonly viewRevision: number;
 }
 
 /** One shared-state value together with the mounted projection generation that

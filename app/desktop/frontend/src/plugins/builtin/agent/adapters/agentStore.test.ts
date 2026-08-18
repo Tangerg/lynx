@@ -365,6 +365,32 @@ describe("agentStore authoritative refresh", () => {
     expect(view().shared).toEqual({ marker: "newest" });
   });
 
+  it("does not let a pre-close snapshot commit into a remounted Session generation", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    const predecessor = store.beginViewRefresh(SID, false)!;
+
+    store.dropSession(SID);
+    store.ensureSession(SID);
+    const successor = store.beginViewRefresh(SID, false)!;
+
+    expect(successor.generation).toBeGreaterThan(predecessor.generation);
+
+    expect(
+      store.commitViewRefresh(SID, predecessor, {
+        ...EMPTY_AGENT_SESSION_VIEW,
+        shared: { marker: "predecessor" },
+      }),
+    ).toBe(false);
+    expect(
+      store.commitViewRefresh(SID, successor, {
+        ...EMPTY_AGENT_SESSION_VIEW,
+        shared: { marker: "successor" },
+      }),
+    ).toBe(true);
+    expect(view().shared).toEqual({ marker: "successor" });
+  });
+
   it("revokes snapshot and queued-stream writers at a connection generation boundary", () => {
     const store = useAgentStore.getState();
     store.ensureSession(SID);
@@ -399,11 +425,13 @@ describe("agentStore authoritative refresh", () => {
     const entry = useAgentStore.getState().sessions[SID]!;
     const visible = entry.view;
 
-    store.beginViewRefresh(SID, true);
+    const token = store.beginViewRefresh(SID, true)!;
 
     const refreshed = useAgentStore.getState().sessions[SID]!;
     expect(refreshed.view).toBe(visible);
     expect(refreshed.viewEpoch).toBe(entry.viewEpoch + 1);
+    expect(token.generation).toBe(refreshed.viewEpoch);
+    expect(store.commitViewRefresh(SID, token, EMPTY_AGENT_SESSION_VIEW)).toBe(true);
   });
 
   it("does not erase a materialized view when the session driver remounts", () => {
