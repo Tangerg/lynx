@@ -36,6 +36,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 相邻 Session lifecycle 红例也已闭环：关闭当前 Session 时，Agent Session owner 会先从 `openSessionIds` 释放它，再把 URL 切到相邻 Session；这段同步窗口内旧实现虽从已保存 map 删除旧 scope，persist partializer 却会把仍标作 active 的顶层 scope 重新收录。`forgetSessionScopes` 现在以 Agent Session owner 给出的 exact open set 同步过滤已保存 scope；当前 presentation scope 不在集合时，同一原子写将其身份和 tab/file/tool material 全部退休，随后既有 navigation subscriber 再激活相邻 Session。没有等待下一次 renderer replacement、timer 或第二 lifecycle writer。
 - 右栏内容 renderer 的 File preview 红例已闭环：同属 workspace code surface 的 Diff 已按 exact file path 选择 Shiki grammar，File preview 却曾把 Go/Python/JSON 等所有内容硬编码成 TypeScript；因此文件正文虽然正确，语法 token 语义和颜色错误。Codex 的 file/diff surface 都由文件身份决定语言；`FileView` 现在接收 workspace query 对应的 exact path，并复用现有 `langFromPath` 与 `resolveLang` 后执行一次 whole-file highlight，未知或未加载 grammar 明确降为 text。没有复制 extension table、从内容猜语言或增加第二 file identity。
 - File preview 的相邻滚动红例也已闭环：plain DOM 已含目标行，旧导航 effect 会先居中一次；Shiki 异步 materialization 改变 `highlighted` 后又重放同一滚动，能覆盖用户在这段时间内取得的阅读位置。定位 effect 现在只响应 exact path、content replacement 或 target line 变化；语法 materialization 只替换 token，不再调用 `scrollIntoView`，没有 timer、二次 scroll state 或延迟补偿。
+- Timeline 恢复态红例确认：Runtime connection 不可接收命令时，中央 delegated Run card 已禁用 Cancel，右栏 Timeline 的同一 Run Stop 却仍可点击并尝试投递。Timeline 已经读取同一 `runtimeAvailable` 用于定位动作；红例要求取消也消费该权威 capability，不复制 connection phase 或在点击后用错误 toast 代替可见禁用反馈。
 
 ## 2. 长期产品与架构约束
 
