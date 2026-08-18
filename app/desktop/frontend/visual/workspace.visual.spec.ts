@@ -207,6 +207,24 @@ test("dock tabs use roving focus and arrow-key activation", async ({ page }) => 
   await expect(page.getByRole("tab", { name: "Terminal" })).toHaveAttribute("data-active", "");
 });
 
+test("the active overflow tab stays visible and both hidden edges remain signposted", async ({
+  page,
+}) => {
+  await openWorkspace(page, { state: "dock-light" });
+
+  const strip = page.locator(".agent-dock-tabs");
+  await expect(strip).toHaveAttribute("data-overflow-start", "");
+  await expect(strip).toHaveAttribute("data-overflow-end", "");
+  const [stripBox, activeBox] = await Promise.all([
+    strip.boundingBox(),
+    page.getByRole("tab", { name: "Plan" }).boundingBox(),
+  ]);
+  expect(stripBox).not.toBeNull();
+  expect(activeBox).not.toBeNull();
+  expect(activeBox!.x).toBeGreaterThanOrEqual(stripBox!.x);
+  expect(activeBox!.x + activeBox!.width).toBeLessThanOrEqual(stripBox!.x + stripBox!.width);
+});
+
 test("file and timeline tabs render through their production view plugins", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
 

@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
 import { IconButton } from "@/ui/atoms/icon-button";
@@ -35,14 +35,64 @@ export function AgentContextDock({ children }: { children: ReactNode }) {
   return <aside className="agent-context-dock agent-pane-split">{children}</aside>;
 }
 
+function reflectDockTabOverflow(element: HTMLElement): void {
+  const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+  element.toggleAttribute("data-overflow-start", element.scrollLeft > 1);
+  element.toggleAttribute("data-overflow-end", maxScrollLeft - element.scrollLeft > 1);
+}
+
+function keepActiveDockTabInsideFade(element: HTMLElement): void {
+  if (element.clientWidth === 0) return;
+  const active = element.querySelector<HTMLElement>('[role="tab"][data-active]');
+  if (!active) return;
+  const stripBox = element.getBoundingClientRect();
+  const activeBox = active.getBoundingClientRect();
+  const edgeHint = 16;
+  if (activeBox.left < stripBox.left + edgeHint) {
+    element.scrollLeft -= stripBox.left + edgeHint - activeBox.left;
+  } else if (activeBox.right > stripBox.right - edgeHint) {
+    element.scrollLeft += activeBox.right - (stripBox.right - edgeHint);
+  }
+}
+
 /** Dock tabs share one structural pattern while the visual style chooses the
  *  active treatment (quiet chip, underline, or elevation). The tab primitive
  *  owns roving focus and arrow-key navigation; styling buttons to resemble tabs
  *  without those semantics made the dock keyboard-hostile. */
 export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaLabel: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  if (tabs.length === 0) return null;
   const activeId = tabs.find((tab) => tab.active)?.id ?? tabs[0]?.id;
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    root
+      ?.querySelector<HTMLElement>('[role="tab"][data-active]')
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    if (root) {
+      keepActiveDockTabInsideFade(root);
+      reflectDockTabOverflow(root);
+    }
+  }, [activeId]);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const reflect = () => reflectDockTabOverflow(root);
+    const reconcileGeometry = () => {
+      keepActiveDockTabInsideFade(root);
+      reflect();
+    };
+    root.addEventListener("scroll", reflect, { passive: true });
+    const resizeObserver = new ResizeObserver(reconcileGeometry);
+    resizeObserver.observe(root);
+    root.querySelectorAll<HTMLElement>('[role="tablist"] > *').forEach((tab) => {
+      resizeObserver.observe(tab);
+    });
+    reconcileGeometry();
+    return () => {
+      root.removeEventListener("scroll", reflect);
+      resizeObserver.disconnect();
+    };
+  }, [tabs.length]);
+  if (tabs.length === 0) return null;
   return (
     <TabsPrimitive.Root
       ref={rootRef}
@@ -57,15 +107,8 @@ export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaL
               key={tab.id}
               data-active={tab.active ? "" : undefined}
               className={cn(
-                // `shrink-0`, and it is the lesser evil rather than the right
-                // answer. The strip hides its scrollbar, so when six tabs meet a
-                // 432px dock the last two go past the edge with nothing saying so.
-                // Letting them shrink instead was measured and is worse: the floor
-                // that keeps a tab identifiable is wider than the share available,
-                // so every label collapsed to one letter and the strip stopped
-                // naming anything. Four readable names plus a scroll beats six
-                // unreadable ones; a real fix needs the strip to know it is
-                // overflowing, which is a measurement, not a class.
+                // Keep labels readable; the strip owns horizontal overflow and
+                // brings the active identity into view when navigation changes it.
                 "group flex h-[var(--dock-tab-height)] min-w-0 shrink-0 items-center rounded-[var(--dock-tab-radius)]",
                 "text-fg-muted transition-[background-color,color] duration-[var(--dur-color)] ease-out",
                 "hover:bg-hover hover:text-fg focus-within:text-fg",

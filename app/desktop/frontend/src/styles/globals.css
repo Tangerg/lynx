@@ -1794,6 +1794,7 @@ html.theme-dark {
   align-items: center;
   gap: 2px;
   overflow-x: auto;
+  scroll-padding-inline: 16px;
   scrollbar-width: none;
 }
 
@@ -1835,15 +1836,35 @@ html.theme-dark {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }
 
-/* The strip hides its scrollbar, so this is the only thing that says a tab is
-   past the edge. Constant rather than conditional, which is what the reference
-   does and is safe for the reason it is safe there: when the tabs fit, the last
-   16px of the strip is empty and the fade falls on nothing. Detecting overflow
-   would need the strip to measure itself, and it would buy the same picture.
-   16px is the reference's own distance. */
-.agent-dock-tabs {
+/* The scrollbar stays hidden, so the strip's own geometry marks whichever edge
+   still contains tabs. This becomes two-sided after navigation scrolls the
+   active tab into view; a permanent trailing mask would then hard-clip the
+   beginning of a tab at the leading edge. */
+.agent-dock-tabs[data-overflow-end]:not([data-overflow-start]) {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
+
+.agent-dock-tabs[data-overflow-start]:not([data-overflow-end]) {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 16px);
+  mask-image: linear-gradient(to right, transparent, #000 16px);
+}
+
+.agent-dock-tabs[data-overflow-start][data-overflow-end] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent
+  );
 }
 
 html[data-control-treatment="outlined"] .agent-dock-tabs > [role="tablist"] > [data-active] {

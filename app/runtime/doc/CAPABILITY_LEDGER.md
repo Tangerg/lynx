@@ -133,6 +133,7 @@
 - 中央 transcript 的 mount geometry、异步 Markdown/Shiki materialization 与用户滚动共享 `MessageStream` 一个 presentation owner：跟随状态来自既有 scroll library；DOM materialization 只在仍位于 tail 时即时补偿，wheel/scroll escape 后不再改写 reader-owned `scrollTop`，也不靠固定 RAF/timer 窗口判断布局完成。
 - 右栏 Diff 与 File preview 共用 file-path → Shiki grammar 映射；preview 以 query 对应的 exact path 选语言并进行一次 whole-file highlight，未知 grammar 降为 text，不从内容猜测或复制 extension table。目标行定位只响应 path/content/line navigation，Shiki 异步 materialization 不重放滚动或覆盖 reader-owned 位置。
 - Timeline 在 Runtime 不可接收命令时继续呈现 exact Session/Run 审计事实，但 locate/cancel 共同由 Runtime command capability 禁用；恢复后沿同一 owner 重新可用，不从 connection phase 复制第二布尔状态。
+- 右栏 tab strip 保留可读标签；active identity 变化时由 tab owner 执行 nearest scrolling，strip 自己的 scroll geometry 驱动 start/end edge fade。renderer 恢复或 picker 打开末尾 tab 后选中身份始终可见，两侧隐藏内容也有明确提示。
 
 ## 7. 公共合同
 
