@@ -1,4 +1,4 @@
-import { memo, useDeferredValue, useEffect, useMemo } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef } from "react";
 
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -12,6 +12,7 @@ import remend from "remend";
 import { parseMarkdownIntoBlocks } from "streamdown";
 import { createMarkdownComponents } from "./markdownComponents";
 import { isInlineMarkdownImage } from "./MarkdownImage";
+import { handleMarkdownCopy } from "./markdownSelectionCopy";
 import { ensureKatexCss } from "./katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "./rehypeCitations";
@@ -90,6 +91,7 @@ export function MarkdownMessage(props: Props) {
   const { text, reveal } = props;
   const streaming = reveal === "instant" ? false : !!props.streaming;
   const instant = reveal === "instant";
+  const rootRef = useRef<HTMLDivElement>(null);
   const revealed = useStreamReveal(text, streaming, reveal === "typewriter");
   const display = instant ? text : revealed;
 
@@ -124,8 +126,19 @@ export function MarkdownMessage(props: Props) {
   const blocks = useMemo(() => parseMarkdownIntoBlocks(repaired), [repaired]);
   const lastIdx = blocks.length - 1;
 
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const ownerDocument = root.ownerDocument;
+    const onCopy = (event: ClipboardEvent) => {
+      handleMarkdownCopy(root, event);
+    };
+    ownerDocument.addEventListener("copy", onCopy, true);
+    return () => ownerDocument.removeEventListener("copy", onCopy, true);
+  }, []);
+
   return (
-    <div className="md">
+    <div ref={rootRef} className="md" dir="auto">
       {blocks.map((block, i) => (
         // Index keys are correct here: markdown blocks are append-only
         // during streaming, so position is a stable identity. Keying by

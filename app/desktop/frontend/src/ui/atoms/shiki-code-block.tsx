@@ -90,6 +90,8 @@ export function ShikiCodeBlock({ lang, code, file, preview, previewLabel }: Prop
     // `<pre class="shiki">` + child `<code>` Shiki emits as a string.
     <div
       data-variant={isPreview ? "preview" : "code"}
+      data-markdown-copy="code-block"
+      data-markdown-copy-text={code}
       className={cn(
         "shiki-block group/code my-3 overflow-hidden font-mono text-code",
         isPreview
@@ -103,6 +105,7 @@ export function ShikiCodeBlock({ lang, code, file, preview, previewLabel }: Prop
           from there"), and centring the path put the two halves of that sentence
           at opposite ends of a wide block. */}
       <div
+        data-markdown-copy="exclude"
         className={cn(
           "flex items-center gap-2.5 px-3 py-1.5",
           isPreview ? "bg-transparent" : "bg-card",
