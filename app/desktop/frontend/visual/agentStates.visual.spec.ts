@@ -634,6 +634,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       leadListMargin: `${leadListStyle.marginBlockStart} ${leadListStyle.marginBlockEnd}`,
       tableMargin: `${tableContainerStyle.marginBlockStart} ${tableContainerStyle.marginBlockEnd}`,
       tableFontSize: tableStyle.fontSize,
+      tableLineHeight: tableStyle.lineHeight,
       tableHeaderFontSize: tableHeaderStyle.fontSize,
       tableHeaderLineHeight: tableHeaderStyle.lineHeight,
       proseParagraphMargin: `${proseParagraphStyle.marginBlockStart} ${proseParagraphStyle.marginBlockEnd}`,
@@ -669,6 +670,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.leadListMargin).toBe("0px 10px");
   expect.soft(styles?.tableMargin).toBe("0px 0px");
   expect.soft(styles?.tableFontSize).toBe("14px");
+  expect.soft(styles?.tableLineHeight).toBe("21px");
   expect.soft(styles?.tableHeaderFontSize).toBe("14px");
   expect.soft(styles?.tableHeaderLineHeight).toBe("16px");
   expect.soft(styles?.proseParagraphMargin).toBe("0px 11px");
