@@ -1,5 +1,5 @@
-import { act, render } from "@testing-library/react";
-import { beforeAll, describe, expect, it } from "vitest";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { getHighlighter } from "@/lib/highlight/shiki";
 import { MarkdownMessage } from "./MarkdownMessage";
 
@@ -96,11 +96,39 @@ describe("markdownMessage", () => {
     expect(container.querySelector(".shiki-body code")).toBeNull();
   });
 
-  it("renders GFM tables via remark-gfm", () => {
-    const src = "| a | b |\n|---|---|\n| 1 | 2 |";
+  it("keeps GFM tables semantic and exposes the Codex copy action", async () => {
+    const src = "| Name | Count |\n|---|---:|\n| alpha | 12 |";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    try {
+      const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
+      const table = container.querySelector("table");
+      expect(table).toBeTruthy();
+      expect(container.querySelectorAll("td").length).toBe(2);
+
+      const copy = container.querySelector<HTMLButtonElement>('button[aria-label="Copy table"]');
+      expect(copy).toBeTruthy();
+      fireEvent.click(copy!);
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(src));
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, "clipboard");
+      }
+    }
+  });
+
+  it("marks directional and numeric table material like Codex", () => {
+    const src = "| Name | Count |\n|---|---:|\n| alpha | 12 |";
     const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
-    expect(container.querySelector("table")).toBeTruthy();
-    expect(container.querySelectorAll("td").length).toBe(2);
+
+    expect(container.querySelector("table")?.getAttribute("dir")).toBe("auto");
+    expect(container.querySelector("td.md-table-cell-numeric")?.textContent).toBe("12");
   });
 
   it("renders markdown lists", () => {
