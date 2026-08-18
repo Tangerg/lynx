@@ -1,6 +1,6 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P114 已完成并形成里程碑；下一阶段未授权，不自动继续代码改动。
+> 状态：P0–P114 已完成并形成里程碑；P115 已授权，当前执行维护性收敛 Batch 0。
 >
 > 最近基线：2026-08-18，commit `babec316e`。
 
@@ -15,8 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P114 已封板；不因发现“还可以更好”自动开启 P115。
-- 当前允许维护文档、基线和真实环境；新的生产代码纵切必须先建立新 Goal、红色反例和明确验收。
+- P115 已于 2026-08-18 授权，设计与验收 owner 为
+  [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md)。
+- 当前执行 Batch 0：固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；完成后按依赖顺序进入 Mutation Journal、Frontend lifecycle、无价值分层、Bootstrap 和 Runs 行为对象纵切。
 - breaking change 被允许，但只用于建立更准确的唯一合同；禁止以 breaking change 为名制造并行实现或迁移半成品。
 - `app/cli` 不在本计划授权范围内，不得修改或暂存。
 - 保留所有无关工作区改动；每个独立批次精确暂存、提交并推送。
@@ -80,3 +81,5 @@ P113/P114 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 
 候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。开始下一阶段时新建简短阶段条目，完成后只更新里程碑结论与能力事实，不恢复逐提交流水账。
+
+P115 已完成上述准入审计：R1–R5 均由当前生产代码和既有交错测试证明，定向基线为 6 个 Frontend test files / 86 tests 全绿。Mutation Journal 当前同时拥有三代 persisted codec、renderer/process ownership、heartbeat/leader election 与 command settlement；15 个业务对象重复 static publication/retirement；静态 contribution factory 存在无独立消费者和不变量的 application 层；Bootstrap 的宽 Stack/foundation 与 Runs 的跨纵切 Coordinator 均有真实传播和认知热点。参考实现只提供 identity、actor/capsule 与 settlement 机制证据，不改变 Lyra 的单 client/server、单窗口和既有领域合同。
