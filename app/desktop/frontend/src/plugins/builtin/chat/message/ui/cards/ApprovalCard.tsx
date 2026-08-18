@@ -202,26 +202,27 @@ export function ApprovalCard({
         </div>
       )}
       <div className="mb-2 text-ui-md leading-body text-fg-muted">{reason}</div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* The label alone. These carried their combos as a raw <kbd> — a glyph
             strip inside a button, hand-spelled past the Kbd atom, telling you how to
             press the thing your pointer is already on. The bindings still work; the
             place to read them is the shortcuts pane. */}
-        <Button variant="primary" size="sm" disabled={disabled} onClick={approve}>
-          {t("approval.action.approve")}
-        </Button>
-        <Button variant="outline" size="sm" disabled={disabled} onClick={decline}>
-          {t("approval.action.decline")}
-        </Button>
         {rememberable && (
           <Checkbox
             disabled={!runtimeAvailable}
             checked={remember}
             onCheckedChange={setRemember}
             label={t("approval.remember")}
-            className="ml-auto gap-1.5 text-ui-sm"
+            className="gap-1.5 text-ui-sm"
           />
         )}
+        <span className="flex-1" />
+        <Button variant="outline" size="sm" disabled={disabled} onClick={decline}>
+          {t("approval.action.decline")}
+        </Button>
+        <Button variant="primary" size="sm" disabled={disabled} onClick={approve}>
+          {t("approval.action.approve")}
+        </Button>
       </div>
       {/* Scope picker — only meaningful once "don't ask again" is on. Session
           keys the rule to this session, project to this folder, global everywhere. */}
