@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P118 已完成并形成里程碑。
+> 状态：P0–P118 已完成并形成里程碑；P119 实施中。
 >
-> 最近基线：2026-08-18，P118 完整验收。
+> 最近基线：2026-08-18，P118 完整验收；P119 已获得实施授权。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,11 +15,20 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P118 已于 2026-08-18 获得实施授权：在 P117 恢复基线上继续深度对齐 Codex 的 Desktop 交互与 UI，完整覆盖左侧 Work Index 的目录选择和 Session 创建/关闭/切换、中间 Agent Narrative 的 transcript/streaming/composer/HITL/Goal/Plan/scroll，以及右侧 Context Dock 的 Run Summary/Terminal/Diff/File/Timeline/Tool/Settings；同时证明这些可见面已接到现有权威 Frontend read model 与 command owner。
-- 默认改动范围仅为 `app/desktop` 与 `app/desktop/frontend`。只有红例证明缺少权威事实时才进入 Runtime；突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK 前必须重新报告爆炸半径并取得确认。
-- 第一批只从 production-equivalent Desktop 的盲测建立左、中、右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina 与 light/dark 证据矩阵；问题不能形成可复现的用户动作与可见错误时，不以视觉偏好或 Codex 的私有实现形状修改生产 owner。
-- 每个成立问题由唯一 presentation owner 根修复，不增加第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、timer 竞态掩盖或通用 Owner/Coordinator/状态机。每批独立提交推送，最终运行 Frontend 全门禁与 async leak、Wails production build 及必要的真实恢复验收。
-- Codex 参考只用于提取页面心智模型、操作反馈和 presentation 机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P118 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+- P119 已于 2026-08-18 获得实施授权：在 P118 基线上继续逐项证明 Desktop 左侧 Work Index、中间 Agent Narrative 与右侧 Context Dock 的全部可见能力确实接到权威 Frontend/Runtime owner，并深度对齐 Codex 的交互反馈与信息层级；Plan、Goal、Steer 的前后端语义、生命周期、恢复与 UI 是本阶段首要纵切。
+- P119 同时处理 production composer 的 IME 缺陷：中文输入法处于或刚结束 composition、用户实际输入英文并按 Enter 时不得直接发送；修复必须落在 composer 键盘意图 owner，而不是靠延时、debounce、平台特判或取消一次已发出的命令掩盖。
+- 默认改动范围为 `app/desktop` 与 `app/desktop/frontend`。只有红例证明前端缺少权威事实时才进入 `app/runtime`；突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK 前必须重新报告爆炸半径并取得确认。
+- 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
+- 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
+- Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P119 准入与完成条件（2026-08-18）
+
+- Plan 必须明确区分当前请求的步骤读模型与自治 Goal；Goal 必须在 active/paused/blocked/completing/absent 各阶段只开放权威命令；Steer 必须表达“送入当前 Run 下一安全模型边界”而不是新建 Run、覆盖 draft 或伪装即时消息。三者的 projection、accepted mutation feedback、Session/generation identity 与 Runtime restart 恢复必须闭合。
+- Composer 的 Enter/Shift+Enter、中文/日文/韩文 IME、英文 composition、`compositionend` 与相邻 key event 顺序必须由真实 browser/WebKit 反例定义；提交入口只消费同一个可证明的 composing intent，不增加 timeout、平台 UA 分支或第二 draft state。
+- 左栏继续逐项验证全局动作、Projects、project row、Session row、目录选择、创建/关闭/切换与离线撤权；中栏验证 transcript/streaming/composer/HITL/Plan/Goal/Steer/scroll；右栏验证 Run Summary/Terminal/Diff/File/Timeline/Tool/Settings 的身份、material、命令 capability、空态与恢复态。
+- UI 精修继续服从现有 theme/design-system token、单一 edge mechanism、最小 40px hit area、键盘焦点、reduced motion、CJK/长路径/长标题、tabular numerals、容器宽度与 Retina device-pixel 约束；不以额外 chrome、卡片、圆角或动画代替信息层级。
+- 完成前运行 Frontend 全门禁与 `--detectAsyncLeaks`、三栏完整 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵、必要的 Runtime/Desktop gates、Wails v3 production package/codesign，以及 fresh database、renderer replacement、Runtime restart/SIGKILL 的真实产品 smoke；关闭本阶段自动化会话与进程，清理临时数据库、Playwright 和 Go build/test cache。
 
 ### P118 准入与完成条件（2026-08-18）
 
