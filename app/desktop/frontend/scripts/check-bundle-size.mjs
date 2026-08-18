@@ -27,6 +27,8 @@
 //   2. Sum their raw bytes, compare against BUDGETS.
 //   3. For each lazy feature: assert its chunk exists, assert index.html does
 //      not reference it, sum its raw bytes against a runaway ceiling.
+//   4. Assert the dynamically imported KaTeX stylesheet stays out of the HTML;
+//      sharing a manual chunk name with eager KaTeX JS must not make it eager.
 //
 // Bumping a budget: allowed, in the same commit as the growth, with a reason.
 // Reviewers SHOULD push back on a bump carrying no justification — a budget
@@ -154,6 +156,26 @@ for (const [extension, assets] of [
 const assetDirectory = join(DIST, "assets");
 const assetNames = readdirSync(assetDirectory);
 const entryReferences = referencedAssets(html);
+
+const mathStyles = assetNames.filter((name) => name.startsWith("katex-") && name.endsWith(".css"));
+console.log("[check-bundle-size] lazy styles — must stay off the startup path (raw):");
+if (mathStyles.length === 0) {
+  console.error("  math stylesheet: no KaTeX CSS chunk found");
+  failed = true;
+} else {
+  const eagerMathStyles = mathStyles.filter((name) => entryReferences.has(name));
+  if (eagerMathStyles.length > 0) {
+    console.error(
+      `  math stylesheet: index.html references ${eagerMathStyles.join(", ")} — it must stay lazy.`,
+    );
+    failed = true;
+  }
+  report(
+    "math stylesheet",
+    mathStyles.reduce((sum, name) => sum + rawSizeOf(join(assetDirectory, name)), 0),
+    100_000,
+  );
+}
 
 console.log("[check-bundle-size] lazy features — must stay off the startup path (raw):");
 for (const { label, prefix, prefixes = [prefix], ceiling } of LAZY_FEATURES) {
