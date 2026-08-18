@@ -4,7 +4,7 @@ import type { Goal, LyraClient, MutationPromise } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
-import { resumeGoal, stopGoal } from "./application/goalCommands";
+import { goalCommandWasRetired, resumeGoal, stopGoal } from "./application/goalCommands";
 import goalPlugin from "./index";
 
 const { synchronizeMountedAgentSession } = vi.hoisted(() => ({
@@ -108,6 +108,20 @@ describe("Goal plugin Runtime generation wiring", () => {
     expect(() => {
       for (const subscriber of subscribers) subscriber();
     }).not.toThrow();
+
+    expect(goalCommandWasRetired(await rejected(stopGoal("ses_goal")))).toBe(true);
+
+    const successorResume = vi.fn(() =>
+      mutation(Promise.resolve(runtimeGoal("ses_goal")), "successor-resume"),
+    );
+    setContainer({
+      client: () => ({ goals: { resume: successorResume } }) as unknown as LyraClient,
+    });
+    generation = "runtime_2";
+    for (const subscriber of subscribers) subscriber();
+
+    await expect(resumeGoal("ses_goal")).resolves.toBeUndefined();
+    expect(successorResume).toHaveBeenCalledOnce();
   });
 });
 

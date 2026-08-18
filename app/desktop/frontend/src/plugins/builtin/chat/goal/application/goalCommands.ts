@@ -123,17 +123,17 @@ class GoalCommandGeneration {
 /** Owns Goal intent ordering, command settlement and Session material repair for
  * one exact Plugin Host and Runtime generation. */
 export class GoalCommandOwner {
-  #generation: GoalCommandGeneration;
+  #generation: GoalCommandGeneration | null;
   readonly #repairProjection: GoalProjectionRepair;
   #disposed = false;
 
-  private constructor(gateway: GoalCommandsGateway, repairProjection: GoalProjectionRepair) {
+  private constructor(gateway: GoalCommandsGateway | null, repairProjection: GoalProjectionRepair) {
     this.#repairProjection = repairProjection;
-    this.#generation = new GoalCommandGeneration(gateway, repairProjection);
+    this.#generation = gateway ? new GoalCommandGeneration(gateway, repairProjection) : null;
   }
 
   static install(
-    gateway: GoalCommandsGateway,
+    gateway: GoalCommandsGateway | null,
     repairProjection: GoalProjectionRepair,
   ): GoalCommandOwner {
     const owner = new GoalCommandOwner(gateway, repairProjection);
@@ -148,30 +148,46 @@ export class GoalCommandOwner {
   }
 
   start(input: StartGoalInput): Promise<void> {
-    return this.#generation.start(input);
+    return this.#currentGeneration().start(input);
   }
 
   stop(sessionId: string): Promise<void> {
-    return this.#generation.stop(sessionId);
+    return this.#currentGeneration().stop(sessionId);
   }
 
   resume(sessionId: string): Promise<void> {
-    return this.#generation.resume(sessionId);
+    return this.#currentGeneration().resume(sessionId);
   }
 
   replaceRuntimeGeneration(gateway: GoalCommandsGateway): boolean {
     if (this.#disposed || !goalCommandPublication.owns(this)) return false;
     const predecessor = this.#generation;
     this.#generation = new GoalCommandGeneration(gateway, this.#repairProjection);
-    predecessor.retire();
+    predecessor?.retire();
+    return true;
+  }
+
+  retireRuntimeGeneration(): boolean {
+    if (this.#disposed || !goalCommandPublication.owns(this)) return false;
+    const predecessor = this.#generation;
+    this.#generation = null;
+    predecessor?.retire();
     return true;
   }
 
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
-    this.#generation.retire();
+    this.#generation?.retire();
+    this.#generation = null;
     goalCommandPublication.withdraw(this);
+  }
+
+  #currentGeneration(): GoalCommandGeneration {
+    if (this.#disposed || !goalCommandPublication.owns(this) || !this.#generation) {
+      throw new GoalCommandGenerationRetiredError();
+    }
+    return this.#generation;
   }
 }
 

@@ -35,12 +35,16 @@ export default definePlugin({
   name: "lyra.builtin.goal",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
-    const runtimeAdapter = installGoalRuntimeAdapter();
     let connectionGeneration = ctx.runtime.connectionGeneration();
+    const runtimeAdapter = installGoalRuntimeAdapter(connectionGeneration !== null);
     const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
       const next = ctx.runtime.connectionGeneration();
       if (next === connectionGeneration) return;
       connectionGeneration = next;
+      if (next === null) {
+        runtimeAdapter.retireRuntimeGeneration();
+        return;
+      }
       runtimeAdapter.replaceRuntimeGeneration();
     });
     contributeLayout(ctx, "chat.banner.top", {

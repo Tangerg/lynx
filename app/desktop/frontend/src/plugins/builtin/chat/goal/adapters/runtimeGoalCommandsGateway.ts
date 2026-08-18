@@ -93,11 +93,16 @@ class RuntimeGoalCommandsGateway implements GoalCommandsGateway {
 
 export interface GoalRuntimeAdapterInstallation {
   replaceRuntimeGeneration(): void;
+  retireRuntimeGeneration(): void;
   dispose(): void;
 }
 
-export function installGoalRuntimeAdapter(): GoalRuntimeAdapterInstallation {
-  let gateway = new RuntimeGoalCommandsGateway(getContainer().client());
+export function installGoalRuntimeAdapter(
+  hasRuntimeGeneration: boolean,
+): GoalRuntimeAdapterInstallation {
+  let gateway = hasRuntimeGeneration
+    ? new RuntimeGoalCommandsGateway(getContainer().client())
+    : null;
   const commandOwner = GoalCommandOwner.install(gateway, synchronizeMountedAgentSession);
   const disposeSharedMaterial = registerAgentSessionSharedMaterial<SessionSnapshot>(
     "goal",
@@ -114,12 +119,19 @@ export function installGoalRuntimeAdapter(): GoalRuntimeAdapterInstallation {
       }
       const predecessor = gateway;
       gateway = successor;
-      predecessor.dispose();
+      predecessor?.dispose();
+    },
+    retireRuntimeGeneration() {
+      if (!commandOwner.retireRuntimeGeneration()) return;
+      const predecessor = gateway;
+      gateway = null;
+      predecessor?.dispose();
     },
     dispose() {
       disposeSharedMaterial();
       commandOwner.dispose();
-      gateway.dispose();
+      gateway?.dispose();
+      gateway = null;
     },
   };
 }
