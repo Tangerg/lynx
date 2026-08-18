@@ -233,6 +233,16 @@ describe("markdownMessage", () => {
     expect(container.querySelector('blockquote[dir="auto"]')).toBeTruthy();
   });
 
+  it("isolates inline and fenced code as left-to-right inside bidirectional prose", async () => {
+    const src =
+      "تشغيل `npm run check -- --watch=false`\n\n```sh\nnpm run check -- --watch=false\n```";
+    const { container } = render(<MarkdownMessage text={src} reveal="instant" />);
+    await act(async () => Promise.resolve());
+
+    expect.soft(container.querySelector("p > code")?.getAttribute("dir")).toBe("ltr");
+    expect.soft(container.querySelector(".shiki-block")?.getAttribute("dir")).toBe("ltr");
+  });
+
   it("drops fade-in wrappers for the instant reveal mode", () => {
     const { container } = render(<MarkdownMessage text="Hello world" reveal="instant" />);
     expect(container.querySelectorAll("span.fade-in").length).toBe(0);
