@@ -210,7 +210,14 @@ export const useContextDockStore = create<ContextDockState & ContextDockActions>
           for (const [sessionId, scope] of state.sessionScopes) {
             if (open.has(sessionId)) sessionScopes.set(sessionId, scope);
           }
-          return { sessionScopes };
+          if (state.activeSessionScopeId && open.has(state.activeSessionScopeId)) {
+            return { sessionScopes };
+          }
+          return {
+            activeSessionScopeId: null,
+            sessionScopes,
+            ...emptySessionScope(),
+          };
         }),
     }),
     {

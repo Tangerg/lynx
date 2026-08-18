@@ -124,7 +124,7 @@
 - Run Summary 按 exact root Run 聚合全部 continuation Segment，并使用 authoritative outcome 区分 success/error/canceled/limit/unknown。
 - Terminal 与 Tool selection 使用 exact Tool identity；长对话 compaction 或 material replacement 删除目标时会确定回退或清空，不悬挂旧 selection。
 - completed Tool 可从 durable end-only material 恢复 command、files 和 approval，不要求 live-only `tool-start`。
-- Context Dock 以 Session identity 隔离 presentation scope；URL 唯一拥有 active destination，`contextDockStore` 仅持久化 exact Session 的 open tab、last view 与 file target，使折叠/恢复、Session 切换和 renderer replacement 保留本 Session 工作区而不复活其他 Session 的 tab/scroll/feedback。Tool selection/expanded material 不持久化，旧版或 invalid scope 整体丢弃。
+- Context Dock 以 Session identity 隔离 presentation scope；URL 唯一拥有 active destination，`contextDockStore` 仅持久化 exact Session 的 open tab、last view 与 file target，使折叠/恢复、Session 切换和 renderer replacement 保留本 Session 工作区而不复活其他 Session 的 tab/scroll/feedback。Agent Session open set 负责同步退休已关闭 scope；Tool selection/expanded material 不持久化，旧版或 invalid scope 整体丢弃。
 - 无 active Session 时不挂载 Context Dock destination、view 或 toggle；Runtime 默认 workspace 只可用于显式创建 Session，不能冒充 Session-owned material。
 - 顶层 New Session 继承点击时 active Session 的 exact cwd；active summary 尚在 resolving 时禁用该动作，不回落到 Runtime 默认目录。目录选择由 Projects 标题栏唯一拥有，project row 的 `+` 继续表示在该 exact cwd 建立 Session。
 - Session title maintenance 只有 `runsegment.Finalizer` 一个 owner，并只经 Session Application first-writer 持久提交；utility model 缺失、空回复或 provider error 时，opening user text 的首个有效行提供 Unicode-safe、有界 deterministic fallback。provider error 仍进入既有 maintenance telemetry，不以“未命名会话”或 Frontend 第二 writer 吞掉降级事实。
