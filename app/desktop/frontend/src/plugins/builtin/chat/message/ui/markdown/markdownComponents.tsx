@@ -39,13 +39,7 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
 
   // Marker without a matching source (e.g. agent wrote [3] but only
   // 2 results in search block) renders as plain text — no tooltip.
-  if (!source) {
-    return (
-      <sup className="cite-marker text-fg-faint" data-citation={n}>
-        {label}
-      </sup>
-    );
-  }
+  if (!source) return label;
 
   return (
     <RichTooltip

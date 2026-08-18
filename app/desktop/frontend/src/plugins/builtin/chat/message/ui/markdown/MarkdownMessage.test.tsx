@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { getHighlighter } from "@/lib/highlight/shiki";
+import { CitationContext } from "../CitationContext";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 // MarkdownMessage now renders through react-markdown + remark-gfm with our
@@ -241,6 +242,18 @@ describe("markdownMessage", () => {
     expect(container.querySelector("sup[data-citation]")).toBeNull();
     expect(container.textContent).toContain("values[1]");
     expect(container.textContent).toContain("values[12]");
+  });
+
+  it("keeps citation chrome when the message owns the matching source", () => {
+    const { container } = render(
+      <CitationContext.Provider
+        value={[{ index: 1, domain: "example.test", title: "Example", snippet: "Source" }]}
+      >
+        <MarkdownMessage text="Supported claim [1]." reveal="instant" />
+      </CitationContext.Provider>,
+    );
+
+    expect(container.querySelector('sup[data-citation="1"]')?.textContent).toBe("[1]");
   });
 
   it("isolates inline and fenced code as left-to-right inside bidirectional prose", async () => {
