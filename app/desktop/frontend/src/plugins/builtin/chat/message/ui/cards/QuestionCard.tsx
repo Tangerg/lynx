@@ -1,11 +1,12 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
-import { useId, useState, type KeyboardEvent } from "react";
-import { Button, Icon, Pressable, Surface, TextArea, TextField } from "@/ui";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Button, Icon, IconButton, Pressable, Surface, TextArea, TextField } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
   createQuestionDraft,
   questionAnswerText,
+  questionDraftComplete,
   setQuestionText,
   toggleQuestionOption,
   type QuestionDraft,
@@ -46,7 +47,32 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
   const questionCardId = useId();
   const runtimeAvailable = useRuntimeCommandsAvailable();
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const focusQuestionOnChange = useRef(false);
+  const activeQuestionRef = useRef<HTMLDivElement>(null);
   const actions = useQuestionCardActions({ runId, itemId, status, questions, draft });
+  const activeIndex = Math.min(questionIndex, Math.max(questions.length - 1, 0));
+  const activeQuestion = questions[activeIndex];
+  const activeDraft = draft[activeIndex] ?? { selected: [], text: "" };
+  const activeQuestionComplete = activeQuestion
+    ? questionDraftComplete([activeQuestion], [activeDraft])
+    : false;
+  const isLastQuestion = activeIndex >= questions.length - 1;
+
+  useLayoutEffect(() => {
+    if (!focusQuestionOnChange.current) return;
+    focusQuestionOnChange.current = false;
+    activeQuestionRef.current
+      ?.querySelector<HTMLElement>('[role="radio"], [role="checkbox"], textarea, input')
+      ?.focus();
+  }, [activeIndex]);
+
+  const navigateQuestion = (nextIndex: number) => {
+    const bounded = Math.min(Math.max(nextIndex, 0), Math.max(questions.length - 1, 0));
+    if (bounded === activeIndex) return;
+    focusQuestionOnChange.current = true;
+    setQuestionIndex(bounded);
+  };
 
   const settled = questionCardSettledView({
     status,
@@ -116,9 +142,35 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
       icon="question"
       iconClassName="text-accent"
       label={t("question.required")}
+      trailing={
+        questions.length > 1 ? (
+          <div className="flex shrink-0 items-center gap-1 text-ui-xs text-fg-faint">
+            <IconButton
+              icon="chevron-left"
+              size="xs"
+              quiet
+              disabled={activeIndex === 0}
+              title={t("question.action.previous")}
+              onClick={() => navigateQuestion(activeIndex - 1)}
+            />
+            <span className="min-w-10 text-center font-mono tabular-nums">
+              {t("question.progress", { current: activeIndex + 1, total: questions.length })}
+            </span>
+            <IconButton
+              icon="chevron-right"
+              size="xs"
+              quiet
+              disabled={isLastQuestion}
+              title={t("question.action.next")}
+              onClick={() => navigateQuestion(activeIndex + 1)}
+            />
+          </div>
+        ) : undefined
+      }
     >
-      <div className="flex flex-col gap-3">
+      <div ref={activeQuestionRef} className="flex flex-col gap-3">
         {questions.map((q, index) => {
+          if (index !== activeIndex) return null;
           const cur = draft[index] ?? { selected: [], text: "" };
           const promptId = `${questionCardId}-prompt-${index}`;
           const selectedPreview =
@@ -266,15 +318,26 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
         })}
       </div>
 
-      <div className="mt-2.5 flex items-center gap-2">
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={actions.disabled || !runtimeAvailable}
-          onClick={actions.submit}
-        >
-          {t("question.action.submit")}
-        </Button>
+      <div className="mt-2.5 flex items-center justify-end gap-2">
+        {isLastQuestion ? (
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={actions.disabled || !runtimeAvailable}
+            onClick={actions.submit}
+          >
+            {t("question.action.submit")}
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!runtimeAvailable || !activeQuestionComplete}
+            onClick={() => navigateQuestion(activeIndex + 1)}
+          >
+            {t("question.action.continue")}
+          </Button>
+        )}
       </div>
     </HitlCardShell>
   );

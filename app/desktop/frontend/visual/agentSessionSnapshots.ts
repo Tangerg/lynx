@@ -685,6 +685,11 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
                       },
                     ],
                   },
+                  {
+                    type: "text",
+                    header: "Context",
+                    prompt: "What should this gate protect?",
+                  },
                 ],
               },
             },

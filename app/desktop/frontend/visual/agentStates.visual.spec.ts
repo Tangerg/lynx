@@ -94,6 +94,10 @@ test("question settlement uses the exact interrupt identity", async ({ page }) =
   await page.locator("html[data-visual-ready]").waitFor();
 
   await page.getByRole("radio", { name: /Race detector/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page
+    .getByRole("textbox", { name: "What should this gate protect?" })
+    .fill("Runtime boundaries and cancellation paths.");
   await page.getByRole("button", { name: "Submit" }).click();
 
   await expect(page.getByText("Answered", { exact: true })).toBeVisible();
@@ -378,7 +382,7 @@ for (const state of ["long-content", "question", "delegated"] as const) {
 
 for (const { state, action } of [
   { state: "waiting", action: "Allow once" },
-  { state: "question", action: "Submit" },
+  { state: "question", action: "Continue" },
 ] as const) {
   test(`compact ${state} opens with its blocking action above the composer`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 577 });
