@@ -45,7 +45,7 @@ async function openFixture(page: Page, route: FixtureRoute): Promise<void> {
   await page.locator("html[data-visual-ready]").waitFor();
 
   if (route.fixture === "agent" && route.state === "long-content") {
-    await page.locator(".shiki-block .shiki").waitFor();
+    await expect(page.locator(".shiki-block .shiki")).toHaveCount(2);
     const transcript = page.locator(".msg-scroll > .panel-scroll");
     // Shiki grows after the initial instant scroll. Production's smooth resize
     // reaches the tail, but Chromium may settle one physical pixel short after

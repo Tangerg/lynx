@@ -6,6 +6,7 @@ import { getHighlighter, resolveLang } from "@/lib/highlight/shiki";
 import { getCachedHighlight, setCachedHighlight } from "@/lib/highlight/shikiCache";
 import { useShikiTheme } from "@/lib/highlight/useCodeHighlight";
 import { cn } from "@/lib/classNames";
+import { toggleCodeWrapPreference, useCodeWrapPreference } from "@/lib/codeWrapPreference";
 import { useT } from "@/lib/i18n";
 import { IconButton } from "./icon-button";
 
@@ -40,7 +41,7 @@ export function ShikiCodeBlock({ lang, code, file, preview }: Props) {
   const [html, setHtml] = useState<string | null>(
     () => getCachedHighlight(lang, shikiTheme, debouncedCode) ?? null,
   );
-  const [wrapCode, setWrapCode] = useState(false);
+  const wrapCode = useCodeWrapPreference();
   const { copied, copy } = useCopyFeedback(code);
 
   useEffect(() => {
@@ -109,7 +110,7 @@ export function ShikiCodeBlock({ lang, code, file, preview }: Props) {
             size="xs"
             active={wrapCode}
             aria-pressed={wrapCode}
-            onClick={() => setWrapCode((current) => !current)}
+            onClick={toggleCodeWrapPreference}
             title={t(wrapCode ? "message.code.wrap.disable" : "message.code.wrap.enable")}
             className="text-fg-faint hover:bg-hover hover:text-fg"
           />

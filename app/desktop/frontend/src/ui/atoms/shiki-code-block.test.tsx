@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getHighlighter } from "@/lib/highlight/shiki";
+import { setCodeWrapPreference } from "@/lib/codeWrapPreference";
 import { ShikiCodeBlock } from "./shiki-code-block";
 
 const LONG_CODE = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`).join("\n");
@@ -9,6 +10,8 @@ describe("ShikiCodeBlock", () => {
   beforeAll(async () => {
     await getHighlighter();
   });
+
+  beforeEach(() => setCodeWrapPreference(false));
 
   it("keeps long code readable in its scrolling surface instead of replacing it with a fold row", async () => {
     const { container } = render(<ShikiCodeBlock lang="text" code={LONG_CODE} />);
