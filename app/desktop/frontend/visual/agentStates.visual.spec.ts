@@ -576,6 +576,9 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       paragraph.textContent?.includes("The consumer owns persistence policy"),
     );
     const leadList = leadParagraph?.nextElementSibling;
+    const tableContainer = root.querySelector(".md-table-container");
+    const table = tableContainer?.querySelector("table");
+    const tableHeader = table?.querySelector("th");
     const proseParagraph = Array.from(root.querySelectorAll(":scope > p")).find((paragraph) =>
       paragraph.textContent?.includes("A deliberately long final paragraph"),
     );
@@ -596,6 +599,9 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       !h3 ||
       !leadParagraph ||
       !(leadList instanceof HTMLUListElement) ||
+      !tableContainer ||
+      !table ||
+      !tableHeader ||
       !proseParagraph ||
       !inlineCode ||
       !nestedList ||
@@ -613,6 +619,9 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     const h3Style = getComputedStyle(h3);
     const leadParagraphStyle = getComputedStyle(leadParagraph);
     const leadListStyle = getComputedStyle(leadList);
+    const tableContainerStyle = getComputedStyle(tableContainer);
+    const tableStyle = getComputedStyle(table);
+    const tableHeaderStyle = getComputedStyle(tableHeader);
     const proseParagraphStyle = getComputedStyle(proseParagraph);
     const inlineCodeStyle = getComputedStyle(inlineCode);
     const rtlListStyle = getComputedStyle(rtlList);
@@ -623,6 +632,10 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       h3Margin: `${h3Style.marginBlockStart} ${h3Style.marginBlockEnd}`,
       leadParagraphMargin: `${leadParagraphStyle.marginBlockStart} ${leadParagraphStyle.marginBlockEnd}`,
       leadListMargin: `${leadListStyle.marginBlockStart} ${leadListStyle.marginBlockEnd}`,
+      tableMargin: `${tableContainerStyle.marginBlockStart} ${tableContainerStyle.marginBlockEnd}`,
+      tableFontSize: tableStyle.fontSize,
+      tableHeaderFontSize: tableHeaderStyle.fontSize,
+      tableHeaderLineHeight: tableHeaderStyle.lineHeight,
       proseParagraphMargin: `${proseParagraphStyle.marginBlockStart} ${proseParagraphStyle.marginBlockEnd}`,
       inlineCodeDecoration:
         inlineCodeStyle.getPropertyValue("box-decoration-break") ||
@@ -654,6 +667,10 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.h3Margin).toBe("20px 10px");
   expect.soft(styles?.leadParagraphMargin).toBe("0px 10px");
   expect.soft(styles?.leadListMargin).toBe("0px 10px");
+  expect.soft(styles?.tableMargin).toBe("0px 0px");
+  expect.soft(styles?.tableFontSize).toBe("14px");
+  expect.soft(styles?.tableHeaderFontSize).toBe("14px");
+  expect.soft(styles?.tableHeaderLineHeight).toBe("16px");
   expect.soft(styles?.proseParagraphMargin).toBe("0px 11px");
   expect.soft(styles?.inlineCodeDecoration).toBe("clone");
   expect.soft(styles?.inlineCodeFontSize).toBe("14.72px");
