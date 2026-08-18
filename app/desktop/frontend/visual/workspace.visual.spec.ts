@@ -145,6 +145,28 @@ test("collapse and reopen preserve the dock workspace", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Plan" })).toHaveAttribute("data-active", "");
 });
 
+test("an unsafe narrow row folds the dock without forgetting its tabs", async ({ page }) => {
+  await page.setViewportSize({ width: 1120, height: 720 });
+  await openWorkspace(page, { state: "dock-light" });
+
+  const geometry = await page.locator(".agent-dock-row").evaluate((row) => {
+    const conversation = row.firstElementChild;
+    const dock = row.querySelector(".agent-context-dock");
+    return {
+      rowWidth: row.getBoundingClientRect().width,
+      conversationWidth: conversation?.getBoundingClientRect().width ?? 0,
+      dockVisible: dock ? getComputedStyle(dock).visibility !== "hidden" : false,
+    };
+  });
+  expect(geometry.rowWidth).toBeLessThan(640 + DOCK_MIN_WIDTH_PX);
+  expect(geometry.dockVisible).toBe(false);
+  expect(geometry.conversationWidth).toBe(geometry.rowWidth);
+  await expect(page.getByTestId("dock-open")).toHaveText("false");
+  await expect(page.getByTestId("dock-view-ids")).toHaveText(
+    "explorer,file,diff,terminal,plan,timeline",
+  );
+});
+
 test("closing tabs selects a neighbor without collapsing the workspace", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
 
