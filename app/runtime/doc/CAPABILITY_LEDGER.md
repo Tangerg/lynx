@@ -151,15 +151,15 @@
 
 ## 9. 验收证据
 
-| 维度               | 当前守卫                                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------------------- |
-| Domain/Application | aggregate/use-case 单元测试、事务失败与状态迁移反例                                                |
-| Agent Framework    | public baseline、architecture import gate、snapshot/interaction/child recovery tests               |
-| SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery |
-| Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff         |
-| Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests  |
+| 维度               | 当前守卫                                                                                                                                                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain/Application | aggregate/use-case 单元测试、事务失败与状态迁移反例                                                                                                                                                                                                                                                         |
+| Agent Framework    | public baseline、architecture import gate、snapshot/interaction/child recovery tests                                                                                                                                                                                                                        |
+| SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery                                                                                                                                                                                                          |
+| Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff                                                                                                                                                                                                                  |
+| Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests                                                                                                                                                                                                           |
 | Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service 和 command/interrupt lifecycle owner，当前 agent/workspace/closure 矩阵 255 tests 覆盖 HITL、Dock、WCAG、长内容、IME、Retina 与 light/dark golden |
-| Production shell   | Wails v3 Go test/vet/build、生产冷启动、Runtime health/discovery 与 fresh database smoke           |
+| Production shell   | Wails v3 Go test/vet/build、生产冷启动、Runtime health/discovery 与 fresh database smoke                                                                                                                                                                                                                    |
 
 最近完整基线为 Frontend 308 files / 1926 tests，普通与 `--detectAsyncLeaks` 全绿；Runtime standalone 全量 test/vet/build 与全包 race 通过；Desktop Go test/vet/build、Wails v3 production package、fresh database 冷启动与真实 SIGKILL replacement smoke 通过。隔离 smoke 中 Runtime PID 37363→37494、`instanceId` 换代、local token 哈希保持一致，Desktop 进程存活，loopback established connections 维持 12，前后 discovery/RPC 均为 200。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
