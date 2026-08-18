@@ -110,6 +110,7 @@ function imageOnlyParagraph(children: ReactNode): ReactElement<MarkdownImageElem
 type MarkdownElementProps = {
   children?: ReactNode;
   node?: { tagName?: string };
+  "aria-label"?: string;
 };
 
 function codexTaskListChildren(children: ReactNode): ReactNode {
@@ -129,7 +130,16 @@ function codexTaskListChildren(children: ReactNode): ReactNode {
     return children;
   }
 
-  return [checkbox, cloneElement(lead, { children: paragraphChildren }), ...items.slice(1)];
+  // GFM emits a disabled checkbox followed by the task prose, but no label
+  // relationship between them. Reuse the author's visible task text as the
+  // accessible name: checked/unchecked remains native checkbox state and the
+  // label works for CJK or any other language without app-owned translation.
+  const label = visibleText(paragraphChildren).trim();
+  return [
+    cloneElement(checkbox, { "aria-label": label }),
+    cloneElement(lead, { children: paragraphChildren }),
+    ...items.slice(1),
+  ];
 }
 
 const sharedMarkdownComponents: Components = {
