@@ -6,6 +6,7 @@ import { ProjectsSection } from "./projects";
 const model = vi.hoisted(() => ({
   actions: {
     canCreateSession: true,
+    canCreateSessionInFolder: true,
     createSession: vi.fn(),
     chooseSessionFolder: vi.fn(),
     startSessionInFolder: vi.fn(),
@@ -42,7 +43,11 @@ vi.mock("@/plugins/builtin/workspace/public/navigation", () => ({
   openWorkspaceSettingsPane: vi.fn(),
 }));
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  model.actions.canCreateSession = true;
+  model.actions.canCreateSessionInFolder = true;
+});
 
 describe("Codex-aligned Work Index actions", () => {
   it("keeps folder selection out of the global action stack", () => {
@@ -55,5 +60,23 @@ describe("Codex-aligned Work Index actions", () => {
     render(<ProjectsSection />);
 
     expect(screen.getByRole("button", { name: "Add project" })).toBeTruthy();
+  });
+
+  it("withdraws Session creation affordances while Runtime commands are unavailable", () => {
+    model.actions.canCreateSession = false;
+    model.actions.canCreateSessionInFolder = false;
+    render(
+      <>
+        <SidebarActions />
+        <ProjectsSection />
+      </>,
+    );
+
+    expect((screen.getByRole("button", { name: "New session" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect((screen.getByRole("button", { name: "Add project" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
   });
 });

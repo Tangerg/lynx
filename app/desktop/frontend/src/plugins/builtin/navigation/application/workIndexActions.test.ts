@@ -6,6 +6,7 @@ import { useWorkIndexActions } from "./workIndexActions";
 const mocks = vi.hoisted(() => ({
   activeWorkspace: { status: "ready", cwd: undefined } as
     { status: "ready"; cwd?: string } | { status: "resolving"; sessionId: string },
+  runtimeAvailable: true,
   choose: vi.fn(),
   create: vi.fn(),
   focusComposer: vi.fn(),
@@ -26,6 +27,11 @@ vi.mock("@/plugins/builtin/chat/composer/public/focus", () => ({
   focusComposer: mocks.focusComposer,
 }));
 
+vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
+  runtimeCommandsAvailable: () => mocks.runtimeAvailable,
+  useRuntimeCommandsAvailable: () => mocks.runtimeAvailable,
+}));
+
 vi.mock("@/plugins/sdk", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/plugins/sdk")>()),
   notifyError: mocks.notifyError,
@@ -35,6 +41,7 @@ let disposePicker = () => {};
 
 beforeEach(() => {
   mocks.activeWorkspace = { status: "ready", cwd: undefined };
+  mocks.runtimeAvailable = true;
   mocks.choose.mockReset();
   mocks.create.mockReset().mockResolvedValue("session-new");
   mocks.focusComposer.mockReset();
@@ -45,6 +52,22 @@ beforeEach(() => {
 afterEach(() => disposePicker());
 
 describe("useWorkIndexActions directory selection", () => {
+  it("withdraws every Session mutation while Runtime commands are unavailable", () => {
+    mocks.runtimeAvailable = false;
+    const { result } = renderHook(() => useWorkIndexActions());
+
+    act(() => {
+      result.current.createSession();
+      result.current.chooseSessionFolder();
+      result.current.startSessionInFolder("/tmp/project");
+    });
+
+    expect(result.current.canCreateSession).toBe(false);
+    expect(mocks.choose).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.focusComposer).not.toHaveBeenCalled();
+  });
+
   it("starts the global new-session action in the exact active project", async () => {
     mocks.activeWorkspace = { status: "ready", cwd: "/tmp/current-project" };
     const { result } = renderHook(() => useWorkIndexActions());
