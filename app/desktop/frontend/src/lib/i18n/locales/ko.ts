@@ -29,12 +29,12 @@ export const ko: Record<string, string> = {
   "shell.region.workIndex": "작업 색인",
   "shell.region.workspace": "에이전트 작업 공간",
   "workIndex.section.projects": "프로젝트",
+  "workIndex.action.addProject": "프로젝트 추가",
   "workIndex.section.recent": "최근",
   "sidebar.action.collapse": "사이드바 숨기기",
   "sidebar.action.expand": "사이드바 펼치기",
   "sidebar.action.resize": "작업 인덱스 크기 조절",
   "sidebar.action.newSession": "새 세션",
-  "sidebar.action.openFolder": "폴더 열기",
   "sidebar.action.tools": "도구 및 플러그인",
   "sidebar.action.settings": "설정",
 

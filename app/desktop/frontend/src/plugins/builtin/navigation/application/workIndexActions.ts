@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { t } from "@/lib/i18n";
 import {
   selectAgentSession,
+  useActiveSessionWorkspace,
   useCreateSession,
   useDeleteSession,
   useForkSession,
@@ -15,6 +16,7 @@ import { notifyError } from "@/plugins/sdk";
 import { workingDirectoryPicker } from "./ports/workingDirectoryPicker";
 
 export interface WorkIndexActions {
+  canCreateSession: boolean;
   createSession: () => void;
   chooseSessionFolder: () => void;
   startSessionInFolder: (cwd: string) => void;
@@ -53,6 +55,9 @@ function createSessionInChosenFolder(create: ReturnType<typeof useCreateSession>
 
 export function useWorkIndexActions(): WorkIndexActions {
   const create = useCreateSession();
+  const activeWorkspace = useActiveSessionWorkspace();
+  const activeWorkspaceStatus = activeWorkspace.status;
+  const activeCwd = activeWorkspace.status === "ready" ? activeWorkspace.cwd : undefined;
   const remove = useDeleteSession();
   const fork = useForkSession();
   const rename = useRenameSession();
@@ -60,10 +65,19 @@ export function useWorkIndexActions(): WorkIndexActions {
 
   return useMemo(
     () => ({
-      // A fresh session may already be on screen, in which case create() hands
-      // that one back and nothing moves — so the caret is the acknowledgement.
+      canCreateSession: activeWorkspaceStatus === "ready",
+      // Codex's top-level New action continues in the project that owns the
+      // active Session. Omitting cwd here delegated that decision to the
+      // Runtime process default, so the same click could silently jump projects.
+      // Bind the exact rendered workspace before the async create; while the
+      // active summary is resolving, the action is disabled rather than
+      // inventing a default owner.
       createSession: () => {
-        void create().then(() => focusComposer());
+        if (activeWorkspaceStatus !== "ready") return;
+        const options = activeCwd === undefined ? undefined : { cwd: activeCwd };
+        void create(options).then((sessionId) => {
+          if (sessionId) focusComposer();
+        });
       },
       chooseSessionFolder: () => {
         void createSessionInChosenFolder(create);
@@ -89,6 +103,6 @@ export function useWorkIndexActions(): WorkIndexActions {
         openSettingsView();
       },
     }),
-    [create, fork, remove, rename, toggleFavorite],
+    [activeCwd, activeWorkspaceStatus, create, fork, remove, rename, toggleFavorite],
   );
 }

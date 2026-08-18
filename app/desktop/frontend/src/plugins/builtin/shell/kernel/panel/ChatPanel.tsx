@@ -133,9 +133,15 @@ export function ChatPanel({ onSend }: Props) {
   const t = useT();
 
   if (isLoading && !activeMainView && !dock.open) return null;
+  // Context Dock material is owned by an exact active Session. The Runtime's
+  // default workspace is valid for creating a Session, but it is not a hidden
+  // Session whose files may be rendered on the welcome screen.
+  const hasDockOwner = activeSessionId !== "";
   // One reading of "the dock is showing", used by the resizer, the flank's own state
   // and the column width — three places that were each spelling it.
-  const dockOpen = dock.open && dock.activeViewId !== null && dock.viewIds.length > 0;
+  const dockOpen =
+    hasDockOwner && dock.open && dock.activeViewId !== null && dock.viewIds.length > 0;
+  const ownedDockViewIds = hasDockOwner ? dock.viewIds : [];
 
   const viewsById = new Map(views.map((view) => [view.id, view]));
 
@@ -146,7 +152,7 @@ export function ChatPanel({ onSend }: Props) {
     onClose: () => (placement === "dock" ? closeWorkspaceDockView(id) : closeWorkspaceView(id)),
   });
 
-  const dockTabs = dock.viewIds.map((id) => {
+  const dockTabs = ownedDockViewIds.map((id) => {
     const view = viewsById.get(id);
     const title = view ? t(view.title) : id;
     const Badge = view?.badge;
@@ -164,7 +170,7 @@ export function ChatPanel({ onSend }: Props) {
       closeLabel: `${t("common.close")} ${title}`,
     };
   });
-  const openViewIds = new Set(dock.viewIds);
+  const openViewIds = new Set(ownedDockViewIds);
 
   return (
     <AgentContentCard label={t("shell.region.workspace")}>
@@ -233,7 +239,9 @@ export function ChatPanel({ onSend }: Props) {
               flank was already there, held outside the window by its end margin. */}
           <SessionOwnedWorkspaceState sessionId={activeSessionId}>
             <AgentContextDock>
-              <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
+              {hasDockOwner && (
+                <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
+              )}
               <div className="relative min-h-0 flex-1">
                 {/* Every open tab stays mounted within the current Session so switching
                     between them keeps each
@@ -245,7 +253,7 @@ export function ChatPanel({ onSend }: Props) {
 
                     `Activity` also owns hiding with `display: none !important`, so
                     visibility and effect activity cannot disagree. */}
-                {dock.viewIds.map((viewId) => (
+                {ownedDockViewIds.map((viewId) => (
                   <Activity key={viewId} mode={viewId === dock.activeViewId ? "visible" : "hidden"}>
                     <div data-dock-view-id={viewId} className="absolute inset-0 flex flex-col">
                       <ViewPlacementProvider value={placementFor(viewId, "dock")}>
@@ -260,12 +268,14 @@ export function ChatPanel({ onSend }: Props) {
           {/* Pinned to the row's trailing corner rather than placed in either bar — see
               AgentDockToggle. Last in the row so it paints over the flank it moves. */}
           <div className="agent-dock-control">
-            <AgentDockToggle
-              open={dockOpen}
-              onToggle={dockOpen ? collapseWorkspaceDock : showWorkspaceDock}
-              showLabel={t("dock.action.show")}
-              hideLabel={t("dock.action.hide")}
-            />
+            {hasDockOwner && (
+              <AgentDockToggle
+                open={dockOpen}
+                onToggle={dockOpen ? collapseWorkspaceDock : showWorkspaceDock}
+                showLabel={t("dock.action.show")}
+                hideLabel={t("dock.action.hide")}
+              />
+            )}
           </div>
         </div>
       </Activity>

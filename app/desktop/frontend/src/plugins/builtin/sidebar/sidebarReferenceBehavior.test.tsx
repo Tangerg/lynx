@@ -5,6 +5,7 @@ import { ProjectsSection } from "./projects";
 
 const model = vi.hoisted(() => ({
   actions: {
+    canCreateSession: true,
     createSession: vi.fn(),
     chooseSessionFolder: vi.fn(),
     startSessionInFolder: vi.fn(),

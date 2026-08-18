@@ -30,12 +30,12 @@ export const es: Record<string, string> = {
   "shell.region.workIndex": "Índice de trabajo",
   "shell.region.workspace": "Espacio de trabajo del agente",
   "workIndex.section.projects": "Proyectos",
+  "workIndex.action.addProject": "Añadir proyecto",
   "workIndex.section.recent": "Recientes",
   "sidebar.action.collapse": "Ocultar barra lateral",
   "sidebar.action.expand": "Expandir barra lateral",
   "sidebar.action.resize": "Cambiar el tamaño del índice de trabajo",
   "sidebar.action.newSession": "Nueva sesión",
-  "sidebar.action.openFolder": "Abrir carpeta",
   "sidebar.action.tools": "Herramientas y complementos",
   "sidebar.action.settings": "Ajustes",
 

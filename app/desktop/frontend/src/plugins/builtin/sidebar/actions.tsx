@@ -45,11 +45,8 @@ export function SidebarActions() {
         {/* No combo in the trailing slot. One of three rows wore its shortcut, so the
           strip read as "this row has a property the others lack" rather than as a
           hint — and a keyboard user is not looking at the sidebar. */}
-        <AgentRow icon="edit" onClick={actions.createSession}>
+        <AgentRow icon="edit" disabled={!actions.canCreateSession} onClick={actions.createSession}>
           {t("sidebar.action.newSession")}
-        </AgentRow>
-        <AgentRow icon="folder-open" onClick={actions.chooseSessionFolder}>
-          {t("sidebar.action.openFolder")}
         </AgentRow>
         <AgentRow icon="clock" onClick={() => openWorkspaceSettingsPane(SCHEDULES_PANE)}>
           {t("settings.pane.schedules")}

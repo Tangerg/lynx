@@ -4,7 +4,8 @@ import { configureWorkingDirectoryPicker } from "./ports/workingDirectoryPicker"
 import { useWorkIndexActions } from "./workIndexActions";
 
 const mocks = vi.hoisted(() => ({
-  activeWorkspace: { status: "ready" as const, cwd: undefined as string | undefined },
+  activeWorkspace: { status: "ready", cwd: undefined } as
+    { status: "ready"; cwd?: string } | { status: "resolving"; sessionId: string },
   choose: vi.fn(),
   create: vi.fn(),
   focusComposer: vi.fn(),
@@ -52,6 +53,17 @@ describe("useWorkIndexActions directory selection", () => {
 
     await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ cwd: "/tmp/current-project" }));
     expect(mocks.focusComposer).toHaveBeenCalledOnce();
+  });
+
+  it("does not invent a default project while the active Session is resolving", () => {
+    mocks.activeWorkspace = { status: "resolving", sessionId: "session-current" };
+    const { result } = renderHook(() => useWorkIndexActions());
+
+    act(() => result.current.createSession());
+
+    expect(result.current.canCreateSession).toBe(false);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.focusComposer).not.toHaveBeenCalled();
   });
 
   it("creates a session in the selected directory and focuses its composer", async () => {

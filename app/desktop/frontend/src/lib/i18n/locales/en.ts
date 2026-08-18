@@ -31,12 +31,12 @@ export const en: Record<string, string> = {
   "shell.region.workIndex": "Work index",
   "shell.region.workspace": "Agent workspace",
   "workIndex.section.projects": "Projects",
+  "workIndex.action.addProject": "Add project",
   "workIndex.section.recent": "Recent",
   "sidebar.action.collapse": "Hide sidebar",
   "sidebar.action.expand": "Expand sidebar",
   "sidebar.action.resize": "Resize the work index",
   "sidebar.action.newSession": "New session",
-  "sidebar.action.openFolder": "Open folder",
   "sidebar.action.tools": "Tools & plugins",
   "sidebar.action.settings": "Settings",
 

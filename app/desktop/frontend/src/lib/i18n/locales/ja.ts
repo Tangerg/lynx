@@ -29,12 +29,12 @@ export const ja: Record<string, string> = {
   "shell.region.workIndex": "作業インデックス",
   "shell.region.workspace": "エージェントワークスペース",
   "workIndex.section.projects": "プロジェクト",
+  "workIndex.action.addProject": "プロジェクトを追加",
   "workIndex.section.recent": "最近",
   "sidebar.action.collapse": "サイドバーを隠す",
   "sidebar.action.expand": "サイドバーを展開",
   "sidebar.action.resize": "ワークインデックスの幅を変更",
   "sidebar.action.newSession": "新規セッション",
-  "sidebar.action.openFolder": "フォルダーを開く",
   "sidebar.action.tools": "ツールとプラグイン",
   "sidebar.action.settings": "設定",
 

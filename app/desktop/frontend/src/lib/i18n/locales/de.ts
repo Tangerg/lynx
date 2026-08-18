@@ -30,12 +30,12 @@ export const de: Record<string, string> = {
   "shell.region.workIndex": "Arbeitsindex",
   "shell.region.workspace": "Agent-Arbeitsbereich",
   "workIndex.section.projects": "Projekte",
+  "workIndex.action.addProject": "Projekt hinzufügen",
   "workIndex.section.recent": "Zuletzt",
   "sidebar.action.collapse": "Seitenleiste ausblenden",
   "sidebar.action.expand": "Seitenleiste ausklappen",
   "sidebar.action.resize": "Arbeitsindex skalieren",
   "sidebar.action.newSession": "Neue Sitzung",
-  "sidebar.action.openFolder": "Ordner öffnen",
   "sidebar.action.tools": "Tools & Plug-ins",
   "sidebar.action.settings": "Einstellungen",
 

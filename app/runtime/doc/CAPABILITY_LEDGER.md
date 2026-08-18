@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P116 C1–C3 与最终系统验收均已完成。
+> 状态：当前能力快照；P116 已封板，P117 首个 Desktop workspace 纵切已完成。
 >
 > 基线日期：2026-08-18。
 
@@ -125,6 +125,8 @@
 - Terminal 与 Tool selection 使用 exact Tool identity；长对话 compaction 或 material replacement 删除目标时会确定回退或清空，不悬挂旧 selection。
 - completed Tool 可从 durable end-only material 恢复 command、files 和 approval，不要求 live-only `tool-start`。
 - Context Dock 以 Session identity 隔离 React local state；折叠/恢复、Session 切换和 renderer replacement 不复活上一 Session 的 tab/scroll/feedback。
+- 无 active Session 时不挂载 Context Dock destination、view 或 toggle；Runtime 默认 workspace 只可用于显式创建 Session，不能冒充 Session-owned material。
+- 顶层 New Session 继承点击时 active Session 的 exact cwd；active summary 尚在 resolving 时禁用该动作，不回落到 Runtime 默认目录。目录选择由 Projects 标题栏唯一拥有，project row 的 `+` 继续表示在该 exact cwd 建立 Session。
 - Goal、Plan、HITL/审批只呈现当前 projection generation；accepted mutation intent 可在 authoritative projection 追平前保持稳定 busy 反馈，不写第二 cache。
 - 流式消息的底部点赞/点踩与操作行只在所属可见 turn 达到稳定展示边界时出现，不随每个输出 delta 反复挂载。
 
@@ -161,7 +163,7 @@
 
 ## 10. 已知未闭环
 
-- P116 范围内没有已知未闭环项；新的生产变更必须建立新阶段授权与红色产品反例。
+- P117 仍需收敛 provider/title maintenance 失败后的 Session 导航身份，并完成 streaming、HITL continuation、renderer replacement、Runtime restart、Run/Terminal/Diff/Goal/Plan 的完整可见恢复矩阵与 Wails production 验收。
 
 ## 11. 当前结论
 

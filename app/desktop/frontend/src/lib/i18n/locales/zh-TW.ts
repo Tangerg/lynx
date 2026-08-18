@@ -28,12 +28,12 @@ export const zhTW: Record<string, string> = {
   "shell.region.workIndex": "工作索引",
   "shell.region.workspace": "Agent 工作區",
   "workIndex.section.projects": "專案",
+  "workIndex.action.addProject": "新增專案",
   "workIndex.section.recent": "最近",
   "sidebar.action.collapse": "隱藏側欄",
   "sidebar.action.expand": "展開側欄",
   "sidebar.action.resize": "調整工作索引寬度",
   "sidebar.action.newSession": "新會話",
-  "sidebar.action.openFolder": "開啟資料夾",
   "sidebar.action.tools": "工具與外掛",
   "sidebar.action.settings": "設定",
 
