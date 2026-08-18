@@ -27,6 +27,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 左栏必须把全局动作、Projects 目录入口、project row 与 Session row 的范围、禁用、焦点和创建/关闭/切换结果表达清楚；中栏必须让权威 Run/Item/Interrupt/Goal/Plan 在长对话、流式、历史加载和 continuation 中稳定呈现；右栏必须让 tab 身份、内容 material、命令 capability、空态和恢复态一致。
 - UI 精修继续服从现有 theme/design-system token、单一 edge mechanism、最小 40px 可点击区域、键盘焦点、reduced motion、CJK/长路径/长标题、tabular numerals、容器宽度与 Retina device-pixel 约束；不以额外 chrome、卡片、圆角或动画代替信息层级。
 - 完成前运行 Frontend 全门禁与 `--detectAsyncLeaks`、三栏完整 visual/WCAG/light-dark/Retina 矩阵、必要的 Runtime/Desktop gates、Wails v3 production package，以及 fresh database、renderer replacement、Runtime restart/SIGKILL 的真实产品 smoke；自动化会话、daemon、临时数据库和测试进程必须清理。
+- 左栏首个 production 反例已锁定：project-row `+` 的 `sessions.create` 被 command owner 拒绝并返回空 identity 后，`useWorkIndexActions` 仍无条件聚焦 composer，焦点落回旧 Session 并制造创建成功的假反馈。唯一修复 owner 是该 action 的异步完成语义；现在仅在返回新 Session identity 后聚焦，与顶层 New 和目录选择入口一致，不增加 optimistic navigation、toast 旁路或第二 Session writer。
 
 ### P117 红例、参考裁决与完成结论（2026-08-18）
 

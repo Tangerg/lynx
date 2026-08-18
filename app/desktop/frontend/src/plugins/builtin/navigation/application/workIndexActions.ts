@@ -94,7 +94,9 @@ export function useWorkIndexActions(): WorkIndexActions {
       },
       startSessionInFolder: (cwd) => {
         if (!runtimeCommandsAvailable()) return;
-        void create({ cwd }).then(() => focusComposer());
+        void create({ cwd }).then((sessionId) => {
+          if (sessionId) focusComposer();
+        });
       },
       selectSession: selectAgentSession,
       renameSession: (id, expectedRevision, title) => {
