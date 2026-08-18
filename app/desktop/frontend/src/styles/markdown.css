@@ -25,7 +25,7 @@
    That is also how both desktop references do it: one `--markdown-font-size` set
    per context, headings as a percentage of it. */
 .md p {
-  margin: 12px 0;
+  margin: 0 0 0.6875rem;
   font-size: inherit;
   line-height: var(--leading-prose);
   color: var(--color-text);
@@ -92,8 +92,9 @@
    faint markers so they don't compete with prose. */
 .md ul,
 .md ol {
-  margin: 8px 0;
+  margin: 0;
   padding-inline-start: 1.3125rem;
+  list-style-position: outside;
   font-size: inherit;
   line-height: var(--leading-prose);
   color: var(--color-text);
@@ -104,11 +105,11 @@
 .md ol {
   list-style-type: decimal;
 }
-.md ul ul,
-.md ul ol,
-.md ol ul,
-.md ol ol {
-  margin: 4px 0;
+.md > p:has(+ :is(ul, ol)) {
+  margin-bottom: 0.625rem;
+}
+.md > :is(ul, ol):not(:last-child) {
+  margin-bottom: 0.625rem;
 }
 .md ul ul {
   list-style-type: circle;
