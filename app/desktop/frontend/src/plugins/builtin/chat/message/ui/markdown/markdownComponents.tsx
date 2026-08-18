@@ -108,6 +108,7 @@ function visibleText(children: ReactNode): string {
 }
 
 const WHITESPACE_ONLY = /^\s*$/;
+const HAN_TEXT = /\p{Script=Han}/u;
 
 /** Return the paragraph's media children only when it contains no prose. The
  *  whitespace/`br` filtering mirrors Markdown's insignificant separators. */
@@ -156,7 +157,49 @@ const sharedMarkdownComponents: Components = {
         </p>
       );
     }
-    return <p>{children}</p>;
+    return (
+      <p
+        data-markdown-han-text={HAN_TEXT.test(visibleText(children)) ? "true" : undefined}
+        dir="auto"
+      >
+        {children}
+      </p>
+    );
+  },
+  h1({ children }) {
+    return <h1 dir="auto">{children}</h1>;
+  },
+  h2({ children }) {
+    return <h2 dir="auto">{children}</h2>;
+  },
+  h3({ children }) {
+    return <h3 dir="auto">{children}</h3>;
+  },
+  h4({ children }) {
+    return <h4 dir="auto">{children}</h4>;
+  },
+  h5({ children }) {
+    return <h5 dir="auto">{children}</h5>;
+  },
+  h6({ children }) {
+    return <h6 dir="auto">{children}</h6>;
+  },
+  ul({ children, className }) {
+    return (
+      <ul className={className} dir="auto">
+        {children}
+      </ul>
+    );
+  },
+  ol({ children, className, start }) {
+    return (
+      <ol className={className} dir="auto" start={start}>
+        {children}
+      </ol>
+    );
+  },
+  blockquote({ children }) {
+    return <blockquote dir="auto">{children}</blockquote>;
   },
   pre({ children }) {
     // react-markdown gives fenced blocks without an info string a plain

@@ -46,6 +46,12 @@
   width: 100%;
   max-width: none;
 }
+.md > p[data-markdown-han-text="true"]:has(+ p[data-markdown-han-text="true"]) {
+  margin-bottom: 4px;
+}
+.md > p[data-markdown-han-text="true"] + p[data-markdown-han-text="true"] {
+  margin-top: 4px;
+}
 
 /* Headings — a percentage of the body they sit in, which is what both references
    do: a section heading inside an answer runs 1.36em (JetBrains, 19 on 14) and
