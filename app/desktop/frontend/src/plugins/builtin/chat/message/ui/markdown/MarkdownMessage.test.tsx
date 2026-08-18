@@ -101,7 +101,11 @@ describe("markdownMessage", () => {
     const { container } = render(<MarkdownMessage text={src} reveal="instant" />);
 
     expect(container.querySelector('img[src^="https://tracker.example/"]')).toBeNull();
-    expect(container.querySelector('button[aria-label="Tracking pixel unavailable"]')).toBeTruthy();
+    const unavailable = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Tracking pixel"]',
+    );
+    expect(unavailable).toBeTruthy();
+    expect(unavailable?.disabled).toBe(true);
   });
 
   it("opens safe inline Markdown images through an accessible preview trigger", () => {
@@ -111,9 +115,7 @@ describe("markdownMessage", () => {
       <MarkdownMessage text={`![Build graph](${tinyPng})`} reveal="instant" />,
     );
 
-    const trigger = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open image preview"]',
-    );
+    const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="Build graph"]');
     expect(trigger).toBeTruthy();
     expect(trigger?.querySelector("img")?.getAttribute("loading")).toBe("lazy");
   });
