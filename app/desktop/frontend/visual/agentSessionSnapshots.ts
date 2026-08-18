@@ -506,6 +506,8 @@ const LONG_RESPONSE = message(
     "> Ownership stays with the application boundary.",
     "",
     "1. [x] Preserve the durable fact",
+    "",
+    "   Keep the follow-up explanation aligned with the task body, not beneath the checkbox.",
     "2. [ ] Verify the projected view",
     "",
     "- Primary marker",

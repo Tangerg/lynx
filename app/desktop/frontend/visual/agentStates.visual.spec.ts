@@ -585,6 +585,8 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       list.textContent?.includes("المرحلة الأولى"),
     );
     const taskList = root.querySelector("ol.contains-task-list");
+    const looseTask = taskList?.querySelector("li.task-list-item:has(> p)");
+    const looseTaskParagraphs = looseTask?.querySelectorAll(":scope > p");
     const quote = root.querySelector("blockquote");
     const rule = root.querySelector("hr");
     if (
@@ -597,6 +599,8 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       !deepList ||
       !rtlList ||
       !taskList ||
+      !looseTask ||
+      looseTaskParagraphs?.length !== 2 ||
       !quote ||
       !rule
     )
@@ -621,6 +625,10 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       nestedMarker: getComputedStyle(nestedList).listStyleType,
       deepMarker: getComputedStyle(deepList).listStyleType,
       taskMarker: getComputedStyle(taskList).listStyleType,
+      looseTaskDisplay: getComputedStyle(looseTask).display,
+      looseTaskColumns: getComputedStyle(looseTask).gridTemplateColumns,
+      looseTaskFirstLineInset: getComputedStyle(looseTaskParagraphs[0]!).marginTop,
+      looseTaskFollowUpColumn: getComputedStyle(looseTaskParagraphs[1]!).gridColumnStart,
       quoteInset: getComputedStyle(quote).paddingInlineStart,
       quoteRule: getComputedStyle(quote, "::after").width,
       ruleMargin: getComputedStyle(rule).marginBlockStart,
@@ -641,6 +649,10 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.nestedMarker).toBe("circle");
   expect.soft(styles?.deepMarker).toBe("square");
   expect.soft(styles?.taskMarker).toBe("none");
+  expect.soft(styles?.looseTaskDisplay).toBe("grid");
+  expect.soft(styles?.looseTaskColumns).not.toBe("none");
+  expect.soft(styles?.looseTaskFirstLineInset).toBe("4px");
+  expect.soft(styles?.looseTaskFollowUpColumn).toBe("2");
   expect.soft(styles?.quoteInset).toBe("24px");
   expect.soft(styles?.quoteRule).toBe("4px");
   expect.soft(styles?.ruleMargin).toBe("28px");
