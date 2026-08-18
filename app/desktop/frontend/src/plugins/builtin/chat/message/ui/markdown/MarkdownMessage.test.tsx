@@ -304,6 +304,16 @@ describe("markdownMessage", () => {
     expect(container.textContent).toContain('<script>alert("x")</script>');
   });
 
+  it("keeps non-Codex raw HTML disclosures inert and literal", () => {
+    const source = "<details><summary>More</summary><div>Hidden</div></details>";
+    const { container } = render(<MarkdownMessage text={source} reveal="instant" />);
+
+    expect(container.querySelector("details")).toBeNull();
+    expect(container.querySelector("summary")).toBeNull();
+    expect(container.textContent).toContain("<details>");
+    expect(container.textContent).toContain("<summary>More</summary>");
+  });
+
   it("keeps model-authored style blocks inert instead of installing a stylesheet", async () => {
     const source = '<style>@import url("https://tracker.example/agent.css");</style>Visible';
     const { container } = render(<MarkdownMessage text={source} reveal="instant" />);
