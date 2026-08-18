@@ -361,9 +361,36 @@ async function horizontallyClippedText(page: Page): Promise<string[]> {
     // is a `pre` whose box fits its column exactly while its text runs past the end of
     // it, so the boxes all agree and only the glyphs are gone. Measure the text.
     const visibleContentPast = (el: HTMLElement, edge: number) => {
+      const boundary = el.getBoundingClientRect();
+      // A nested surface can make its own long line readable, but only when it
+      // owns a real horizontal scroll range and its viewport itself fits inside
+      // this clipping edge. Merely spelling `overflow-x:auto` is not enough —
+      // the historical review-diff bug had that declaration on a box whose
+      // scrollWidth never grew, so there was still nowhere to scroll.
+      const readableByNestedScroller = (subject: Element) => {
+        for (
+          let owner: Element | null = subject;
+          owner instanceof HTMLElement && owner !== el;
+          owner = owner.parentElement
+        ) {
+          const ownerStyle = getComputedStyle(owner);
+          if (
+            (ownerStyle.overflowX === "auto" || ownerStyle.overflowX === "scroll") &&
+            owner.scrollWidth > owner.clientWidth + 1
+          ) {
+            const ownerBox = owner.getBoundingClientRect();
+            if (ownerBox.left >= boundary.left - 1 && ownerBox.right <= edge + 1) return true;
+          }
+        }
+        return false;
+      };
+      const crossesEdge = (box: DOMRect) => box.left < edge - 1 && box.right > edge + 1;
+
       for (const child of el.querySelectorAll<HTMLElement>("*")) {
         if (getComputedStyle(child).visibility === "hidden") continue;
-        if (child.getBoundingClientRect().right > edge + 1) return true;
+        if (crossesEdge(child.getBoundingClientRect()) && !readableByNestedScroller(child)) {
+          return true;
+        }
       }
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       const range = document.createRange();
@@ -372,7 +399,9 @@ async function horizontallyClippedText(page: Page): Promise<string[]> {
         const owner = node.parentElement;
         if (!owner || getComputedStyle(owner).visibility === "hidden") continue;
         range.selectNodeContents(node);
-        if (range.getBoundingClientRect().right > edge + 1) return true;
+        if (crossesEdge(range.getBoundingClientRect()) && !readableByNestedScroller(owner)) {
+          return true;
+        }
       }
       return false;
     };
@@ -398,9 +427,8 @@ async function horizontallyClippedText(page: Page): Promise<string[]> {
       const clipEdge = box.left + Number.parseFloat(style.borderLeftWidth) + el.clientWidth;
       if (!visibleContentPast(el, clipEdge)) continue;
       // No ancestor can rescue this: an ancestor scroller only ever sees this
-      // element's box, and the box is where the content was cut. An enclosing
-      // `overflow-x: auto` reads like an escape hatch and is not one — the review
-      // diff had one all along, with a scrollWidth that never grew.
+      // element's box, and the box is where the content was cut. A descendant
+      // scroller was handled above only when its own range genuinely grew.
       out.push(
         `${el.tagName}.${String(el.className).slice(0, 40)} ${el.clientWidth}<${el.scrollWidth}`,
       );
