@@ -3,6 +3,8 @@ import { navigator } from "@/lib/navigation";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import { reduceAgentEvent } from "@/plugins/builtin/agent/application/fold/reducer";
+import { AgentCommandOwner } from "@/plugins/builtin/agent/application/agentCommandOwner";
+import { installInterruptResponseCoordinator } from "@/plugins/builtin/agent/application/hitl/interruptResponseCoordinator";
 import {
   configureAgentRuntimeGateway,
   type AgentRuntimeGateway,
@@ -12,8 +14,13 @@ import agentFold from "@/plugins/builtin/agent/bootstrap/foldPlugin";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import {
   AGENT_SESSIONS_KEY,
+  getActiveSessionId,
+  getAgentSessionLifecycleSnapshot,
+  subscribeActiveSessionId,
+  subscribeAgentSessionLifecycle,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
+import { AGENT_SESSION_PORTS } from "@/plugins/builtin/agent/public/ports";
 import { APPROVAL_MODE_KEY } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { composerBootstrap, composerSend, composerToolbar } from "@/plugins/builtin/chat/composer";
 import contextUsage from "@/plugins/builtin/chat/context-usage";
@@ -37,6 +44,7 @@ import {
 } from "@/plugins/builtin/settings/providers/public/queries";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeConnectionProjection";
+import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 import {
   configureRuntimeServiceStatusPort,
   type RuntimeServiceSnapshot,
@@ -136,6 +144,51 @@ const fileHeadProvider = definePlugin({
   },
 });
 
+/** The fixture installs the production state adapter directly so its snapshots
+ * remain deterministic. Publish that same adapter through the production
+ * Service contract as well: setup-time consumers must see the dependency in
+ * the composition graph, not infer it from a module singleton. */
+const visualAgentSessionPorts = definePlugin({
+  name: "lyra.visual.agent-session-ports",
+  provides: { sessions: AGENT_SESSION_PORTS },
+  setup() {
+    return {
+      sessions: {
+        activeSessionId: getActiveSessionId,
+        lifecycleSnapshot: getAgentSessionLifecycleSnapshot,
+        subscribeActiveSessionId,
+        subscribeLifecycle: subscribeAgentSessionLifecycle,
+      },
+    };
+  },
+});
+
+const visualRuntimeStreamPorts = definePlugin({
+  name: "lyra.visual.runtime-stream-ports",
+  provides: { stream: RUNTIME_STREAM_PORTS },
+  setup() {
+    return {
+      stream: {
+        connectionGeneration: () => "visual-runtime-connection",
+        subscribeConnection: () => () => undefined,
+        reportConnectionLoss: () => Promise.resolve(),
+      },
+    };
+  },
+});
+
+const visualAgentLifecycle = definePlugin({
+  name: "lyra.visual.agent-lifecycle",
+  setup(ctx) {
+    const commands = AgentCommandOwner.install();
+    const disposeInterruptResponses = installInterruptResponseCoordinator();
+    ctx.cleanup(() => {
+      disposeInterruptResponses();
+      commands.dispose();
+    });
+  },
+});
+
 /**
  * A connected Runtime, stated rather than probed.
  *
@@ -199,6 +252,9 @@ export async function installVisualAgentFixture(
     lyraDark,
     ...builtinVisualStyles,
     agentFold,
+    visualAgentSessionPorts,
+    visualRuntimeStreamPorts,
+    visualAgentLifecycle,
     composerBootstrap,
     composerToolbar,
     contextUsage,
