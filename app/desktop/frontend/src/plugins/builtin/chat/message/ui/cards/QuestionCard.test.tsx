@@ -22,6 +22,8 @@ describe("QuestionCard choice semantics", () => {
             type: "choice",
             header: "Gate",
             prompt: "Which gate should run next?",
+            multiple: false,
+            allowCustom: false,
             options: [
               { label: "Race detector", description: "Exercise concurrency paths." },
               { label: "Visual suite", description: "Verify visual states." },
@@ -48,7 +50,11 @@ describe("QuestionCard choice semantics", () => {
             type: "choice",
             prompt: "Which checks should run?",
             multiple: true,
-            options: [{ label: "Race detector" }, { label: "Visual suite" }],
+            allowCustom: false,
+            options: [
+              { label: "Race detector", description: "" },
+              { label: "Visual suite", description: "" },
+            ],
           },
         ]}
       />,
@@ -70,7 +76,12 @@ describe("QuestionCard choice semantics", () => {
           {
             type: "choice",
             prompt: "Which gate should run next?",
-            options: [{ label: "Race detector" }, { label: "Visual suite" }],
+            multiple: false,
+            allowCustom: false,
+            options: [
+              { label: "Race detector", description: "" },
+              { label: "Visual suite", description: "" },
+            ],
           },
         ]}
       />,
