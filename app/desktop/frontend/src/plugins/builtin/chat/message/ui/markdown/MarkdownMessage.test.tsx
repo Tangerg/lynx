@@ -68,8 +68,10 @@ describe("markdownMessage", () => {
     const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
 
     expect(container.querySelector(".shiki-block")).toBeTruthy();
-    expect(container.querySelector(".shiki-block pre")).toHaveTextContent("command --flag");
-    expect(container.querySelector(".shiki-block button")).toHaveAccessibleName("Copy code");
+    expect(container.querySelector(".shiki-block pre")?.textContent).toBe("command --flag");
+    expect(container.querySelector(".shiki-block button")?.getAttribute("aria-label")).toBe(
+      "Copy code",
+    );
   });
 
   it("renders a streaming-partial code block (no closer yet)", () => {
