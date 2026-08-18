@@ -65,6 +65,10 @@
      allowed to decide that cards sit flush with the plane, and every callsite
      should follow it without being edited. */
   --color-card: var(--app-card-surface);
+  /* A human turn is quoted material on the reading plane, not a status or
+     selection. Keep its quiet neutral wash distinct from the semantic accent
+     ladder so changing the user's accent never recolours their prose. */
+  --color-user-message: var(--app-user-message-surface);
   /* A well is the palette's own recessed material — it means the same thing in
      every style, so this one reads the anchor directly.
      WHAT IT SITS ON picks between this and the chip rungs, and it is not a matter
@@ -854,6 +858,9 @@
      underline instead retargets this (see `data-control-treatment`). */
   --dock-tab-active-surface: var(--app-dock-surface);
   --app-card-surface: var(--color-elevated);
+  /* Codex user turns use a 5% ink wash in both schemes. This role token keeps
+     that material theme-relative without letting callsites invent an alpha. */
+  --app-user-message-surface: color-mix(in srgb, var(--color-text) 5%, transparent);
   --app-composer-surface: color-mix(in oklab, var(--app-content-surface) 86%, transparent);
   --composer-backdrop: blur(20px) saturate(1.4);
   --app-floating-surface: color-mix(in oklab, var(--app-content-surface) 90%, transparent);

@@ -102,15 +102,14 @@ function MessageBlockInner({
             <h4 className="sr-only select-none">{roleLabel}</h4>
             <MessageContextMenu msg={msg}>
               <div
+                data-user-message-bubble={isUser ? "" : undefined}
                 className={cn(
                   MESSAGE_CONTENT_CLASS,
                   "min-w-0 text-pretty leading-prose text-prose text-fg",
-                  // The human's words get their own material. `bg-card` made a user
-                  // turn the same fill as a tool card, so the one thing on the page
-                  // that is not the agent wore the agent's skin; the accent at wash
-                  // strength says "you" once, quietly, and is the only tint in the
-                  // reading column.
-                  isUser && "max-w-[77%] rounded-bubble bg-accent-wash px-4 py-3",
+                  // Match Codex's quoted-human geometry and neutral 5% ink wash.
+                  // A prompt owns a distinct material, but it is not a selected row
+                  // or semantic status and must not inherit the user's accent.
+                  isUser && "max-w-[77%] rounded-bubble bg-user-message px-3 py-2",
                 )}
               >
                 {content}

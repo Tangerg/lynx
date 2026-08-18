@@ -76,6 +76,34 @@ describe("MessageBlock turn identity", () => {
     );
     expect(container.querySelector(".font-mono.tabular-nums")).toBeNull();
   });
+
+  it("marks only the human turn as the user-message bubble", () => {
+    const { container, rerender } = render(
+      <MessageBlock
+        row={row("complete", "中文与 English 混排", "user")}
+        ctx={CTX}
+        sessionId="session-user-bubble"
+        isLast={false}
+        isRunning={false}
+      />,
+    );
+
+    expect(container.querySelector("[data-user-message-bubble]")?.textContent).toContain(
+      "中文与 English 混排",
+    );
+
+    rerender(
+      <MessageBlock
+        row={row("complete", "Assistant answer")}
+        ctx={CTX}
+        sessionId="session-user-bubble"
+        isLast
+        isRunning={false}
+      />,
+    );
+
+    expect(container.querySelector("[data-user-message-bubble]")).toBeNull();
+  });
 });
 
 beforeEach(() => {
