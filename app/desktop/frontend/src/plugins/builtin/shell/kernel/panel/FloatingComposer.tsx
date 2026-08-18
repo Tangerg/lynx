@@ -54,6 +54,17 @@ export function RuntimeConnectionNotice() {
   );
 }
 
+/** Composer-owned standing material shared by the floating and empty layouts. */
+export function ComposerOverlayTop() {
+  return (
+    <Slot
+      name="composer.overlay.top"
+      wrapper
+      className="mb-2 flex w-full flex-col items-center gap-2"
+    />
+  );
+}
+
 /**
  * The composer, resting over the tail of the transcript.
  *
@@ -84,11 +95,7 @@ export function FloatingComposer({
       <div className={cn(READING_GUTTER, "pb-3 sm:pb-4")}>
         <div className="pointer-events-auto relative">
           <JumpToBottomButton />
-          <Slot
-            name="composer.overlay.top"
-            wrapper
-            className="mb-2 flex w-full flex-col items-center gap-2"
-          />
+          <ComposerOverlayTop />
           <RuntimeConnectionNotice />
           {children}
         </div>

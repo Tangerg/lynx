@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { drainBrowserTasks } from "@/test/browserTasks";
 import type { GoalReadModel } from "../application/goalReadModel";
-import { GoalBanner } from "./GoalBanner";
+import { GoalStatusSurface } from "./GoalStatusSurface";
 
 const model = vi.hoisted(() => ({
   stopGoal: vi.fn(async () => {}),
@@ -42,7 +42,7 @@ vi.mock("../application/goalReadModel", async (importOriginal) => ({
   }),
 }));
 
-describe("GoalBanner disclosure identity", () => {
+describe("Goal status surface disclosure identity", () => {
   afterEach(async () => {
     cleanup();
     await drainBrowserTasks();
@@ -68,27 +68,27 @@ describe("GoalBanner disclosure identity", () => {
   });
 
   it("preserves a choice while a goal advances and resets it for another goal", () => {
-    const { rerender } = render(<GoalBanner />);
+    const { rerender } = render(<GoalStatusSurface />);
     fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
     expect(
       screen.getByRole("button", { name: "Hide the allowance" }).getAttribute("aria-expanded"),
     ).toBe("true");
 
     model.goal = { ...model.goal, used: { ...model.goal.used, runs: 2 } };
-    rerender(<GoalBanner />);
+    rerender(<GoalStatusSurface />);
     expect(
       screen.getByRole("button", { name: "Hide the allowance" }).getAttribute("aria-expanded"),
     ).toBe("true");
 
     model.goal = { ...model.goal, sessionId: "session-b", objective: "Ship beta" };
-    rerender(<GoalBanner />);
+    rerender(<GoalStatusSurface />);
     expect(
       screen.getByRole("button", { name: "Show the allowance" }).getAttribute("aria-expanded"),
     ).toBe("false");
   });
 
   it("retires disclosure state for a new Goal incarnation with the same objective", () => {
-    const { rerender } = render(<GoalBanner />);
+    const { rerender } = render(<GoalStatusSurface />);
     fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
     expect(
       screen.getByRole("button", { name: "Hide the allowance" }).getAttribute("aria-expanded"),
@@ -99,7 +99,7 @@ describe("GoalBanner disclosure identity", () => {
       createdAt: "2026-08-12T09:00:00Z",
       updatedAt: "2026-08-12T09:00:00Z",
     };
-    rerender(<GoalBanner />);
+    rerender(<GoalStatusSurface />);
 
     expect(
       screen.getByRole("button", { name: "Show the allowance" }).getAttribute("aria-expanded"),
@@ -107,14 +107,14 @@ describe("GoalBanner disclosure identity", () => {
   });
 
   it("retires disclosure state when a replacement server reuses the same Goal identity", () => {
-    const { rerender } = render(<GoalBanner />);
+    const { rerender } = render(<GoalStatusSurface />);
     fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
     expect(
       screen.getByRole("button", { name: "Hide the allowance" }).getAttribute("aria-expanded"),
     ).toBe("true");
 
     model.generation = 2;
-    rerender(<GoalBanner />);
+    rerender(<GoalStatusSurface />);
 
     expect(
       screen.getByRole("button", { name: "Show the allowance" }).getAttribute("aria-expanded"),
@@ -122,7 +122,7 @@ describe("GoalBanner disclosure identity", () => {
   });
 
   it("stops an active goal from the standing surface", async () => {
-    render(<GoalBanner />);
+    render(<GoalStatusSurface />);
     fireEvent.click(screen.getByRole("button", { name: "Stop goal" }));
     await vi.waitFor(() => expect(model.stopGoal).toHaveBeenCalledWith("session-a"));
     expect(model.resumeGoal).not.toHaveBeenCalled();
@@ -130,7 +130,7 @@ describe("GoalBanner disclosure identity", () => {
 
   it("resumes a paused goal from the standing surface", async () => {
     model.goal = { ...model.goal, status: "paused" };
-    render(<GoalBanner />);
+    render(<GoalStatusSurface />);
     fireEvent.click(screen.getByRole("button", { name: "Resume goal" }));
     await vi.waitFor(() => expect(model.resumeGoal).toHaveBeenCalledWith("session-a"));
     expect(model.stopGoal).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe("GoalBanner disclosure identity", () => {
 
   it("keeps lifecycle commands visible but inert while Runtime is offline", () => {
     model.runtimeAvailable = false;
-    render(<GoalBanner />);
+    render(<GoalStatusSurface />);
 
     const stop = screen.getByRole("button", { name: "Stop goal" });
     expect(stop.hasAttribute("disabled")).toBe(true);
@@ -148,7 +148,7 @@ describe("GoalBanner disclosure identity", () => {
 
   it("keeps a completing goal visible without exposing a lifecycle command", () => {
     model.goal = { ...model.goal, status: "completing" };
-    render(<GoalBanner />);
+    render(<GoalStatusSurface />);
 
     expect(screen.getByText("Finishing")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Stop goal" })).toBeNull();
@@ -163,7 +163,7 @@ describe("GoalBanner disclosure identity", () => {
       status: "blocked",
       stop: { code: "runBudgetReached", detail: "" },
     };
-    render(<GoalBanner />);
+    render(<GoalStatusSurface />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
     expect(screen.getByText("Out of turns")).toBeTruthy();

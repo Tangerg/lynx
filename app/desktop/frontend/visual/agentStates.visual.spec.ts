@@ -194,10 +194,8 @@ test("the standing goal stays in the composer stack instead of claiming the tran
 
   expect(goalBox).not.toBeNull();
   expect(composerBox).not.toBeNull();
-  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeGreaterThanOrEqual(0);
-  // Plan may occupy the row between Goal and composer, but both are one compact
-  // composer-owned stack. A transcript-header Goal is hundreds of pixels away.
-  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeLessThanOrEqual(160);
+  expect(goalBox!.y).toBeGreaterThanOrEqual(composerBox!.y);
+  expect(goalBox!.y + goalBox!.height).toBeLessThanOrEqual(composerBox!.y + composerBox!.height);
 });
 
 test("composer keeps one production edge and 6/8 footer inset", async ({ page }) => {
@@ -589,7 +587,7 @@ test("an expanded wave keeps its summary while its rows scroll past", async ({ p
   expect(stuck?.overflow).toBe("clip");
 });
 
-test("the goal banner reports the allowance that will run out first", async ({ page }) => {
+test("the Goal surface reports the allowance that will run out first", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 

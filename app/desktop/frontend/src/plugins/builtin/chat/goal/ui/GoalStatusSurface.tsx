@@ -16,7 +16,7 @@ import {
   goalCanResume,
   tightestAxis,
   type BudgetAxisView,
-} from "../application/goalBanner";
+} from "../application/goalStatusPresentation";
 import { type GoalReadModel, useGoalMaterial } from "../application/goalReadModel";
 import {
   runtimeCommandsAvailable,
@@ -24,13 +24,13 @@ import {
 } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 /**
- * The session's standing order, pinned above the stream.
+ * The session's standing order, kept in the composer stack.
  *
  * A Goal is authority the user handed over, with an allowance attached. Letting
  * someone hide the readout of how much of that allowance is left would make the
  * loop's remaining reach invisible at exactly the moment it matters.
  */
-export function GoalBanner() {
+export function GoalStatusSurface() {
   const material = useGoalMaterial();
   const data = material.value;
   const goal = data?.goal;
@@ -84,14 +84,15 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={disclosureTransition}
+      className="w-full"
     >
       <AgentActivityDisclosure
         icon="target"
-        shell="card"
+        shell="line"
         tone={GOAL_STATUS_I18N[goal.status].tone}
         label={<span className="block min-w-0 truncate">{goal.objective}</span>}
         trailing={<Allowance axis={tightestAxis(axes)} />}
-        // Only when it is not running: "Running" is what a goal banner being
+        // Only when it is not running: "Running" is what an active Goal surface being
         // on screen already says, and a badge repeating it would leave the two
         // states that need saying — paused, blocked — competing with noise.
         actions={

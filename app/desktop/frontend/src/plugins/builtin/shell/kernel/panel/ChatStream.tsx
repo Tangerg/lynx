@@ -137,13 +137,10 @@ export function ChatStream({ onSend }: Props) {
 
   const t = useT();
 
-  // Pinned above whatever fills the column — a session with a hundred turns or a
-  // brand-new one. Both states carry them: the goal control lives in this slot,
-  // and rendering it only once a conversation had started meant the affordance was
-  // missing at exactly the moment you set an objective.
-  //
-  // The stream's scroll lives inside MessageStream's own container, so these stay
-  // put while the user scrolls messages below them.
+  // Session and run problems stay pinned above whatever fills the column. Standing
+  // Goal/Plan material belongs to the composer stack instead: Goal inside the
+  // composer header and the active Plan in FloatingComposer's top overlay. Both
+  // remain available while the transcript scrolls.
   const banners = (
     <div className={cn(READING_COLUMN, READING_GUTTER, "shrink-0")}>
       {/* Keyed on the session so the relocate input never carries a

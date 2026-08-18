@@ -3,11 +3,11 @@ import { SLASH_COMMAND, TOOL_STANDING_SURFACE } from "@/plugins/sdk/kernelPoints
 import { t } from "@/lib/i18n";
 import { requestGoalLauncher } from "./adapters/goalLauncherRequest";
 import { installGoalRuntimeAdapter } from "./adapters/runtimeGoalCommandsGateway";
-import { GoalBanner } from "./ui/GoalBanner";
+import { GoalStatusSurface } from "./ui/GoalStatusSurface";
 import { GoalLauncher } from "./ui/GoalLauncher";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
-const BANNER = "chat.banner.top:goal";
+const GOAL_SURFACE = "composer.header:goal";
 
 /**
  * A keyboard way in. The launcher is otherwise reachable only by clicking one small
@@ -47,11 +47,10 @@ export default definePlugin({
       }
       runtimeAdapter.replaceRuntimeGeneration();
     });
-    contributeLayout(ctx, "chat.banner.top", {
-      // Above the plan: the goal is the standing order.
+    contributeLayout(ctx, "composer.header", {
       id: "goal",
       order: 0,
-      component: GoalBanner,
+      component: GoalStatusSurface,
     });
     contributeLayout(ctx, "composer.toolbar.end", {
       // Before Send because Goal mode changes how the draft is executed.
@@ -65,7 +64,7 @@ export default definePlugin({
     // `report_goal_outcome` is NOT claimed: the banner shows the stop code, not
     // whatever the agent wrote about the outcome.
     for (const key of ["create_goal", "get_goal"]) {
-      ctx.contribute(TOOL_STANDING_SURFACE, BANNER, { key });
+      ctx.contribute(TOOL_STANDING_SURFACE, GOAL_SURFACE, { key });
     }
     ctx.contribute(SLASH_COMMAND, GOAL_SLASH_COMMAND, { key: "/goal" });
     ctx.cleanup(() => {

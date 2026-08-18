@@ -6,7 +6,7 @@ import {
   goalBudgetAxes,
   goalCanResume,
   tightestAxis,
-} from "./goalBanner";
+} from "./goalStatusPresentation";
 import type { GoalReadModel } from "./goalReadModel";
 
 function goal(patch: Partial<GoalReadModel> = {}): GoalReadModel {

@@ -1,4 +1,4 @@
-// What the standing goal banner shows, decided here rather than in the row.
+// What the standing Goal surface shows, decided here rather than in the view.
 //
 // A Goal is the one thing in this app the user hands control over to, so the
 // question the banner exists to answer is "how far can it still go" — not "what
