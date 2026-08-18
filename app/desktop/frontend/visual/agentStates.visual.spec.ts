@@ -164,6 +164,23 @@ test("plan disclosure expands through the production banner contribution", async
   );
 });
 
+test("the active plan stays with the composer instead of claiming the transcript header", async ({
+  page,
+}) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=running");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const plan = page.getByRole("button", { name: "Expand plan (1/3 · 33%)" });
+  const composer = page.locator('[data-slot="composer-root"]');
+  const planBox = await plan.boundingBox();
+  const composerBox = await composer.boundingBox();
+
+  expect(planBox).not.toBeNull();
+  expect(composerBox).not.toBeNull();
+  expect(composerBox!.y - (planBox!.y + planBox!.height)).toBeGreaterThanOrEqual(0);
+  expect(composerBox!.y - (planBox!.y + planBox!.height)).toBeLessThanOrEqual(16);
+});
+
 test("composer keeps one production edge and 6/8 footer inset", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=empty");
   await page.locator("html[data-visual-ready]").waitFor();
