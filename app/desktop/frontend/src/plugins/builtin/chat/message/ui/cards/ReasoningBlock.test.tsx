@@ -1,10 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReasoningBlock } from "./ReasoningBlock";
 
 function renderReasoning(status: "running" | "complete", text: string) {
   return render(<ReasoningBlock text={text} status={status} />);
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("ReasoningBlock disclosure policy", () => {
   it("turns the first user toggle into an explicit override of the automatic state", () => {
@@ -37,5 +41,16 @@ describe("ReasoningBlock disclosure policy", () => {
     renderReasoning("running", "A predecessor renderer is still settling.");
 
     expect(screen.queryByRole("button", { name: /Answer now/ })).toBeNull();
+  });
+
+  it("does not invent reasoning duration from renderer mount time", () => {
+    vi.useFakeTimers();
+    renderReasoning("running", "A restored reasoning item is still streaming.");
+
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+
+    expect(screen.queryByText("3s", { exact: true })).toBeNull();
   });
 });
