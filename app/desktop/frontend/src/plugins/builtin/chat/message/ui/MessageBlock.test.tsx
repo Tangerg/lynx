@@ -24,12 +24,14 @@ const CTX: BlockCtx = {
 function row(
   status: "running" | "complete",
   text = "A deliberately long answer whose reveal still has a visible backlog.",
+  role: "user" | "assistant" = "assistant",
 ): TranscriptRow {
   return {
     message: {
       id: "assistant-visible-material",
       runId: "run-visible-material",
-      role: "assistant",
+      role,
+      createdAt: "2026-08-18T14:32:00.000Z",
       blocks: [
         {
           kind: "text",
@@ -43,6 +45,36 @@ function row(
     facts: { toolCalls: {}, delegatedRuns: {} },
   };
 }
+
+describe("MessageBlock turn identity", () => {
+  it("keeps role identity semantic without adding visible chrome to every turn", () => {
+    const { container, rerender } = render(
+      <MessageBlock
+        row={row("complete", "Question", "user")}
+        ctx={CTX}
+        sessionId="session-turn-identity"
+        isLast={false}
+        isRunning={false}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "You" })).toHaveClass("sr-only");
+    expect(container.querySelector(".font-mono.tabular-nums")).toBeNull();
+
+    rerender(
+      <MessageBlock
+        row={row("complete", "Answer")}
+        ctx={CTX}
+        sessionId="session-turn-identity"
+        isLast
+        isRunning={false}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Assistant" })).toHaveClass("sr-only");
+    expect(container.querySelector(".font-mono.tabular-nums")).toBeNull();
+  });
+});
 
 beforeEach(() => {
   renderActionSlot.mockClear();
