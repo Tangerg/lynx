@@ -193,55 +193,104 @@
   margin: 16px 0;
 }
 
-/* Tables — wrapper handles horizontal overflow; shrinks to
-   fit-content otherwise so narrow tables don't leave dead space. */
-.md-table-wrap {
-  margin: 10px 0;
-  max-width: 100%;
-  width: fit-content;
-  overflow-x: auto;
+/* Tables are wide, copyable content artifacts. The outer container borrows the
+   turn gutter so its action can sit beside the reading measure without shrinking
+   any column; the scroller keeps the table itself aligned with prose. */
+.md-table-container {
+  --md-table-gutter: var(--density-column-gutter);
+  position: relative;
+  width: calc(100% + 2 * var(--md-table-gutter));
+  margin: 10px calc(var(--md-table-gutter) * -1);
 }
-.md-table-wrap::-webkit-scrollbar {
+@media (min-width: 640px) {
+  .md-table-container {
+    --md-table-gutter: var(--density-column-gutter-wide);
+  }
+}
+.md-table-scroller {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.md-table-scroller::-webkit-scrollbar {
   height: 6px;
 }
-.md-table-wrap::-webkit-scrollbar-thumb {
+.md-table-scroller::-webkit-scrollbar-thumb {
   background: color-mix(in oklab, var(--color-text) 10%, transparent);
   border-radius: var(--shape-pill);
   border: 2px solid transparent;
   background-clip: content-box;
 }
+.md-table-wrap {
+  width: fit-content;
+  min-width: calc(100% - 2 * var(--md-table-gutter));
+  margin-inline: var(--md-table-gutter);
+}
 .md-table-wrap > table {
   margin: 0;
+  min-width: 100%;
 }
-/* A table is a card, so it takes the card's material and corner and needs no
-   outline of its own. Rows separate by alternating fill rather than by rules:
-   a grid of hairlines turns a four-column comparison into a spreadsheet, and the
-   zebra reads at a glance while costing no ink at the edges. */
+.md-table-actions {
+  position: absolute;
+  z-index: 1;
+  inset-block: 4px 0;
+  inset-inline-end: 0;
+  opacity: 0;
+  user-select: none;
+  transition: opacity var(--polish-fast);
+}
+.md-table-container:hover .md-table-actions,
+.md-table-container:focus-within .md-table-actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .md-table-actions {
+    opacity: 1;
+  }
+}
+/* Codex treats a table as structured prose: quiet row rules, no enclosing card
+   fill, and enough trailing header space that the copy action never obscures it. */
 .md table {
-  border-collapse: collapse;
-  margin: 12px 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
   font-size: var(--fs-ui-sm);
-  width: auto;
-  background: var(--app-card-surface);
-  border-radius: var(--surface-card-radius);
-  overflow: hidden;
+  width: fit-content;
+  text-align: start;
 }
 .md table th,
 .md table td {
-  padding: 9px 14px;
-  text-align: left;
+  padding-inline-end: 24px;
+  text-align: start;
+  vertical-align: top;
+  white-space: normal;
 }
 .md table th {
-  background: var(--color-sunken);
-  color: var(--color-text-muted);
-  font-weight: 500;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-weight: 600;
   font-size: var(--fs-ui-xs);
 }
-.md table tbody tr:nth-child(even) td {
-  background: var(--color-sunken);
+.md table td {
+  padding-block: 10px;
 }
-.md table tbody tr:hover td {
-  background: var(--color-hover);
+.md table tbody tr:not(:last-child) td {
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.md table th:last-child {
+  padding-inline-end: 40px;
+}
+.md table td:last-child {
+  padding-inline-end: 0;
+}
+.md table tbody tr:last-child td {
+  padding-bottom: 24px;
+}
+.md table .md-table-cell-numeric {
+  min-width: calc(3ch + 24px);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Inline code — a small well, no border, mono at the ladder's code step so it

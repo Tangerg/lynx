@@ -1,6 +1,8 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { copyText } from "./clipboard";
 
+type CopyMaterial = (material: string) => Promise<boolean>;
+
 interface CopyFeedbackOwnership {
   material: string;
   revision: number;
@@ -25,6 +27,7 @@ function clearResetTimer(owner: CopyFeedbackOwnership): void {
 export function useCopyFeedback(
   material: string,
   resetAfterMs = 1500,
+  copyMaterial: CopyMaterial = copyText,
 ): { copied: boolean; copy: () => Promise<boolean> } {
   const ownerRef = useRef<CopyFeedbackOwnership>({
     material,
@@ -62,7 +65,7 @@ export function useCopyFeedback(
     clearResetTimer(owner);
     setAcceptedRevision(null);
 
-    const accepted = await copyText(material);
+    const accepted = await copyMaterial(material);
     if (!accepted || !owner.mounted || owner.material !== material || owner.revision !== revision) {
       return false;
     }
@@ -74,7 +77,7 @@ export function useCopyFeedback(
       setAcceptedRevision(null);
     }, resetAfterMs);
     return true;
-  }, [material, resetAfterMs]);
+  }, [copyMaterial, material, resetAfterMs]);
 
   const owner = ownerRef.current;
   return {

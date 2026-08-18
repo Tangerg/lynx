@@ -74,6 +74,8 @@ export const zhTW: Record<string, string> = {
   "message.code.copied": "已複製",
   "message.code.wrap.enable": "啟用自動換行",
   "message.code.wrap.disable": "關閉自動換行",
+  "message.table.copy": "複製表格",
+  "message.table.copied": "已複製",
   "message.html.tab.preview": "預覽",
   "message.html.tabsAria": "HTML 產物檢視",
   "message.html.tab.source": "原始碼",

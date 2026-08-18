@@ -81,6 +81,8 @@ export const en: Record<string, string> = {
   "message.code.copied": "Copied",
   "message.code.wrap.enable": "Enable word wrap",
   "message.code.wrap.disable": "Disable word wrap",
+  "message.table.copy": "Copy table",
+  "message.table.copied": "Copied",
   "message.html.tab.preview": "Preview",
   "message.html.tabsAria": "HTML artifact view",
   "message.html.tab.source": "Source",

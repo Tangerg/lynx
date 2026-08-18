@@ -73,6 +73,8 @@ export const de: Record<string, string> = {
   "message.code.copied": "Kopiert",
   "message.code.wrap.enable": "Zeilenumbruch aktivieren",
   "message.code.wrap.disable": "Zeilenumbruch deaktivieren",
+  "message.table.copy": "Tabelle kopieren",
+  "message.table.copied": "Kopiert",
   "message.html.tab.preview": "Vorschau",
   "message.html.tabsAria": "HTML-Artefakt-Ansicht",
   "message.html.tab.source": "Quelle",

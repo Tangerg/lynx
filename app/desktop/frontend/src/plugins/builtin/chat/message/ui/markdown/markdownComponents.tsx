@@ -1,10 +1,12 @@
 import type { Components } from "react-markdown";
-import { Children, isValidElement, useEffect, useRef } from "react";
+import { Children, isValidElement, useEffect, useRef, type ReactNode } from "react";
 import { ExternalLink, RichTooltip, ShikiCodeBlock } from "@/ui";
+import { cn } from "@/lib/classNames";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";
 import { MermaidBlock } from "./MermaidBlock";
+import { MarkdownTable } from "./MarkdownTable";
 import { SvgArtifact } from "./SvgArtifact";
 
 // Local favicon stand-in — a domain-initial tile, mirroring the web-search
@@ -85,7 +87,18 @@ function ShadowStyleBlock({ children }: { children?: React.ReactNode }) {
 // container. `a` forces target=_blank because a click inside the
 // Wails WebView would otherwise navigate the chrome-less window away
 // from the app.
-export const markdownComponents: Components = {
+function visibleText(children: ReactNode): string {
+  return Children.toArray(children)
+    .map((child) => {
+      if (typeof child === "string" || typeof child === "number") return String(child);
+      return isValidElement<{ children?: ReactNode }>(child)
+        ? visibleText(child.props.children)
+        : "";
+    })
+    .join("");
+}
+
+const sharedMarkdownComponents: Components = {
   pre({ children }) {
     // react-markdown gives fenced blocks without an info string a plain
     // `<code>` child. The code renderer cannot distinguish that node from
@@ -130,12 +143,35 @@ export const markdownComponents: Components = {
     if (lang === "html" || lang === "htm") return <HtmlArtifact code={codeStr} />;
     return <ShikiCodeBlock lang={lang} code={codeStr} />;
   },
-  table({ children }) {
-    // No rest spread — keep the hast `node` off the DOM (see `code`).
+  td({ children, className, align, colSpan, rowSpan, style }) {
     return (
-      <div className="md-table-wrap">
-        <table>{children}</table>
-      </div>
+      <td
+        className={cn(
+          className,
+          /^\d+$/.test(visibleText(children).trim()) && "md-table-cell-numeric",
+        )}
+        align={align}
+        colSpan={colSpan}
+        rowSpan={rowSpan}
+        style={style}
+        dir="auto"
+      >
+        {children}
+      </td>
+    );
+  },
+  th({ children, className, align, colSpan, rowSpan, style }) {
+    return (
+      <th
+        className={className}
+        align={align}
+        colSpan={colSpan}
+        rowSpan={rowSpan}
+        style={style}
+        dir="auto"
+      >
+        {children}
+      </th>
     );
   },
   a({ href, title, children, ...rest }) {
@@ -173,3 +209,21 @@ export const markdownComponents: Components = {
     return <sup>{children}</sup>;
   },
 };
+
+/** React-markdown exposes source offsets on each table HAST node but does not
+ *  pass the source string to a component. Bind the block's source once so each
+ *  table can recover its exact Markdown slice without re-serialising the DOM. */
+export function createMarkdownComponents(markdownSource: string): Components {
+  return {
+    ...sharedMarkdownComponents,
+    table({ children, node }) {
+      const start = node?.position?.start.offset;
+      const end = node?.position?.end.offset;
+      const tableSource =
+        typeof start === "number" && typeof end === "number"
+          ? markdownSource.slice(start, end)
+          : markdownSource;
+      return <MarkdownTable markdownSource={tableSource}>{children}</MarkdownTable>;
+    },
+  };
+}

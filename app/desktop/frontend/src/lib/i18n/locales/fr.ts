@@ -73,6 +73,8 @@ export const fr: Record<string, string> = {
   "message.code.copied": "Copié",
   "message.code.wrap.enable": "Activer le retour à la ligne",
   "message.code.wrap.disable": "Désactiver le retour à la ligne",
+  "message.table.copy": "Copier le tableau",
+  "message.table.copied": "Copié",
   "message.html.tab.preview": "Aperçu",
   "message.html.tabsAria": "Vue de l'artefact HTML",
   "message.html.tab.source": "Source",

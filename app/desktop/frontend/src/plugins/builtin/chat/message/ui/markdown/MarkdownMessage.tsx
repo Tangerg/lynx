@@ -10,7 +10,7 @@ import remarkAlert from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import remend from "remend";
 import { parseMarkdownIntoBlocks } from "streamdown";
-import { markdownComponents } from "./markdownComponents";
+import { createMarkdownComponents } from "./markdownComponents";
 import { ensureKatexCss } from "./katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "./rehypeCitations";
@@ -176,12 +176,13 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, streaming, reveal }: M
       ? [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex]
       : [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeFadeIn, rehypeKatex];
   }, [reveal, streaming]);
+  const components = useMemo(() => createMarkdownComponents(text), [text]);
 
   return (
     <ReactMarkdown
       remarkPlugins={remarkPlugins}
       rehypePlugins={rehypePlugins}
-      components={markdownComponents}
+      components={components}
       allowElement={allowElement}
     >
       {text}

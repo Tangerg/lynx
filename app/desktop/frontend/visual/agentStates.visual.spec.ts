@@ -326,6 +326,30 @@ test("code blocks stay readable and expose the wrap control", async ({ page }) =
     .toBe(240);
 });
 
+for (const theme of ["light", "dark"] as const) {
+  test(`tables keep semantic alignment and copy their Markdown source ${theme}`, async ({
+    context,
+    page,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+      origin: "http://127.0.0.1:4174",
+    });
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=long-content`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const table = page.locator("[data-markdown-table]").filter({ hasText: "Run lifecycle" });
+    await expect(table.locator("table")).toHaveAttribute("dir", "auto");
+    await expect(table.locator("td.md-table-cell-numeric")).toHaveCount(2);
+
+    await table.hover();
+    await expect(table).toHaveScreenshot(`markdown-table-${theme}.png`);
+    await table.getByRole("button", { name: "Copy table" }).click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toContain("| Boundary | Owner | Checks |");
+  });
+}
+
 // The three seams around the reading plane are one primitive, and the top one is the
 // easy one to lose: half a device pixel, so the raster comparison can pass on its
 // absence, and the bars sit in their region's own colour with the body scrolling

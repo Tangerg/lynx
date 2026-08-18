@@ -76,6 +76,8 @@ export const zh: Record<string, string> = {
   "message.code.copied": "已复制",
   "message.code.wrap.enable": "启用自动换行",
   "message.code.wrap.disable": "关闭自动换行",
+  "message.table.copy": "复制表格",
+  "message.table.copied": "已复制",
   "message.html.tab.preview": "预览",
   "message.html.tabsAria": "HTML 产物视图",
   "message.html.tab.source": "源码",

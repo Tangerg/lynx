@@ -73,6 +73,8 @@ export const es: Record<string, string> = {
   "message.code.copied": "Copiado",
   "message.code.wrap.enable": "Activar ajuste de línea",
   "message.code.wrap.disable": "Desactivar ajuste de línea",
+  "message.table.copy": "Copiar tabla",
+  "message.table.copied": "Copiado",
   "message.html.tab.preview": "Vista previa",
   "message.html.tabsAria": "Vista del artefacto HTML",
   "message.html.tab.source": "Fuente",

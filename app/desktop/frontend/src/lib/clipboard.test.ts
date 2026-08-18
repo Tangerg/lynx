@@ -11,8 +11,15 @@ describe("copyRichText", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { clipboard: { write, writeText } });
 
-    const clipboardItem = vi.fn((formats: Record<string, Blob>) => ({ formats }));
-    vi.stubGlobal("ClipboardItem", clipboardItem);
+    const clipboardItem = vi.fn<(formats: Record<string, Blob>) => void>();
+    vi.stubGlobal(
+      "ClipboardItem",
+      class ClipboardItemStub {
+        constructor(formats: Record<string, Blob>) {
+          clipboardItem(formats);
+        }
+      },
+    );
 
     await expect(
       copyRichText({

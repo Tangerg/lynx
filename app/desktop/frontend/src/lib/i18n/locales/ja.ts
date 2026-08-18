@@ -72,6 +72,8 @@ export const ja: Record<string, string> = {
   "message.code.copied": "コピーしました",
   "message.code.wrap.enable": "折り返しを有効にする",
   "message.code.wrap.disable": "折り返しを無効にする",
+  "message.table.copy": "表をコピー",
+  "message.table.copied": "コピーしました",
   "message.html.tab.preview": "プレビュー",
   "message.html.tabsAria": "HTML 成果物の表示",
   "message.html.tab.source": "ソース",
