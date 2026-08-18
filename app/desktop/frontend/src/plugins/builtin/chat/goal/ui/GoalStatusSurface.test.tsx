@@ -121,9 +121,9 @@ describe("Goal status surface disclosure identity", () => {
     ).toBe("false");
   });
 
-  it("stops an active goal from the standing surface", async () => {
+  it("pauses an active goal from the standing surface", async () => {
     render(<GoalStatusSurface />);
-    fireEvent.click(screen.getByRole("button", { name: "Stop goal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
     await vi.waitFor(() => expect(model.stopGoal).toHaveBeenCalledWith("session-a"));
     expect(model.resumeGoal).not.toHaveBeenCalled();
   });
@@ -140,9 +140,9 @@ describe("Goal status surface disclosure identity", () => {
     model.runtimeAvailable = false;
     render(<GoalStatusSurface />);
 
-    const stop = screen.getByRole("button", { name: "Stop goal" });
-    expect(stop.hasAttribute("disabled")).toBe(true);
-    fireEvent.click(stop);
+    const pause = screen.getByRole("button", { name: "Pause goal" });
+    expect(pause.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(pause);
     expect(model.stopGoal).not.toHaveBeenCalled();
   });
 
