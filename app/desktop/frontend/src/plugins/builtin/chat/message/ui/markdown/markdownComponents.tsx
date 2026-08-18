@@ -4,7 +4,6 @@ import { ExternalLink, RichTooltip, ShikiCodeBlock } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
-import { HtmlArtifact } from "./HtmlArtifact";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidBlock } from "./MermaidBlock";
 import { MarkdownTable } from "./MarkdownTable";
@@ -141,7 +140,6 @@ const sharedMarkdownComponents: Components = {
         /^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(codeStr))
     )
       return <SvgArtifact code={codeStr} lang={lang} />;
-    if (lang === "html" || lang === "htm") return <HtmlArtifact code={codeStr} />;
     return <ShikiCodeBlock lang={lang} code={codeStr} />;
   },
   td({ children, className, align, colSpan, rowSpan, style }) {
