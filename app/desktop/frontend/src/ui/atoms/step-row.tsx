@@ -16,7 +16,7 @@ const MARK = "grid h-4 w-4 shrink-0 place-items-center";
 
 /**
  * The mark on its own, for a row the caller must lay out itself — the collapsed
- * plan banner strikes completed items through, which is its own reading of the
+ * active Plan surface strikes completed items through, which is its own reading of the
  * same state, not this row's.
  */
 export function StepMark({ state }: { state: StepState }) {

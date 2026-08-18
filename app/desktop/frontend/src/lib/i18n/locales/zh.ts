@@ -110,8 +110,6 @@ export const zh: Record<string, string> = {
   "chatSearch.next": "下一个匹配",
   "plan.collapse": "收起计划列表",
   "plan.expand": "展开计划 ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "关闭计划",
-  "plan.dismissAria": "关闭计划横幅",
   "plan.complete": "已完成 {{done}} / {{total}}",
 
   "tools.preview.openTerminal": "在终端打开",

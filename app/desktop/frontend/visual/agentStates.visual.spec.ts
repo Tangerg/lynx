@@ -149,7 +149,7 @@ test("a running goal and turn expose distinct stop actions", async ({ page }) =>
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(1);
 });
 
-test("plan disclosure expands through the production banner contribution", async ({ page }) => {
+test("plan disclosure expands through the production active surface", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
@@ -433,7 +433,7 @@ test("async transcript materialization follows only while the reader stays at th
 // test the rows themselves — the app's most-read surface — appeared in no
 // screenshot and in no browser assertion. What it pins is what a row REPORTS: the
 // subject it acted on, and for an edit the lines it changed.
-// The plan was on screen twice: the banner that stands above the transcript, and the
+// The plan was on screen twice: the active surface above the composer, and the
 // tool row that wrote it. Nothing about that is visible to a golden — both readings look
 // deliberate — so the assertion is that the transcript does not narrate a call whose
 // surface already holds it.
@@ -441,7 +441,7 @@ test("a tool with a standing surface is not narrated as well", async ({ page }) 
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  // The banner holds the plan.
+  // The composer-owned surface holds the plan.
   await expect(page.getByText("Review visual evidence").first()).toBeVisible();
 
   const stream = page.locator(".msg-scroll-viewport");

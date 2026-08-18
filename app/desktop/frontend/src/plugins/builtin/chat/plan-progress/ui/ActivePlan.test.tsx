@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { drainBrowserTasks } from "@/test/browserTasks";
-import { PlanProgressBanner } from "./PlanProgressBanner";
+import { ActivePlan } from "./ActivePlan";
 
 const model = vi.hoisted(() => ({
   sessionId: "ses-a",
@@ -33,7 +33,7 @@ vi.mock("@/plugins/builtin/agent/public/plan", async (importOriginal) => {
   };
 });
 
-describe("PlanProgressBanner disclosure identity", () => {
+describe("ActivePlan disclosure identity", () => {
   beforeEach(() => {
     model.sessionId = "ses-a";
     model.generation = 1;
@@ -48,13 +48,13 @@ describe("PlanProgressBanner disclosure identity", () => {
   });
 
   it("preserves a choice within one replacement and resets it for its successor", () => {
-    const { rerender } = render(<PlanProgressBanner />);
+    const { rerender } = render(<ActivePlan />);
     fireEvent.click(screen.getByRole("button", { name: /Expand plan/ }));
     expect(
       screen.getByRole("button", { name: /Collapse plan/ }).getAttribute("aria-expanded"),
     ).toBe("true");
 
-    rerender(<PlanProgressBanner />);
+    rerender(<ActivePlan />);
     expect(
       screen.getByRole("button", { name: /Collapse plan/ }).getAttribute("aria-expanded"),
     ).toBe("true");
@@ -64,54 +64,23 @@ describe("PlanProgressBanner disclosure identity", () => {
       { id: "step-1", text: "Inspect", status: "done" as const },
       { id: "step-2", text: "Fix", status: "active" as const },
     ];
-    rerender(<PlanProgressBanner />);
+    rerender(<ActivePlan />);
     expect(screen.getByRole("button", { name: /Expand plan/ }).getAttribute("aria-expanded")).toBe(
       "false",
     );
   });
 
-  it("shows a non-dismissible Plan only while its current Run is active", () => {
-    const { rerender } = render(<PlanProgressBanner />);
+  it("shows a non-dismissible Plan only while its current Run is active", async () => {
+    const { rerender } = render(<ActivePlan />);
 
     expect(screen.queryByRole("button", { name: "Dismiss plan banner" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Expand plan/ })).not.toBeNull();
 
     model.running = false;
-    rerender(<PlanProgressBanner />);
+    rerender(<ActivePlan />);
 
-    expect(screen.queryByRole("button", { name: /Expand plan/ })).toBeNull();
-  });
-
-  it("does not lend a dismissed Plan's material state to a replacement in the same Run", () => {
-    const { rerender } = render(<PlanProgressBanner />);
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss plan banner" }));
-
-    model.revision = 2;
-    model.steps = [{ id: "step-1", text: "Replacement plan", status: "active" }];
-    rerender(<PlanProgressBanner />);
-
-    expect(screen.queryByText("Replacement plan")).not.toBeNull();
-  });
-
-  it("does not lend dismissal across Sessions with the same Plan revision", () => {
-    const { rerender } = render(<PlanProgressBanner />);
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss plan banner" }));
-
-    model.sessionId = "ses-b";
-    model.steps = [{ id: "step-1", text: "Other Session plan", status: "active" }];
-    rerender(<PlanProgressBanner />);
-
-    expect(screen.queryByText("Other Session plan")).not.toBeNull();
-  });
-
-  it("does not lend dismissal across projection generations with the same Session and revision", () => {
-    const { rerender } = render(<PlanProgressBanner />);
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss plan banner" }));
-
-    model.generation = 2;
-    model.steps = [{ id: "step-1", text: "Successor server plan", status: "active" }];
-    rerender(<PlanProgressBanner />);
-
-    expect(screen.queryByText("Successor server plan")).not.toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Expand plan/ })).toBeNull();
+    });
   });
 });

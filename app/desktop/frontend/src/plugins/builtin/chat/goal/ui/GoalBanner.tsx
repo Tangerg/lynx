@@ -26,11 +26,9 @@ import {
 /**
  * The session's standing order, pinned above the stream.
  *
- * NOT dismissible, unlike the plan banner beside it. A plan is the agent's own
- * advice about the order it will do things in; a Goal is authority the user
- * handed over, with an allowance attached. Letting someone hide the readout of
- * how much of that allowance is left would make the loop's remaining reach
- * invisible at exactly the moment it matters.
+ * A Goal is authority the user handed over, with an allowance attached. Letting
+ * someone hide the readout of how much of that allowance is left would make the
+ * loop's remaining reach invisible at exactly the moment it matters.
  */
 export function GoalBanner() {
   const material = useGoalMaterial();

@@ -115,8 +115,6 @@ export const en: Record<string, string> = {
   "chatSearch.next": "Next match",
   "plan.collapse": "Collapse plan list",
   "plan.expand": "Expand plan ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "Dismiss plan",
-  "plan.dismissAria": "Dismiss plan banner",
   "plan.complete": "{{done}} of {{total}} complete",
 
   "tools.preview.openTerminal": "Open in Terminal",

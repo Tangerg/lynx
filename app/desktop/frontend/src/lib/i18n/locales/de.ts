@@ -103,8 +103,6 @@ export const de: Record<string, string> = {
   "chatSearch.next": "Nächster Treffer",
   "plan.collapse": "Planliste einklappen",
   "plan.expand": "Plan ausklappen ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "Plan ausblenden",
-  "plan.dismissAria": "Plan-Banner ausblenden",
   "plan.complete": "{{done}} von {{total}} erledigt",
 
   "tools.preview.openTerminal": "Im Terminal öffnen",

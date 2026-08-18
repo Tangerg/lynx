@@ -103,8 +103,6 @@ export const fr: Record<string, string> = {
   "chatSearch.next": "Correspondance suivante",
   "plan.collapse": "Réduire la liste du plan",
   "plan.expand": "Développer le plan ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "Masquer le plan",
-  "plan.dismissAria": "Masquer la bannière du plan",
   "plan.complete": "{{done}} sur {{total}} terminées",
 
   "tools.preview.openTerminal": "Ouvrir dans le terminal",

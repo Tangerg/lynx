@@ -103,8 +103,6 @@ export const es: Record<string, string> = {
   "chatSearch.next": "Coincidencia siguiente",
   "plan.collapse": "Contraer lista del plan",
   "plan.expand": "Expandir plan ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "Descartar plan",
-  "plan.dismissAria": "Descartar el aviso del plan",
   "plan.complete": "{{done}} de {{total}} completadas",
 
   "tools.preview.openTerminal": "Abrir en terminal",

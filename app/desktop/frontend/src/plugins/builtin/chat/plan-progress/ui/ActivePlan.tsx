@@ -1,22 +1,16 @@
-import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { IconButton, StepMark, StepRow } from "@/ui";
+import { StepMark, StepRow } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
 import { type PlanStep, useSessionPlan } from "@/plugins/builtin/agent/public/plan";
-import { planBannerState, type PlanBannerState } from "../application/progress";
+import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
+import { activePlanState, type ActivePlanState } from "../application/progress";
 
-export function PlanProgressBanner() {
+export function ActivePlan() {
   const plan = useSessionPlan();
-  const [dismissedPlanIdentity, setDismissedPlanIdentity] = useState<string | null>(null);
-  const progress = planBannerState(plan, dismissedPlanIdentity);
-
-  const dismiss = (event: MouseEvent) => {
-    event.stopPropagation();
-    setDismissedPlanIdentity(plan.identity);
-  };
+  const progress = activePlanState(plan, useIsCurrentRootRunning());
 
   return (
     <AnimatePresence initial={false}>
@@ -26,7 +20,6 @@ export function PlanProgressBanner() {
           steps={plan.steps}
           progress={progress}
           current={progress.current}
-          onDismiss={dismiss}
         />
       )}
     </AnimatePresence>
@@ -37,12 +30,10 @@ function PlanDisclosure({
   steps,
   progress,
   current,
-  onDismiss,
 }: {
   steps: readonly PlanStep[];
-  progress: PlanBannerState;
+  progress: ActivePlanState;
   current: PlanStep;
-  onDismiss: (event: MouseEvent) => void;
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
@@ -53,11 +44,11 @@ function PlanDisclosure({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={disclosureTransition}
+      className={expanded ? "w-full" : "max-w-full"}
     >
       <AgentActivityDisclosure
+        className={expanded ? "w-full" : "mx-auto w-fit max-w-full"}
         leading={<StepMark state={current.status} />}
-        // A banner, not an entry in the transcript: it stands above the stream
-        // and has to hold its own edge against whatever scrolls under it.
         shell="card"
         label={
           <AnimatePresence mode="wait" initial={false}>
@@ -87,17 +78,6 @@ function PlanDisclosure({
           <span className="font-mono text-ui-xs font-medium tabular-nums">
             {progress.done}/{progress.total}
           </span>
-        }
-        actions={
-          <IconButton
-            icon="x"
-            iconSize="xs"
-            size="sm"
-            quiet
-            title={t("plan.dismiss")}
-            aria-label={t("plan.dismissAria")}
-            onClick={onDismiss}
-          />
         }
         open={expanded}
         onToggle={() => setExpanded((value) => !value)}

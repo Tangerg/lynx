@@ -1002,9 +1002,8 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentE
  * material from the same Runtime Session transaction, not an Item in the
  * transcript — which is why it gets a pinned banner instead of a card.
  *
- * `running` is deliberately the state that has one, so a golden frames the goal
- * and plan banners STACKED — how much of the reading column those two claim
- * together is the layout question, and neither alone can answer it.
+ * `running` is deliberately the state that has one, so a golden frames the pinned
+ * Goal and the composer-owned active Plan together.
  */
 export const VISUAL_GOALS: Partial<Record<VisualAgentState, GoalReadModel>> = {
   running: {

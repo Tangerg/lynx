@@ -102,8 +102,6 @@ export const ko: Record<string, string> = {
   "chatSearch.next": "다음 일치",
   "plan.collapse": "플랜 목록 접기",
   "plan.expand": "플랜 펼치기 ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "플랜 닫기",
-  "plan.dismissAria": "플랜 배너 닫기",
   "plan.complete": "{{total}}개 중 {{done}}개 완료",
 
   "tools.preview.openTerminal": "터미널에서 열기",

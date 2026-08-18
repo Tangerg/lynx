@@ -196,7 +196,7 @@ describe("messageActionMaterialization", () => {
   });
 });
 
-// The plan was on screen twice: in the banner that stands above the transcript, and
+// The plan was on screen twice: in the active surface above the composer, and
 // again as the tool row that wrote it. A tool with a surface of its own has nothing
 // left to say in the narrative — and it has to leave before the units are planned, or
 // the counts and the grouping describe rows that are not there.

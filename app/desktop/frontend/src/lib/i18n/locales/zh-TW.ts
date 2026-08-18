@@ -104,8 +104,6 @@ export const zhTW: Record<string, string> = {
   "chatSearch.next": "下一個符合",
   "plan.collapse": "收合計畫清單",
   "plan.expand": "展開計畫 ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "關閉計畫",
-  "plan.dismissAria": "關閉計畫橫幅",
   "plan.complete": "已完成 {{done}} / {{total}}",
 
   "tools.preview.openTerminal": "在終端機開啟",

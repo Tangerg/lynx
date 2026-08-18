@@ -6,6 +6,7 @@ import { disclosureTransition } from "@/lib/motion";
 import { useRuntimeServiceStatus } from "@/plugins/builtin/runtime/public/serviceStatus";
 import { CONNECTION_PANE } from "@/plugins/builtin/settings/public/panes";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
+import { Slot } from "@/plugins/host/Slot";
 import { SystemMessage } from "@/ui";
 import { JumpToBottomButton } from "./JumpToBottomButton";
 import { READING_COLUMN, READING_GUTTER } from "./readingColumn";
@@ -83,6 +84,11 @@ export function FloatingComposer({
       <div className={cn(READING_GUTTER, "pb-3 sm:pb-4")}>
         <div className="pointer-events-auto relative">
           <JumpToBottomButton />
+          <Slot
+            name="composer.overlay.top"
+            wrapper
+            className="mb-2 flex w-full flex-col items-center gap-2"
+          />
           <RuntimeConnectionNotice />
           {children}
         </div>

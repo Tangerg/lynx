@@ -71,9 +71,9 @@ describe("MessageBlock turn identity", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Assistant" }).classList.contains("sr-only"),
-    ).toBe(true);
+    expect(screen.getByRole("heading", { name: "Assistant" }).classList.contains("sr-only")).toBe(
+      true,
+    );
     expect(container.querySelector(".font-mono.tabular-nums")).toBeNull();
   });
 });

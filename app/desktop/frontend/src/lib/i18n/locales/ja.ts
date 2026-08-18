@@ -102,8 +102,6 @@ export const ja: Record<string, string> = {
   "chatSearch.next": "次の一致",
   "plan.collapse": "プランリストを折りたたむ",
   "plan.expand": "プランを展開 ({{done}}/{{total}} · {{pct}}%)",
-  "plan.dismiss": "プランを閉じる",
-  "plan.dismissAria": "プランバナーを閉じる",
   "plan.complete": "{{total}} 件中 {{done}} 件完了",
 
   "tools.preview.openTerminal": "ターミナルで開く",
