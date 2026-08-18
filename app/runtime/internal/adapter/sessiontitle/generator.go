@@ -9,10 +9,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 )
 
-// titleMaxInputChars caps the slice of the opening user message fed to the
+// titleMaxInputRunes caps the slice of the opening user message fed to the
 // generator. A title needs the gist, not a whole pasted file, and a shorter
 // prompt keeps the (cheap-model) call fast.
-const titleMaxInputChars = 4000
+const titleMaxInputRunes = 4000
 
 // titleMaxRunes bounds the generated title; an over-long model reply is
 // truncated rather than rejected (a usable title beats none).
@@ -38,30 +38,36 @@ Rules:
 - Capture the task/topic; no filler ("Help with", "Question about").
 - Output ONLY the title — no quotes, no surrounding punctuation, no markdown, no trailing period.`
 
-// Generate returns a short title derived from firstMessage, or "" (no error)
-// when titling isn't possible — a nil receiver/client, an empty message, or a
-// model reply that sanitizes to nothing. Best-effort by contract: callers
-// leave the session untitled on "" rather than surfacing a failure.
+// Generate returns a short title derived from firstMessage. The sanitized first
+// line is the deterministic fallback when the utility model is unavailable or
+// produces no title. A provider failure returns that usable fallback together
+// with the error so the caller can persist stable Session identity while still
+// recording the degraded maintenance attempt.
 func (t *Generator) Generate(ctx context.Context, firstMessage string) (string, error) {
-	if t == nil || t.client == nil {
-		return "", nil
-	}
 	msg := strings.TrimSpace(firstMessage)
 	if msg == "" {
 		return "", nil
 	}
-	if len(msg) > titleMaxInputChars {
-		msg = msg[:titleMaxInputChars]
+	fallback := sanitizeTitle(msg)
+	if t == nil || t.client == nil {
+		return fallback, nil
+	}
+	if runes := []rune(msg); len(runes) > titleMaxInputRunes {
+		msg = string(runes[:titleMaxInputRunes])
 	}
 	client := t.client(ctx)
 	if client == nil {
-		return "", nil
+		return fallback, nil
 	}
 	text, err := utilitymodel.Complete(ctx, client, titlePrompt, msg)
 	if err != nil {
-		return "", err
+		return fallback, err
 	}
-	return sanitizeTitle(text), nil
+	title := sanitizeTitle(text)
+	if title == "" {
+		return fallback, nil
+	}
+	return title, nil
 }
 
 // sanitizeTitle trims a model reply to a clean single-line title: first
@@ -73,7 +79,7 @@ func sanitizeTitle(s string) string {
 		s = strings.TrimSpace(before)
 	}
 	s = strings.Trim(s, "\"'`")
-	s = strings.TrimRight(s, ".")
+	s = strings.TrimRight(s, ".。!?！？")
 	s = strings.TrimSpace(s)
 	if r := []rune(s); len(r) > titleMaxRunes {
 		s = strings.TrimSpace(string(r[:titleMaxRunes]))

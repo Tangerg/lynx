@@ -21,7 +21,9 @@ type SessionTitles interface {
 	ApplyGeneratedTitle(ctx context.Context, id, title string) error
 }
 
-// TitleGenerator derives an initial session title from its opening request.
+// TitleGenerator derives an initial session title from its opening request. It
+// may return a usable deterministic fallback with a non-nil error so maintenance
+// can persist stable identity and still report provider degradation.
 type TitleGenerator interface {
 	Generate(ctx context.Context, firstMessage string) (string, error)
 }
@@ -167,16 +169,25 @@ func (e *Finalizer) title(ctx context.Context, sessionID, prompt string) error {
 	if e.titles == nil {
 		return errors.New("runsegment: title generation is unavailable")
 	}
-	title, err := e.titles.Generate(ctx, prompt)
-	if err != nil {
-		return fmt.Errorf("runsegment: generate title for session %q: %w", sessionID, err)
-	}
+	title, generationErr := e.titles.Generate(ctx, prompt)
 	title = strings.TrimSpace(title)
-	if title == "" {
+	if title == "" && generationErr == nil {
 		return fmt.Errorf("runsegment: generated title for session %q is empty", sessionID)
 	}
-	if err := e.sessionTitles.ApplyGeneratedTitle(ctx, sessionID, title); err != nil {
-		return fmt.Errorf("runsegment: apply generated title to Session %q: %w", sessionID, err)
+	if title != "" {
+		if err := e.sessionTitles.ApplyGeneratedTitle(ctx, sessionID, title); err != nil {
+			applyErr := fmt.Errorf("runsegment: apply generated title to Session %q: %w", sessionID, err)
+			if generationErr != nil {
+				return errors.Join(
+					fmt.Errorf("runsegment: generate title for session %q: %w", sessionID, generationErr),
+					applyErr,
+				)
+			}
+			return applyErr
+		}
+	}
+	if generationErr != nil {
+		return fmt.Errorf("runsegment: generate title for session %q: %w", sessionID, generationErr)
 	}
 	return nil
 }

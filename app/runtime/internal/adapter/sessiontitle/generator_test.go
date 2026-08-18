@@ -28,6 +28,7 @@ func TestSanitizeTitle(t *testing.T) {
 		{"surrounding double quotes", `"Refactor Auth Module"`, "Refactor Auth Module"},
 		{"backticks", "`Wire OAuth Flow`", "Wire OAuth Flow"},
 		{"trailing period", "Add Dark Mode.", "Add Dark Mode"},
+		{"trailing CJK punctuation", "修复会话恢复反馈。", "修复会话恢复反馈"},
 		{"first line only", "Improve Streaming\n(notes about other stuff)", "Improve Streaming"},
 		{"surrounding whitespace", "  Tidy Imports  ", "Tidy Imports"},
 		{"blank", "   \n  ", ""},
@@ -62,5 +63,15 @@ func TestGenerateReturnsOpeningMessageFallbackWhenProviderFails(t *testing.T) {
 	}
 	if got != "Diagnose provider outage" {
 		t.Fatalf("Generate title = %q, want deterministic opening-message fallback", got)
+	}
+}
+
+func TestGenerateUsesOpeningMessageFallbackWithoutUtilityClient(t *testing.T) {
+	got, err := NewGenerator(nil).Generate(t.Context(), "  修复会话恢复反馈。\n附带诊断日志")
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if got != "修复会话恢复反馈" {
+		t.Fatalf("Generate title = %q, want first opening-message line", got)
 	}
 }
