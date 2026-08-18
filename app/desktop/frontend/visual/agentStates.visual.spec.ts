@@ -492,6 +492,21 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+test("context compaction uses the Codex activity row without divider chrome", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=narrative");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const compaction = page.getByRole("button", { name: "Context automatically compacted" });
+  await compaction.scrollIntoViewIfNeeded();
+  await expect(compaction.locator(".lucide-minimize-2")).toBeVisible();
+  await expect(compaction.locator("xpath=..").locator(".h-px")).toHaveCount(0);
+  await expect(compaction).toHaveAttribute("aria-expanded", "false");
+
+  await compaction.click();
+  await expect(compaction).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("Earlier tool output folded into a summary.")).toBeVisible();
+});
+
 test("Markdown structural primitives follow the Codex reading grammar", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=long-content");
   await page.locator("html[data-visual-ready]").waitFor();
