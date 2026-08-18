@@ -110,6 +110,28 @@ describe("composer", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it("keeps an unmarked Enter that commits Latin text through a Chinese IME inside the composer", async () => {
+    await withEnterKeymap();
+    const onSend = vi.fn(() => true);
+    wrap(<Composer {...baseProps} value="中文 english" onChange={() => {}} onSend={onSend} />);
+    const textarea = screen.getByRole("textbox");
+
+    // Some Chinese IMEs commit raw Latin text by ending composition first and
+    // then emitting an ordinary keyCode=13 Enter from the same physical key.
+    // There is no native composing bit or WebKit 229 marker left to inspect.
+    fireEvent.compositionStart(textarea, { data: "english" });
+    fireEvent.compositionEnd(textarea, { data: "english" });
+    fireEvent.keyDown(textarea, { key: "Enter", keyCode: 13, isComposing: false });
+
+    expect(onSend).not.toHaveBeenCalled();
+
+    // The ownership must expire with that browser event turn; the user's next
+    // deliberate Enter still goes through the configured composer keymap.
+    await act(async () => Promise.resolve());
+    fireEvent.keyDown(textarea, { key: "Enter", keyCode: 13, isComposing: false });
+    expect(onSend).toHaveBeenCalledOnce();
+  });
+
   it("does not submit when the textarea is empty / whitespace only", async () => {
     await withEnterKeymap();
     const onSend = vi.fn(() => true);

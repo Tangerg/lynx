@@ -591,6 +591,53 @@ test("IME composition keeps Enter inside the composer until text is committed", 
   await expect(composer).toHaveValue("你");
 });
 
+test("Chinese IME Latin commit does not turn its plain Enter into send", async ({ page }) => {
+  await openFixture(page, { fixture: "agent", state: "steer", theme: "light" });
+  const composer = page.getByRole("textbox", { name: "Message composer" });
+  await composer.focus();
+
+  await composer.evaluate((element) => {
+    const textarea = element as HTMLTextAreaElement;
+    textarea.dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true, data: "english" }),
+    );
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    setValue?.call(textarea, "中文 english");
+    textarea.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        data: "english",
+        inputType: "insertCompositionText",
+        isComposing: true,
+      }),
+    );
+    textarea.dispatchEvent(
+      new CompositionEvent("compositionend", { bubbles: true, data: "english" }),
+    );
+  });
+  await expect(composer).toHaveValue("中文 english");
+
+  await composer.evaluate((element) => {
+    const commitEnter = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      isComposing: false,
+      key: "Enter",
+    });
+    Object.defineProperty(commitEnter, "keyCode", { value: 13 });
+    element.dispatchEvent(commitEnter);
+  });
+
+  await expect(composer).toHaveValue("中文 english");
+  await expect(page.locator("html")).not.toHaveAttribute("data-visual-sent-input");
+
+  await composer.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-visual-sent-input",
+    /中文 english/,
+  );
+});
+
 test("message copy writes through the production clipboard path", async ({ context, page }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: "http://127.0.0.1:4174",

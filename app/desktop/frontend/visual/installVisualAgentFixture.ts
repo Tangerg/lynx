@@ -22,7 +22,12 @@ import {
 } from "@/plugins/builtin/agent/public/session";
 import { AGENT_SESSION_PORTS } from "@/plugins/builtin/agent/public/ports";
 import { APPROVAL_MODE_KEY } from "@/plugins/builtin/agent/public/approvalPolicy";
-import { composerBootstrap, composerSend, composerToolbar } from "@/plugins/builtin/chat/composer";
+import {
+  composerBootstrap,
+  composerKeymap,
+  composerSend,
+  composerToolbar,
+} from "@/plugins/builtin/chat/composer";
 import contextUsage from "@/plugins/builtin/chat/context-usage";
 import narrativeRails from "@/plugins/builtin/chat/narrative-rails";
 import {
@@ -224,6 +229,7 @@ export async function installVisualAgentFixture(
     visualRuntimeStreamPorts,
     visualAgentLifecycle,
     composerBootstrap,
+    composerKeymap,
     composerToolbar,
     contextUsage,
     composerSend,
