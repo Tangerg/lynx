@@ -1,6 +1,6 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P114 已完成并形成里程碑；P115 已授权，Frontend 三个收敛批次已完成，当前执行 Runtime Bootstrap composition 重塑。
+> 状态：P0–P114 已完成并形成里程碑；P115 已授权，Frontend 与 Bootstrap 收敛批次已完成，当前执行 `application/runs` 行为对象重塑。
 >
 > 最近基线：2026-08-18，commit `babec316e`。
 
@@ -17,7 +17,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 - P115 已于 2026-08-18 授权，设计与验收 owner 为
   [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md)。
-- Batch 0 已固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；Batch 1 已重建 Mutation Journal；Batch 2 已收敛 Frontend lifecycle publication/retirement；Batch 3 已合并没有独立不变量的 facade 与 contribution 分层。当前执行 Batch 4，重塑 Runtime Bootstrap composition 与资源生命周期。
+- Batch 0 已固化 R1–R5 的真实反例、唯一 owner、linearization point、breaking surface 与参考机制；Batch 1 已重建 Mutation Journal；Batch 2 已收敛 Frontend lifecycle publication/retirement；Batch 3 已合并没有独立不变量的 facade 与 contribution 分层；Batch 4 已重塑 Runtime Bootstrap composition 与资源生命周期。当前执行 Batch 5，按锁、生命周期和事务不变量重塑 `application/runs` 内部行为对象。
 - breaking change 被允许，但只用于建立更准确的唯一合同；禁止以 breaking change 为名制造并行实现或迁移半成品。
 - `app/cli` 不在本计划授权范围内，不得修改或暂存。
 - 保留所有无关工作区改动；每个独立批次精确暂存、提交并推送。
@@ -89,3 +89,5 @@ Batch 1 已删除 Mutation Journal 的 legacy codec、migration、persisted owne
 Batch 2 已删除 15 个业务 Owner 各自复制的 `static #active` publication/retirement 模板，并把 Runtime connection 与 HITL response coordinator 的同类 module-global 交接纳入同一机制。`publicationSlot.ts` 只拥有 process-local exact object identity、successor-first publication 和 exact withdrawal，不持有业务 task、cache、event、error 或 material；各 concrete owner 继续拥有 serialization、abort、projection repair 和 typed retirement。Singleton application port 复用该 identity primitive。Recipes plugin final cleanup 现在 fencing 晚到 fetch，并删除自己留下的 inactive query，修复了可稳定复现的 async timer leak。定向 owner/lifecycle 验收覆盖 30 个 test files / 159 tests。
 
 Batch 3 已把 30 个只投影静态 extension spec 的 application contribution module 吸回各插件 composition entry，并删除只复述对象字面量的测试。Composer contribution 混合文件被拆除，只保留有真实键位语义的 `composerKeyBindings`；tool family、default command policy、Session search behavior 与 Work Index published facade 因独立不变量继续保留。`check:published-boundaries` 现在按 AST 拒绝“所有 exported function 都只返回对象字面量”的 application contribution module，不依赖具体历史路径白名单。Chat search 新增 `messages` / `transcript` 可发现关键词，用单文件真实功能修改证明 registration 触达面已收敛到 owner entry。
+
+Batch 4 已删除向 Instance、Delivery 和测试传播 concrete coordinator 的宽 `Stack`，并删除把 18 个裸依赖聚合后立即逐项解包的 `assemblyFoundation`。Assembly 现在顺序构造 policy、workspace、execution 三个 package-private capsule；tool builder 从 12 参数函数 seam 收敛为单一 feature dependency value，且所有 tool closer 与 executor 在失败返回前先转交 `hostLifetime`。Host 私有 application capsule 直接持有 `server.Config` consumer surface、Session startup recovery、scheduler/recovery workers 与窄 idempotency port；Instance 只调用 capsule 行为。operation service/endpoint 形成 `operationDelivery` lifecycle capsule，external-change observer 启动失败时同步停止 admissions、取消 endpoint 并等待退出。架构门禁要求 Host 零 exported field、Delivery consumer config 与窄可靠性 port 不得退化为 Stack locator，并继续以闭集限制 Bootstrap receiver 只能拥有 construction/lifecycle 行为。

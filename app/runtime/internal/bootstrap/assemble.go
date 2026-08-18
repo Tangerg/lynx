@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
@@ -19,21 +17,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runrecovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/sessiontitle"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/ownershiprecovery"
-	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -43,74 +36,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 )
-
-// Stack is the assembled application surface consumed by delivery. It exposes
-// application use cases and notification sources, but owns no resource closers;
-// the Host does (§5.3).
-type Stack struct {
-	Sessions               *sessions.Coordinator
-	MCP                    *mcpapp.Coordinator
-	Approvals              *approvals.Coordinator
-	Models                 *models.Coordinator
-	Tools                  *tools.Coordinator
-	Codebase               *codebase.Coordinator
-	Queries                *queries.Coordinator
-	Usage                  *usage.Reporter
-	Feedback               *feedbackapp.Recorder
-	WorkspaceFiles         *workspace.Files
-	WorkspaceVCS           *workspace.VCS
-	WorkspaceDiscovery     *workspace.Discovery
-	WorkspaceKnowledge     *workspace.Knowledge
-	WorkspaceSkills        *workspace.Skills
-	WorkspaceHooks         *workspace.Hooks
-	WorkspaceWatch         *workspace.GitWatch
-	WorkspaceAuthoredWatch *workspace.AuthoredWatch
-	Schedules              *schedules.Coordinator
-	Goals                  *goals.Driver
-	// AgentMemory is the HITL review use-case coordinator over the agent's
-	// self-maintained memory (agentMemory.*). It may hold a disabled store, so
-	// Delivery can truthfully negotiate the capability without a domain-port leak.
-	AgentMemory       *agentmemoryapp.Coordinator
-	Runs              *runs.Coordinator
-	OwnershipRecovery *ownershiprecovery.Coordinator
-	// FileChanges carries committed workspace mutation scopes to protocol
-	// subscribers without exposing a wire event to the producer.
-	FileChanges func(func(workspace.FileChangeNotice))
-	// Invalidations bridges committed read-model changes to the delivery hub,
-	// which alone names each wire topic. Producers are the use cases that own the
-	// mutation; Bootstrap only connects their shared application vocabulary.
-	Invalidations       func(func(invalidation.Notice))
-	PublishInvalidation invalidation.Publish
-	ScheduleFiring      *schedules.Firing
-	IdempotencyStore    idempotency.Store
-	GitAvailable        bool
-	PlanEnabled         bool
-}
-
-type toolEnvironmentBuilder func(
-	context.Context,
-	context.Context,
-	Config,
-	*approvals.RuntimePolicy,
-	mcpEnvironment,
-	*agentmemoryapp.Searcher,
-	*schedules.Coordinator,
-	*goals.Reader,
-	*goals.OutcomeReporter,
-	*planapp.Coordinator,
-	*skillauthoring.Store,
-	builtin.SkillProposalSubmitter,
-) (toolEnvironment, error)
 
 // Assembly owns configuration resources before construction begins.
 type Assembly struct {
@@ -186,267 +117,51 @@ func CloseAssembly(a *Assembly) error {
 	return closeHostLifetime(a.lifetime)
 }
 
-// assemblyFoundation is the completed dependency graph shared by the Session,
-// Run, recovery, and delivery composition phase. It is deliberately ephemeral:
-// resource ownership remains in hostLifetime and the successful Host.
-type assemblyFoundation struct {
-	cfg                      Config
-	lifetime                 *hostLifetime
-	conversationServices     conversationEnvironment
-	modelServices            modelEnvironment
-	applicationInvalidations notificationRelay[invalidation.Notice]
-	approvalPolicy           *approvals.RuntimePolicy
-	goalStore                goals.Store
-	planCoordinator          *planapp.Coordinator
-	mcpConnectionSettings    mcpEnvironment
-	scheduleCoordinator      *schedules.Coordinator
-	workspaceScope           *workspace.Scope
-	agentMemoryCoordinator   *agentmemoryapp.Coordinator
-	workspaceAuthoredWatch   *workspace.AuthoredWatch
-	workspaceKnowledge       *workspace.Knowledge
-	workspaceSkills          *workspace.Skills
-	toolRuntime              toolEnvironment
-	workingContexts          *agentexec.WorkingContextComposer
-	interactionExecutor      *agentexec.InteractionExecutor
-	toolRegistry             toolset.DiagnosticRegistry
-	workspaceCheckpoints     *checkpointstore.Checkpoints
-}
-
 func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
-	foundation, err := buildAssemblyFoundation(ctx, a)
-	if err != nil {
-		return nil, err
-	}
-	return buildAssemblyCore(ctx, foundation)
-}
-
-// buildAssemblyFoundation composes model, policy, workspace, and tool
-// capabilities before the Session/Run lifecycle can be constructed.
-func buildAssemblyFoundation(ctx context.Context, a *Assembly) (*assemblyFoundation, error) {
-	cfg := a.cfg
-	buildTools := a.buildTools
-	lifetime := a.lifetime
-	if err := validateAssemblyConfig(cfg); err != nil {
+	if err := validateAssemblyConfig(a.cfg); err != nil {
 		return nil, err
 	}
 	// Offloads are staged before their ordered transcript event commits so a
 	// following model round can read them immediately. A process crash may leave
 	// that short-lived stage behind; startup is the only point with no live tool
 	// calls, so reconcile it before constructing the engine.
-	if cfg.ToolResultStore != nil {
-		if _, err := cfg.ToolResultStore.PurgeUnbound(ctx); err != nil {
+	if a.cfg.ToolResultStore != nil {
+		if _, err := a.cfg.ToolResultStore.PurgeUnbound(ctx); err != nil {
 			return nil, fmt.Errorf("runtime: reconcile staged tool results: %w", err)
 		}
 	}
-
-	conversationServices, err := buildConversationEnvironment(
-		cfg.ConversationStore,
-		persistence.NewConversationCompactions(
-			cfg.ConversationStore,
-			cfg.RunStore,
-			persistence.Transactor(cfg.Transactor),
-		),
-	)
+	policy, err := buildPolicyComposition(ctx, a.cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	modelServices, err := buildModelEnvironment(ctx, cfg)
+	workspaceServices, err := buildWorkspaceComposition(a.cfg, policy.invalidations.Publish)
 	if err != nil {
 		return nil, err
 	}
-
-	// Tool environment: assembled outside the core (constructs the code-intel /
-	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
-	// core builds no capability. ctx flows so a slow MCP/A2A dial can be
-	// canceled during startup.
-	// Permission policy is built early because Plan-mode tools and the execution gate
-	// share its narrow session-mode views. The policy owns no Agent execution
-	// state: Plan-mode persistence remains a runtime/session concern.
-	// One bridge carries every committed change a client can fold — sessions, runs,
-	// interrupts, goals, state, schedules, and settings — from the use case that
-	// committed it to the delivery hub that names its topic. It is one channel
-	// rather than one per resource because the
-	// producers publish the same shape (a resource plus the ids that moved), and the
-	// wire vocabulary belongs to delivery either way.
-	applicationInvalidations := newNotificationRelay[invalidation.Notice]()
-	approvalPolicy, err := approvals.NewRuntimePolicy(
-		cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore, applicationInvalidations.Publish,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("runtime: approval policy: %w", err)
-	}
-	// Goal reads and terminal outcome reporting cross into the tool environment
-	// before the loop driver can be constructed. They remain separate application
-	// boundaries over the same change-publishing store.
-	goalStore := goals.WithInvalidations(cfg.GoalStore, applicationInvalidations.Publish)
-	goalReader := goals.NewReader(goalStore)
-	goalReporter := goals.NewOutcomeReporter(goalStore)
-	planCoordinator := planapp.New(planapp.Dependencies{
-		Store: cfg.PlanStore, Now: time.Now, Invalidations: applicationInvalidations.Publish,
-	})
-
-	mcpConnectionSettings, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
-	if err != nil {
-		return nil, err
-	}
-
-	scheduleCoordinator := schedules.New(schedules.Dependencies{
-		Store:         cfg.ScheduleStore,
-		Paths:         workspacepath.Resolver{},
-		Invalidations: applicationInvalidations.Publish,
-	})
-	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
-	agentMemoryCoordinator := agentmemoryapp.New(agentmemoryapp.Config{
-		Store:         cfg.AgentMemoryStore,
-		Roots:         workspaceScope,
-		Invalidations: applicationInvalidations.Publish,
-	})
-	agentMemoryCuration := agentmemoryapp.NewCuration(agentmemoryapp.CurationConfig{
-		Store: cfg.AgentMemoryStore, Invalidations: applicationInvalidations.Publish,
-	})
-	authoredWatcher, err := checkpointstore.NewAuthoredWatcher(cfg.KnowledgeDirectory, cfg.UserHome, cfg.SkillsUserDir)
-	if err != nil {
-		return nil, fmt.Errorf("runtime: build authored resource watcher: %w", err)
-	}
-	workspaceAuthoredWatch := workspace.NewAuthoredWatch(workspaceScope, workspacepath.Resolver{}, authoredWatcher)
-	workspaceKnowledge := workspace.NewKnowledge(
-		workspaceScope, workspacepath.Resolver{}, cfg.KnowledgeStore, workspaceAuthoredWatch, applicationInvalidations.Publish,
-	)
-	skillStore := skillauthoring.NewStore(cfg.SkillsUserDir, skills.ScopeUser)
-	var skillCurator workspace.SkillCurator
-	var idleSkillSweeper workspace.IdleSkillSweeper
-	if skillStore.Enabled() {
-		skillCurator = skillStore
-		idleSkillSweeper = skillStore
-	}
-	workspaceSkills := workspace.NewSkills(
-		workspaceScope,
-		promptsource.NewWorkspaceSkills(cfg.SkillsUserDir),
-		skillCurator,
-		skillproposal.NewLibraries(skillStore),
-		workspaceAuthoredWatch,
-		applicationInvalidations.Publish,
-	)
-	skillMaintenance := workspace.NewSkillMaintenance(idleSkillSweeper, workspaceAuthoredWatch, applicationInvalidations.Publish)
-	toolRuntime, err := buildTools(
+	execution, err := buildExecutionComposition(
 		ctx,
-		lifetime.context,
-		cfg,
-		approvalPolicy,
-		mcpConnectionSettings,
-		modelServices.agentMemorySearch,
-		scheduleCoordinator,
-		goalReader,
-		goalReporter,
-		planCoordinator,
-		skillStore,
-		workspaceSkills,
+		a.cfg,
+		a.lifetime,
+		a.buildTools,
+		policy,
+		workspaceServices,
 	)
-	lifetime.toolResources = slices.Clone(toolRuntime.closers)
 	if err != nil {
 		return nil, err
 	}
-
-	workingContexts := agentexec.NewWorkingContextComposer(agentexec.WorkingContextConfig{
-		UserHome: cfg.UserHome, Knowledge: workspaceKnowledge,
-		AgentMemory: cfg.AgentMemoryStore, AgentMemorySearch: modelServices.agentMemorySearch,
-		Plan: cfg.PlanStore, Hooks: cfg.HooksResolver,
-	})
-	toolAuthorizer, err := agentexec.NewToolAuthorizer(approvalPolicy)
-	if err != nil {
-		return nil, fmt.Errorf("runtime: Tool authorizer: %w", err)
-	}
-	runMaintenance := buildRunMaintenance(
-		cfg, conversationServices, toolRuntime.tools.Shells, workspaceSkills,
-		skillMaintenance, agentMemoryCuration,
-		modelServices.utilityClient, modelServices.liveEmbedder.ResolveMemory,
-	)
-	interactionConfig := agentexec.InteractionExecutorConfig{
-		Lifetime: lifetime.context,
-		BuildID:  cfg.BuildID, DefaultClient: cfg.ChatClient, ChatResolver: modelServices.chatResolver,
-		ImplementationIdentity: cfg.BuildID,
-		ConfigurationIdentity:  "lyra.runtime.interaction.v1",
-		StreamModelResponses:   true,
-		MaxConcurrentToolCalls: 8,
-		ToolInterpreter:        toolset.NewInterpreter(planCoordinator),
-		ToolPresenter:          toolset.Presenter{},
-		ToolAuthorizer:         toolAuthorizer,
-		ToolHooks:              workingContexts,
-		MCPToolAutoApproved: func(server, tool string) bool {
-			return mcpConnectionSettings.policy.ToolAutoApproved(mcpserver.ToolRef{Server: server, Tool: tool})
-		},
-		Maintenance:    runMaintenance,
-		LifecycleHooks: workingContexts,
-		Pricing:        cfg.Pricing,
-		Provider:       cfg.Provider,
-	}
-	if toolRuntime.tools.Resolver != nil {
-		interactionConfig.ToolResolver = toolRuntime.tools.Resolver
-	}
-	if cfg.ToolResultStore != nil {
-		interactionConfig.ToolResultStore = cfg.ToolResultStore
-		interactionConfig.ToolResultThreshold = cfg.ToolResultThreshold
-		interactionConfig.ToolResultReaderName = tool.ReadToolResult
-	}
-	interactionExecutor, err := agentexec.NewInteractionExecutor(interactionConfig)
-	if err != nil {
-		return nil, fmt.Errorf("runtime: Interaction executor: %w", err)
-	}
-	lifetime.executor = interactionExecutor
-	toolRegistry := toolset.NewDiagnosticRegistry()
-
-	// File checkpoints (shadow git) enable run-boundary snapshots + file
-	// rollback only when git is present + a dir is configured; the same adapter
-	// backs the run-segment boundary snapshot and the sessions file restorer.
-	workspaceCheckpoints := checkpointstore.NewCheckpoints(cfg.CheckpointDir)
-	return &assemblyFoundation{
-		cfg:                      cfg,
-		lifetime:                 lifetime,
-		conversationServices:     conversationServices,
-		modelServices:            modelServices,
-		applicationInvalidations: applicationInvalidations,
-		approvalPolicy:           approvalPolicy,
-		goalStore:                goalStore,
-		planCoordinator:          planCoordinator,
-		mcpConnectionSettings:    mcpConnectionSettings,
-		scheduleCoordinator:      scheduleCoordinator,
-		workspaceScope:           workspaceScope,
-		agentMemoryCoordinator:   agentMemoryCoordinator,
-		workspaceAuthoredWatch:   workspaceAuthoredWatch,
-		workspaceKnowledge:       workspaceKnowledge,
-		workspaceSkills:          workspaceSkills,
-		toolRuntime:              toolRuntime,
-		workingContexts:          workingContexts,
-		interactionExecutor:      interactionExecutor,
-		toolRegistry:             toolRegistry,
-		workspaceCheckpoints:     workspaceCheckpoints,
-	}, nil
+	return buildAssemblyCore(ctx, a.cfg, a.lifetime, policy, workspaceServices, execution)
 }
 
-// buildAssemblyCore composes the Session/Run lifecycle, startup recovery, and
-// delivery-facing Stack from a complete foundation.
-func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Host, error) {
-	cfg := foundation.cfg
-	lifetime := foundation.lifetime
-	conversationServices := foundation.conversationServices
-	modelServices := foundation.modelServices
-	applicationInvalidations := foundation.applicationInvalidations
-	approvalPolicy := foundation.approvalPolicy
-	goalStore := foundation.goalStore
-	planCoordinator := foundation.planCoordinator
-	mcpConnectionSettings := foundation.mcpConnectionSettings
-	scheduleCoordinator := foundation.scheduleCoordinator
-	workspaceScope := foundation.workspaceScope
-	agentMemoryCoordinator := foundation.agentMemoryCoordinator
-	workspaceAuthoredWatch := foundation.workspaceAuthoredWatch
-	workspaceKnowledge := foundation.workspaceKnowledge
-	workspaceSkills := foundation.workspaceSkills
-	toolRuntime := foundation.toolRuntime
-	workingContexts := foundation.workingContexts
-	interactionExecutor := foundation.interactionExecutor
-	toolRegistry := foundation.toolRegistry
-	workspaceCheckpoints := foundation.workspaceCheckpoints
+// buildAssemblyCore composes the Session/Run lifecycle from three complete
+// feature capsules. No intermediate locator is published to Delivery.
+func buildAssemblyCore(
+	ctx context.Context,
+	cfg Config,
+	lifetime *hostLifetime,
+	policy policyComposition,
+	workspaceServices workspaceComposition,
+	execution executionComposition,
+) (*Host, error) {
 	var err error
 
 	// Sandbox isolation for a run whose session is marked Isolated: its tools
@@ -472,7 +187,7 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		Interrupts:          cfg.InterruptStore,
 		Runs:                cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
-		History:             conversationServices.messages,
+		History:             execution.conversation.messages,
 		Plan:                cfg.PlanStore,
 		Approvals:           cfg.ApprovalRuleStore,
 		ToolResults:         cfg.ToolResultStore,
@@ -486,13 +201,13 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		Catalog:            modelCapabilities,
 		Prober:             modelCapabilities,
 		Lister:             modelCapabilities,
-		UtilityRoleState:   modelServices.utilityRoleState,
-		UtilityValidator:   modelServices.chatResolver,
+		UtilityRoleState:   execution.models.utilityRoleState,
+		UtilityValidator:   execution.models.chatResolver,
 		UtilityStore:       cfg.UtilityRoleStore,
-		EmbeddingRoleState: modelServices.embeddingRoleState,
-		EmbeddingValidator: modelServices.embeddingResolver,
+		EmbeddingRoleState: execution.models.embeddingRoleState,
+		EmbeddingValidator: execution.models.embeddingResolver,
 		EmbeddingStore:     cfg.EmbeddingRoleStore,
-		Invalidations:      applicationInvalidations.Publish,
+		Invalidations:      policy.invalidations.Publish,
 	})
 	sessionDependencies := sessions.Dependencies{
 		Sessions:          cfg.SessionStore,
@@ -502,13 +217,13 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		Snapshots:         sessionStores,
 		MaterialSnapshots: sessionStores,
 		Writes:            sessionStores,
-		Forgetter:         workingContexts,
-		ExecutionReleaser: interactionExecutor,
+		Forgetter:         execution.workingContexts,
+		ExecutionReleaser: execution.executor,
 		Paths:             workspacepath.Resolver{},
 		DefaultModel:      cfg.Model,
-		Checkpoints:       checkpointstore.NewSessionCheckpoints(workspaceCheckpoints),
+		Checkpoints:       checkpointstore.NewSessionCheckpoints(workspaceServices.checkpoints),
 		Admissions:        admissionGate,
-		Invalidations:     applicationInvalidations.Publish,
+		Invalidations:     policy.invalidations.Publish,
 		Now:               time.Now,
 		NewID: func() string {
 			return session.IDPrefix + uuid.NewString()
@@ -523,7 +238,7 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 	}
 	if cfg.PlanStore != nil {
 		sessionDependencies.Plan = &sessions.PlanServices{
-			Boundaries: cfg.PlanStore, Replacements: planCoordinator,
+			Boundaries: cfg.PlanStore, Replacements: policy.plans,
 		}
 	}
 	if cfg.WorkspaceMutationStore != nil {
@@ -560,7 +275,7 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		ToolApprovals:       cfg.TranscriptStore,
 		ModelInvocations:    cfg.ModelInvocationStore,
 		ToolInvocations:     cfg.ToolInvocationStore,
-		Conversation:        conversationServices.store,
+		Conversation:        execution.conversation.store,
 		State:               cfg.RunStore,
 		RunMetrics:          cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
@@ -581,10 +296,10 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		return nil, fmt.Errorf("runtime: construct Run-segment effects: %w", err)
 	}
 	runFinalizer, err := runsegment.NewFinalizer(runsegment.FinalizerConfig{
-		Checkpoints: workspaceCheckpoints,
+		Checkpoints: workspaceServices.checkpoints,
 		Titles: &runsegment.TitleMaintenance{
 			Sessions:  sessionCoordinator,
-			Generator: sessiontitle.NewGenerator(modelServices.utilityClient),
+			Generator: sessiontitle.NewGenerator(execution.models.utilityClient),
 			Tasks:     runEffectTasks,
 		},
 	})
@@ -597,17 +312,17 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		return nil, fmt.Errorf("runtime: default Run model selection: %w", err)
 	}
 	runDependencies := runs.Dependencies{
-		RootStarts:                         interactionExecutor,
-		Observations:                       interactionExecutor,
-		Releases:                           interactionExecutor,
-		RootCancellation:                   interactionExecutor,
-		Conversation:                       conversationServices.messages,
-		Continuation:                       interactionExecutor,
-		WaitingRestorer:                    interactionExecutor,
-		Steering:                           interactionExecutor,
-		RunningSubtreeCanceler:             interactionExecutor,
-		WaitingSubtreeCancellationPreparer: interactionExecutor,
-		WorkingContexts:                    workingContexts,
+		RootStarts:                         execution.executor,
+		Observations:                       execution.executor,
+		Releases:                           execution.executor,
+		RootCancellation:                   execution.executor,
+		Conversation:                       execution.conversation.messages,
+		Continuation:                       execution.executor,
+		WaitingRestorer:                    execution.executor,
+		Steering:                           execution.executor,
+		RunningSubtreeCanceler:             execution.executor,
+		WaitingSubtreeCancellationPreparer: execution.executor,
+		WorkingContexts:                    execution.workingContexts,
 		Session: runs.SessionPorts{
 			Reader:       sessionCoordinator,
 			Creator:      sessionCoordinator,
@@ -637,7 +352,7 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		NewSegmentID: func() string {
 			return runs.NewSegmentID(uuid.NewString())
 		},
-		Invalidations: applicationInvalidations.Publish,
+		Invalidations: policy.invalidations.Publish,
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
@@ -652,21 +367,21 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 	scheduleFiring := schedules.NewFiring(
 		cfg.ScheduleStore,
 		schedules.NewRunLauncher(runCoordinator, cfg.DefaultWorkspacePath),
-		applicationInvalidations.Publish,
+		policy.invalidations.Publish,
 	)
 
-	approvalCoordinator := approvals.New(approvalPolicy, cfg.SessionStore)
+	approvalCoordinator := approvals.New(policy.approvals, cfg.SessionStore)
 
-	toolCoordinator := tools.New(toolRegistry, workspaceScope)
+	toolCoordinator := tools.New(execution.toolRegistry, workspaceServices.scope)
 
 	mcpCoordinator := mcpapp.New(mcpapp.Config{
 		Registry:            cfg.MCPRegistry,
-		StatusReader:        toolRuntime.mcp,
-		ToolCatalog:         toolRuntime.mcp,
-		ConnectionControl:   toolRuntime.mcp,
-		ConnectionLifecycle: toolRuntime.mcp,
-		Policy:              mcpConnectionSettings.policy,
-		Invalidations:       applicationInvalidations.Publish,
+		StatusReader:        execution.tools.mcp,
+		ToolCatalog:         execution.tools.mcp,
+		ConnectionControl:   execution.tools.mcp,
+		ConnectionLifecycle: execution.tools.mcp,
+		Policy:              policy.mcp.policy,
+		Invalidations:       policy.invalidations.Publish,
 	})
 	lifetime.mcpCoordinator = mcpCoordinator
 
@@ -675,7 +390,7 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
 		goalDriver = goals.NewDriver(
-			goalStore,
+			policy.goals,
 			runCoordinator,
 			cfg.SessionStore,
 			goalMutations,
@@ -691,8 +406,8 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		if err != nil {
 			return nil, fmt.Errorf("runtime: build create_goal: %w", err)
 		}
-		if toolRuntime.tools.Resolver != nil {
-			toolRuntime.tools.Resolver.UseCreateGoalTool(createGoalTool)
+		if execution.tools.tools.Resolver != nil {
+			execution.tools.tools.Resolver.UseCreateGoalTool(createGoalTool)
 		}
 	}
 
@@ -701,7 +416,7 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 		Runs:                cfg.RunStore,
 		Interrupts:          cfg.InterruptStore,
 		Transcript:          cfg.TranscriptStore,
-		Messages:            conversationServices.store,
+		Messages:            execution.conversation.store,
 		GoalRuns:            cfg.GoalStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
 		ModelInvocations:    cfg.ModelInvocationStore,
@@ -714,9 +429,9 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 	}
 	bootRecovery, err := runs.NewRecovery(
 		recoveryPersistence,
-		interactionExecutor,
+		execution.executor,
 		admissionGate,
-		applicationInvalidations.Publish,
+		policy.invalidations.Publish,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: boot recovery: %w", err)
@@ -732,60 +447,66 @@ func buildAssemblyCore(ctx context.Context, foundation *assemblyFoundation) (*Ho
 	if err := ownershipRecovery.ReconcileStartup(ctx); err != nil {
 		return nil, fmt.Errorf("runtime: reconcile abandoned ownership: %w", err)
 	}
-	workspaceFiles := workspace.NewFiles(workspaceScope, checkpointstore.FileBrowser{})
-	workspaceVCS := workspace.NewVCS(workspaceScope, checkpointstore.VCS{})
+	workspaceFiles := workspace.NewFiles(workspaceServices.scope, checkpointstore.FileBrowser{})
+	workspaceVCS := workspace.NewVCS(workspaceServices.scope, checkpointstore.VCS{})
 	workspaceDiscovery := workspace.NewDiscovery(
-		workspaceScope, sessionCoordinator, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
+		workspaceServices.scope, sessionCoordinator, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
 	)
 	workspaceHooks := workspace.NewHooks(
-		workspaceScope, cfg.HooksResolver, cfg.HookTrustStore, applicationInvalidations.Publish,
+		workspaceServices.scope, cfg.HooksResolver, cfg.HookTrustStore, policy.invalidations.Publish,
 	)
-	workspaceWatch := workspace.NewGitWatch(workspaceScope, checkpointstore.GitWatcher{})
+	workspaceWatch := workspace.NewGitWatch(workspaceServices.scope, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
 	codebaseCoordinator := codebase.New(
-		modelServices.codebaseIndex, workspaceScope, applicationInvalidations.Publish,
+		execution.models.codebaseIndex, workspaceServices.scope, policy.invalidations.Publish,
 	)
 	lifetime.codebaseCoordinator = codebaseCoordinator
 	host := &Host{
-		Stack: Stack{
-			Sessions:            sessionCoordinator,
-			MCP:                 mcpCoordinator,
-			Approvals:           approvalCoordinator,
-			Models:              modelCoordinator,
-			Tools:               toolCoordinator,
-			Codebase:            codebaseCoordinator,
-			Runs:                runCoordinator,
-			OwnershipRecovery:   ownershipRecovery,
-			FileChanges:         fileChanges.Observe,
-			Invalidations:       applicationInvalidations.Observe,
-			PublishInvalidation: applicationInvalidations.Publish,
-			ScheduleFiring:      scheduleFiring,
-			IdempotencyStore:    cfg.IdempotencyStore,
-			Queries: queries.New(queries.Dependencies{
-				Transcript: cfg.TranscriptStore,
-				Interrupts: cfg.InterruptStore,
-				Runs:       cfg.RunStore,
-				Sessions:   cfg.SessionStore,
-				Plan:       cfg.PlanStore,
-			}),
-			Usage: usage.New(usage.Dependencies{
-				Runs: cfg.RunStore, Sessions: cfg.SessionStore,
-			}),
-			Feedback:               feedbackapp.New(cfg.FeedbackStore),
-			WorkspaceFiles:         workspaceFiles,
-			WorkspaceVCS:           workspaceVCS,
-			WorkspaceDiscovery:     workspaceDiscovery,
-			WorkspaceKnowledge:     workspaceKnowledge,
-			WorkspaceSkills:        workspaceSkills,
-			WorkspaceHooks:         workspaceHooks,
-			WorkspaceWatch:         workspaceWatch,
-			WorkspaceAuthoredWatch: workspaceAuthoredWatch,
-			Schedules:              scheduleCoordinator,
-			Goals:                  goalDriver,
-			AgentMemory:            agentMemoryCoordinator,
-			GitAvailable:           checkpointstore.GitAvailable(),
-			PlanEnabled:            cfg.PlanStore != nil,
+		application: &hostApplication{
+			delivery: server.Config{
+				Sessions:      sessionCoordinator,
+				MCP:           mcpCoordinator,
+				Approvals:     approvalCoordinator,
+				Models:        modelCoordinator,
+				Tools:         toolCoordinator,
+				Codebase:      codebaseCoordinator,
+				Runs:          runCoordinator,
+				FileChanges:   fileChanges.Observe,
+				Invalidations: policy.invalidations.Observe,
+				Queries: queries.New(queries.Dependencies{
+					Transcript: cfg.TranscriptStore,
+					Interrupts: cfg.InterruptStore,
+					Runs:       cfg.RunStore,
+					Sessions:   cfg.SessionStore,
+					Plan:       cfg.PlanStore,
+				}),
+				Usage: usage.New(usage.Dependencies{
+					Runs: cfg.RunStore, Sessions: cfg.SessionStore,
+				}),
+				Feedback:               feedbackapp.New(cfg.FeedbackStore),
+				WorkspaceFiles:         workspaceFiles,
+				WorkspaceVCS:           workspaceVCS,
+				WorkspaceDiscovery:     workspaceDiscovery,
+				WorkspaceKnowledge:     workspaceServices.knowledge,
+				WorkspaceSkills:        workspaceServices.skills,
+				WorkspaceHooks:         workspaceHooks,
+				WorkspaceWatch:         workspaceWatch,
+				WorkspaceAuthoredWatch: workspaceServices.authoredWatch,
+				Schedules:              policy.schedules,
+				ScheduleFiring:         scheduleFiring,
+				Goals:                  goalDriver,
+				AgentMemory:            workspaceServices.agentMemory,
+				GitAvailable:           checkpointstore.GitAvailable(),
+				PlanEnabled:            cfg.PlanStore != nil,
+			},
+			sessions: sessionCoordinator,
+			workers: hostWorkers{
+				scheduler:     scheduleFiring,
+				recovery:      ownershipRecovery,
+				invalidations: policy.invalidations.Publish,
+			},
+			idempotencyStore: cfg.IdempotencyStore,
 		},
 		lifetime: lifetime,
 	}

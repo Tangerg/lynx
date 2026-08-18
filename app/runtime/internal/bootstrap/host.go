@@ -8,24 +8,12 @@ import (
 )
 
 // Host owns the assembled application tier and its process-level close order
-// (§13.2). Stack exposes application entrypoints to delivery, while Host retains
-// the process resources and drives their shutdown through Close.
+// (§13.2). Its application capsule exposes behavior only inside Bootstrap;
+// process resources remain in the immutable shared shutdown graph.
 type Host struct {
-	Stack Stack
-
+	application *hostApplication
 	// lifetime owns the immutable shutdown graph shared by every Host copy.
 	lifetime *hostLifetime
-}
-
-// RecoverStartup completes durable work that must be reconciled before any
-// delivery adapter starts accepting requests. Keeping it as a composition-root
-// function, rather than a Host method, keeps Host's public surface limited to
-// process lifetime ownership.
-func RecoverStartup(ctx context.Context, stack Stack) error {
-	if stack.Sessions == nil {
-		return errors.New("runtime: sessions coordinator is unavailable for startup recovery")
-	}
-	return stack.Sessions.RecoverWorkspaceMutations(ctx)
 }
 
 type hostLifetime struct {

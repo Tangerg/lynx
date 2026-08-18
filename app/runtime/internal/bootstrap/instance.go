@@ -12,10 +12,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runtimeownership"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -34,9 +32,8 @@ type InstanceConfig struct {
 // Instance owns one complete Runtime: its operation endpoint, workers,
 // application Host and persistence graph.
 type Instance struct {
-	endpoint            *operation.Endpoint
+	delivery            operationDelivery
 	serverInfo          protocol.ServerInfo
-	service             *runtimeserver.Server
 	host                *Host
 	stopRuntime         context.CancelFunc
 	schedulerDone       <-chan struct{}
@@ -49,8 +46,6 @@ type Instance struct {
 }
 
 const instanceShutdownTimeout = 10 * time.Second
-
-const ownershipRecoveryInterval = time.Second
 
 // OpenInstance serializes canonical data-directory setup, opens persistence,
 // then releases that setup boundary before assembling and recovering one Host.
@@ -154,7 +149,7 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 			err = errors.Join(err, host.Close())
 		}
 	}()
-	if err = RecoverStartup(ctx, host.Stack); err != nil {
+	if err = host.application.recoverStartup(ctx); err != nil {
 		return nil, config.Settings{}, err
 	}
 
@@ -168,46 +163,35 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 	}
 	serverInfo.Home = cfg.UserHome
 	serverInfo.DefaultWorkspace = protocol.WorkspaceRef{Path: cfg.DefaultWorkspacePath}
-	service, err := newOperationService(host.Stack, serverInfo, idempotencyNamespace)
+	delivery, err := host.application.openOperationDelivery(
+		runtimeContext,
+		serverInfo,
+		idempotencyNamespace,
+	)
 	if err != nil {
 		return nil, config.Settings{}, err
 	}
-
-	endpoint, err := operation.New(service, operation.Config{
-		IdempotencyStore:     host.Stack.IdempotencyStore,
-		IdempotencyNamespace: idempotencyNamespace,
-		Lifetime:             runtimeContext,
-	})
-	if err != nil {
-		return nil, config.Settings{}, err
-	}
-	databaseChangesDone, err := stores.StartExternalChangeObserver(runtimeContext, func() {
-		host.Stack.PublishInvalidation.Notify(invalidation.Notice{Resource: invalidation.Resync})
-	})
+	databaseChangesDone, err := stores.StartExternalChangeObserver(
+		runtimeContext,
+		host.application.notifyExternalChange,
+	)
 	if err != nil {
 		stopRuntime()
-		return nil, config.Settings{}, err
+		delivery.beginShutdown()
+		rollbackCtx, cancelRollback := context.WithTimeout(context.Background(), instanceShutdownTimeout)
+		defer cancelRollback()
+		return nil, config.Settings{}, errors.Join(err, delivery.awaitShutdown(rollbackCtx))
 	}
-	schedulerDone := make(chan struct{})
-	go func() {
-		defer close(schedulerDone)
-		host.Stack.ScheduleFiring.RunWorker(runtimeContext)
-	}()
-	recoveryDone := make(chan struct{})
-	go func() {
-		defer close(recoveryDone)
-		runOwnershipRecovery(runtimeContext, host.Stack)
-	}()
+	workerJoins := host.application.startWorkers(runtimeContext)
 
 	instance := &Instance{
-		endpoint:            endpoint,
+		delivery:            delivery,
 		serverInfo:          serverInfo,
-		service:             service,
 		host:                host,
 		stopRuntime:         stopRuntime,
-		schedulerDone:       schedulerDone,
+		schedulerDone:       workerJoins.scheduler,
 		databaseChangesDone: databaseChangesDone,
-		recoveryDone:        recoveryDone,
+		recoveryDone:        workerJoins.recovery,
 	}
 	runtimeOwned = false
 	hostOwned = false
@@ -247,7 +231,7 @@ func (i *Instance) Endpoint() *operation.Endpoint {
 	if i == nil {
 		return nil
 	}
-	return i.endpoint
+	return i.delivery.endpoint
 }
 
 // ServerInfo returns the immutable identity advertised by every binding.
@@ -272,14 +256,13 @@ func (i *Instance) Close() error {
 	}
 	if !i.stopping {
 		i.stopping = true
-		i.service.Close()
-		i.endpoint.BeginShutdown()
+		i.delivery.beginShutdown()
 		i.stopRuntime()
 	}
 
 	waitContext, cancel := context.WithTimeout(context.Background(), instanceShutdownTimeout)
 	defer cancel()
-	if err := i.endpoint.AwaitShutdown(waitContext); err != nil {
+	if err := i.delivery.awaitShutdown(waitContext); err != nil {
 		return err
 	}
 	select {
@@ -306,24 +289,4 @@ func (i *Instance) Close() error {
 	}
 	i.closed = true
 	return nil
-}
-
-// runOwnershipRecovery detects process death by attempting the same kernel
-// leases held by live Run and Goal owners. A contended lease is definitive
-// liveness evidence and the recovery use cases skip that Session; an abandoned
-// owner becomes recoverable immediately after the OS releases its descriptors,
-// without clocks, heartbeats, or lease-expiry guesses.
-func runOwnershipRecovery(ctx context.Context, stack Stack) {
-	ticker := time.NewTicker(ownershipRecoveryInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if stack.OwnershipRecovery != nil {
-				_, _ = stack.OwnershipRecovery.Reconcile(ctx)
-			}
-		}
-	}
 }

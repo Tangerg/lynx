@@ -10,18 +10,11 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
@@ -229,19 +222,9 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 
 	assembly := newAssembly(t.Context(), cfg, func(
 		ctx context.Context,
-		lifetime context.Context,
-		cfg Config,
-		policy *approvals.RuntimePolicy,
-		mcpConnectionSettings mcpEnvironment,
-		searcher *agentmemory.Searcher,
-		scheduleCoordinator *scheduleapp.Coordinator,
-		goalReader *goals.Reader,
-		goalReporter *goals.OutcomeReporter,
-		planCoordinator *planapp.Coordinator,
-		skillStore *skillauthoring.Store,
-		skillProposals builtin.SkillProposalSubmitter,
+		deps toolEnvironmentDependencies,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, lifetime, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, deps)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -273,17 +256,7 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 
 	assembly := newAssembly(t.Context(), cfg, func(
 		context.Context,
-		context.Context,
-		Config,
-		*approvals.RuntimePolicy,
-		mcpEnvironment,
-		*agentmemory.Searcher,
-		*scheduleapp.Coordinator,
-		*goals.Reader,
-		*goals.OutcomeReporter,
-		*planapp.Coordinator,
-		*skillauthoring.Store,
-		builtin.SkillProposalSubmitter,
+		toolEnvironmentDependencies,
 	) (toolEnvironment, error) {
 		return toolEnvironment{
 			closers: []ShutdownResource{teardown.New(func(context.Context) error {
@@ -319,19 +292,9 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 
 	assembly := newAssembly(t.Context(), cfg, func(
 		ctx context.Context,
-		lifetime context.Context,
-		cfg Config,
-		policy *approvals.RuntimePolicy,
-		mcpConnectionSettings mcpEnvironment,
-		searcher *agentmemory.Searcher,
-		scheduleCoordinator *scheduleapp.Coordinator,
-		goalReader *goals.Reader,
-		goalReporter *goals.OutcomeReporter,
-		planCoordinator *planapp.Coordinator,
-		skillStore *skillauthoring.Store,
-		skillProposals builtin.SkillProposalSubmitter,
+		deps toolEnvironmentDependencies,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, lifetime, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, deps)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -376,19 +339,9 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 
 	assembly := newAssembly(t.Context(), cfg, func(
 		ctx context.Context,
-		lifetime context.Context,
-		cfg Config,
-		policy *approvals.RuntimePolicy,
-		mcpConnectionSettings mcpEnvironment,
-		searcher *agentmemory.Searcher,
-		scheduleCoordinator *scheduleapp.Coordinator,
-		goalReader *goals.Reader,
-		goalReporter *goals.OutcomeReporter,
-		planCoordinator *planapp.Coordinator,
-		skillStore *skillauthoring.Store,
-		skillProposals builtin.SkillProposalSubmitter,
+		deps toolEnvironmentDependencies,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, lifetime, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, deps)
 		if err != nil {
 			return toolEnvironment{}, err
 		}

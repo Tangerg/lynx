@@ -295,7 +295,7 @@ Delivery 只依赖公共 Protocol、Application 和必要的 Domain projection v
 
 私有 Runtime instance builder 是唯一组合根：创建 concrete dependency、组装 consumer port、在短期 setup lease 内打开并初始化共享数据目录、执行有所有权判断的恢复、启动有 owner 的后台任务并按逆序关闭资源。`bootstrap.OpenInstance` 创建每个 instance 唯一的 Runtime context root，并把它显式注入 Assembly、operation Endpoint、Interaction executor、Toolset、LSP、MCP/OAuth 与 workers；该 instance 同时拥有 cancel 和完整 join。HTTP executable 和公共 `embedded.Open` 都只能调用它，不得各自复制装配图；多个进程可各自持有一个完整 Runtime instance 并共享同一私有数据目录。
 
-Bootstrap 不提供业务 API，不成为 service locator，不让运行时对象反向取得完整 Stack。公共 `embedded.Runtime` 只持有私有 instance 与 operation endpoint，提供完整 `Open/Close` 和类型化方法，不泄露内部资源。Config 只解析外部设置和完成静态验证，不执行业务选择。Cmd 只负责进程参数、BuildID、信号、HTTP listener 与 Runtime 生命周期。
+Bootstrap 不提供业务 API，不成为 service locator，也不存在可向下游传播的完整 Stack。Assembly 只通过 package-private policy、workspace、execution 三个 composition capsule 组装 Session/Run 图：每个 capsule 构造成功即完整合法，execution acquisition 在任何错误返回前先把 closer/executor 转交唯一 `hostLifetime`。Host 的私有 application capsule 只持有 Delivery 自己的 consumer config、startup recovery 与 worker lifecycle 行为；Instance 不能取得 concrete coordinator。operation service 与 endpoint 作为一个合法构造、同步退休的 delivery capsule 交给 Instance，后续 observer 启动失败也必须完整回滚。公共 `embedded.Runtime` 只持有私有 instance 与 operation endpoint，提供完整 `Open/Close` 和类型化方法，不泄露内部资源。Config 只解析外部设置和完成静态验证，不执行业务选择。Cmd 只负责进程参数、BuildID、信号、HTTP listener 与 Runtime 生命周期。
 
 ### 6.7 共享原语
 

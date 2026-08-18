@@ -70,7 +70,6 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 		},
 	}
 	copyOfHost := host
-	copyOfHost.Stack = Stack{}
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 8)

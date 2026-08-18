@@ -831,13 +831,24 @@ func inspectProductionComments(root string, inspect func(path string, comment st
 	})
 }
 
-// TestStackExposesTheIdempotencyConsumerPort keeps concrete storage ownership
-// inside construction. The assembled discovery surface crosses a package
-// boundary, so it exposes exactly the behavior its HTTP consumer requires.
-func TestStackExposesTheIdempotencyConsumerPort(t *testing.T) {
-	path := filepath.Join(moduleRoot(t), "internal", "bootstrap", "assemble.go")
-	if got := namedStructFieldType(t, path, "Stack", "IdempotencyStore"); got != "idempotency.Store" {
-		t.Fatalf("Stack.IdempotencyStore type = %s, want consumer port idempotency.Store", got)
+// TestHostApplicationIsAnInternalCompositionCapsule keeps concrete storage and
+// application coordinators out of Host's public shape. Delivery receives its
+// own consumer config, and operation reliability retains the narrow port.
+func TestHostApplicationIsAnInternalCompositionCapsule(t *testing.T) {
+	root := moduleRoot(t)
+	hostPath := filepath.Join(root, "internal", "bootstrap", "host.go")
+	if fields := namedStructExportedFields(t, hostPath, "Host"); len(fields) != 0 {
+		t.Fatalf("Host exported fields = %v, want none", fields)
+	}
+	if got := namedStructFieldType(t, hostPath, "Host", "application"); got != "*hostApplication" {
+		t.Fatalf("Host.application type = %s, want *hostApplication", got)
+	}
+	applicationPath := filepath.Join(root, "internal", "bootstrap", "delivery.go")
+	if got := namedStructFieldType(t, applicationPath, "hostApplication", "delivery"); got != "server.Config" {
+		t.Fatalf("hostApplication.delivery type = %s, want server.Config", got)
+	}
+	if got := namedStructFieldType(t, applicationPath, "hostApplication", "idempotencyStore"); got != "idempotency.Store" {
+		t.Fatalf("hostApplication.idempotencyStore type = %s, want idempotency.Store", got)
 	}
 }
 

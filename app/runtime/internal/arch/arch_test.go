@@ -748,14 +748,23 @@ func TestCapabilityAdaptersDoNotImportTransportSDKs(t *testing.T) {
 }
 
 // TestBootstrapExposesNoBusinessMethod enforces §16 rule 8: the composition root
-// assembles and closes — it must not become a business facade or hide an adapter
-// implementation behind an unexported receiver. The closed allowlist is limited
-// to construction validation, process-lifecycle accessors and retryable teardown.
+// may own only construction and process-lifecycle behavior. The package-private
+// application capsule is a closed set of delivery/startup/worker composition
+// operations; domain commands still belong to Application.
 func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 	allowed := map[string]map[string]bool{
-		"Host":           {"Close": true},
+		"Host": {"Close": true},
+		"hostApplication": {
+			"recoverStartup": true, "newOperationService": true,
+			"openOperationDelivery": true, "notifyExternalChange": true,
+			"startWorkers": true,
+		},
+		"hostWorkers": {"runOwnershipRecovery": true},
+		"operationDelivery": {
+			"beginShutdown": true, "awaitShutdown": true,
+		},
 		"Instance":       {"Close": true, "Endpoint": true, "ServerInfo": true},
 		"InstanceConfig": {"validate": true},
 	}

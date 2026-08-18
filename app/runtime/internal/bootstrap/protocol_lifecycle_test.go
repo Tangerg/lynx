@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -449,11 +448,11 @@ func buildProtocolRuntime(t *testing.T, cfg Config, cwd string) (*Host, *runtime
 		_ = CloseAssembly(assembly)
 		t.Fatalf("build runtime: %v", err)
 	}
-	if err := RecoverStartup(t.Context(), host.Stack); err != nil {
+	if err := host.application.recoverStartup(t.Context()); err != nil {
 		_ = host.Close()
 		t.Fatalf("recover runtime: %v", err)
 	}
-	api, err := protocolServer(host.Stack, cwd)
+	api, err := protocolServer(host, cwd)
 	if err != nil {
 		_ = host.Close()
 		t.Fatalf("build protocol server: %v", err)
@@ -461,43 +460,11 @@ func buildProtocolRuntime(t *testing.T, cfg Config, cwd string) (*Host, *runtime
 	return host, api
 }
 
-func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
-	return runtimeserver.New(runtimeserver.Config{
-		Sessions:               stack.Sessions,
-		MCP:                    stack.MCP,
-		Approvals:              stack.Approvals,
-		Models:                 stack.Models,
-		Tools:                  stack.Tools,
-		Codebase:               stack.Codebase,
-		Runs:                   stack.Runs,
-		FileChanges:            stack.FileChanges,
-		Invalidations:          stack.Invalidations,
-		Queries:                stack.Queries,
-		Usage:                  stack.Usage,
-		Feedback:               stack.Feedback,
-		Schedules:              stack.Schedules,
-		ScheduleFiring:         stack.ScheduleFiring,
-		Goals:                  stack.Goals,
-		AgentMemory:            stack.AgentMemory,
-		WorkspaceFiles:         stack.WorkspaceFiles,
-		WorkspaceVCS:           stack.WorkspaceVCS,
-		WorkspaceDiscovery:     stack.WorkspaceDiscovery,
-		WorkspaceKnowledge:     stack.WorkspaceKnowledge,
-		WorkspaceSkills:        stack.WorkspaceSkills,
-		WorkspaceHooks:         stack.WorkspaceHooks,
-		WorkspaceWatch:         stack.WorkspaceWatch,
-		WorkspaceAuthoredWatch: stack.WorkspaceAuthoredWatch,
-		GitAvailable:           stack.GitAvailable,
-		PlanEnabled:            stack.PlanEnabled,
-		ServerInfo: protocol.ServerInfo{
-			Name: "conformance-test", Version: "0.0.0-test", InstanceID: "runtime_test",
-			DefaultWorkspace: protocol.WorkspaceRef{Path: cwd}, Home: cwd,
-		},
-		IdempotencyLimits: protocol.IdempotencyLimits{
-			RetentionSeconds: int(idempotency.Retention.Seconds()),
-			Namespace:        "idp_protocol_lifecycle_test",
-		},
-	})
+func protocolServer(host *Host, cwd string) (*runtimeserver.Server, error) {
+	return host.application.newOperationService(protocol.ServerInfo{
+		Name: "conformance-test", Version: "0.0.0-test", InstanceID: "runtime_test",
+		DefaultWorkspace: protocol.WorkspaceRef{Path: cwd}, Home: cwd,
+	}, "idp_protocol_lifecycle_test")
 }
 
 func collectRunEvents(events iter.Seq[protocol.RunEvent]) <-chan []protocol.RunEvent {

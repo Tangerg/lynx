@@ -40,6 +40,7 @@
 - Infra 独占 SQLite、filesystem、Git、HTTP sidecar 和进程机制；它实现 Application ports，不创造业务终态。
 - Delivery 独占 JSON-RPC/HTTP/SSE binding、strict validation、error mapping、version/capability negotiation 和生成合同；它不持有领域状态。
 - Bootstrap 是唯一 composition root，required dependency 必须在 constructor/start boundary 被证明，不允许以 nil、安装顺序或静默降级表达依赖。
+- Bootstrap 不发布 Stack/service locator，也不传播宽 assembly foundation。Policy、workspace、execution capsule 分别拥有共同构造不变量；Host 私有 application capsule 向 Delivery、startup recovery 和 workers 提供行为，Instance 只拥有完整 operation delivery 与 join handles。工具/执行 acquisition 仍在错误返回前转交唯一 `hostLifetime`，失败 Open 与重复 Close 保持逆序、可重试回滚。
 
 ## 3. 执行与交互能力
 

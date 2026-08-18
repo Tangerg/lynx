@@ -127,7 +127,7 @@ func TestInstanceCloseIsIdempotent(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
 	instance := &Instance{
-		service:       &runtimeserver.Server{},
+		delivery:      operationDelivery{service: &runtimeserver.Server{}},
 		host:          &Host{},
 		stopRuntime:   func() {},
 		schedulerDone: done,
@@ -155,7 +155,7 @@ func TestInstanceCloseRetainsResourcesUntilHostJoins(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
 	instance := &Instance{
-		service:       &runtimeserver.Server{},
+		delivery:      operationDelivery{service: &runtimeserver.Server{}},
 		host:          host,
 		stopRuntime:   func() {},
 		schedulerDone: done,
@@ -199,8 +199,7 @@ func TestInstanceCloseJoinsAcceptedOperationsBeforeClosingResources(t *testing.T
 	close(schedulerDone)
 	resourceClosed := make(chan struct{})
 	instance := &Instance{
-		endpoint: endpoint,
-		service:  &runtimeserver.Server{},
+		delivery: operationDelivery{endpoint: endpoint, service: &runtimeserver.Server{}},
 		host: &Host{lifetime: &hostLifetime{hostResources: []ShutdownResource{
 			shutdownResourceFunc(func(context.Context) error {
 				close(resourceClosed)
