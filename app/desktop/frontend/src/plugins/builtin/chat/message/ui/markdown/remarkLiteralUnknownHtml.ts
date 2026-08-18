@@ -2,9 +2,9 @@ import type { Root, Text } from "mdast";
 import { visit } from "unist-util-visit";
 
 // Raw HTML is intentionally supported for a small set of semantic formatting
-// tags (and the Shadow-DOM <style> component). Model-shaped placeholders such
-// as <chosen> are not HTML: preserving them as text is both faithful and keeps
-// React from creating unknown custom elements.
+// tags. Model-shaped placeholders and active resources such as <style> are not
+// presentation HTML: preserving them as text is both faithful and keeps React
+// from creating custom elements or installing model-authored stylesheets.
 const SUPPORTED_RAW_HTML_TAGS = new Set([
   "a",
   "abbr",
@@ -36,7 +36,6 @@ const SUPPORTED_RAW_HTML_TAGS = new Set([
   "small",
   "span",
   "strong",
-  "style",
   "sub",
   "summary",
   "sup",

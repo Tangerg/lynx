@@ -3,8 +3,6 @@ import {
   Children,
   cloneElement,
   isValidElement,
-  useEffect,
-  useRef,
   type ComponentProps,
   type ReactElement,
   type ReactNode,
@@ -66,24 +64,6 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
       </div>
     </RichTooltip>
   );
-}
-
-// Agent-emitted <style> blocks go through a Shadow DOM so their
-// rules can't escape and clobber the host stylesheet. Pairs with
-// rehype-raw, which is what lets the tag survive sanitization in
-// the first place.
-function ShadowStyleBlock({ children }: { children?: React.ReactNode }) {
-  const hostRef = useRef<HTMLSpanElement>(null);
-  const css = typeof children === "string" ? children : "";
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
-    shadow.innerHTML = `<style>${css}</style>`;
-  }, [css]);
-
-  return <span ref={hostRef} style={{ display: "none" }} aria-hidden="true" />;
 }
 
 // `pre` unwraps because the `code` override below emits its own block
@@ -208,7 +188,7 @@ const sharedMarkdownComponents: Components = {
     if (
       Children.count(children) === 1 &&
       isValidElement<{
-        children?: React.ReactNode;
+        children?: ReactNode;
         className?: string;
         node?: { tagName?: string };
       }>(child) &&
@@ -294,9 +274,6 @@ const sharedMarkdownComponents: Components = {
         {children}
       </ExternalLink>
     );
-  },
-  style({ children }) {
-    return <ShadowStyleBlock>{children}</ShadowStyleBlock>;
   },
   // Only `<sup>` carrying `data-citation` (emitted by rehypeCitations)
   // becomes a CitationBadge; any other `<sup>` the user wrote by hand
