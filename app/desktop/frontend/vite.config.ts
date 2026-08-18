@@ -106,7 +106,13 @@ export default defineConfig({
           // sharing that chunk is how ~1.3 MB of grammars reached the startup
           // path while still looking like a lazy feature in every report.
           if (id.includes("node_modules/shiki")) return "shiki";
-          // Math rendering
+          // KaTeX JS is statically reachable through rehype-katex, while its
+          // stylesheet is deliberately imported only after a message contains
+          // math. Giving both the same manual chunk name makes Rolldown attach
+          // the dynamic CSS to the eager JS group and emit it in index.html.
+          // Keep the style on its loader's lazy edge with a distinct identity.
+          if (id.includes("node_modules/katex/dist/katex.min.css")) return "katex-style";
+          // Math rendering JS.
           if (id.includes("node_modules/katex/")) return "katex";
           // Mermaid
           if (id.includes("node_modules/beautiful-mermaid")) return "mermaid";
