@@ -48,6 +48,7 @@ describe("QuestionCard choice semantics", () => {
         questions={[
           {
             type: "choice",
+            header: "Checks",
             prompt: "Which checks should run?",
             multiple: true,
             allowCustom: false,
@@ -75,6 +76,7 @@ describe("QuestionCard choice semantics", () => {
         questions={[
           {
             type: "choice",
+            header: "Gate",
             prompt: "Which gate should run next?",
             multiple: false,
             allowCustom: false,
