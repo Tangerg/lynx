@@ -39,6 +39,16 @@
 - Toolset 取得完整 Engine/Stack 或 Interaction private state；
 - Bootstrap 暴露 god object 让下游随取随用。
 
+### 1.5 不过度设计和过度防御
+
+产品只有一个 Desktop actor 和一个逻辑 Runtime。Runtime 可以经 HTTP、socket 或同进程 binding 接入；进程重启、连接重建和 binding 变化只是同一逻辑 Runtime 的实现生命周期，不据此建模“旧服务端”“后继服务端”或多客户端协调协议。Desktop 与 CLI 共享同一数据目录是独立的存储并发场景，只在已经存在的 SQLite、文件和工作区 owner 边界处理。
+
+- 只为当前产品中可发生的状态、替换点和失败窗口建模，不为假设中的多窗口、多服务端、多 transport 组合或未来部署形态预埋层次；
+- 输入、required dependency 和 immutable identity 在其边界验证一次。只有相关事实可能在异步间隙变化时才重新证明，不能把重复校验当成安全感；
+- 不为不可达状态增加 fallback、retry、锁、lease、heartbeat、timeout、generation、恢复分支或专用类型；
+- 一个直接对象、函数或事务能完整表达不变量时，不再包一层 port、owner、coordinator、registry 或 state machine；
+- 防御机制必须对应一个可复现反例，并说明没有该机制会写错哪份事实、泄漏哪项资源或破坏哪条事务不变量。
+
 ## 2. DDD 实施标准
 
 ### 2.1 Ubiquitous language
@@ -301,7 +311,9 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 
 ### 7.1 测试层次
 
-每个阶段至少覆盖：
+按改动风险选择最小充分的测试组合。只有改动触及对应边界时才增加该层测试；结构合并、命名调整或局部对象收敛不需要机械补齐 race、fuzz、HTTP 和真实 Engine 纵切。
+
+可选层次包括：
 
 1. Domain table-driven invariant tests；
 2. Application use-case tests，使用最小 handwritten fakes；
@@ -327,7 +339,7 @@ Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Inter
 
 ### 7.3 Architecture fitness tests
 
-至少机器守卫：
+机器守卫只保护稳定依赖方向和已经发生过的高代价回归，不固化历史目录、文件数量、对象字面量形状或某次重构的语法特征。可用守卫包括：
 
 - 精确 package DAG；
 - Agent Framework import allowlist；
@@ -338,6 +350,8 @@ Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Inter
 - 不存在旧 Agent import、旧路径、旧术语和 compat codec；
 - public/protocol/wire baseline 未经 ADR 不漂移；
 - exported GoDoc、参数名和 error wrapping 合同。
+
+若一次重构删除了被守卫的实现形态，同批删除或上移对应静态规则。不能让 AST 形状测试替代真实消费者、依赖边界或行为测试。
 
 ## 8. 编码与变更规范
 
@@ -361,12 +375,12 @@ Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Inter
 
 ### 8.3 异步与 generation 提交权
 
-- 每个异步 workflow 在 admission 时一次捕获 exact client、entity identity、generation 和所需 capability；同一 workflow 的后续阶段不得重新从可变 composition root 取依赖；
-- 每个 `await`、goroutine receive、RPC response、stream callback 和异步 teardown 后，写入或 cleanup 前必须重新证明 exact owner 仍 current；
+- 异步 workflow 只有跨越真实可替换 owner 时，才在 admission 捕获 exact client、entity identity、generation 和所需 capability；普通局部异步代码持有直接依赖即可；
+- `await`、goroutine receive、RPC response、stream callback 或异步 teardown 之后，只有下一步会修改“当前实例”共享状态，且 owner 可能在等待期间被替换时，才重新证明 exact owner；写入 workflow 自己拥有的局部状态不需要重复 guard；
 - `AbortSignal`/context cancellation 只负责尽快停止工作，不构成“迟到结果一定不会提交”的证明。非协作依赖仍须由 commit guard 拒绝；
-- replacement 先使 successor 获得当前所有权，再同步退休 predecessor。旧 disposer 只能 take/join/clear 自己的资源，不能按 name、key 或全局 predicate 命中 successor；
+- 进程内 owner replacement 先发布新实例，再同步退休旧实例。旧 disposer 只能 take/join/clear 自己的资源，不能按 name、key 或全局 predicate 命中当前实例；该规则不把 Runtime 进程重启解释为逻辑服务端更换；
 - final close 是不可逆状态，重复 dispose 共享同一 settlement；不得在 teardown continuation 中重新创建 root/client/port；
-- 禁止 `sleep`、debounce、延迟 invalidate、轮询次数或“再 refresh 一次”掩盖竞态。需要排序时建立明确队列、identity、事务或状态机。
+- 禁止 `sleep`、debounce、延迟 invalidate、轮询次数或“再 refresh 一次”掩盖竞态。需要排序时优先使用现有 owner 的直接顺序或事务；只有真实存在多个合法阶段时才引入状态机。
 
 ### 8.4 TypeScript、React 与 Desktop 状态
 
@@ -383,9 +397,9 @@ Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Inter
 
 - 从失败的产品反例开始：先证明当前 owner 在何种真实交错下违反不变量，再修改生产代码；
 - breaking change 必须一次删除旧 contract、调用方、codec、测试和文档，不保留 alias、fallback、dual read/write 或 shadow owner；
-- 每个改动说明 admission identity、linearization point、durable winner、failure/close/replacement 行为和可观察产品结果；
+- 只有改动涉及异步交接、事务或 replacement 时，才说明 admission identity、linearization point、durable winner 和失败行为；普通局部重构只需说明真实 owner、被删除边界和可观察结果；
 - 后端参考 `/Users/tangerg/Desktop/study/codex-server/codex-rs`，前端主参考 `/Users/tangerg/Desktop/study/codex`，zcode/minimax 只作补充。参考只提供反证与机制证据，不授权复制 package、状态流或多 connection 产品设计；
-- 测试优先覆盖单客户端真实交错、SQLite 不变量、SIGKILL/回执丢失、renderer/Runtime replacement、长对话和异步泄露；少做脱离产品的 race/fuzz 堆砌；
+- 测试优先覆盖一个 Desktop 与一个逻辑 Runtime 内的真实交错、SQLite 不变量、同一 Runtime 的进程重启、SIGKILL/回执丢失、renderer replacement、长对话和异步泄露。Desktop 与 CLI 共享目录时，只测试已经存在的存储并发合同；不扩张成通用多客户端 race；
 - 精确暂存本批文件，提交前确认 `app/cli` 和无关改动未进入 diff；使用浏览器自动化后关闭本批会话和 daemon，不关闭用户已有 Wails/Vite/Chrome 进程。
 
 ## 9. 文档纪律
@@ -408,7 +422,7 @@ Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Inter
 - 该批授权的语义纵切全部实现，无 TODO、stub、dead path 或临时 alias；
 - 该批已经接管的生产纵切，其旧实现和旧测试已删除，不存在双 owner。P4–P7 是经 ADR-RT-035 特批的 parallel harness program：每批只要求新路径当期无重复 owner/stub，并维护 P8 原子切换删除清单；仍服务生产旧路径的 owner 统一在 P8 同批删除；
 - 受影响 package 命名、GoDoc、schema、fixture 和文档同步；
-- build、vet、staticcheck、普通测试、race 及该批相关 fuzz 全绿；
+- 受影响 build、vet、staticcheck 和行为测试全绿；race、fuzz、contract、SQLite、Frontend 或真实产品验收按该批实际风险选择，里程碑封板再运行完整门禁；
 - `git diff --check`、`go mod tidy`/workspace diff 无意外漂移；
 - Capability Ledger 写入真实验收证据；
 - Execution Plan 更新进度和下一步；

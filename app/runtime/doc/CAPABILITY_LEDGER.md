@@ -15,7 +15,7 @@
 - 公共 Go API 仅由 `runtime/protocol` 和 `runtime/embedded` 拥有；内部 exported identifiers 不构成兼容承诺。
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
-- 真实产品按一个 client/一个 server 设计。SQLite 仍是 durable winner；客户端 generation 只决定谁有权提交当前投影。
+- 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
 - P113–P115 已完成；Mutation Journal、Frontend lifecycle owner、静态 extension、Bootstrap composition、Runs 执行交接与 local transport credential 均已收敛并完成真实验收。
 
 ## 2. 架构与所有权
@@ -92,7 +92,7 @@
 ### 5.3 冷启动与进程恢复
 
 - Runtime 每次启动发布新的 opaque `instanceId`；info/live/ready/discovery 必须同源一致，Desktop 才提交 ready inspection。
-- 同 endpoint、同版本重启仍形成新 process/event generation。旧 response、event iterator、stream callback 和 teardown 只能结算旧代。
+- 同 endpoint、同版本重启形成新的 process/event incarnation，但仍属于同一逻辑 Runtime 和 durable store。进程重启前创建的 response、event iterator、stream callback 和 teardown 只能结算其进程内 owner。
 - local transport token 由 durable data path 唯一拥有：首次以 0600 完整候选原子发布，后续 Runtime generation 读取并严格校验同一 32-byte credential；显式删除/替换文件才构成凭据轮换。
 - SIGKILL 后 SQLite durable material、HITL、Plan、Goal、Run、Tool 与 navigation 通过权威 snapshot/stream handoff 恢复，不拼接旧进程内存。
 - boot reconciliation 的 Session writer claims 由 exact-once `recoverySessionClaims` 持有并逆序释放；`recoveryPlanner` 继续独占 ownership-scoped snapshot 到 atomic `RecoveryCommit` 的推导。
@@ -102,9 +102,9 @@
 
 ### 6.1 Renderer、Host 与 Runtime generation
 
-- `DesktopRenderer`、Plugin Host、Runtime connection、command cohort、query writer 和 mounted Session projection 都拥有 exact generation。
-- replacement 先发布 successor owner，再同步退休 predecessor；final close 不可逆，重复 dispose 共享 settlement。
-- 每个异步 workflow 在 admission 时捕获 exact dependency；每个 await 后重新证明 apply/cleanup 权，旧 disposer 不能停止或清空 successor。
+- `DesktopRenderer`、Plugin Host、Runtime connection、command cohort、query writer 和 mounted Session projection 在真实可替换边界拥有 exact generation；generation 不代表第二个逻辑 Runtime。
+- 进程内 owner replacement 先发布新实例，再同步退休旧实例；final close 不可逆，重复 dispose 共享 settlement。
+- 异步 workflow 跨可替换 owner 时在 admission 捕获 exact dependency。只有等待期间可能发生 replacement 且下一步修改当前共享状态时，才重新证明 apply/cleanup 权。
 - replaceable application owner 共享一个只持有 process-local exact object identity 的 publication slot；业务 task、abort、serialization、cache repair、typed error 和 material 仍由 concrete owner 持有。生产代码不再以每类 `static #active` 复制 lifecycle protocol。
 - cold-start ports 由 composition root 依赖图显式保证；Composer、Recipes、Workspace Events 不依赖偶然插件安装顺序。
 
@@ -112,7 +112,7 @@
 
 - Desktop durable mutation journal 只持久化当前唯一 shape 的未决命令身份：salted fingerprint、idempotency key、Runtime endpoint/namespace 与 retention boundary；请求参数、renderer owner、generation、lease、heartbeat 和 settlement 状态不落盘。
 - renderer-local exact object identity 是 mutation response/error/cleanup 的唯一提交权。replacement 先发布 successor 再退休 predecessor；旧异步结果和旧 disposer 不能删除 successor 复用的 durable identity。
-- 同一 Runtime durable namespace 可在 renderer/client 重建后恢复 exact idempotency key；endpoint 或 namespace replacement 会清退旧 scope，禁止把命令重放到不同 Runtime store。
+- 同一 Runtime durable namespace 可在 renderer/client 重建后恢复 exact idempotency key。当前实现还把 transport endpoint 纳入 persisted scope；这属于待反证的 binding/store identity 耦合，不是新的逻辑服务端合同。
 - command owner 持有 single-flight/serialization、optimistic effect 的补偿、navigation 和迟到 settlement；裸 gateway/singleton locator 不能绕过 owner。
 - DATA_PROVIDER read 在入口一次捕获 Runtime client 与 query generation；多阶段 RPC 不跨 transport 拼接。
 - query handoff 捕获交接时真实 Query identity，迟到 cancel/reset 不能命中交接后才创建的 successor Query。
@@ -147,18 +147,26 @@
 
 ## 9. 验收证据
 
-| 维度 | 当前守卫 |
-|---|---|
-| Domain/Application | aggregate/use-case 单元测试、事务失败与状态迁移反例 |
-| Agent Framework | public baseline、architecture import gate、snapshot/interaction/child recovery tests |
-| SQLite | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery |
-| Protocol | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff |
-| Desktop state | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests |
-| Frontend | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks` |
-| Production shell | Wails v3 Go test/vet/build、生产冷启动、Runtime health/discovery 与 fresh database smoke |
+| 维度               | 当前守卫                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| Domain/Application | aggregate/use-case 单元测试、事务失败与状态迁移反例                                                |
+| Agent Framework    | public baseline、architecture import gate、snapshot/interaction/child recovery tests               |
+| SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery |
+| Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff         |
+| Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests  |
+| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`    |
+| Production shell   | Wails v3 Go test/vet/build、生产冷启动、Runtime health/discovery 与 fresh database smoke           |
 
 最近完整基线为 Frontend 308 files / 1925 tests，普通与 `--detectAsyncLeaks` 全绿；Runtime standalone 全量 test/vet/build 及 Runs/Bootstrap/SQLite/HTTP/architecture race 通过；Desktop Go test/vet/build、Wails v3 production package、fresh database 冷启动与真实 SIGKILL replacement smoke 通过。SIGKILL 前后 `instanceId` 换代、local token 保持一致，存活 Desktop 恢复后的 RPC 全部为 200。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
-## 10. 当前结论
+## 10. 已知未闭环
+
+- `ClaimResume` 会把 waiting record 原子改为 `resuming`，但 claimed Resume 的失败补偿仍调用只读取 `open` record 的 parked-run terminalization。下一阶段需要先用行为测试证明该交错，再让 resume claim owner 直接完成准确的 lost transition；不能通过 open/resuming 双读或 fallback 修补。
+- Mutation Journal 当前把 endpoint 与 durable namespace 一起持久化。产品允许同一逻辑 Runtime 改用 socket、同进程 binding 或重建 loopback transport，因此 endpoint 是否应该参与 durable command identity 必须由单 Desktop 真实交接反例决定；不能引入 endpoint alias、server history 或多 connection registry。
+- 静态架构门禁若只拒绝某类 exported object-literal factory，而不能表达跨 context 泄露或真实消费者边界，应随对应历史形态删除，不能把一次性重构规则变成永久语法制度。
+
+这些条目是下一阶段候选反例，不构成生产实施授权。
+
+## 11. 当前结论
 
 P0–P115 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner。后续工作必须从新的红色产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

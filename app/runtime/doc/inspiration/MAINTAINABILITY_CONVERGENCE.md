@@ -1,6 +1,6 @@
 # 前后端可维护性治本收敛提案
 
-> 状态：P115 已完成并通过完整验收。
+> 状态：P115 已完成；P115 后产品模型校准与下一轮候选反例见第 12 节。
 >
 > 适用范围：`app/runtime`、`app/desktop` 与 `app/desktop/frontend`；`app/cli` 明确不在范围内。
 >
@@ -50,13 +50,13 @@
 
 ### 3.2 服务端共享数据目录
 
-“一个 client 对一个 server”不等于“整个用户数据目录只能由一个 Runtime 进程打开”。当前 Desktop 和 CLI 可以各自内嵌 Runtime 并共享 SQLite；Session writer、working-tree shared/exclusive lease、Goal drive 和 recovery sweep 的服务端所有权已经由真实进程恢复反例证明。
+产品运行时只有一个 Desktop actor 和一个逻辑 Runtime。Runtime 可经 HTTP、socket 或同进程 binding 接入，进程重启与连接重建不产生第二个逻辑服务端。Desktop 和 CLI 可以各自打开同一数据目录；这是 SQLite、文件和工作区 owner 的存储并发场景，不是 Desktop 多客户端或多服务端拓扑。
 
-下一轮不得把服务端 OS advisory lease、SQLite durable winner 或 ordered recovery sweep 与前端多窗口 owner lease 混为一谈。前者是业务资源所有权，后者才是本提案要重新证明的 renderer 侧机制。
+下一轮不得把 OS advisory lease、SQLite durable winner 或 ordered recovery sweep 与 renderer replacement 混为一谈。前者保护共享目录中的业务资源，后者只保护当前 Desktop 进程内的异步提交权。
 
 ### 3.3 Frontend generation 与插件平台
 
-- renderer replacement、Plugin Host replacement、Runtime restart 和迟到 async settlement 必须继续服从 exact generation；
+- renderer replacement、Plugin Host replacement、Runtime process restart 和迟到 async settlement 必须继续服从各自的 exact owner；process generation 不能替代逻辑 Runtime 或 durable store identity；
 - durable idempotency identity 必须跨 renderer reload、Runtime response loss 和进程 crash 保留；
 - mounted Session 的 HITL、Plan、Goal、Run、Tool material 仍由一次 authoritative snapshot 提交；
 - Plugin Host、extension point、sideload transaction 和 public context boundary 是已存在的产品能力，不因内部 builtin 较多而回退成直接 import 图；
@@ -77,14 +77,14 @@ Goal 开始后，以下每项必须先用当前生产代码得到失败证明。
 - owner lease、heartbeat、process claim 和 claimable set；
 - renderer generation、mutation reservation、durable idempotency 和 settlement tracking。
 
-真实 Desktop 当前只创建一个窗口。允许发生的是同一窗口的 renderer replacement、进程重启和 Runtime replacement，不是多个独立产品窗口争夺同一 mutation writer。
+真实 Desktop 当前只创建一个窗口。允许发生的是同一窗口的 renderer replacement、Runtime 进程重启和 connection rebuild，不是多个窗口或多个逻辑服务端争夺 mutation writer。
 
 #### 必须证明的红例
 
 1. 删除 legacy 数据后，fresh database 和当前版本启动不再需要任何旧 shape reader；
 2. 同一进程 renderer A 被 B 替换时，A 的 response、track settlement 和 dispose 不能提交或清理 B；
 3. renderer 进程崩溃、Runtime 已提交但成功回执丢失后，新 renderer 仍能复用 exact idempotency identity并由服务端 marker proof 收敛；
-4. Runtime namespace 改变时，旧未决命令不能投递到新 durable store；
+4. durable namespace 改变时，旧未决命令不能投递到重建后的 store；transport endpoint 变化本身不能被当作 store replacement；
 5. final close 和重复 dispose 不重新创建 journal、heartbeat 或 claim。
 
 #### 根因假设
@@ -98,7 +98,7 @@ Goal 开始后，以下每项必须先用当前生产代码得到失败证明。
 
 #### 目标形态
 
-- 一个小型 durable unresolved-command journal，只保存当前唯一 schema、scope、fingerprint、idempotency identity 和 settlement；
+- 一个小型 durable unresolved-command journal，只保存当前唯一 schema、durable store identity、fingerprint、idempotency identity 和 settlement；transport endpoint 不参与持久命令身份；
 - 一个 renderer-generation owner，只决定当前异步 workflow 是否仍有提交权，不解释持久命令格式；
 - replacement 通过 exact object identity 交接，不使用 heartbeat、TTL 或多窗口 leader election；
 - 直接删除 legacy key、v1/v2 codec、migration 和 compatibility tombstone，不保留双读；
@@ -124,7 +124,7 @@ retired error
 #### 必须证明的红例
 
 1. 任取三个 Owner，构造 successor 已安装、predecessor 迟到 dispose 的交错，确认每个实现是否完全相同；
-2. Runtime replacement 后，旧 command/query continuation 是否都拒绝提交，同时只清理自己的 task/query；
+2. Runtime process/connection owner replacement 后，旧 command/query continuation 是否都拒绝提交，同时只清理自己的 task/query；
 3. HMR、Host stop 和 final close 是否通过同一 retirement 语义，还是各功能存在细微差异；
 4. typed retired error 是否被 UI 当作普通失败展示，或被不一致地吞掉。
 
@@ -245,7 +245,7 @@ generation 是真实横切机制，但当前以每功能复制完整 singleton l
 
 可以直接用以下目标创建下一 Goal：
 
-> 以当前 P114 基线为起点，从真实红色产品反例出发，治本收敛 Runtime 与 Desktop Frontend 中没有独立变化原因的 package、facade、Owner 和 generation 机制。优先把 mutation journal 重建为单 client/server、单窗口 renderer replacement 下的唯一 durable unresolved-command owner；统一 successor-first lifecycle publication，删除 legacy/multi-window/heartbeat 兼容状态；随后收敛无不变量的 Frontend 分层，并按锁、生命周期和事务边界重塑 Bootstrap 与 application/runs 的内部对象。保留 Agent Framework 防腐、SQLite durable winner、Run/Transcript/Pending 事务、Plugin Host 和 authoritative Session material。允许一次性 breaking change，禁止兼容补丁、双路径、刷新绕过、timer 掩盖、通用 DI/EventBus/Saga 框架和对 `app/cli` 的修改。后端主要参考 `/Users/tangerg/Desktop/study/codex-server/codex-rs`，前端主要参考 `/Users/tangerg/Desktop/study/codex`，zcode/minimax 仅作补充；只提取机制证据，不复制多 connection 产品设计或目录形状。
+> 以当前 P114 基线为起点，从真实红色产品反例出发，治本收敛 Runtime 与 Desktop Frontend 中没有独立变化原因的 package、facade、Owner 和 generation 机制。优先把 mutation journal 重建为一个 Desktop actor、一个逻辑 Runtime 和单窗口 renderer replacement 下的唯一 durable unresolved-command owner；统一进程内 lifecycle publication，删除 legacy/multi-window/heartbeat 兼容状态；随后收敛无不变量的 Frontend 分层，并按锁、生命周期和事务边界重塑 Bootstrap 与 application/runs 的内部对象。保留 Agent Framework 防腐、SQLite durable winner、Run/Transcript/Pending 事务、Plugin Host 和 authoritative Session material。允许一次性 breaking change，禁止兼容补丁、双路径、刷新绕过、timer 掩盖、通用 DI/EventBus/Saga 框架和对 `app/cli` 的修改。后端主要参考 `/Users/tangerg/Desktop/study/codex-server/codex-rs`，前端主要参考 `/Users/tangerg/Desktop/study/codex`，zcode/minimax 仅作补充；只提取机制证据，不复制多 connection 产品设计或目录形状。
 
 ## 7. 建议批次
 
@@ -263,8 +263,8 @@ generation 是真实横切机制，但当前以每功能复制完整 singleton l
 
 - 删除 legacy shape、迁移、compatibility tombstone、多窗口 heartbeat/lease；
 - 分离 durable command identity 与 renderer commit authority；
-- 保留 exact idempotency、namespace fencing、success-receipt-loss recovery；
-- 覆盖 renderer replacement、Runtime restart、final close、重复 dispose 和 storage failure；
+- 保留 exact idempotency、durable namespace fencing、success-receipt-loss recovery；
+- 覆盖 renderer replacement、同一 Runtime 的进程重启、final close、重复 dispose 和 storage failure；
 - breaking 后只存在一个 storage shape 和一条生产路径。
 
 ### Batch 2：Frontend lifecycle owner 收敛
@@ -331,7 +331,7 @@ generation 是真实横切机制，但当前以每功能复制完整 singleton l
 
 - renderer A → B replacement：A 的 mutation response、query writer、stream callback、reset/remove 和 dispose 均不能影响 B；
 - final close：重复 dispose 共享 settlement，不重建 root、journal、client 或 Host；
-- Runtime same-endpoint restart：新 `instanceId` 建立新 generation，旧 stream/query/mutation 不跨代；
+- Runtime same-endpoint restart：新 `instanceId` 只建立新的 process/event incarnation；旧 stream/query callback 不跨进程 owner，但 durable mutation identity 仍属于同一逻辑 Runtime/store；
 - committed-success response loss：exact command identity 由 durable proof 收敛，不重复副作用；
 - fresh storage：只有当前 journal shape；旧 key 存在时按当前 breaking policy 丢弃，不迁移；
 - Session switch、Dock fold/restore、long conversation、compaction、HITL continuation 和 tool selection 不复活旧 material；
@@ -379,8 +379,50 @@ generation 是真实横切机制，但当前以每功能复制完整 singleton l
 5. `application/runs` 的主要纵切分别由可命名的行为对象拥有，不依赖跨文件隐式调用协议；
 6. 所有已验证的 generation、SQLite、Run、HITL、Goal、Plan、Tool、Session material 和 Agent Framework 边界零回归；
 7. 没有以新增通用抽象替代旧过度抽象，也没有为了减少文件制造新的 god object；
-8. 全部门禁、真实冷启动、renderer/Runtime replacement、SIGKILL 和异步泄露验收通过。
+8. 全部门禁、真实冷启动、renderer replacement、Runtime 进程重启、SIGKILL 和异步泄露验收通过。
 
 最终衡量标准不是“代码更少”，而是：
 
 > 一个事实只有一个 writer，一个异步流程只有一个 generation owner，一个对象只保护一组共同变化的不变量；任何额外边界都必须能用真实失败反例证明其存在价值。
+
+## 12. P115 后产品模型校准
+
+本节只校正下一轮审计的前提，不追认新的代码授权。后续分析必须先接受以下产品事实：
+
+- 一个 Desktop actor 始终对应一个逻辑 Runtime；
+- HTTP、socket、同进程 binding、loopback 端口和 Runtime 进程都是可替换实现细节；
+- process/event incarnation 只隔离进程内 callback、iterator、task 和 teardown，不创建 server history；
+- durable namespace 与 SQLite store identity 才决定未决命令能否延续，endpoint 不具备该语义；
+- Desktop 与 CLI 共享目录只复用已有的 SQLite、文件、Session writer 和 working-tree owner，不推广成通用多客户端协调。
+
+### 12.1 下一轮只保留三个候选反例
+
+#### C1：claimed Resume 的补偿读不到自己的 claim
+
+当前 `ClaimResume` 把 waiting record 原子改为 `resuming`。`claimedResumeAttempt.fail` 随后调用 `ApplyRunLost`，但 parked-run terminalization 经 `InterruptStore.Get` 只读取 `open` record。若 claim 后、continuation Segment opening 前失败，补偿无法提交 `RunLost`，executor 也会按现有顺序保留。
+
+先写一条真实行为测试证明这个窗口。根修复应让 claimed Resume owner 直接提交与 `resuming` 状态匹配的 lost write-set，并在 durable commit 后释放 exact executor。禁止把普通 `Get` 改成 open/resuming 双读、增加 fallback、重试循环或第二 recovery path。
+
+#### C2：Mutation Journal 把 transport endpoint 当作 durable identity
+
+当前 journal entry 同时持久化 endpoint 和 namespace，并在 endpoint 变化时清退未决命令。这个规则把 binding 地址当成了 store identity，与 socket/embedded 接入和 loopback 重建后的产品模型冲突。
+
+先用一个 Desktop、同一个 durable namespace、transport binding 变化的反例证明未决命令应延续。若反例成立，直接从 durable journal identity 删除 endpoint，只由 namespace、command fingerprint、idempotency key 和 retention 决定归属。禁止 endpoint alias、旧地址列表、server registry、migration 双读或兼容 shape。
+
+#### C3：静态门禁固化一次性语法形状
+
+`check:published-boundaries` 若只因 exported function 返回对象字面量就拒绝 application module，它保护的是 P115 的历史实现形状，不是跨 context 依赖或 public surface 不变量。先找出该规则当前能阻止的真实泄露；若没有独立行为价值，删除该语法检查，只保留 import DAG、published surface 和 consumer ownership 守卫。
+
+### 12.2 明确排除的推导
+
+以下场景不再作为缺陷依据：
+
+- “旧逻辑服务端”的迟到响应写入“后继服务端”；产品没有这两个并存身份；
+- 两个 renderer 或多个 Desktop 同时竞争 mutation leader；真实产品只有一个 Desktop actor；
+- 仅因 mutation 参数形状相同就假设恢复歧义；没有单 Desktop 的可复现错误，不增加 disambiguation 状态；
+- 为未来 socket、embedded 或远程部署预建 transport factory、server registry、连接矩阵或通用 generation framework；
+- 为每个 `await`、每个函数入口或每个内部值重复验证 immutable identity。
+
+### 12.3 下一轮实现尺度
+
+每个候选项先用最小红色反例锁定根因，再完成一个根因修复纵切。能在现有 owner 内修复就不新增 package、interface、facade、manager 或状态机；只有新对象确实拥有独立状态、行为和生命周期时才建立边界。定向测试覆盖根因与必要的相邻失败窗口，里程碑封板再运行完整门禁。
