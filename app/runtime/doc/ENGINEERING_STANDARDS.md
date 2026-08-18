@@ -2,7 +2,7 @@
 
 > 状态：强制执行
 >
-> 适用范围：`app/runtime` 重构的设计、实现、测试、评审、提交和文档维护
+> 适用范围：`app/runtime` 及其直接 Desktop 合同爆炸半径的设计、实现、测试、评审、提交和文档维护
 
 本文把仓库级规则具体化为 Runtime 重构的完成标准。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，已接受的取舍见 [`DECISIONS.md`](DECISIONS.md)。任何阶段都不能以“迁移中”为理由违反这里的边界。
 
@@ -339,18 +339,69 @@ Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Inter
 - public/protocol/wire baseline 未经 ADR 不漂移；
 - exported GoDoc、参数名和 error wrapping 合同。
 
-## 8. 文档纪律
+## 8. 编码与变更规范
+
+### 8.1 文件与 package 粒度
+
+- 按 change reason、领域边界和生命周期拆分，不按行数、类型数量或“每个概念一个文件”机械拆分；
+- 只有一个调用者，且没有独立不变量、资源生命周期、替换价值或防腐边界的文件/package，默认吸回真实 owner；`toolname` 这类只为 `toolset` 服务的维护单元不能独立存在；
+- 单消费者不自动等于必须合并：strict codec、生成合同、平台 adapter 或清晰的领域 value object 即使只有一个消费者，只要边界本身稳定，仍可独立；
+- 一个文件因多个不同原因变化时才拆分；一个对象的状态、行为、join/dispose 和不变量不能为了缩短文件被摊成过程式 helper 集合；
+- 禁止 `common`、`utils`、`helpers`、`types`、`misc` 等无 owner 杂物包。共享代码必须以它拥有的语义命名；
+- 新增 package、interface、facade、singleton accessor 或 forwarding wrapper，必须在评审中说明它切断了什么依赖或保护了什么不变量。
+
+### 8.2 对象、构造与行为
+
+- 优先让 concrete object 持有自己需要的 identity、状态、不变量和生命周期；方法在对象内部完成合法状态转换，不让调用方拼接 `validate → mutate → cleanup` 隐式协议；
+- `Owner`、`Lifecycle`、`Generation`、`Transaction` 等名称只用于真的拥有资源或提交能力的对象，不能作为 `Manager`/`Service` 的时髦替代词；
+- required dependency 在 constructor 或 start boundary 一次证明。禁止 typed nil、迟到 locator、动态全局 accessor、插件安装顺序和运行期 panic 充当依赖注入；
+- 构造函数返回可立即使用或可明确 `Start` 的合法对象；失败不得留下半注册、半启动或需要调用方猜测 cleanup 的实例；
+- public mutable fields、setter 串、map bag 和跨层 config façade 默认禁止。不可变值按值传递，持有 mutex/resource/identity 的对象按指针传递；
+- 一层只转发参数、改名或为测试暴露内部对象的 façade 直接删除。Decorator 必须拥有精确、可单测的策略。
+
+### 8.3 异步与 generation 提交权
+
+- 每个异步 workflow 在 admission 时一次捕获 exact client、entity identity、generation 和所需 capability；同一 workflow 的后续阶段不得重新从可变 composition root 取依赖；
+- 每个 `await`、goroutine receive、RPC response、stream callback 和异步 teardown 后，写入或 cleanup 前必须重新证明 exact owner 仍 current；
+- `AbortSignal`/context cancellation 只负责尽快停止工作，不构成“迟到结果一定不会提交”的证明。非协作依赖仍须由 commit guard 拒绝；
+- replacement 先使 successor 获得当前所有权，再同步退休 predecessor。旧 disposer 只能 take/join/clear 自己的资源，不能按 name、key 或全局 predicate 命中 successor；
+- final close 是不可逆状态，重复 dispose 共享同一 settlement；不得在 teardown continuation 中重新创建 root/client/port；
+- 禁止 `sleep`、debounce、延迟 invalidate、轮询次数或“再 refresh 一次”掩盖竞态。需要排序时建立明确队列、identity、事务或状态机。
+
+### 8.4 TypeScript、React 与 Desktop 状态
+
+- React component 负责渲染和局部交互，不拥有 Runtime transport、跨 Session material、全局 mutation queue 或 renderer lifecycle；这些状态进入对应 Application owner/context；
+- server state 的 standing value 只有一个 authoritative writer。Query、event、optimistic cache 和 material snapshot 必须明确主从关系，不能都能提交完整 read model；
+- component local state 只保存短命 presentation intent（如 hover、展开、pending feedback），并绑定 exact entity + generation；props/query 追平、失败、切换或 retirement 时有确定释放规则；
+- 不在 render 中写状态，不用 effect 模拟 command，不以缺失 dependency 或 stale closure 保留旧代对象；副作用必须能说明 install、replace、dispose 的完整时序；
+- 跨 context 只走 published port，禁止从 UI 深层 import adapter、container、QueryClient singleton 或另一个 context 的 private store；
+- TypeScript 状态优先使用判别联合表达合法阶段，禁止 boolean 组合制造非法状态；`any`、`as never` 和非空断言不能绕过当前合同；
+- selector 返回稳定最小投影；memoization 用于已证明的 identity/render 问题，不承担状态正确性；stream delta 不应无意义地重建稳定 footer、Dock 或全页面对象；
+- Wails/Plugin composition root 必须显式声明启动依赖，生产冷启动不得依赖测试注入、开发热更新或偶然注册顺序。
+
+### 8.5 变更要求
+
+- 从失败的产品反例开始：先证明当前 owner 在何种真实交错下违反不变量，再修改生产代码；
+- breaking change 必须一次删除旧 contract、调用方、codec、测试和文档，不保留 alias、fallback、dual read/write 或 shadow owner；
+- 每个改动说明 admission identity、linearization point、durable winner、failure/close/replacement 行为和可观察产品结果；
+- 后端参考 `/Users/tangerg/Desktop/study/codex-server/codex-rs`，前端主参考 `/Users/tangerg/Desktop/study/codex`，zcode/minimax 只作补充。参考只提供反证与机制证据，不授权复制 package、状态流或多 connection 产品设计；
+- 测试优先覆盖单客户端真实交错、SQLite 不变量、SIGKILL/回执丢失、renderer/Runtime replacement、长对话和异步泄露；少做脱离产品的 race/fuzz 堆砌；
+- 精确暂存本批文件，提交前确认 `app/cli` 和无关改动未进入 diff；使用浏览器自动化后关闭本批会话和 daemon，不关闭用户已有 Wails/Vite/Chrome 进程。
+
+## 9. 文档纪律
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) 只记录稳定目标；
 - [`DECISIONS.md`](DECISIONS.md) 只记录裁决与理由；
 - [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md) 只记录实施标尺；
-- [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md) 只记录阶段、授权范围、批次和进度；
-- [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 只记录当前能力事实、迁移 verdict 和验收证据；
+- [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md) 只记录当前授权、长期约束、里程碑索引和下一阶段准入；
+- [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 只记录当前能力事实、owner、verdict 和验收证据；
 - [`CONTRACT_BASELINE.md`](CONTRACT_BASELINE.md) 只记录当前冻结边界/digest/version。
 
 可变的 count、version、digest、阶段状态和当前实现事实只能有一份 owner 文档，其他文档只引用。稳定不变量可以为使合同自洽而简短复述，但不能复制一份会独立演进的字段/状态清单。实现改变后先更新 owner 文档，再修正引用；注释若已可由命名和结构表达则删除，不能保留“旧实现曾经……”的漂移历史。
 
-## 9. 批次完成定义
+逐批命令输出、文件清单和提交叙述由 Git 历史拥有，不继续追加到 owner 文档。阶段完成时压缩为里程碑结论；若详细审计材料有长期价值，保存独立、不可变的设计/事故记录并由正文引用。
+
+## 10. 批次完成定义
 
 一个实施批次只有同时满足以下条件才算完成：
 

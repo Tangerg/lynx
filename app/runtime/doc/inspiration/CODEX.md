@@ -1,6 +1,6 @@
 # Codex 启发的能力吸纳 Backlog
 
-> **来源**：对 **Codex**（OpenAI 的 Rust 编码 agent CLI，`codex-rs` ~130 crate workspace + TS SDK；桌面克隆 `~/Desktop/codex`）的源码级对比分析。形态：本地 `Codex` 核心引擎（SQ/EQ 提交/事件双队列）+ 传输无关 app-server 协议 + TUI/GUI 前端。**把"安全执行"当一等公民**——这正是它相对 lyra 最有价值处。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
+> **来源**：对 **Codex**（OpenAI 的 Rust 编码 agent CLI，`codex-rs` ~130 crate workspace + TS SDK；服务端源码位于 `/Users/tangerg/Desktop/study/codex-server/codex-rs`）的源码级对比分析。形态：本地 `Codex` 核心引擎（SQ/EQ 提交/事件双队列）+ 传输无关 app-server 协议 + TUI/GUI 前端。**把"安全执行"当一等公民**——这正是它相对 lyra 最有价值处。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
 >
 > **状态**：全部 proposed。已跳过 parity 项。
 
