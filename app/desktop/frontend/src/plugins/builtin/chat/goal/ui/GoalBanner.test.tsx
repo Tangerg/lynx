@@ -123,7 +123,7 @@ describe("GoalBanner disclosure identity", () => {
 
   it("stops an active goal from the standing surface", async () => {
     render(<GoalBanner />);
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop goal" }));
     await vi.waitFor(() => expect(model.stopGoal).toHaveBeenCalledWith("session-a"));
     expect(model.resumeGoal).not.toHaveBeenCalled();
   });
@@ -131,7 +131,7 @@ describe("GoalBanner disclosure identity", () => {
   it("resumes a paused goal from the standing surface", async () => {
     model.goal = { ...model.goal, status: "paused" };
     render(<GoalBanner />);
-    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume goal" }));
     await vi.waitFor(() => expect(model.resumeGoal).toHaveBeenCalledWith("session-a"));
     expect(model.stopGoal).not.toHaveBeenCalled();
   });
@@ -140,7 +140,7 @@ describe("GoalBanner disclosure identity", () => {
     model.runtimeAvailable = false;
     render(<GoalBanner />);
 
-    const stop = screen.getByRole("button", { name: "Stop" });
+    const stop = screen.getByRole("button", { name: "Stop goal" });
     expect(stop.hasAttribute("disabled")).toBe(true);
     fireEvent.click(stop);
     expect(model.stopGoal).not.toHaveBeenCalled();
@@ -151,8 +151,8 @@ describe("GoalBanner disclosure identity", () => {
     render(<GoalBanner />);
 
     expect(screen.getByText("Finishing")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop goal" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume goal" })).toBeNull();
     expect(model.stopGoal).not.toHaveBeenCalled();
     expect(model.resumeGoal).not.toHaveBeenCalled();
   });
@@ -167,6 +167,6 @@ describe("GoalBanner disclosure identity", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
     expect(screen.getByText("Out of turns")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume goal" })).toBeNull();
   });
 });

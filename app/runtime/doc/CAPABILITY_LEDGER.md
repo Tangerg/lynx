@@ -126,6 +126,7 @@
 - completed Tool 可从 durable end-only material 恢复 command、files 和 approval，不要求 live-only `tool-start`。
 - Context Dock 以 Session identity 隔离 presentation scope；URL 唯一拥有 active destination，`contextDockStore` 仅持久化 exact Session 的 open tab、last view 与 file target，使折叠/恢复、Session 切换和 renderer replacement 保留本 Session 工作区而不复活其他 Session 的 tab/scroll/feedback。Agent Session open set 负责同步退休已关闭 scope；Tool selection/expanded material 不持久化，旧版或 invalid scope 整体丢弃。
 - Context Dock 只在 live row 同时容纳 640px conversation 与 420px Dock 时呈现；ResizeObserver 提供只读 presentation capability，空间不足由既有 navigation owner 折叠 destination，并保留 exact Session 的 tab membership、last view 与持久宽度。安全宽度恢复后 toggle 重新可用，用户重开原 panel；窄窗不把 transcript/HITL/composer 压成第二种 compact UI，也不覆盖左侧 drawer preference。
+- Goal lifecycle 与当前 Run command 在同一中栏具有明确作用域：Goal banner 的可见 stop/resume 文案包含 Goal 身份，composer 的 Run stop 保持简洁；两者继续调用各自既有 command owner，不靠重复按钮名或 aria-only 补丁隐藏命令差异。
 - 无 active Session 时不挂载 Context Dock destination、view 或 toggle；Runtime 默认 workspace 只可用于显式创建 Session，不能冒充 Session-owned material。
 - 顶层 New Session 继承点击时 active Session 的 exact cwd；active summary 尚在 resolving 时禁用该动作，不回落到 Runtime 默认目录。目录选择由 Projects 标题栏唯一拥有，project row 的 `+` 继续表示在该 exact cwd 建立 Session。
 - Runtime command capability 同时约束顶层 New、Projects 目录选择、project-row `+` 与 palette/快捷键 New；断线时这些真实 `sessions.create` 入口同步撤权，不以失败 toast 充当 availability。native picker 返回后在投递前重新证明当前 capability。顶层 New 作为 active-project blank destination 可复用当前空 draft，显式 Projects 创建仍始终分配新 Session。
