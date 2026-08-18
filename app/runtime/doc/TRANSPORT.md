@@ -12,13 +12,13 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 
 ## 1. Transport 矩阵
 
-| 客户端形态           | runtime 位置       | transport     | 状态                   |
-| -------------------- | ------------------ | ------------- | ---------------------- |
-| 桌面 / Web / CLI / TUI | 本地 runtime 进程 | HTTP loopback | 已实现                 |
-| Go host / CLI          | 同一进程           | public embedded binding | 可用                 |
-| 未来远程 facade      | facade 之后        | HTTP          | 同上，无需新 transport |
+| 客户端形态             | runtime 位置      | transport               | 状态                   |
+| ---------------------- | ----------------- | ----------------------- | ---------------------- |
+| 桌面 / Web / CLI / TUI | 本地 runtime 进程 | HTTP loopback           | 已实现                 |
+| Go host / CLI          | 同一进程          | public embedded binding | 可用                   |
+| 未来远程 facade        | facade 之后       | HTTP                    | 同上，无需新 transport |
 
-网络 binding 是 streamable HTTP，暴露 request/response JSON-RPC、server→client 通知、显式取消和基于 event id 的流重连。P19 新增公共类型化 embedded binding；它不是 Transport 的第三种 envelope 实现，不搬运 JSON-RPC message，而是直接调用 HTTP 同源的 operation pipeline。此前的 `internal` in-process channel 原型继续保持删除。桌面外壳仍走 loopback HTTP；CLI 等真实 Go host 可以直接嵌入 Runtime。
+网络 binding 是 streamable HTTP，暴露 request/response JSON-RPC、server→client 通知、显式取消和基于 event id 的流重连。P19 新增公共类型化 embedded binding；它不是 Transport 的第三种 envelope 实现，不搬运 JSON-RPC message，而是直接调用 HTTP 同源的 operation pipeline。此前的 `internal` in-process channel 原型继续保持删除。桌面外壳当前走 loopback HTTP；这是当前打包实现，不是逻辑 Runtime identity 或永久产品拓扑。Desktop、CLI 等 Go host 若改用 embedded 或将来出现真实 socket binding，必须继续复用同一 operation pipeline。
 
 ## 2. 元数据划分 —— 业务与请求自描述进 params，纯传输才走带外
 
@@ -86,17 +86,17 @@ embedded 不公开 protocol method-group interface、Router、Host、Store、Eng
 
 HTTP executable 与 embedded 共用同一 instance builder、setup lease、ownership-aware recovery、workers 和 reverse-order shutdown。同一 canonical data directory 可以由少量 Runtime 进程共同打开；客户端仍只绑定一个 Runtime。冲突的同 Session writer/Goal drive 返回 `session_busy`，active Run 对 physical working tree 使用 shared lease，rollback/restore 使用 exclusive lease。另一个 SQLite connection 的提交通过 `runtime.subscribe` 既有 `resync` 语义促使客户端重读；不新增跨进程事件总线、TTL lease 或兼容宿主路径。
 
-## 5. 为什么没有 IPC transport（设计裁决）
+## 5. 当前不新增 Desktop IPC binding
 
-桌面外壳看起来最该用宿主 IPC（Wails / Tauri / Electron 的 bridge），但它**没有实现，也不打算实现**：
+当前 production Desktop 以 loopback HTTP 连接本地 Runtime 进程。本阶段不再增加 Wails / Tauri / Electron bridge 或 socket transport：
 
-- runtime 是一个**独立进程**，桌面壳只是它的一个客户端。走 loopback HTTP，同一份 runtime 二进制既服务桌面壳也服务
-  浏览器 UI 与将来的 facade，**不为某个宿主框架长出一条平行的消息通道**。
-- 一条 IPC 通道要自己解决顺序、背压、流式与取消 —— 这些 HTTP 那条路已经解决过一次（§6 / §9 / §15）。第二个实现
-  只会有第二套 bug。
-- 真正只有 HTTP 才有的东西（sidecar 探针、CORS、门禁 token）也因此只在一处存在（§11 / §12 / §13）。
+- 现有 HTTP binding 已拥有 JSON-RPC/SSE envelope、顺序、背压、流式、取消和重连；
+- public embedded binding 已让同进程 Go host 直接复用同一 operation pipeline，无需复制协议与业务路径；
+- sidecar 探针、CORS 和门禁 token 是 HTTP 专属 mechanism，不得泄露进 binding-neutral operation（§11 / §12 / §13）。
 
-本节是一条**裁决记录**，不是待实现项。`Transport` 抽象（§3）仍是两实现共用的形状，不为 IPC 预留任何东西。
+这是当前实现范围，不是“Desktop 永远只能是独立进程客户端”的产品裁决。未来桌面分发若因真实产品需求改用 embedded、socket 或宿主内存通道，新 binding 必须复用现有 operation/Application owner，并以该宿主真实需要的背压、取消和 lifecycle 反例证明自己；不能复制可靠性规则或建立平行 read model。
+
+当前不为这些可能性预留 factory、registry、占位接口或 transport 矩阵。`Transport` 抽象（§3）只描述已经存在的网络消息管道；新的 binding 获得明确授权后再按其实际语义设计。
 
 ## 6. HTTP Transport
 
@@ -106,12 +106,12 @@ HTTP 用于浏览器与未来 facade 部署。采用 **streamable HTTP**：**流
 
 ### 6.1 端点
 
-| 端点                    | 用途                                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------------------- |
-| `POST /v2/rpc`          | 所有 JSON-RPC 调用；method 只来自 envelope。响应为 JSON 或 SSE。                                  |
-| `GET /v2/info`          | 公开的协议、服务与端点信息。                                                                      |
-| `GET /v2/health/live`   | 只检查进程是否存活。                                                                              |
-| `GET /v2/health/ready`  | 并发执行依赖探针；不就绪时返回 503 和逐项检查结果。                                                |
+| 端点                   | 用途                                                             |
+| ---------------------- | ---------------------------------------------------------------- |
+| `POST /v2/rpc`         | 所有 JSON-RPC 调用；method 只来自 envelope。响应为 JSON 或 SSE。 |
+| `GET /v2/info`         | 公开的协议、服务与端点信息。                                     |
+| `GET /v2/health/live`  | 只检查进程是否存活。                                             |
+| `GET /v2/health/ready` | 并发执行依赖探针；不就绪时返回 503 和逐项检查结果。              |
 
 > **没有独立的通知流端点**：每个流式调用的事件走它自己那条 POST 响应流（§6.4）。若将来真出现"带外 /
 > 服务端主动推送"需求（多客户端同步、server→client request 等 —— 目前 API.md §13 明确不做），可**增量**加回
@@ -205,17 +205,17 @@ prompt、credential、文件内容或完整 params 写进 retry journal。取得
 
 HTTP status 只描述传输层失败。
 
-| status | 含义                                                                                                                          |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `200`  | JSON-RPC 响应已接受（`application/json` 单条，body 里仍可能含业务 error）**或** 流式响应已开启（`text/event-stream`，§6.4）。 |
-| `204`  | client 通知已接受、同步 dispatch 完毕；无 body。                                                                              |
+| status | 含义                                                                                                                                                                                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200`  | JSON-RPC 响应已接受（`application/json` 单条，body 里仍可能含业务 error）**或** 流式响应已开启（`text/event-stream`，§6.4）。                                                       |
+| `204`  | client 通知已接受、同步 dispatch 完毕；无 body。                                                                                                                                    |
 | `400`  | HTTP body 读不出，或 JSON / envelope shape（含 duplicate/unknown member、request/response 混合、空 method、非字符串显式 id、client response）无法解码成 Lyra request/notification。 |
-| `401`  | 本地门禁 token 缺失或错误。响应**必带** `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）。                                      |
-| `404`  | 未知 transport 端点。                                                                                                         |
-| `405`  | HTTP 方法错误。响应**必带** `Allow`（列出该端点支持的方法，RFC 9110 §15.5.6）。                                               |
-| `413`  | HTTP body 超传输上限。                                                                                                        |
-| `415`  | content-type 不支持（仅在客户端**发了** content-type 且非 `application/json` 时判定；省略即放行）。                           |
-| `500`  | envelope 之外的适配器失败：响应编码失败、流式响应不可用、handler panic。                                                       |
+| `401`  | 本地门禁 token 缺失或错误。响应**必带** `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）。                                                                                            |
+| `404`  | 未知 transport 端点。                                                                                                                                                               |
+| `405`  | HTTP 方法错误。响应**必带** `Allow`（列出该端点支持的方法，RFC 9110 §15.5.6）。                                                                                                     |
+| `413`  | HTTP body 超传输上限。                                                                                                                                                              |
+| `415`  | content-type 不支持（仅在客户端**发了** content-type 且非 `application/json` 时判定；省略即放行）。                                                                                 |
+| `500`  | envelope 之外的适配器失败：响应编码失败、流式响应不可用、handler panic。                                                                                                            |
 
 > 状态码只描述传输层（RFC 9110）。**通知**同步处理完且无 body 用 `204`（非 `202` —— 后者语义是"已收下、
 > 处理未决"）。**URL 从不携带 method**（§6.1），故不存在"URL 与 body 的 method 不一致"这种 `400`；envelope 一旦
@@ -403,11 +403,12 @@ sidecar 端点不走 JSON-RPC（扁平 JSON、无需 discovery、无鉴权）。
 
 **它们只在 HTTP transport 存在**，因为只有 HTTP 才有这种运维场景：`curl` / oncall 探活、k8s
 liveness/readiness、反代 upstream 健康检查 —— 这些要的是"不套 envelope、无鉴权"的端点。
-| 需求                                            | HTTP                   |
-| ----------------------------------------------- | ---------------------- |
-| 最小 binding / 协议 / 进程身份                  | sidecar `GET /v2/info` |
-| 存活探测                                        | `GET /v2/health/live`  |
-| 就绪探测                                        | `GET /v2/health/ready` |
+
+| 需求                           | HTTP                   |
+| ------------------------------ | ---------------------- |
+| 最小 binding / 协议 / 进程身份 | sidecar `GET /v2/info` |
+| 存活探测                       | `GET /v2/health/live`  |
+| 就绪探测                       | `GET /v2/health/ready` |
 
 `/v2/info` 只公开接入所需信息，不泄露 workspace path、home、能力快照或内部依赖。
 
@@ -493,9 +494,9 @@ server **不得静默丢弃 replayable 事件**；订阅者积压超过窗口时
 
 ## 17. 安全边界
 
-| 层               | 负责                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------------------- |
-| transport 层     | 本地门禁 token 校验、origin 检查、body 大小限制、content-type 检查、流响应生命周期                   |
+| 层               | 负责                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| transport 层     | 本地门禁 token 校验、origin 检查、body 大小限制、content-type 检查、流响应生命周期                       |
 | API / runtime 层 | workspace 下的 path containment、URL fetch egress 策略、工具审批策略、能力声明匹配、provider secret 处理 |
 
 ## 18. v2 不支持

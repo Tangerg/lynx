@@ -24,7 +24,7 @@
 
 ## 当前状态
 
-P0–P115 服务端重构、内部所有权清理、公共 binding、真实 consumer 联调和单 Desktop/逻辑 Runtime 全链路恢复反证已经完成。Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 20 是当前基线；Runtime 只通过 canonical Agent module 和 `adapter/agentexec` 防腐层消费 Framework，不读取 private state，也不向 Agent 泄露产品抽象。进程、connection 和 binding 的换代不建立“旧服务端/后继服务端”模型。当前没有已授权的下一代码阶段；消费者同步状态以 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 为准，Runtime 不为任何消费者恢复旧合同。
+P0–P116 服务端重构、内部所有权清理、公共 binding、真实 consumer 联调和单 Desktop/逻辑 Runtime 全链路恢复反证已经完成。Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 20 是当前基线；Runtime 只通过 canonical Agent module 和 `adapter/agentexec` 防腐层消费 Framework，不读取 private state，也不向 Agent 泄露产品抽象。进程、connection 和 binding 的换代不建立“旧服务端/后继服务端”模型。当前没有已授权的下一代码阶段；消费者同步状态以 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 为准，Runtime 不为任何消费者恢复旧合同。
 
 ## 工作纪律
 

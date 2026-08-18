@@ -1,6 +1,6 @@
 # 前后端可维护性治本收敛提案
 
-> 状态：P115 已完成；P115 后产品模型校准与下一轮候选反例见第 12 节。
+> 状态：P115 与 P116 已完成；产品模型校准结论见第 12 节。
 >
 > 适用范围：`app/runtime`、`app/desktop` 与 `app/desktop/frontend`；`app/cli` 明确不在范围内。
 >
@@ -385,35 +385,18 @@ generation 是真实横切机制，但当前以每功能复制完整 singleton l
 
 > 一个事实只有一个 writer，一个异步流程只有一个 generation owner，一个对象只保护一组共同变化的不变量；任何额外边界都必须能用真实失败反例证明其存在价值。
 
-## 12. P115 后产品模型校准
+## 12. P116 产品模型校准结论
 
-本节只校正下一轮审计的前提，不追认新的代码授权。后续分析必须先接受以下产品事实：
+P116 已完成原 C1–C3 的红例、根因修复和验收。具体授权、里程碑与当前能力分别由
+[`../EXECUTION_PLAN.md`](../EXECUTION_PLAN.md) 和 [`../CAPABILITY_LEDGER.md`](../CAPABILITY_LEDGER.md) 拥有；本节只保留后续设计必须接受的稳定结论：
 
-- 一个 Desktop actor 始终对应一个逻辑 Runtime；
-- HTTP、socket、同进程 binding、loopback 端口和 Runtime 进程都是可替换实现细节；
-- process/event incarnation 只隔离进程内 callback、iterator、task 和 teardown，不创建 server history；
-- durable namespace 与 SQLite store identity 才决定未决命令能否延续，endpoint 不具备该语义；
-- Desktop 与 CLI 共享目录只复用已有的 SQLite、文件、Session writer 和 working-tree owner，不推广成通用多客户端协调。
+- claimed Resume 的失败补偿由持有 durable claim 的 owner 直接提交匹配 `resuming` 的 terminal write-set；普通读取不扩张为 open/resuming 双读，durable commit 前不释放 executor；
+- Mutation Journal 的 durable identity 由 namespace、command fingerprint、idempotency key 和 retention boundary 决定；transport endpoint 不参与 store identity；
+- architecture fitness test 保护依赖方向、published surface 和 consumer ownership，不冻结文件名、对象字面量或一次重构的语法形状；
+- 一个 Desktop actor 始终对应一个逻辑 Runtime。进程、connection 与 binding 的换代只隔离其真正拥有的局部资源；
+- Desktop 与 CLI 共享目录继续服从既有 SQLite、文件、Session writer 和 working-tree owner，不推广为通用多客户端协议。
 
-### 12.1 下一轮只保留三个候选反例
-
-#### C1：claimed Resume 的补偿读不到自己的 claim
-
-当前 `ClaimResume` 把 waiting record 原子改为 `resuming`。`claimedResumeAttempt.fail` 随后调用 `ApplyRunLost`，但 parked-run terminalization 经 `InterruptStore.Get` 只读取 `open` record。若 claim 后、continuation Segment opening 前失败，补偿无法提交 `RunLost`，executor 也会按现有顺序保留。
-
-先写一条真实行为测试证明这个窗口。根修复应让 claimed Resume owner 直接提交与 `resuming` 状态匹配的 lost write-set，并在 durable commit 后释放 exact executor。禁止把普通 `Get` 改成 open/resuming 双读、增加 fallback、重试循环或第二 recovery path。
-
-#### C2：Mutation Journal 把 transport endpoint 当作 durable identity
-
-当前 journal entry 同时持久化 endpoint 和 namespace，并在 endpoint 变化时清退未决命令。这个规则把 binding 地址当成了 store identity，与 socket/embedded 接入和 loopback 重建后的产品模型冲突。
-
-先用一个 Desktop、同一个 durable namespace、transport binding 变化的反例证明未决命令应延续。若反例成立，直接从 durable journal identity 删除 endpoint，只由 namespace、command fingerprint、idempotency key 和 retention 决定归属。禁止 endpoint alias、旧地址列表、server registry、migration 双读或兼容 shape。
-
-#### C3：静态门禁固化一次性语法形状
-
-`check:published-boundaries` 若只因 exported function 返回对象字面量就拒绝 application module，它保护的是 P115 的历史实现形状，不是跨 context 依赖或 public surface 不变量。先找出该规则当前能阻止的真实泄露；若没有独立行为价值，删除该语法检查，只保留 import DAG、published surface 和 consumer ownership 守卫。
-
-### 12.2 明确排除的推导
+### 12.1 明确排除的推导
 
 以下场景不再作为缺陷依据：
 
@@ -423,6 +406,8 @@ generation 是真实横切机制，但当前以每功能复制完整 singleton l
 - 为未来 socket、embedded 或远程部署预建 transport factory、server registry、连接矩阵或通用 generation framework；
 - 为每个 `await`、每个函数入口或每个内部值重复验证 immutable identity。
 
-### 12.3 下一轮实现尺度
+### 12.2 后续实现尺度
 
-每个候选项先用最小红色反例锁定根因，再完成一个根因修复纵切。能在现有 owner 内修复就不新增 package、interface、facade、manager 或状态机；只有新对象确实拥有独立状态、行为和生命周期时才建立边界。定向测试覆盖根因与必要的相邻失败窗口，里程碑封板再运行完整门禁。
+后续每个候选项仍须先用最小红色反例锁定根因，再完成一个根因修复纵切。能在现有 owner 内修复就不新增 package、interface、facade、manager 或状态机；只有新对象确实拥有独立状态、行为和生命周期时才建立边界。定向测试覆盖根因与必要的相邻失败窗口，里程碑封板再运行完整门禁。
+
+下一阶段候选已转向 [`Desktop 恢复体验与 UI 精修`](DESKTOP_RECOVERY_EXPERIENCE.md)，不再重做 C1–C3 或建立全局 generation framework。
