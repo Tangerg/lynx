@@ -101,6 +101,18 @@ test("question settlement uses the exact interrupt identity", async ({ page }) =
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-item", "item_question");
 });
 
+test("a selected question option owns the comparison preview", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=question");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  await page.getByRole("radio", { name: /Race detector/ }).click();
+
+  const preview = page.getByRole("region", { name: "Race detector" });
+  await expect(preview).toContainText("go test -race ./...");
+  await expect(page.getByText("npm run test:visual")).toHaveCount(0);
+  await expect(page).toHaveScreenshot("agent-light-question-preview.png");
+});
+
 test("delegated cancellation targets the selected child Run", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=delegated");
   await page.locator("html[data-visual-ready]").waitFor();

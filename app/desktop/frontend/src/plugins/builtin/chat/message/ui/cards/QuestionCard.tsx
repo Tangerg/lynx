@@ -121,6 +121,12 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
         {questions.map((q, index) => {
           const cur = draft[index] ?? { selected: [], text: "" };
           const promptId = `${questionCardId}-prompt-${index}`;
+          const selectedPreview =
+            q.type === "choice" && !q.multiple
+              ? q.options.find((option) =>
+                  cur.selected.includes(option.label) && option.preview ? true : false,
+                )
+              : undefined;
           return (
             <div key={index} className="flex flex-col gap-1.5">
               {(q.header || (q.type === "choice" && q.multiple)) && (
@@ -143,54 +149,60 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
 
               {q.type === "choice" && (
                 <div
-                  role={q.multiple ? "group" : "radiogroup"}
-                  aria-labelledby={promptId}
-                  className="grid grid-cols-[minmax(0,1fr)] gap-1"
+                  className={cn(
+                    "grid grid-cols-[minmax(0,1fr)] gap-2",
+                    selectedPreview?.preview &&
+                      "@min-[640px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
+                  )}
                 >
-                  {q.options.map((opt, optionIndex) => {
-                    const active = cur.selected.includes(opt.label);
-                    return (
-                      <Pressable
-                        key={opt.label}
-                        type="button"
-                        role={q.multiple ? "checkbox" : "radio"}
-                        aria-checked={active}
-                        tabIndex={
-                          q.multiple || active || (!cur.selected.length && optionIndex === 0)
-                            ? 0
-                            : -1
-                        }
-                        onClick={() =>
-                          setDraft((prev) => toggleQuestionOption(prev, index, q, opt.label))
-                        }
-                        onKeyDown={(event) =>
-                          handleSingleChoiceKeyDown(event, index, q, optionIndex)
-                        }
-                        className={cn(
-                          "group/choice flex min-h-8 items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
-                          active ? "bg-hover" : "hover:bg-hover",
-                        )}
-                      >
-                        <span
-                          aria-hidden
+                  <div
+                    role={q.multiple ? "group" : "radiogroup"}
+                    aria-labelledby={promptId}
+                    className="grid grid-cols-[minmax(0,1fr)] gap-1"
+                  >
+                    {q.options.map((opt, optionIndex) => {
+                      const active = cur.selected.includes(opt.label);
+                      return (
+                        <Pressable
+                          key={opt.label}
+                          type="button"
+                          role={q.multiple ? "checkbox" : "radio"}
+                          aria-checked={active}
+                          tabIndex={
+                            q.multiple || active || (!cur.selected.length && optionIndex === 0)
+                              ? 0
+                              : -1
+                          }
+                          onClick={() =>
+                            setDraft((prev) => toggleQuestionOption(prev, index, q, opt.label))
+                          }
+                          onKeyDown={(event) =>
+                            handleSingleChoiceKeyDown(event, index, q, optionIndex)
+                          }
                           className={cn(
-                            "mt-0.5 grid size-4 shrink-0 place-items-center border text-ui-xs leading-none font-medium",
-                            q.multiple ? "rounded-2xs" : "rounded-full",
-                            active
-                              ? "border-accent bg-accent text-on-accent"
-                              : "border-field text-fg-muted",
+                            "group/choice flex min-h-8 items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
+                            active ? "bg-hover" : "hover:bg-hover",
                           )}
                         >
-                          {active && q.multiple ? (
-                            <Icon name="check" size="xs" />
-                          ) : active ? (
-                            <span className="size-1.5 rounded-full bg-current" />
-                          ) : q.multiple ? null : (
-                            optionIndex + 1
-                          )}
-                        </span>
-                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="flex min-w-0 items-baseline gap-2">
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "mt-0.5 grid size-4 shrink-0 place-items-center border text-ui-xs leading-none font-medium",
+                              q.multiple ? "rounded-2xs" : "rounded-full",
+                              active
+                                ? "border-accent bg-accent text-on-accent"
+                                : "border-field text-fg-muted",
+                            )}
+                          >
+                            {active && q.multiple ? (
+                              <Icon name="check" size="xs" />
+                            ) : active ? (
+                              <span className="size-1.5 rounded-full bg-current" />
+                            ) : q.multiple ? null : (
+                              optionIndex + 1
+                            )}
+                          </span>
+                          <span className="flex min-w-0 flex-1 items-baseline gap-2">
                             <span className="min-w-0 max-w-1/2 shrink-0 truncate text-ui-md font-medium text-fg">
                               {opt.label}
                             </span>
@@ -203,15 +215,21 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                               </span>
                             )}
                           </span>
-                          {opt.preview && (
-                            <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-ui-sm text-fg-muted">
-                              {opt.preview}
-                            </code>
-                          )}
-                        </span>
-                      </Pressable>
-                    );
-                  })}
+                        </Pressable>
+                      );
+                    })}
+                  </div>
+                  {selectedPreview?.preview && (
+                    <div
+                      role="region"
+                      aria-label={selectedPreview.label}
+                      className="min-w-0 rounded-md bg-sunken p-2.5"
+                    >
+                      <code className="block whitespace-pre-wrap break-all font-mono text-ui-sm leading-body text-fg-muted">
+                        {selectedPreview.preview}
+                      </code>
+                    </div>
+                  )}
                 </div>
               )}
 

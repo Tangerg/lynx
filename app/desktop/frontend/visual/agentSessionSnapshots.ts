@@ -676,10 +676,12 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
                       {
                         label: "Race detector",
                         description: "Exercise concurrency and cancellation paths.",
+                        preview: "go test -race ./...",
                       },
                       {
                         label: "Visual suite",
                         description: "Verify light, dark, long-content, and HITL states.",
+                        preview: "npm run test:visual",
                       },
                     ],
                   },
