@@ -2,7 +2,7 @@
 
 > 状态：P0–P115 已完成并形成里程碑；P116 正在实施。
 >
-> 最近基线：2026-08-18，P115 完整验收；P116 C1–C2 已完成定向验收。
+> 最近基线：2026-08-18，P115 完整验收；P116 C1–C3 已完成定向验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -19,7 +19,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
   [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md) 第 12 节 C1–C3；P115 的其他 breaking surface 不延续。
 - C1 已完成：`ClaimResume` 把 durable interrupt 置为 `resuming` 后，claimed owner 使用其已持有的 claim 提交匹配 `resuming` 的唯一 terminal write-set，durable commit 后才释放 executor；普通 `Get`、fallback、retry 和第二 recovery path 均未扩张。
 - C2 已完成：单 Desktop、同一 durable namespace 仅更换 transport binding 的红例证明未决 mutation 曾被错误退休；endpoint 已从 journal identity、public scope 与当前唯一 persisted shape 直接删除，未增加 alias、registry、migration 或兼容双读。
-- C3 只审计 `check:published-boundaries` 的 exported object-literal 语法规则是否阻止真实跨 context/public surface 泄露；无独立行为价值即删除该语法规则，继续保留 import DAG、published surface 和 consumer ownership 守卫。
+- C3 已完成：`check:published-boundaries` 的 exported object-literal 规则只冻结文件名与函数体语法，不能识别跨 context/public surface 泄露且无独立消费者；该规则已删除，import DAG、published surface 与 consumer ownership 守卫保持全绿。
 - 每项先红测再修改、独立提交推送；最终运行 Frontend 全门禁与 async leak、Runtime standalone/race、Desktop Wails production build、fresh database 冷启动及真实 Runtime restart/SIGKILL。P116 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
 
 ## 2. 长期产品与架构约束
@@ -94,11 +94,13 @@ P116 C1 已形成真实状态语义红例：`ClaimResume` 成功后，普通 `Ge
 
 P116 C2 的单 Desktop 红例在同一 durable namespace 下重建 client，只把 loopback endpoint 从一个 binding 换到另一个；原 journal 清理旧 endpoint scope 并生成新 key，错误地把 transport 变化解释成 store replacement。修复直接把 endpoint 从 `MutationJournalScope`、v2 `JournalEntry`、清理/匹配/authorize 与 composition input 中删除；当前 shape 只由 namespace、salted fingerprint、idempotency key 和 retention boundary 决定，带 endpoint 的额外 shape 失败关闭。namespace 真正变化时仍退休旧 identity，renderer successor-first 与 late settlement fencing 保持不变。
 
+P116 C3 审计了 `check:published-boundaries` 的全部保护面。object-literal predicate 只匹配 `application/*Contributions` 文件名和 exported function 的单条 return 语法，不读取 import、consumer、context 或 public facade；当前四个同名 application module 也都因拥有映射、fallback、registry 或 selector 行为而不命中。真实边界继续由 `check-layers` 的 cross-context/ring DAG、本脚本的 public/wire/adapter 规则、context DAG 与 port consumer 门禁拥有。因此删除该 predicate、调用和仅为它存在的 TypeScript AST import，不建立替代语法规则；四组真实架构门禁保持全绿。
+
 Batch 1 已删除 Mutation Journal 的 legacy codec、migration、persisted owner/lease、heartbeat、leader election、claimable 与 settled 状态。该批当时仍把 endpoint/namespace 共同作为 persisted scope；P116 C2 已由真实 binding-change 红例纠正为 namespace-only durable identity。renderer 提交权继续由进程内 exact object identity 拥有，replacement 先发布 successor 再同步退休 predecessor；前任迟到 response、error 和 dispose 均不能删除或结算后继身份。
 
 Batch 2 已删除 15 个业务 Owner 各自复制的 `static #active` publication/retirement 模板，并把 Runtime connection 与 HITL response coordinator 的同类 module-global 交接纳入同一机制。`publicationSlot.ts` 只拥有 process-local exact object identity、successor-first publication 和 exact withdrawal，不持有业务 task、cache、event、error 或 material；各 concrete owner 继续拥有 serialization、abort、projection repair 和 typed retirement。Singleton application port 复用该 identity primitive。Recipes plugin final cleanup 现在 fencing 晚到 fetch，并删除自己留下的 inactive query，修复了可稳定复现的 async timer leak。定向 owner/lifecycle 验收覆盖 30 个 test files / 159 tests。
 
-Batch 3 已把 30 个只投影静态 extension spec 的 application contribution module 吸回各插件 composition entry，并删除只复述对象字面量的测试。Composer contribution 混合文件被拆除，只保留有真实键位语义的 `composerKeyBindings`；tool family、default command policy、Session search behavior 与 Work Index published facade 因独立不变量继续保留。`check:published-boundaries` 现在按 AST 拒绝“所有 exported function 都只返回对象字面量”的 application contribution module，不依赖具体历史路径白名单。Chat search 新增 `messages` / `transcript` 可发现关键词，用单文件真实功能修改证明 registration 触达面已收敛到 owner entry。
+Batch 3 已把 30 个只投影静态 extension spec 的 application contribution module 吸回各插件 composition entry，并删除只复述对象字面量的测试。Composer contribution 混合文件被拆除，只保留有真实键位语义的 `composerKeyBindings`；tool family、default command policy、Session search behavior 与 Work Index published facade 因独立不变量继续保留。该批新增的 object-literal AST 规则已在 P116 C3 证明只冻结历史语法而删除；Chat search 的真实 registration 行为和其余边界守卫不受影响。
 
 Batch 4 已删除向 Instance、Delivery 和测试传播 concrete coordinator 的宽 `Stack`，并删除把 18 个裸依赖聚合后立即逐项解包的 `assemblyFoundation`。Assembly 现在顺序构造 policy、workspace、execution 三个 package-private capsule；tool builder 从 12 参数函数 seam 收敛为单一 feature dependency value，且所有 tool closer 与 executor 在失败返回前先转交 `hostLifetime`。Host 私有 application capsule 直接持有 `server.Config` consumer surface、Session startup recovery、scheduler/recovery workers 与窄 idempotency port；Instance 只调用 capsule 行为。operation service/endpoint 形成 `operationDelivery` lifecycle capsule，external-change observer 启动失败时同步停止 admissions、取消 endpoint 并等待退出。架构门禁要求 Host 零 exported field、Delivery consumer config 与窄可靠性 port 不得退化为 Stack locator，并继续以闭集限制 Bootstrap receiver 只能拥有 construction/lifecycle 行为。
 

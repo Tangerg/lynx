@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P116 C1–C2 已实施，C3 待处理。
+> 状态：当前能力快照；P116 C1–C3 已实施，最终系统验收待完成。
 >
 > 基线日期：2026-08-18。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P115 已完成；P116 已完成 claimed Resume 补偿与 Mutation Journal durable identity 校准，静态 published-boundary 语法守卫仍待审计。
+- P113–P115 已完成；P116 已完成 claimed Resume 补偿、Mutation Journal durable identity 校准与 published-boundary 静态守卫审计。
 
 ## 2. 架构与所有权
 
@@ -161,8 +161,8 @@
 
 ## 10. 已知未闭环
 
-- P116 C3 正在审计静态架构门禁：若 exported object-literal factory 语法规则不能表达跨 context 泄露或真实消费者边界，就应随对应历史形态删除，不能把一次性重构规则变成永久语法制度。
+- P116 范围内的三个生产/门禁问题均已闭环；只剩本阶段的完整 Frontend async leak、Runtime/SQLite race、Desktop production build、fresh database 与真实 restart/SIGKILL 系统验收。
 
 ## 11. 当前结论
 
-P0–P115 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner；P116 C1–C2 又消除了 claimed-state 自身不可见与 transport binding 冒充 durable identity 两处耦合。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P115 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle 和 read-model owner；P116 又消除了 claimed-state 自身不可见、transport binding 冒充 durable identity，以及一次性重构语法被永久制度化三处耦合。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
