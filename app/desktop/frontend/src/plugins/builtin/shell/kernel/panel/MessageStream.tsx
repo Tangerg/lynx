@@ -179,6 +179,13 @@ const TranscriptTurn = memo(function TranscriptTurn({
           sessionId={sessionId}
           isLast={isLast}
           isRunning={isRunning}
+          terminalFooter={
+            isLast && !isRunning ? (
+              <div className="mt-4">
+                <RootRunOutcome />
+              </div>
+            ) : undefined
+          }
         />
       </motion.div>
     </>
@@ -313,11 +320,6 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
         {running && rows[rows.length - 1]?.message.role === "user" && (
           <div className={cn(READING_GUTTER, "mt-4 flex")}>
             <Loader variant="dots" />
-          </div>
-        )}
-        {!running && (
-          <div className={cn(READING_GUTTER, "mt-4")}>
-            <RootRunOutcome />
           </div>
         )}
       </StickToBottom.Content>

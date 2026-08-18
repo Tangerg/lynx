@@ -1,6 +1,6 @@
 import type { BlockCtx } from "./BlockRenderer";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
-import { memo, useMemo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
@@ -33,6 +33,7 @@ function MessageBlockInner({
   sessionId,
   isLast,
   isRunning,
+  terminalFooter,
 }: {
   row: TranscriptRow;
   ctx: BlockCtx;
@@ -42,6 +43,8 @@ function MessageBlockInner({
   /** A run is streaming — action bars stay hidden until it settles.
    *  Flips only at run boundaries, so it never churns this memo per token. */
   isRunning: boolean;
+  /** Session-level material that belongs after this exact turn settles visibly. */
+  terminalFooter?: ReactNode;
 }) {
   const msg = row.message;
   const isUser = msg.role === "user";
@@ -176,6 +179,7 @@ function MessageBlockInner({
               </div>
             )}
           </div>
+          {actionMaterialization === "settled" && terminalFooter}
         </MessageVisibleMaterialProvider>
       </CitationContext.Provider>
     </MessageContext.Provider>
