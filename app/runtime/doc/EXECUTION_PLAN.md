@@ -30,6 +30,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 首批可失败测试只覆盖上述已成立边界；Zcode/Minimax 仅在后续恢复反馈或 workspace 密度需要第二证据时使用，不为已由 Codex 与 Lyra owner 共同确定的交互再引入第三套词汇。
 - 首个根因纵切已完成：顶层 New Session 绑定 active Session 的 exact cwd，Projects 标题栏唯一拥有目录选择入口，无 active Session 时 ChatPanel 不挂载 Dock view 或 toggle。隔离 Runtime 实测两次 `sessions.create` 均落在 `/private/tmp/lyra-p117-b1-project`，欢迎页不再出现 Dock 入口；定向 11 tests、typecheck、lint、design-system、interactive chrome 与 8 locale 守卫全绿。人工核对 populated/loading/error、light/dark 与 Retina 实际图后，6 张 shell golden 已移除旧全局 Open folder 行，整份 shell visual 17 tests 全绿。
 - 第二个根因纵切已完成：`sessiontitle.Generator` 在 utility model 缺失、空回复或 provider error 时返回 opening user text 首个有效行的 Unicode-safe、有界 deterministic fallback；provider error 与 fallback 可同时返回。`runsegment.Finalizer` 仍是唯一维护 owner，先经 `sessions.Coordinator.ApplyGeneratedTitle` 的 first-writer 提交可用标题，再把原错误记录到既有 maintenance span。未增加 Frontend writer 或 Runtime 公共 surface；adapter 定向 test/vet 全绿。fresh database + 不可达 provider 的真实 Runtime smoke 中 Run 仍以 `provider_unavailable` 终结、title maintenance span 仍为 error，而后续 `sessions.list` 已持久返回 `Diagnose provider outage`，证明导航身份与诊断事实同时保留。
+- 第二层可见矩阵红例：production `composerBootstrap` 已显式 requires `AGENT_SESSION_PORTS`，但 agent visual fixture 仍只装 `agentFold` 并在 composition graph 外手动配置 state port。Dougong 因找不到 Service provider 拒绝安装，empty/running/HITL 等页面永久达不到 `data-visual-ready`。既有 `agentStates.visual.spec.ts` 已稳定失败；唯一修复 owner 是 `installVisualAgentFixture` 的 test composition，不能放宽 production required dependency 或伪造等待。
 
 ## 2. 长期产品与架构约束
 
