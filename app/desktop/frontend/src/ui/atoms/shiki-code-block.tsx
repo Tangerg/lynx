@@ -94,36 +94,33 @@ export function ShikiCodeBlock({ lang, code, file, preview, previewLabel }: Prop
       data-markdown-copy="code-block"
       data-markdown-copy-text={code}
       className={cn(
-        "shiki-block group/code my-3 overflow-hidden font-mono text-code",
+        "shiki-block group/code my-3.5 overflow-hidden font-mono text-code",
         isPreview
           ? "group/code-snippet rounded-lg border-[0.5px] border-field bg-transparent"
-          : "rounded-md bg-sunken",
+          : "rounded-lg bg-sunken",
       )}
     >
-      {/* Header — the card's own material over the recessed body, so the bar
-          reads as the block's lid rather than as the first line of code. Language
-          then path, both left-aligned: they are one caption ("this TypeScript,
-          from there"), and centring the path put the two halves of that sentence
-          at opposite ends of a wide block. */}
+      {/* Header — one material with the source body, like Codex. The quiet caption
+          separates chrome from code without adding a second surface. Language then
+          path stay left-aligned: they are one caption ("this TypeScript, from
+          there"), and centring the path put the two halves of that sentence at
+          opposite ends of a wide block. */}
       <div
         data-markdown-copy="exclude"
-        className={cn(
-          "flex items-center gap-2.5 px-3 py-1.5",
-          isPreview ? "bg-transparent" : "bg-card",
-        )}
+        className="flex items-center gap-2 bg-transparent px-2 py-1 font-sans text-ui-md"
       >
         <span
           className={cn(
-            "shrink-0 font-medium text-fg-faint",
+            "shrink-0 text-fg-muted",
             isPreview
-              ? "font-sans text-ui-sm tracking-normal"
-              : "font-mono text-ui-2xs uppercase tracking-wider",
+              ? "font-sans text-ui-md tracking-normal"
+              : "font-sans text-ui-md font-normal tracking-normal normal-case",
           )}
         >
           {lang || "text"}
         </span>
         {file && (
-          <span className="min-w-0 flex-1 truncate font-mono text-ui-xs text-fg-muted">{file}</span>
+          <span className="min-w-0 flex-1 truncate font-sans text-ui-md text-fg-muted">{file}</span>
         )}
         <span className="min-w-1 flex-1" />
         {!isPreview && (

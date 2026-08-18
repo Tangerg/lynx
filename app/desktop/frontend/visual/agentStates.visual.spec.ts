@@ -375,9 +375,10 @@ test("code blocks use the Codex caption and source geometry", async ({ page }) =
     const headerStyle = getComputedStyle(header);
     const languageStyle = getComputedStyle(language);
     const sourceStyle = getComputedStyle(source);
+    const blockStyle = getComputedStyle(root);
     return {
       headerBackground: headerStyle.backgroundColor,
-      blockBackground: getComputedStyle(root).backgroundColor,
+      blockMargin: blockStyle.marginBlockStart,
       headerPadding: `${headerStyle.paddingBlockStart} ${headerStyle.paddingInlineStart}`,
       bodyFamily: getComputedStyle(document.body).fontFamily,
       languageFamily: languageStyle.fontFamily,
@@ -389,7 +390,8 @@ test("code blocks use the Codex caption and source geometry", async ({ page }) =
   });
 
   expect(geometry).not.toBeNull();
-  expect.soft(geometry?.headerBackground).toBe(geometry?.blockBackground);
+  expect.soft(geometry?.headerBackground).toBe("rgba(0, 0, 0, 0)");
+  expect.soft(geometry?.blockMargin).toBe("14px");
   expect.soft(geometry?.headerPadding).toBe("4px 8px");
   expect.soft(geometry?.languageFamily).toBe(geometry?.bodyFamily);
   expect.soft(geometry?.languageSize).toBe("14px");
@@ -397,6 +399,15 @@ test("code blocks use the Codex caption and source geometry", async ({ page }) =
   expect.soft(geometry?.sourcePadding).toBe("8px");
   expect.soft(geometry?.sourceMaxHeight).toBe("none");
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`code block keeps its Codex material ${theme}`, async ({ page }) => {
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=long-content`);
+    await page.locator("html[data-visual-ready]").waitFor();
+    const block = page.locator(".shiki-block").filter({ hasText: "Execute(context.Context" });
+    await expect(block).toHaveScreenshot(`markdown-code-block-${theme}.png`);
+  });
+}
 
 for (const theme of ["light", "dark"] as const) {
   test(`Mermaid is a semantic, copyable, zoomable artifact ${theme}`, async ({ context, page }) => {
