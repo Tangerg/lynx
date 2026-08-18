@@ -490,17 +490,25 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     );
     const nestedList = primaryList?.querySelector(":scope > li > ul");
     const deepList = nestedList?.querySelector(":scope > li > ul");
+    const rtlList = Array.from(root.querySelectorAll("ul")).find((list) =>
+      list.textContent?.includes("المرحلة الأولى"),
+    );
     const taskList = root.querySelector("ol.contains-task-list");
     const quote = root.querySelector("blockquote");
     const rule = root.querySelector("hr");
-    if (!h2 || !h3 || !nestedList || !deepList || !taskList || !quote || !rule) return null;
+    if (!h2 || !h3 || !nestedList || !deepList || !rtlList || !taskList || !quote || !rule)
+      return null;
     const h2Style = getComputedStyle(h2);
     const h3Style = getComputedStyle(h3);
+    const rtlListStyle = getComputedStyle(rtlList);
     return {
       h2Size: h2Style.fontSize,
       h2Margin: `${h2Style.marginBlockStart} ${h2Style.marginBlockEnd}`,
       h3Size: h3Style.fontSize,
       h3Margin: `${h3Style.marginBlockStart} ${h3Style.marginBlockEnd}`,
+      rtlDirection: rtlListStyle.direction,
+      rtlStartPadding: rtlListStyle.paddingInlineStart,
+      rtlEndPadding: rtlListStyle.paddingInlineEnd,
       nestedMarker: getComputedStyle(nestedList).listStyleType,
       deepMarker: getComputedStyle(deepList).listStyleType,
       taskMarker: getComputedStyle(taskList).listStyleType,
@@ -515,6 +523,9 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.h2Margin).toBe("20px 10px");
   expect.soft(styles?.h3Size).toBe("17px");
   expect.soft(styles?.h3Margin).toBe("20px 10px");
+  expect.soft(styles?.rtlDirection).toBe("rtl");
+  expect.soft(styles?.rtlStartPadding).toBe("21px");
+  expect.soft(styles?.rtlEndPadding).toBe("0px");
   expect.soft(styles?.nestedMarker).toBe("circle");
   expect.soft(styles?.deepMarker).toBe("square");
   expect.soft(styles?.taskMarker).toBe("none");
