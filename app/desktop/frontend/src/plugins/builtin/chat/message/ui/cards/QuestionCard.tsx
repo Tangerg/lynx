@@ -69,7 +69,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
         {questions.map((q, index) => (
           <div key={index} className="flex flex-col gap-0.5">
             <div className="text-ui-md leading-snug text-fg-muted">{q.prompt}</div>
-            <div className="text-ui-md font-medium text-fg">
+            <div className="whitespace-pre-wrap break-words text-ui-md font-medium text-fg">
               {questionAnswerText(shown, index) || "—"}
             </div>
           </div>
