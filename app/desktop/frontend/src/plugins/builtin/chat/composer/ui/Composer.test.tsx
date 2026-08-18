@@ -101,11 +101,11 @@ describe("composer", () => {
 
     // WKWebView can end a Chinese-IME composition before dispatching the
     // keydown from the same physical Enter. Both composing flags are false by
-    // the time the key binding sees that keydown, but it is still the IME's
-    // commit key and must not become a message submit.
+    // the time the key binding sees that keydown; keyCode 229 is the remaining
+    // browser signal that this is still the IME's commit key.
     fireEvent.compositionStart(textarea, { data: "englis" });
     fireEvent.compositionEnd(textarea, { data: "english" });
-    fireEvent.keyDown(textarea, { key: "Enter", isComposing: false });
+    fireEvent.keyDown(textarea, { key: "Enter", keyCode: 229, isComposing: false });
 
     expect(onSend).not.toHaveBeenCalled();
   });
