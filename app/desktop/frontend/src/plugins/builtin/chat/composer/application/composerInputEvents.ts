@@ -34,3 +34,14 @@ export function composerKeyBindingKey(
   parts.push(event.key);
   return normalizeCombo(parts.join("+"));
 }
+
+export function composerKeyEventBelongsToComposition(
+  event: Pick<KeyboardEvent, "isComposing" | "keyCode">,
+  compositionActive: boolean,
+): boolean {
+  // WebKit keeps keyCode 229 on an IME-generated key event even when it has
+  // already emitted compositionend and therefore reports isComposing=false.
+  // This is an event fact, not a platform guess, so it also covers third-party
+  // IMEs without a UA branch or a timing window.
+  return compositionActive || event.isComposing || event.keyCode === 229;
+}

@@ -16,7 +16,11 @@ import { COMPOSER_KEY_BINDING, lookupExtensionByKey } from "@/plugins/sdk";
 import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
 import { setComposerFocusTarget } from "../application/focus";
 import { useT } from "@/lib/i18n";
-import { composerKeyBindingKey, composerPasteIntent } from "../application/composerInputEvents";
+import {
+  composerKeyBindingKey,
+  composerKeyEventBelongsToComposition,
+  composerPasteIntent,
+} from "../application/composerInputEvents";
 import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 interface Args {
@@ -146,18 +150,11 @@ export function useComposerInputController({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    // BOTH sources, and our own first. `isComposing` is the browser's opinion and
-    // WKWebView — which is the engine this app actually ships on — does not set it
-    // on the keydown that commits a candidate for every IME. So an Enter pressed
-    // mid-pinyin arrived here with `isComposing: false` and sent a half-typed
-    // syllable as a message.
-    //
-    // `composingRef` is driven by compositionstart/compositionend, which WebKit does
-    // fire, and this hook has been keeping it accurate for the caret logic all along
-    // — the Enter path simply never asked. Recovery for a dropped compositionend
-    // already exists in `handleChange`, so a stuck flag self-heals on the next
-    // character rather than swallowing Enter forever.
-    if (composingRef.current || event.nativeEvent.isComposing) return;
+    // One composing intent owns every submit guard. The controller flag covers
+    // the open lifecycle, the native flag covers engines that annotate keydown,
+    // and WebKit's 229 process marker covers the same physical commit key when
+    // compositionend was dispatched first. No timeout or UA branch is needed.
+    if (composerKeyEventBelongsToComposition(event.nativeEvent, composingRef.current)) return;
     if (mentions.handleKeyDown(event)) {
       event.preventDefault();
       return;

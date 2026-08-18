@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LARGE_PASTE_CHARS } from "../domain/largePaste";
 import {
   composerKeyBindingKey,
+  composerKeyEventBelongsToComposition,
   composerPasteIntent,
   hasComposerImageTransferItems,
 } from "./composerInputEvents";
@@ -59,5 +60,20 @@ describe("composerKeyBindingKey", () => {
       ),
     ).toBe("mod+alt+shift+enter");
     expect(composerKeyBindingKey(new KeyboardEvent("keydown", { key: "ArrowUp" }))).toBe("arrowup");
+  });
+});
+
+describe("composerKeyEventBelongsToComposition", () => {
+  it("recognizes controller, native, and WebKit IME process signals", () => {
+    const plain = { isComposing: false, keyCode: 13 };
+
+    expect(composerKeyEventBelongsToComposition(plain, true)).toBe(true);
+    expect(composerKeyEventBelongsToComposition({ isComposing: true, keyCode: 13 }, false)).toBe(
+      true,
+    );
+    expect(composerKeyEventBelongsToComposition({ isComposing: false, keyCode: 229 }, false)).toBe(
+      true,
+    );
+    expect(composerKeyEventBelongsToComposition(plain, false)).toBe(false);
   });
 });
