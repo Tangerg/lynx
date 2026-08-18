@@ -17,8 +17,8 @@ import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
 import { setComposerFocusTarget } from "../application/focus";
 import { useT } from "@/lib/i18n";
 import {
+  composerCompositionKeyIntent,
   composerKeyBindingKey,
-  composerKeyEventBelongsToComposition,
   composerPasteIntent,
 } from "../application/composerInputEvents";
 import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
@@ -67,6 +67,11 @@ export function useComposerInputController({
   // textarea back to a stale value mid-composition) but defer the caret broadcast
   // until composition commits (compositionend).
   const composingRef = useRef(false);
+  // Some Chinese IMEs commit raw Latin text with compositionend and then emit
+  // an unmarked Enter from the same physical action. Keep that exact lifecycle
+  // fact until the next key decision; keyup/focus/pointer boundaries retire it
+  // deterministically when composition ended by another interaction.
+  const compositionCommitPendingRef = useRef(false);
   const applyMention = useCallback(
     (text: string, next: number) => {
       onChange(text);
@@ -103,7 +108,10 @@ export function useComposerInputController({
     // Some browsers drop compositionend; recover a stuck flag when a plain
     // input arrives with no active native composition.
     const nativeComposing = (event.nativeEvent as { isComposing?: boolean }).isComposing === true;
-    if (composingRef.current && !nativeComposing) composingRef.current = false;
+    if (composingRef.current && !nativeComposing) {
+      composingRef.current = false;
+      compositionCommitPendingRef.current = true;
+    }
     onChange(target.value);
     if (composingRef.current || nativeComposing) return;
     setCaret(target.selectionStart ?? target.value.length);
@@ -116,10 +124,12 @@ export function useComposerInputController({
 
   const handleCompositionStart = (): void => {
     composingRef.current = true;
+    compositionCommitPendingRef.current = false;
   };
 
   const handleCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
     composingRef.current = false;
+    compositionCommitPendingRef.current = true;
     // Composition committed: sync the final value (event ordering vs. the last
     // input event varies by browser) and broadcast the caret once so the
     // mention/slash lookup runs against real text.
@@ -129,6 +139,7 @@ export function useComposerInputController({
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>): void => {
+    compositionCommitPendingRef.current = false;
     const files = imageFiles(event.clipboardData?.files);
     const text = files.length > 0 ? "" : (event.clipboardData?.getData("text") ?? "");
     const intent = composerPasteIntent(files, text);
@@ -145,16 +156,29 @@ export function useComposerInputController({
   };
 
   const handleDrop = (files: File[]): void => {
+    compositionCommitPendingRef.current = false;
     if (files.length === 0 || !acceptsImages) return;
     onAddImages(files);
   };
 
+  const clearCompositionCommit = (): void => {
+    compositionCommitPendingRef.current = false;
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    // One composing intent owns every submit guard. The controller flag covers
-    // the open lifecycle, the native flag covers engines that annotate keydown,
-    // and WebKit's 229 process marker covers the same physical commit key when
-    // compositionend was dispatched first. No timeout or UA branch is needed.
-    if (composerKeyEventBelongsToComposition(event.nativeEvent, composingRef.current)) return;
+    // Consume the pending commit at the first key decision. Active/native/229
+    // composition keys remain browser-owned; the otherwise-unmarked commit
+    // Enter is also prevented so it neither sends nor inserts a stray newline.
+    const compositionIntent = composerCompositionKeyIntent(
+      event.nativeEvent,
+      composingRef.current,
+      compositionCommitPendingRef.current,
+    );
+    compositionCommitPendingRef.current = false;
+    if (compositionIntent !== null) {
+      if (compositionIntent === "committed-enter") event.preventDefault();
+      return;
+    }
     if (mentions.handleKeyDown(event)) {
       event.preventDefault();
       return;
@@ -178,10 +202,12 @@ export function useComposerInputController({
     mentions,
     placeholder,
     handleChange,
+    clearCompositionCommit,
     handleCompositionStart,
     handleCompositionEnd,
     handleDrop,
     handleKeyDown,
+    handleKeyUp: clearCompositionCommit,
     handlePaste,
     handleSelect,
   };

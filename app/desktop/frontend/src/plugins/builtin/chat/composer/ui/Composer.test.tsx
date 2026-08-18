@@ -132,6 +132,19 @@ describe("composer", () => {
     expect(onSend).toHaveBeenCalledOnce();
   });
 
+  it("recovers the same commit ownership when a browser drops compositionend", async () => {
+    await withEnterKeymap();
+    const onSend = vi.fn(() => true);
+    wrap(<Composer {...baseProps} value="中文 english" onChange={() => {}} onSend={onSend} />);
+    const textarea = screen.getByRole("textbox");
+
+    fireEvent.compositionStart(textarea, { data: "english" });
+    fireEvent.change(textarea, { target: { value: "中文 english" } });
+    fireEvent.keyDown(textarea, { key: "Enter", keyCode: 13, isComposing: false });
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("does not submit when the textarea is empty / whitespace only", async () => {
     await withEnterKeymap();
     const onSend = vi.fn(() => true);

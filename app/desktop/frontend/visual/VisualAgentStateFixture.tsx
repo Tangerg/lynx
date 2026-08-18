@@ -5,6 +5,7 @@ import {
   selectVisibleProblem,
 } from "@/plugins/builtin/agent/application/view/runTree";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
+import { useSendComposerInput } from "@/plugins/builtin/chat/composer/public/sendToAgent";
 import { ChatPanel } from "@/plugins/builtin/shell/kernel/panel/ChatPanel";
 import { AgentAppShell, AgentRow, AgentSurfaceHeader } from "@/ui/agent";
 import type { VisualAgentState } from "./agentSessionSnapshots";
@@ -64,6 +65,9 @@ export function VisualAgentStateFixture({
   const messages = selectRootNarrativeMessages(view);
   const runTree = selectRunTree(view);
   const problem = selectVisibleProblem(view);
+  // Exercise the same Composer → agent input bridge as the production kernel;
+  // the visual agent port records the payload for interaction assertions.
+  const send = useSendComposerInput();
 
   return (
     <AgentAppShell
@@ -86,7 +90,7 @@ export function VisualAgentStateFixture({
           data-message-count={messages.length}
           data-problem={problem?.code}
         >
-          <ChatPanel onSend={() => true} />
+          <ChatPanel onSend={send} />
         </div>
       }
     />

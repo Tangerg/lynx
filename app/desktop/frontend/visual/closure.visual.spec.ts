@@ -626,16 +626,20 @@ test("Chinese IME Latin commit does not turn its plain Enter into send", async (
     });
     Object.defineProperty(commitEnter, "keyCode", { value: 13 });
     element.dispatchEvent(commitEnter);
+    element.dispatchEvent(
+      new KeyboardEvent("keyup", {
+        bubbles: true,
+        isComposing: false,
+        key: "Enter",
+      }),
+    );
   });
 
   await expect(composer).toHaveValue("中文 english");
   await expect(page.locator("html")).not.toHaveAttribute("data-visual-sent-input");
 
   await composer.press("Enter");
-  await expect(page.locator("html")).toHaveAttribute(
-    "data-visual-sent-input",
-    /中文 english/,
-  );
+  await expect(page.locator("html")).toHaveAttribute("data-visual-sent-input", /中文 english/);
 });
 
 test("message copy writes through the production clipboard path", async ({ context, page }) => {

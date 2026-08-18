@@ -35,13 +35,31 @@ export function composerKeyBindingKey(
   return normalizeCombo(parts.join("+"));
 }
 
-export function composerKeyEventBelongsToComposition(
-  event: Pick<KeyboardEvent, "isComposing" | "keyCode">,
+export type ComposerCompositionKeyIntent = "active" | "committed-enter" | null;
+
+export function composerCompositionKeyIntent(
+  event: Pick<
+    KeyboardEvent,
+    "altKey" | "ctrlKey" | "isComposing" | "key" | "keyCode" | "metaKey" | "shiftKey"
+  >,
   compositionActive: boolean,
-): boolean {
+  compositionCommitPending: boolean,
+): ComposerCompositionKeyIntent {
   // WebKit keeps keyCode 229 on an IME-generated key event even when it has
   // already emitted compositionend and therefore reports isComposing=false.
   // This is an event fact, not a platform guess, so it also covers third-party
   // IMEs without a UA branch or a timing window.
-  return compositionActive || event.isComposing || event.keyCode === 229;
+  if (compositionActive || event.isComposing || event.keyCode === 229) return "active";
+
+  // Other Chinese IMEs commit raw Latin text with compositionend followed by a
+  // completely ordinary Enter. The controller carries that one lifecycle fact
+  // into this classifier; modifiers remain explicit user shortcuts.
+  return compositionCommitPending &&
+    event.key === "Enter" &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
+    ? "committed-enter"
+    : null;
 }

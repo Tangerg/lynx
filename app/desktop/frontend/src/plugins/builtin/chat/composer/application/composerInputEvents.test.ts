@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { LARGE_PASTE_CHARS } from "../domain/largePaste";
 import {
+  composerCompositionKeyIntent,
   composerKeyBindingKey,
-  composerKeyEventBelongsToComposition,
   composerPasteIntent,
   hasComposerImageTransferItems,
 } from "./composerInputEvents";
@@ -63,17 +63,38 @@ describe("composerKeyBindingKey", () => {
   });
 });
 
-describe("composerKeyEventBelongsToComposition", () => {
+describe("composerCompositionKeyIntent", () => {
   it("recognizes controller, native, and WebKit IME process signals", () => {
-    const plain = { isComposing: false, keyCode: 13 };
+    const plain = new KeyboardEvent("keydown", { key: "Enter" });
 
-    expect(composerKeyEventBelongsToComposition(plain, true)).toBe(true);
-    expect(composerKeyEventBelongsToComposition({ isComposing: true, keyCode: 13 }, false)).toBe(
-      true,
-    );
-    expect(composerKeyEventBelongsToComposition({ isComposing: false, keyCode: 229 }, false)).toBe(
-      true,
-    );
-    expect(composerKeyEventBelongsToComposition(plain, false)).toBe(false);
+    expect(composerCompositionKeyIntent(plain, true, false)).toBe("active");
+    expect(
+      composerCompositionKeyIntent(
+        new KeyboardEvent("keydown", { isComposing: true, key: "Enter" }),
+        false,
+        false,
+      ),
+    ).toBe("active");
+    expect(
+      composerCompositionKeyIntent({ ...plain, isComposing: false, keyCode: 229 }, false, false),
+    ).toBe("active");
+    expect(composerCompositionKeyIntent(plain, false, false)).toBeNull();
+  });
+
+  it("owns only the plain Enter immediately following a composition commit", () => {
+    const plain = new KeyboardEvent("keydown", { key: "Enter" });
+
+    expect(composerCompositionKeyIntent(plain, false, true)).toBe("committed-enter");
+    expect(
+      composerCompositionKeyIntent(
+        new KeyboardEvent("keydown", { key: "Enter", metaKey: true }),
+        false,
+        true,
+      ),
+    ).toBeNull();
+    expect(
+      composerCompositionKeyIntent(new KeyboardEvent("keydown", { key: "a" }), false, true),
+    ).toBeNull();
+    expect(composerCompositionKeyIntent(plain, false, false)).toBeNull();
   });
 });

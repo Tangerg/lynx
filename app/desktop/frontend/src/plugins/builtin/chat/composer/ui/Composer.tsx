@@ -108,10 +108,14 @@ export function Composer({
           value={value}
           onChange={input.handleChange}
           onSelect={input.handleSelect}
+          onBlur={input.clearCompositionCommit}
+          onFocus={input.clearCompositionCommit}
           onCompositionStart={input.handleCompositionStart}
           onCompositionEnd={input.handleCompositionEnd}
           onPaste={input.handlePaste}
           onKeyDown={input.handleKeyDown}
+          onKeyUp={input.handleKeyUp}
+          onPointerUp={input.clearCompositionCommit}
           rows={1}
           autosize
           /* Both bounds are in `lh` — THIS element's own line-height — so the
