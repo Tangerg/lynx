@@ -569,6 +569,16 @@
   --fs-prose: 16px;
   --fs-code: 13px;
 
+  /* Codex Markdown editorial ladder. Unlike chrome, these are fixed composition
+     sizes: changing UI density must not turn an answer heading into app chrome. */
+  --fs-markdown-h1: 24px;
+  --fs-markdown-h2: 20px;
+  --fs-markdown-h3: 17px;
+  --fs-markdown-h5: 15px;
+  --leading-markdown-heading: 1.25;
+  --leading-markdown-subheading: 22px;
+  --leading-markdown-minor: 20px;
+
   /* Icon ladder — first-paint defaults for the same base as the type ladder;
      applyFonts recomputes both together (lib/iconScale.ts). Stroke is in
      Lucide's 24-unit viewBox, derived per size to hold one on-screen weight. */

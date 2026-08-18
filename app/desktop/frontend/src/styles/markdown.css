@@ -54,13 +54,8 @@
   margin-top: 4px;
 }
 
-/* Headings — a percentage of the body they sit in, which is what both references
-   do: a section heading inside an answer runs 1.36em (JetBrains, 19 on 14) and
-   1.33em (Nova, 20 on 15), weight 600. Ours stops at 1.3 so an LLM that opens with
-   `#` cannot plant display type mid-transcript, and h2/h3 take the ratio's real
-   steps — those are the two levels a model actually emits, and at 1.125/1.0 the
-   deeper one was the same size as the paragraph under it and only weight said
-   otherwise. */
+/* Codex keeps one heading rhythm across all six levels; hierarchy comes from
+   its 24/20/17/17/15/15px ladder, not ad-hoc margins or muted lower levels. */
 .md h1,
 .md h2,
 .md h3,
@@ -68,47 +63,29 @@
 .md h5,
 .md h6 {
   font-weight: 600;
-  line-height: var(--leading-snug);
-  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-markdown-heading);
+  letter-spacing: normal;
   color: var(--color-text);
+  margin: 20px 0 10px;
 }
 .md h1 {
-  font-size: 1.3em;
-  margin: 24px 0 10px;
+  font-size: var(--fs-markdown-h1);
 }
 .md h2 {
-  font-size: 1.18em;
-  margin: 20px 0 8px;
+  font-size: var(--fs-markdown-h2);
 }
-.md h3 {
-  font-size: 1.06em;
-  margin: 16px 0 8px;
-}
+.md h3,
 .md h4 {
-  font-size: 1em;
-  font-weight: 500;
-  margin: 12px 0 6px;
+  font-size: var(--fs-markdown-h3);
+  line-height: var(--leading-markdown-subheading);
 }
 .md h5,
 .md h6 {
-  font-size: 0.92em;
-  font-weight: 500;
-  margin: 10px 0 4px;
-  color: var(--color-text-soft);
+  font-size: var(--fs-markdown-h5);
+  line-height: var(--leading-markdown-minor);
 }
-/* Tighten the gap when a heading is immediately followed by a list /
-   paragraph — common Markdown-from-LLM pattern. */
-.md h1 + p,
-.md h2 + p,
-.md h3 + p,
-.md h4 + p,
-.md h1 + ul,
-.md h2 + ul,
-.md h3 + ul,
-.md h1 + ol,
-.md h2 + ol,
-.md h3 + ol {
-  margin-top: 4px;
+.md > :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 20px;
 }
 
 /* Lists — craft minimal mode: tighter indent, space-y on parent,
