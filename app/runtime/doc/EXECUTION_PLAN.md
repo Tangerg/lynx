@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P117 已完成并形成里程碑。
+> 状态：P0–P117 已完成并形成里程碑；P118 实施中。
 >
-> 最近基线：2026-08-18，P117 完整验收。
+> 最近基线：2026-08-18，P117 完整验收；P118 已获得实施授权。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,12 +15,18 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P117 已于 2026-08-18 获得实施授权，唯一目标与完成定义为
-  [`inspiration/DESKTOP_RECOVERY_EXPERIENCE.md`](inspiration/DESKTOP_RECOVERY_EXPERIENCE.md)：从 production Desktop 的真实可见红例出发，统一恢复反馈、稳定 UI 区域和核心 agent workspace 的信息层级。
+- P118 已于 2026-08-18 获得实施授权：在 P117 恢复基线上继续深度对齐 Codex 的 Desktop 交互与 UI，完整覆盖左侧 Work Index 的目录选择和 Session 创建/关闭/切换、中间 Agent Narrative 的 transcript/streaming/composer/HITL/Goal/Plan/scroll，以及右侧 Context Dock 的 Run Summary/Terminal/Diff/File/Timeline/Tool/Settings；同时证明这些可见面已接到现有权威 Frontend read model 与 command owner。
 - 默认改动范围仅为 `app/desktop` 与 `app/desktop/frontend`。只有红例证明缺少权威事实时才进入 Runtime；突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK 前必须重新报告爆炸半径并取得确认。
-- 第一批只建立 loading、streaming、HITL continuation、Session/Dock、renderer replacement 与 Runtime restart 的证据矩阵和失败测试；问题不能形成真实产品反例时，不以视觉偏好或并发猜测修改生产 owner。
+- 第一批只从 production-equivalent Desktop 的盲测建立左、中、右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina 与 light/dark 证据矩阵；问题不能形成可复现的用户动作与可见错误时，不以视觉偏好或 Codex 的私有实现形状修改生产 owner。
 - 每个成立问题由唯一 presentation owner 根修复，不增加第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、timer 竞态掩盖或通用 Owner/Coordinator/状态机。每批独立提交推送，最终运行 Frontend 全门禁与 async leak、Wails production build 及必要的真实恢复验收。
-- P117 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+- Codex 参考只用于提取页面心智模型、操作反馈和 presentation 机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P118 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P118 准入与完成条件（2026-08-18）
+
+- 每个生产修复先形成能够失败的真实产品反例和独立红测提交，再由唯一 owner 完成根因修复提交；批次均须精确暂存并推送。
+- 左栏必须把全局动作、Projects 目录入口、project row 与 Session row 的范围、禁用、焦点和创建/关闭/切换结果表达清楚；中栏必须让权威 Run/Item/Interrupt/Goal/Plan 在长对话、流式、历史加载和 continuation 中稳定呈现；右栏必须让 tab 身份、内容 material、命令 capability、空态和恢复态一致。
+- UI 精修继续服从现有 theme/design-system token、单一 edge mechanism、最小 40px 可点击区域、键盘焦点、reduced motion、CJK/长路径/长标题、tabular numerals、容器宽度与 Retina device-pixel 约束；不以额外 chrome、卡片、圆角或动画代替信息层级。
+- 完成前运行 Frontend 全门禁与 `--detectAsyncLeaks`、三栏完整 visual/WCAG/light-dark/Retina 矩阵、必要的 Runtime/Desktop gates、Wails v3 production package，以及 fresh database、renderer replacement、Runtime restart/SIGKILL 的真实产品 smoke；自动化会话、daemon、临时数据库和测试进程必须清理。
 
 ### P117 红例、参考裁决与完成结论（2026-08-18）
 
