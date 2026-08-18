@@ -314,6 +314,14 @@ describe("markdownMessage", () => {
     expect(container.textContent).toContain("<summary>More</summary>");
   });
 
+  it("does not install attributes from model-authored raw HTML", () => {
+    const source = '<strong class="model-tone">Loud</strong>';
+    const { container } = render(<MarkdownMessage text={source} reveal="instant" />);
+
+    expect(container.querySelector("strong")).toBeNull();
+    expect(container.textContent).toContain('<strong class="model-tone">');
+  });
+
   it("keeps model-authored style blocks inert instead of installing a stylesheet", async () => {
     const source = '<style>@import url("https://tracker.example/agent.css");</style>Visible';
     const { container } = render(<MarkdownMessage text={source} reveal="instant" />);
