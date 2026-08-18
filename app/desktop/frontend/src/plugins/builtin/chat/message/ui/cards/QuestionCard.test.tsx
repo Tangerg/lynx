@@ -133,4 +133,27 @@ describe("QuestionCard choice semantics", () => {
     );
     expect(screen.queryByText("visual-preview")).toBeNull();
   });
+
+  it("gives a freeform question a multiline answer surface", () => {
+    render(
+      <QuestionCard
+        status="requires-action"
+        runId="run-1"
+        itemId="question-5"
+        questions={[
+          {
+            type: "text",
+            header: "Context",
+            prompt: "Describe the constraints for this change.",
+          },
+        ]}
+      />,
+    );
+
+    const answer = screen.getByRole("textbox", {
+      name: "Describe the constraints for this change.",
+    });
+    expect(answer.tagName).toBe("TEXTAREA");
+    expect(answer.getAttribute("rows")).toBe("4");
+  });
 });
