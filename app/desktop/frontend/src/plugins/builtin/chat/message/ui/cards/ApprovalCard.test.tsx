@@ -39,8 +39,8 @@ describe("ApprovalCard actions", () => {
     );
 
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Decline",
-      "Approve",
+      "Deny",
+      "Allow once",
     ]);
   });
 });
