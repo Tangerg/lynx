@@ -63,6 +63,15 @@ describe("markdownMessage", () => {
     expect(container.textContent ?? "").toContain("const x = 1;");
   });
 
+  it("keeps a fenced block without a language in the code-block surface", () => {
+    const src = "before\n```\ncommand --flag\n```\nafter";
+    const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
+
+    expect(container.querySelector(".shiki-block")).toBeTruthy();
+    expect(container.querySelector(".shiki-block pre")).toHaveTextContent("command --flag");
+    expect(container.querySelector(".shiki-block button")).toHaveAccessibleName("Copy code");
+  });
+
   it("renders a streaming-partial code block (no closer yet)", () => {
     // closeOpenMarkers should synthesise the closing fence so this
     // already shows up as a code block.
