@@ -140,7 +140,8 @@
 }
 
 /* GFM task-list checkboxes — kill the default OS chrome and draw our
-   own. Both `task-list-item` and the input itself get aligned. */
+   own. Loose tasks become a two-column reading row so every paragraph
+   after the lead stays in the task body column. */
 .md ul.contains-task-list,
 .md ol.contains-task-list:not(:has(> li:not(.task-list-item))) {
   list-style: none;
@@ -177,6 +178,16 @@
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 7.5 6 10.5 11.5 4.5'/></svg>");
   background-repeat: no-repeat;
   background-position: center;
+}
+.md li.task-list-item:has(> p) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.md li.task-list-item:has(> p) > :first-child {
+  margin-top: 0.25rem;
+}
+.md li.task-list-item:has(> p) > :not(:first-child) {
+  grid-column: 2;
 }
 
 /* Blockquote — Codex keeps quoted prose at normal ink and lets one inset rule

@@ -586,6 +586,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     );
     const taskList = root.querySelector("ol.contains-task-list");
     const looseTask = taskList?.querySelector("li.task-list-item:has(> p)");
+    const looseTaskCheckbox = looseTask?.firstElementChild;
     const looseTaskParagraphs = looseTask?.querySelectorAll(":scope > p");
     const quote = root.querySelector("blockquote");
     const rule = root.querySelector("hr");
@@ -600,6 +601,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       !rtlList ||
       !taskList ||
       !looseTask ||
+      !(looseTaskCheckbox instanceof HTMLInputElement) ||
       looseTaskParagraphs?.length !== 2 ||
       !quote ||
       !rule
@@ -627,7 +629,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       taskMarker: getComputedStyle(taskList).listStyleType,
       looseTaskDisplay: getComputedStyle(looseTask).display,
       looseTaskColumns: getComputedStyle(looseTask).gridTemplateColumns,
-      looseTaskFirstLineInset: getComputedStyle(looseTaskParagraphs[0]!).marginTop,
+      looseTaskCheckboxInset: getComputedStyle(looseTaskCheckbox).marginTop,
       looseTaskFollowUpColumn: getComputedStyle(looseTaskParagraphs[1]!).gridColumnStart,
       quoteInset: getComputedStyle(quote).paddingInlineStart,
       quoteRule: getComputedStyle(quote, "::after").width,
@@ -651,7 +653,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.taskMarker).toBe("none");
   expect.soft(styles?.looseTaskDisplay).toBe("grid");
   expect.soft(styles?.looseTaskColumns).not.toBe("none");
-  expect.soft(styles?.looseTaskFirstLineInset).toBe("4px");
+  expect.soft(styles?.looseTaskCheckboxInset).toBe("4px");
   expect.soft(styles?.looseTaskFollowUpColumn).toBe("2");
   expect.soft(styles?.quoteInset).toBe("24px");
   expect.soft(styles?.quoteRule).toBe("4px");

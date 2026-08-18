@@ -238,6 +238,23 @@ describe("markdownMessage", () => {
     expect(container.querySelectorAll("li").length).toBe(3);
   });
 
+  it("gives loose task items the Codex checkbox and body columns", () => {
+    const src = [
+      "1. [x] Preserve the durable fact",
+      "",
+      "   Keep the follow-up aligned with the task body.",
+      "2. [ ] Verify the projected view",
+    ].join("\n");
+    const { container } = render(<MarkdownMessage text={src} reveal="instant" />);
+
+    const task = container.querySelector("li.task-list-item");
+    expect(task?.firstElementChild?.matches('input[type="checkbox"]')).toBe(true);
+    expect(task?.querySelectorAll(":scope > p")).toHaveLength(2);
+    expect(task?.querySelector(":scope > p")?.textContent?.trim()).toBe(
+      "Preserve the durable fact",
+    );
+  });
+
   it("marks directional prose and Han paragraphs like Codex", () => {
     const src = [
       "# عنوان",

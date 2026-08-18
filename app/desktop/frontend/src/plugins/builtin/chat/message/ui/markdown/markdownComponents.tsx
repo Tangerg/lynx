@@ -107,6 +107,31 @@ function imageOnlyParagraph(children: ReactNode): ReactElement<MarkdownImageElem
   return material;
 }
 
+type MarkdownElementProps = {
+  children?: ReactNode;
+  node?: { tagName?: string };
+};
+
+function codexTaskListChildren(children: ReactNode): ReactNode {
+  const items = Children.toArray(children).filter(
+    (child) => !(typeof child === "string" && WHITESPACE_ONLY.test(child)),
+  );
+  const lead = items[0];
+  if (!isValidElement<MarkdownElementProps>(lead) || lead.props.node?.tagName !== "p") {
+    return children;
+  }
+
+  const [checkbox, ...paragraphChildren] = Children.toArray(lead.props.children);
+  if (
+    !isValidElement<MarkdownElementProps>(checkbox) ||
+    (checkbox.type !== "input" && checkbox.props.node?.tagName !== "input")
+  ) {
+    return children;
+  }
+
+  return [checkbox, cloneElement(lead, { children: paragraphChildren }), ...items.slice(1)];
+}
+
 const sharedMarkdownComponents: Components = {
   p({ children }) {
     const images = imageOnlyParagraph(children);
@@ -172,6 +197,14 @@ const sharedMarkdownComponents: Components = {
       <ol className={className} dir="auto" start={start}>
         {children}
       </ol>
+    );
+  },
+  li({ children, className, node: _node, ...rest }) {
+    const taskListItem = className?.includes("task-list-item") ?? false;
+    return (
+      <li className={className} {...rest}>
+        {taskListItem ? codexTaskListChildren(children) : children}
+      </li>
     );
   },
   blockquote({ children }) {
