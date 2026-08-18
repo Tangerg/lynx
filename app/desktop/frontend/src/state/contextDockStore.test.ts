@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useContextDockStore, WorkspaceFileFocus } from "./contextDockStore";
 
 const EMPTY = {
@@ -15,6 +15,7 @@ const EMPTY = {
 const dock = () => useContextDockStore.getState();
 
 beforeEach(() => {
+  localStorage.removeItem("lyra.context-dock");
   useContextDockStore.setState({ ...EMPTY, sessionScopes: new Map() });
 });
 
@@ -128,6 +129,34 @@ describe("per-session scopes", () => {
     dock().forgetSessionScopes(["s2"]);
 
     expect([...dock().sessionScopes.keys()]).toEqual([]);
+  });
+
+  it("restores inactive tabs and file targets after renderer replacement", async () => {
+    dock().activateSessionScope("s1");
+    dock().openDockTab("explorer");
+    dock().openDockTab("diff");
+    dock().openDockTab("file");
+    dock().rememberDockView("diff");
+    dock().focusFile("src/runtime.ts");
+    dock().setFileViewer("src/runtime.ts", 42);
+
+    await vi.waitFor(() => expect(localStorage.getItem("lyra.context-dock")).not.toBeNull());
+
+    vi.resetModules();
+    const replacementModule = await import("./contextDockStore");
+    const replacement = replacementModule.useContextDockStore;
+    const persistedReplacement = replacement as typeof replacement & {
+      persist: { rehydrate: () => Promise<void> | void };
+    };
+    await persistedReplacement.persist.rehydrate();
+    replacement.getState().activateSessionScope("s1");
+
+    expect(replacement.getState()).toMatchObject({
+      dockViewIds: ["explorer", "diff", "file"],
+      lastViewId: "diff",
+      fileFocus: { path: "src/runtime.ts", revision: 1 },
+      fileViewer: { path: "src/runtime.ts", line: 42 },
+    });
   });
 });
 
