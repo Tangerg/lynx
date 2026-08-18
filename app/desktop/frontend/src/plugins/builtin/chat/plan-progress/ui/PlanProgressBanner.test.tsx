@@ -7,6 +7,7 @@ const model = vi.hoisted(() => ({
   sessionId: "ses-a",
   generation: 1,
   revision: 1,
+  running: true,
   steps: [
     {
       id: "step-1",
@@ -14,6 +15,10 @@ const model = vi.hoisted(() => ({
       status: "active" as "active" | "done" | "pending",
     },
   ],
+}));
+
+vi.mock("@/plugins/builtin/agent/public/run", () => ({
+  useIsCurrentRootRunning: () => model.running,
 }));
 
 vi.mock("@/plugins/builtin/agent/public/plan", async (importOriginal) => {
@@ -33,6 +38,7 @@ describe("PlanProgressBanner disclosure identity", () => {
     model.sessionId = "ses-a";
     model.generation = 1;
     model.revision = 1;
+    model.running = true;
     model.steps = [{ id: "step-1", text: "Inspect", status: "active" }];
   });
 
@@ -62,6 +68,18 @@ describe("PlanProgressBanner disclosure identity", () => {
     expect(screen.getByRole("button", { name: /Expand plan/ }).getAttribute("aria-expanded")).toBe(
       "false",
     );
+  });
+
+  it("shows a non-dismissible Plan only while its current Run is active", () => {
+    const { rerender } = render(<PlanProgressBanner />);
+
+    expect(screen.queryByRole("button", { name: "Dismiss plan banner" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Expand plan/ })).not.toBeNull();
+
+    model.running = false;
+    rerender(<PlanProgressBanner />);
+
+    expect(screen.queryByRole("button", { name: /Expand plan/ })).toBeNull();
   });
 
   it("does not lend a dismissed Plan's material state to a replacement in the same Run", () => {
