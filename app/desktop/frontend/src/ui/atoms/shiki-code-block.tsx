@@ -89,6 +89,7 @@ export function ShikiCodeBlock({ lang, code, file, preview, previewLabel }: Prop
     // `shiki-block` is a CSS hook for markdown.css rules that style the
     // `<pre class="shiki">` + child `<code>` Shiki emits as a string.
     <div
+      dir="ltr"
       data-variant={isPreview ? "preview" : "code"}
       data-markdown-copy="code-block"
       data-markdown-copy-text={code}

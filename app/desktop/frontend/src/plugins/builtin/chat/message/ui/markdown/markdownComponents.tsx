@@ -232,7 +232,11 @@ const sharedMarkdownComponents: Components = {
     if (!match) {
       // Don't spread the rest props — react-markdown's passNode puts the hast
       // `node` in there, which would leak onto the DOM as node="[object Object]".
-      return <code className={cls}>{children}</code>;
+      return (
+        <code className={cls} dir="ltr">
+          {children}
+        </code>
+      );
     }
     // Regex has a capture group, so match[1] is defined when match is.
     const lang = match[1]!.toLowerCase();
