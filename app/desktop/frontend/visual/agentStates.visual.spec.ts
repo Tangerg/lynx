@@ -327,6 +327,9 @@ test("code blocks stay readable and expose the wrap control", async ({ page }) =
   await expect(svgPreview).toBeVisible();
   const svgArtifact = page.locator(".shiki-block").filter({ has: svgPreview });
   const svgCopy = svgArtifact.getByRole("button", { name: "Copy code" });
+  // `toBeVisible` may scroll the artifact underneath the pointer left by the
+  // earlier wrap click. Move it away so this measures the true resting state.
+  await page.mouse.move(0, 0);
   await expect.poll(() => svgCopy.evaluate((button) => getComputedStyle(button).opacity)).toBe("0");
   await svgArtifact.hover();
   await expect.poll(() => svgCopy.evaluate((button) => getComputedStyle(button).opacity)).toBe("1");

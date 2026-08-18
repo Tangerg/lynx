@@ -21,15 +21,18 @@ interface Props {
   /** Optional rendered interpretation of the source. The code remains the copy
    *  payload and the header remains shared; only the body changes. */
   preview?: ReactNode;
+  /** Accessible name for the focusable preview scroll region. */
+  previewLabel?: string;
 }
 
 // We debounce `code` so the Shiki tokenizer (3-10ms per pass) doesn't
 // run on every stream-reveal delta during streaming. While it's settling,
 // raw code shows in a <pre> fallback.
 
-export function ShikiCodeBlock({ lang, code, file, preview }: Props) {
+export function ShikiCodeBlock({ lang, code, file, preview, previewLabel }: Props) {
   const t = useT();
   const shikiTheme = useShikiTheme();
+  const isPreview = preview !== undefined;
 
   const [debouncedCode] = useDebouncedValue(code, { wait: 120 });
   const isSettling = code !== debouncedCode;
@@ -86,9 +89,12 @@ export function ShikiCodeBlock({ lang, code, file, preview }: Props) {
     // `shiki-block` is a CSS hook for markdown.css rules that style the
     // `<pre class="shiki">` + child `<code>` Shiki emits as a string.
     <div
+      data-variant={isPreview ? "preview" : "code"}
       className={cn(
-        "shiki-block group/code my-3 overflow-hidden rounded-md font-mono text-code",
-        "bg-sunken",
+        "shiki-block group/code my-3 overflow-hidden font-mono text-code",
+        isPreview
+          ? "group/code-snippet rounded-lg border-[0.5px] border-field bg-transparent"
+          : "rounded-md bg-sunken",
       )}
     >
       {/* Header — the card's own material over the recessed body, so the bar
@@ -96,15 +102,27 @@ export function ShikiCodeBlock({ lang, code, file, preview }: Props) {
           then path, both left-aligned: they are one caption ("this TypeScript,
           from there"), and centring the path put the two halves of that sentence
           at opposite ends of a wide block. */}
-      <div className="flex items-center gap-2.5 bg-card px-3 py-1.5">
-        <span className="shrink-0 font-mono text-ui-2xs font-medium uppercase tracking-wider text-fg-faint">
+      <div
+        className={cn(
+          "flex items-center gap-2.5 px-3 py-1.5",
+          isPreview ? "bg-transparent" : "bg-card",
+        )}
+      >
+        <span
+          className={cn(
+            "shrink-0 font-medium text-fg-faint",
+            isPreview
+              ? "font-sans text-ui-sm tracking-normal"
+              : "font-mono text-ui-2xs uppercase tracking-wider",
+          )}
+        >
           {lang || "text"}
         </span>
         {file && (
           <span className="min-w-0 flex-1 truncate font-mono text-ui-xs text-fg-muted">{file}</span>
         )}
         <span className="min-w-1 flex-1" />
-        {!preview && (
+        {!isPreview && (
           <IconButton
             icon={wrapCode ? "wrap-text" : "unfold-horizontal"}
             size="xs"
@@ -120,16 +138,27 @@ export function ShikiCodeBlock({ lang, code, file, preview }: Props) {
           size="xs"
           onClick={() => void copy()}
           title={copied ? t("message.code.copied") : t("message.code.copy")}
-          // Visible at rest, not on hover. The bar's other content is a
-          // three-letter language tag, and a block without a filename left it
-          // holding one faint word — a 34px strip of nothing between the
-          // paragraph and the code. Copying a block is also the thing anyone
-          // does most with one, and the reference shows it standing.
-          className={cn(copied ? "text-success" : "text-fg-faint hover:bg-hover hover:text-fg")}
+          // Ordinary source keeps its primary action visible. A rendered preview
+          // gives the artifact the visual lead and reveals copy on hover/focus.
+          className={cn(
+            copied ? "text-success" : "text-fg-faint hover:bg-hover hover:text-fg",
+            isPreview &&
+              "opacity-0 transition-opacity group-hover/code-snippet:opacity-100 group-focus-within/code-snippet:opacity-100",
+          )}
         />
       </div>
-      {preview ? (
-        <div className="grid max-h-96 min-h-24 place-items-center overflow-auto p-2">{preview}</div>
+      {isPreview ? (
+        <div
+          className="shiki-preview-body grid max-h-[calc(15lh+16px)] place-items-center overflow-auto p-2"
+          role="region"
+          aria-label={previewLabel}
+          // Overflow regions need a keyboard entry point; the linter cannot
+          // infer scrollability from the utility classes above.
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+        >
+          {preview}
+        </div>
       ) : showHighlighted ? (
         <div
           className="shiki-body"
