@@ -93,6 +93,23 @@ describe("composer", () => {
     expect(onSend).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "hello world" }] });
   });
 
+  it("keeps the Enter that immediately follows a WebKit IME composition end inside the composer", async () => {
+    await withEnterKeymap();
+    const onSend = vi.fn(() => true);
+    wrap(<Composer {...baseProps} value="english" onChange={() => {}} onSend={onSend} />);
+    const textarea = screen.getByRole("textbox");
+
+    // WKWebView can end a Chinese-IME composition before dispatching the
+    // keydown from the same physical Enter. Both composing flags are false by
+    // the time the key binding sees that keydown, but it is still the IME's
+    // commit key and must not become a message submit.
+    fireEvent.compositionStart(textarea, { data: "englis" });
+    fireEvent.compositionEnd(textarea, { data: "english" });
+    fireEvent.keyDown(textarea, { key: "Enter", isComposing: false });
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("does not submit when the textarea is empty / whitespace only", async () => {
     await withEnterKeymap();
     const onSend = vi.fn(() => true);
