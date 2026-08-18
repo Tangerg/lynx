@@ -9,6 +9,7 @@ import { installProjectIndexRefresh } from "./adapters/projectIndexRefresh";
 import {
   invalidateWorkspaceEvent,
   invalidateWorkspaceEverything,
+  replaceWorkspaceServerScope,
   retireWorkspaceReadModels,
 } from "./adapters/queryInvalidation";
 import {
@@ -21,13 +22,17 @@ import {
 } from "./adapters/sessionWorkspaceCwd";
 import { createWorkspaceEventLoop } from "./application/workspaceEventLoop";
 import { startWorkspaceEventSubscription } from "./application/workspaceEventSubscription";
-import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
+import {
+  RUNTIME_SERVER_SCOPE_PORTS,
+  RUNTIME_STREAM_PORTS,
+} from "@/plugins/builtin/runtime/public/ports";
 import { WORKSPACE_MUTATION_LIFECYCLE_PORTS } from "@/plugins/builtin/workspace/public/ports";
 
 export default definePlugin({
   name: "lyra.builtin.workspace-events",
   requires: {
     runtime: RUNTIME_STREAM_PORTS,
+    serverScope: RUNTIME_SERVER_SCOPE_PORTS,
     mutationLifecycle: WORKSPACE_MUTATION_LIFECYCLE_PORTS,
   },
   setup(ctx) {
@@ -41,6 +46,7 @@ export default definePlugin({
     });
 
     const disposeProjectIndex = installProjectIndexRefresh();
+    const disposeServerScope = ctx.serverScope.subscribeReplacement(replaceWorkspaceServerScope);
     const disposeSubscription = startWorkspaceEventSubscription({
       canSubscribe: canSubscribeWorkspaceEvents,
       connectionGeneration: ctx.runtime.connectionGeneration,
@@ -58,6 +64,7 @@ export default definePlugin({
 
     ctx.cleanup(() => {
       disposeSubscription();
+      disposeServerScope();
       disposeProjectIndex();
     });
   },

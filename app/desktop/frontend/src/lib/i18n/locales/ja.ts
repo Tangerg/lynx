@@ -381,9 +381,9 @@ export const ja: Record<string, string> = {
 
   "settings.pane.connection": "接続",
   "settings.connection.title": "バックエンド",
-  "settings.connection.sub": "Lyra Runtime のアドレス。適用するとデスクトップを再読み込みします。",
+  "settings.connection.sub": "Lyra Runtime のアドレス。適用するとデスクトップが再接続します。",
   "settings.connection.url": "URL",
-  "settings.connection.apply": "適用して再読み込み",
+  "settings.connection.apply": "適用",
   "settings.connection.reset": "デフォルトに戻す",
   "settings.connection.status.checking": "Runtime を確認中…",
   "settings.connection.status.reconnecting": "再接続中…",

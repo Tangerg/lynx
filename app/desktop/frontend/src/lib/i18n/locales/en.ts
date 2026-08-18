@@ -533,7 +533,7 @@ export const en: Record<string, string> = {
   "settings.connection.sub":
     "Where the Lyra runtime is reachable. Applying reconnects the desktop app.",
   "settings.connection.url": "URL",
-  "settings.connection.apply": "Apply & reload",
+  "settings.connection.apply": "Apply",
   "settings.connection.reset": "Reset to default",
   "settings.connection.status.checking": "Checking runtime…",
   "settings.connection.status.reconnecting": "Reconnecting…",

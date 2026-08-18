@@ -214,6 +214,50 @@ describe("runtime connection projection", () => {
     owner.dispose();
   });
 
+  it("retires the old connection before committing and publishing a new server scope", async () => {
+    let settleSuccessor: (value: RuntimeConnectionInspection<ServerCapabilities>) => void = () =>
+      undefined;
+    const inspector: RuntimeConnectionInspector<ServerCapabilities> = {
+      inspect: vi
+        .fn<RuntimeConnectionInspector<ServerCapabilities>["inspect"]>()
+        .mockResolvedValueOnce(inspection())
+        .mockImplementationOnce(
+          () =>
+            new Promise<RuntimeConnectionInspection<ServerCapabilities>>((resolve) => {
+              settleSuccessor = resolve;
+            }),
+        ),
+    };
+    const owner = startRuntimeConnection(inspector);
+    await vi.waitFor(() => expect(owner.connectionGeneration()).not.toBeNull());
+    const predecessor = owner.connectionGeneration();
+    const order: string[] = [];
+    const unsubscribeConnection = owner.subscribeConnection(() =>
+      order.push(`connection:${owner.connectionGeneration() ?? "none"}`),
+    );
+    const unsubscribeScope = owner.subscribeServerReplacement(() =>
+      order.push(`scope:${owner.connectionGeneration() ?? "none"}`),
+    );
+
+    const replacement = owner.replaceEndpoint(() =>
+      order.push(`commit:${owner.connectionGeneration() ?? "none"}`),
+    );
+
+    expect(order).toEqual(["connection:none", "commit:none", "scope:none"]);
+    expect(useRuntimeConnectionStore.getState()).toMatchObject({
+      connectionGeneration: null,
+      processGeneration: null,
+      capabilities: null,
+      service: { phase: "checking" },
+    });
+    settleSuccessor(inspection());
+    await replacement;
+    expect(owner.connectionGeneration()).not.toBe(predecessor);
+    unsubscribeScope();
+    unsubscribeConnection();
+    owner.dispose();
+  });
+
   it("withdraws a lost event-stream generation before its verification settles", async () => {
     let settleRetiredInspection: (
       value: RuntimeConnectionInspection<ServerCapabilities>,

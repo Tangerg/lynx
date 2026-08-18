@@ -62,7 +62,6 @@ export function ConnectionPane() {
     }
     setUrl(result.endpoint);
     setError(null);
-    if (result.changed) window.location.reload();
   };
 
   const reset = () => {
@@ -73,7 +72,6 @@ export function ConnectionPane() {
     }
     setUrl(result.endpoint);
     setError(null);
-    if (result.changed) window.location.reload();
   };
 
   const refresh = async () => {

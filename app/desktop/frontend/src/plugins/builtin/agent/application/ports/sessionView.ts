@@ -23,7 +23,7 @@ export type ResolvePatch = {
 
 export type StopCurrentRootRunAction = () => boolean;
 export type SessionProjectionSynchronizationOwnership =
-  "after-live" | "replace-live" | "retire-live";
+  "after-live" | "replace-live" | "retire-live" | "replace-server";
 /** Request the mounted Session's single projection owner to reconcile durable
  * facts. True means an authoritative snapshot committed; false means the read
  * was superseded, unavailable, or failed and the caller may retry. */
@@ -107,6 +107,8 @@ export interface AgentSessionViewPort {
   /** Revoke snapshot tokens and queued live-event cohorts without clearing the
    * currently visible material or starting a successor read. */
   retireProjectionGeneration(sessionIds: readonly string[]): void;
+  /** Replace one-server product material with an empty successor generation. */
+  replaceServerScope(sessionIds: readonly string[]): void;
   clearProblem(sessionId: string): void;
   resolveInterrupt(
     sessionId: string,

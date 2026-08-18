@@ -134,6 +134,14 @@ export function retireWorkspaceReadModels(): void {
   void queryClient.cancelQueries();
 }
 
+/** Replace all server-owned material after the configured endpoint commits.
+ * Unlike a transient disconnect, facts from another server scope cannot remain
+ * as an offline projection while successor reads start. */
+export function replaceWorkspaceServerScope(): void {
+  synchronizeMountedAgentSessions({ ownership: "replace-server" });
+  void queryClient.resetQueries();
+}
+
 function replaceWorkspaceReadModels(): void {
   // The material session projection is not a query-cache entry. Replace its
   // live generation first. Its sessions.snapshot successor now carries Goal

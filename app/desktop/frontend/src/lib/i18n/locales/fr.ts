@@ -387,9 +387,9 @@ export const fr: Record<string, string> = {
 
   "settings.pane.connection": "Connexion",
   "settings.connection.title": "Backend",
-  "settings.connection.sub": "Adresse du runtime Lyra. L’application recharge le bureau.",
+  "settings.connection.sub": "Adresse du runtime Lyra. L’application reconnecte le bureau.",
   "settings.connection.url": "URL",
-  "settings.connection.apply": "Appliquer et recharger",
+  "settings.connection.apply": "Appliquer",
   "settings.connection.reset": "Réinitialiser",
   "settings.connection.status.checking": "Vérification du runtime…",
   "settings.connection.status.reconnecting": "Reconnexion…",

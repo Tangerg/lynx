@@ -250,7 +250,11 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().setStop(sessionId, stop);
     store().setResume(sessionId, resume);
     store().setSynchronize(sessionId, (ownership) => {
-      if (ownership === "replace-live" || ownership === "retire-live") {
+      if (
+        ownership === "replace-live" ||
+        ownership === "retire-live" ||
+        ownership === "replace-server"
+      ) {
         runOpening.retire();
         runCancellation.retire();
         if (ownership === "retire-live") {

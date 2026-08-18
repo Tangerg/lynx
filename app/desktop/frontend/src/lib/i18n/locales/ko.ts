@@ -379,9 +379,9 @@ export const ko: Record<string, string> = {
 
   "settings.pane.connection": "연결",
   "settings.connection.title": "백엔드",
-  "settings.connection.sub": "Lyra Runtime 주소. 적용하면 데스크톱 앱을 다시 불러옵니다.",
+  "settings.connection.sub": "Lyra Runtime 주소. 적용하면 데스크톱 앱이 새 주소로 다시 연결됩니다.",
   "settings.connection.url": "URL",
-  "settings.connection.apply": "적용 후 다시 불러오기",
+  "settings.connection.apply": "적용",
   "settings.connection.reset": "기본값 복원",
   "settings.connection.status.checking": "Runtime 확인 중…",
   "settings.connection.status.reconnecting": "다시 연결하는 중…",

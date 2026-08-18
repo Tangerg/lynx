@@ -380,6 +380,18 @@ describe("agentStore authoritative refresh", () => {
     owner.dispose();
   });
 
+  it("empties mounted material when the one configured server scope changes", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [fold(runStarted("run_old_server", SID))]);
+    const token = store.beginViewRefresh(SID, false)!;
+
+    store.replaceServerScope([SID]);
+
+    expect(view()).toBe(EMPTY_AGENT_SESSION_VIEW);
+    expect(store.commitViewRefresh(SID, token, { ...EMPTY_AGENT_SESSION_VIEW })).toBe(false);
+  });
+
   it("invalidates queued stream events for a history rewrite without clearing the view", () => {
     const store = useAgentStore.getState();
     store.ensureSession(SID);

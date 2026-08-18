@@ -9,7 +9,8 @@ import { createSingletonPort } from "@/lib/ports/singletonPort";
  */
 export interface RuntimeEndpointConfiguration {
   read(): string | undefined;
-  write(endpoint: string): void;
+  /** Atomically replace the configured server scope and its live connection. */
+  replace(endpoint: string): void;
 }
 
 const port = createSingletonPort<RuntimeEndpointConfiguration>(

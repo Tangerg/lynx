@@ -51,9 +51,12 @@ afterEach(async () => {
   await resetContainer();
 });
 
-function installConnection(initial?: unknown) {
+function installConnection(
+  initial?: unknown,
+  replaceConnection: (commit: () => void) => void = (commit) => commit(),
+) {
   const connection = connectionHost(initial);
-  cleanups.push(installRuntimeEndpointConfiguration(connection.host));
+  cleanups.push(installRuntimeEndpointConfiguration(connection.host, replaceConnection));
   return connection;
 }
 
@@ -90,6 +93,19 @@ describe("runtime endpoint", () => {
     expect(currentRuntimeEndpoint()).toBe("http://127.0.0.1:27171");
   });
 
+  it("commits a changed endpoint inside the Runtime connection replacement", () => {
+    const order: string[] = [];
+    installConnection(undefined, (commit) => {
+      order.push(`before:${currentRuntimeEndpoint()}`);
+      commit();
+      order.push(`after:${currentRuntimeEndpoint()}`);
+    });
+
+    applyRuntimeEndpoint("http://127.0.0.1:27171");
+
+    expect(order).toEqual([`before:${DEFAULT_RUNTIME_ENDPOINT}`, "after:http://127.0.0.1:27171"]);
+  });
+
   it("rejects invalid input without changing the active endpoint", () => {
     installConnection();
 
@@ -119,6 +135,17 @@ describe("runtime endpoint", () => {
     applyRuntimeEndpoint("http://127.0.0.1:27171");
 
     expect(stored.get("endpoint")).toBe("http://127.0.0.1:27171");
+  });
+
+  it("retires the storage mirror with the Runtime endpoint owner", () => {
+    const connection = connectionHost();
+    const dispose = installRuntimeEndpointConfiguration(connection.host, (commit) => commit());
+
+    applyRuntimeEndpoint("http://127.0.0.1:27171");
+    dispose();
+    setConfig("runtime.endpoint", "http://127.0.0.1:28181");
+
+    expect(connection.stored.get("endpoint")).toBe("http://127.0.0.1:27171");
   });
 
   it("resets to the default endpoint with honest change metadata", () => {

@@ -4,23 +4,17 @@ import type { RuntimeServiceSnapshot } from "@/plugins/builtin/runtime/public/se
 import { ConnectionPane } from "./ConnectionPane";
 
 const runtime = vi.hoisted(() => ({
+  applyEndpoint: vi.fn(),
   refresh: vi.fn(),
+  resetEndpoint: vi.fn(),
   snapshot: null as RuntimeServiceSnapshot | null,
 }));
 
 vi.mock("@/plugins/builtin/runtime/public/endpoint", () => ({
   DEFAULT_RUNTIME_ENDPOINT: "http://127.0.0.1:17171",
   currentRuntimeEndpoint: () => "http://127.0.0.1:17171",
-  applyRuntimeEndpoint: (endpoint: string) => ({
-    kind: "accepted",
-    endpoint,
-    changed: false,
-  }),
-  resetRuntimeEndpoint: () => ({
-    kind: "accepted",
-    endpoint: "http://127.0.0.1:17171",
-    changed: false,
-  }),
+  applyRuntimeEndpoint: runtime.applyEndpoint,
+  resetRuntimeEndpoint: runtime.resetEndpoint,
 }));
 
 vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
@@ -30,7 +24,45 @@ vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
 
 describe("ConnectionPane runtime status", () => {
   beforeEach(() => {
+    runtime.applyEndpoint.mockReset().mockImplementation((endpoint: string) => ({
+      kind: "applied",
+      endpoint,
+      changed: false,
+    }));
     runtime.refresh.mockReset().mockResolvedValue(undefined);
+    runtime.resetEndpoint.mockReset().mockReturnValue({
+      kind: "applied",
+      endpoint: "http://127.0.0.1:17171",
+      changed: false,
+    });
+  });
+
+  it("hands an endpoint replacement to the Runtime owner without reloading the renderer", () => {
+    runtime.snapshot = {
+      phase: "ready",
+      failure: null,
+      observation: {
+        server: { name: "lyra-runtime", version: "1.2.3" },
+        protocol: { current: "2026-07-01", minSupported: "2026-01-01" },
+        health: "ready",
+        checks: {},
+      },
+    };
+    runtime.applyEndpoint.mockReturnValue({
+      kind: "applied",
+      endpoint: "http://127.0.0.1:27171",
+      changed: true,
+    });
+    const reload = vi.spyOn(window.location, "reload").mockImplementation(() => undefined);
+    render(<ConnectionPane />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "URL" }), {
+      target: { value: "http://127.0.0.1:27171" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(runtime.applyEndpoint).toHaveBeenCalledWith("http://127.0.0.1:27171");
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("renders degraded identity, protocol, and failing dependency checks", () => {

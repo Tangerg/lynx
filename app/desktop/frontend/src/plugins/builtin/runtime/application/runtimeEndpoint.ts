@@ -37,11 +37,12 @@ export function applyRuntimeEndpoint(input: string): RuntimeEndpointChange {
   const current = currentRuntimeEndpoint();
   const trimmed = input.trim();
   if (!trimmed) {
-    configuration.write(DEFAULT_RUNTIME_ENDPOINT);
+    const changed = current !== DEFAULT_RUNTIME_ENDPOINT;
+    if (changed) configuration.replace(DEFAULT_RUNTIME_ENDPOINT);
     return {
       kind: "applied",
       endpoint: DEFAULT_RUNTIME_ENDPOINT,
-      changed: current !== DEFAULT_RUNTIME_ENDPOINT,
+      changed,
     };
   }
 
@@ -55,8 +56,9 @@ export function applyRuntimeEndpoint(input: string): RuntimeEndpointChange {
     return { kind: "rejected", input, reason: "unsupported_scheme" };
   }
 
-  configuration.write(parsed.data);
-  return { kind: "applied", endpoint: parsed.data, changed: current !== parsed.data };
+  const changed = current !== parsed.data;
+  if (changed) configuration.replace(parsed.data);
+  return { kind: "applied", endpoint: parsed.data, changed };
 }
 
 export function resetRuntimeEndpoint(): RuntimeEndpointChange {

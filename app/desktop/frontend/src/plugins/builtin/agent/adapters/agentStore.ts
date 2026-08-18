@@ -80,6 +80,7 @@ interface AgentStore {
     view: AgentSessionView,
   ) => boolean;
   retireProjectionGeneration: (sessionIds: readonly string[]) => void;
+  replaceServerScope: (sessionIds: readonly string[]) => void;
   /**
    * Reconcile an optimistic placeholder with the server id named by the run
    * acknowledgement. If the streamed item won the race and already occupies
@@ -284,6 +285,22 @@ export const useAgentStore = create<AgentStore>((set) => ({
       }
       return sessions === state.sessions ? state : { sessions };
     }),
+  replaceServerScope: (sessionIds) =>
+    set((state) => {
+      let sessions = state.sessions;
+      for (const sessionId of new Set(sessionIds)) {
+        const entry = sessions[sessionId];
+        if (!entry) continue;
+        sessions = patchSession(sessions, sessionId, {
+          view: EMPTY_AGENT_SESSION_VIEW,
+          viewEpoch: entry.viewEpoch + 1,
+          viewRevision: entry.viewRevision + 1,
+          authoritativeRevision: 0,
+          refreshSequence: entry.refreshSequence + 1,
+        });
+      }
+      return sessions === state.sessions ? state : { sessions };
+    }),
   reconcileMessageIdentity: (sessionId, fromId, toId) =>
     set((state) => {
       const sessions = patchView(state.sessions, sessionId, (view) =>
@@ -367,6 +384,11 @@ export class AgentViewRefreshOwner {
   retireProjectionGeneration(sessionIds: readonly string[]): void {
     if (!this.#ownsGeneration()) return;
     useAgentStore.getState().retireProjectionGeneration(sessionIds);
+  }
+
+  replaceServerScope(sessionIds: readonly string[]): void {
+    if (!this.#ownsGeneration()) return;
+    useAgentStore.getState().replaceServerScope(sessionIds);
   }
 
   dispose(): void {

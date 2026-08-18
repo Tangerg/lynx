@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { cancelQueries, invalidateQueries, synchronizeMountedAgentSessions } = vi.hoisted(() => ({
-  cancelQueries: vi.fn(),
-  invalidateQueries: vi.fn(),
-  synchronizeMountedAgentSessions: vi.fn(),
-}));
+const { cancelQueries, invalidateQueries, resetQueries, synchronizeMountedAgentSessions } =
+  vi.hoisted(() => ({
+    cancelQueries: vi.fn(),
+    invalidateQueries: vi.fn(),
+    resetQueries: vi.fn(),
+    synchronizeMountedAgentSessions: vi.fn(),
+  }));
 
 vi.mock("@/lib/queryClient", () => ({
-  queryClient: { cancelQueries, invalidateQueries },
+  queryClient: { cancelQueries, invalidateQueries, resetQueries },
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
@@ -36,6 +38,7 @@ vi.mock("@/plugins/builtin/settings/providers/public/queries", () => ({
 import {
   invalidateWorkspaceEvent,
   invalidateWorkspaceEverything,
+  replaceWorkspaceServerScope,
   retireWorkspaceReadModels,
 } from "./queryInvalidation";
 import { createWorkspaceEventLoop } from "../application/workspaceEventLoop";
@@ -43,6 +46,7 @@ import { createWorkspaceEventLoop } from "../application/workspaceEventLoop";
 beforeEach(() => {
   cancelQueries.mockClear();
   invalidateQueries.mockClear();
+  resetQueries.mockClear();
   synchronizeMountedAgentSessions.mockReset();
 });
 
@@ -95,6 +99,15 @@ describe("workspace session projection invalidation", () => {
     expect(cancelQueries).toHaveBeenCalledOnce();
     expect(cancelQueries).toHaveBeenCalledWith();
     expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("replaces mounted projections and cached reads after the server scope commits", () => {
+    replaceWorkspaceServerScope();
+
+    expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
+      ownership: "replace-server",
+    });
+    expect(resetQueries).toHaveBeenCalledOnce();
   });
 
   it("keeps a mounted Goal inside the same full-resync material generation", () => {

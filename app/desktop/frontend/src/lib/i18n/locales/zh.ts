@@ -513,9 +513,9 @@ export const zh: Record<string, string> = {
 
   "settings.pane.connection": "连接",
   "settings.connection.title": "后端",
-  "settings.connection.sub": "Lyra Runtime 的地址。应用后将重新载入桌面端。",
+  "settings.connection.sub": "Lyra Runtime 的地址。应用后桌面端将切换连接。",
   "settings.connection.url": "URL",
-  "settings.connection.apply": "应用并重新载入",
+  "settings.connection.apply": "应用",
   "settings.connection.reset": "恢复默认",
   "settings.connection.status.checking": "正在检查 Runtime…",
   "settings.connection.status.reconnecting": "正在重新连接…",

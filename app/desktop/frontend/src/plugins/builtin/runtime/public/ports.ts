@@ -10,3 +10,12 @@ export interface RuntimeStreamPorts {
 }
 
 export const RUNTIME_STREAM_PORTS = service<RuntimeStreamPorts>("lyra.runtime.streamPorts");
+
+/** A configured endpoint change replaces the product's one server scope. */
+export interface RuntimeServerScopePorts {
+  subscribeReplacement: (onReplace: () => void) => () => void;
+}
+
+export const RUNTIME_SERVER_SCOPE_PORTS = service<RuntimeServerScopePorts>(
+  "lyra.runtime.serverScopePorts",
+);

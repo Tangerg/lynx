@@ -13,7 +13,12 @@ interface EndpointBindings {
   storage: KeyValueStore;
 }
 
-export function installRuntimeEndpointConfiguration(ctx: EndpointBindings): () => void {
+export type ReplaceRuntimeEndpoint = (commit: () => void) => void;
+
+export function installRuntimeEndpointConfiguration(
+  ctx: EndpointBindings,
+  replaceConnection: ReplaceRuntimeEndpoint,
+): () => void {
   const stored = ctx.storage.get(STORAGE_KEY);
   if (typeof stored === "string" && stored.trim()) {
     ctx.config.set(CONFIG_KEY, stored);
@@ -24,12 +29,15 @@ export function installRuntimeEndpointConfiguration(ctx: EndpointBindings): () =
       const value = ctx.config.get(CONFIG_KEY);
       return typeof value === "string" ? value : undefined;
     },
-    write: (endpoint) => ctx.config.set(CONFIG_KEY, endpoint),
+    replace: (endpoint) => replaceConnection(() => ctx.config.set(CONFIG_KEY, endpoint)),
   });
 
-  ctx.config.onChange(CONFIG_KEY, (value) => {
+  const disposeStorageMirror = ctx.config.onChange(CONFIG_KEY, (value) => {
     if (typeof value === "string") ctx.storage.set(STORAGE_KEY, value);
   });
 
-  return disposePort;
+  return () => {
+    disposeStorageMirror.dispose();
+    disposePort();
+  };
 }

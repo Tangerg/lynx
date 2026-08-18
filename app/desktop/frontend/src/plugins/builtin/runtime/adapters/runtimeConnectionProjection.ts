@@ -95,6 +95,8 @@ export function installRuntimeCapabilityPort(): () => void {
 export interface RuntimeConnectionOwner {
   connectionGeneration(): RuntimeConnectionGeneration | null;
   subscribeConnection(onChange: () => void): () => void;
+  subscribeServerReplacement(onReplace: () => void): () => void;
+  replaceEndpoint(commit: () => void): Promise<void>;
   reportConnectionLoss(expectedGeneration: RuntimeConnectionGeneration): Promise<void>;
   dispose(): void;
 }
@@ -111,6 +113,7 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
   readonly #controller: RuntimeServiceController;
   readonly #disposeCapabilities: () => void;
   readonly #disposeServiceStatus: () => void;
+  readonly #serverReplacementListeners = new Set<() => void>();
   #disposed = false;
 
   constructor(inspector: RuntimeConnectionInspector<ServerCapabilities>) {
@@ -155,11 +158,18 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
     });
   }
 
+  subscribeServerReplacement(onReplace: () => void): () => void {
+    if (!this.#ownsGeneration()) return () => undefined;
+    this.#serverReplacementListeners.add(onReplace);
+    return () => this.#serverReplacementListeners.delete(onReplace);
+  }
+
   dispose(): void {
     if (this.#disposed) return;
     const ownsGeneration = activeConnection === this;
     this.#disposed = true;
     this.#controller.dispose();
+    this.#serverReplacementListeners.clear();
     try {
       if (!ownsGeneration) return;
       activeConnection = null;
@@ -168,6 +178,18 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
       this.#disposeServiceStatus();
       this.#disposeCapabilities();
     }
+  }
+
+  replaceEndpoint(commit: () => void): Promise<void> {
+    if (!this.#ownsGeneration()) return Promise.resolve();
+    // Server scope is broader than a transport reconnect. Revoke the old
+    // connection first, commit the endpoint only after every synchronous
+    // connection subscriber has retired its writers, then let read-model
+    // owners discard facts that cannot cross server identity.
+    useRuntimeConnectionStore.setState(initialConnectionState(), true);
+    commit();
+    for (const listener of this.#serverReplacementListeners) listener();
+    return this.#controller.recover();
   }
 
   reportConnectionLoss(expectedGeneration: RuntimeConnectionGeneration): Promise<void> {

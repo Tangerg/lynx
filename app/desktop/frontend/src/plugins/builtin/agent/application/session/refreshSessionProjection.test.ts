@@ -208,6 +208,37 @@ describe("refreshAgentSessionProjection", () => {
     expect(commitAssociatedReadModels).not.toHaveBeenCalled();
   });
 
+  it("clears the old server projection before admitting its successor read", async () => {
+    const predecessor = deferred<AgentSessionMaterialRead>();
+    const successor = deferred<AgentSessionMaterialRead>();
+    const loadSessionSnapshot = vi
+      .fn()
+      .mockImplementationOnce(() => predecessor.promise)
+      .mockImplementationOnce(() => successor.promise);
+    restoreRuntime = configureAgentRuntimeGateway({
+      loadSessionSnapshot,
+    } as unknown as AgentRuntimeGateway);
+    useAgentStore.getState().setCommandError(SESSION_ID, { code: "old-server" });
+
+    const retiredRead = refreshAgentSessionProjection(SESSION_ID);
+    synchronizeMountedAgentSessions({ ownership: "replace-server" });
+
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toBeNull();
+    expect(loadSessionSnapshot).toHaveBeenCalledTimes(2);
+    successor.resolve(material(snapshot(22)));
+    await vi.waitFor(() =>
+      expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan).toMatchObject({
+        revision: 22,
+      }),
+    );
+
+    predecessor.resolve(material(snapshot(11)));
+    await expect(retiredRead).resolves.toBeNull();
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan).toMatchObject({
+      revision: 22,
+    });
+  });
+
   it("rejects an old port's snapshot and companion material after adapter replacement", async () => {
     const read = deferred<AgentSessionMaterialRead>();
     const commitAssociatedReadModels = vi.fn();

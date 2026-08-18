@@ -387,9 +387,9 @@ export const de: Record<string, string> = {
 
   "settings.pane.connection": "Verbindung",
   "settings.connection.title": "Backend",
-  "settings.connection.sub": "Adresse der Lyra Runtime. Anwenden lädt die Desktop-App neu.",
+  "settings.connection.sub": "Adresse der Lyra Runtime. Anwenden verbindet die Desktop-App neu.",
   "settings.connection.url": "URL",
-  "settings.connection.apply": "Anwenden und neu laden",
+  "settings.connection.apply": "Anwenden",
   "settings.connection.reset": "Auf Standard zurücksetzen",
   "settings.connection.status.checking": "Runtime wird geprüft…",
   "settings.connection.status.reconnecting": "Verbindung wird wiederhergestellt…",
