@@ -23,6 +23,7 @@ interface WorkspaceRoute {
 }
 
 async function openWorkspace(page: Page, route: WorkspaceRoute): Promise<void> {
+  if (route.state === "settings") await page.setViewportSize({ width: 1120, height: 720 });
   const query = new URLSearchParams({
     fixture: "workspace",
     theme: route.theme ?? "light",
