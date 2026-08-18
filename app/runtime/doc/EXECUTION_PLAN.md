@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P117 已完成并形成里程碑；P118 实施中。
+> 状态：P0–P118 已完成并形成里程碑。
 >
-> 最近基线：2026-08-18，P117 完整验收；P118 已获得实施授权。
+> 最近基线：2026-08-18，P118 完整验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -32,6 +32,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 右栏窄窗反例已闭环：1120px window 保持 256px Work Index 时，旧 split 把 conversation 与 Dock 各压到约 432px，违反 640px reading floor，HITL、composer 与正文一起降成不可读窄栏。采用 Codex 的“空间不足时折叠 panel、保留 panel membership”机制：`ChatPanel` 只从 row ResizeObserver 推导 presentation capability，低于 640px conversation + 420px Dock 时调用既有 navigation owner 清除 destination，`contextDockStore` 的 tab set/last view/width preference 不变；toggle 同步禁用并解释需增大窗口。恢复安全宽度后由用户重开原 tab，宽窗 resizer 也以 640px conversation floor 计算上限；没有第二 visibility state、覆盖 drawer preference 或改写持久宽度。
 - 右栏 File material identity 反例已闭环：query/store 已持有 `app/…/DockResizer.tsx`，但 dock placement 的通用 `ViewHeader` 无条件丢弃动态 title，只显示“8 lines”，用户无法确认正在阅读哪个文件。`ViewHeader` 现在区分 generic tab name 与可选 dock material identity；File view 将同一 `viewer.path` 通过既有 `FilePath` 左侧截断呈现为“exact path · line count”，full placement 仍使用原 title。未把路径复制进 tab、内容猜测或增加第二 file selection。
 - 中栏命令语义反例已闭环：同一 running fixture 同时呈现 Goal lifecycle 与当前 Run composer，但两个按钮都暴露为“Stop”，键盘与读屏用户无法判断将停止自治目标还是当前回合。Goal banner 继续直接调用既有 `stopGoal`/`resumeGoal` owner，只把八种语言的可见动作明确为“Stop goal/Resume goal”及等义译文；composer 的 Run “Stop”保持不变，同页现在只有一个 exact “Stop”，没有新增 aria-only 别名、command route 或生命周期状态。
+- P118 最终 recovery smoke 使用 fresh HOME/SQLite、0600 local token 与 production Wails `.app`：renderer reload 前后 Desktop PID 保持 36610，WebArea generation 完整替换，exact Session 数保持 1，composer、`explorer` Dock 与资源树均由权威状态恢复。首次 Runtime SIGKILL 后 PID 36578→38590、`instanceId` 换代，离线期所有 Session 创建入口同步撤权而 Dock 仍可读；再次在窗口保持前台时 SIGKILL 38590→39832，原窗口无需 reload 即清除告警并恢复命令能力。Frontend 普通与 `--detectAsyncLeaks` 均为 313 files / 1946 tests，agent/shell/workspace/closure/foundation/WebKit visual 287 tests 全绿；Runtime 与 Desktop 全量 test/vet/build、Wails production package 和 strict codesign verification 全绿，自动化进程与临时数据库已清理。
 
 ### P117 红例、参考裁决与完成结论（2026-08-18）
 
@@ -88,10 +89,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P115     | 前后端可维护性治本收敛                                                                                          | durable unresolved-command、lifecycle publication、Frontend extension、Bootstrap resource 与 Runs execution handoff 各自回到唯一 owner；真实 SIGKILL 验收补齐 path-owned local credential |
 | P116     | 真实产品拓扑下的恢复与守卫校准                                                                                  | claimed Resume 由 claim owner 原子补偿；Mutation Journal 只认 durable namespace；删除不能表达架构边界的一次性 object-literal 语法守卫                                                     |
 | P117     | Desktop 恢复反馈与 Codex 对齐的三栏 UI 精修                                                                     | Work Index、transcript 与 Context Dock 服从 exact Session、reader-owned scroll 和 Runtime command capability；renderer reload 与 Runtime SIGKILL 后原窗口原 workspace 可见恢复            |
+| P118     | Desktop 左中右接线与 Codex 交互深度对齐                                                                          | 创建失败不转移焦点，compact HITL 动态净空进入唯一滚动 owner，Goal/Run 命令可辨；Context Dock 服从 640px 阅读下限并呈现 exact file identity，真实 renderer/Runtime 换代后状态与能力收敛       |
 
 ## 5. 当前里程碑结论
 
-P113–P117 共同建立了以下不可回退的心智模型：
+P113–P118 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -102,8 +104,10 @@ P113–P117 共同建立了以下不可回退的心智模型：
 - Desktop 冷启动依赖在 composition root 显式声明；Composer、Recipes 和 Workspace Events 的 session ports 不再依赖偶然安装顺序。
 - local transport token 由 durable data path 拥有，不属于 Runtime process generation；`instanceId` 换代不撤销仍存活 Desktop 的认证能力。
 - 流式输出期间，消息底部反馈/操作区服从可见 turn 的稳定 material 边界，不能跟随每个 delta 反复挂载造成闪烁。
+- Work Index 只有在 `sessions.create` 返回新 identity 后才交接焦点；中央 transcript 的内容增长与 composer/HITL border-box 净空共享一个 follow fact，用户取得阅读位置后不再被异步 materialization 抢回。
+- Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
 
-最近一次完整验收基线：Frontend 313 files / 1945 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure visual 274 tests 覆盖 streaming、HITL、Session/Dock、WCAG、IME、Retina 与 light/dark golden。Runtime standalone 全量 test/vet/build、Desktop Wails v3 Go test/vet 与生产 `.app` 打包通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 保留 exact Session 与 `explorer` Dock；Runtime SIGKILL 让 PID 32453 换为 85165，Desktop PID 31650 未变，原窗口自动撤权并恢复，空 draft 连续 New 前后 SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 313 files / 1946 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 287 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 保留 exact Session、composer 与 `explorer` Dock；Runtime 两次 SIGKILL 分别完成 36578→38590→39832 的进程换代，Desktop PID 36610 始终不变，原窗口在离线期撤权并在恢复后自动清除告警，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 
@@ -116,4 +120,4 @@ P113–P117 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P117 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P118 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

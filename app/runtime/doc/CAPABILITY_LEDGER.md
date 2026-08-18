@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P118 实施中。
+> 状态：当前能力快照；P118 已完成。
 >
 > 基线日期：2026-08-18。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P116 已完成；P116 已完成 claimed Resume 补偿、Mutation Journal durable identity 校准与 published-boundary 静态守卫审计。
+- P113–P118 已完成；P118 已完成 Work Index、Agent Narrative 与 Context Dock 的 Codex 对齐、权威前端接线和 production renderer/Runtime 恢复验收。
 
 ## 2. 架构与所有权
 
@@ -166,15 +166,15 @@
 | SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery                                                                                                                                                                                                                                                           |
 | Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff                                                                                                                                                                                                                                                                   |
 | Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests                                                                                                                                                                                                                                                            |
-| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure 矩阵 274 tests 覆盖 streaming、HITL、Session/Dock、WCAG、长内容、IME、Retina 与 light/dark golden |
+| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 287 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
 | Production shell   | Wails v3 Go test/vet/build、production `.app` package、renderer reload、Runtime health/discovery 与 fresh database/SIGKILL smoke                                                                                                                                                                                                                             |
 
-最近完整基线为 Frontend 313 files / 1945 tests，普通与 `--detectAsyncLeaks` 全绿；99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure visual 274 tests 全绿。Runtime standalone 全量 test/vet/build、Desktop Go test/vet 与 Wails v3 production package 通过。fresh HOME/SQLite smoke 中 renderer reload 保留 exact Session 与 `explorer` Dock；Runtime PID 32453→85165、`instanceId` 换代，Desktop PID 31650 保持，断线时所有 Session 创建入口撤权且原 workspace 可读，恢复后原窗口重新获得命令能力；空 draft 连续 New 前后 SQLite Session 数保持 1。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
+最近完整基线为 Frontend 313 files / 1946 tests，普通与 `--detectAsyncLeaks` 全绿；99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 287 tests 全绿。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 保留 exact Session、composer、`explorer` Dock 与资源树；Runtime PID 36578→38590→39832、`instanceId` 换代，Desktop PID 36610 保持，断线时所有 Session 创建入口撤权且原 workspace 可读，前台窗口无需 reload 即自动清除告警并恢复命令能力，SQLite Session 数保持 1。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P117 完成定义内没有已知未闭环项；新问题必须重新形成真实红例并取得阶段授权。
+- P118 完成定义内没有已知未闭环项；新问题必须重新形成真实红例并取得阶段授权。
 
 ## 11. 当前结论
 
-P0–P117 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P117 又让左侧 Work Index、中央 transcript 和右侧 Context Dock 在 renderer replacement 与 Runtime restart 前后共享 exact Session、reader-owned scroll 和 command capability。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P118 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P118 又让左侧 Work Index、中央 transcript/HITL/Goal 与右侧 Context Dock 在窄宽、renderer replacement 和 Runtime restart 前后共享 exact Session、reader-owned scroll、可辨命令作用域和权威 command capability。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
