@@ -62,6 +62,13 @@ describe("Codex-aligned Work Index actions", () => {
     expect(screen.getByRole("button", { name: "Add project" })).toBeTruthy();
   });
 
+  it("keeps the Projects add action visible without hover discovery", () => {
+    render(<ProjectsSection />);
+
+    const addProject = screen.getByRole("button", { name: "Add project" });
+    expect(addProject.classList.contains("opacity-0")).toBe(false);
+  });
+
   it("withdraws Session creation affordances while Runtime commands are unavailable", () => {
     model.actions.canCreateSession = false;
     model.actions.canCreateSessionInFolder = false;
