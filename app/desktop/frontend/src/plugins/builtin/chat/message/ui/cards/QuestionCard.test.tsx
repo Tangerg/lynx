@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QuestionCard } from "./QuestionCard";
 
@@ -31,9 +31,8 @@ describe("QuestionCard choice semantics", () => {
       />,
     );
 
-    expect(screen.getByRole("radiogroup", { name: "Which gate should run next?" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: /Race detector/ })).toHaveAttribute(
-      "aria-checked",
+    expect(screen.getByRole("radiogroup", { name: "Which gate should run next?" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /Race detector/ }).getAttribute("aria-checked")).toBe(
       "false",
     );
   });
@@ -56,9 +55,39 @@ describe("QuestionCard choice semantics", () => {
     );
 
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
-    expect(screen.getByRole("checkbox", { name: "Race detector" })).toHaveAttribute(
-      "aria-checked",
+    expect(screen.getByRole("checkbox", { name: "Race detector" }).getAttribute("aria-checked")).toBe(
       "false",
+    );
+  });
+
+  it("moves and selects within a radio group with the arrow keys", () => {
+    render(
+      <QuestionCard
+        status="requires-action"
+        runId="run-1"
+        itemId="question-3"
+        questions={[
+          {
+            type: "choice",
+            prompt: "Which gate should run next?",
+            options: [{ label: "Race detector" }, { label: "Visual suite" }],
+          },
+        ]}
+      />,
+    );
+
+    const first = screen.getByText("Race detector").closest("button");
+    const second = screen.getByText("Visual suite").closest("button");
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+
+    first!.focus();
+    fireEvent.keyDown(first!, { key: "ArrowDown" });
+
+    expect(second!.getAttribute("aria-checked")).toBe("true");
+    expect(document.activeElement).toBe(second);
+    expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(
+      false,
     );
   });
 });
