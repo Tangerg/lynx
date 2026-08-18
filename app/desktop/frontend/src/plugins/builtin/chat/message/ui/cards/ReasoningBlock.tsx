@@ -44,12 +44,6 @@ function lastLine(text: string): string {
 // feature owns only the derived policy: streaming drives `open` until the
 // user's first toggle takes over.
 //
-// Elapsed time is captured client-side: we snapshot the wall clock at first
-// render (≈ first reasoning delta) and freeze it the tick streaming flips
-// false. Server-authoritative duration would be cleaner, but reasoning
-// timestamps aren't in the protocol events today and a 50ms render skew on a
-// label that always reads "thought for Xs" is not worth a protocol change.
-//
 // Streaming auto-follow (ResizeObserver pin-to-bottom) + top/bottom gradient
 // fades ported from assistant-ui canonical reasoning component technique.
 export function ReasoningBlock({ text, status, superseded = false }: Props) {
@@ -66,26 +60,6 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
     setOpenOverride(!isOpen);
   };
 
-  const startedAtRef = useRef<number>(Date.now());
-  const [elapsedMs, setElapsedMs] = useState<number | null>(null);
-
-  // While streaming, tick once a second so the header counter advances.
-  // When streaming ends, freeze the value — that's the final "thought for X".
-  useEffect(() => {
-    if (!streaming) {
-      setElapsedMs(Date.now() - startedAtRef.current);
-      return;
-    }
-    const tick = () => setElapsedMs(Date.now() - startedAtRef.current);
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [streaming]);
-
-  const elapsedLabel = formatElapsed(elapsedMs);
-  // The word and the number are separate slots now: the word is a label and the
-  // number is data, so the number can sit in the row's mono meta column with
-  // every other duration instead of being sentence-cased into the label.
   const label = streaming ? t("reasoning.thinking") : t("reasoning.thought");
   // Where the preview ends is the ROW's business, and the row already answers it
   // in CSS at the real edge of the real column. A character count here was a
@@ -168,12 +142,7 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
       shell="line"
       label={label}
       detail={!isOpen && preview ? preview : undefined}
-      trailing={
-        <>
-          {elapsedLabel}
-          {streaming && isOpen ? <StatusDot tone="running" /> : null}
-        </>
-      }
+      trailing={streaming && isOpen ? <StatusDot tone="running" /> : undefined}
       open={isOpen}
       onToggle={toggle}
       // The rule replaces the card: it marks the aside's extent down the margin
@@ -223,13 +192,4 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
       </div>
     </AgentActivityDisclosure>
   );
-}
-
-function formatElapsed(ms: number | null): string | null {
-  if (ms == null || ms < 500) return null;
-  const sec = Math.round(ms / 1000);
-  if (sec < 60) return `${sec}s`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return s === 0 ? `${m}m` : `${m}m${s}s`;
 }
