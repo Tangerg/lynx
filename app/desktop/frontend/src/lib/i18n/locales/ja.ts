@@ -79,6 +79,9 @@ export const ja: Record<string, string> = {
   "message.code.wrap.disable": "折り返しを無効にする",
   "message.table.copy": "表をコピー",
   "message.table.copied": "コピーしました",
+  "message.table.expand": "表を拡大",
+  "message.table.preview": "表のプレビュー",
+  "message.table.closePreview": "表のプレビューを閉じる",
 
   "msgActions.copy": "メッセージをコピー",
   "msgActions.copyMarkdown": "Markdown をコピー",

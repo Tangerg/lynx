@@ -287,6 +287,8 @@
   z-index: 1;
   inset-block: 4px 0;
   inset-inline-end: 0;
+  display: flex;
+  align-items: flex-start;
   opacity: 0;
   user-select: none;
   transition: opacity var(--polish-fast);
@@ -343,6 +345,9 @@
   min-width: calc(3ch + 24px);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+.md-table-preview > table {
+  min-width: max-content;
 }
 
 /* Inline code — a small well, no border, mono at the ladder's code step so it

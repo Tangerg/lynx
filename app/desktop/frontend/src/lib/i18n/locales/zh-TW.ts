@@ -81,6 +81,9 @@ export const zhTW: Record<string, string> = {
   "message.code.wrap.disable": "關閉自動換行",
   "message.table.copy": "複製表格",
   "message.table.copied": "已複製",
+  "message.table.expand": "展開表格",
+  "message.table.preview": "表格預覽",
+  "message.table.closePreview": "關閉表格預覽",
 
   "msgActions.copy": "複製訊息",
   "msgActions.copyMarkdown": "複製 Markdown",

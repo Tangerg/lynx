@@ -79,6 +79,9 @@ export const ko: Record<string, string> = {
   "message.code.wrap.disable": "자동 줄 바꿈 사용 안 함",
   "message.table.copy": "표 복사",
   "message.table.copied": "복사됨",
+  "message.table.expand": "표 펼치기",
+  "message.table.preview": "표 미리보기",
+  "message.table.closePreview": "표 미리보기 닫기",
 
   "msgActions.copy": "메시지 복사",
   "msgActions.copyMarkdown": "Markdown 복사",

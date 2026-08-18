@@ -80,6 +80,9 @@ export const fr: Record<string, string> = {
   "message.code.wrap.disable": "Désactiver le retour à la ligne",
   "message.table.copy": "Copier le tableau",
   "message.table.copied": "Copié",
+  "message.table.expand": "Agrandir le tableau",
+  "message.table.preview": "Aperçu du tableau",
+  "message.table.closePreview": "Fermer l’aperçu du tableau",
 
   "msgActions.copy": "Copier le message",
   "msgActions.copyMarkdown": "Copier le Markdown",

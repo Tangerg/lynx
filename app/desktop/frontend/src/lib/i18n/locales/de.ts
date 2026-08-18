@@ -80,6 +80,9 @@ export const de: Record<string, string> = {
   "message.code.wrap.disable": "Zeilenumbruch deaktivieren",
   "message.table.copy": "Tabelle kopieren",
   "message.table.copied": "Kopiert",
+  "message.table.expand": "Tabelle vergrößern",
+  "message.table.preview": "Tabellenvorschau",
+  "message.table.closePreview": "Tabellenvorschau schließen",
 
   "msgActions.copy": "Nachricht kopieren",
   "msgActions.copyMarkdown": "Markdown kopieren",

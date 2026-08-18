@@ -395,6 +395,22 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("dialog", { name: "Diagram" })).toBeVisible();
     await page.keyboard.press("Escape");
   });
+
+  test(`Markdown tables open a Codex reading preview ${theme}`, async ({ page }) => {
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=long-content`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const table = page.locator("[data-markdown-table]").filter({ hasText: "Boundary" });
+    await table.evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await table.hover();
+    await page.getByRole("button", { name: "Expand table" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Table preview" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveScreenshot(`markdown-table-preview-${theme}.png`);
+    await page.getByRole("button", { name: "Close table preview" }).click();
+    await expect(dialog).toHaveCount(0);
+  });
 }
 
 for (const theme of ["light", "dark"] as const) {
