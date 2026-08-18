@@ -675,6 +675,23 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.ruleMargin).toBe("28px");
 });
 
+for (const theme of ["light", "dark"] as const) {
+  test(`wrapped inline code keeps the Codex cloned well in ${theme}`, async ({ page }) => {
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=long-content`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const paragraph = page
+      .locator(".md > p")
+      .filter({ hasText: "A deliberately long final paragraph" });
+    const inlineCode = paragraph.locator("code");
+    await expect(inlineCode).toContainText("expectedRuntimeProjectionRevisionIdentifier");
+    expect(await inlineCode.evaluate((element) => element.getClientRects().length)).toBeGreaterThan(
+      1,
+    );
+    await expect(paragraph).toHaveScreenshot(`inline-code-wrap-${theme}.png`);
+  });
+}
+
 // The three seams around the reading plane are one primitive, and the top one is the
 // easy one to lose: half a device pixel, so the raster comparison can pass on its
 // absence, and the bars sit in their region's own colour with the body scrolling

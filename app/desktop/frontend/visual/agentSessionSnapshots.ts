@@ -494,7 +494,7 @@ const LONG_RESPONSE = message(
     // an empty end gutter — the one place a width regression there could hide.
     "### Where the boundary is enforced",
     "",
-    "A deliberately long final paragraph verifies wrapping, reading measure, CJK fallback（中文混排）, inline code such as `expectedRevision`, and uninterrupted vertical rhythm without inventing a fixture-only message shape.",
+    "A deliberately long final paragraph verifies wrapping, reading measure, CJK fallback（中文混排）, inline code such as `expectedRuntimeProjectionRevisionIdentifierWithoutSoftBreaksAcrossTheCompleteCodexReadingMeasureAndEveryContinuationBoundary`, and uninterrupted vertical rhythm without inventing a fixture-only message shape.",
     "",
     "### اتجاه القائمة",
     "",
