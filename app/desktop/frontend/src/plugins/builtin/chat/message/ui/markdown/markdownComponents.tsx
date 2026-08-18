@@ -1,5 +1,5 @@
 import type { Components } from "react-markdown";
-import { useEffect, useRef } from "react";
+import { Children, isValidElement, useEffect, useRef } from "react";
 import { ExternalLink, RichTooltip, ShikiCodeBlock } from "@/ui";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
@@ -86,6 +86,26 @@ function ShadowStyleBlock({ children }: { children?: React.ReactNode }) {
 // from the app.
 export const markdownComponents: Components = {
   pre({ children }) {
+    // react-markdown gives fenced blocks without an info string a plain
+    // `<code>` child. The code renderer cannot distinguish that node from
+    // inline code by className alone, but this parent can: only block code is
+    // wrapped in `<pre>`. Keep every fence on the same code-block surface so
+    // an unlabelled shell snippet still has scrolling, highlighting fallback,
+    // and the copy affordance.
+    const child = Children.toArray(children)[0];
+    if (
+      Children.count(children) === 1 &&
+      isValidElement<{
+        children?: React.ReactNode;
+        className?: string;
+        node?: { tagName?: string };
+      }>(child) &&
+      child.props.node?.tagName === "code" &&
+      !child.props.className
+    ) {
+      const code = String(child.props.children ?? "").replace(/\n$/, "");
+      return <ShikiCodeBlock lang="text" code={code} />;
+    }
     return <>{children}</>;
   },
   code({ className, children }) {
