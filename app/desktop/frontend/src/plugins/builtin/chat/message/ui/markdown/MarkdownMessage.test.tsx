@@ -169,6 +169,22 @@ describe("markdownMessage", () => {
     expect(screen.getByRole("dialog", { name: "After" })).toBeTruthy();
   });
 
+  it("exposes Codex close and zoom controls in the image preview", () => {
+    const image =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    render(<MarkdownMessage text={`![Architecture](${image})`} reveal="instant" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Architecture" }));
+    const dialog = screen.getByRole("dialog", { name: "Architecture" });
+    expect(screen.getByRole("button", { name: "Close image preview" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Zoom out image" }).hasAttribute("disabled")).toBe(
+      true,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in image" }));
+    expect(dialog.querySelector('[data-image-zoom="125"]')).toBeTruthy();
+  });
+
   it("keeps GFM tables semantic and exposes the Codex copy action", async () => {
     const src = "| Name | Count |\n|---|---:|\n| alpha | 12 |";
     const writeText = vi.fn().mockResolvedValue(undefined);
