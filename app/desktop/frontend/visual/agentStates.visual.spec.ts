@@ -501,6 +501,7 @@ test("context compaction uses the Codex activity row without divider chrome", as
   await expect(compaction.locator(".lucide-minimize-2")).toBeVisible();
   await expect(compaction.locator("xpath=..").locator(".h-px")).toHaveCount(0);
   await expect(compaction).toHaveAttribute("aria-expanded", "false");
+  await expect(compaction.locator("xpath=..")).toHaveScreenshot("context-compaction-light.png");
 
   await compaction.click();
   await expect(compaction).toHaveAttribute("aria-expanded", "true");

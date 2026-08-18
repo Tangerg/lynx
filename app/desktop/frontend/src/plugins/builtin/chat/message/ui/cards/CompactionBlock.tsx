@@ -1,10 +1,11 @@
 // CompactionBlock — a context-compaction boundary (B10, 613). Renders as a
-// slim, centered "⊟ Compacted N earlier messages" divider between turns; when
-// the backend supplies a summary it expands inline on click.
+// quiet Codex activity row between turns; when the backend supplies a summary
+// it expands inline on click without turning the context boundary into a card.
 
 import { useId, useState } from "react";
-import { Divider, Icon, TextButton } from "@/ui";
+import { Collapsible, Icon, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/classNames";
 
 export function CompactionBlock({ summary }: { summary?: string; droppedMessages?: number }) {
   const t = useT();
@@ -13,34 +14,43 @@ export function CompactionBlock({ summary }: { summary?: string; droppedMessages
   const label = t("compaction.compacted");
 
   return (
-    <div>
-      {/* The rules come from Divider. Clickable when a summary is available. */}
-      <Divider>
-        {summary ? (
-          <TextButton
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-controls={panelId}
-            className="inline-flex items-center gap-1 transition-colors hover:text-fg-muted"
-          >
-            <Icon name={open ? "chevron-up" : "chevron-down"} size="xs" />
-            <span>{label}</span>
-          </TextButton>
-        ) : (
-          <span className="inline-flex items-center gap-1">
-            <Icon name="minimize" size="xs" />
-            <span>{label}</span>
-          </span>
-        )}
-      </Divider>
-      {open && summary && (
-        <div
-          id={panelId}
-          className="mx-auto mt-2 max-w-[640px] text-left text-ui-md leading-prose text-fg-muted"
+    <div data-slot="agent-activity-item" className="flex min-w-0 flex-col">
+      {summary ? (
+        <TextButton
+          type="button"
+          size="sm"
+          onClick={() => setOpen((value) => !value)}
+          aria-label={label}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="group/compaction max-w-full self-start py-1.5"
         >
-          {summary}
+          <Icon name="minimize" size="xs" className="shrink-0 text-fg-faint" />
+          <span className="min-w-0 truncate">{label}</span>
+          <Icon
+            name="chevron-down"
+            size="xs"
+            className={cn(
+              "shrink-0 text-fg-faint opacity-0 transition-[opacity,transform] duration-[var(--dur-fast)] group-hover/compaction:opacity-100 group-focus-visible/compaction:opacity-100",
+              open && "rotate-180 opacity-100",
+            )}
+          />
+        </TextButton>
+      ) : (
+        <div className="inline-flex min-w-0 self-start items-center gap-1.5 py-1.5 text-ui-sm text-fg-muted">
+          <Icon name="minimize" size="xs" className="shrink-0 text-fg-faint" />
+          <span className="min-w-0 truncate">{label}</span>
         </div>
+      )}
+      {summary && (
+        <Collapsible open={open}>
+          <div
+            id={panelId}
+            className="mt-1.5 ml-5 max-w-[640px] whitespace-pre-wrap text-left text-ui-sm leading-prose text-fg-muted"
+          >
+            {summary}
+          </div>
+        </Collapsible>
       )}
     </div>
   );
