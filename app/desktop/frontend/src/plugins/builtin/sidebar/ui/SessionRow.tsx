@@ -76,6 +76,7 @@ export function SessionRow({
         aria-label={`${title} — ${accessibleStatus}`}
         active={active}
         indent={indented ? "nested" : "none"}
+        revealOverflow={!renaming}
         className="font-normal text-fg-muted hover:text-fg data-[active]:text-fg"
         trailing={
           renaming ? undefined : (

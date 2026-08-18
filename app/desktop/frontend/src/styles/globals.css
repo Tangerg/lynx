@@ -1846,6 +1846,36 @@ html.theme-dark {
   mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
 }
 
+/* Session titles use the Codex task-row overflow contract: measure the exact
+   rendered remainder, then advance at 2em/s after a short hover/focus dwell and
+   stop at the end. Only the inner track moves, so row geometry and hit targets
+   never change. The shared motion scale owns both delay and duration; the app's
+   reduced-motion blankets collapse this to a single frame, while the row's
+   tooltip keeps the complete title readable without motion. */
+@keyframes agent-overflow-reveal {
+  to {
+    transform: translateX(calc(0px - var(--agent-overflow-distance)));
+  }
+}
+
+.agent-overflow-track {
+  transform: translateX(0);
+}
+
+.agent-row:is(:hover, :focus-visible) .agent-overflow-label[data-overflowing] {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.agent-row:is(:hover, :focus-visible) .agent-overflow-track[data-overflowing] {
+  animation-name: agent-overflow-reveal;
+  animation-duration: calc(var(--agent-overflow-duration) * var(--motion-scale));
+  animation-delay: var(--dur-slow);
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform;
+}
+
 /* The work index hides its scrollbar too, and it ends against an opaque footer,
    so a list longer than the drawer was guillotined by a bar with nothing to say
    it had been. The reference fades its own sidebar over 4rem for this; ours takes

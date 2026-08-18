@@ -99,8 +99,8 @@ test("an overflowing Session title reveals its remaining text and full identity"
     .toBeGreaterThan(0);
 
   const trackLeft = (): Promise<number> =>
-    viewport.evaluate((element) =>
-      (element.firstElementChild ?? element).getBoundingClientRect().left,
+    viewport.evaluate(
+      (element) => (element.firstElementChild ?? element).getBoundingClientRect().left,
     );
   const restingLeft = await trackLeft();
   await row.hover();

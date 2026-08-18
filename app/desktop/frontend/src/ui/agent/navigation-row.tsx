@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/classNames";
 import { Button, type ButtonProps, Icon, type IconName } from "@/ui";
+import { Tooltip } from "@/ui/atoms/tooltip";
+import { AgentOverflowLabel } from "./overflow-label";
 
 // The hover swap is the row's own choreography, so the row performs it. Named
 // group rather than a bare one because rows nest — a project header wraps a
@@ -40,6 +42,8 @@ interface AgentRowProps extends Omit<ButtonProps, "children" | "variant" | "size
    */
   action?: ReactNode;
   indent?: "none" | "nested";
+  /** Reveal a string label on row hover/focus when its rendered width overflows. */
+  revealOverflow?: boolean;
   children?: ReactNode;
 }
 
@@ -56,12 +60,14 @@ export function AgentRow({
   trailing,
   action,
   indent = "none",
+  revealOverflow = false,
   className,
   children,
   type = "button",
   ...props
 }: AgentRowProps) {
-  const row = (
+  const overflowText = revealOverflow && typeof children === "string" ? children : undefined;
+  const button = (
     <Button
       {...props}
       type={type}
@@ -79,7 +85,7 @@ export function AgentRow({
         // with only its fill to say so. The reference sets the whole index at the
         // body weight for exactly that reason, and `Button` defaults to medium,
         // so this has to say `normal` out loud.
-        "w-full justify-start rounded-[var(--row-radius)] text-left text-ui-md font-normal",
+        "agent-row w-full justify-start rounded-[var(--row-radius)] text-left text-ui-md font-normal",
         "gap-[var(--density-row-gap)]",
         "text-fg transition-[background-color,color] duration-[var(--dur-color)]",
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
@@ -121,7 +127,11 @@ export function AgentRow({
             detail ? "leading-body" : "leading-snug",
           )}
         >
-          <span className="min-w-0 flex-1 truncate-fade">{children}</span>
+          {overflowText ? (
+            <AgentOverflowLabel text={overflowText} />
+          ) : (
+            <span className="min-w-0 flex-1 truncate-fade">{children}</span>
+          )}
           {trailing && <span className={cn("shrink-0", action && RESTING_GLYPH)}>{trailing}</span>}
         </span>
         {detail != null && (
@@ -131,6 +141,13 @@ export function AgentRow({
         )}
       </span>
     </Button>
+  );
+  const row = overflowText ? (
+    <Tooltip label={overflowText} side="right" sideOffset={8} delayDuration={500}>
+      {button}
+    </Tooltip>
+  ) : (
+    button
   );
 
   if (!action) return row;
