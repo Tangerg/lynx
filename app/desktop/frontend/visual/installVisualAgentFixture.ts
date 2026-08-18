@@ -29,7 +29,7 @@ import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
 import { defaultAccents } from "@/plugins/builtin/defaults";
 import goal from "@/plugins/builtin/chat/goal";
-import { GOAL_KEY, type GoalState } from "@/plugins/builtin/chat/goal/application/goalQueries";
+import type { GoalState } from "@/plugins/builtin/chat/goal/application/goalReadModel";
 import planProgress from "@/plugins/builtin/chat/plan-progress";
 import {
   MODELS_KEY,
@@ -95,7 +95,7 @@ function visualAgentRuntimeGateway(state: VisualAgentState): AgentRuntimeGateway
     forkSession: async () => ({ id: `${VISUAL_SESSION_ID}_fork` }),
     loadSessionSnapshot: async () => ({
       snapshot,
-      commitAssociatedReadModels: () => undefined,
+      projectAssociatedSharedMaterial: (shared) => shared,
     }),
     loadSessionUsage: async () => ({}),
     rollbackSession: async () => ({ droppedRuns: [] }),
@@ -189,15 +189,6 @@ export async function installVisualAgentFixture(
   queryClient.setQueryData([AGENT_SESSIONS_KEY], [visualSession(state)]);
   queryClient.setQueryData([MODELS_KEY], VISUAL_MODELS);
   queryClient.setQueryData([APPROVAL_MODE_KEY], "ask");
-  // Seeded for EVERY state, null where there is no goal: an unseeded key would
-  // send the banner to a provider this fixture does not register, and "the
-  // request failed" and "there is no goal" would then look identical on screen.
-  queryClient.setQueryDefaults([GOAL_KEY], { staleTime: Infinity });
-  queryClient.setQueryData([GOAL_KEY, { sessionId: VISUAL_SESSION_ID }], {
-    available: true,
-    goal: VISUAL_GOALS[state] ?? null,
-  } satisfies GoalState);
-
   await loadPluginsForTest(
     // The palettes and the geometry, or the fixture photographs globals.css's
     // pre-hydration fallbacks: an unregistered theme id resolves to the dark
@@ -245,6 +236,16 @@ export async function installVisualAgentFixture(
   for (const event of AGENT_SESSION_TAIL_EVENTS[state]) {
     view = reduceAgentEvent(view, event);
   }
+  view = {
+    ...view,
+    shared: {
+      ...view.shared,
+      goal: {
+        available: true,
+        goal: VISUAL_GOALS[state] ?? null,
+      } satisfies GoalState,
+    },
+  };
 
   const store = useAgentStore.getState();
   store.ensureSession(VISUAL_SESSION_ID);

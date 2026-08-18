@@ -10,7 +10,6 @@ export type WorkspaceInvalidationTarget =
   | "fileList"
   | "fileRead"
   | "filesChanged"
-  | "goal"
   | "grep"
   | "hooks"
   | "knowledge"
@@ -110,9 +109,9 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "interrupts.changed":
       return ["agentSessionProjection", "pendingWork"];
     case "goals.changed":
-      // This is why the goal banner no longer polls: an autonomous loop moves a goal
-      // between turns, and the signal says so as it happens.
-      return ["goal"];
+      // Goal is companion material of the mounted Session snapshot. Re-reading it
+      // independently would split Plan/HITL/Run/Tool from the autonomous move.
+      return ["agentSessionProjection"];
     case "state.changed":
       return ["agentSessionProjection"];
     case "knowledge.changed":

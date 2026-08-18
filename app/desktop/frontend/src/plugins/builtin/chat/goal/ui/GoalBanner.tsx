@@ -8,7 +8,6 @@ import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
-import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { goalCommandWasRetired, resumeGoal, stopGoal } from "../application/goalCommands";
 import {
   GOAL_STATUS_I18N,
@@ -18,7 +17,7 @@ import {
   tightestAxis,
   type BudgetAxisView,
 } from "../application/goalBanner";
-import { type GoalReadModel, useGoal } from "../application/goalQueries";
+import { type GoalReadModel, useGoalMaterial } from "../application/goalReadModel";
 import {
   runtimeCommandsAvailable,
   useRuntimeCommandsAvailable,
@@ -34,8 +33,8 @@ import {
  * invisible at exactly the moment it matters.
  */
 export function GoalBanner() {
-  const sessionId = useActiveSessionId();
-  const { data } = useGoal(sessionId ? { sessionId } : undefined);
+  const material = useGoalMaterial();
+  const data = material.value;
   const goal = data?.goal;
 
   return (
@@ -45,7 +44,10 @@ export function GoalBanner() {
         // stopped Goal may be replaced by another with the same words. Runtime
         // does not expose a Goal id, so its immutable Session + creation stamp is
         // the narrowest durable identity available to the read model.
-        <GoalDisclosure key={JSON.stringify([goal.sessionId, goal.createdAt])} goal={goal} />
+        <GoalDisclosure
+          key={JSON.stringify([goal.sessionId, material.generation, goal.createdAt])}
+          goal={goal}
+        />
       )}
     </AnimatePresence>
   );

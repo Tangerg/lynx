@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("workspace session projection invalidation", () => {
-  it.each(["runs.changed", "interrupts.changed", "state.changed"] as const)(
+  it.each(["runs.changed", "interrupts.changed", "state.changed", "goals.changed"] as const)(
     "targets the mounted sessions named by %s",
     (type) => {
       invalidateWorkspaceEvent({
@@ -110,18 +110,6 @@ describe("workspace session projection invalidation", () => {
     expect(resetQueries).toHaveBeenCalledOnce();
   });
 
-  it("keeps a mounted Goal inside the same full-resync material generation", () => {
-    synchronizeMountedAgentSessions.mockReturnValue(["ses_mounted"]);
-
-    invalidateWorkspaceEverything();
-
-    expect(cancelQueries).toHaveBeenCalledWith();
-    const options = invalidateQueries.mock.calls[0]?.[0];
-    expect(options?.predicate({ queryKey: ["goal", { sessionId: "ses_mounted" }] })).toBe(false);
-    expect(options?.predicate({ queryKey: ["goal", { sessionId: "ses_other" }] })).toBe(true);
-    expect(options?.predicate({ queryKey: ["providers"] })).toBe(true);
-  });
-
   it("refreshes every read affected by external settings mutations", () => {
     for (const type of [
       "models.changed",
@@ -170,23 +158,21 @@ describe("workspace session projection invalidation", () => {
     expect(synchronizeMountedAgentSessions).not.toHaveBeenCalled();
   });
 
-  it("keeps goals.changed inside the Session ids named by the event", () => {
+  it("rebuilds Goal through the exact mounted Session material named by the event", () => {
     invalidateWorkspaceEvent({
       type: "goals.changed",
       sequence: 1,
       sessionIds: ["ses_a", "ses_b"],
     });
 
-    expect(invalidateQueries.mock.calls.map(([options]) => options)).toEqual([
-      { queryKey: ["goal", { sessionId: "ses_a" }], exact: true },
-      { queryKey: ["goal", { sessionId: "ses_b" }], exact: true },
-    ]);
-    expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
+    expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
+      sessionIds: ["ses_a", "ses_b"],
+    });
+    expect(cancelQueries).not.toHaveBeenCalled();
+    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 
-  it("does not start an independent Goal writer for a mounted scoped material resync", () => {
-    synchronizeMountedAgentSessions.mockReturnValue(["ses_mounted"]);
-
+  it("uses one Session writer when a scoped resync names Goal with other material", () => {
     invalidateWorkspaceEvent({
       type: "resync",
       sequence: 1,
@@ -197,18 +183,9 @@ describe("workspace session projection invalidation", () => {
     expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith({
       sessionIds: ["ses_mounted", "ses_unmounted"],
     });
-    expect(cancelQueries).toHaveBeenCalledWith({
-      queryKey: ["goal", { sessionId: "ses_mounted" }],
-      exact: true,
-    });
-    expect(invalidateQueries).not.toHaveBeenCalledWith({
-      queryKey: ["goal", { sessionId: "ses_mounted" }],
-      exact: true,
-    });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["goal", { sessionId: "ses_unmounted" }],
-      exact: true,
-    });
+    expect(synchronizeMountedAgentSessions).toHaveBeenCalledOnce();
+    expect(cancelQueries).toHaveBeenCalledTimes(2);
+    expect(invalidateQueries).toHaveBeenCalledTimes(2);
   });
 
   it("keeps Goal and mounted HITL/Plan/Run/Tool on one monotonic recovery boundary", async () => {
@@ -246,14 +223,11 @@ describe("workspace session projection invalidation", () => {
 
     expect(synchronizeMountedAgentSessions.mock.calls).toEqual([
       [{ ownership: "replace-live" }],
+      [{ sessionIds: ["ses_a"] }],
       [{ ownership: "replace-live" }],
       [{ sessionIds: ["ses_a"] }],
       [{ sessionIds: ["ses_a"] }],
     ]);
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["goal", { sessionId: "ses_a" }],
-      exact: true,
-    });
     expect(invalidateQueries.mock.calls.filter(([options]) => options === undefined)).toHaveLength(
       2,
     );

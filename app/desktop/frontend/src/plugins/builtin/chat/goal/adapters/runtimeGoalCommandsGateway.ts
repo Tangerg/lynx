@@ -7,22 +7,15 @@ import {
   type SessionSnapshot,
   type UnaryMutationSettler,
 } from "@/rpc";
-import { queryClient } from "@/lib/queryClient";
-import type { Contributor } from "@/plugins/sdk";
-import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
-import { registerAgentSessionMaterialCommitter } from "@/plugins/builtin/agent/public/sessionMaterial";
+import { synchronizeMountedAgentSession } from "@/plugins/builtin/agent/public/session";
+import { registerAgentSessionSharedMaterial } from "@/plugins/builtin/agent/public/sessionMaterial";
 import type {
   GoalCommandReceipt,
   GoalCommandsGateway,
 } from "../application/ports/goalCommandsGateway";
 import { GoalCommandOwner } from "../application/goalCommands";
-import {
-  GOAL_KEY,
-  type GoalQuery,
-  type GoalReadModel,
-  type GoalState,
-} from "../application/goalQueries";
+import type { GoalReadModel, GoalState } from "../application/goalReadModel";
 
 function goalMutationIdentity(method: "start" | "stop" | "resume", input: unknown): string {
   return JSON.stringify([`goals.${method}`, input]);
@@ -55,18 +48,13 @@ export function toGoalCommandReceipt(goal: Pick<Goal, "sessionId">): GoalCommand
   return { sessionId: goal.sessionId };
 }
 
-/** Commit the Goal carried by sessions.snapshot. That snapshot is the mounted
- * Session's transactionally coherent owner; this function keeps QueryClient
- * mechanics and Runtime DTO translation outside Agent Application. */
-export function commitRuntimeGoalMaterial(
-  sessionId: string,
-  goal: Goal | undefined,
-  available: boolean,
-): void {
-  queryClient.setQueryData<GoalState>([GOAL_KEY, { sessionId }], {
+/** Translate the Goal carried by sessions.snapshot before it joins the mounted
+ * Session's single transactionally coherent material projection. */
+export function runtimeGoalMaterial(goal: Goal | undefined, available: boolean): GoalState {
+  return {
     available,
     goal: available && goal ? toGoalReadModel(goal) : null,
-  });
+  };
 }
 
 class RuntimeGoalCommandsGateway implements GoalCommandsGateway {
@@ -108,30 +96,15 @@ export interface GoalRuntimeAdapterInstallation {
   dispose(): void;
 }
 
-export function installGoalRuntimeAdapter(ctx: Contributor): GoalRuntimeAdapterInstallation {
+export function installGoalRuntimeAdapter(): GoalRuntimeAdapterInstallation {
   let gateway = new RuntimeGoalCommandsGateway(getContainer().client());
-  const commandOwner = GoalCommandOwner.install(gateway);
-  const disposeMaterialCommitter = registerAgentSessionMaterialCommitter<SessionSnapshot>(
-    (sessionId, snapshot) => {
-      const available = runtimeCapability("goals");
-      return () => commitRuntimeGoalMaterial(sessionId, snapshot.goal, available);
+  const commandOwner = GoalCommandOwner.install(gateway, synchronizeMountedAgentSession);
+  const disposeSharedMaterial = registerAgentSessionSharedMaterial<SessionSnapshot>(
+    "goal",
+    (_sessionId, snapshot) => {
+      return runtimeGoalMaterial(snapshot.goal, runtimeCapability("goals"));
     },
   );
-  ctx.contribute(DATA_PROVIDER, {
-    key: GOAL_KEY,
-    fetcher: async (params, signal) => {
-      const query = params as GoalQuery | undefined;
-      if (!query) throw new Error(`Data provider "${GOAL_KEY}" requires parameters`);
-      if (!runtimeCapability("goals")) {
-        return { available: false, goal: null } satisfies GoalState;
-      }
-      const goal = await getContainer().client().goals.get(asSessionId(query.sessionId), signal);
-      return {
-        available: true,
-        goal: goal ? toGoalReadModel(goal) : null,
-      } satisfies GoalState;
-    },
-  });
   return {
     replaceRuntimeGeneration() {
       const successor = new RuntimeGoalCommandsGateway(getContainer().client());
@@ -144,7 +117,7 @@ export function installGoalRuntimeAdapter(ctx: Contributor): GoalRuntimeAdapterI
       predecessor.dispose();
     },
     dispose() {
-      disposeMaterialCommitter();
+      disposeSharedMaterial();
       commandOwner.dispose();
       gateway.dispose();
     },

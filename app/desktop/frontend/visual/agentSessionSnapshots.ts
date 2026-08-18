@@ -7,7 +7,7 @@ import {
   runtimeRunFact,
 } from "@/plugins/builtin/agent/adapters/runtimeAgentFacts";
 import type { AgentSessionSnapshot } from "@/plugins/builtin/agent/application/ports/runtimeGateway";
-import type { GoalReadModel } from "@/plugins/builtin/chat/goal/application/goalQueries";
+import type { GoalReadModel } from "@/plugins/builtin/chat/goal/application/goalReadModel";
 
 export const VISUAL_AGENT_STATES = [
   "empty",
@@ -1000,9 +1000,9 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentE
 /**
  * The session's standing order, for the states that have one.
  *
- * Beside the snapshot rather than inside it: a Goal is session state the runtime
- * answers for through `goals.get`, not an Item in the transcript — which is the
- * whole reason it gets a pinned banner instead of a card.
+ * Beside the Agent inner-ring snapshot rather than inside it: Goal is companion
+ * material from the same Runtime Session transaction, not an Item in the
+ * transcript — which is why it gets a pinned banner instead of a card.
  *
  * `running` is deliberately the state that has one, so a golden frames the goal
  * and plan banners STACKED — how much of the reading column those two claim

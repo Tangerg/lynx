@@ -199,7 +199,7 @@ function snapshot(): AgentSessionSnapshot {
 }
 
 function material(value: AgentSessionSnapshot): AgentSessionMaterialRead {
-  return { snapshot: value, commitAssociatedReadModels: vi.fn() };
+  return { snapshot: value, projectAssociatedSharedMaterial: (shared) => shared };
 }
 
 function deferred<T>() {

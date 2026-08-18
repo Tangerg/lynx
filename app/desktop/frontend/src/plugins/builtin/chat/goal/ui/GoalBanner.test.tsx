@@ -1,14 +1,14 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { drainBrowserTasks } from "@/test/browserTasks";
-import type { GoalReadModel } from "../application/goalQueries";
+import type { GoalReadModel } from "../application/goalReadModel";
 import { GoalBanner } from "./GoalBanner";
 
 const model = vi.hoisted(() => ({
-  sessionId: "session-a",
   stopGoal: vi.fn(async () => {}),
   resumeGoal: vi.fn(async () => {}),
   runtimeAvailable: true,
+  generation: 1,
   goal: {
     sessionId: "session-a",
     objective: "Ship alpha",
@@ -29,18 +29,17 @@ vi.mock("../application/goalCommands", () => ({
   goalCommandWasRetired: () => false,
 }));
 
-vi.mock("@/plugins/builtin/agent/public/session", () => ({
-  useActiveSessionId: () => model.sessionId,
-}));
-
 vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
   runtimeCommandsAvailable: () => model.runtimeAvailable,
   useRuntimeCommandsAvailable: () => model.runtimeAvailable,
 }));
 
-vi.mock("../application/goalQueries", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../application/goalQueries")>()),
-  useGoal: () => ({ data: { available: true, goal: model.goal } }),
+vi.mock("../application/goalReadModel", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../application/goalReadModel")>()),
+  useGoalMaterial: () => ({
+    generation: model.generation,
+    value: { available: true, goal: model.goal },
+  }),
 }));
 
 describe("GoalBanner disclosure identity", () => {
@@ -50,7 +49,6 @@ describe("GoalBanner disclosure identity", () => {
   });
 
   beforeEach(() => {
-    model.sessionId = "session-a";
     model.goal = {
       sessionId: "session-a",
       objective: "Ship alpha",
@@ -66,6 +64,7 @@ describe("GoalBanner disclosure identity", () => {
     model.stopGoal.mockClear();
     model.resumeGoal.mockClear();
     model.runtimeAvailable = true;
+    model.generation = 1;
   });
 
   it("preserves a choice while a goal advances and resets it for another goal", () => {
@@ -81,7 +80,6 @@ describe("GoalBanner disclosure identity", () => {
       screen.getByRole("button", { name: "Hide the allowance" }).getAttribute("aria-expanded"),
     ).toBe("true");
 
-    model.sessionId = "session-b";
     model.goal = { ...model.goal, sessionId: "session-b", objective: "Ship beta" };
     rerender(<GoalBanner />);
     expect(
@@ -101,6 +99,21 @@ describe("GoalBanner disclosure identity", () => {
       createdAt: "2026-08-12T09:00:00Z",
       updatedAt: "2026-08-12T09:00:00Z",
     };
+    rerender(<GoalBanner />);
+
+    expect(
+      screen.getByRole("button", { name: "Show the allowance" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
+
+  it("retires disclosure state when a replacement server reuses the same Goal identity", () => {
+    const { rerender } = render(<GoalBanner />);
+    fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
+    expect(
+      screen.getByRole("button", { name: "Hide the allowance" }).getAttribute("aria-expanded"),
+    ).toBe("true");
+
+    model.generation = 2;
     rerender(<GoalBanner />);
 
     expect(

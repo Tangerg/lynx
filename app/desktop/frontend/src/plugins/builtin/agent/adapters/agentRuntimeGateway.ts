@@ -6,7 +6,7 @@ import { agentInputToContentBlocks, contentBlocksToAgentInput } from "./wireInpu
 import { runtimePlanState } from "./runtimePlanState";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
-import { stageAgentSessionMaterialCommits } from "../application/ports/sessionMaterialCommitters";
+import { stageAgentSessionSharedMaterial } from "../application/ports/sessionSharedMaterial";
 import { AgentCommandOwner } from "../application/agentCommandOwner";
 import { AgentSessionUsageOwner } from "../application/session/sessionUsage";
 
@@ -70,7 +70,7 @@ class RuntimeAgentGateway implements AgentRuntimeGateway {
           pendingInterruptSets: snapshot.interrupts.map(runtimePendingInterruptSet),
           ...(snapshot.state ? { state: runtimePlanState(snapshot.state) } : {}),
         },
-        commitAssociatedReadModels: stageAgentSessionMaterialCommits(sessionId, snapshot),
+        projectAssociatedSharedMaterial: stageAgentSessionSharedMaterial(sessionId, snapshot),
       };
     } catch (error) {
       if (isErrorType(error, "session_not_found")) return null;

@@ -4,7 +4,7 @@
 // question the banner exists to answer is "how far can it still go" — not "what
 // did the last goal tool call return".
 
-import type { GoalReadModel, GoalStatus, GoalStopCode } from "./goalQueries";
+import type { GoalReadModel, GoalStatus, GoalStopCode } from "./goalReadModel";
 
 /** How a budget axis is counted, which is also how it is written. */
 export type BudgetUnit = "count" | "cost";

@@ -17,7 +17,7 @@ import {
   installAgentRuntimeGateway,
   type AgentRuntimeGatewayInstallation,
 } from "./agentRuntimeGateway";
-import { registerAgentSessionMaterialCommitter } from "../application/ports/sessionMaterialCommitters";
+import { registerAgentSessionSharedMaterial } from "../application/ports/sessionSharedMaterial";
 
 let uninstall: AgentRuntimeGatewayInstallation | undefined;
 let uninstallMaterialCommitter: (() => void) | undefined;
@@ -209,12 +209,14 @@ describe("agentRuntimeGateway", () => {
     "reads one coherent snapshot with descendants supported=$supported",
     async ({ supported }) => {
       vi.spyOn(runtimeCapabilities, "runtimeCapability").mockReturnValue(supported);
-      const commitMaterial = vi.fn();
       const stageMaterial = vi.fn(
-        (_sessionId: string, material: { goal?: { objective: string } }) => () =>
-          commitMaterial(material.goal?.objective),
+        (_sessionId: string, material: { goal?: { objective: string } }) =>
+          material.goal?.objective,
       );
-      uninstallMaterialCommitter = registerAgentSessionMaterialCommitter(stageMaterial);
+      uninstallMaterialCommitter = registerAgentSessionSharedMaterial(
+        "test.goal-objective",
+        stageMaterial,
+      );
       const readSnapshot = vi.fn().mockResolvedValue({
         items: [],
         runs: [],
@@ -257,10 +259,10 @@ describe("agentRuntimeGateway", () => {
           goal: expect.objectContaining({ objective: "Recover every mounted read" }),
         }),
       );
-      expect(commitMaterial).not.toHaveBeenCalled();
-
-      snapshot?.commitAssociatedReadModels();
-      expect(commitMaterial).toHaveBeenCalledWith("Recover every mounted read");
+      expect(snapshot?.projectAssociatedSharedMaterial({ plan: "kept" })).toEqual({
+        plan: "kept",
+        "test.goal-objective": "Recover every mounted read",
+      });
     },
   );
 

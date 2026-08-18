@@ -1,15 +1,7 @@
-// The goal read model, the key the runtime data provider fills and
-// `goals.changed` invalidates, and the hook the standing banner reads it with.
-//
-// Read model, not tool results: `create_goal` / `get_goal` /
-// `report_goal_outcome` each answer a goal too, but they answer the goal AS OF
-// that call. A standing surface has to show what the goal IS, and an autonomous
-// loop moves it between calls — `goals.changed` is what keeps this current, and
-// it is why the banner does not poll.
-
-import { createParameterizedDataQuery } from "@/plugins/sdk";
-
-export const GOAL_KEY = "goal";
+import {
+  useAgentSessionSharedMaterial,
+  type AgentSharedMaterial,
+} from "@/plugins/builtin/agent/public/sessionMaterial";
 
 export type GoalStatus = "active" | "paused" | "blocked" | "completing";
 
@@ -66,16 +58,15 @@ export interface GoalReadModel {
   updatedAt: string;
 }
 
-// The read result folds three states into one shape: "feature off"
-// (available=false, from capability discovery — the provider never probes
-// goals.get to find out), "on, no goal", and "has a goal".
+// The material folds three states into one shape: "feature off"
+// (available=false, from capability discovery), "on, no goal", and "has a goal".
 export interface GoalState {
   available: boolean;
   goal: GoalReadModel | null;
 }
 
-export interface GoalQuery {
-  sessionId: string;
+/** The active Session's Goal and the exact Agent projection generation that
+ * admitted it. There is deliberately no independent Goal query or store. */
+export function useGoalMaterial(): AgentSharedMaterial<GoalState> {
+  return useAgentSessionSharedMaterial<GoalState>("goal");
 }
-
-export const useGoal = createParameterizedDataQuery<GoalQuery, GoalState>(GOAL_KEY);

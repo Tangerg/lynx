@@ -36,8 +36,11 @@ vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
   useRuntimeCommandsAvailable: () => model.runtimeAvailable,
 }));
 
-vi.mock("../application/goalQueries", () => ({
-  useGoal: () => ({ data: { available: true, goal: model.goal } }),
+vi.mock("../application/goalReadModel", () => ({
+  useGoalMaterial: () => ({
+    generation: 1,
+    value: { available: true, goal: model.goal },
+  }),
 }));
 
 vi.mock("../application/goalCommands", () => ({

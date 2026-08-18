@@ -14,29 +14,27 @@ vi.mock("@/plugins/builtin/agent/public/session", () => ({
 }));
 
 import { queryClient } from "@/lib/queryClient";
-import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { createParameterizedDataQuery } from "@/plugins/sdk/dataQuery";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { definePlugin } from "@/plugins/sdk";
-import {
-  invalidateWorkspaceEvent,
-  invalidateWorkspaceEverything,
-  retireWorkspaceReadModels,
-} from "./queryInvalidation";
+import { invalidateWorkspaceEverything, retireWorkspaceReadModels } from "./queryInvalidation";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
-interface GoalState {
+interface FixtureState {
   readonly available: boolean;
   readonly goal: { readonly objective: string } | null;
 }
 
-const useGoal = createParameterizedDataQuery<{ sessionId: string }, GoalState>(GOAL_KEY);
+const QUERY_GENERATION_FIXTURE_KEY = "query-generation-recovery-fixture";
+const useGenerationFixture = createParameterizedDataQuery<{ sessionId: string }, FixtureState>(
+  QUERY_GENERATION_FIXTURE_KEY,
+);
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-function goal(objective: string): NonNullable<GoalState["goal"]> {
+function goal(objective: string): NonNullable<FixtureState["goal"]> {
   return { objective };
 }
 
@@ -59,7 +57,7 @@ afterEach(() => {
 
 describe("workspace Runtime-generation query recovery", () => {
   it("revokes an old query before the successor event tail starts its replacement", async () => {
-    const retired = deferred<GoalState>();
+    const retired = deferred<FixtureState>();
     let firstSignal: AbortSignal | undefined;
     let calls = 0;
     const fetcher = vi.fn((_params?: unknown, signal?: AbortSignal) => {
@@ -74,13 +72,16 @@ describe("workspace Runtime-generation query recovery", () => {
       definePlugin({
         name: "test.goal-two-phase-generation-recovery",
         setup(ctx) {
-          ctx.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
+          ctx.contribute(DATA_PROVIDER, { key: QUERY_GENERATION_FIXTURE_KEY, fetcher });
         },
       }),
     );
-    const { result } = renderHook(() => useGoal({ sessionId: "ses_goal_generation" }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useGenerationFixture({ sessionId: "ses_goal_generation" }),
+      {
+        wrapper,
+      },
+    );
     await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
 
     act(() => retireWorkspaceReadModels());
@@ -104,8 +105,8 @@ describe("workspace Runtime-generation query recovery", () => {
     );
   });
 
-  it("replaces an initial Goal read before the old Runtime settles", async () => {
-    const retired = deferred<GoalState>();
+  it("replaces an initial parameterized read before the old Runtime settles", async () => {
+    const retired = deferred<FixtureState>();
     let firstSignal: AbortSignal | undefined;
     let calls = 0;
     const fetcher = vi.fn((_params?: unknown, signal?: AbortSignal) => {
@@ -120,13 +121,16 @@ describe("workspace Runtime-generation query recovery", () => {
       definePlugin({
         name: "test.goal-generation-recovery",
         setup(ctx) {
-          ctx.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
+          ctx.contribute(DATA_PROVIDER, { key: QUERY_GENERATION_FIXTURE_KEY, fetcher });
         },
       }),
     );
-    const { result } = renderHook(() => useGoal({ sessionId: "ses_goal_generation" }), {
-      wrapper,
-    });
+    const { result } = renderHook(
+      () => useGenerationFixture({ sessionId: "ses_goal_generation" }),
+      {
+        wrapper,
+      },
+    );
     await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
 
     act(() => invalidateWorkspaceEverything());
@@ -141,51 +145,6 @@ describe("workspace Runtime-generation query recovery", () => {
     retired.resolve({ available: true, goal: goal("retired goal") });
     await act(async () => Promise.resolve());
     expect(result.current.data?.goal?.objective).toBe("successor goal");
-    await expect(result.current.promise).rejects.toThrow(
-      "experimental_prefetchInRender feature flag is not enabled",
-    );
-  });
-
-  it("replaces an initial Goal read when its committed change event arrives", async () => {
-    const retired = deferred<GoalState>();
-    let firstSignal: AbortSignal | undefined;
-    let calls = 0;
-    const fetcher = vi.fn((_params?: unknown, signal?: AbortSignal) => {
-      calls += 1;
-      if (calls === 1) {
-        firstSignal = signal;
-        return retired.promise;
-      }
-      return Promise.resolve({ available: true, goal: goal("committed goal") });
-    });
-    await loadPluginsForTest(
-      definePlugin({
-        name: "test.goal-event-generation-recovery",
-        setup(ctx) {
-          ctx.contribute(DATA_PROVIDER, { key: GOAL_KEY, fetcher });
-        },
-      }),
-    );
-    const { result } = renderHook(() => useGoal({ sessionId: "ses_goal_generation" }), {
-      wrapper,
-    });
-    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
-
-    act(() =>
-      invalidateWorkspaceEvent({
-        type: "goals.changed",
-        sequence: 1,
-        sessionIds: ["ses_goal_generation"],
-      }),
-    );
-
-    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(result.current.data?.goal?.objective).toBe("committed goal"));
-    expect(firstSignal?.aborted).toBe(true);
-
-    retired.resolve({ available: true, goal: goal("pre-event goal") });
-    await act(async () => Promise.resolve());
-    expect(result.current.data?.goal?.objective).toBe("committed goal");
     await expect(result.current.promise).rejects.toThrow(
       "experimental_prefetchInRender feature flag is not enabled",
     );

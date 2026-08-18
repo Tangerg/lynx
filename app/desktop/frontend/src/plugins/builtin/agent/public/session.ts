@@ -35,6 +35,9 @@ export {
 } from "../application/session/historyActions";
 export type { RestoreType } from "../application/ports/runtimeGateway";
 export { rehydrateSessionView } from "../application/session/rehydrateSession";
-export { synchronizeMountedAgentSessions } from "../application/session/refreshSessionProjection";
+export {
+  synchronizeMountedAgentSession,
+  synchronizeMountedAgentSessions,
+} from "../application/session/refreshSessionProjection";
 export { useRelocateSession } from "../application/session/relocateSession";
 export { useRenameSession } from "../application/session/renameSession";

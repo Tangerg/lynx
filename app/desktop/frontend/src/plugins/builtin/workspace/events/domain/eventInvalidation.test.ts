@@ -68,7 +68,7 @@ describe("workspaceInvalidations", () => {
       "knowledge",
       "agentDocs",
       "skills",
-      "goal",
+      "agentSessionProjection",
     ]);
     expect(workspaceInvalidations({ type: "resync", sequence: 13 })).toEqual(["all"]);
   });
@@ -86,7 +86,9 @@ describe("workspaceInvalidations", () => {
       "agentSessionProjection",
       "pendingWork",
     ]);
-    expect(workspaceInvalidations({ type: "goals.changed", sequence: 3 })).toEqual(["goal"]);
+    expect(workspaceInvalidations({ type: "goals.changed", sequence: 3 })).toEqual([
+      "agentSessionProjection",
+    ]);
     expect(workspaceInvalidations({ type: "state.changed", sequence: 4 })).toEqual([
       "agentSessionProjection",
     ]);

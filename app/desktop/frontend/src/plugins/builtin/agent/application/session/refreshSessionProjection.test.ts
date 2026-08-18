@@ -10,6 +10,7 @@ import { installAgentStatePorts } from "../../adapters/agentStatePorts";
 import {
   refreshAgentSessionProjection,
   revalidateAgentSessionProjection,
+  synchronizeMountedAgentSession,
   synchronizeMountedAgentSessions,
 } from "./refreshSessionProjection";
 
@@ -30,9 +31,15 @@ function snapshot(revision: number): AgentSessionSnapshot {
 
 function material(
   value: AgentSessionSnapshot,
-  commitAssociatedReadModels = vi.fn(),
+  projectAssociatedSharedMaterial: AgentSessionMaterialRead["projectAssociatedSharedMaterial"] = (
+    shared,
+  ) => shared,
 ): AgentSessionMaterialRead {
-  return { snapshot: value, commitAssociatedReadModels };
+  return { snapshot: value, projectAssociatedSharedMaterial };
+}
+
+function companion(label: string) {
+  return vi.fn((shared: Record<string, unknown>) => ({ ...shared, companion: label }));
 }
 
 function deferred<T>() {
@@ -59,11 +66,25 @@ afterEach(() => {
 });
 
 describe("refreshAgentSessionProjection", () => {
+  it("lets a command await the mounted Session lifecycle owner", async () => {
+    const synchronize = vi.fn().mockResolvedValue(true);
+    useAgentStore.getState().setSynchronize(SESSION_ID, synchronize);
+
+    await expect(synchronizeMountedAgentSession(SESSION_ID)).resolves.toBe(true);
+    expect(synchronize).toHaveBeenCalledWith(undefined);
+  });
+
+  it("reports an unmounted Session instead of creating a second repair path", async () => {
+    useAgentStore.getState().dropSession(SESSION_ID);
+
+    await expect(synchronizeMountedAgentSession(SESSION_ID)).resolves.toBe(false);
+  });
+
   it("keeps the old projection visible until the complete read commits", async () => {
     useAgentStore.getState().setCommandError(SESSION_ID, { code: "old" });
     const visible = useAgentStore.getState().sessions[SESSION_ID]!.view;
     const read = deferred<AgentSessionMaterialRead>();
-    const commitAssociatedReadModels = vi.fn();
+    const projectCompanion = companion("complete");
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
@@ -71,19 +92,21 @@ describe("refreshAgentSessionProjection", () => {
     const refreshing = refreshAgentSessionProjection(SESSION_ID);
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view).toBe(visible);
 
-    read.resolve(material(snapshot(1), commitAssociatedReadModels));
+    read.resolve(material(snapshot(1), projectCompanion));
     await expect(refreshing).resolves.toMatchObject({
       commandError: null,
-      shared: { plan: { revision: 1 } },
+      shared: { plan: { revision: 1 }, companion: "complete" },
     });
-    expect(commitAssociatedReadModels).toHaveBeenCalledOnce();
+    expect(projectCompanion).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: expect.objectContaining({ revision: 1 }) }),
+    );
   });
 
   it("discards an older read when a newer refresh starts", async () => {
     const older = deferred<AgentSessionMaterialRead>();
     const newer = deferred<AgentSessionMaterialRead>();
-    const commitOlder = vi.fn();
-    const commitNewer = vi.fn();
+    const projectOlder = companion("older");
+    const projectNewer = companion("newer");
     const loadSessionSnapshot = vi
       .fn()
       .mockImplementationOnce(() => older.promise)
@@ -94,56 +117,60 @@ describe("refreshAgentSessionProjection", () => {
 
     const olderRefresh = refreshAgentSessionProjection(SESSION_ID);
     const newerRefresh = refreshAgentSessionProjection(SESSION_ID);
-    newer.resolve(material(snapshot(2), commitNewer));
+    newer.resolve(material(snapshot(2), projectNewer));
     await expect(newerRefresh).resolves.toMatchObject({
-      shared: { plan: { revision: 2 } },
+      shared: { plan: { revision: 2 }, companion: "newer" },
     });
-    older.resolve(material(snapshot(1), commitOlder));
+    older.resolve(material(snapshot(1), projectOlder));
     await expect(olderRefresh).resolves.toBeNull();
-    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan).toMatchObject({
-      revision: 2,
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared).toMatchObject({
+      plan: { revision: 2 },
+      companion: "newer",
     });
-    expect(commitNewer).toHaveBeenCalledOnce();
-    expect(commitOlder).not.toHaveBeenCalled();
+    expect(projectNewer).toHaveBeenCalledOnce();
+    expect(projectOlder).toHaveBeenCalledOnce();
   });
 
   it("discards a read that raced with a live projection write", async () => {
     const read = deferred<AgentSessionMaterialRead>();
-    const commitAssociatedReadModels = vi.fn();
+    const projectCompanion = companion("raced");
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
 
     const refreshing = refreshAgentSessionProjection(SESSION_ID);
     useAgentStore.getState().setCommandError(SESSION_ID, { code: "live" });
-    read.resolve(material(snapshot(1), commitAssociatedReadModels));
+    read.resolve(material(snapshot(1), projectCompanion));
 
     await expect(refreshing).resolves.toBeNull();
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toEqual({
       code: "live",
     });
-    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.companion).toBeUndefined();
+    expect(projectCompanion).toHaveBeenCalledOnce();
   });
 
   it("returns authoritative facts even when a newer local write rejects their commit", async () => {
     const read = deferred<AgentSessionMaterialRead>();
-    const commitAssociatedReadModels = vi.fn();
+    const projectCompanion = companion("authoritative-only");
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
 
     const revalidating = revalidateAgentSessionProjection(SESSION_ID);
     useAgentStore.getState().setCommandError(SESSION_ID, { code: "live" });
-    read.resolve(material(snapshot(4), commitAssociatedReadModels));
+    read.resolve(material(snapshot(4), projectCompanion));
 
     await expect(revalidating).resolves.toMatchObject({
       committed: false,
-      authoritativeView: { shared: { plan: { revision: 4 } } },
+      authoritativeView: {
+        shared: { plan: { revision: 4 }, companion: "authoritative-only" },
+      },
     });
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toEqual({
       code: "live",
     });
-    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.companion).toBeUndefined();
   });
 
   it("leaves the prior projection intact when the durable read fails", async () => {
@@ -170,7 +197,7 @@ describe("refreshAgentSessionProjection", () => {
 
   it("retires a non-cooperative snapshot read without allowing a late commit", async () => {
     const read = deferred<AgentSessionMaterialRead>();
-    const commitAssociatedReadModels = vi.fn();
+    const projectCompanion = companion("aborted");
     const controller = new AbortController();
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
@@ -182,30 +209,31 @@ describe("refreshAgentSessionProjection", () => {
     controller.abort();
     await expect(refreshing).resolves.toBeNull();
 
-    read.resolve(material(snapshot(9), commitAssociatedReadModels));
+    read.resolve(material(snapshot(9), projectCompanion));
     await Promise.resolve();
     const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
       { revision?: number } | null | undefined;
     expect(plan?.revision).not.toBe(9);
-    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+    expect(projectCompanion).not.toHaveBeenCalled();
   });
 
   it("revokes an unsignaled snapshot at the Runtime connection boundary", async () => {
     const read = deferred<AgentSessionMaterialRead>();
-    const commitAssociatedReadModels = vi.fn();
+    const projectCompanion = companion("retired");
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
 
     const refreshing = refreshAgentSessionProjection(SESSION_ID);
     synchronizeMountedAgentSessions({ ownership: "retire-live" });
-    read.resolve(material(snapshot(11), commitAssociatedReadModels));
+    read.resolve(material(snapshot(11), projectCompanion));
 
     await expect(refreshing).resolves.toBeNull();
     const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
       { revision?: number } | null | undefined;
     expect(plan?.revision).not.toBe(11);
-    expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.companion).toBeUndefined();
+    expect(projectCompanion).toHaveBeenCalledOnce();
   });
 
   it("clears the old server projection before admitting its successor read", async () => {
@@ -241,7 +269,7 @@ describe("refreshAgentSessionProjection", () => {
 
   it("rejects an old port's snapshot and companion material after adapter replacement", async () => {
     const read = deferred<AgentSessionMaterialRead>();
-    const commitAssociatedReadModels = vi.fn();
+    const projectCompanion = companion("retired-port");
     restoreRuntime = configureAgentRuntimeGateway({
       loadSessionSnapshot: vi.fn(() => read.promise),
     } as unknown as AgentRuntimeGateway);
@@ -251,13 +279,14 @@ describe("refreshAgentSessionProjection", () => {
       const refreshing = refreshAgentSessionProjection(SESSION_ID);
       disposeSuccessorState = installAgentStatePorts();
 
-      read.resolve(material(snapshot(10), commitAssociatedReadModels));
+      read.resolve(material(snapshot(10), projectCompanion));
 
       await expect(refreshing).resolves.toBeNull();
       const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
         { revision?: number } | null | undefined;
       expect(plan?.revision).not.toBe(10);
-      expect(commitAssociatedReadModels).not.toHaveBeenCalled();
+      expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.companion).toBeUndefined();
+      expect(projectCompanion).toHaveBeenCalledOnce();
     } finally {
       disposeRetiredState();
       disposeSuccessorState?.();

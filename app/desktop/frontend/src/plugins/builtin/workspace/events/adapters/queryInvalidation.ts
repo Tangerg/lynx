@@ -9,7 +9,6 @@ import {
   APPROVAL_MODE_KEY,
   APPROVAL_RULES_KEY,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
-import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { RECIPES_KEY } from "@/plugins/builtin/chat/recipes/public/queries";
 import { HOOKS_KEY } from "@/plugins/builtin/settings/hooks/public/queries";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
@@ -59,7 +58,6 @@ const QUERY_KEYS: Record<
   fileList: WORKSPACE_LIST_FILES_KEY,
   fileRead: WORKSPACE_READ_FILE_KEY,
   filesChanged: WORKSPACE_FILES_CHANGED_KEY,
-  goal: GOAL_KEY,
   grep: WORKSPACE_GREP_KEY,
   hooks: HOOKS_KEY,
   knowledge: WORKSPACE_KNOWLEDGE_KEY,
@@ -90,28 +88,13 @@ export function invalidateWorkspaceTargets(
   }
   // One scoped resync may name Goal together with Run/HITL/Plan. Start the
   // transactionally coherent mounted-session replacement once, before walking
-  // the query targets, and keep those Goal keys out of an independent writer.
-  const materialSessionIds = targets.includes("agentSessionProjection")
-    ? new Set(synchronizeMountedAgentSessions({ sessionIds }) ?? [])
-    : new Set<string>();
+  // the remaining independent query targets.
+  if (targets.includes("agentSessionProjection")) {
+    synchronizeMountedAgentSessions({ sessionIds });
+  }
   for (const target of targets) {
     if (target === "all") continue;
     if (target === "agentSessionProjection") {
-      continue;
-    }
-    if (target === "goal" && sessionIds?.length) {
-      for (const sessionId of new Set(sessionIds)) {
-        const options = {
-          queryKey: [GOAL_KEY, { sessionId }],
-          exact: true,
-        } as const;
-        if (materialSessionIds.has(sessionId)) void queryClient.cancelQueries(options);
-        else replaceCachedRead(options);
-      }
-      continue;
-    }
-    if (target === "goal" && materialSessionIds.size > 0) {
-      replaceGoalReadsExcept(materialSessionIds);
       continue;
     }
     replaceCachedRead({ queryKey: [QUERY_KEYS[target]] });
@@ -147,41 +130,8 @@ function replaceWorkspaceReadModels(): void {
   // live generation first. Its sessions.snapshot successor now carries Goal
   // from the same SQLite transaction, so an independent goals.get writer for a
   // mounted Session would split the generation this boundary is replacing.
-  const mountedSessionIds = new Set(
-    synchronizeMountedAgentSessions({ ownership: "replace-live" }) ?? [],
-  );
-  if (mountedSessionIds.size === 0) {
-    replaceCachedRead();
-    return;
-  }
-  void queryClient.cancelQueries();
-  void queryClient.invalidateQueries({
-    predicate: (query) => !isMountedGoalRead(query.queryKey, mountedSessionIds),
-  });
-}
-
-function replaceGoalReadsExcept(mountedSessionIds: ReadonlySet<string>): void {
-  const queryKey = [GOAL_KEY] as const;
-  void queryClient.cancelQueries({ queryKey });
-  void queryClient.invalidateQueries({
-    queryKey,
-    predicate: (query) => !isMountedGoalRead(query.queryKey, mountedSessionIds),
-  });
-}
-
-function isMountedGoalRead(
-  queryKey: readonly unknown[],
-  mountedSessionIds: ReadonlySet<string>,
-): boolean {
-  if (queryKey[0] !== GOAL_KEY) return false;
-  const params = queryKey[1];
-  return (
-    typeof params === "object" &&
-    params !== null &&
-    "sessionId" in params &&
-    typeof params.sessionId === "string" &&
-    mountedSessionIds.has(params.sessionId)
-  );
+  synchronizeMountedAgentSessions({ ownership: "replace-live" });
+  replaceCachedRead();
 }
 
 export function replaceCachedRead(options?: {

@@ -1,18 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
 import type { Goal, LyraClient, MutationPromise } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 import { resumeGoal, stopGoal } from "./application/goalCommands";
-import { GOAL_KEY } from "./application/goalQueries";
 import goalPlugin from "./index";
+
+const { synchronizeMountedAgentSession } = vi.hoisted(() => ({
+  synchronizeMountedAgentSession: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock("@/plugins/builtin/agent/public/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/plugins/builtin/agent/public/session")>()),
+  synchronizeMountedAgentSession,
+}));
 
 afterEach(async () => {
   await resetKernelForTest();
   resetContainer();
-  queryClient.removeQueries({ queryKey: [GOAL_KEY] });
+  synchronizeMountedAgentSession.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -42,8 +49,6 @@ describe("Goal plugin Runtime generation wiring", () => {
       },
     });
     await loadPluginsForTest(runtime, goalPlugin);
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-
     const predecessor = rejected(stopGoal("ses_goal"));
     await vi.waitFor(() => expect(retiredStop).toHaveBeenCalledOnce());
 
@@ -61,12 +66,12 @@ describe("Goal plugin Runtime generation wiring", () => {
     });
     await expect(resumeGoal("ses_goal")).resolves.toBeUndefined();
     expect(successorResume).toHaveBeenCalledOnce();
-    expect(invalidate).toHaveBeenCalledOnce();
+    expect(synchronizeMountedAgentSession).toHaveBeenCalledOnce();
 
     retired.resolve(runtimeGoal("ses_goal"));
     await Promise.resolve();
     await Promise.resolve();
-    expect(invalidate).toHaveBeenCalledOnce();
+    expect(synchronizeMountedAgentSession).toHaveBeenCalledOnce();
   });
 });
 

@@ -18,7 +18,7 @@ import {
   type GoalStartDraft,
   type GoalStartDraftField,
 } from "../application/goalStartDraft";
-import { useGoal, type GoalReadModel } from "../application/goalQueries";
+import { useGoalMaterial, type GoalReadModel } from "../application/goalReadModel";
 import {
   runtimeCommandsAvailable,
   useRuntimeCommandsAvailable,
@@ -42,7 +42,7 @@ export function GoalLauncher() {
  */
 function SessionGoalLauncher({ sessionId }: { sessionId: string }) {
   const goalsAvailable = useRuntimeCapability("goals");
-  const { data } = useGoal(sessionId ? { sessionId } : undefined);
+  const data = useGoalMaterial().value;
   const existing = data?.goal ?? null;
   const replaceable = !existing || existing.status === "paused" || existing.status === "blocked";
   if (!goalsAvailable || data?.available !== true || !replaceable) return null;

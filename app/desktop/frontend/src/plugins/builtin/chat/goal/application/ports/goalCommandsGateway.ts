@@ -13,8 +13,8 @@ export interface StartGoalInput {
 }
 
 /** Correlates a committed Goal lifecycle command with the Session it addressed.
- * The standing Goal projection is deliberately absent: only the goals.get read
- * boundary owns that state. */
+ * The standing Goal projection is deliberately absent: only the mounted
+ * sessions.snapshot material boundary owns that state. */
 export interface GoalCommandReceipt {
   sessionId: string;
 }

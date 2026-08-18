@@ -1,13 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { queryClient } from "@/lib/queryClient";
-import { GOAL_KEY } from "../application/goalQueries";
+import { describe, expect, it } from "vitest";
 import {
-  commitRuntimeGoalMaterial,
+  runtimeGoalMaterial,
   toGoalCommandReceipt,
   toGoalReadModel,
 } from "./runtimeGoalCommandsGateway";
-
-afterEach(() => queryClient.clear());
 
 describe("Runtime Goal Adapter", () => {
   it("projects the complete wire Goal into the neutral read model", () => {
@@ -46,7 +42,7 @@ describe("Runtime Goal Adapter", () => {
     ).toEqual({ sessionId: "ses_goal" });
   });
 
-  it("commits the mounted material Goal and clears it when the capability is unavailable", () => {
+  it("projects the mounted Goal and clears it when the capability is unavailable", () => {
     const goal = {
       sessionId: "ses_goal",
       objective: "ship it",
@@ -56,15 +52,11 @@ describe("Runtime Goal Adapter", () => {
       createdAt: "2026-08-12T08:00:00Z",
       updatedAt: "2026-08-12T08:01:00Z",
     };
-    const key = [GOAL_KEY, { sessionId: "ses_goal" }] as const;
-
-    commitRuntimeGoalMaterial("ses_goal", goal, true);
-    expect(queryClient.getQueryData(key)).toMatchObject({
+    expect(runtimeGoalMaterial(goal, true)).toMatchObject({
       available: true,
       goal: { objective: "ship it" },
     });
 
-    commitRuntimeGoalMaterial("ses_goal", goal, false);
-    expect(queryClient.getQueryData(key)).toEqual({ available: false, goal: null });
+    expect(runtimeGoalMaterial(goal, false)).toEqual({ available: false, goal: null });
   });
 });

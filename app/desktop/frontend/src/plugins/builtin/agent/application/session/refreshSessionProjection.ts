@@ -46,9 +46,10 @@ export async function revalidateAgentSessionProjection(
   const material = options.signal ? await settleBeforeAbort(read, options.signal) : await read;
   if (material === ABORTED) return null;
   if (!material || (options.canCommit && !options.canCommit())) return null;
-  const view = projectAgentSessionSnapshot(material.snapshot);
+  const projected = projectAgentSessionSnapshot(material.snapshot);
+  const shared = material.projectAssociatedSharedMaterial(projected.shared);
+  const view = shared === projected.shared ? projected : { ...projected, shared };
   const committed = viewPort.commitViewRefresh(sessionId, token, view);
-  if (committed) material.commitAssociatedReadModels();
   return {
     authoritativeView: view,
     committed,
@@ -96,6 +97,19 @@ export interface MountedAgentSessionSynchronization {
   ownership?: SessionProjectionSynchronizationOwnership;
 }
 
+/** Reconcile one Session through its mounted lifecycle owner and let a command
+ * wait for the same authoritative material boundary the event loop uses. */
+export async function synchronizeMountedAgentSession(
+  sessionId: string,
+  ownership?: SessionProjectionSynchronizationOwnership,
+): Promise<boolean> {
+  const entry = agentSessionView().getSession(sessionId);
+  if (!entry) return false;
+  if (entry.synchronize) return entry.synchronize(ownership);
+  if (ownership === "retire-live") return false;
+  return (await refreshAgentSessionProjection(sessionId)) !== null;
+}
+
 export function synchronizeMountedAgentSessions(
   request: MountedAgentSessionSynchronization = {},
 ): readonly string[] {
@@ -112,9 +126,7 @@ export function synchronizeMountedAgentSessions(
     agentSessionView().replaceServerScope(targets);
   }
   for (const sessionId of targets) {
-    const synchronize = sessions[sessionId]?.synchronize;
-    if (synchronize) void synchronize(request.ownership);
-    else if (request.ownership !== "retire-live") void refreshAgentSessionProjection(sessionId);
+    void synchronizeMountedAgentSession(sessionId, request.ownership);
   }
   return targets;
 }

@@ -7,7 +7,7 @@ import {
   goalCanResume,
   tightestAxis,
 } from "./goalBanner";
-import type { GoalReadModel } from "./goalQueries";
+import type { GoalReadModel } from "./goalReadModel";
 
 function goal(patch: Partial<GoalReadModel> = {}): GoalReadModel {
   return {

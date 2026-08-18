@@ -13,13 +13,12 @@ export interface AgentSessionSnapshot {
   state?: AgentPlanStateSnapshot;
 }
 
-/** One authoritative material read plus the adapter-owned read models derived
- * from the same Runtime transaction. Application commits the companion facts
- * only after its material Agent projection wins the view token; the callback
- * must be synchronous and no-throw. */
+/** One authoritative material read plus adapter-owned shared facts derived from
+ * the same Runtime transaction. Projection is pure: only Application's one
+ * view-token commit may publish either the Agent snapshot or its companions. */
 export interface AgentSessionMaterialRead {
   snapshot: AgentSessionSnapshot;
-  commitAssociatedReadModels(): void;
+  projectAssociatedSharedMaterial(shared: Record<string, unknown>): Record<string, unknown>;
 }
 
 export interface AgentSessionUsage {
