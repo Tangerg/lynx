@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P118 已完成并形成里程碑；P119 实施中。
+> 状态：P0–P119 已完成并形成里程碑。
 >
-> 最近基线：2026-08-19，P118 完整验收；P119 正在实施。
+> 最近基线：2026-08-19，P119 完整验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -31,7 +31,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 完成前运行 Frontend 全门禁与 `--detectAsyncLeaks`、三栏完整 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵、必要的 Runtime/Desktop gates、Wails v3 production package/codesign，以及 fresh database、renderer replacement、Runtime restart/SIGKILL 的真实产品 smoke；关闭本阶段自动化会话与进程，清理临时数据库、Playwright 和 Go build/test cache。
 - P119 内容区纵切继续闭环：production Markdown renderer 以同一 message-content root 统一协议图片与 Markdown 图片，图库支持显式关闭、前后按钮、左右键、Escape、100–400% 缩放、切图重置与 40px 命中区；全屏 90% 黑色媒体画布、明暗基线和 nested delegated message 隔离均已验证。表格保留 semantic DOM、rich/plain clipboard 与 Codex 式展开预览，正文固定 14/21px、表头 14/16px、容器零额外块间距，inline/preview 的明暗基线均已验证。Markdown 段落、段落→列表、root list、标题、blockquote、task/nested/RTL list 与 horizontal rule 使用 Codex 精确节奏；task checkbox 是 list grid 的直接子项，正文统一落在第二列。行内代码使用可换行的 cloned neutral well、0.92em 字号、6px 圆角与 `overflow-wrap:anywhere`。代码块改为同材质、14px sans caption、4×8px header、8px source inset、无 360px 人工高度上限，并保留 copy/wrap、HTML fence、SVG、Mermaid、selection copy、citation、图片 grouping 与 inline/fenced bidi isolation。模型 HTML 只接受无属性的 Codex basic inline 集合，`style`、原生 disclosure/layout 与属性注入保持 inert/literal。
 - 非 Markdown 内容块同样进入统一 narrative grammar：context compaction 不再画居中双横线，改为 Codex 式左对齐 quiet activity row，始终保留压缩图标，并在 Runtime 提供 summary 时通过同一键盘 disclosure 展开；未引入第二内容模型、全局 registry、remote fetch 或 Runtime 依赖。
-- 上述内容纵切与 IME 的每个成立缺口均先以独立红测推送，再提交根修复；当前 Frontend 全量为 321 files / 1996 tests，typecheck/lint/format/knip/circular/context/API/locales/style/design-system/token/chrome/bundle 门禁全绿。用户消息使用 Codex 的 5% text neutral bubble、12×8px inset 与 16px 圆角，不再借 accent wash 强调；Markdown task marker 从同一可见正文获得语言无关的 accessible name；长代码 clipping 守卫只认可真实、位于边界内且拥有水平滚动范围的 descendant scroller，不再把停靠在视口外的 Dock material 当作正文滚动能力。agent/shell/workspace/closure/foundation/WebKit 完整 310 项 visual/WCAG/keyboard/IME/CJK/light-dark/Retina 矩阵全绿，中文输入法中英混合提交继续证明首个 Enter 只归输入法、下一次 Enter 才发送。KaTeX CSS 已从错误的 startup ownership 分离到既有动态 loader，启动 CSS 从 136.1KB 降至 107.0KB，并由“产物存在但 `index.html` 不得引用”的门禁锁定。P119 尚未执行最终 async-leak、production package/codesign 和 fresh DB/renderer/Runtime SIGKILL 封板矩阵，不能据此宣告阶段完成。
+- 上述内容纵切与 IME 的每个成立缺口均先以独立红测推送，再提交根修复；Frontend 全量与严格 `--detectAsyncLeaks` 均为 321 files / 1996 tests，typecheck/lint/format/knip/circular/context/API/locales/style/design-system/token/chrome/bundle 门禁全绿。用户消息使用 Codex 的 5% text neutral bubble、12×8px inset 与 16px 圆角，不再借 accent wash 强调；Markdown task marker 从同一可见正文获得语言无关的 accessible name；长代码 clipping 守卫只认可真实、位于边界内且拥有水平滚动范围的 descendant scroller，不再把停靠在视口外的 Dock material 当作正文滚动能力。agent/shell/workspace/closure/foundation/WebKit 完整 311 项 visual/WCAG/keyboard/IME/CJK/light-dark/Retina 矩阵全绿，中文输入法中英混合提交继续证明首个 Enter 只归输入法、下一次 Enter 才发送。KaTeX CSS 已从错误的 startup ownership 分离到既有动态 loader，启动 CSS 从 136.1KB 降至 107.0KB，并由“产物存在但 `index.html` 不得引用”的门禁锁定。
+- P119 最终 recovery smoke 使用 fresh HOME/SQLite、0600 durable local token 与 production Wails `.app`：renderer reload 前后 Desktop PID 保持 90579，后继 renderer 重新执行完整 Runtime inspection/query，SQLite 与权威 `sessions.list` 均保持唯一 `P119 中英混合 recovery smoke` Session。Runtime PID 89768 被精确 `SIGKILL` 后由 PID 93411 接替且 `instanceId` 换代，token digest 不变；同一 Desktop/renderer 在锁屏后台、没有 reload 或手工刷新时自动连接后继实例并恢复 RPC。Runtime standalone 与 Desktop 全量 test/vet/build、Wails production package 和 strict codesign verification 全绿；本阶段自动化进程、临时数据库、Playwright 与 Go build/test cache 已清理。
 - Codex 的 commentary 与 final answer 精确分组仍缺权威 `agentMessage.phase` 事实。若补齐会同时影响 Runtime Protocol Item、transcript persistence、SQLite JSON codec、Artifact import/export、公共 Go/生成 TypeScript surface、Frontend published SDK 与 fold/render planner；在取得显式 breaking-surface 授权前，Frontend 不按顺序、流式状态或文本形态猜测 phase，也不增加第二 transcript writer。
 - Codex 图片查看器的 Download 仍缺 Desktop 原生 save-file owner；直接使用浏览器下载会伪造桌面接线。补齐该能力需要新增 Desktop binding/生成 surface，取得显式边界授权前只呈现已接线的查看、导航与缩放能力。
 
@@ -104,10 +105,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P116     | 真实产品拓扑下的恢复与守卫校准                                                                                  | claimed Resume 由 claim owner 原子补偿；Mutation Journal 只认 durable namespace；删除不能表达架构边界的一次性 object-literal 语法守卫                                                     |
 | P117     | Desktop 恢复反馈与 Codex 对齐的三栏 UI 精修                                                                     | Work Index、transcript 与 Context Dock 服从 exact Session、reader-owned scroll 和 Runtime command capability；renderer reload 与 Runtime SIGKILL 后原窗口原 workspace 可见恢复            |
 | P118     | Desktop 左中右接线与 Codex 交互深度对齐                                                                          | 创建失败不转移焦点，compact HITL 动态净空进入唯一滚动 owner，Goal/Run 命令可辨；Context Dock 服从 640px 阅读下限并呈现 exact file identity，真实 renderer/Runtime 换代后状态与能力收敛       |
+| P119     | Desktop 前后端完整接线与 Codex 三栏深度对齐                                                                      | Plan/Goal/Steer、Work Index、统一 narrative renderer 与 Context Dock 服从权威 Session/Runtime owner；IME commit Enter、production renderer replacement 与 Runtime SIGKILL 恢复闭环       |
 
 ## 5. 当前里程碑结论
 
-P113–P118 共同建立了以下不可回退的心智模型：
+P113–P119 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -119,9 +121,10 @@ P113–P118 共同建立了以下不可回退的心智模型：
 - local transport token 由 durable data path 拥有，不属于 Runtime process generation；`instanceId` 换代不撤销仍存活 Desktop 的认证能力。
 - 流式输出期间，消息底部反馈/操作区服从可见 turn 的稳定 material 边界，不能跟随每个 delta 反复挂载造成闪烁。
 - Work Index 只有在 `sessions.create` 返回新 identity 后才交接焦点；中央 transcript 的内容增长与 composer/HITL border-box 净空共享一个 follow fact，用户取得阅读位置后不再被异步 materialization 抢回。
+- Composer 的发送入口只消费键盘意图 owner：IME 提交中英混合文本后的首个普通 Enter 仍属于 composition commit，只有下一次独立 Enter 才能发送；不得用 timeout、UA 分支或撤销已发送命令模拟该边界。
 - Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
 
-最近一次完整验收基线：Frontend 313 files / 1946 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 287 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 保留 exact Session、composer 与 `explorer` Dock；Runtime 两次 SIGKILL 分别完成 36578→38590→39832 的进程换代，Desktop PID 36610 始终不变，原窗口在离线期撤权并在恢复后自动清除告警，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 321 files / 1996 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 311 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 

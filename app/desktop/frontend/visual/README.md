@@ -48,13 +48,13 @@ checks. Update reviewed baselines with `npm run visual:test:update`.
 
 Useful routes:
 
-- `/?theme=light&sidebar=expanded`
-- `/?fixture=shell&theme=light&state=populated&sidebar=expanded`
-- `/?fixture=shell&theme=dark&state=error`
-- `/?fixture=agent&theme=dark&state=waiting`
-- `/?fixture=workspace&theme=light&state=dock-light`
-- `/?fixture=workspace&theme=dark&state=dock-review`
-- `/?fixture=workspace&theme=light&state=dock-loading`
-- `/?fixture=workspace&theme=dark&state=settings`
-- `/?fixture=agent&theme=light&state=long-content&font-size=18`
-- `/?fixture=shell&theme=light&state=populated&motion=full`
+- `/visual/?theme=light&sidebar=expanded`
+- `/visual/?fixture=shell&theme=light&state=populated&sidebar=expanded`
+- `/visual/?fixture=shell&theme=dark&state=error`
+- `/visual/?fixture=agent&theme=dark&state=waiting`
+- `/visual/?fixture=workspace&theme=light&state=dock-light`
+- `/visual/?fixture=workspace&theme=dark&state=dock-review`
+- `/visual/?fixture=workspace&theme=light&state=dock-loading`
+- `/visual/?fixture=workspace&theme=dark&state=settings`
+- `/visual/?fixture=agent&theme=light&state=long-content&font-size=18`
+- `/visual/?fixture=shell&theme=light&state=populated&motion=full`

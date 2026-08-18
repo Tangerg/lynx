@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P118 已完成，P119 实施中。
+> 状态：当前能力快照；P119 已完成。
 >
 > 基线日期：2026-08-19。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P118 已完成；P119 正在继续 Work Index、Agent Narrative 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收。
+- P113–P119 已完成；Work Index、Agent Narrative 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环。
 
 ## 2. 架构与所有权
 
@@ -173,17 +173,17 @@
 | SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery                                                                                                                                                                                                                                                           |
 | Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff                                                                                                                                                                                                                                                                   |
 | Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests                                                                                                                                                                                                                                                            |
-| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 310 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
+| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 311 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
 | Production shell   | Wails v3 Go test/vet/build、production `.app` package、renderer reload、Runtime health/discovery 与 fresh database/SIGKILL smoke                                                                                                                                                                                                                             |
 
-P119 当前受影响 Frontend 全量为 321 files / 1996 tests，typecheck/lint/format/knip/circular/context/API/style/design/token/locales/bundle 门禁全绿；production Composer→agent bridge 的中文输入法混合文本提交序列已在 Chromium 与 WebKit 闭环，首个 commit Enter 不发送、下一次明确 Enter 正常发送。agent/shell/workspace/closure/foundation/WebKit 完整 310 项 visual/WCAG/keyboard/IME/CJK/light-dark/Retina 矩阵全绿；用户消息 neutral bubble、task marker accessible name、长代码自有水平滚动与 Markdown 图片 240×96 固有尺寸均由明暗基线或精确行为守卫锁定。KaTeX lazy CSS 门禁确认启动 CSS 从 136.1KB 降至 107.0KB，未放宽预算。该证据不包含 P119 最终 `--detectAsyncLeaks`、production package/codesign 与 fresh DB/renderer/Runtime SIGKILL 封板。
+P119 完整基线为 Frontend 321 files / 1996 tests，普通与严格 `--detectAsyncLeaks` 全绿；typecheck/lint/format/knip/circular/context/API/style/design/token/locales/bundle 门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者。production Composer→agent bridge 的中文输入法混合文本提交序列已在 Chromium 与 WebKit 闭环：首个 commit Enter 不发送，下一次明确 Enter 正常发送。agent/shell/workspace/closure/foundation/WebKit 完整 311 项 visual/WCAG/keyboard/IME/CJK/light-dark/Retina 矩阵全绿；用户消息 neutral bubble、task marker accessible name、长代码自有水平滚动与 Markdown 图片 240×96 固有尺寸均由明暗基线或精确行为守卫锁定。KaTeX lazy CSS 门禁确认启动 CSS 从 136.1KB 降至 107.0KB，未放宽预算。
 
-最近完整基线为 Frontend 313 files / 1946 tests，普通与 `--detectAsyncLeaks` 全绿；99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 287 tests 全绿。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 保留 exact Session、composer、`explorer` Dock 与资源树；Runtime PID 36578→38590→39832、`instanceId` 换代，Desktop PID 36610 保持，断线时所有 Session 创建入口撤权且原 workspace 可读，前台窗口无需 reload 即自动清除告警并恢复命令能力，SQLite Session 数保持 1。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
+Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P118 完成定义内没有已知未闭环项。P119 的三栏完整 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵已通过，尚待最终 async-leak、Wails production package/codesign 和 fresh DB/renderer/Runtime SIGKILL 封板；commentary/final answer phase 与原生图片 Download 仍分别等待 Runtime public surface、Desktop binding 的显式边界授权。
+- P119 完成定义内没有已知未闭环项。commentary/final answer phase 与原生图片 Download 仍分别等待 Runtime public surface、Desktop binding 的显式边界授权，因此未由 Frontend 猜测或伪造接线。
 
 ## 11. 当前结论
 
-P0–P118 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P118 又让左侧 Work Index、中央 transcript/HITL/Goal 与右侧 Context Dock 在窄宽、renderer replacement 和 Runtime restart 前后共享 exact Session、reader-owned scroll、可辨命令作用域和权威 command capability。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P119 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P119 又让左侧 Work Index、中央 transcript/HITL/Plan/Goal/Steer/composer 与右侧 Context Dock 在窄宽、renderer replacement 和 Runtime restart 前后共享 exact Session、reader-owned scroll、可辨命令作用域和权威 command capability。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
