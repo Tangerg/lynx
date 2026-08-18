@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
 import { useId, useState, type KeyboardEvent } from "react";
-import { Button, Icon, Pressable, Surface, TextField } from "@/ui";
+import { Button, Icon, Pressable, Surface, TextArea, TextField } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
@@ -233,7 +233,22 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                 </div>
               )}
 
-              {(q.type === "text" || q.allowCustom) && (
+              {q.type === "text" && (
+                <TextArea
+                  font="sans"
+                  size="sm"
+                  rows={4}
+                  value={cur.text}
+                  aria-label={q.prompt}
+                  placeholder={t("question.freetext.placeholder")}
+                  onChange={(event) => {
+                    setDraft((previous) => setQuestionText(previous, index, q, event.target.value));
+                  }}
+                  className="max-h-40"
+                />
+              )}
+
+              {q.type === "choice" && q.allowCustom && (
                 <TextField
                   variant="bare"
                   font="sans"
