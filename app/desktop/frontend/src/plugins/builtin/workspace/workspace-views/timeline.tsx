@@ -162,6 +162,7 @@ function TimelineRunHeader({
           icon="stop"
           size="lg"
           quiet
+          disabled={!runtimeAvailable}
           title={t("agent.runTree.action.cancel")}
           onClick={() => {
             cancelSessionRun({ sessionId: run.sessionId, runId: run.id });
