@@ -27,10 +27,16 @@ export const DOCK_DEFAULT_WIDTH_PX = 640;
  *  drawer's maximum shrinks with the window instead of being a fixed number. */
 const MAIN_MIN_WIDTH_PX = 640;
 
-/** Floor for the chat column beside an open dock. Smaller than MAIN_MIN because
- *  the drawer can be collapsed to buy the room, whereas the dock is the thing
- *  the user just chose to look at. */
-export const CHAT_MIN_WIDTH_PX = 420;
+/** Floor for the chat column beside an open dock. The transcript, composer and
+ *  blocking HITL controls use the same readable minimum as the main plane. */
+export const CHAT_MIN_WIDTH_PX = 640;
+
+/** Whether both real columns can coexist. Below this boundary the dock must
+ *  fold through its existing navigation owner instead of compressing either
+ *  column below its operable minimum. */
+export function canPresentDock(rowWidth: number): boolean {
+  return rowWidth >= CHAT_MIN_WIDTH_PX + DOCK_MIN_WIDTH_PX;
+}
 
 export function clampSidebarWidth(width: number, shellWidth: number): number {
   return Math.round(Math.min(maxSidebarWidth(shellWidth), Math.max(SIDEBAR_MIN_WIDTH_PX, width)));

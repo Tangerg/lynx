@@ -58,6 +58,7 @@ export const fr: Record<string, string> = {
   "dock.action.hide": "Replier l’espace de droite",
   "dock.action.resize": "Redimensionner l’espace de droite",
   "dock.action.show": "Ouvrir l’espace de droite",
+  "dock.action.unavailable": "Agrandissez la fenêtre pour ouvrir l’espace de droite",
   "dock.tabs.label": "Panneaux de l’espace de droite",
   "workspace.view.openBeside": "Ouvrir dans le dock de contexte",
   "workspace.view.unavailable.title": "Vue indisponible",

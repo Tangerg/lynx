@@ -58,6 +58,7 @@ export const de: Record<string, string> = {
   "dock.action.hide": "Rechten Arbeitsbereich einklappen",
   "dock.action.resize": "Rechten Arbeitsbereich anpassen",
   "dock.action.show": "Rechten Arbeitsbereich öffnen",
+  "dock.action.unavailable": "Fenster vergrößern, um den rechten Arbeitsbereich zu öffnen",
   "dock.tabs.label": "Bereiche im rechten Arbeitsbereich",
   "workspace.view.openBeside": "Im Kontext-Dock öffnen",
   "workspace.view.unavailable.title": "Ansicht nicht verfügbar",

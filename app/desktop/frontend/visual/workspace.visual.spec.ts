@@ -13,6 +13,8 @@ import {
 // here, so changing the copy broke a test that has nothing to do with the copy.
 const SETTINGS_SEARCH = { name: en["settings.searchPlaceholder"]! };
 
+test.use({ viewport: { width: 1472, height: 900 } });
+
 interface WorkspaceRoute {
   state: VisualWorkspaceState;
   theme?: VisualWorkspaceTheme;
@@ -162,6 +164,9 @@ test("an unsafe narrow row folds the dock without forgetting its tabs", async ({
   expect(geometry.dockVisible).toBe(false);
   expect(geometry.conversationWidth).toBe(geometry.rowWidth);
   await expect(page.getByTestId("dock-open")).toHaveText("false");
+  await expect(
+    page.getByRole("button", { name: "Widen the window to open the right workspace" }),
+  ).toBeDisabled();
   await expect(page.getByTestId("dock-view-ids")).toHaveText(
     "explorer,file,diff,terminal,plan,timeline",
   );
@@ -268,21 +273,21 @@ test("all dock views share one stable user-owned width", async ({ page }) => {
   const separator = page.getByRole("separator", { name: "Resize right workspace" });
   await separator.focus();
   await separator.press("ArrowRight");
-  await expect(page.getByTestId("persisted-dock-width")).toHaveText("424");
+  const settledWidth = String(VISUAL_DOCK_WIDTH_PX - 8);
+  await expect(page.getByTestId("persisted-dock-width")).toHaveText(settledWidth);
 
   await page.getByRole("tab", { name: "Diff" }).click();
   await expect(page.getByTestId("active-dock-view")).toHaveText("diff");
-  await expect(separator).toHaveAttribute("aria-valuenow", "424");
-  await expect(page.getByTestId("persisted-dock-width")).toHaveText("424");
+  await expect(separator).toHaveAttribute("aria-valuenow", settledWidth);
+  await expect(page.getByTestId("persisted-dock-width")).toHaveText(settledWidth);
 
   await page.getByRole("tab", { name: "Plan" }).click();
-  await expect(separator).toHaveAttribute("aria-valuenow", "424");
-  await expect(page.getByTestId("persisted-dock-width")).toHaveText("424");
+  await expect(separator).toHaveAttribute("aria-valuenow", settledWidth);
+  await expect(page.getByTestId("persisted-dock-width")).toHaveText(settledWidth);
 });
 
 // Deliberately NOT the review state: that one is seeded wide enough to exercise
-// the diff's split, and this test is about the rail — it needs a width that both
-// fits at 1440 and gets clamped at 1120, which is what the general seed is for.
+// the diff's split, and this test is about the rail at the general persisted width.
 test("dock separator exposes its real range and commits a pointer drag once", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
   await waitForWorkspaceState(page, "dock-light");
@@ -316,7 +321,7 @@ test("dock separator exposes its real range and commits a pointer drag once", as
 });
 
 test("window clamping does not overwrite the dock preference", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1520, height: 900 });
   await openWorkspace(page, { state: "dock-light" });
   await waitForWorkspaceState(page, "dock-light");
 
@@ -328,19 +333,12 @@ test("window clamping does not overwrite the dock preference", async ({ page }) 
   await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
 
   await page.setViewportSize({ width: 1120, height: 720 });
-  await expect
-    .poll(async () => Number(await separator.getAttribute("aria-valuemax")))
-    .toBeLessThan(wideMax);
-  await expect
-    .poll(
-      async () =>
-        Number(await separator.getAttribute("aria-valuenow")) ===
-        Number(await separator.getAttribute("aria-valuemax")),
-    )
-    .toBe(true);
+  await expect(page.getByTestId("dock-open")).toHaveText("false");
+  await expect(separator).toHaveCount(0);
   await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
 
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1520, height: 900 });
+  await page.getByRole("button", { name: "Open right workspace" }).click();
   await expect(separator).toHaveAttribute("aria-valuenow", String(VISUAL_DOCK_WIDTH_PX));
   await expect(persistedWidth).toHaveText(String(VISUAL_DOCK_WIDTH_PX));
 });

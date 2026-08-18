@@ -66,6 +66,7 @@ export const en: Record<string, string> = {
   "dock.action.hide": "Collapse right workspace",
   "dock.action.resize": "Resize right workspace",
   "dock.action.show": "Open right workspace",
+  "dock.action.unavailable": "Widen the window to open the right workspace",
   "dock.tabs.label": "Right workspace panels",
   "workspace.view.openBeside": "Open in the context dock",
   "workspace.view.unavailable.title": "View unavailable",

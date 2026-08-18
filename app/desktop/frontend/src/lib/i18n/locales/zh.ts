@@ -62,6 +62,7 @@ export const zh: Record<string, string> = {
   "dock.action.hide": "收起右侧工作区",
   "dock.action.resize": "调整右侧工作区宽度",
   "dock.action.show": "打开右侧工作区",
+  "dock.action.unavailable": "增大窗口后打开右侧工作区",
   "dock.tabs.label": "右侧工作区面板",
   "workspace.view.openBeside": "在上下文面板中打开",
   "workspace.view.unavailable.title": "视图不可用",

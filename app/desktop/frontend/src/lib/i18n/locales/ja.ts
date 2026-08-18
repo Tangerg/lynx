@@ -57,6 +57,7 @@ export const ja: Record<string, string> = {
   "dock.action.hide": "右ワークスペースを折りたたむ",
   "dock.action.resize": "右ワークスペースの幅を調整",
   "dock.action.show": "右ワークスペースを開く",
+  "dock.action.unavailable": "ウインドウを広げて右ワークスペースを開く",
   "dock.tabs.label": "右ワークスペースのパネル",
   "workspace.view.openBeside": "コンテキストドックで開く",
   "workspace.view.unavailable.title": "ビューを利用できません",

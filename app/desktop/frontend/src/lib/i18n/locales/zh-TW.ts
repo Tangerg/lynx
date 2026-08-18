@@ -60,6 +60,7 @@ export const zhTW: Record<string, string> = {
   "dock.action.hide": "收合右側工作區",
   "dock.action.resize": "調整右側工作區寬度",
   "dock.action.show": "開啟右側工作區",
+  "dock.action.unavailable": "放大視窗後開啟右側工作區",
   "dock.tabs.label": "右側工作區面板",
   "workspace.view.openBeside": "在內容面板中開啟",
   "workspace.view.unavailable.title": "檢視不可用",

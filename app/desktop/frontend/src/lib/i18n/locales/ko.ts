@@ -57,6 +57,7 @@ export const ko: Record<string, string> = {
   "dock.action.hide": "오른쪽 작업 영역 접기",
   "dock.action.resize": "오른쪽 작업 영역 크기 조절",
   "dock.action.show": "오른쪽 작업 영역 열기",
+  "dock.action.unavailable": "창을 넓혀 오른쪽 작업 영역 열기",
   "dock.tabs.label": "오른쪽 작업 영역 패널",
   "workspace.view.openBeside": "컨텍스트 독에서 열기",
   "workspace.view.unavailable.title": "뷰를 사용할 수 없음",

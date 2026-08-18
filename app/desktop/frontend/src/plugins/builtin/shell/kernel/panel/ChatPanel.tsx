@@ -1,4 +1,4 @@
-import { Activity, Fragment, type ReactNode } from "react";
+import { Activity, Fragment, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
@@ -42,6 +42,7 @@ import { HeaderDiffStat } from "./HeaderDiffStat";
 import { ViewPlacementProvider } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 import { useT } from "@/lib/i18n";
+import { canPresentDock } from "@/lib/shellGeometry";
 
 function viewIcon(name: string | undefined): IconName | undefined {
   return name as IconName | undefined;
@@ -131,8 +132,9 @@ export function ChatPanel({ onSend }: Props) {
   const activeSessionId = useActiveSessionId();
   const running = useIsCurrentRootRunning();
   const t = useT();
+  const dockRowRef = useRef<HTMLDivElement>(null);
+  const [dockAvailable, setDockAvailable] = useState(true);
 
-  if (isLoading && !activeMainView && !dock.open) return null;
   // Context Dock material is owned by an exact active Session. The Runtime's
   // default workspace is valid for creating a Session, but it is not a hidden
   // Session whose files may be rendered on the welcome screen.
@@ -142,6 +144,27 @@ export function ChatPanel({ onSend }: Props) {
   const dockOpen =
     hasDockOwner && dock.open && dock.activeViewId !== null && dock.viewIds.length > 0;
   const ownedDockViewIds = hasDockOwner ? dock.viewIds : [];
+
+  // Codex folds its panel when the window cannot keep both work surfaces
+  // operable. The existing navigation owner performs that fold here, so tab
+  // membership and the last selected view survive while the unsafe destination
+  // is removed. Row geometry is presentation capability, not a second copy of
+  // dock visibility.
+  useLayoutEffect(() => {
+    const row = dockRowRef.current;
+    if (!row) return;
+    const reconcile = () => {
+      const available = canPresentDock(row.clientWidth);
+      setDockAvailable((current) => (current === available ? current : available));
+      if (!available && dockOpen) collapseWorkspaceDock();
+    };
+    reconcile();
+    const observer = new ResizeObserver(reconcile);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [dockOpen]);
+
+  if (isLoading && !activeMainView && !dock.open) return null;
 
   const viewsById = new Map(views.map((view) => [view.id, view]));
 
@@ -198,6 +221,7 @@ export function ChatPanel({ onSend }: Props) {
             and the bar that ends up at the plane's trailing corner yields the strip the
             toggle sits in — and only the row contains all three. */}
         <div
+          ref={dockRowRef}
           className="agent-dock-row flex min-h-0 flex-1"
           data-dock={dockOpen ? "open" : "collapsed"}
           style={dockWidthRow(dockWidth)}
@@ -274,6 +298,8 @@ export function ChatPanel({ onSend }: Props) {
                 onToggle={dockOpen ? collapseWorkspaceDock : showWorkspaceDock}
                 showLabel={t("dock.action.show")}
                 hideLabel={t("dock.action.hide")}
+                disabled={!dockAvailable}
+                unavailableLabel={t("dock.action.unavailable")}
               />
             )}
           </div>

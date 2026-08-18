@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canPresentDock,
   clampDockWidth,
   clampSidebarWidth,
   DOCK_MIN_WIDTH_PX,
@@ -23,12 +24,14 @@ describe("sidebar geometry", () => {
 
 describe("dock geometry", () => {
   it("preserves the conversation floor and an even split while the row has room", () => {
-    expect(maxDockWidth(1120)).toBe(560);
-    expect(clampDockWidth(720, 1120)).toBe(560);
+    expect(maxDockWidth(1120)).toBe(480);
+    expect(clampDockWidth(720, 1120)).toBe(480);
     expect(clampDockWidth(420, 1120)).toBe(420);
   });
 
-  it("keeps the dock operable in a narrow row", () => {
+  it("folds the dock when both columns cannot keep their operable floors", () => {
+    expect(canPresentDock(1059)).toBe(false);
+    expect(canPresentDock(1060)).toBe(true);
     expect(maxDockWidth(640)).toBe(DOCK_MIN_WIDTH_PX);
     expect(clampDockWidth(100, 640)).toBe(DOCK_MIN_WIDTH_PX);
   });

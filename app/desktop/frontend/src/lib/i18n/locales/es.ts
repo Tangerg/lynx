@@ -58,6 +58,7 @@ export const es: Record<string, string> = {
   "dock.action.hide": "Contraer espacio derecho",
   "dock.action.resize": "Ajustar espacio derecho",
   "dock.action.show": "Abrir espacio derecho",
+  "dock.action.unavailable": "Amplía la ventana para abrir el espacio derecho",
   "dock.tabs.label": "Paneles del espacio derecho",
   "workspace.view.openBeside": "Abrir en el panel de contexto",
   "workspace.view.unavailable.title": "Vista no disponible",
