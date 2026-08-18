@@ -96,6 +96,28 @@ describe("markdownMessage", () => {
     expect(container.querySelector(".shiki-body code")).toBeNull();
   });
 
+  it("does not fetch remote Markdown images in the restricted desktop surface", () => {
+    const src = "![Tracking pixel](https://tracker.example/pixel.png)";
+    const { container } = render(<MarkdownMessage text={src} reveal="instant" />);
+
+    expect(container.querySelector('img[src^="https://tracker.example/"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Tracking pixel unavailable"]')).toBeTruthy();
+  });
+
+  it("opens safe inline Markdown images through an accessible preview trigger", () => {
+    const tinyPng =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const { container } = render(
+      <MarkdownMessage text={`![Build graph](${tinyPng})`} reveal="instant" />,
+    );
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open image preview"]',
+    );
+    expect(trigger).toBeTruthy();
+    expect(trigger?.querySelector("img")?.getAttribute("loading")).toBe("lazy");
+  });
+
   it("keeps GFM tables semantic and exposes the Codex copy action", async () => {
     const src = "| Name | Count |\n|---|---:|\n| alpha | 12 |";
     const writeText = vi.fn().mockResolvedValue(undefined);
