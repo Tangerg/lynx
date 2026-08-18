@@ -74,7 +74,12 @@ describe("useWorkIndexActions directory selection", () => {
 
     act(() => result.current.createSession());
 
-    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ cwd: "/tmp/current-project" }));
+    await waitFor(() =>
+      expect(mocks.create).toHaveBeenCalledWith({
+        cwd: "/tmp/current-project",
+        reuseFreshDraft: true,
+      }),
+    );
     expect(mocks.focusComposer).toHaveBeenCalledOnce();
   });
 

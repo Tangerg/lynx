@@ -13,7 +13,7 @@ import { asSessionId } from "@/rpc";
 import { agentTextInput } from "../../domain/input";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
-import { useCreateSession } from "./createSession";
+import { type CreateSessionOptions, useCreateSession } from "./createSession";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -102,6 +102,22 @@ describe("useCreateSession", () => {
 
     const first = await result.current();
     const again = await result.current();
+
+    expect(again).toBe(first);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses the fresh draft when New opens the active project destination", async () => {
+    const create = vi.fn().mockResolvedValue(fakeSession("new-project"));
+    stubCreate(create);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+    const destination = {
+      cwd: "/tmp/current-project",
+      reuseFreshDraft: true,
+    } as unknown as CreateSessionOptions;
+
+    const first = await result.current(destination);
+    const again = await result.current(destination);
 
     expect(again).toBe(first);
     expect(create).toHaveBeenCalledTimes(1);
