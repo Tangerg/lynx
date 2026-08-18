@@ -104,6 +104,16 @@ describe("useWorkIndexActions directory selection", () => {
     expect(mocks.focusComposer).toHaveBeenCalledOnce();
   });
 
+  it("keeps focus in the current session when project creation is rejected", async () => {
+    mocks.create.mockResolvedValue(null);
+    const { result } = renderHook(() => useWorkIndexActions());
+
+    act(() => result.current.startSessionInFolder("/tmp/project"));
+
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ cwd: "/tmp/project" }));
+    expect(mocks.focusComposer).not.toHaveBeenCalled();
+  });
+
   it("treats cancellation as no mutation", async () => {
     mocks.choose.mockResolvedValue(null);
     const { result } = renderHook(() => useWorkIndexActions());
