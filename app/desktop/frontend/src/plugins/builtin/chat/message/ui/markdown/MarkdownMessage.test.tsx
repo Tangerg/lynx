@@ -292,4 +292,18 @@ describe("markdownMessage", () => {
     expect(container.querySelector("script")).toBeNull();
     expect(container.textContent).toContain('<script>alert("x")</script>');
   });
+
+  it("keeps model-authored style blocks inert instead of installing a stylesheet", async () => {
+    const source = '<style>@import url("https://tracker.example/agent.css");</style>Visible';
+    const { container } = render(<MarkdownMessage text={source} reveal="instant" />);
+    await act(async () => Promise.resolve());
+
+    const installedStyles = Array.from(container.querySelectorAll("*")).filter((element) =>
+      element.shadowRoot?.querySelector("style"),
+    );
+    expect.soft(installedStyles).toHaveLength(0);
+    expect
+      .soft(container.textContent)
+      .toContain('<style>@import url("https://tracker.example/agent.css");</style>');
+  });
 });
