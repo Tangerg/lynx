@@ -15,8 +15,6 @@ import {
 } from "../application/messageBlockModel";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { formatClock } from "@/lib/i18n/relativeTime";
-import { Icon } from "@/ui";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -92,7 +90,6 @@ function MessageBlockInner({
   const content = renderMessageBlocks(row, blockCtx);
 
   const roleLabel = t(isUser ? "role.user" : "role.assistant");
-  const stamp = formatClock(msg.createdAt);
 
   return (
     <MessageContext.Provider value={messageContext}>
@@ -101,43 +98,8 @@ function MessageBlockInner({
           owner={visibleMaterialOwner}
           generation={visibleMaterialGeneration}
         >
-          {/* A caption line over a full-width body, not an avatar gutter beside a
-            narrowed one. Who is speaking is a two-word fact you read once per
-            turn; the reading measure is the thing you spend the whole turn
-            inside, and a 38px gutter was taking it from every code block, diff
-            and table below. */}
-          {/* A user turn hugs the trailing edge and takes only the width its words need;
-            an assistant turn is the document and takes the whole measure. 77% is the reference's
-            cap and it matters: without one, a pasted paragraph becomes a full-width
-            panel again and the distinction disappears exactly when the turn is long. */}
           <div className={cn("group relative flex min-w-0 flex-col gap-2", isUser && "items-end")}>
-            <div className="flex min-h-5 min-w-0 items-center gap-2 text-ui-xs text-fg-faint">
-              {/* The turn's mark, and the one place the accent gets to be solid rather
-                than a wash. It is the only object that repeats at every turn, so it is
-                what the eye uses to find where a turn begins while scrolling — at 18px
-                of bare accent glyph it was the same weight as the words beside it and
-                did no finding at all. The reference sets a filled block here for the
-                same reason. A square (rounded) for the agent and a circle for the
-                person: one is a system, the other is somebody. */}
-              <span
-                aria-hidden
-                className={cn(
-                  "grid size-5 shrink-0 place-items-center",
-                  isUser
-                    ? "rounded-full bg-surface-2 text-fg-muted"
-                    : "rounded-[var(--shape-xs)] bg-cta text-cta-text",
-                )}
-              >
-                <Icon name={isUser ? "user" : "sparkle"} size="xs" />
-              </span>
-              <span className="min-w-0 truncate">{roleLabel}</span>
-              {stamp && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span className="shrink-0 font-mono tabular-nums">{stamp}</span>
-                </>
-              )}
-            </div>
+            <h4 className="sr-only select-none">{roleLabel}</h4>
             <MessageContextMenu msg={msg}>
               <div
                 className={cn(
@@ -154,11 +116,7 @@ function MessageBlockInner({
                 {content}
               </div>
             </MessageContextMenu>
-            {/* After the message, never in its caption. What you do WITH a turn
-              belongs where the turn ends: in the caption the bar competed with
-              the one line that says who is speaking, and it ran to the far edge
-              of the column where nothing else in the transcript is.
-              Pulled OUTWARD by the button's own optical inset so the first glyph
+            {/* Pulled outward by the button's own optical inset so the first glyph
               lands on the text's edge rather than its box doing so — and outward is a
               different side per role now that a user turn hugs the trailing edge. With
               the inset always on the left, the bar under a right-aligned bubble grew
