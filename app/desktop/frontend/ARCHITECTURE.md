@@ -207,6 +207,8 @@ React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/da
 
 Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它交给 `ctx.cleanup`；Installation remove、Host stop 或 HMR owner 退休会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
 
+RPC mutation journal 只持久化 unresolved command identity，不持久化请求参数、renderer owner、generation、lease、heartbeat 或 settlement 状态。`durableMutationJournal.ts` 拥有当前唯一 storage codec、Runtime endpoint/namespace fencing 与 exact idempotency recovery；`mutationJournal.ts` 只用 renderer 进程内 exact object identity 决定 response/error/cleanup 是否仍有提交权。client replacement 必须先发布 successor 再同步退休 predecessor，旧结果和旧 disposer 不能清理 successor 复用的 identity。
+
 Runtime endpoint 是 Runtime context 的应用配置：application 拥有默认值、HTTP(S)
 校验与 `applied | rejected` 结果语义，adapter 才把 consumer-owned port 接到 Host
 config/storage。`lyra.builtin.runtime` 在 capability discovery 之前同步恢复 endpoint，

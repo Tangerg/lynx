@@ -1,9 +1,7 @@
 import type { KeyValueStore } from "@/plugins/sdk";
 import { configureRuntimeMutationJournalStorage } from "../application/ports/mutationJournal";
 
-const STORAGE_PREFIX = "mutation-journal-v2.";
-const LEGACY_STORAGE_KEY = "mutation-journal-v1";
-const LEGACY_JOURNAL_KEY = "legacy:v1";
+const STORAGE_PREFIX = "mutation-journal-v3.";
 const PROBE_STORAGE_PREFIX = `${STORAGE_PREFIX}probe:`;
 
 function storageKey(key: string): string {
@@ -18,8 +16,7 @@ function storedValuesEqual(left: unknown, right: unknown): boolean {
  * storage. The adapter never interprets protocol methods, params, or keys. */
 export function installRuntimeMutationJournalStorage(ctx: { storage: KeyValueStore }): () => void {
   return configureRuntimeMutationJournalStorage({
-    get: (key) =>
-      ctx.storage.get(key === LEGACY_JOURNAL_KEY ? LEGACY_STORAGE_KEY : storageKey(key)),
+    get: (key) => ctx.storage.get(storageKey(key)),
     set: (key, value) => {
       if (value === undefined) {
         throw new Error(`Runtime mutation journal cannot persist undefined: ${key}`);
@@ -31,7 +28,7 @@ export function installRuntimeMutationJournalStorage(ctx: { storage: KeyValueSto
       }
     },
     remove: (key) => {
-      const target = key === LEGACY_JOURNAL_KEY ? LEGACY_STORAGE_KEY : storageKey(key);
+      const target = storageKey(key);
       ctx.storage.remove(target);
       if (ctx.storage.get(target) !== undefined) {
         throw new Error(`Runtime mutation journal removal was not persisted: ${key}`);

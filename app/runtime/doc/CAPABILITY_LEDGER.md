@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品按一个 client/一个 server 设计。SQLite 仍是 durable winner；客户端 generation 只决定谁有权提交当前投影。
-- P113/P114 已完成，当前没有已授权的下一代码阶段。
+- P113/P114 已完成；P115 已授权并完成 Mutation Journal 单一职责重建，后续维护性收敛批次仍在执行。
 
 ## 2. 架构与所有权
 
@@ -105,6 +105,9 @@
 
 ### 6.2 Mutation、query 与 material
 
+- Desktop durable mutation journal 只持久化当前唯一 shape 的未决命令身份：salted fingerprint、idempotency key、Runtime endpoint/namespace 与 retention boundary；请求参数、renderer owner、generation、lease、heartbeat 和 settlement 状态不落盘。
+- renderer-local exact object identity 是 mutation response/error/cleanup 的唯一提交权。replacement 先发布 successor 再退休 predecessor；旧异步结果和旧 disposer 不能删除 successor 复用的 durable identity。
+- 同一 Runtime durable namespace 可在 renderer/client 重建后恢复 exact idempotency key；endpoint 或 namespace replacement 会清退旧 scope，禁止把命令重放到不同 Runtime store。
 - command owner 持有 single-flight/serialization、optimistic effect 的补偿、navigation 和迟到 settlement；裸 gateway/singleton locator 不能绕过 owner。
 - DATA_PROVIDER read 在入口一次捕获 Runtime client 与 query generation；多阶段 RPC 不跨 transport 拼接。
 - query handoff 捕获交接时真实 Query identity，迟到 cancel/reset 不能命中交接后才创建的 successor Query。

@@ -28,12 +28,11 @@ describe("Runtime mutation journal storage adapter", () => {
 
     const storage = installedRuntimeMutationJournalStorage();
     expect(storage).not.toBeNull();
-    stored.set("mutation-journal-v2.probe:other-window", "stale-probe");
-    storage?.set("entry:key-1", { version: 2 });
-    storage?.set("owner:window-1", { version: 1 });
-    expect(storage?.get("entry:key-1")).toEqual({ version: 2 });
-    expect(storage?.keys().toSorted()).toEqual(["entry:key-1", "owner:window-1"]);
-    expect(stored.has("mutation-journal-v2.entry:key-1")).toBe(true);
+    stored.set("mutation-journal-v3.probe:stale", "stale-probe");
+    storage?.set("entry:key-1", { version: 1 });
+    expect(storage?.get("entry:key-1")).toEqual({ version: 1 });
+    expect(storage?.keys()).toEqual(["entry:key-1"]);
+    expect(stored.has("mutation-journal-v3.entry:key-1")).toBe(true);
     storage?.remove("entry:key-1");
     expect(storage?.get("entry:key-1")).toBeUndefined();
 
@@ -41,8 +40,11 @@ describe("Runtime mutation journal storage adapter", () => {
     expect(installedRuntimeMutationJournalStorage()).toBeNull();
   });
 
-  it("maps the shipped v1 snapshot only through the explicit migration key", () => {
-    const stored = new Map<string, unknown>([["mutation-journal-v1", { version: 1 }]]);
+  it("ignores records outside the only current storage shape", () => {
+    const stored = new Map<string, unknown>([
+      ["mutation-journal-v1", { version: 1 }],
+      ["mutation-journal-v2.entry:old", { version: 3 }],
+    ]);
     const ctx: { storage: KeyValueStore } = {
       storage: {
         get: (key) => stored.get(key),
@@ -55,10 +57,8 @@ describe("Runtime mutation journal storage adapter", () => {
     cleanups.push(installRuntimeMutationJournalStorage(ctx));
     const storage = installedRuntimeMutationJournalStorage();
 
-    expect(storage?.get("legacy:v1")).toEqual({ version: 1 });
     expect(storage?.keys()).toEqual([]);
-    storage?.remove("legacy:v1");
-    expect(stored.has("mutation-journal-v1")).toBe(false);
+    expect(storage?.get("entry:old")).toBeUndefined();
   });
 
   it("surfaces Host storage writes and removals that were swallowed", () => {
@@ -82,9 +82,9 @@ describe("Runtime mutation journal storage adapter", () => {
     cleanups.push(installRuntimeMutationJournalStorage(ctx));
     const storage = installedRuntimeMutationJournalStorage()!;
 
-    expect(() => storage.set("entry:key-1", { version: 2 })).toThrow("not persisted");
+    expect(() => storage.set("entry:key-1", { version: 1 })).toThrow("not persisted");
     discardWrites = false;
-    storage.set("entry:key-1", { version: 2 });
+    storage.set("entry:key-1", { version: 1 });
     hideKeys = true;
     expect(() => storage.keys()).toThrow("enumeration is incomplete");
     hideKeys = false;

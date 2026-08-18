@@ -373,15 +373,6 @@ describe("methods factory", () => {
     const firstKey = (firstRequest?.[2] as RpcCallOptions | undefined)?.idempotencyKey;
     expect(firstKey).toBeTruthy();
 
-    // A new OS process gets a new journal owner. Change only that opaque owner
-    // in the captured persistence image; method, params, key and Runtime scope
-    // remain exactly what the crashed Desktop wrote before sending.
-    const entryKey = [...values.keys()].find((key) => key.startsWith("entry:"));
-    expect(entryKey).toBeDefined();
-    const persisted = structuredClone(values.get(entryKey!)) as { owner: string };
-    persisted.owner = "previous-desktop-process";
-    values.set(entryKey!, persisted);
-
     const replayCall = vi.fn(
       async (_method: string, _params: unknown, _options?: RpcCallOptions) => ({
         sessionId: "ses_1",
@@ -398,7 +389,7 @@ describe("methods factory", () => {
 
     expect(replayCall.mock.calls[0]?.[2]?.idempotencyKey).toBe(firstKey);
     settleFirst({ sessionId: "ses_1", runId: "run_1" });
-    await expect(first).resolves.toMatchObject({ runId: "run_1" });
+    await expect(first).rejects.toBeInstanceOf(MutationJournalOwnershipError);
     firstJournal.dispose();
     restartedJournal.dispose();
   });
@@ -433,7 +424,6 @@ describe("methods factory", () => {
     const retired = retiredMethods.schedules.runNow("schedule_1");
     await vi.waitFor(() => expect(retiredCall).toHaveBeenCalledOnce());
 
-    retiredJournal.dispose();
     let settleReplacement!: (value: { sessionId: string; runId: string }) => void;
     const replacementCall = vi.fn(
       (_method: string, _params: unknown, _options?: RpcCallOptions) =>
@@ -451,16 +441,13 @@ describe("methods factory", () => {
     const retiredKey = retiredCall.mock.calls[0]?.[2]?.idempotencyKey;
     expect(replacementCall.mock.calls[0]?.[2]?.idempotencyKey).toBe(retiredKey);
     settleRetired({ sessionId: "ses_1", runId: "run_1" });
-    await expect(retired).resolves.toMatchObject({ runId: "run_1" });
+    await expect(retired).rejects.toBeInstanceOf(MutationJournalOwnershipError);
     expect([...values.keys()].some((key) => key.startsWith("entry:"))).toBe(true);
+    retiredJournal.dispose();
 
     settleReplacement({ sessionId: "ses_1", runId: "run_1" });
     await expect(replay).resolves.toMatchObject({ runId: "run_1" });
-    const entryRecords = [...values.entries()]
-      .filter(([key]) => key.startsWith("entry:"))
-      .map(([, value]) => value as { generation: number; settled: boolean })
-      .toSorted((left, right) => right.generation - left.generation);
-    expect(entryRecords[0]).toMatchObject({ generation: 1, settled: true });
+    expect([...values.keys()].some((key) => key.startsWith("entry:"))).toBe(false);
     replacementJournal.dispose();
   });
 
