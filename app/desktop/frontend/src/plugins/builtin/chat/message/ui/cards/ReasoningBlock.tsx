@@ -15,21 +15,6 @@ interface Props {
   superseded?: boolean;
 }
 
-/** Several times the most characters the collapsed row can ever show — see the
- *  `preview` comment. Raising or lowering it changes nothing on screen. */
-const PREVIEW_LAYOUT_BOUND = 400;
-
-/** The thought as it stands right now — the last line with anything on it, so a
- *  trailing newline mid-stream does not blank the row it is reporting into. */
-function lastLine(text: string): string {
-  const lines = text.split("\n");
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index]!.trim();
-    if (line !== "") return line;
-  }
-  return "";
-}
-
 // Collapsible "thinking" aside. Auto-opens while the agent streams, then collapses
 // once the reasoning is done. User can toggle anytime to override.
 //
@@ -61,23 +46,6 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
   };
 
   const label = streaming ? t("reasoning.thinking") : t("reasoning.thought");
-  // Where the preview ends is the ROW's business, and the row already answers it
-  // in CSS at the real edge of the real column. A character count here was a
-  // second answer to the same question, and a worse one: it stopped short of that
-  // edge, so a reasoning row trailed off mid-row while the tool row beside it —
-  // same component, CSS truncation — ran the full width.
-  //
-  // The slice that remains is a cost bound, not a display policy. It cannot be
-  // observed: the widest this row ever gets is the reading column, which holds
-  // ~110 Latin characters at this size, and a settled 50k-token thought would
-  // otherwise lay out as a 50k-character nowrap line once per collapsed row.
-  //
-  // While it is still thinking the preview is the TAIL, not the head: a folded row
-  // showing the opening of a thought that has run for twenty seconds is a row that
-  // stopped reporting. The tail keeps a folded streaming row visibly current.
-  const preview = streaming
-    ? lastLine(text).slice(-PREVIEW_LAYOUT_BOUND)
-    : text.slice(0, PREVIEW_LAYOUT_BOUND);
 
   // ---- Bounded scroll + auto-follow + fades ----
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -141,7 +109,6 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
       icon="sparkle"
       shell="line"
       label={label}
-      detail={!isOpen && preview ? preview : undefined}
       trailing={streaming && isOpen ? <StatusDot tone="running" /> : undefined}
       open={isOpen}
       onToggle={toggle}
