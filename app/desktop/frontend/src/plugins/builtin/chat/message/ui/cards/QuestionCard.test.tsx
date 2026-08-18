@@ -62,9 +62,9 @@ describe("QuestionCard choice semantics", () => {
     );
 
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
-    expect(screen.getByRole("checkbox", { name: "Race detector" }).getAttribute("aria-checked")).toBe(
-      "false",
-    );
+    expect(
+      screen.getByRole("checkbox", { name: "Race detector" }).getAttribute("aria-checked"),
+    ).toBe("false");
   });
 
   it("moves and selects within a radio group with the arrow keys", () => {
