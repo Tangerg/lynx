@@ -233,6 +233,16 @@ describe("markdownMessage", () => {
     expect(container.querySelector('blockquote[dir="auto"]')).toBeTruthy();
   });
 
+  it("keeps unmatched numeric brackets as ordinary prose instead of citation chrome", () => {
+    const { container } = render(
+      <MarkdownMessage text="Read values[1] before values[12]." reveal="instant" />,
+    );
+
+    expect(container.querySelector("sup[data-citation]")).toBeNull();
+    expect(container.textContent).toContain("values[1]");
+    expect(container.textContent).toContain("values[12]");
+  });
+
   it("isolates inline and fenced code as left-to-right inside bidirectional prose", async () => {
     const src =
       "تشغيل `npm run check -- --watch=false`\n\n```sh\nnpm run check -- --watch=false\n```";
