@@ -40,7 +40,7 @@ export function FileView({
   const targetRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (targetLine > 0) targetRef.current?.scrollIntoView({ block: "center" });
-  }, [targetLine, highlighted]);
+  }, [content, path, targetLine]);
 
   return (
     <div className="py-2 font-mono text-code leading-relaxed">
