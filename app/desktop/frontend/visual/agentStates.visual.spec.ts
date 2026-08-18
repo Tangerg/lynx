@@ -360,6 +360,44 @@ test("code blocks stay readable and expose the wrap control", async ({ context, 
     .toBe(240);
 });
 
+test("code blocks use the Codex caption and source geometry", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=long-content");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const block = page.locator(".shiki-block").filter({ hasText: "Execute(context.Context" });
+  const geometry = await block.evaluate((root) => {
+    const header = root.querySelector<HTMLElement>('[data-markdown-copy="exclude"]');
+    const language = Array.from(header?.querySelectorAll("span") ?? []).find(
+      (element) => element.textContent?.trim() === "go",
+    );
+    const source = root.querySelector<HTMLElement>(".shiki");
+    if (!header || !language || !source) return null;
+    const headerStyle = getComputedStyle(header);
+    const languageStyle = getComputedStyle(language);
+    const sourceStyle = getComputedStyle(source);
+    return {
+      headerBackground: headerStyle.backgroundColor,
+      blockBackground: getComputedStyle(root).backgroundColor,
+      headerPadding: `${headerStyle.paddingBlockStart} ${headerStyle.paddingInlineStart}`,
+      bodyFamily: getComputedStyle(document.body).fontFamily,
+      languageFamily: languageStyle.fontFamily,
+      languageSize: languageStyle.fontSize,
+      languageTransform: languageStyle.textTransform,
+      sourcePadding: sourceStyle.paddingInlineStart,
+      sourceMaxHeight: sourceStyle.maxHeight,
+    };
+  });
+
+  expect(geometry).not.toBeNull();
+  expect.soft(geometry?.headerBackground).toBe(geometry?.blockBackground);
+  expect.soft(geometry?.headerPadding).toBe("4px 8px");
+  expect.soft(geometry?.languageFamily).toBe(geometry?.bodyFamily);
+  expect.soft(geometry?.languageSize).toBe("14px");
+  expect.soft(geometry?.languageTransform).toBe("none");
+  expect.soft(geometry?.sourcePadding).toBe("8px");
+  expect.soft(geometry?.sourceMaxHeight).toBe("none");
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`Mermaid is a semantic, copyable, zoomable artifact ${theme}`, async ({ context, page }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], {
