@@ -66,6 +66,7 @@ export const zhTW: Record<string, string> = {
   "workspace.view.unavailable.title": "檢視不可用",
   "workspace.view.unavailable.body": '未註冊 "{{id}}" 檢視。請關閉此分頁或重新啟用其外掛。',
   "message.image.view": "檢視附帶的圖片",
+  "message.svg.generatedAlt": "助理產生的圖片",
   "message.html.preview": "HTML 預覽",
   "message.mermaid.enlarge": "放大圖表",
   "message.mermaid.enlargeHint": "點擊放大",

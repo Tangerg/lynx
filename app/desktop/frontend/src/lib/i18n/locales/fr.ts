@@ -65,6 +65,7 @@ export const fr: Record<string, string> = {
   "workspace.view.unavailable.body":
     'La vue "{{id}}" n\'est pas enregistrée. Fermez cet onglet ou réactivez son plugin.',
   "message.image.view": "Voir l'image jointe",
+  "message.svg.generatedAlt": "Image générée par l’assistant",
   "message.html.preview": "Aperçu HTML",
   "message.mermaid.enlarge": "Agrandir le diagramme",
   "message.mermaid.enlargeHint": "Cliquer pour agrandir",

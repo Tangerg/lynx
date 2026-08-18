@@ -65,6 +65,7 @@ export const de: Record<string, string> = {
   "workspace.view.unavailable.body":
     'Die Ansicht "{{id}}" ist nicht registriert. Schließe diesen Tab oder aktiviere das Plugin erneut.',
   "message.image.view": "Angehängtes Bild ansehen",
+  "message.svg.generatedAlt": "Vom Assistenten erzeugtes Bild",
   "message.html.preview": "HTML-Vorschau",
   "message.mermaid.enlarge": "Diagramm vergrößern",
   "message.mermaid.enlargeHint": "Zum Vergrößern klicken",

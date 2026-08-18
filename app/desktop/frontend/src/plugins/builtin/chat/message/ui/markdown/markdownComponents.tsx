@@ -5,6 +5,7 @@ import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";
 import { MermaidBlock } from "./MermaidBlock";
+import { SvgArtifact } from "./SvgArtifact";
 
 // Local favicon stand-in — a domain-initial tile, mirroring the web-search
 // result card badge. The desktop build must NOT fetch a remote favicon (e.g.
@@ -120,6 +121,12 @@ export const markdownComponents: Components = {
     const lang = match[1]!.toLowerCase();
     const codeStr = String(children ?? "").replace(/\n$/, "");
     if (lang === "mermaid") return <MermaidBlock code={codeStr} />;
+    if (
+      lang === "svg" ||
+      ((lang === "xml" || lang === "html" || lang === "htm") &&
+        /^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(codeStr))
+    )
+      return <SvgArtifact code={codeStr} lang={lang} />;
     if (lang === "html" || lang === "htm") return <HtmlArtifact code={codeStr} />;
     return <ShikiCodeBlock lang={lang} code={codeStr} />;
   },

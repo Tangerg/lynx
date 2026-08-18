@@ -64,6 +64,7 @@ export const ko: Record<string, string> = {
   "workspace.view.unavailable.body":
     '"{{id}}" 뷰가 등록되지 않았습니다. 이 탭을 닫거나 플러그인을 다시 활성화하세요.',
   "message.image.view": "첨부 이미지 보기",
+  "message.svg.generatedAlt": "어시스턴트가 생성한 이미지",
   "message.html.preview": "HTML 미리보기",
   "message.mermaid.enlarge": "다이어그램 확대",
   "message.mermaid.enlargeHint": "클릭하여 확대",

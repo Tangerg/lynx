@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useCopyFeedback } from "@/lib/useCopyFeedback";
 import { measureShikiHighlight } from "@/lib/metrics";
@@ -17,13 +17,16 @@ interface Props {
    * sits on the left and the filename takes the centre column.
    */
   file?: string;
+  /** Optional rendered interpretation of the source. The code remains the copy
+   *  payload and the header remains shared; only the body changes. */
+  preview?: ReactNode;
 }
 
 // We debounce `code` so the Shiki tokenizer (3-10ms per pass) doesn't
 // run on every stream-reveal delta during streaming. While it's settling,
 // raw code shows in a <pre> fallback.
 
-export function ShikiCodeBlock({ lang, code, file }: Props) {
+export function ShikiCodeBlock({ lang, code, file, preview }: Props) {
   const t = useT();
   const shikiTheme = useShikiTheme();
 
@@ -100,15 +103,17 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           <span className="min-w-0 flex-1 truncate font-mono text-ui-xs text-fg-muted">{file}</span>
         )}
         <span className="min-w-1 flex-1" />
-        <IconButton
-          icon={wrapCode ? "wrap-text" : "unfold-horizontal"}
-          size="xs"
-          active={wrapCode}
-          aria-pressed={wrapCode}
-          onClick={() => setWrapCode((current) => !current)}
-          title={t(wrapCode ? "message.code.wrap.disable" : "message.code.wrap.enable")}
-          className="text-fg-faint hover:bg-hover hover:text-fg"
-        />
+        {!preview && (
+          <IconButton
+            icon={wrapCode ? "wrap-text" : "unfold-horizontal"}
+            size="xs"
+            active={wrapCode}
+            aria-pressed={wrapCode}
+            onClick={() => setWrapCode((current) => !current)}
+            title={t(wrapCode ? "message.code.wrap.disable" : "message.code.wrap.enable")}
+            className="text-fg-faint hover:bg-hover hover:text-fg"
+          />
+        )}
         <IconButton
           icon={copied ? "check" : "copy"}
           size="xs"
@@ -122,7 +127,9 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           className={cn(copied ? "text-success" : "text-fg-faint hover:bg-hover hover:text-fg")}
         />
       </div>
-      {showHighlighted ? (
+      {preview ? (
+        <div className="grid max-h-96 min-h-24 place-items-center overflow-auto p-2">{preview}</div>
+      ) : showHighlighted ? (
         <div
           className="shiki-body"
           data-wrap={wrapCode}

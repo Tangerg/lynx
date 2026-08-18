@@ -457,6 +457,14 @@ const LONG_RESPONSE = message(
     "}",
     "```",
     "",
+    "```svg",
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 96" width="240" height="96">',
+    '  <rect width="240" height="96" rx="16" fill="#e8eefc"/>',
+    '  <path d="M28 48h72m40 0h72" stroke="#3574f0" stroke-width="8" stroke-linecap="round"/>',
+    '  <circle cx="120" cy="48" r="22" fill="#3574f0"/>',
+    "</svg>",
+    "```",
+    "",
     // A SECOND heading, so this answer has an outline and the end rail is
     // finally photographed at rest. One heading is the answer's own title and
     // the rail declines to draw it, which is why every golden until now framed

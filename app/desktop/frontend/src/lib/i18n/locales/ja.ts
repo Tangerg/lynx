@@ -64,6 +64,7 @@ export const ja: Record<string, string> = {
   "workspace.view.unavailable.body":
     '"{{id}}" ビューは登録されていません。このタブを閉じるか、プラグインを再度有効にしてください。',
   "message.image.view": "添付画像を表示",
+  "message.svg.generatedAlt": "アシスタントが生成した画像",
   "message.html.preview": "HTML プレビュー",
   "message.mermaid.enlarge": "図を拡大",
   "message.mermaid.enlargeHint": "クリックで拡大",
