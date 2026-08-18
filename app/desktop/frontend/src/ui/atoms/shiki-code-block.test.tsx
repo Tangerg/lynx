@@ -31,4 +31,21 @@ describe("ShikiCodeBlock", () => {
     ).toBe("true");
     expect(container.querySelector(".shiki-body")?.getAttribute("data-wrap")).toBe("true");
   });
+
+  it("shares the Codex wrap preference across code blocks", async () => {
+    const { container } = render(
+      <>
+        <ShikiCodeBlock lang="text" code="first long line" />
+        <ShikiCodeBlock lang="text" code="second long line" />
+      </>,
+    );
+    await act(async () => Promise.resolve());
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Enable word wrap" })[0]!);
+
+    expect(screen.getAllByRole("button", { name: "Disable word wrap" })).toHaveLength(2);
+    for (const body of container.querySelectorAll(".shiki-body")) {
+      expect(body.getAttribute("data-wrap")).toBe("true");
+    }
+  });
 });
