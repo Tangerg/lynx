@@ -73,6 +73,42 @@ describe("Goal plugin Runtime generation wiring", () => {
     await Promise.resolve();
     expect(synchronizeMountedAgentSession).toHaveBeenCalledOnce();
   });
+
+  it("does not construct a successor client when the Runtime connection is withdrawn", async () => {
+    setContainer({
+      client: () => ({ goals: {} }) as unknown as LyraClient,
+    });
+    let generation: string | null = "runtime_1";
+    const subscribers = new Set<() => void>();
+    const runtime = definePlugin({
+      name: "test.goal-runtime-withdrawal",
+      provides: { stream: RUNTIME_STREAM_PORTS },
+      setup() {
+        return {
+          stream: {
+            connectionGeneration: () => generation,
+            subscribeConnection(onChange: () => void) {
+              subscribers.add(onChange);
+              return () => subscribers.delete(onChange);
+            },
+            reportConnectionLoss: vi.fn(),
+          },
+        };
+      },
+    });
+    await loadPluginsForTest(runtime, goalPlugin);
+
+    setContainer({
+      client: () => {
+        throw new Error("Desktop container is closed");
+      },
+    });
+    generation = null;
+
+    expect(() => {
+      for (const subscriber of subscribers) subscriber();
+    }).not.toThrow();
+  });
 });
 
 function mutation<T>(promise: Promise<T>, idempotencyKey: string): MutationPromise<T> {
