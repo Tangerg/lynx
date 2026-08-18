@@ -122,6 +122,7 @@
      untrusted HTML document. These are the only colours in the system that must NOT
      invert with the scheme, because what is underneath them never does. */
   --color-media-scrim: var(--color-media-scrim);
+  --color-media-preview: var(--color-media-preview);
   --color-media-canvas: var(--color-media-canvas);
   --color-on-media: var(--color-on-media);
 
@@ -1201,6 +1202,7 @@ html.theme-dark {
      both schemes on purpose: what is underneath them never inverts, so chrome laid
      on it cannot either. */
   --color-media-scrim: rgb(0 0 0 / 0.55);
+  --color-media-preview: rgb(0 0 0 / 0.9);
   --color-media-canvas: #ffffff;
   --color-on-media: #ffffff;
   --window-sidebar-control-span: 36px;

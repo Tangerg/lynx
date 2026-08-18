@@ -70,6 +70,8 @@ import {
   WrapText,
   Wrench,
   X,
+  ZoomIn,
+  ZoomOut,
   Zap,
   Archive,
   BookOpen,
@@ -196,7 +198,9 @@ export type IconName =
   | "crosshair"
   | "clipboard-check"
   | "unfold-horizontal"
-  | "wrap-text";
+  | "wrap-text"
+  | "zoom-in"
+  | "zoom-out";
 
 // Mapping from our project's icon vocabulary to lucide components.
 // Names on the left are the project's IconName tokens used at every
@@ -205,6 +209,8 @@ export type IconName =
 const ICON_MAP = {
   search: Search,
   plus: Plus,
+  "zoom-in": ZoomIn,
+  "zoom-out": ZoomOut,
   chat: MessageSquare,
   folder: Folder,
   "folder-open": FolderOpen,

@@ -463,9 +463,28 @@ for (const theme of ["light", "dark"] as const) {
     await preview.click();
     const dialog = page.getByRole("dialog", { name: "Inline architecture" });
     await expect(dialog).toBeVisible();
+    const controlSizes = await Promise.all(
+      ["Close image preview", "Zoom out image", "Zoom in image"].map((name) =>
+        page.getByRole("button", { name }).evaluate((button, accessibleName) => {
+          const element = button as HTMLElement;
+          return {
+            accessibleName,
+            width: element.offsetWidth,
+            height: element.offsetHeight,
+          };
+        }, name),
+      ),
+    );
+    for (const { accessibleName, width, height } of controlSizes) {
+      expect.soft(width, `${accessibleName} width`).toBeGreaterThanOrEqual(40);
+      expect.soft(height, `${accessibleName} height`).toBeGreaterThanOrEqual(40);
+    }
     await expect(dialog).toHaveScreenshot(`markdown-image-lightbox-${theme}.png`);
+    await page.getByRole("button", { name: "Zoom in image" }).click();
+    await expect(dialog.locator('[data-image-zoom="125"]')).toBeVisible();
     await page.getByRole("button", { name: "Next image" }).click();
     await expect(page.getByRole("dialog", { name: "Inline detail" })).toBeVisible();
+    await expect(page.locator('[data-image-zoom="100"]')).toBeVisible();
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByRole("dialog", { name: "Inline architecture" })).toBeVisible();
     await page.keyboard.press("Escape");
