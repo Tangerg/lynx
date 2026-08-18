@@ -68,6 +68,8 @@ export const zh: Record<string, string> = {
   "workspace.view.unavailable.title": "视图不可用",
   "workspace.view.unavailable.body": '未注册 "{{id}}" 视图。请关闭此标签页或重新启用其插件。',
   "message.image.view": "查看附带的图片",
+  "message.image.preview": "打开图片预览",
+  "message.image.unavailable": "图片不可用",
   "message.svg.generatedAlt": "助手生成的图片",
   "message.html.preview": "HTML 预览",
   "message.mermaid.enlarge": "放大图表",

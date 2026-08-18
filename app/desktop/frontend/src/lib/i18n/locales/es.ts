@@ -65,6 +65,8 @@ export const es: Record<string, string> = {
   "workspace.view.unavailable.body":
     'La vista "{{id}}" no está registrada. Cierra esta pestaña o reactiva su plugin.',
   "message.image.view": "Ver imagen adjunta",
+  "message.image.preview": "Abrir vista previa de la imagen",
+  "message.image.unavailable": "Imagen no disponible",
   "message.svg.generatedAlt": "Imagen generada por el asistente",
   "message.html.preview": "Vista previa de HTML",
   "message.mermaid.enlarge": "Ampliar diagrama",

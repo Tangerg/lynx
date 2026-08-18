@@ -5,6 +5,7 @@ import { cn } from "@/lib/classNames";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";
+import { MarkdownImage } from "./MarkdownImage";
 import { MermaidBlock } from "./MermaidBlock";
 import { MarkdownTable } from "./MarkdownTable";
 import { SvgArtifact } from "./SvgArtifact";
@@ -173,6 +174,9 @@ const sharedMarkdownComponents: Components = {
         {children}
       </th>
     );
+  },
+  img({ src, alt, title }) {
+    return <MarkdownImage src={src} alt={alt} title={title} />;
   },
   a({ href, title, children, ...rest }) {
     // A `data-file-ref` anchor is emitted by rehypeFileRefs (not a real link) —

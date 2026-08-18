@@ -1,6 +1,6 @@
 import { memo, useDeferredValue, useEffect, useMemo } from "react";
 
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import remarkBreaks from "remark-breaks";
@@ -11,6 +11,7 @@ import remarkMath from "remark-math";
 import remend from "remend";
 import { parseMarkdownIntoBlocks } from "streamdown";
 import { createMarkdownComponents } from "./markdownComponents";
+import { isInlineMarkdownImage } from "./MarkdownImage";
 import { ensureKatexCss } from "./katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "./rehypeCitations";
@@ -67,6 +68,14 @@ const remarkPlugins = [
 // them as raw HTML — blocklist takes precedence over rehype-raw.
 const DENIED_HTML_TAGS = new Set(["script", "iframe", "object", "embed", "form"]);
 const allowElement = (el: { tagName: string }) => !DENIED_HTML_TAGS.has(el.tagName);
+
+// react-markdown intentionally drops data URLs by default. Desktop blocks every
+// remote Markdown image in MarkdownImage, but explicitly inlined image data is
+// already self-contained and must survive the parser to reach that renderer.
+const markdownUrlTransform: NonNullable<
+  React.ComponentProps<typeof ReactMarkdown>["urlTransform"]
+> = (value, _key, node) =>
+  node.tagName === "img" && isInlineMarkdownImage(value) ? value : defaultUrlTransform(value);
 
 // MarkdownMessage — block-level memoised markdown renderer.
 //
@@ -184,6 +193,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, streaming, reveal }: M
       rehypePlugins={rehypePlugins}
       components={components}
       allowElement={allowElement}
+      urlTransform={markdownUrlTransform}
     >
       {text}
     </ReactMarkdown>

@@ -350,6 +350,35 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+for (const theme of ["light", "dark"] as const) {
+  test(`Markdown media previews inline data without requesting remote URLs ${theme}`, async ({
+    page,
+  }) => {
+    let remoteRequests = 0;
+    await page.route("https://tracker.example/**", async (route) => {
+      remoteRequests += 1;
+      await route.abort();
+    });
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=long-content`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const blocked = page.getByRole("button", { name: "Tracking pixel" });
+    await expect(blocked).toBeDisabled();
+    await expect(page.locator('img[src^="https://tracker.example/"]')).toHaveCount(0);
+    expect(remoteRequests).toBe(0);
+
+    const preview = page.getByRole("button", { name: "Inline architecture" });
+    await expect(preview.locator("img")).toHaveAttribute("loading", "lazy");
+    await preview.evaluate((button) => button.parentElement?.scrollIntoView({ block: "center" }));
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveScreenshot(`markdown-image-${theme}.png`);
+    await preview.click();
+    await expect(page.getByRole("dialog", { name: "Inline architecture" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Inline architecture" })).toHaveCount(0);
+  });
+}
+
 // The three seams around the reading plane are one primitive, and the top one is the
 // easy one to lose: half a device pixel, so the raster comparison can pass on its
 // absence, and the bars sit in their region's own colour with the body scrolling
