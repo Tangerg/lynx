@@ -696,8 +696,7 @@ export const zhTW: Record<string, string> = {
   "files.uncommitted": "{{count}} 個檔案 · 未提交",
   "files.binary": "bin",
 
-  "compaction.compacted": "上下文已壓縮",
-  "compaction.compactedN": "已壓縮 {{count}} 條更早的訊息",
+  "compaction.compacted": "已自動壓縮上下文",
   "projects.showMore": "顯示另外 {{count}} 條",
   "projects.showLess": "收合",
   "projects.empty.title": "無專案",

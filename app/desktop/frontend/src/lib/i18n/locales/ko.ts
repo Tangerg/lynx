@@ -686,8 +686,7 @@ export const ko: Record<string, string> = {
   "files.uncommitted": "파일 {{count}}개 · 커밋되지 않음",
   "files.binary": "bin",
 
-  "compaction.compacted": "컨텍스트 압축됨",
-  "compaction.compactedN": "{{count}}개의 이전 메시지 압축됨",
+  "compaction.compacted": "컨텍스트가 자동으로 압축됨",
   "projects.showMore": "{{count}}개 더 보기",
   "projects.showLess": "간략히 보기",
   "projects.empty.title": "프로젝트 없음",

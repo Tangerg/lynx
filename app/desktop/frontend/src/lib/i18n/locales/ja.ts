@@ -693,8 +693,7 @@ export const ja: Record<string, string> = {
   "files.uncommitted": "{{count}} 個のファイル · 未コミット",
   "files.binary": "bin",
 
-  "compaction.compacted": "コンテキストが圧縮されました",
-  "compaction.compactedN": "{{count}} 件の以前のメッセージを圧縮",
+  "compaction.compacted": "コンテキストが自動的に圧縮されました",
   "projects.showMore": "さらに {{count}} 件表示",
   "projects.showLess": "折りたたむ",
   "projects.empty.title": "プロジェクトなし",

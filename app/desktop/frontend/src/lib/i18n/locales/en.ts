@@ -973,8 +973,7 @@ export const en: Record<string, string> = {
   "files.binary": "bin",
 
   // ── Compaction block ──
-  "compaction.compacted": "Context compacted",
-  "compaction.compactedN": "Compacted {{count}} earlier messages",
+  "compaction.compacted": "Context automatically compacted",
 
   // ── Tool card ──
 

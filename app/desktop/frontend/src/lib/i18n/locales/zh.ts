@@ -877,8 +877,7 @@ export const zh: Record<string, string> = {
   "files.binary": "bin",
 
   // ── 压缩块 ──
-  "compaction.compacted": "上下文已压缩",
-  "compaction.compactedN": "已压缩 {{count}} 条更早的消息",
+  "compaction.compacted": "已自动压缩上下文",
   "projects.showMore": "显示另外 {{count}} 条",
   "projects.showLess": "收起",
   "projects.empty.title": "无项目",

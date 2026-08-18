@@ -702,8 +702,7 @@ export const fr: Record<string, string> = {
   "files.uncommitted": "{{count}} fichiers · non validés",
   "files.binary": "bin",
 
-  "compaction.compacted": "Contexte compacté",
-  "compaction.compactedN": "{{count}} messages antérieurs compactés",
+  "compaction.compacted": "Contexte compacté automatiquement",
   "projects.showMore": "Afficher {{count}} de plus",
   "projects.showLess": "Afficher moins",
   "projects.empty.title": "Aucun projet",

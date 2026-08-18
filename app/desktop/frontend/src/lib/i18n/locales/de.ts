@@ -703,8 +703,7 @@ export const de: Record<string, string> = {
   "files.uncommitted": "{{count}} Dateien · nicht committet",
   "files.binary": "bin",
 
-  "compaction.compacted": "Kontext komprimiert",
-  "compaction.compactedN": "{{count}} frühere Nachrichten komprimiert",
+  "compaction.compacted": "Kontext automatisch komprimiert",
   "projects.showMore": "{{count}} weitere anzeigen",
   "projects.showLess": "Weniger anzeigen",
   "projects.empty.title": "Keine Projekte",

@@ -6,20 +6,11 @@ import { useId, useState } from "react";
 import { Divider, Icon, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 
-export function CompactionBlock({
-  summary,
-  droppedMessages,
-}: {
-  summary?: string;
-  droppedMessages?: number;
-}) {
+export function CompactionBlock({ summary }: { summary?: string; droppedMessages?: number }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const label =
-    droppedMessages && droppedMessages > 0
-      ? t("compaction.compactedN", { count: droppedMessages })
-      : t("compaction.compacted");
+  const label = t("compaction.compacted");
 
   return (
     <div>

@@ -700,8 +700,7 @@ export const es: Record<string, string> = {
   "files.uncommitted": "{{count}} archivos · sin confirmar",
   "files.binary": "bin",
 
-  "compaction.compacted": "Contexto compactado",
-  "compaction.compactedN": "{{count}} mensajes anteriores compactados",
+  "compaction.compacted": "Contexto compactado automáticamente",
   "projects.showMore": "Mostrar {{count}} más",
   "projects.showLess": "Mostrar menos",
   "projects.empty.title": "Sin proyectos",
