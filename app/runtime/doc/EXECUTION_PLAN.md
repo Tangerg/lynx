@@ -22,6 +22,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 每个成立问题由唯一 presentation owner 根修复，不增加第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、timer 竞态掩盖或通用 Owner/Coordinator/状态机。每批独立提交推送，最终运行 Frontend 全门禁与 async leak、Wails production build 及必要的真实恢复验收。
 - P117 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
 
+### P117 首批红例与参考裁决（2026-08-18）
+
+- production Desktop 已复现：无 active Session 时打开 Context Dock，会把 Runtime 默认 workspace 投影成当前资源管理器内容；唯一 presentation owner 是 `ChatPanel` 的 exact active-Session 边界，默认 workspace 不是 Session material。
+- Work Index 行为测试已锁定：顶层“新建会话”必须继承点击时 active Session 的 cwd；目录选择属于 Projects 的新增入口，不再与全局新会话并列成两个竞争动作。Codex 主参考采用“New chat 延续当前 local project”与 Projects 标题栏新增项目的机制；拒绝其 projectless、多 connection、remote project 分支，因为 Lyra 产品拓扑不包含这些身份。
+- provider 不可用时已复现多个新 Session 都停留在“未命名会话”；该问题暂只登记证据，待证明 title authoritative fact 的现有 owner 后再决定是否需要进入 Runtime，不在 Frontend 增加第二标题 writer。
+- 首批可失败测试只覆盖上述已成立边界；Zcode/Minimax 仅在后续恢复反馈或 workspace 密度需要第二证据时使用，不为已由 Codex 与 Lyra owner 共同确定的交互再引入第三套词汇。
+
 ## 2. 长期产品与架构约束
 
 1. 真实产品严格为一个 Desktop actor 对一个逻辑 Runtime。Runtime 可以经 HTTP、socket 或同进程 binding 接入；进程重启、连接重建或 binding 变化不产生“旧服务端/后继服务端”关系。Desktop 与 CLI 共享目录只属于已有存储并发合同，不扩张为多客户端产品架构。

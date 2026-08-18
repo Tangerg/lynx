@@ -106,4 +106,24 @@ describe("ChatPanel Session-owned workspace view state", () => {
 
     expect(screen.getByText("workspace-instance:2")).toBeTruthy();
   });
+
+  it("does not mount unowned dock material without an active Session", () => {
+    nextInstance = 0;
+    model.sessionId = "";
+    model.activeMainView = null;
+    model.dock = { open: true, viewIds: ["stateful"], activeViewId: "stateful" };
+    model.views = [
+      {
+        id: "stateful",
+        title: "stateful",
+        icon: "tool",
+        component: StatefulWorkspaceView,
+      },
+    ];
+
+    const view = render(<ChatPanel onSend={() => true} />);
+
+    expect(screen.queryByText(/workspace-instance:/)).toBeNull();
+    expect(view.container.querySelector('[data-dock="open"]')).toBeNull();
+  });
 });

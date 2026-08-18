@@ -4,6 +4,7 @@ import { configureWorkingDirectoryPicker } from "./ports/workingDirectoryPicker"
 import { useWorkIndexActions } from "./workIndexActions";
 
 const mocks = vi.hoisted(() => ({
+  activeWorkspace: { status: "ready" as const, cwd: undefined as string | undefined },
   choose: vi.fn(),
   create: vi.fn(),
   focusComposer: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
   selectAgentSession: vi.fn(),
+  useActiveSessionWorkspace: () => mocks.activeWorkspace,
   useCreateSession: () => mocks.create,
   useDeleteSession: () => vi.fn(),
   useForkSession: () => vi.fn(),
@@ -31,6 +33,7 @@ vi.mock("@/plugins/sdk", async (importOriginal) => ({
 let disposePicker = () => {};
 
 beforeEach(() => {
+  mocks.activeWorkspace = { status: "ready", cwd: undefined };
   mocks.choose.mockReset();
   mocks.create.mockReset().mockResolvedValue("session-new");
   mocks.focusComposer.mockReset();
@@ -41,6 +44,16 @@ beforeEach(() => {
 afterEach(() => disposePicker());
 
 describe("useWorkIndexActions directory selection", () => {
+  it("starts the global new-session action in the exact active project", async () => {
+    mocks.activeWorkspace = { status: "ready", cwd: "/tmp/current-project" };
+    const { result } = renderHook(() => useWorkIndexActions());
+
+    act(() => result.current.createSession());
+
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ cwd: "/tmp/current-project" }));
+    expect(mocks.focusComposer).toHaveBeenCalledOnce();
+  });
+
   it("creates a session in the selected directory and focuses its composer", async () => {
     mocks.choose.mockResolvedValue("/tmp/project");
     const { result } = renderHook(() => useWorkIndexActions());

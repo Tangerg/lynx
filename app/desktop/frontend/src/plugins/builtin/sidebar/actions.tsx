@@ -21,7 +21,7 @@ import {
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin } from "@/plugins/sdk";
 
-function SidebarActions() {
+export function SidebarActions() {
   const t = useT();
   const actions = useWorkIndexActions();
 
