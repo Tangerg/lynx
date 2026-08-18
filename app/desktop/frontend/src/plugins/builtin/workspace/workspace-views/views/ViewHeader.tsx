@@ -17,6 +17,8 @@ import { useViewPlacement } from "@/plugins/builtin/workspace/public/viewPlaceme
 export interface ViewHeaderProps {
   icon: IconName;
   title: ReactNode;
+  /** Material identity that remains meaningful inside a generic dock tab. */
+  dockIdentity?: ReactNode;
   sub?: ReactNode;
   actions?: ReactNode;
   /**
@@ -27,20 +29,46 @@ export interface ViewHeaderProps {
   titleStrong?: boolean;
 }
 
-export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeaderProps) {
+export function ViewHeader({
+  icon,
+  title,
+  dockIdentity,
+  sub,
+  actions,
+  titleStrong,
+}: ViewHeaderProps) {
   const placement = useViewPlacement();
-  if (placement?.placement === "dock") return <DockViewBar sub={sub} actions={actions} />;
+  if (placement?.placement === "dock") {
+    return <DockViewBar identity={dockIdentity} sub={sub} actions={actions} />;
+  }
   return (
     <FullViewBar icon={icon} title={title} sub={sub} actions={actions} titleStrong={titleStrong} />
   );
 }
 
-/** Subtext and per-view actions only — the dock's bar carries the rest. */
-function DockViewBar({ sub, actions }: Pick<ViewHeaderProps, "sub" | "actions">) {
-  if (sub === undefined && actions === undefined) return null;
+/** Material identity, subtext and per-view actions only — the dock tab already
+ * carries the generic view name. */
+function DockViewBar({
+  identity,
+  sub,
+  actions,
+}: Pick<ViewHeaderProps, "sub" | "actions"> & { identity?: ReactNode }) {
+  if (identity === undefined && sub === undefined && actions === undefined) return null;
   return (
     <AgentSurfaceHeader className="gap-2">
-      <span className="min-w-0 flex-1 truncate font-mono text-ui-md text-fg-muted">{sub}</span>
+      <div className="flex min-w-0 flex-1 items-center gap-2 font-mono text-ui-md text-fg-muted">
+        {identity !== undefined && <span className="min-w-0 flex-1">{identity}</span>}
+        {identity !== undefined && sub !== undefined && (
+          <span aria-hidden className="shrink-0 leading-none text-fg-faint">
+            ·
+          </span>
+        )}
+        {sub !== undefined && (
+          <span className={cn("truncate", identity === undefined ? "min-w-0 flex-1" : "shrink-0")}>
+            {sub}
+          </span>
+        )}
+      </div>
       {actions !== undefined && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
     </AgentSurfaceHeader>
   );

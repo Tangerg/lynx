@@ -135,6 +135,7 @@
 - 流式消息的底部点赞/点踩与操作行只在所属可见 turn 达到稳定展示边界时出现，不随每个输出 delta 反复挂载。
 - 中央 transcript 的 mount geometry、异步 Markdown/Shiki materialization、实测 composer clearance 与用户滚动共享 `MessageStream` 一个 presentation owner：跟随状态和 exact target 来自既有 scroll library；DOM mutation 与 border-box ResizeObserver 覆盖内容和动态 padding 两种高度来源，compact HITL 首次打开即可把 blocking action 留在 composer 上方，wheel/scroll escape 后不再改写 reader-owned `scrollTop`，也不靠固定 RAF/timer 窗口判断布局完成。
 - 右栏 Diff 与 File preview 共用 file-path → Shiki grammar 映射；preview 以 query 对应的 exact path 选语言并进行一次 whole-file highlight，未知 grammar 降为 text，不从内容猜测或复制 extension table。目标行定位只响应 path/content/line navigation，Shiki 异步 materialization 不重放滚动或覆盖 reader-owned 位置。
+- File preview 的 generic `File` tab 与 material identity 分工明确：dock view bar 从同一 `viewer.path` 呈现左侧截断的 exact path，并与 line count/truncation 同行；full placement 继续以 path 为 title。文件选择、query 参数、syntax grammar 与可见身份不再分叉。
 - Timeline 在 Runtime 不可接收命令时继续呈现 exact Session/Run 审计事实，但 locate/cancel 共同由 Runtime command capability 禁用；恢复后沿同一 owner 重新可用，不从 connection phase 复制第二布尔状态。
 - 右栏 tab strip 保留可读标签；active identity 变化时由 tab owner 执行 nearest scrolling，strip 自己的 scroll geometry 驱动 start/end edge fade。renderer 恢复或 picker 打开末尾 tab 后选中身份始终可见，两侧隐藏内容也有明确提示。
 

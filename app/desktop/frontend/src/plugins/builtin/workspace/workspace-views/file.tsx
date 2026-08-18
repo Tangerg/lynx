@@ -2,7 +2,7 @@
 // (workspace.files.read) at a target line, opened by a clickable file:line
 // reference in the conversation.
 
-import { DataView } from "@/ui";
+import { DataView, FilePath } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { FileView } from "./views/FileView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -30,7 +30,12 @@ function FileViewTab() {
   ) : undefined;
 
   return (
-    <WorkspaceViewLayout icon="filetext" title={viewer?.path || t("file.empty.title")} sub={sub}>
+    <WorkspaceViewLayout
+      icon="filetext"
+      title={viewer?.path || t("file.empty.title")}
+      dockIdentity={viewer ? <FilePath path={viewer.path} /> : undefined}
+      sub={sub}
+    >
       <DataView
         items={data ? [data] : []}
         isLoading={isLoading || (Boolean(viewer) && workspace.status === "resolving")}
