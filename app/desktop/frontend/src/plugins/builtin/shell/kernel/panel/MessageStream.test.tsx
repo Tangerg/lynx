@@ -56,10 +56,7 @@ vi.mock("use-stick-to-bottom", () => {
       return <div>{children}</div>;
     },
     {
-      Content: ({
-        children,
-        scrollClassName,
-      }: PropsWithChildren<{ scrollClassName?: string }>) => (
+      Content: ({ children, scrollClassName }: PropsWithChildren<{ scrollClassName?: string }>) => (
         <div ref={(node) => (context.scrollRef.current = node)} className={scrollClassName}>
           {children}
         </div>

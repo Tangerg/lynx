@@ -322,6 +322,60 @@ for (const state of ["long-content", "question", "delegated"] as const) {
   });
 }
 
+test("async transcript materialization follows only while the reader stays at the tail", async ({
+  page,
+}) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=long-content");
+  await page.locator("html[data-visual-ready]").waitFor();
+  await page.locator(".shiki-block .shiki").waitFor();
+
+  const measured = await page.evaluate(async () => {
+    const scroller = document.querySelector<HTMLElement>(".msg-scroll-viewport");
+    const content = scroller?.firstElementChild;
+    if (!scroller || !content) return null;
+
+    const grow = (height: number) => {
+      const probe = document.createElement("div");
+      probe.style.height = `${height}px`;
+      probe.style.flex = `0 0 ${height}px`;
+      content.append(probe);
+      return probe;
+    };
+    const settle = () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+
+    scroller.scrollTop = scroller.scrollHeight;
+    await settle();
+    const followedProbe = grow(160);
+    await settle();
+    const followedDistance = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+
+    scroller.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -220 }));
+    scroller.scrollTop = Math.max(0, scroller.scrollTop - 220);
+    await settle();
+    const readerTop = scroller.scrollTop;
+    const escapedDistance = scroller.scrollHeight - scroller.clientHeight - readerTop;
+
+    const escapedProbe = grow(180);
+    await settle();
+    const afterGrowth = {
+      top: scroller.scrollTop,
+      distance: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+    };
+
+    followedProbe.remove();
+    escapedProbe.remove();
+    return { followedDistance, readerTop, escapedDistance, afterGrowth };
+  });
+
+  expect(measured).not.toBeNull();
+  expect(measured!.followedDistance).toBeLessThanOrEqual(1);
+  expect(measured!.afterGrowth.top).toBe(measured!.readerTop);
+  expect(measured!.afterGrowth.distance - measured!.escapedDistance).toBe(180);
+});
+
 // Every state collapses its tool calls into an "N steps" summary, so until this
 // test the rows themselves — the app's most-read surface — appeared in no
 // screenshot and in no browser assertion. What it pins is what a row REPORTS: the

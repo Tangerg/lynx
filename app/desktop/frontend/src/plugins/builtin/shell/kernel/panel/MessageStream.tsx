@@ -3,14 +3,13 @@ import type { BlockCtx } from "@/plugins/builtin/chat/message/public/rendering";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { AnimatePresence, motion } from "motion/react";
-import { memo, useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import { memo, useEffect, useImperativeHandle, useLayoutEffect, useRef, type Ref } from "react";
 import {
   StickToBottom,
   useStickToBottomContext,
   type StickToBottomContext,
 } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
-import { useMotionOff } from "@/lib/appearance";
 import { cn } from "@/lib/classNames";
 import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
@@ -44,8 +43,6 @@ export interface MessageStreamController {
   /** Reconcile geometry that becomes known during the parent's first layout. */
   settleInitialBottom(): void;
 }
-
-const INITIAL_BOTTOM_SETTLE_MS = 250;
 
 // Publishes StickToBottom's follow state out of the provider, for the
 // jump-to-bottom button — which has to be a sibling of the scroller to sit over
@@ -198,26 +195,38 @@ const TranscriptTurn = memo(function TranscriptTurn({
 });
 
 export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
-  // While a run streams, content grows continuously; the default `resize`
-  // spring (stiffness 0.05 / mass 1.25) is too sluggish to track it and the
-  // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
-  // and keep the smooth catch-up only when idle (re-open / history load).
-  // `running` flips only at run boundaries, so this never churns per token.
+  // Transcript height changes are geometry reconciliation, not navigation
+  // motion. Keep the reader's distance from the tail exact while following;
+  // the library's user-escape state still decides whether it may move at all.
+  // A smooth resize spring both lags streaming and can strand terminal Shiki /
+  // content-visibility growth above the tail after the spring gives up.
   const currentRoot = useCurrentRootMaterial();
   const running = currentRoot.running;
   const terminalTurnIndex = currentRoot.terminalTurnIndex(rows);
-  const motionOff = useMotionOff();
   const stickContextRef = useRef<StickToBottomContext>(null);
-  const initialSettleFrameRef = useRef<number | null>(null);
 
-  useEffect(
-    () => () => {
-      if (initialSettleFrameRef.current !== null) {
-        cancelAnimationFrame(initialSettleFrameRef.current);
-      }
-    },
-    [],
-  );
+  // The library observes geometry, but an async Markdown renderer mutates its
+  // subtree before the resulting size/scroll events. At first mount those later
+  // events can make the library classify its own layout correction as an escape
+  // and strand the tail. Reconcile in the mutation microtask, while the library's
+  // authoritative follow bit still describes the position before that layout.
+  // A real wheel/scroll escape flips it false, so this observer never writes a
+  // reader-owned position and owns no parallel scroll state or clock.
+  useLayoutEffect(() => {
+    const stickContext = stickContextRef.current;
+    const viewport = stickContext?.scrollRef.current;
+    const content = viewport?.firstElementChild;
+    if (!stickContext || !viewport || !content) return;
+
+    const observer = new MutationObserver(() => {
+      const current = stickContextRef.current;
+      const currentViewport = current?.scrollRef.current;
+      if (!current?.isAtBottom || !currentViewport) return;
+      currentViewport.scrollTop = currentViewport.scrollHeight;
+    });
+    observer.observe(content, { childList: true, characterData: true, subtree: true });
+    return () => observer.disconnect();
+  }, [sessionId]);
 
   // Keep the scroll library behind MessageStream's local controller. The
   // parent owns shared composer/transcript geometry, but it should not know
@@ -232,30 +241,18 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
         const viewport = stickContext?.scrollRef.current;
         if (!viewport) return;
 
-        if (initialSettleFrameRef.current !== null) {
-          cancelAnimationFrame(initialSettleFrameRef.current);
-        }
-
-        const settleUntil = performance.now() + INITIAL_BOTTOM_SETTLE_MS;
-        const pinCurrentBottom = () => {
-          const currentViewport = stickContextRef.current?.scrollRef.current;
-          if (!currentViewport) {
-            initialSettleFrameRef.current = null;
-            return;
-          }
-
-          // Reading scrollHeight commits the parent's newly-published composer
-          // clearance. Pinning the real DOM value for this bounded mount window
-          // also covers Markdown and syntax highlighting that resolve on an
-          // adjacent frame without letting a library animation retain a stale
-          // target. After the window, the library regains normal escape rules.
-          currentViewport.scrollTop = currentViewport.scrollHeight;
-          initialSettleFrameRef.current =
-            performance.now() < settleUntil ? requestAnimationFrame(pinCurrentBottom) : null;
-        };
-
-        pinCurrentBottom();
-        void stickContext?.scrollToBottom({
+        // Reading scrollHeight commits the parent's just-published composer
+        // clearance before the library calculates its first target. From the
+        // following frame onward, its ResizeObserver owns late Markdown/code
+        // growth. `ignoreEscapes` covers only that library-owned initial
+        // reconciliation: content-visibility can replace estimated heights on
+        // adjacent frames and its scroll events are not reader intent. Once the
+        // instant reconciliation has no pending target the library clears the
+        // animation, and its ordinary wheel/scroll escape owns every later
+        // interaction. A bounded RAF loop here used to overwrite a reader-owned
+        // position until its unrelated clock expired.
+        viewport.scrollTop = viewport.scrollHeight;
+        void stickContext.scrollToBottom({
           animation: "instant",
           ignoreEscapes: true,
         });
@@ -279,11 +276,10 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
       contextRef={stickContextRef}
       className="panel-scroll msg-scroll"
       initial="instant"
-      // A transcript that eases itself into place is motion, and motion is a
-      // preference. The scroll library has no idea the user turned it off, so
-      // the one place that knows tells it — otherwise "reduce motion" leaves
-      // the one surface that moves most still moving.
-      resize={running || motionOff ? "instant" : "smooth"}
+      // Height reconciliation preserves a reading position; it is not a page
+      // transition. Making it springy introduces lag and a moving target even
+      // for people who never asked the transcript to move.
+      resize="instant"
     >
       {/* `msg-scroll-viewport` names the element that actually scrolls. The
           library renders it itself, one level inside the class above, so anything
