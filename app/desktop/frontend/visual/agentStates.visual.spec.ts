@@ -93,7 +93,7 @@ test("question settlement uses the exact interrupt identity", async ({ page }) =
   await page.goto("/visual/?fixture=agent&theme=light&state=question");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  await page.getByRole("button", { name: /Race detector/ }).click();
+  await page.getByRole("radio", { name: /Race detector/ }).click();
   await page.getByRole("button", { name: "Submit" }).click();
 
   await expect(page.getByText("Answered", { exact: true })).toBeVisible();

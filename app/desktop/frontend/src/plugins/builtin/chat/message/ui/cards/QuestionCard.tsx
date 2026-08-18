@@ -1,5 +1,5 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
-import { useState } from "react";
+import { useId, useState, type KeyboardEvent } from "react";
 import { Button, Icon, Pressable, Surface, TextField } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
@@ -43,6 +43,7 @@ interface Props {
 //      projection; an unaccepted/canceled question has no answers.
 export function QuestionCard({ status, runId, itemId, questions, answered, answers }: Props) {
   const t = useT();
+  const questionCardId = useId();
   const runtimeAvailable = useRuntimeCommandsAvailable();
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
   const actions = useQuestionCardActions({ runId, itemId, status, questions, draft });
@@ -77,6 +78,38 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
     );
   }
 
+  const handleSingleChoiceKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    questionIndex: number,
+    question: QuestionItem,
+    optionIndex: number,
+  ) => {
+    if (question.type !== "choice" || question.multiple) return;
+
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      nextIndex = (optionIndex + 1) % question.options.length;
+    } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      nextIndex = (optionIndex - 1 + question.options.length) % question.options.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = question.options.length - 1;
+    } else if (/^[1-9]$/.test(event.key)) {
+      const numberedIndex = Number(event.key) - 1;
+      if (numberedIndex < question.options.length) nextIndex = numberedIndex;
+    }
+
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    const next = question.options[nextIndex];
+    if (!next) return;
+    setDraft((previous) => toggleQuestionOption(previous, questionIndex, question, next.label));
+    const options =
+      event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]');
+    options?.[nextIndex]?.focus();
+  };
+
   return (
     <HitlCardShell
       variant="neutral"
@@ -87,6 +120,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
       <div className="flex flex-col gap-3">
         {questions.map((q, index) => {
           const cur = draft[index] ?? { selected: [], text: "" };
+          const promptId = `${questionCardId}-prompt-${index}`;
           return (
             <div key={index} className="flex flex-col gap-1.5">
               {(q.header || (q.type === "choice" && q.multiple)) && (
@@ -103,36 +137,78 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                   )}
                 </div>
               )}
-              <div className="text-ui-md font-semibold leading-body text-fg">{q.prompt}</div>
+              <div id={promptId} className="text-ui-md font-semibold leading-body text-fg">
+                {q.prompt}
+              </div>
 
               {q.type === "choice" && (
-                <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
-                  {q.options.map((opt) => {
+                <div
+                  role={q.multiple ? "group" : "radiogroup"}
+                  aria-labelledby={promptId}
+                  className="grid grid-cols-[minmax(0,1fr)] gap-1"
+                >
+                  {q.options.map((opt, optionIndex) => {
                     const active = cur.selected.includes(opt.label);
                     return (
                       <Pressable
                         key={opt.label}
                         type="button"
-                        aria-pressed={active}
+                        role={q.multiple ? "checkbox" : "radio"}
+                        aria-checked={active}
+                        tabIndex={
+                          q.multiple || active || (!cur.selected.length && optionIndex === 0)
+                            ? 0
+                            : -1
+                        }
                         onClick={() =>
                           setDraft((prev) => toggleQuestionOption(prev, index, q, opt.label))
                         }
+                        onKeyDown={(event) =>
+                          handleSingleChoiceKeyDown(event, index, q, optionIndex)
+                        }
                         className={cn(
-                          "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-2.5 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
-                          active ? "border-accent-edge bg-accent-wash" : "bg-sunken hover:bg-hover",
+                          "group/choice flex min-h-8 items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
+                          active ? "bg-hover" : "hover:bg-hover",
                         )}
                       >
-                        <span className="text-ui-md font-medium text-fg">{opt.label}</span>
-                        {opt.description && (
-                          <span className="text-ui-sm leading-body text-fg-muted">
-                            {opt.description}
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "mt-0.5 grid size-4 shrink-0 place-items-center border text-ui-xs leading-none font-medium",
+                            q.multiple ? "rounded-2xs" : "rounded-full",
+                            active
+                              ? "border-accent bg-accent text-on-accent"
+                              : "border-field text-fg-muted",
+                          )}
+                        >
+                          {active && q.multiple ? (
+                            <Icon name="check" size="xs" />
+                          ) : active ? (
+                            <span className="size-1.5 rounded-full bg-current" />
+                          ) : q.multiple ? null : (
+                            optionIndex + 1
+                          )}
+                        </span>
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="flex min-w-0 items-baseline gap-2">
+                            <span className="min-w-0 max-w-1/2 shrink-0 truncate text-ui-md font-medium text-fg">
+                              {opt.label}
+                            </span>
+                            {opt.description && (
+                              <span
+                                title={opt.description}
+                                className="min-w-0 flex-1 truncate text-ui-sm leading-body text-fg-muted"
+                              >
+                                {opt.description}
+                              </span>
+                            )}
                           </span>
-                        )}
-                        {opt.preview && (
-                          <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-ui-sm text-fg-muted">
-                            {opt.preview}
-                          </code>
-                        )}
+                          {opt.preview && (
+                            <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-ui-sm text-fg-muted">
+                              {opt.preview}
+                            </code>
+                          )}
+                        </span>
                       </Pressable>
                     );
                   })}
