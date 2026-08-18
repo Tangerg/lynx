@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { getHighlighter } from "@/lib/highlight/shiki";
 import { MarkdownMessage } from "./MarkdownMessage";
@@ -154,6 +154,18 @@ describe("markdownMessage", () => {
     );
     expect(gallery).toBeTruthy();
     expect(gallery?.querySelectorAll(":scope > button")).toHaveLength(2);
+  });
+
+  it("navigates between Markdown images inside one Codex preview gallery", () => {
+    const first =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const second = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    render(<MarkdownMessage text={`![Before](${first}) ![After](${second})`} reveal="instant" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Before" }));
+    expect(screen.getByRole("dialog", { name: "Before" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next image" }));
+    expect(screen.getByRole("dialog", { name: "After" })).toBeTruthy();
   });
 
   it("keeps GFM tables semantic and exposes the Codex copy action", async () => {
