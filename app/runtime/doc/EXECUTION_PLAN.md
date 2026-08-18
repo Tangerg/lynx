@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P115 已完成并形成里程碑；当前无新的生产实施授权。
+> 状态：P0–P115 已完成并形成里程碑；P116 正在实施。
 >
-> 最近基线：2026-08-18，P115 完整验收。
+> 最近基线：2026-08-18，P115 完整验收；P116 C1 红例已建立。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,11 +15,12 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P115 已于 2026-08-18 完成，设计与验收 owner 为
-  [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md)。
-- Batch 0–6 已依次完成反例与 owner 冻结、Mutation Journal 重建、Frontend lifecycle publication/retirement 收敛、无独立不变量分层合并、Runtime Bootstrap capsule 化、Runs 执行交接对象化，以及注释/长期门禁/真实生产验收。
-- 当前没有新的生产代码 Goal；下一阶段必须重新满足第 6 节准入，不能把 P115 的 breaking 授权延续为开放范围。
-- P115 未修改或暂存 `app/cli`，并保留所有无关工作区改动。
+- P116 已于 2026-08-18 获得实施授权，唯一设计与验收范围为
+  [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md) 第 12 节 C1–C3；P115 的其他 breaking surface 不延续。
+- C1 的行为红例已证明：`ClaimResume` 把 durable interrupt 置为 `resuming` 后，continuation opening 失败仍走 open-only `ApplyRunLost`，因而无法提交补偿，也不能释放已 staged 的 exact executor。修复只能由 claimed Resume owner 使用其已持有的 claim 提交匹配 `resuming` 的唯一 terminal write-set，durable commit 后才释放 executor；普通 `Get`、fallback、retry 和第二 recovery path 不得扩张。
+- C2 必须先证明同一 Desktop、同一 durable namespace 仅更换 transport binding 时，未决 mutation 是否被错误退休；若红例成立，直接从当前 journal identity/storage shape 删除 endpoint，不保留 alias、registry、migration 或兼容双读。
+- C3 只审计 `check:published-boundaries` 的 exported object-literal 语法规则是否阻止真实跨 context/public surface 泄露；无独立行为价值即删除该语法规则，继续保留 import DAG、published surface 和 consumer ownership 守卫。
+- 每项先红测再修改、独立提交推送；最终运行 Frontend 全门禁与 async leak、Runtime standalone/race、Desktop Wails production build、fresh database 冷启动及真实 Runtime restart/SIGKILL。P116 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
 
 ## 2. 长期产品与架构约束
 
@@ -88,6 +89,8 @@ P113–P115 共同建立了以下不可回退的心智模型：
 P115 已完成上述准入审计：R1–R5 均由审计时的生产代码和既有交错测试证明，定向基线为 6 个 Frontend test files / 86 tests 全绿。审计时 Mutation Journal 同时拥有三代 persisted codec、renderer/process ownership、heartbeat/leader election 与 command settlement；15 个业务对象重复 static publication/retirement；静态 contribution factory 存在无独立消费者和不变量的 application 层；Bootstrap 的宽 Stack/foundation 与 Runs 的跨纵切 Coordinator 均有真实传播和认知热点。参考实现只提供 identity、actor/capsule 与 settlement 机制证据，不改变 Lyra 的单 Desktop、单逻辑 Runtime、单窗口和既有领域合同。
 
 P115 后复核校正了后续工作的产品模型：进程/connection incarnation 不是逻辑 server generation，transport endpoint 也不是 durable store identity。复核只保留能在一个 Desktop 与一个逻辑 Runtime 中证明的候选问题，包括 claimed Resume 进入 `resuming` 后的失败补偿是否还能读取并终结该 claim，以及当前 Mutation Journal 把 endpoint 纳入 durable scope 是否错误耦合了 binding 与 store identity。它们必须先形成红色行为测试，不能通过 open/resuming 双读、endpoint alias、fallback、retry 或新增通用 generation layer 修补。详细范围见 [`inspiration/MAINTAINABILITY_CONVERGENCE.md`](inspiration/MAINTAINABILITY_CONVERGENCE.md) 第 12 节；该记录不构成新的生产实施授权。
+
+P116 C1 已形成真实状态语义红例：`ClaimResume` 成功后，普通 `Get` 只投影 `open`，原 `claimedResumeAttempt.fail → ApplyRunLost` 因而无法读取自己的 `resuming` claim；RunLost 未提交时 staged executor 也按既有次序保持占有。修复没有扩张普通读取或增加 recovery path：claimed owner 直接携带 claim 返回的 immutable `Pending`，Sessions 由该事实生成现有 terminal plan，并标明只能消费 claimed Resume；SQLite write-set 只删除同 Session/root Run/root member 且 `state='resuming'` 的行，随后在同一事务 terminalize Run tree，commit 成功后原 owner 才释放 exact executor。正反测试同时证明该写集不能删除普通 `open` barrier 或不同 root member 的 claim。
 
 Batch 1 已删除 Mutation Journal 的 legacy codec、migration、persisted owner/lease、heartbeat、leader election、claimable 与 settled 状态。当前唯一 storage shape 只持久化未决命令的 salted fingerprint、idempotency key、Runtime endpoint/namespace 和 retention boundary；请求参数不落盘。renderer 提交权由进程内 exact object identity 拥有，replacement 先发布 successor 再同步退休 predecessor；前任迟到 response、error 和 dispose 均不能删除或结算后继身份。相同 Runtime store 可从未决记录恢复 exact key，endpoint/namespace replacement 则删除旧 scope 并生成新身份。定向验收覆盖 3 个 test files / 44 tests。
 

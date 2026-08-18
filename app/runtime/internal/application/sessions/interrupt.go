@@ -70,6 +70,27 @@ func (c *Coordinator) ApplyRunLost(ctx context.Context, sessionID, runID string,
 	return err
 }
 
+// ApplyClaimedRunLost ends the exact hand-off already owned by a successful
+// Resume claim. It uses the Pending value returned by that claim; the ordinary
+// open-interrupt projection intentionally does not expose a resuming row.
+func (c *Coordinator) ApplyClaimedRunLost(ctx context.Context, pending runs.Pending, finishedAt time.Time) error {
+	if finishedAt.IsZero() {
+		return fmt.Errorf("sessions: terminalize claimed Resume %q: finished time is required", pending.RootRunID)
+	}
+	if err := pending.Validate(); err != nil {
+		return fmt.Errorf("sessions: terminalize claimed Resume %q: %w", pending.RootRunID, err)
+	}
+	_, err := c.terminalizePendingRun(
+		ctx,
+		pending,
+		finishedAt,
+		rundomain.OutcomeLost,
+		"",
+		true,
+	)
+	return err
+}
+
 func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome rundomain.Outcome, detail string) (rundomain.Run, error) {
 	if finishedAt.IsZero() {
 		return rundomain.Run{}, fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
@@ -81,13 +102,25 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	if !found || pending.SessionID != sessionID {
 		return rundomain.Run{}, fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
 	}
-	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
+	return c.terminalizePendingRun(ctx, pending, finishedAt, outcome, detail, false)
+}
+
+func (c *Coordinator) terminalizePendingRun(
+	ctx context.Context,
+	pending runs.Pending,
+	finishedAt time.Time,
+	outcome rundomain.Outcome,
+	detail string,
+	resumeClaimed bool,
+) (rundomain.Run, error) {
+	snapshot, err := c.snapshots.ReadSnapshot(ctx, pending.SessionID)
 	if err != nil {
 		return rundomain.Run{}, err
 	}
 	plan, rootRun, err := (parkedRunTerminalization{
-		sessionID: sessionID, rootRunID: runID, finishedAt: finishedAt,
+		sessionID: pending.SessionID, rootRunID: pending.RootRunID, finishedAt: finishedAt,
 		outcome: outcome, detail: detail, pending: pending, snapshot: snapshot,
+		resumeClaimed: resumeClaimed,
 	}).build()
 	if err != nil {
 		return rundomain.Run{}, err
@@ -104,12 +137,12 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		runIDs[index] = run.ID()
 	}
 	notices := []invalidation.Notice{
-		invalidation.InSession(invalidation.Runs, sessionID, runIDs...),
-		invalidation.InSession(invalidation.Interrupts, sessionID, runID),
-		invalidation.InSession(invalidation.Sessions, sessionID),
+		invalidation.InSession(invalidation.Runs, pending.SessionID, runIDs...),
+		invalidation.InSession(invalidation.Interrupts, pending.SessionID, pending.RootRunID),
+		invalidation.InSession(invalidation.Sessions, pending.SessionID),
 	}
 	if plan.GoalRun != nil {
-		notices = append(notices, invalidation.InSession(invalidation.Goals, sessionID))
+		notices = append(notices, invalidation.InSession(invalidation.Goals, pending.SessionID))
 	}
 	c.invalidations.Notify(notices...)
 	return rootRun, nil

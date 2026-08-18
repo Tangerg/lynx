@@ -18,13 +18,14 @@ import (
 // one waiting Run tree. It combines a coherent Session snapshot with the exact
 // Pending hand-off, but owns neither persistence nor executor cleanup.
 type parkedRunTerminalization struct {
-	sessionID  string
-	rootRunID  string
-	finishedAt time.Time
-	outcome    rundomain.Outcome
-	detail     string
-	pending    runs.Pending
-	snapshot   Snapshot
+	sessionID     string
+	rootRunID     string
+	finishedAt    time.Time
+	outcome       rundomain.Outcome
+	detail        string
+	pending       runs.Pending
+	snapshot      Snapshot
+	resumeClaimed bool
 }
 
 func (terminalization parkedRunTerminalization) build() (TerminalPlan, rundomain.Run, error) {
@@ -79,7 +80,7 @@ func (terminalization parkedRunTerminalization) build() (TerminalPlan, rundomain
 	}
 	plan := TerminalPlan{
 		Runs: terminalRuns, Items: items, Messages: conversationMessages,
-		CheckpointRootID: root.MemberID,
+		CheckpointRootID: root.MemberID, ResumeClaimed: terminalization.resumeClaimed,
 	}
 	if rootRun.GoalIncarnationID() != "" {
 		record := terminalGoalRun(rootRun)

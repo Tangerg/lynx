@@ -219,6 +219,14 @@ func (*delegateSessionStore) ApplyRunLost(
 	return errors.New("unexpected Run loss")
 }
 
+func (*delegateSessionStore) ApplyClaimedRunLost(
+	context.Context,
+	runs.Pending,
+	time.Time,
+) error {
+	return errors.New("unexpected claimed Resume loss")
+}
+
 type delegateProjection struct {
 	mu           sync.Mutex
 	openings     []runs.OpeningCommit

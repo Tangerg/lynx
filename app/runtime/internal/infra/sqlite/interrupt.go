@@ -444,6 +444,40 @@ func (s *InterruptStore) Delete(ctx context.Context, sessionID, runID string) er
 	return s.rejectForeignPendingOwner(ctx, sessionID, runID)
 }
 
+// DeleteResumeClaim consumes only the answer claim owned by a failed Resume.
+// It leaves ordinary open reads unchanged and cannot delete a replacement open
+// barrier that reuses the same root Run identity.
+func (s *InterruptStore) DeleteResumeClaim(
+	ctx context.Context,
+	sessionID, runID, rootMemberID string,
+) error {
+	if err := validatePendingOwner(sessionID, runID); err != nil {
+		return fmt.Errorf("sqlite: delete Resume claim: %w", err)
+	}
+	if strings.TrimSpace(rootMemberID) == "" || rootMemberID != strings.TrimSpace(rootMemberID) {
+		return errors.New("sqlite: delete Resume claim: root member ID must be non-empty without surrounding whitespace")
+	}
+	result, err := conn(ctx, s.db).ExecContext(ctx,
+		`DELETE FROM interrupts
+		  WHERE session_id = ? AND root_run_id = ? AND root_member_id = ? AND state = 'resuming'`,
+		sessionID, runID, rootMemberID,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: delete Resume claim: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect deleted Resume claim: %w", err)
+	}
+	if deleted == 1 {
+		return nil
+	}
+	if err := s.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
+		return err
+	}
+	return fmt.Errorf("sqlite: matching resuming interrupt for root Run %q was not found", runID)
+}
+
 func validatePendingOwner(sessionID, rootRunID string) error {
 	if strings.TrimSpace(sessionID) == "" || sessionID != strings.TrimSpace(sessionID) {
 		return errors.New("session ID must be non-empty without surrounding whitespace")

@@ -462,7 +462,12 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, terminal sessions.Ter
 				return fmt.Errorf("persistence: append terminal conversation messages: %w", err)
 			}
 		}
-		if err := s.clearParkedRunState(ctx, root, terminal.CheckpointRootID); err != nil {
+		if err := s.clearParkedRunState(
+			ctx,
+			root,
+			terminal.CheckpointRootID,
+			terminal.ResumeClaimed,
+		); err != nil {
 			return err
 		}
 		if err := s.terminalizeParkedRuns(ctx, terminal.Runs); err != nil {
@@ -481,7 +486,12 @@ func (s *SessionStores) appendTranscriptItems(ctx context.Context, items []trans
 	return nil
 }
 
-func (s *SessionStores) clearParkedRunState(ctx context.Context, root rundomain.Run, checkpointRootID string) error {
+func (s *SessionStores) clearParkedRunState(
+	ctx context.Context,
+	root rundomain.Run,
+	checkpointRootID string,
+	resumeClaimed bool,
+) error {
 	if checkpointRootID != "" {
 		if err := s.executorCheckpoints.DeleteCheckpoints(ctx, root.SessionID(), []string{checkpointRootID}); err != nil {
 			return err
@@ -489,7 +499,16 @@ func (s *SessionStores) clearParkedRunState(ctx context.Context, root rundomain.
 	}
 	// Delete the interrupt before the terminal write: while it exists the Run is
 	// parked on it, and a Run cannot be both finished and waiting.
-	if err := s.interrupts.Delete(ctx, root.SessionID(), root.ID()); err != nil {
+	if resumeClaimed {
+		if err := s.interrupts.DeleteResumeClaim(
+			ctx,
+			root.SessionID(),
+			root.ID(),
+			checkpointRootID,
+		); err != nil {
+			return err
+		}
+	} else if err := s.interrupts.Delete(ctx, root.SessionID(), root.ID()); err != nil {
 		return err
 	}
 	return s.deleteChildRunStarts(ctx, root.SessionID())

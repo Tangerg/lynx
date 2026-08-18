@@ -42,6 +42,25 @@ type fakeRunSessions struct {
 	operations     *[]string
 }
 
+// claimedResumeSessions models the durable visibility change made by
+// ClaimResume: once the row is resuming, the ordinary open-interrupt recovery
+// path cannot read it back.
+type claimedResumeSessions struct {
+	*fakeRunSessions
+	claimed bool
+}
+
+func (sessions *claimedResumeSessions) ApplyRunLost(
+	ctx context.Context,
+	sessionID, runID string,
+	finishedAt time.Time,
+) error {
+	if sessions.claimed {
+		return errors.New("open interrupt not found after resume claim")
+	}
+	return sessions.fakeRunSessions.ApplyRunLost(ctx, sessionID, runID, finishedAt)
+}
+
 type completeTestSessionPorts interface {
 	SessionReader
 	SessionCreator
@@ -126,6 +145,14 @@ func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, sessionID, runID, re
 }
 
 func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string, finishedAt time.Time) error {
+	return f.applyRunLost(runID, finishedAt)
+}
+
+func (f *fakeRunSessions) ApplyClaimedRunLost(_ context.Context, pending Pending, finishedAt time.Time) error {
+	return f.applyRunLost(pending.RootRunID, finishedAt)
+}
+
+func (f *fakeRunSessions) applyRunLost(runID string, finishedAt time.Time) error {
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "durable.lost")
 	}
@@ -1267,6 +1294,58 @@ func TestResumeOpeningFailureMarksClaimedRunLostBeforeReleasingTree(t *testing.T
 	}
 	if sessions.lostRunID != "run_1" || len(control.released) != 1 {
 		t.Fatalf("lost Run/released tree = %q/%+v, want run_1 and one release", sessions.lostRunID, control.released)
+	}
+	if !slices.Equal(operations, []string{"durable.lost", "executor.release"}) {
+		t.Fatalf("cleanup operations = %v, want durable.lost then executor.release", operations)
+	}
+}
+
+func TestResumeOpeningFailureCompensatesTheResumingClaimBeforeReleasingTree(t *testing.T) {
+	var operations []string
+	openingErr := errors.New("opening commit failed")
+	sessions := &claimedResumeSessions{fakeRunSessions: &fakeRunSessions{
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
+		pending: map[string]Pending{
+			"run_1": testApprovalPending("member_1", time.Now().UTC()),
+		},
+		operations: &operations,
+	}}
+	control := &fakeExecutionPorts{
+		prepared:   ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+		operations: &operations,
+	}
+	coordinator := newUseCaseCoordinator(
+		&fakeExecutor{},
+		control,
+		sessions.fakeRunSessions,
+		&fakeEffects{
+			openingErr: openingErr,
+			mutateClaim: func(*ClaimedResume) {
+				sessions.claimed = true
+			},
+		},
+	)
+	coordinator.terminations = sessions
+
+	_, err := coordinator.Resume(t.Context(), ResumeCommand{
+		RunID: "run_1",
+		CallerCapabilities: run.Capabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Approval},
+		},
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
+	})
+	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, openingErr) {
+		t.Fatalf("Resume error = %v, want Run not found wrapping opening failure", err)
+	}
+	if sessions.lostRunID != "run_1" || len(control.released) != 1 {
+		t.Fatalf(
+			"claimed RunLost/released tree = %q/%+v, want run_1 and one release",
+			sessions.lostRunID,
+			control.released,
+		)
 	}
 	if !slices.Equal(operations, []string{"durable.lost", "executor.release"}) {
 		t.Fatalf("cleanup operations = %v, want durable.lost then executor.release", operations)

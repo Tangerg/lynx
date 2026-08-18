@@ -178,6 +178,10 @@ type TerminalPlan struct {
 	// the same transaction before the terminal Run watermark is committed.
 	Messages         []chat.Message
 	CheckpointRootID string
+	// ResumeClaimed requires persistence to consume the resuming interrupt owned
+	// by a failed Resume attempt. Ordinary parked termination consumes an open
+	// interrupt instead.
+	ResumeClaimed bool
 	// GoalRun is present exactly when the root Run was admitted by an autonomous Goal.
 	// Keeping it in the same write-set makes every terminal path—not only the
 	// normal reducer path—charge the incarnation atomically with the Run transition.
@@ -222,6 +226,10 @@ func (plan TerminalPlan) Validate() error {
 		ownedRuns[run.ID()] = struct{}{}
 		actualOrder = append(actualOrder, run.ID())
 		members = append(members, rundomain.TreeMember{RunID: run.ID(), Lineage: run.Lineage()})
+	}
+	rootOutcome, _ := root.Outcome()
+	if plan.ResumeClaimed && rootOutcome != rundomain.OutcomeLost {
+		return errors.New("sessions: claimed Resume terminal plan must recover a lost Run")
 	}
 	tree, err := rundomain.NewTree(root.ID(), members)
 	if err != nil {

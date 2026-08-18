@@ -338,6 +338,59 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	}
 }
 
+func TestApplyTerminalRecoversClaimedResumeAtomically(t *testing.T) {
+	ss, runs, ints := newWriteSetFixture(t)
+	ctx := t.Context()
+	memberID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
+	pending, found, err := ints.Get(ctx, "run_1")
+	if err != nil || !found {
+		t.Fatalf("read open interrupt: found=%t err=%v", found, err)
+	}
+	answers := []runsapp.InterruptAnswer{{
+		InterruptItemID: pending.Bindings[0].InterruptItemID,
+		MemberID:        pending.Bindings[0].MemberID,
+		RequestID:       pending.Bindings[0].RequestID,
+		Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
+	}}
+	if _, found, err := ints.ClaimResume(
+		ctx,
+		pending.SessionID,
+		pending.RootRunID,
+		answers,
+		parkCreatedAt.Add(time.Second),
+	); err != nil || !found {
+		t.Fatalf("ClaimResume: found=%t err=%v", found, err)
+	}
+	if _, open, err := ints.Get(ctx, pending.RootRunID); err != nil || open {
+		t.Fatalf("open interrupt after claim = open:%t err:%v", open, err)
+	}
+
+	parked, found, err := runs.Run(ctx, pending.RootRunID)
+	if err != nil || !found {
+		t.Fatalf("read parked Run: found=%t err=%v", found, err)
+	}
+	finishedAt := parkCreatedAt.Add(time.Minute)
+	terminal, err := parked.RecoverLost(run.Failure{Kind: run.FailureLost}, finishedAt, 0)
+	if err != nil {
+		t.Fatalf("recover parked Run: %v", err)
+	}
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
+		Runs: []run.Run{terminal}, CheckpointRootID: memberID, ResumeClaimed: true,
+	}); err != nil {
+		t.Fatalf("ApplyTerminal claimed Resume: %v", err)
+	}
+	if err := ints.RequireResumeClaim(ctx, pending.SessionID, pending.RootRunID); err == nil {
+		t.Fatal("claimed Resume interrupt survived terminal write-set")
+	}
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, memberID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after claimed RunLost = %v, want not found", err)
+	}
+	stored, found, err := runs.Run(ctx, pending.RootRunID)
+	if err != nil || !found || stored.State() != run.Failed {
+		t.Fatalf("claimed Resume Run after terminal write-set = found:%t value:%+v err:%v", found, stored, err)
+	}
+}
+
 func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()

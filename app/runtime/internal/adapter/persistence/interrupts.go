@@ -133,6 +133,13 @@ func (store *InterruptStore) Delete(ctx context.Context, sessionID, rootRunID st
 	return store.storage.Delete(ctx, sessionID, rootRunID)
 }
 
+func (store *InterruptStore) DeleteResumeClaim(
+	ctx context.Context,
+	sessionID, rootRunID, rootMemberID string,
+) error {
+	return store.storage.DeleteResumeClaim(ctx, sessionID, rootRunID, rootMemberID)
+}
+
 func pendingValues(records []sqlite.InterruptRecord) ([]runs.Pending, error) {
 	values := make([]runs.Pending, len(records))
 	for index, record := range records {

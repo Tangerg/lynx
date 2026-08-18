@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照。
+> 状态：当前能力快照；P116 C1 已实施，C2–C3 待处理。
 >
 > 基线日期：2026-08-18。
 
@@ -32,7 +32,7 @@
 - Run pump 是 authoritative model/tool observation 的唯一 reducer owner；外部调用事实只有在完整 write-set 提交后才能替换 live state。
 - `sessions.snapshot` 在一个应用用例中校验并组装挂载 Session 的 HITL、Plan、Goal、Run、Tool material closure。
 - fresh start、resume、child admission、waiting barrier、cancellation 和 terminalization 都有明确 command identity 与事务结算规则。
-- staged executor 在 Segment opening 前由 `stagedExecutionHandoff` 唯一拥有；claimed Resume 由 `claimedResumeAttempt` 统一执行 durable `RunLost` 后的 continuation cleanup，不再依赖每个错误分支手写补偿。
+- staged executor 在 Segment opening 前由 `stagedExecutionHandoff` 唯一拥有；claimed Resume 由 `claimedResumeAttempt` 直接携带 claim 返回的 immutable `Pending` 提交匹配 `resuming` 的 terminal write-set，durable `RunLost` 成功后才释放 exact continuation executor，不再重读 open projection 或依赖每个错误分支手写补偿。
 
 ### 2.3 Adapter / Infra / Delivery
 

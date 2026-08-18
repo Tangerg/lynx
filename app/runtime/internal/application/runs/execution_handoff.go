@@ -112,10 +112,9 @@ func (attempt *claimedResumeAttempt) fail(ctx context.Context, cause error) erro
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	if err := attempt.terminations.ApplyRunLost(
+	if err := attempt.terminations.ApplyClaimedRunLost(
 		cleanupCtx,
-		attempt.pending.SessionID,
-		attempt.pending.RootRunID,
+		attempt.pending,
 		attempt.nowUTC(),
 	); err != nil {
 		// The durable waiting boundary still names this executor. Releasing it
