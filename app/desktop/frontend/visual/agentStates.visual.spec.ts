@@ -141,6 +141,14 @@ test("running composer exposes both steer and stop actions without unnamed contr
   await expect(page.getByRole("textbox", { name: "Message composer" })).toHaveValue("");
 });
 
+test("a running goal and turn expose distinct stop actions", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=running");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  await expect(page.getByRole("button", { name: "Stop goal", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(1);
+});
+
 test("plan disclosure expands through the production banner contribution", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
