@@ -457,6 +457,40 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+test("Markdown structural primitives follow the Codex reading grammar", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=long-content");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const markdown = page.locator(".md").filter({ hasText: "Structural primitives" });
+  const styles = await markdown.evaluate((root) => {
+    const primaryList = Array.from(root.querySelectorAll("ul")).find((list) =>
+      list.textContent?.includes("Primary marker"),
+    );
+    const nestedList = primaryList?.querySelector(":scope > li > ul");
+    const deepList = nestedList?.querySelector(":scope > li > ul");
+    const taskList = root.querySelector("ol.contains-task-list");
+    const quote = root.querySelector("blockquote");
+    const rule = root.querySelector("hr");
+    if (!nestedList || !deepList || !taskList || !quote || !rule) return null;
+    return {
+      nestedMarker: getComputedStyle(nestedList).listStyleType,
+      deepMarker: getComputedStyle(deepList).listStyleType,
+      taskMarker: getComputedStyle(taskList).listStyleType,
+      quoteInset: getComputedStyle(quote).paddingInlineStart,
+      quoteRule: getComputedStyle(quote, "::after").width,
+      ruleMargin: getComputedStyle(rule).marginBlockStart,
+    };
+  });
+
+  expect(styles).not.toBeNull();
+  expect.soft(styles?.nestedMarker).toBe("circle");
+  expect.soft(styles?.deepMarker).toBe("square");
+  expect.soft(styles?.taskMarker).toBe("none");
+  expect.soft(styles?.quoteInset).toBe("24px");
+  expect.soft(styles?.quoteRule).toBe("4px");
+  expect.soft(styles?.ruleMargin).toBe("28px");
+});
+
 // The three seams around the reading plane are one primitive, and the top one is the
 // easy one to lose: half a device pixel, so the raster comparison can pass on its
 // absence, and the bars sit in their region's own colour with the body scrolling
