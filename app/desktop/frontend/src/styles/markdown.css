@@ -241,7 +241,7 @@
   --md-table-gutter: var(--density-column-gutter);
   position: relative;
   width: calc(100% + 2 * var(--md-table-gutter));
-  margin: 10px calc(var(--md-table-gutter) * -1);
+  margin: 0 calc(var(--md-table-gutter) * -1);
 }
 @media (min-width: 640px) {
   .md-table-container {
@@ -297,7 +297,8 @@
   border-collapse: separate;
   border-spacing: 0;
   table-layout: auto;
-  font-size: var(--fs-ui-sm);
+  font-size: var(--fs-markdown-table);
+  line-height: var(--leading-markdown-table);
   width: fit-content;
   text-align: start;
 }
@@ -313,7 +314,8 @@
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text);
   font-weight: 600;
-  font-size: var(--fs-ui-xs);
+  font-size: inherit;
+  line-height: var(--leading-markdown-table-header);
 }
 .md table td {
   padding-block: 10px;

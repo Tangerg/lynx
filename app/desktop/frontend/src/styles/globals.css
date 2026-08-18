@@ -576,9 +576,12 @@
   --fs-markdown-h2: 20px;
   --fs-markdown-h3: 17px;
   --fs-markdown-h5: 15px;
+  --fs-markdown-table: 14px;
   --leading-markdown-heading: 1.25;
   --leading-markdown-subheading: 22px;
   --leading-markdown-minor: 20px;
+  --leading-markdown-table: 21px;
+  --leading-markdown-table-header: 16px;
 
   /* Icon ladder — first-paint defaults for the same base as the type ladder;
      applyFonts recomputes both together (lib/iconScale.ts). Stroke is in
