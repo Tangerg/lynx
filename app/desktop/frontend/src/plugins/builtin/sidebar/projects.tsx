@@ -68,7 +68,7 @@ export function ProjectsSection() {
   return (
     <>
       <SectionLabel
-        className="group/projects pt-0"
+        className="pt-0"
         trailing={
           <IconButton
             icon="plus"
@@ -77,7 +77,6 @@ export function ProjectsSection() {
             title={t("workIndex.action.addProject")}
             disabled={!actions.canCreateSessionInFolder}
             onClick={actions.chooseSessionFolder}
-            className="opacity-0 transition-opacity duration-[var(--dur-color)] group-hover/projects:opacity-100 focus-visible:opacity-100"
           />
         }
       >
