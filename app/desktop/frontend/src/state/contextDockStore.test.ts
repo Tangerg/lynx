@@ -139,6 +139,7 @@ describe("per-session scopes", () => {
     dock().rememberDockView("diff");
     dock().focusFile("src/runtime.ts");
     dock().setFileViewer("src/runtime.ts", 42);
+    dock().revealTool("call-from-retired-renderer");
 
     await vi.waitFor(() => expect(localStorage.getItem("lyra.context-dock")).not.toBeNull());
 
@@ -156,6 +157,8 @@ describe("per-session scopes", () => {
       lastViewId: "diff",
       fileFocus: { path: "src/runtime.ts", revision: 1 },
       fileViewer: { path: "src/runtime.ts", line: 42 },
+      selectedToolId: "",
+      expandedToolIds: new Set(),
     });
   });
 });
@@ -179,5 +182,37 @@ describe("tool selection inside a scope", () => {
   it("records a file viewer target with a default line", () => {
     dock().setFileViewer("a.ts");
     expect(dock().fileViewer).toEqual({ path: "a.ts", line: 0 });
+  });
+});
+
+describe("renderer storage validation", () => {
+  it("discards an older scope payload and restamps the current version", async () => {
+    localStorage.setItem(
+      "lyra.context-dock",
+      JSON.stringify({ state: { sessionScopes: [["stale", {}]] }, version: 0 }),
+    );
+
+    await useContextDockStore.persist.rehydrate();
+
+    expect(dock().sessionScopes.size).toBe(0);
+    const stored = JSON.parse(localStorage.getItem("lyra.context-dock") ?? "null") as {
+      version: number;
+    };
+    expect(stored.version).toBe(useContextDockStore.persist.getOptions().version);
+  });
+
+  it("falls back to empty memory when the current payload is malformed", async () => {
+    localStorage.setItem(
+      "lyra.context-dock",
+      JSON.stringify({
+        state: { sessionScopes: [["s1", { dockViewIds: "not-an-array" }]] },
+        version: useContextDockStore.persist.getOptions().version,
+      }),
+    );
+
+    await useContextDockStore.persist.rehydrate();
+
+    expect(dock().sessionScopes.size).toBe(0);
+    expect(dock().dockViewIds).toEqual([]);
   });
 });
