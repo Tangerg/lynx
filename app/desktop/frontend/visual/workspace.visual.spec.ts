@@ -12,6 +12,8 @@ import {
 // Named from the catalogue, not copied out of it. Three literals of this string lived
 // here, so changing the copy broke a test that has nothing to do with the copy.
 const SETTINGS_SEARCH = { name: en["settings.searchPlaceholder"]! };
+const ACTIVE_FILE_PATH =
+  "app/desktop/frontend/src/plugins/builtin/shell/kernel/panel/DockResizer.tsx";
 
 test.use({ viewport: { width: 1472, height: 900 } });
 
@@ -258,6 +260,7 @@ test("file and timeline tabs render through their production view plugins", asyn
   await page.getByRole("tab", { name: "File" }).click();
   await expect(page.getByTestId("active-dock-view")).toHaveText("file");
   const fileView = page.locator('[data-dock-view-id="file"]');
+  await expect(fileView.getByTitle(ACTIVE_FILE_PATH)).toBeVisible();
   await expect(fileView.getByText(/const currentWidth = readDockWidth/)).toBeVisible();
 
   await page.getByRole("tab", { name: "Timeline" }).click();
