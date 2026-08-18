@@ -54,9 +54,13 @@ function MessageBlockInner({
     () => new MessageVisibleMaterialOwner(sessionId, msg.id),
     [msg.id, sessionId],
   );
+  const acceptedActionMaterialization = messageActionMaterialization(row);
+  const visibleMaterialGeneration =
+    acceptedActionMaterialization === "active" ? visibleMaterialOwner : row;
   const actionMaterialization = useVisibleActionMaterialization(
     visibleMaterialOwner,
-    messageActionMaterialization(row),
+    acceptedActionMaterialization,
+    visibleMaterialGeneration,
   );
   const actionsVisibility = messageActionsVisibility({
     materialization: actionMaterialization,
@@ -90,7 +94,10 @@ function MessageBlockInner({
   return (
     <MessageContext.Provider value={messageContext}>
       <CitationContext.Provider value={citations}>
-        <MessageVisibleMaterialProvider owner={visibleMaterialOwner}>
+        <MessageVisibleMaterialProvider
+          owner={visibleMaterialOwner}
+          generation={visibleMaterialGeneration}
+        >
           {/* A caption line over a full-width body, not an avatar gutter beside a
             narrowed one. Who is speaking is a two-word fact you read once per
             turn; the reading measure is the thing you spend the whole turn

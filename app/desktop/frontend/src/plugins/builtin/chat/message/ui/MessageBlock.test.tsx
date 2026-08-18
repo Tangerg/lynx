@@ -1,12 +1,17 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { BlockCtx } from "./BlockRenderer";
 import { MessageBlock } from "./MessageBlock";
 import { MessageVisibleMaterialOwner } from "./messageVisibleMaterial";
 
+const { renderActionSlot } = vi.hoisted(() => ({ renderActionSlot: vi.fn() }));
+
 vi.mock("@/plugins/host/Slot", () => ({
-  Slot: ({ name }: { name: string }) => <div data-testid={name} />,
+  Slot: ({ name }: { name: string }) => {
+    renderActionSlot(name);
+    return <div data-testid={name} />;
+  },
 }));
 
 const CTX: BlockCtx = {
@@ -16,7 +21,10 @@ const CTX: BlockCtx = {
   textReveal: "smooth",
 };
 
-function row(status: "running" | "complete"): TranscriptRow {
+function row(
+  status: "running" | "complete",
+  text = "A deliberately long answer whose reveal still has a visible backlog.",
+): TranscriptRow {
   return {
     message: {
       id: "assistant-visible-material",
@@ -26,7 +34,7 @@ function row(status: "running" | "complete"): TranscriptRow {
         {
           kind: "text",
           itemId: "answer-visible-material",
-          text: "A deliberately long answer whose reveal still has a visible backlog.",
+          text,
           status,
         },
       ],
@@ -36,7 +44,45 @@ function row(status: "running" | "complete"): TranscriptRow {
   };
 }
 
+beforeEach(() => {
+  renderActionSlot.mockClear();
+  document.documentElement.removeAttribute("data-motion");
+});
+
+afterEach(() => {
+  document.documentElement.removeAttribute("data-motion");
+});
+
 describe("MessageBlock action materialization", () => {
+  it("revokes terminal actions before a late accepted text generation enters layout", async () => {
+    document.documentElement.setAttribute("data-motion", "off");
+    const { rerender } = render(
+      <MessageBlock
+        row={row("complete", "Settled answer.")}
+        ctx={CTX}
+        sessionId="session-visible-material"
+        isLast
+        isRunning={false}
+      />,
+    );
+    expect(await screen.findByTestId("message.actions")).toBeTruthy();
+    const predecessorActionRenders = renderActionSlot.mock.calls.length;
+
+    document.documentElement.removeAttribute("data-motion");
+    rerender(
+      <MessageBlock
+        row={row("complete", "Settled answer with a late accepted continuation.")}
+        ctx={CTX}
+        sessionId="session-visible-material"
+        isLast
+        isRunning={false}
+      />,
+    );
+
+    expect(screen.queryByTestId("message.actions")).toBeNull();
+    expect(renderActionSlot).toHaveBeenCalledTimes(predecessorActionRenders);
+  });
+
   it("does not mount terminal controls when root attention drops before the exact Run settles", () => {
     const exactRunStillStreaming = {
       ...row("complete"),
@@ -123,14 +169,42 @@ describe("MessageVisibleMaterialOwner", () => {
     const owner = new MessageVisibleMaterialOwner("session-owner", "message-owner");
     const predecessor = Symbol("predecessor");
     const successor = Symbol("successor");
+    const generation = {};
 
-    owner.observe(predecessor, false);
-    owner.observe(successor, false);
+    owner.observe(predecessor, generation, false);
+    owner.observe(successor, generation, false);
     owner.retire(predecessor);
 
-    expect(owner.actionsMaterialization("settled")).toBe("active");
+    expect(owner.actionsMaterialization("settled", generation)).toBe("active");
 
-    owner.observe(successor, true);
-    expect(owner.actionsMaterialization("settled")).toBe("settled");
+    owner.observe(successor, generation, true);
+    expect(owner.actionsMaterialization("settled", generation)).toBe("settled");
+  });
+
+  it("does not lend predecessor settlement to a successor accepted generation", () => {
+    const owner = new MessageVisibleMaterialOwner("session-owner", "message-owner");
+    const projection = Symbol("projection");
+    const predecessor = {};
+    const successor = {};
+
+    owner.observe(projection, predecessor, true);
+
+    expect(owner.actionsMaterialization("settled", successor)).toBe("active");
+
+    owner.observe(projection, successor, true);
+    expect(owner.actionsMaterialization("settled", successor)).toBe("settled");
+  });
+
+  it("does not publish when an active projection advances between active generations", () => {
+    const owner = new MessageVisibleMaterialOwner("session-owner", "message-owner");
+    const projection = Symbol("projection");
+    const changed = vi.fn();
+    owner.subscribe(changed);
+
+    owner.observe(projection, {}, false);
+    changed.mockClear();
+    owner.observe(projection, {}, false);
+
+    expect(changed).not.toHaveBeenCalled();
   });
 });
