@@ -579,6 +579,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     const proseParagraph = Array.from(root.querySelectorAll(":scope > p")).find((paragraph) =>
       paragraph.textContent?.includes("A deliberately long final paragraph"),
     );
+    const inlineCode = proseParagraph?.querySelector("code");
     const nestedList = primaryList?.querySelector(":scope > li > ul");
     const deepList = nestedList?.querySelector(":scope > li > ul");
     const rtlList = Array.from(root.querySelectorAll("ul")).find((list) =>
@@ -596,6 +597,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       !leadParagraph ||
       !(leadList instanceof HTMLUListElement) ||
       !proseParagraph ||
+      !inlineCode ||
       !nestedList ||
       !deepList ||
       !rtlList ||
@@ -612,6 +614,7 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
     const leadParagraphStyle = getComputedStyle(leadParagraph);
     const leadListStyle = getComputedStyle(leadList);
     const proseParagraphStyle = getComputedStyle(proseParagraph);
+    const inlineCodeStyle = getComputedStyle(inlineCode);
     const rtlListStyle = getComputedStyle(rtlList);
     return {
       h2Size: h2Style.fontSize,
@@ -621,6 +624,13 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
       leadParagraphMargin: `${leadParagraphStyle.marginBlockStart} ${leadParagraphStyle.marginBlockEnd}`,
       leadListMargin: `${leadListStyle.marginBlockStart} ${leadListStyle.marginBlockEnd}`,
       proseParagraphMargin: `${proseParagraphStyle.marginBlockStart} ${proseParagraphStyle.marginBlockEnd}`,
+      inlineCodeDecoration:
+        inlineCodeStyle.getPropertyValue("box-decoration-break") ||
+        inlineCodeStyle.getPropertyValue("-webkit-box-decoration-break"),
+      inlineCodeFontSize: inlineCodeStyle.fontSize,
+      inlineCodeRadius: inlineCodeStyle.borderRadius,
+      inlineCodeWordBreak: inlineCodeStyle.wordBreak,
+      inlineCodeWrap: inlineCodeStyle.overflowWrap,
       rtlDirection: rtlListStyle.direction,
       rtlStartPadding: rtlListStyle.paddingInlineStart,
       rtlEndPadding: rtlListStyle.paddingInlineEnd,
@@ -645,6 +655,11 @@ test("Markdown structural primitives follow the Codex reading grammar", async ({
   expect.soft(styles?.leadParagraphMargin).toBe("0px 10px");
   expect.soft(styles?.leadListMargin).toBe("0px 10px");
   expect.soft(styles?.proseParagraphMargin).toBe("0px 11px");
+  expect.soft(styles?.inlineCodeDecoration).toBe("clone");
+  expect.soft(styles?.inlineCodeFontSize).toBe("14.72px");
+  expect.soft(styles?.inlineCodeRadius).toBe("6px");
+  expect.soft(styles?.inlineCodeWordBreak).toBe("break-word");
+  expect.soft(styles?.inlineCodeWrap).toBe("anywhere");
   expect.soft(styles?.rtlDirection).toBe("rtl");
   expect.soft(styles?.rtlStartPadding).toBe("21px");
   expect.soft(styles?.rtlEndPadding).toBe("0px");
