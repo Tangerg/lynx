@@ -347,6 +347,68 @@ for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
   });
 }
 
+async function horizontallyClippedText(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    // Something the user can SEE reaches past the edge that clips it. `scrollWidth`
+    // alone cannot say that: it counts every box beyond the edge, including ones
+    // deliberately parked there. The context dock rests one full measure past the
+    // reading plane while hidden, so that returning is a slide rather than an
+    // appearance — and that made the plane report 336px of overflow that cuts no text.
+    //
+    // Asking whether a visible CHILD BOX sticks out is not enough, and getting that
+    // wrong would have quietly retired this whole check: the defect it was written for
+    // is a `pre` whose box fits its column exactly while its text runs past the end of
+    // it, so the boxes all agree and only the glyphs are gone. Measure the text.
+    const visibleContentPast = (el: HTMLElement, edge: number) => {
+      for (const child of el.querySelectorAll<HTMLElement>("*")) {
+        if (getComputedStyle(child).visibility === "hidden") continue;
+        if (child.getBoundingClientRect().right > edge + 1) return true;
+      }
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.nodeValue?.trim()) continue;
+        const owner = node.parentElement;
+        if (!owner || getComputedStyle(owner).visibility === "hidden") continue;
+        range.selectNodeContents(node);
+        if (range.getBoundingClientRect().right > edge + 1) return true;
+      }
+      return false;
+    };
+    for (const el of document.querySelectorAll<HTMLElement>("*")) {
+      // A 1-2px box holds no readable text by construction — that is how a
+      // screen-reader-only node is built, not a layout that ran out of room.
+      if (el.clientWidth <= 2 || el.clientHeight <= 2) continue;
+      if (el.scrollWidth <= el.clientWidth + 1) continue;
+      const style = getComputedStyle(el);
+      if (!(style.overflowX === "hidden" || style.overflowX === "clip")) continue;
+      if (style.textOverflow === "ellipsis") continue;
+      // The other way an edge admits it is an edge. An ellipsis does not let
+      // anyone READ the missing characters either — what it does is say the
+      // string did not end there — and a gradient that dissolves the text into
+      // the clip says the same thing without spending three of the characters
+      // it had left to say it. Matched on direction, not merely on "has a
+      // mask": a mask fading some other edge, or shaping the box, is not a
+      // statement about THIS overflow and must not buy an exemption from it.
+      const fade = style.maskImage === "none" ? style.webkitMaskImage : style.maskImage;
+      if (fade?.startsWith("linear-gradient(to right")) continue;
+      if (!el.textContent?.trim()) continue;
+      const box = el.getBoundingClientRect();
+      const clipEdge = box.left + Number.parseFloat(style.borderLeftWidth) + el.clientWidth;
+      if (!visibleContentPast(el, clipEdge)) continue;
+      // No ancestor can rescue this: an ancestor scroller only ever sees this
+      // element's box, and the box is where the content was cut. An enclosing
+      // `overflow-x: auto` reads like an escape hatch and is not one — the review
+      // diff had one all along, with a scrollWidth that never grew.
+      out.push(
+        `${el.tagName}.${String(el.className).slice(0, 40)} ${el.clientWidth}<${el.scrollWidth}`,
+      );
+    }
+    return out;
+  });
+}
+
 // Text that is simply gone: clipped by its own box, with no ellipsis to say so and
 // nothing in the ancestry that scrolls. Every code surface but one was like this —
 // the review diff, the file view and the transcript's inline diff all set `pre`
@@ -379,69 +441,30 @@ for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
         .catch(() => {});
     }
 
-    const cut = await page.evaluate(() => {
-      const out: string[] = [];
-      // Something the user can SEE reaches past the edge that clips it. `scrollWidth`
-      // alone cannot say that: it counts every box beyond the edge, including ones
-      // deliberately parked there. The context dock rests one full measure past the
-      // reading plane while hidden, so that returning is a slide rather than an
-      // appearance — and that made the plane report 336px of overflow that cuts no text.
-      //
-      // Asking whether a visible CHILD BOX sticks out is not enough, and getting that
-      // wrong would have quietly retired this whole check: the defect it was written for
-      // is a `pre` whose box fits its column exactly while its text runs past the end of
-      // it, so the boxes all agree and only the glyphs are gone. Measure the text.
-      const visibleContentPast = (el: HTMLElement, edge: number) => {
-        for (const child of el.querySelectorAll<HTMLElement>("*")) {
-          if (getComputedStyle(child).visibility === "hidden") continue;
-          if (child.getBoundingClientRect().right > edge + 1) return true;
-        }
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        const range = document.createRange();
-        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-          if (!node.nodeValue?.trim()) continue;
-          const owner = node.parentElement;
-          if (!owner || getComputedStyle(owner).visibility === "hidden") continue;
-          range.selectNodeContents(node);
-          if (range.getBoundingClientRect().right > edge + 1) return true;
-        }
-        return false;
-      };
-      for (const el of document.querySelectorAll<HTMLElement>("*")) {
-        // A 1-2px box holds no readable text by construction — that is how a
-        // screen-reader-only node is built, not a layout that ran out of room.
-        if (el.clientWidth <= 2 || el.clientHeight <= 2) continue;
-        if (el.scrollWidth <= el.clientWidth + 1) continue;
-        const style = getComputedStyle(el);
-        if (!(style.overflowX === "hidden" || style.overflowX === "clip")) continue;
-        if (style.textOverflow === "ellipsis") continue;
-        // The other way an edge admits it is an edge. An ellipsis does not let
-        // anyone READ the missing characters either — what it does is say the
-        // string did not end there — and a gradient that dissolves the text into
-        // the clip says the same thing without spending three of the characters
-        // it had left to say it. Matched on direction, not merely on "has a
-        // mask": a mask fading some other edge, or shaping the box, is not a
-        // statement about THIS overflow and must not buy an exemption from it.
-        const fade = style.maskImage === "none" ? style.webkitMaskImage : style.maskImage;
-        if (fade?.startsWith("linear-gradient(to right")) continue;
-        if (!el.textContent?.trim()) continue;
-        const box = el.getBoundingClientRect();
-        const clipEdge = box.left + Number.parseFloat(style.borderLeftWidth) + el.clientWidth;
-        if (!visibleContentPast(el, clipEdge)) continue;
-        // No ancestor can rescue this: an ancestor scroller only ever sees this
-        // element's box, and the box is where the content was cut. An enclosing
-        // `overflow-x: auto` reads like an escape hatch and is not one — the review
-        // diff had one all along, with a scrollWidth that never grew.
-        out.push(
-          `${el.tagName}.${String(el.className).slice(0, 40)} ${el.clientWidth}<${el.scrollWidth}`,
-        );
-      }
-      return out;
-    });
+    const cut = await horizontallyClippedText(page);
 
     expect(cut).toEqual([]);
   });
 }
+
+test("maximum UI text keeps long code readable through its own horizontal scroller", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1120, height: 720 });
+  await openFixture(page, {
+    fixture: "agent",
+    state: "long-content",
+    theme: "light",
+    fontSize: 18,
+  });
+
+  const code = page.locator(".shiki-block .shiki").filter({ hasText: "parent.postMessage" });
+  await expect(code).toHaveCSS("overflow-x", "auto");
+  expect(
+    await code.evaluate((element) => element.scrollWidth - element.clientWidth),
+  ).toBeGreaterThan(0);
+  expect(await horizontallyClippedText(page)).toEqual([]);
+});
 
 // The mirror of the test above, and the half that was missing: every assertion here
 // had been "the keyboard can reach X", never "the keyboard cannot reach what is not on
