@@ -747,7 +747,7 @@ export const zhTW: Record<string, string> = {
   "diagnostics.signal.traces": "追蹤",
   "diagnostics.signal.metrics": "指標",
   "diagnostics.signal.logs": "記錄",
-  "reasoning.thinking": "思考中…",
+  "reasoning.thinking": "思考中",
   "reasoning.thought": "思考",
   "reasoning.interrupted": "已中斷",
   "vcs.gitNotAvailable": "Git 不可用",

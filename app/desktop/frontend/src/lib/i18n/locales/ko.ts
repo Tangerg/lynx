@@ -737,7 +737,7 @@ export const ko: Record<string, string> = {
   "diagnostics.signal.traces": "트레이스",
   "diagnostics.signal.metrics": "메트릭",
   "diagnostics.signal.logs": "로그",
-  "reasoning.thinking": "생각 중…",
+  "reasoning.thinking": "생각 중",
   "reasoning.thought": "생각",
   "reasoning.interrupted": "중단됨",
   "vcs.gitNotAvailable": "Git을 사용할 수 없음",

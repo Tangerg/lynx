@@ -754,7 +754,7 @@ export const fr: Record<string, string> = {
   "diagnostics.signal.traces": "Traces",
   "diagnostics.signal.metrics": "Métriques",
   "diagnostics.signal.logs": "Journaux",
-  "reasoning.thinking": "Réflexion…",
+  "reasoning.thinking": "Réflexion",
   "reasoning.thought": "Réflexion",
   "reasoning.interrupted": "interrompu",
   "vcs.gitNotAvailable": "Git non disponible",

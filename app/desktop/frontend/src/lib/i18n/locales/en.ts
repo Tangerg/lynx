@@ -1053,7 +1053,7 @@ export const en: Record<string, string> = {
   // ── Tasks sidebar ──
 
   // ── Reasoning block ──
-  "reasoning.thinking": "Thinking…",
+  "reasoning.thinking": "Thinking",
   "reasoning.thought": "Thought",
   "reasoning.interrupted": "interrupted",
 

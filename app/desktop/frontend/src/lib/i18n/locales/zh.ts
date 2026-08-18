@@ -928,7 +928,7 @@ export const zh: Record<string, string> = {
   "diagnostics.signal.traces": "链路",
   "diagnostics.signal.metrics": "指标",
   "diagnostics.signal.logs": "日志",
-  "reasoning.thinking": "思考中…",
+  "reasoning.thinking": "思考中",
   "reasoning.thought": "思考",
   "reasoning.interrupted": "已中断",
   "vcs.gitNotAvailable": "Git 不可用",

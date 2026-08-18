@@ -744,7 +744,7 @@ export const ja: Record<string, string> = {
   "diagnostics.signal.traces": "トレース",
   "diagnostics.signal.metrics": "メトリクス",
   "diagnostics.signal.logs": "ログ",
-  "reasoning.thinking": "考えています…",
+  "reasoning.thinking": "考えています",
   "reasoning.thought": "思考",
   "reasoning.interrupted": "中断",
   "vcs.gitNotAvailable": "Git を利用できません",

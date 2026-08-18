@@ -1,7 +1,7 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
-import { Icon, StatusDot } from "@/ui";
+import { Icon, Loader } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
@@ -108,8 +108,8 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
     <AgentActivityDisclosure
       icon="sparkle"
       shell="line"
-      label={label}
-      trailing={streaming && isOpen ? <StatusDot tone="running" /> : undefined}
+      label={streaming ? <Loader variant="text-shimmer" size="sm" text={label} /> : label}
+      toggleLabel={label}
       open={isOpen}
       onToggle={toggle}
       // The rule replaces the card: it marks the aside's extent down the margin

@@ -752,7 +752,7 @@ export const es: Record<string, string> = {
   "diagnostics.signal.traces": "Trazas",
   "diagnostics.signal.metrics": "Métricas",
   "diagnostics.signal.logs": "Registros",
-  "reasoning.thinking": "Pensando…",
+  "reasoning.thinking": "Pensando",
   "reasoning.thought": "Pensamiento",
   "reasoning.interrupted": "interrumpido",
   "vcs.gitNotAvailable": "Git no disponible",
