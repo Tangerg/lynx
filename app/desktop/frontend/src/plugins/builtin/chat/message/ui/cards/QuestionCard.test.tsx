@@ -103,4 +103,34 @@ describe("QuestionCard choice semantics", () => {
       false,
     );
   });
+
+  it("renders only the selected single-choice preview in a comparison sidecar", () => {
+    render(
+      <QuestionCard
+        status="requires-action"
+        runId="run-1"
+        itemId="question-4"
+        questions={[
+          {
+            type: "choice",
+            header: "Gate",
+            prompt: "Which gate should run next?",
+            multiple: false,
+            allowCustom: false,
+            options: [
+              { label: "Race detector", description: "", preview: "race-preview" },
+              { label: "Visual suite", description: "", preview: "visual-preview" },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Race detector").closest("button")!);
+
+    expect(screen.getByRole("region", { name: "Race detector" }).textContent).toContain(
+      "race-preview",
+    );
+    expect(screen.queryByText("visual-preview")).toBeNull();
+  });
 });
