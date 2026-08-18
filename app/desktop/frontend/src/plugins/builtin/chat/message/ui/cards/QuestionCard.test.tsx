@@ -156,4 +156,31 @@ describe("QuestionCard choice semantics", () => {
     expect(answer.tagName).toBe("TEXTAREA");
     expect(answer.getAttribute("rows")).toBe("4");
   });
+
+  it("preserves multiline answers when the question settles", () => {
+    render(
+      <QuestionCard
+        status="complete"
+        runId="run-1"
+        itemId="question-6"
+        answered
+        answers={[["First constraint\nSecond constraint"]]}
+        questions={[
+          {
+            type: "text",
+            header: "Context",
+            prompt: "Describe the constraints for this change.",
+          },
+        ]}
+      />,
+    );
+
+    const answer = [...document.querySelectorAll("div")].find(
+      (element) =>
+        element.children.length === 0 &&
+        element.textContent === "First constraint\nSecond constraint",
+    );
+    expect(answer).toBeTruthy();
+    expect(answer!.className).toContain("whitespace-pre-wrap");
+  });
 });
