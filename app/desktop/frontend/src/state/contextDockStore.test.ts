@@ -131,6 +131,27 @@ describe("per-session scopes", () => {
     expect([...dock().sessionScopes.keys()]).toEqual([]);
   });
 
+  it("retires the active scope when the Session owner has already released it", async () => {
+    dock().activateSessionScope("s1");
+    dock().openDockTab("diff");
+    dock().activateSessionScope("s2");
+    dock().openDockTab("explorer");
+
+    dock().forgetSessionScopes(["s1"]);
+
+    expect(dock()).toMatchObject({
+      activeSessionScopeId: null,
+      dockViewIds: [],
+      lastViewId: null,
+    });
+    await vi.waitFor(() => {
+      const persisted = JSON.parse(localStorage.getItem("lyra.context-dock") ?? "null") as {
+        state: { sessionScopes: [string, unknown][] };
+      };
+      expect(persisted.state.sessionScopes.map(([sessionId]) => sessionId)).toEqual(["s1"]);
+    });
+  });
+
   it("restores inactive tabs and file targets after renderer replacement", async () => {
     dock().activateSessionScope("s1");
     dock().openDockTab("explorer");
