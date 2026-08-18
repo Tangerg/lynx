@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { Icon, LightboxDialog, Pressable } from "@/ui";
 
@@ -12,12 +13,14 @@ interface Props {
   src?: string;
   alt?: string;
   title?: string;
+  /** Media-only paragraphs can borrow the full reading measure. */
+  allowWide?: boolean;
 }
 
 /** Restricted Desktop media renderer. Model-authored remote URLs never become
  *  image sources (and therefore cannot act as tracking pixels); explicitly
  *  inlined image data remains a first-class, zoomable artifact. */
-export function MarkdownImage({ src = "", alt = "", title }: Props) {
+export function MarkdownImage({ src = "", alt = "", title, allowWide = false }: Props) {
   const t = useT();
   const [zoomed, setZoomed] = useState(false);
   const [failedSource, setFailedSource] = useState<string | null>(null);
@@ -49,7 +52,10 @@ export function MarkdownImage({ src = "", alt = "", title }: Props) {
         <Pressable
           type="button"
           aria-label={previewLabel}
-          className="my-3 inline-block cursor-zoom-in border-0 bg-transparent p-0 align-top"
+          className={cn(
+            "my-3 inline-block cursor-zoom-in border-0 bg-transparent p-0 align-top",
+            allowWide ? "max-w-full" : "max-w-[min(100%,44rem)]",
+          )}
         >
           <img
             src={src}
@@ -57,7 +63,7 @@ export function MarkdownImage({ src = "", alt = "", title }: Props) {
             title={title}
             loading="lazy"
             onError={() => setFailedSource(src)}
-            className="block max-h-50 max-w-[min(100%,44rem)] rounded-md object-contain shadow-md media-edge"
+            className="block max-h-50 max-w-full rounded-md object-contain shadow-md media-edge"
           />
         </Pressable>
       }

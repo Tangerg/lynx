@@ -134,8 +134,7 @@ describe("markdownMessage", () => {
   it("promotes image-only paragraphs into Codex wide and gallery media blocks", () => {
     const first =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-    const second =
-      "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    const second = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
     const { container } = render(
       <MarkdownMessage
         text={`![Architecture](${first})\n\n![Before](${first}) ![After](${second})`}

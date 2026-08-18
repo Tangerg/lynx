@@ -33,6 +33,19 @@
 .md p:last-child {
   margin-bottom: 0;
 }
+.md p.md-media-paragraph {
+  text-align: left;
+}
+.md p.md-media-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+.md p.md-media-wide-block {
+  width: 100%;
+  max-width: none;
+}
 
 /* Headings — a percentage of the body they sit in, which is what both references
    do: a section heading inside an answer runs 1.36em (JetBrains, 19 on 14) and

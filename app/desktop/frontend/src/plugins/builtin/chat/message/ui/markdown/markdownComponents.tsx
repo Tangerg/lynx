@@ -1,5 +1,14 @@
 import type { Components } from "react-markdown";
-import { Children, isValidElement, useEffect, useRef, type ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useRef,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { ExternalLink, RichTooltip, ShikiCodeBlock } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useCitations } from "../CitationContext";
@@ -98,7 +107,57 @@ function visibleText(children: ReactNode): string {
     .join("");
 }
 
+const WHITESPACE_ONLY = /^\s*$/;
+
+/** Return the paragraph's media children only when it contains no prose. The
+ *  whitespace/`br` filtering mirrors Markdown's insignificant separators. */
+type MarkdownImageElementProps = ComponentProps<typeof MarkdownImage> & {
+  node?: { tagName?: string };
+};
+
+function imageOnlyParagraph(children: ReactNode): ReactElement<MarkdownImageElementProps>[] | null {
+  const material = Children.toArray(children).filter(
+    (child) =>
+      !(typeof child === "string" && WHITESPACE_ONLY.test(child)) &&
+      !(isValidElement(child) && child.type === "br"),
+  );
+  if (
+    material.length === 0 ||
+    !material.every(
+      (child): child is ReactElement<MarkdownImageElementProps> =>
+        isValidElement<MarkdownImageElementProps>(child) && child.props.node?.tagName === "img",
+    )
+  )
+    return null;
+  return material;
+}
+
 const sharedMarkdownComponents: Components = {
+  p({ children }) {
+    const images = imageOnlyParagraph(children);
+    if (images && images.length > 1) {
+      return (
+        <p className="md-media-paragraph md-media-grid" data-markdown-image-grid="true">
+          {images.map((image, index) =>
+            cloneElement(image, { key: `${image.props.src ?? "media"}-${index}`, allowWide: true }),
+          )}
+        </p>
+      );
+    }
+    if (images?.length === 1) {
+      const image = images[0]!;
+      return (
+        <p
+          className="md-media-paragraph md-media-wide-block"
+          data-wide-markdown-block="true"
+          data-wide-markdown-block-kind="image"
+        >
+          {cloneElement(image, { key: `${image.props.src ?? "media"}-0`, allowWide: true })}
+        </p>
+      );
+    }
+    return <p>{children}</p>;
+  },
   pre({ children }) {
     // react-markdown gives fenced blocks without an info string a plain
     // `<code>` child. The code renderer cannot distinguish that node from
@@ -173,8 +232,9 @@ const sharedMarkdownComponents: Components = {
       </th>
     );
   },
-  img({ src, alt, title }) {
-    return <MarkdownImage src={src} alt={alt} title={title} />;
+  img({ src, alt, title, ...rest }) {
+    const allowWide = (rest as { allowWide?: boolean }).allowWide;
+    return <MarkdownImage src={src} alt={alt} title={title} allowWide={allowWide} />;
   },
   a({ href, title, children, ...rest }) {
     // A `data-file-ref` anchor is emitted by rehypeFileRefs (not a real link) —
