@@ -114,7 +114,7 @@ describe("useCreateSession", () => {
     const destination = {
       cwd: "/tmp/current-project",
       reuseFreshDraft: true,
-    } as unknown as CreateSessionOptions;
+    } satisfies CreateSessionOptions;
 
     const first = await result.current(destination);
     const again = await result.current(destination);

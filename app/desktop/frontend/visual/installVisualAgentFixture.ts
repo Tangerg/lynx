@@ -45,10 +45,6 @@ import {
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeConnectionProjection";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
-import {
-  configureRuntimeServiceStatusPort,
-  type RuntimeServiceSnapshot,
-} from "@/plugins/builtin/runtime/application/ports/serviceStatus";
 import { queryClient } from "@/lib/queryClient";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 import { toolRenderingPlugins } from "@/plugins/builtin";
@@ -66,6 +62,7 @@ import {
   VISUAL_SESSION_ID,
   type VisualAgentState,
 } from "./agentSessionSnapshots";
+import { installVisualRuntimeServiceStatusPort } from "./installVisualRuntimeServiceStatusPort";
 
 const VISUAL_MODELS: SelectableModel[] = [
   {
@@ -188,35 +185,6 @@ const visualAgentLifecycle = definePlugin({
     });
   },
 });
-
-/**
- * A connected Runtime, stated rather than probed.
- *
- * The transcript asks whether commands may be sent (RunErrorBanner gates Retry on
- * it), and in production the answer comes from a live health check. A fixture that
- * left the port unconfigured did not render a degraded banner — it threw out of
- * the first component to ask, so every screenshot in four spec files was of an
- * error boundary. Deterministic by construction: one frozen observation, and
- * refresh does nothing, because a golden must not depend on a probe.
- */
-function installVisualRuntimeServiceStatusPort(): void {
-  const snapshot = {
-    phase: "ready",
-    observation: {
-      server: { name: "lyra-runtime", version: "0.0.0-visual" },
-      protocol: { current: "2", minSupported: "2" },
-      health: "ready",
-      checks: {},
-    },
-    failure: null,
-  } as const satisfies RuntimeServiceSnapshot;
-
-  configureRuntimeServiceStatusPort({
-    useSnapshot: () => snapshot,
-    snapshot: () => snapshot,
-    refresh: () => Promise.resolve(),
-  });
-}
 
 export async function installVisualAgentFixture(
   state: VisualAgentState,

@@ -127,6 +127,7 @@
 - Context Dock 以 Session identity 隔离 presentation scope；URL 唯一拥有 active destination，`contextDockStore` 仅持久化 exact Session 的 open tab、last view 与 file target，使折叠/恢复、Session 切换和 renderer replacement 保留本 Session 工作区而不复活其他 Session 的 tab/scroll/feedback。Agent Session open set 负责同步退休已关闭 scope；Tool selection/expanded material 不持久化，旧版或 invalid scope 整体丢弃。
 - 无 active Session 时不挂载 Context Dock destination、view 或 toggle；Runtime 默认 workspace 只可用于显式创建 Session，不能冒充 Session-owned material。
 - 顶层 New Session 继承点击时 active Session 的 exact cwd；active summary 尚在 resolving 时禁用该动作，不回落到 Runtime 默认目录。目录选择由 Projects 标题栏唯一拥有，project row 的 `+` 继续表示在该 exact cwd 建立 Session。
+- Runtime command capability 同时约束顶层 New、Projects 目录选择、project-row `+` 与 palette/快捷键 New；断线时这些真实 `sessions.create` 入口同步撤权，不以失败 toast 充当 availability。native picker 返回后在投递前重新证明当前 capability。顶层 New 作为 active-project blank destination 可复用当前空 draft，显式 Projects 创建仍始终分配新 Session。
 - Session title maintenance 只有 `runsegment.Finalizer` 一个 owner，并只经 Session Application first-writer 持久提交；utility model 缺失、空回复或 provider error 时，opening user text 的首个有效行提供 Unicode-safe、有界 deterministic fallback。provider error 仍进入既有 maintenance telemetry，不以“未命名会话”或 Frontend 第二 writer 吞掉降级事实。
 - Goal、Plan、HITL/审批只呈现当前 projection generation；accepted mutation intent 可在 authoritative projection 追平前保持稳定 busy 反馈，不写第二 cache。
 - 流式消息的底部点赞/点踩与操作行只在所属可见 turn 达到稳定展示边界时出现，不随每个输出 delta 反复挂载。

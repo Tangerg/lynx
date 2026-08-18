@@ -28,6 +28,7 @@ import type { AnyPlugin } from "dougong";
 import { useUiStore } from "@/state/uiStore";
 import type { VisualShellTheme, VisualWorkIndexState } from "./shellFixtureStates";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
+import { installVisualRuntimeServiceStatusPort } from "./installVisualRuntimeServiceStatusPort";
 
 const ACTIVE_SESSION_ID = "visual-shell-active";
 
@@ -164,6 +165,7 @@ export async function installVisualShellFixture(
   queryClient.setQueryDefaults([WORKSPACE_PROJECTS_KEY], { retry: false });
   queryClient.setQueryDefaults([AGENT_SESSIONS_KEY], { retry: false });
 
+  installVisualRuntimeServiceStatusPort();
   installAgentStatePorts();
   installWorkspaceNavigationPort();
   useAgentSessionStore.setState({

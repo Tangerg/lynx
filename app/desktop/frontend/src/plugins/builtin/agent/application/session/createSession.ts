@@ -17,6 +17,10 @@ export interface CreateSessionOptions {
    *  API.md §7.2) — the Projects "+" / project-row entry. Omitted = the
    *  runtime's serve dir. */
   cwd?: string;
+  /** Treat the current empty draft as the requested destination even when cwd
+   *  is supplied. The top-level New action already knows that cwd belongs to
+   *  the active Session; project-row creation does not make that claim. */
+  reuseFreshDraft?: boolean;
 }
 
 /**
@@ -76,15 +80,16 @@ function joinKey(opts: CreateSessionOptions): string | null {
  *
  * Only a DRAFT counts. An ordinary session also reads as message-less while its
  * history is still loading, and reusing that would drop the user back into a
- * conversation they asked to leave. A `cwd` or a queued first message means the
- * caller wants a specific session, not just a blank one, so those always create.
+ * conversation they asked to leave. A queued first message always creates. A
+ * `cwd` also creates unless the caller proves it is reopening the active
+ * project's blank destination through `reuseFreshDraft`.
  */
 function alreadyOnAFreshSession(
   opts: CreateSessionOptions,
   state: AgentSessionStatePort,
   view: AgentSessionViewPort,
 ): string | null {
-  if (opts.cwd !== undefined || opts.firstInput) return null;
+  if ((opts.cwd !== undefined && !opts.reuseFreshDraft) || opts.firstInput) return null;
   const sessionId = state.getActiveSessionId();
   if (!sessionId || !state.isDraftSession(sessionId)) return null;
   const messages = view.getSession(sessionId)?.view.messages ?? [];

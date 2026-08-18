@@ -13,6 +13,7 @@ export function ProjectRow({
   count,
   onToggle,
   onNewSession,
+  canCreateSession,
 }: {
   project: WorkProject;
   active: boolean;
@@ -21,6 +22,7 @@ export function ProjectRow({
   count: number;
   onToggle: () => void;
   onNewSession: (project: WorkProject) => void;
+  canCreateSession: boolean;
 }) {
   const t = useT();
   return (
@@ -42,6 +44,7 @@ export function ProjectRow({
           iconSize="xs"
           data-chrome-focus=""
           aria-label={t("project.row.newSession", { name: project.name })}
+          disabled={!canCreateSession}
           onClick={() => onNewSession(project)}
         />
       }

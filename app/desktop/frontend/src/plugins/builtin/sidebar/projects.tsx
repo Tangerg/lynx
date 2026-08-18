@@ -43,6 +43,7 @@ function ProjectGroupNode({
         count={group.sessions.length}
         onToggle={() => setOpen((v) => !v)}
         onNewSession={onNewSession}
+        canCreateSession={actions.canCreateSessionInFolder}
       />
       {open && group.sessions.length > 0 && (
         <SessionList
@@ -74,6 +75,7 @@ export function ProjectsSection() {
             size="xs"
             quiet
             title={t("workIndex.action.addProject")}
+            disabled={!actions.canCreateSessionInFolder}
             onClick={actions.chooseSessionFolder}
             className="opacity-0 transition-opacity duration-[var(--dur-color)] group-hover/projects:opacity-100 focus-visible:opacity-100"
           />

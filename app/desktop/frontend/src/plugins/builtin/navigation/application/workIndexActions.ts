@@ -13,10 +13,15 @@ import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
 import { showWorkspaceDock } from "@/plugins/builtin/workspace/public/navigation";
 import { openSettingsView } from "@/plugins/builtin/workspace/public/deeplinks";
 import { notifyError } from "@/plugins/sdk";
+import {
+  runtimeCommandsAvailable,
+  useRuntimeCommandsAvailable,
+} from "@/plugins/builtin/runtime/public/serviceStatus";
 import { workingDirectoryPicker } from "./ports/workingDirectoryPicker";
 
 export interface WorkIndexActions {
   canCreateSession: boolean;
+  canCreateSessionInFolder: boolean;
   createSession: () => void;
   chooseSessionFolder: () => void;
   startSessionInFolder: (cwd: string) => void;
@@ -39,10 +44,11 @@ function reportDirectorySelectionError(error: unknown): void {
 }
 
 function createSessionInChosenFolder(create: ReturnType<typeof useCreateSession>): Promise<void> {
+  if (!runtimeCommandsAvailable()) return Promise.resolve();
   if (pendingFolderSession) return pendingFolderSession;
   const pending = (async () => {
     const cwd = await workingDirectoryPicker().choose();
-    if (!cwd) return;
+    if (!cwd || !runtimeCommandsAvailable()) return;
     if (await create({ cwd })) focusComposer();
   })()
     .catch(reportDirectorySelectionError)
@@ -55,6 +61,7 @@ function createSessionInChosenFolder(create: ReturnType<typeof useCreateSession>
 
 export function useWorkIndexActions(): WorkIndexActions {
   const create = useCreateSession();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
   const activeWorkspace = useActiveSessionWorkspace();
   const activeWorkspaceStatus = activeWorkspace.status;
   const activeCwd = activeWorkspace.status === "ready" ? activeWorkspace.cwd : undefined;
@@ -65,7 +72,8 @@ export function useWorkIndexActions(): WorkIndexActions {
 
   return useMemo(
     () => ({
-      canCreateSession: activeWorkspaceStatus === "ready",
+      canCreateSession: runtimeAvailable && activeWorkspaceStatus === "ready",
+      canCreateSessionInFolder: runtimeAvailable,
       // Codex's top-level New action continues in the project that owns the
       // active Session. Omitting cwd here delegated that decision to the
       // Runtime process default, so the same click could silently jump projects.
@@ -73,16 +81,19 @@ export function useWorkIndexActions(): WorkIndexActions {
       // active summary is resolving, the action is disabled rather than
       // inventing a default owner.
       createSession: () => {
-        if (activeWorkspaceStatus !== "ready") return;
-        const options = activeCwd === undefined ? undefined : { cwd: activeCwd };
+        if (activeWorkspaceStatus !== "ready" || !runtimeCommandsAvailable()) return;
+        const options =
+          activeCwd === undefined ? undefined : { cwd: activeCwd, reuseFreshDraft: true };
         void create(options).then((sessionId) => {
           if (sessionId) focusComposer();
         });
       },
       chooseSessionFolder: () => {
+        if (!runtimeCommandsAvailable()) return;
         void createSessionInChosenFolder(create);
       },
       startSessionInFolder: (cwd) => {
+        if (!runtimeCommandsAvailable()) return;
         void create({ cwd }).then(() => focusComposer());
       },
       selectSession: selectAgentSession,
@@ -103,6 +114,15 @@ export function useWorkIndexActions(): WorkIndexActions {
         openSettingsView();
       },
     }),
-    [activeCwd, activeWorkspaceStatus, create, fork, remove, rename, toggleFavorite],
+    [
+      activeCwd,
+      activeWorkspaceStatus,
+      create,
+      fork,
+      remove,
+      rename,
+      runtimeAvailable,
+      toggleFavorite,
+    ],
   );
 }
