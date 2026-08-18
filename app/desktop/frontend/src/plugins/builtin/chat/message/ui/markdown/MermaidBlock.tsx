@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import { LightboxDialog, Pressable } from "@/ui";
+import { IconButton, LightboxDialog, ShikiCodeBlock } from "@/ui";
 import { measureMermaidRender } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 import { useTokenRevision } from "@/lib/appearance";
+import { useCopyFeedback } from "@/lib/useCopyFeedback";
+import { cn } from "@/lib/classNames";
 
 // `beautiful-mermaid` is heavy (~200KB) and only mounts when an
 // agent actually emits a mermaid fence. Cached module promise so
@@ -44,6 +46,8 @@ function readThemeColors(_tokenRevision: number) {
 // show a quiet "pending" pre-block; settled + parses → SVG snaps in.
 export function MermaidBlock({ code }: Props) {
   const t = useT();
+  const fencedCode = useMemo(() => `\`\`\`mermaid\n${code}\n\`\`\``, [code]);
+  const { copied, copy } = useCopyFeedback(fencedCode);
   // Mermaid is handed literal colours, so this reads the computed tokens — and
   // needs re-reading whenever the painter rewrites them. The revision is that
   // signal and covers every input, including contrast-derived surface depth.
@@ -64,12 +68,9 @@ export function MermaidBlock({ code }: Props) {
     };
   }, []);
 
-  // Rendering errors use the same quiet source fallback as an in-progress
-  // diagram. There is no separate error state because the UI has no separate
-  // error presentation or recovery action.
-  const svg = useMemo(() => {
+  const rendered = useMemo<{ status: "loading" | "error" | "rendered"; svg?: string }>(() => {
     if (!renderer || isSettling) {
-      return null;
+      return { status: "loading" };
     }
     try {
       // The revision is an invalidation token for the mutable computed styles
@@ -89,51 +90,82 @@ export function MermaidBlock({ code }: Props) {
         border: c.border,
       });
       measureMermaidRender(performance.now() - start);
-      return out;
+      return { status: "rendered", svg: out };
     } catch {
-      return null;
+      return { status: "error" };
     }
   }, [debouncedCode, isSettling, tokenRevision, renderer]);
 
   const [zoomed, setZoomed] = useState(false);
 
-  if (svg) {
+  if (rendered.status === "rendered") {
+    const svg = rendered.svg!;
     return (
-      <LightboxDialog
-        open={zoomed}
-        onOpenChange={setZoomed}
-        title={t("markdown.diagram")}
-        className="p-6"
-        trigger={
-          <Pressable
-            type="button"
-            aria-label={t("message.mermaid.enlarge")}
-            title={t("message.mermaid.enlargeHint")}
-            // Inline SVG sizes itself; the wrapper provides chrome + zoom
-            // affordance. `[&_svg]:` reaches the SVG that
-            // dangerouslySetInnerHTML drops in (we can't put utilities on it
-            // directly).
-            className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border-[0.5px] border-field-strong bg-surface p-4 text-center transition-colors duration-[var(--dur-fast)] hover:border-accent-badge [&_svg]:h-auto [&_svg]:max-w-full"
-            dangerouslySetInnerHTML={{ __html: svg }}
-          />
-        }
+      <div
+        className="group/mermaid relative isolate my-3.5 min-h-25 w-full rounded-lg border-[0.5px] border-field-strong bg-surface"
+        data-markdown-copy="code-block"
+        data-markdown-copy-text={fencedCode}
       >
         <div
-          className="[&_svg]:mx-auto [&_svg]:block [&_svg]:max-w-none"
+          role="img"
+          aria-label={t("markdown.diagram")}
+          tabIndex={-1}
+          dir="ltr"
+          className="overflow-x-auto p-4 text-center outline-none [&_svg]:h-auto [&_svg]:max-w-full"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
-      </LightboxDialog>
+        <div
+          className="absolute top-1 right-1 z-1 flex gap-1 opacity-0 transition-opacity group-hover/mermaid:opacity-100 focus-within:opacity-100"
+          data-markdown-copy="exclude"
+        >
+          <LightboxDialog
+            open={zoomed}
+            onOpenChange={setZoomed}
+            title={t("markdown.diagram")}
+            className="p-6"
+            trigger={
+              <IconButton
+                icon="maximize"
+                size="xs"
+                quiet
+                title={t("message.mermaid.enlarge")}
+                aria-haspopup="dialog"
+              />
+            }
+          >
+            <div
+              className="[&_svg]:mx-auto [&_svg]:block [&_svg]:max-w-none"
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
+          </LightboxDialog>
+          <IconButton
+            icon={copied ? "check" : "copy"}
+            size="xs"
+            quiet
+            onClick={() => void copy()}
+            title={t(copied ? "message.mermaid.copied" : "message.mermaid.copy")}
+            className={cn(copied && "text-success")}
+          />
+        </div>
+        <span className="sr-only">{t("message.mermaid.source")}</span>
+        <pre className="sr-only whitespace-pre-wrap">{code}</pre>
+      </div>
     );
   }
 
-  // Streaming or genuinely-broken source. Show the in-progress source as
-  // quiet preformatted text — readable, no scary error chrome. Once the
-  // closing ``` arrives and the diagram parses cleanly we swap to SVG;
-  // the visual transition reads as progressive disclosure rather than a
-  // flicker between error / success states.
-  return (
-    <pre className="my-3.5 overflow-x-auto whitespace-pre rounded-lg border-[0.5px] border-dashed border-field-strong bg-surface px-3.5 py-3 font-mono text-ui-md leading-body text-fg-faint">
-      <code>{code}</code>
-    </pre>
-  );
+  if (rendered.status === "loading") {
+    return (
+      <div
+        role="status"
+        aria-label={t("message.mermaid.loading")}
+        className="relative my-3.5 grid h-60 min-h-25 w-full place-items-center overflow-hidden rounded-lg border-[0.5px] border-field-strong bg-surface"
+      >
+        <span aria-hidden="true" className="h-8 w-8 rounded-md bg-surface-3 animate-pulse" />
+      </div>
+    );
+  }
+
+  // A settled parse error is source material, not an endless loader. Reuse the
+  // standard code surface so the text stays selectable, wrappable and copyable.
+  return <ShikiCodeBlock lang="mermaid" code={code} />;
 }

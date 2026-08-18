@@ -327,6 +327,31 @@ test("code blocks stay readable and expose the wrap control", async ({ page }) =
 });
 
 for (const theme of ["light", "dark"] as const) {
+  test(`Mermaid is a semantic, copyable, zoomable artifact ${theme}`, async ({ context, page }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+      origin: "http://127.0.0.1:4174",
+    });
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=long-content`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const diagram = page.getByRole("img", { name: "Diagram" });
+    await expect(diagram).toBeVisible();
+    const artifact = diagram.locator("..");
+    await artifact.hover();
+    await expect(artifact).toHaveScreenshot(`markdown-mermaid-${theme}.png`);
+
+    await artifact.getByRole("button", { name: "Copy Mermaid" }).click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toContain("```mermaid\ngraph LR");
+
+    await artifact.getByRole("button", { name: "Enlarge diagram" }).click();
+    await expect(page.getByRole("dialog", { name: "Diagram" })).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
   test(`tables keep semantic alignment and copy their Markdown source ${theme}`, async ({
     context,
     page,
@@ -490,6 +515,7 @@ test("async transcript materialization follows only while the reader stays at th
   await page.goto("/visual/?fixture=agent&theme=light&state=long-content");
   await page.locator("html[data-visual-ready]").waitFor();
   await expect(page.locator(".shiki-block .shiki")).toHaveCount(2);
+  await expect(page.getByRole("img", { name: "Diagram" })).toBeVisible();
 
   const measured = await page.evaluate(async () => {
     const scroller = document.querySelector<HTMLElement>(".msg-scroll-viewport");
@@ -720,6 +746,7 @@ for (const theme of ["light", "dark"] as const) {
       await page.locator("html[data-visual-ready]").waitFor();
       if (state === "long-content") {
         await expect(page.locator(".shiki-block .shiki")).toHaveCount(2);
+        await expect(page.getByRole("img", { name: "Diagram" })).toBeVisible();
       }
       // The canonical tool-shell frame exists to photograph the tool grammar,
       // so open its completed wave before capturing it. A collapsed "6 steps"
