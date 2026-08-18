@@ -93,7 +93,7 @@
 .md ul,
 .md ol {
   margin: 8px 0;
-  padding-left: 20px;
+  padding-inline-start: 1.3125rem;
   font-size: inherit;
   line-height: var(--leading-prose);
   color: var(--color-text);
