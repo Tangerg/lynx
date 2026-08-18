@@ -58,7 +58,7 @@ describe("MessageBlock turn identity", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "You" })).toHaveClass("sr-only");
+    expect(screen.getByRole("heading", { name: "You" }).classList.contains("sr-only")).toBe(true);
     expect(container.querySelector(".font-mono.tabular-nums")).toBeNull();
 
     rerender(
@@ -71,7 +71,9 @@ describe("MessageBlock turn identity", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Assistant" })).toHaveClass("sr-only");
+    expect(
+      screen.getByRole("heading", { name: "Assistant" }).classList.contains("sr-only"),
+    ).toBe(true);
     expect(container.querySelector(".font-mono.tabular-nums")).toBeNull();
   });
 });
