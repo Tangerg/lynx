@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import type {
   AgentSessionViewEntry,
   AgentSessionViewPort,
@@ -210,11 +211,12 @@ class InterruptResponseCoordinator {
   }
 }
 
-let activeCoordinator: InterruptResponseCoordinator | null = null;
+const interruptResponsePublication = createPublicationSlot<InterruptResponseCoordinator>();
 
 function coordinator(): InterruptResponseCoordinator {
-  if (!activeCoordinator) throw new Error("Interrupt response coordinator is not installed");
-  return activeCoordinator;
+  const current = interruptResponsePublication.current();
+  if (!current) throw new Error("Interrupt response coordinator is not installed");
+  return current;
 }
 
 /**
@@ -248,15 +250,14 @@ export function interruptResponseIsStaged(
  * for one Agent Plugin Host generation. */
 export function installInterruptResponseCoordinator(): () => void {
   const next = new InterruptResponseCoordinator(agentSessionView());
-  activeCoordinator?.retire();
-  activeCoordinator = next;
+  interruptResponsePublication.publish(next, (predecessor) => predecessor.retire());
   return () => {
-    if (activeCoordinator === next) activeCoordinator = null;
+    interruptResponsePublication.withdraw(next);
     next.retire();
   };
 }
 
 /** Test seam for hook tests which configure the Agent ports once per process. */
 export function discardStagedInterruptResponses(): void {
-  activeCoordinator?.discard();
+  interruptResponsePublication.current()?.discard();
 }

@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { ProviderGateway, ProviderTestOutcome, ProviderUpdate } from "./ports/providerGateway";
@@ -119,7 +120,6 @@ class ProviderMutationGeneration {
 /** Owns Provider commands and their cache projection for one exact Plugin Host
  * and Runtime generation. */
 export class ProviderMutationOwner {
-  static #active: ProviderMutationOwner | null = null;
   static #materialGeneration = 0;
   static readonly #materialListeners = new Set<() => void>();
 
@@ -133,16 +133,14 @@ export class ProviderMutationOwner {
   }
 
   static install(gateway: ProviderGateway): ProviderMutationOwner {
-    const predecessor = ProviderMutationOwner.#active;
     const owner = new ProviderMutationOwner(gateway);
-    ProviderMutationOwner.#active = owner;
-    predecessor?.dispose();
+    providerMutationPublication.publish(owner, (predecessor) => predecessor.dispose());
     ProviderMutationOwner.#advanceMaterialGeneration();
     return owner;
   }
 
   static current(): ProviderMutationOwner {
-    const owner = ProviderMutationOwner.#active;
+    const owner = providerMutationPublication.current();
     if (!owner || owner.#disposed) throw new Error("Provider mutation owner is not installed");
     return owner;
   }
@@ -177,7 +175,7 @@ export class ProviderMutationOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || ProviderMutationOwner.#active !== this) return;
+    if (this.#disposed || !providerMutationPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new ProviderMutationGeneration(this.#gateway);
     predecessor.retire();
@@ -188,8 +186,7 @@ export class ProviderMutationOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (ProviderMutationOwner.#active === this) {
-      ProviderMutationOwner.#active = null;
+    if (providerMutationPublication.withdraw(this)) {
       ProviderMutationOwner.#advanceMaterialGeneration();
     }
   }
@@ -199,6 +196,8 @@ export class ProviderMutationOwner {
     for (const listener of ProviderMutationOwner.#materialListeners) listener();
   }
 }
+
+const providerMutationPublication = createPublicationSlot<ProviderMutationOwner>();
 
 export function providerMutationWasRetired(error: unknown): boolean {
   return error instanceof ProviderMutationRetiredError;

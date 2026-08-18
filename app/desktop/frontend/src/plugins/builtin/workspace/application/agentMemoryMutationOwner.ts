@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type {
@@ -116,8 +117,6 @@ class AgentMemoryMutationGeneration {
  * admissions and non-cooperative in-flight settlements without draining them
  * through a newly installed gateway. */
 export class AgentMemoryMutationOwner {
-  static #active: AgentMemoryMutationOwner | null = null;
-
   readonly #gateway: AgentMemoryGateway;
   #generation: AgentMemoryMutationGeneration;
   #disposed = false;
@@ -128,15 +127,13 @@ export class AgentMemoryMutationOwner {
   }
 
   static install(gateway: AgentMemoryGateway): AgentMemoryMutationOwner {
-    const predecessor = AgentMemoryMutationOwner.#active;
     const owner = new AgentMemoryMutationOwner(gateway);
-    AgentMemoryMutationOwner.#active = owner;
-    predecessor?.dispose();
+    agentMemoryMutationPublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
   static current(): AgentMemoryMutationOwner {
-    const owner = AgentMemoryMutationOwner.#active;
+    const owner = agentMemoryMutationPublication.current();
     if (!owner || owner.#disposed) throw new Error("Agent memory mutation owner is not installed");
     return owner;
   }
@@ -162,7 +159,7 @@ export class AgentMemoryMutationOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || AgentMemoryMutationOwner.#active !== this) return;
+    if (this.#disposed || !agentMemoryMutationPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new AgentMemoryMutationGeneration(this.#gateway);
     predecessor.retire();
@@ -172,9 +169,11 @@ export class AgentMemoryMutationOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (AgentMemoryMutationOwner.#active === this) AgentMemoryMutationOwner.#active = null;
+    agentMemoryMutationPublication.withdraw(this);
   }
 }
+
+const agentMemoryMutationPublication = createPublicationSlot<AgentMemoryMutationOwner>();
 
 export function agentMemoryMutationWasRetired(error: unknown): boolean {
   return error instanceof AgentMemoryMutationRetiredError;

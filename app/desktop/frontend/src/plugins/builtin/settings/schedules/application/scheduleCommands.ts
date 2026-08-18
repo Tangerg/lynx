@@ -1,4 +1,5 @@
 import { SCHEDULES_KEY, useSchedules } from "./scheduleQueries";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { ScheduleConfig, ScheduleConfigInput, ScheduledRunIdentity } from "./scheduleConfig";
@@ -175,8 +176,6 @@ class ScheduleMutationGeneration {
 
 /** Owns schedule commands, revisions, cache projection, and run navigation for one generation. */
 export class ScheduleMutationOwner {
-  static #active: ScheduleMutationOwner | null = null;
-
   readonly #gateway: ScheduleGateway;
   #generation: ScheduleMutationGeneration;
   #disposed = false;
@@ -187,15 +186,13 @@ export class ScheduleMutationOwner {
   }
 
   static install(gateway: ScheduleGateway): ScheduleMutationOwner {
-    const predecessor = ScheduleMutationOwner.#active;
     const owner = new ScheduleMutationOwner(gateway);
-    ScheduleMutationOwner.#active = owner;
-    predecessor?.dispose();
+    scheduleMutationPublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
   static current(): ScheduleMutationOwner {
-    const owner = ScheduleMutationOwner.#active;
+    const owner = scheduleMutationPublication.current();
     if (!owner || owner.#disposed) throw new Error("Schedule mutation owner is not installed");
     return owner;
   }
@@ -221,7 +218,7 @@ export class ScheduleMutationOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || ScheduleMutationOwner.#active !== this) return;
+    if (this.#disposed || !scheduleMutationPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new ScheduleMutationGeneration(this.#gateway);
     predecessor.retire();
@@ -231,9 +228,11 @@ export class ScheduleMutationOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (ScheduleMutationOwner.#active === this) ScheduleMutationOwner.#active = null;
+    scheduleMutationPublication.withdraw(this);
   }
 }
+
+const scheduleMutationPublication = createPublicationSlot<ScheduleMutationOwner>();
 
 export function useScheduleConfigs() {
   return useSchedules();

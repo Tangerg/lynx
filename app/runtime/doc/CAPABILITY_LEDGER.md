@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品按一个 client/一个 server 设计。SQLite 仍是 durable winner；客户端 generation 只决定谁有权提交当前投影。
-- P113/P114 已完成；P115 已授权并完成 Mutation Journal 单一职责重建，后续维护性收敛批次仍在执行。
+- P113/P114 已完成；P115 已授权并完成 Mutation Journal 与 Frontend lifecycle owner 收敛，后续维护性批次仍在执行。
 
 ## 2. 架构与所有权
 
@@ -101,6 +101,7 @@
 - `DesktopRenderer`、Plugin Host、Runtime connection、command cohort、query writer 和 mounted Session projection 都拥有 exact generation。
 - replacement 先发布 successor owner，再同步退休 predecessor；final close 不可逆，重复 dispose 共享 settlement。
 - 每个异步 workflow 在 admission 时捕获 exact dependency；每个 await 后重新证明 apply/cleanup 权，旧 disposer 不能停止或清空 successor。
+- replaceable application owner 共享一个只持有 process-local exact object identity 的 publication slot；业务 task、abort、serialization、cache repair、typed error 和 material 仍由 concrete owner 持有。生产代码不再以每类 `static #active` 复制 lifecycle protocol。
 - cold-start ports 由 composition root 依赖图显式保证；Composer、Recipes、Workspace Events 不依赖偶然插件安装顺序。
 
 ### 6.2 Mutation、query 与 material

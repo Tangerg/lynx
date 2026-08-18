@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 
 export class AgentCommandRetiredError extends Error {
@@ -34,8 +35,6 @@ export interface AgentCommandEffect {
  * A successor synchronously retires the predecessor before its gateway is published.
  */
 export class AgentCommandOwner {
-  static #active: AgentCommandOwner | null = null;
-
   readonly #creates = new Map<string, Promise<unknown>>();
   readonly #forks = new Map<string, Promise<unknown>>();
   readonly #rollbackSessions = new Set<string>();
@@ -49,25 +48,23 @@ export class AgentCommandOwner {
   private constructor() {}
 
   static install(): AgentCommandOwner {
-    const predecessor = AgentCommandOwner.#active;
     const owner = new AgentCommandOwner();
-    AgentCommandOwner.#active = owner;
-    if (predecessor) predecessor.#retire();
+    agentCommandPublication.publish(owner, (predecessor) => predecessor.#retire());
     return owner;
   }
 
   static current(): AgentCommandOwner {
-    const owner = AgentCommandOwner.#active;
+    const owner = agentCommandPublication.current();
     if (!owner) throw new AgentCommandRetiredError();
     return owner;
   }
 
   isCurrent(): boolean {
-    return !this.#cohort.retired && AgentCommandOwner.#active === this;
+    return !this.#cohort.retired && agentCommandPublication.owns(this);
   }
 
   assertCurrent(): void {
-    if (AgentCommandOwner.#active !== this) throw this.#retiredError;
+    if (!agentCommandPublication.owns(this)) throw this.#retiredError;
     this.#cohort.assertCurrent();
   }
 
@@ -181,7 +178,7 @@ export class AgentCommandOwner {
 
   dispose(): void {
     if (this.#cohort.retired) return;
-    if (AgentCommandOwner.#active === this) AgentCommandOwner.#active = null;
+    agentCommandPublication.withdraw(this);
     this.#retire();
   }
 
@@ -212,6 +209,8 @@ export class AgentCommandOwner {
     for (const effect of [...this.#effects]) effect.rollback();
   }
 }
+
+const agentCommandPublication = createPublicationSlot<AgentCommandOwner>();
 
 export function agentCommandOwner(): AgentCommandOwner {
   return AgentCommandOwner.current();

@@ -1,3 +1,5 @@
+import { createPublicationSlot } from "../publicationSlot";
+
 export interface SingletonPort<T> {
   configure(next: T): () => void;
   get(): T;
@@ -19,24 +21,26 @@ export interface SingletonPort<T> {
  * instance it installed; a stale disposer can never disconnect its successor.
  */
 export function createSingletonPort<T>(notConfiguredMessage: string): SingletonPort<T> {
-  let current: T | null = null;
+  const slot = createPublicationSlot<{ value: T }>();
 
   return {
     configure(next) {
-      current = next;
+      const published = { value: next };
+      slot.publish(published, () => undefined);
       let disposed = false;
       return () => {
         if (disposed) return;
         disposed = true;
-        if (current === next) current = null;
+        slot.withdraw(published);
       };
     },
     get() {
+      const current = slot.current();
       if (!current) throw new Error(notConfiguredMessage);
-      return current;
+      return current.value;
     },
     peek() {
-      return current;
+      return slot.current()?.value ?? null;
     },
   };
 }

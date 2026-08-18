@@ -1,5 +1,6 @@
 import type { Query } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import type { AgentRuntimeGateway, AgentSessionUsage } from "../ports/runtimeGateway";
 
@@ -15,24 +16,20 @@ class AgentSessionUsageOwnerRetiredError extends Error {
 
 /** Exact Agent Runtime gateway generation allowed to populate Session usage cache. */
 export class AgentSessionUsageOwner {
-  static #active: AgentSessionUsageOwner | null = null;
-
   readonly #lifetime = new AbortController();
   #retired = false;
 
   private constructor(private readonly gateway: AgentRuntimeGateway) {}
 
   static install(gateway: AgentRuntimeGateway): AgentSessionUsageOwner {
-    const predecessor = AgentSessionUsageOwner.#active;
     const owner = new AgentSessionUsageOwner(gateway);
-    AgentSessionUsageOwner.#active = owner;
-    if (predecessor) predecessor.#retire();
+    agentSessionUsagePublication.publish(owner, (predecessor) => predecessor.#retire());
     owner.#replaceCachedWriter();
     return owner;
   }
 
   static current(): AgentSessionUsageOwner {
-    const owner = AgentSessionUsageOwner.#active;
+    const owner = agentSessionUsagePublication.current();
     if (!owner) throw new AgentSessionUsageOwnerRetiredError();
     return owner;
   }
@@ -58,9 +55,9 @@ export class AgentSessionUsageOwner {
 
   dispose(): void {
     if (this.#retired) return;
-    const current = AgentSessionUsageOwner.#active === this;
+    const current = agentSessionUsagePublication.owns(this);
     const cachedWriters = current ? this.#cachedWriters() : undefined;
-    if (current) AgentSessionUsageOwner.#active = null;
+    agentSessionUsagePublication.withdraw(this);
     this.#retire();
     if (cachedWriters && cachedWriters.size > 0) {
       void queryClient.cancelQueries({ predicate: (query) => cachedWriters.has(query) });
@@ -72,7 +69,7 @@ export class AgentSessionUsageOwner {
     if (cachedWriters.size === 0) return;
     const ownedWriter = (query: Query) => cachedWriters.has(query);
     void queryClient.cancelQueries({ predicate: ownedWriter }).then(() => {
-      if (this.#retired || AgentSessionUsageOwner.#active !== this) return;
+      if (this.#retired || !agentSessionUsagePublication.owns(this)) return;
       void queryClient.resetQueries({ predicate: ownedWriter });
     });
   }
@@ -82,7 +79,7 @@ export class AgentSessionUsageOwner {
   }
 
   #assertCurrent(): void {
-    if (this.#retired || AgentSessionUsageOwner.#active !== this) {
+    if (this.#retired || !agentSessionUsagePublication.owns(this)) {
       throw new AgentSessionUsageOwnerRetiredError();
     }
   }
@@ -93,6 +90,8 @@ export class AgentSessionUsageOwner {
     this.#lifetime.abort(new AgentSessionUsageOwnerRetiredError());
   }
 }
+
+const agentSessionUsagePublication = createPublicationSlot<AgentSessionUsageOwner>();
 
 export function useAgentSessionUsage(sessionId: string | undefined) {
   return useQuery({

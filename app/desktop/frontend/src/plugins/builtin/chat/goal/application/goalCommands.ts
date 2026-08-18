@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import {
   type GoalCommandsGateway,
@@ -122,8 +123,6 @@ class GoalCommandGeneration {
 /** Owns Goal intent ordering, command settlement and Session material repair for
  * one exact Plugin Host and Runtime generation. */
 export class GoalCommandOwner {
-  static #active: GoalCommandOwner | null = null;
-
   #generation: GoalCommandGeneration;
   readonly #repairProjection: GoalProjectionRepair;
   #disposed = false;
@@ -137,15 +136,13 @@ export class GoalCommandOwner {
     gateway: GoalCommandsGateway,
     repairProjection: GoalProjectionRepair,
   ): GoalCommandOwner {
-    const predecessor = GoalCommandOwner.#active;
     const owner = new GoalCommandOwner(gateway, repairProjection);
-    GoalCommandOwner.#active = owner;
-    predecessor?.dispose();
+    goalCommandPublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
   static current(): GoalCommandOwner {
-    const owner = GoalCommandOwner.#active;
+    const owner = goalCommandPublication.current();
     if (!owner || owner.#disposed) throw new Error("Goal command owner is not installed");
     return owner;
   }
@@ -163,7 +160,7 @@ export class GoalCommandOwner {
   }
 
   replaceRuntimeGeneration(gateway: GoalCommandsGateway): boolean {
-    if (this.#disposed || GoalCommandOwner.#active !== this) return false;
+    if (this.#disposed || !goalCommandPublication.owns(this)) return false;
     const predecessor = this.#generation;
     this.#generation = new GoalCommandGeneration(gateway, this.#repairProjection);
     predecessor.retire();
@@ -174,9 +171,11 @@ export class GoalCommandOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (GoalCommandOwner.#active === this) GoalCommandOwner.#active = null;
+    goalCommandPublication.withdraw(this);
   }
 }
+
+const goalCommandPublication = createPublicationSlot<GoalCommandOwner>();
 
 export async function startGoal(input: StartGoalInput): Promise<void> {
   await GoalCommandOwner.current().start(input);

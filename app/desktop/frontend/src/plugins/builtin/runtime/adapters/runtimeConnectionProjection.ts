@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import type { ServerCapabilities, WireFeature } from "@/rpc";
 import { configureRuntimeCapabilityPort } from "../application/ports/capabilities";
 import {
@@ -101,7 +102,6 @@ export interface RuntimeConnectionOwner {
   dispose(): void;
 }
 
-let activeConnection: RuntimeConnectionOwnerImplementation | null = null;
 let connectionGenerationSequence = 0;
 
 function nextConnectionGeneration(processGeneration: RuntimeProcessGeneration): string {
@@ -166,13 +166,13 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
 
   dispose(): void {
     if (this.#disposed) return;
-    const ownsGeneration = activeConnection === this;
+    const ownsGeneration = runtimeConnectionPublication.owns(this);
     this.#disposed = true;
     this.#controller.dispose();
     this.#serverReplacementListeners.clear();
     try {
       if (!ownsGeneration) return;
-      activeConnection = null;
+      runtimeConnectionPublication.withdraw(this);
       useRuntimeConnectionStore.setState(initialConnectionState(), true);
     } finally {
       this.#disposeServiceStatus();
@@ -206,7 +206,7 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
   }
 
   #ownsGeneration(): boolean {
-    return !this.#disposed && activeConnection === this;
+    return !this.#disposed && runtimeConnectionPublication.owns(this);
   }
 
   #checking(): void {
@@ -248,6 +248,8 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
   }
 }
 
+const runtimeConnectionPublication = createPublicationSlot<RuntimeConnectionOwnerImplementation>();
+
 /**
  * Claim the process-local Runtime connection owner. The claim retires the
  * previous controller before publishing an empty successor projection, so old
@@ -256,17 +258,14 @@ class RuntimeConnectionOwnerImplementation implements RuntimeConnectionOwner {
 export function startRuntimeConnection(
   inspector: RuntimeConnectionInspector<ServerCapabilities>,
 ): RuntimeConnectionOwner {
-  const retired = activeConnection;
   const owner = new RuntimeConnectionOwnerImplementation(inspector);
-  activeConnection = owner;
-  retired?.dispose();
+  runtimeConnectionPublication.publish(owner, (predecessor) => predecessor.dispose());
   useRuntimeConnectionStore.setState(initialConnectionState(), true);
   owner.start();
   return owner;
 }
 
 export function resetRuntimeConnectionForTest(): void {
-  activeConnection?.dispose();
-  activeConnection = null;
+  runtimeConnectionPublication.current()?.dispose();
   useRuntimeConnectionStore.setState(initialConnectionState(), true);
 }

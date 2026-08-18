@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type {
   DiagnosticToolGateway,
@@ -77,7 +78,6 @@ class DiagnosticToolGeneration {
 
 /** Owns direct Tool invocations for one exact Plugin Host and Runtime generation. */
 export class DiagnosticToolOwner {
-  static #active: DiagnosticToolOwner | null = null;
   static #materialGeneration = 0;
   static readonly #listeners = new Set<() => void>();
 
@@ -91,16 +91,14 @@ export class DiagnosticToolOwner {
   }
 
   static install(gateway: DiagnosticToolGateway): DiagnosticToolOwner {
-    const predecessor = DiagnosticToolOwner.#active;
     const owner = new DiagnosticToolOwner(gateway);
-    DiagnosticToolOwner.#active = owner;
-    predecessor?.dispose();
+    diagnosticToolPublication.publish(owner, (predecessor) => predecessor.dispose());
     DiagnosticToolOwner.#advanceMaterialGeneration();
     return owner;
   }
 
   static current(): DiagnosticToolOwner {
-    const owner = DiagnosticToolOwner.#active;
+    const owner = diagnosticToolPublication.current();
     if (!owner || owner.#disposed) throw new Error("Diagnostic Tool owner is not installed");
     return owner;
   }
@@ -119,7 +117,7 @@ export class DiagnosticToolOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || DiagnosticToolOwner.#active !== this) return;
+    if (this.#disposed || !diagnosticToolPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new DiagnosticToolGeneration(this.#gateway);
     predecessor.retire();
@@ -130,8 +128,7 @@ export class DiagnosticToolOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (DiagnosticToolOwner.#active === this) {
-      DiagnosticToolOwner.#active = null;
+    if (diagnosticToolPublication.withdraw(this)) {
       DiagnosticToolOwner.#advanceMaterialGeneration();
     }
   }
@@ -141,6 +138,8 @@ export class DiagnosticToolOwner {
     for (const listener of DiagnosticToolOwner.#listeners) listener();
   }
 }
+
+const diagnosticToolPublication = createPublicationSlot<DiagnosticToolOwner>();
 
 export function invokeDiagnosticTool(input: InvokeDiagnosticToolInput): Promise<unknown> {
   return DiagnosticToolOwner.current().invoke(input);

@@ -1,4 +1,5 @@
 import type { QueryFilters } from "@tanstack/react-query";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import {
@@ -100,8 +101,6 @@ class KnowledgeGeneration {
  * Runtime generation. Local drafts remain UI material; only this owner may
  * settle Runtime commands or project their authoritative document facts. */
 export class KnowledgeOwner {
-  static #active: KnowledgeOwner | null = null;
-
   readonly #gateway: WorkspaceKnowledgeGateway;
   #generation: KnowledgeGeneration;
   #disposed = false;
@@ -112,15 +111,13 @@ export class KnowledgeOwner {
   }
 
   static install(gateway: WorkspaceKnowledgeGateway): KnowledgeOwner {
-    const predecessor = KnowledgeOwner.#active;
     const owner = new KnowledgeOwner(gateway);
-    KnowledgeOwner.#active = owner;
-    predecessor?.dispose();
+    knowledgePublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
   static current(): KnowledgeOwner {
-    const owner = KnowledgeOwner.#active;
+    const owner = knowledgePublication.current();
     if (!owner || owner.#disposed) throw new Error("Workspace Knowledge owner is not installed");
     return owner;
   }
@@ -134,7 +131,7 @@ export class KnowledgeOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || KnowledgeOwner.#active !== this) return;
+    if (this.#disposed || !knowledgePublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new KnowledgeGeneration(this.#gateway);
     predecessor.retire();
@@ -144,9 +141,11 @@ export class KnowledgeOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (KnowledgeOwner.#active === this) KnowledgeOwner.#active = null;
+    knowledgePublication.withdraw(this);
   }
 }
+
+const knowledgePublication = createPublicationSlot<KnowledgeOwner>();
 
 /** Immutable editor material for one exact Knowledge document. */
 export class KnowledgeDraft {

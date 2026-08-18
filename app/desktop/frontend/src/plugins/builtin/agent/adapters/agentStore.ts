@@ -10,6 +10,7 @@ import type {
 import type { AgentProblem, AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { reduceAgentEvent } from "@/plugins/builtin/agent/application/fold/reducer";
 import { foldCancelRunResponse } from "@/plugins/builtin/agent/application/fold/cancelResponse";
 import { foldRunSnapshot } from "@/plugins/builtin/agent/application/fold/runSnapshot";
@@ -382,15 +383,13 @@ export const useAgentStore = create<AgentStore>((set) => ({
  * and a stale disposer can retire only itself.
  */
 export class AgentViewRefreshOwner {
-  static #active: AgentViewRefreshOwner | null = null;
-
   #disposed = false;
 
   private constructor() {}
 
   static install(): AgentViewRefreshOwner {
     const owner = new AgentViewRefreshOwner();
-    AgentViewRefreshOwner.#active = owner;
+    agentViewRefreshPublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
@@ -417,13 +416,15 @@ export class AgentViewRefreshOwner {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
-    if (AgentViewRefreshOwner.#active === this) AgentViewRefreshOwner.#active = null;
+    agentViewRefreshPublication.withdraw(this);
   }
 
   #ownsGeneration(): boolean {
-    return !this.#disposed && AgentViewRefreshOwner.#active === this;
+    return !this.#disposed && agentViewRefreshPublication.owns(this);
   }
 }
+
+const agentViewRefreshPublication = createPublicationSlot<AgentViewRefreshOwner>();
 
 // Prune sessions no longer held open. The view slice (messages, toolCalls,
 // shared, plan) can be megabytes of streamed markdown per session — without

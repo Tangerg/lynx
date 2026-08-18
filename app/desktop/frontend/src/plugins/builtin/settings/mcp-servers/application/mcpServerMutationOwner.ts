@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { MCPServerInput } from "./mcpServerInput";
@@ -158,7 +159,6 @@ class MCPServerMutationGeneration {
 /** Owns MCP server commands, authorization polling, and cache projection for
  * one exact Plugin Host and Runtime generation. */
 export class MCPServerMutationOwner {
-  static #active: MCPServerMutationOwner | null = null;
   static #materialGeneration = 0;
   static readonly #materialListeners = new Set<() => void>();
 
@@ -172,16 +172,14 @@ export class MCPServerMutationOwner {
   }
 
   static install(gateway: MCPServerGateway): MCPServerMutationOwner {
-    const predecessor = MCPServerMutationOwner.#active;
     const owner = new MCPServerMutationOwner(gateway);
-    MCPServerMutationOwner.#active = owner;
-    predecessor?.dispose();
+    mcpServerMutationPublication.publish(owner, (predecessor) => predecessor.dispose());
     MCPServerMutationOwner.#advanceMaterialGeneration();
     return owner;
   }
 
   static current(): MCPServerMutationOwner {
-    const owner = MCPServerMutationOwner.#active;
+    const owner = mcpServerMutationPublication.current();
     if (!owner || owner.#disposed) throw new Error("MCP server mutation owner is not installed");
     return owner;
   }
@@ -224,7 +222,7 @@ export class MCPServerMutationOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || MCPServerMutationOwner.#active !== this) return;
+    if (this.#disposed || !mcpServerMutationPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new MCPServerMutationGeneration(this.#gateway);
     predecessor.retire();
@@ -235,8 +233,7 @@ export class MCPServerMutationOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (MCPServerMutationOwner.#active === this) {
-      MCPServerMutationOwner.#active = null;
+    if (mcpServerMutationPublication.withdraw(this)) {
       MCPServerMutationOwner.#advanceMaterialGeneration();
     }
   }
@@ -246,6 +243,8 @@ export class MCPServerMutationOwner {
     for (const listener of MCPServerMutationOwner.#materialListeners) listener();
   }
 }
+
+const mcpServerMutationPublication = createPublicationSlot<MCPServerMutationOwner>();
 
 export function mcpServerMutationWasRetired(error: unknown): boolean {
   return error instanceof MCPServerMutationRetiredError;

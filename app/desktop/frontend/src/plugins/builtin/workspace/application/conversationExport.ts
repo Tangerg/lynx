@@ -1,4 +1,5 @@
 import { RetirableTaskCohort } from "@/lib/taskQueue";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { t } from "@/lib/i18n";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
@@ -253,8 +254,6 @@ export interface ConversationArchiveOwnerDependencies {
  * rehydrate, query repair, navigation, toast and download all share one owner.
  */
 export class ConversationArchiveOwner {
-  static #active: ConversationArchiveOwner | null = null;
-
   readonly #dependencies: ConversationArchiveOwnerDependencies;
   #generation: ConversationArchiveGeneration;
   #disposed = false;
@@ -265,15 +264,13 @@ export class ConversationArchiveOwner {
   }
 
   static install(dependencies: ConversationArchiveOwnerDependencies): ConversationArchiveOwner {
-    const predecessor = ConversationArchiveOwner.#active;
     const owner = new ConversationArchiveOwner(dependencies);
-    ConversationArchiveOwner.#active = owner;
-    predecessor?.dispose();
+    conversationArchivePublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
   static current(): ConversationArchiveOwner {
-    const owner = ConversationArchiveOwner.#active;
+    const owner = conversationArchivePublication.current();
     if (!owner || owner.#disposed) throw new Error("Conversation archive owner is not installed");
     return owner;
   }
@@ -287,7 +284,7 @@ export class ConversationArchiveOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || ConversationArchiveOwner.#active !== this) return;
+    if (this.#disposed || !conversationArchivePublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = this.#newGeneration();
     predecessor.retire();
@@ -297,13 +294,15 @@ export class ConversationArchiveOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (ConversationArchiveOwner.#active === this) ConversationArchiveOwner.#active = null;
+    conversationArchivePublication.withdraw(this);
   }
 
   #newGeneration(): ConversationArchiveGeneration {
     return new ConversationArchiveGeneration(this.#dependencies.gateway, this.#dependencies.files);
   }
 }
+
+const conversationArchivePublication = createPublicationSlot<ConversationArchiveOwner>();
 
 export function exportConversationMarkdown(): Promise<void> {
   return ConversationArchiveOwner.current().export("md");

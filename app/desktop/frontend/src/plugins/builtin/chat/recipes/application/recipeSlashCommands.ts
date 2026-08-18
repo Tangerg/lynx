@@ -109,8 +109,11 @@ export function installRecipeSlashCommands(
   const unsubscribeQuery = subscribeAgentSessionProjection(sessionWorkspaceRevision, refresh);
 
   return () => {
+    generation += 1;
     unsubscribeSession();
     unsubscribeQuery();
     for (const disposable of dynamic) disposable.dispose();
+    dynamic = [];
+    queryClient.removeQueries({ queryKey: [RECIPES_KEY], type: "inactive" });
   };
 }

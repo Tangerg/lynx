@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import {
@@ -96,7 +97,6 @@ class CodebaseCommandGeneration {
 /** Owns every Codebase command and status projection for one exact Plugin Host
  * and Runtime generation. */
 export class CodebaseCommandOwner {
-  static #active: CodebaseCommandOwner | null = null;
   static #materialGeneration = 0;
   static readonly #materialListeners = new Set<() => void>();
 
@@ -110,16 +110,14 @@ export class CodebaseCommandOwner {
   }
 
   static install(gateway: CodebaseGateway): CodebaseCommandOwner {
-    const predecessor = CodebaseCommandOwner.#active;
     const owner = new CodebaseCommandOwner(gateway);
-    CodebaseCommandOwner.#active = owner;
-    predecessor?.dispose();
+    codebaseCommandPublication.publish(owner, (predecessor) => predecessor.dispose());
     CodebaseCommandOwner.#advanceMaterialGeneration();
     return owner;
   }
 
   static current(): CodebaseCommandOwner {
-    const owner = CodebaseCommandOwner.#active;
+    const owner = codebaseCommandPublication.current();
     if (!owner || owner.#disposed) throw new Error("Codebase command owner is not installed");
     return owner;
   }
@@ -142,7 +140,7 @@ export class CodebaseCommandOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || CodebaseCommandOwner.#active !== this) return;
+    if (this.#disposed || !codebaseCommandPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new CodebaseCommandGeneration(this.#gateway);
     predecessor.retire();
@@ -153,8 +151,7 @@ export class CodebaseCommandOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (CodebaseCommandOwner.#active === this) {
-      CodebaseCommandOwner.#active = null;
+    if (codebaseCommandPublication.withdraw(this)) {
       CodebaseCommandOwner.#advanceMaterialGeneration();
     }
   }
@@ -164,6 +161,8 @@ export class CodebaseCommandOwner {
     for (const listener of CodebaseCommandOwner.#materialListeners) listener();
   }
 }
+
+const codebaseCommandPublication = createPublicationSlot<CodebaseCommandOwner>();
 
 export function codebaseCommandWasRetired(error: unknown): boolean {
   return error instanceof CodebaseCommandRetiredError;

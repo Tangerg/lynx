@@ -1,3 +1,4 @@
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { MessageFeedbackRating } from "../domain/feedback";
 
@@ -133,7 +134,6 @@ class MessageFeedbackGeneration {
 /** Owns feedback command ordering and optimistic material for one exact Plugin
  * Host and Runtime generation. */
 export class MessageFeedbackOwner {
-  static #active: MessageFeedbackOwner | null = null;
   static readonly #listeners = new Map<string, Set<RatingListener>>();
 
   readonly #gateway: MessageFeedbackGateway;
@@ -146,22 +146,20 @@ export class MessageFeedbackOwner {
   }
 
   static install(gateway: MessageFeedbackGateway): MessageFeedbackOwner {
-    const predecessor = MessageFeedbackOwner.#active;
     const owner = new MessageFeedbackOwner(gateway);
-    MessageFeedbackOwner.#active = owner;
-    predecessor?.dispose();
+    messageFeedbackPublication.publish(owner, (predecessor) => predecessor.dispose());
     MessageFeedbackOwner.#publishAll();
     return owner;
   }
 
   static current(): MessageFeedbackOwner {
-    const owner = MessageFeedbackOwner.#active;
+    const owner = messageFeedbackPublication.current();
     if (!owner || owner.#disposed) throw new Error("Message feedback owner is not installed");
     return owner;
   }
 
   static rating(target: MessageFeedbackTarget): MessageFeedbackRating | undefined {
-    const owner = MessageFeedbackOwner.#active;
+    const owner = messageFeedbackPublication.current();
     return owner && !owner.#disposed ? owner.#generation.rating(target) : undefined;
   }
 
@@ -187,7 +185,7 @@ export class MessageFeedbackOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || MessageFeedbackOwner.#active !== this) return;
+    if (this.#disposed || !messageFeedbackPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = this.#newGeneration();
     predecessor.retire();
@@ -198,8 +196,7 @@ export class MessageFeedbackOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (MessageFeedbackOwner.#active === this) {
-      MessageFeedbackOwner.#active = null;
+    if (messageFeedbackPublication.withdraw(this)) {
       MessageFeedbackOwner.#publishAll();
     }
   }
@@ -220,6 +217,8 @@ export class MessageFeedbackOwner {
     );
   }
 }
+
+const messageFeedbackPublication = createPublicationSlot<MessageFeedbackOwner>();
 
 export function messageFeedbackRating(
   target: MessageFeedbackTarget,

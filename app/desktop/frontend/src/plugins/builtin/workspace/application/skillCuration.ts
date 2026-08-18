@@ -1,4 +1,5 @@
 import type { QueryFilters } from "@tanstack/react-query";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { SkillCurationGateway, SkillProposalHandle } from "./ports/skillCurationGateway";
@@ -133,8 +134,6 @@ class SkillCurationGeneration {
  * and Runtime generation. Both command families write the same Skill identity,
  * so they deliberately share one resource-partitioned tail. */
 export class SkillCurationOwner {
-  static #active: SkillCurationOwner | null = null;
-
   readonly #gateway: SkillCurationGateway;
   #generation: SkillCurationGeneration;
   #disposed = false;
@@ -145,15 +144,13 @@ export class SkillCurationOwner {
   }
 
   static install(gateway: SkillCurationGateway): SkillCurationOwner {
-    const predecessor = SkillCurationOwner.#active;
     const owner = new SkillCurationOwner(gateway);
-    SkillCurationOwner.#active = owner;
-    predecessor?.dispose();
+    skillCurationPublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
   static current(): SkillCurationOwner {
-    const owner = SkillCurationOwner.#active;
+    const owner = skillCurationPublication.current();
     if (!owner || owner.#disposed) throw new Error("Skill curation owner is not installed");
     return owner;
   }
@@ -175,7 +172,7 @@ export class SkillCurationOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || SkillCurationOwner.#active !== this) return;
+    if (this.#disposed || !skillCurationPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new SkillCurationGeneration(this.#gateway);
     predecessor.retire();
@@ -185,9 +182,11 @@ export class SkillCurationOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (SkillCurationOwner.#active === this) SkillCurationOwner.#active = null;
+    skillCurationPublication.withdraw(this);
   }
 }
+
+const skillCurationPublication = createPublicationSlot<SkillCurationOwner>();
 
 export function archiveSkill(name: string): Promise<void> {
   return SkillCurationOwner.current().archive(name);

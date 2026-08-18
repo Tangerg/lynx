@@ -1,4 +1,5 @@
 import { HOOKS_KEY } from "./hookQueries";
+import { createPublicationSlot } from "@/lib/publicationSlot";
 import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 
@@ -78,8 +79,6 @@ class HookTrustMutationGeneration {
 
 /** Owns hook trust commands and projection repair for one exact Host and Runtime generation. */
 export class HookTrustMutationOwner {
-  static #active: HookTrustMutationOwner | null = null;
-
   readonly #gateway: HookTrustGateway;
   #generation: HookTrustMutationGeneration;
   #disposed = false;
@@ -90,15 +89,13 @@ export class HookTrustMutationOwner {
   }
 
   static install(gateway: HookTrustGateway): HookTrustMutationOwner {
-    const predecessor = HookTrustMutationOwner.#active;
     const owner = new HookTrustMutationOwner(gateway);
-    HookTrustMutationOwner.#active = owner;
-    predecessor?.dispose();
+    hookTrustPublication.publish(owner, (predecessor) => predecessor.dispose());
     return owner;
   }
 
   static current(): HookTrustMutationOwner {
-    const owner = HookTrustMutationOwner.#active;
+    const owner = hookTrustPublication.current();
     if (!owner || owner.#disposed) throw new Error("Hook trust mutation owner is not installed");
     return owner;
   }
@@ -108,7 +105,7 @@ export class HookTrustMutationOwner {
   }
 
   replaceRuntimeGeneration(): void {
-    if (this.#disposed || HookTrustMutationOwner.#active !== this) return;
+    if (this.#disposed || !hookTrustPublication.owns(this)) return;
     const predecessor = this.#generation;
     this.#generation = new HookTrustMutationGeneration(this.#gateway);
     predecessor.retire();
@@ -118,9 +115,11 @@ export class HookTrustMutationOwner {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#generation.retire();
-    if (HookTrustMutationOwner.#active === this) HookTrustMutationOwner.#active = null;
+    hookTrustPublication.withdraw(this);
   }
 }
+
+const hookTrustPublication = createPublicationSlot<HookTrustMutationOwner>();
 
 export function setHookTrust(projectRoot: string, trusted: boolean): Promise<void> {
   return HookTrustMutationOwner.current().setProjectTrust(projectRoot, trusted);
