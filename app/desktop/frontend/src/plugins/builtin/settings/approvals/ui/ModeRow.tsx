@@ -9,13 +9,34 @@ import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
+import { useEffect, useState } from "react";
+
+type ApprovalModeIntent = {
+  mode: ApprovalMode;
+  settlement: "pending" | "accepted-awaiting-projection";
+} | null;
 
 export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   const t = useT();
+  const [intent, setIntent] = useState<ApprovalModeIntent>(null);
+  useEffect(() => {
+    if (intent?.settlement === "accepted-awaiting-projection" && intent.mode === mode) {
+      setIntent(null);
+    }
+  }, [intent, mode]);
+
   const onChange = async (next: ApprovalMode) => {
+    if (intent !== null || next === mode) return;
+    setIntent({ mode: next, settlement: "pending" });
     try {
-      await saveApprovalMode(next);
+      const accepted = await saveApprovalMode(next);
+      setIntent((current) =>
+        current?.mode === next
+          ? { mode: accepted, settlement: "accepted-awaiting-projection" }
+          : current,
+      );
     } catch (err) {
+      setIntent((current) => (current?.mode === next ? null : current));
       if (agentCommandWasRetired(err)) return;
       notifyError(rpcErrorText(err) ?? t("approvals.error.mode"));
     }
@@ -32,13 +53,16 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
       ) : (
         <div className="mt-3 flex flex-col gap-0.5">
           {APPROVAL_MODES.map((o) => {
-            const selected = o.value === mode;
+            const selected = o.value === (intent?.mode ?? mode);
+            const saving = o.value === intent?.mode;
             return (
               <Pressable
                 key={o.value}
                 type="button"
                 aria-pressed={selected}
                 aria-label={t(o.labelKey)}
+                aria-busy={saving || undefined}
+                disabled={intent !== null}
                 onClick={() => void onChange(o.value)}
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-3 text-left transition-colors",
@@ -53,7 +77,11 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
                   </div>
                   <div className="mt-0.5 text-ui-md leading-body text-fg-muted">{t(o.descKey)}</div>
                 </div>
-                {selected && <Icon name="check" size="md" className="shrink-0 text-accent" />}
+                {saving ? (
+                  <Icon name="loop" size="sm" className="shrink-0 animate-spin text-accent" />
+                ) : (
+                  selected && <Icon name="check" size="md" className="shrink-0 text-accent" />
+                )}
               </Pressable>
             );
           })}
