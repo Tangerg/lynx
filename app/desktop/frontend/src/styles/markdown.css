@@ -4,6 +4,7 @@
    message background. */
 .md {
   display: block;
+  overflow-wrap: anywhere;
   /* A tab is four columns. The default is eight, which is nobody's editor setting and
      turns one indent level in pasted Go or Makefile output into half the measure. Set
      on the root so it reaches the highlighted block, its `<code>`, and the raw `<pre>`
@@ -132,27 +133,44 @@
 .md ol ol {
   margin: 4px 0;
 }
+.md ul ul {
+  list-style-type: circle;
+}
+.md ul ul ul {
+  list-style-type: square;
+}
 .md li {
-  margin: 2px 0;
+  margin: 0;
+  padding-inline-start: 2px;
+}
+.md li + li {
+  margin-top: 8px;
 }
 .md li::marker {
-  color: var(--color-text-faint);
+  color: var(--color-text);
 }
 .md li > p {
   margin: 0;
 }
 .md li > p + p {
-  margin-top: 6px;
+  margin-top: 11px;
+}
+.md li > ul,
+.md li > ol {
+  margin-top: 8px;
+  margin-bottom: 0;
 }
 
 /* GFM task-list checkboxes — kill the default OS chrome and draw our
    own. Both `task-list-item` and the input itself get aligned. */
-.md ul:has(input[type="checkbox"]) {
+.md ul.contains-task-list,
+.md ol.contains-task-list:not(:has(> li:not(.task-list-item))) {
   list-style: none;
-  padding-left: 4px;
+  padding-inline-start: 0;
 }
 .md li.task-list-item {
-  padding-left: 2px;
+  padding-inline-start: 0;
+  list-style-type: none;
 }
 .md li.task-list-item > input[type="checkbox"] {
   appearance: none;
@@ -183,16 +201,28 @@
   background-position: center;
 }
 
-/* Blockquote — a semantic left-rule (allowed), muted text. The bar is
-   a quiet structural cue at 20% ink, not a colorful emphasis. */
+/* Blockquote — Codex keeps quoted prose at normal ink and lets one inset rule
+   carry the hierarchy. The logical edge follows RTL without a second selector. */
 .md blockquote {
-  margin: 12px 0;
-  padding: 0 0 0 12px;
-  border-left: 2px solid color-mix(in oklab, var(--color-text) 20%, transparent);
-  color: var(--color-text-muted);
+  position: relative;
+  margin: 0 0 8px;
+  padding-block: 8px;
+  padding-inline-start: 24px;
+  border: 0;
+  color: var(--color-text);
+  background: transparent;
 }
 .md blockquote p {
-  margin: 4px 0;
+  margin: 0;
+}
+.md blockquote::after {
+  content: "";
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: 0;
+  width: 4px;
+  border-radius: var(--shape-2xs);
+  background: var(--color-border);
 }
 
 .md a {
@@ -208,8 +238,11 @@
 
 .md hr {
   border: 0;
-  border-top: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
-  margin: 16px 0;
+  border-top: 1px solid var(--color-border);
+  margin: 28px 0;
+}
+.md hr + * {
+  margin-top: 0;
 }
 
 /* Tables are wide, copyable content artifacts. The outer container borrows the
