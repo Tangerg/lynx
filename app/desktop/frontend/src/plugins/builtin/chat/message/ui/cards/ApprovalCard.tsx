@@ -22,7 +22,7 @@ import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/se
 
 interface Props {
   /** Block lifecycle. `"requires-action"` shows the action card with the
-   *  Approve / Decline buttons; `"complete"` collapses to a settled
+   *  Allow once / Deny buttons; `"complete"` collapses to a settled
    *  checkpoint row driven by `decision`. */
   status: BlockStatus;
   /** The tool awaiting a decision. The headline is derived here, at render, so it
@@ -59,7 +59,7 @@ interface Props {
 // Approval card — presentation shell. Submission coordination lives in
 // useApprovalCardActions; this component renders against `status`:
 //   - "complete"         → settled checkpoint row (decision is authoritative)
-//   - "requires-action"  → action card with Approve / Decline buttons,
+//   - "requires-action"  → action card with Allow once / Deny buttons,
 //                           or optimistic checkpoint while a submit is in
 //                           flight (pending mirrors the user's last click)
 //
@@ -218,10 +218,10 @@ export function ApprovalCard({
         )}
         <span className="flex-1" />
         <Button variant="outline" size="sm" disabled={disabled} onClick={decline}>
-          {t("approval.action.decline")}
+          {t("approval.action.deny")}
         </Button>
         <Button variant="primary" size="sm" disabled={disabled} onClick={approve}>
-          {t("approval.action.approve")}
+          {t("approval.action.allowOnce")}
         </Button>
       </div>
       {/* Scope picker — only meaningful once "don't ask again" is on. Session

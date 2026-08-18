@@ -59,7 +59,7 @@ test("WebKit shell preserves minimum geometry and drawer focus handoff", async (
 test("WebKit agent HITL remains keyboard-operable", async ({ page }) => {
   await openFixture(page, { fixture: "agent", state: "waiting", theme: "dark" });
 
-  const approve = page.getByRole("button", { name: /Approve/ });
+  const approve = page.getByRole("button", { name: /Allow once/ });
   await approve.focus();
   await page.keyboard.press("Enter");
 

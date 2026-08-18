@@ -221,7 +221,7 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await assertVisibleKeyboardFocus(settings);
 
   await openFixture(page, { fixture: "agent", state: "waiting", theme: "dark" });
-  const approve = page.getByRole("button", { name: /Approve/ });
+  const approve = page.getByRole("button", { name: /Allow once/ });
   await tabTo(page, approve);
   await assertVisibleKeyboardFocus(approve);
   await page.keyboard.press("Enter");

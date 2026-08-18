@@ -44,7 +44,7 @@ test("HITL approval settles through the exact Run and Item identity", async ({ p
   await page.goto("/visual/?fixture=agent&theme=light&state=waiting");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  await page.getByRole("button", { name: /Approve/ }).click();
+  await page.getByRole("button", { name: /Allow once/ }).click();
 
   await expect(page.getByText("Approved", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-run", "run_root");
@@ -74,7 +74,7 @@ test("a pending approval carries a warning edge and a settled one carries none",
   });
   expect(edge).toBe(warning);
 
-  await page.getByRole("button", { name: /Approve/ }).click();
+  await page.getByRole("button", { name: /Allow once/ }).click();
   await expect(shell).toHaveCount(0);
 });
 
@@ -82,7 +82,7 @@ test("HITL rejection preserves the same exact interrupt identity", async ({ page
   await page.goto("/visual/?fixture=agent&theme=light&state=waiting");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  await page.getByRole("button", { name: /Decline/ }).click();
+  await page.getByRole("button", { name: /Deny/ }).click();
 
   await expect(page.getByText("Declined", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-run", "run_root");
@@ -377,7 +377,7 @@ for (const state of ["long-content", "question", "delegated"] as const) {
 }
 
 for (const { state, action } of [
-  { state: "waiting", action: "Approve" },
+  { state: "waiting", action: "Allow once" },
   { state: "question", action: "Submit" },
 ] as const) {
   test(`compact ${state} opens with its blocking action above the composer`, async ({ page }) => {
