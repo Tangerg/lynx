@@ -16,6 +16,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 ## 1. 当前授权
 
 - P120 已于 2026-08-19 获得实施授权：纠正 P119 后续实现中仍停留在“移动旧卡片”的 Plan/Goal 表面，逐像素对齐 Codex composer stack；移除 composer 上方固定分割线、标题栏累计上下文信息与普通回合结束后的统计杂项，并让 composer Context 环接到真实模型窗口占用。中央内容区继续服从 Codex narrative grammar，不增加结算 dashboard。
+- P120 验收后的 Goal 视觉反馈已按同一授权纠正：Goal 不是悬浮 quiet row，而是与 composer 同宽、以重叠 1px 接缝相连的 top-tray surface；材质、上圆角、专用 goal-arrow、行高/间距与 Codex 本地化状态文案由各自唯一 owner 持有。Frontend 仍不展示预算、限制、用量或模型等用户已明确排除的信息。
 - P120 不修改 Runtime Protocol、Artifact、SQLite schema、公共 Go API 或 Agent Framework baseline。现有 `segment.progress.contextTokens` 已是 Runtime 发布的最新 prompt/context footprint；Frontend 只把该事实与当前 Session 实际 served model 的 `contextWindow` 配对，不以累计 input/cache token、费用或估算值代替。
 - 成立缺口已先由独立红测提交 `98f0c45d4` 锁定并推送；根修复只进入 composer overlay、Plan/Goal presentation、Run fold/read model、Context gauge 与普通终态 narrative owner，继续不修改或暂存 `app/cli`。
 - P119 已于 2026-08-18 获得实施授权：在 P118 基线上继续逐项证明 Desktop 左侧 Work Index、中间 Agent Narrative 与右侧 Context Dock 的全部可见能力确实接到权威 Frontend/Runtime owner，并深度对齐 Codex 的交互反馈与信息层级；Plan、Goal、Steer 的前后端语义、生命周期、恢复与 UI 是本阶段首要纵切。
@@ -27,7 +28,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ### P120 准入与完成条件（2026-08-19）
 
-- Composer 内部不再为已注册但返回 `null` 的 standing contribution 留下固定 header edge；Plan 与 Goal 都属于 composer 顶部 overlay，空态为零高度，不以 transcript header、composer 内卡片或永久分割线占位。
+- Composer 内部不再为已注册但返回 `null` 的 standing contribution 留下固定 header edge；Plan 是 composer 上方的紧凑进度提示，Goal 是与 composer 上沿无缝相连的同宽 top-tray surface，空态均为零高度，不以 transcript header、composer 内卡片或永久分割线占位。
 - Plan 只显示 Codex 式环形进度与“第 N / M 步”紧凑 pill，完整权威 checklist 只在 hover/focus tooltip 中展开；不保留旧 disclosure card、底部 progress bar 或 click-expanded 第二状态。Goal 只显示 lifecycle、objective 与当前可用 pause/resume 命令；预算、额度、花费、轮次、步数、model 与 last move 不进入 standing UI。
 - Context 环严格采用 Codex 计算：`used = min(contextTokens, contextWindow)`，百分比为 `used / contextWindow` 的整数读数；tooltip 同时呈现占比、剩余比例与 `used/window` token。Run 终态只保留最后一次真实 `contextTokens`，activity/step/usage 等瞬态 progress 同步退休；没有 Runtime 读数或模型窗口时不绘制，不用 Session 累计 usage 猜测。
 - 标题栏不再注册 Session 累计 token/cost chip；普通 completed/failed Run 不追加“完成、耗时、步数、token、费用”结算行，最终 assistant message 已是完成事实。canceled/limit 等非普通终态仍保留一行 quiet narrative reason，actionable failure 继续由既有 recovery surface 负责。
@@ -138,7 +139,7 @@ P113–P120 共同建立了以下不可回退的心智模型：
 - Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
 - Composer 顶部 standing stack 只有紧凑 Plan pill 与 Goal lifecycle row；Goal 限制仍是 Runtime/launcher 事实而非永久 chrome。Context 环只读 Runtime `contextTokens` 与 served model window，标题栏与普通完成态不重复累计 accounting。
 
-最近一次完整验收基线：Frontend 322 files / 1993 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 322 files / 1994 tests 与严格异步泄露门禁全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 

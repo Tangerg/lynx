@@ -38,8 +38,11 @@ type VisualStyleTokenName =
   | "dock-tab-active-surface"
   | "app-card-surface"
   | "app-composer-surface"
+  | "app-composer-tray-surface"
   | "app-floating-surface"
   | "composer-backdrop"
+  | "composer-tray-backdrop"
+  | "composer-tray-edge-color"
   | "floating-backdrop"
   | "app-card-edge"
   | "app-pane-split"
@@ -156,6 +159,9 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // gets its bordered input back.
   "app-composer-surface": "color-mix(in oklab, var(--app-content-surface) 86%, transparent)",
   "composer-backdrop": "blur(20px) saturate(1.4)",
+  "app-composer-tray-surface": "color-mix(in oklab, var(--app-content-surface) 70%, transparent)",
+  "composer-tray-backdrop": "blur(8px)",
+  "composer-tray-edge-color": "color-mix(in oklab, var(--color-border) 80%, transparent)",
   // A floating panel is the other translucent surface. Same reason as the composer:
   // it lets a hint of what it covers through, so it reads as glass over the page
   // rather than as a second page pasted on it. Held here rather than as an alpha at

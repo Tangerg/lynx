@@ -200,15 +200,18 @@ test("the standing goal stays in the composer stack instead of claiming the tran
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  const goal = page.locator('[data-slot="goal-status-row"]');
+  const goal = page.locator('[data-slot="composer-top-tray-surface"]');
   const composer = page.locator('[data-slot="composer-root"]');
   const goalBox = await goal.boundingBox();
   const composerBox = await composer.boundingBox();
 
   expect(goalBox).not.toBeNull();
   expect(composerBox).not.toBeNull();
-  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeGreaterThanOrEqual(0);
-  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeLessThanOrEqual(16);
+  expect(Math.abs(composerBox!.x - goalBox!.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(composerBox!.width - goalBox!.width)).toBeLessThanOrEqual(1);
+  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeGreaterThanOrEqual(-1);
+  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeLessThanOrEqual(0);
+  await expect(goal.locator('[data-slot="goal-glyph"]')).toBeVisible();
 });
 
 test("the composer context ring exposes the Runtime window occupancy", async ({ page }) => {

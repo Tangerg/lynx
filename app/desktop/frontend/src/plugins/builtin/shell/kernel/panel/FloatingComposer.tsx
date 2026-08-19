@@ -54,9 +54,18 @@ export function RuntimeConnectionNotice() {
   );
 }
 
-/** Composer-owned standing material shared by the floating and empty layouts. */
+/** Composer-owned standing material shared by the floating and empty layouts.
+ * An attached tray shares one pixel with the composer below; its owner restores
+ * that pixel above the stack so transcript clearance still measures the complete
+ * painted surface without moving any visible child. */
 export function ComposerOverlayTop() {
-  return <Slot name="composer.overlay.top" wrapper className="flex w-full flex-col items-center" />;
+  return (
+    <Slot
+      name="composer.overlay.top"
+      wrapper
+      className="flex w-full flex-col items-center [&:has([data-slot=composer-top-tray-surface])]:pt-px"
+    />
+  );
 }
 
 /**

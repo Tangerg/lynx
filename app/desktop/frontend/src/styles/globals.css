@@ -863,6 +863,9 @@
   --app-user-message-surface: color-mix(in srgb, var(--color-text) 5%, transparent);
   --app-composer-surface: color-mix(in oklab, var(--app-content-surface) 86%, transparent);
   --composer-backdrop: blur(20px) saturate(1.4);
+  --app-composer-tray-surface: color-mix(in oklab, var(--app-content-surface) 70%, transparent);
+  --composer-tray-backdrop: blur(8px);
+  --composer-tray-edge-color: color-mix(in oklab, var(--color-border) 80%, transparent);
   --app-floating-surface: color-mix(in oklab, var(--app-content-surface) 90%, transparent);
   --floating-backdrop: blur(8px) saturate(1.4);
   /* Edge GEOMETRY only — offsets and spread, no colour. The colour is the

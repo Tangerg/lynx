@@ -162,7 +162,7 @@ export const es: Record<string, string> = {
   "inbox.ask.question": "Responder",
   "inbox.empty.title": "Nada te está esperando",
   "inbox.empty.sub": "Las sesiones que se detienen a preguntar aparecen aquí.",
-  "goal.summary.active": "Persiguiendo objetivo",
+  "goal.summary.active": "Objetivo en curso",
   "goal.summary.paused": "Objetivo en pausa",
   "goal.summary.blocked": "Objetivo estancado",
   "goal.summary.completing": "Finalizando objetivo",

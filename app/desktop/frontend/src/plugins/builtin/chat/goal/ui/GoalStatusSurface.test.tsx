@@ -125,4 +125,16 @@ describe("Goal status surface", () => {
     expect(screen.queryByText("Steps")).toBeNull();
     expect(screen.queryByRole("button", { name: "Show the allowance" })).toBeNull();
   });
+
+  it("uses the Codex top-tray surface and dedicated Goal glyph", () => {
+    const { container } = render(<GoalStatusSurface />);
+
+    const surface = container.querySelector<HTMLElement>('[data-slot="composer-top-tray-surface"]');
+    expect(surface).not.toBeNull();
+    expect(surface?.className).toContain("rounded-t-composer");
+    expect(surface?.className).toContain("border-x");
+    expect(surface?.className).toContain("border-t");
+    expect(surface?.className).not.toContain("mb-2");
+    expect(surface?.querySelector('[data-slot="goal-glyph"]')).not.toBeNull();
+  });
 });
