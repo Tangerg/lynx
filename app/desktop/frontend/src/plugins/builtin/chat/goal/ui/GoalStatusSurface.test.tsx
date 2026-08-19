@@ -169,4 +169,15 @@ describe("Goal status surface disclosure identity", () => {
     expect(screen.getByText("Out of turns")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Resume goal" })).toBeNull();
   });
+
+  it("presents only Goal status and objective, never limits or usage", () => {
+    render(<GoalStatusSurface />);
+
+    expect(screen.getByText("Pursuing goal")).toBeTruthy();
+    expect(screen.getByText("Ship alpha")).toBeTruthy();
+    expect(screen.queryByText("1/10")).toBeNull();
+    expect(screen.queryByText("Turns")).toBeNull();
+    expect(screen.queryByText("Steps")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show the allowance" })).toBeNull();
+  });
 });

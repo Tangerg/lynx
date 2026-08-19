@@ -6,4 +6,9 @@ describe("built-in plugin manifest", () => {
     const names = builtinPlugins.map((plugin) => plugin.name);
     expect(new Set(names).size).toBe(names.length);
   });
+
+  it("keeps cumulative context telemetry out of the title bar", () => {
+    const names = builtinPlugins.map((plugin) => plugin.name);
+    expect(names).not.toContain("lyra.builtin.session-usage");
+  });
 });

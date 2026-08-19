@@ -83,4 +83,18 @@ describe("ActivePlan disclosure identity", () => {
       expect(screen.queryByRole("button", { name: /Expand plan/ })).toBeNull();
     });
   });
+
+  it("uses Codex's compact step pill instead of a relocated Plan card", () => {
+    model.steps = [
+      { id: "step-1", text: "Inspect", status: "done" },
+      { id: "step-2", text: "Fix", status: "active" },
+      { id: "step-3", text: "Verify", status: "pending" },
+    ];
+
+    render(<ActivePlan />);
+
+    expect(screen.getByText("Step 2 / 3")).toBeTruthy();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Expand plan/ })).toBeNull();
+  });
 });

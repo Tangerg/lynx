@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { definePlugin } from "@/plugins/sdk";
+import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { addLocaleBundle, setLocale } from "@/lib/i18n";
 import { WORKSPACE_LIST_FILES_KEY } from "@/plugins/builtin/workspace/public/queries";
@@ -70,6 +70,26 @@ afterEach(async () => {
 });
 
 describe("composer", () => {
+  it("does not draw an internal divider for a standing surface that renders nothing", async () => {
+    await loadPluginsForTest(
+      definePlugin({
+        name: "test.empty-composer-standing-surface",
+        setup: (ctx) => {
+          contributeLayout(ctx, "composer.header", {
+            id: "empty",
+            component: () => null,
+          });
+        },
+      }),
+    );
+
+    const { container } = wrap(
+      <Composer {...baseProps} value="" onChange={() => {}} onSend={() => true} />,
+    );
+
+    expect(container.querySelector(".border-b")).toBeNull();
+  });
+
   it("calls onChange as the user types", () => {
     const onChange = vi.fn();
     wrap(<Composer {...baseProps} value="" onChange={onChange} onSend={() => true} />);
