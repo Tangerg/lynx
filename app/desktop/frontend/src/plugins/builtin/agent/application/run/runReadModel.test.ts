@@ -38,6 +38,20 @@ function row(id: string, owner: TranscriptRow["runOwner"]): TranscriptRow {
 }
 
 describe("CurrentRootMaterial", () => {
+  it("publishes the latest prompt footprint independently from cumulative metrics", () => {
+    const active = {
+      ...run("run-context", "running"),
+      progress: { contextTokens: 198_000 },
+      metrics: {
+        steps: 4,
+        activeDurationMillis: 100,
+        usage: { inputTokens: 900_000, outputTokens: 10_000, cacheReadTokens: 500_000 },
+      },
+    };
+
+    expect(CurrentRootMaterial.from(active).contextTokens).toBe(198_000);
+  });
+
   it("assigns terminal material to the finished Run's last exact narrative row", () => {
     const material = CurrentRootMaterial.from(run("run-a", "finished"));
     const rows = [

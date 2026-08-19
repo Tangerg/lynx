@@ -138,9 +138,9 @@ export function ChatStream({ onSend }: Props) {
   const t = useT();
 
   // Session and run problems stay pinned above whatever fills the column. Standing
-  // Goal/Plan material belongs to the composer stack instead: Goal inside the
-  // composer header and the active Plan in FloatingComposer's top overlay. Both
-  // remain available while the transcript scrolls.
+  // Goal/Plan material belongs to FloatingComposer's quiet top overlay. Both
+  // remain available while the transcript scrolls without adding an inner edge
+  // to the composer surface.
   const banners = (
     <div className={cn(READING_COLUMN, READING_GUTTER, "shrink-0")}>
       {/* Keyed on the session so the relocate input never carries a

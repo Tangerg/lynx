@@ -41,7 +41,7 @@ export function MarkdownTable({ markdownSource, children }: Props) {
           open={previewOpen}
           onOpenChange={setPreviewOpen}
           title={t("message.table.preview")}
-          className="max-w-[80vw] overflow-auto border border-field bg-card p-8 pt-12"
+          className="min-w-[min(408px,80vw)] max-w-[80vw] overflow-auto border border-field bg-card p-8 pt-12"
           trigger={
             <IconButton
               icon="maximize"

@@ -91,4 +91,23 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
     s = reduce(s, progress({ contextTokens: 45_000 }));
     expect(selectCurrentRootRun(s)?.progress?.contextTokens).toBe(45_000);
   });
+
+  it("retains the last context footprint when terminal metrics replace live progress", () => {
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
+    s = reduce(s, runStarted("run_1"));
+    s = reduce(s, progress({ contextTokens: 45_000, activity: "thinking", step: 2 }));
+    s = reduce(
+      s,
+      runFinished(
+        { type: "completed" },
+        {
+          steps: 3,
+          activeDurationMillis: 10,
+          usage: { inputTokens: 80_000, outputTokens: 1_000, cacheReadTokens: 40_000 },
+        },
+      ),
+    );
+
+    expect(selectCurrentRootRun(s)?.progress).toEqual({ contextTokens: 45_000 });
+  });
 });

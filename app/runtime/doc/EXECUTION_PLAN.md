@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P119 已完成并形成里程碑。
+> 状态：P0–P120 已完成并形成里程碑。
 >
-> 最近基线：2026-08-19，P119 完整验收。
+> 最近基线：2026-08-19，P120 Frontend 精确收敛验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,12 +15,24 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P120 已于 2026-08-19 获得实施授权：纠正 P119 后续实现中仍停留在“移动旧卡片”的 Plan/Goal 表面，逐像素对齐 Codex composer stack；移除 composer 上方固定分割线、标题栏累计上下文信息与普通回合结束后的统计杂项，并让 composer Context 环接到真实模型窗口占用。中央内容区继续服从 Codex narrative grammar，不增加结算 dashboard。
+- P120 不修改 Runtime Protocol、Artifact、SQLite schema、公共 Go API 或 Agent Framework baseline。现有 `segment.progress.contextTokens` 已是 Runtime 发布的最新 prompt/context footprint；Frontend 只把该事实与当前 Session 实际 served model 的 `contextWindow` 配对，不以累计 input/cache token、费用或估算值代替。
+- 成立缺口已先由独立红测提交 `98f0c45d4` 锁定并推送；根修复只进入 composer overlay、Plan/Goal presentation、Run fold/read model、Context gauge 与普通终态 narrative owner，继续不修改或暂存 `app/cli`。
 - P119 已于 2026-08-18 获得实施授权：在 P118 基线上继续逐项证明 Desktop 左侧 Work Index、中间 Agent Narrative 与右侧 Context Dock 的全部可见能力确实接到权威 Frontend/Runtime owner，并深度对齐 Codex 的交互反馈与信息层级；Plan、Goal、Steer 的前后端语义、生命周期、恢复与 UI 是本阶段首要纵切。
 - P119 同时处理 production composer 的 IME 缺陷：中文输入法处于或刚结束 composition、用户实际输入英文并按 Enter 时不得直接发送；修复必须落在 composer 键盘意图 owner，而不是靠延时、debounce、平台特判或取消一次已发出的命令掩盖。
 - 默认改动范围为 `app/desktop` 与 `app/desktop/frontend`。只有红例证明前端缺少权威事实时才进入 `app/runtime`；突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK 前必须重新报告爆炸半径并取得确认。
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P120 准入与完成条件（2026-08-19）
+
+- Composer 内部不再为已注册但返回 `null` 的 standing contribution 留下固定 header edge；Plan 与 Goal 都属于 composer 顶部 overlay，空态为零高度，不以 transcript header、composer 内卡片或永久分割线占位。
+- Plan 只显示 Codex 式环形进度与“第 N / M 步”紧凑 pill，完整权威 checklist 只在 hover/focus tooltip 中展开；不保留旧 disclosure card、底部 progress bar 或 click-expanded 第二状态。Goal 只显示 lifecycle、objective 与当前可用 pause/resume 命令；预算、额度、花费、轮次、步数、model 与 last move 不进入 standing UI。
+- Context 环严格采用 Codex 计算：`used = min(contextTokens, contextWindow)`，百分比为 `used / contextWindow` 的整数读数；tooltip 同时呈现占比、剩余比例与 `used/window` token。Run 终态只保留最后一次真实 `contextTokens`，activity/step/usage 等瞬态 progress 同步退休；没有 Runtime 读数或模型窗口时不绘制，不用 Session 累计 usage 猜测。
+- 标题栏不再注册 Session 累计 token/cost chip；普通 completed/failed Run 不追加“完成、耗时、步数、token、费用”结算行，最终 assistant message 已是完成事实。canceled/limit 等非普通终态仍保留一行 quiet narrative reason，actionable failure 继续由既有 recovery surface 负责。
+- 生产交互与视觉证据必须覆盖 Plan tooltip、Goal 无约束信息、Plan→Goal→Composer 几何、Context 真实占用 tooltip、正常终态无结算 footer、light/dark 与完整 agent golden；Frontend unit、type/lint/format/knip/design/token/chrome/locales/bundle 门禁全部保持全绿。
+- P120 不扩张 commentary/final phase 或原生图片 Download 的未授权公共边界；中央其余 Markdown/Tool/HITL/compaction renderer 继续使用 P119 已验收的唯一 material owner。
 
 ### P119 准入与完成条件（2026-08-18）
 
@@ -106,10 +118,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P117     | Desktop 恢复反馈与 Codex 对齐的三栏 UI 精修                                                                     | Work Index、transcript 与 Context Dock 服从 exact Session、reader-owned scroll 和 Runtime command capability；renderer reload 与 Runtime SIGKILL 后原窗口原 workspace 可见恢复            |
 | P118     | Desktop 左中右接线与 Codex 交互深度对齐                                                                          | 创建失败不转移焦点，compact HITL 动态净空进入唯一滚动 owner，Goal/Run 命令可辨；Context Dock 服从 640px 阅读下限并呈现 exact file identity，真实 renderer/Runtime 换代后状态与能力收敛       |
 | P119     | Desktop 前后端完整接线与 Codex 三栏深度对齐                                                                      | Plan/Goal/Steer、Work Index、统一 narrative renderer 与 Context Dock 服从权威 Session/Runtime owner；IME commit Enter、production renderer replacement 与 Runtime SIGKILL 恢复闭环       |
+| P120     | Composer stack、Context 占用与终态 narrative 精确收敛                                                            | Plan/Goal 改为 Codex 紧凑 standing surface；Context 环消费真实 `contextTokens/contextWindow`；标题栏与普通结束态移除累计统计和结算杂项                                                  |
 
 ## 5. 当前里程碑结论
 
-P113–P119 共同建立了以下不可回退的心智模型：
+P113–P120 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -123,8 +136,9 @@ P113–P119 共同建立了以下不可回退的心智模型：
 - Work Index 只有在 `sessions.create` 返回新 identity 后才交接焦点；中央 transcript 的内容增长与 composer/HITL border-box 净空共享一个 follow fact，用户取得阅读位置后不再被异步 materialization 抢回。
 - Composer 的发送入口只消费键盘意图 owner：IME 提交中英混合文本后的首个普通 Enter 仍属于 composition commit，只有下一次独立 Enter 才能发送；不得用 timeout、UA 分支或撤销已发送命令模拟该边界。
 - Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
+- Composer 顶部 standing stack 只有紧凑 Plan pill 与 Goal lifecycle row；Goal 限制仍是 Runtime/launcher 事实而非永久 chrome。Context 环只读 Runtime `contextTokens` 与 served model window，标题栏与普通完成态不重复累计 accounting。
 
-最近一次完整验收基线：Frontend 321 files / 1996 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 311 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 322 files / 1993 tests 与严格异步泄露门禁全绿，99 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 

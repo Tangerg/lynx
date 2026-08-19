@@ -198,7 +198,7 @@ export function onRunFinished(
         activeSegmentId: null,
         outcome: null,
         metrics: projectRunMetrics(metrics),
-        progress: null,
+        progress: settledContextProgress(run.progress),
       };
     }
     return {
@@ -207,7 +207,7 @@ export function onRunFinished(
       activeSegmentId: null,
       outcome: projectTerminalSegmentOutcome(outcome),
       metrics: projectRunMetrics(metrics),
-      progress: null,
+      progress: settledContextProgress(run.progress),
       finishedAt: source.timestamp,
     };
   });
@@ -250,6 +250,15 @@ export function onRunFinished(
       summary: terminalOutcomeSummary(projectedOutcome),
     }),
   )(next);
+}
+
+/** Activity, step and provisional usage expire at the segment boundary. The
+ * latest prompt footprint does not: it remains the Session's context-window
+ * reading until a successor Run publishes its own value. */
+function settledContextProgress(
+  progress: AgentRunProgress | null,
+): Pick<AgentRunProgress, "contextTokens"> | null {
+  return progress?.contextTokens === undefined ? null : { contextTokens: progress.contextTokens };
 }
 
 function terminalOutcomeSummary(outcome: AgentRunOutcome): string | undefined {

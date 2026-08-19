@@ -33,11 +33,9 @@ export type VisualAgentState = (typeof VISUAL_AGENT_STATES)[number];
 const SESSION_ID = "ses_visual";
 const ROOT_RUN_ID = "run_root";
 const CREATED_AT = "2026-07-31T08:00:00.000Z";
-// Carries usage, and it has to: two production readouts are gated on a non-zero
-// count — the run-close line's token figures, and the composer's context gauge,
-// which refuses to draw rather than claim an empty window it cannot verify. With
-// the counts at zero both were absent from every screenshot. 96k against the
-// fixture model's 256k window puts the gauge at 38%, off both of its ends.
+// Cumulative accounting remains a Run fact. It deliberately does NOT drive the
+// composer's context gauge: window occupancy is the latest Runtime contextTokens
+// reading, supplied independently in the live event tail below.
 const METRICS = {
   steps: 4,
   activeDurationMillis: 12_000,
@@ -1020,6 +1018,8 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentE
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
+    // 96k against the served model's 256k window puts the live gauge at 38%.
+    tailEvent(6, { type: "segment.progress", progress: { contextTokens: 96_000 } }),
   ],
   // One frame earlier than `running`: the answer is open and empty. Nothing here is
   // superseded yet, so the thinking stays readable and the live tool work stays
@@ -1030,12 +1030,14 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentE
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: OPENING_RESPONSE }),
+    tailEvent(6, { type: "segment.progress", progress: { contextTokens: 96_000 } }),
   ],
   steer: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
+    tailEvent(6, { type: "segment.progress", progress: { contextTokens: 96_000 } }),
   ],
   waiting: [],
   question: [],

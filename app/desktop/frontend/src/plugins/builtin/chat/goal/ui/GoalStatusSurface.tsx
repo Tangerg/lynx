@@ -1,48 +1,30 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
-import { Badge, IconButton, ProgressBar } from "@/ui";
-import { AgentActivityDisclosure } from "@/ui/agent";
+import { Icon, IconButton } from "@/ui";
 import { disclosureTransition } from "@/lib/motion";
-import { fmtCost } from "@/lib/format";
 import { useT } from "@/lib/i18n";
-import { formatRelative } from "@/lib/i18n/relativeTime";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { goalCommandWasRetired, resumeGoal, stopGoal } from "../application/goalCommands";
-import {
-  GOAL_STATUS_I18N,
-  GOAL_STOP_I18N,
-  goalBudgetAxes,
-  goalCanResume,
-  tightestAxis,
-  type BudgetAxisView,
-} from "../application/goalStatusPresentation";
+import { GOAL_STATUS_I18N, goalCanResume } from "../application/goalStatusPresentation";
 import { type GoalReadModel, useGoalMaterial } from "../application/goalReadModel";
 import {
   runtimeCommandsAvailable,
   useRuntimeCommandsAvailable,
 } from "@/plugins/builtin/runtime/public/serviceStatus";
 
-/**
- * The session's standing order, kept in the composer stack.
- *
- * A Goal is authority the user handed over, with an allowance attached. Letting
- * someone hide the readout of how much of that allowance is left would make the
- * loop's remaining reach invisible at exactly the moment it matters.
- */
+/** A Goal is a standing instruction, not a dashboard. Codex presents it as one
+ * quiet row above the composer: lifecycle, objective, then the exact command
+ * available now. Budgets and accounting remain Runtime facts but do not become
+ * persistent front-end chrome. */
 export function GoalStatusSurface() {
   const material = useGoalMaterial();
-  const data = material.value;
-  const goal = data?.goal;
+  const goal = material.value?.goal;
 
   return (
     <AnimatePresence initial={false}>
       {goal && (
-        // Objective is editable business content, not incarnation identity: a
-        // stopped Goal may be replaced by another with the same words. Runtime
-        // does not expose a Goal id, so its immutable Session + creation stamp is
-        // the narrowest durable identity available to the read model.
-        <GoalDisclosure
+        <GoalRow
           key={JSON.stringify([goal.sessionId, material.generation, goal.createdAt])}
           goal={goal}
         />
@@ -51,13 +33,11 @@ export function GoalStatusSurface() {
   );
 }
 
-function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
+function GoalRow({ goal }: { goal: GoalReadModel }) {
   const t = useT();
-  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const commandInFlight = useRef(false);
   const runtimeAvailable = useRuntimeCommandsAvailable();
-  const axes = goalBudgetAxes(goal);
   const canChangeStatus = goal.status === "active" || goalCanResume(goal);
 
   const changeStatus = async () => {
@@ -84,121 +64,26 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={disclosureTransition}
-      className="w-full"
+      data-slot="goal-status-row"
+      className="mb-2 flex w-full items-center justify-between gap-2 px-3 py-1.5"
     >
-      <AgentActivityDisclosure
-        icon="target"
-        shell="line"
-        tone={GOAL_STATUS_I18N[goal.status].tone}
-        label={<span className="block min-w-0 truncate">{goal.objective}</span>}
-        trailing={<Allowance axis={tightestAxis(axes)} />}
-        // Only when it is not running: "Running" is what an active Goal surface being
-        // on screen already says, and a badge repeating it would leave the two
-        // states that need saying — paused, blocked — competing with noise.
-        actions={
-          <div className="flex items-center gap-2">
-            {goal.status !== "active" && (
-              <Badge tone={GOAL_STATUS_I18N[goal.status].tone}>
-                {t(GOAL_STATUS_I18N[goal.status].label)}
-              </Badge>
-            )}
-            {canChangeStatus && (
-              <IconButton
-                type="button"
-                size="xs"
-                icon={goal.status === "active" ? "pause" : "play"}
-                quiet
-                title={t(goal.status === "active" ? "goal.action.pause" : "goal.action.resume")}
-                disabled={busy || !runtimeAvailable}
-                aria-busy={busy}
-                onClick={() => void changeStatus()}
-              />
-            )}
-          </div>
-        }
-        open={expanded}
-        onToggle={() => setExpanded((value) => !value)}
-        toggleLabel={expanded ? t("goal.collapse") : t("goal.expand")}
-      >
-        <div className="flex flex-col gap-1.5">
-          {axes.map((axis) => (
-            <BudgetAxis key={axis.label} axis={axis} />
-          ))}
-        </div>
-        <GoalMeta goal={goal} />
-        {goal.stop && (
-          <p className="mt-2.5 text-ui-sm leading-body text-fg-muted">
-            {t(GOAL_STOP_I18N[goal.stop.code])}
-            {goal.stop.detail && ` — ${goal.stop.detail}`}
-          </p>
-        )}
-      </AgentActivityDisclosure>
-    </motion.div>
-  );
-}
-
-/**
- * The two facts about a standing loop that no budget bar can carry: whether it is
- * still moving, and what it is spending the allowance ON.
- *
- * Both were already in the read model and neither was on screen. "Last move" is
- * the only liveness signal a surface like this can give — an autonomous loop
- * between turns and one that has quietly stopped making progress look identical,
- * and the bars, which only ever climb, cannot tell them apart. The model is here
- * because it is pinned at start: the composer's picker may have moved on, and
- * when there is a cost cap, which model is drawing it down is the whole story.
- *
- * In the expanded body, not the collapsed row: the row is a glance, and it is
- * already carrying the objective, the tightest axis and the status.
- */
-function GoalMeta({ goal }: { goal: GoalReadModel }) {
-  const t = useT();
-  return (
-    <dl className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-ui-xs text-fg-faint">
-      <div className="flex items-baseline gap-1.5">
-        <dt>{t("goal.meta.model")}</dt>
-        <dd className="m-0 font-mono text-fg-muted">{goal.model}</dd>
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-ui-sm leading-tight">
+        <Icon name="target" size="xs" className="shrink-0 text-fg-faint" />
+        <span className="shrink-0 text-fg">{t(GOAL_STATUS_I18N[goal.status].label)}</span>
+        <span className="min-w-0 truncate text-fg-muted">{goal.objective}</span>
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <dt>{t("goal.meta.lastMove")}</dt>
-        <dd className="m-0 text-fg-muted">{formatRelative(goal.updatedAt)}</dd>
-      </div>
-    </dl>
-  );
-}
-
-/** A number in the axis's own unit — dollars are written as money, everything
- *  else as the count it is. */
-function amount(axis: BudgetAxisView, value: number): string {
-  return axis.unit === "cost" ? fmtCost(value) : String(value);
-}
-
-/** The collapsed row's one number: how far into the tightest allowance it is. */
-function Allowance({ axis }: { axis: BudgetAxisView | undefined }) {
-  const t = useT();
-  if (!axis) return <span className="text-ui-xs text-fg-faint">{t("goal.budget.uncapped")}</span>;
-  return (
-    <span className="font-mono text-ui-xs font-medium tabular-nums">
-      {amount(axis, axis.used)}/{amount(axis, axis.max)}
-    </span>
-  );
-}
-
-function BudgetAxis({ axis }: { axis: BudgetAxisView }) {
-  const t = useT();
-  return (
-    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2.5">
-      <span className="text-ui-sm text-fg-faint">{t(axis.label)}</span>
-      {axis.spent === undefined ? (
-        <span className="text-ui-sm text-fg-faint">{t("goal.budget.uncapped")}</span>
-      ) : (
-        <ProgressBar value={axis.spent * 100} label={t(axis.label)} className="h-1" />
+      {canChangeStatus && (
+        <IconButton
+          type="button"
+          size="xs"
+          icon={goal.status === "active" ? "pause" : "play"}
+          quiet
+          title={t(goal.status === "active" ? "goal.action.pause" : "goal.action.resume")}
+          disabled={busy || !runtimeAvailable}
+          aria-busy={busy}
+          onClick={() => void changeStatus()}
+        />
       )}
-      <span className="font-mono text-ui-xs tabular-nums text-fg-muted">
-        {axis.spent === undefined
-          ? amount(axis, axis.used)
-          : `${amount(axis, axis.used)} / ${amount(axis, axis.max)}`}
-      </span>
-    </div>
+    </motion.div>
   );
 }

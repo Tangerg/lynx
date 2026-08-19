@@ -1,7 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
-import { StepMark, StepRow } from "@/ui";
-import { AgentActivityDisclosure } from "@/ui/agent";
+import { Gauge, Pressable, RichTooltip, StepRow } from "@/ui";
 import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
 import { type PlanStep, useSessionPlan } from "@/plugins/builtin/agent/public/plan";
@@ -15,7 +13,7 @@ export function ActivePlan() {
   return (
     <AnimatePresence initial={false}>
       {progress.visible && progress.current && (
-        <PlanDisclosure
+        <PlanPill
           key={plan.identity}
           steps={plan.steps}
           progress={progress}
@@ -26,7 +24,9 @@ export function ActivePlan() {
   );
 }
 
-function PlanDisclosure({
+/** Codex keeps Plan progress as a fixed-size reading aid above the composer. The
+ * complete checklist is secondary material and appears only on hover/focus. */
+function PlanPill({
   steps,
   progress,
   current,
@@ -36,7 +36,30 @@ function PlanDisclosure({
   current: PlanStep;
 }) {
   const t = useT();
-  const [expanded, setExpanded] = useState(false);
+  const currentIndex = Math.max(
+    0,
+    steps.findIndex((step) => step.id === current.id),
+  );
+  const progressLabel = t("plan.progress", {
+    current: currentIndex + 1,
+    total: progress.total,
+  });
+  const completionLabel = t("plan.complete", {
+    done: progress.done,
+    total: progress.total,
+  });
+
+  const trigger = (
+    <Pressable
+      type="button"
+      data-slot="active-plan-pill"
+      aria-label={progressLabel}
+      className="-my-1.5 inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm py-1.5 text-ui-sm text-fg-muted transition-colors duration-[var(--dur-color)] hover:text-fg"
+    >
+      <Gauge value={progress.percent / 100} label={completionLabel} className="text-accent" />
+      <span className="truncate whitespace-nowrap tabular-nums">{progressLabel}</span>
+    </Pressable>
+  );
 
   return (
     <motion.div
@@ -44,62 +67,25 @@ function PlanDisclosure({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={disclosureTransition}
-      className={expanded ? "w-full" : "max-w-full"}
+      className="mb-2 flex max-w-full justify-center"
     >
-      <AgentActivityDisclosure
-        className={expanded ? "w-full" : "mx-auto w-fit max-w-full"}
-        leading={<StepMark state={current.status} />}
-        shell="card"
-        label={
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={expanded ? "summary" : "current"}
-              initial={{ opacity: 0, y: 3 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -3 }}
-              transition={disclosureTransition}
-              className="block min-w-0 truncate"
-            >
-              {expanded
-                ? t("plan.complete", { done: progress.done, total: progress.total })
-                : current.text}
-            </motion.span>
-          </AnimatePresence>
-        }
-        // The bar is the row's full bottom edge (see AgentActivityDisclosure) and the
-        // count stays in the meta column: one of them is seen while scrolling past,
-        // the other is read when the reader stops. Full width keeps progress
-        // states visually distinguishable without reading the count.
-        progress={{
-          value: progress.percent,
-          label: t("plan.complete", { done: progress.done, total: progress.total }),
-        }}
-        trailing={
-          <span className="font-mono text-ui-xs font-medium tabular-nums">
-            {progress.done}/{progress.total}
-          </span>
-        }
-        open={expanded}
-        onToggle={() => setExpanded((value) => !value)}
-        toggleLabel={
-          expanded
-            ? t("plan.collapse")
-            : t("plan.expand", {
-                done: progress.done,
-                total: progress.total,
-                pct: progress.percent,
-              })
-        }
+      <RichTooltip
+        trigger={trigger}
+        side="top"
+        sideOffset={8}
+        delay={0}
+        className="max-h-[min(320px,calc(100vh-16px))] w-[min(320px,calc(100vw-16px))] overflow-y-auto bg-fg px-2 py-2 text-on-fg"
       >
-        {/* The same row the Plan panel draws; long steps remain readable here. */}
-        <ul className="flex flex-col">
+        <ul className="flex flex-col gap-1">
           {steps.map((step) => (
             <li key={step.id}>
-              <StepRow state={step.status}>{step.text}</StepRow>
+              <StepRow state={step.status} className="items-start py-1 font-normal text-on-fg">
+                {step.text}
+              </StepRow>
             </li>
           ))}
         </ul>
-      </AgentActivityDisclosure>
+      </RichTooltip>
     </motion.div>
   );
 }

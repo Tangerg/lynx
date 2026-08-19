@@ -66,7 +66,6 @@ import recipesSlash from "./chat/recipes";
 import pluginsPane from "./settings/plugins-pane";
 import providersPane from "./settings/providers";
 import contextUsage from "./chat/context-usage";
-import sessionUsage from "./chat/session-usage";
 import shortcuts from "./command/shortcuts";
 import usagePane from "./settings/usage";
 import { sidebarActions, sidebarFooter, sidebarProjects, sidebarRecents } from "./sidebar";
@@ -270,7 +269,6 @@ const overlays: AnyPlugin[] = [
   planProgress,
   providerSetup,
   contextUsage,
-  sessionUsage,
   conversationExport,
 ];
 

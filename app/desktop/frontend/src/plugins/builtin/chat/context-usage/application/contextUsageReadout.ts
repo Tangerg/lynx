@@ -9,14 +9,9 @@ export interface ContextUsageReadout {
 }
 
 /**
- * The LAST TURN's input count against the window, which is what "how full is the
- * context" means: every turn resends the conversation, so the prompt the most
- * recent request carried IS the occupancy. Session totals cannot answer this —
- * they add every turn together and pass the window long before it is full.
- *
- * `inputTokens` alone, never plus `cacheReadTokens`: the core contract states that
- * cache-read and cache-write are BREAKDOWNS already inside the input total
- * (core/chat/usage.go), so adding them counts the cached prefix twice.
+ * The latest model request's total prompt footprint against the served model's
+ * context window. Runtime publishes this as `RunProgress.contextTokens`; Session
+ * and Run usage totals cannot answer this because they add multiple model rounds.
  *
  * Null whenever the answer would be a guess — no window declared for the model, or
  * no turn has been sent yet. A gauge reading zero says "empty"; that is a claim,
@@ -28,11 +23,12 @@ export function contextUsageReadout(
 ): ContextUsageReadout | null {
   if (!windowTokens || windowTokens <= 0) return null;
   if (!usedTokens || usedTokens <= 0) return null;
-  const ratio = Math.min(1, usedTokens / windowTokens);
+  const used = Math.min(usedTokens, windowTokens);
+  const ratio = used / windowTokens;
   return {
     ratio,
     percent: Math.round(ratio * 100),
-    usedTokens,
+    usedTokens: used,
     windowTokens,
   };
 }

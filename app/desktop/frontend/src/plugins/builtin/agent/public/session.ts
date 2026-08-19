@@ -22,7 +22,7 @@ export {
   useAgentSessions,
   type AgentSessionSummary,
 } from "../application/session/sessionQueries";
-export { AGENT_SESSION_USAGE_KEY, useAgentSessionUsage } from "../application/session/sessionUsage";
+export { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
 export { createSession, useCreateSession } from "../application/session/createSession";
 export { useDeleteSession } from "../application/session/deleteSession";
 export { useToggleFavorite } from "../application/session/favoriteSession";

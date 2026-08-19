@@ -165,19 +165,16 @@ test("a running Goal exposes Pause while the active turn exposes Stop", async ({
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(1);
 });
 
-test("plan disclosure expands through the production active surface", async ({ page }) => {
+test("the compact Plan pill reveals the production checklist on hover", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  await page.getByRole("button", { name: "Expand plan (1/3 · 33%)" }).click();
+  await page.getByRole("button", { name: "Step 2 / 3" }).hover();
 
-  // The banner's steps come from the session's plan snapshot now, not from a
+  // The tooltip's steps come from the session's plan snapshot, not from a
   // per-run plan Item — same three steps, read from where the protocol keeps them.
   await expect(page.getByText("Run quality gates", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Collapse plan list" })).toHaveAttribute(
-    "aria-expanded",
-    "true",
-  );
+  await expect(page.getByRole("tooltip")).toBeVisible();
 });
 
 test("the active plan stays with the composer instead of claiming the transcript header", async ({
@@ -186,15 +183,15 @@ test("the active plan stays with the composer instead of claiming the transcript
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  const plan = page.getByRole("button", { name: "Expand plan (1/3 · 33%)" });
-  const composer = page.locator('[data-slot="composer-root"]');
+  const plan = page.getByRole("button", { name: "Step 2 / 3" });
+  const goal = page.locator('[data-slot="goal-status-row"]');
   const planBox = await plan.boundingBox();
-  const composerBox = await composer.boundingBox();
+  const goalBox = await goal.boundingBox();
 
   expect(planBox).not.toBeNull();
-  expect(composerBox).not.toBeNull();
-  expect(composerBox!.y - (planBox!.y + planBox!.height)).toBeGreaterThanOrEqual(0);
-  expect(composerBox!.y - (planBox!.y + planBox!.height)).toBeLessThanOrEqual(16);
+  expect(goalBox).not.toBeNull();
+  expect(goalBox!.y - (planBox!.y + planBox!.height)).toBeGreaterThanOrEqual(0);
+  expect(goalBox!.y - (planBox!.y + planBox!.height)).toBeLessThanOrEqual(16);
 });
 
 test("the standing goal stays in the composer stack instead of claiming the transcript header", async ({
@@ -203,15 +200,29 @@ test("the standing goal stays in the composer stack instead of claiming the tran
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  const goal = page.getByRole("button", { name: "Show the allowance" });
+  const goal = page.locator('[data-slot="goal-status-row"]');
   const composer = page.locator('[data-slot="composer-root"]');
   const goalBox = await goal.boundingBox();
   const composerBox = await composer.boundingBox();
 
   expect(goalBox).not.toBeNull();
   expect(composerBox).not.toBeNull();
-  expect(goalBox!.y).toBeGreaterThanOrEqual(composerBox!.y);
-  expect(goalBox!.y + goalBox!.height).toBeLessThanOrEqual(composerBox!.y + composerBox!.height);
+  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeGreaterThanOrEqual(0);
+  expect(composerBox!.y - (goalBox!.y + goalBox!.height)).toBeLessThanOrEqual(16);
+});
+
+test("the composer context ring exposes the Runtime window occupancy", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=running");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const gauge = page.getByRole("img", { name: "Context usage: 38%" });
+  await expect(gauge).toBeVisible();
+  await gauge.hover();
+
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toContainText("Context window:");
+  await expect(tooltip).toContainText("38% used (62% left)");
+  await expect(tooltip).toContainText("96k / 256k tokens used");
 });
 
 for (const theme of ["light", "dark"] as const) {
@@ -498,6 +509,14 @@ for (const theme of ["light", "dark"] as const) {
 
     const dialog = page.getByRole("dialog", { name: "Table preview" });
     await expect(dialog).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await expect(dialog).toHaveCSS("scale", "none");
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     await expect(dialog).toHaveScreenshot(`markdown-table-preview-${theme}.png`);
     await page.getByRole("button", { name: "Close table preview" }).click();
     await expect(dialog).toHaveCount(0);
@@ -554,6 +573,15 @@ for (const theme of ["light", "dark"] as const) {
     await preview.click();
     const dialog = page.getByRole("dialog", { name: "Inline architecture" });
     await expect(dialog).toBeVisible();
+    // The dialog is fixed but its 90% backdrop deliberately preserves the
+    // transcript behind it. Pin that background before the golden: the
+    // transcript's follow animation and `scrollIntoView` otherwise race over
+    // which equally valid 49px slice shows through the backdrop.
+    const transcript = page.locator(".msg-scroll-viewport");
+    await transcript.evaluate((viewport) => {
+      viewport.scrollTop = 0;
+    });
+    await expect.poll(() => transcript.evaluate((viewport) => viewport.scrollTop)).toBe(0);
     const controlSizes = await Promise.all(
       ["Close image preview", "Zoom out image", "Zoom in image"].map((name) =>
         page.getByRole("button", { name }).evaluate((button, accessibleName) => {
@@ -925,8 +953,9 @@ test("a tool with a standing surface is not narrated as well", async ({ page }) 
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  // The composer-owned surface holds the plan.
-  await expect(page.getByText("Review visual evidence").first()).toBeVisible();
+  // The composer-owned pill holds the plan in its Codex-style hover surface.
+  await page.getByRole("button", { name: "Step 2 / 3" }).hover();
+  await expect(page.getByText("Review visual evidence", { exact: true })).toBeVisible();
 
   const stream = page.locator(".msg-scroll-viewport");
   // The transcript does not repeat it, closed or open.
@@ -1054,38 +1083,19 @@ test("an expanded wave keeps its summary while its rows scroll past", async ({ p
   expect(stuck?.overflow).toBe("clip");
 });
 
-test("the Goal surface reports the allowance that will run out first", async ({ page }) => {
+test("the Goal surface stays quiet and omits Runtime constraints", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  const trigger = page.getByRole("button", { name: "Show the allowance" });
-  await expect(trigger).toBeVisible();
+  const row = page.locator('[data-slot="goal-status-row"]');
+  await expect(row).toContainText("Pursuing goal");
+  await expect(row).toContainText("green on Linux");
+  await expect(row.getByRole("button", { name: "Pause goal" })).toBeVisible();
 
-  // Cost is at 90% and runs at 35%; steps carries the biggest number and no cap
-  // at all. The collapsed row must name the axis that will stop the loop, not
-  // the loudest number on it.
-  await expect(trigger).toContainText("$4.50/$5.00");
-  await expect(trigger).not.toContainText("7/20");
-
-  await trigger.click();
-
-  // Every axis once open — and the uncapped one SAYS so instead of drawing a
-  // bar. A full track under "no limit" reads as "nearly spent", which is the
-  // opposite of what it means and which a golden cannot tell from a bar that is
-  // genuinely full.
-  const banner = page
-    .locator("[data-slot=agent-activity-disclosure]")
-    .filter({ hasText: "green on Linux" });
-  await expect(banner.locator("[role=progressbar]")).toHaveCount(2);
-  await expect(banner.getByText("no limit")).toBeVisible();
-
-  // The two facts the bars cannot carry. Bars only ever climb, so a loop between
-  // turns and one that has quietly stopped look identical without "last move";
-  // and the model is pinned when the goal starts, so the composer's current pick
-  // is not an answer to what is drawing the cost cap down.
-  await expect(banner.getByText("Model")).toBeVisible();
-  await expect(banner.getByText("gpt-5", { exact: true })).toBeVisible();
-  await expect(banner.getByText("Last move")).toBeVisible();
+  await expect(row).not.toContainText("$4.50/$5.00");
+  await expect(row).not.toContainText("7/20");
+  await expect(row).not.toContainText("31");
+  await expect(row.locator("[role=progressbar]")).toHaveCount(0);
 });
 
 for (const theme of ["light", "dark"] as const) {

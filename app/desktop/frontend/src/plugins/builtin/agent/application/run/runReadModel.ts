@@ -27,6 +27,9 @@ export class CurrentRootMaterial {
   readonly status: AgentRunView["status"] | "idle";
   readonly outcome: AgentRunOutcome | null;
   readonly metrics: AgentRunMetrics | null;
+  /** Latest model prompt footprint for this Run. Unlike cumulative usage, this
+   * is the number that occupies the model's context window. */
+  readonly contextTokens: number | null;
   readonly attention: AgentRootAttention;
 
   private constructor(run: AgentRunView | null) {
@@ -34,6 +37,7 @@ export class CurrentRootMaterial {
     this.status = run?.status ?? "idle";
     this.outcome = run?.outcome ?? null;
     this.metrics = run?.metrics ?? null;
+    this.contextTokens = run?.progress?.contextTokens ?? null;
     this.attention = Object.freeze(
       run ? { status: run.status, runId: run.id } : { status: "idle", runId: null },
     );

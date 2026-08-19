@@ -56,13 +56,7 @@ export function RuntimeConnectionNotice() {
 
 /** Composer-owned standing material shared by the floating and empty layouts. */
 export function ComposerOverlayTop() {
-  return (
-    <Slot
-      name="composer.overlay.top"
-      wrapper
-      className="mb-2 flex w-full flex-col items-center gap-2"
-    />
-  );
+  return <Slot name="composer.overlay.top" wrapper className="flex w-full flex-col items-center" />;
 }
 
 /**

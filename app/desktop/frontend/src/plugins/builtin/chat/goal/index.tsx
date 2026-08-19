@@ -7,7 +7,7 @@ import { GoalStatusSurface } from "./ui/GoalStatusSurface";
 import { GoalLauncher } from "./ui/GoalLauncher";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
-const GOAL_SURFACE = "composer.header:goal";
+const GOAL_SURFACE = "composer.overlay.top:goal";
 
 /**
  * A keyboard way in. The launcher is otherwise reachable only by clicking one small
@@ -47,9 +47,9 @@ export default definePlugin({
       }
       runtimeAdapter.replaceRuntimeGeneration();
     });
-    contributeLayout(ctx, "composer.header", {
+    contributeLayout(ctx, "composer.overlay.top", {
       id: "goal",
-      order: 0,
+      order: 10,
       component: GoalStatusSurface,
     });
     contributeLayout(ctx, "composer.toolbar.end", {
@@ -58,8 +58,9 @@ export default definePlugin({
       order: 90,
       component: GoalLauncher,
     });
-    // Setting the goal and reading it back are both answered by the banner, which
-    // carries the objective, the status and every budget axis for the whole session.
+    // Setting the goal and reading it back are both answered by the quiet standing
+    // row, which carries only the objective, lifecycle and action available now.
+    // Runtime constraints stay out of persistent front-end chrome.
     //
     // `report_goal_outcome` is NOT claimed: the banner shows the stop code, not
     // whatever the agent wrote about the outcome.

@@ -1,39 +1,53 @@
-import { Gauge, Tooltip } from "@/ui";
+import { Gauge, RichTooltip } from "@/ui";
 import { fmtTokens } from "@/lib/format";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/classNames";
 import { useCurrentRootMaterial } from "@/plugins/builtin/agent/public/run";
-import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selectedModel";
+import { useActiveSessionId, useAgentSessions } from "@/plugins/builtin/agent/public/session";
+import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { contextUsageReadout } from "../application/contextUsageReadout";
-
-/** Past this the window is the thing about to go wrong, so it stops being chrome. */
-const CROWDED = 0.9;
 
 export function ContextUsageGauge() {
   const t = useT();
-  const metrics = useCurrentRootMaterial().metrics;
-  const model = useSelectedModel();
-  const readout = contextUsageReadout(metrics?.usage.inputTokens, model?.contextWindow);
+  const material = useCurrentRootMaterial();
+  const activeSessionId = useActiveSessionId();
+  const { data: sessions } = useAgentSessions();
+  const { data: models = [] } = useModels();
+  const servedModelId = sessions?.find((session) => session.id === activeSessionId)?.model;
+  const servedModel = models.find((model) => model.id === servedModelId);
+  const readout = contextUsageReadout(
+    material.contextTokens ?? undefined,
+    servedModel?.contextWindow,
+  );
   if (!readout) return null;
 
+  const trigger = (
+    <span className="inline-flex items-center justify-center text-fg-muted">
+      <Gauge value={readout.ratio} label={t("context.usage.aria", { percent: readout.percent })} />
+    </span>
+  );
+
   return (
-    <Tooltip
-      label={t("context.usage.tooltip", {
-        used: fmtTokens(readout.usedTokens),
-        window: fmtTokens(readout.windowTokens),
-      })}
+    <RichTooltip
+      trigger={trigger}
+      side="top"
+      sideOffset={4}
+      className="w-38 bg-fg px-3 py-2 font-sans text-ui-md leading-snug text-on-fg"
     >
-      <span
-        className={cn(
-          "flex items-center",
-          readout.ratio >= CROWDED ? "text-warning" : "text-fg-muted",
-        )}
-      >
-        <Gauge
-          value={readout.ratio}
-          label={t("context.usage.aria", { percent: readout.percent })}
-        />
-      </span>
-    </Tooltip>
+      <div className="flex flex-col gap-0.5 text-center">
+        <span className="opacity-60">{t("context.usage.label")}</span>
+        <span className={readout.percent >= 50 ? "opacity-60" : undefined}>
+          {t(readout.percent >= 50 ? "context.usage.statusFull" : "context.usage.statusLeft", {
+            percent: readout.percent,
+            remaining: 100 - readout.percent,
+          })}
+        </span>
+        <span>
+          {t("context.usage.tooltip", {
+            used: fmtTokens(readout.usedTokens),
+            window: fmtTokens(readout.windowTokens),
+          })}
+        </span>
+      </div>
+    </RichTooltip>
   );
 }

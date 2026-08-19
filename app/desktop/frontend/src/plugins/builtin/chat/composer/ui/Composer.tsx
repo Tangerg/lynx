@@ -68,7 +68,6 @@ export function Composer({
   });
   return (
     <AgentComposerSurface className="relative" data-slot="composer-root">
-      <Slot name="composer.header" wrapper className="border-b border-field px-3 py-1" />
       <ComposerImageDrop enabled={acceptsImages} onDropImages={input.handleDrop} />
       {input.mentions.active && (
         <FileMentionPopup

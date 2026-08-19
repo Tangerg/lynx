@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { drainBrowserTasks } from "@/test/browserTasks";
 import { ActivePlan } from "./ActivePlan";
@@ -33,7 +33,7 @@ vi.mock("@/plugins/builtin/agent/public/plan", async (importOriginal) => {
   };
 });
 
-describe("ActivePlan disclosure identity", () => {
+describe("ActivePlan", () => {
   beforeEach(() => {
     model.sessionId = "ses-a";
     model.generation = 1;
@@ -47,17 +47,9 @@ describe("ActivePlan disclosure identity", () => {
     await drainBrowserTasks();
   });
 
-  it("preserves a choice within one replacement and resets it for its successor", () => {
+  it("updates the compact progress identity with the authoritative replacement", () => {
     const { rerender } = render(<ActivePlan />);
-    fireEvent.click(screen.getByRole("button", { name: /Expand plan/ }));
-    expect(
-      screen.getByRole("button", { name: /Collapse plan/ }).getAttribute("aria-expanded"),
-    ).toBe("true");
-
-    rerender(<ActivePlan />);
-    expect(
-      screen.getByRole("button", { name: /Collapse plan/ }).getAttribute("aria-expanded"),
-    ).toBe("true");
+    expect(screen.getByRole("button", { name: "Step 1 / 1" })).toBeTruthy();
 
     model.revision = 2;
     model.steps = [
@@ -65,22 +57,20 @@ describe("ActivePlan disclosure identity", () => {
       { id: "step-2", text: "Fix", status: "active" as const },
     ];
     rerender(<ActivePlan />);
-    expect(screen.getByRole("button", { name: /Expand plan/ }).getAttribute("aria-expanded")).toBe(
-      "false",
-    );
+    expect(screen.getByRole("button", { name: "Step 2 / 2" })).toBeTruthy();
   });
 
   it("shows a non-dismissible Plan only while its current Run is active", async () => {
     const { rerender } = render(<ActivePlan />);
 
     expect(screen.queryByRole("button", { name: "Dismiss plan banner" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Expand plan/ })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Step 1 / 1" })).not.toBeNull();
 
     model.running = false;
     rerender(<ActivePlan />);
 
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /Expand plan/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Step 1 / 1" })).toBeNull();
     });
   });
 
