@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P129 已完成。
+> 状态：当前能力快照；P132 已完成。
 >
 > 基线日期：2026-08-20。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v20、SQLite epoch 76、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P129 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip，普通工具调用统一使用透明 work-narrative row 而非状态着色卡片；设置主色由单一 appearance preference 驱动；Goal update/clear 由 Runtime 权威纵切拥有，新 Goal start 通过同一 Composer submit mode 与 per-Session command owner 提交，不展示限制条件或建立第二 draft/writer；AgentMessage phase 由 Runtime terminal boundary 权威写入，Frontend 将 commentary work narrative 与 final answer 分行且只给最终回答 actions；fresh autonomous Goal 的 Application 控制输入只进入 provider Conversation，不再伪装成用户 Transcript Item。
+- P113–P132 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip，普通工具调用统一使用透明 work-narrative row 而非状态着色卡片；设置主色由单一 appearance preference 驱动；Goal update/clear 由 Runtime 权威纵切拥有，新 Goal start 通过同一 Composer submit mode 与 per-Session command owner 提交，不展示限制条件或建立第二 draft/writer；AgentMessage phase 由 Runtime terminal boundary 权威写入，Frontend 将 commentary work narrative 与 final answer 分行且只给最终回答 actions；fresh autonomous Goal 的 Application 控制输入只进入 provider Conversation，不再伪装成用户 Transcript Item；图片查看器的 Download 由 Wails DesktopHost 原生 save-file owner 完成，不使用浏览器伪下载。
 
 ## 2. 架构与所有权
 
@@ -156,7 +156,7 @@
 - KaTeX 样式由既有 Markdown 动态 loader 唯一拥有；构建分块必须把 `katex.min.css` 与静态可达的 KaTeX JavaScript 分离，产物可以存在但不得由 `index.html` 提前引用。当前启动 CSS 为 107.0KB，动态 math CSS 为 29.0KB，bundle gate 同时约束启动预算和 lazy ownership。
 - context compaction 使用左对齐 quiet activity row 而非居中 divider；压缩图标保持可见，Runtime 提供 summary 时沿同一可键盘操作的 disclosure 展开，不增加第二 transcript/material owner。
 - Agent message 的 authoritative phase 已进入公共能力：terminal AgentMessage 必带 `commentary | finalAnswer`，running shell 不带 phase；Runtime completion/termination boundary、Domain Transcript、SQLite epoch 76、Artifact v20、Protocol/generated Go/TypeScript surface 与 Frontend published SDK 共同持有该事实。Frontend 不从 streaming、位置或文案推断分组，live/replay/mixed hydration 都把 final answer 归入稳定 `final:<itemId>` row。
-- 图片预览 Download 尚未进入公共能力：Frontend 没有 Desktop 原生 save-file owner；在获准增加 Desktop binding/生成 surface 前，不以浏览器下载伪装桌面能力。
+- 图片预览 Download 是 Desktop 应用能力而非 Runtime Protocol：Frontend gallery 把当前 restricted inline image 交给 `DesktopHost.SaveImage`，Host 在打开原生 save sheet 前校验 MIME 与解码内容，Wails adapter 绑定 exact window 并只在用户选定目的地后写入；取消返回 `false`，remote URL 与 browser download 没有 fallback。
 
 ## 7. 公共合同
 
@@ -197,14 +197,16 @@ P130 把新会话的 working-directory 能力收敛到显式 exact-cwd：顶层 
 
 P131 完成 Codex 内容区像素收口：settled Question 默认折叠为一行 `Asked N questions` activity disclosure，问答只在展开后显示；active Plan 使用固定 32px composer-owned 槽、8px tooltip inset/row gap、16px mark 与无删除线 completed ink；Goal tray 使用 4px 垂直 inset且继续只显示 lifecycle/objective/actions；正文统一为 `font-size + 8px`。streaming reasoning 因真实 overflow 获得键盘滚动入口。Frontend 324 files / 2016 tests、全静态/构建门禁与 320 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/18px/Retina/WebKit 矩阵全绿，Plan tooltip 与 Question collapsed/expanded golden 已纳入守卫。production page 的空态、显式项目菜单、exact-cwd draft 与标题项目入口已通过；Wails v3 dev host 完成 frontend/Go build、开发 `.app` codesign、frontend connection 与 1411×881 onscreen 原生窗口启动。未改变后端合同或 `app/cli`。
 
+P132 完成图片查看器原生保存纵切：Codex 的 Download/Close 工具组顺序、40px target、busy/disabled 与失败反馈进入 production lightbox；当前 gallery item 只经窄 adapter 交给新增的 `DesktopHost.SaveImage`。Host 只接受受限 inline image data URL，校验、解码并生成建议文件名，Wails v3 adapter 将 save sheet 附着到 exact window，选择完成后才写文件；取消不报错，远程 URL 与浏览器下载无 fallback。红例 `2bbc84cbe`、根修复 `b4f69c6a0` 已推送；Frontend 324 files / 2019 tests、全静态/构建门禁、320 项 visual 矩阵、Desktop test/vet/build 与 `wails3 build` 全绿，production binary 已启动 smoke。Runtime/Protocol/Artifact/SQLite 与 `app/cli` 未改变。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- 旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段、原生图片 Download 一样，分别等待显式 breaking-surface 或 Desktop binding 授权。
+- 旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段分别等待显式 breaking-surface 授权。
 
 ## 11. 当前结论
 
-P0–P131 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算，P124 让普通 ToolCall 回到统一的透明 work narrative，P125 让设置主色的 mutation、动态 contribution replacement、document paint、反馈与恢复服从同一 preference owner，P126 让 Goal edit/clear 的可见动作、Runtime quiesce/CAS 事务与 mounted snapshot 收敛服从同一权威纵切，P127 把新 Goal 从重复表单收敛为 Composer submit mode，并让早到 standing projection 与 Runtime mutation settlement 服从同一个 exact commit owner，P128 让 Runtime terminal phase、durable transcript 与 Frontend work/final presentation 共同服从同一事实，最终回答不再与过程工作共享 turn 或 actions，P129 进一步让 Application 生成的 Goal 控制上下文只对模型可见，不再污染用户 Transcript，P130 让所有新会话入口服从显式 exact-cwd，P131 把完成态 Question、active Plan、Goal tray 和正文节奏的剩余视觉偏差归还给各自唯一 presentation owner。后续工作仍必须从真实产品反例开始，若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P132 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算，P124 让普通 ToolCall 回到统一的透明 work narrative，P125 让设置主色的 mutation、动态 contribution replacement、document paint、反馈与恢复服从同一 preference owner，P126 让 Goal edit/clear 的可见动作、Runtime quiesce/CAS 事务与 mounted snapshot 收敛服从同一权威纵切，P127 把新 Goal 从重复表单收敛为 Composer submit mode，并让早到 standing projection 与 Runtime mutation settlement 服从同一个 exact commit owner，P128 让 Runtime terminal phase、durable transcript 与 Frontend work/final presentation 共同服从同一事实，最终回答不再与过程工作共享 turn 或 actions，P129 进一步让 Application 生成的 Goal 控制上下文只对模型可见，不再污染用户 Transcript，P130 让所有新会话入口服从显式 exact-cwd，P131 把完成态 Question、active Plan、Goal tray 和正文节奏的剩余视觉偏差归还给各自唯一 presentation owner，P132 让图片查看器的 Download 从缺失/伪浏览器路径收敛到 exact Wails window 的原生 save owner。后续工作仍必须从真实产品反例开始，若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
