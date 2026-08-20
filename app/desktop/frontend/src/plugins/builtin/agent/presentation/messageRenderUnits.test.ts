@@ -22,13 +22,14 @@ const tool = (
   id: string,
   name: string,
   safetyClass: ToolCall["safetyClass"] = "safe",
+  status: ToolCall["status"] = "ok",
 ): ToolCall => ({
   id,
   runId: "run_1",
   name,
   fn: name,
   args: "",
-  status: "ok",
+  status,
   safetyClass,
 });
 
@@ -135,6 +136,23 @@ describe("planRenderUnits", () => {
     const units = planRenderUnits([reasoning(), approval, toolBlock("shell"), text("done")], TOOLS);
 
     expect(shape(units)).toEqual(["reasoning", "approval", "tool", "text"]);
+  });
+
+  it("renders one request surface when an approval owns the same pending tool call", () => {
+    const approval: ContentBlock = {
+      kind: "approval",
+      status: "requires-action",
+      itemId: "shell",
+      runId: "run_1",
+      toolName: "shell",
+      command: "pwd && ls",
+      reason: "Runs commands in the workspace",
+    };
+    const tools = {
+      shell: tool("shell", "shell", "exec", "requires-action"),
+    };
+
+    expect(shape(planRenderUnits([toolBlock("shell"), approval], tools))).toEqual(["approval"]);
   });
 });
 
