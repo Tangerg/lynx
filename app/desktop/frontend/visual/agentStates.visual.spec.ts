@@ -680,7 +680,7 @@ for (const theme of ["light", "dark"] as const) {
     });
     await expect.poll(() => transcript.evaluate((viewport) => viewport.scrollTop)).toBe(0);
     const controlSizes = await Promise.all(
-      ["Close image preview", "Zoom out image", "Zoom in image"].map((name) =>
+      ["Download image", "Close image preview", "Zoom out image", "Zoom in image"].map((name) =>
         page.getByRole("button", { name }).evaluate((button, accessibleName) => {
           const element = button as HTMLElement;
           return {

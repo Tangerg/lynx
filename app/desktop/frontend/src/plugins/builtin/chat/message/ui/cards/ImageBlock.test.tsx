@@ -1,8 +1,16 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MESSAGE_CONTENT_CLASS } from "../messageContent";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { ImageBlock } from "./ImageBlock";
+
+const mocks = vi.hoisted(() => ({
+  saveImage: vi.fn<(source: string) => Promise<boolean>>(),
+}));
+
+vi.mock("@/main/container", () => ({
+  getContainer: () => ({ desktop: { saveImage: mocks.saveImage } }),
+}));
 
 const FIRST_PNG =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -17,6 +25,28 @@ async function openPreview(button: HTMLElement): Promise<void> {
 }
 
 describe("ImageBlock", () => {
+  beforeEach(() => {
+    mocks.saveImage.mockReset();
+    mocks.saveImage.mockResolvedValue(true);
+  });
+
+  it("saves the active gallery image through the packaged desktop owner", async () => {
+    render(
+      <div className={MESSAGE_CONTENT_CLASS}>
+        <ImageBlock mime="image/png" data={FIRST_PNG} />
+        <ImageBlock mime="image/gif" data={SECOND_GIF} />
+      </div>,
+    );
+
+    await openPreview(screen.getAllByRole("button", { name: "View attached image" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Next image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download image" }));
+
+    await waitFor(() => {
+      expect(mocks.saveImage).toHaveBeenCalledWith(`data:image/gif;base64,${SECOND_GIF}`);
+    });
+  });
+
   it("navigates protocol images inside one message preview gallery", async () => {
     render(
       <div className={MESSAGE_CONTENT_CLASS}>
