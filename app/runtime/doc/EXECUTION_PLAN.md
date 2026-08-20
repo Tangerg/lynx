@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P120 已完成并形成里程碑。
+> 状态：P0–P120 已完成并形成里程碑；P121 实施中。
 >
-> 最近基线：2026-08-19，P120 Frontend 精确收敛验收。
+> 最近基线：2026-08-20，P121 内容渲染权威接线红例。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P121 已于 2026-08-20 获得实施授权：在 P120 基线上继续按 Codex 级桌面外观与既有编码约束打磨左中右三栏，优先修复中间内容区真实渲染与交互接线；每轮编码独立提交并推送，及时关闭 agent-browser、临时服务和测试资源，不修改或暂存 `app/cli`。
+- 首个 production 反例已成立：Runtime 唯一内建文件修改工具 `apply_patch` 发布调用级 `changes:[{path,status,from?}]`，但 Frontend 未把该结果带入 view，diff preview 反而查询整个工作区，导致一次工具调用可展示与它无关的既有改动；同时内部仍注册 Runtime 不存在的 `edit`/`write`。本批唯一 owner 是既有 Agent fold 与 `apply_patch` 专用 preview，不新增 Runtime 读、第二 diff owner 或伪造行数。
+- P121 首批不突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK。公开 `ToolCall` 历史字段的 breaking cleanup、commentary/final phase 与原生图片 Download 继续遵守先报告爆炸半径、再取得显式授权的边界。
 - P120 已于 2026-08-19 获得实施授权：纠正 P119 后续实现中仍停留在“移动旧卡片”的 Plan/Goal 表面，逐像素对齐 Codex composer stack；移除 composer 上方固定分割线、标题栏累计上下文信息与普通回合结束后的统计杂项，并让 composer Context 环接到真实模型窗口占用。中央内容区继续服从 Codex narrative grammar，不增加结算 dashboard。
 - P120 验收后的 Goal 视觉反馈已按同一授权纠正：Goal 不是悬浮 quiet row，而是与 composer 同宽、以重叠 1px 接缝相连的 top-tray surface；材质、上圆角、专用 goal-arrow、行高/间距与 Codex 本地化状态文案由各自唯一 owner 持有。Frontend 仍不展示预算、限制、用量或模型等用户已明确排除的信息。
 - P120 不修改 Runtime Protocol、Artifact、SQLite schema、公共 Go API 或 Agent Framework baseline。现有 `segment.progress.contextTokens` 已是 Runtime 发布的最新 prompt/context footprint；Frontend 只把该事实与当前 Session 实际 served model 的 `contextWindow` 配对，不以累计 input/cache token、费用或估算值代替。
@@ -25,6 +28,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P121 准入与完成条件（2026-08-20）
+
+- `apply_patch` inline preview 只消费该 ToolCall 已持久化的 `PatchResult.changes`；不得以 `workspace.diff`、当前 Git 状态、工具参数或文件内容推测这次调用做了什么。运行中无结果、完成后空结果与 malformed result 各自保持诚实空态。
+- 变更列表采用 Codex 的 quiet file-change grammar：逐文件显示真实 created/edited/deleted/moved 状态与可辨路径，移动同时保留来源路径；没有 Runtime 行级 diff 时不画 diff 行、`+0/-0`、内容片段或假 preview。完整 Diff 打开动作仍由既有 workspace view owner 持有。
+- Frontend 内部工具目录、分类、图标和 preview registration 与 Runtime 30 个内建工具真值对齐；不存在的 `edit`/`write` 不再拥有内部专用路径。published SDK 字段保持兼容，不在本批删除。
+- 首批必须先以独立红测提交锁定调用级结果、真实变更解析和死注册；根修复后运行定向 unit、typecheck、lint、format、knip、设计系统/交互 chrome/locale 门禁，并补 production-equivalent light/dark 内容视觉证据。若未触及 Runtime/Desktop/Wails，不重复无意义 race 或重启矩阵。
 
 ### P120 准入与完成条件（2026-08-19）
 

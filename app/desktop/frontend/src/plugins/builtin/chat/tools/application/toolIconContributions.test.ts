@@ -22,6 +22,9 @@ describe("tool icon contributions", () => {
 
     expect(shared).toEqual([]);
     expect(byGlyph.size).toBe(Object.keys(TOOL_ICON_BY_NAME).length);
+    expect(Object.keys(TOOL_ICON_BY_NAME)).toHaveLength(30);
+    expect(TOOL_ICON_BY_NAME).not.toHaveProperty("edit");
+    expect(TOOL_ICON_BY_NAME).not.toHaveProperty("write");
   });
 
   // A glyph the vocabulary does not have renders as nothing at all, and the table

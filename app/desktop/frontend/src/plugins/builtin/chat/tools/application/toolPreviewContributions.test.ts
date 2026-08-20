@@ -73,8 +73,6 @@ describe("tool preview contributions", () => {
       keys(shellToolPreviews(independent(["shell", "read_shell_output", "stop_shell"] as const))),
     ).toEqual(["shell", "read_shell_output", "stop_shell"]);
     expect(keys(diffToolPreviews(independent(["edit", "write", "apply_patch"] as const)))).toEqual([
-      "edit",
-      "write",
       "apply_patch",
     ]);
     expect(

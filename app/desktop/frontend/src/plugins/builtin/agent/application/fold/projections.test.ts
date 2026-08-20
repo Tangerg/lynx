@@ -119,6 +119,24 @@ describe("toolFields — runtime wire shapes", () => {
     expect(g.removed).toBeUndefined();
   });
 
+  it("apply_patch: carries the authoritative call-scoped change receipt", () => {
+    const f = toolFields(
+      tool("apply_patch", { patch: "*** Begin Patch\n…" }, {
+        changes: [
+          { path: "src/new.ts", status: "added" },
+          { path: "src/current.ts", status: "moved", from: "src/old.ts" },
+        ],
+      }),
+    );
+
+    expect(JSON.parse(f.result ?? "null")).toEqual({
+      changes: [
+        { path: "src/new.ts", status: "added" },
+        { path: "src/current.ts", status: "moved", from: "src/old.ts" },
+      ],
+    });
+  });
+
   it("edit: maps only valid call-scoped diff rows into the Agent view model", () => {
     const f = toolFields(
       tool(

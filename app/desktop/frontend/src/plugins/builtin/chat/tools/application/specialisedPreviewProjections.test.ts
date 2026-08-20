@@ -7,6 +7,7 @@ import {
   projectGlobPreview,
   projectGoalToolPreview,
   projectHttpPreview,
+  projectPatchChanges,
   projectRecalledMemories,
   projectSchedulePreviews,
   projectSkillPreview,
@@ -110,6 +111,19 @@ describe("prose tool results", () => {
 });
 
 describe("structured tool results", () => {
+  it("projects only the apply_patch call's authoritative file changes", () => {
+    expect(
+      projectPatchChanges(
+        '{"changes":[{"path":"src/new.ts","status":"added"},{"path":"src/current.ts","status":"moved","from":"src/old.ts"},{"path":"src/bad.ts","status":"renamed"},{"path":"","status":"modified"}]}',
+      ),
+    ).toEqual([
+      { path: "src/new.ts", status: "added" },
+      { path: "src/current.ts", status: "moved", from: "src/old.ts" },
+    ]);
+    expect(projectPatchChanges('{"files":[{"path":"unowned.ts"}]}')).toEqual([]);
+    expect(projectPatchChanges("not-json")).toEqual([]);
+  });
+
   it("projects the goal receipt with budget and usage in separate axes", () => {
     expect(
       projectGoalToolPreview(
