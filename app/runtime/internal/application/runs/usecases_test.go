@@ -719,6 +719,39 @@ func TestStartSeedsExecutorFromConversationAndCurrentUserMessage(t *testing.T) {
 	}
 }
 
+func TestStartKeepsGoalControlInputModelOnly(t *testing.T) {
+	exec := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	c := newUseCaseCoordinator(exec, control, sessions, effects)
+
+	const instruction = "continue autonomously toward the active goal"
+	result, err := c.Start(t.Context(), StartCommand{
+		SessionID:         "ses_1",
+		GoalIncarnationID: "goal_lease",
+		Input:             []transcript.ContentBlock{{Kind: transcript.TextContent, Text: instruction}},
+	})
+	if err != nil {
+		t.Fatalf("Start Goal run: %v", err)
+	}
+	consumeEvents(result.Events)
+	if result.UserItemID != "" {
+		t.Fatalf("Goal control input userItemId = %q, want none", result.UserItemID)
+	}
+	workingContext := control.started.WorkingContext
+	if len(workingContext) != 1 || workingContext[0].Role != corechat.RoleUser || workingContext[0].Text() != instruction {
+		t.Fatalf("Goal working context = %#v, want exact model-only instruction", workingContext)
+	}
+	for _, event := range effects.opening().Events {
+		for _, item := range event.Items {
+			if item.Kind() == transcript.UserMessage {
+				t.Fatalf("Goal control input escaped into transcript Item %q", item.ID())
+			}
+		}
+	}
+}
+
 type staticConversationReader struct{ messages []corechat.Message }
 
 func (reader staticConversationReader) Read(context.Context, string) ([]corechat.Message, error) {

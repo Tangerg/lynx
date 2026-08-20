@@ -565,6 +565,28 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	}
 }
 
+func TestReducerKeepsGoalControlInputOutOfTheTranscript(t *testing.T) {
+	config := testReducerConfig()
+	config.GoalIncarnationID = "goal_lease"
+	config.UserInput = []transcript.ContentBlock{{
+		Kind: transcript.TextContent,
+		Text: "continue autonomously toward the active goal",
+	}}
+
+	opening := mustOpen(t, newReducer(config))
+	if len(opening) != 1 {
+		t.Fatalf("opening reductions = %d, want only the segment for model-only Goal control input", len(opening))
+	}
+	if _, ok := opening[0].Event.(SegmentStarted); !ok {
+		t.Fatalf("opening event = %T, want SegmentStarted", opening[0].Event)
+	}
+	conversation := committedConversationMessages(opening)
+	if len(conversation) != 1 || conversation[0].Role != corechat.RoleUser ||
+		conversation[0].Text() != "continue autonomously toward the active goal" {
+		t.Fatalf("opening conversation projection = %#v, want exact model-only Goal control input", conversation)
+	}
+}
+
 func committedConversationMessages(reductions []reduction) []corechat.Message {
 	var messages []corechat.Message
 	for _, reduced := range reductions {
