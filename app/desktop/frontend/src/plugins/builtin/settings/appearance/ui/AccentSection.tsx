@@ -28,7 +28,7 @@ function SelectionMark({ selected }: { selected: boolean }) {
       aria-hidden
       data-slot="accent-selection-mark"
       className={cn(
-        "pointer-events-none absolute z-10 text-surface transition-[opacity,transform] duration-[var(--dur-fast)]",
+        "pointer-events-none absolute text-surface transition-[opacity,transform] duration-[var(--dur-fast)]",
         selected ? "scale-100 opacity-100" : "scale-75 opacity-0",
       )}
     >
