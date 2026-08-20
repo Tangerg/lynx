@@ -108,6 +108,14 @@ const RESPONSE = message(
   "The boundary is clean: the framework exposes execution primitives, while the application owns persistence, idempotency, and transaction policy.",
 );
 
+const COMMENTARY_RESPONSE = message(
+  "agentMessage",
+  "item_response",
+  "The boundary is clean: the framework exposes execution primitives, while the application owns persistence, idempotency, and transaction policy.",
+  ROOT_RUN_ID,
+  "commentary",
+);
+
 const RUNNING_RESPONSE: Item = {
   type: "agentMessage",
   id: "item_running_response",
@@ -664,7 +672,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
   },
   waiting: {
     runs: [run("waiting")],
-    items: [PROMPT, RESPONSE],
+    items: [PROMPT, COMMENTARY_RESPONSE],
     pendingInterruptSets: [
       {
         rootRunId: ROOT_RUN_ID,
@@ -691,7 +699,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
   },
   question: {
     runs: [run("waiting")],
-    items: [PROMPT, RESPONSE],
+    items: [PROMPT, COMMENTARY_RESPONSE],
     pendingInterruptSets: [
       {
         rootRunId: ROOT_RUN_ID,
@@ -752,7 +760,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
         outcome: { type: "canceled", detail: "Stopped after the requested review." },
       }),
     ],
-    items: [PROMPT, RESPONSE],
+    items: [PROMPT, COMMENTARY_RESPONSE],
     pendingInterruptSets: [],
   },
   error: {
@@ -816,7 +824,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
     ],
     items: [
       PROMPT,
-      RESPONSE,
+      COMMENTARY_RESPONSE,
       {
         type: "toolCall",
         id: "item_delegate",
@@ -834,6 +842,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
         "item_child_response",
         "The framework remains generic. I found no application persistence type in its production graph.",
         "run_child",
+        "commentary",
       ),
       {
         type: "toolCall",
@@ -852,6 +861,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
         "item_nested_response",
         "Package graph verification is still running.",
         "run_nested",
+        "commentary",
       ),
     ],
     pendingInterruptSets: [
