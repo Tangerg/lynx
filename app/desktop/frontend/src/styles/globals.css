@@ -499,7 +499,10 @@
   --color-border: #e9ecf2;
   --color-border-soft: #dee2eb;
   --color-divider: rgb(0 0 0 / 0.05);
-  --color-scrim: rgb(0 0 0 / 0.22);
+  /* Codex desktop keeps modal context legible under one quiet 8-bit alpha in
+     both schemes. The dialog supplies the depth; the scrim only separates its
+     interaction scope, so it must not become a second dark surface. */
+  --color-scrim: #00000022;
   /* Scrollbar thumb, as a percentage of the scheme's OWN ink rather than a grey.
      This yields a light bar on dark and a dark bar on light while remaining in
      the palette's colour family. */
@@ -1155,7 +1158,7 @@ html.theme-dark {
   --color-border: #2e3136;
   --color-border-soft: #3f4248;
   --color-divider: rgb(255 255 255 / 0.04);
-  --color-scrim: rgb(0 0 0 / 0.5);
+  --color-scrim: #00000022;
 
   /* Fainter bands than light's, which is the opposite of what a scheme usually wants,
      and the reason is the syntax palette sitting on them: it is Shiki's, we do not
