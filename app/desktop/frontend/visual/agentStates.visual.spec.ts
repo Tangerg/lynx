@@ -948,8 +948,9 @@ for (const { state, inputSurface } of [
           input.getBoundingClientRect().top - tail.getBoundingClientRect().bottom,
         ),
         // The margin the contract adds on top of the panel's own height, read
-        // rather than restated: `COMPOSER_CLEARANCE` spells it `+1rem`, and a
-        // literal here would have to be kept in step with a class in another file.
+        // rather than restated: `COMPOSER_CLEARANCE` guarantees this `1rem`
+        // after its scroll-rounding guard, and a literal here would have to be
+        // kept in step with a class in another file.
         margin: Math.round(Number.parseFloat(getComputedStyle(document.documentElement).fontSize)),
       };
     }, inputSurface);

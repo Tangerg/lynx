@@ -23,7 +23,9 @@ export const READING_GUTTER =
 // file because they cannot be expressed as one thing: Tailwind reads source
 // text, so the class has to spell the property that the constant names. Filed
 // apart, they drift, and the symptom is a last message nobody can scroll out
-// from under.
+// from under. The extra pixel absorbs the browser's integer scrollTop rounding
+// when the observed overlay and the transcript paint on fractional CSS pixels;
+// the visible gap therefore never rounds below the intended rem.
 export const COMPOSER_OVERLAY_PROPERTY = "--composer-overlay";
 
-export const COMPOSER_CLEARANCE = "pb-[calc(var(--composer-overlay,0px)+1rem)]";
+export const COMPOSER_CLEARANCE = "pb-[calc(var(--composer-overlay,0px)+1rem+1px)]";
