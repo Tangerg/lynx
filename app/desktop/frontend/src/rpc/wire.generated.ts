@@ -1544,6 +1544,11 @@ export interface ToolSpec {
   safetyClass?: SafetyClass;
 }
 
+export interface UpdateGoalRequest {
+  objective: string;
+  sessionId: string;
+}
+
 export interface UpdateKnowledgeRequest {
   content: string;
   expectedRevision: string;

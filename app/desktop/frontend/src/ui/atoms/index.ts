@@ -52,6 +52,7 @@ export { SkeletonList } from "./skeleton";
 export { SystemMessage } from "./system-message";
 export type { SystemMessageProps } from "./system-message";
 export { TextArea, TextField } from "./text-field";
+export { TextEditorDialog } from "./text-editor-dialog";
 export { TextButton } from "./text-button";
 export type { TextButtonProps } from "./text-button";
 export type { TextAreaProps, TextFieldProps } from "./text-field";

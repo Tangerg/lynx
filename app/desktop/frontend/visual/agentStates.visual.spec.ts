@@ -195,9 +195,32 @@ test("a running Goal exposes Pause while the active turn exposes Stop", async ({
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
+  await expect(page.getByRole("button", { name: "Clear goal", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Pause goal", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit goal", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(1);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`the standing Goal opens the compact objective editor ${theme}`, async ({ page }) => {
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=running`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    await page.getByRole("button", { name: "Edit goal", exact: true }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Edit goal" });
+    const objective = dialog.getByRole("textbox", { name: "Goal" });
+    await expect(dialog).toBeVisible();
+    await expect(objective).toHaveValue(
+      "Get the desktop suite green on Linux without loosening any gate or skipping a test",
+    );
+    await expect(objective).toHaveAttribute("rows", "12");
+    await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+    await expect(dialog).toHaveScreenshot(`goal-editor-${theme}.png`);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).not.toBeVisible();
+  });
+}
 
 test("the compact Plan pill reveals the production checklist on hover", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
@@ -1190,7 +1213,9 @@ test("the Goal surface stays quiet and omits Runtime constraints", async ({ page
   const row = page.locator('[data-slot="goal-status-row"]');
   await expect(row).toContainText("Pursuing goal");
   await expect(row).toContainText("green on Linux");
+  await expect(row.getByRole("button", { name: "Clear goal" })).toBeVisible();
   await expect(row.getByRole("button", { name: "Pause goal" })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Edit goal" })).toBeVisible();
 
   await expect(row).not.toContainText("$4.50/$5.00");
   await expect(row).not.toContainText("7/20");

@@ -118,6 +118,7 @@ import type {
   SubscribeRunRequest,
   SubscribeRunResponse,
   TestProviderRequest,
+  UpdateGoalRequest,
   UpdateKnowledgeRequest,
   UpdateMCPServerRequest,
   UpdateProviderRequest,
@@ -220,6 +221,8 @@ const METHOD_NAMES = [
   "schedules.delete",
   "schedules.runNow",
   "goals.start",
+  "goals.update",
+  "goals.clear",
   "goals.get",
   "goals.stop",
   "goals.resume",
@@ -319,6 +322,7 @@ const VALUE_METHOD_NAMES = [
   "schedules.update",
   "schedules.runNow",
   "goals.start",
+  "goals.update",
   "goals.get",
   "goals.stop",
   "goals.resume",
@@ -726,6 +730,18 @@ export const WIRE_METHOD_POLICY = {
     idempotency: "replayResponse",
     pagination: "none",
   },
+  "goals.update": {
+    operation: "command",
+    response: "unary",
+    idempotency: "replayResponse",
+    pagination: "none",
+  },
+  "goals.clear": {
+    operation: "command",
+    response: "unary",
+    idempotency: "replayResponse",
+    pagination: "none",
+  },
   "goals.get": {
     operation: "query",
     response: "unary",
@@ -1033,6 +1049,12 @@ export const WIRE_CAPABILITY_POLICY: {
   "goals.start": [
     { requires: ["goals"] },
   ],
+  "goals.update": [
+    { requires: ["goals"] },
+  ],
+  "goals.clear": [
+    { requires: ["goals"] },
+  ],
   "goals.get": [
     { requires: ["goals"] },
   ],
@@ -1139,6 +1161,8 @@ export interface WireShapes {
   "schedules.delete": { params: DeleteScheduleRequest };
   "schedules.runNow": { params: RunScheduleNowRequest; result: RunScheduleNowResponse };
   "goals.start": { params: StartGoalRequest; result: Goal };
+  "goals.update": { params: UpdateGoalRequest; result: Goal };
+  "goals.clear": { params: GoalRequest };
   "goals.get": { params: GoalRequest; result: Goal | null };
   "goals.stop": { params: GoalRequest; result: Goal };
   "goals.resume": { params: GoalRequest; result: Goal };

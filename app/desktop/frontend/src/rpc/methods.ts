@@ -22,6 +22,7 @@ import type {
   ContentBlock,
   MCPServerCandidate,
   UpdateProviderRequest,
+  UpdateGoalRequest,
   CreateSessionRequest,
   Diff,
   ExportSessionResponse,
@@ -450,6 +451,8 @@ export interface Methods {
       },
       signal?: AbortSignal,
     ) => MutationPromise<Goal>;
+    update: (params: UpdateGoalRequest, signal?: AbortSignal) => MutationPromise<Goal>;
+    clear: (sessionId: SessionId, signal?: AbortSignal) => MutationPromise<void>;
     stop: (sessionId: SessionId, signal?: AbortSignal) => MutationPromise<Goal>;
     resume: (sessionId: SessionId, signal?: AbortSignal) => MutationPromise<Goal>;
   };
@@ -863,6 +866,8 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     goals: {
       get: (sessionId, signal) => call("goals.get", { sessionId }, { signal }),
       start: (params, signal) => call("goals.start", params, { signal }),
+      update: (params, signal) => call("goals.update", params, { signal }),
+      clear: (sessionId, signal) => call("goals.clear", { sessionId }, { signal }),
       stop: (sessionId, signal) => call("goals.stop", { sessionId }, { signal }),
       resume: (sessionId, signal) => call("goals.resume", { sessionId }, { signal }),
     },

@@ -5,9 +5,11 @@ import {
   GoalCommandSessionMismatchError,
   type GoalProjectionRepair,
   goalCommandWasRetired,
+  clearGoal,
   resumeGoal,
   startGoal,
   stopGoal,
+  updateGoal,
 } from "./goalCommands";
 
 function deferred<T>() {
@@ -21,10 +23,10 @@ function deferred<T>() {
 let restoreGateway: (() => void) | undefined;
 
 function installGoalCommandOwnerForTest(
-  gateway: GoalCommandsGateway,
+  gateway: Partial<GoalCommandsGateway>,
   repairProjection: GoalProjectionRepair = vi.fn().mockResolvedValue(true),
 ): () => void {
-  const owner = GoalCommandOwner.install(gateway, repairProjection);
+  const owner = GoalCommandOwner.install(goalGateway(gateway), repairProjection);
   return () => owner.dispose();
 }
 
@@ -35,6 +37,17 @@ afterEach(() => {
 });
 
 const receipt = { sessionId: "ses_goal" };
+
+function goalGateway(overrides: Partial<GoalCommandsGateway> = {}): GoalCommandsGateway {
+  return {
+    start: vi.fn().mockResolvedValue(receipt),
+    update: vi.fn().mockResolvedValue(receipt),
+    clear: vi.fn().mockResolvedValue(receipt),
+    stop: vi.fn().mockResolvedValue(receipt),
+    resume: vi.fn().mockResolvedValue(receipt),
+    ...overrides,
+  };
+}
 
 describe("Goal lifecycle commands", () => {
   it.each([
@@ -49,6 +62,16 @@ describe("Goal lifecycle commands", () => {
       gateway: { stop: vi.fn().mockRejectedValue(new Error("stop response lost")) },
     },
     {
+      name: "update",
+      run: () => updateGoal({ sessionId: "ses_goal", objective: "ship it better" }),
+      gateway: { update: vi.fn().mockRejectedValue(new Error("update response lost")) },
+    },
+    {
+      name: "clear",
+      run: () => clearGoal("ses_goal"),
+      gateway: { clear: vi.fn().mockRejectedValue(new Error("clear response lost")) },
+    },
+    {
       name: "resume",
       run: () => resumeGoal("ses_goal"),
       gateway: { resume: vi.fn().mockRejectedValue(new Error("resume response lost")) },
@@ -61,7 +84,7 @@ describe("Goal lifecycle commands", () => {
         stop: vi.fn().mockResolvedValue(receipt),
         resume: vi.fn().mockResolvedValue(receipt),
         ...test.gateway,
-      } as GoalCommandsGateway,
+      },
       repairProjection,
     );
 
@@ -219,11 +242,11 @@ describe("Goal lifecycle commands", () => {
     const retiredStop = vi.fn(() => stopping.promise);
     const retiredResume = vi.fn().mockResolvedValue(receipt);
     const owner = GoalCommandOwner.install(
-      {
+      goalGateway({
         start: vi.fn().mockResolvedValue(receipt),
         stop: retiredStop,
         resume: retiredResume,
-      },
+      }),
       vi.fn().mockResolvedValue(true),
     );
     restoreGateway = () => owner.dispose();
@@ -234,11 +257,13 @@ describe("Goal lifecycle commands", () => {
 
     const successorResume = vi.fn().mockResolvedValue(receipt);
     expect(
-      owner.replaceRuntimeGeneration({
-        start: vi.fn().mockResolvedValue(receipt),
-        stop: vi.fn().mockResolvedValue(receipt),
-        resume: successorResume,
-      }),
+      owner.replaceRuntimeGeneration(
+        goalGateway({
+          start: vi.fn().mockResolvedValue(receipt),
+          stop: vi.fn().mockResolvedValue(receipt),
+          resume: successorResume,
+        }),
+      ),
     ).toBe(true);
 
     expect(goalCommandWasRetired(await inFlight)).toBe(true);

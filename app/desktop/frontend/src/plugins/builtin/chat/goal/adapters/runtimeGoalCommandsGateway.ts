@@ -17,7 +17,10 @@ import type {
 import { GoalCommandOwner } from "../application/goalCommands";
 import type { GoalReadModel, GoalState } from "../application/goalReadModel";
 
-function goalMutationIdentity(method: "start" | "stop" | "resume", input: unknown): string {
+function goalMutationIdentity(
+  method: "start" | "update" | "clear" | "stop" | "resume",
+  input: unknown,
+): string {
   return JSON.stringify([`goals.${method}`, input]);
 }
 
@@ -70,6 +73,20 @@ class RuntimeGoalCommandsGateway implements GoalCommandsGateway {
       this.#client.goals.start({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
     );
     return toGoalCommandReceipt(goal);
+  }
+
+  async update(input: Parameters<GoalCommandsGateway["update"]>[0]) {
+    const goal = await this.#mutations.settle(goalMutationIdentity("update", input), (signal) =>
+      this.#client.goals.update({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
+    );
+    return toGoalCommandReceipt(goal);
+  }
+
+  async clear(sessionId: string) {
+    await this.#mutations.settle(goalMutationIdentity("clear", sessionId), (signal) =>
+      this.#client.goals.clear(asSessionId(sessionId), signal),
+    );
+    return { sessionId };
   }
 
   async stop(sessionId: string) {

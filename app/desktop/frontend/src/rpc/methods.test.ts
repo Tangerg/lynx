@@ -198,6 +198,31 @@ describe("methods factory", () => {
     expect(call).toHaveBeenCalledWith("goals.get", { sessionId: "ses_1" }, { signal });
   });
 
+  it("forwards Goal update and clear through the generated mutation contract", async () => {
+    const call = vi.fn().mockResolvedValue({
+      sessionId: "ses_1",
+      objective: "Ship beta",
+      status: "active",
+      budget: {},
+      used: { runs: 0, costUsd: 0, steps: 0 },
+    });
+    const methods = createMethods({ call } as unknown as RpcClient);
+
+    await methods.goals.update({ sessionId: asSessionId("ses_1"), objective: "Ship beta" });
+    await methods.goals.clear(asSessionId("ses_1"));
+
+    expect(call).toHaveBeenCalledWith(
+      "goals.update",
+      { sessionId: "ses_1", objective: "Ship beta" },
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+    expect(call).toHaveBeenCalledWith(
+      "goals.clear",
+      { sessionId: "ses_1" },
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
+
   it("retries default workspace resolution after a transient failure", async () => {
     const call = vi
       .fn()

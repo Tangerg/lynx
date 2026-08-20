@@ -81,11 +81,21 @@ describe("Goal status surface", () => {
   });
 
   it("offers Codex Goal management actions in clear, lifecycle, edit order", () => {
-    render(<GoalStatusSurface />);
+    const { container } = render(<GoalStatusSurface />);
 
     expect(
-      screen.getAllByRole("button").map((button) => button.getAttribute("aria-label")),
+      Array.from(container.querySelectorAll('[data-slot="goal-actions"] button')).map((button) =>
+        button.getAttribute("aria-label"),
+      ),
     ).toEqual(["Clear goal", "Pause goal", "Edit goal"]);
+  });
+
+  it("opens the same objective editor from the Goal summary", () => {
+    render(<GoalStatusSurface />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pursuing goal Ship alpha" }));
+
+    expect(screen.getByRole("dialog", { name: "Edit goal" })).toBeTruthy();
   });
 
   it("clears the current goal through the Goal command owner", async () => {
@@ -112,6 +122,22 @@ describe("Goal status surface", () => {
         objective: "Ship beta",
       }),
     );
+  });
+
+  it("does not submit the Goal editor while an IME composition is active", () => {
+    render(<GoalStatusSurface />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
+    const objective = screen.getByRole("textbox", { name: "Goal" });
+    fireEvent.change(objective, { target: { value: "Ship beta" } });
+    fireEvent.keyDown(objective, {
+      key: "Enter",
+      code: "Enter",
+      ctrlKey: true,
+      isComposing: true,
+    });
+
+    expect(model.updateGoal).not.toHaveBeenCalled();
   });
 
   it("resumes a paused goal from the standing surface", async () => {

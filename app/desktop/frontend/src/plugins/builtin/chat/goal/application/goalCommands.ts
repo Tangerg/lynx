@@ -4,6 +4,7 @@ import {
   type GoalCommandsGateway,
   type GoalCommandReceipt,
   type StartGoalInput,
+  type UpdateGoalInput,
 } from "./ports/goalCommandsGateway";
 
 export type GoalProjectionRepair = (sessionId: string) => Promise<unknown>;
@@ -40,6 +41,14 @@ class GoalCommandGeneration {
 
   start(input: StartGoalInput): Promise<void> {
     return this.#run(input.sessionId, () => this.#gateway.start(input));
+  }
+
+  update(input: UpdateGoalInput): Promise<void> {
+    return this.#run(input.sessionId, () => this.#gateway.update(input));
+  }
+
+  clear(sessionId: string): Promise<void> {
+    return this.#run(sessionId, () => this.#gateway.clear(sessionId));
   }
 
   stop(sessionId: string): Promise<void> {
@@ -151,6 +160,14 @@ export class GoalCommandOwner {
     return this.#currentGeneration().start(input);
   }
 
+  update(input: UpdateGoalInput): Promise<void> {
+    return this.#currentGeneration().update(input);
+  }
+
+  clear(sessionId: string): Promise<void> {
+    return this.#currentGeneration().clear(sessionId);
+  }
+
   stop(sessionId: string): Promise<void> {
     return this.#currentGeneration().stop(sessionId);
   }
@@ -195,6 +212,14 @@ const goalCommandPublication = createPublicationSlot<GoalCommandOwner>();
 
 export async function startGoal(input: StartGoalInput): Promise<void> {
   await GoalCommandOwner.current().start(input);
+}
+
+export async function updateGoal(input: UpdateGoalInput): Promise<void> {
+  await GoalCommandOwner.current().update(input);
+}
+
+export async function clearGoal(sessionId: string): Promise<void> {
+  await GoalCommandOwner.current().clear(sessionId);
 }
 
 export async function stopGoal(sessionId: string): Promise<void> {
