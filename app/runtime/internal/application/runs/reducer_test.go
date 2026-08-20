@@ -109,6 +109,53 @@ func TestReducerEarlyExecutorFinalWaitsForAuthoritativeModelResponse(t *testing.
 		completed[1].Content()[0].Text != "authoritative answer" {
 		t.Fatalf("assistant completion = %#v", completed[1])
 	}
+	if completed[1].MessagePhase() != transcript.MessageFinalAnswer {
+		t.Fatalf("assistant phase = %q, want final answer", completed[1].MessagePhase())
+	}
+}
+
+func TestReducerClassifiesToolPreambleAndTerminalAnswerAtTheModelBoundary(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	call := corechat.ToolCall{ID: "provider_call_1", Name: "inspect", Arguments: `{}`}
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	commentary := completedItems(mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1",
+		Message: corechat.NewAssistantMessage(
+			corechat.NewTextPart("I will inspect the file first."),
+			corechat.NewToolCallPart(call),
+		),
+		Steps: 1,
+	}))
+	if len(commentary) != 1 || commentary[0].Kind() != transcript.AgentMessage {
+		t.Fatalf("commentary Items = %#v, want one agent message", commentary)
+	}
+	if commentary[0].MessagePhase() != transcript.MessageCommentary {
+		t.Fatalf("commentary phase = %q, want commentary", commentary[0].MessagePhase())
+	}
+
+	mustReduce(t, reducer, ToolCallStarted{
+		CallID: "runtime_call_1", SourceCallID: call.ID,
+		ModelCallSequence: 1, ToolCallIndex: 0,
+		ToolName: call.Name, Arguments: call.Arguments,
+	})
+	mustReduce(t, reducer, ToolCallFinished{
+		CallID: "runtime_call_1", Result: testToolResult(t, "contents"),
+	})
+
+	answer := corechat.NewAssistantMessage(corechat.NewTextPart("The file is ready."))
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_2"})
+	final := completedItems(mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_2", Message: answer, Steps: 2,
+	}))
+	if len(final) != 1 || final[0].Kind() != transcript.AgentMessage {
+		t.Fatalf("final Items = %#v, want one agent message", final)
+	}
+	if final[0].MessagePhase() != transcript.MessageFinalAnswer {
+		t.Fatalf("final phase = %q, want final answer", final[0].MessagePhase())
+	}
+	if confirmation := mustReduce(t, reducer, AssistantMessageCompleted{Message: answer}); len(confirmation) != 0 {
+		t.Fatalf("executor confirmation duplicated the classified final answer: %#v", confirmation)
+	}
 }
 
 func TestReducerKeepsStreamingItemsOpenUntilTheAuthoritativeModelResponse(t *testing.T) {

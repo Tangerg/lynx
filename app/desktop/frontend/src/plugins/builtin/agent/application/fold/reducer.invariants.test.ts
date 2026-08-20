@@ -92,6 +92,7 @@ const r1 = item({ id: "r1", type: "reasoning", text: "Weighing the risk carefull
 const m1 = item({
   id: "m1",
   type: "agentMessage",
+  phase: "commentary",
   content: [{ type: "text", text: "Removing the file." }],
 });
 const t1 = item({
@@ -99,7 +100,12 @@ const t1 = item({
   type: "toolCall",
   tool: { name: "fs.delete", arguments: { path: "x" }, result: "ok" },
 });
-const m2 = item({ id: "m2", type: "agentMessage", content: [{ type: "text", text: "Done." }] });
+const m2 = item({
+  id: "m2",
+  type: "agentMessage",
+  phase: "finalAnswer",
+  content: [{ type: "text", text: "Done." }],
+});
 
 const FULL_STREAM: StreamEvent[] = [
   { type: "segment.started", run: { id: "run_1", sessionId: "ses_1" } as never },
@@ -153,16 +159,23 @@ describe("reducer — render convergence across delivery modes", () => {
     // clock of its own.
     expect(streaming.messages[1]!.createdAt).toBe(itemStartedAt(r1));
 
-    // Sanity: the fold actually built the turn we described — one user bubble +
-    // one assistant turn holding reasoning / text / tool / text, in order.
-    expect(streaming.messages).toHaveLength(2);
+    // Work stays one narrated assistant turn; the Runtime-authored final answer
+    // becomes its own stable message so it alone owns terminal message actions.
+    expect(streaming.messages).toHaveLength(3);
     expect(streaming.messages[0]!.role).toBe("user");
     expect(streaming.messages[1]!.blocks.map((b) => b.kind)).toEqual([
       "reasoning",
       "text",
       "tool",
-      "text",
     ]);
+    expect(streaming.messages[1]!.phase).toBe("commentary");
+    expect(streaming.messages[2]).toMatchObject({
+      id: "final:m2",
+      role: "assistant",
+      phase: "finalAnswer",
+      runId: "run_1",
+      blocks: [{ kind: "text", itemId: "m2", text: "Done.", status: "complete" }],
+    });
   });
 });
 
