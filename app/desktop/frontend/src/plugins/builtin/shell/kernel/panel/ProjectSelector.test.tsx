@@ -45,6 +45,15 @@ beforeEach(() => {
 });
 
 describe("ComposerProjectControl", () => {
+  it("owns a full-width attached tray instead of a composer-footer utility", () => {
+    const { container } = render(<ComposerProjectControl />);
+
+    const tray = container.querySelector<HTMLElement>('[data-slot="project-selector-tray"]');
+    expect(tray).not.toBeNull();
+    expect(tray?.closest('[data-slot="composer-top-tray-surface"]')).not.toBeNull();
+    expect(tray?.querySelectorAll("svg")).toHaveLength(1);
+  });
+
   it("offers real Work Index projects and the native new-project action before a Session exists", async () => {
     render(<ComposerProjectControl />);
 
