@@ -432,6 +432,27 @@ test("composer keeps one production edge and 6/8 footer inset", async ({ page })
     .not.toBe(ringBeforeFocus);
 });
 
+test("the projectless composer owns Codex's inset rear project tray", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=empty");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const tray = page.locator('[data-slot="composer-top-tray-surface"]');
+  const composer = page.locator('[data-slot="composer-root"]');
+  const footer = page.locator('[data-slot="composer-footer"]');
+  const trayBox = await tray.boundingBox();
+  const composerBox = await composer.boundingBox();
+
+  expect(trayBox).not.toBeNull();
+  expect(composerBox).not.toBeNull();
+  expect(trayBox!.x - composerBox!.x).toBe(12);
+  expect(composerBox!.x + composerBox!.width - (trayBox!.x + trayBox!.width)).toBe(12);
+  expect(composerBox!.y - trayBox!.y).toBe(37);
+  expect(trayBox!.y + trayBox!.height - composerBox!.y).toBe(22);
+  await expect(tray.getByRole("button", { name: "Choose project" })).toBeVisible();
+  await expect(tray.locator("svg")).toHaveCount(1);
+  await expect(footer.getByRole("button", { name: "Choose project" })).toHaveCount(0);
+});
+
 test("recovery action dismisses the problem and resends the last user input", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=recovery");
   await page.locator("html[data-visual-ready]").waitFor();

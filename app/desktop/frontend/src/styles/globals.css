@@ -866,6 +866,11 @@
   --app-composer-surface: color-mix(in oklab, var(--app-content-surface) 86%, transparent);
   --composer-backdrop: blur(20px) saturate(1.4);
   --app-composer-tray-surface: color-mix(in oklab, var(--app-content-surface) 70%, transparent);
+  --app-composer-project-tray-surface: color-mix(
+    in srgb,
+    var(--color-text) 4%,
+    var(--app-content-surface)
+  );
   --composer-tray-backdrop: blur(8px);
   --composer-tray-edge-color: color-mix(in oklab, var(--color-border) 80%, transparent);
   --app-floating-surface: color-mix(in oklab, var(--app-content-surface) 90%, transparent);

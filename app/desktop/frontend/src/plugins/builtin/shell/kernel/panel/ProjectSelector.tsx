@@ -7,6 +7,7 @@ import {
   type WorkGroup,
 } from "@/plugins/builtin/navigation/public/workIndex";
 import { Button, DropdownMenu, Icon } from "@/ui";
+import { AgentComposerTopTraySurface } from "@/ui/agent";
 
 interface ProjectMenuContentProps {
   groups: readonly WorkGroup[] | undefined;
@@ -77,47 +78,53 @@ function ProjectMenuContent({
   );
 }
 
-/** Project destination shown in the welcome composer's utility row.
+/** Project destination attached behind the welcome composer.
  *
  * It exists only while no Session is selected. Choosing a row or a native
  * folder creates the real hidden draft Session in that exact cwd; there is no
  * parallel "selected project" state for the shell to reconcile later.
  */
-export function ComposerProjectControl() {
+export function ComposerProjectTray() {
   const t = useT();
   const workIndex = useWorkIndex();
   const actions = useWorkIndexActions();
   if (workIndex.activeSessionId) return null;
 
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            press={false}
-            disabled={!actions.canCreateSessionInFolder}
-            aria-label={t("composer.project.choose")}
-            title={t("composer.project.tooltip")}
-            className="min-w-0 gap-1.5 px-2 text-ui-sm text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
-          >
-            <Icon name="folder" size="sm" className="shrink-0" />
-            <span className="max-w-[168px] truncate">{t("composer.project.choose")}</span>
-            <Icon name="chevron-down" size="sm" className="shrink-0 text-fg-faint" />
-          </Button>
-        }
-      />
-      <ProjectMenuContent
-        groups={workIndex.groups}
-        activeCwd={workIndex.activeCwd}
-        loading={workIndex.isLoading}
-        canCreate={actions.canCreateSessionInFolder}
-        onSelect={actions.startSessionInFolder}
-        onAdd={actions.chooseSessionFolder}
-        align="start"
-      />
-    </DropdownMenu.Root>
+    <AgentComposerTopTraySurface className="top-1 z-0 mx-3 -mb-[18px] w-[calc(100%_-_24px)] rounded-t-composer border-0 bg-[var(--app-composer-project-tray-surface)] px-1.5 pt-1.5 pb-[27px] [-webkit-backdrop-filter:none] [backdrop-filter:none]">
+      <div data-slot="project-selector-tray" className="flex min-w-0 items-center">
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
+            render={
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                press={false}
+                disabled={!actions.canCreateSessionInFolder}
+                aria-label={t("composer.project.choose")}
+                title={t("composer.project.tooltip")}
+                className="min-w-0 gap-1.5 font-normal text-fg-faint hover:text-fg-muted data-[popup-open]:bg-selected data-[popup-open]:text-fg"
+              >
+                <Icon name="folder" size="sm" className="shrink-0" />
+                <span className="max-w-[240px] truncate opacity-80">
+                  {t("composer.project.choose")}
+                </span>
+              </Button>
+            }
+          />
+          <ProjectMenuContent
+            groups={workIndex.groups}
+            activeCwd={workIndex.activeCwd}
+            loading={workIndex.isLoading}
+            canCreate={actions.canCreateSessionInFolder}
+            onSelect={actions.startSessionInFolder}
+            onAdd={actions.chooseSessionFolder}
+            align="start"
+          />
+        </DropdownMenu.Root>
+      </div>
+    </AgentComposerTopTraySurface>
   );
 }
 

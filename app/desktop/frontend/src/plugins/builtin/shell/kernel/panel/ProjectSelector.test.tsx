@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ComposerProjectControl, EmptyChatHeading } from "./ProjectSelector";
+import { ComposerProjectTray, EmptyChatHeading } from "./ProjectSelector";
 
 const mocks = vi.hoisted(() => ({
   workIndex: {
@@ -44,18 +44,20 @@ beforeEach(() => {
   mocks.actions.startSessionInFolder.mockReset();
 });
 
-describe("ComposerProjectControl", () => {
+describe("ComposerProjectTray", () => {
   it("owns a full-width attached tray instead of a composer-footer utility", () => {
-    const { container } = render(<ComposerProjectControl />);
+    const { container } = render(<ComposerProjectTray />);
 
     const tray = container.querySelector<HTMLElement>('[data-slot="project-selector-tray"]');
+    const surface = tray?.closest<HTMLElement>('[data-slot="composer-top-tray-surface"]');
     expect(tray).not.toBeNull();
-    expect(tray?.closest('[data-slot="composer-top-tray-surface"]')).not.toBeNull();
+    expect(surface).not.toBeNull();
+    expect(surface?.className).toContain("w-[calc(100%_-_24px)]");
     expect(tray?.querySelectorAll("svg")).toHaveLength(1);
   });
 
   it("offers real Work Index projects and the native new-project action before a Session exists", async () => {
-    render(<ComposerProjectControl />);
+    render(<ComposerProjectTray />);
 
     fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
     fireEvent.click(await screen.findByText("other"));
@@ -64,7 +66,7 @@ describe("ComposerProjectControl", () => {
   });
 
   it("routes New project to the native folder owner", async () => {
-    render(<ComposerProjectControl />);
+    render(<ComposerProjectTray />);
 
     fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
     fireEvent.click(await screen.findByText("New project"));
@@ -75,7 +77,7 @@ describe("ComposerProjectControl", () => {
   it("withdraws the utility-row picker once a Session owns the workspace", () => {
     mocks.workIndex.activeSessionId = "session-current";
 
-    const { container } = render(<ComposerProjectControl />);
+    const { container } = render(<ComposerProjectTray />);
 
     expect(container.innerHTML).toBe("");
   });

@@ -39,6 +39,7 @@ type VisualStyleTokenName =
   | "app-card-surface"
   | "app-composer-surface"
   | "app-composer-tray-surface"
+  | "app-composer-project-tray-surface"
   | "app-floating-surface"
   | "composer-backdrop"
   | "composer-tray-backdrop"
@@ -160,6 +161,11 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "app-composer-surface": "color-mix(in oklab, var(--app-content-surface) 86%, transparent)",
   "composer-backdrop": "blur(20px) saturate(1.4)",
   "app-composer-tray-surface": "color-mix(in oklab, var(--app-content-surface) 70%, transparent)",
+  // The project picker is the home utility surface BEHIND the glass composer,
+  // not standing Goal/Plan material above it. Codex gives that rear plane one
+  // opaque 4% ink step so the foreground composer can overlap it cleanly.
+  "app-composer-project-tray-surface":
+    "color-mix(in srgb, var(--color-text) 4%, var(--app-content-surface))",
   "composer-tray-backdrop": "blur(8px)",
   "composer-tray-edge-color": "color-mix(in oklab, var(--color-border) 80%, transparent)",
   // A floating panel is the other translucent surface. Same reason as the composer:

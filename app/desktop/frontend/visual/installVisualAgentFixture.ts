@@ -44,6 +44,7 @@ import { defaultAccents } from "@/plugins/builtin/defaults";
 import goal from "@/plugins/builtin/chat/goal";
 import type { GoalState } from "@/plugins/builtin/chat/goal/application/goalReadModel";
 import planProgress from "@/plugins/builtin/chat/plan-progress";
+import { kernelChat } from "@/plugins/builtin/shell/kernel";
 import {
   MODELS_KEY,
   type SelectableModel,
@@ -55,6 +56,10 @@ import { queryClient } from "@/lib/queryClient";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 import { toolRenderingPlugins } from "@/plugins/builtin";
 import { DATA_PROVIDER, definePlugin } from "@/plugins/sdk";
+import {
+  WORKSPACE_PROJECTS_KEY,
+  type WorkspaceProjectSummary,
+} from "@/plugins/builtin/workspace/public/queries";
 import {
   WORKSPACE_FILE_HEAD_KEY,
   type WorkspaceFileLine,
@@ -195,6 +200,7 @@ const visualAgentLifecycle = definePlugin({
 export async function installVisualAgentFixture(
   state: VisualAgentState,
 ): Promise<AgentSessionView> {
+  const projectless = state === "empty";
   queryClient.clear();
   installRuntimeCapabilityPort();
   installVisualRuntimeServiceStatusPort();
@@ -203,16 +209,18 @@ export async function installVisualAgentFixture(
   configureAgentRuntimeGateway(visualAgentRuntimeGateway(state));
 
   useAgentSessionStore.setState({
-    openSessionIds: [VISUAL_SESSION_ID],
-    lastSessionId: VISUAL_SESSION_ID,
+    openSessionIds: projectless ? [] : [VISUAL_SESSION_ID],
+    lastSessionId: projectless ? "" : VISUAL_SESSION_ID,
     draftSessionIds: new Set(),
   });
   // Which session is on screen is the location, not a store field.
-  navigator().go({ session: VISUAL_SESSION_ID });
+  navigator().go({ session: projectless ? "" : VISUAL_SESSION_ID });
   queryClient.setQueryDefaults([AGENT_SESSIONS_KEY], { staleTime: Infinity });
+  queryClient.setQueryDefaults([WORKSPACE_PROJECTS_KEY], { staleTime: Infinity });
   queryClient.setQueryDefaults([MODELS_KEY], { staleTime: Infinity });
   queryClient.setQueryDefaults([APPROVAL_MODE_KEY], { staleTime: Infinity });
-  queryClient.setQueryData([AGENT_SESSIONS_KEY], [visualSession(state)]);
+  queryClient.setQueryData([AGENT_SESSIONS_KEY], projectless ? [] : [visualSession(state)]);
+  queryClient.setQueryData<WorkspaceProjectSummary[]>([WORKSPACE_PROJECTS_KEY], []);
   queryClient.setQueryData([MODELS_KEY], VISUAL_MODELS);
   queryClient.setQueryData([APPROVAL_MODE_KEY], "ask");
   await loadPluginsForTest(
@@ -239,6 +247,10 @@ export async function installVisualAgentFixture(
     contextUsage,
     composerSend,
     narrativeRails,
+    // `empty` is the projectless home, so its project destination must come
+    // from the exact production kernel contribution and slot — not from a
+    // visual-only facsimile placed beside the composer.
+    kernelChat,
     // The per-message action bar. Unregistered, the slot rendered nothing, so
     // every agent golden framed a transcript with no controls on it — which is
     // how the bar spent its life in the caption line, running off the far edge
