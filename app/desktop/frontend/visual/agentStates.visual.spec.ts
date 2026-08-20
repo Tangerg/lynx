@@ -1122,6 +1122,25 @@ test("an expanded patch reports only its call-scoped file receipt", async ({ pag
   await expect(receipt).toContainText("Edited");
 });
 
+test("tool invocations stay on the transparent Codex work-narrative plane", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
+  await page.locator("html[data-visual-ready]").waitFor();
+  await page.getByRole("button", { name: /steps/ }).first().click();
+
+  const rows = page.locator(
+    "[data-slot='agent-activity-disclosure'][data-tool='shell'], " +
+      "[data-slot='agent-activity-disclosure'][data-tool='apply_patch']",
+  );
+  expect(await rows.count()).toBeGreaterThanOrEqual(5);
+
+  for (let index = 0; index < (await rows.count()); index += 1) {
+    const row = rows.nth(index);
+    await expect(row).toHaveAttribute("data-shell", "line");
+    await expect(row).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(row).toHaveCSS("border-top-width", "0px");
+  }
+});
+
 test("an expanded wave keeps its summary while its rows scroll past", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
   await page.locator("html[data-visual-ready]").waitFor();

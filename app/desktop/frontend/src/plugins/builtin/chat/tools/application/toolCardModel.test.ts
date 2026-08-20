@@ -68,6 +68,29 @@ describe("toolCardModel", () => {
     expect(toolCardModel(t, tool({ ...read, status: "err" })).shell).toBe("flagged");
   });
 
+  // Codex keeps the invocation itself in the work narrative: read, write,
+  // running, failed and refused calls all use the same transparent row. The
+  // material result (terminal output or diff) earns a surface only after the row
+  // is opened; lifecycle truth stays inline instead of turning the row into a
+  // status card.
+  it("keeps every invocation on the Codex narrative line", () => {
+    const cases: Array<Partial<ToolCall>> = [
+      { name: "read", safetyClass: "safe", status: "ok" },
+      { name: "shell", safetyClass: "exec", status: "running" },
+      { name: "apply_patch", safetyClass: "write", status: "ok" },
+      { name: "apply_patch", safetyClass: "write", status: "err" },
+      { name: "apply_patch", safetyClass: "write", status: "denied" },
+    ];
+
+    expect(cases.map((entry) => toolCardModel(t, tool(entry)).shell)).toEqual([
+      "line",
+      "line",
+      "line",
+      "line",
+      "line",
+    ]);
+  });
+
   it("tells a refused call apart from a finished one", () => {
     const denied = toolCardModel(t, tool({ status: "denied" }));
     expect(denied).toMatchObject({ denied: true, shell: "flagged", tone: "warning" });
