@@ -15,7 +15,7 @@
 import { colord } from "colord";
 import type { Scheme } from "@/lib/appearance";
 import { disposeOnHmr } from "@/lib/hmr";
-import { definePlugin } from "@/plugins/sdk";
+import { definePlugin, type Disposable } from "@/plugins/sdk";
 import { COLOR_THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
 import { colorThemeContribution } from "../kit/colorThemeContribution";
@@ -74,10 +74,16 @@ function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): Co
 export default definePlugin({
   name: "lyra.builtin.custom-theme",
   setup(ctx) {
+    let contribution: Disposable | undefined;
     const register = () => {
       const { customTheme, accent, contrast } = useUiStore.getState();
       const spec = deriveCustomSpec(customTheme, accent, contrast);
-      ctx.contribute(
+      // COLOR_THEME is single-keyed. A live custom palette therefore replaces
+      // its one contribution; publishing the same `custom` key twice aborts the
+      // entire Zustand listener chain before React, persistence and the document
+      // painter can observe the preference change.
+      contribution?.dispose();
+      contribution = ctx.contribute(
         COLOR_THEME,
         colorThemeContribution({
           ...spec,
@@ -94,6 +100,15 @@ export default definePlugin({
       if (s.customTheme !== p.customTheme || s.accent !== p.accent || s.contrast !== p.contrast)
         register();
     });
-    disposeOnHmr(unsub);
+    let stopped = false;
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      unsub();
+      contribution?.dispose();
+      contribution = undefined;
+    };
+    disposeOnHmr(stop);
+    ctx.cleanup(stop);
   },
 });

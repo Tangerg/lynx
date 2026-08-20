@@ -380,16 +380,17 @@ test("accent selection gives an immediate, durable visual acknowledgement", asyn
   await expect(purple).toHaveAttribute("aria-pressed", "true");
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        document.documentElement.style.getPropertyValue("--color-accent"),
-      ),
+      page.evaluate(() => document.documentElement.style.getPropertyValue("--color-accent")),
     )
     .toBe("#6d3ff0");
   await expect
     .poll(() =>
-      page.evaluate(
-        () => JSON.parse(localStorage.getItem("lyra.ui") ?? "null")?.state?.accent,
-      ),
+      page.evaluate(() => {
+        const persisted = JSON.parse(localStorage.getItem("lyra.ui") ?? "null") as {
+          state?: { accent?: string };
+        } | null;
+        return persisted?.state?.accent;
+      }),
     )
     .toBe("#7f52ff");
 

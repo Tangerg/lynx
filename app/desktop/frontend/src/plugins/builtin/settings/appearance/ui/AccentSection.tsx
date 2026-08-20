@@ -6,19 +6,36 @@ import { cn } from "@/lib/classNames";
 import { ACCENT, useExtensionPoint } from "@/plugins/sdk";
 import { useAccentPreference } from "../application/appearancePreferences";
 import { SettingRow } from "../../public";
-import { ColorPickerInput, Pressable } from "@/ui";
+import { ColorPickerInput, Icon, Pressable } from "@/ui";
 
 // Conic gradient used when no custom color is active — communicates
 // "click me, you can pick anything" without committing to a default hue.
 const RAINBOW_HINT =
   "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #6366f1, #a855f7, #ec4899, #ef4444)";
 
-// Chosen swatch: the transparent rim fills with the surface so the ring reads as
-// a gap around the colour rather than touching it. Both pickers below wear it —
-// one is a Pressable swatch and one labels the native color-picker input.
+// The colour remains a compact dot, while its target is a full desktop control.
+// The old 18px target moved less than half a pixel on press and its selected ring
+// was easy to miss, which made a real preference update feel inert.
+const SWATCH_TARGET =
+  "group/accent relative inline-grid h-7 w-7 place-items-center rounded-full bg-transparent transition-[background-color,transform] duration-[var(--dur-fast)] hover:bg-hover active:scale-[var(--press-scale)]";
 const SWATCH_CHROME =
-  "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-[var(--dur-fast)] active:scale-[var(--press-scale)]";
+  "h-5 w-5 rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-[var(--dur-fast)] group-hover/accent:scale-105";
 const SWATCH_SELECTED = "border-surface shadow-[var(--shadow-swatch-selected)]";
+
+function SelectionMark({ selected }: { selected: boolean }) {
+  return (
+    <span
+      aria-hidden
+      data-slot="accent-selection-mark"
+      className={cn(
+        "pointer-events-none absolute z-10 text-surface transition-[opacity,transform] duration-[var(--dur-fast)]",
+        selected ? "scale-100 opacity-100" : "scale-75 opacity-0",
+      )}
+    >
+      <Icon name="check" size="xs" />
+    </span>
+  );
+}
 
 function CustomAccentPicker({
   value,
@@ -32,16 +49,13 @@ function CustomAccentPicker({
   label: string;
 }) {
   return (
-    <label
-      title={label}
-      aria-label={label}
-      className={cn(
-        "relative inline-grid place-items-center",
-        SWATCH_CHROME,
-        isActive && SWATCH_SELECTED,
-      )}
-      style={{ background: isActive ? value : RAINBOW_HINT }}
-    >
+    <label title={label} aria-label={label} className={SWATCH_TARGET}>
+      <span
+        aria-hidden
+        className={cn(SWATCH_CHROME, isActive && SWATCH_SELECTED)}
+        style={{ background: isActive ? value : RAINBOW_HINT }}
+      />
+      <SelectionMark selected={isActive} />
       {/* Hidden native input — the visible swatch is the label; click
           opens the OS color picker. */}
       <ColorPickerInput
@@ -76,9 +90,15 @@ export function AccentSection() {
             title={`${t("settings.accent")}: ${a.label}`}
             aria-label={`${t("settings.accent")}: ${a.label}`}
             aria-pressed={accent === a.dark}
-            style={{ background: light ? (a.light ?? a.dark) : a.dark }}
-            className={cn("p-0", SWATCH_CHROME, accent === a.dark && SWATCH_SELECTED)}
-          />
+            className={cn("p-0", SWATCH_TARGET)}
+          >
+            <span
+              aria-hidden
+              className={cn(SWATCH_CHROME, accent === a.dark && SWATCH_SELECTED)}
+              style={{ background: light ? (a.light ?? a.dark) : a.dark }}
+            />
+            <SelectionMark selected={accent === a.dark} />
+          </Pressable>
         ))}
         <CustomAccentPicker
           value={accent}
