@@ -5,7 +5,8 @@ import {
   approvalScopeViews,
   approvalSettledDecision,
   canSubmitApproval,
-} from "./approvalPresentation";
+  type ApprovalTone,
+} from "../public/messagePresentation";
 
 describe("approvalPresentation", () => {
   it("defaults unknown approval risk to medium caution", () => {
@@ -17,12 +18,15 @@ describe("approvalPresentation", () => {
   });
 
   it("maps scopes to presentation tones", () => {
-    expect(approvalScopeViews(["read", "write", "delete", "custom"])).toEqual([
+    const views = approvalScopeViews(["read", "write", "delete", "custom"]);
+    const tones: ApprovalTone[] = views.map((view) => view.tone);
+    expect(views).toEqual([
       { scope: "read", tone: "neutral" },
       { scope: "write", tone: "warning" },
       { scope: "delete", tone: "danger" },
       { scope: "custom", tone: "neutral" },
     ]);
+    expect(tones).toEqual(["neutral", "warning", "danger", "neutral"]);
   });
 
   it("projects reversibility hints", () => {

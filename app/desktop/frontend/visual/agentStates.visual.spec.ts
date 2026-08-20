@@ -58,7 +58,7 @@ test("a pending approval uses the Codex neutral request surface", async ({ page 
   const surface = page.locator('[data-slot="approval-surface"]');
   await expect(surface).toHaveCSS("border-top-width", "0px");
   await expect(surface).toHaveCSS("border-radius", "24px");
-  await expect(page.getByText("Terminal", { exact: true })).toBeVisible();
+  await expect(surface.getByText("Terminal", { exact: true })).toBeVisible();
   await expect(
     page.getByText("Run the race detector across the workspace before committing.", {
       exact: true,

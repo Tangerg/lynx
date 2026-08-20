@@ -16,7 +16,7 @@ export interface ApprovalArgsCommitter {
 export interface ApprovalCardActionState {
   pending: ApprovalDecision | null;
   disabled: boolean;
-  approve: () => void;
+  approve: (rememberScope?: RememberScope) => void;
   decline: () => void;
 }
 
@@ -53,27 +53,28 @@ export function useApprovalCardActions({
   itemId,
   status,
   argsEditor,
-  rememberScope,
   runtimeAvailable,
 }: {
   runId?: string;
   itemId?: string;
   status: BlockStatus;
   argsEditor?: ApprovalArgsCommitter;
-  rememberScope?: RememberScope;
   runtimeAvailable: boolean;
 }): ApprovalCardActionState {
   const { submit, pending, registerActions } = useApprovalSubmit(runId, itemId);
 
-  const approve = useCallback(() => {
-    const editedArgs = argsEditor?.commit();
-    if (editedArgs === null) return;
-    submit("approved", approvalSubmitOptions({ editedArgs, rememberScope }));
-  }, [argsEditor, rememberScope, submit]);
+  const approve = useCallback(
+    (rememberScope?: RememberScope) => {
+      const editedArgs = argsEditor?.commit();
+      if (editedArgs === null) return;
+      submit("approved", approvalSubmitOptions({ editedArgs, rememberScope }));
+    },
+    [argsEditor, submit],
+  );
 
   const decline = useCallback(() => {
-    submit("declined", approvalSubmitOptions({ rememberScope }));
-  }, [rememberScope, submit]);
+    submit("declined");
+  }, [submit]);
 
   const actionsRef = useRef<ApprovalActions>({ approve, decline });
   actionsRef.current = { approve, decline };

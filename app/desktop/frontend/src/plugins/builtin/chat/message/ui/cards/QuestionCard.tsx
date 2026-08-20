@@ -138,7 +138,6 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
 
   return (
     <HitlCardShell
-      variant="neutral"
       icon="question"
       iconClassName="text-accent"
       label={t("question.required")}

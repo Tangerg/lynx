@@ -1,74 +1,63 @@
-import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
-import { useState } from "react";
-import type { Tone } from "@/lib/tone";
-import { Badge, Button, Checkbox, Divider, Icon, Segmented } from "@/ui";
-import { HitlCardShell, HitlSettledRow } from "./HitlCard";
-import { useT } from "@/lib/i18n";
-import { approvalHeadline } from "./approvalHeadline";
+import { toolCategory, type BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { type ApprovalDecision, type RememberScope } from "@/plugins/builtin/agent/public/hitl";
 import {
-  approvalReversibilityView,
-  approvalRiskView,
-  approvalScopeViews,
   approvalSettledDecision,
-  dangerHints,
   type ApprovalRisk,
-  type ApprovalTone,
 } from "@/plugins/builtin/agent/public/messagePresentation";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
+import { useT } from "@/lib/i18n";
+import { Button, Divider, DropdownMenu, Icon, Surface, type IconName } from "@/ui";
 import { useApprovalArgsEditor } from "../../application/approvalArgsEditor";
 import { useApprovalCardActions } from "../../application/approvalCardActions";
 import { ApprovalArgsEditor } from "./ApprovalArgsEditor";
-import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
+import { approvalHeadline } from "./approvalHeadline";
+import { HitlSettledRow } from "./HitlCard";
 
 interface Props {
-  /** Block lifecycle. `"requires-action"` shows the action card with the
-   *  Allow once / Deny buttons; `"complete"` collapses to a settled
-   *  checkpoint row driven by `decision`. */
+  /** Block lifecycle. `"requires-action"` shows the request surface;
+   *  `"complete"` collapses to a settled checkpoint driven by `decision`. */
   status: BlockStatus;
-  /** The tool awaiting a decision. The headline is derived here, at render, so it
-   *  follows the language the user is reading in. */
+  /** Runtime tool awaiting the exact Run/Item decision. */
   toolName?: string;
   cmd: string;
   reason: string;
   /** The Run to resume + the toolCall Item awaiting approval — the HITL
-   *  resume target (API.md §6). When either is absent the card is a
-   *  decorative pre-HITL preview with no buttons. */
+   *  resume target (API.md §6). Without either identity this is a decorative
+   *  preview: it renders the material but exposes no live action. */
   runId?: string;
   itemId?: string;
   /** Set once the decision is submitted (optimistic) / the run resolves. */
   decision?: ApprovalDecision;
-  /** Tool arguments about to be executed. When present, the card lets the
-   *  user edit them before approving (approve-with-modified-args, §4.3). */
+  /** Tool arguments about to be executed. When present, the user may edit them
+   *  before approving (approve-with-modified-args, §4.3). */
   args?: Record<string, unknown>;
-  /** Risk level — drives the badge colour + dot. Defaults to "medium"
-   *  when omitted (older backends): "we don't know, be cautious". */
+  /** Runtime-owned metadata retained in the published block shape. The Codex
+   *  request surface does not turn it into a client-authored risk claim. */
   risk?: ApprovalRisk;
-  /** Whether this particular approval may create a standing approval rule. */
+  /** Whether this approval may create a standing allow rule. */
   rememberable?: boolean;
-  /** Free-form action categories (read / write / network / shell /
-   *  delete / …) — rendered as chips so the user can see at a glance
-   *  what kinds of side effects an approval would unlock. */
+  /** Existing block-shape metadata retained for compatibility. These values do
+   *  not enter the Codex approval hierarchy because the Runtime reason and
+   *  exact call material are the authoritative facts shown to the user. */
   scope?: string[];
-  /** Path / URL / resource the action targets. Mono-rendered. */
   target?: string;
-  /** Whether the action can be undone. Drives a reversible / permanent
-   *  hint; undefined = unknown, no hint. */
   reversible?: boolean;
 }
 
-// Approval card — presentation shell. Submission coordination lives in
-// useApprovalCardActions; this component renders against `status`:
-//   - "complete"         → settled checkpoint row (decision is authoritative)
-//   - "requires-action"  → action card with Allow once / Deny buttons,
-//                           or optimistic checkpoint while a submit is in
-//                           flight (pending mirrors the user's last click)
-//
-// HITL flow (R-model, API.md §6):
-//   1. Run ends with outcome.type="interrupt" carrying an approval Interrupt
-//   2. Reducer materialises an approval block (status="requires-action")
-//      bound to { runId, itemId }
-//   3. User clicks → useApprovalSubmit resumes the run (new segment) via
-//      runs.resume + optimistically settles the card (resolveInterrupt)
+const REMEMBER_ACTIONS: readonly {
+  scope: RememberScope;
+  labelKey: string;
+}[] = [
+  { scope: "session", labelKey: "approval.action.allowSession" },
+  { scope: "project", labelKey: "approval.action.allowProject" },
+  { scope: "global", labelKey: "approval.action.allowGlobal" },
+];
+
+// Approval request — one Codex request surface around Runtime-authored material.
+// Submission coordination remains in useApprovalCardActions:
+//   - Allow once and the registered keyboard action omit remember scope.
+//   - A scope appears only when the user explicitly picks a scoped allow action.
+//   - Deny never inherits an allow scope.
 export function ApprovalCard({
   status,
   toolName,
@@ -78,27 +67,19 @@ export function ApprovalCard({
   itemId,
   decision,
   args,
-  risk,
   rememberable = false,
-  scope,
-  target,
-  reversible,
 }: Props) {
   const t = useT();
   const runtimeAvailable = useRuntimeCommandsAvailable();
-
   const hasArgs = args !== undefined;
-  const originalArgs = hasArgs ? JSON.stringify(args, null, 2) : "";
-  const argsEditor = useApprovalArgsEditor({ originalArgs });
-
-  const [remember, setRemember] = useState(false);
-  const [rememberScope, setRememberScope] = useState<RememberScope>("session");
+  const argsEditor = useApprovalArgsEditor({
+    originalArgs: hasArgs ? JSON.stringify(args, null, 2) : "",
+  });
   const { pending, disabled, approve, decline } = useApprovalCardActions({
     runId,
     itemId,
     status,
     argsEditor: hasArgs ? argsEditor : undefined,
-    rememberScope: rememberable && remember ? rememberScope : undefined,
     runtimeAvailable,
   });
 
@@ -110,150 +91,103 @@ export function ApprovalCard({
     return <Divider icon={<Icon name="x" size="xs" />}>{t("approval.settled.declined")}</Divider>;
   }
 
-  // Pre-decision card. Buttons disabled when not resumable (decorative preview),
-  // while a request is in flight, OR once the interrupt is no longer pending:
-  // settlePendingInterrupts downgrades an unacted interrupt to `incomplete` on
-  // run-end precisely so its buttons can't resume a dead run.
-  const riskView = approvalRiskView(risk);
-  const scopeViews = approvalScopeViews(scope);
-  const reversibilityView = approvalReversibilityView(reversible);
-  // Client-side destructive-command heuristic (§T2.5) — flags rm -rf / sudo /
-  // curl|sh / dd / mkfs / chmod 777 / fork bomb / force-push regardless of the
-  // backend's risk field, so a dangerous command always carries a visible "are
-  // you sure?" cue.
-  const dangers = cmd.trim() ? dangerHints(cmd) : [];
-  return (
-    <HitlCardShell
-      variant="warning"
-      icon="shield"
-      iconClassName="text-warning"
-      label={t("approval.required")}
-      trailing={<Badge tone={approvalBadgeTone(riskView.tone)}>{t(riskView.labelKey)}</Badge>}
-    >
-      <div className="mb-1 text-ui-md font-semibold leading-body text-fg">
-        {approvalHeadline(t, toolName)}
-      </div>
-      {/* Shell-prompt command line — only for command-style approvals. Other
-          tools have no `cmd` (their payload is just args), so skip the box
-          instead of rendering a lonely "$".
+  const identity = approvalIdentity(t, toolName);
+  const title = reason.trim() || approvalHeadline(t, toolName);
 
-          The recessed well, not an inverting ink slab: `bg-fg` flips with the
-          scheme, so on a dark palette the single most consequential thing on the
-          card — the command you are about to authorise — rendered as a white
-          block, brighter than anything around it and in the opposite polarity
-          from every other code surface in the app. */}
-      {cmd.trim() && (
-        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-sunken px-2.5 py-2 font-mono text-ui-sm text-fg">
-          <span className="text-success">$</span> {cmd}
-        </code>
-      )}
-      {dangers.length > 0 && (
-        <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative-wash px-3 py-2 text-ui-md leading-body text-negative">
-          <Icon name="alert" size="sm" className="mt-px shrink-0" />
-          <span>
-            <span className="font-semibold">{t("approval.danger")}</span>{" "}
-            {dangers.map((key) => t(key)).join(" · ")}
-          </span>
+  return (
+    <Surface inset="none" data-slot="approval-surface" className="overflow-hidden rounded-3xl">
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex min-w-0 items-center gap-2 text-ui-sm leading-body text-fg-muted">
+          <Icon name={identity.icon} size="sm" className="shrink-0 text-fg-faint" />
+          <span className="truncate">{identity.label}</span>
         </div>
-      )}
-      {hasArgs && (
-        <ApprovalArgsEditor
-          editing={argsEditor.editing}
-          argsText={argsEditor.argsText}
-          invalid={argsEditor.invalid}
-          onEditToggle={argsEditor.setEditing}
-          onTextChange={(text) => {
-            argsEditor.setArgsText(text);
-          }}
-        />
-      )}
-      {/* Grants summary — spells out what approving actually permits (side-effect
-          categories + target + reversibility) so the decision is informed, not a
-          blind "OK". Presentation-only; the underlying scope/target/reversible
-          fields are the protocol's, untouched. */}
-      {(scopeViews.length > 0 || target || reversibilityView) && (
-        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          <span className="mr-0.5 text-ui-sm font-medium text-fg-faint">
-            {t("approval.grants")}
-          </span>
-          {scopeViews.map((view) => (
-            <Badge
-              key={view.scope}
-              tone={approvalBadgeTone(view.tone)}
-              className="font-mono font-semibold"
-            >
-              {view.scope}
-            </Badge>
-          ))}
-          {target && (
-            <span className="inline-flex items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-sm text-fg-muted">
-              <Icon name="folder" size="xs" className="text-fg-faint" />
-              {target}
-            </span>
+        <div className="mt-2 text-pretty text-ui-md font-medium leading-body text-fg">{title}</div>
+      </div>
+
+      {(cmd.trim() || hasArgs) && (
+        <div className="flex flex-col gap-2 px-4 pb-2">
+          {cmd.trim() && (
+            <code className="block max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-sunken px-2.5 py-2 font-mono text-ui-sm font-medium text-fg">
+              {cmd}
+            </code>
           )}
-          {reversibilityView && (
-            <Badge
-              tone={approvalBadgeTone(reversibilityView.tone)}
-              className="font-mono font-semibold"
-            >
-              {t(reversibilityView.labelKey)}
-            </Badge>
+          {hasArgs && (
+            <ApprovalArgsEditor
+              editing={argsEditor.editing}
+              argsText={argsEditor.argsText}
+              invalid={argsEditor.invalid}
+              onEditToggle={argsEditor.setEditing}
+              onTextChange={argsEditor.setArgsText}
+            />
           )}
         </div>
       )}
-      <div className="mb-2 text-ui-md leading-body text-fg-muted">{reason}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        {/* The label alone. These carried their combos as a raw <kbd> — a glyph
-            strip inside a button, hand-spelled past the Kbd atom, telling you how to
-            press the thing your pointer is already on. The bindings still work; the
-            place to read them is the shortcuts pane. */}
-        {rememberable && (
-          <Checkbox
-            disabled={!runtimeAvailable}
-            checked={remember}
-            onCheckedChange={setRemember}
-            label={t("approval.remember")}
-            className="gap-1.5 text-ui-sm"
-          />
-        )}
-        <span className="flex-1" />
+
+      <div className="flex flex-wrap items-center justify-end gap-2 px-4 pt-2 pb-4">
         <Button variant="outline" size="sm" disabled={disabled} onClick={decline}>
           {t("approval.action.deny")}
         </Button>
-        <Button variant="primary" size="sm" disabled={disabled} onClick={approve}>
-          {t("approval.action.allowOnce")}
-        </Button>
+        <div
+          role="group"
+          aria-label={t("approval.action.allowOptions")}
+          className="flex items-center"
+        >
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={disabled}
+            className={rememberable ? "rounded-r-none" : undefined}
+            onClick={() => approve()}
+          >
+            {t("approval.action.allowOnce")}
+          </Button>
+          {rememberable && (
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger
+                render={
+                  <Button
+                    variant="primary"
+                    size="icon-sm"
+                    disabled={disabled}
+                    aria-label={t("approval.action.allowOptions")}
+                    className="relative -ml-px rounded-l-none before:pointer-events-none before:absolute before:inset-y-1.5 before:left-0 before:w-px before:bg-cta-text/20"
+                  >
+                    <Icon name="chevron-down" size="xs" />
+                  </Button>
+                }
+              />
+              <DropdownMenu.Content align="end" sideOffset={4} className="min-w-[196px]">
+                {REMEMBER_ACTIONS.map((action) => (
+                  <DropdownMenu.Item
+                    key={action.scope}
+                    onClick={() => approve(action.scope)}
+                    className="grid-cols-[minmax(0,1fr)]"
+                  >
+                    <span className="truncate">{t(action.labelKey)}</span>
+                  </DropdownMenu.Item>
+                ))}
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          )}
+        </div>
       </div>
-      {/* Scope picker — only meaningful once "don't ask again" is on. Session
-          keys the rule to this session, project to this folder, global everywhere. */}
-      {rememberable && remember && (
-        <fieldset disabled={!runtimeAvailable} className="mt-2 flex justify-end">
-          <Segmented
-            value={rememberScope}
-            options={[
-              { value: "session", label: t("approvals.scope.session") },
-              { value: "project", label: t("approvals.scope.project") },
-              { value: "global", label: t("approvals.scope.global") },
-            ]}
-            onChange={setRememberScope}
-            ariaLabel={t("approval.remember.scope")}
-          />
-        </fieldset>
-      )}
-    </HitlCardShell>
+    </Surface>
   );
 }
 
-// Tinted pill fills — no inset ring borders (§ light Geist recipe). Tone rides
-// the semantic bg/text token alone.
-//
-// Risk, scope, reversibility — three words carrying a state, which is `Badge`. The
-// atom exists because fourteen callsites paired a fill with an ink by hand, and three
-// of the fourteen were here: `approvalRiskToneClass`, `approvalScopeToneClass` and
-// `approvalReversibilityToneClass` were byte-identical but for one branch, which is
-// what a duplicated table looks like just before the copies drift apart.
-function approvalBadgeTone(tone: ApprovalTone): Tone | undefined {
-  if (tone === "danger") return "negative";
-  if (tone === "warning") return "warning";
-  return undefined;
+function approvalIdentity(
+  t: (key: string, params?: Record<string, string | number>) => string,
+  toolName: string | undefined,
+): { icon: IconName; label: string } {
+  if (!toolName) {
+    return { icon: "shield", label: t("approval.identity.permission") };
+  }
+  switch (toolCategory(toolName)) {
+    case "command":
+      return { icon: "terminal", label: t("approval.identity.terminal") };
+    case "fileEdit":
+      return { icon: "edit", label: t("approval.identity.fileEdits") };
+    default:
+      return { icon: "tool", label: toolName };
+  }
 }

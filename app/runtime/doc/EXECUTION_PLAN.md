@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P121 已完成并形成里程碑；P122 实施中。
+> 状态：P0–P122 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P122 Codex approval request surface 红例。
+> 最近基线：2026-08-20，P122 Codex approval request surface 与 scoped allow 语义闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P122 已于 2026-08-20 获得实施授权：继续按 Codex 级桌面外观与既有编码约束打磨中央 Agent Narrative。production-equivalent 盲测已证明 Approval/HITL 仍是旧式黄边警告卡，并叠加 `Approval required`、risk badge、客户端危险正则和 `Don't ask again` checkbox；Codex 当前 approval owner 使用单一中性 request surface、工具身份、请求理由、调用 material 与底部 scoped actions。本批先以独立红测锁定该差异，再由现有 Approval presentation/action owner 根修复。
+- P122 已于 2026-08-20 完成：production-equivalent 盲测先证明 Approval/HITL 仍是旧式黄边警告卡，并叠加 `Approval required`、risk badge、客户端危险正则和 `Don't ask again` checkbox；独立红测锁定后，pending approval 已改为 Codex 的单一中性 request surface，以工具身份、Runtime reason、调用 material 和底部 scoped actions 形成唯一层级。
 - P122 不改变 Runtime approval wire、HITL identity、resume transaction 或 Frontend published SDK；`reason`、`risk`、`rememberable`、exact Run/Item 与 edited args 继续来自现有权威 material。Frontend 不再从命令文本推测危险事实，remember scope 只随用户明确选择的 approve action 发送，不附着到 decline。
 - P121 已于 2026-08-20 完成：在 P120 基线上继续按 Codex 级桌面外观与既有编码约束打磨左中右三栏，优先修复中间内容区真实渲染与交互接线；每轮编码独立提交并推送，及时关闭 agent-browser、临时服务和测试资源，不修改或暂存 `app/cli`。
 - 首个 production 反例已闭环：Runtime 唯一内建文件修改工具 `apply_patch` 发布调用级 `changes:[{path,status,from?}]`；Frontend 现在由既有 Agent fold 持久携带该结果，再由共享 strict parser 同时供 inline preview 与 Run Summary 消费。旧的全工作区 diff 回落和 Runtime 不存在的 `edit`/`write` 内部注册已删除，没有新增 Runtime 读、第二 diff owner 或伪造行数。
@@ -37,6 +37,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 数字 risk badge、`Approval required` 泛标题和客户端 `dangerHints(command)` 不进入用户可见层级。Runtime 的真实 reason 保留；没有 Runtime reason 时才使用本地化的工具问题句，不从命令字符串推断权限、可逆性或危险等级。
 - `rememberable` 通过 primary approve 旁的 scoped-action menu 暴露 Session/Project/Global 权威能力；Allow once 仍是默认按钮和快捷键行为。remember scope 只随对应 approve 提交，Deny 不携带 scope，pending/disabled 与 exact Run/Item settlement 语义不变。
 - 先提交 production component 与 visual 红例；根修复后至少覆盖 Allow once、scoped approve、Deny、edited args、decorative/Runtime unavailable、light/dark、narrow layout、键盘与完整 agent golden。未触及 Runtime/Desktop/Wails 时不重复无意义的进程恢复或 race 矩阵。
+- 验收结论：24px request surface、工具身份、reason/command/args 层级、Allow once、Session/Project/Global 菜单、纯 Deny、edited args、键盘默认动作、320px 窄宽、light/dark 与 settled exact identity 均已验证；Frontend 322 files / 1999 tests、完整 312 项 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵和全部静态/构建门禁全绿。本批未修改 Runtime、Desktop/Wails、Frontend published SDK 或 `app/cli`。
 
 ### P121 准入与完成条件（2026-08-20）
 
@@ -141,10 +142,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P119     | Desktop 前后端完整接线与 Codex 三栏深度对齐                                                                      | Plan/Goal/Steer、Work Index、统一 narrative renderer 与 Context Dock 服从权威 Session/Runtime owner；IME commit Enter、production renderer replacement 与 Runtime SIGKILL 恢复闭环       |
 | P120     | Composer stack、Context 占用与终态 narrative 精确收敛                                                            | Plan/Goal 改为 Codex 紧凑 standing surface；Context 环消费真实 `contextTokens/contextWindow`；标题栏与普通结束态移除累计统计和结算杂项                                                  |
 | P121     | 调用级补丁回执与 Codex file-change narrative                                                                      | `apply_patch` 的持久结果成为 inline preview 与 Run Summary 唯一变更事实；删除 `edit`/`write` 死路径和全工作区 diff 猜测，无权威行数时不伪造增删统计                                    |
+| P122     | Codex approval request surface 与 scoped allow 语义                                                               | pending approval 收敛为单一中性请求面；可见层只读工具身份、Runtime reason 与调用 material，scope 只随明确 scoped approve 提交，Deny 保持纯拒绝                                      |
 
 ## 5. 当前里程碑结论
 
-P113–P121 共同建立了以下不可回退的心智模型：
+P113–P122 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -160,8 +162,9 @@ P113–P121 共同建立了以下不可回退的心智模型：
 - Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
 - Composer 顶部 standing stack 只有紧凑 Plan pill 与 Goal lifecycle row；Goal 限制仍是 Runtime/launcher 事实而非永久 chrome。Context 环只读 Runtime `contextTokens` 与 served model window，标题栏与普通完成态不重复累计 accounting。
 - 一次 `apply_patch` 的展开体和 Run Summary 只读该 ToolCall 已持久化的 `PatchResult.changes`；当前工作区状态、工具参数和文件内容都不能回填历史调用。Runtime 没有发布行级 diff 或增删行数时，Frontend 不猜测这些事实。
+- pending approval 是一个 Codex request surface，而不是风险 dashboard：工具身份、Runtime reason、command/args 是可见事实；客户端不从命令字符串推导危险、可逆性或权限。Allow once 与键盘动作不持久化规则，只有用户选择 Session/Project/Global scoped allow 才提交 remember scope，Deny 不继承 allow scope。
 
-最近一次完整验收基线：Frontend 322 files / 1995 tests 全绿，97 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P121 复跑的 Runtime HTTP 断线恢复例在严格异步泄漏检查下通过。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 沿用 P119 恢复基线；P121 未改动这些层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 322 files / 1999 tests 全绿，97 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P122 的 Approval request surface、scoped actions、窄宽和键盘语义已进入该矩阵。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 沿用 P119 恢复基线；P122 未改动这些层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 

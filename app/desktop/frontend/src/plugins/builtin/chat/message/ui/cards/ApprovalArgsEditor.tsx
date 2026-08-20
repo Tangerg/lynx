@@ -16,7 +16,7 @@ export function ApprovalArgsEditor({
 }) {
   const t = useT();
   return (
-    <div className="mb-2">
+    <div>
       <div className="mb-1 flex items-center gap-2">
         <SectionLabel className="px-0 py-0">{t("approval.args.label")}</SectionLabel>
         {!editing && (
@@ -43,7 +43,7 @@ export function ApprovalArgsEditor({
             onChange={(e) => {
               onTextChange(e.target.value);
             }}
-            className="rounded-sm bg-fg p-3 text-on-fg"
+            className="rounded-md bg-sunken p-2.5 font-mono text-ui-sm text-fg"
           />
           {invalid && (
             <div className="mt-1 font-mono text-ui-xs text-negative">
@@ -52,7 +52,7 @@ export function ApprovalArgsEditor({
           )}
         </>
       ) : (
-        <pre className="m-0 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-sm bg-fg p-3 font-mono text-ui-md text-on-fg/85">
+        <pre className="m-0 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md bg-sunken p-2.5 font-mono text-ui-sm text-fg">
           {argsText}
         </pre>
       )}

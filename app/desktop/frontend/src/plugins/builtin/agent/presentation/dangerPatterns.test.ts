@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
-import { dangerHints } from "./dangerPatterns";
+import { dangerHints } from "../public/messagePresentation";
 
 // The rules return catalog keys; translating them here pins both halves — the
 // rule matched, and the key it names has copy behind it.
