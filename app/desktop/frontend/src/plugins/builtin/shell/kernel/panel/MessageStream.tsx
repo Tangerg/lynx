@@ -19,8 +19,11 @@ import {
   useCurrentRootMaterial,
   type CurrentRootMaterial,
 } from "@/plugins/builtin/agent/public/run";
-import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
-import { finalAnswerFollows } from "@/plugins/builtin/chat/message/application/messageBlockModel";
+import {
+  finalAnswerFollows,
+  MessageBlock,
+  RootRunOutcome,
+} from "@/plugins/builtin/chat/message/public/rendering";
 import { transcriptTurnContentVisibility } from "./transcriptTurnContentVisibility";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `sessionId`
