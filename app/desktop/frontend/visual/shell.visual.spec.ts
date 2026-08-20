@@ -172,9 +172,7 @@ test("resize separator commits once after pointer movement and supports the keyb
   await expect(rail).toHaveAttribute("aria-valuenow", "336");
 });
 
-test("window resize clamps layout without overwriting the persisted preference", async ({
-  page,
-}) => {
+test("window resize preserves the Codex ceiling and persisted preference", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openShell(page, { theme: "light", state: "populated" });
   await waitForWorkIndexState(page, "populated");
@@ -186,10 +184,13 @@ test("window resize clamps layout without overwriting the persisted preference",
   await expect(persistedWidth).toHaveText("520");
   await expect.poll(() => sidebarCssWidth(page)).toBe("520px");
 
-  await page.setViewportSize({ width: 720, height: 720 });
-  await expect.poll(() => sidebarCssWidth(page)).toBe("480px");
-  await expect(rail).toHaveAttribute("aria-valuemax", "480");
-  await expect(rail).toHaveAttribute("aria-valuenow", "480");
+  // The packaged Desktop has the same 1120px minimum as this visual shell, so
+  // a smaller browser viewport cannot create a product state the window owner
+  // forbids. The pure geometry test covers embedded rows below that boundary.
+  await page.setViewportSize({ width: 1120, height: 720 });
+  await expect.poll(() => sidebarCssWidth(page)).toBe("520px");
+  await expect(rail).toHaveAttribute("aria-valuemax", "520");
+  await expect(rail).toHaveAttribute("aria-valuenow", "520");
   await expect(persistedWidth).toHaveText("520");
 
   await page.setViewportSize({ width: 1440, height: 900 });

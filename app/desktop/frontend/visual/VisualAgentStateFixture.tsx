@@ -1,3 +1,4 @@
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 import {
   selectCurrentRootAttention,
   selectRootNarrativeMessages,
@@ -74,7 +75,7 @@ export function VisualAgentStateFixture({
       sidebarLabel="Agent fixture states"
       sidebarResizeLabel="Resize the agent fixture sidebar"
       sidebarOpen
-      sidebarWidth={256}
+      sidebarWidth={SIDEBAR_DEFAULT_WIDTH_PX}
       onResize={() => undefined}
       onSidebarToggle={() => undefined}
       sidebarExpandLabel="Expand the agent fixture sidebar"

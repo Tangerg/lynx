@@ -1,3 +1,4 @@
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 import {
   AgentAppShell,
   AgentComposerSurface,
@@ -150,7 +151,7 @@ export function VisualFoundationFixture({ sidebarOpen }: VisualFoundationFixture
       sidebarLabel="Work index"
       sidebarResizeLabel="Resize the work index"
       sidebarOpen={sidebarOpen}
-      sidebarWidth={256}
+      sidebarWidth={SIDEBAR_DEFAULT_WIDTH_PX}
       onResize={() => undefined}
       onSidebarToggle={() => undefined}
       sidebarExpandLabel="Expand the foundation fixture sidebar"

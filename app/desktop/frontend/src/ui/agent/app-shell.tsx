@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { clampSidebarWidth } from "@/lib/shellGeometry";
 import { AgentSeamRail, AgentSidebar, SIDEBAR_WIDTH_PROPERTY } from "./sidebar";
 import { AgentDrawerToggle } from "./surface-header";
@@ -53,7 +53,7 @@ export function AgentAppShell({
   // preference whenever the window changes size. The preference itself is not
   // overwritten by a temporary narrow window, so widening restores the user's
   // chosen width.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;
     const syncWidth = () => {

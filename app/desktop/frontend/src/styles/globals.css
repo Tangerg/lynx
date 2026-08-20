@@ -1202,9 +1202,6 @@ html.theme-dark {
 :root {
   --app-min-width: 1120px;
   --app-min-height: 720px;
-  /* Drawer width. Live-updated inline on the shell element while dragging the
-     seam rail; AgentAppShell restores the persisted value on mount. */
-  --sidebar-width: 256px;
   /* The PLATFORM's three window controls sit over our content, so the header has to
      clear them and the first control after them has to share their centre line. Both
      are overwritten before first paint with what AppKit actually did

@@ -1,3 +1,4 @@
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 import { ChatPanel } from "@/plugins/builtin/shell/kernel/panel/ChatPanel";
 import { PluginToaster } from "@/plugins/host/PluginToaster";
 import {
@@ -89,7 +90,7 @@ export function VisualWorkspaceFixture({ state }: { state: VisualWorkspaceState 
       sidebarLabel="Workspace fixture states"
       sidebarResizeLabel="Resize the workspace fixture sidebar"
       sidebarOpen={!settingsOpen}
-      sidebarWidth={256}
+      sidebarWidth={SIDEBAR_DEFAULT_WIDTH_PX}
       onResize={() => undefined}
       onSidebarToggle={() => undefined}
       sidebarExpandLabel="Expand the workspace fixture sidebar"
