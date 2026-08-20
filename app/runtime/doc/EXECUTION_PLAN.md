@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P135 已完成并形成里程碑。
+> 状态：P0–P136 已完成并形成里程碑。
 >
-> 最近基线：2026-08-21，P135 Codex 待审批命令单一叙事表面收口。
+> 最近基线：2026-08-21，P136 Codex 空态项目托盘与 exact-cwd 接线收口。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P136 已完成：用户截图指出 production 的“选择项目”仍是 composer footer utility，而 Codex 在 projectless welcome state 使用缩进、附着在 composer 背后的 rear tray。根因是 project picker 注册在 `composer.toolbar.start`，并且空态 ChatStream 没有安装 overlay top；问题属于 contribution placement 与空态 composition，不是再调 footer CSS 或复制一份 project state。
+- `ComposerProjectTray` 现在通过 production `composer.overlay.top` 贡献 12px 双侧缩进、37px 后层起点与 22px 重叠的 neutral tray；前景 composer 继续唯一拥有输入边界。托盘只显示 folder 与可访问的 muted label，不显示 footer chevron；存在 active Session 后立即退出。菜单仍直接消费 Work Index groups，既有项目经 `startSessionInFolder`、新项目经 Wails native `chooseSessionFolder`，最终都由同一个 Session create/navigation owner 提交 exact cwd，没有第二 selection、draft 或浏览器目录 fallback。
+- 红例 `f46ff79b8`、根修复 `1c7c4a7f8`、WCAG 收口 `fadab9baa` 与格式收口 `54a5767b4` 已逐轮推送。Frontend 324 files / 2021 tests、完整静态/构建门禁与 321 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/18px/Retina/WebKit 矩阵全绿；Runtime/Desktop test/vet/build、Wails v3 production `.app` package 与 strict codesign 全绿。fresh HOME/SQLite 的 production Wails frontend 已完成 health/info 与真实 `/v2/rpc` 接线，并创建 workspace 精确为 `/Users/tangerg/Desktop/lynx` 的 Session。本批未改变 Runtime/Protocol/Artifact/SQLite shape、Frontend published SDK 或 `app/cli`。
 - P135 已完成：fresh production 会话证明同一条待审批 shell 调用同时渲染为透明 ToolCall row 与 approval request surface，命令因而重复出现；Codex 本地实现只由单一 approval surface 拥有标题、原因、命令与动作。根因位于 Frontend presentation planner 没有识别同一 `itemId` 的待决审批影子，不属于 Runtime/Fold 重复写入或 CSS 几何问题。
 - `planRenderUnits` 现在只在 approval block 与 ToolCall 的 exact `itemId` 相同且双方均为 `requires-action` 时省略工具影子；Runtime/Fold 继续保留两个权威事实用于重连、重放与审计，审批结算后条件自然失效，历史工具行恢复。没有删除 durable fact、字符串匹配、样式隐藏、第二审批状态或兼容分支。
 - 独立红例 `11fd71095`、根修复 `9fc1fc4c7`、production visual 合同 `53ee0b6f9` 与格式收口 `7fd14b0ba` 已逐轮推送。真实 Runtime 会话的修复后 DOM 只有 1 份命令、2 个审批动作、0 条工具影子；冷恢复保持相同投影。Frontend 324 files / 2020 tests、完整静态/构建门禁与独立 320 项 visual 矩阵全绿；Runtime/Desktop test/vet/build、`wails3 task build` 与 strict codesign 全绿，fresh SQLite epoch 76 的 production Wails↔Runtime 单 listener、同源 health/info `instanceId`、OPTIONS/POST `/v2/rpc` smoke 通过。本批未改变 Runtime/Protocol/Artifact/SQLite、Frontend published SDK 或 `app/cli`。
@@ -275,10 +278,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P133     | Codex modal scope 层级收口                                                                                         | 全部 dialog 共用 scheme-independent `#00000022` scrim，surface 自己承担深度；Goal editor 与 table preview 不再在 dark mode 被过重遮罩压暗                                               |
 | P134     | Codex Work Index 几何与尾部净空                                                                                    | Work Index 统一为 275px default、240–520px resize，并始终给 reading plane 留 240px；首帧、fixture、ARIA 与持久偏好共用 owner，composer tail 不再因 fractional scroll 舍入少 1px          |
 | P135     | Codex 待审批命令单一叙事表面                                                                                       | exact `itemId` 的待决 approval 与 ToolCall 仍作为两个可恢复事实存在，但 presentation 只渲染 approval request；结算后工具历史自然恢复，不用 CSS、删除事实或第二状态去重                         |
+| P136     | Codex 空态项目 rear tray 与 exact-cwd 接线                                                                          | projectless welcome state 由 composer overlay 贡献缩进后层托盘；项目菜单继续消费 Work Index/native picker 并由唯一 Session owner 提交 exact cwd，不在 footer 或第二 selection state 复制入口 |
 
 ## 5. 当前里程碑结论
 
-P113–P135 共同建立了以下不可回退的心智模型：
+P113–P136 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -319,4 +323,4 @@ P113–P135 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P135 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P136 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
