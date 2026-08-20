@@ -30,8 +30,10 @@ function SessionGoalModeIndicator({ sessionId }: { sessionId: string }) {
   );
 
   useEffect(() => {
-    if (!available) owner.deactivate(sessionId);
-  }, [available, owner, sessionId]);
+    if (!available && snapshot.sessionId === sessionId && snapshot.phase !== "starting") {
+      owner.deactivate(sessionId);
+    }
+  }, [available, owner, sessionId, snapshot.phase, snapshot.sessionId]);
 
   if (!active) return null;
   const confirming = snapshot.phase === "confirming";
