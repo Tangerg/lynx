@@ -438,7 +438,10 @@ export const de: Record<string, string> = {
   "question.action.next": "Nächste Frage",
   "question.action.skip": "Überspringen",
   "question.action.advance": "Weiter",
-  "question.settled.answered": "Beantwortet",
+  "question.settled.asked": "Gefragt",
+  "question.settled.question.one": "{{count}} Frage",
+  "question.settled.question.other": "{{count}} Fragen",
+  "question.settled.noAnswer": "Keine Antwort angegeben",
   "question.settled.dismissed": "Ohne Antwort geschlossen",
   "question.freetext.placeholder": "Eigene Antwort eingeben…",
 

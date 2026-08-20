@@ -565,7 +565,10 @@ export const zh: Record<string, string> = {
   "question.action.next": "下一个问题",
   "question.action.skip": "跳过",
   "question.action.advance": "下一步",
-  "question.settled.answered": "已回答",
+  "question.settled.asked": "已询问",
+  "question.settled.question.one": "{{count}} 个问题",
+  "question.settled.question.other": "{{count}} 个问题",
+  "question.settled.noAnswer": "未提供答案",
   "question.settled.dismissed": "未作答即关闭",
   "question.freetext.placeholder": "输入自定义答案…",
 

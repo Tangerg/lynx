@@ -81,10 +81,14 @@ describe("ActivePlan", () => {
       { id: "step-3", text: "Verify", status: "pending" },
     ];
 
-    render(<ActivePlan />);
+    const { container } = render(<ActivePlan />);
 
     expect(screen.getByText("Step 2 / 3")).toBeTruthy();
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(screen.queryByRole("button", { name: /Expand plan/ })).toBeNull();
+    const surface = container.querySelector<HTMLElement>('[data-slot="active-plan-surface"]');
+    expect(surface).not.toBeNull();
+    expect(surface!.className).toContain("h-8");
+    expect(surface!.className).toContain("w-full");
   });
 });

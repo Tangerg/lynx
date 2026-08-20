@@ -83,6 +83,13 @@ describe("Goal status surface", () => {
   it("offers Codex Goal management actions in clear, lifecycle, edit order", () => {
     const { container } = render(<GoalStatusSurface />);
 
+    const row = container.querySelector<HTMLElement>('[data-slot="goal-status-row"]');
+    expect(row).not.toBeNull();
+    expect(row!.className).toContain("py-1");
+    expect(screen.getByRole("button", { name: "Pursuing goal Ship alpha" }).className).toContain(
+      "leading-[max(1rem,1.2em)]",
+    );
+
     expect(
       Array.from(container.querySelectorAll('[data-slot="goal-actions"] button')).map((button) =>
         button.getAttribute("aria-label"),

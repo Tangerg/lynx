@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Gauge, Pressable, RichTooltip, StepRow } from "@/ui";
+import { Gauge, Pressable, RichTooltip, StepMark } from "@/ui";
+import { cn } from "@/lib/classNames";
 import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
 import { type PlanStep, useSessionPlan } from "@/plugins/builtin/agent/public/plan";
@@ -67,25 +68,34 @@ function PlanPill({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={disclosureTransition}
-      className="mb-2 flex max-w-full justify-center"
+      data-slot="active-plan-surface"
+      className="relative h-8 w-full max-w-full self-end"
     >
-      <RichTooltip
-        trigger={trigger}
-        side="top"
-        sideOffset={8}
-        delay={0}
-        className="max-h-[min(320px,calc(100vh-16px))] w-[min(320px,calc(100vw-16px))] overflow-y-auto bg-fg px-2 py-2 text-on-fg"
-      >
-        <ul className="flex flex-col gap-1">
-          {steps.map((step) => (
-            <li key={step.id}>
-              <StepRow state={step.status} className="items-start py-1 font-normal text-on-fg">
-                {step.text}
-              </StepRow>
-            </li>
-          ))}
-        </ul>
-      </RichTooltip>
+      <div className="absolute inset-x-0 bottom-1 flex min-h-7 items-center justify-center gap-2 pb-1">
+        <RichTooltip
+          trigger={trigger}
+          side="top"
+          sideOffset={8}
+          delay={0}
+          className="max-h-[min(320px,calc(100vh-16px))] max-w-[min(320px,calc(100vw-16px))] overflow-y-auto bg-fg px-2 py-2 text-on-fg"
+        >
+          <ul className="flex flex-col gap-2">
+            {steps.map((step) => (
+              <li key={step.id} className="flex max-w-80 min-w-0 items-start gap-2">
+                <StepMark state={step.status} />
+                <span
+                  className={cn(
+                    "min-w-0 max-w-72 break-words text-ui-sm leading-4",
+                    step.status === "done" ? "text-on-fg/60" : "text-on-fg/80",
+                  )}
+                >
+                  {step.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </RichTooltip>
+      </div>
     </motion.div>
   );
 }

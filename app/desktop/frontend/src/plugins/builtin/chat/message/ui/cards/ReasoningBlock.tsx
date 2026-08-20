@@ -121,6 +121,10 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
     >
       <div
         ref={scrollRef}
+        // Overflow regions need a keyboard entry point; the linter cannot infer
+        // conditional scrollability from the utility classes below.
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={streaming && isOpen ? 0 : undefined}
         onScroll={measure}
         className={cn(
           "relative overflow-hidden pr-2",

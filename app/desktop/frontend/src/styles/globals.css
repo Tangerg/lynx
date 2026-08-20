@@ -632,12 +632,11 @@
      grows the gap with the size, which is backwards — the larger the type, the
      less proportional air a line needs — so the same 1.8 that was right at 14px
      is airy at 16 and would be a chasm at 21 (the top of the base range). Both
-     desktop references express it as a constant instead: ChatGPT literally as
-     `calc(font-size + 8px)`, Claude as 1.75 at a fixed 16px. `1em` resolves
-     against whichever element takes the token, so this works for the composer,
-     a message and a reasoning block without three numbers. 10px lands between
-     the two references at every size in the range. */
-  --leading-prose: calc(1em + 10px);
+     desktop references express it as a constant instead: Codex and ChatGPT use
+     `calc(font-size + 8px)`. `1em` resolves against whichever element takes the
+     token, so this works for the composer, a message and a reasoning block
+     without three numbers. */
+  --leading-prose: calc(1em + 8px);
 
   /* Optical tracking. See the ladder in `@theme` for what each level is for. */
   --tracking-ui: -0.011em;

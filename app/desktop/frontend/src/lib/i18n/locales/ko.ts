@@ -428,7 +428,10 @@ export const ko: Record<string, string> = {
   "question.action.next": "다음 질문",
   "question.action.skip": "건너뛰기",
   "question.action.advance": "다음",
-  "question.settled.answered": "답변함",
+  "question.settled.asked": "질문함",
+  "question.settled.question.one": "질문 {{count}}개",
+  "question.settled.question.other": "질문 {{count}}개",
+  "question.settled.noAnswer": "답변 없음",
   "question.settled.dismissed": "답변 없이 종료됨",
   "question.freetext.placeholder": "직접 입력…",
 

@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P129 已完成并形成里程碑。
+> 状态：P0–P130 已完成并形成里程碑；P131 正在进行 Codex 内容区像素收口。
 >
-> 最近基线：2026-08-20，P129 Goal 模型控制输入与用户转录隔离闭环。
+> 最近基线：2026-08-20，P131 首批 Narrative / Plan / Goal 精确几何与完成态收口。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P131 当前批次以 Codex 本地解包源码和四张 production 现状截图交叉定位，不把附件中的粗糙实现当成目标。完成态 `request_user_input` 已从常驻灰卡收敛为默认关闭的 `Asked N questions` activity disclosure，只有用户展开后才显示 13px、16px 行高的问答；pending Question 的 exact Run/Item、composer replacement、ordered answer 与 IME owner 保持不变。
+- active Plan 继续位于 composer 上方，但改为 Codex 的固定 32px 布局槽与底部 4px 对齐；tooltip 使用 8px inset、8px row gap、16px mark 和 13/16px 文本，完成项只降 ink、不画删除线。Goal attached tray 改为 4px 垂直 inset，并以默认 16px、放大字号时不裁切的等价行高呈现 lifecycle/objective；预算、限制、用量、模型与结算信息仍不进入前端。
+- 正文 `leading-prose` 从 `font-size + 10px` 收敛到 Codex 的 `font-size + 8px`；由此形成真实 overflow 的 streaming reasoning scrollport 同批补上键盘入口，没有新增第二 disclosure/scroll owner。Frontend 324 files / 2016 tests、完整静态/构建门禁和 320 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/18px/Retina/WebKit 矩阵已通过；新增 Plan tooltip 与 settled Question collapsed/expanded 三张 golden。本批未修改 Runtime、Protocol、Artifact、SQLite、Desktop/Wails、Frontend published SDK 或 `app/cli`。
+- P130 已完成新会话 exact-cwd 收口：顶层 New、project row 与 welcome draft 都必须先由用户明确选择既有项目或目录；不存在隐式 home Session、空 identity 后聚焦旧 Session 或 pending first-message handoff。选择目标后仍由唯一 Session create/navigation owner 提交，取消选择保留 welcome draft。
 - P129 已于 2026-08-20 完成：fresh production smoke 证明自治 Goal 每轮由 Application 生成的控制提示仍被持久成 `userMessage`，因而在中间 Narrative 形成巨大的用户气泡；Codex 本地实现则用独立 Goal state 和 `appendTranscriptItem: false` 表达同一边界。问题属于 Runtime opening projection 的语义混同，不是 Frontend CSS 或字符串过滤缺陷。
 - fresh Goal opening 现在显式携带 model-only input：同一个 opening transaction 仍把控制提示原子写入 provider Conversation，却不创建 Transcript Item，也不返回 `UserItemID`。普通外部 `runs.start` 合同不变；真实用户 resume input 继续同时进入 Conversation 与 Transcript，不能被内部控制路径吞掉。
 - 独立红测提交 `343caabf0`、Runtime 根修复 `1985e95a9` 与架构词汇守卫修复 `c222a9060` 均已推送。Frontend 323 files / 2009 tests 与完整静态/构建门禁全绿；Runtime/Desktop test/vet/build、generator diff 和 Wails v3 production package 全绿。本批未改变 Protocol、Artifact、SQLite schema、公共 Go API，也未修改或暂存 `app/cli`。
@@ -53,6 +57,19 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P131 当前批次准入与完成条件（2026-08-20）
+
+- 视觉依据只允许来自 Codex 真实产品/本地解包 owner 与 production 可复现现状；不得把用户附件中的旧 Plan 卡、Goal 大段内容、常驻 answered card 或仅移动位置后的旧 chrome 当成目标。
+- settled Question 必须默认折叠为一行 activity summary；Plan 必须使用固定 32px composer-owned 槽和 hover tooltip；Goal 必须维持 attached tray 且不显示限制条件。三者继续消费既有 transcript、Session Plan 与 Goal snapshot，不建立第二 read model 或 optimistic state。
+- 中央 prose 采用 Codex 的 `font-size + 8px` 节奏；所有因此成立的 overflow、18px 字号、键盘或 WCAG 反例必须在真实 owner 修复，不放宽视觉/无障碍阈值。
+- 当前批次验收：Frontend 324 files / 2016 tests 与完整静态/构建门禁全绿；320 项 visual 矩阵全绿，并新增 Plan tooltip、Question collapsed/expanded golden。P131 后续仍需继续使用真实 Wails product smoke 审查三栏整体密度和原生窗口表现。
+
+### P130 准入与完成条件（2026-08-20）
+
+- 新建会话不得以 home、默认 workspace 或旧 Session cwd 作为隐式目标；所有入口必须先得到用户明确选择的 exact project/cwd，取消时不创建 Session、不切换 selection、不吞 welcome draft。
+- project row、顶层 New 与 welcome composer 共享唯一 Session create/navigation owner；不得恢复 pending first-message handoff、空 identity 后聚焦或第二 draft cache。
+- 验收结论：红例提交 `efd696dd7` 与根修复 `93ebd28a5` 已推送；相关 session/sidebar/welcome 测试、8 locale、Frontend 全门禁均通过。本批未修改 Runtime contract、SQLite、Desktop/Wails 或 `app/cli`。
 
 ### P129 准入与完成条件（2026-08-20）
 

@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Button, Icon, IconButton, Pressable, Surface, TextArea, TextField } from "@/ui";
+import { AgentActivityDisclosure } from "@/ui/agent";
 import { HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
@@ -48,6 +49,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
   const runtimeAvailable = useRuntimeCommandsAvailable();
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [settledOpen, setSettledOpen] = useState(false);
   const requestRef = useRef<HTMLDivElement>(null);
   const focusQuestionOnChange = useRef(false);
   const activeQuestionRef = useRef<HTMLDivElement>(null);
@@ -94,21 +96,38 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
   if (settled.settled) {
     const shown = settled.answers;
     if (!shown) return <HitlSettledRow label={t("question.settled.dismissed")} />;
+    const count = questions.length;
+    const countLabel = t(
+      count === 1 ? "question.settled.question.one" : "question.settled.question.other",
+      { count },
+    );
     return (
-      <Surface className="flex flex-col gap-2">
-        <div className="flex items-center gap-1.5 font-mono text-ui-xs font-medium text-fg-faint">
-          <Icon name="check" size="xs" />
-          <span>{t("question.settled.answered")}</span>
-        </div>
-        {questions.map((question, index) => (
-          <div key={index} className="flex flex-col gap-0.5">
-            <div className="text-ui-md leading-snug text-fg-muted">{question.prompt}</div>
-            <div className="whitespace-pre-wrap break-words text-ui-md font-medium text-fg">
-              {questionAnswerText(shown, index) || "—"}
+      <AgentActivityDisclosure
+        icon="question"
+        shell="line"
+        open={settledOpen}
+        onToggle={() => setSettledOpen((open) => !open)}
+        label={
+          <span className="flex min-w-0 items-center gap-1 truncate">
+            <span className="text-fg-muted">{t("question.settled.asked")}</span>
+            <span className="text-fg-faint">{countLabel}</span>
+          </span>
+        }
+        contentClassName="pt-1 pb-0.5"
+      >
+        <div className="flex flex-col gap-3">
+          {questions.map((question, index) => (
+            <div key={index} className="flex flex-col gap-1">
+              <div className="whitespace-pre-wrap text-ui-sm leading-4 text-fg-muted">
+                {question.prompt}
+              </div>
+              <div className="whitespace-pre-wrap break-words text-ui-sm leading-4 text-fg-faint">
+                {questionAnswerText(shown, index) || t("question.settled.noAnswer")}
+              </div>
             </div>
-          </div>
-        ))}
-      </Surface>
+          ))}
+        </div>
+      </AgentActivityDisclosure>
     );
   }
 

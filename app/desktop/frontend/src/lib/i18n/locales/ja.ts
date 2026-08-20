@@ -430,7 +430,10 @@ export const ja: Record<string, string> = {
   "question.action.next": "次の質問",
   "question.action.skip": "スキップ",
   "question.action.advance": "次へ",
-  "question.settled.answered": "回答済み",
+  "question.settled.asked": "質問済み",
+  "question.settled.question.one": "{{count}} 件の質問",
+  "question.settled.question.other": "{{count}} 件の質問",
+  "question.settled.noAnswer": "回答なし",
   "question.settled.dismissed": "未回答のまま終了",
   "question.freetext.placeholder": "自由に入力…",
 

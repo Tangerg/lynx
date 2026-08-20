@@ -54,6 +54,14 @@ describe("ReasoningBlock disclosure policy", () => {
     expect(trigger.querySelector(".animate-pulse-dot")).toBeNull();
   });
 
+  it("keeps the bounded streaming rationale keyboard-scrollable", () => {
+    const { container } = renderReasoning("running", "Inspect the protocol boundary");
+
+    const scrollport = container.querySelector<HTMLElement>(".overflow-y-auto");
+    expect(scrollport).not.toBeNull();
+    expect(scrollport!.tabIndex).toBe(0);
+  });
+
   it("does not disguise Run cancellation as an Answer now activity action", () => {
     renderReasoning("running", "A predecessor renderer is still settling.");
 

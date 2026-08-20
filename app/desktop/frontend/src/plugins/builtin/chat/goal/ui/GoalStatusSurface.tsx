@@ -100,7 +100,7 @@ function GoalRow({ goal }: { goal: GoalReadModel }) {
     <>
       <div
         data-slot="goal-status-row"
-        className="flex w-full items-center justify-between gap-2 px-3 py-[5px]"
+        className="flex w-full items-center justify-between gap-2 px-3 py-1"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <GoalGlyph className="h-[var(--icon-sm)] w-[var(--icon-sm)] shrink-0 text-fg-faint opacity-70" />
@@ -111,7 +111,7 @@ function GoalRow({ goal }: { goal: GoalReadModel }) {
             size="xs"
             press={false}
             disabled={pending !== null || !canEdit}
-            className="h-auto min-w-0 flex-1 justify-start rounded-none border-0 p-0 text-ui-sm font-normal leading-tight hover:bg-transparent disabled:cursor-default disabled:opacity-100"
+            className="h-auto min-w-0 flex-1 justify-start rounded-none border-0 p-0 text-ui-sm leading-[max(1rem,1.2em)] font-normal hover:bg-transparent disabled:cursor-default disabled:opacity-100"
             onClick={openEditor}
           >
             <span className="shrink-0 text-fg">{t(GOAL_STATUS_I18N[goal.status].label)}</span>

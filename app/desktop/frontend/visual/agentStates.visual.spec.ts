@@ -106,7 +106,19 @@ test("question settlement uses the exact interrupt identity", async ({ page }) =
     .fill("Runtime boundaries and cancellation paths.");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
-  await expect(page.getByText("Answered", { exact: true })).toBeVisible();
+  const settled = page.getByRole("button", { name: "Asked 2 questions" });
+  await expect(settled).toBeVisible();
+  await expect(settled).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByText("What should this gate protect?", { exact: true })).toHaveCount(0);
+  await expect(settled.locator("xpath=../..")).toHaveScreenshot(
+    "question-settled-collapsed-light.png",
+  );
+  await settled.click();
+  await expect(page.getByText("What should this gate protect?", { exact: true })).toBeVisible();
+  await expect(page.getByText("Runtime boundaries and cancellation paths.")).toBeVisible();
+  await expect(settled.locator("xpath=../..")).toHaveScreenshot(
+    "question-settled-expanded-light.png",
+  );
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-run", "run_root");
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-item", "item_question");
   await expect(page.locator("html")).toHaveAttribute(
@@ -254,7 +266,9 @@ test("the compact Plan pill reveals the production checklist on hover", async ({
   // The tooltip's steps come from the session's plan snapshot, not from a
   // per-run plan Item — same three steps, read from where the protocol keeps them.
   await expect(page.getByText("Run quality gates", { exact: true })).toBeVisible();
-  await expect(page.getByRole("tooltip")).toBeVisible();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveScreenshot("active-plan-tooltip-light.png");
 });
 
 test("the active plan stays with the composer instead of claiming the transcript header", async ({

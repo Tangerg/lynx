@@ -178,8 +178,8 @@ describe("QuestionCard choice semantics", () => {
     expect(answer.getAttribute("rows")).toBe("4");
   });
 
-  it("preserves multiline answers when the question settles", () => {
-    render(
+  it("folds settled answers into Codex's compact question disclosure", () => {
+    const { container } = render(
       <QuestionCard
         status="complete"
         runId="run-1"
@@ -196,13 +196,23 @@ describe("QuestionCard choice semantics", () => {
       />,
     );
 
-    const answer = [...document.querySelectorAll("div")].find(
-      (element) =>
-        element.children.length === 0 &&
-        element.textContent === "First constraint\nSecond constraint",
+    const disclosure = container.querySelector<HTMLElement>(
+      '[data-slot="agent-activity-disclosure"]',
     );
-    expect(answer).toBeTruthy();
-    expect(answer!.className).toContain("whitespace-pre-wrap");
+    expect(disclosure).not.toBeNull();
+    expect(disclosure!.getAttribute("data-shell")).toBe("line");
+
+    const trigger = screen.getByRole("button", { name: "Asked 1 question" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("Describe the constraints for this change.")).toBeNull();
+    expect(screen.queryByText("First constraint\nSecond constraint")).toBeNull();
+
+    fireEvent.click(trigger);
+
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Describe the constraints for this change.")).toBeTruthy();
+    const answer = screen.getByText(/First constraint\s+Second constraint/);
+    expect(answer.className).toContain("whitespace-pre-wrap");
   });
 
   it("presents multiple questions one at a time and advances without losing the draft", () => {

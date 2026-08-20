@@ -429,7 +429,10 @@ export const zhTW: Record<string, string> = {
   "question.action.next": "下一個問題",
   "question.action.skip": "略過",
   "question.action.advance": "下一步",
-  "question.settled.answered": "已回答",
+  "question.settled.asked": "已詢問",
+  "question.settled.question.one": "{{count}} 個問題",
+  "question.settled.question.other": "{{count}} 個問題",
+  "question.settled.noAnswer": "未提供答案",
   "question.settled.dismissed": "未作答即關閉",
   "question.freetext.placeholder": "輸入自訂答案…",
 
