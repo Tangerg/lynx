@@ -66,4 +66,15 @@ describe("GoalModeIndicator", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(owner.snapshot().phase).toBe("armed");
   });
+
+  it("keeps the starting owner until its command settles when standing material arrives first", () => {
+    owner.activate("session-a");
+    owner.begin("session-a");
+    const { rerender } = render(<GoalModeIndicator />);
+
+    model.goal = { status: "active" };
+    rerender(<GoalModeIndicator />);
+
+    expect(owner.snapshot()).toMatchObject({ sessionId: "session-a", phase: "starting" });
+  });
 });
