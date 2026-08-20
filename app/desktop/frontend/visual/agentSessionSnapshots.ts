@@ -201,6 +201,25 @@ const RUNNING_TOOL: Item = {
   },
 };
 
+// A waiting approval keeps the original ToolCall Item as well as the interrupt.
+// Production restores both facts from the Runtime snapshot; the transcript planner
+// owns turning that pair into one actionable request surface.
+const PENDING_APPROVAL_TOOL: Item = {
+  type: "toolCall",
+  safetyClass: "exec",
+  id: "item_approval",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  startedAt: CREATED_AT,
+  tool: {
+    name: "shell",
+    arguments: {
+      description: "Run the race detector",
+      command: "go test -race ./...",
+    },
+  },
+};
+
 // One turn holding all three activity shells, because the shells are the whole of
 // the differentiation between a glance, a product and trouble. A read is a
 // line, a command is a card, a failure and a refusal are flagged, and the two flags
@@ -672,7 +691,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
   },
   waiting: {
     runs: [run("waiting")],
-    items: [PROMPT, COMMENTARY_RESPONSE],
+    items: [PROMPT, COMMENTARY_RESPONSE, PENDING_APPROVAL_TOOL],
     pendingInterruptSets: [
       {
         rootRunId: ROOT_RUN_ID,
@@ -686,7 +705,10 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
             payload: {
               tool: {
                 name: "shell",
-                arguments: { command: "go test -race ./..." },
+                arguments: {
+                  description: "Run the race detector",
+                  command: "go test -race ./...",
+                },
               },
               reason: "Run the race detector across the workspace before committing.",
               rememberable: true,

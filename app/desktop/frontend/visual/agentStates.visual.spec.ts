@@ -66,6 +66,8 @@ test("a pending approval uses the Codex neutral request surface", async ({ page 
   ).toBeVisible();
   await expect(page.getByText("Approval required", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Medium risk", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("go test -race ./...", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Run the race detector", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("checkbox")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Approval options" })).toBeVisible();
 
