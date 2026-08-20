@@ -107,9 +107,7 @@ export function ComposerProjectTray() {
                 className="min-w-0 gap-1.5 font-normal text-fg-muted hover:text-fg data-[popup-open]:bg-selected data-[popup-open]:text-fg"
               >
                 <Icon name="folder" size="sm" className="shrink-0" />
-                <span className="max-w-[240px] truncate">
-                  {t("composer.project.choose")}
-                </span>
+                <span className="max-w-[240px] truncate">{t("composer.project.choose")}</span>
               </Button>
             }
           />
