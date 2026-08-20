@@ -60,13 +60,7 @@ export function planRenderUnits(
 
   const flushWave = () => {
     if (wave.length === 0) return;
-    const inner = planWithinWave(
-      wave,
-      toolCalls,
-      hasQuestion,
-      approvalOwnedToolCallIds,
-      answered,
-    );
+    const inner = planWithinWave(wave, toolCalls, hasQuestion, approvalOwnedToolCallIds, answered);
     const last = wave[wave.length - 1]!;
     // Two units minimum: a run that already plans to one row — a lone reasoning block,
     // or three reads that group themselves — folds on its own, and wrapping it would
