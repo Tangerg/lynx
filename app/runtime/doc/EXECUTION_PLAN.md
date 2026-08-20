@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P121 已完成并形成里程碑。
+> 状态：P0–P121 已完成并形成里程碑；P122 实施中。
 >
-> 最近基线：2026-08-20，P121 调用级补丁回执与 Codex quiet file-change 渲染闭环。
+> 最近基线：2026-08-20，P122 Codex approval request surface 红例。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P122 已于 2026-08-20 获得实施授权：继续按 Codex 级桌面外观与既有编码约束打磨中央 Agent Narrative。production-equivalent 盲测已证明 Approval/HITL 仍是旧式黄边警告卡，并叠加 `Approval required`、risk badge、客户端危险正则和 `Don't ask again` checkbox；Codex 当前 approval owner 使用单一中性 request surface、工具身份、请求理由、调用 material 与底部 scoped actions。本批先以独立红测锁定该差异，再由现有 Approval presentation/action owner 根修复。
+- P122 不改变 Runtime approval wire、HITL identity、resume transaction 或 Frontend published SDK；`reason`、`risk`、`rememberable`、exact Run/Item 与 edited args 继续来自现有权威 material。Frontend 不再从命令文本推测危险事实，remember scope 只随用户明确选择的 approve action 发送，不附着到 decline。
 - P121 已于 2026-08-20 完成：在 P120 基线上继续按 Codex 级桌面外观与既有编码约束打磨左中右三栏，优先修复中间内容区真实渲染与交互接线；每轮编码独立提交并推送，及时关闭 agent-browser、临时服务和测试资源，不修改或暂存 `app/cli`。
 - 首个 production 反例已闭环：Runtime 唯一内建文件修改工具 `apply_patch` 发布调用级 `changes:[{path,status,from?}]`；Frontend 现在由既有 Agent fold 持久携带该结果，再由共享 strict parser 同时供 inline preview 与 Run Summary 消费。旧的全工作区 diff 回落和 Runtime 不存在的 `edit`/`write` 内部注册已删除，没有新增 Runtime 读、第二 diff owner 或伪造行数。
 - P121 首批不突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK。公开 `ToolCall` 历史字段的 breaking cleanup、commentary/final phase 与原生图片 Download 继续遵守先报告爆炸半径、再取得显式授权的边界。
@@ -28,6 +30,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P122 准入与完成条件（2026-08-20）
+
+- pending Approval 使用一个 Codex request surface：24px 圆角、中性 card material、无 warning border/二次 danger card；header 只表达真实工具身份，Runtime `reason` 是主要请求标题，command/args 是独立 body material，actions 使用 16px inset 与既有 28px composer control rung。
+- 数字 risk badge、`Approval required` 泛标题和客户端 `dangerHints(command)` 不进入用户可见层级。Runtime 的真实 reason 保留；没有 Runtime reason 时才使用本地化的工具问题句，不从命令字符串推断权限、可逆性或危险等级。
+- `rememberable` 通过 primary approve 旁的 scoped-action menu 暴露 Session/Project/Global 权威能力；Allow once 仍是默认按钮和快捷键行为。remember scope 只随对应 approve 提交，Deny 不携带 scope，pending/disabled 与 exact Run/Item settlement 语义不变。
+- 先提交 production component 与 visual 红例；根修复后至少覆盖 Allow once、scoped approve、Deny、edited args、decorative/Runtime unavailable、light/dark、narrow layout、键盘与完整 agent golden。未触及 Runtime/Desktop/Wails 时不重复无意义的进程恢复或 race 矩阵。
 
 ### P121 准入与完成条件（2026-08-20）
 

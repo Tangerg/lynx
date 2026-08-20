@@ -51,31 +51,26 @@ test("HITL approval settles through the exact Run and Item identity", async ({ p
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-item", "item_approval");
 });
 
-// The edge is the container-level cue that this question stopped the Run. Assert the
-// warning variant reaches the box and leaves when the question settles.
-test("a pending approval carries a warning edge and a settled one carries none", async ({
-  page,
-}) => {
+test("a pending approval uses the Codex neutral request surface", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=waiting");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  const shell = page.locator('[data-slot="hitl-shell"]');
-  await expect(shell).toHaveCSS("border-top-width", "1px");
-  // Pin the warning tone, not merely the line width; a neutral hairline carries no
-  // pending-approval meaning.
-  const edge = await shell.evaluate((element) => getComputedStyle(element).borderTopColor);
-  const warning = await page.evaluate(() => {
-    const probe = document.createElement("div");
-    probe.style.color = "var(--color-warning-edge)";
-    document.body.append(probe);
-    const value = getComputedStyle(probe).color;
-    probe.remove();
-    return value;
-  });
-  expect(edge).toBe(warning);
+  const surface = page.locator('[data-slot="approval-surface"]');
+  await expect(surface).toHaveCSS("border-top-width", "0px");
+  await expect(surface).toHaveCSS("border-radius", "24px");
+  await expect(page.getByText("Terminal", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Run the race detector across the workspace before committing.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Approval required", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Medium risk", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Approval options" })).toBeVisible();
 
   await page.getByRole("button", { name: /Allow once/ }).click();
-  await expect(shell).toHaveCount(0);
+  await expect(surface).toHaveCount(0);
 });
 
 test("HITL rejection preserves the same exact interrupt identity", async ({ page }) => {
