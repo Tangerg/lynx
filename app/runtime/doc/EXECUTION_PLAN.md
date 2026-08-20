@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P124 已完成并形成里程碑。
+> 状态：P0–P125 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P124 Codex tool work narrative 视觉与交互闭环。
+> 最近基线：2026-08-20，P125 设置主色选择反馈与动态主题生命周期闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P125 已于 2026-08-20 完成：production-equivalent 设置页先证明主色按钮点击会触发 `Duplicate contribution`，异常中断同一个偏好更新 listener 链，使 React 选中态、document theme painter 与持久化都收不到反馈；问题不是纯视觉弱，而是动态 custom theme 每次更新都向单键 extension point 重复注册且不退休旧 contribution。
+- P125 没有增加第二 accent state、刷新旁路或协议字段。custom theme plugin 现在只拥有一个可替换 contribution，更新时先 dispose 旧值再发布新值，plugin cleanup/HMR 同步退订 preference listener 并释放 contribution；主色控件继续由权威 preference 驱动 `aria-pressed`、实际主题和持久化，28px target、hover/press、selected ring 与 check mark 只加强同一结算事实的点击反馈。
 - P124 已于 2026-08-20 完成：production-equivalent 盲测先证明 read、shell、patch、failure 与 denied 调用仍被各自的蓝/红/黄卡片切碎，running shell 也长期占据高饱和容器；对照 Codex 本地 activity、subagent 与 exec-shell 实现后，Frontend 现在把单次工具调用统一投影为透明 work-narrative row，卡片材质只保留给 delegated Run 等真正的复合产品边界。
 - P124 没有改变 ToolCall material、Runtime Protocol、Desktop/Wails 或 Frontend published SDK。工具身份先于摘要，展开箭头后置且只在 hover/focus/open 时出现；展开体回到 reading edge，由 shell、patch、reasoning 等 material 自己声明内部 inset。denied、error 与 exit code 继续呈现真实结论，但不再借助黄色 badge、红色卡片或第二状态 chrome 放大。
 - P123 已于 2026-08-20 完成：production-equivalent 盲测先证明 pending Question 仍把旧式 `Input needed` 卡片、header chip、preview sidecar 与普通 composer 同时呈现；对照 Codex native request 后，Frontend 现在只从已挂载 transcript rows 选择最新 unanswered Question，把它作为 composer rung 的唯一请求表面，不新增 query、read model 或第二 interrupt owner。
@@ -34,6 +36,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P125 准入与完成条件（2026-08-20）
+
+- 设置主色点击必须在 production plugin topology 下完成同一条权威链：preference mutation、custom theme contribution replacement、document paint、React selected state 与持久化；任一 listener 抛错都不能把一次已接受点击留在“像没点”的半结算状态。
+- 单键动态 extension contribution 必须由插件持有 exact disposable，更新时显式 replace，cleanup/HMR 时退订并退休；不得靠重复 `contribute`、刷新、捕获并忽略 duplicate error 或第二 theme cache 掩盖 lifecycle 违约。
+- preset 与 custom color 使用同一可见选择语法：足够的桌面命中区、单一 hover、单一 press、selected ring 与 check mark；`aria-pressed`、CSS accent 和 localStorage 均只读既有 appearance preference owner，reload 后恢复相同选择。
+- 独立红测提交 `87c8f110b` 先在 production composition 下锁定 duplicate contribution 与点击无反馈；根修复提交 `5e414cc64`、golden 收口 `b72a91336` 和 token-ladder 收口 `c4ad31c02` 只进入 Frontend custom-theme lifecycle、AccentSection 与 production visual fixture。验收结论：Frontend 323 files / 2002 tests 与 type/lint/format/knip/circular/context/layer/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过；完整 agent/shell/workspace/closure/foundation/WebKit visual 315 tests 覆盖点击后 `aria-pressed`、真实 CSS accent、持久化、reload 恢复、selected mark、light/dark、WCAG、键盘、IME、CJK 与 Retina。本批未修改 Runtime、Protocol shape、Artifact、SQLite schema、公共 Go API、Frontend published SDK、Desktop/Wails 或 `app/cli`，因此没有机械重跑无关后端/race 矩阵。
 
 ### P124 准入与完成条件（2026-08-20）
 
@@ -163,10 +172,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P122     | Codex approval request surface 与 scoped allow 语义                                                               | pending approval 收敛为单一中性请求面；可见层只读工具身份、Runtime reason 与调用 material，scope 只随明确 scoped approve 提交，Deny 保持纯拒绝                                      |
 | P123     | Codex Question composer request 与 ordered skip 语义                                                              | pending Question 成为 composer rung 的唯一请求表面；选项、分页、IME 与 Skip 服从同一 draft/action owner，Runtime 以有序空 inner values 持久表达明确跳过                              |
 | P124     | Codex tool work narrative 与 disclosure 层级                                                                      | 普通 ToolCall 统一回到透明 activity row；identity、summary、末尾按需 chevron 与展开 material 形成一个阅读流，failure/denied 不再升级成彩色 dashboard chrome                         |
+| P125     | 设置主色选择反馈与动态 theme contribution 生命周期                                                               | preference、theme replacement、document paint、selected state 与持久化恢复同链结算；动态单键 contribution 先退休旧 owner，再发布新值，点击不再被 duplicate exception 中断        |
 
 ## 5. 当前里程碑结论
 
-P113–P124 共同建立了以下不可回退的心智模型：
+P113–P125 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -185,8 +195,9 @@ P113–P124 共同建立了以下不可回退的心智模型：
 - pending approval 是一个 Codex request surface，而不是风险 dashboard：工具身份、Runtime reason、command/args 是可见事实；客户端不从命令字符串推导危险、可逆性或权限。Allow once 与键盘动作不持久化规则，只有用户选择 Session/Project/Global scoped allow 才提交 remember scope，Deny 不继承 allow scope。
 - pending Question 从 mounted transcript material 选择，但只在 composer rung 呈现一次；普通 composer 暂时退休。首项预选、分页、自动前进、Next 与 Skip 共享一个 draft/action owner，空 inner values 只表示该有序 field 被明确跳过，不能省略 field、重排答案或靠客户端乐观回显冒充 Runtime settlement。
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
+- 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 322 files / 2001 tests 全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 314 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P124 的透明工具调用层、按需 disclosure、expanded reading edge 与 quiet verdict 已进入该矩阵。Runtime standalone 全量 test/vet/build 沿用 P123 通过基线；Desktop/Wails production `.app` package 和 strict codesign verification 沿用 P119 恢复基线，因为 P124 未修改这些层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 323 files / 2002 tests 全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 315 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P125 的真实主色选择、CSS paint、持久化、reload 恢复和反馈层级已进入该矩阵。Runtime standalone 全量 test/vet/build 沿用 P123 通过基线；Desktop/Wails production `.app` package 和 strict codesign verification 沿用 P119 恢复基线，因为 P125 未修改这些层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 
