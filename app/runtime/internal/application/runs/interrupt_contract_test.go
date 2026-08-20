@@ -202,6 +202,15 @@ func TestResolveQuestionResponseUsesOrderedExactAnswers(t *testing.T) {
 		t.Fatalf("resolution = %#v", resolution)
 	}
 
+	skipped, err := resolveQuestionResponse(interrupt, response([][]string{{}, {}}))
+	if err != nil {
+		t.Fatalf("explicit skipped answers: %v", err)
+	}
+	if !skipped.Approved || len(skipped.Answers) != len(question.Fields) ||
+		len(skipped.Answers[0]) != 0 || len(skipped.Answers[1]) != 0 {
+		t.Fatalf("skipped resolution = %#v", skipped)
+	}
+
 	tests := []struct {
 		name      string
 		answers   [][]string
