@@ -10,6 +10,7 @@ import { composerActionLayout } from "./application/composerActionLayout";
 import { submitComposer } from "./application/submitComposer";
 import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 import { useCanSendToAgent } from "@/plugins/builtin/agent/public/input";
+import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 // The composer's action target: one control whose glyph changes across steer /
@@ -38,6 +39,7 @@ function SendButton() {
   const running = useIsCurrentRootRunning();
   const runtimeAvailable = useRuntimeCommandsAvailable();
   const agentCanSend = useCanSendToAgent();
+  const activeSessionId = useActiveSessionId();
   const canSend = runtimeAvailable && agentCanSend;
 
   const hasInput = Boolean(value.trim()) || images.length > 0 || pastes.length > 0;
@@ -82,7 +84,11 @@ function SendButton() {
       {layout.secondary === "stop" && stopButton(false)}
       {layout.primary === "stop" && stopButton(true)}
       {layout.primary === "steer" && submitButton(t("composer.action.steer"), canSend)}
-      {layout.primary === "send" && submitButton(t("composer.action.send"), canSend && hasInput)}
+      {layout.primary === "send" &&
+        submitButton(
+          activeSessionId ? t("composer.action.send") : t("composer.project.required"),
+          canSend && hasInput,
+        )}
     </>
   );
 }

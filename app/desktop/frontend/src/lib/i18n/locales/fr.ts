@@ -230,6 +230,14 @@ export const fr: Record<string, string> = {
     "Le runtime n'a pas répondu à cette requête. Vérifiez la connexion et réessayez.",
 
   "welcome.title": "Que voulez-vous construire aujourd'hui ?",
+  "welcome.projectTitle":
+    "Que voulez-vous construire dans <projectSelect>{{project}}</projectSelect> ?",
+  "composer.project.choose": "Choisir un projet",
+  "composer.project.select": "Sélectionnez votre projet",
+  "composer.project.tooltip": "Sélectionnez un projet pour exécuter cette discussion",
+  "composer.project.change": "Changer de projet : {{project}}",
+  "composer.project.add": "Nouveau projet",
+  "composer.project.required": "Sélectionnez un projet pour continuer",
   "providers.setup.title": "Connecter un fournisseur de modèle",
   "providers.setup.sub":
     "Ajoutez une clé API pour commencer — l'agent a besoin d'un fournisseur de modèle.",

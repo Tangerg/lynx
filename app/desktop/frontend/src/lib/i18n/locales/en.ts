@@ -239,7 +239,14 @@ export const en: Record<string, string> = {
   "dataView.error.title": "Couldn’t load",
   "dataView.error.sub": "The runtime didn’t answer this request. Check the connection and retry.",
 
-  "welcome.title": "What should we build in lynx?",
+  "welcome.title": "What should we build?",
+  "welcome.projectTitle": "What should we build in <projectSelect>{{project}}?</projectSelect>",
+  "composer.project.choose": "Choose project",
+  "composer.project.select": "Select your project",
+  "composer.project.tooltip": "Select a project to run your chat in",
+  "composer.project.change": "Change project: {{project}}",
+  "composer.project.add": "New project",
+  "composer.project.required": "Select a project to continue",
   "providers.setup.title": "Connect a model provider",
   "providers.setup.sub":
     "Add an API key to start chatting — the agent needs a model provider to talk to.",

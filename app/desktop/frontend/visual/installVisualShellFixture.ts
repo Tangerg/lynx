@@ -172,7 +172,6 @@ export async function installVisualShellFixture(
     openSessionIds: state === "populated" ? [ACTIVE_SESSION_ID] : [],
     lastSessionId: "",
     draftSessionIds: new Set(),
-    pendingMessages: {},
   });
   navigator().go({ session: state === "populated" ? ACTIVE_SESSION_ID : "" });
   useUiStore.setState({

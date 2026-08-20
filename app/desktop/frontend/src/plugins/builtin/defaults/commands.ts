@@ -14,7 +14,11 @@
 // dispose-and-re-register cycle. None of that has anything left to serve.
 
 import { toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
-import { closeActiveAgentSession, createSession } from "@/plugins/builtin/agent/public/session";
+import {
+  closeActiveAgentSession,
+  createSession,
+  getActiveSessionId,
+} from "@/plugins/builtin/agent/public/session";
 import {
   closeActiveWorkspaceDockView,
   closeActiveWorkspaceView,
@@ -39,7 +43,13 @@ function closeFocusedSurface(): void {
 // one — and put the caret in the composer either way.
 function openNewChatSession(): void {
   if (!runtimeCommandsAvailable()) return;
-  void createSession().then(() => focusComposer());
+  if (!getActiveSessionId()) {
+    focusComposer();
+    return;
+  }
+  void createSession().then((sessionId) => {
+    if (sessionId) focusComposer();
+  });
 }
 
 export const defaultCommands = definePlugin({

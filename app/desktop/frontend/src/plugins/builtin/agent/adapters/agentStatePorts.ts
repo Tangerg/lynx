@@ -136,9 +136,6 @@ export function installAgentStatePorts(): () => void {
       goToSession(lastSessionId);
     },
     markDraftSession: (id) => useAgentSessionStore.getState().markDraft(id),
-    setPendingMessage: (id, message) =>
-      useAgentSessionStore.getState().setPendingMessage(id, message),
-    takePendingMessage: (id) => useAgentSessionStore.getState().takePendingMessage(id),
   });
 
   const disposeViewState = configureAgentSessionViewPort({

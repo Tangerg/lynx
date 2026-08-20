@@ -1,5 +1,5 @@
 // Agent session memory: which sessions are held open, draft-session
-// bookkeeping, queued first messages, and the session to reopen on a cold start.
+// bookkeeping, and the session to reopen on a cold start.
 //
 // WHICH SESSION IS ACTIVE IS NOT HERE. That is the app's location (see
 // lib/navigation) so that history holds it. What is here is memory: the tab set,
@@ -9,17 +9,15 @@
 // Persistence policy:
 //   - Persisted: openSessionIds + lastSessionId + draftSessionIds (continuity
 //     and ownership of provisional backend Sessions across launches).
-//   - Ephemeral: freshDraftSessionIds + pendingMessages. These only describe an
-//     in-process handoff which may skip the first durable read.
+//   - Ephemeral: freshDraftSessionIds. It proves that an in-process create may
+//     skip the first durable read.
 
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
 import { discardOlderVersions } from "@/lib/persistedStore";
-import type { AgentRunStartOptions } from "@/plugins/sdk/types";
-import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
-import { openSession, pruneSessionHandoffs } from "../application/session/sessionSelectionModel";
+import { openSession, pruneDraftSessions } from "../application/session/sessionSelectionModel";
 
 // localStorage payload schema. Mirrors `partialize` below — only the
 // continuity fields. Anything else in storage is dropped on rehydrate; a
@@ -30,15 +28,10 @@ const sessionPersistSchema = z.object({
   draftSessionIds: z.array(z.string()),
 });
 
-export interface PendingAgentMessage {
-  input: AgentInput;
-  runOptions: AgentRunStartOptions;
-}
-
 interface AgentSessionState {
   /** The set of sessions currently held open. This is load-bearing lifecycle
    *  state: agentStore drops view state, composerStore drops drafts, and this
-   *  store drops draft + pending-message refs for ids no longer in the set. */
+   *  store drops draft refs for ids no longer in the set. */
   openSessionIds: string[];
 
   /** Where the user was when they last quit — the seed for a cold start, and
@@ -57,13 +50,6 @@ interface AgentSessionState {
   /** Drafts created in this process and therefore known to have no durable
    * history yet. Unlike draft ownership, this read-skipping fact is ephemeral. */
   freshDraftSessionIds: Set<string>;
-  /**
-   * First message queued for a freshly-created session, keyed by id. When
-   * the user types on the welcome screen (no active session), we create a
-   * draft and stash the input here (text + any inlined images); the chat
-   * remounts on the new id and flushes it. Ephemeral.
-   */
-  pendingMessages: Record<string, PendingAgentMessage>;
 }
 
 interface AgentSessionActions {
@@ -80,10 +66,6 @@ interface AgentSessionActions {
   markDraft: (id: string) => void;
   /** Promote a draft to a real session (first message sent). Idempotent. */
   graduateDraft: (id: string) => void;
-  /** Queue the first message input for a session id. */
-  setPendingMessage: (id: string, message: PendingAgentMessage) => void;
-  /** Read + clear the queued first message input for a session id. */
-  takePendingMessage: (id: string) => PendingAgentMessage | undefined;
 }
 
 export const useAgentSessionStore = create<AgentSessionState & AgentSessionActions>()(
@@ -97,7 +79,6 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       lastSessionId: "",
       draftSessionIds: new Set<string>(),
       freshDraftSessionIds: new Set<string>(),
-      pendingMessages: {},
 
       holdOpen: (id) => set({ openSessionIds: openSession(get().openSessionIds, id) }),
       release: (id) =>
@@ -118,23 +99,12 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
         fresh.delete(id);
         set({ draftSessionIds: next, freshDraftSessionIds: fresh });
       },
-      setPendingMessage: (id, message) =>
-        set({ pendingMessages: { ...get().pendingMessages, [id]: message } }),
-      takePendingMessage: (id) => {
-        const { pendingMessages } = get();
-        const input = pendingMessages[id];
-        if (input === undefined) return undefined;
-        const next = { ...pendingMessages };
-        delete next[id];
-        set({ pendingMessages: next });
-        return input;
-      },
     }),
     {
       name: "lyra.agent-session",
       storage: createJSONStorage(() => localStorage),
       // Persist continuity plus provisional Session ownership. Only the
-      // in-process freshness proof and pending-message handoff are ephemeral.
+      // in-process freshness proof is ephemeral.
       partialize: (s) => ({
         openSessionIds: s.openSessionIds,
         lastSessionId: s.lastSessionId,
@@ -164,22 +134,21 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
   ),
 );
 
-// Prune draft + pending-message refs for sessions no longer held open.
-// Both maps are keyed by session id; without this they grow unbounded (one
-// stale entry per draft session abandoned before its first message), and a
-// leftover draft id would make useAgentSession wrongly skip history hydration
+// Prune draft refs for sessions no longer held open. Without this they grow
+// unbounded (one stale entry per draft session abandoned before its first
+// message), and a leftover draft id would make useAgentSession wrongly skip history hydration
 // if that id were ever reopened. A live draft id is always present in
 // openSessionIds (holdOpen is paired with selecting it), so "not open" ⇒ dead.
 const unsubPruneSessionRefs = useAgentSessionStore.subscribe((state, prev) => {
   if (state.openSessionIds === prev.openSessionIds) return;
-  const next = pruneSessionHandoffs(state);
+  const draftSessionIds = pruneDraftSessions(state);
   const open = new Set(state.openSessionIds);
   const freshDraftSessionIds = new Set(
     [...state.freshDraftSessionIds].filter((id) => open.has(id)),
   );
-  if (next || freshDraftSessionIds.size !== state.freshDraftSessionIds.size) {
+  if (draftSessionIds || freshDraftSessionIds.size !== state.freshDraftSessionIds.size) {
     useAgentSessionStore.setState({
-      ...next,
+      ...(draftSessionIds ? { draftSessionIds } : {}),
       freshDraftSessionIds,
     });
   }

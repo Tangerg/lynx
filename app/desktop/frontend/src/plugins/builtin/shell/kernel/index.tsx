@@ -12,6 +12,7 @@ import { useReconcilePersistedAgentSessions } from "@/plugins/builtin/agent/publ
 import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useDefaultChatSession } from "@/plugins/builtin/agent/public/defaultSession";
+import { ComposerProjectControl } from "./panel/ProjectSelector";
 
 function KernelChat() {
   // Drop persisted refs to sessions the backend no longer has BEFORE binding
@@ -34,6 +35,11 @@ export const kernelChat = definePlugin({
   name: "lyra.builtin.kernel-chat",
   setup(ctx) {
     contributeLayout(ctx, "app.main", { id: "chat", order: 0, component: KernelChat });
+    contributeLayout(ctx, "composer.toolbar.start", {
+      id: "project",
+      order: -1,
+      component: ComposerProjectControl,
+    });
   },
 });
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   closeOpenSession,
   openSession,
-  pruneSessionHandoffs,
+  pruneDraftSessions,
   reconcileOpenSessions,
 } from "./sessionSelectionModel";
 
@@ -91,16 +91,12 @@ describe("sessionSelectionModel", () => {
     ).toEqual({ activeSessionId: "", openSessionIds: [] });
   });
 
-  it("prunes draft and pending handoffs for closed sessions", () => {
+  it("prunes draft ownership for closed sessions", () => {
     expect(
-      pruneSessionHandoffs({
+      pruneDraftSessions({
         draftSessionIds: new Set(["live", "closed"]),
-        pendingMessages: { live: "keep", closed: "drop" },
         openSessionIds: ["live"],
       }),
-    ).toEqual({
-      draftSessionIds: new Set(["live"]),
-      pendingMessages: { live: "keep" },
-    });
+    ).toEqual(new Set(["live"]));
   });
 });

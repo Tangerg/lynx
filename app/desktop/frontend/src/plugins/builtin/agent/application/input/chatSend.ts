@@ -9,22 +9,18 @@ import { OPTIMISTIC_STEER_MESSAGE_PREFIX } from "../view/optimisticMessageIdenti
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionView } from "../ports/sessionView";
 import { getActiveSessionId, useActiveSessionId } from "../session/activeSession";
-import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
 import { selectCurrentRootRun } from "../view/runTree";
 import { agentCommandOwner } from "../agentCommandOwner";
 import { useCurrentRootMaterial } from "../run/runReadModel";
 
 type SendToAgent = (input: AgentInput, options?: AgentRunStartOptions) => boolean;
-type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
-
 /**
  * The single send entry point for the composer — both the textarea Enter
  * path and the Send button route through here so they can't diverge.
  *
  *   - active session present → send into it.
- *   - no active session (welcome screen) → spin up a draft session and queue
- *     the message (useCreateSession); the chat remounts on the new id and
- *     flushes it.
+ *   - no active session (welcome screen) → reject submission without clearing
+ *     the draft; selecting a project creates and mounts the Session first.
  *   - a run is already streaming → STEER the running turn (runs.steer): the
  *     message injects into the active loop and the model reads it on its next
  *     tool round (true mid-run steer). The steered message is rendered
@@ -37,7 +33,6 @@ type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
  *     fresh turn so the message is never lost (and never duplicated).
  */
 export function useChatSend(): (input: AgentInput) => boolean {
-  const createSession = useCreateSession();
   const send = agentSessionView().useAction("send");
   return useCallback(
     (input: AgentInput) => {
@@ -64,9 +59,9 @@ export function useChatSend(): (input: AgentInput) => boolean {
           return true;
         }
       }
-      return sendFreshTurn({ sessionId, send, createSession, input, runOptions });
+      return sendFreshTurn({ sessionId, send, input, runOptions });
     },
-    [send, createSession],
+    [send],
   );
 }
 
@@ -82,11 +77,10 @@ export function canAcceptChatInput(
   mountedSendAvailable: boolean,
   rootStatus: "idle" | "running" | "waiting" | "finished",
 ): boolean {
-  // The welcome screen has no mounted Session by design; its accepted send
-  // creates a draft Session and queues the first input. Once an identity exists,
-  // only its lifecycle owner may accept input, and a parked root must be resumed
-  // through its interrupt rather than opened as a competing turn.
-  return sessionId === "" || (mountedSendAvailable && rootStatus !== "waiting");
+  // Only the mounted Session lifecycle may accept input. The projectless welcome
+  // screen deliberately keeps the draft but cannot send it; a parked root must
+  // be resumed through its interrupt rather than opened as a competing turn.
+  return Boolean(sessionId) && mountedSendAvailable && rootStatus !== "waiting";
 }
 
 // Optimistic steer bubble: render the user's steered message immediately under a
@@ -154,23 +148,15 @@ function steerRunningTurn({
 interface SendFreshTurnInput {
   sessionId: string;
   send: SendToAgent | null;
-  createSession: CreateSession;
   input: AgentInput;
   runOptions: AgentRunStartOptions;
 }
 
-function sendFreshTurn({
-  sessionId,
-  send,
-  createSession,
-  input,
-  runOptions,
-}: SendFreshTurnInput): boolean {
+function sendFreshTurn({ sessionId, send, input, runOptions }: SendFreshTurnInput): boolean {
   if (sessionId && send) {
     return send(input, runOptions);
   }
-  void createSession({ firstInput: input, firstRunOptions: runOptions });
-  return true;
+  return false;
 }
 
 function mintSteerBubble(

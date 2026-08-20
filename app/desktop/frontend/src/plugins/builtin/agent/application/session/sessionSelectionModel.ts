@@ -58,21 +58,11 @@ export function reconcileOpenSessions(
   };
 }
 
-export function pruneSessionHandoffs<T>(state: {
+export function pruneDraftSessions(state: {
   openSessionIds: string[];
   draftSessionIds: Set<string>;
-  pendingMessages: Record<string, T>;
-}): { draftSessionIds: Set<string>; pendingMessages: Record<string, T> } | null {
+}): Set<string> | null {
   const live = new Set(state.openSessionIds);
   const draftSessionIds = new Set([...state.draftSessionIds].filter((id) => live.has(id)));
-  const pendingMessages = Object.fromEntries(
-    Object.entries(state.pendingMessages).filter(([id]) => live.has(id)),
-  ) as Record<string, T>;
-  if (
-    draftSessionIds.size === state.draftSessionIds.size &&
-    Object.keys(pendingMessages).length === Object.keys(state.pendingMessages).length
-  ) {
-    return null;
-  }
-  return { draftSessionIds, pendingMessages };
+  return draftSessionIds.size === state.draftSessionIds.size ? null : draftSessionIds;
 }

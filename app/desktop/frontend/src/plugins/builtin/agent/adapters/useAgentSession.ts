@@ -265,13 +265,6 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     });
     store().setCancelRun(sessionId, cancelRun);
 
-    // A message typed on the welcome screen (no active session) was queued
-    // by useCreateSession against this freshly-created draft — flush it now
-    // that the driver for this id is live. Opening a session otherwise does
-    // NOT auto-run; rebuilding the durable projection is a separate concern.
-    const pending = useAgentSessionStore.getState().takePendingMessage(sessionId);
-    if (pending && pending.input.parts.length > 0) send(pending.input, pending.runOptions);
-
     return () => {
       cancelled = true;
       runOpening.retire();

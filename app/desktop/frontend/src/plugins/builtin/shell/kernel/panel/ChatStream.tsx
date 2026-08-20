@@ -12,7 +12,6 @@ import { useActiveConversationRows } from "@/plugins/builtin/agent/public/conver
 import { useActiveSessionToolCalls } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { cn } from "@/lib/classNames";
-import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import {
   reconcileWorkspaceToolSelection,
@@ -28,6 +27,7 @@ import { COMPOSER_OVERLAY_PROPERTY, READING_COLUMN, READING_GUTTER } from "./rea
 import { CwdMissingBanner } from "./CwdMissingBanner";
 import { MessageStream, type MessageStreamController } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
+import { EmptyChatHeading } from "./ProjectSelector";
 import {
   pendingQuestionRequest,
   QuestionCard,
@@ -144,8 +144,6 @@ export function ChatStream({ onSend }: Props) {
     };
   }, [started]);
 
-  const t = useT();
-
   // Session and run problems stay pinned above whatever fills the column. Standing
   // Goal/Plan material belongs to FloatingComposer's quiet top overlay. Both
   // remain available while the transcript scrolls without adding an inner edge
@@ -187,7 +185,7 @@ export function ChatStream({ onSend }: Props) {
               14px before the words underneath it and read as a near-miss. */}
           <div className={cn(READING_COLUMN, READING_GUTTER)}>
             <h1 className="mx-auto max-w-[620px] text-balance text-center text-display-md font-medium text-fg">
-              {t("welcome.title")}
+              <EmptyChatHeading />
             </h1>
           </div>
           <div className={cn(READING_COLUMN, READING_GUTTER)}>

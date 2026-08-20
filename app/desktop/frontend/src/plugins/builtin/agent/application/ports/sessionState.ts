@@ -1,11 +1,4 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { AgentRunStartOptions } from "@/plugins/sdk";
-import type { AgentInput } from "../../domain/input";
-
-export interface PendingAgentMessage {
-  input: AgentInput;
-  runOptions: AgentRunStartOptions;
-}
 
 export interface AgentSessionLifecycleSnapshot {
   activeSessionId: string;
@@ -36,8 +29,6 @@ export interface AgentSessionStatePort {
    */
   restoreLastSession(): void;
   markDraftSession(id: string): void;
-  setPendingMessage(id: string, message: PendingAgentMessage): void;
-  takePendingMessage(id: string): PendingAgentMessage | undefined;
 }
 
 const port = createSingletonPort<AgentSessionStatePort>(

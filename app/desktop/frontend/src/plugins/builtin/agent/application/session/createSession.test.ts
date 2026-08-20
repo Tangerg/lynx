@@ -1,8 +1,8 @@
-// useCreateSession spins up a backend session as a hidden draft, opens it,
-// and (optionally) queues a first message. Locks that wiring + the failure
-// path (returns null, no throw).
+// Session creation is an exact-workspace command. The hook is used by project
+// selectors; the imperative facade inherits cwd only from the active Session.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { navigator } from "@/lib/navigation";
 import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -10,10 +10,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient, Methods } from "@/rpc";
 import { asSessionId } from "@/rpc";
-import { agentTextInput } from "../../domain/input";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
-import { type CreateSessionOptions, useCreateSession } from "./createSession";
+import { createSession, type CreateSessionOptions, useCreateSession } from "./createSession";
+import { AGENT_SESSIONS_KEY, type AgentSessionSummary } from "./sessionQueries";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -26,12 +26,13 @@ function stubCreate(create: Methods["sessions"]["create"]) {
 
 afterEach(() => {
   resetContainer();
+  queryClient.clear();
   navigator().go({ session: "" });
   useAgentSessionStore.setState({
     openSessionIds: [],
+    lastSessionId: "",
     draftSessionIds: new Set<string>(),
     freshDraftSessionIds: new Set<string>(),
-    pendingMessages: {},
   });
 });
 
@@ -44,40 +45,35 @@ const fakeSession = (id: string) => ({
   updatedAt: "",
 });
 
+function summary(id: string, cwd: string): AgentSessionSummary {
+  return {
+    id,
+    revision: 1,
+    title: "Current",
+    status: "idle",
+    model: "gpt-5",
+    cwd,
+    time: "2026-08-20T00:00:00Z",
+  };
+}
+
 describe("useCreateSession", () => {
-  it("creates a draft, opens it active, and queues the first message", async () => {
-    const create = vi.fn().mockResolvedValue(fakeSession("new-1"));
-    stubCreate(create);
-    const { result } = renderHook(() => useCreateSession(), { wrapper });
-
-    const id = await result.current({
-      firstInput: agentTextInput("first message"),
-      firstRunOptions: { provider: "openai", model: "gpt-5" },
-    });
-
-    expect(id).toBe("new-1");
-    const s = useAgentSessionStore.getState();
-    expect(navigator().get().session).toBe("new-1");
-    expect(s.openSessionIds).toContain("new-1");
-    expect(s.draftSessionIds.has("new-1")).toBe(true);
-    expect(s.takePendingMessage("new-1")).toEqual({
-      input: agentTextInput("first message"),
-      runOptions: { provider: "openai", model: "gpt-5" },
-    });
-  });
-
-  it("wraps the chosen directory in a workspace reference", async () => {
+  it("creates a hidden draft in the chosen exact directory and opens it", async () => {
     const create = vi.fn().mockResolvedValue(fakeSession("new-cwd"));
     stubCreate(create);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    await result.current({ cwd: "/tmp/proj" });
+    const id = await result.current({ cwd: "/tmp/proj" });
 
-    // The Runtime Adapter bounds each transport attempt with its own signal.
+    expect(id).toBe("new-cwd");
     expect(create).toHaveBeenCalledWith(
       { workspace: { path: "/tmp/proj" } },
       expect.any(AbortSignal),
     );
+    const state = useAgentSessionStore.getState();
+    expect(navigator().get().session).toBe("new-cwd");
+    expect(state.openSessionIds).toContain("new-cwd");
+    expect(state.draftSessionIds.has("new-cwd")).toBe(true);
   });
 
   it("never delegates an empty working directory to the Runtime default", async () => {
@@ -91,34 +87,7 @@ describe("useCreateSession", () => {
     expect(navigator().get().session).toBe("");
   });
 
-  it("creates an empty draft (no message) for the New button", async () => {
-    const create = vi.fn().mockResolvedValue(fakeSession("new-2"));
-    stubCreate(create);
-    const { result } = renderHook(() => useCreateSession(), { wrapper });
-
-    await result.current();
-
-    const s = useAgentSessionStore.getState();
-    expect(s.draftSessionIds.has("new-2")).toBe(true);
-    expect(s.takePendingMessage("new-2")).toBeUndefined();
-  });
-
-  it("reuses the fresh draft the user is already looking at", async () => {
-    // Pressing New on the empty-composer screen asks for a destination that is
-    // already on screen — creating there mints a second backend session and
-    // orphans the first as a draft the session list hides.
-    const create = vi.fn().mockResolvedValue(fakeSession("new-3"));
-    stubCreate(create);
-    const { result } = renderHook(() => useCreateSession(), { wrapper });
-
-    const first = await result.current();
-    const again = await result.current();
-
-    expect(again).toBe(first);
-    expect(create).toHaveBeenCalledTimes(1);
-  });
-
-  it("reuses the fresh draft when New opens the active project destination", async () => {
+  it("reuses the active fresh draft only when New proves the same project destination", async () => {
     const create = vi.fn().mockResolvedValue(fakeSession("new-project"));
     stubCreate(create);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
@@ -134,77 +103,56 @@ describe("useCreateSession", () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
-  it("still creates when the fresh session is not a draft, or a cwd is asked for", async () => {
-    const create = vi.fn().mockResolvedValue(fakeSession("new-4"));
+  it("does not reuse an ordinary message-less Session or an explicit project selection", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(fakeSession("new-1"))
+      .mockResolvedValueOnce(fakeSession("new-2"))
+      .mockResolvedValueOnce(fakeSession("new-3"));
     stubCreate(create);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    await result.current();
-    // A message-less session that is NOT a draft may simply not have loaded its
-    // history yet — reuse would drop the user back into a conversation.
+    await result.current({ cwd: "/tmp/current", reuseFreshDraft: true });
     useAgentSessionStore.setState({
       draftSessionIds: new Set<string>(),
       freshDraftSessionIds: new Set<string>(),
     });
-    await result.current();
-    expect(create).toHaveBeenCalledTimes(2);
-
-    useAgentSessionStore.getState().markDraft("new-4");
+    await result.current({ cwd: "/tmp/current", reuseFreshDraft: true });
+    useAgentSessionStore.getState().markDraft("new-2");
     await result.current({ cwd: "/tmp/other" });
+
     expect(create).toHaveBeenCalledTimes(3);
   });
 
-  it("only joins an in-flight create that asked for the same thing", async () => {
-    // Joining any create in flight handed the caller someone else's session: a
-    // project "+" landed in the runtime's default directory, and a welcome-composer
-    // send got a session its typed message was never queued against — chatSend
-    // fires this and never inspects the id, so the text was simply gone.
-    let release: ((session: unknown) => void) | undefined;
+  it("joins only an in-flight create for the same exact cwd", async () => {
+    let release: ((session: ReturnType<typeof fakeSession>) => void) | undefined;
     const create = vi
       .fn()
-      .mockImplementationOnce(() => new Promise((resolve) => (release = resolve)))
+      .mockImplementationOnce(
+        () => new Promise<ReturnType<typeof fakeSession>>((resolve) => (release = resolve)),
+      )
       .mockResolvedValue(fakeSession("second"));
-    stubCreate(create);
+    stubCreate(create as unknown as Methods["sessions"]["create"]);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    const bare = result.current();
-    const withInput = result.current({ firstInput: agentTextInput("don't lose me") });
+    const first = result.current({ cwd: "/tmp/a" });
+    const joined = result.current({ cwd: "/tmp/a" });
+    const distinct = result.current({ cwd: "/tmp/b" });
     release?.(fakeSession("first"));
 
-    expect(await bare).toBe("first");
-    expect(await withInput).toBe("second");
+    expect(await first).toBe("first");
+    expect(await joined).toBe("first");
+    expect(await distinct).toBe("second");
     expect(create).toHaveBeenCalledTimes(2);
-    expect(useAgentSessionStore.getState().takePendingMessage("second")).toEqual({
-      input: agentTextInput("don't lose me"),
-      runOptions: {},
-    });
   });
 
-  it("returns null + doesn't throw when create fails", async () => {
+  it("returns null without moving selection when create fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     stubCreate(vi.fn().mockRejectedValue(new Error("boom")));
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    await expect(result.current({ firstInput: agentTextInput("x") })).resolves.toBeNull();
+    await expect(result.current({ cwd: "/tmp/project" })).resolves.toBeNull();
     expect(navigator().get().session).toBe("");
-  });
-
-  it("re-entrant calls join the in-flight create (double-click ≠ two sessions)", async () => {
-    // sessions.create is a round-trip; a second "New" click inside that
-    // window must not create a second backend session + open-session entry.
-    let release!: (v: ReturnType<typeof fakeSession>) => void;
-    const create = vi.fn(() => new Promise<ReturnType<typeof fakeSession>>((r) => (release = r)));
-    stubCreate(create as unknown as Methods["sessions"]["create"]);
-    const { result } = renderHook(() => useCreateSession(), { wrapper });
-
-    const first = result.current();
-    const second = result.current(); // joins, does not re-fire
-    release(fakeSession("new-3"));
-
-    expect(await first).toBe("new-3");
-    expect(await second).toBe("new-3");
-    expect(create).toHaveBeenCalledTimes(1);
-    expect(useAgentSessionStore.getState().openSessionIds).toEqual(["new-3"]);
   });
 
   it("does not join or publish a create owned by a replaced Plugin Host", async () => {
@@ -217,12 +165,12 @@ describe("useCreateSession", () => {
     );
     stubCreate(retiredCreate as unknown as Methods["sessions"]["create"]);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
-    const retired = result.current();
+    const retired = result.current({ cwd: "/tmp/retired" });
 
     const successorCreate = vi.fn().mockResolvedValue(fakeSession("successor"));
     stubCreate(successorCreate);
     const disposeSuccessor = installAgentRuntimeGateway();
-    const successor = result.current();
+    const successor = result.current({ cwd: "/tmp/successor" });
 
     await Promise.resolve();
     const successorStartedBeforeRetiredSettlement = successorCreate.mock.calls.length;
@@ -242,6 +190,33 @@ describe("useCreateSession", () => {
     } finally {
       disposeSuccessor.dispose();
     }
+  });
+});
+
+describe("imperative New", () => {
+  it("inherits the exact active Session cwd", async () => {
+    const create = vi.fn().mockResolvedValue(fakeSession("next"));
+    stubCreate(create);
+    navigator().go({ session: "current" });
+    queryClient.setQueryData([AGENT_SESSIONS_KEY], [summary("current", "/tmp/current")]);
+
+    await expect(createSession()).resolves.toBe("next");
+
+    expect(create).toHaveBeenCalledWith(
+      { workspace: { path: "/tmp/current" } },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("does not mutate when no active Session or authoritative cwd exists", async () => {
+    const create = vi.fn().mockResolvedValue(fakeSession("implicit-home"));
+    stubCreate(create);
+
+    await expect(createSession()).resolves.toBeNull();
+    navigator().go({ session: "unresolved" });
+    await expect(createSession()).resolves.toBeNull();
+
+    expect(create).not.toHaveBeenCalled();
   });
 });
 

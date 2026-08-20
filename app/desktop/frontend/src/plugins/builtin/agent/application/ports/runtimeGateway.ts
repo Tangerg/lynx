@@ -31,7 +31,7 @@ export interface AgentSessionUsage {
 }
 
 export interface AgentRuntimeGateway {
-  createSession(input: { cwd?: string }): Promise<{ id: string }>;
+  createSession(input: { cwd: string }): Promise<{ id: string }>;
   /** Resolve once the Session is authoritatively absent. Already absent is success. */
   deleteSession(sessionId: string): Promise<void>;
   updateSession(input: {

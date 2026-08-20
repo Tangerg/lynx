@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAgentSessionStore } from "./agentSessionStore";
-import { agentTextInput } from "../domain/input";
 
 const store = () => useAgentSessionStore.getState();
 
@@ -10,13 +9,12 @@ beforeEach(() => {
     lastSessionId: "",
     draftSessionIds: new Set(),
     freshDraftSessionIds: new Set(),
-    pendingMessages: {},
   });
 });
 
 // This store is memory, not location: which session is active lives in the
 // URL (see lib/navigation). What is asserted here is the tab set, the cold-start
-// seed, and the handoff refs — plus the pruning that keeps them from growing.
+// seed, and draft ownership — plus the pruning that keeps it from growing.
 describe("the open set", () => {
   it("holds a session open once", () => {
     store().holdOpen("s1");
@@ -67,7 +65,7 @@ describe("storage written by an older version", () => {
   });
 });
 
-describe("drafts and queued first messages", () => {
+describe("drafts", () => {
   it("marks and graduates a draft", () => {
     store().markDraft("s1");
     expect(store().draftSessionIds.has("s1")).toBe(true);
@@ -103,23 +101,13 @@ describe("drafts and queued first messages", () => {
     expect(store().draftSessionIds).toBe(before);
   });
 
-  it("takes a queued message exactly once", () => {
-    const message = { input: agentTextInput("hello"), runOptions: {} };
-    store().setPendingMessage("s1", message);
-
-    expect(store().takePendingMessage("s1")).toEqual(message);
-    expect(store().takePendingMessage("s1")).toBeUndefined();
-  });
-
-  it("prunes draft and pending refs when a session stops being open", () => {
+  it("prunes draft refs when a session stops being open", () => {
     store().holdOpen("s1");
     store().markDraft("s1");
-    store().setPendingMessage("s1", { input: agentTextInput("hi"), runOptions: {} });
 
     store().release("s1");
 
     expect(store().draftSessionIds.has("s1")).toBe(false);
     expect(store().freshDraftSessionIds.has("s1")).toBe(false);
-    expect(store().takePendingMessage("s1")).toBeUndefined();
   });
 });

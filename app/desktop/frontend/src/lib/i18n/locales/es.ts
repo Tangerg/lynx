@@ -229,6 +229,13 @@ export const es: Record<string, string> = {
     "El runtime no respondió a esta petición. Comprueba la conexión y reinténtalo.",
 
   "welcome.title": "¿Qué quieres construir hoy?",
+  "welcome.projectTitle": "¿Qué quieres construir en <projectSelect>{{project}}</projectSelect>?",
+  "composer.project.choose": "Elegir proyecto",
+  "composer.project.select": "Selecciona tu proyecto",
+  "composer.project.tooltip": "Selecciona un proyecto para ejecutar este chat",
+  "composer.project.change": "Cambiar proyecto: {{project}}",
+  "composer.project.add": "Nuevo proyecto",
+  "composer.project.required": "Selecciona un proyecto para continuar",
   "providers.setup.title": "Conecta un proveedor de modelos",
   "providers.setup.sub":
     "Añade una clave de API para empezar — el agente necesita un proveedor de modelos.",

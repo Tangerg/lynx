@@ -52,4 +52,15 @@ describe("default commands", () => {
     expect(mocks.createSession).not.toHaveBeenCalled();
     expect(mocks.focusComposer).toHaveBeenCalledOnce();
   });
+
+  it("delegates New to the active Session's exact-workspace owner", async () => {
+    mocks.runtimeAvailable = true;
+    mocks.activeSessionId = "session-current";
+    await loadPluginsForTest(defaultCommands);
+
+    await executeCommand("chat.new");
+
+    expect(mocks.createSession).toHaveBeenCalledOnce();
+    expect(mocks.focusComposer).toHaveBeenCalledOnce();
+  });
 });

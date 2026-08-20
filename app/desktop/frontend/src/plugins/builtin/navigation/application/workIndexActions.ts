@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { t } from "@/lib/i18n";
 import {
   selectAgentSession,
+  useActiveSessionId,
   useActiveSessionWorkspace,
   useCreateSession,
   useDeleteSession,
@@ -62,6 +63,7 @@ function createSessionInChosenFolder(create: ReturnType<typeof useCreateSession>
 export function useWorkIndexActions(): WorkIndexActions {
   const create = useCreateSession();
   const runtimeAvailable = useRuntimeCommandsAvailable();
+  const activeSessionId = useActiveSessionId();
   const activeWorkspace = useActiveSessionWorkspace();
   const activeWorkspaceStatus = activeWorkspace.status;
   const activeCwd = activeWorkspace.status === "ready" ? activeWorkspace.cwd : undefined;
@@ -72,7 +74,10 @@ export function useWorkIndexActions(): WorkIndexActions {
 
   return useMemo(
     () => ({
-      canCreateSession: runtimeAvailable && activeWorkspaceStatus === "ready",
+      canCreateSession:
+        runtimeAvailable &&
+        (!activeSessionId ||
+          (activeWorkspaceStatus === "ready" && Boolean(activeCwd && activeCwd.trim()))),
       canCreateSessionInFolder: runtimeAvailable,
       // Codex's top-level New action continues in the project that owns the
       // active Session. Omitting cwd here delegated that decision to the
@@ -81,10 +86,13 @@ export function useWorkIndexActions(): WorkIndexActions {
       // active summary is resolving, the action is disabled rather than
       // inventing a default owner.
       createSession: () => {
-        if (activeWorkspaceStatus !== "ready" || !runtimeCommandsAvailable()) return;
-        const options =
-          activeCwd === undefined ? undefined : { cwd: activeCwd, reuseFreshDraft: true };
-        void create(options).then((sessionId) => {
+        if (!runtimeCommandsAvailable()) return;
+        if (!activeSessionId) {
+          focusComposer();
+          return;
+        }
+        if (activeWorkspaceStatus !== "ready" || !activeCwd?.trim()) return;
+        void create({ cwd: activeCwd, reuseFreshDraft: true }).then((sessionId) => {
           if (sessionId) focusComposer();
         });
       },
@@ -118,6 +126,7 @@ export function useWorkIndexActions(): WorkIndexActions {
     }),
     [
       activeCwd,
+      activeSessionId,
       activeWorkspaceStatus,
       create,
       fork,

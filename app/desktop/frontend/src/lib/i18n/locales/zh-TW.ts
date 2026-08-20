@@ -228,6 +228,13 @@ export const zhTW: Record<string, string> = {
   "dataView.error.sub": "執行時未回應此請求。請檢查連線後重試。",
 
   "welcome.title": "今天想建立什麼？",
+  "welcome.projectTitle": "想在 <projectSelect>{{project}}</projectSelect> 中建立什麼？",
+  "composer.project.choose": "選擇專案",
+  "composer.project.select": "選擇你的專案",
+  "composer.project.tooltip": "選擇本次對話要使用的專案",
+  "composer.project.change": "變更專案：{{project}}",
+  "composer.project.add": "新增專案",
+  "composer.project.required": "選擇專案後繼續",
   "providers.setup.title": "接入一個模型 provider",
   "providers.setup.sub": "新增 API key 即可開始對話 —— agent 需要一個模型 provider 才能運作。",
   "providers.setup.action": "前往設定 provider",

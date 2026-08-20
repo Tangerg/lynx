@@ -206,7 +206,6 @@ export async function installVisualAgentFixture(
     openSessionIds: [VISUAL_SESSION_ID],
     lastSessionId: VISUAL_SESSION_ID,
     draftSessionIds: new Set(),
-    pendingMessages: {},
   });
   // Which session is on screen is the location, not a store field.
   navigator().go({ session: VISUAL_SESSION_ID });

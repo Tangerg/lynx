@@ -230,6 +230,13 @@ export const de: Record<string, string> = {
     "Die Runtime hat auf diese Anfrage nicht geantwortet. Prüfe die Verbindung und versuche es erneut.",
 
   "welcome.title": "Was möchtest du heute bauen?",
+  "welcome.projectTitle": "Was möchtest du in <projectSelect>{{project}}</projectSelect> bauen?",
+  "composer.project.choose": "Projekt auswählen",
+  "composer.project.select": "Wähle dein Projekt aus",
+  "composer.project.tooltip": "Wähle ein Projekt für diesen Chat aus",
+  "composer.project.change": "Projekt wechseln: {{project}}",
+  "composer.project.add": "Neues Projekt",
+  "composer.project.required": "Wähle ein Projekt aus, um fortzufahren",
   "providers.setup.title": "Modell-Provider verbinden",
   "providers.setup.sub":
     "Füge einen API-Schlüssel hinzu, um loszulegen — der Agent braucht einen Modell-Provider.",
