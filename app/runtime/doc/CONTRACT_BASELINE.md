@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `f96a1dd7170c59d3817a932a47dbe9e9c34d88bf6307a15cad77fbced726ebc7` |
-| `contract/openrpc.json` | `ec6f63f6ef00d43c6792f07543fc6ac2d0bfe374810dcb8b07538b38f9a88d8e` |
-| `contract/schema.json` | `c622d0991a878a8d90c42ee67ecfc9abff89f20011009a54a94a5ced838c04cc` |
-| `contract/go-api.json` | `ea4fdbb34bc0cf556934d81dfa86e2591b56452c66ab791d38357e865bdb9962` |
+| `contract/manifest.json` | `3ab78223ffad35cf340874a4f6b36bf97948489e706ad4d611decaebc163e11c` |
+| `contract/openrpc.json` | `df52cddd2c96ab9bae54f390059937cebfd8e1faad2ab1ca729e985b1d4ee492` |
+| `contract/schema.json` | `2c7374c695dfef1f65d6df5f42bc02d776c7f8188b53f05d21cae05163d285cb` |
+| `contract/go-api.json` | `51abbe4e20d31c0b5db41cb776e59b0474f7da4a87bb2c57f4c19bdb2a51c095` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -63,6 +63,11 @@ payload，running Item 必须由 active continuation 唯一认领，terminal Run
 服务端组合读取与孤儿能力；它不继承目标 query 的筛选/分页语义，也不建立 alias 或客户端 fallback。
 
 Goal read model 的 `status:"completing"` 精确表示模型已声明 objective 成功、但 owning Run 的最终记账与条件清除尚未完成。它保持目标占位且不可 stop/resume/start；下一次 `goals.changed` 后读取 `null` 才表示 settlement owner 已释放。Domain `complete`、Application drive 与公共 `completing` 分属各层，不互相泄露类型。
+
+Goal 管理面 additive 增加 `goals.update` 与 `goals.clear`，不改变 `protocolVersion`、Artifact version 或 SQLite epoch。
+update 在 Application drive quiescence 与 Goal CAS 边界内替换 objective，并通过 fresh incarnation 隔离旧 Run provenance；
+status/reason、model/capabilities、budget/usage 与 createdAt 不重置。clear 在相同 owner 边界内条件清除，目标已不存在时幂等成功。
+两者都不建立 Frontend standing writer：挂载 Session 仍只用 `sessions.snapshot` 修复整份 material。
 
 Knowledge 条目以内容摘要作为 opaque revision。`knowledge.list/get` 即使文件尚不存在也返回可用于首次条件创建的 revision；
 `knowledge.update` 必须携带 `expectedRevision`，在 Infra 的同路径原子替换边界比较并返回 committed Entry，不匹配以

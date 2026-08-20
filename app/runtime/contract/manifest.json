@@ -823,6 +823,36 @@
       "stability": "stable"
     },
     {
+      "name": "goals.update",
+      "kind": "unary",
+      "operation": "command",
+      "idempotency": "replayResponse",
+      "pagination": "none",
+      "errors": [
+        "session_not_found",
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "goals"
+      ],
+      "stability": "stable"
+    },
+    {
+      "name": "goals.clear",
+      "kind": "unary",
+      "operation": "command",
+      "idempotency": "replayResponse",
+      "pagination": "none",
+      "errors": [
+        "session_not_found",
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "goals"
+      ],
+      "stability": "stable"
+    },
+    {
       "name": "goals.get",
       "kind": "unary",
       "operation": "query",
@@ -1222,10 +1252,12 @@
           "codebase.reindex",
           "codebase.search",
           "codebase.status",
+          "goals.clear",
           "goals.get",
           "goals.resume",
           "goals.start",
           "goals.stop",
+          "goals.update",
           "interrupts.list",
           "items.list",
           "knowledge.get",
@@ -1481,10 +1513,12 @@
         "code": -32002,
         "recoveryAction": "refetch",
         "methods": [
+          "goals.clear",
           "goals.get",
           "goals.resume",
           "goals.start",
           "goals.stop",
+          "goals.update",
           "items.list",
           "plan.get",
           "runs.start",
@@ -1946,6 +1980,26 @@
     },
     {
       "method": "goals.start",
+      "rules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "goals.update",
+      "rules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "goals.clear",
       "rules": [
         {
           "requires": [

@@ -874,6 +874,15 @@ embedding 角色属于运行时配置（§7.6），不是每次检索的参数�
 它不是可恢复的暂停态；客户端必须保留 goal 占位、禁止 stop/resume/start，等待下一次 `goals.changed` 后回读到 `null`。
 这避免把完成声明与最终记账之间的合法状态伪装成读取失败或“没有 goal”。
 
+`goals.update{sessionId,objective}` 只编辑用户写下的 objective：Application 先收束本进程拥有的 active drive，再以 CAS
+保存新 objective incarnation；既有 status/reason、model selection、冻结 capabilities、budget、usage 与 createdAt 保持不变。
+编辑前处于 active 的 goal 在取消中的 Run 没有独立 block/complete 时继续 active；旧 incarnation 的迟到 Run 不能给新文本记账
+或改 lifecycle。`completing` 拒绝编辑，不能越过最终结算 owner。
+
+`goals.clear{sessionId}` 收束 owned drive 后按最新 version 清除 aggregate；目标已由完成结算先行清除时同样成功，因此陈旧 UI
+动作与自动完成可以幂等收敛。它不删除会话或对话历史。update 返回的 Goal 只是 mutation receipt，clear 返回 ack；挂载 Session
+的 standing Goal 仍只由 `sessions.snapshot` 整体回读，客户端不得把 mutation response 写成第二 projection owner。
+
 ---
 
 ## 8. 错误

@@ -80,6 +80,14 @@ type StartGoalRequest struct {
 	Budget    GoalBudget `json:"budget,omitzero"`
 }
 
+// UpdateGoalRequest — goals.update body. Updating the objective preserves the
+// Goal's lifecycle, accounting, model selection and budget while opening a new
+// objective incarnation so work admitted for the prior text cannot mutate it.
+type UpdateGoalRequest struct {
+	SessionID string `json:"sessionId"`
+	Objective string `json:"objective"`
+}
+
 // GoalRequest — goals.get / goals.stop / goals.resume body (keyed by session).
 type GoalRequest struct {
 	SessionID string `json:"sessionId"`

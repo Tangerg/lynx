@@ -11,6 +11,16 @@ func (r *Runtime) StartGoal(ctx context.Context, request protocol.StartGoalReque
 	return invoke[protocol.StartGoalRequest, *protocol.Goal](ctx, r, "goals.start", request, commandOptions(options))
 }
 
+// UpdateGoal revises the current Goal objective.
+func (r *Runtime) UpdateGoal(ctx context.Context, request protocol.UpdateGoalRequest, options CommandOptions) (*protocol.Goal, error) {
+	return invoke[protocol.UpdateGoalRequest, *protocol.Goal](ctx, r, "goals.update", request, commandOptions(options))
+}
+
+// ClearGoal clears autonomous Goal pursuit.
+func (r *Runtime) ClearGoal(ctx context.Context, request protocol.GoalRequest, options CommandOptions) error {
+	return invokeAck(ctx, r, "goals.clear", request, commandOptions(options))
+}
+
 // GetGoal returns the Session's current Goal, or nil when none exists.
 func (r *Runtime) GetGoal(ctx context.Context, request protocol.GoalRequest, options CallOptions) (*protocol.Goal, error) {
 	return invoke[protocol.GoalRequest, *protocol.Goal](ctx, r, "goals.get", request, callOptions(options))

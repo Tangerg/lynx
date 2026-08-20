@@ -18,9 +18,32 @@ import (
 
 type goalUseCases interface {
 	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget, capabilities run.Capabilities) (goal.Goal, error)
+	UpdateObjective(ctx context.Context, sessionID, objective string, caller run.Capabilities) (goal.Goal, error)
+	Clear(ctx context.Context, sessionID string) error
 	Resume(ctx context.Context, sessionID string, caller run.Capabilities) (goal.Goal, error)
 	Stop(ctx context.Context, sessionID string) (goal.Goal, error)
 	Current(ctx context.Context, sessionID string) (goal.Goal, bool, error)
+}
+
+// UpdateGoal revises only the current objective (goals.update).
+func (s *Server) UpdateGoal(ctx context.Context, in protocol.UpdateGoalRequest) (*protocol.Goal, error) {
+	caller, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	g, err := s.goals.UpdateObjective(ctx, in.SessionID, in.Objective, caller)
+	if uncovered, ok := errors.AsType[*goals.InsufficientCapabilitiesError](err); ok {
+		return nil, capabilityGap(uncovered.Missing)
+	}
+	if err != nil {
+		return nil, mapGoalErr(err, "goals.update")
+	}
+	return presentGoal(g)
+}
+
+// ClearGoal removes the current objective and stops its drive (goals.clear).
+func (s *Server) ClearGoal(ctx context.Context, in protocol.GoalRequest) error {
+	return mapGoalErr(s.goals.Clear(ctx, in.SessionID), "goals.clear")
 }
 
 // StartGoal opens and begins driving a goal for the session (goals.start).
@@ -92,6 +115,8 @@ func mapGoalErr(err error, method string) error {
 		return fmt.Errorf("%w: goal budget is exhausted; start a new goal to change it", protocol.ErrInvalidParams)
 	case errors.Is(err, goal.ErrNotResumable):
 		return fmt.Errorf("%w: this goal is not resumable", protocol.ErrInvalidParams)
+	case errors.Is(err, goal.ErrNotEditable):
+		return fmt.Errorf("%w: this goal is finishing and cannot be edited", protocol.ErrInvalidParams)
 	case errors.Is(err, modelref.ErrIncomplete):
 		return protocol.ErrInvalidParams
 	default:

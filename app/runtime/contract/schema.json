@@ -8594,6 +8594,21 @@
         "name"
       ]
     },
+    "UpdateGoalRequest": {
+      "type": "object",
+      "properties": {
+        "objective": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "objective",
+        "sessionId"
+      ]
+    },
     "UpdateKnowledgeRequest": {
       "type": "object",
       "properties": {

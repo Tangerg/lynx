@@ -16,6 +16,24 @@ func registerGoals(registry *Registry) {
 		return service.StartGoal(ctx, request)
 	})
 
+	Command(registry, MethodMeta{
+		Name: "goals.update", Errors: []string{protocol.ErrSessionNotFound.Error()},
+		CapabilityRules: requires(protocol.FeatureGoals), Stability: stable,
+	}, func(service interface {
+		UpdateGoal(context.Context, protocol.UpdateGoalRequest) (*protocol.Goal, error)
+	}, ctx context.Context, request protocol.UpdateGoalRequest) (*protocol.Goal, error) {
+		return service.UpdateGoal(ctx, request)
+	})
+
+	CommandAck(registry, MethodMeta{
+		Name: "goals.clear", Errors: []string{protocol.ErrSessionNotFound.Error()},
+		CapabilityRules: requires(protocol.FeatureGoals), Stability: stable,
+	}, func(service interface {
+		ClearGoal(context.Context, protocol.GoalRequest) error
+	}, ctx context.Context, request protocol.GoalRequest) error {
+		return service.ClearGoal(ctx, request)
+	})
+
 	Query(registry, MethodMeta{
 		Name: "goals.get", Errors: []string{protocol.ErrSessionNotFound.Error()},
 		// A session with no goal is not an error, so the published result admits null.

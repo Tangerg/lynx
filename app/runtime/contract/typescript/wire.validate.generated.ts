@@ -301,6 +301,7 @@ export type WireTypeName =
   | "TestProviderRequest"
   | "ToolInvocation"
   | "ToolSpec"
+  | "UpdateGoalRequest"
   | "UpdateKnowledgeRequest"
   | "UpdateMCPServerRequest"
   | "UpdateProviderRequest"
@@ -3240,6 +3241,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     parameters: record(anything()),
     safetyClass: ref(() => CHECKS.SafetyClass),
   }, ["name"]),
+  UpdateGoalRequest: object({
+    objective: text(),
+    sessionId: text(),
+  }, ["objective", "sessionId"]),
   UpdateKnowledgeRequest: object({
     content: text(),
     expectedRevision: allOf([text(), minLength(1)]),
@@ -3426,6 +3431,8 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "schedules.delete": object({}, []),
   "schedules.runNow": ref(() => CHECKS.RunScheduleNowResponse),
   "goals.start": ref(() => CHECKS.Goal),
+  "goals.update": ref(() => CHECKS.Goal),
+  "goals.clear": object({}, []),
   "goals.get": nullable(ref(() => CHECKS.Goal)),
   "goals.stop": ref(() => CHECKS.Goal),
   "goals.resume": ref(() => CHECKS.Goal),

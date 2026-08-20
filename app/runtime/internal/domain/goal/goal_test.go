@@ -134,6 +134,37 @@ func TestResumeRejectsSpentBudget(t *testing.T) {
 	}
 }
 
+func TestReviseObjectiveOpensANewIncarnationWithoutResettingGoalFacts(t *testing.T) {
+	createdAt := time.Unix(10, 0)
+	updatedAt := createdAt.Add(time.Minute)
+	g, err := New(
+		"s", "first", modelref.Selection{}, Budget{MaxRuns: 4},
+		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
+		"lease-first", createdAt,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.AddRun(0.25, 2, createdAt.Add(time.Second))
+	g.Pause(ReasonStoppedByUser, "", createdAt.Add(2*time.Second))
+
+	if err := g.ReviseObjective("second", "lease-second", updatedAt); err != nil {
+		t.Fatalf("ReviseObjective: %v", err)
+	}
+	if g.Objective != "second" || g.IncarnationID != "lease-second" {
+		t.Fatalf("revised identity = %q/%q", g.Objective, g.IncarnationID)
+	}
+	if g.Status != StatusPaused || g.Reason.Code != ReasonStoppedByUser {
+		t.Fatalf("revised lifecycle = %q/%+v", g.Status, g.Reason)
+	}
+	if g.Budget.MaxRuns != 4 || g.Used != (Usage{Runs: 1, CostUSD: 0.25, Steps: 2}) {
+		t.Fatalf("revised accounting = budget %+v used %+v", g.Budget, g.Used)
+	}
+	if !g.CreatedAt.Equal(createdAt) || !g.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("revised times = created %v updated %v", g.CreatedAt, g.UpdatedAt)
+	}
+}
+
 func TestBudgetExceeded(t *testing.T) {
 	tests := []struct {
 		name   string

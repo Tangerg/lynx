@@ -189,6 +189,9 @@ var (
 	// ErrNotResumable rejects a lifecycle transition from a terminal/transient
 	// status. A complete goal is cleared rather than revived.
 	ErrNotResumable = errors.New("goal: status is not resumable")
+	// ErrNotEditable rejects an objective edit during the transient completion
+	// settlement window. The owning drive must finish accounting and clear it.
+	ErrNotEditable = errors.New("goal: status is not editable")
 	// ErrRunIdentityConflict reports an attempt to reuse one Run identity for a
 	// different immutable Goal accounting fact. Exact retries are idempotent;
 	// conflicting retries are corruption and must never be silently accepted.
@@ -403,6 +406,26 @@ func (g *Goal) Resume(now time.Time) error {
 	}
 	g.Status = StatusActive
 	g.Reason = Reason{}
+	g.UpdatedAt = now
+	return nil
+}
+
+// ReviseObjective replaces only the user-authored objective while preserving
+// the Goal's lifecycle, frozen execution settings, accounting and creation
+// time. A fresh incarnation severs any stale Run provenance from the prior
+// objective; persistence assigns the next durable revision.
+func (g *Goal) ReviseObjective(objective, incarnationID string, now time.Time) error {
+	if objective == "" {
+		return errObjectiveRequired
+	}
+	if incarnationID == "" {
+		return fmt.Errorf("%w: incarnation ID is required", errInvalidSnapshot)
+	}
+	if g.Status == StatusComplete {
+		return ErrNotEditable
+	}
+	g.Objective = objective
+	g.IncarnationID = incarnationID
 	g.UpdatedAt = now
 	return nil
 }

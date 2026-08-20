@@ -127,6 +127,10 @@
               "signature": "func(ctx context.Context, request protocol.CancelRunRequest, options CommandOptions) (*protocol.CancelRunResponse, error)"
             },
             {
+              "name": "ClearGoal",
+              "signature": "func(ctx context.Context, request protocol.GoalRequest, options CommandOptions) error"
+            },
+            {
               "name": "Close",
               "signature": "func() error"
             },
@@ -441,6 +445,10 @@
             {
               "name": "UpdateAgentMemory",
               "signature": "func(ctx context.Context, request protocol.AgentMemoryUpdateRequest, options CommandOptions) (*protocol.AgentMemoryItem, error)"
+            },
+            {
+              "name": "UpdateGoal",
+              "signature": "func(ctx context.Context, request protocol.UpdateGoalRequest, options CommandOptions) (*protocol.Goal, error)"
             },
             {
               "name": "UpdateKnowledge",
@@ -7892,6 +7900,22 @@
               "name": "SafetyClass",
               "type": "SafetyClass",
               "tag": "json:\"safetyClass,omitempty\""
+            }
+          ]
+        },
+        {
+          "name": "UpdateGoalRequest",
+          "kind": "struct",
+          "fields": [
+            {
+              "name": "SessionID",
+              "type": "string",
+              "tag": "json:\"sessionId\""
+            },
+            {
+              "name": "Objective",
+              "type": "string",
+              "tag": "json:\"objective\""
             }
           ]
         },

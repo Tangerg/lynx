@@ -1097,6 +1097,77 @@ func TestDriverStopPausesRunningGoal(t *testing.T) {
 	}
 }
 
+func TestDriverUpdateObjectiveQuiescesAndContinuesTheActiveGoal(t *testing.T) {
+	store := newMemStore()
+	hold := make(chan struct{})
+	started := make(chan struct{}, 2)
+	fake := &fakeRuns{
+		t: t, store: store, hold: hold, started: started,
+		script: []scriptedRun{
+			{outcome: run.OutcomeCompleted},
+			{setStatus: goal.StatusComplete, outcome: run.OutcomeCompleted},
+		},
+	}
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), nil, testPrompt)
+	cleanupDriver(t, d)
+
+	first, err := d.Start(t.Context(), "s1", "first", testGoalModelSelection(), goal.Budget{}, run.Capabilities{})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("first Goal Run did not start")
+	}
+
+	updated, err := d.UpdateObjective(t.Context(), "s1", "second", run.Capabilities{})
+	if err != nil {
+		t.Fatalf("UpdateObjective: %v", err)
+	}
+	if updated.Objective != "second" || updated.Status != goal.StatusActive {
+		t.Fatalf("updated Goal = %+v", updated)
+	}
+	if updated.IncarnationID == first.IncarnationID || updated.Used.Runs != 1 {
+		t.Fatalf("updated provenance/accounting = incarnation %q used %+v", updated.IncarnationID, updated.Used)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("revised Goal did not continue with a new Run")
+	}
+	waitTestSessionGoal(t, store, func(_ goal.Goal, ok bool) bool { return !ok })
+}
+
+func TestDriverClearQuiescesAndRemovesTheActiveGoal(t *testing.T) {
+	store := newMemStore()
+	started := make(chan struct{}, 1)
+	fake := &fakeRuns{
+		t: t, store: store, hold: make(chan struct{}), started: started,
+		script: []scriptedRun{{outcome: run.OutcomeCompleted}},
+	}
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), nil, testPrompt)
+	cleanupDriver(t, d)
+
+	if _, err := d.Start(t.Context(), "s1", "clear me", testGoalModelSelection(), goal.Budget{}, run.Capabilities{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("Goal Run did not start")
+	}
+	if err := d.Clear(t.Context(), "s1"); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	if _, present, err := store.Get(t.Context(), "s1"); err != nil || present {
+		t.Fatalf("Goal after Clear: present=%t err=%v", present, err)
+	}
+	if err := d.Clear(t.Context(), "s1"); err != nil {
+		t.Fatalf("idempotent Clear: %v", err)
+	}
+}
+
 func TestDriverStopFoldsTerminalRaceBeforePausing(t *testing.T) {
 	store := newMemStore()
 	fake := &terminalRaceRuns{store: store, started: make(chan struct{})}

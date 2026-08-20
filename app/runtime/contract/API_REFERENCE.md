@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-17` (minimum supported `2026-08-17`) · 87 methods
+Protocol `2026-08-17` (minimum supported `2026-08-17`) · 89 methods
 
 ## Methods
 
@@ -71,6 +71,8 @@ Protocol `2026-08-17` (minimum supported `2026-08-17`) · 87 methods
 | `schedules.delete` | command | unary | replayResponse | none | — | `schedules` | `capability_not_negotiated` |
 | `schedules.runNow` | command | unary | replayResponse | none | — | `schedules` | `capability_not_negotiated` |
 | `goals.start` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `goals.update` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `goals.clear` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
 | `goals.get` | query | unary | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
 | `goals.stop` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
 | `goals.resume` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
@@ -686,6 +688,8 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `schedules.delete` | always | `schedules` |
 | `schedules.runNow` | always | `schedules` |
 | `goals.start` | always | `goals` |
+| `goals.update` | always | `goals` |
+| `goals.clear` | always | `goals` |
 | `goals.get` | always | `goals` |
 | `goals.stop` | always | `goals` |
 | `goals.resume` | always | `goals` |

@@ -4387,6 +4387,146 @@
       }
     },
     {
+      "name": "goals.update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "objective",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Goal"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "command",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-pagination": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "goals"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UpdateGoalRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "goals.clear",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "command",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-pagination": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "goals"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GoalRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "goals.get",
       "paramStructure": "by-name",
       "params": [
