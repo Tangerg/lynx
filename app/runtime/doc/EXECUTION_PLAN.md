@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P132 已完成并形成里程碑。
+> 状态：P0–P133 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P132 图片查看器原生保存接线、light/dark 像素收口与 Wails v3 production smoke。
+> 最近基线：2026-08-20，P133 Codex modal scope 层级收口、light/dark 像素验收与 fresh Wails v3 production smoke。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P133 已完成：当前 production Goal editor 的 scrim 在 light 下使用 22% 黑、dark 下使用 50% 黑，用户截图中的背景层级因此明显重于 Codex；本地 Codex Desktop owner 则在两种 scheme 下统一使用 `#00000022`，由 dialog surface 自己承担深度。当前 Goal editor 的 420px 几何、actions、快捷键与 attached Goal row 已与 Codex source 一致，不因历史截图重新引入旧 Goal 表单、limits chrome 或第二状态。
+- 全局 `--color-scrim` 是 modal scope 的唯一 presentation owner；light/dark 均收敛到 `#00000022`，Goal editor、Markdown table preview 等现有 dialog 自动消费同一事实，不建立 per-dialog override。红例 `f10d63d33`、根修复 `670510280` 与 golden 收口 `ab1688654` 已逐轮推送；四张受影响的 light/dark modal golden 已人工核对。
+- Frontend 324 files / 2019 tests、完整静态/构建门禁与 320 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/18px/Retina/WebKit 矩阵全绿；Runtime/Desktop test/vet/build 与 `wails3 build` 全绿。fresh SQLite epoch 76 的 production Runtime 与 Wails binary 已通过同一 `instanceId` health/info、单 listener、真实 OPTIONS/POST `/v2/rpc` 接线 smoke；历史 epoch 75 与本轮 fresh smoke 数据已退出 active data path。本批未改变 Runtime、Protocol、Artifact、SQLite shape、Frontend published SDK 或 `app/cli`。
 - P132 已完成：能力台账中长期保留的图片 Download 缺口已由本轮“全部内容渲染必须真实前后端接线”的明确授权触发。Codex 本地实现证明图片查看器默认提供 Download，但其 cloud/HTTP materialization 不适用于 Lyra；本批只采纳“显示内容先交给 Desktop 原生 save-file owner”的机制，继续拒绝远程图片与浏览器 `<a download>` 伪接线。
 - `DesktopHost.SaveImage` 是新增且唯一的 Wails v3 IPC owner：只接受前端已允许渲染的 inline image data URL，在打开原生面板前校验 MIME、解码内容并生成建议文件名；Wails adapter 把 save sheet 绑定到发起请求的 exact window，用户选定路径后才写入，取消明确返回 `false`。Frontend gallery 只经窄 adapter 调用该 owner，不取得路径、不写第二 download 状态、不增加 Runtime/Protocol/Artifact/SQLite surface。
 - lightbox 右上角现在按 Codex 工具组顺序呈现 Download、Close，二者均为 40px target；保存期间 exact action disabled/`aria-busy`，失败只给本地 toast，不向 transcript 写杂项。红例提交 `2bbc84cbe`、根修复 `b4f69c6a0` 已推送；Frontend 324 files / 2019 tests、完整静态/构建门禁与 320 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/18px/Retina/WebKit 矩阵全绿，Desktop test/vet/build 与 `wails3 build` 全绿，production binary 已启动 smoke。本批未修改 Runtime、Protocol、Artifact、SQLite、Frontend published SDK 或 `app/cli`。
@@ -60,6 +63,12 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P133 准入与完成条件（2026-08-20）
+
+- 必须从当前 production modal 形成可复现视觉红例，并以 Codex 当前产品/source owner 校准；用户旧 epoch 75 截图中的常驻 answered Question/Goal 表面不得作为兼容目标，也不得借机改变已经对齐的 Goal editor 几何、动作或 Runtime lifecycle。
+- modal scope 只能有一个 scheme-independent presentation token；dialog surface 自己拥有边框、阴影与材质深度。不得增加 Goal 专用 backdrop、第二 theme writer、refresh 旁路、定时器或交互状态。
+- 验收结论：红例 `f10d63d33`、根修复 `670510280` 与 golden 收口 `ab1688654` 已推送；light/dark computed style 均精确为 `rgba(0, 0, 0, 0.133)`，Goal editor 与 Markdown table preview 四张 golden 已更新并人工核对。Frontend 324 files / 2019 tests、全门禁与 320 项 visual 矩阵、Runtime/Desktop test/vet/build、`wails3 build` 与 fresh epoch 76 production Frontend↔Runtime RPC smoke 全绿；本批未修改或暂存 `app/cli`。
 
 ### P132 准入与完成条件（2026-08-20）
 
@@ -251,10 +260,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P130     | 新会话显式 exact-cwd                                                                                              | 顶层 New、project row 与 welcome draft 先由用户选择既有项目或目录；取消不创建隐式 home Session、不切换旧 selection、不吞 draft                                                          |
 | P131     | Narrative / Plan / Goal / typography 像素收口                                                                     | settled Question 默认折叠；Plan 固定 32px composer 槽；Goal 保持 attached tray 且不显示限制；正文与 streaming reasoning 服从 Codex 节奏和可访问滚动                                    |
 | P132     | 图片查看器原生保存                                                                                                | Download/Close 工具组与 action feedback 对齐 Codex；restricted inline image 只经 `DesktopHost.SaveImage`、exact-window native save sheet 和最终文件写入完成，不使用浏览器 fallback        |
+| P133     | Codex modal scope 层级收口                                                                                         | 全部 dialog 共用 scheme-independent `#00000022` scrim，surface 自己承担深度；Goal editor 与 table preview 不再在 dark mode 被过重遮罩压暗                                               |
 
 ## 5. 当前里程碑结论
 
-P113–P132 共同建立了以下不可回退的心智模型：
+P113–P133 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -262,6 +272,7 @@ P113–P132 共同建立了以下不可回退的心智模型：
 - `sessions.snapshot` 是挂载 Session 的原子 material owner；HITL、Plan、Goal、Run、Tool 不能再由独立 query/event/material 多路拼接。
 - Conversation 是 provider 产品上下文，Transcript 是用户可见事实，两者不要求逐条镜像；只有 Application 生成的 fresh Goal 控制输入可走 model-only opening，Frontend 不负责识别或隐藏内部提示。
 - 图片查看器是 Frontend presentation 与 Desktop packaged capability 的纵切：gallery 只提交当前已允许渲染的 inline material，`DesktopHost` 负责校验/解码，Wails save sheet 和文件写入属于 exact window owner；Runtime、浏览器下载与任意路径 API 均不参与。
+- modal interaction scope 只有一个全局 presentation owner：light/dark 都使用 `#00000022` scrim，dialog surface 自己拥有边框、材质和阴影深度；Goal、table preview 等消费者不能建立局部 backdrop 或 scheme 分叉。
 - Goal objective update 先 quiesce exact owned drive，再以 fresh incarnation/CAS 替换 durable Goal；只有原 lifecycle 为 active 才按冻结事实恢复 drive。Goal clear 在 owned drive 静止后 CAS 删除，absence 幂等成功，Frontend 只能通过同一个 per-Session Goal command owner 发起并等待权威 snapshot 收敛。
 - durable mutation 以事务 marker/identity 判断“已提交但成功回执丢失”；不得靠重试猜测或本地 optimistic 状态冒充服务端事实。
 - Run Summary、Terminal、Diff、Tool selection、Goal、Plan、审批、Session/Dock navigation 只消费所属 Session 与 generation 的权威投影。
@@ -279,7 +290,7 @@ P113–P132 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 324 files / 2019 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 320 tests 覆盖 streaming、HITL、Session/Dock、Goal、commentary/final answer、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与 `wails3 build` 全绿，production binary 已启动 smoke；Runtime/Protocol/Artifact/SQLite 本批未变，P131 以前的 fresh Runtime/SQLite epoch 76、Wails dev host、production `.app` 与 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
+最近一次完整验收基线：Frontend 324 files / 2019 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 320 tests 覆盖 streaming、HITL、Session/Dock、Goal、modal scope、commentary/final answer、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与 `wails3 build` 全绿；fresh SQLite epoch 76 的 production Runtime 与 Wails binary 已完成单 listener、同源 health/info `instanceId` 和真实 Frontend OPTIONS/POST `/v2/rpc` smoke。Runtime/Protocol/Artifact/SQLite 本批未变，P131 以前的 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
 
 ## 6. 新阶段准入
 
@@ -292,4 +303,4 @@ P113–P132 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P132 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P133 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
