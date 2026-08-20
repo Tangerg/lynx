@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P123 已完成。
+> 状态：当前能力快照；P124 已完成。
 >
 > 基线日期：2026-08-20。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P123 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip。
+- P113–P124 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip，普通工具调用统一使用透明 work-narrative row 而非状态着色卡片。
 
 ## 2. 架构与所有权
 
@@ -180,17 +180,19 @@
 | SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery                                                                                                                                                                                                                                                           |
 | Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff                                                                                                                                                                                                                                                                   |
 | Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests                                                                                                                                                                                                                                                            |
-| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 313 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
+| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 314 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
 | Production shell   | Wails v3 Go test/vet/build、production `.app` package、renderer reload、Runtime health/discovery 与 fresh database/SIGKILL smoke                                                                                                                                                                                                                             |
 
-P123 Frontend 基线为 322 files / 2001 tests；Question composer replacement、首项预选、分页/自动前进、inline descriptions、ordered Skip、pending authoritative settlement 与共享 IME classifier 红例全绿。light/dark/compact/Retina 实图与完整 visual/WCAG/keyboard/IME/CJK/Retina/WebKit 矩阵 313 tests 全绿，typecheck/lint/format/knip/circular/context/layer/API/design/token/chrome/locales/bootstrap/bundle 等全部门禁保持全绿。Runtime 全量 test/vet/build 已重跑通过；P122 的 Approval 与 P121 的调用级补丁回执能力保持不变。P123 没有改变 Protocol shape、Artifact、SQLite schema、公共 Go API、Frontend published SDK、Desktop/Wails 或 Agent Framework baseline。
+P124 Frontend 基线为 322 files / 2001 tests；普通 ToolCall 的统一 line shell、mark-first/chevron-last 顺序、closed chevron 可见性、expanded reading edge、quiet denied/error/exit metadata 与长路径读取红例全绿。light/dark/compact/Retina 实图与完整 visual/WCAG/keyboard/IME/CJK/Retina/WebKit 矩阵 314 tests 全绿，typecheck/lint/format/knip/circular/context/layer/API/design/token/chrome/locales/bootstrap/bundle 等全部门禁保持全绿。P124 只修改 Frontend presentation owner，没有改变 Runtime、Protocol shape、Artifact、SQLite schema、公共 Go API、Frontend published SDK、Desktop/Wails 或 Agent Framework baseline，因此后端与进程恢复证据沿用 P123/P119 基线。
+
+普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P123 完成定义内没有已知未闭环项。旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段、commentary/final answer phase、原生图片 Download 一样，分别等待显式 breaking-surface、Runtime public surface 或 Desktop binding 授权。
+- P124 完成定义内没有已知未闭环项。旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段、commentary/final answer phase、原生图片 Download 一样，分别等待显式 breaking-surface、Runtime public surface 或 Desktop binding 授权。
 
 ## 11. 当前结论
 
-P0–P123 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 则让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P124 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算，P124 则让普通 ToolCall 回到统一的透明 work narrative，状态不再改写层级和材质。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
