@@ -36,6 +36,7 @@ function agentMessageItem(id: string, runId: string, text: string, status: Item[
     status,
     createdAt: "2026-06-03T00:00:00Z",
     type: "agentMessage",
+    ...(status === "running" ? {} : { phase: "finalAnswer" as const }),
     content: [{ type: "text", text }],
   };
 }
