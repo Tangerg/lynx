@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P125 已完成并形成里程碑。
+> 状态：P0–P126 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P125 设置主色选择反馈与动态主题生命周期闭环。
+> 最近基线：2026-08-20，P126 Goal 权威管理与 Codex composer tray 交互闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P126 已于 2026-08-20 完成：用户前两次附件是待修错误现象，不是目标参考，已从视觉依据中完全排除；本批只以 Codex 本地解包源码和真实产品行为提取 Goal/Plan 的层级、动作顺序、尺寸与反馈机制。Plan 继续沿用已由源码确认的紧凑进度 pill，Goal 收敛为 composer attached top tray：整段 objective 可点击，右侧依次为 clear、pause/resume、edit。
+- Goal editor 对齐 Codex compact dialog：420px 宽、20px content inset、36px identity block、12 行 sans textarea、Cancel/Save 与 Cmd/Ctrl+Enter；Frontend standing UI 仍只展示 lifecycle 与 objective，不渲染限制条件、预算、用量、模型或其他结算 chrome。composition 中的 Enter 不提交编辑，所有动作共享既有 command busy/retirement owner。
+- 独立红测先证明 `goals.update` 与 `goals.clear` 在 Runtime catalog、Frontend gateway 和 Goal surface 中缺失；Runtime 现在在 quiesce exact owned drive 后以 fresh incarnation/CAS 更新 objective，只有原 lifecycle 为 active 才按冻结事实重启 drive；clear 在 drive 静止后 CAS 删除，Goal 已不存在时幂等成功，外部 owner 与 complete Goal 不被越权修改。
+- Frontend 的 update/clear 继续经过同一个 per-Session Goal command owner、generation retirement 与 mounted `sessions.snapshot` repair，没有第二 writer、乐观 Goal cache、刷新旁路或伪成功。新增合同是 additive operation，未改变 Protocol version、Artifact、SQLite epoch 或既有 durable shape。
 - P125 已于 2026-08-20 完成：production-equivalent 设置页先证明主色按钮点击会触发 `Duplicate contribution`，异常中断同一个偏好更新 listener 链，使 React 选中态、document theme painter 与持久化都收不到反馈；问题不是纯视觉弱，而是动态 custom theme 每次更新都向单键 extension point 重复注册且不退休旧 contribution。
 - P125 没有增加第二 accent state、刷新旁路或协议字段。custom theme plugin 现在只拥有一个可替换 contribution，更新时先 dispose 旧值再发布新值，plugin cleanup/HMR 同步退订 preference listener 并释放 contribution；主色控件继续由权威 preference 驱动 `aria-pressed`、实际主题和持久化，28px target、hover/press、selected ring 与 check mark 只加强同一结算事实的点击反馈。
 - P124 已于 2026-08-20 完成：production-equivalent 盲测先证明 read、shell、patch、failure 与 denied 调用仍被各自的蓝/红/黄卡片切碎，running shell 也长期占据高饱和容器；对照 Codex 本地 activity、subagent 与 exec-shell 实现后，Frontend 现在把单次工具调用统一投影为透明 work-narrative row，卡片材质只保留给 delegated Run 等真正的复合产品边界。
@@ -36,6 +40,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P126 准入与完成条件（2026-08-20）
+
+- 两张历史附件明确属于错误反馈，不作为目标截图；可见语法只从 Codex 本地解包 Goal/Plan 源码和真实产品行为提取。Goal standing UI 只呈现 lifecycle/objective，使用 attached tray、整段摘要入口和 clear/lifecycle/edit 顺序；editor 固定 420px compact surface、20px inset 与 12 行输入区，不展示限制条件、预算、用量或模型。
+- `goals.update` 与 `goals.clear` 必须是完整 Runtime vertical slice。update 先 quiesce exact owned drive，以 fresh incarnation/CAS 保存，再仅为原 active lifecycle 恢复 drive；clear 先静止 owned drive 再 CAS 删除，absence 幂等成功，foreign owner/complete objective 保持领域拒绝。新增 operation 为 additive contract，不提升 Protocol、Artifact、SQLite epoch 或公共 durable shape。
+- 红测提交 `0d65892e3`、Runtime 根修复 `676ac3b19` 与 Frontend/Codex surface 根修复 `14d556133` 已逐轮提交推送；Frontend 323 files / 2010 tests、89/89 operation families、完整 type/lint/format/knip/circular/context/layer/API/style/design/token/chrome/locales/bootstrap/bundle 门禁与 317 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/Retina/WebKit 矩阵全绿，Runtime `go test ./...`、`go vet ./...`、`go build ./...` 全绿。
+- fresh `LYRA_HOME` 的真实 HTTP 与 production page smoke 已完成 Goal create、paused projection、update、受预算领域拒绝的 resume、clear 及 `goals.get=null` 收敛；Wails v3 dev host 完成前端构建、Go 构建、开发 `.app` codesign 与 1439×899 原生窗口启动。agent-browser、Wails/Vite/Runtime 进程和临时数据库均已清理，本批未修改或暂存 `app/cli`。
 
 ### P125 准入与完成条件（2026-08-20）
 
@@ -165,23 +176,25 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P115     | 前后端可维护性治本收敛                                                                                          | durable unresolved-command、lifecycle publication、Frontend extension、Bootstrap resource 与 Runs execution handoff 各自回到唯一 owner；真实 SIGKILL 验收补齐 path-owned local credential |
 | P116     | 真实产品拓扑下的恢复与守卫校准                                                                                  | claimed Resume 由 claim owner 原子补偿；Mutation Journal 只认 durable namespace；删除不能表达架构边界的一次性 object-literal 语法守卫                                                     |
 | P117     | Desktop 恢复反馈与 Codex 对齐的三栏 UI 精修                                                                     | Work Index、transcript 与 Context Dock 服从 exact Session、reader-owned scroll 和 Runtime command capability；renderer reload 与 Runtime SIGKILL 后原窗口原 workspace 可见恢复            |
-| P118     | Desktop 左中右接线与 Codex 交互深度对齐                                                                          | 创建失败不转移焦点，compact HITL 动态净空进入唯一滚动 owner，Goal/Run 命令可辨；Context Dock 服从 640px 阅读下限并呈现 exact file identity，真实 renderer/Runtime 换代后状态与能力收敛       |
-| P119     | Desktop 前后端完整接线与 Codex 三栏深度对齐                                                                      | Plan/Goal/Steer、Work Index、统一 narrative renderer 与 Context Dock 服从权威 Session/Runtime owner；IME commit Enter、production renderer replacement 与 Runtime SIGKILL 恢复闭环       |
-| P120     | Composer stack、Context 占用与终态 narrative 精确收敛                                                            | Plan/Goal 改为 Codex 紧凑 standing surface；Context 环消费真实 `contextTokens/contextWindow`；标题栏与普通结束态移除累计统计和结算杂项                                                  |
-| P121     | 调用级补丁回执与 Codex file-change narrative                                                                      | `apply_patch` 的持久结果成为 inline preview 与 Run Summary 唯一变更事实；删除 `edit`/`write` 死路径和全工作区 diff 猜测，无权威行数时不伪造增删统计                                    |
-| P122     | Codex approval request surface 与 scoped allow 语义                                                               | pending approval 收敛为单一中性请求面；可见层只读工具身份、Runtime reason 与调用 material，scope 只随明确 scoped approve 提交，Deny 保持纯拒绝                                      |
-| P123     | Codex Question composer request 与 ordered skip 语义                                                              | pending Question 成为 composer rung 的唯一请求表面；选项、分页、IME 与 Skip 服从同一 draft/action owner，Runtime 以有序空 inner values 持久表达明确跳过                              |
-| P124     | Codex tool work narrative 与 disclosure 层级                                                                      | 普通 ToolCall 统一回到透明 activity row；identity、summary、末尾按需 chevron 与展开 material 形成一个阅读流，failure/denied 不再升级成彩色 dashboard chrome                         |
-| P125     | 设置主色选择反馈与动态 theme contribution 生命周期                                                               | preference、theme replacement、document paint、selected state 与持久化恢复同链结算；动态单键 contribution 先退休旧 owner，再发布新值，点击不再被 duplicate exception 中断        |
+| P118     | Desktop 左中右接线与 Codex 交互深度对齐                                                                         | 创建失败不转移焦点，compact HITL 动态净空进入唯一滚动 owner，Goal/Run 命令可辨；Context Dock 服从 640px 阅读下限并呈现 exact file identity，真实 renderer/Runtime 换代后状态与能力收敛    |
+| P119     | Desktop 前后端完整接线与 Codex 三栏深度对齐                                                                     | Plan/Goal/Steer、Work Index、统一 narrative renderer 与 Context Dock 服从权威 Session/Runtime owner；IME commit Enter、production renderer replacement 与 Runtime SIGKILL 恢复闭环        |
+| P120     | Composer stack、Context 占用与终态 narrative 精确收敛                                                           | Plan/Goal 改为 Codex 紧凑 standing surface；Context 环消费真实 `contextTokens/contextWindow`；标题栏与普通结束态移除累计统计和结算杂项                                                    |
+| P121     | 调用级补丁回执与 Codex file-change narrative                                                                    | `apply_patch` 的持久结果成为 inline preview 与 Run Summary 唯一变更事实；删除 `edit`/`write` 死路径和全工作区 diff 猜测，无权威行数时不伪造增删统计                                       |
+| P122     | Codex approval request surface 与 scoped allow 语义                                                             | pending approval 收敛为单一中性请求面；可见层只读工具身份、Runtime reason 与调用 material，scope 只随明确 scoped approve 提交，Deny 保持纯拒绝                                            |
+| P123     | Codex Question composer request 与 ordered skip 语义                                                            | pending Question 成为 composer rung 的唯一请求表面；选项、分页、IME 与 Skip 服从同一 draft/action owner，Runtime 以有序空 inner values 持久表达明确跳过                                   |
+| P124     | Codex tool work narrative 与 disclosure 层级                                                                    | 普通 ToolCall 统一回到透明 activity row；identity、summary、末尾按需 chevron 与展开 material 形成一个阅读流，failure/denied 不再升级成彩色 dashboard chrome                               |
+| P125     | 设置主色选择反馈与动态 theme contribution 生命周期                                                              | preference、theme replacement、document paint、selected state 与持久化恢复同链结算；动态单键 contribution 先退休旧 owner，再发布新值，点击不再被 duplicate exception 中断                 |
+| P126     | Goal 权威 update/clear 与 Codex composer tray 管理                                                              | attached tray、摘要入口与 clear/lifecycle/edit 服从 Codex 层级；update/clear 进入 Runtime 权威纵切，Frontend 不展示限制条件或建立第二 Goal writer                                         |
 
 ## 5. 当前里程碑结论
 
-P113–P125 共同建立了以下不可回退的心智模型：
+P113–P126 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
 - `sessions.snapshot` 是挂载 Session 的原子 material owner；HITL、Plan、Goal、Run、Tool 不能再由独立 query/event/material 多路拼接。
+- Goal objective update 先 quiesce exact owned drive，再以 fresh incarnation/CAS 替换 durable Goal；只有原 lifecycle 为 active 才按冻结事实恢复 drive。Goal clear 在 owned drive 静止后 CAS 删除，absence 幂等成功，Frontend 只能通过同一个 per-Session Goal command owner 发起并等待权威 snapshot 收敛。
 - durable mutation 以事务 marker/identity 判断“已提交但成功回执丢失”；不得靠重试猜测或本地 optimistic 状态冒充服务端事实。
 - Run Summary、Terminal、Diff、Tool selection、Goal、Plan、审批、Session/Dock navigation 只消费所属 Session 与 generation 的权威投影。
 - Desktop 冷启动依赖在 composition root 显式声明；Composer、Recipes 和 Workspace Events 的 session ports 不再依赖偶然安装顺序。
@@ -197,7 +210,7 @@ P113–P125 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 323 files / 2002 tests 全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 315 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P125 的真实主色选择、CSS paint、持久化、reload 恢复和反馈层级已进入该矩阵。Runtime standalone 全量 test/vet/build 沿用 P123 通过基线；Desktop/Wails production `.app` package 和 strict codesign verification 沿用 P119 恢复基线，因为 P125 未修改这些层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 323 files / 2010 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 317 tests 覆盖 streaming、HITL、Session/Dock、Goal editor、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone `go test ./...`、`go vet ./...`、`go build ./...` 全绿。fresh `LYRA_HOME` 的真实 HTTP 与 production page smoke 已完成 Goal create/update/resume domain rejection/clear 权威收敛，Wails v3 dev host 已完成 frontend/Go build、开发 `.app` codesign 与 1439×899 原生窗口启动；P119 production `.app` package、strict codesign 和 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
 
 ## 6. 新阶段准入
 
@@ -210,4 +223,4 @@ P113–P125 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P118 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P126 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
