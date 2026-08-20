@@ -202,6 +202,29 @@ test("a running Goal exposes Pause while the active turn exposes Stop", async ({
 });
 
 for (const theme of ["light", "dark"] as const) {
+  test(`Goal is a compact composer mode without duplicate fields ${theme}`, async ({ page }) => {
+    await page.goto(`/visual/?fixture=agent&theme=${theme}&state=idle`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const composerFooter = page.locator('[data-slot="composer-footer"]');
+    const input = page.getByRole("textbox", { name: "Message composer" });
+    await input.fill("/goal");
+    await input.press("Enter");
+
+    const mode = page.getByRole("button", { name: "Exit Goal mode" });
+    await expect(mode).toBeVisible();
+    await expect(mode).toHaveAttribute("aria-pressed", "true");
+    await expect(input).toHaveValue("");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("spinbutton")).toHaveCount(0);
+    await expect(composerFooter).toHaveScreenshot(`goal-composer-mode-${theme}.png`);
+
+    await mode.click();
+    await expect(mode).toHaveCount(0);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
   test(`the standing Goal opens the compact objective editor ${theme}`, async ({ page }) => {
     await page.goto(`/visual/?fixture=agent&theme=${theme}&state=running`);
     await page.locator("html[data-visual-ready]").waitFor();

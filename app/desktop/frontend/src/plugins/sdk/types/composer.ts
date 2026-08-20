@@ -56,6 +56,38 @@ export interface ComposerAttachmentSourceSpec {
   useAttachments: () => ComposerAttachment[];
 }
 
+export interface ComposerSubmitModeDraft {
+  /** Exact controlled textarea value at the submit boundary. */
+  rawText: string;
+  /** Trimmed typed text, before staged paste material is appended. */
+  text: string;
+  /** Complete textual body, including staged pasted text. */
+  body: string;
+  slash: { command: string; args: string } | null;
+  hasImages: boolean;
+  hasPastes: boolean;
+}
+
+export interface ComposerSubmitModeContext extends ComposerSubmitModeDraft {
+  /** Commit the same history + clear transaction as an accepted normal send. */
+  accept(): void;
+  /** Clear without recording history, used when a command only arms a mode. */
+  clear(): void;
+}
+
+/**
+ * A plugin-owned execution mode for the existing composer draft.
+ *
+ * The composer remains the only draft and submit-pipeline owner. A mode may
+ * claim one submit, but it must call `accept` only after its authoritative
+ * command has committed; otherwise the draft remains available for recovery.
+ */
+export interface ComposerSubmitModeSpec {
+  id: string;
+  matches(draft: ComposerSubmitModeDraft): boolean;
+  submit(context: ComposerSubmitModeContext): void;
+}
+
 /**
  * Plugin-contributed chip in the composer footer ("project · branch · mode").
  *

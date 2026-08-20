@@ -12,7 +12,10 @@ import {
 import type { PastedText } from "../domain/draft";
 import { createComposerSendIntent } from "../domain/sendIntent";
 import {
+  COMPOSER_SUBMIT_MODE,
   lookupExtensionByKey,
+  lookupExtensionOwner,
+  lookupExtensionPoint,
   lookupSlashCommandOwner,
   reportPluginError,
   SLASH_COMMAND,
@@ -49,6 +52,49 @@ export function submitComposer({
   // An image-only / paste-only send (a screenshot or a dropped blob with no
   // caption) is valid.
   if (!intent.shouldSend) return;
+
+  const modeDraft = {
+    rawText: value,
+    text: intent.text,
+    body: intent.body,
+    slash: intent.slash ? { command: intent.slash.cmd, args: intent.slash.args } : null,
+    hasImages: images.length > 0,
+    hasPastes: pastes.length > 0,
+  };
+  for (const mode of lookupExtensionPoint(COMPOSER_SUBMIT_MODE)) {
+    let matches = false;
+    try {
+      matches = mode.matches(modeDraft);
+    } catch (error) {
+      reportPluginError(
+        lookupExtensionOwner(COMPOSER_SUBMIT_MODE, mode.id) ?? "unknown",
+        "command",
+        error,
+        `composer.submitMode:${mode.id}`,
+      );
+      return;
+    }
+    if (!matches) continue;
+
+    let accepted = false;
+    const accept = () => {
+      if (accepted) return;
+      accepted = true;
+      if (intent.historyText) recordHistory(intent.historyText);
+      clear();
+    };
+    try {
+      mode.submit({ ...modeDraft, accept, clear });
+    } catch (error) {
+      reportPluginError(
+        lookupExtensionOwner(COMPOSER_SUBMIT_MODE, mode.id) ?? "unknown",
+        "command",
+        error,
+        `composer.submitMode:${mode.id}`,
+      );
+    }
+    return;
+  }
 
   // Slash routing applies only to a text command — an attached image / paste
   // isn't a command argument. A "/cmd" still routes as the command (attachments

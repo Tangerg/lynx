@@ -14,6 +14,7 @@ import type {
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
+  ComposerSubmitModeSpec,
   ContextDockDestinationSpec,
   StreamEventHandler,
   CustomEventHandler,
@@ -117,6 +118,12 @@ export const COMPOSER_KEY_BINDING = defineExtensionPoint<ComposerKeyBindingSpec>
   keying: "single",
   keyOf: (s) => s.key,
   normalizeKey: normalizeCombo,
+});
+export const COMPOSER_SUBMIT_MODE = defineExtensionPoint<ComposerSubmitModeSpec>({
+  id: "lyra.composer.submitMode",
+  capability: "composer",
+  keying: "single",
+  keyOf: (mode) => mode.id,
 });
 
 export const SHORTCUT = defineExtensionPoint<ShortcutSpec>({

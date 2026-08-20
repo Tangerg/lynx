@@ -217,8 +217,6 @@ export interface GoalToolPreview {
   objective: string;
   status: string;
   message: string;
-  budget: { runs: number; cost: number; steps: number };
-  usage: { runs: number; cost: number; steps: number };
 }
 
 /** `create_goal` and `get_goal` share the same model-facing goal view. */
@@ -228,29 +226,13 @@ export function projectGoalToolPreview(result: string | undefined): GoalToolPrev
   const objective = text(goal.objective);
   const message = text(parsed?.message);
   if (!objective && !message) return undefined;
-  const budget = record(goal.budget);
-  const usage = record(goal.usage);
   return {
     objective,
     status: text(goal.status),
     message,
-    budget: {
-      runs: number(budget.max_runs),
-      cost: number(budget.max_cost_usd),
-      steps: number(budget.max_steps),
-    },
-    usage: {
-      runs: number(usage.runs),
-      cost: number(usage.cost_usd),
-      steps: number(usage.steps),
-    },
   };
 }
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
-}
-
-function number(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

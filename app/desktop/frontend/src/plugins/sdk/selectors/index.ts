@@ -6,6 +6,7 @@
 // Open extension points — the one read API for plain reads (kernel + plugins).
 export {
   lookupExtensionByKey,
+  lookupExtensionOwner,
   lookupExtensionPoint,
   useExtensionByKey,
   useExtensionPoint,

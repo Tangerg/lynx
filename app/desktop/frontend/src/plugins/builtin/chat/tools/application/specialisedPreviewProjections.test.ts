@@ -124,7 +124,7 @@ describe("structured tool results", () => {
     expect(projectPatchChanges("not-json")).toEqual([]);
   });
 
-  it("projects the goal receipt with budget and usage in separate axes", () => {
+  it("projects only the Goal narrative needed by the content surface", () => {
     expect(
       projectGoalToolPreview(
         '{"goal":{"objective":"Ship the desktop","status":"active","budget":{"max_runs":8,"max_cost_usd":5},"usage":{"runs":2,"cost_usd":1.25,"steps":14}},"message":"Goal created."}',
@@ -133,8 +133,6 @@ describe("structured tool results", () => {
       objective: "Ship the desktop",
       status: "active",
       message: "Goal created.",
-      budget: { runs: 8, cost: 5, steps: 0 },
-      usage: { runs: 2, cost: 1.25, steps: 14 },
     });
     expect(projectGoalToolPreview('{"goal":null,"message":"No Goal exists."}')).toMatchObject({
       objective: "",

@@ -1,4 +1,5 @@
 export {
+  getAgentSessionSharedMaterial,
   registerAgentSessionSharedMaterial,
   useAgentSessionSharedMaterial,
 } from "../application/ports/sessionSharedMaterial";

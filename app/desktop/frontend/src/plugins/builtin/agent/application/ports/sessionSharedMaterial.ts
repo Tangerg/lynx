@@ -61,3 +61,10 @@ export function stageAgentSessionSharedMaterial<T>(
 export function useAgentSessionSharedMaterial<T>(path: string): AgentSharedMaterial<T> {
   return agentSessionView().useSharedMaterial<T>(path);
 }
+
+/** Read one already-mounted companion value at an action boundary. This is the
+ * imperative sibling of `useAgentSessionSharedMaterial`; it never starts a
+ * query or writes a second projection. */
+export function getAgentSessionSharedMaterial<T>(sessionId: string, path: string): T | undefined {
+  return agentSessionView().getSession(sessionId)?.view.shared[path] as T | undefined;
+}

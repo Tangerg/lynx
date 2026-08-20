@@ -1,40 +1,37 @@
 import { contributeLayout, definePlugin, notifyError, type SlashCommandSpec } from "@/plugins/sdk";
-import { SLASH_COMMAND, TOOL_STANDING_SURFACE } from "@/plugins/sdk/kernelPoints";
+import {
+  COMPOSER_SUBMIT_MODE,
+  SLASH_COMMAND,
+  TOOL_STANDING_SURFACE,
+} from "@/plugins/sdk/kernelPoints";
 import { t } from "@/lib/i18n";
-import { requestGoalLauncher } from "./adapters/goalLauncherRequest";
+import { rpcErrorText } from "@/lib/rpcErrors";
 import { installGoalRuntimeAdapter } from "./adapters/runtimeGoalCommandsGateway";
 import { GoalStatusSurface } from "./ui/GoalStatusSurface";
-import { GoalLauncher } from "./ui/GoalLauncher";
+import { GoalModeIndicator } from "./ui/GoalModeIndicator";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
+import { getActiveSessionId } from "@/plugins/builtin/agent/public/session";
+import { getAgentSessionSharedMaterial } from "@/plugins/builtin/agent/public/sessionMaterial";
+import { getComposerText } from "@/plugins/builtin/chat/composer/public/draft";
+import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
+import { selectedComposerModelPreference } from "@/plugins/builtin/chat/composer/public/modelPreference";
+import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
+import { goalCommandWasRetired, startGoal } from "./application/goalCommands";
+import { GoalComposerModeOwner } from "./application/goalComposerMode";
+import { createGoalComposerSubmitMode } from "./application/goalComposerSubmitMode";
+import type { GoalState } from "./application/goalReadModel";
 
 const GOAL_SURFACE = "composer.overlay.top:goal";
 
-/**
- * A keyboard way in. The launcher is otherwise reachable only by clicking one small
- * glyph, which is itself disabled until something has been typed beside it — so the
- * objective had to be written in the composer and then moved into the form.
- *
- * `/goal ship the Linux gate` writes it straight into the form with the limits still
- * to confirm. Deliberately not a one-keystroke start: this hands the runtime an
- * allowance to spend unattended.
- *
- * `description` carries the KEY. The suggestion list resolves it (`t(spec.description)`),
- * so a spec that arrived already translated would be frozen in whatever language was
- * loaded when the plugin registered.
- */
 const GOAL_SLASH_COMMAND: SlashCommandSpec = {
   description: "slash.goal",
-  run: ({ args }) => {
-    // Nothing listening means no launcher is mounted, which is the same fact as
-    // "a goal cannot be set here right now" — see requestGoalLauncher.
-    if (!requestGoalLauncher(args.trim())) notifyError(t("goal.error.unavailable"));
-  },
 };
 
 export default definePlugin({
   name: "lyra.builtin.goal",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
+    const composerMode = GoalComposerModeOwner.install();
     let connectionGeneration = ctx.runtime.connectionGeneration();
     const runtimeAdapter = installGoalRuntimeAdapter(connectionGeneration !== null);
     const unsubscribeRuntime = ctx.runtime.subscribeConnection(() => {
@@ -52,11 +49,10 @@ export default definePlugin({
       order: 10,
       component: GoalStatusSurface,
     });
-    contributeLayout(ctx, "composer.toolbar.end", {
-      // Before Send because Goal mode changes how the draft is executed.
-      id: "goal-launcher",
-      order: 90,
-      component: GoalLauncher,
+    contributeLayout(ctx, "composer.toolbar.start", {
+      id: "goal-mode",
+      order: 4,
+      component: GoalModeIndicator,
     });
     // Setting the goal and reading it back are both answered by the quiet standing
     // row, which carries only the objective, lifecycle and action available now.
@@ -67,9 +63,26 @@ export default definePlugin({
     for (const key of ["create_goal", "get_goal"]) {
       ctx.contribute(TOOL_STANDING_SURFACE, GOAL_SURFACE, { key });
     }
+    ctx.contribute(
+      COMPOSER_SUBMIT_MODE,
+      createGoalComposerSubmitMode(composerMode, {
+        activeSessionId: getActiveSessionId,
+        composerText: getComposerText,
+        goalState: (sessionId) => getAgentSessionSharedMaterial<GoalState>(sessionId, "goal"),
+        runtimeAvailable: runtimeCommandsAvailable,
+        modelPreference: selectedComposerModelPreference,
+        start: startGoal,
+        focusComposer,
+        reportUnavailable: () => notifyError(t("goal.error.unavailable")),
+        reportUnsupportedAttachments: () => notifyError(t("goal.error.attachmentsUnsupported")),
+        reportStartError: (error) => notifyError(rpcErrorText(error) ?? t("goal.error.start")),
+        retired: goalCommandWasRetired,
+      }),
+    );
     ctx.contribute(SLASH_COMMAND, GOAL_SLASH_COMMAND, { key: "/goal" });
     ctx.cleanup(() => {
       unsubscribeRuntime();
+      composerMode.dispose();
       runtimeAdapter.dispose();
     });
   },
