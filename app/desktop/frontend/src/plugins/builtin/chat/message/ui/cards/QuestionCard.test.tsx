@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QuestionCard } from "./QuestionCard";
 
@@ -35,7 +35,7 @@ describe("QuestionCard choice semantics", () => {
 
     expect(screen.getByRole("radiogroup", { name: "Which gate should run next?" })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /Race detector/ }).getAttribute("aria-checked")).toBe(
-      "false",
+      "true",
     );
   });
 
@@ -104,8 +104,8 @@ describe("QuestionCard choice semantics", () => {
     );
   });
 
-  it("renders only the selected single-choice preview in a comparison sidecar", () => {
-    render(
+  it("uses the question as the only request heading and keeps option detail inline", () => {
+    const { container } = render(
       <QuestionCard
         status="requires-action"
         runId="run-1"
@@ -118,19 +118,34 @@ describe("QuestionCard choice semantics", () => {
             multiple: false,
             allowCustom: false,
             options: [
-              { label: "Race detector", description: "", preview: "race-preview" },
-              { label: "Visual suite", description: "", preview: "visual-preview" },
+              {
+                label: "Race detector",
+                description: "Exercise concurrency paths.",
+                preview: "race-preview",
+              },
+              {
+                label: "Visual suite",
+                description: "Verify visual states.",
+                preview: "visual-preview",
+              },
             ],
           },
         ]}
       />,
     );
 
-    fireEvent.click(screen.getByText("Race detector").closest("button")!);
-
-    expect(screen.getByRole("region", { name: "Race detector" }).textContent).toContain(
-      "race-preview",
+    const surface = container.querySelector<HTMLElement>('[data-slot="question-request-surface"]');
+    expect(surface).not.toBeNull();
+    expect(
+      within(surface!).getByRole("heading", { name: "Which gate should run next?" }),
+    ).toBeTruthy();
+    expect(within(surface!).getByRole("radio", { name: /Race detector/ }).textContent).toContain(
+      "Exercise concurrency paths.",
     );
+    expect(screen.queryByText("Input needed")).toBeNull();
+    expect(screen.queryByText("Gate")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Race detector" })).toBeNull();
+    expect(screen.queryByText("race-preview")).toBeNull();
     expect(screen.queryByText("visual-preview")).toBeNull();
   });
 

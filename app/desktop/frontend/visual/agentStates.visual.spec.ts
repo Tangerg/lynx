@@ -88,26 +88,39 @@ test("question settlement uses the exact interrupt identity", async ({ page }) =
   await page.goto("/visual/?fixture=agent&theme=light&state=question");
   await page.locator("html[data-visual-ready]").waitFor();
 
+  const request = page.locator('[data-slot="question-request-surface"]');
+  await expect(request).toBeVisible();
+  await expect(request).toHaveCSS("border-radius", "24px");
+  await expect(page.locator('[data-slot="composer-root"]')).toHaveCount(0);
+  await expect(page.getByText("Input needed", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Gate", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: /Race detector/ })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+
   await page.getByRole("radio", { name: /Race detector/ }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
   await page
     .getByRole("textbox", { name: "What should this gate protect?" })
     .fill("Runtime boundaries and cancellation paths.");
-  await page.getByRole("button", { name: "Submit" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
 
   await expect(page.getByText("Answered", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-run", "run_root");
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-item", "item_question");
 });
 
-test("a selected question option owns the comparison preview", async ({ page }) => {
+test("question choices keep their descriptions inline without a comparison sidecar", async ({
+  page,
+}) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=question");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  await page.getByRole("radio", { name: /Race detector/ }).click();
-
-  const preview = page.getByRole("region", { name: "Race detector" });
-  await expect(preview).toContainText("go test -race ./...");
+  await expect(page.getByRole("radio", { name: /Race detector/ })).toContainText(
+    "Exercise concurrency and cancellation paths.",
+  );
+  await expect(page.getByRole("region", { name: "Race detector" })).toHaveCount(0);
+  await expect(page.getByText("go test -race ./...")).toHaveCount(0);
   await expect(page.getByText("npm run test:visual")).toHaveCount(0);
   await expect(page).toHaveScreenshot("agent-light-question-preview.png");
 });
