@@ -21,6 +21,7 @@ type Input struct {
 	FinishedAt        time.Time
 	ExecutionDuration *time.Duration
 	Kind              transcript.ItemKind
+	MessagePhase      transcript.MessagePhase
 	OccurredAt        time.Time
 	Content           []transcript.ContentBlock
 	Text              string
@@ -55,6 +56,9 @@ func MustRestore(input Input) transcript.Item {
 		if len(input.Content) == 0 {
 			input.Content = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "fixture"}}
 		}
+		if input.Kind == transcript.AgentMessage && input.MessagePhase == transcript.MessagePhaseNone {
+			input.MessagePhase = transcript.MessageFinalAnswer
+		}
 	case transcript.Reasoning:
 		input.Status = transcript.ItemCompleted
 		if input.Text == "" {
@@ -87,7 +91,7 @@ func MustRestore(input Input) transcript.Item {
 			OccurredAt: input.OccurredAt,
 		},
 		Status: input.Status, FinishedAt: input.FinishedAt,
-		ExecutionDuration: input.ExecutionDuration, Kind: input.Kind,
+		ExecutionDuration: input.ExecutionDuration, Kind: input.Kind, MessagePhase: input.MessagePhase,
 		Content: input.Content, Text: input.Text, Redacted: input.Redacted,
 		Question: input.Question, Tool: input.Tool, SafetyClass: input.SafetyClass,
 		ApprovalDecision: input.ApprovalDecision,

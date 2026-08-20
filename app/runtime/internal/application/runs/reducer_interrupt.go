@@ -16,7 +16,7 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 	if err := e.validate(); err != nil {
 		return factReduction{}, err
 	}
-	out, err := r.closeStreaming()
+	out, err := r.closeStreaming(transcript.MessageCommentary)
 	if err != nil {
 		return factReduction{}, err
 	}
@@ -134,7 +134,7 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 // a suspended sibling from the Run that owns the barrier. Logical Tool Items stay
 // running across the barrier while their segment-scoped attempts end incomplete.
 func (r *reducer) suspend(duration time.Duration) (factReduction, error) {
-	out, err := r.closeStreaming()
+	out, err := r.closeStreaming(transcript.MessageCommentary)
 	if err != nil {
 		return factReduction{}, err
 	}

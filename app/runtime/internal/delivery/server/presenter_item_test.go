@@ -49,7 +49,8 @@ func TestPresentToolCallTiming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if body := string(encoded); !strings.Contains(body, `"createdAt"`) || strings.Contains(body, `"startedAt"`) {
+	if body := string(encoded); !strings.Contains(body, `"createdAt"`) ||
+		!strings.Contains(body, `"phase":"finalAnswer"`) || strings.Contains(body, `"startedAt"`) {
 		t.Fatalf("message wire timing is not exclusive: %s", body)
 	}
 }

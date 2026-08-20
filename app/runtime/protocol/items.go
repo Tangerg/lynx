@@ -97,6 +97,17 @@ const (
 	ItemTypeCompaction   ItemType = "compaction"
 )
 
+// MessagePhase is the authored role of an AgentMessage inside one Run. A
+// commentary message precedes more model or Tool work; finalAnswer is the
+// terminal response. It is absent from the provisional running shell and
+// required on a terminal AgentMessage.
+type MessagePhase string
+
+const (
+	MessagePhaseCommentary  MessagePhase = "commentary"
+	MessagePhaseFinalAnswer MessagePhase = "finalAnswer"
+)
+
 // SafetyClass is a tool's mutation risk (API.md §4.4): safe (read-only),
 // write (mutates the workspace), exec (runs arbitrary commands), network
 // (reaches off-host). Carried on a toolCall Item and on a client-supplied
@@ -142,7 +153,8 @@ const (
 // AgentMessage/Reasoning start exists only as a stream rendering anchor, while
 // ToolCall is the only variant with a durable running lifecycle.
 //
-//	userMessage / agentMessage → Content
+//	userMessage                → Content
+//	agentMessage               → Phase, Content
 //	reasoning                  → Text, Redacted
 //	question                   → Question
 //	toolCall                   → Tool, SafetyClass, ApprovalDecision, Error
@@ -165,6 +177,7 @@ type Item struct {
 	DurationMillis *int64    `json:"durationMillis,omitempty"`
 
 	Content     []ContentBlock  `json:"content,omitempty"`
+	Phase       MessagePhase    `json:"phase,omitempty"`
 	Text        string          `json:"text,omitempty"`
 	Redacted    bool            `json:"redacted,omitempty"`
 	Question    *Question       `json:"question,omitempty"`

@@ -2795,6 +2795,7 @@
             "createdAt"
           ],
           "optional": [
+            "phase",
             "content"
           ]
         },
@@ -3530,7 +3531,8 @@
             "id",
             "runId",
             "status",
-            "createdAt"
+            "createdAt",
+            "phase"
           ],
           "optional": [
             "content"
@@ -3718,6 +3720,57 @@
           ],
           "required": [
             "finishedAt"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "agentMessage"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "running"
+            }
+          ],
+          "forbidden": [
+            "phase"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "agentMessage"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "completed"
+            }
+          ],
+          "required": [
+            "phase"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "agentMessage"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "incomplete"
+            }
+          ],
+          "required": [
+            "phase"
           ]
         }
       ]
@@ -4414,11 +4467,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(19)"
+          "constraint": "minimum(20)"
         },
         {
           "field": "version",
-          "constraint": "maximum(19)"
+          "constraint": "maximum(20)"
         }
       ]
     },

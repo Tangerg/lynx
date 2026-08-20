@@ -182,6 +182,7 @@ export type WireTypeName =
   | "MCPTool"
   | "MCPTransport"
   | "ManagedSkill"
+  | "MessagePhase"
   | "Modality"
   | "Model"
   | "ModelCapabilities"
@@ -456,6 +457,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       error: ref(() => CHECKS.ArtifactProblem),
       finishedAt: text(),
       id: text(),
+      phase: ref(() => CHECKS.MessagePhase),
       question: ref(() => CHECKS.ArtifactQuestion),
       redacted: flag(),
       runId: text(),
@@ -474,6 +476,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
@@ -497,7 +500,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         text: absent(),
         tool: absent(),
         type: literal("agentMessage"),
-      }, ["createdAt", "id", "runId", "status", "type"]),
+      }, ["createdAt", "id", "phase", "runId", "status", "type"]),
       fields({
         approvalDecision: absent(),
         content: absent(),
@@ -505,6 +508,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         question: absent(),
         safetyClass: absent(),
         startedAt: absent(),
@@ -519,6 +523,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         redacted: absent(),
         safetyClass: absent(),
         startedAt: absent(),
@@ -531,6 +536,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         content: absent(),
         createdAt: absent(),
         droppedMessages: absent(),
+        phase: absent(),
         question: absent(),
         redacted: absent(),
         summary: absent(),
@@ -543,6 +549,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
@@ -1250,6 +1257,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       error: ref(() => CHECKS.ProblemData),
       finishedAt: text(),
       id: text(),
+      phase: ref(() => CHECKS.MessagePhase),
       question: ref(() => CHECKS.Question),
       redacted: flag(),
       runId: text(),
@@ -1268,6 +1276,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
@@ -1299,6 +1308,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         question: absent(),
         safetyClass: absent(),
         startedAt: absent(),
@@ -1313,6 +1323,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         redacted: absent(),
         safetyClass: absent(),
         startedAt: absent(),
@@ -1325,6 +1336,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         content: absent(),
         createdAt: absent(),
         droppedMessages: absent(),
+        phase: absent(),
         question: absent(),
         redacted: absent(),
         summary: absent(),
@@ -1337,6 +1349,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
+        phase: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
@@ -1369,6 +1382,29 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("toolCall"),
       }, ["status", "type"]),
       fields({}, ["finishedAt"]),
+    ),
+    ifThen(
+      fields({
+        status: literal("running"),
+        type: literal("agentMessage"),
+      }, ["status", "type"]),
+      fields({
+        phase: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({
+        status: literal("completed"),
+        type: literal("agentMessage"),
+      }, ["status", "type"]),
+      fields({}, ["phase"]),
+    ),
+    ifThen(
+      fields({
+        status: literal("incomplete"),
+        type: literal("agentMessage"),
+      }, ["status", "type"]),
+      fields({}, ["phase"]),
     ),
   ]),
   ItemDelta: allOf([
@@ -1738,6 +1774,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     lifecycle: ref(() => CHECKS.SkillLifecycle),
     name: text(),
   }, ["lifecycle", "name"]),
+  MessagePhase: enumOf(["commentary", "finalAnswer"]),
   Modality: enumOf(["text", "image", "audio", "video", "pdf"]),
   Model: object({
     capabilities: ref(() => CHECKS.ModelCapabilities),
@@ -2996,7 +3033,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(19), maximum(19)]),
+    version: allOf([integer(), minimum(20), maximum(20)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionSnapshot: object({
     goal: ref(() => CHECKS.Goal),

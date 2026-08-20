@@ -160,10 +160,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 19 preserves exact human decisions on ToolCall transcript facts as
-// well as accepted Question answers. Auto-approved tools remain distinguishable
-// from calls a person explicitly approved.
-const SessionArtifactVersion = 19
+// Version 20 preserves the authored AgentMessage phase in addition to exact
+// ToolCall decisions and accepted Question answers. Commentary and final answers
+// therefore recover into the same narrative grouping they had live.
+const SessionArtifactVersion = 20
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -329,6 +329,7 @@ type ArtifactItem struct {
 	DurationMillis *int64    `json:"durationMillis,omitempty"`
 
 	Content          []ArtifactContentBlock  `json:"content,omitempty"`
+	Phase            MessagePhase            `json:"phase,omitempty"`
 	Text             string                  `json:"text,omitempty"`
 	Redacted         bool                    `json:"redacted,omitempty"`
 	Question         *ArtifactQuestion       `json:"question,omitempty"`

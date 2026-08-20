@@ -220,7 +220,7 @@ func registerItemUnions(s *Shapes) {
 		Discriminator: "type",
 		Variants: []VariantSpec{
 			{Tag: string(protocol.ItemTypeUserMessage), Required: createdItemFields, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"phase", "content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
 			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "approvalDecision", "error"}},
@@ -424,7 +424,7 @@ func registerArtifactUnions(s *Shapes) {
 		Discriminator: "type",
 		Variants: []VariantSpec{
 			{Tag: string(protocol.ItemTypeUserMessage), Required: createdItemFields, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeAgentMessage), Required: slices.Concat(createdItemFields, []string{"phase"}), Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
 			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "approvalDecision", "error"}},
@@ -476,27 +476,49 @@ func registerObjectConstraints(s *Shapes) {
 		typeOf[protocol.Item](),
 		typeOf[protocol.ArtifactItem](),
 	} {
-		s.constraint(ObjectConstraintSpec{
-			GoType: target,
-			Rules: []PresenceRule{{
+		rules := []PresenceRule{{
+			When: []operation.FieldCondition{
+				{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+				{Field: "status", Operator: operation.OperatorEquals, Value: string(protocol.ItemStatusRunning)},
+			},
+			Forbidden: []string{"finishedAt", "durationMillis"},
+		}, {
+			When: []operation.FieldCondition{
+				{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+				{Field: "status", Operator: operation.OperatorEquals, Value: string(protocol.ItemStatusCompleted)},
+			},
+			Required: []string{"finishedAt"},
+		}, {
+			When: []operation.FieldCondition{
+				{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+				{Field: "status", Operator: operation.OperatorEquals, Value: string(protocol.ItemStatusIncomplete)},
+			},
+			Required: []string{"finishedAt"},
+		}}
+		if target == typeOf[protocol.Item]() {
+			rules = append(rules, PresenceRule{
 				When: []operation.FieldCondition{
-					{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+					{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeAgentMessage)},
 					{Field: "status", Operator: operation.OperatorEquals, Value: string(protocol.ItemStatusRunning)},
 				},
-				Forbidden: []string{"finishedAt", "durationMillis"},
-			}, {
+				Forbidden: []string{"phase"},
+			}, PresenceRule{
 				When: []operation.FieldCondition{
-					{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+					{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeAgentMessage)},
 					{Field: "status", Operator: operation.OperatorEquals, Value: string(protocol.ItemStatusCompleted)},
 				},
-				Required: []string{"finishedAt"},
-			}, {
+				Required: []string{"phase"},
+			}, PresenceRule{
 				When: []operation.FieldCondition{
-					{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+					{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.ItemTypeAgentMessage)},
 					{Field: "status", Operator: operation.OperatorEquals, Value: string(protocol.ItemStatusIncomplete)},
 				},
-				Required: []string{"finishedAt"},
-			}},
+				Required: []string{"phase"},
+			})
+		}
+		s.constraint(ObjectConstraintSpec{
+			GoType: target,
+			Rules:  rules,
 		})
 	}
 

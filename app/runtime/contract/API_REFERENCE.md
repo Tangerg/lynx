@@ -241,7 +241,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 | tag | required | optional |
 | --- | --- | --- |
 | `userMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
-| `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
+| `agentMessage` | `id`, `runId`, `status`, `createdAt` | `phase`, `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
 | `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `approvalDecision`, `error` |
@@ -430,7 +430,7 @@ Forbidden on every variant: `durable`.
 | tag | required | optional |
 | --- | --- | --- |
 | `userMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
-| `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
+| `agentMessage` | `id`, `runId`, `status`, `createdAt`, `phase` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
 | `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `approvalDecision`, `error` |
@@ -468,8 +468,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(19)` |
-| `SessionArtifact` | `version` | `maximum(19)` |
+| `SessionArtifact` | `version` | `minimum(20)` |
+| `SessionArtifact` | `version` | `maximum(20)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMillis` | `nonNegative` |

@@ -1307,6 +1307,16 @@
           "value": "32"
         },
         {
+          "name": "MessagePhaseCommentary",
+          "type": "MessagePhase",
+          "value": "\"commentary\""
+        },
+        {
+          "name": "MessagePhaseFinalAnswer",
+          "type": "MessagePhase",
+          "value": "\"finalAnswer\""
+        },
+        {
           "name": "MinProtocolVersion",
           "type": "untyped string",
           "value": "\"2026-08-17\""
@@ -1784,7 +1794,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "19"
+          "value": "20"
         },
         {
           "name": "SessionStatusIdle",
@@ -2577,6 +2587,11 @@
               "name": "Content",
               "type": "[]ArtifactContentBlock",
               "tag": "json:\"content,omitempty\""
+            },
+            {
+              "name": "Phase",
+              "type": "MessagePhase",
+              "tag": "json:\"phase,omitempty\""
             },
             {
               "name": "Text",
@@ -4836,6 +4851,11 @@
               "tag": "json:\"content,omitempty\""
             },
             {
+              "name": "Phase",
+              "type": "MessagePhase",
+              "tag": "json:\"phase,omitempty\""
+            },
+            {
               "name": "Text",
               "type": "string",
               "tag": "json:\"text,omitempty\""
@@ -5697,6 +5717,11 @@
               "tag": "json:\"lifecycle\""
             }
           ]
+        },
+        {
+          "name": "MessagePhase",
+          "kind": "defined",
+          "underlying": "string"
         },
         {
           "name": "Modality",

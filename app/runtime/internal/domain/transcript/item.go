@@ -49,6 +49,7 @@ type Item struct {
 	finishedAt        time.Time
 	executionDuration *time.Duration
 	kind              ItemKind
+	messagePhase      MessagePhase
 	content           []ContentBlock
 	text              string
 	redacted          bool
@@ -69,6 +70,7 @@ type ItemSnapshot struct {
 	FinishedAt        time.Time
 	ExecutionDuration *time.Duration
 	Kind              ItemKind
+	MessagePhase      MessagePhase
 	Content           []ContentBlock
 	Text              string
 	Redacted          bool
@@ -87,8 +89,11 @@ func NewUserMessage(identity ItemIdentity, content []ContentBlock) (Item, error)
 }
 
 // NewAgentMessage constructs a complete agent message.
-func NewAgentMessage(identity ItemIdentity, content []ContentBlock) (Item, error) {
-	return newMessage(identity, AgentMessage, content)
+func NewAgentMessage(identity ItemIdentity, phase MessagePhase, content []ContentBlock) (Item, error) {
+	return RestoreItem(ItemSnapshot{
+		Identity: identity, Status: ItemCompleted, Kind: AgentMessage,
+		MessagePhase: phase, Content: content,
+	})
 }
 
 func newMessage(identity ItemIdentity, kind ItemKind, content []ContentBlock) (Item, error) {
@@ -137,7 +142,8 @@ func RestoreItem(snapshot ItemSnapshot) (Item, error) {
 	item := Item{
 		identity: snapshot.Identity, status: snapshot.Status, finishedAt: snapshot.FinishedAt.UTC(),
 		executionDuration: cloneDuration(snapshot.ExecutionDuration),
-		kind:              snapshot.Kind, content: CloneContent(snapshot.Content), text: snapshot.Text,
+		kind:              snapshot.Kind, messagePhase: snapshot.MessagePhase,
+		content: CloneContent(snapshot.Content), text: snapshot.Text,
 		redacted: snapshot.Redacted, question: cloneQuestion(snapshot.Question),
 		tool: cloneToolInvocation(snapshot.Tool), safetyClass: snapshot.SafetyClass,
 		approvalDecision: snapshot.ApprovalDecision,
@@ -155,7 +161,8 @@ func (item Item) Snapshot() ItemSnapshot {
 	return ItemSnapshot{
 		Identity: item.identity, Status: item.status, FinishedAt: item.finishedAt,
 		ExecutionDuration: cloneDuration(item.executionDuration),
-		Kind:              item.kind, Content: CloneContent(item.content), Text: item.text,
+		Kind:              item.kind, MessagePhase: item.messagePhase,
+		Content: CloneContent(item.content), Text: item.text,
 		Redacted: item.redacted, Question: cloneQuestion(item.question),
 		Tool: cloneToolInvocation(item.tool), SafetyClass: item.safetyClass,
 		ApprovalDecision: item.approvalDecision,
@@ -316,9 +323,16 @@ func (item Item) Validate() error {
 		}
 	}
 	switch item.kind {
-	case UserMessage, AgentMessage:
+	case UserMessage:
 		if item.status != ItemCompleted || len(item.content) == 0 {
 			return errors.New("transcript: message must be complete with content")
+		}
+	case AgentMessage:
+		if item.status != ItemCompleted || len(item.content) == 0 {
+			return errors.New("transcript: message must be complete with content")
+		}
+		if !item.messagePhase.Valid() {
+			return fmt.Errorf("transcript: unknown AgentMessage phase %d", item.messagePhase)
 		}
 	case Reasoning:
 		if item.status != ItemCompleted || item.text == "" {
@@ -405,6 +419,7 @@ func (item Item) rejectDisallowedPayload() error {
 		name  string
 	}{
 		{item.kind != UserMessage && item.kind != AgentMessage && len(item.content) != 0, "content"},
+		{item.kind != AgentMessage && item.messagePhase != MessagePhaseNone, "AgentMessage phase"},
 		{item.kind != Reasoning && item.text != "", "text"},
 		{item.kind != Reasoning && item.redacted, "redacted"},
 		{item.kind != QuestionItem && item.question != nil, "question"},
@@ -519,6 +534,7 @@ func (item Item) ExecutionDuration() (time.Duration, bool) {
 	return *item.executionDuration, true
 }
 func (item Item) Kind() ItemKind                      { return item.kind }
+func (item Item) MessagePhase() MessagePhase          { return item.messagePhase }
 func (item Item) Content() []ContentBlock             { return CloneContent(item.content) }
 func (item Item) Text() string                        { return item.text }
 func (item Item) Redacted() bool                      { return item.redacted }

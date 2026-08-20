@@ -71,6 +71,34 @@ func (kind ItemKind) String() string {
 	}
 }
 
+// MessagePhase names the semantic role of one AgentMessage in a model turn.
+// Commentary is progress or a preamble before more work; FinalAnswer is the
+// terminal response a completed Run leaves with the user. The phase is authored
+// at the model-call boundary and survives every transcript representation.
+type MessagePhase uint8
+
+const (
+	MessagePhaseNone MessagePhase = iota
+	MessageCommentary
+	MessageFinalAnswer
+)
+
+// Valid reports whether phase is one of the two authored AgentMessage roles.
+func (phase MessagePhase) Valid() bool {
+	return phase == MessageCommentary || phase == MessageFinalAnswer
+}
+
+func (phase MessagePhase) String() string {
+	switch phase {
+	case MessageCommentary:
+		return "commentary"
+	case MessageFinalAnswer:
+		return "finalAnswer"
+	default:
+		return "unknown"
+	}
+}
+
 // SequencedItem pairs a history Item with its position in the session's durable
 // append order — the total order a paged read continues along, and the only one
 // that is exact: occurrence timestamps tie, and an imported transcript can carry

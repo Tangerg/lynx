@@ -57,6 +57,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[protocol.ItemScopeType]():                     {string(protocol.ItemScopeSession), string(protocol.ItemScopeRun)},
 	reflect.TypeFor[protocol.ItemStatus]():                        {string(protocol.ItemStatusRunning), string(protocol.ItemStatusCompleted), string(protocol.ItemStatusIncomplete)},
 	reflect.TypeFor[protocol.ItemType]():                          {string(protocol.ItemTypeUserMessage), string(protocol.ItemTypeAgentMessage), string(protocol.ItemTypeReasoning), string(protocol.ItemTypeQuestion), string(protocol.ItemTypeToolCall), string(protocol.ItemTypeCompaction)},
+	reflect.TypeFor[protocol.MessagePhase]():                      {string(protocol.MessagePhaseCommentary), string(protocol.MessagePhaseFinalAnswer)},
 	reflect.TypeFor[protocol.MCPSecretChangeType]():               {string(protocol.MCPSecretSet), string(protocol.MCPSecretClear)},
 	reflect.TypeFor[protocol.MCPAuthorizationAttemptStatusType](): {string(protocol.MCPAuthorizationAttemptPending), string(protocol.MCPAuthorizationAttemptSucceeded), string(protocol.MCPAuthorizationAttemptFailed), string(protocol.MCPAuthorizationAttemptCanceled)},
 	reflect.TypeFor[protocol.MCPServerStateType]():                {string(protocol.MCPServerDisabled), string(protocol.MCPServerDisconnected), string(protocol.MCPServerConnecting), string(protocol.MCPServerConnected), string(protocol.MCPServerFailed), string(protocol.MCPServerNeedsAuth)},

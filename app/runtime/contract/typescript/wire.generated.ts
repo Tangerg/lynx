@@ -160,7 +160,7 @@ export type ArtifactContentBlock =
 
 export type ArtifactItem =
   | { type: "userMessage"; content?: ArtifactContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
-  | { type: "agentMessage"; content?: ArtifactContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
+  | { type: "agentMessage"; content?: ArtifactContentBlock[]; createdAt: string; id: string; phase: MessagePhase; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
   | { type: "question"; createdAt: string; id: string; question?: ArtifactQuestion; runId: string; status: ItemStatus }
   | { type: "toolCall"; approvalDecision?: ApprovalDecision; durationMillis?: number; error?: ArtifactProblem; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ArtifactToolInvocation }
@@ -688,7 +688,7 @@ export interface InvokeToolRequest {
 
 export type Item =
   | { type: "userMessage"; content?: ContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
-  | { type: "agentMessage"; content?: ContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
+  | { type: "agentMessage"; content?: ContentBlock[]; createdAt: string; id: string; phase?: MessagePhase; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
   | { type: "question"; createdAt: string; id: string; question?: Question; runId: string; status: ItemStatus }
   | { type: "toolCall"; approvalDecision?: ApprovalDecision; durationMillis?: number; error?: ProblemData; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ToolInvocation }
@@ -887,6 +887,8 @@ export interface ManagedSkill {
   lifecycle: SkillLifecycle;
   name: string;
 }
+
+export type MessagePhase = "commentary" | "finalAnswer";
 
 export type Modality = "text" | "image" | "audio" | "video" | "pdf";
 
@@ -1727,6 +1729,7 @@ export const WIRE_ENUMS = {
   MCPSecretChangeType: ["set", "clear"],
   MCPServerStateType: ["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"],
   MCPTransport: ["stdio", "streamableHttp"],
+  MessagePhase: ["commentary", "finalAnswer"],
   Modality: ["text", "image", "audio", "video", "pdf"],
   PlanStatus: ["pending", "in_progress", "completed"],
   ProviderConfigChangeType: ["set", "clear"],

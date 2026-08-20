@@ -13,7 +13,7 @@
 
 - Runtime 是 Lyra 的应用后端，同时提供 HTTP Runtime Protocol 与同进程 Go binding。
 - 公共 Go API 仅由 `runtime/protocol` 和 `runtime/embedded` 拥有；内部 exported identifiers 不构成兼容承诺。
-- 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
+- 当前合同为 Protocol `2026-08-17`、Artifact v20、SQLite epoch 76、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
 - P113–P127 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip，普通工具调用统一使用透明 work-narrative row 而非状态着色卡片；设置主色由单一 appearance preference 驱动；Goal update/clear 由 Runtime 权威纵切拥有，新 Goal start 通过同一 Composer submit mode 与 per-Session command owner 提交，不展示限制条件或建立第二 draft/writer。
@@ -82,7 +82,7 @@
 
 ### 5.1 SQLite
 
-- 当前 schema epoch 75；一个 build 只接受一个精确 epoch，没有 migration chain、dual read 或 compatibility column。
+- 当前 schema epoch 76；一个 build 只接受一个精确 epoch，没有 migration chain、dual read 或 compatibility column。
 - Session/Run/Interrupt/Goal/Transcript/checkpoint 的跨表不变量由事务和 strict reader 校验共同守住。
 - 同一 canonical data directory 可由同版本 Runtime 共享；SQLite uniqueness/CAS 决定 durable winner，OS advisory lease 只协调活跃业务 owner。
 - Runtime 进程死亡由内核释放 lease；boot recovery 采用单一 winner 和固定顺序，不使用 TTL/heartbeat 猜测存活。
@@ -160,8 +160,8 @@
 ## 7. 公共合同
 
 - Runtime Protocol 当前版本 `2026-08-17`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
-- Artifact 当前版本 19；旧版本在写入前确定性拒绝，不猜测缺失事实。
-- SQLite 当前 epoch 75；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
+- Artifact 当前版本 20；旧版本在写入前确定性拒绝，不猜测缺失事实。
+- SQLite 当前 epoch 76；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
 - Agent Framework 当前 Baseline 20；Runtime 不依赖 private state 或迁移前 module path。
 - 所有生成合同必须 diff-free；consumer 缺口记录在 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md)，服务端不为消费者恢复旧字段。
 

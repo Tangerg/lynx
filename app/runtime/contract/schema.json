@@ -460,6 +460,9 @@
         "id": {
           "type": "string"
         },
+        "phase": {
+          "$ref": "#/$defs/MessagePhase"
+        },
         "question": {
           "$ref": "#/$defs/ArtifactQuestion"
         },
@@ -500,6 +503,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
@@ -540,6 +544,7 @@
           "required": [
             "createdAt",
             "id",
+            "phase",
             "runId",
             "status",
             "type"
@@ -553,6 +558,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "question": false,
             "safetyClass": false,
             "startedAt": false,
@@ -578,6 +584,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "redacted": false,
             "safetyClass": false,
             "startedAt": false,
@@ -601,6 +608,7 @@
             "content": false,
             "createdAt": false,
             "droppedMessages": false,
+            "phase": false,
             "question": false,
             "redacted": false,
             "summary": false,
@@ -624,6 +632,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
@@ -3017,6 +3026,9 @@
         "id": {
           "type": "string"
         },
+        "phase": {
+          "$ref": "#/$defs/MessagePhase"
+        },
         "question": {
           "$ref": "#/$defs/Question"
         },
@@ -3057,6 +3069,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
@@ -3110,6 +3123,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "question": false,
             "safetyClass": false,
             "startedAt": false,
@@ -3135,6 +3149,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "redacted": false,
             "safetyClass": false,
             "startedAt": false,
@@ -3158,6 +3173,7 @@
             "content": false,
             "createdAt": false,
             "droppedMessages": false,
+            "phase": false,
             "question": false,
             "redacted": false,
             "summary": false,
@@ -3181,6 +3197,7 @@
             "durationMillis": false,
             "error": false,
             "finishedAt": false,
+            "phase": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
@@ -3262,6 +3279,69 @@
           "then": {
             "required": [
               "finishedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "running"
+              },
+              "type": {
+                "const": "agentMessage"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "phase": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              },
+              "type": {
+                "const": "agentMessage"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "phase"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "incomplete"
+              },
+              "type": {
+                "const": "agentMessage"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "phase"
             ]
           }
         }
@@ -4384,6 +4464,13 @@
       "required": [
         "lifecycle",
         "name"
+      ]
+    },
+    "MessagePhase": {
+      "type": "string",
+      "enum": [
+        "commentary",
+        "finalAnswer"
       ]
     },
     "Modality": {
@@ -7857,8 +7944,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 19,
-          "maximum": 19
+          "minimum": 20,
+          "maximum": 20
         }
       },
       "required": [

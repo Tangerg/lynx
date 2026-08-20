@@ -19,6 +19,7 @@ type transcriptItemPayload struct {
 	FinishedAt             int64                  `json:"finishedAt,omitempty"`
 	ExecutionDurationNanos *int64                 `json:"executionDurationNanos,omitempty"`
 	Kind                   string                 `json:"kind"`
+	Phase                  string                 `json:"phase,omitempty"`
 	Content                []contentPayload       `json:"content,omitempty"`
 	Text                   string                 `json:"text,omitempty"`
 	Redacted               bool                   `json:"redacted,omitempty"`
@@ -81,8 +82,12 @@ func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	phase, err := encodeMessagePhase(item.MessagePhase())
+	if err != nil {
+		return nil, err
+	}
 	payload := transcriptItemPayload{
-		Status: status, Kind: kind, Text: item.Text(), Redacted: item.Redacted(),
+		Status: status, Kind: kind, Phase: phase, Text: item.Text(), Redacted: item.Redacted(),
 		SafetyClass: string(item.SafetyClass()), ApprovalDecision: string(item.ApprovalDecision()),
 		Summary:         item.Summary(),
 		DroppedMessages: item.DroppedMessages(),
@@ -147,8 +152,12 @@ func decodeTranscriptItem(data []byte) (transcript.ItemSnapshot, error) {
 	if err != nil {
 		return transcript.ItemSnapshot{}, err
 	}
+	phase, err := decodeMessagePhase(payload.Phase)
+	if err != nil {
+		return transcript.ItemSnapshot{}, err
+	}
 	snapshot := transcript.ItemSnapshot{
-		Status: status, Kind: kind, Text: payload.Text, Redacted: payload.Redacted,
+		Status: status, Kind: kind, MessagePhase: phase, Text: payload.Text, Redacted: payload.Redacted,
 		SafetyClass:      tool.SafetyClass(payload.SafetyClass),
 		ApprovalDecision: approval.Decision(payload.ApprovalDecision), Summary: payload.Summary,
 		DroppedMessages: payload.DroppedMessages,
@@ -192,6 +201,32 @@ func decodeTranscriptItem(data []byte) (transcript.ItemSnapshot, error) {
 		snapshot.Failure = &failure
 	}
 	return snapshot, nil
+}
+
+func encodeMessagePhase(phase transcript.MessagePhase) (string, error) {
+	switch phase {
+	case transcript.MessagePhaseNone:
+		return "", nil
+	case transcript.MessageCommentary:
+		return "commentary", nil
+	case transcript.MessageFinalAnswer:
+		return "finalAnswer", nil
+	default:
+		return "", fmt.Errorf("unknown message phase %d", phase)
+	}
+}
+
+func decodeMessagePhase(phase string) (transcript.MessagePhase, error) {
+	switch phase {
+	case "":
+		return transcript.MessagePhaseNone, nil
+	case "commentary":
+		return transcript.MessageCommentary, nil
+	case "finalAnswer":
+		return transcript.MessageFinalAnswer, nil
+	default:
+		return transcript.MessagePhaseNone, fmt.Errorf("unknown message phase %q", phase)
+	}
 }
 
 func encodeItemStatus(status transcript.ItemStatus) (string, error) {

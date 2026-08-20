@@ -72,7 +72,7 @@ func TestItemConstructorsCloseEveryVariant(t *testing.T) {
 		{
 			name: "agent message", kind: transcript.AgentMessage,
 			new: func() (transcript.Item, error) {
-				return transcript.NewAgentMessage(identity, []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}})
+				return transcript.NewAgentMessage(identity, transcript.MessageFinalAnswer, []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}})
 			},
 		},
 		{
@@ -109,6 +109,16 @@ func TestItemConstructorsCloseEveryVariant(t *testing.T) {
 				t.Fatalf("occurrence location = %v, want UTC", item.OccurredAt().Location())
 			}
 		})
+	}
+}
+
+func TestAgentMessageRequiresAnAuthoredPhase(t *testing.T) {
+	if _, err := transcript.NewAgentMessage(
+		itemIdentity(),
+		transcript.MessagePhaseNone,
+		[]transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	); err == nil {
+		t.Fatal("NewAgentMessage accepted an absent phase")
 	}
 }
 

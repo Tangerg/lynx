@@ -35,13 +35,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
-	if protocol.SessionArtifactVersion != 19 {
-		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v19",
+	if protocol.SessionArtifactVersion != 20 {
+		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v20",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV19RoundTripsEveryFieldItCarries is the rest of gate 16.
+// TestArtifactV20RoundTripsEveryFieldItCarries is the rest of gate 16.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -54,7 +54,7 @@ func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV19RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV20RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -469,7 +469,8 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 	}), itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_agent", RunID: "run_done", Kind: transcript.AgentMessage,
 		Status: transcript.ItemCompleted, OccurredAt: time.Unix(3, 0).UTC(),
-		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "on it"}},
+		MessagePhase: transcript.MessageCommentary,
+		Content:      []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "on it"}},
 	}), itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_reasoning", RunID: "run_done", Kind: transcript.Reasoning,
 		Status: transcript.ItemIncomplete, OccurredAt: time.Unix(4, 0).UTC(),

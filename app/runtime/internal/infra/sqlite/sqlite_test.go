@@ -211,7 +211,7 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	for _, it := range []transcript.Item{itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_a", RunID: "run_1", ID: "i1", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.UserMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "one"}}}), itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_a", RunID: "run_1", ID: "i2", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "two"}}}), itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_b", RunID: "run_9", ID: "i9", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.Reasoning, Text: "other"})} {
+	for _, it := range []transcript.Item{itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_a", RunID: "run_1", ID: "i1", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.UserMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "one"}}}), itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_a", RunID: "run_1", ID: "i2", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage, MessagePhase: transcript.MessageCommentary, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "two"}}}), itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_b", RunID: "run_9", ID: "i9", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.Reasoning, Text: "other"})} {
 		err = store.AppendItem(ctx, it)
 		if err != nil {
 			t.Fatalf("append %s: %v", it.ID(), err)
@@ -221,7 +221,8 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(items) != 2 || items[0].ID() != "i1" || items[1].ID() != "i2" || items[1].Content()[0].Text != "two" {
+	if len(items) != 2 || items[0].ID() != "i1" || items[1].ID() != "i2" ||
+		items[1].MessagePhase() != transcript.MessageCommentary || items[1].Content()[0].Text != "two" {
 		t.Fatalf("items = %+v, want [i1 i2]", items)
 	}
 }

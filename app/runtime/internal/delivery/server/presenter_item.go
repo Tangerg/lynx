@@ -15,8 +15,8 @@ func presentItem(item transcript.Item) protocol.Item {
 	}
 	out := protocol.Item{
 		ID: item.ID(), RunID: item.RunID(), Status: presentItemStatus(item.Status()),
-		Type: presentItemKind(item.Kind()),
-		Text: item.Text(), Redacted: item.Redacted(),
+		Type:  presentItemKind(item.Kind()),
+		Phase: presentMessagePhase(item.MessagePhase()), Text: item.Text(), Redacted: item.Redacted(),
 		SafetyClass: presentSafetyClass(item.SafetyClass()), Error: presentToolFailure(failureRef),
 		ApprovalDecision: presentItemApprovalDecision(item.ApprovalDecision()),
 		Summary:          item.Summary(), DroppedMessages: item.DroppedMessages(),
@@ -44,6 +44,19 @@ func presentItem(item transcript.Item) protocol.Item {
 		out.CreatedAt = item.OccurredAt()
 	}
 	return out
+}
+
+func presentMessagePhase(phase transcript.MessagePhase) protocol.MessagePhase {
+	switch phase {
+	case transcript.MessagePhaseNone:
+		return ""
+	case transcript.MessageCommentary:
+		return protocol.MessagePhaseCommentary
+	case transcript.MessageFinalAnswer:
+		return protocol.MessagePhaseFinalAnswer
+	default:
+		panic("server: unknown transcript message phase")
+	}
 }
 
 func presentItemApprovalDecision(decision approval.Decision) protocol.ApprovalDecision {

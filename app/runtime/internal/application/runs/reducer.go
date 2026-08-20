@@ -493,7 +493,11 @@ func (r *reducer) completeModelCall(completed ModelCallCompleted) (factReduction
 			errExecutorContract,
 		)
 	}
-	events, err := r.completeModelMessage(completed.Message)
+	phase := transcript.MessageFinalAnswer
+	if messageRequestsToolCalls(completed.Message) {
+		phase = transcript.MessageCommentary
+	}
+	events, err := r.completeModelMessage(completed.Message, phase)
 	if err != nil {
 		return factReduction{}, fmt.Errorf("%w: model call completion: %w", errExecutorContract, err)
 	}
@@ -759,7 +763,7 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	if err := r.trackUnconsumedResumeToolCalls(); err != nil {
 		return reductionBatch{}, fmt.Errorf("%w: track resumed Tool context: %w", errReducerInvariant, err)
 	}
-	out, err := r.closeStreaming()
+	out, err := r.closeStreaming(transcript.MessageCommentary)
 	if err != nil {
 		return reductionBatch{}, fmt.Errorf("%w: close streaming: %w", errReducerInvariant, err)
 	}

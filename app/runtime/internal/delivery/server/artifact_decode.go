@@ -273,7 +273,8 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 			SessionID: sessionID, ItemID: artifact.ID, RunID: artifact.RunID,
 			OccurredAt: artifact.CreatedAt,
 		},
-		Status: status, Kind: kind, Text: artifact.Text, Redacted: artifact.Redacted,
+		Status: status, Kind: kind, MessagePhase: portableMessagePhase(artifact.Phase),
+		Text: artifact.Text, Redacted: artifact.Redacted,
 		ApprovalDecision: portableItemApprovalDecision(artifact.ApprovalDecision),
 		Failure:          failure, Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
 	}
@@ -324,6 +325,17 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 		return transcript.Item{}, invalidArtifact(path, "%v", err)
 	}
 	return item, nil
+}
+
+func portableMessagePhase(phase protocol.MessagePhase) transcript.MessagePhase {
+	switch phase {
+	case protocol.MessagePhaseCommentary:
+		return transcript.MessageCommentary
+	case protocol.MessagePhaseFinalAnswer:
+		return transcript.MessageFinalAnswer
+	default:
+		return transcript.MessagePhaseNone
+	}
 }
 
 func portableItemApprovalDecision(decision protocol.ApprovalDecision) approval.Decision {

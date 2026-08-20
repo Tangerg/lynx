@@ -59,12 +59,13 @@ func (r *reducer) appendReasoning(text string) ([]RunEvent, error) {
 	}), nil
 }
 
-func (r *reducer) closeText() ([]RunEvent, error) {
+func (r *reducer) closeText(phase transcript.MessagePhase) ([]RunEvent, error) {
 	if r.text == nil {
 		return nil, nil
 	}
 	item, err := transcript.NewAgentMessage(
 		r.itemIdentity(r.text.id, r.text.createdAt),
+		phase,
 		[]transcript.ContentBlock{{Kind: transcript.TextContent, Text: r.text.buf.String()}},
 	)
 	if err != nil {
@@ -90,19 +91,22 @@ func (r *reducer) closeReasoning() ([]RunEvent, error) {
 	return []RunEvent{ItemCompleted{Item: item}}, nil
 }
 
-func (r *reducer) closeStreaming() ([]RunEvent, error) {
+func (r *reducer) closeStreaming(phase transcript.MessagePhase) ([]RunEvent, error) {
 	reasoning, err := r.closeReasoning()
 	if err != nil {
 		return nil, err
 	}
-	message, err := r.closeText()
+	message, err := r.closeText(phase)
 	if err != nil {
 		return nil, err
 	}
 	return append(reasoning, message...), nil
 }
 
-func (r *reducer) completeAssistantMessage(message corechat.Message) ([]RunEvent, error) {
+func (r *reducer) completeAssistantMessage(
+	message corechat.Message,
+	phase transcript.MessagePhase,
+) ([]RunEvent, error) {
 	if message.Role != corechat.RoleAssistant {
 		return nil, fmt.Errorf("completed message role is %q, want %q", message.Role, corechat.RoleAssistant)
 	}
@@ -135,7 +139,7 @@ func (r *reducer) completeAssistantMessage(message corechat.Message) ([]RunEvent
 	if err != nil {
 		return nil, err
 	}
-	messageEvents, err := r.completeMessageContent(content)
+	messageEvents, err := r.completeMessageContent(content, phase)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +147,10 @@ func (r *reducer) completeAssistantMessage(message corechat.Message) ([]RunEvent
 	return out, nil
 }
 
-func (r *reducer) completeModelMessage(message corechat.Message) ([]RunEvent, error) {
+func (r *reducer) completeModelMessage(
+	message corechat.Message,
+	phase transcript.MessagePhase,
+) ([]RunEvent, error) {
 	if message.Role != corechat.RoleAssistant {
 		return nil, fmt.Errorf("completed model message role is %q, want %q", message.Role, corechat.RoleAssistant)
 	}
@@ -157,9 +164,9 @@ func (r *reducer) completeModelMessage(message corechat.Message) ([]RunEvent, er
 		}
 	}
 	if len(semantic.Parts) == 0 {
-		return r.closeStreaming()
+		return r.closeStreaming(phase)
 	}
-	return r.completeAssistantMessage(semantic)
+	return r.completeAssistantMessage(semantic, phase)
 }
 
 func messageRequestsToolCalls(message corechat.Message) bool {
@@ -211,9 +218,12 @@ func (r *reducer) completeReasoning(text string) ([]RunEvent, error) {
 	return out, nil
 }
 
-func (r *reducer) completeMessageContent(content []transcript.ContentBlock) ([]RunEvent, error) {
+func (r *reducer) completeMessageContent(
+	content []transcript.ContentBlock,
+	phase transcript.MessagePhase,
+) ([]RunEvent, error) {
 	if len(content) == 0 {
-		return r.closeText()
+		return r.closeText(phase)
 	}
 	createdAt := r.now()
 	id := r.nextItemID()
@@ -232,7 +242,7 @@ func (r *reducer) completeMessageContent(content []transcript.ContentBlock) ([]R
 		}
 		out = append(out, ItemStarted{Item: start})
 	}
-	item, err := transcript.NewAgentMessage(r.itemIdentity(id, createdAt), content)
+	item, err := transcript.NewAgentMessage(r.itemIdentity(id, createdAt), phase, content)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +294,7 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	if err := r.resume.rejectCommittedToolStart(e.CallID, e.ToolName, arguments); err != nil {
 		return nil, err
 	}
-	out, err := r.closeStreaming()
+	out, err := r.closeStreaming(transcript.MessageCommentary)
 	if err != nil {
 		return nil, err
 	}
@@ -572,7 +582,7 @@ func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, erro
 	if len(e.Messages) == 0 {
 		return nil, errors.New("applied steer batch is empty")
 	}
-	out, err := r.closeStreaming()
+	out, err := r.closeStreaming(transcript.MessageCommentary)
 	if err != nil {
 		return nil, err
 	}

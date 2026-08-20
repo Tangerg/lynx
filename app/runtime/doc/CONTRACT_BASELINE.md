@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `3ab78223ffad35cf340874a4f6b36bf97948489e706ad4d611decaebc163e11c` |
+| `contract/manifest.json` | `ba0f7c2329496b037cd424708a097527bda08e368cb257dda3d413dc745bba1f` |
 | `contract/openrpc.json` | `df52cddd2c96ab9bae54f390059937cebfd8e1faad2ab1ca729e985b1d4ee492` |
-| `contract/schema.json` | `2c7374c695dfef1f65d6df5f42bc02d776c7f8188b53f05d21cae05163d285cb` |
-| `contract/go-api.json` | `51abbe4e20d31c0b5db41cb776e59b0474f7da4a87bb2c57f4c19bdb2a51c095` |
+| `contract/schema.json` | `c0ca47e8808509ceba26af14c39323cb337a8d7e677482f7da89f982b07dc37b` |
+| `contract/go-api.json` | `1d97ab8f2701734fd0b12a0b0f78ea8849655e5550720219cdd9f2eaeb99cc52` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -84,7 +84,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 75`；
+- 当前 `schemaEpoch = 76`；
 - 数据目录为 `0700` 私有目录，可由少量同版本 Runtime 进程共享；schema/config setup 使用短期跨进程 lease，Runtime lifecycle 不拥有目录全局独占权；
 - SQLite 事务与既有 uniqueness/CAS 继续拥有 durable winner。活跃 Session writer、physical working-tree shared/exclusive operation、Goal drive 与 ordered recovery sweep 使用 OS advisory lease；进程死亡由内核释放。单一 recovery winner 固定 Run-before-Goal 并只清理成功接管的 Session，不使用 TTL、heartbeat、全局 checkpoint/callback sweep 或兼容双路径；
 - 其他 SQLite connection 的 commit 只触发全量 read-model resync，细粒度本地 invalidation 仍由提交用例发布；该同步机制不拥有 SQLite epoch、Artifact、checkpoint 或 protocol wire shape；
@@ -119,7 +119,7 @@ P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 �
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 19；v18 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall 的 `approvalDecision` 是该调用实际接受的人类决定，和 Pending consume/checkpoint invalidation/commit receipt 同事务写入，并随续跑终态与 artifact 保留；自动放行不伪造。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 20；v19 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。AgentMessage 的 `phase` 是 Runtime 在模型调用边界写入的过程说明 / 最终回答语义，并随 Transcript、Artifact 与客户端恢复保持一致。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall 的 `approvalDecision` 是该调用实际接受的人类决定，和 Pending consume/checkpoint invalidation/commit receipt 同事务写入，并随续跑终态与 artifact 保留；自动放行不伪造。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
 
 ## 4. Agent Framework 消费 Baseline
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
@@ -37,7 +38,7 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.closeStreaming()
+	out, err := r.closeStreaming(transcript.MessageCommentary)
 	if err != nil {
 		return nil, err
 	}
