@@ -13,8 +13,8 @@ type ActivityTone = "neutral" | "warning" | "negative";
 //
 //   line     No fill, no card, quieter glyph.
 //   card     Fill and the card corner.
-//   flagged  A card plus the tone's edge — the answer HitlCardShell already gives
-//            for "this is waiting on you". Deliberately NOT a filled tone band
+//   flagged  A card plus the tone's edge for "this is waiting on you".
+//            Deliberately NOT a filled tone band
 //            across the header, which is what both references do: we would then
 //            have three spellings of one boundary — that band, this edge, and
 //            ApprovalCard's `bg-<tone>-wash` strip.

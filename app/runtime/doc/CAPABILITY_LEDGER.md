@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P122 已完成。
+> 状态：当前能力快照；P123 已完成。
 >
 > 基线日期：2026-08-20。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P122 已完成；Work Index、Agent Narrative、Composer standing stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批请求只呈现 Runtime 权威 material 与用户明确选择的 allow scope。
+- P113–P123 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip。
 
 ## 2. 架构与所有权
 
@@ -56,6 +56,8 @@
 - Question、approval、answer、checkpoint、Interrupt claim 和 continuation opening 形成一个可验证链路。
 - open Interrupt 只能被 exact Session/Run/Item/occurrence 回答；edited approval 继续绑定原始 ToolCall identity，而非按 name/arguments 猜测。
 - answer claim、Question answer/approval decision、checkpoint 删除和 commit receipt 原子提交。
+- pending Question 直接从 mounted transcript material 选择最新 unanswered exact Run/Item，但暂时替换普通 composer，只呈现一个 24px 中性 request surface；问题 prompt 是标题，单选首项预选、description 内联，多题分页，单选自动前进，text/multi 使用 Next。Frontend 不复制 Interrupt query/read model，settlement 前不把 local draft 冒充权威 answer。
+- Skip 仍提交与 fields 等长、同序的 `string[][]`，其中当前或全部 field 的空 inner values 表示明确跳过；Runtime Application 和 durable transcript validation 接受该语义，outer field 缺失、数量/顺序/Run/Item identity 错误仍拒绝。Question text/custom input 与 Composer 共用 composition key intent，不靠 timer、UA 或第二 draft 处理中文输入法的英文 commit Enter。
 - pending approval 使用单一 24px Codex request surface：工具身份、Runtime reason 与 command/args 是唯一可见事实；risk badge、泛化 approval 标题、客户端危险正则、scope/grant/reversibility 猜测和 checkbox 不进入 production renderer。
 - Allow once 与注册的键盘 approve 始终是不带 remember scope 的一次性动作；只有用户从 split action 明确选择 Session/Project/Global 时才随 approve 提交 scope，Deny 永远不携带 allow scope。edited args、Runtime unavailable、optimistic settlement 与 exact Run/Item resume 继续由既有 owner 持有。
 - waiting tree 只从 quiescent complete-tree checkpoint 恢复；active-step crash 不伪装为可恢复。
@@ -141,7 +143,7 @@
 - Composer 的 composition lifecycle 是 Enter 提交判定的唯一 owner：`compositionend` 后保留一次性 commit intent，首个无修饰 `Enter/keyCode=13/isComposing=false` 只结束中文输入法的中英混合文本提交，随后明确 Enter 才发送。active composition、浏览器缺失 `compositionend` 的 plain-input recovery、focus/pointer/paste/drop retirement 与 Mod/Shift shortcut 均消费同一 intent，不使用 timeout、timestamp/UA 猜测、第二 draft 或第二发送入口。
 - 流式消息的底部点赞/点踩与操作行只在所属可见 turn 达到稳定展示边界时出现，不随每个输出 delta 反复挂载。
 - 用户消息 bubble 使用独立 semantic marker 和 theme-owned 5% text neutral surface；12×8px inset、16px 圆角与 77% 行宽共同保持 Codex 的低强调层级，不复用 accent selection/command feedback token。
-- 中央 transcript 的 mount geometry、异步 Markdown/Shiki materialization、实测 composer clearance 与用户滚动共享 `MessageStream` 一个 presentation owner：跟随状态和 exact target 来自既有 scroll library；DOM mutation 与 border-box ResizeObserver 覆盖内容和动态 padding 两种高度来源，compact HITL 首次打开即可把 blocking action 留在 composer 上方，wheel/scroll escape 后不再改写 reader-owned `scrollTop`，也不靠固定 RAF/timer 窗口判断布局完成。
+- 中央 transcript 的 mount geometry、异步 Markdown/Shiki materialization、实测 input-rung clearance 与用户滚动共享 `MessageStream` 一个 presentation owner：跟随状态和 exact target 来自既有 scroll library；DOM mutation 与 border-box ResizeObserver 覆盖内容和动态 padding 两种高度来源，compact Approval 首次打开把 blocking action 留在 composer 上方，Question replacement 则完整占据同一输入层，wheel/scroll escape 后不再改写 reader-owned `scrollTop`，也不靠固定 RAF/timer 窗口判断布局完成。
 - 右栏 Diff 与 File preview 共用 file-path → Shiki grammar 映射；preview 以 query 对应的 exact path 选语言并进行一次 whole-file highlight，未知 grammar 降为 text，不从内容猜测或复制 extension table。目标行定位只响应 path/content/line navigation，Shiki 异步 materialization 不重放滚动或覆盖 reader-owned 位置。
 - File preview 的 generic `File` tab 与 material identity 分工明确：dock view bar 从同一 `viewer.path` 呈现左侧截断的 exact path，并与 line count/truncation 同行；full placement 继续以 path 为 title。文件选择、query 参数、syntax grammar 与可见身份不再分叉。
 - Timeline 在 Runtime 不可接收命令时继续呈现 exact Session/Run 审计事实，但 locate/cancel 共同由 Runtime command capability 禁用；恢复后沿同一 owner 重新可用，不从 connection phase 复制第二布尔状态。
@@ -178,17 +180,17 @@
 | SQLite             | fresh schema、codec、CAS/uniqueness、cross-table invariant、真实 reader/writer 与 SIGKILL recovery                                                                                                                                                                                                                                                           |
 | Protocol           | strict validation、golden samples、manifest/OpenRPC/schema/Go API digest 与 generator diff                                                                                                                                                                                                                                                                   |
 | Desktop state      | exact-generation replacement、late settlement、Session material、query writer 和 navigation tests                                                                                                                                                                                                                                                            |
-| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
+| Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 313 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
 | Production shell   | Wails v3 Go test/vet/build、production `.app` package、renderer reload、Runtime health/discovery 与 fresh database/SIGKILL smoke                                                                                                                                                                                                                             |
 
-P122 Frontend 基线为 322 files / 1999 tests；Approval request hierarchy、scoped approve、纯 Deny、edited args、键盘一次性允许和 published presentation facade 契约红例全绿。light/dark/menu/320px 实图与包含 6 张 Agent、2 张 Retina Approval golden 的完整 visual/WCAG/keyboard/IME/CJK/Retina/WebKit 矩阵 312 tests 全绿，typecheck/lint/format/knip/design/token/chrome/locales/bundle 等全部门禁保持全绿。P121 的调用级补丁回执能力保持不变；P119 的完整 Runtime/Desktop/Wails recovery 基线也未被修改。P122 没有改变 Protocol、Artifact、SQLite schema、公共 Go API、Frontend published SDK 或 Agent Framework baseline。
+P123 Frontend 基线为 322 files / 2001 tests；Question composer replacement、首项预选、分页/自动前进、inline descriptions、ordered Skip、pending authoritative settlement 与共享 IME classifier 红例全绿。light/dark/compact/Retina 实图与完整 visual/WCAG/keyboard/IME/CJK/Retina/WebKit 矩阵 313 tests 全绿，typecheck/lint/format/knip/circular/context/layer/API/design/token/chrome/locales/bootstrap/bundle 等全部门禁保持全绿。Runtime 全量 test/vet/build 已重跑通过；P122 的 Approval 与 P121 的调用级补丁回执能力保持不变。P123 没有改变 Protocol shape、Artifact、SQLite schema、公共 Go API、Frontend published SDK、Desktop/Wails 或 Agent Framework baseline。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P122 完成定义内没有已知未闭环项。旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段、commentary/final answer phase、原生图片 Download 一样，分别等待显式 breaking-surface、Runtime public surface 或 Desktop binding 授权。
+- P123 完成定义内没有已知未闭环项。旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段、commentary/final answer phase、原生图片 Download 一样，分别等待显式 breaking-surface、Runtime public surface 或 Desktop binding 授权。
 
 ## 11. 当前结论
 
-P0–P122 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 又让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P123 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 则让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

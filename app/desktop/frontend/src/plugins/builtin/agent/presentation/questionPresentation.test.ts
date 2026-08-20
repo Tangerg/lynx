@@ -7,7 +7,6 @@ import {
   questionDraftAnswers,
   questionDraftComplete,
   questionSettled,
-  questionSettledAnswers,
   setQuestionText,
   toggleQuestionOption,
 } from "./questionPresentation";
@@ -98,15 +97,6 @@ describe("questionPresentation", () => {
     expect(questionSettled("complete", false)).toBe(true);
     expect(questionSettled("requires-action", true)).toBe(true);
     expect(questionSettled("requires-action", false)).toBe(false);
-  });
-
-  it("uses stamped answers before falling back to a complete local draft", () => {
-    let draft = createQuestionDraft([single]);
-    expect(questionSettledAnswers([single], draft, undefined)).toEqual([["A"]]);
-
-    draft = toggleQuestionOption(draft, 0, single, "A");
-    expect(questionSettledAnswers([single], draft, [["B"]])).toEqual([["B"]]);
-    expect(questionSettledAnswers([single], draft, undefined)).toEqual([["A"]]);
   });
 
   it("submits open resumable questions, including an explicit skip", () => {

@@ -26,7 +26,6 @@ export {
   questionDraftAnswers,
   questionDraftComplete,
   questionSettled,
-  questionSettledAnswers,
   setQuestionText,
   toggleQuestionOption,
 } from "../presentation/questionPresentation";

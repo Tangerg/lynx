@@ -1,4 +1,1 @@
-export {
-  composerCompositionKeyIntent,
-  type ComposerCompositionKeyIntent,
-} from "../application/composerInputEvents";
+export { composerCompositionKeyIntent } from "../application/composerInputEvents";

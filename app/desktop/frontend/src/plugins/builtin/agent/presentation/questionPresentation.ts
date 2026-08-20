@@ -43,17 +43,6 @@ export function questionSettled(status: BlockStatus, answered: boolean | undefin
   return status === "complete" || Boolean(answered);
 }
 
-export function questionSettledAnswers(
-  questions: readonly QuestionItem[],
-  draft: QuestionDraft,
-  answers: QuestionAnswers | undefined,
-): QuestionAnswers | undefined {
-  return (
-    answers ??
-    (questionDraftComplete(questions, draft) ? questionDraftAnswers(questions, draft) : undefined)
-  );
-}
-
 export function canSubmitQuestion({
   runId,
   itemId,

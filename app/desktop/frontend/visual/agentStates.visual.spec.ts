@@ -857,48 +857,49 @@ test("every chrome bar that takes a bottom edge wears the style edge", async ({ 
   for (const shadow of measured.withoutEdge) expect(shadow).toBe("none");
 });
 
-// The composer floats over the transcript, so the transcript has to end above it.
+// The input rung floats over the transcript, so the transcript has to end above it.
 // Nothing else can catch this: the tail is only reachable at full scroll, the
 // overlap looks plausible on a fixture that fits its viewport, and the reservation
 // is published by a ResizeObserver rather than written in a class — so it can be
 // silently zero and every other assertion still passes.
-for (const state of ["long-content", "question", "delegated"] as const) {
-  test(`the floating composer reserves its own height at the tail of ${state}`, async ({
+for (const { state, inputSurface } of [
+  { state: "long-content", inputSurface: '[data-slot="composer-root"]' },
+  { state: "question", inputSurface: '[data-slot="question-request-surface"]' },
+  { state: "delegated", inputSurface: '[data-slot="composer-root"]' },
+] as const) {
+  test(`the floating input surface reserves its own height at the tail of ${state}`, async ({
     page,
   }) => {
     await page.goto(`/visual/?fixture=agent&theme=light&state=${state}`);
     await page.locator("html[data-visual-ready]").waitFor();
 
-    const measured = await page.evaluate(async () => {
+    const measured = await page.evaluate(async (inputSurface) => {
       const scroller = document.querySelector(".msg-scroll-viewport");
-      const composer = document.querySelector('[data-slot="composer-root"]');
-      if (!scroller || !composer) return null;
+      const input = document.querySelector(inputSurface);
+      if (!scroller || !input) return null;
       scroller.scrollTop = scroller.scrollHeight;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const tail = scroller.firstElementChild?.lastElementChild;
       if (!tail) return null;
       return {
         clearance: Math.round(
-          composer.getBoundingClientRect().top - tail.getBoundingClientRect().bottom,
+          input.getBoundingClientRect().top - tail.getBoundingClientRect().bottom,
         ),
         // The margin the contract adds on top of the panel's own height, read
         // rather than restated: `COMPOSER_CLEARANCE` spells it `+1rem`, and a
         // literal here would have to be kept in step with a class in another file.
         margin: Math.round(Number.parseFloat(getComputedStyle(document.documentElement).fontSize)),
       };
-    });
+    }, inputSurface);
 
-    // Not merely positive: the panel is glass, so a tail resting against its top
-    // edge is a tail the user reads through a blur.
+    // Not merely positive: a tail resting against the surface edge is visually
+    // crowded and can remain behind the composer's translucent material.
     expect(measured?.margin).toBeGreaterThan(0);
     expect(measured!.clearance).toBeGreaterThanOrEqual(measured!.margin);
   });
 }
 
-for (const { state, action } of [
-  { state: "waiting", action: "Allow once" },
-  { state: "question", action: "Continue" },
-] as const) {
+for (const { state, action } of [{ state: "waiting", action: "Allow once" }] as const) {
   test(`compact ${state} opens with its blocking action above the composer`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 577 });
     await page.goto(`/visual/?fixture=agent&theme=light&state=${state}`);
@@ -922,6 +923,31 @@ for (const { state, action } of [
     expect(clearance[0]!.y + clearance[0]!.height).toBeLessThanOrEqual(clearance[1]!.y);
   });
 }
+
+test("compact question replaces the composer with its blocking request", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 577 });
+  await page.goto("/visual/?fixture=agent&theme=light&state=question");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const request = page.locator('[data-slot="question-request-surface"]');
+  const skip = page.getByRole("button", { name: "Skip", exact: true });
+  await expect(request).toBeVisible();
+  await expect(page.locator('[data-slot="composer-root"]')).toHaveCount(0);
+  await expect(skip).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator(".msg-scroll-viewport")
+        .evaluate((element) =>
+          Number.parseFloat(getComputedStyle(element).getPropertyValue("--composer-overlay")),
+        ),
+    )
+    .toBeGreaterThan(0);
+
+  const [requestBox, skipBox] = await Promise.all([request.boundingBox(), skip.boundingBox()]);
+  expect(skipBox!.y).toBeGreaterThanOrEqual(requestBox!.y);
+  expect(skipBox!.y + skipBox!.height).toBeLessThanOrEqual(requestBox!.y + requestBox!.height);
+});
 
 test("async transcript materialization follows only while the reader stays at the tail", async ({
   page,

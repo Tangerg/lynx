@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P122 已完成并形成里程碑。
+> 状态：P0–P123 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P122 Codex approval request surface 与 scoped allow 语义闭环。
+> 最近基线：2026-08-20，P123 Codex Question composer request 与 ordered skip 语义闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P123 已于 2026-08-20 完成：production-equivalent 盲测先证明 pending Question 仍把旧式 `Input needed` 卡片、header chip、preview sidecar 与普通 composer 同时呈现；对照 Codex native request 后，Frontend 现在只从已挂载 transcript rows 选择最新 unanswered Question，把它作为 composer rung 的唯一请求表面，不新增 query、read model 或第二 interrupt owner。
+- P123 沿用 exact Run/Item 和 ordered `string[][]` response wire，不增加字段或兼容分支；仅把每个 field 的空 inner values 定义为用户明确 Skip，outer field 数量、顺序和 identity 校验保持不变。Question freeform 与 Composer 共同消费既有 IME 键盘意图 classifier，Runtime Application 与 durable transcript validation 同步接受并持久化 Skip。
 - P122 已于 2026-08-20 完成：production-equivalent 盲测先证明 Approval/HITL 仍是旧式黄边警告卡，并叠加 `Approval required`、risk badge、客户端危险正则和 `Don't ask again` checkbox；独立红测锁定后，pending approval 已改为 Codex 的单一中性 request surface，以工具身份、Runtime reason、调用 material 和底部 scoped actions 形成唯一层级。
 - P122 不改变 Runtime approval wire、HITL identity、resume transaction 或 Frontend published SDK；`reason`、`risk`、`rememberable`、exact Run/Item 与 edited args 继续来自现有权威 material。Frontend 不再从命令文本推测危险事实，remember scope 只随用户明确选择的 approve action 发送，不附着到 decline。
 - P121 已于 2026-08-20 完成：在 P120 基线上继续按 Codex 级桌面外观与既有编码约束打磨左中右三栏，优先修复中间内容区真实渲染与交互接线；每轮编码独立提交并推送，及时关闭 agent-browser、临时服务和测试资源，不修改或暂存 `app/cli`。
@@ -30,6 +32,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P123 准入与完成条件（2026-08-20）
+
+- pending Question 必须只占据 composer 输入层：24px 圆角、中性 material、问题 prompt 为唯一标题；不再渲染 `Input needed` 泛标题、header chip、preview sidecar、重复 transcript card 或并存的普通 composer。
+- 单选首项预选并以数字/选中标记呈现，option description 与 label 同行；多题沿同一请求表面分页。单选点击自动前进或提交，text/multi 使用 Next，Skip 为当前 field 发送空 inner values；提交期间保持原请求禁用，直到 Runtime transcript 给出权威 settlement。
+- Question textarea/custom input 与 Composer 共用同一个 composition key intent：active composition、`compositionend` 后中英混合 commit Enter 和缺失 compositionend 的 plain-input recovery 都不能误触发 Next/submit，也不增加 timeout、UA 分支或第二 draft owner。
+- 验收结论：Frontend 322 files / 2001 tests 与 type/lint/format/knip/circular/context/layer/API/design/token/chrome/locales/bootstrap/bundle 全门禁通过；完整 agent/shell/workspace/closure/foundation/WebKit visual 313 tests 覆盖 Question exact settlement、ordered Skip、composer replacement、compact height、WCAG、键盘、IME、CJK、light/dark 与 Retina。Runtime `go test ./...`、`go vet ./...`、`go build ./...` 全绿；production fixture 已实测首项自动前进、Skip 后 exact response 与 composer 恢复。本批未修改 Protocol shape、Artifact、SQLite schema、公共 Go API、Desktop/Wails 或 `app/cli`。
 
 ### P122 准入与完成条件（2026-08-20）
 
@@ -143,10 +152,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P120     | Composer stack、Context 占用与终态 narrative 精确收敛                                                            | Plan/Goal 改为 Codex 紧凑 standing surface；Context 环消费真实 `contextTokens/contextWindow`；标题栏与普通结束态移除累计统计和结算杂项                                                  |
 | P121     | 调用级补丁回执与 Codex file-change narrative                                                                      | `apply_patch` 的持久结果成为 inline preview 与 Run Summary 唯一变更事实；删除 `edit`/`write` 死路径和全工作区 diff 猜测，无权威行数时不伪造增删统计                                    |
 | P122     | Codex approval request surface 与 scoped allow 语义                                                               | pending approval 收敛为单一中性请求面；可见层只读工具身份、Runtime reason 与调用 material，scope 只随明确 scoped approve 提交，Deny 保持纯拒绝                                      |
+| P123     | Codex Question composer request 与 ordered skip 语义                                                              | pending Question 成为 composer rung 的唯一请求表面；选项、分页、IME 与 Skip 服从同一 draft/action owner，Runtime 以有序空 inner values 持久表达明确跳过                              |
 
 ## 5. 当前里程碑结论
 
-P113–P122 共同建立了以下不可回退的心智模型：
+P113–P123 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -163,8 +173,9 @@ P113–P122 共同建立了以下不可回退的心智模型：
 - Composer 顶部 standing stack 只有紧凑 Plan pill 与 Goal lifecycle row；Goal 限制仍是 Runtime/launcher 事实而非永久 chrome。Context 环只读 Runtime `contextTokens` 与 served model window，标题栏与普通完成态不重复累计 accounting。
 - 一次 `apply_patch` 的展开体和 Run Summary 只读该 ToolCall 已持久化的 `PatchResult.changes`；当前工作区状态、工具参数和文件内容都不能回填历史调用。Runtime 没有发布行级 diff 或增删行数时，Frontend 不猜测这些事实。
 - pending approval 是一个 Codex request surface，而不是风险 dashboard：工具身份、Runtime reason、command/args 是可见事实；客户端不从命令字符串推导危险、可逆性或权限。Allow once 与键盘动作不持久化规则，只有用户选择 Session/Project/Global scoped allow 才提交 remember scope，Deny 不继承 allow scope。
+- pending Question 从 mounted transcript material 选择，但只在 composer rung 呈现一次；普通 composer 暂时退休。首项预选、分页、自动前进、Next 与 Skip 共享一个 draft/action owner，空 inner values 只表示该有序 field 被明确跳过，不能省略 field、重排答案或靠客户端乐观回显冒充 Runtime settlement。
 
-最近一次完整验收基线：Frontend 322 files / 1999 tests 全绿，97 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P122 的 Approval request surface、scoped actions、窄宽和键盘语义已进入该矩阵。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 沿用 P119 恢复基线；P122 未改动这些层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 322 files / 2001 tests 全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 313 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P123 的 Question request surface、ordered Skip、compact composer replacement 与真实恢复均已进入该矩阵。Runtime standalone 全量 test/vet/build 已重跑通过；Desktop/Wails production `.app` package 和 strict codesign verification 沿用 P119 恢复基线，因为 P123 未修改该层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 
