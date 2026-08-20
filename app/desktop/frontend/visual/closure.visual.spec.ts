@@ -236,11 +236,11 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
 });
 
-// One column per row. A `line` row has no box, so its label and disclosed body must
-// share the same computed column even when folded-wave glyph counts give neighboring
-// rows different leading widths.
+// Codex keeps an activity summary inline and returns its disclosed material to the
+// reading edge. A body may declare its own margin — reasoning uses one for its aside
+// rule — but it must not inherit an invisible legacy gutter from the summary mark.
 for (const state of ["waves", "tool-shells", "delegated", "narrative"] as const) {
-  test(`a disclosed body starts on its own label's column — ${state}`, async ({ page }) => {
+  test(`a disclosed body honors its own reading-edge inset — ${state}`, async ({ page }) => {
     await openFixture(page, { fixture: "agent", state });
     for (let i = 0; i < 8; i++) {
       const shut = page.locator(
@@ -262,13 +262,12 @@ for (const state of ["waves", "tool-shells", "delegated", "narrative"] as const)
         if (d.dataset.shell !== "line") continue;
         const trigger = d.querySelector("button[aria-expanded]");
         if (trigger?.getAttribute("aria-expanded") !== "true") continue;
-        const label = [...(trigger?.children ?? [])].find(
-          (c) => c.getAttribute("aria-hidden") === null && c.tagName === "SPAN",
-        );
-        const body = d.querySelector("[role='region']")?.firstElementChild;
+        const label = d.querySelector<HTMLElement>("[data-slot='agent-activity-label']");
+        const body = d.querySelector<HTMLElement>("[role='region']");
         if (!label || !body) continue;
+        const declaredMargin = Number.parseFloat(getComputedStyle(body).marginLeft) || 0;
         const delta = Math.round(
-          body.getBoundingClientRect().left - label.getBoundingClientRect().left,
+          body.getBoundingClientRect().left - d.getBoundingClientRect().left - declaredMargin,
         );
         if (Math.abs(delta) > 1) out.push(`${label.textContent?.trim().slice(0, 24)}: ${delta}px`);
       }

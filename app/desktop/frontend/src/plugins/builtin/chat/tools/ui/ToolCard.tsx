@@ -3,14 +3,12 @@
 // ToolInspector fallback); selected state drives the inspector pane through the
 // workspace navigation wiring.
 //
-// Which shell and which tone the row wears are the MODEL's answers, not this
-// component's: a read is a line, something produced is a card, something failed or
-// waiting is flagged (see toolActivityShell). Status colour rides the glyph, its
-// tray and the metadata — never a wash over the whole row, so nested tools stay
-// readable as a hierarchy instead of a stack of competing cards.
+// Which shell and tone the row wears are the MODEL's answers, not this component's.
+// Every invocation stays on the same transparent Codex work-narrative plane; the
+// disclosed terminal, diff or structured result is the material surface.
 import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { Badge, DiffStat, Icon, IconButton, StatusDot } from "@/ui";
+import { DiffStat, IconButton, StatusDot } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/classNames";
@@ -63,14 +61,11 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
       icon={toolCallIconFor(tool)}
       tone={model.tone}
       shell={model.shell}
-      label={<ToolText value={model.intent.label} />}
+      label={<ToolText value={model.intent.label} className="w-full" />}
       detail={
         model.detail ? (
           // A path, a pattern, a command — data, so it takes the technical face.
-          <ToolText
-            value={model.detail}
-            className={cn("font-mono", model.isError && "text-negative")}
-          />
+          <ToolText value={model.detail} className="w-full font-mono" />
         ) : undefined
       }
       trailing={
@@ -82,14 +77,14 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
           )}
           <ToolMeta items={model.metaItems} running={model.running} />
           {model.running && <StatusDot tone="running" />}
-          {/* A refused call is not a finished one. Its glyph says so at 12px, which
-              is not a size anyone reads while scrolling — so the state says it in a
-              word, the way risk and scope already do on an approval. */}
-          {model.denied && <Badge tone="warning">{t("tool.state.denied")}</Badge>}
-          {/* A settled call ends with its verdict. Where the call reported nothing
-              to count, the tick IS the verdict; where it did, the counts above are,
-              and a tick after them is one more identical glyph in a column of them. */}
-          {model.showSettledMark && <Icon name="check" size="xs" className="text-success" />}
+          {/* Refusal remains explicit, but as one quiet status word in the same
+              narrative line — not a yellow capsule that promotes the whole call
+              into a second approval surface. */}
+          {model.denied && (
+            <span data-slot="tool-status" className="font-sans text-ui-xs text-fg-muted">
+              {t("tool.state.denied")}
+            </span>
+          )}
         </>
       }
       actions={actions.map((action) => (
@@ -97,7 +92,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
           key={action.id}
           icon={action.icon as IconName}
           size="xs"
-          quiet={!model.isError}
+          quiet
           title={t(action.title)}
           onClick={(event) => {
             event.stopPropagation();
@@ -107,10 +102,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
               reportPluginError(owner, "command", err, `tool action: ${action.id}`);
             });
           }}
-          className={cn(
-            !model.isError &&
-              "opacity-0 transition-opacity group-hover/activity:opacity-100 focus-visible:opacity-100",
-          )}
+          className="opacity-0 transition-opacity group-hover/activity-header:opacity-100 focus-visible:opacity-100"
         />
       ))}
       open={expanded}
@@ -148,7 +140,7 @@ function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean 
 }
 
 function toolMetaToneClass(tone: ToolMetaItem["tone"]): string {
-  if (tone === "success") return "text-success";
-  if (tone === "negative") return "text-negative";
-  return "text-fg-muted";
+  // An exit code is already an exact verdict. Codex keeps it in secondary ink;
+  // painting it red would make the metadata louder than the command it explains.
+  return tone === "success" ? "text-success" : "text-fg-muted";
 }

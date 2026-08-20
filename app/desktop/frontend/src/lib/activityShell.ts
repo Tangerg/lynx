@@ -7,9 +7,9 @@
  * `ui/agent` made the presentation ring import a component ring to name a fact, which
  * `check-published-boundaries` is right to refuse.
  *
- *   line     A glance — a read, a search, a lookup. There may be a dozen in one turn,
- *            and a dozen cards is the grey stack this vocabulary exists to break up.
- *   card     Something was produced and is worth stopping at.
- *   flagged  Something failed, was refused, or is waiting on a person.
+ *   line     Work-narrative activity. Tool invocations stay here in every lifecycle
+ *            state; their disclosed material owns any terminal/diff surface.
+ *   card     A composite product with a narrative of its own, such as a delegated Run.
+ *   flagged  A composite card whose own boundary needs attention.
  */
 export type ActivityShell = "line" | "card" | "flagged";

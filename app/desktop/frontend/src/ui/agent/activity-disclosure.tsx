@@ -22,16 +22,15 @@ type ActivityTone = "neutral" | "warning" | "negative";
 type ActivityLeading = { icon: IconName; leading?: never } | { icon?: never; leading: ReactNode };
 
 // The gutter, and the column the row's text starts on — one entry, so the two cannot
-// drift apart. `text` is the row's own inset (12) + the chevron (12) + the two gaps
-// around the mark (8 + 8) + the slot (20).
+// drift apart.
 //
 // ONE slot, for every row. A mark identifies the row; it is not a place to put content.
 // Anything beyond "what kind of row am I" belongs in the label or trailing slot;
 // varying the mark width would move labels out of alignment between rows.
-// A line starts on the reading edge, then spends 12px on its chevron, two 8px
-// gaps and 16px on the unframed identity mark. Its body starts under its label.
-// Cards keep the wider 20px tray and 12px gaps inside their own inset.
-const GUTTER = { cardSlot: "w-5", lineBody: "pl-11" } as const;
+// Codex puts the identity mark first and the disclosure chevron after the summary.
+// The body therefore returns to the reading edge; a material preview owns its own
+// inset and reasoning contributes its own aside rule.
+const GUTTER = { cardSlot: "w-5" } as const;
 
 type AgentActivityDisclosureProps = Omit<ComponentPropsWithoutRef<"div">, "children"> &
   ActivityLeading & {
@@ -136,11 +135,9 @@ export function AgentActivityDisclosure({
         // descendant positions against, and a sticky header inside a box that
         // never scrolls simply does not stick. `clip` is not a scroll container,
         // so the corner is still clipped and `stickyHeader` below still works.
-        "group/activity min-w-0 overflow-clip",
+        "min-w-0 overflow-clip",
         shell === "line"
-          ? // A radius even with no fill: the hover wash needs a shape, and a
-            // full-bleed rectangle sliding under the cursor is what makes a quiet
-            // row read as a table cell.
+          ? // A radius even with no fill: the focus ring still needs a shape.
             "rounded-[var(--shape-sm)]"
           : "rounded-[var(--surface-card-radius)] bg-card",
         shell === "flagged" && `border ${FLAG_EDGE_CLASS[tone]}`,
@@ -149,7 +146,7 @@ export function AgentActivityDisclosure({
     >
       <div
         className={cn(
-          "flex min-w-0 items-center",
+          "group/activity-header flex min-w-0 items-center",
           // Opt-in, and deliberately not the default: a transcript where every
           // activity row stuck would pile a dozen headers at the top of the
           // reading column, each hiding the rows of the one above it. Only a
@@ -171,29 +168,20 @@ export function AgentActivityDisclosure({
           aria-label={toggleLabel}
           onClick={onToggle}
           className={cn(
-            "flex min-w-0 flex-1 items-center py-1.5 pr-3 text-left",
-            shell === "line" ? "gap-2" : "gap-3",
+            "flex min-w-0 flex-1 items-center text-left",
+            shell === "line" ? "gap-1.5 py-0.5 pr-0" : "gap-3 py-1.5 pr-3",
             // A card insets its content from its own edge; a line has no edge, so it
             // starts on the column.
             shell === "line" ? "pl-0" : "pl-3",
-            "transition-colors duration-[var(--dur-color)] hover:bg-hover",
-            shell === "line" ? "min-h-7" : "min-h-8",
+            // The work narrative changes ink on hover; it does not paint a row
+            // behind every invocation. Material belongs to the disclosed result.
+            shell !== "line" && "transition-colors duration-[var(--dur-color)] hover:bg-hover",
+            shell === "line" ? "min-h-5" : "min-h-8",
           )}
         >
-          {/* The disclosure arrow leads the row. It is the only control here, and
-              a reader scanning a column of activity rows for the one to open
-              should find every arrow on the same left edge instead of at the end
-              of labels that all differ in length. */}
-          <Icon
-            name="chevron-down"
-            size="xs"
-            className={cn(
-              "shrink-0 text-fg-faint transition-transform duration-[var(--dur-fast)]",
-              !open && "-rotate-90",
-            )}
-          />
           <span
             aria-hidden
+            data-slot="agent-activity-mark"
             className={cn(
               "grid shrink-0 place-items-center",
               shell === "line" ? "h-4 w-4" : GUTTER.cardSlot,
@@ -217,7 +205,10 @@ export function AgentActivityDisclosure({
               — a whole shell command, say — ran past the card's rounded corner and
               was cut mid-glyph with no ellipsis. Shrinking is proportional to base
               width, so a short verb still holds its ground against a long detail. */}
-          <span className="min-w-0 shrink truncate text-ui-sm font-medium text-fg-muted">
+          <span
+            data-slot="agent-activity-label"
+            className="flex min-w-0 shrink items-center overflow-hidden text-ellipsis whitespace-nowrap text-ui-sm text-fg-muted group-hover/activity-header:text-fg"
+          >
             {label}
           </span>
           {detail != null && (
@@ -227,16 +218,27 @@ export function AgentActivityDisclosure({
             // same reason. But one ink below the answer: at full `text-fg` it was
             // darker than the prose it precedes, so a tool's file path outranked the
             // sentence the reader actually came for.
-            <span className="min-w-0 flex-1 truncate text-ui-xs leading-snug text-fg-soft">
+            <span className="flex min-w-0 flex-1 items-center overflow-hidden text-ellipsis whitespace-nowrap text-ui-sm leading-snug text-fg-muted group-hover/activity-header:text-fg">
               {detail}
             </span>
           )}
-          <span className="min-w-1 flex-1" />
           {trailing != null && (
-            <span className="flex shrink-0 items-center gap-2 font-mono text-ui-2xs text-fg-faint tabular-nums">
+            <span className="flex shrink-0 items-center gap-1.5 font-mono text-ui-2xs text-fg-faint tabular-nums">
               {trailing}
             </span>
           )}
+          {/* Codex keeps disclosure subordinate to the summary: it trails the
+              text, appears on hover/focus, and remains visible while open. */}
+          <span
+            aria-hidden
+            data-slot="agent-activity-chevron"
+            className={cn(
+              "flex shrink-0 text-fg-faint transition-[transform,opacity] duration-[var(--dur-fast)] group-focus-within/activity-header:opacity-100 group-hover/activity-header:opacity-100",
+              open ? "opacity-100" : "-rotate-90 opacity-0",
+            )}
+          >
+            <Icon name="chevron-down" size="xs" />
+          </span>
         </Pressable>
         {/* The row's content is inset from the card edge by the trigger's own
             padding; the action rail sits OUTSIDE that trigger, so without its own
@@ -269,11 +271,10 @@ export function AgentActivityDisclosure({
           className={cn(
             // No fill on the body, either shell. The card is the ground; previews
             // of program output or JSON provide the nested depth themselves.
-            // A `line` row has no box, so the indent is the only thing saying what
-            // belongs to what: its body has to start on its label's column. A card
-            // groups with its FILL, so its body takes the card's own padding — the
-            // label's column would leave 60px of empty card down the left.
-            shell === "line" ? `${GUTTER.lineBody} pb-1.5 pr-1` : "px-3 pb-2.5",
+            // A narrative line and its body share the reading edge. The expanded
+            // shell/diff is the material child and owns its own inset; adding a
+            // second 44px gutter here made every real result look nested twice.
+            shell === "line" ? "pt-1.5 pb-1.5 pr-0" : "px-3 pb-2.5",
             contentClassName,
           )}
         >

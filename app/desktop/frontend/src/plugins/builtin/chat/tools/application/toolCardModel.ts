@@ -24,10 +24,6 @@ export interface ToolCardModel {
   metaItems: ToolMetaItem[];
   shell: ActivityShell;
   tone: "neutral" | "warning" | "negative";
-  /** A settled call with nothing to report still has to look settled. Where there
-   *  IS something — hits, files, an exit code, a truncation — that is the verdict
-   *  and the tick is one more identical glyph in a column of them. */
-  showSettledMark: boolean;
 }
 
 export function toolCardModel(t: Translate, tool: ToolCall): ToolCardModel {
@@ -46,19 +42,11 @@ export function toolCardModel(t: Translate, tool: ToolCall): ToolCardModel {
     diffStat,
     metaItems,
     shell: toolActivityShell(tool),
-    tone: toolCardTone(tool),
-    // The tick means "nothing to report". A diffstat is something to report, and
-    // it left the chip list when it stopped being two chips — so it has to be
-    // counted here or an edit would get both.
-    showSettledMark: tool.status === "ok" && metaItems.length === 0 && diffStat === undefined,
+    // Lifecycle truth is carried by inline text/dot metadata. Colouring the
+    // identity glyph turned errors and refusals back into status cards even after
+    // the outer fill was removed.
+    tone: "neutral",
   };
-}
-
-/** A denied call is negative so refusal remains visible while scrolling. */
-function toolCardTone(tool: ToolCall): "neutral" | "warning" | "negative" {
-  if (tool.status === "err") return "negative";
-  if (tool.status === "requires-action" || tool.status === "denied") return "warning";
-  return "neutral";
 }
 
 export function toolCardActions(

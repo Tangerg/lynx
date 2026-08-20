@@ -150,4 +150,48 @@ describe("AgentActivityDisclosure", () => {
     expect(mark?.className).not.toContain("bg-surface-2");
     expect(mark?.querySelector("svg")).toBeTruthy();
   });
+
+  it("puts the identity first and a quiet disclosure after the summary", () => {
+    const { rerender } = render(
+      <AgentActivityDisclosure
+        icon="search"
+        shell="line"
+        label="Searched files"
+        trailing="3 steps"
+        open={false}
+        onToggle={() => {}}
+      >
+        body
+      </AgentActivityDisclosure>,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Searched files/ });
+    const slots = Array.from(trigger.children)
+      .map((child) => child.getAttribute("data-slot"))
+      .filter(Boolean);
+    expect(slots).toEqual([
+      "agent-activity-mark",
+      "agent-activity-label",
+      "agent-activity-chevron",
+    ]);
+    const chevron = trigger.querySelector('[data-slot="agent-activity-chevron"]');
+    expect(chevron?.getAttribute("class")).toContain("opacity-0");
+
+    rerender(
+      <AgentActivityDisclosure
+        icon="search"
+        shell="line"
+        label="Searched files"
+        trailing="3 steps"
+        open
+        onToggle={() => {}}
+      >
+        body
+      </AgentActivityDisclosure>,
+    );
+    const openChevron = screen
+      .getByRole("button", { name: /Searched files/ })
+      .querySelector('[data-slot="agent-activity-chevron"]');
+    expect(openChevron?.getAttribute("class")).toContain("opacity-100");
+  });
 });

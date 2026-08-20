@@ -44,10 +44,9 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand, su
       onToggle={() => setPinned(model.nextPinned)}
       stickyHeader
     >
-      {/* A ruled list, not a stack of disclosures. The rule is what separates the rows
-          — this page's background is one colour, so indent alone was carrying the whole
-          hierarchy and could not. */}
-      <div className="divide-y divide-divider">
+      {/* The expanded group remains one work narrative. Each member keeps its own
+          mark and line rhythm; divider rules would turn it back into a table. */}
+      <div className="flex flex-col gap-1">
         {tools.map((tool) => (
           <ToolGroupMember
             key={tool.id}

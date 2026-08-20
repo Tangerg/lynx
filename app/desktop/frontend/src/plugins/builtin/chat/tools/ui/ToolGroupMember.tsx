@@ -16,10 +16,9 @@ interface Props {
 /**
  * One call inside a group, as a FLAT row.
  *
- * Members have no independent disclosure state, so they omit nested disclosure
- * chrome and the list gets a rule between
- * rows instead. The one identity mark remains: it is the visual contract that a
- * read, search and language query do not collapse into indistinguishable text.
+ * Members have no independent disclosure chrome. The one identity mark remains:
+ * it is the visual contract that a read, search and language query do not collapse
+ * into indistinguishable text.
  *
  * Clicking still opens the call's own preview, underneath, at the row's text column —
  * the capability is unchanged, it just is not advertised by a permanent arrow on every
@@ -39,22 +38,15 @@ export function ToolGroupMember({ tool, expanded, onToggleExpand }: Props) {
         aria-expanded={expanded}
         onClick={onToggleExpand}
         className={cn(
-          "flex w-full min-w-0 items-baseline gap-2 px-2 py-1 text-left",
-          "transition-colors duration-[var(--dur-color)] hover:bg-hover",
-          expanded && "bg-selected",
+          "flex w-full min-w-0 items-baseline gap-1.5 py-0.5 text-left text-fg-muted",
+          "hover:text-fg",
+          expanded && "text-fg",
         )}
       >
-        <Icon
-          name={toolCallIconFor(tool)}
-          size="xs"
-          className={cn("shrink-0", model.isError ? "text-negative" : "text-fg-faint")}
-        />
+        <Icon name={toolCallIconFor(tool)} size="xs" className="shrink-0 text-fg-faint" />
         <ToolText
           value={model.detail ?? model.intent.label}
-          className={cn(
-            "min-w-0 flex-1 text-ui-sm",
-            model.isError ? "text-negative" : "text-fg-muted",
-          )}
+          className="min-w-0 flex-1 text-ui-sm text-inherit"
         />
         {meta.length > 0 && (
           <span className="shrink-0 font-mono text-ui-2xs text-fg-faint tabular-nums">
@@ -63,7 +55,7 @@ export function ToolGroupMember({ tool, expanded, onToggleExpand }: Props) {
         )}
       </Pressable>
       {expanded && (
-        <div className="px-2 pb-2">
+        <div className="pt-1.5 pb-1.5">
           <ToolPreview tool={tool} />
         </div>
       )}

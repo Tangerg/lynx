@@ -164,24 +164,16 @@ export function isReadOnlyTool(tool: ToolCall): boolean {
 }
 
 /**
- * How much of the plane one tool call claims.
+ * How much of the plane one tool invocation claims.
  *
- * A table and not a chain of conditions in the card, because this is the whole of
- * the taxonomy and it wants to be readable in one place. The read/produce split is
- * the interesting half: a turn can hold a dozen reads and one command, and giving
- * all thirteen the same card is what makes a transcript one grey stack.
- *
- * The state cases come first, because a read that FAILED is no longer a glance —
- * it is the thing you opened the transcript to find.
- *
- * The read/produce split reads the runtime's own safety class, so a tool added or
- * renamed on the backend arrives correctly weighted with no table to update here.
+ * Codex keeps the invocation on the transparent work-narrative plane regardless
+ * of safety class or outcome. A command output, diff, or other material result
+ * earns a surface only inside the disclosed body. Keeping that boundary here
+ * prevents new tools and new lifecycle states from silently reintroducing the
+ * dashboard-like stack of tinted cards.
  */
-export function toolActivityShell(tool: ToolCall): ActivityShell {
-  if (tool.status === "err" || tool.status === "denied" || tool.status === "requires-action") {
-    return "flagged";
-  }
-  return isReadOnlyTool(tool) ? "line" : "card";
+export function toolActivityShell(_tool: ToolCall): ActivityShell {
+  return "line";
 }
 
 export function toolGroupNeedsAttention(tools: readonly ToolCall[]): boolean {

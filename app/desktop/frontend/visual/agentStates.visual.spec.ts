@@ -1093,6 +1093,11 @@ test("an expanded patch reports only its call-scoped file receipt", async ({ pag
   // rather than screenshotted because it is the overflow that matters, and a golden
   // cannot tell "clipped on the left" from "clipped on the right" without a human.
   const clipping = await row.evaluate((element) => {
+    // The visual fixture has a deliberate 1120px minimum canvas. Constrain this
+    // production row itself to exercise the dock/composer-narrowing case without
+    // replacing the app layout with a test-only viewport implementation.
+    const activity = element.closest<HTMLElement>("[data-slot='agent-activity-disclosure']");
+    if (activity) activity.style.width = "480px";
     const directory = element.querySelector("[dir=rtl]");
     const filename = directory?.nextElementSibling?.nextElementSibling;
     return {
@@ -1139,6 +1144,13 @@ test("tool invocations stay on the transparent Codex work-narrative plane", asyn
     await expect(row).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(row).toHaveCSS("border-top-width", "0px");
   }
+
+  await page.mouse.move(0, 0);
+  const closedChevron = rows
+    .filter({ has: page.locator("button[aria-expanded='false']") })
+    .first()
+    .locator('[data-slot="agent-activity-chevron"]');
+  await expect(closedChevron).toHaveCSS("opacity", "0");
 });
 
 test("an expanded wave keeps its summary while its rows scroll past", async ({ page }) => {
