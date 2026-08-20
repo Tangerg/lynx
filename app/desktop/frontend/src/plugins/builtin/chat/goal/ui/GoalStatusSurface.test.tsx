@@ -5,6 +5,8 @@ import type { GoalReadModel } from "../application/goalReadModel";
 import { GoalStatusSurface } from "./GoalStatusSurface";
 
 const model = vi.hoisted(() => ({
+  clearGoal: vi.fn(async () => {}),
+  updateGoal: vi.fn(async () => {}),
   stopGoal: vi.fn(async () => {}),
   resumeGoal: vi.fn(async () => {}),
   runtimeAvailable: true,
@@ -24,6 +26,8 @@ const model = vi.hoisted(() => ({
 }));
 
 vi.mock("../application/goalCommands", () => ({
+  clearGoal: model.clearGoal,
+  updateGoal: model.updateGoal,
   stopGoal: model.stopGoal,
   resumeGoal: model.resumeGoal,
   goalCommandWasRetired: () => false,
@@ -63,6 +67,8 @@ describe("Goal status surface", () => {
     };
     model.stopGoal.mockClear();
     model.resumeGoal.mockClear();
+    model.clearGoal.mockClear();
+    model.updateGoal.mockClear();
     model.runtimeAvailable = true;
     model.generation = 1;
   });
@@ -72,6 +78,40 @@ describe("Goal status surface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
     await vi.waitFor(() => expect(model.stopGoal).toHaveBeenCalledWith("session-a"));
     expect(model.resumeGoal).not.toHaveBeenCalled();
+  });
+
+  it("offers Codex Goal management actions in clear, lifecycle, edit order", () => {
+    render(<GoalStatusSurface />);
+
+    expect(
+      screen.getAllByRole("button").map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Clear goal", "Pause goal", "Edit goal"]);
+  });
+
+  it("clears the current goal through the Goal command owner", async () => {
+    render(<GoalStatusSurface />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear goal" }));
+
+    await vi.waitFor(() => expect(model.clearGoal).toHaveBeenCalledWith("session-a"));
+  });
+
+  it("edits only the objective in a Codex-style Goal dialog", async () => {
+    render(<GoalStatusSurface />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
+    const objective = screen.getByRole("textbox", { name: "Goal" });
+    expect((objective as HTMLTextAreaElement).value).toBe("Ship alpha");
+
+    fireEvent.change(objective, { target: { value: "  Ship beta  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() =>
+      expect(model.updateGoal).toHaveBeenCalledWith({
+        sessionId: "session-a",
+        objective: "Ship beta",
+      }),
+    );
   });
 
   it("resumes a paused goal from the standing surface", async () => {

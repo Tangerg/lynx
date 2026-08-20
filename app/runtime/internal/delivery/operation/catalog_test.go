@@ -90,3 +90,21 @@ func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestGoalManagementCommandsArePublished(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"goals.update", "goals.clear"} {
+		method, ok := Contract().Lookup(name)
+		if !ok {
+			t.Errorf("%s is not registered", name)
+			continue
+		}
+		if method.Operation != OperationCommand {
+			t.Errorf("%s operation = %s, want %s", name, method.Operation, OperationCommand)
+		}
+		if !slices.Equal(method.Features(), []string{protocol.FeatureGoals}) {
+			t.Errorf("%s features = %v, want [%s]", name, method.Features(), protocol.FeatureGoals)
+		}
+	}
+}
