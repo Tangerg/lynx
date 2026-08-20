@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
+import type { AgentMessagePhase } from "@/plugins/builtin/agent/public/viewState";
 import type { BlockCtx } from "./BlockRenderer";
 import { MessageBlock } from "./MessageBlock";
 import { MessageVisibleMaterialOwner } from "./messageVisibleMaterial";
@@ -25,12 +26,14 @@ function row(
   status: "running" | "complete",
   text = "A deliberately long answer whose reveal still has a visible backlog.",
   role: "user" | "assistant" = "assistant",
+  phase?: AgentMessagePhase,
 ): TranscriptRow {
   return {
     message: {
       id: "assistant-visible-material",
       runId: "run-visible-material",
       role,
+      ...(phase ? { phase } : {}),
       createdAt: "2026-08-18T14:32:00.000Z",
       blocks: [
         {
@@ -116,6 +119,33 @@ afterEach(() => {
 });
 
 describe("MessageBlock action materialization", () => {
+  it("keeps work commentary free of terminal message actions", async () => {
+    document.documentElement.setAttribute("data-motion", "off");
+    const { rerender } = render(
+      <MessageBlock
+        row={row("complete", "Inspecting the project.", "assistant", "commentary")}
+        ctx={CTX}
+        sessionId="session-message-phase"
+        isLast
+        isRunning={false}
+      />,
+    );
+
+    expect(screen.queryByTestId("message.actions")).toBeNull();
+
+    rerender(
+      <MessageBlock
+        row={row("complete", "Inspection complete.", "assistant", "finalAnswer")}
+        ctx={CTX}
+        sessionId="session-message-phase"
+        isLast
+        isRunning={false}
+      />,
+    );
+
+    expect(await screen.findByTestId("message.actions")).toBeTruthy();
+  });
+
   it("revokes terminal actions before a late accepted text generation enters layout", async () => {
     document.documentElement.setAttribute("data-motion", "off");
     const { rerender } = render(

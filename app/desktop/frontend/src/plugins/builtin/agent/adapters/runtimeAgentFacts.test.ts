@@ -97,6 +97,26 @@ describe("Runtime → Agent fact adapter", () => {
   });
 
   it("translates every payload-bearing event before SDK dispatch", () => {
+    expect(
+      runtimeItem({
+        type: "agentMessage",
+        id: "item_answer",
+        runId: "run_root",
+        status: "completed",
+        createdAt: "2026-08-12T08:00:01.000Z",
+        phase: "finalAnswer",
+        content: [{ type: "text", text: "Done." }],
+      }),
+    ).toEqual({
+      type: "agentMessage",
+      id: "item_answer",
+      runId: "run_root",
+      status: "completed",
+      createdAt: "2026-08-12T08:00:01.000Z",
+      phase: "finalAnswer",
+      content: [{ type: "text", text: "Done." }],
+    });
+
     const tool = runtimeItem({
       type: "toolCall",
       id: "item_tool",

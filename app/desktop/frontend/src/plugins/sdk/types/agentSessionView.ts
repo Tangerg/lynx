@@ -7,6 +7,7 @@ import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 // Narrow view-side roles. userMessage → "user", everything the agent
 // produces → "assistant", protocol notes → "system".
 export type MessageRole = "user" | "assistant" | "system";
+export type AgentMessagePhase = "commentary" | "finalAnswer";
 
 // Client-side display convention (API.md §4.4.2) — maps a domain-neutral tool
 // `name` to a presentation category. This is NOT on the wire: the protocol core
@@ -106,6 +107,10 @@ export interface ToolCall {
 export interface Message {
   id: string;
   role: MessageRole;
+  /** Runtime-authored AgentMessage role. Commentary owns the working narrative;
+   *  finalAnswer owns the terminal response and its message actions. Absent for
+   *  user/system messages and legacy synthesized fixtures. */
+  phase?: AgentMessagePhase;
   /** Raw ISO-8601 from the wire. Formatting belongs to the caller at render so
    *  locale changes reach messages already on screen.
    *
@@ -243,10 +248,9 @@ export interface AgentSessionView {
   runsById: Record<string, AgentRunView>;
   commandError: AgentProblem | null;
   dismissedProblemRunId: string | null;
-  /** The open assistant-turn message id — contiguous assistant-side Items
-   *  (agentMessage / reasoning / toolCall) fold into one bubble until the next
-   *  userMessage from the same Run. Each Run owns its cursor because root and
-   *  child Items can arrive interleaved on one stream. */
+  /** The open working-narrative message id — reasoning, commentary, and Tool
+   *  Items fold together until a user boundary or finalAnswer closes it. Each
+   *  Run owns its cursor because root and child Items can arrive interleaved. */
   assistantTurnByRunId: Record<string, string>;
   /** Append-only audit log of run-significant events. See TimelineEntry. */
   timeline: TimelineEntry[];

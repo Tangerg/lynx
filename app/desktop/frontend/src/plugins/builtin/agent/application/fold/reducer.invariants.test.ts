@@ -163,11 +163,7 @@ describe("reducer — render convergence across delivery modes", () => {
     // becomes its own stable message so it alone owns terminal message actions.
     expect(streaming.messages).toHaveLength(3);
     expect(streaming.messages[0]!.role).toBe("user");
-    expect(streaming.messages[1]!.blocks.map((b) => b.kind)).toEqual([
-      "reasoning",
-      "text",
-      "tool",
-    ]);
+    expect(streaming.messages[1]!.blocks.map((b) => b.kind)).toEqual(["reasoning", "text", "tool"]);
     expect(streaming.messages[1]!.phase).toBe("commentary");
     expect(streaming.messages[2]).toMatchObject({
       id: "final:m2",

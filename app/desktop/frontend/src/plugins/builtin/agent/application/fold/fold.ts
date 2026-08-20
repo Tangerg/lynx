@@ -62,7 +62,14 @@ function ensureTurn(
   // The Item that opened this turn dates it. No clock here: a turn stamped by the
   // client clock sits in a stream stamped by the runtime, and the date separator
   // above it would disagree with the messages beside it. Absent is honest.
-  const msg: Message = { id, role: "assistant", createdAt, runId, blocks: [] };
+  const msg: Message = {
+    id,
+    role: "assistant",
+    phase: "commentary",
+    createdAt,
+    runId,
+    blocks: [],
+  };
   return {
     state: {
       ...state,
@@ -268,6 +275,7 @@ export function foldText(
   item: ItemOf<"agentMessage">,
   status: BlockStatus,
 ): AgentSessionView {
+  if (item.phase === "finalAnswer") return foldFinalText(state, item, status);
   const text = contentText(item.content);
   return upsertBlock(
     state,
@@ -280,6 +288,67 @@ export function foldText(
     // the projection is empty (status still upgrades).
     (b) => (b.kind === "text" ? { ...b, text: text || b.text, status } : b),
   );
+}
+
+/** Rehome the authoritative final answer out of the Run's working narrative.
+ *
+ * item.started cannot carry a phase, so live text first streams into the same
+ * commentary turn as reasoning and Tools. item.completed is the first frame that
+ * can authoritatively classify it. Moving the existing block here makes live,
+ * replay, and mixed hydration converge without guessing from order or wording. */
+function foldFinalText(
+  state: AgentSessionView,
+  item: ItemOf<"agentMessage">,
+  status: BlockStatus,
+): AgentSessionView {
+  const finalId = `final:${item.id}`;
+  const projectedText = contentText(item.content);
+  const previous = state.messages
+    .flatMap((message) => message.blocks)
+    .find(
+      (block): block is Extract<ContentBlock, { kind: "text" }> =>
+        block.kind === "text" && block.itemId === item.id,
+    );
+  const block: Extract<ContentBlock, { kind: "text" }> = {
+    kind: "text",
+    itemId: item.id,
+    text: projectedText || previous?.text || "",
+    status,
+  };
+
+  let foundFinal = false;
+  const messages: Message[] = [];
+  for (const message of state.messages) {
+    if (message.id === finalId) {
+      foundFinal = true;
+      messages.push({ ...message, phase: "finalAnswer", blocks: [block] });
+      continue;
+    }
+    if (message.runId !== item.runId) {
+      messages.push(message);
+      continue;
+    }
+    const blocks = message.blocks.filter(
+      (candidate) => !(candidate.kind === "text" && candidate.itemId === item.id),
+    );
+    if (blocks.length === message.blocks.length) {
+      messages.push(message);
+    } else if (blocks.length > 0) {
+      messages.push({ ...message, phase: "commentary", blocks });
+    }
+  }
+
+  if (!foundFinal) {
+    messages.push({
+      id: finalId,
+      role: "assistant",
+      phase: "finalAnswer",
+      createdAt: item.createdAt,
+      runId: item.runId,
+      blocks: [block],
+    });
+  }
+  return closeAssistantTurn({ ...state, messages }, item.runId);
 }
 
 /** Upsert the reasoning block for an item. */

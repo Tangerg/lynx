@@ -5,6 +5,7 @@ import type {
   AgentRunProgress,
   AgentRunStatus,
   AgentSafetyClass,
+  AgentMessagePhase,
 } from "./agentSessionView";
 import type { AgentApprovalRisk } from "./contentBlock";
 
@@ -56,6 +57,8 @@ export type AgentItem =
       content?: AgentMessagePart[];
       createdAt: string;
       id: string;
+      /** Absent only on the provisional item.started shell. */
+      phase?: AgentMessagePhase;
       runId: string;
       status: AgentItemStatus;
     }

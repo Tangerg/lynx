@@ -169,13 +169,22 @@ function runtimeTool(tool: ToolInvocation): AgentToolInvocation {
 export function runtimeItem(item: Item): AgentItem {
   switch (item.type) {
     case "userMessage":
-    case "agentMessage":
       return {
-        type: item.type,
+        type: "userMessage",
         id: item.id,
         runId: item.runId,
         status: item.status,
         createdAt: item.createdAt,
+        ...(item.content ? { content: item.content.map(runtimeContent) } : {}),
+      };
+    case "agentMessage":
+      return {
+        type: "agentMessage",
+        id: item.id,
+        runId: item.runId,
+        status: item.status,
+        createdAt: item.createdAt,
+        ...(item.phase ? { phase: item.phase } : {}),
         ...(item.content ? { content: item.content.map(runtimeContent) } : {}),
       };
     case "reasoning":

@@ -63,11 +63,14 @@ function MessageBlockInner({
     acceptedActionMaterialization,
     visibleMaterialGeneration,
   );
-  const actionsVisibility = messageActionsVisibility({
-    materialization: actionMaterialization,
-    isRunning,
-    isLast,
-  });
+  const actionsVisibility =
+    msg.phase === "commentary"
+      ? "absent"
+      : messageActionsVisibility({
+          materialization: actionMaterialization,
+          isRunning,
+          isLast,
+        });
 
   // System messages (e.g. a compaction boundary) are chrome-less full-width
   // notes — no avatar / name / time / outline / context-menu, just the block(s)
@@ -96,6 +99,22 @@ function MessageBlockInner({
   // preserve duplicate rhythm even after removing the duplicate card.
   if (content.length === 0) return null;
 
+  const messageContent = (
+    <div
+      data-user-message-bubble={isUser ? "" : undefined}
+      className={cn(
+        MESSAGE_CONTENT_CLASS,
+        "min-w-0 text-pretty leading-prose text-prose text-fg",
+        // Match Codex's quoted-human geometry and neutral 5% ink wash.
+        // A prompt owns a distinct material, but it is not a selected row
+        // or semantic status and must not inherit the user's accent.
+        isUser && "max-w-[77%] rounded-bubble bg-user-message px-3 py-2",
+      )}
+    >
+      {content}
+    </div>
+  );
+
   return (
     <MessageContext.Provider value={messageContext}>
       <CitationContext.Provider value={citations}>
@@ -105,21 +124,11 @@ function MessageBlockInner({
         >
           <div className={cn("group relative flex min-w-0 flex-col gap-2", isUser && "items-end")}>
             <h4 className="sr-only select-none">{roleLabel}</h4>
-            <MessageContextMenu msg={msg}>
-              <div
-                data-user-message-bubble={isUser ? "" : undefined}
-                className={cn(
-                  MESSAGE_CONTENT_CLASS,
-                  "min-w-0 text-pretty leading-prose text-prose text-fg",
-                  // Match Codex's quoted-human geometry and neutral 5% ink wash.
-                  // A prompt owns a distinct material, but it is not a selected row
-                  // or semantic status and must not inherit the user's accent.
-                  isUser && "max-w-[77%] rounded-bubble bg-user-message px-3 py-2",
-                )}
-              >
-                {content}
-              </div>
-            </MessageContextMenu>
+            {msg.phase === "commentary" ? (
+              messageContent
+            ) : (
+              <MessageContextMenu msg={msg}>{messageContent}</MessageContextMenu>
+            )}
             {/* Pulled outward by the button's own optical inset so the first glyph
               lands on the text's edge rather than its box doing so — and outward is a
               different side per role now that a user turn hugs the trailing edge. With

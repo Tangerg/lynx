@@ -1,5 +1,6 @@
 export type { BlockStatus, ContentBlock, QuestionItem } from "@/plugins/sdk/types/contentBlock";
 export type {
+  AgentMessagePhase,
   AgentRunOutcome,
   AgentRunView,
   Message,

@@ -108,6 +108,7 @@ export {
 } from "./state";
 
 export type { KeyValueStore } from "./storage";
+export type { AgentMessagePhase } from "./types/agentSessionView";
 
 export type {
   AgentDriver,
