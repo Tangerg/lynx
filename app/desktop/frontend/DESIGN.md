@@ -185,8 +185,7 @@ spacing:
 # ---- Lyra-specific layout constants ----
 layout:
   content-max: 720px       # Max reading width for chat content (was 760; narrowed 2026-06)
-  sidebar-expanded: 248px  # Expanded sidebar (default state)
-  sidebar-rail: 56px       # Collapsed icon rail (on demand, ⌘B)
+  sidebar-expanded: 275px  # Expanded Work Index preference (default state)
   # No tab strip, no sidebar/main divider (separation is a background delta),
   # no bottom status bar — run telemetry lives in the composer footer, global
   # status/notifications in the sidebar footer.
@@ -613,7 +612,7 @@ Three opaque tool windows and no line between any of them. No bottom status bar:
 └─────────────┘└────┴──────────────────────────────────────┴──┴─────────┘
        ↑          ↑ turn rail (44)          outline rail (186) ↑ dock casts
    --sidebar-width  --app-card-edge: the drawer's cast,          leftward
-   (240, resizable) drawn inside the plane                    (--app-pane-split)
+   (275, 240–520) drawn inside the plane                  (--app-pane-split)
 ```
 
 Both rails are container-query gated on the width of the reading column — not the
@@ -622,8 +621,10 @@ all. Banners and composer take the same gutters, so the three stay on one axis.
 
 ### Sidebar
 
-- **Default state: expanded** (`--sidebar-width`, 240px, user-resizable by dragging
-  the seam rail; floor 208px, and the reading column never goes below 640px).
+- **Default state: expanded** (`--sidebar-width`, 275px, user-resizable by dragging
+  the seam rail; floor 240px, ceiling 520px, and the live clamp always leaves at
+  least 240px for the reading plane). The Context Dock keeps its separate 640px
+  conversation floor; the two flanks do not share one clamp.
 - **Pinned identity** above the scrolling index: the active session's workspace,
   because the one fact you must be able to read without scrolling is where the next
   command will run.
@@ -801,7 +802,8 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 - Use literal hex hairlines — not `color-mix(text X%, transparent)`.
 - Set every interactive element with `:hover`, `:active`, `:focus-visible`.
 - Use `font-feature-settings: "tnum"` on every numeric display.
-- Default sidebar to **expanded** (248px); collapse to the rail (56px) on demand (⌘B).
+- Default the Work Index to **expanded** (275px); collapse it fully off-canvas on
+  demand (⌘B), while keeping one recovery control in the content header.
 - Render tool calls as RPC logs (mono signature + duration line — the one place mono stays).
 - Pair display weight 600 with body weight 400. Hierarchy via size + weight contrast, never weight 700+.
 
