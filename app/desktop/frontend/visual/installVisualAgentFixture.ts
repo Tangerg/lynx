@@ -37,6 +37,7 @@ import {
   messageRegenerate,
 } from "@/plugins/builtin/chat/message-actions";
 import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
+import customTheme from "@/plugins/builtin/theme/themes/custom-theme";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
 import { defaultAccents } from "@/plugins/builtin/defaults";
@@ -223,6 +224,11 @@ export async function installVisualAgentFixture(
     lyraLight,
     defaultAccents,
     lyraDark,
+    // This plugin owns the production custom palette and reacts to the same
+    // accent preference as the swatches. Omitting it let the fixture prove the
+    // picker in a topology where the production duplicate-contribution failure
+    // could never happen.
+    customTheme,
     ...builtinVisualStyles,
     agentFold,
     visualAgentSessionPorts,

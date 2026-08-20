@@ -366,6 +366,45 @@ test("settings filtering and menu dismissal stay inside production semantics", a
   await expect(theme).toBeFocused();
 });
 
+test("accent selection gives an immediate, durable visual acknowledgement", async ({ page }) => {
+  await openWorkspace(page, { state: "settings" });
+  await waitForWorkspaceState(page, "settings");
+
+  const purple = page.getByRole("button", { name: "Accent: Purple" });
+  await purple.click();
+
+  // One click has to cross the complete production topology: preference,
+  // dynamic custom-theme contribution, document painter, React projection and
+  // persistence. A duplicate contribution used to abort that listener chain,
+  // making the swatch feel as though it ignored the click.
+  await expect(purple).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue("--color-accent"),
+      ),
+    )
+    .toBe("#6d3ff0");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem("lyra.ui") ?? "null")?.state?.accent,
+      ),
+    )
+    .toBe("#7f52ff");
+
+  await expect(purple.locator('[data-slot="accent-selection-mark"]')).toBeVisible();
+  expect((await purple.boundingBox())?.width).toBeGreaterThanOrEqual(28);
+
+  await page.reload();
+  await page.locator("html[data-visual-ready]").waitFor();
+  await waitForWorkspaceState(page, "settings");
+  await expect(page.getByRole("button", { name: "Accent: Purple" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
 test("settings hosts shortcut contributions without a second page frame", async ({ page }) => {
   await openWorkspace(page, { state: "settings" });
 
