@@ -130,7 +130,7 @@ Session ──┬── Run ──┬── Item   (userMessage / agentMessage /
 │              │  │场 │  D2 turn caption（角色 · 时钟）         │ │  run summary   │
 │              │  │轨 │  D3 内容块  ← 本文主体                  │ │  …             │
 │              │  │   │  D4 turn 操作条（复制 / 编辑 / 反馈）   │ │                │
-│              │  │   │  D5 Run 收尾行                          │ │                │
+│              │  │   │  D5 异常终态提示                        │ │                │
 │              │  └───┴─────────────────────────────────────────┘ │                │
 │              │  ┌──── F  Composer（浮层，压在 D 之上）───────┐ │                │
 │              │  └─────────────────────────────────────────────┘ │                │
@@ -157,7 +157,7 @@ D3  ┌ 工具卡 ────────────────────�
     └────────────────────────────────────────────┘
 D3  助手正文（Markdown，占满阅读列宽）
 D4  [复制] [重新生成] [👍] [👎]                   ← hover / 末条常驻
-D5  ✓ 已完成 · 42s · 8 步 · ↑12k ↓3.4k · $0.08
+D5  ■ 已取消 · 用户停止                            ← 正常完成无 footer
 ```
 
 ### 1.3 卡片内部槽位（工具卡为例）
@@ -627,7 +627,7 @@ interface BlockCtx {
 | 4.9 | 提问卡 | D3 | `Item{question}` / interrupt | 待答 → 已答 |
 | 4.10 | 压缩条 | D3，全宽无 chrome | `Item{compaction}` | 原子 |
 | 4.11 | 子 agent 叙事 | D3，挂在父工具卡下 | 子 run 的全部 Item | 跟随子 run |
-| 4.12 | Run 收尾行 | D5 | `segment.finished` | 仅非 error 终态 |
+| 4.12 | Run 异常终态提示 | D5 | 根 Run `outcome` | 仅 canceled / maxSteps / maxBudget |
 | 4.13 | 日期分隔 / caption / 操作条 / 等待指示 | D1 / D2 / D4 / D3 尾 | 派生 | — |
 
 ---
@@ -968,24 +968,22 @@ interface BlockCtx {
 
 ---
 
-### 4.12 Run 收尾行
+### 4.12 Run 异常终态提示
 
-**位置** D5，transcript 末尾，一条带图标的分隔线。
-**何时** 最新的根 Run 结束，**且终态不是 error**（error 归 §5.2 的可操作恢复条 —— 那是读者能做点什么的，这里只放读者无能为力的）。
+**位置** D5，transcript 末尾，一条无卡片、无分隔线的 quiet narrative row。
+**何时** 最新根 Run 以 `canceled` / `maxSteps` / `maxBudget` 结束。普通 `completed` 已由最终 assistant message 表达，不再追加“完成”或统计 footer；`failed` / `timedOut` / `lost` 归 §5.2 的可操作恢复条。
 
 ```
-──── ✓ 已完成 · 42s · 8 步 · ↑12.4k ↓3.4k · $0.08 ────
+■ 已取消 · 用户停止
 ```
 
 | `outcome.type` | 图标 | 意图色 | 附加 |
 | --- | --- | --- | --- |
-| `completed` | ✓ | accent | — |
 | `canceled` | ■ | neutral | `detail`（区分"被用户取消" vs "被超时取消"，`runs.cancel` 的 reason 经此回流） |
 | `maxSteps` | ⚠ | neutral | `detail` |
-| `maxBudget` | ⚠ | neutral | `detail`（给出花费/上限） |
+| `maxBudget` | ⚠ | neutral | `detail` |
 
-数字来自 `metrics`：`activeDurationMs`（**不含等人的时间** —— 停在审批上过夜的 run 不因此变贵）、`steps`、`usage.inputTokens`（`↑`）、`outputTokens`（`↓`）、`costUsd`。
-**窄面板下数字隐藏** —— 词是事实，数字是脚注。
+这一行只消费终态类型与 Runtime 提供的 `detail`；不重复 duration、steps、token、cost 或 Context accounting。
 
 ---
 
@@ -2193,7 +2191,7 @@ interface Page<T> { data: T[]; nextCursor?: string }
 
 ## 10 · 已知漂移
 
-对照契约登记与运行时工具表核出来的**文档/代码与真值源不一致**处，**均未修**。
+对照契约登记与运行时工具表核出来的**文档/代码与真值源不一致**处。D5–D8 已在 P121 闭环；其余条目仍是后续准入输入。
 
 | # | 位置 | 现状 | 真值 |
 | --- | --- | --- | --- |
@@ -2201,14 +2199,14 @@ interface Page<T> { data: T[]; nextCursor?: string }
 | D2 | `docs/protocol/API.md` §5.1 / §5.2 | 称增量有**五种**，含 `plan` | 只有**四种**（§2.3） |
 | D3 | `docs/protocol/API.md` §5.3 / 附录 C.4 | 共享状态 key 是 `todos`，冷读方法 `todos.get` | 契约登记：key = **`plan`**，冷读 = **`plan.get`** |
 | D4 | `docs/protocol/API.md` §4.4.2 | 列了 `edit` / `write` 两个工具，参数写 `file_path` | 运行时**没有** `edit`/`write`，文件变更只有 **`apply_patch`**（参数 `patch`）。所有文件工具的路径参数是 **`path`** |
-| D5 | 前端 diff 展开体注册 | 注册了 `["edit","write","apply_patch"]` | 前两个是**永不命中的死键** |
-| D6 | 前端工具分类表 + 图标表 | 分类表含 `edit`/`write`；图标表 32 条（多出 `write`/`edit`），注释也写作 "32 tools" | 内置工具只有 **30** 个。删掉后图标表恰好 30 条，"一工具一字形"的守恒才是真的 |
-| D7 | 前端 `writtenHead()` | 从 `arguments.content` 取写入内容的头几行 | **没有工具接受 `content` 参数** → `ToolCall.written` 恒空，diff 展开体的第三级回落是死路 |
-| D8 | 前端 `editLineCounts()` | 期待 `result.changes[].diff` | `apply_patch` 的 `changes[]` **只有** `{path, status, from?}`，**没有 diff 行** → `ToolCall.diff`/`added`/`removed` 实践中恒空，diff 展开体总是走全工作区回落。（`FileEdit` 类型还在生成的 wire 里，但 schema 已经没有它了） |
+| D5 | 前端补丁展开体注册 | **P121 已修**：只注册 `apply_patch` | 与 Runtime 唯一文件修改工具一致；`edit`/`write` 死键已删除 |
+| D6 | 前端工具分类表 + 图标表 | **P121 已修**：删除 `edit`/`write` 分类和图标 | 内部目录与 Runtime **30** 个内建工具守恒 |
+| D7 | 前端写入内容投影 | **P121 已修**：删除 `writtenHead()` 与 `arguments.content` 推测 | fold 只携带 Runtime 的 exact result；published 历史字段暂为兼容保留但不再被生产 renderer 填充或消费 |
+| D8 | 前端补丁结果投影 | **P121 已修**：共享 strict parser 只接受 `changes:[{path,status,from?}]`，inline preview 与 Run Summary 不再回落到全工作区 diff | 无 Runtime 行级事实时不展示 diff 片段或 `+/-`；published 历史字段不在未授权批次删除 |
 | D9 | 视图模型 approval 块 | 声明了 `scope` / `target` / `reversible` | fold 从不设置它们（协议的审批载荷只有 `tool`/`reason`/`risk`/`rememberable`）→ 推测性占位 |
 | D10 | 前端错误文案表 + 八份 locale | 为 `no_language_server` / `is_a_directory` / `file_too_large` 备了文案 | 这三个**不在协议的 `ProblemData` 联合里**（历史遗留）→ 24 条（3 × 8 语言）不可达文案 |
 
-**处理原则**：D1–D3 是文档滞后于契约，改文档；D4 同时是文档滞后 + 生成的 wire 里有类型残留，需要一起核；D5–D10 是前端死码 / 死路，属于"易补回来"的推测性冗余，应当删而不是留着。**都涉及公开形状，动手前先算爆炸半径再改。**
+**处理原则**：D1–D3 是文档滞后于契约，改文档；D4 同时是文档滞后 + 生成的 wire 里有类型残留，需要一起核。D5–D8 已在不破坏 published SDK 的边界内删除生产死路；D9–D10 仍需从独立反例与爆炸半径开始。涉及公开形状的删除必须先取得显式授权。
 
 ---
 

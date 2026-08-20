@@ -15,6 +15,7 @@ import type {
 } from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../domain/toolCategory";
 import type { AgentRootAttention } from "../application/view/runTree";
+import { projectPatchChanges } from "../public/patchResult";
 
 export interface ApprovalDigest {
   command: string;
@@ -154,8 +155,12 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
         status: tool.status === "ok" ? "ok" : tool.status === "running" ? "running" : "err",
       });
     } else if (category === "fileEdit") {
-      // fn is the changed path (single) or "N files" (multi).
-      digest.changedFiles.push({ path: tool.fn, added: tool.added, removed: tool.removed });
+      // One persisted PatchResult is the scope of one call. In particular, do
+      // not expand this from the current worktree: that can include later calls
+      // and user edits, while a restored Run Summary must remain historical.
+      for (const change of projectPatchChanges(tool.result)) {
+        digest.changedFiles.push({ path: change.path });
+      }
     } else if (category === "read") {
       const path = argPath(tool.args) || tool.fn;
       if (path) digest.readFiles.push(path);

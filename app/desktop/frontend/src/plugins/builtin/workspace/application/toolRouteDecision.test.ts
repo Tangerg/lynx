@@ -16,15 +16,19 @@ describe("decideWorkspaceToolRoute", () => {
     });
   });
 
-  it("routes edit tools to the diff view and exposes the focused file", () => {
-    expect(decideWorkspaceToolRoute(tool({ category: "fileEdit", label: "src/app.ts" }))).toEqual({
+  it("routes patch tools to the diff view and exposes an authoritative path label", () => {
+    expect(
+      decideWorkspaceToolRoute(
+        tool({ category: "fileEdit", label: "src/app.ts", labelKind: "path" }),
+      ),
+    ).toEqual({
       view: "diff",
       fileFocus: "src/app.ts",
     });
   });
 
-  it("does not treat multi-file labels as file paths", () => {
-    expect(decideWorkspaceToolRoute(tool({ category: "fileEdit", label: "3 files" }))).toEqual({
+  it("does not treat a multi-file patch's text label as a file path", () => {
+    expect(decideWorkspaceToolRoute(tool({ category: "fileEdit", label: "apply_patch" }))).toEqual({
       view: "diff",
       fileFocus: "",
     });

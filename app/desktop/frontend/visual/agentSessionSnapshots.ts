@@ -246,10 +246,10 @@ const SHELL_COMMAND: Item = {
   },
 };
 
-// A write, as a write actually arrives: {path, status} and no diff rows, because there
-// is nothing to diff a new file against. Its card body was blank until now, and no
-// fixture had one — every diff row in here came from an `edit`.
-const WRITE_NEW_FILE: Item = {
+// One call-scoped patch receipt for a created file. It deliberately has no line
+// diff: the Runtime publishes path/status/from facts and the UI must not replace
+// them with the current worktree.
+const PATCH_NEW_FILE: Item = {
   type: "toolCall",
   safetyClass: "write",
   id: "item_shells_write",
@@ -258,16 +258,8 @@ const WRITE_NEW_FILE: Item = {
   startedAt: CREATED_AT,
   durationMillis: 40,
   tool: {
-    name: "write",
-    arguments: {
-      path: "app/runtime/internal/session/atomicity.md",
-      content: [
-        "# Atomicity",
-        "",
-        "The framework exposes execution primitives.",
-        "The application owns persistence, idempotency and transaction policy.",
-      ].join("\n"),
-    },
+    name: "apply_patch",
+    arguments: { patch: "*** Begin Patch\n*** Add File: atomicity.md\n…\n*** End Patch" },
     result: { changes: [{ path: "app/runtime/internal/session/atomicity.md", status: "added" }] },
   },
 };
@@ -280,17 +272,16 @@ const SHELL_FAILED: Item = {
   status: "incomplete",
   startedAt: CREATED_AT,
   durationMillis: 120,
-  tool: { name: "edit", arguments: { path: "app/runtime/internal/session/store.go" } },
+  tool: { name: "apply_patch", arguments: { patch: "*** Begin Patch\n…\n*** End Patch" } },
   error: { type: "tool_failed", detail: "store.go changed on disk after it was read." },
 };
 
-// An edit that reports what it changed. Both halves are here on purpose: a path
+// A patch that reports what it changed. Both halves are here on purpose: a path
 // too long for the row (deep and absolute, which is what the runtime reports), so
-// it MUST clip and which end it clips is visible — and a result carrying diff rows,
-// which is where the row's `+n −m` comes from. Without an item like this, neither is in any golden — and
-// the waves state, the only other place an edit appeared, collapses tool rows into
-// "N steps" and draws none of them.
-const SHELL_EDIT: Item = {
+// it MUST clip and which end it clips is visible — and a result carrying the
+// Runtime's exact `{path,status}` receipt. Without an item like this, neither is
+// in any golden; the waves state collapses tool rows into "N steps".
+const SHELL_PATCH: Item = {
   type: "toolCall",
   safetyClass: "write",
   id: "item_shells_edit",
@@ -298,27 +289,13 @@ const SHELL_EDIT: Item = {
   status: "completed",
   startedAt: CREATED_AT,
   tool: {
-    name: "edit",
-    arguments: {
-      path: "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
-    },
+    name: "apply_patch",
+    arguments: { patch: "*** Begin Patch\n…\n*** End Patch" },
     result: {
       changes: [
         {
           path: "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
           status: "modified",
-          diff: [
-            {
-              type: "context",
-              leftLine: 41,
-              rightLine: 41,
-              // Long on purpose: a row that fits proves nothing about overflow.
-              code: "func (s *Store) Commit(ctx context.Context, session *Session, records []Record, opts CommitOptions) (Receipt, error) {",
-            },
-            { type: "deleted", leftLine: 42, code: "\tif err := s.flush(); err != nil {" },
-            { type: "added", rightLine: 42, code: "\tif err := s.flushLocked(); err != nil {" },
-            { type: "added", rightLine: 43, code: "\t\ts.metrics.RecordFlushFailure()" },
-          ],
         },
       ],
     },
@@ -333,7 +310,7 @@ const SHELL_DENIED: Item = {
   status: "incomplete",
   startedAt: CREATED_AT,
   durationMillis: 15,
-  tool: { name: "write", arguments: { path: ".env.production" } },
+  tool: { name: "apply_patch", arguments: { patch: "*** Begin Patch\n…\n*** End Patch" } },
   error: { type: "denied_by_user", detail: "You declined this write." },
 };
 
@@ -385,14 +362,18 @@ const WAVE_REASONING_TWO: Item = {
   text: "So the change is one call site, plus a test that proves the rollback.",
 };
 
-const WAVE_EDIT: Item = {
+const WAVE_PATCH: Item = {
   type: "toolCall",
   safetyClass: "write",
   id: "item_w_edit",
   runId: ROOT_RUN_ID,
   status: "completed",
   startedAt: CREATED_AT,
-  tool: { name: "edit", arguments: { path: "app/runtime/internal/session/store.go" } },
+  tool: {
+    name: "apply_patch",
+    arguments: { patch: "*** Begin Patch\n…\n*** End Patch" },
+    result: { changes: [{ path: "app/runtime/internal/session/store.go", status: "modified" }] },
+  },
 };
 
 const WAVE_ANSWER_TWO = message(
@@ -961,18 +942,18 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
       run("finished", {
         finishedAt: "2026-07-31T08:00:12.000Z",
         outcome: { type: "completed" },
-        // Five tool calls below, so the run's own count says five. The default
+        // Six tool calls below, so the run's own count says six. The default
         // METRICS is four; leaving it would put two numbers that disagree in the
         // same frame, which is a bug everywhere except in a fixture nobody read.
-        metrics: { steps: 5, activeDurationMillis: 12_000 },
+        metrics: { steps: 6, activeDurationMillis: 12_000 },
       }),
     ],
     items: [
       PROMPT,
       SHELL_READ,
       SHELL_COMMAND,
-      SHELL_EDIT,
-      WRITE_NEW_FILE,
+      SHELL_PATCH,
+      PATCH_NEW_FILE,
       SHELL_FAILED,
       SHELL_DENIED,
       RESPONSE,
@@ -989,7 +970,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
       WAVE_GREP,
       WAVE_ANSWER_ONE,
       WAVE_REASONING_TWO,
-      WAVE_EDIT,
+      WAVE_PATCH,
       WAVE_ANSWER_TWO,
     ],
     pendingInterruptSets: [],

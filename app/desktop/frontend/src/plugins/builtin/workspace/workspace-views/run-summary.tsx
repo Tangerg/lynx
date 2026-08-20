@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Tone } from "@/lib/tone";
-import { Badge, DiffStat, EmptyState, Icon, IconButton } from "@/ui";
+import { Badge, DiffStat, EmptyState, FilePath, Icon, IconButton } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useCopyFeedback } from "@/lib/useCopyFeedback";
 import { cn } from "@/lib/classNames";
@@ -101,12 +101,14 @@ function RunSummaryTab() {
             className="flex items-baseline gap-2 font-mono text-ui-md text-fg-muted"
           >
             <Icon name="filetext" size="xs" className="text-fg-faint" />
-            <span className="truncate text-fg">{f.path}</span>
-            <DiffStat
-              added={f.added ?? 0}
-              removed={f.removed ?? 0}
-              className="ml-auto text-ui-sm"
-            />
+            <FilePath path={f.path} className="flex-1 text-fg" />
+            {(f.added !== undefined || f.removed !== undefined) && (
+              <DiffStat
+                added={f.added ?? 0}
+                removed={f.removed ?? 0}
+                className="ml-auto text-ui-sm"
+              />
+            )}
           </div>
         ))}
       </Section>

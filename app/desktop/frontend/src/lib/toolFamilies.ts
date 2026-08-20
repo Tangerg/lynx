@@ -21,11 +21,10 @@
  * failed read and a successful one looking equally alarming. The shapes carry the
  * variety; the palette keeps its job.
  *
- * It is a vocabulary for tool NAMES, not an inventory of one runtime's catalog: a
- * name this table covers but the connected runtime does not expose costs nothing,
- * and a name it does expose that is missing here still renders (generic glyph,
- * unplaced in the catalog). Which tools exist is `tools.list`'s answer, and every
- * consumer here takes it from there.
+ * It is the built-in vocabulary, not the live inventory: `tools.list` remains the
+ * authority for which tools are currently exposed, while this table assigns a
+ * family and glyph to each of the Runtime's 30 built-ins. Unknown MCP tools still
+ * render with the generic glyph and remain unplaced in the built-in catalog.
  *
  * The FAMILIES are what someone browsing the catalog is asking about — can it run
  * commands, does it remember, can it reach the network — and deliberately not the
@@ -50,12 +49,10 @@ export const TOOL_FAMILIES: readonly ToolFamily[] = [
     ],
   },
   {
-    // Read, create, amend, and apply someone else's diff.
+    // Read a file or apply one model-authored patch.
     id: "files",
     tools: [
       { name: "read", icon: "eye" },
-      { name: "write", icon: "file-plus" },
-      { name: "edit", icon: "edit" },
       { name: "apply_patch", icon: "replace" },
     ],
   },

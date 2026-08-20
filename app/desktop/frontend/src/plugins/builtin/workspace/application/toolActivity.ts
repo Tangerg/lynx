@@ -7,6 +7,7 @@ export interface WorkspaceToolActivity {
   id: string;
   category: WorkspaceToolActivityCategory;
   label: string;
+  labelKind?: "path";
 }
 
 export interface WorkspaceCommandActivity {
@@ -26,6 +27,7 @@ export function workspaceToolActivityFromAgentTool(tool: ToolCall): WorkspaceToo
         ? category
         : "inline",
     label: tool.fn,
+    labelKind: tool.fnKind,
   };
 }
 

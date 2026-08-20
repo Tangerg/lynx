@@ -52,9 +52,9 @@ describe("where a session's tool time went", () => {
   it("keeps a refusal apart from a failure", () => {
     const summary = toolStats(
       calls(
-        call({ name: "write", status: "denied" }),
-        call({ name: "write", status: "err" }),
-        call({ name: "write", status: "ok", durationMillis: 3 }),
+        call({ name: "apply_patch", status: "denied" }),
+        call({ name: "apply_patch", status: "err" }),
+        call({ name: "apply_patch", status: "ok", durationMillis: 3 }),
       ),
     );
 

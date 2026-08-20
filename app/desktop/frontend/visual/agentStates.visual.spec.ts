@@ -1017,7 +1017,7 @@ test("expanded reasoning keeps a quiet identity mark and an aside rule", async (
   await expect(reasoning.getByRole("region")).toHaveCSS("border-left-width", "1px");
 });
 
-test("an expanded tool row reports its subject and what it changed", async ({ page }) => {
+test("an expanded patch reports only its call-scoped file receipt", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
   await page.locator("html[data-visual-ready]").waitFor();
   await page.getByRole("button", { name: /steps/ }).first().click();
@@ -1050,10 +1050,16 @@ test("an expanded tool row reports its subject and what it changed", async ({ pa
   // and in the title.
   expect(clipping.directoryLost).toBeGreaterThan(clipping.filenameLost);
   expect(clipping.filenameText).toBe("specialisedPreviewProjections.ts");
-  // `+2 −1` from the call's own diff rows, drawn by the atom the diff views use —
-  // one fact, one rendering, wherever it appears.
-  await expect(row).toContainText("+2");
-  await expect(row).toContainText("−1");
+  await expect(row).not.toContainText("+");
+  await expect(row).not.toContainText("−");
+
+  await row.click();
+  const receipt = page.locator('[data-patch-change="modified"]').filter({
+    has: page.getByTitle(
+      "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
+    ),
+  });
+  await expect(receipt).toContainText("Edited");
 });
 
 test("an expanded wave keeps its summary while its rows scroll past", async ({ page }) => {
@@ -1116,6 +1122,10 @@ for (const theme of ["light", "dark"] as const) {
       // components the state is named for.
       if (state === "tool-shells") {
         await page.getByRole("button", { name: /steps/ }).first().click();
+        await page
+          .locator('[data-tool="apply_patch"] button[aria-expanded]')
+          .filter({ hasText: "specialisedPreviewProjections.ts" })
+          .click();
       }
       // Put the transcript where it belongs BEFORE the clock stops, rather than
       // waiting to see where it lands. Ready only means the tree is mounted;

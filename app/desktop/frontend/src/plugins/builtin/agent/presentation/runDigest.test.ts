@@ -119,12 +119,11 @@ describe("deriveLatestRun", () => {
         "cold-edit": {
           id: "cold-edit",
           runId: "r1",
-          name: "edit",
+          name: "apply_patch",
           fn: "src/runtime.ts",
           args: "",
+          result: '{"changes":[{"path":"src/runtime.ts","status":"modified"}]}',
           status: "ok",
-          added: 4,
-          removed: 1,
         },
         "cold-read": {
           id: "cold-read",
@@ -140,7 +139,7 @@ describe("deriveLatestRun", () => {
 
     expect(deriveLatestRun(v)).toMatchObject({
       commands: [{ cmd: "npm test", status: "ok" }],
-      changedFiles: [{ path: "src/runtime.ts", added: 4, removed: 1 }],
+      changedFiles: [{ path: "src/runtime.ts" }],
       readFiles: ["src/model.ts"],
     });
   });
@@ -310,12 +309,11 @@ describe("deriveLatestRun", () => {
         "t-write": {
           id: "t-write",
           runId: "r1",
-          name: "write", // fileEdit category (§4.4.2)
-          fn: "src/auth.ts", // toolLabel(write) = the changed path
+          name: "apply_patch", // fileEdit category (§4.4.2)
+          fn: "src/auth.ts", // toolLabel(apply_patch) = the changed path
           args: "",
+          result: '{"changes":[{"path":"src/auth.ts","status":"modified"}]}',
           status: "ok",
-          added: 5,
-          removed: 2,
         },
         "t-read": {
           id: "t-read",
@@ -336,7 +334,7 @@ describe("deriveLatestRun", () => {
       },
     });
     const d = deriveLatestRun(v);
-    expect(d?.changedFiles).toEqual([{ path: "src/auth.ts", added: 5, removed: 2 }]);
+    expect(d?.changedFiles).toEqual([{ path: "src/auth.ts" }]);
     expect(d?.readFiles).toEqual(["src/types.ts"]);
     expect(d?.commands).toEqual([{ cmd: "pnpm test", status: "err" }]);
   });

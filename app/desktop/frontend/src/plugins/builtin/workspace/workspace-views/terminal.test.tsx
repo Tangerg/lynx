@@ -51,7 +51,7 @@ function fileEdit(): ToolCall {
   return {
     id: "file-edit-1",
     runId: "run-1",
-    name: "write",
+    name: "apply_patch",
     fn: "src/app.ts",
     args: '{"path":"src/app.ts"}',
     status: "ok",

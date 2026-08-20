@@ -432,7 +432,7 @@ export async function installVisualWorkspaceFixture(
   theme: VisualWorkspaceTheme,
 ): Promise<void> {
   // Tool stats needs a session that actually ran tools; every other state wants
-  // the quiet one. `tool-shells` is the state with a read, a command, an edit, a
+  // the quiet one. `tool-shells` is the state with a read, a command, a patch, a
   // failure and a refusal in it — five outcomes, which is what the view sorts.
   await installVisualAgentFixture(
     state === "dock-light" ? "running" : state === "dock-stats" ? "tool-shells" : "idle",

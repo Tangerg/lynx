@@ -11,7 +11,7 @@ import type {
 } from "@/plugins/sdk";
 import { activePlanStep, planProgress, planStepsFromArguments } from "../view/sessionPlan";
 import type { BlockStatus, ContentBlock, QuestionItem } from "@/plugins/sdk/types/contentBlock";
-import type { ToolCall, ToolCallStatus, ToolDiffRow } from "@/plugins/sdk/types/agentSessionView";
+import type { ToolCall, ToolCallStatus } from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../../domain/toolCategory";
 
 /** When an Item came into being. A toolCall spans time and names its endpoints
@@ -110,86 +110,10 @@ function asArrayLength(v: unknown): number | undefined {
   return Array.isArray(v) ? v.length : undefined;
 }
 
-function toolDiffRow(value: unknown): ToolDiffRow | undefined {
-  const row = asRecord(value);
-  if (!row) return undefined;
-  const type = asString(row.type);
-  if (type === "hunk") {
-    const text = asString(row.text);
-    return text === undefined ? undefined : { type, text };
-  }
-  const code = asString(row.code);
-  if (code === undefined) return undefined;
-  if (type === "context") {
-    const leftLine = asNumber(row.leftLine);
-    const rightLine = asNumber(row.rightLine);
-    return leftLine === undefined || rightLine === undefined
-      ? undefined
-      : { type, leftLine, rightLine, code };
-  }
-  if (type === "added") {
-    const rightLine = asNumber(row.rightLine);
-    return rightLine === undefined ? undefined : { type, rightLine, code };
-  }
-  if (type === "deleted") {
-    const leftLine = asNumber(row.leftLine);
-    return leftLine === undefined ? undefined : { type, leftLine, code };
-  }
-  return undefined;
-}
-
-/** result.changes (FileEdit[]) — the files one edit call touched. */
+/** result.changes (AppliedChange[]) — the files one apply_patch call touched. */
 function editChanges(result: unknown): unknown[] {
   const changes = asRecord(result)?.changes;
   return Array.isArray(changes) ? changes : [];
-}
-
-/**
- * result.changes (FileEdit[]) → the call-scoped diff rows and their line counts
- * (§4.4.2 edit / §12.1 C). An `edit` ships actual per-file `diff` rows
- * (tooldisplay.go editDiffRows), so the card renders THIS edit's patch inline and
- * reports real counts; a `write` (or any shape without `diff` rows) carries none,
- * so this returns {} rather than a fabricated zero — which the row would then have
- * to decide not to draw.
- */
-/**
- * The head of what a `write` wrote, from the call's own arguments.
- *
- * A write reports `{path, status}` and no diff rows — there is nothing to diff a new
- * file against — and `argsText` gives a non-generic tool no argument text, so the
- * content reached the view through no route at all: the card's body was EMPTY, for a
- * row that had just written the file it names.
- *
- * The HEAD, not the content. A session holds every call it ever made, and a write's
- * argument can be a whole file; what the row can show is a handful of lines, so that
- * is what is kept. The full text stays where it already is — on disk, behind the row's
- * own "open" affordance.
- */
-const WRITTEN_HEAD_LINES = 40;
-
-function writtenHead(args: Record<string, unknown> | undefined): Partial<ToolCall> {
-  const content = asString(args?.content);
-  if (content === undefined || content === "") return {};
-  const lines = content.replace(/\n+$/, "").split("\n");
-  return {
-    written: lines.slice(0, WRITTEN_HEAD_LINES),
-    writtenLines: lines.length,
-  };
-}
-
-function editLineCounts(result: unknown): Partial<ToolCall> {
-  const changes = editChanges(result);
-  if (changes.length === 0) return {};
-  const rows = changes.flatMap((c): ToolDiffRow[] => {
-    const diff = asRecord(c)?.diff;
-    return Array.isArray(diff) ? diff.flatMap((row) => toolDiffRow(row) ?? []) : [];
-  });
-  if (rows.length === 0) return {}; // {path,status} entries, no diff rows → nothing to count
-  return {
-    diff: rows,
-    added: rows.filter((row) => row.type === "added").length,
-    removed: rows.filter((row) => row.type === "deleted").length,
-  };
 }
 
 /** First line of a free-form prompt, for row titles. */
@@ -369,9 +293,15 @@ function categoryFields(
     case "fileEdit": {
       const changes = editChanges(tool.result);
       return {
-        ...editLineCounts(tool.result),
-        ...writtenHead(tool.arguments),
         ...(changes.length > 1 ? { files: changes.length } : {}),
+        // `apply_patch` publishes only its exact path/status/from receipt. Keep
+        // that receipt on the existing result channel so history hydration and
+        // reconnect render the same call-scoped facts as the live completion.
+        // The preview must not replace absent line diffs with the current Git
+        // worktree, which can include edits from other calls or the user.
+        ...(tool.result !== undefined
+          ? { result: typeof tool.result === "string" ? tool.result : JSON.stringify(tool.result) }
+          : {}),
       };
     }
     case "search":

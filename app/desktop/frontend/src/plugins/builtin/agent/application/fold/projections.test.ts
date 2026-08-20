@@ -1,6 +1,6 @@
 // Locks the per-tool display projections against the RUNTIME's actual wire
 // shapes (lynx/lyra tool implementations): the presenter projects shell to
-// {output, exitCode}, grep and glob to {hits}, edit/write/apply_patch to
+// {output, exitCode}, grep and glob to {hits}, apply_patch to
 // {changes:[{path,status}]}, and the name-keyed tools (lsp / the Skill family /
 // ask_user / read_shell_output / stop_shell / the searches / the fetches) label by
 // their own key argument.
@@ -105,28 +105,32 @@ describe("toolFields — runtime wire shapes", () => {
     expect(toolFields(tool("glob", {}, { hits: [{ path: "x" }] })).hits).toBe(1);
   });
 
-  it("edit: no fabricated ±0 counts when the result has no diff rows", () => {
-    // The runtime's ACTUAL write/edit shape (tooldisplay.go): file entries with
-    // status but no per-file `diff` — must NOT render "+0 −0".
+  it("apply_patch: does not fabricate line counts absent from its receipt", () => {
+    // The Runtime's actual patch shape contains path/status facts but no
+    // per-file diff rows, so the transcript must not render "+0 −0".
     const f = toolFields(
-      tool("edit", { path: "a.go" }, { changes: [{ path: "a.go", status: "modified" }] }),
+      tool("apply_patch", { patch: "…" }, { changes: [{ path: "a.go", status: "modified" }] }),
     );
     expect(f.added).toBeUndefined();
     expect(f.removed).toBeUndefined();
-    // A result with no `changes` key at all stays {} too.
-    const g = toolFields(tool("write", { path: "b.go" }, { bytes_written: 12 }));
+    // An unrecognised result still carries no invented line counts.
+    const g = toolFields(tool("apply_patch", { patch: "…" }, { files: [] }));
     expect(g.added).toBeUndefined();
     expect(g.removed).toBeUndefined();
   });
 
   it("apply_patch: carries the authoritative call-scoped change receipt", () => {
     const f = toolFields(
-      tool("apply_patch", { patch: "*** Begin Patch\n…" }, {
-        changes: [
-          { path: "src/new.ts", status: "added" },
-          { path: "src/current.ts", status: "moved", from: "src/old.ts" },
-        ],
-      }),
+      tool(
+        "apply_patch",
+        { patch: "*** Begin Patch\n…" },
+        {
+          changes: [
+            { path: "src/new.ts", status: "added" },
+            { path: "src/current.ts", status: "moved", from: "src/old.ts" },
+          ],
+        },
+      ),
     );
 
     expect(JSON.parse(f.result ?? "null")).toEqual({
@@ -135,36 +139,6 @@ describe("toolFields — runtime wire shapes", () => {
         { path: "src/current.ts", status: "moved", from: "src/old.ts" },
       ],
     });
-  });
-
-  it("edit: maps only valid call-scoped diff rows into the Agent view model", () => {
-    const f = toolFields(
-      tool(
-        "edit",
-        {},
-        {
-          changes: [
-            {
-              diff: [
-                { type: "hunk", text: "@@ -1 +1 @@" },
-                { type: "deleted", leftLine: 1, code: "old" },
-                { type: "added", rightLine: 1, code: "new" },
-                { type: "added", rightLine: "2", code: "malformed" },
-                { type: "unknown", code: "ignored" },
-              ],
-            },
-          ],
-        },
-      ),
-    );
-
-    expect(f.diff).toEqual([
-      { type: "hunk", text: "@@ -1 +1 @@" },
-      { type: "deleted", leftLine: 1, code: "old" },
-      { type: "added", rightLine: 1, code: "new" },
-    ]);
-    expect(f.added).toBe(1);
-    expect(f.removed).toBe(1);
   });
 
   it("read: passes the content through and reports how long the file is", () => {

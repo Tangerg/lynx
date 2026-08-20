@@ -79,7 +79,7 @@ import toolViewOpener from "./workspace/tool-view-opener";
 import {
   askUserPreview,
   shellPreview,
-  diff,
+  applyPatchPreview,
   file,
   globPreview,
   goalPreviews,
@@ -166,7 +166,7 @@ const messageRendering: AnyPlugin[] = [
 // production; a hand-picked preview list would drift and render valid tools as JSON.
 export const toolPreviewPlugins: AnyPlugin[] = [
   shellPreview,
-  diff,
+  applyPatchPreview,
   file,
   grep,
   globPreview,

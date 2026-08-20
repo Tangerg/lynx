@@ -7,13 +7,13 @@ import {
   projectGlobPreview,
   projectGoalToolPreview,
   projectHttpPreview,
-  projectPatchChanges,
   projectRecalledMemories,
   projectSchedulePreviews,
   projectSkillPreview,
   projectToolSearchGroups,
   projectWebSearchPreview,
 } from "./specialisedPreviewProjections";
+import { projectPatchChanges } from "@/plugins/builtin/agent/public/patchResult";
 import { parseJsonResult, resultLines } from "./toolResultParsing";
 
 describe("tool result parsing", () => {

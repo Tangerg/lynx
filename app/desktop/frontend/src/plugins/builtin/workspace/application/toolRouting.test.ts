@@ -41,7 +41,9 @@ describe("openWorkspaceViewForTool", () => {
   });
 
   it("opens a fileEdit tool as the diff split and focuses its file", () => {
-    openWorkspaceViewForTool(toolCall({ id: "t2", name: "edit", fn: "src/app.ts" }));
+    openWorkspaceViewForTool(
+      toolCall({ id: "t2", name: "apply_patch", fn: "src/app.ts", fnKind: "path" }),
+    );
     expect(navigator().get().dock).toBe("diff");
     expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState().fileFocus).toMatchObject({
@@ -50,9 +52,9 @@ describe("openWorkspaceViewForTool", () => {
     });
   });
 
-  it("does not feed a multi-file edit label to the diff's active-file focus", () => {
+  it("does not feed a multi-file patch label to the diff's active-file focus", () => {
     useContextDockStore.getState().focusFile("src/old.ts");
-    openWorkspaceViewForTool(toolCall({ id: "t3", name: "edit", fn: "3 files" }));
+    openWorkspaceViewForTool(toolCall({ id: "t3", name: "apply_patch", fn: "apply_patch" }));
     expect(navigator().get().dock).toBe("diff");
     expect(useContextDockStore.getState().fileFocus).toMatchObject({ path: "", revision: 2 });
   });

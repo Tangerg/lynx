@@ -51,12 +51,13 @@ describe("toolPresentation", () => {
     });
   });
 
-  it("says so when the LABEL is the path, which is where the file tools put it", () => {
-    // `fn` carries the path for read/edit/write (the fold bakes the key argument
+  it("says so when the LABEL is a path", () => {
+    // `fn` carries the path for read/apply_patch (the fold bakes the key argument
     // into the label), so the kind has to travel with it or the row clips the
     // filename off the only part a reader was looking for.
     expect(
-      toolIntent(t, tool({ name: "edit", fn: "app/runtime/store.go", fnKind: "path" })).label,
+      toolIntent(t, tool({ name: "apply_patch", fn: "app/runtime/store.go", fnKind: "path" }))
+        .label,
     ).toEqual({ kind: "path", value: "app/runtime/store.go" });
   });
 
@@ -134,7 +135,7 @@ describe("toolPresentation", () => {
   // renamed on the backend used to silently change weight in the transcript.
   it("takes read-only from the runtime's safety class", () => {
     expect(isReadOnlyTool(tool({ name: "read", safetyClass: "safe" }))).toBe(true);
-    expect(isReadOnlyTool(tool({ name: "edit", safetyClass: "write" }))).toBe(false);
+    expect(isReadOnlyTool(tool({ name: "apply_patch", safetyClass: "write" }))).toBe(false);
     // Unclassified (an MCP tool the runtime has no class for) is not a read.
     expect(isReadOnlyTool(tool({ name: "acme_do_thing" }))).toBe(false);
   });

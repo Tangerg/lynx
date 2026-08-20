@@ -3,7 +3,7 @@ import type { ToolPreviewComponent } from "@/plugins/sdk";
 import { TOOL_ICON_BY_NAME } from "@/lib/toolFamilies";
 import {
   askUserToolPreview,
-  diffToolPreviews,
+  applyPatchToolPreview,
   fileToolPreview,
   globToolPreview,
   goalToolPreviews,
@@ -43,7 +43,7 @@ const keys = (items: ToolPreviewContribution[]) => items.map((item) => item.key)
 function allKnownPreviews(): ToolPreviewContribution[] {
   return [
     ...askUserToolPreview(one("ask_user")),
-    ...diffToolPreviews(independent(["edit", "write", "apply_patch"] as const)),
+    ...applyPatchToolPreview(independent(["apply_patch"] as const)),
     ...fileToolPreview(one("read")),
     ...globToolPreview(one("glob")),
     ...grepToolPreview(one("grep")),
@@ -72,7 +72,7 @@ describe("tool preview contributions", () => {
     expect(
       keys(shellToolPreviews(independent(["shell", "read_shell_output", "stop_shell"] as const))),
     ).toEqual(["shell", "read_shell_output", "stop_shell"]);
-    expect(keys(diffToolPreviews(independent(["edit", "write", "apply_patch"] as const)))).toEqual([
+    expect(keys(applyPatchToolPreview(independent(["apply_patch"] as const)))).toEqual([
       "apply_patch",
     ]);
     expect(

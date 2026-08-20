@@ -6,7 +6,7 @@
 
 // Workspace and command previews.
 export { shellPreview } from "./terminal";
-export { diff } from "./diff";
+export { applyPatchPreview } from "./patch";
 export { file } from "./file";
 export { grep } from "./grep";
 

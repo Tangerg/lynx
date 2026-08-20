@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P120 已完成并形成里程碑；P121 实施中。
+> 状态：P0–P121 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P121 内容渲染权威接线红例。
+> 最近基线：2026-08-20，P121 调用级补丁回执与 Codex quiet file-change 渲染闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,8 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P121 已于 2026-08-20 获得实施授权：在 P120 基线上继续按 Codex 级桌面外观与既有编码约束打磨左中右三栏，优先修复中间内容区真实渲染与交互接线；每轮编码独立提交并推送，及时关闭 agent-browser、临时服务和测试资源，不修改或暂存 `app/cli`。
-- 首个 production 反例已成立：Runtime 唯一内建文件修改工具 `apply_patch` 发布调用级 `changes:[{path,status,from?}]`，但 Frontend 未把该结果带入 view，diff preview 反而查询整个工作区，导致一次工具调用可展示与它无关的既有改动；同时内部仍注册 Runtime 不存在的 `edit`/`write`。本批唯一 owner 是既有 Agent fold 与 `apply_patch` 专用 preview，不新增 Runtime 读、第二 diff owner 或伪造行数。
+- P121 已于 2026-08-20 完成：在 P120 基线上继续按 Codex 级桌面外观与既有编码约束打磨左中右三栏，优先修复中间内容区真实渲染与交互接线；每轮编码独立提交并推送，及时关闭 agent-browser、临时服务和测试资源，不修改或暂存 `app/cli`。
+- 首个 production 反例已闭环：Runtime 唯一内建文件修改工具 `apply_patch` 发布调用级 `changes:[{path,status,from?}]`；Frontend 现在由既有 Agent fold 持久携带该结果，再由共享 strict parser 同时供 inline preview 与 Run Summary 消费。旧的全工作区 diff 回落和 Runtime 不存在的 `edit`/`write` 内部注册已删除，没有新增 Runtime 读、第二 diff owner 或伪造行数。
 - P121 首批不突破 Runtime Protocol、Artifact、SQLite schema、公共 Go API、Agent Framework baseline 或 Frontend published SDK。公开 `ToolCall` 历史字段的 breaking cleanup、commentary/final phase 与原生图片 Download 继续遵守先报告爆炸半径、再取得显式授权的边界。
 - P120 已于 2026-08-19 获得实施授权：纠正 P119 后续实现中仍停留在“移动旧卡片”的 Plan/Goal 表面，逐像素对齐 Codex composer stack；移除 composer 上方固定分割线、标题栏累计上下文信息与普通回合结束后的统计杂项，并让 composer Context 环接到真实模型窗口占用。中央内容区继续服从 Codex narrative grammar，不增加结算 dashboard。
 - P120 验收后的 Goal 视觉反馈已按同一授权纠正：Goal 不是悬浮 quiet row，而是与 composer 同宽、以重叠 1px 接缝相连的 top-tray surface；材质、上圆角、专用 goal-arrow、行高/间距与 Codex 本地化状态文案由各自唯一 owner 持有。Frontend 仍不展示预算、限制、用量或模型等用户已明确排除的信息。
@@ -35,6 +35,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 变更列表采用 Codex 的 quiet file-change grammar：逐文件显示真实 created/edited/deleted/moved 状态与可辨路径，移动同时保留来源路径；没有 Runtime 行级 diff 时不画 diff 行、`+0/-0`、内容片段或假 preview。完整 Diff 打开动作仍由既有 workspace view owner 持有。
 - Frontend 内部工具目录、分类、图标和 preview registration 与 Runtime 30 个内建工具真值对齐；不存在的 `edit`/`write` 不再拥有内部专用路径。published SDK 字段保持兼容，不在本批删除。
 - 首批必须先以独立红测提交锁定调用级结果、真实变更解析和死注册；根修复后运行定向 unit、typecheck、lint、format、knip、设计系统/交互 chrome/locale 门禁，并补 production-equivalent light/dark 内容视觉证据。若未触及 Runtime/Desktop/Wails，不重复无意义 race 或重启矩阵。
+- 验收结论：`apply_patch` 展开体按 created/edited/deleted/moved 显示调用级文件回执，移动保留来源路径；无权威行数时 inline preview 与 Run Summary 都不显示 diff 片段或 `+/-`。Frontend 322 files / 1995 tests、完整 312 项 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵及全部静态/构建门禁通过；单独复跑的 Runtime HTTP 断线恢复例在 `--detectAsyncLeaks` 下无泄漏。本批未触及 Runtime、Desktop/Wails 或 `app/cli`。
 
 ### P120 准入与完成条件（2026-08-19）
 
@@ -130,10 +131,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P118     | Desktop 左中右接线与 Codex 交互深度对齐                                                                          | 创建失败不转移焦点，compact HITL 动态净空进入唯一滚动 owner，Goal/Run 命令可辨；Context Dock 服从 640px 阅读下限并呈现 exact file identity，真实 renderer/Runtime 换代后状态与能力收敛       |
 | P119     | Desktop 前后端完整接线与 Codex 三栏深度对齐                                                                      | Plan/Goal/Steer、Work Index、统一 narrative renderer 与 Context Dock 服从权威 Session/Runtime owner；IME commit Enter、production renderer replacement 与 Runtime SIGKILL 恢复闭环       |
 | P120     | Composer stack、Context 占用与终态 narrative 精确收敛                                                            | Plan/Goal 改为 Codex 紧凑 standing surface；Context 环消费真实 `contextTokens/contextWindow`；标题栏与普通结束态移除累计统计和结算杂项                                                  |
+| P121     | 调用级补丁回执与 Codex file-change narrative                                                                      | `apply_patch` 的持久结果成为 inline preview 与 Run Summary 唯一变更事实；删除 `edit`/`write` 死路径和全工作区 diff 猜测，无权威行数时不伪造增删统计                                    |
 
 ## 5. 当前里程碑结论
 
-P113–P120 共同建立了以下不可回退的心智模型：
+P113–P121 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -148,8 +150,9 @@ P113–P120 共同建立了以下不可回退的心智模型：
 - Composer 的发送入口只消费键盘意图 owner：IME 提交中英混合文本后的首个普通 Enter 仍属于 composition commit，只有下一次独立 Enter 才能发送；不得用 timeout、UA 分支或撤销已发送命令模拟该边界。
 - Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
 - Composer 顶部 standing stack 只有紧凑 Plan pill 与 Goal lifecycle row；Goal 限制仍是 Runtime/launcher 事实而非永久 chrome。Context 环只读 Runtime `contextTokens` 与 served model window，标题栏与普通完成态不重复累计 accounting。
+- 一次 `apply_patch` 的展开体和 Run Summary 只读该 ToolCall 已持久化的 `PatchResult.changes`；当前工作区状态、工具参数和文件内容都不能回填历史调用。Runtime 没有发布行级 diff 或增删行数时，Frontend 不猜测这些事实。
 
-最近一次完整验收基线：Frontend 322 files / 1994 tests 与严格异步泄露门禁全绿，98 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 通过。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
+最近一次完整验收基线：Frontend 322 files / 1995 tests 全绿，97 条 published context edge 无环，87/87 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden，P121 复跑的 Runtime HTTP 断线恢复例在严格异步泄漏检查下通过。Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production `.app` package 和 strict codesign verification 沿用 P119 恢复基线；P121 未改动这些层。fresh HOME/SQLite 的真实 smoke 中，renderer reload 与 Runtime 89768→93411 的 SIGKILL 换代均保持 exact Session，Desktop PID 90579 始终不变；原 renderer 在锁屏后台且没有 reload 时自动连接后继实例，durable token 保持 0600 与相同 digest，SQLite Session 数保持 1。
 
 ## 6. 新阶段准入
 

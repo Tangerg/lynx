@@ -61,7 +61,8 @@ describe("toolCardModel", () => {
     );
     expect(toolCardModel(t, tool({ name: "shell", status: "ok" })).shell).toBe("card");
     expect(
-      toolCardModel(t, tool({ name: "edit", safetyClass: "write", status: "running" })).shell,
+      toolCardModel(t, tool({ name: "apply_patch", safetyClass: "write", status: "running" }))
+        .shell,
     ).toBe("card");
     // A read that FAILED is not a glance any more.
     expect(toolCardModel(t, tool({ ...read, status: "err" })).shell).toBe("flagged");

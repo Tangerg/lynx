@@ -9,7 +9,7 @@
 
 export type ToolCategory =
   | "command" // shell → { command, description } + { output, exitCode? }, or a plain-string ack when backgrounded
-  | "fileEdit" // edit / write / apply_patch → { path } + { changes: FileEdit[] }
+  | "fileEdit" // apply_patch → { patch } + { changes: AppliedChange[] }
   | "search" // grep / glob → { pattern } + { hits: SearchHit[] }
   | "webSearch" // web_search → { query } + { results: WebSearchResult[] }
   | "read" // read → { path, start_line?, max_lines? } + { content, start_line, … }
@@ -18,10 +18,8 @@ export type ToolCategory =
 
 const TOOL_CATEGORY: Record<string, ToolCategory> = {
   shell: "command",
-  edit: "fileEdit",
-  write: "fileEdit",
-  // The runtime projects a patch into the same { changes } envelope an edit
-  // produces, so it renders through the same diff path.
+  // The Runtime's only built-in file mutation. Its result is a call-scoped
+  // receipt, not a workspace diff and not an edit/write compatibility shape.
   apply_patch: "fileEdit",
   grep: "search",
   glob: "search",

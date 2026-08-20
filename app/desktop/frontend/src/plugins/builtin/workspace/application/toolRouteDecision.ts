@@ -7,8 +7,6 @@ export interface WorkspaceToolRoute {
   fileFocus?: string;
 }
 
-const MULTI_FILE_LABEL = /^\d+ files$/;
-
 export function hasWorkspaceToolView(tool: WorkspaceToolActivity): boolean {
   return tool.category === "command" || tool.category === "fileEdit" || tool.category === "read";
 }
@@ -23,7 +21,10 @@ export function decideWorkspaceToolRoute(tool: WorkspaceToolActivity): Workspace
   if (tool.category === "fileEdit" || tool.category === "read") {
     return {
       view: "diff",
-      fileFocus: tool.label && !MULTI_FILE_LABEL.test(tool.label) ? tool.label : "",
+      // The Agent projection that selected the label also owns whether it is a
+      // path. Do not infer path identity from translated counts, slashes, or a
+      // tool name: a multi-file apply_patch deliberately labels itself as text.
+      fileFocus: tool.labelKind === "path" ? tool.label : "",
     };
   }
 

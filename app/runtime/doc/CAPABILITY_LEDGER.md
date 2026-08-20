@@ -1,8 +1,8 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P120 已完成。
+> 状态：当前能力快照；P121 已完成。
 >
-> 基线日期：2026-08-19。
+> 基线日期：2026-08-20。
 
 本文只回答“现在具备什么能力、谁拥有它、用什么证据守住”。详细 wire/storage 版本见
 [`CONTRACT_BASELINE.md`](CONTRACT_BASELINE.md)，实施历史见
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v19、SQLite epoch 75、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P120 已完成；Work Index、Agent Narrative、Composer standing stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环。
+- P113–P121 已完成；Work Index、Agent Narrative、Composer standing stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执。
 
 ## 2. 架构与所有权
 
@@ -179,14 +179,14 @@
 | Frontend           | type/lint/format/knip/layer/API/style/design/token/locales/bundle 全门禁与 `--detectAsyncLeaks`；production visual composition 必须提供真实 setup service、Runtime service status 和 command/interrupt lifecycle owner，当前 agent/shell/workspace/closure/foundation/WebKit 矩阵 312 tests 覆盖 streaming、HITL、Session/Dock、WCAG、键盘、coarse pointer、长内容、IME、CJK、18px、reduced motion、Retina 与 light/dark golden |
 | Production shell   | Wails v3 Go test/vet/build、production `.app` package、renderer reload、Runtime health/discovery 与 fresh database/SIGKILL smoke                                                                                                                                                                                                                             |
 
-P120 Frontend 基线为 322 files / 1994 tests；Plan/Goal/Context/normal completion 的独立红例与 production owner 单元测试全绿。agent browser 矩阵新增真实 Context tooltip、Goal attached top-tray 与 Plan/Goal composer-stack 几何守卫，并刷新标题栏、普通终态及 light/dark golden；完整 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵 312 tests 全绿，typecheck/lint/format/knip/design/token/chrome/locales 门禁保持全绿。P119 的完整 Runtime/Desktop/Wails recovery 基线未被修改，P120 也没有改变 Protocol、Artifact、SQLite schema、公共 Go API 或 Agent Framework baseline。
+P121 Frontend 基线为 322 files / 1995 tests；调用级 `apply_patch` 结果携带、strict result parser、死注册清理、Run Summary 共享回执与 `fnKind` 路由红例全绿。inline preview 以 quiet created/edited/deleted/moved 文件行呈现真实回执，移动保留来源路径；没有 Runtime 行级事实时不画 diff 片段或 `+/-`。完整 visual/WCAG/keyboard/IME/CJK/light-dark/Retina/WebKit 矩阵 312 tests 全绿，typecheck/lint/format/knip/design/token/chrome/locales/bundle 等全部门禁保持全绿；单独复跑的 Runtime HTTP 断线恢复例在 `--detectAsyncLeaks` 下无泄漏。P119 的完整 Runtime/Desktop/Wails recovery 基线未被修改，P121 也没有改变 Protocol、Artifact、SQLite schema、公共 Go API、Frontend published SDK 或 Agent Framework baseline。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P120 完成定义内没有已知未闭环项。commentary/final answer phase 与原生图片 Download 仍分别等待 Runtime public surface、Desktop binding 的显式边界授权，因此未由 Frontend 猜测或伪造接线。
+- P121 完成定义内没有已知未闭环项。Frontend published `ToolCall` 的历史兼容字段、commentary/final answer phase 与原生图片 Download 分别等待 breaking-surface、Runtime public surface 与 Desktop binding 的显式边界授权，因此未由 Frontend 猜测、伪造或擅自删除。
 
 ## 11. 当前结论
 
-P0–P120 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 又把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，并让 Context 占用只消费真实 Runtime footprint。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P121 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 又让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

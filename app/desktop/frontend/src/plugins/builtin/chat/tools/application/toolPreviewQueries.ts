@@ -1,31 +1,7 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import {
-  useWorkspaceDiff,
-  useWorkspaceFileHead,
-  useWorkspaceGrep,
-} from "@/plugins/builtin/workspace/public/queries";
-import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
+import { useWorkspaceFileHead, useWorkspaceGrep } from "@/plugins/builtin/workspace/public/queries";
 import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { parseJsonResult } from "./toolResultParsing";
-
-export function useDiffToolPreview(tool: ToolCall, maxRows: number) {
-  const gitEnabled = useRuntimeCapability("git");
-  const workspace = useActiveSessionWorkspace();
-  const { data } = useWorkspaceDiff(
-    gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
-  );
-  const rows = tool.diff
-    ? tool.diff
-    : (data?.files ?? []).flatMap((file) => [
-        { type: "hunk" as const, text: file.path },
-        ...file.rows,
-      ]);
-  return {
-    rows,
-    truncated: tool.diff ? false : Boolean(data?.truncated),
-    hiddenRows: rows.length - maxRows,
-  };
-}
 
 export function useFileToolPreview(tool: ToolCall, maxLines: number) {
   const workspace = useActiveSessionWorkspace();

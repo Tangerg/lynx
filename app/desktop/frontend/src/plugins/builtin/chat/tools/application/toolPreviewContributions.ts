@@ -18,8 +18,8 @@ export function askUserToolPreview(component: ToolPreviewComponent): ToolPreview
   return toolPreviews({ ask_user: component });
 }
 
-export function diffToolPreviews(
-  components: PreviewMap<"edit" | "write" | "apply_patch">,
+export function applyPatchToolPreview(
+  components: PreviewMap<"apply_patch">,
 ): ToolPreviewContribution[] {
   return toolPreviews(components);
 }
