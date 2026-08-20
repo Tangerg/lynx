@@ -148,10 +148,12 @@ test("resize separator commits once after pointer movement and supports the keyb
 
   const rail = page.getByRole("separator", { name: "Resize the work index" });
   const persistedWidth = page.getByTestId("persisted-sidebar-width");
+  await expect(rail).toHaveAttribute("aria-valuenow", "275");
+  await expect.poll(() => sidebarCssWidth(page)).toBe("275px");
   await rail.focus();
   await rail.press("ArrowRight");
-  await expect(rail).toHaveAttribute("aria-valuenow", "264");
-  await expect(persistedWidth).toHaveText("264");
+  await expect(rail).toHaveAttribute("aria-valuenow", "283");
+  await expect(persistedWidth).toHaveText("283");
 
   // `hover()` rather than a measured coordinate: the rail sits exactly at the
   // drawer's trailing edge, so any layout settling between measuring it and
@@ -163,7 +165,7 @@ test("resize separator commits once after pointer movement and supports the keyb
   const box = await rail.boundingBox();
   if (!box) throw new Error("Resize separator has no layout box");
   await page.mouse.move(336, box.y + box.height / 2);
-  await expect(persistedWidth).toHaveText("264");
+  await expect(persistedWidth).toHaveText("283");
   await expect.poll(() => sidebarCssWidth(page)).toBe("336px");
   await page.mouse.up();
   await expect(persistedWidth).toHaveText("336");
@@ -181,19 +183,19 @@ test("window resize clamps layout without overwriting the persisted preference",
   const persistedWidth = page.getByTestId("persisted-sidebar-width");
   await rail.focus();
   await rail.press("End");
-  await expect(persistedWidth).toHaveText("800");
-  await expect.poll(() => sidebarCssWidth(page)).toBe("800px");
+  await expect(persistedWidth).toHaveText("520");
+  await expect.poll(() => sidebarCssWidth(page)).toBe("520px");
 
-  await page.setViewportSize({ width: 1120, height: 720 });
+  await page.setViewportSize({ width: 720, height: 720 });
   await expect.poll(() => sidebarCssWidth(page)).toBe("480px");
   await expect(rail).toHaveAttribute("aria-valuemax", "480");
   await expect(rail).toHaveAttribute("aria-valuenow", "480");
-  await expect(persistedWidth).toHaveText("800");
+  await expect(persistedWidth).toHaveText("520");
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect.poll(() => sidebarCssWidth(page)).toBe("800px");
-  await expect(rail).toHaveAttribute("aria-valuemax", "800");
-  await expect(rail).toHaveAttribute("aria-valuenow", "800");
+  await expect.poll(() => sidebarCssWidth(page)).toBe("520px");
+  await expect(rail).toHaveAttribute("aria-valuemax", "520");
+  await expect(rail).toHaveAttribute("aria-valuenow", "520");
 });
 
 interface ShellGolden {
