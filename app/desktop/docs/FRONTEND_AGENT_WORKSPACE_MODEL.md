@@ -65,7 +65,7 @@ Session
 | delegated `Run`                           | Agent Narrative disclosure + Context Dock      | 由准确 `spawnedByItemId` 挂到父 task；默认摘要，按需展开                   |
 | `RunRef` lineage                          | Context Dock Timeline                          | parent/root/source identity 的 durable 审计树                              |
 | `Segment`                                 | 不单独占据导航区域                             | 同一 Run 的执行/等待/续跑边界；用于生命周期与恢复，不冒充新 Run            |
-| `Item`                                    | Agent Narrative                                | message、reasoning、plan、tool call、question 等 durable source-owned 单元 |
+| `Item`                                    | Agent Narrative                                | message、reasoning、plan、tool call、question 等 durable source-owned 单元；terminal AgentMessage phase 区分过程与最终回答 |
 | `Session.cwd`                             | Work Index + Context Dock                      | 项目身份 + 文件系统工具根                                                 |
 | `Project`                                 | Work Index decoration                          | 按 `Session.cwd` 派生的分组视图，无 opaque id、无 active 标记             |
 | `workspace.*`                             | Context Dock                                   | 当前 cwd 的文件、diff、grep、skills、recipes、memory、hooks 等            |
@@ -81,6 +81,7 @@ Session
   必须保留 source Run，并挂到其 parent task。
 - Timeline、tool log 与 Run tree 是整个 active Session 的材料；当前 root plan、stop
   和 running attention 才是 current-root scope。公开 API 名称必须把两者写清楚。
+- commentary / final answer 是 Runtime terminal AgentMessage 的持久事实，不是 UI 根据“最后一条”、stream closure 或文本形态派生的分组。Frontend 只投影该 phase，并让 live、replay 与 mixed hydration 收敛。
 
 ## 3. Layout Responsibilities
 
@@ -117,8 +118,9 @@ Agent Narrative 是主舞台。它承载用户和 agent 的共同时间线。
 
 允许内容：
 
-- session header：title、status、model/permission summary、overflow actions。
+- session header：title、status、overflow actions；模型、权限和 context 占用留在 Composer control rung，不在标题右侧重复。
 - root transcript：全部 root-owned user / assistant turns。
+- work/final hierarchy：commentary、reasoning、tool activity 组成可折叠 work narrative；最终回答是独立 message row，只有该 row 拥有 message actions。
 - delegated disclosure：按 `spawnedByItemId` 锚定的 child / sibling / nested narrative。
 - run progress：当前 root plan；每个 delegated Run 自己的 reasoning、plan、progress、usage。
 - HITL：approval、question、client tool result。
@@ -130,6 +132,7 @@ Agent Narrative 不负责重新发明 tree 事实：
 
 - 不从 tool name、文本、Item 顺序或相邻事件猜 lineage；
 - 不把 child Item 拼进 root assistant turn；
+- 不把 commentary/tool work 与 terminal final answer 拼进同一 Assistant row，也不按位置猜 phase；
 - 不用一个 `running: boolean` 表达 waiting/finished/error/canceled；
 - cancel target 永远是 disclosure 对应的 exact RunID，UI 不先伪造 terminal。
 
@@ -314,6 +317,7 @@ plugins/builtin/workspace/application/
   Store 或 Runtime wire。
 - Agent context 以一份 `AgentSessionView` 保存 normalized `runsById` 与 source-owned
   material；root narrative、delegated disclosures 和 Session-wide audit 都是 selector。
+- Runtime AgentMessage phase 经 adapter 进入同一 `AgentSessionView`；fold 可在 terminal frame 到达时把 provisional text 从 commentary rehome 到稳定 `final:<itemId>` row，但不得新增第二 transcript store/writer。
 - `agent/public/run.ts` 的 current-root、active-Session 与 exact-Run command 名称不能互换。
 - app-global surface state 与 session/cwd-scoped dock state 不应混在同一个 store shape。
 
@@ -325,7 +329,7 @@ plugins/builtin/workspace/application/
 | --------------------- | ------------------------------------------------- | -------------------------------------------------------- |
 | App-global chrome     | shell / ui store                                  | theme、sidebar collapsed、settings route、每密度的 dock 宽度 |
 | Work index read model | navigation application                            | groups、session rows、attention badges                   |
-| Agent runtime view    | agent context                                     | normalized runs、source-owned messages/tools/plans/timeline、interrupts、usage |
+| Agent runtime view    | agent context                                     | normalized runs、source-owned messages/tools/plans/timeline、interrupts、usage、message phase |
 | Context dock state    | workspace context, scoped by `sessionId` or `cwd` | active dock tab、opened file、selected diff、tool detail |
 | Ephemeral UI state    | local component                                   | hover、temporary filter、expanded disclosure             |
 
@@ -343,6 +347,8 @@ Context Dock state 必须能回答：
 ## 8. Implementation Record
 
 以下阶段均已完成；本节记录当前完成态与回归门，不再作为兼容迁移计划。
+
+P128 的 Agent Narrative 收口建立在同一模型上：Runtime 在 terminal boundary 写入 `commentary | finalAnswer`，Transcript/SQLite/Artifact/public surface 共同持久该事实；Frontend provisional stream 先留在 work narrative，terminal final answer 再以稳定 identity 独立呈现。commentary/canceled/waiting 行不发布 context menu/message actions，同 Run 紧邻最终回答只让前一行 process material 进入 Codex wave folding。
 
 ### Phase 1: Document and Guard the Model — `DONE`
 
@@ -433,6 +439,7 @@ information architecture。
 - Work Index 直接拼业务数据源，而不是消费 navigation read model。
 - Context Dock 使用一份全局 active file / selected diff，切 session 后互相污染。
 - 把 approval/question 只放右侧，导致用户在主叙事里看不到 agent 正在等什么。
+- 根据消息位置、文本内容或 stream closure 猜 final answer，或让 commentary/canceled work row 继承最终回答 actions。
 - 用更多卡片、边框、圆角、hover 来制造“高级感”。
 - 插件只贡献 slot，不声明 Work Index / Context Dock / Narrative 这类心智归属，导致信息架构再次失控。
 

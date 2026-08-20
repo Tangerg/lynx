@@ -119,7 +119,7 @@ Session ──┬── Run ──┬── Item   (userMessage / agentMessage /
 
 ```
 ┌──────────────┬─────────────────────────────────────────────────┬────────────────┐
-│              │  B  顶栏：会话标题 · 状态点 · 模型 · 用量 chip   │                │
+│              │  B  顶栏：会话标题 · 状态点 · overflow actions   │                │
 │              ├─────────────────────────────────────────────────┤                │
 │  A  侧栏     │  ┌── C  常驻条区（阅读列宽，钉住不随 D 滚动）──┐ │  G  Context    │
 │              │  │  C1 工作区失联   C2 Run 错误                │ │     Dock       │
@@ -229,7 +229,7 @@ type Item =
   | { type: "userMessage";  id: string; runId: string; status: ItemStatus; createdAt: string;
       content?: ContentBlock[] }
   | { type: "agentMessage"; id: string; runId: string; status: ItemStatus; createdAt: string;
-      content?: ContentBlock[] }
+      phase?: "commentary" | "finalAnswer"; content?: ContentBlock[] }
   | { type: "reasoning";    id: string; runId: string; status: ItemStatus; createdAt: string;
       text?: string; redacted?: boolean }
   | { type: "question";     id: string; runId: string; status: ItemStatus; createdAt: string;
@@ -246,6 +246,8 @@ type Item =
 ```
 
 **`item.started` 的壳是空的**：`content` / `text` / `question` / `tool` 都可能缺席，随后由 delta 补、由 completed 落定。所有读取必须容忍缺席 —— 抛错会被 reducer 吞掉，那个块就永远不渲染。
+
+AgentMessage 的 `phase` 只在 terminal frame 上成为权威事实：running `item.started` 壳不得伪造 phase，completed/incomplete AgentMessage 必须由 Runtime 写入 `commentary` 或 `finalAnswer`。Frontend 不根据 Item 顺序、流式结束、是否位于 Run 尾部或文本形态猜测该值。
 
 ### 2.3 增量
 
@@ -507,6 +509,7 @@ type MessageRole = "user" | "assistant" | "system";
 interface Message {
   id: string;
   role: MessageRole;
+  phase?: "commentary" | "finalAnswer";
   runId: string | null;        // 乐观气泡未落地时为 null
   createdAt?: string;          // 裸 ISO；合成的 assistant turn 可能没有
   blocks: ViewContentBlock[];
@@ -617,7 +620,7 @@ interface BlockCtx {
 | # | 渲染物 | 位置 | 来自 | 状态 |
 | --- | --- | --- | --- | --- |
 | 4.1 | 用户消息 | D3，贴右，≤77% 宽 | `Item{userMessage}` | 原子 |
-| 4.2 | 助手消息 | D3，占满阅读列 | `Item{agentMessage}` + `delta{content}` | running → complete |
+| 4.2 | 助手消息 | D3，占满阅读列 | `Item{agentMessage.phase}` + `delta{content}` | work → final answer |
 | 4.3 | 图片 | D3，跟在文本后 | `content[].type="image"` | 原子 |
 | 4.4 | 思考 | D3 | `Item{reasoning}` + `delta{reasoning}` | running → complete → 折叠 |
 | 4.5 | 工具卡 | D3 | `Item{toolCall}` + 两种 delta | 5 态 |
@@ -660,6 +663,8 @@ interface BlockCtx {
 | 字段 | UI | 位置 |
 | --- | --- | --- |
 | `content[].text` / `delta{content}.text` | Markdown（含代码高亮、表格、公式、mermaid） | D3 |
+| terminal `phase === "commentary"` | 过程叙事，与 reasoning/tool 留在同一 work row | D3 |
+| terminal `phase === "finalAnswer"` | 以 `final:<itemId>` 进入独立最终回答 row | D3 |
 | `status === "running"` | 尾部流式光标 | 正文末尾 |
 | `createdAt` | 时钟 | D2 |
 
@@ -667,6 +672,8 @@ interface BlockCtx {
 
 - **只有最后一个 text 块允许显示光标**：一条 turn 里非末尾的 running 文本要强制降为 complete —— 已完成 turn 中间闪光标是谎言。
 - **壳阶段 `content` 缺席**要折成一个空 text 块供 delta 打补丁，不是跳过。
+- provisional text 先进入既有 work narrative；terminal `finalAnswer` 到达后，fold 必须把同一 `itemId` 的 text 移入稳定独立 row。live、completed-only replay 与 mixed hydration 必须收敛，不能重复正文或遗留空过程行。
+- commentary、canceled/waiting work narrative 不挂 context menu/message actions；只有 `finalAnswer` 拥有 Copy/Regenerate/Good/Poor。若同 Run 的 final answer 紧邻 commentary，presentation planner 只折叠前一行的 reasoning/tools wave，不合并两个 message identity。
 - Markdown 包裹层用 `<div>` 不是 `<p>`（渲染器自己会产出 `<p>`，嵌套是非法 HTML，浏览器会静默拆开外层）。
 
 ---

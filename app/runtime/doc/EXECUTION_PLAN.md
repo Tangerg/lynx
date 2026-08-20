@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P127 已完成并形成里程碑。
+> 状态：P0–P128 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P127 Goal Codex composer submit-mode 与提交所有权闭环。
+> 最近基线：2026-08-20，P128 Agent commentary / final answer 权威分层与恢复闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P128 已于 2026-08-20 完成：production-equivalent 盲测先证明过程说明、工具工作与最终回答仍被折进同一个 Assistant turn，并共享最终回答操作栏；Codex `codex-rs` 的协议、thread state 与 streaming owner 共同证明 commentary / final answer 必须是 Runtime authored phase，而不是 Frontend 根据位置、流式状态或文案推断的视觉标签。
+- Runtime 现在只在权威 ModelCall completion boundary 为 terminal AgentMessage 写入 `commentary` 或 `finalAnswer`；带 tool calls 的回复属于 commentary，无 tool calls 的终结回复属于 final answer，interrupt/suspend/cancel/loss/steer/tool boundary 关闭的 partial stream 保持 commentary。Domain Transcript、SQLite epoch 76、Artifact v20、Protocol/generated Go/TypeScript/validator/docs 与 Frontend published model 同步携带该事实，旧 Artifact 版本确定性拒绝；Protocol 日期保持 `2026-08-17`。
+- Frontend provisional text 先进入既有 work narrative，terminal `finalAnswer` 到达后再以稳定 `final:<itemId>` identity 从过程行移入独立回答行；live、replay 与 mixed hydration 因而收敛。commentary/canceled/waiting narrative 不发布 context menu 或 message actions，只有 final answer 拥有 Copy/Regenerate/Good/Poor；同 Run 紧邻 final answer 时，前一过程行继续按 Codex wave grammar 折叠 reasoning/tools。
+- 红测 `e6daf2295`、Runtime 根修复 `89335ef6f`、Frontend 分层 `dc7450a47`、contract fixture `8c85216f9`、fold/presentation/visual 收口 `7247f9e8d`、`dccf4ec61`、`347a8f3cc`、published facade `de585ccc7` 均已逐轮推送。Frontend 323 files / 2009 tests、320 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/Retina/WebKit 矩阵与全静态/构建门禁全绿；Runtime/Desktop test/vet/build、generator diff、fresh SQLite epoch 76、真实 HITL/tool/final answer reload 与 Wails v3 1439×899 原生 smoke 均通过。本批未修改或暂存 `app/cli`。
+- 用户指出的两张历史 Goal/composer 错误截图已从本机删除并排除出视觉证据；唯一保留的附件参考是 context 环占用提示。后续视觉判断继续以 Codex 真实产品/源码和可复现 product smoke 为准。
 - P127 已于 2026-08-20 完成：用户再次确认两张历史附件展示的是待修错误现状，不是 Codex 目标；Goal 不能把旧表单或旧 banner 换个位置继续呈现。可见依据只取自 Codex 本地解包源码与真实产品行为，错误附件不再参与视觉判断。
 - 新 Goal 现在由 `/goal` 武装同一个 Composer submit mode；原 Composer 继续独占 draft、附件、历史、IME、Enter/send 与提交成功后的清空。非激活时不留图标、边线或高度，激活时只在 footer 显示紧凑 Goal identity，并可从同一入口退出；不再存在第二 objective draft、Goal launcher bus 或目标/轮次/花费/步数表单。
 - `COMPOSER_SUBMIT_MODE` 是通用 Frontend extension point，Goal 只贡献 mode identity 与事务 owner。Runtime `goals.start` 成功前不清 draft；失败、编辑、切换 Session、附件存在或 replacement confirmation 均由同一 owner 明确结算。真实 smoke 发现 standing Goal projection 可先于 start promise 到达，现由 `starting` phase 保留提交权，直到 exact command owner 完成 `accept()`，避免已创建 Goal 却残留输入文本。
@@ -44,6 +49,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P128 准入与完成条件（2026-08-20）
+
+- 必须先以 production page 证明旧实现把过程工作和最终回答合成同一可见 turn，再以 Codex 后端/前端 owner 证明 phase 的来源；不得把“最后一条消息”“最后一段文本”或 stream closure 当成 final answer，也不得以 CSS 拆块冒充协议语义。
+- Runtime 在 terminal AgentMessage 上必须提供 `commentary | finalAnswer`；running shell 不得伪造 phase，任何终止边界关闭的 partial stream 必须持久为 commentary。Domain、SQLite、Artifact、Protocol、生成物与 Frontend published model 必须同批前移，旧 Artifact 不猜默认值。
+- Frontend 必须让 provisional stream、completed frame、replay 与 mixed hydration 收敛到同一 identity：过程 material 保留在 work narrative，final answer 使用独立稳定 row；只有 final answer 拥有 context menu/message actions，前一同 Run commentary 可由紧邻 final answer 触发 wave folding。
+- 验收结论：Frontend 323 files / 2009 tests 与 type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过；完整 320 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/Retina/WebKit 矩阵覆盖过程折叠、独立最终回答与唯一 actions。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、generator diff 全绿；fresh Runtime 的 SQLite epoch 76、真实 HITL/tool/final answer、reload 后 phase/DOM 分层、Wails v3 strict codesign 与 1439×899 原生窗口均已验证。本批未修改或暂存 `app/cli`。
 
 ### P127 准入与完成条件（2026-08-20）
 
@@ -116,7 +128,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 非 Markdown 内容块同样进入统一 narrative grammar：context compaction 不再画居中双横线，改为 Codex 式左对齐 quiet activity row，始终保留压缩图标，并在 Runtime 提供 summary 时通过同一键盘 disclosure 展开；未引入第二内容模型、全局 registry、remote fetch 或 Runtime 依赖。
 - 上述内容纵切与 IME 的每个成立缺口均先以独立红测推送，再提交根修复；Frontend 全量与严格 `--detectAsyncLeaks` 均为 321 files / 1996 tests，typecheck/lint/format/knip/circular/context/API/locales/style/design-system/token/chrome/bundle 门禁全绿。用户消息使用 Codex 的 5% text neutral bubble、12×8px inset 与 16px 圆角，不再借 accent wash 强调；Markdown task marker 从同一可见正文获得语言无关的 accessible name；长代码 clipping 守卫只认可真实、位于边界内且拥有水平滚动范围的 descendant scroller，不再把停靠在视口外的 Dock material 当作正文滚动能力。agent/shell/workspace/closure/foundation/WebKit 完整 311 项 visual/WCAG/keyboard/IME/CJK/light-dark/Retina 矩阵全绿，中文输入法中英混合提交继续证明首个 Enter 只归输入法、下一次 Enter 才发送。KaTeX CSS 已从错误的 startup ownership 分离到既有动态 loader，启动 CSS 从 136.1KB 降至 107.0KB，并由“产物存在但 `index.html` 不得引用”的门禁锁定。
 - P119 最终 recovery smoke 使用 fresh HOME/SQLite、0600 durable local token 与 production Wails `.app`：renderer reload 前后 Desktop PID 保持 90579，后继 renderer 重新执行完整 Runtime inspection/query，SQLite 与权威 `sessions.list` 均保持唯一 `P119 中英混合 recovery smoke` Session。Runtime PID 89768 被精确 `SIGKILL` 后由 PID 93411 接替且 `instanceId` 换代，token digest 不变；同一 Desktop/renderer 在锁屏后台、没有 reload 或手工刷新时自动连接后继实例并恢复 RPC。Runtime standalone 与 Desktop 全量 test/vet/build、Wails production package 和 strict codesign verification 全绿；本阶段自动化进程、临时数据库、Playwright 与 Go build/test cache 已清理。
-- Codex 的 commentary 与 final answer 精确分组仍缺权威 `agentMessage.phase` 事实。若补齐会同时影响 Runtime Protocol Item、transcript persistence、SQLite JSON codec、Artifact import/export、公共 Go/生成 TypeScript surface、Frontend published SDK 与 fold/render planner；在取得显式 breaking-surface 授权前，Frontend 不按顺序、流式状态或文本形态猜测 phase，也不增加第二 transcript writer。
+- P128 已补齐 Codex commentary 与 final answer 的权威 `agentMessage.phase`：Runtime completion boundary、Transcript persistence、SQLite codec、Artifact v20、公共 Go/生成 TypeScript surface、Frontend published SDK 与 fold/render planner 同步前移。Frontend 仍不按顺序、流式状态或文本形态猜 phase，也没有增加第二 transcript writer。
 - Codex 图片查看器的 Download 仍缺 Desktop 原生 save-file owner；直接使用浏览器下载会伪造桌面接线。补齐该能力需要新增 Desktop binding/生成 surface，取得显式边界授权前只呈现已接线的查看、导航与缩放能力。
 
 ### P118 准入与完成条件（2026-08-18）
@@ -196,10 +208,12 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P124     | Codex tool work narrative 与 disclosure 层级                                                                    | 普通 ToolCall 统一回到透明 activity row；identity、summary、末尾按需 chevron 与展开 material 形成一个阅读流，failure/denied 不再升级成彩色 dashboard chrome                               |
 | P125     | 设置主色选择反馈与动态 theme contribution 生命周期                                                              | preference、theme replacement、document paint、selected state 与持久化恢复同链结算；动态单键 contribution 先退休旧 owner，再发布新值，点击不再被 duplicate exception 中断                 |
 | P126     | Goal 权威 update/clear 与 Codex composer tray 管理                                                              | attached tray、摘要入口与 clear/lifecycle/edit 服从 Codex 层级；update/clear 进入 Runtime 权威纵切，Frontend 不展示限制条件或建立第二 Goal writer                                         |
+| P127     | Goal Codex composer submit mode 与提交所有权                                                                      | Goal start 复用唯一 Composer draft/IME/send owner；standing projection 早到与 Runtime mutation settlement 由 exact commit owner 结算，不增加第二表单或 limits chrome                    |
+| P128     | Agent commentary / final answer 权威分层                                                                          | Runtime terminal phase 贯通 Transcript、SQLite、Artifact 与公共 surface；Frontend 将过程叙事和最终回答分行，只有 final answer 拥有 actions，live/replay/mixed hydration 收敛               |
 
 ## 5. 当前里程碑结论
 
-P113–P127 共同建立了以下不可回退的心智模型：
+P113–P128 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -211,6 +225,7 @@ P113–P127 共同建立了以下不可回退的心智模型：
 - Desktop 冷启动依赖在 composition root 显式声明；Composer、Recipes 和 Workspace Events 的 session ports 不再依赖偶然安装顺序。
 - local transport token 由 durable data path 拥有，不属于 Runtime process generation；`instanceId` 换代不撤销仍存活 Desktop 的认证能力。
 - 流式输出期间，消息底部反馈/操作区服从可见 turn 的稳定 material 边界，不能跟随每个 delta 反复挂载造成闪烁。
+- AgentMessage 的 commentary/final answer 是 Runtime 在 terminal boundary 写入并持久化的事实。running shell 可暂居 work narrative，但 terminal final answer 必须移入稳定独立 row；过程行、canceled/waiting 叙事不拥有 message actions，同 Run 紧邻 final answer 只触发过程 wave folding，不改写历史 Item 顺序。
 - Work Index 只有在 `sessions.create` 返回新 identity 后才交接焦点；中央 transcript 的内容增长与 composer/HITL border-box 净空共享一个 follow fact，用户取得阅读位置后不再被异步 materialization 抢回。
 - Composer 的发送入口只消费键盘意图 owner：IME 提交中英混合文本后的首个普通 Enter 仍属于 composition commit，只有下一次独立 Enter 才能发送；不得用 timeout、UA 分支或撤销已发送命令模拟该边界。
 - Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
@@ -221,7 +236,7 @@ P113–P127 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 323 files / 2010 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 317 tests 覆盖 streaming、HITL、Session/Dock、Goal editor、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone `go test ./...`、`go vet ./...`、`go build ./...` 全绿。fresh `LYRA_HOME` 的真实 HTTP 与 production page smoke 已完成 Goal create/update/resume domain rejection/clear 权威收敛，Wails v3 dev host 已完成 frontend/Go build、开发 `.app` codesign 与 1439×899 原生窗口启动；P119 production `.app` package、strict codesign 和 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
+最近一次完整验收基线：Frontend 323 files / 2009 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 320 tests 覆盖 streaming、HITL、Session/Dock、Goal、commentary/final answer、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime standalone 与 Desktop `go test ./...`、`go vet ./...`、`go build ./...` 全绿，generator 无 diff。fresh Runtime/SQLite epoch 76 的 production page smoke 已完成真实 HITL/tool/final answer 分层与 reload 恢复，Wails v3 dev host 已完成 frontend/Go build、开发 `.app` strict codesign 与 1439×899 原生窗口启动；P119 production `.app` package 和 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
 
 ## 6. 新阶段准入
 
@@ -234,4 +249,4 @@ P113–P127 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P127 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P128 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
