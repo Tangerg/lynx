@@ -53,13 +53,20 @@ export function planRenderUnits(
   answerFollows = false,
 ): MessageRenderUnit[] {
   const hasQuestion = blocks.some((block) => block.kind === "question");
+  const approvalOwnedToolCallIds = findApprovalOwnedToolCallIds(blocks, toolCalls);
   const answered = answeredAfter(blocks, answerFollows);
   const units: MessageRenderUnit[] = [];
   let wave: PositionedBlock[] = [];
 
   const flushWave = () => {
     if (wave.length === 0) return;
-    const inner = planWithinWave(wave, toolCalls, hasQuestion, answered);
+    const inner = planWithinWave(
+      wave,
+      toolCalls,
+      hasQuestion,
+      approvalOwnedToolCallIds,
+      answered,
+    );
     const last = wave[wave.length - 1]!;
     // Two units minimum: a run that already plans to one row — a lone reasoning block,
     // or three reads that group themselves — folds on its own, and wrapping it would
@@ -113,6 +120,7 @@ function planWithinWave(
   positioned: readonly PositionedBlock[],
   toolCalls: Record<string, ToolCall>,
   hasQuestion: boolean,
+  approvalOwnedToolCallIds: ReadonlySet<string>,
   answered: readonly boolean[],
 ): MessageRenderUnit[] {
   const units: MessageRenderUnit[] = [];
@@ -140,6 +148,15 @@ function planWithinWave(
 
   for (const item of positioned) {
     const tool = toolOf(item.block, toolCalls);
+    // The fold deliberately retains both facts while a call waits: the ToolCall is
+    // the durable operation, and the approval block is the actionable interruption.
+    // The transcript must still expose one request surface. Match by the runtime's
+    // shared item id and only while both facts are pending, so the historical tool row
+    // returns as soon as the decision settles.
+    if (tool && approvalOwnedToolCallIds.has(tool.id)) {
+      flushReads();
+      continue;
+    }
     // A question's own tool call is rendered by the question card, not twice. Checked
     // ahead of the grouping: these tools are side-effect-free (they ARE the
     // interrupt), so they read as glances and would otherwise be folded into a group
@@ -163,6 +180,20 @@ function planWithinWave(
 
   flushReads();
   return units;
+}
+
+function findApprovalOwnedToolCallIds(
+  blocks: readonly ContentBlock[],
+  toolCalls: Record<string, ToolCall>,
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const block of blocks) {
+    if (block.kind !== "approval" || block.status !== "requires-action" || !block.itemId) {
+      continue;
+    }
+    if (toolCalls[block.itemId]?.status === "requires-action") ids.add(block.itemId);
+  }
+  return ids;
 }
 
 function toolOf(block: ContentBlock, toolCalls: Record<string, ToolCall>): ToolCall | undefined {
