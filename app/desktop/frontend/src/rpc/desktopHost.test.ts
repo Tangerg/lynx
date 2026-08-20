@@ -4,10 +4,11 @@ import { createDesktopHostClient, type DesktopHostBinding } from "./desktopHost"
 
 const BOOTSTRAP = "main.DesktopHost.Bootstrap";
 const CHOOSE_WORKING_DIRECTORY = "main.DesktopHost.ChooseWorkingDirectory";
+const SAVE_IMAGE = "main.DesktopHost.SaveImage";
 const WINDOW_CHROME = "main.DesktopHost.WindowChrome";
 
 /** A host that answers every method, dispatching on the name the client asks for — which
- *  is the thing worth exercising: one call channel, three names. */
+ *  is the thing worth exercising: one call channel, four names. */
 function hostBinding(
   answers: Partial<Record<string, () => Promise<unknown>>> = {},
 ): DesktopHostBinding & { call: ReturnType<typeof vi.fn> } {
@@ -18,6 +19,7 @@ function hostBinding(
       sideloadIssues: [],
     }),
     [CHOOSE_WORKING_DIRECTORY]: async () => "/tmp/project",
+    [SAVE_IMAGE]: async () => true,
     [WINDOW_CHROME]: async () => ({
       controlsCentreY: 20,
       controlsInlineEnd: 72,
@@ -88,6 +90,27 @@ describe("DesktopHostClient", () => {
     await expect(createDesktopHostClient(undefined).chooseWorkingDirectory()).resolves.toBeNull();
   });
 
+  it("saves inline images through the packaged host and preserves cancellation", async () => {
+    const binding = hostBinding();
+    const source = "data:image/png;base64,aW1hZ2U=";
+
+    await expect(createDesktopHostClient(binding).saveImage(source)).resolves.toBe(true);
+    expect(binding.call).toHaveBeenCalledWith(SAVE_IMAGE, source);
+
+    const cancelled = hostBinding({ [SAVE_IMAGE]: async () => false });
+    await expect(createDesktopHostClient(cancelled).saveImage(source)).resolves.toBe(false);
+  });
+
+  it("rejects malformed image-save responses and stays inert outside Wails", async () => {
+    const malformed = hostBinding({ [SAVE_IMAGE]: async () => "saved" });
+    await expect(
+      createDesktopHostClient(malformed).saveImage("data:image/png;base64,aW1hZ2U="),
+    ).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(
+      createDesktopHostClient(undefined).saveImage("data:image/png;base64,aW1hZ2U="),
+    ).resolves.toBe(false);
+  });
+
   it("reads the platform's window-control geometry", async () => {
     const binding = hostBinding();
     await expect(createDesktopHostClient(binding).windowChrome()).resolves.toEqual({
@@ -129,10 +152,13 @@ describe("DesktopHostClient", () => {
     const client = createDesktopHostClient(binding);
     await client.bootstrap();
     await client.chooseWorkingDirectory();
+    await client.saveImage("data:image/png;base64,aW1hZ2U=");
     await client.windowChrome();
     expect(binding.call.mock.calls.flat()).toEqual([
       BOOTSTRAP,
       CHOOSE_WORKING_DIRECTORY,
+      SAVE_IMAGE,
+      "data:image/png;base64,aW1hZ2U=",
       WINDOW_CHROME,
     ]);
   });

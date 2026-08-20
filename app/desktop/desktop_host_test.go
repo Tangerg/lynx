@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -11,6 +13,16 @@ type workingDirectoryPickerFunc func() (string, error)
 
 func (f workingDirectoryPickerFunc) ChooseWorkingDirectory() (string, error) {
 	return f()
+}
+
+type imageSaverFunc func(suggestedFilename, mimeType string, contents []byte) (bool, error)
+
+func (f imageSaverFunc) SaveImage(
+	suggestedFilename,
+	mimeType string,
+	contents []byte,
+) (bool, error) {
+	return f(suggestedFilename, mimeType, contents)
 }
 
 func TestDesktopHostBootstrap(t *testing.T) {
@@ -128,5 +140,88 @@ func TestDesktopHostChooseWorkingDirectoryRejectsInvalidSelections(t *testing.T)
 				t.Fatalf("ChooseWorkingDirectory() = %q, nil; want error", selected)
 			}
 		})
+	}
+}
+
+func TestDesktopHostSaveImageDecodesInlineMaterial(t *testing.T) {
+	host := newDesktopHost(t.TempDir())
+	var filename, mimeType string
+	var contents []byte
+	host.useImageSaver(imageSaverFunc(func(
+		suggestedFilename,
+		mediaType string,
+		material []byte,
+	) (bool, error) {
+		filename = suggestedFilename
+		mimeType = mediaType
+		contents = append([]byte(nil), material...)
+		return true, nil
+	}))
+
+	saved, err := host.SaveImage("data:image/png;base64,aW1hZ2U=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved {
+		t.Fatal("SaveImage() = false, want completed save")
+	}
+	if mimeType != "image/png" || !bytes.Equal(contents, []byte("image")) {
+		t.Fatalf("saved material = %q, %q; want image/png bytes", mimeType, contents)
+	}
+	if !strings.HasPrefix(filename, "Lyra Image ") || !strings.HasSuffix(filename, ".png") {
+		t.Fatalf("suggested filename = %q, want Lyra image PNG name", filename)
+	}
+}
+
+func TestDesktopHostSaveImagePreservesCancellation(t *testing.T) {
+	host := newDesktopHost(t.TempDir())
+	host.useImageSaver(imageSaverFunc(func(string, string, []byte) (bool, error) {
+		return false, nil
+	}))
+
+	if saved, err := host.SaveImage("data:image/svg+xml,%3Csvg%3E%2B%3C%2Fsvg%3E"); err != nil {
+		t.Fatal(err)
+	} else if saved {
+		t.Fatal("cancelled SaveImage() = true, want false")
+	}
+}
+
+func TestDesktopHostSaveImageRejectsInvalidSourcesBeforeOpeningDialog(t *testing.T) {
+	tests := []string{
+		"https://example.com/image.png",
+		"data:text/plain;base64,aW1hZ2U=",
+		"data:image/png;base64,%%broken%%",
+		"data:image/png;base64,",
+	}
+	for _, source := range tests {
+		t.Run(source, func(t *testing.T) {
+			called := false
+			host := newDesktopHost(t.TempDir())
+			host.useImageSaver(imageSaverFunc(func(string, string, []byte) (bool, error) {
+				called = true
+				return true, nil
+			}))
+
+			if saved, err := host.SaveImage(source); err == nil {
+				t.Fatalf("SaveImage(%q) = %v, nil; want validation error", source, saved)
+			}
+			if called {
+				t.Fatal("native image saver opened for invalid source")
+			}
+		})
+	}
+}
+
+func TestDesktopHostSaveImageRequiresAndPropagatesNativeOwner(t *testing.T) {
+	if saved, err := newDesktopHost(t.TempDir()).SaveImage("data:image/png;base64,aW1hZ2U="); err == nil {
+		t.Fatalf("SaveImage() = %v, nil; want unconfigured saver error", saved)
+	}
+
+	host := newDesktopHost(t.TempDir())
+	host.useImageSaver(imageSaverFunc(func(string, string, []byte) (bool, error) {
+		return false, errors.New("disk full")
+	}))
+	if saved, err := host.SaveImage("data:image/png;base64,aW1hZ2U="); err == nil {
+		t.Fatalf("SaveImage() = %v, nil; want native save error", saved)
 	}
 }

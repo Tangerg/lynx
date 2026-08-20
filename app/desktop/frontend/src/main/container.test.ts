@@ -86,6 +86,7 @@ describe("main/container", () => {
         sideloadIssues: [],
       }),
       chooseWorkingDirectory: async () => null,
+      saveImage: async () => false,
       windowChrome: async () => null,
     });
     setContainer({ desktop: desktop("token-a") });
@@ -112,6 +113,7 @@ describe("main/container", () => {
     const desktop = (bootstrap: DesktopHostClient["bootstrap"]): DesktopHostClient => ({
       bootstrap,
       chooseWorkingDirectory: async () => null,
+      saveImage: async () => false,
       windowChrome: async () => null,
     });
 

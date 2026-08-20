@@ -1,0 +1,44 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
+)
+
+// wailsImageSaver is the platform adapter for DesktopHost's image-save capability.
+// It attaches the sheet to the exact window that issued the request, then writes only
+// after the user has chosen a destination.
+type wailsImageSaver struct {
+	dialogs *application.DialogManager
+	window  application.Window
+}
+
+func (s wailsImageSaver) SaveImage(
+	suggestedFilename,
+	mimeType string,
+	contents []byte,
+) (bool, error) {
+	extension, ok := imageExtensionByMIME[mimeType]
+	if !ok {
+		return false, fmt.Errorf("unsupported image media type %q", mimeType)
+	}
+	destination, err := s.dialogs.SaveFile().
+		CanCreateDirectories(true).
+		AllowsOtherFileTypes(false).
+		SetFilename(suggestedFilename).
+		AddFilter("Image Files", "*."+extension).
+		AttachToWindow(s.window).
+		PromptForSingleSelection()
+	if err != nil {
+		return false, fmt.Errorf("open save dialog: %w", err)
+	}
+	if destination == "" {
+		return false, nil
+	}
+	if err := os.WriteFile(destination, contents, 0o666); err != nil {
+		return false, fmt.Errorf("write selected image: %w", err)
+	}
+	return true, nil
+}

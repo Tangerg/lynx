@@ -71,6 +71,8 @@ export const de: Record<string, string> = {
   "message.image.close": "Bildvorschau schließen",
   "message.image.zoomIn": "Bild vergrößern",
   "message.image.zoomOut": "Bild verkleinern",
+  "message.image.download": "Bild herunterladen",
+  "message.image.downloadFailed": "Bild konnte nicht gespeichert werden",
   "message.svg.generatedAlt": "Vom Assistenten erzeugtes Bild",
   "message.mermaid.enlarge": "Diagramm vergrößern",
   "message.mermaid.loading": "Mermaid-Diagramm wird geladen",

@@ -61,6 +61,13 @@ type workingDirectoryPicker interface {
 	ChooseWorkingDirectory() (string, error)
 }
 
+// imageSaver owns the native save dialog and the final write. The frontend only
+// hands DesktopHost an inline image; it never receives a filesystem path and cannot
+// bypass the platform picker with a browser download.
+type imageSaver interface {
+	SaveImage(suggestedFilename, mimeType string, contents []byte) (bool, error)
+}
+
 // DesktopHost is the Wails-owned boundary for capabilities that belong to the
 // packaged application rather than the Runtime Protocol.
 //
@@ -73,6 +80,7 @@ type DesktopHost struct {
 	localTokenPath         string
 	pluginRoot             string
 	workingDirectoryPicker workingDirectoryPicker
+	imageSaver             imageSaver
 	// Nil until the window exists. The application is constructed with this service
 	// before it has any window, and `WindowChrome` is only reachable from a frontend
 	// that a window had to load — but nil is answered honestly rather than assumed away.
@@ -97,6 +105,12 @@ func (h *DesktopHost) useWindow(window nativeWindow) {
 // chooser. Unexported on purpose: see the note on DesktopHost.
 func (h *DesktopHost) useWorkingDirectoryPicker(picker workingDirectoryPicker) {
 	h.workingDirectoryPicker = picker
+}
+
+// useImageSaver attaches the packaged application's native image-save capability.
+// Unexported on purpose: see the note on DesktopHost.
+func (h *DesktopHost) useImageSaver(saver imageSaver) {
+	h.imageSaver = saver
 }
 
 func defaultDesktopHost() (*DesktopHost, error) {
@@ -155,6 +169,23 @@ func (h *DesktopHost) ChooseWorkingDirectory() (string, error) {
 		return "", fmt.Errorf("desktop host: working directory %q is not a directory", absolute)
 	}
 	return filepath.Clean(absolute), nil
+}
+
+// SaveImage validates and decodes one inline image before handing it to the native
+// save owner. The bool distinguishes a completed write from user cancellation.
+func (h *DesktopHost) SaveImage(source string) (bool, error) {
+	if h.imageSaver == nil {
+		return false, errors.New("desktop host: image saver is not configured")
+	}
+	mimeType, extension, contents, err := decodeInlineImage(source)
+	if err != nil {
+		return false, fmt.Errorf("desktop host: save image: %w", err)
+	}
+	saved, err := h.imageSaver.SaveImage(suggestedImageFilename(extension), mimeType, contents)
+	if err != nil {
+		return false, fmt.Errorf("desktop host: save image: %w", err)
+	}
+	return saved, nil
 }
 
 // Bootstrap returns the local runtime connection and immutable plugin sources

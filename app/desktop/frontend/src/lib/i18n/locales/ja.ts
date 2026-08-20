@@ -70,6 +70,8 @@ export const ja: Record<string, string> = {
   "message.image.close": "画像プレビューを閉じる",
   "message.image.zoomIn": "画像を拡大",
   "message.image.zoomOut": "画像を縮小",
+  "message.image.download": "画像をダウンロード",
+  "message.image.downloadFailed": "画像を保存できませんでした",
   "message.svg.generatedAlt": "アシスタントが生成した画像",
   "message.mermaid.enlarge": "図を拡大",
   "message.mermaid.loading": "Mermaid 図を読み込み中",

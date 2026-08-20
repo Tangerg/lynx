@@ -100,6 +100,10 @@ func main() {
 		dialogs: app.Dialog,
 		window:  window,
 	})
+	host.useImageSaver(wailsImageSaver{
+		dialogs: app.Dialog,
+		window:  window,
+	})
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}

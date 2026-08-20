@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useState, type MouseEventHandler, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEventHandler,
+  type ReactElement,
+} from "react";
+import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 import { IconButton, LightboxDialog } from "@/ui";
+import { saveInlineImage } from "../adapters/desktopImageSave";
 import { MESSAGE_CONTENT_SELECTOR } from "./messageContent";
 
 const PREVIEW_TRIGGER_ATTR = "data-message-image-preview-trigger";
@@ -88,6 +97,8 @@ export function ImagePreviewGallery({ item, titleFallback, trigger }: Props) {
   const [gallery, setGallery] = useState<GalleryState | null>(null);
   const [zoomIndex, setZoomIndex] = useState(0);
   const [fittedSize, setFittedSize] = useState<FittedImageSize | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const setGalleryIndex = useCallback((index: number) => {
     setZoomIndex(0);
@@ -133,6 +144,19 @@ export function ImagePreviewGallery({ item, titleFallback, trigger }: Props) {
     setZoomIndex(0);
     setFittedSize(null);
   };
+  const saveActiveImage = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await saveInlineImage(active.src);
+    } catch {
+      toast.error(t("message.image.downloadFailed"));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
 
   return (
     <LightboxDialog
@@ -157,7 +181,16 @@ export function ImagePreviewGallery({ item, titleFallback, trigger }: Props) {
       })}
     >
       <div className="relative flex size-full flex-col" data-image-zoom={zoomPercent}>
-        <div className="absolute top-3 right-3 z-1">
+        <div className="absolute top-3 right-3 z-1 flex items-center gap-1">
+          <IconButton
+            icon="download"
+            size="lg"
+            title={t("message.image.download")}
+            aria-busy={saving}
+            disabled={saving}
+            onClick={() => void saveActiveImage()}
+            className="size-10 bg-media-scrim text-on-media hover:bg-media-scrim"
+          />
           <IconButton
             icon="x"
             size="lg"

@@ -40,7 +40,7 @@ export interface WindowChrome {
 }
 
 /**
- * The three Go methods this app can reach, by the name the runtime knows them by.
+ * The four Go methods this app can reach, by the name the runtime knows them by.
  *
  * `package.Type.Method`, which for a `main` package is what Go's own reflection reports —
  * so these are the full names, not a shortened form. v3 can generate typed wrappers for
@@ -50,12 +50,13 @@ export interface WindowChrome {
 const HOST_METHOD = {
   bootstrap: "main.DesktopHost.Bootstrap",
   chooseWorkingDirectory: "main.DesktopHost.ChooseWorkingDirectory",
+  saveImage: "main.DesktopHost.SaveImage",
   windowChrome: "main.DesktopHost.WindowChrome",
 } as const;
 
 /** How a call reaches Go. The app installs the Wails runtime's; tests pass their own. */
 export interface DesktopHostBinding {
-  call(method: string): Promise<unknown>;
+  call(method: string, ...args: unknown[]): Promise<unknown>;
 }
 
 export interface DesktopHostClient {
@@ -64,6 +65,9 @@ export interface DesktopHostClient {
   /** Opens the native directory chooser. `null` means the user cancelled or the
    *  packaged host is absent (for example, a browser visual fixture). */
   chooseWorkingDirectory(): Promise<string | null>;
+  /** Opens the native save dialog for a rendered inline image. `false` means the
+   *  user cancelled or the packaged host is absent; failures reject. */
+  saveImage(source: string): Promise<boolean>;
   /** `null` where there is no window to measure. Re-read per layout: the titlebar is
    *  rebuilt entering and leaving fullscreen, and the marks go away with it. */
   windowChrome(): Promise<WindowChrome | null>;
@@ -76,6 +80,7 @@ const WindowChromeSchema = z.object({
 });
 
 const WorkingDirectorySchema = z.string();
+const SaveImageSchema = z.boolean();
 
 const DesktopBootstrapSchema = z.object({
   localRuntime: z.object({
@@ -99,7 +104,7 @@ const DesktopBootstrapSchema = z.object({
 async function wailsDesktopHostBinding(): Promise<DesktopHostBinding | undefined> {
   if (!("_wails" in globalThis)) return undefined;
   const { Call } = await import("@wailsio/runtime");
-  return { call: (method) => Call.ByName(method) };
+  return { call: (method, ...args) => Call.ByName(method, ...args) };
 }
 
 export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHostClient {
@@ -143,6 +148,23 @@ export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHo
         );
       }
       return parsed.data.length > 0 ? parsed.data : null;
+    },
+    async saveImage(source) {
+      const host = binding ?? (await wailsDesktopHostBinding());
+      if (!host) return false;
+      let value: unknown;
+      try {
+        value = await host.call(HOST_METHOD.saveImage, source);
+      } catch (error) {
+        throw new RpcTransportError(`desktop host image save failed: ${errorMessage(error)}`);
+      }
+      const parsed = SaveImageSchema.safeParse(value);
+      if (!parsed.success) {
+        throw new RpcTransportError(
+          `desktop host image save returned an invalid shape: ${parsed.error.message}`,
+        );
+      }
+      return parsed.data;
     },
     async windowChrome() {
       const host = binding ?? (await wailsDesktopHostBinding());

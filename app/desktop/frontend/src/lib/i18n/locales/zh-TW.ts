@@ -72,6 +72,8 @@ export const zhTW: Record<string, string> = {
   "message.image.close": "關閉圖片預覽",
   "message.image.zoomIn": "放大圖片",
   "message.image.zoomOut": "縮小圖片",
+  "message.image.download": "下載圖片",
+  "message.image.downloadFailed": "無法儲存圖片",
   "message.svg.generatedAlt": "助理產生的圖片",
   "message.mermaid.enlarge": "放大圖表",
   "message.mermaid.loading": "正在載入 Mermaid 圖表",

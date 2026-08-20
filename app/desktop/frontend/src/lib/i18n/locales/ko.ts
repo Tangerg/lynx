@@ -70,6 +70,8 @@ export const ko: Record<string, string> = {
   "message.image.close": "이미지 미리보기 닫기",
   "message.image.zoomIn": "이미지 확대",
   "message.image.zoomOut": "이미지 축소",
+  "message.image.download": "이미지 다운로드",
+  "message.image.downloadFailed": "이미지를 저장할 수 없습니다",
   "message.svg.generatedAlt": "어시스턴트가 생성한 이미지",
   "message.mermaid.enlarge": "다이어그램 확대",
   "message.mermaid.loading": "Mermaid 다이어그램 로드 중",
