@@ -350,6 +350,8 @@ Context Dock state 必须能回答：
 
 P128 的 Agent Narrative 收口建立在同一模型上：Runtime 在 terminal boundary 写入 `commentary | finalAnswer`，Transcript/SQLite/Artifact/public surface 共同持久该事实；Frontend provisional stream 先留在 work narrative，terminal final answer 再以稳定 identity 独立呈现。commentary/canceled/waiting 行不发布 context menu/message actions，同 Run 紧邻最终回答只让前一行 process material 进入 Codex wave folding。
 
+P129 进一步固定 Conversation 与 Transcript 的可见性边界：Application 生成的 fresh autonomous Goal 控制提示只进入 provider Conversation，不创建用户 Transcript Item，也不向 Frontend 返回伪 `UserItemID`；真实用户 start/resume input 仍保持可见。standing Goal 只从 `goals.get` / `goals.changed` 投影 lifecycle、objective 与真实 actions，Frontend 不以字符串过滤、CSS 隐藏或本地缓存修补内部控制提示泄漏。
+
 ### Phase 1: Document and Guard the Model — `DONE`
 
 - 本文作为主 UI 心智模型。

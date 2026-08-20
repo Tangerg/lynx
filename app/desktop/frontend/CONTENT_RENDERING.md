@@ -123,7 +123,7 @@ Session ──┬── Run ──┬── Item   (userMessage / agentMessage /
 │              ├─────────────────────────────────────────────────┤                │
 │  A  侧栏     │  ┌── C  常驻条区（阅读列宽，钉住不随 D 滚动）──┐ │  G  Context    │
 │              │  │  C1 工作区失联   C2 Run 错误                │ │     Dock       │
-│  Work Index  │  │  C3 Plan 进度    C4 Goal 预算               │ │                │
+│  Work Index  │  │  C3 Plan 进度    C4 Goal 常驻条             │ │                │
 │  · 会话列表  │  └─────────────────────────────────────────────┘ │  工具 inspector│
 │  · 收藏      │  ┌─E─┬──── D  阅读列（滚动区，居中定宽）──────┐ │  diff / 文件树 │
 │  · 工作区    │  │转 │  D1 日期分隔                            │ │  timeline      │
@@ -1047,65 +1047,49 @@ interface BlockCtx {
 
 **错误不能是死路**：负向色只落在图标 / 标题 / 一条 1px 边，**不冲刷整个阅读宽度**；必须给具体下一步。
 
-### 5.3 Plan 进度条（C3）
+### 5.3 Plan 紧凑进度（C3）
 
-**何时** 当前 Plan 存在 `in_progress` 步，且未被本 Run dismiss。
+**何时** 当前 active Run 的 Plan 存在 `in_progress` 步，且未被本 Run dismiss。
 
 ```
-┌ 计划 ─────────────────────────────── 3/7 ─ [×] ─┐
-│ ▸ 正在：把 fold 层的 plan 投影接到常驻条        │
-│ ████████████░░░░░░░░░░░░░░░░  43%               │
-└──────────────────────────────────────────────────┘
+◔  第 3 / 7 步
+   hover / focus → 当前权威 checklist tooltip
 ```
 
 | 字段 | UI | 位置 |
 | --- | --- | --- |
-| `plan[].status === "in_progress"` 的那条 `description` | 当前步文字 | 条身 |
-| `done` / `total`（派生） | `3/7` + 进度条 | 条头右 / 条底 |
-| `plan[]` 全量 | 展开的清单（勾选态三档） | 展开体 / G 区 Plan 视图 |
+| `done` / `total`（派生） | 环形进度 + `第 N / M 步` pill | Composer overlay |
+| `plan[]` 全量 | hover / focus tooltip 中的三态 checklist | tooltip |
 | `revision` | 折叠依据，**不上屏** | — |
 
-**冷读**：重载 / 回退 / replay 过期后靠 `plan.get` 接回来。
+Plan 不创建 disclosure card、底部 progress bar、关闭按钮或 click-expanded 第二状态；空 contribution 为零高度。**冷读**：重载 / 回退 / replay 过期后靠 `plan.get` 接回来。
 
-### 5.4 Goal 预算条（C4）
+### 5.4 Goal 常驻条（C4）
 
 **何时** 当前会话有一个自治 Goal。数据来自 `goals.get` + `goals.changed` 失效（**不轮询**）。
 
 ```
-┌ 目标 ── 运行中 ──────────────────── 花费 62% ─┐   ← 折叠：只显示最紧的那条轴
-│ 把 desktop 的内容区渲染文档补完                │
-└────────────────────────────────────────────────┘
-展开：
-│  运行数  ████████░░░░░░  8 / 20                │
-│  花费    ███████████░░░  $6.20 / $10.00        │
-│  步数    ─────────────── 无限制                │   ← 未设限的轴不画轨道
+┌ ◎ 目标执行中  把 desktop 内容区与 Codex 对齐…  [清除][暂停][编辑] ┐
+└───────────────────────────────────────────────────────────────────┘
+┌ Composer ─────────────────────────────────────────────────────────┐
 ```
 
 | 字段 | UI | 位置 |
 | --- | --- | --- |
-| `objective` | 目标文字（一行，从右截断） | 条身 |
-| `status` | 状态标：`active`=中性 / `paused`=warning / `blocked`=negative | 条头 |
-| `budget.maxRuns` / `maxCostUsd` / `maxSteps` | 三条预算轴。**0 或缺席 = 该轴不设限** | 展开体 |
-| `used.runs` / `costUsd` / `steps` | 已用值 | 展开体 |
-| 最紧的轴（派生） | 折叠态唯一显示的数字 | 条头右 |
-| `reason.code` | 停止原因（**闭合 10 值，查表出文案**） | 条身 |
-| `reason.detail` | **不直接显示** —— 会把英文塞进每个 locale | — |
+| `objective` | 一行摘要；整段是编辑入口 | attached tray body |
+| `status` | 本地化 lifecycle 文案与 identity mark | attached tray leading edge |
+| clear / pause-resume / edit capability | 固定次序的真实命令动作 | attached tray trailing edge |
 
-**未设限的轴不画进度条** —— "无限制"下面一条满宽轨道读作"快用完了"，正好是反义。
-折叠态只有一个数字的位置，三个会是噪音；有用的是**最先耗尽的那条**（未设限的轴不是候选，它永远不会是终止原因）。
+Goal 与 Composer 同宽，以重叠 1px 接缝组成一个 stack；空态不留下固定边线或高度。预算、额度、花费、步数、轮次、model、last move、限制条件和 `reason.detail` 一律不进入 standing UI。完整 objective 只进入 420px compact editor，不在常驻条展开第二张卡。
 
-`reason.code` 全集：`stoppedByUser` `runtimeRestarted` `runStartFailed` `awaitingInput` `terminalOutcomeMissing` `runNotCompleted` `runBudgetReached` `costBudgetReached` `stepBudgetReached` `blockedByModel`。
+自治 drive 的控制提示是 Application-authored model input：Runtime 只把它持久到 provider Conversation，不创建 Transcript `userMessage` 或 `UserItemID`。Frontend 不按字符串、来源 ID 或 CSS 猜测并隐藏内部提示；真实用户 start/resume input 仍必须作为用户消息出现。
 
-### 5.5 会话用量 chip
+### 5.5 Composer Context 环
 
-**位置** B 顶栏右 / F Composer 工具条。
-**来自** `usage.session{sessionId}`。
+**位置** 只在 F Composer 工具条；B 顶栏不展示 Session 累计上下文、token 或费用。
+**来自** 当前 root Run 最新的 `segment.progress.contextTokens` 与 active Session 实际 served model 的 `contextWindow`。
 
-```
-↑ 128k  ↓ 34.2k  $1.24
-```
-
-三项全为 0 且无花费 → **不画**（不是画三个 0）。`↑`/`↓` 的记号与 §4.12 收尾行**同一套写法**。
+`used = min(contextTokens, contextWindow)`，环形占比为 `used / contextWindow`。tooltip 显示已用比例、剩余比例与 `used / contextWindow` token；终态保留最后一次真实 footprint。缺少任一权威事实时不绘制，不能用 Session 累计 usage、费用或客户端估算代替。
 
 ---
 

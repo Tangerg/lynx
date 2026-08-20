@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P128 已完成。
+> 状态：当前能力快照；P129 已完成。
 >
 > 基线日期：2026-08-20。
 
@@ -16,7 +16,7 @@
 - 当前合同为 Protocol `2026-08-17`、Artifact v20、SQLite epoch 76、Agent Framework Baseline 20。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
-- P113–P128 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip，普通工具调用统一使用透明 work-narrative row 而非状态着色卡片；设置主色由单一 appearance preference 驱动；Goal update/clear 由 Runtime 权威纵切拥有，新 Goal start 通过同一 Composer submit mode 与 per-Session command owner 提交，不展示限制条件或建立第二 draft/writer；AgentMessage phase 由 Runtime terminal boundary 权威写入，Frontend 将 commentary work narrative 与 final answer 分行且只给最终回答 actions。
+- P113–P129 已完成；Work Index、Agent Narrative、Composer standing/input stack 与 Context Dock 的 Codex 深度对齐、权威前端接线和 production renderer/Runtime 恢复验收均已闭环；文件变更叙事只消费 exact ToolCall 的持久补丁回执，审批只呈现 Runtime material 与明确 allow scope，Question 只在 composer rung 呈现一次并以 ordered empty values 表达明确 Skip，普通工具调用统一使用透明 work-narrative row 而非状态着色卡片；设置主色由单一 appearance preference 驱动；Goal update/clear 由 Runtime 权威纵切拥有，新 Goal start 通过同一 Composer submit mode 与 per-Session command owner 提交，不展示限制条件或建立第二 draft/writer；AgentMessage phase 由 Runtime terminal boundary 权威写入，Frontend 将 commentary work narrative 与 final answer 分行且只给最终回答 actions；fresh autonomous Goal 的 Application 控制输入只进入 provider Conversation，不再伪装成用户 Transcript Item。
 
 ## 2. 架构与所有权
 
@@ -30,6 +30,7 @@
 
 - Application use case 组织完整业务纵切、授权、事务输入和提交后的事件发布，不直接解析 Agent Framework private snapshot 或 SQLite shape。
 - Run pump 是 authoritative model/tool observation 的唯一 reducer owner；外部调用事实只有在完整 write-set 提交后才能替换 live state。
+- fresh autonomous Goal opening 显式区分 model-only control input：opening transaction 原子提交 provider Conversation 而不创建用户 Transcript Item；普通外部 start/resume input 仍同时进入两种投影。
 - `sessions.snapshot` 在一个应用用例中校验并组装挂载 Session 的 HITL、Plan、Goal、Run、Tool material closure。
 - Goal objective update 先 quiesce exact owned drive，再以 fresh incarnation CAS 保存；原 lifecycle 为 active 时才按冻结事实重启 drive。Goal clear 在 owned drive 静止后 CAS 删除，已不存在时幂等成功，外部 owner 或 complete objective 不被越权改写。
 - fresh start、resume、child admission、waiting barrier、cancellation 和 terminalization 都有明确 command identity 与事务结算规则。
@@ -190,14 +191,16 @@ P127 Frontend 基线为 323 files / 2005 tests；Goal composer submit mode、零
 
 P128 Frontend 基线为 323 files / 2009 tests；Runtime phase contract、live/replay/mixed fold、commentary 无 actions、final answer 独立 actions 与 same-Run wave folding 红例全绿。完整 visual/WCAG/keyboard/coarse-pointer/IME/CJK/Retina/WebKit 矩阵 320 tests，以及 typecheck/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁保持全绿；Runtime/Desktop test/vet/build 和 generator diff 全绿。fresh SQLite epoch 76 的真实 HITL/tool/final answer smoke 与 reload 后 DOM/Artifact phase 分层通过；Wails v3 dev host 完成 frontend/Go build、开发 `.app` strict codesign、frontend connection 与 1439×899 原生窗口启动。
 
+P129 保持 Frontend 323 files / 2009 tests 基线；Goal model-only opening 红例、Runs 全 package 回归、Runtime/Desktop test/vet/build、generator diff、Frontend 全门禁与 Wails v3 production build 均通过。fresh SQLite 的 26 次自治 drive 中，provider Conversation 持久保留 26 条 Application 控制消息，Transcript 控制提示泄漏为 0，真实用户 Item 为 1；Runtime restart 后 paused Goal tray 与零泄漏同时恢复。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 已知未闭环
 
-- P128 完成定义内没有已知未闭环项。旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段、原生图片 Download 一样，分别等待显式 breaking-surface 或 Desktop binding 授权。
+- P129 完成定义内没有已知未闭环项。旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段、原生图片 Download 一样，分别等待显式 breaking-surface 或 Desktop binding 授权。
 
 ## 11. 当前结论
 
-P0–P128 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算，P124 让普通 ToolCall 回到统一的透明 work narrative，P125 让设置主色的 mutation、动态 contribution replacement、document paint、反馈与恢复服从同一 preference owner，P126 让 Goal edit/clear 的可见动作、Runtime quiesce/CAS 事务与 mounted snapshot 收敛服从同一权威纵切，P127 把新 Goal 从重复表单收敛为 Composer submit mode，并让早到 standing projection 与 Runtime mutation settlement 服从同一个 exact commit owner，P128 则让 Runtime terminal phase、durable transcript 与 Frontend work/final presentation 共同服从同一事实，最终回答不再与过程工作共享 turn 或 actions。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。
+P0–P129 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算，P124 让普通 ToolCall 回到统一的透明 work narrative，P125 让设置主色的 mutation、动态 contribution replacement、document paint、反馈与恢复服从同一 preference owner，P126 让 Goal edit/clear 的可见动作、Runtime quiesce/CAS 事务与 mounted snapshot 收敛服从同一权威纵切，P127 把新 Goal 从重复表单收敛为 Composer submit mode，并让早到 standing projection 与 Runtime mutation settlement 服从同一个 exact commit owner，P128 让 Runtime terminal phase、durable transcript 与 Frontend work/final presentation 共同服从同一事实，最终回答不再与过程工作共享 turn 或 actions，P129 进一步让 Application 生成的 Goal 控制上下文只对模型可见，不再污染用户 Transcript。后续工作必须从真实产品反例开始；若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

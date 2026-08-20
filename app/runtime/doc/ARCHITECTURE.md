@@ -86,6 +86,8 @@ DDD 用于澄清语言、实体行为、聚合和所有权，不用于复制 Jav
 - Transcript 是已经发生的用户可见事实和 Run/Item 观察记录；
 - `interaction.WorkingContext` 是一个 Agent Framework Process 精确恢复所需的私有执行状态。
 
+Conversation 与 Transcript 不是逐条镜像。Application 为 fresh autonomous Goal 生成的控制输入只服务模型上下文：opening transaction 必须把它写入 Conversation，但不得创建 Transcript `userMessage`、不得返回 `UserItemID`，也不得要求 Frontend 按文案过滤。外部用户明确发起的 fresh start 或 resume input 仍同时进入 Conversation 与 Transcript；后续可见输入不能借“model-only”身份消失。
+
 创建新 Process 时，Agent adapter 可以用 Conversation 构造 Interaction Input。恢复既有 Process 时，只能使用它自己捕获的 TreeSnapshot；不得从后来变化的 Conversation 猜测或重算 WorkingContext。
 
 ### 4.2 权威观察与临时流

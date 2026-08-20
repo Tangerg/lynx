@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P128 已完成并形成里程碑。
+> 状态：P0–P129 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P128 Agent commentary / final answer 权威分层与恢复闭环。
+> 最近基线：2026-08-20，P129 Goal 模型控制输入与用户转录隔离闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P129 已于 2026-08-20 完成：fresh production smoke 证明自治 Goal 每轮由 Application 生成的控制提示仍被持久成 `userMessage`，因而在中间 Narrative 形成巨大的用户气泡；Codex 本地实现则用独立 Goal state 和 `appendTranscriptItem: false` 表达同一边界。问题属于 Runtime opening projection 的语义混同，不是 Frontend CSS 或字符串过滤缺陷。
+- fresh Goal opening 现在显式携带 model-only input：同一个 opening transaction 仍把控制提示原子写入 provider Conversation，却不创建 Transcript Item，也不返回 `UserItemID`。普通外部 `runs.start` 合同不变；真实用户 resume input 继续同时进入 Conversation 与 Transcript，不能被内部控制路径吞掉。
+- 独立红测提交 `343caabf0`、Runtime 根修复 `1985e95a9` 与架构词汇守卫修复 `c222a9060` 均已推送。Frontend 323 files / 2009 tests 与完整静态/构建门禁全绿；Runtime/Desktop test/vet/build、generator diff 和 Wails v3 production package 全绿。本批未改变 Protocol、Artifact、SQLite schema、公共 Go API，也未修改或暂存 `app/cli`。
+- fresh SQLite 的 26 次自治 drive 与 Runtime restart smoke 已证明：Conversation 中保留 26 条模型控制消息，Transcript 控制提示泄漏为 0，唯一真实用户 Item 保持可见；停止后 Goal attached tray 只显示 paused lifecycle/objective/actions，reload 后恢复同一状态且 DOM 仍无控制文本。
 - P128 已于 2026-08-20 完成：production-equivalent 盲测先证明过程说明、工具工作与最终回答仍被折进同一个 Assistant turn，并共享最终回答操作栏；Codex `codex-rs` 的协议、thread state 与 streaming owner 共同证明 commentary / final answer 必须是 Runtime authored phase，而不是 Frontend 根据位置、流式状态或文案推断的视觉标签。
 - Runtime 现在只在权威 ModelCall completion boundary 为 terminal AgentMessage 写入 `commentary` 或 `finalAnswer`；带 tool calls 的回复属于 commentary，无 tool calls 的终结回复属于 final answer，interrupt/suspend/cancel/loss/steer/tool boundary 关闭的 partial stream 保持 commentary。Domain Transcript、SQLite epoch 76、Artifact v20、Protocol/generated Go/TypeScript/validator/docs 与 Frontend published model 同步携带该事实，旧 Artifact 版本确定性拒绝；Protocol 日期保持 `2026-08-17`。
 - Frontend provisional text 先进入既有 work narrative，terminal `finalAnswer` 到达后再以稳定 `final:<itemId>` identity 从过程行移入独立回答行；live、replay 与 mixed hydration 因而收敛。commentary/canceled/waiting narrative 不发布 context menu 或 message actions，只有 final answer 拥有 Copy/Regenerate/Good/Poor；同 Run 紧邻 final answer 时，前一过程行继续按 Codex wave grammar 折叠 reasoning/tools。
@@ -49,6 +53,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P129 准入与完成条件（2026-08-20）
+
+- 必须从真实 product page 和 SQLite 同时证明 Goal 内部控制提示可被模型持续消费但不进入用户 Narrative；不得依赖 Frontend 文案过滤、隐藏 CSS、特殊 message ID 或重载后的客户端修复。
+- model-only 只允许用于 Application 生成的 fresh autonomous Goal opening。普通用户 fresh start 和 resume input 仍创建可见 Transcript Item；opening transaction 必须允许 Conversation-only projection 原子提交，同时保持空 opening、孤立 transcript 或孤立 provider write 的校验拒绝。
+- Runtime restart 后 Goal lifecycle/objective 与 Conversation 控制上下文必须恢复，而 Transcript/DOM 泄漏仍为 0。Start result 对内部 model-only opening 不返回伪 `UserItemID`；公共 `runs.start` wire、Protocol、Artifact、SQLite schema 与 Frontend published contract 保持不变。
+- 验收结论：红例与全量 Runtime package 回归通过；Frontend 323 files / 2009 tests 与全门禁、Runtime/Desktop test/vet/build、generator diff、Wails v3 production build 全绿。fresh SQLite 记录 26 条 model-only Conversation message、0 条 Transcript 控制提示、1 条真实用户 Item；Runtime restart 后 Goal paused tray 与零泄漏同时恢复。本批未修改或暂存 `app/cli`。
 
 ### P128 准入与完成条件（2026-08-20）
 
@@ -210,15 +221,17 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P126     | Goal 权威 update/clear 与 Codex composer tray 管理                                                              | attached tray、摘要入口与 clear/lifecycle/edit 服从 Codex 层级；update/clear 进入 Runtime 权威纵切，Frontend 不展示限制条件或建立第二 Goal writer                                         |
 | P127     | Goal Codex composer submit mode 与提交所有权                                                                      | Goal start 复用唯一 Composer draft/IME/send owner；standing projection 早到与 Runtime mutation settlement 由 exact commit owner 结算，不增加第二表单或 limits chrome                    |
 | P128     | Agent commentary / final answer 权威分层                                                                          | Runtime terminal phase 贯通 Transcript、SQLite、Artifact 与公共 surface；Frontend 将过程叙事和最终回答分行，只有 final answer 拥有 actions，live/replay/mixed hydration 收敛               |
+| P129     | Goal 模型控制输入与用户转录隔离                                                                                   | fresh autonomous opening 将 Application 控制提示只写入 provider Conversation，不创建 Transcript Item；真实用户 start/resume 仍可见，重启后 Goal 上下文与零泄漏同时恢复                 |
 
 ## 5. 当前里程碑结论
 
-P113–P128 共同建立了以下不可回退的心智模型：
+P113–P129 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
 - `sessions.snapshot` 是挂载 Session 的原子 material owner；HITL、Plan、Goal、Run、Tool 不能再由独立 query/event/material 多路拼接。
+- Conversation 是 provider 产品上下文，Transcript 是用户可见事实，两者不要求逐条镜像；只有 Application 生成的 fresh Goal 控制输入可走 model-only opening，Frontend 不负责识别或隐藏内部提示。
 - Goal objective update 先 quiesce exact owned drive，再以 fresh incarnation/CAS 替换 durable Goal；只有原 lifecycle 为 active 才按冻结事实恢复 drive。Goal clear 在 owned drive 静止后 CAS 删除，absence 幂等成功，Frontend 只能通过同一个 per-Session Goal command owner 发起并等待权威 snapshot 收敛。
 - durable mutation 以事务 marker/identity 判断“已提交但成功回执丢失”；不得靠重试猜测或本地 optimistic 状态冒充服务端事实。
 - Run Summary、Terminal、Diff、Tool selection、Goal、Plan、审批、Session/Dock navigation 只消费所属 Session 与 generation 的权威投影。
@@ -249,4 +262,4 @@ P113–P128 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P128 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P129 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
