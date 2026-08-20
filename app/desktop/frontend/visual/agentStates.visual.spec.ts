@@ -244,8 +244,10 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Edit goal", exact: true }).click();
 
     const dialog = page.getByRole("dialog", { name: "Edit goal" });
+    const backdrop = page.locator('[data-slot="text-editor-backdrop"]');
     const objective = dialog.getByRole("textbox", { name: "Goal" });
     await expect(dialog).toBeVisible();
+    await expect(backdrop).toHaveCSS("background-color", "rgba(0, 0, 0, 0.133)");
     await expect(objective).toHaveValue(
       "Get the desktop suite green on Linux without loosening any gate or skipping a test",
     );
