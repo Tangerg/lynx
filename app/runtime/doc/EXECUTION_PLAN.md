@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P134 已完成并形成里程碑。
+> 状态：P0–P135 已完成并形成里程碑。
 >
-> 最近基线：2026-08-21，P134 Codex Work Index 几何、首帧所有权与 composer 尾部净空收口。
+> 最近基线：2026-08-21，P135 Codex 待审批命令单一叙事表面收口。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P135 已完成：fresh production 会话证明同一条待审批 shell 调用同时渲染为透明 ToolCall row 与 approval request surface，命令因而重复出现；Codex 本地实现只由单一 approval surface 拥有标题、原因、命令与动作。根因位于 Frontend presentation planner 没有识别同一 `itemId` 的待决审批影子，不属于 Runtime/Fold 重复写入或 CSS 几何问题。
+- `planRenderUnits` 现在只在 approval block 与 ToolCall 的 exact `itemId` 相同且双方均为 `requires-action` 时省略工具影子；Runtime/Fold 继续保留两个权威事实用于重连、重放与审计，审批结算后条件自然失效，历史工具行恢复。没有删除 durable fact、字符串匹配、样式隐藏、第二审批状态或兼容分支。
+- 独立红例 `11fd71095`、根修复 `9fc1fc4c7`、production visual 合同 `53ee0b6f9` 与格式收口 `7fd14b0ba` 已逐轮推送。真实 Runtime 会话的修复后 DOM 只有 1 份命令、2 个审批动作、0 条工具影子；冷恢复保持相同投影。Frontend 324 files / 2020 tests、完整静态/构建门禁与独立 320 项 visual 矩阵全绿；Runtime/Desktop test/vet/build、`wails3 task build` 与 strict codesign 全绿，fresh SQLite epoch 76 的 production Wails↔Runtime 单 listener、同源 health/info `instanceId`、OPTIONS/POST `/v2/rpc` smoke 通过。本批未改变 Runtime/Protocol/Artifact/SQLite、Frontend published SDK 或 `app/cli`。
 - P134 已完成：本批准入时 production Work Index 默认宽度仍为 256px，End 在 1440px 窗口曾可扩到 800px；本地 Codex Desktop 的同一 owner 明确使用 275px default、240px floor、520px ceiling，并让 live window 至少保留 240px reading plane。问题属于 shell geometry owner 漂移，不以局部 CSS、截图专用宽度或 Dock 的 640px reading floor 修补。
 - `shellGeometry.ts` 现在唯一拥有 Work Index 的 275/240/520/240 边界；`AgentAppShell` 在 layout phase 写入已夹取的持久偏好，删除全局 256px fallback，agent/foundation/workspace/shell visual fixture 全部消费同一 default。右侧 Context Dock 保持自己的 640px conversation floor；Work Index 与 Dock 不共享 clamp 或 writer。
 - 本批视觉传播进一步复现了 fractional overlay 与整数 `scrollTop` 之间的 1px 尾部净空缺口；唯一 `COMPOSER_CLEARANCE` 在原 1rem 节奏外增加 1px rounding guard，long-content 五次定向重复、明暗/18px golden 与完整矩阵共同证明最后一条消息不进入 composer glass。红例 `bbe20ecac`、根修复 `66f5e6231`、Dock live-clamp 测试 `6e7498324`、Work Index golden `8e6831be9`、净空修复 `41bc002de` 与尾部 golden `67b9707c0` 已逐轮推送；未改变 Runtime/Protocol/Artifact/SQLite、Frontend published SDK 或 `app/cli`。
@@ -271,10 +274,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P132     | 图片查看器原生保存                                                                                                | Download/Close 工具组与 action feedback 对齐 Codex；restricted inline image 只经 `DesktopHost.SaveImage`、exact-window native save sheet 和最终文件写入完成，不使用浏览器 fallback        |
 | P133     | Codex modal scope 层级收口                                                                                         | 全部 dialog 共用 scheme-independent `#00000022` scrim，surface 自己承担深度；Goal editor 与 table preview 不再在 dark mode 被过重遮罩压暗                                               |
 | P134     | Codex Work Index 几何与尾部净空                                                                                    | Work Index 统一为 275px default、240–520px resize，并始终给 reading plane 留 240px；首帧、fixture、ARIA 与持久偏好共用 owner，composer tail 不再因 fractional scroll 舍入少 1px          |
+| P135     | Codex 待审批命令单一叙事表面                                                                                       | exact `itemId` 的待决 approval 与 ToolCall 仍作为两个可恢复事实存在，但 presentation 只渲染 approval request；结算后工具历史自然恢复，不用 CSS、删除事实或第二状态去重                         |
 
 ## 5. 当前里程碑结论
 
-P113–P134 共同建立了以下不可回退的心智模型：
+P113–P135 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -297,11 +301,12 @@ P113–P134 共同建立了以下不可回退的心智模型：
 - Composer 顶部 standing stack 只有紧凑 Plan pill 与 Goal lifecycle row；Goal 限制仍是 Runtime/launcher 事实而非永久 chrome。Context 环只读 Runtime `contextTokens` 与 served model window，标题栏与普通完成态不重复累计 accounting。
 - 一次 `apply_patch` 的展开体和 Run Summary 只读该 ToolCall 已持久化的 `PatchResult.changes`；当前工作区状态、工具参数和文件内容都不能回填历史调用。Runtime 没有发布行级 diff 或增删行数时，Frontend 不猜测这些事实。
 - pending approval 是一个 Codex request surface，而不是风险 dashboard：工具身份、Runtime reason、command/args 是可见事实；客户端不从命令字符串推导危险、可逆性或权限。Allow once 与键盘动作不持久化规则，只有用户选择 Session/Project/Global scoped allow 才提交 remember scope，Deny 不继承 allow scope。
+- pending approval 与其 ToolCall 可以同时存在于 Fold，但 exact `itemId` 且双方均为 `requires-action` 时只由 approval request 拥有可见命令与动作；结算后工具行恢复为历史叙事。Presentation 不得通过删除事实、文案匹配或 CSS 隐藏实现这一边界。
 - pending Question 从 mounted transcript material 选择，但只在 composer rung 呈现一次；普通 composer 暂时退休。首项预选、分页、自动前进、Next 与 Skip 共享一个 draft/action owner，空 inner values 只表示该有序 field 被明确跳过，不能省略 field、重排答案或靠客户端乐观回显冒充 Runtime settlement。
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 324 files / 2019 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 320 tests 覆盖 streaming、HITL、Session/Dock、Goal、modal scope、commentary/final answer、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与 `wails3 build` 全绿；fresh SQLite epoch 76 的 production Runtime 与 Wails binary 已完成单 listener、同源 health/info `instanceId` 和真实 Frontend OPTIONS/POST `/v2/rpc` smoke。Runtime/Protocol/Artifact/SQLite 本批未变，P131 以前的 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
+最近一次完整验收基线：Frontend 324 files / 2020 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 320 tests 覆盖 streaming、HITL、Session/Dock、Goal、modal scope、commentary/final answer、待审批命令单一表面、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、`wails3 task build` 与 strict codesign 全绿；fresh SQLite epoch 76 的 production Runtime 与 Wails binary 已完成单 listener、同源 health/info `instanceId` 和真实 Frontend OPTIONS/POST `/v2/rpc` smoke。Runtime/Protocol/Artifact/SQLite 本批未变，P131 以前的 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
 
 ## 6. 新阶段准入
 
@@ -314,4 +319,4 @@ P113–P134 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P134 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P135 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

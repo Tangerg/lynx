@@ -880,6 +880,7 @@ interface BlockCtx {
 
 **渲染要求**
 
+- Fold 可以同时保留同一调用的 ToolCall 与 approval block；当两者 `itemId` 完全相同且双方状态均为 `requires-action` 时，presentation planner 只渲染 approval request，不能再画一条重复命令的透明工具行。审批结算后该条件自然失效，历史 ToolCall 恢复；不得通过删除 Fold 事实、匹配命令文案或 CSS 隐藏实现去重。
 - 三态：**待决**（阻塞视线）→ **已批准** / **已拒绝**（收成一行记录留在 transcript 里）。
 - **React key 必须是 `itemId`**，不能是数组下标 —— 卡持有本地草稿（记忆勾选、编辑过的参数），下标 key 会把上一个 interrupt 的草稿泄漏给下一个。
 - 重连 / 重放再看到同一个 interrupt 要 **upsert 重申**同一张卡，不能追加第二张。
