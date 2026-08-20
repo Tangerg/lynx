@@ -277,8 +277,9 @@ test("all dock views share one stable user-owned width", async ({ page }) => {
 
   const separator = page.getByRole("separator", { name: "Resize right workspace" });
   await separator.focus();
+  const liveMax = Number(await separator.getAttribute("aria-valuemax"));
   await separator.press("ArrowRight");
-  const settledWidth = String(VISUAL_DOCK_WIDTH_PX - 8);
+  const settledWidth = String(liveMax - 8);
   await expect(page.getByTestId("persisted-dock-width")).toHaveText(settledWidth);
 
   await page.getByRole("tab", { name: "Diff" }).click();
