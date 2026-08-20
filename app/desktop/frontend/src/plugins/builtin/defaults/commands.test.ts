@@ -4,6 +4,7 @@ import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel
 import { defaultCommands } from "./commands";
 
 const mocks = vi.hoisted(() => ({
+  activeSessionId: "",
   createSession: vi.fn(),
   focusComposer: vi.fn(),
   runtimeAvailable: false,
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
   closeActiveAgentSession: vi.fn(),
   createSession: mocks.createSession,
+  getActiveSessionId: () => mocks.activeSessionId,
 }));
 
 vi.mock("@/plugins/builtin/chat/composer/public/focus", () => ({
@@ -23,6 +25,7 @@ vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
 }));
 
 beforeEach(() => {
+  mocks.activeSessionId = "";
   mocks.createSession.mockReset().mockResolvedValue("session-new");
   mocks.focusComposer.mockReset();
   mocks.runtimeAvailable = false;
@@ -38,5 +41,15 @@ describe("default commands", () => {
 
     expect(mocks.createSession).not.toHaveBeenCalled();
     expect(mocks.focusComposer).not.toHaveBeenCalled();
+  });
+
+  it("focuses the project-selection destination without allocating a default-workspace Session", async () => {
+    mocks.runtimeAvailable = true;
+    await loadPluginsForTest(defaultCommands);
+
+    await executeCommand("chat.new");
+
+    expect(mocks.createSession).not.toHaveBeenCalled();
+    expect(mocks.focusComposer).toHaveBeenCalledOnce();
   });
 });

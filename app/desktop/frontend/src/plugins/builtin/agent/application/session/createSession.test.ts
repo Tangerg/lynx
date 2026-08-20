@@ -80,6 +80,17 @@ describe("useCreateSession", () => {
     );
   });
 
+  it("never delegates an empty working directory to the Runtime default", async () => {
+    const create = vi.fn().mockResolvedValue(fakeSession("implicit-home"));
+    stubCreate(create);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+
+    await expect(result.current({ cwd: "" })).resolves.toBeNull();
+
+    expect(create).not.toHaveBeenCalled();
+    expect(navigator().get().session).toBe("");
+  });
+
   it("creates an empty draft (no message) for the New button", async () => {
     const create = vi.fn().mockResolvedValue(fakeSession("new-2"));
     stubCreate(create);

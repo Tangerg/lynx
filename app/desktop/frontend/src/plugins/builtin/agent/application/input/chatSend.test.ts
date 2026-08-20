@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { canAcceptChatInput } from "./chatSend";
 
 describe("chat input admission", () => {
-  it("accepts a welcome-screen input through Session creation", () => {
-    expect(canAcceptChatInput("", false, "idle")).toBe(true);
+  it("requires an explicitly selected project before accepting welcome input", () => {
+    expect(canAcceptChatInput("", false, "idle")).toBe(false);
   });
 
   it("requires the existing Session lifecycle owner to be mounted", () => {

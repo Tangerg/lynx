@@ -4,6 +4,7 @@ import { configureWorkingDirectoryPicker } from "./ports/workingDirectoryPicker"
 import { useWorkIndexActions } from "./workIndexActions";
 
 const mocks = vi.hoisted(() => ({
+  activeSessionId: "",
   activeWorkspace: { status: "ready", cwd: undefined } as
     { status: "ready"; cwd?: string } | { status: "resolving"; sessionId: string },
   runtimeAvailable: true,
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
   selectAgentSession: vi.fn(),
+  useActiveSessionId: () => mocks.activeSessionId,
   useActiveSessionWorkspace: () => mocks.activeWorkspace,
   useCreateSession: () => mocks.create,
   useDeleteSession: () => vi.fn(),
@@ -40,6 +42,7 @@ vi.mock("@/plugins/sdk", async (importOriginal) => ({
 let disposePicker = () => {};
 
 beforeEach(() => {
+  mocks.activeSessionId = "";
   mocks.activeWorkspace = { status: "ready", cwd: undefined };
   mocks.runtimeAvailable = true;
   mocks.choose.mockReset();
@@ -52,6 +55,16 @@ beforeEach(() => {
 afterEach(() => disposePicker());
 
 describe("useWorkIndexActions directory selection", () => {
+  it("keeps New on the explicit project-selection destination when no Session is active", () => {
+    const { result } = renderHook(() => useWorkIndexActions());
+
+    act(() => result.current.createSession());
+
+    expect(result.current.canCreateSession).toBe(true);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.focusComposer).toHaveBeenCalledOnce();
+  });
+
   it("withdraws every Session mutation while Runtime commands are unavailable", () => {
     mocks.runtimeAvailable = false;
     const { result } = renderHook(() => useWorkIndexActions());
@@ -69,6 +82,7 @@ describe("useWorkIndexActions directory selection", () => {
   });
 
   it("starts the global new-session action in the exact active project", async () => {
+    mocks.activeSessionId = "session-current";
     mocks.activeWorkspace = { status: "ready", cwd: "/tmp/current-project" };
     const { result } = renderHook(() => useWorkIndexActions());
 
@@ -84,6 +98,7 @@ describe("useWorkIndexActions directory selection", () => {
   });
 
   it("does not invent a default project while the active Session is resolving", () => {
+    mocks.activeSessionId = "session-current";
     mocks.activeWorkspace = { status: "resolving", sessionId: "session-current" };
     const { result } = renderHook(() => useWorkIndexActions());
 
