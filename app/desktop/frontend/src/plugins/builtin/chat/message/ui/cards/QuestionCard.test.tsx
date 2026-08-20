@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QuestionCard } from "./QuestionCard";
 
+const submitQuestion = vi.hoisted(() => vi.fn());
+
 vi.mock("@/plugins/builtin/agent/public/hitl", () => ({
-  useQuestionAnswer: () => ({ submit: vi.fn(), pending: false }),
+  useQuestionAnswer: () => ({ submit: submitQuestion, pending: false }),
 }));
 
 vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
@@ -11,6 +13,10 @@ vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
 }));
 
 describe("QuestionCard choice semantics", () => {
+  beforeEach(() => {
+    submitQuestion.mockClear();
+  });
+
   it("exposes single-choice answers as a labeled radio group", () => {
     render(
       <QuestionCard
@@ -99,7 +105,7 @@ describe("QuestionCard choice semantics", () => {
 
     expect(second!.getAttribute("aria-checked")).toBe("true");
     expect(document.activeElement).toBe(second);
-    expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(
+    expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(
       false,
     );
   });
@@ -229,11 +235,42 @@ describe("QuestionCard choice semantics", () => {
     expect(screen.getByText("1 of 2")).toBeTruthy();
     expect(screen.queryByText("Describe the constraints.")).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: "Race detector" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(screen.getByText("2 of 2")).toBeTruthy();
     expect(screen.getByText("Describe the constraints.")).toBeTruthy();
     expect(screen.queryByText("Which gate should run next?")).toBeNull();
-    expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Skip" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "Describe the constraints." }), {
+      target: { value: "Keep the boundary exact." },
+    });
+    expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
+  });
+
+  it("keeps an unmarked Chinese-IME commit Enter inside the freeform answer", () => {
+    render(
+      <QuestionCard
+        status="requires-action"
+        runId="run-1"
+        itemId="question-ime"
+        questions={[
+          {
+            type: "text",
+            header: "Context",
+            prompt: "Describe the constraint.",
+          },
+        ]}
+      />,
+    );
+
+    const answer = screen.getByRole("textbox", { name: "Describe the constraint." });
+    fireEvent.compositionStart(answer, { data: "english" });
+    fireEvent.change(answer, { target: { value: "中文 english" } });
+    fireEvent.compositionEnd(answer, { data: "english" });
+    fireEvent.keyDown(answer, { key: "Enter", keyCode: 13, isComposing: false });
+
+    expect(submitQuestion).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(answer, { key: "Enter", keyCode: 13, isComposing: false });
+    expect(submitQuestion).toHaveBeenCalledWith([["中文 english"]]);
   });
 });

@@ -91,6 +91,7 @@ test("question settlement uses the exact interrupt identity", async ({ page }) =
   const request = page.locator('[data-slot="question-request-surface"]');
   await expect(request).toBeVisible();
   await expect(request).toHaveCSS("border-radius", "24px");
+  await expect(request).toHaveCSS("border-top-width", "0px");
   await expect(page.locator('[data-slot="composer-root"]')).toHaveCount(0);
   await expect(page.getByText("Input needed", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Gate", { exact: true })).toHaveCount(0);
@@ -103,11 +104,36 @@ test("question settlement uses the exact interrupt identity", async ({ page }) =
   await page
     .getByRole("textbox", { name: "What should this gate protect?" })
     .fill("Runtime boundaries and cancellation paths.");
-  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
 
   await expect(page.getByText("Answered", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-run", "run_root");
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-item", "item_question");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-visual-resumed-response",
+    JSON.stringify({
+      type: "answer",
+      answers: [["Race detector"], ["Runtime boundaries and cancellation paths."]],
+    }),
+  );
+});
+
+test("question skip sends real ordered empty answers and restores the composer", async ({
+  page,
+}) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=question");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  await page.getByRole("button", { name: "Skip", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "What should this gate protect?" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip", exact: true }).click();
+
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-visual-resumed-response",
+    JSON.stringify({ type: "answer", answers: [[], []] }),
+  );
+  await expect(page.locator('[data-slot="question-request-surface"]')).toHaveCount(0);
+  await expect(page.locator('[data-slot="composer-root"]')).toBeVisible();
 });
 
 test("question choices keep their descriptions inline without a comparison sidecar", async ({

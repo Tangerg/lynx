@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { QuestionItem } from "@/plugins/builtin/agent/public/viewState";
+import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import {
   createQuestionDraft,
   setQuestionText,
 } from "@/plugins/builtin/agent/public/messagePresentation";
-import { canSubmitQuestionCard, questionCardSettledView } from "./questionCardModel";
+import {
+  canSubmitQuestionCard,
+  pendingQuestionRequest,
+  questionCardSettledView,
+} from "./questionCardModel";
 
 const question: QuestionItem = {
   type: "text",
@@ -28,7 +33,7 @@ describe("questionCardSettledView", () => {
     ).toEqual({ settled: true, answers: [["Refactor"]] });
   });
 
-  it("echoes the local draft while a submit is pending", () => {
+  it("keeps the request surface until the Runtime settles a pending submit", () => {
     const draft = setQuestionText(createQuestionDraft([question]), 0, question, "Extract model");
 
     expect(
@@ -38,7 +43,7 @@ describe("questionCardSettledView", () => {
         questions: [question],
         draft,
       }),
-    ).toEqual({ settled: true, answers: [["Extract model"]] });
+    ).toEqual({ settled: false });
   });
 
   it("stays interactive before a question is answered", () => {
@@ -83,13 +88,12 @@ describe("questionCardSettledView", () => {
 });
 
 describe("canSubmitQuestionCard", () => {
-  it("requires a resumable complete non-pending question", () => {
+  it("requires a resumable non-pending question and permits explicit skip", () => {
     expect(
       canSubmitQuestionCard({
         runId: "run",
         itemId: "item",
         status: "requires-action",
-        complete: true,
         pending: false,
       }),
     ).toBe(true);
@@ -98,18 +102,46 @@ describe("canSubmitQuestionCard", () => {
         runId: "run",
         itemId: "item",
         status: "requires-action",
-        complete: true,
         pending: true,
       }),
     ).toBe(false);
     expect(
       canSubmitQuestionCard({
-        runId: "run",
+        runId: undefined,
         itemId: "item",
         status: "requires-action",
-        complete: false,
         pending: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("pendingQuestionRequest", () => {
+  it("selects the latest unanswered question without inventing another read model", () => {
+    const block = {
+      kind: "question" as const,
+      status: "requires-action" as const,
+      runId: "run",
+      itemId: "item",
+      questions: [question],
+    };
+    const row = {
+      message: { id: "message", role: "assistant", runId: "run", blocks: [block] },
+      runOwner: { kind: "owned", runId: "run", status: "waiting" },
+      facts: { toolCalls: {}, delegatedRuns: {} },
+    } as TranscriptRow;
+
+    expect(pendingQuestionRequest([row])).toBe(block);
+    expect(
+      pendingQuestionRequest([
+        {
+          ...row,
+          message: {
+            ...row.message,
+            blocks: [{ ...block, status: "complete", answered: true }],
+          },
+        },
+      ]),
+    ).toBeNull();
   });
 });

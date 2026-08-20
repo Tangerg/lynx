@@ -16,7 +16,13 @@ export type QuestionDraft = QuestionDraftEntry[];
 const EMPTY_ENTRY: QuestionDraftEntry = { selected: [], text: "" };
 
 export function createQuestionDraft(questions: readonly QuestionItem[]): QuestionDraft {
-  return questions.map(() => ({ selected: [], text: "" }));
+  return questions.map((question) => ({
+    selected:
+      question.type === "choice" && !question.multiple && question.options[0]
+        ? [question.options[0].label]
+        : [],
+    text: "",
+  }));
 }
 
 export function questionDraftComplete(
@@ -51,15 +57,13 @@ export function questionSettledAnswers(
 export function canSubmitQuestion({
   runId,
   itemId,
-  complete,
   status,
 }: {
   runId?: string;
   itemId?: string;
-  complete: boolean;
   status: BlockStatus;
 }): boolean {
-  return Boolean(runId && itemId && complete && status === "requires-action");
+  return Boolean(runId && itemId && status === "requires-action");
 }
 
 export function questionDraftAnswers(
@@ -69,14 +73,19 @@ export function questionDraftAnswers(
   return questions.map((question, index) => {
     const { selected, text } = draft[index] ?? EMPTY_ENTRY;
     const trimmed = text.trim();
-    if (question.type === "text") return [trimmed];
+    if (question.type === "text") return trimmed ? [trimmed] : [];
     if (question.multiple) {
       const values = [...selected];
       if (question.allowCustom && trimmed && !values.includes(trimmed)) values.push(trimmed);
       return values;
     }
-    return [question.allowCustom && trimmed ? trimmed : (selected[0] ?? "")];
+    const answer = question.allowCustom && trimmed ? trimmed : selected[0];
+    return answer ? [answer] : [];
   });
+}
+
+export function clearQuestionAnswer(draft: QuestionDraft, index: number): QuestionDraft {
+  return replaceQuestionDraftEntry(draft, index, { selected: [], text: "" });
 }
 
 export function toggleQuestionOption(

@@ -227,6 +227,18 @@ describe("narratedBlocks", () => {
     expect(narratedBlocks(blocks, {}, standing)).toEqual(blocks);
   });
 
+  it("moves only an unanswered question to the composer request surface", () => {
+    const pending: ContentBlock = {
+      kind: "question",
+      status: "requires-action",
+      questions: [],
+    };
+    const answered: ContentBlock = { ...pending, status: "complete", answered: true };
+
+    expect(narratedBlocks([pending], {}, standing)).toEqual([]);
+    expect(narratedBlocks([answered], {}, standing)).toEqual([answered]);
+  });
+
   it("closes the gap it leaves, so neighbours still group", () => {
     const blocks = [toolBlock("t_a"), toolBlock("t_plan"), toolBlock("t_b")];
     const tools = {

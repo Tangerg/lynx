@@ -28,6 +28,10 @@ import { COMPOSER_OVERLAY_PROPERTY, READING_COLUMN, READING_GUTTER } from "./rea
 import { CwdMissingBanner } from "./CwdMissingBanner";
 import { MessageStream, type MessageStreamController } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
+import {
+  pendingQuestionRequest,
+  QuestionCard,
+} from "@/plugins/builtin/chat/message/public/rendering";
 
 interface Props {
   /** Send the user's message input (text + inlined images) through the live agent. */
@@ -96,7 +100,12 @@ export function ChatStream({ onSend }: Props) {
     [selectTool, expandedToolIds, toggleExpandedTool, textReveal],
   );
 
-  const composer = <ComposerSurface onSend={onSend} />;
+  const pendingQuestion = useMemo(() => pendingQuestionRequest(rows), [rows]);
+  const composer = pendingQuestion ? (
+    <QuestionCard {...pendingQuestion} />
+  ) : (
+    <ComposerSurface onSend={onSend} />
+  );
   const started = rows.length > 0;
 
   const paneRef = useRef<HTMLDivElement>(null);

@@ -42,9 +42,9 @@ const closed: QuestionItem = {
 };
 
 describe("questionPresentation", () => {
-  it("creates an empty draft for every question", () => {
+  it("preselects the recommended first single choice and leaves multi-select empty", () => {
     expect(createQuestionDraft([single, multi])).toEqual([
-      { selected: [], text: "" },
+      { selected: ["A"], text: "" },
       { selected: [], text: "" },
     ]);
   });
@@ -52,9 +52,9 @@ describe("questionPresentation", () => {
   it("tracks draft completeness", () => {
     expect(questionDraftComplete([], [])).toBe(false);
     let draft = createQuestionDraft([single]);
-    expect(questionDraftComplete([single], draft)).toBe(false);
-    draft = toggleQuestionOption(draft, 0, single, "A");
     expect(questionDraftComplete([single], draft)).toBe(true);
+    draft = createQuestionDraft([multi]);
+    expect(questionDraftComplete([multi], draft)).toBe(false);
   });
 
   it("keeps single-select option and text mutually exclusive", () => {
@@ -83,8 +83,8 @@ describe("questionPresentation", () => {
   it("does not manufacture custom answers for a closed choice", () => {
     const draft = createQuestionDraft([closed]);
     expect(setQuestionText(draft, 0, closed, "other")).toBe(draft);
-    expect(questionDraftComplete([closed], draft)).toBe(false);
-    expect(questionDraftAnswers([closed], draft)).toEqual([[""]]);
+    expect(questionDraftComplete([closed], draft)).toBe(true);
+    expect(questionDraftAnswers([closed], draft)).toEqual([["A"]]);
   });
 
   it("formats answer echoes", () => {
@@ -102,19 +102,18 @@ describe("questionPresentation", () => {
 
   it("uses stamped answers before falling back to a complete local draft", () => {
     let draft = createQuestionDraft([single]);
-    expect(questionSettledAnswers([single], draft, undefined)).toBeUndefined();
+    expect(questionSettledAnswers([single], draft, undefined)).toEqual([["A"]]);
 
     draft = toggleQuestionOption(draft, 0, single, "A");
     expect(questionSettledAnswers([single], draft, [["B"]])).toEqual([["B"]]);
     expect(questionSettledAnswers([single], draft, undefined)).toEqual([["A"]]);
   });
 
-  it("submits only open resumable questions with complete answers", () => {
+  it("submits open resumable questions, including an explicit skip", () => {
     expect(
       canSubmitQuestion({
         runId: "run_1",
         itemId: "item_1",
-        complete: true,
         status: "requires-action",
       }),
     ).toBe(true);
@@ -122,16 +121,14 @@ describe("questionPresentation", () => {
       canSubmitQuestion({
         runId: "run_1",
         itemId: "item_1",
-        complete: false,
-        status: "requires-action",
+        status: "incomplete",
       }),
     ).toBe(false);
     expect(
       canSubmitQuestion({
-        runId: "run_1",
+        runId: undefined,
         itemId: "item_1",
-        complete: true,
-        status: "incomplete",
+        status: "requires-action",
       }),
     ).toBe(false);
   });

@@ -20,6 +20,7 @@ export {
 export type { ApprovalRisk, ApprovalTone } from "../presentation/approvalPresentation";
 export {
   canSubmitQuestion,
+  clearQuestionAnswer,
   createQuestionDraft,
   questionAnswerText,
   questionDraftAnswers,

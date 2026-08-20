@@ -1,9 +1,18 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CompositionEvent,
+  type KeyboardEvent,
+} from "react";
 import { Button, Icon, IconButton, Pressable, Surface, TextArea, TextField } from "@/ui";
-import { HitlCardShell, HitlSettledRow } from "./HitlCard";
+import { HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
+  clearQuestionAnswer,
   createQuestionDraft,
   questionAnswerText,
   questionDraftComplete,
@@ -17,39 +26,33 @@ import {
 } from "../../application/questionCardModel";
 import { cn } from "@/lib/classNames";
 import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
+import { composerCompositionKeyIntent } from "@/plugins/builtin/chat/composer/public/composition";
 
 interface Props {
-  /** Block lifecycle. `"requires-action"` shows the interactive card;
-   *  `"complete"` (or `answered`) collapses to a settled row. */
   status: BlockStatus;
-  /** The Run to resume + the question Item — the HITL resume target
-   *  (API.md §6). Absent ⇒ decorative preview with no submit button. */
   runId?: string;
   itemId?: string;
   questions: QuestionItem[];
-  /** Runtime-projected accepted-answer state. */
   answered?: boolean;
-  /** Runtime-projected accepted values in Question.fields order. */
   answers?: string[][];
 }
 
-// Clarifying-question card — presentation shell. Submission coordination lives
-// in useQuestionCardActions; this component owns the local selection draft.
-//
-// HITL flow (R-model, API.md §6; parallels ApprovalCard):
-//   1. Run ends with a question Interrupt → reducer materialises a question
-//      block (status="requires-action") bound to { runId, itemId }
-//   2. User selects / types → useQuestionAnswer resumes the run (new segment)
-//   3. The accepted response returns on the authoritative Question transcript
-//      projection; an unaccepted/canceled question has no answers.
+const RECOMMENDED_SUFFIX = " (Recommended)";
+
+/** Codex-style native question request. The durable Question block remains the
+ * only fact owner; while pending, ChatStream places this surface on the composer
+ * rung and suppresses the block's duplicate transcript presentation. */
 export function QuestionCard({ status, runId, itemId, questions, answered, answers }: Props) {
   const t = useT();
   const questionCardId = useId();
   const runtimeAvailable = useRuntimeCommandsAvailable();
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
   const [questionIndex, setQuestionIndex] = useState(0);
+  const requestRef = useRef<HTMLDivElement>(null);
   const focusQuestionOnChange = useRef(false);
   const activeQuestionRef = useRef<HTMLDivElement>(null);
+  const composingRef = useRef(false);
+  const compositionCommitPendingRef = useRef(false);
   const actions = useQuestionCardActions({ runId, itemId, status, questions, draft });
   const activeIndex = Math.min(questionIndex, Math.max(questions.length - 1, 0));
   const activeQuestion = questions[activeIndex];
@@ -60,7 +63,10 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
   const isLastQuestion = activeIndex >= questions.length - 1;
 
   useLayoutEffect(() => {
-    if (!focusQuestionOnChange.current) return;
+    if (!focusQuestionOnChange.current) {
+      requestRef.current?.focus();
+      return;
+    }
     focusQuestionOnChange.current = false;
     activeQuestionRef.current
       ?.querySelector<HTMLElement>('[role="radio"], [role="checkbox"], textarea, input')
@@ -70,6 +76,8 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
   const navigateQuestion = (nextIndex: number) => {
     const bounded = Math.min(Math.max(nextIndex, 0), Math.max(questions.length - 1, 0));
     if (bounded === activeIndex) return;
+    composingRef.current = false;
+    compositionCommitPendingRef.current = false;
     focusQuestionOnChange.current = true;
     setQuestionIndex(bounded);
   };
@@ -92,9 +100,9 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
           <Icon name="check" size="xs" />
           <span>{t("question.settled.answered")}</span>
         </div>
-        {questions.map((q, index) => (
+        {questions.map((question, index) => (
           <div key={index} className="flex flex-col gap-0.5">
-            <div className="text-ui-md leading-snug text-fg-muted">{q.prompt}</div>
+            <div className="text-ui-md leading-snug text-fg-muted">{question.prompt}</div>
             <div className="whitespace-pre-wrap break-words text-ui-md font-medium text-fg">
               {questionAnswerText(shown, index) || "—"}
             </div>
@@ -104,13 +112,41 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
     );
   }
 
+  const submitOrAdvance = (nextDraft: QuestionDraft) => {
+    setDraft(nextDraft);
+    if (isLastQuestion) {
+      if (runtimeAvailable && !actions.disabled) actions.submit(nextDraft);
+      return;
+    }
+    navigateQuestion(activeIndex + 1);
+  };
+
+  const chooseOption = (question: Extract<QuestionItem, { type: "choice" }>, label: string) => {
+    if (!runtimeAvailable || actions.pending) return;
+    const nextDraft = toggleQuestionOption(draft, activeIndex, question, label);
+    if (question.multiple) {
+      setDraft(nextDraft);
+      return;
+    }
+    submitOrAdvance(nextDraft);
+  };
+
+  const skipCurrent = () => {
+    if (!runtimeAvailable || actions.pending) return;
+    submitOrAdvance(clearQuestionAnswer(draft, activeIndex));
+  };
+
+  const advanceCurrent = () => {
+    if (!runtimeAvailable || actions.pending) return;
+    submitOrAdvance(draft);
+  };
+
   const handleSingleChoiceKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
-    questionIndex: number,
-    question: QuestionItem,
+    question: Extract<QuestionItem, { type: "choice" }>,
     optionIndex: number,
   ) => {
-    if (question.type !== "choice" || question.multiple) return;
+    if (question.multiple) return;
 
     let nextIndex: number | undefined;
     if (event.key === "ArrowDown" || event.key === "ArrowRight") {
@@ -123,26 +159,95 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
       nextIndex = question.options.length - 1;
     } else if (/^[1-9]$/.test(event.key)) {
       const numberedIndex = Number(event.key) - 1;
-      if (numberedIndex < question.options.length) nextIndex = numberedIndex;
+      if (numberedIndex < question.options.length) {
+        event.preventDefault();
+        const numbered = question.options[numberedIndex];
+        if (numbered) chooseOption(question, numbered.label);
+      }
+      return;
     }
 
     if (nextIndex === undefined) return;
     event.preventDefault();
     const next = question.options[nextIndex];
     if (!next) return;
-    setDraft((previous) => toggleQuestionOption(previous, questionIndex, question, next.label));
-    const options =
-      event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]');
-    options?.[nextIndex]?.focus();
+    setDraft((previous) => toggleQuestionOption(previous, activeIndex, question, next.label));
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLElement>('[role="radio"]')
+      ?.[nextIndex]?.focus();
   };
 
+  const handleCompositionStart = () => {
+    composingRef.current = true;
+    compositionCommitPendingRef.current = false;
+  };
+
+  const handleAnswerChange = (event: ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    if (!activeQuestion) return;
+    const value = event.currentTarget.value;
+    const nativeComposing = (event.nativeEvent as { isComposing?: boolean }).isComposing === true;
+    if (composingRef.current && !nativeComposing) {
+      composingRef.current = false;
+      compositionCommitPendingRef.current = true;
+    }
+    setDraft((previous) => setQuestionText(previous, activeIndex, activeQuestion, value));
+  };
+
+  const handleCompositionEnd = (
+    event: CompositionEvent<HTMLTextAreaElement | HTMLInputElement>,
+  ) => {
+    composingRef.current = false;
+    compositionCommitPendingRef.current = true;
+    if (!activeQuestion) return;
+    const value = event.currentTarget.value;
+    setDraft((previous) => setQuestionText(previous, activeIndex, activeQuestion, value));
+  };
+
+  const handleAnswerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    const compositionIntent = composerCompositionKeyIntent(
+      event.nativeEvent,
+      composingRef.current,
+      compositionCommitPendingRef.current,
+    );
+    compositionCommitPendingRef.current = false;
+    if (compositionIntent !== null) {
+      if (compositionIntent === "committed-enter") event.preventDefault();
+      return;
+    }
+    if (event.key !== "Enter" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+    event.preventDefault();
+    if (activeQuestionComplete) advanceCurrent();
+    else skipCurrent();
+  };
+
+  if (!activeQuestion) return null;
+
+  const promptId = `${questionCardId}-prompt-${activeIndex}`;
+  const isSingleChoice = activeQuestion.type === "choice" && !activeQuestion.multiple;
+  const explicitFreeform = activeDraft.text.trim().length > 0;
+  const explicitMultiChoice =
+    activeQuestion.type === "choice" && activeQuestion.multiple && activeDraft.selected.length > 0;
+  const actionSkips = isSingleChoice || (!explicitFreeform && !explicitMultiChoice);
+
   return (
-    <HitlCardShell
-      icon="question"
-      iconClassName="text-accent"
-      label={t("question.required")}
-      trailing={
-        questions.length > 1 ? (
+    <Surface
+      ref={requestRef}
+      inset="none"
+      tabIndex={0}
+      data-slot="question-request-surface"
+      data-chrome-focus
+      className="overflow-hidden rounded-3xl shadow-[var(--shadow-popover)] outline-none"
+    >
+      <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-2">
+        <h3
+          id={promptId}
+          className="min-w-0 text-pretty text-ui-md font-medium leading-body text-fg"
+        >
+          {activeQuestion.prompt}
+        </h3>
+        {questions.length > 1 && (
           <div className="flex shrink-0 items-center gap-1 text-ui-xs text-fg-faint">
             <IconButton
               icon="chevron-left"
@@ -152,7 +257,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
               title={t("question.action.previous")}
               onClick={() => navigateQuestion(activeIndex - 1)}
             />
-            <span className="min-w-10 text-center font-mono tabular-nums">
+            <span className="min-w-10 text-center tabular-nums">
               {t("question.progress", { current: activeIndex + 1, total: questions.length })}
             </span>
             <IconButton
@@ -164,180 +269,153 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
               onClick={() => navigateQuestion(activeIndex + 1)}
             />
           </div>
-        ) : undefined
-      }
-    >
-      <div ref={activeQuestionRef} className="flex flex-col gap-3">
-        {questions.map((q, index) => {
-          if (index !== activeIndex) return null;
-          const cur = draft[index] ?? { selected: [], text: "" };
-          const promptId = `${questionCardId}-prompt-${index}`;
-          const selectedPreview =
-            q.type === "choice" && !q.multiple
-              ? q.options.find((option) =>
-                  cur.selected.includes(option.label) && option.preview ? true : false,
-                )
-              : undefined;
-          return (
-            <div key={index} className="flex flex-col gap-1.5">
-              {(q.header || (q.type === "choice" && q.multiple)) && (
-                <div className="flex items-center gap-2">
-                  {q.header && (
-                    <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs font-semibold text-fg-muted">
-                      {q.header}
-                    </span>
-                  )}
-                  {q.type === "choice" && q.multiple && (
-                    <span className="font-mono text-ui-xs text-fg-faint">
-                      {t("question.multiSelect")}
-                    </span>
-                  )}
-                </div>
-              )}
-              <div id={promptId} className="text-ui-md font-semibold leading-body text-fg">
-                {q.prompt}
-              </div>
-
-              {q.type === "choice" && (
-                <div
-                  className={cn(
-                    "grid grid-cols-[minmax(0,1fr)] gap-2",
-                    selectedPreview?.preview &&
-                      "@min-[640px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
-                  )}
-                >
-                  <div
-                    role={q.multiple ? "group" : "radiogroup"}
-                    aria-labelledby={promptId}
-                    className="grid grid-cols-[minmax(0,1fr)] gap-1"
-                  >
-                    {q.options.map((opt, optionIndex) => {
-                      const active = cur.selected.includes(opt.label);
-                      return (
-                        <Pressable
-                          key={opt.label}
-                          type="button"
-                          role={q.multiple ? "checkbox" : "radio"}
-                          aria-checked={active}
-                          tabIndex={
-                            q.multiple || active || (!cur.selected.length && optionIndex === 0)
-                              ? 0
-                              : -1
-                          }
-                          onClick={() =>
-                            setDraft((prev) => toggleQuestionOption(prev, index, q, opt.label))
-                          }
-                          onKeyDown={(event) =>
-                            handleSingleChoiceKeyDown(event, index, q, optionIndex)
-                          }
-                          className={cn(
-                            "group/choice flex min-h-8 items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
-                            active ? "bg-hover" : "hover:bg-hover",
-                          )}
-                        >
-                          <span
-                            aria-hidden
-                            className={cn(
-                              "mt-0.5 grid size-4 shrink-0 place-items-center border text-ui-xs leading-none font-medium",
-                              q.multiple ? "rounded-2xs" : "rounded-full",
-                              active
-                                ? "border-accent bg-accent text-on-accent"
-                                : "border-field text-fg-muted",
-                            )}
-                          >
-                            {active && q.multiple ? (
-                              <Icon name="check" size="xs" />
-                            ) : active ? (
-                              <span className="size-1.5 rounded-full bg-current" />
-                            ) : q.multiple ? null : (
-                              optionIndex + 1
-                            )}
-                          </span>
-                          <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                            <span className="min-w-0 max-w-1/2 shrink-0 truncate text-ui-md font-medium text-fg">
-                              {opt.label}
-                            </span>
-                            {opt.description && (
-                              <span
-                                title={opt.description}
-                                className="min-w-0 flex-1 truncate text-ui-sm leading-body text-fg-muted"
-                              >
-                                {opt.description}
-                              </span>
-                            )}
-                          </span>
-                        </Pressable>
-                      );
-                    })}
-                  </div>
-                  {selectedPreview?.preview && (
-                    <div
-                      role="region"
-                      aria-label={selectedPreview.label}
-                      className="min-w-0 rounded-md bg-sunken p-2.5"
-                    >
-                      <code className="block whitespace-pre-wrap break-all font-mono text-ui-sm leading-body text-fg-muted">
-                        {selectedPreview.preview}
-                      </code>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {q.type === "text" && (
-                <TextArea
-                  font="sans"
-                  size="sm"
-                  rows={4}
-                  value={cur.text}
-                  aria-label={q.prompt}
-                  placeholder={t("question.freetext.placeholder")}
-                  onChange={(event) => {
-                    setDraft((previous) => setQuestionText(previous, index, q, event.target.value));
-                  }}
-                  className="max-h-40"
-                />
-              )}
-
-              {q.type === "choice" && q.allowCustom && (
-                <TextField
-                  variant="bare"
-                  font="sans"
-                  value={cur.text}
-                  aria-label={q.prompt}
-                  placeholder={t("question.freetext.placeholder")}
-                  onChange={(e) => {
-                    setDraft((prev) => setQuestionText(prev, index, q, e.target.value));
-                  }}
-                  className="border-b-[0.5px] border-field py-1 text-display-sm focus:border-fg"
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-2.5 flex items-center justify-end gap-2">
-        {isLastQuestion ? (
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={actions.disabled || !runtimeAvailable}
-            onClick={actions.submit}
-          >
-            {t("question.action.submit")}
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!runtimeAvailable || !activeQuestionComplete}
-            onClick={() => navigateQuestion(activeIndex + 1)}
-          >
-            {t("question.action.continue")}
-          </Button>
         )}
       </div>
-    </HitlCardShell>
+
+      <div ref={activeQuestionRef} className="flex flex-col gap-1 px-2 pt-1 pb-2">
+        {activeQuestion.type === "choice" && (
+          <div
+            role={activeQuestion.multiple ? "group" : "radiogroup"}
+            aria-labelledby={promptId}
+            className="flex flex-col gap-1"
+          >
+            {activeQuestion.options.map((option, optionIndex) => {
+              const active = activeDraft.selected.includes(option.label);
+              const recommended = option.label.endsWith(RECOMMENDED_SUFFIX);
+              const label = recommended
+                ? option.label.slice(0, -RECOMMENDED_SUFFIX.length)
+                : option.label;
+              return (
+                <Pressable
+                  key={option.label}
+                  type="button"
+                  role={activeQuestion.multiple ? "checkbox" : "radio"}
+                  aria-label={option.label}
+                  aria-description={option.description || undefined}
+                  aria-checked={active}
+                  disabled={!runtimeAvailable || actions.pending}
+                  tabIndex={
+                    activeQuestion.multiple ||
+                    active ||
+                    (!activeDraft.selected.length && optionIndex === 0)
+                      ? 0
+                      : -1
+                  }
+                  onClick={() => chooseOption(activeQuestion, option.label)}
+                  onKeyDown={(event) =>
+                    handleSingleChoiceKeyDown(event, activeQuestion, optionIndex)
+                  }
+                  className={cn(
+                    "group/choice flex min-h-8 w-full items-center gap-2 rounded-full px-2 py-1.5 text-left outline-none transition-colors duration-[var(--dur-fast)] focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-64",
+                    active ? "bg-hover" : "hover:bg-hover",
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "grid size-5 shrink-0 place-items-center rounded-full border text-ui-xs leading-none font-medium",
+                      active
+                        ? "border-fg bg-fg text-canvas"
+                        : "border-field bg-surface-2 text-fg-muted",
+                    )}
+                  >
+                    {active && activeQuestion.multiple ? (
+                      <Icon name="check" size="xs" />
+                    ) : active ? (
+                      <span className="size-1.5 rounded-full bg-current" />
+                    ) : activeQuestion.multiple ? null : (
+                      optionIndex + 1
+                    )}
+                  </span>
+                  <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span className="min-w-0 max-w-1/2 shrink-0 truncate text-ui-md font-medium text-fg">
+                      {label}
+                    </span>
+                    {recommended && (
+                      <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-ui-xs text-fg-muted">
+                        {t("question.recommended")}
+                      </span>
+                    )}
+                    {option.description && (
+                      <span
+                        title={option.description}
+                        className="min-w-0 flex-1 truncate text-ui-sm leading-body text-fg-muted"
+                      >
+                        {option.description}
+                      </span>
+                    )}
+                  </span>
+                </Pressable>
+              );
+            })}
+          </div>
+        )}
+
+        {activeQuestion.type === "text" && (
+          <div className="px-2 py-1.5">
+            <TextArea
+              font="sans"
+              size="sm"
+              rows={4}
+              value={activeDraft.text}
+              aria-label={activeQuestion.prompt}
+              placeholder={t("question.freetext.placeholder")}
+              disabled={!runtimeAvailable || actions.pending}
+              onChange={handleAnswerChange}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onKeyDown={handleAnswerKeyDown}
+              onBlur={() => {
+                compositionCommitPendingRef.current = false;
+              }}
+              className="max-h-40"
+            />
+          </div>
+        )}
+
+        {activeQuestion.type === "choice" && activeQuestion.allowCustom && (
+          <div className="flex min-h-8 items-center gap-2 rounded-full px-2 py-1.5 focus-within:ring-1 focus-within:ring-focus">
+            <span
+              aria-hidden
+              className={cn(
+                "grid size-5 shrink-0 place-items-center rounded-full border",
+                explicitFreeform
+                  ? "border-fg bg-fg text-canvas"
+                  : "border-field bg-surface-2 text-fg-muted",
+              )}
+            >
+              <Icon name="edit" size="xs" />
+            </span>
+            <TextField
+              variant="bare"
+              font="sans"
+              value={activeDraft.text}
+              aria-label={activeQuestion.prompt}
+              placeholder={t("question.freetext.placeholder")}
+              disabled={!runtimeAvailable || actions.pending}
+              onChange={handleAnswerChange}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onKeyDown={handleAnswerKeyDown}
+              onBlur={() => {
+                compositionCommitPendingRef.current = false;
+              }}
+              className="h-5 p-0 text-ui-md leading-body"
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2 px-2 py-1">
+          <Button
+            variant={actionSkips ? "outline" : "primary"}
+            size="sm"
+            disabled={actions.disabled || !runtimeAvailable}
+            onClick={actionSkips ? skipCurrent : advanceCurrent}
+          >
+            {t(actionSkips ? "question.action.skip" : "question.action.advance")}
+          </Button>
+        </div>
+      </div>
+    </Surface>
   );
 }

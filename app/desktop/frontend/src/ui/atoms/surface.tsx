@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithRef } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/classNames";
@@ -19,7 +19,7 @@ const styles = cva(
   },
 );
 
-export type SurfaceProps = ComponentPropsWithoutRef<"div"> & VariantProps<typeof styles>;
+export type SurfaceProps = ComponentPropsWithRef<"div"> & VariantProps<typeof styles>;
 
 export function Surface({ inset, className, children, ...props }: SurfaceProps) {
   return (

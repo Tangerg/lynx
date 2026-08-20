@@ -294,6 +294,9 @@ export async function installVisualAgentFixture(
   store.setResume(VISUAL_SESSION_ID, (runId, responses, onSettled) => {
     document.documentElement.dataset.visualResumedRun = runId;
     document.documentElement.dataset.visualResumedItem = responses[0]?.itemId ?? "";
+    document.documentElement.dataset.visualResumedResponse = JSON.stringify(
+      responses[0]?.response ?? null,
+    );
     onSettled?.();
     return true;
   });

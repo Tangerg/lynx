@@ -35,6 +35,12 @@ export function narratedBlocks(
   standing: (toolName: string) => boolean,
 ): ContentBlock[] {
   return blocks.filter((block) => {
+    // Pending questions temporarily own the composer rung, like Codex's native
+    // request panel. The same durable block returns here once it settles; only
+    // its active presentation moves, so there is still one source and one echo.
+    if (block.kind === "question" && block.status === "requires-action" && !block.answered) {
+      return false;
+    }
     if (block.kind !== "tool") return true;
     const name = toolCalls[block.toolCallId]?.name;
     return name === undefined || !standing(name);

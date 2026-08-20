@@ -91,6 +91,11 @@ function MessageBlockInner({
 
   const roleLabel = t(isUser ? "role.user" : "role.assistant");
 
+  // A message whose only material is the pending Question is presented by the
+  // composer request owner. Leaving its empty transcript wrapper behind would
+  // preserve duplicate rhythm even after removing the duplicate card.
+  if (content.length === 0) return null;
+
   return (
     <MessageContext.Provider value={messageContext}>
       <CitationContext.Provider value={citations}>

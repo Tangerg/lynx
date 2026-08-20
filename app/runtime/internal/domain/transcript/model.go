@@ -315,13 +315,16 @@ func (question Question) Answered() bool { return question.Answers != nil }
 func validateQuestionAnswer(field QuestionField, values []string) error {
 	switch field.Kind {
 	case QuestionText:
+		if len(values) == 0 {
+			return nil
+		}
 		if len(values) != 1 || strings.TrimSpace(values[0]) == "" {
 			return errors.New("one non-empty text value is required")
 		}
 		return nil
 	case QuestionChoice:
 		if len(values) == 0 {
-			return errors.New("at least one choice is required")
+			return nil
 		}
 		if !field.Multiple && len(values) != 1 {
 			return errors.New("exactly one choice is required")
