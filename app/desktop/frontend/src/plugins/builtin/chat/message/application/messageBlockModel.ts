@@ -1,4 +1,9 @@
-import type { ContentBlock, MessageRole, ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type {
+  ContentBlock,
+  Message,
+  MessageRole,
+  ToolCall,
+} from "@/plugins/builtin/agent/public/viewState";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { MessageActionMaterialization } from "@/plugins/builtin/chat/message-actions/public/messageActions";
 import {
@@ -55,9 +60,10 @@ export function narratedBlocks(
 export function messageBlockRenderUnits(
   blocks: ContentBlock[],
   toolCalls: Record<string, ToolCall>,
+  answerFollows = false,
 ): MessageRenderUnit[] {
   const lastIndex = blocks.length - 1;
-  return planRenderUnits(blocks, toolCalls).map((unit) => {
+  return planRenderUnits(blocks, toolCalls, answerFollows).map((unit) => {
     if (unit.kind !== "block") return unit;
     const { block, index } = unit;
     if (block.kind === "text" && block.status === "running" && index !== lastIndex) {
@@ -65,6 +71,18 @@ export function messageBlockRenderUnits(
     }
     return unit;
   });
+}
+
+/** Whether the next row is the Runtime-authored final answer for this exact work turn. */
+export function finalAnswerFollows(message: Message, next?: Message): boolean {
+  return (
+    message.role === "assistant" &&
+    message.phase === "commentary" &&
+    message.runId !== null &&
+    next?.role === "assistant" &&
+    next.phase === "finalAnswer" &&
+    next.runId === message.runId
+  );
 }
 
 export function messageBlocksRenderInstant(role: MessageRole): boolean {

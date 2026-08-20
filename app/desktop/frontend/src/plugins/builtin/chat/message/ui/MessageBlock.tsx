@@ -31,6 +31,7 @@ function MessageBlockInner({
   sessionId,
   isLast,
   isRunning,
+  answerFollows = false,
   terminalFooter,
 }: {
   row: TranscriptRow;
@@ -41,6 +42,8 @@ function MessageBlockInner({
   /** A run is streaming — action bars stay hidden until it settles.
    *  Flips only at run boundaries, so it never churns this memo per token. */
   isRunning: boolean;
+  /** This work row is immediately followed by its exact Runtime-authored final answer. */
+  answerFollows?: boolean;
   /** Session-level material that belongs after this exact turn settles visibly. */
   terminalFooter?: ReactNode;
 }) {
@@ -90,7 +93,7 @@ function MessageBlockInner({
     ? { ...ctx, textReveal: "instant" }
     : ctx;
 
-  const content = renderMessageBlocks(row, blockCtx);
+  const content = renderMessageBlocks(row, blockCtx, answerFollows);
 
   const roleLabel = t(isUser ? "role.user" : "role.assistant");
 

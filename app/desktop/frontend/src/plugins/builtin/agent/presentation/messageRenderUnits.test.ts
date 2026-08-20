@@ -111,6 +111,16 @@ describe("planRenderUnits", () => {
     expect(shape(units)).toEqual([{ wave: ["reasoning", "group(2)"] }, "text"]);
   });
 
+  it("folds a work-only message when its final answer follows in the next row", () => {
+    const units = planRenderUnits(
+      [reasoning(), toolBlock("read"), toolBlock("grep"), toolBlock("edit")],
+      TOOLS,
+      true,
+    );
+
+    expect(shape(units)).toEqual([{ wave: ["reasoning", "group(2)", "tool"] }]);
+  });
+
   // A request for a decision may never be folded: a turn whose approval is hidden
   // behind a summary row waits forever on a click nobody knows to make.
   it("never folds a block that is asking the reader for something", () => {

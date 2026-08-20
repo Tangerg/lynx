@@ -50,9 +50,10 @@ interface PositionedBlock {
 export function planRenderUnits(
   blocks: ContentBlock[],
   toolCalls: Record<string, ToolCall>,
+  answerFollows = false,
 ): MessageRenderUnit[] {
   const hasQuestion = blocks.some((block) => block.kind === "question");
-  const answered = answeredAfter(blocks);
+  const answered = answeredAfter(blocks, answerFollows);
   const units: MessageRenderUnit[] = [];
   let wave: PositionedBlock[] = [];
 
@@ -95,9 +96,9 @@ export function planRenderUnits(
  * provider that streams reasoning and prose from overlapping items, that is the whole
  * time the model is thinking.
  */
-function answeredAfter(blocks: ContentBlock[]): boolean[] {
+function answeredAfter(blocks: ContentBlock[], answerFollows: boolean): boolean[] {
   const answered: boolean[] = Array.from({ length: blocks.length }, () => false);
-  let seen = false;
+  let seen = answerFollows;
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     answered[index] = seen;
     const block = blocks[index]!;

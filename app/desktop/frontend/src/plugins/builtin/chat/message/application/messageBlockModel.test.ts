@@ -7,6 +7,7 @@ import type {
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { CitationSource } from "@/plugins/sdk";
 import {
+  finalAnswerFollows,
   messageActionMaterialization,
   messageBlockRenderUnits,
   messageBlocksRenderInstant,
@@ -82,6 +83,21 @@ describe("messageBlockRenderUnits", () => {
     ]);
   });
 
+  it("retains work-wave folding when the Runtime puts the final answer in the next row", () => {
+    const blocks = [reasoning(), toolBlock("a"), toolBlock("b")];
+    const tools = { a: tool("a", "read"), b: tool("b", "grep") };
+
+    expect(messageBlockRenderUnits(blocks, tools, true)).toEqual([
+      {
+        kind: "wave",
+        units: [
+          { kind: "block", block: blocks[0], index: 0, superseded: true },
+          { kind: "toolGroup", tools: [tools.a, tools.b], superseded: true },
+        ],
+      },
+    ]);
+  });
+
   // The rule the whole feature rests on: work is superseded by an answer that comes
   // AFTER it, which is why it is per unit rather than per message.
   it("marks work the answer already speaks for, and only that work", () => {
@@ -110,6 +126,23 @@ describe("messageBlockRenderUnits", () => {
     // Trailing work after the last answer is the live wave — and the answer itself is
     // never superseded, because nothing that is text follows it.
     expect(superseded([text("first"), toolBlock("a")], tools)).toEqual([false, false]);
+  });
+});
+
+describe("finalAnswerFollows", () => {
+  const message = (phase: "commentary" | "finalAnswer", runId = "run_1") => ({
+    id: `${phase}:${runId}`,
+    role: "assistant" as const,
+    runId,
+    phase,
+    blocks: [],
+  });
+
+  it("matches only adjacent work and final rows owned by the same Run", () => {
+    expect(finalAnswerFollows(message("commentary"), message("finalAnswer"))).toBe(true);
+    expect(finalAnswerFollows(message("commentary"), message("finalAnswer", "run_2"))).toBe(false);
+    expect(finalAnswerFollows(message("finalAnswer"), message("finalAnswer"))).toBe(false);
+    expect(finalAnswerFollows(message("commentary"), undefined)).toBe(false);
   });
 });
 

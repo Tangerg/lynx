@@ -1199,6 +1199,25 @@ test("tool invocations stay on the transparent Codex work-narrative plane", asyn
   await expect(closedChevron).toHaveCSS("opacity", "0");
 });
 
+test("completed work folds before the separate final answer owns message actions", async ({
+  page,
+}) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const assistantTurns = page.getByRole("heading", { name: "Assistant" });
+  await expect(assistantTurns).toHaveCount(2);
+
+  const work = assistantTurns.nth(0).locator("..");
+  await expect(work.getByRole("button", { name: /6 steps/ })).toBeVisible();
+  await expect(work.getByRole("button", { name: "Copy message" })).toHaveCount(0);
+
+  const answer = assistantTurns.nth(1).locator("..");
+  await expect(answer).toContainText("The boundary is clean");
+  await expect(answer.getByRole("button", { name: "Copy message" })).toBeVisible();
+  await expect(answer.getByRole("button", { name: "Regenerate response" })).toBeVisible();
+});
+
 test("an expanded wave keeps its summary while its rows scroll past", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
   await page.locator("html[data-visual-ready]").waitFor();

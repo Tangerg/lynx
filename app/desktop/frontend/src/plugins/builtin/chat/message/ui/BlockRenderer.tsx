@@ -186,10 +186,12 @@ const standingTool = (name: string) =>
 export function renderMessageBlocks(
   { message, facts }: Pick<TranscriptRow, "message" | "facts">,
   ctx: BlockCtx,
+  answerFollows = false,
 ) {
   const units = messageBlockRenderUnits(
     narratedBlocks(message.blocks, facts.toolCalls, standingTool),
     facts.toolCalls,
+    answerFollows,
   );
   return units.map((unit, index) => {
     const anchor = renderUnitAnchor(message.id, unit);

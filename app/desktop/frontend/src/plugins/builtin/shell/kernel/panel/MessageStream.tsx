@@ -20,6 +20,7 @@ import {
   type CurrentRootMaterial,
 } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
+import { finalAnswerFollows } from "@/plugins/builtin/chat/message/application/messageBlockModel";
 import { transcriptTurnContentVisibility } from "./transcriptTurnContentVisibility";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `sessionId`
@@ -118,6 +119,7 @@ interface TurnProps {
   sessionId: string;
   isLast: boolean;
   isRunning: boolean;
+  answerFollows: boolean;
   terminalRun: CurrentRootMaterial | null;
   /** A new calendar day starts here. Decided by the list, because it is a relationship
    *  between two turns and no turn can see the one above it. */
@@ -141,6 +143,7 @@ const TranscriptTurn = memo(function TranscriptTurn({
   sessionId,
   isLast,
   isRunning,
+  answerFollows,
   terminalRun,
   opensDay,
   gap,
@@ -181,6 +184,7 @@ const TranscriptTurn = memo(function TranscriptTurn({
           sessionId={sessionId}
           isLast={isLast}
           isRunning={isRunning}
+          answerFollows={answerFollows}
           terminalFooter={
             terminalRun ? (
               <div className="mt-4">
@@ -313,6 +317,7 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
                 sessionId={sessionId}
                 isLast={index === rows.length - 1}
                 isRunning={running}
+                answerFollows={finalAnswerFollows(row.message, rows[index + 1]?.message)}
                 terminalRun={index === terminalTurnIndex ? currentRoot : null}
                 opensDay={opensDay}
                 gap={

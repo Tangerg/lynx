@@ -84,15 +84,16 @@ function message(
   id: string,
   text: string,
   runId = ROOT_RUN_ID,
+  phase: "commentary" | "finalAnswer" = "finalAnswer",
 ): Item {
-  return {
-    type,
+  const facts = {
     id,
     runId,
-    status: "completed",
+    status: "completed" as const,
     createdAt: CREATED_AT,
-    content: [{ type: "text", text }],
+    content: [{ type: "text" as const, text }],
   };
+  return type === "agentMessage" ? { type, phase, ...facts } : { type, ...facts };
 }
 
 const PROMPT = message(
@@ -351,6 +352,8 @@ const WAVE_ANSWER_ONE = message(
   "agentMessage",
   "item_w_answer_1",
   "The transaction seam is `RunInTx`, and every store call already goes through it.",
+  ROOT_RUN_ID,
+  "commentary",
 );
 
 const WAVE_REASONING_TWO: Item = {
@@ -380,6 +383,8 @@ const WAVE_ANSWER_TWO = message(
   "agentMessage",
   "item_w_answer_2",
   "Done — the write now rolls back with the transaction.",
+  ROOT_RUN_ID,
+  "commentary",
 );
 
 const WAVE_LIVE_REASONING: Item = {
