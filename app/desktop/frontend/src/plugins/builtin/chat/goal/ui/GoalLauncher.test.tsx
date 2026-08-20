@@ -63,6 +63,28 @@ describe("GoalLauncher", () => {
     model.runtimeAvailable = true;
   });
 
+  it("arms Goal mode in the composer without rendering a second objective or limit form", () => {
+    render(<GoalLauncher />);
+
+    const trigger = screen.getByRole("button", { name: "Start Goal" });
+    fireEvent.click(trigger);
+
+    expect(trigger.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("textbox", { name: "Objective" })).toBeNull();
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+    expect(model.startGoal).not.toHaveBeenCalled();
+  });
+
+  it("allows Goal mode to be selected before the objective is typed", () => {
+    model.composerText = "";
+    render(<GoalLauncher />);
+
+    const trigger = screen.getByRole("button", { name: "Start Goal" });
+    expect(trigger.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("starts an uncapped goal from the current draft and consumes only that text", async () => {
     render(<GoalLauncher />);
     fireEvent.click(screen.getByRole("button", { name: "Start Goal" }));
