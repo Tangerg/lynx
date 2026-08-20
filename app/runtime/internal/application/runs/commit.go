@@ -661,9 +661,12 @@ func (c EventCommit) isEmpty() bool {
 }
 
 // Validate proves that the opening is exactly one fresh admission or one tree
-// continuation and that every accompanying projection is item-only. Persistence
-// Port implementations may reject unavailable stores or concurrent state changes, but they
-// do not reinterpret this application write-set.
+// continuation and that every accompanying projection is limited to transcript
+// Items and/or provider conversation messages. Those projections are deliberately
+// independent: an application-authored Goal instruction may feed future model
+// context without becoming a user-visible Item. Persistence Port implementations
+// may reject unavailable stores or concurrent state changes, but they do not
+// reinterpret this application write-set.
 func (c OpeningCommit) Validate() error {
 	if strings.TrimSpace(c.CommitID) == "" || c.CommitID != strings.TrimSpace(c.CommitID) {
 		return errors.New("runs: opening commit identity is required without surrounding whitespace")
@@ -698,8 +701,9 @@ func (c OpeningCommit) Validate() error {
 		if err := commit.Validate(); err != nil {
 			return fmt.Errorf("runs: opening event[%d]: %w", index, err)
 		}
-		if commit.State != StateUnchanged || len(commit.Items) == 0 {
-			return fmt.Errorf("runs: opening event[%d] is not an item-only projection", index)
+		if commit.State != StateUnchanged ||
+			(len(commit.Items) == 0 && len(commit.ConversationMessages) == 0) {
+			return fmt.Errorf("runs: opening event[%d] has no transcript or conversation projection", index)
 		}
 	}
 	return nil

@@ -28,6 +28,11 @@ type segmentSpec struct {
 	CreatedAt          time.Time
 	OpeningUserText    string
 	Input              []transcript.ContentBlock
+	// ModelOnlyInput keeps an application-authored control message in the
+	// provider conversation without publishing it as a user-visible transcript
+	// Item. Only a fresh autonomous Goal root may set it; resumed input remains
+	// human-authored and visible even when the Run belongs to a Goal.
+	ModelOnlyInput bool
 	// Limits and Capabilities are admission policy for a fresh Run. A
 	// continuation reads the frozen values carried by Continuation.
 	Limits       run.Limits

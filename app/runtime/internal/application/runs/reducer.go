@@ -70,6 +70,10 @@ type reducerConfig struct {
 	ModelSelection    modelref.Selection
 	CreatedAt         time.Time
 	UserInput         []transcript.ContentBlock
+	// ModelOnlyInput suppresses only the opening userMessage Item. The same input
+	// still enters the durable provider conversation in open(), so hiding Runtime
+	// control material from the narrative cannot starve the model of instructions.
+	ModelOnlyInput bool
 	// Metrics is what the Run had already consumed before this segment opened —
 	// zero for a first segment, the parked Run's accrual for a continuation. Every
 	// Run record this reducer commits is the sum of this and the current segment,

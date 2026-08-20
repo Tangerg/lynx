@@ -570,6 +570,9 @@ func (r *reducer) openUserMessage() ([]RunEvent, error) {
 	}
 	input := r.userInput
 	r.userInput = nil
+	if r.cfg.ModelOnlyInput {
+		return nil, nil
+	}
 	id, now := userMessageItemID(r.cfg.SegmentID), r.now()
 	item, err := transcript.NewUserMessage(r.itemIdentity(id, now), input)
 	if err != nil {

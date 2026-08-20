@@ -568,6 +568,7 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 func TestReducerKeepsGoalControlInputOutOfTheTranscript(t *testing.T) {
 	config := testReducerConfig()
 	config.GoalIncarnationID = "goal_lease"
+	config.ModelOnlyInput = true
 	config.UserInput = []transcript.ContentBlock{{
 		Kind: transcript.TextContent,
 		Text: "continue autonomously toward the active goal",

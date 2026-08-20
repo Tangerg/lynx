@@ -111,6 +111,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	}
 	segmentID := c.newSegmentID()
 	createdAt := c.publications.nowUTC()
+	modelOnlyInput := cmd.GoalIncarnationID != ""
 	var sessionReplacement *SessionReplacement
 	if initialSession == nil && cmd.ModelSelection.Configured() {
 		model := cmd.ModelSelection.Model()
@@ -141,6 +142,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		CreatedAt:          createdAt,
 		OpeningUserText:    openingUserText,
 		Input:              cmd.Input,
+		ModelOnlyInput:     modelOnlyInput,
 		Limits:             cmd.Limits,
 		Capabilities:       cmd.Capabilities,
 		admission:          &runAdmission,
@@ -162,9 +164,13 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		return StartResult{}, err
 	}
 	c.publications.publishRunMoved(sess.ID(), runID)
+	userItemID := userMessageItemID(segmentID)
+	if modelOnlyInput {
+		userItemID = ""
+	}
 	return StartResult{
 		RunID: runID, SegmentID: segmentID, SessionID: sess.ID(),
-		UserItemID: userMessageItemID(segmentID), Events: events,
+		UserItemID: userItemID, Events: events,
 	}, nil
 }
 

@@ -43,6 +43,9 @@ func (c *Coordinator) openingRoutes(
 	spec segmentSpec,
 	cancelReason func(string) string,
 ) (*executorRoutes, error) {
+	if spec.ModelOnlyInput && (spec.GoalIncarnationID == "" || spec.Continuation != nil) {
+		return nil, errors.New("runs: model-only opening input requires a fresh Goal root")
+	}
 	if spec.Continuation != nil {
 		return c.resumedExecutorRoutes(spec, cancelReason)
 	}
@@ -50,7 +53,7 @@ func (c *Coordinator) openingRoutes(
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
 		CWD: spec.CWD, ExecutorID: spec.ExecutorID, ModelSelection: spec.ModelSelection,
 		GoalIncarnationID: spec.GoalIncarnationID,
-		CreatedAt:         spec.CreatedAt, UserInput: spec.Input,
+		CreatedAt:         spec.CreatedAt, UserInput: spec.Input, ModelOnlyInput: spec.ModelOnlyInput,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
 		Capabilities: spec.effectiveCapabilities(),
 		Now:          c.publications.nowUTC, CancelReason: cancellationReason(cancelReason, spec.RunID),

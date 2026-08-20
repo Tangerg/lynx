@@ -344,9 +344,12 @@ type Subscription struct {
 
 // StartResult identifies the admitted Segment and exposes its event stream.
 type StartResult struct {
-	RunID      string
-	SegmentID  string
-	SessionID  string
+	RunID     string
+	SegmentID string
+	SessionID string
+	// UserItemID is empty only for an application-authored autonomous Goal
+	// opening. Public runs.start requests always receive the durable opening
+	// userMessage identity promised by the wire contract.
 	UserItemID string
 	Events     iter.Seq[Event]
 }
