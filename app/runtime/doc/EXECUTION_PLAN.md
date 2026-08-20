@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P126 已完成并形成里程碑。
+> 状态：P0–P127 已完成并形成里程碑。
 >
-> 最近基线：2026-08-20，P126 Goal 权威管理与 Codex composer tray 交互闭环。
+> 最近基线：2026-08-20，P127 Goal Codex composer submit-mode 与提交所有权闭环。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P127 已于 2026-08-20 完成：用户再次确认两张历史附件展示的是待修错误现状，不是 Codex 目标；Goal 不能把旧表单或旧 banner 换个位置继续呈现。可见依据只取自 Codex 本地解包源码与真实产品行为，错误附件不再参与视觉判断。
+- 新 Goal 现在由 `/goal` 武装同一个 Composer submit mode；原 Composer 继续独占 draft、附件、历史、IME、Enter/send 与提交成功后的清空。非激活时不留图标、边线或高度，激活时只在 footer 显示紧凑 Goal identity，并可从同一入口退出；不再存在第二 objective draft、Goal launcher bus 或目标/轮次/花费/步数表单。
+- `COMPOSER_SUBMIT_MODE` 是通用 Frontend extension point，Goal 只贡献 mode identity 与事务 owner。Runtime `goals.start` 成功前不清 draft；失败、编辑、切换 Session、附件存在或 replacement confirmation 均由同一 owner 明确结算。真实 smoke 发现 standing Goal projection 可先于 start promise 到达，现由 `starting` phase 保留提交权，直到 exact command owner 完成 `accept()`，避免已创建 Goal 却残留输入文本。
+- Goal tool content 只呈现 objective、lifecycle 与必要说明，不渲染 Runtime limits、budget、usage、model 或轮次/花费/步数轴。红测 `14664ffed` 与 `654e224c7`、根修复 `baf3ed264` 与 `661054419` 已逐轮提交推送；Frontend 323 files / 2005 tests、完整静态/构建门禁与 319 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/Retina/WebKit 矩阵全绿。fresh `LYRA_HOME` 的 production smoke 已验证 Goal create、pause、clear、composer 清空与 `spinbutton=0`；Wails v3 dev host 完成 frontend/Go build、strict codesign 与 1439×899 原生窗口启动。
 - P126 已于 2026-08-20 完成：用户前两次附件是待修错误现象，不是目标参考，已从视觉依据中完全排除；本批只以 Codex 本地解包源码和真实产品行为提取 Goal/Plan 的层级、动作顺序、尺寸与反馈机制。Plan 继续沿用已由源码确认的紧凑进度 pill，Goal 收敛为 composer attached top tray：整段 objective 可点击，右侧依次为 clear、pause/resume、edit。
 - Goal editor 对齐 Codex compact dialog：420px 宽、20px content inset、36px identity block、12 行 sans textarea、Cancel/Save 与 Cmd/Ctrl+Enter；Frontend standing UI 仍只展示 lifecycle 与 objective，不渲染限制条件、预算、用量、模型或其他结算 chrome。composition 中的 Enter 不提交编辑，所有动作共享既有 command busy/retirement owner。
 - 独立红测先证明 `goals.update` 与 `goals.clear` 在 Runtime catalog、Frontend gateway 和 Goal surface 中缺失；Runtime 现在在 quiesce exact owned drive 后以 fresh incarnation/CAS 更新 objective，只有原 lifecycle 为 active 才按冻结事实重启 drive；clear 在 drive 静止后 CAS 删除，Goal 已不存在时幂等成功，外部 owner 与 complete Goal 不被越权修改。
@@ -40,6 +44,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 第一批只从 production-equivalent Desktop 的盲测建立 Plan/Goal/Steer、IME 与左中右三栏的接线、交互、空态/加载态/错误态、键盘、窄宽、Retina、light/dark 证据矩阵；问题不能形成可复现用户动作与可见错误时，不以视觉偏好或 Codex 私有实现形状修改生产 owner。
 - 每个成立问题先形成独立红测提交并推送，再由唯一 presentation/application/domain owner 根修复并独立推送；禁止第二 read-model writer、全局 generation、server registry、transport matrix、刷新旁路、兼容层、离线队列、timer/debounce 竞态掩盖或通用 Owner/Coordinator/状态机。
 - Codex 前端与 `codex-rs` 后端只用于提取 Plan/Goal/Steer 的页面心智、命令能力、safe-boundary 和恢复机制；拒绝其多 connection、remote/projectless、浏览器 panel、Electron webview handoff 与私有状态分支。P119 不修改或暂存 `app/cli`，并保留所有无关工作区改动。
+
+### P127 准入与完成条件（2026-08-20）
+
+- 历史错误截图不得作为设计目标；Goal start 必须是 Codex composer submit mode，而不是独立 dialog、popover、attached form 或移动后的旧 banner。非激活时零占位，激活时只显示紧凑 mode identity；限制条件、轮次、花费、步数、预算、用量与 model 不进入前端 Goal 展示。
+- Composer 必须继续是 draft、附件、IME、Enter/send、历史与成功清空的唯一 owner；Goal extension 只持有 mode-specific validation、replacement confirmation 与 Runtime start transaction。Runtime 成功前保留输入，失败或 identity 变化不吞 draft，成功后只清除仍等于 exact submitted objective 的文本。
+- standing projection 早于 mutation response 属于合法事件顺序；`starting` owner 不得被 projection observer 提前退休，最终由 exact submit transaction 接受或拒绝同一 draft。不得用延时、乐观 Goal cache、二次 clear、刷新或重复 composer state 掩盖竞态。
+- 验收结论：Frontend 323 files / 2005 tests 与 type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过；完整 319 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/Retina/WebKit 矩阵覆盖 Goal mode light/dark、零 duplicate fields、内容区无 constraints 与早到 projection。fresh Runtime/production page 验证真实 create/pause/clear、成功提交后 composer 清空、`spinbutton=0`；Wails v3 原生 smoke 通过 frontend/Go build、strict codesign、frontend connection 与 1439×899 window。本批未修改或暂存 `app/cli`。
 
 ### P126 准入与完成条件（2026-08-20）
 
@@ -188,7 +199,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 5. 当前里程碑结论
 
-P113–P126 共同建立了以下不可回退的心智模型：
+P113–P127 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -223,4 +234,4 @@ P113–P126 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P126 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P127 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
