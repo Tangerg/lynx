@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceViewSpec } from "@/plugins/sdk";
 import { ChatPanel } from "./ChatPanel";
 
@@ -8,13 +8,14 @@ const model = vi.hoisted(() => ({
   sessionId: "ses_first",
   activeMainView: "stateful" as string | null,
   dock: { open: false, viewIds: [] as string[], activeViewId: null as string | null },
+  isLoading: false,
   views: [] as WorkspaceViewSpec[],
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
   useActiveSession: () => null,
   useActiveSessionId: () => model.sessionId,
-  useAgentSessions: () => ({ isLoading: false }),
+  useAgentSessions: () => ({ isLoading: model.isLoading }),
 }));
 
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
@@ -59,6 +60,10 @@ function StatefulWorkspaceView() {
   const [instance] = useState(() => ++nextInstance);
   return <span>workspace-instance:{instance}</span>;
 }
+
+beforeEach(() => {
+  model.isLoading = false;
+});
 
 afterEach(() => cleanup());
 
@@ -125,5 +130,22 @@ describe("ChatPanel Session-owned workspace view state", () => {
 
     expect(screen.queryByText(/workspace-instance:/)).toBeNull();
     expect(view.container.querySelector('[data-dock="open"]')).toBeNull();
+  });
+
+  it("reconciles dock availability after the loading placeholder yields to the shell", () => {
+    model.sessionId = "ses_first";
+    model.activeMainView = null;
+    model.dock = { open: false, viewIds: [], activeViewId: null };
+    model.views = [];
+    model.isLoading = true;
+
+    const view = render(<ChatPanel onSend={() => true} />);
+    expect(view.container.firstChild).toBeNull();
+
+    model.isLoading = false;
+    view.rerender(<ChatPanel onSend={() => true} />);
+
+    expect(screen.getByRole("button", { name: "Widen the window to open the right workspace" }))
+      .toBeDisabled();
   });
 });
