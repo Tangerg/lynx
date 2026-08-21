@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P136 已完成并形成里程碑。
+> 状态：P0–P137 已完成并形成里程碑。
 >
-> 最近基线：2026-08-21，P136 Codex 空态项目托盘与 exact-cwd 接线收口。
+> 最近基线：2026-08-21，P137 Codex 窄窗 Context Dock 可用性时序收口。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P137 已完成：fresh production 审计在 1180px 窗口复现出右上角 Context Dock 入口仍像可用控件；点击后 Explorer 短暂挂载，随即被同一布局协调器折回且 URL 不保留 destination。根因不是 Dock CSS 或 Runtime 数据，而是 `ChatPanel` 的几何 effect 在 Session loading placeholder 阶段先运行，此时 row 尚未挂载；loading 结束没有进入依赖，observer 因而未绑定，直到首次 `dockOpen` 才迟到重跑并把刚打开的 Dock 关闭。
+- 原有 loading render condition 现在被命名为唯一 `shellVisible` 派生事实，Shell 是否渲染与几何 effect 是否需要重绑共同消费它。实际 row 宽度仍由唯一 `ResizeObserver` 决定 `dockAvailable`，空间不足仍通过既有 navigation owner 折叠 URL destination 并保留 Session-owned tabs、last view 与宽度偏好；没有增加 viewport store、第二 Dock writer、浮层兼容路径或 timer。窄窗从首个可交互帧就是明确 disabled，宽窗打开、文件预览、宽→窄→宽后的 exact tab/URL 恢复保持不变。
+- 红例 `8f2f4ff8d` 与根修复 `96e768cd1` 已逐轮推送。Frontend 324 files / 2022 tests、完整静态/构建门禁与 321 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/18px/Retina/WebKit 矩阵全绿；Runtime/Desktop test/vet/build、Wails v3 production `.app` package 与 strict codesign 全绿。fresh HOME/SQLite、local-token gate 的 production Wails WebKit 已完成 Runtime discovery 与真实 `/v2/rpc` 接线，1411×881 原生窗口和 cwd 精确为 `/Users/tangerg/Desktop/lynx` 的 Session 均已验证。本批未改变 Runtime/Protocol/Artifact/SQLite shape、Frontend published SDK 或 `app/cli`。
 - P136 已完成：用户截图指出 production 的“选择项目”仍是 composer footer utility，而 Codex 在 projectless welcome state 使用缩进、附着在 composer 背后的 rear tray。根因是 project picker 注册在 `composer.toolbar.start`，并且空态 ChatStream 没有安装 overlay top；问题属于 contribution placement 与空态 composition，不是再调 footer CSS 或复制一份 project state。
 - `ComposerProjectTray` 现在通过 production `composer.overlay.top` 贡献 12px 双侧缩进、37px 后层起点与 22px 重叠的 neutral tray；前景 composer 继续唯一拥有输入边界。托盘只显示 folder 与可访问的 muted label，不显示 footer chevron；存在 active Session 后立即退出。菜单仍直接消费 Work Index groups，既有项目经 `startSessionInFolder`、新项目经 Wails native `chooseSessionFolder`，最终都由同一个 Session create/navigation owner 提交 exact cwd，没有第二 selection、draft 或浏览器目录 fallback。
 - 红例 `f46ff79b8`、根修复 `1c7c4a7f8`、WCAG 收口 `fadab9baa` 与格式收口 `54a5767b4` 已逐轮推送。Frontend 324 files / 2021 tests、完整静态/构建门禁与 321 项 visual/WCAG/keyboard/coarse-pointer/IME/CJK/18px/Retina/WebKit 矩阵全绿；Runtime/Desktop test/vet/build、Wails v3 production `.app` package 与 strict codesign 全绿。fresh HOME/SQLite 的 production Wails frontend 已完成 health/info 与真实 `/v2/rpc` 接线，并创建 workspace 精确为 `/Users/tangerg/Desktop/lynx` 的 Session。本批未改变 Runtime/Protocol/Artifact/SQLite shape、Frontend published SDK 或 `app/cli`。
@@ -279,10 +282,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P134     | Codex Work Index 几何与尾部净空                                                                                    | Work Index 统一为 275px default、240–520px resize，并始终给 reading plane 留 240px；首帧、fixture、ARIA 与持久偏好共用 owner，composer tail 不再因 fractional scroll 舍入少 1px          |
 | P135     | Codex 待审批命令单一叙事表面                                                                                       | exact `itemId` 的待决 approval 与 ToolCall 仍作为两个可恢复事实存在，但 presentation 只渲染 approval request；结算后工具历史自然恢复，不用 CSS、删除事实或第二状态去重                         |
 | P136     | Codex 空态项目 rear tray 与 exact-cwd 接线                                                                          | projectless welcome state 由 composer overlay 贡献缩进后层托盘；项目菜单继续消费 Work Index/native picker 并由唯一 Session owner 提交 exact cwd，不在 footer 或第二 selection state 复制入口 |
+| P137     | Codex 窄窗 Context Dock 可用性时序                                                                                  | loading placeholder 与真实 Shell 共用 `shellVisible` 派生事实；row 挂载后立即绑定唯一几何 observer，窄窗入口不再先可点后闪退，宽窗 tab/URL/file 恢复保持不变                           |
 
 ## 5. 当前里程碑结论
 
-P113–P136 共同建立了以下不可回退的心智模型：
+P113–P137 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -301,7 +305,7 @@ P113–P136 共同建立了以下不可回退的心智模型：
 - Work Index 只有在 `sessions.create` 返回新 identity 后才交接焦点；中央 transcript 的内容增长与 composer/HITL border-box 净空共享一个 follow fact，用户取得阅读位置后不再被异步 materialization 抢回。
 - Work Index 的 geometry 只有一个 owner：275px default、240px floor、520px ceiling，live clamp 始终给 reading plane 留 240px；首帧持久偏好、pointer/keyboard、ARIA 与 visual fixture 都消费同一事实。Context Dock 的 640px conversation floor 是另一条独立 flank 约束。
 - Composer 的发送入口只消费键盘意图 owner：IME 提交中英混合文本后的首个普通 Enter 仍属于 composition commit，只有下一次独立 Enter 才能发送；不得用 timeout、UA 分支或撤销已发送命令模拟该边界。
-- Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
+- Context Dock 只有在 conversation 仍保有 640px 阅读宽度时展开；loading placeholder 让出真实 Shell 后，几何 observer 必须在首个可交互帧绑定。空间不足时只折叠 URL destination，并保留 Session-owned tab membership、last view 与宽度偏好。File view 必须同时呈现 exact path 与 material 统计，Goal lifecycle 与当前 Run command 必须具有可辨作用域。
 - Composer 顶部 standing stack 只有紧凑 Plan pill 与 Goal lifecycle row；Goal 限制仍是 Runtime/launcher 事实而非永久 chrome。Context 环只读 Runtime `contextTokens` 与 served model window，标题栏与普通完成态不重复累计 accounting。
 - 一次 `apply_patch` 的展开体和 Run Summary 只读该 ToolCall 已持久化的 `PatchResult.changes`；当前工作区状态、工具参数和文件内容都不能回填历史调用。Runtime 没有发布行级 diff 或增删行数时，Frontend 不猜测这些事实。
 - pending approval 是一个 Codex request surface，而不是风险 dashboard：工具身份、Runtime reason、command/args 是可见事实；客户端不从命令字符串推导危险、可逆性或权限。Allow once 与键盘动作不持久化规则，只有用户选择 Session/Project/Global scoped allow 才提交 remember scope，Deny 不继承 allow scope。
@@ -310,7 +314,7 @@ P113–P136 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 324 files / 2020 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 320 tests 覆盖 streaming、HITL、Session/Dock、Goal、modal scope、commentary/final answer、待审批命令单一表面、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、`wails3 task build` 与 strict codesign 全绿；fresh SQLite epoch 76 的 production Runtime 与 Wails binary 已完成单 listener、同源 health/info `instanceId` 和真实 Frontend OPTIONS/POST `/v2/rpc` smoke。Runtime/Protocol/Artifact/SQLite 本批未变，P131 以前的 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
+最近一次完整验收基线：Frontend 324 files / 2022 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 321 tests 覆盖 streaming、HITL、Session/Dock、Goal、modal scope、commentary/final answer、待审批命令单一表面、projectless rear tray、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、Wails v3 production `.app` package 与 strict codesign 全绿；fresh HOME/SQLite、local-token gate 的 production Wails WebKit 已完成 Runtime discovery、真实 Frontend OPTIONS/POST `/v2/rpc`、1411×881 原生窗口与 exact-cwd Session smoke。Runtime/Protocol/Artifact/SQLite 本批未变，P131 以前的 Runtime SIGKILL 恢复证据仍是不受本批影响的封板基线。
 
 ## 6. 新阶段准入
 
