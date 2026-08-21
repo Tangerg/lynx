@@ -412,7 +412,7 @@ export type DiffRowType = "hunk" | "context" | "added" | "deleted";
 
 export interface DiscoverResponse {
   capabilities: ServerCapabilities;
-  protocol: ProtocolRange;
+  protocolVersion: string;
   serverInfo: ServerInfo;
 }
 
@@ -1044,11 +1044,6 @@ export type ProblemData =
   | { type: "workspace_unavailable"; detail?: string; docUrl?: string }
   | { detail?: string; docUrl?: string; retryAfterSeconds?: number; type: `plugin:${string}/${string}` };
 
-export interface ProtocolRange {
-  current: string;
-  minSupported: string;
-}
-
 export interface Provider {
   apiKeyMasked: string;
   baseUrl?: string;
@@ -1278,7 +1273,7 @@ export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed
 
 export interface RuntimeInfo {
   endpoints: RuntimeInfoEndpoints;
-  protocol: ProtocolRange;
+  protocolVersion: string;
   server: RuntimeServerInfo;
   transport: HTTPTransportKind;
 }

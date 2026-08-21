@@ -2,9 +2,9 @@ package protocol
 
 // DiscoverResponse is the runtime.discover result payload.
 type DiscoverResponse struct {
-	Protocol     ProtocolRange      `json:"protocol"`
-	ServerInfo   ServerInfo         `json:"serverInfo"`
-	Capabilities ServerCapabilities `json:"capabilities"`
+	ProtocolVersion string             `json:"protocolVersion"`
+	ServerInfo      ServerInfo         `json:"serverInfo"`
+	Capabilities    ServerCapabilities `json:"capabilities"`
 }
 
 // ClientInfo identifies the connecting client (logged / telemetry).

@@ -25,15 +25,15 @@ type HTTPTransportKind string
 const HTTPTransport HTTPTransportKind = "http"
 
 type RuntimeInfo struct {
-	Protocol  protocol.ProtocolRange `json:"protocol"`
-	Server    RuntimeServerInfo      `json:"server"`
-	Transport HTTPTransportKind      `json:"transport"`
-	Endpoints RuntimeInfoEndpoints   `json:"endpoints"`
+	ProtocolVersion string               `json:"protocolVersion"`
+	Server          RuntimeServerInfo    `json:"server"`
+	Transport       HTTPTransportKind    `json:"transport"`
+	Endpoints       RuntimeInfoEndpoints `json:"endpoints"`
 }
 
 func newInfoResponse(server protocol.ServerInfo, currentVersion string) RuntimeInfo {
 	return RuntimeInfo{
-		Protocol: protocol.ProtocolRange{Current: currentVersion, MinSupported: protocol.MinProtocolVersion},
+		ProtocolVersion: currentVersion,
 		Server: RuntimeServerInfo{
 			InstanceID: server.InstanceID,
 			Name:       server.Name,

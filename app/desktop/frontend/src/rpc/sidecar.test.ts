@@ -13,7 +13,7 @@ function makeFetch(status: number, body: unknown): typeof fetch {
 describe("SidecarClient", () => {
   it("info() returns public bootstrap metadata", async () => {
     const fetchStub = makeFetch(200, {
-      protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+      protocolVersion: PROTOCOL_VERSION,
       server: { name: "lyra-core", version: "0.8.1", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
@@ -27,7 +27,7 @@ describe("SidecarClient", () => {
     const info = await client.info();
     expect(info.server.name).toBe("lyra-core");
     expect(info.server.instanceId).toBe("runtime_1");
-    expect(info.protocol.current).toBe(PROTOCOL_VERSION);
+    expect(info.protocolVersion).toBe(PROTOCOL_VERSION);
   });
 
   it("readiness() accepts 503 with its diagnostic body", async () => {
@@ -69,7 +69,7 @@ describe("SidecarClient", () => {
     const info = createSidecarClient({
       baseUrl: "http://x",
       fetch: makeFetch(200, {
-        protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+        protocolVersion: PROTOCOL_VERSION,
         server: { name: "lyra-core", version: "0.8.1" },
         transport: "ipc",
         endpoints: {},

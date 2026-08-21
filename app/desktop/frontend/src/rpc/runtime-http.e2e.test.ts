@@ -862,7 +862,7 @@ for await (const line of lines) {
     expect(liveness).toMatchObject({ status: "ok" });
     expect(readiness).toMatchObject({ status: "ok" });
     expect(info).toMatchObject({
-      protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+      protocolVersion: PROTOCOL_VERSION,
       transport: "http",
     });
 
@@ -873,10 +873,7 @@ for await (const line of lines) {
       readiness.instanceId,
       discovery.serverInfo.instanceId,
     ]).toEqual(Array(4).fill(discovery.serverInfo.instanceId));
-    expect(discovery.protocol).toEqual({
-      current: PROTOCOL_VERSION,
-      minSupported: PROTOCOL_VERSION,
-    });
+    expect(discovery.protocolVersion).toBe(PROTOCOL_VERSION);
     expect(discovery.capabilities.limits.idempotency.namespace).toMatch(/^idp_[0-9a-f]{32}$/);
     const repeatDiscovery = await client.runtime.discover();
     expect(repeatDiscovery).toMatchObject({

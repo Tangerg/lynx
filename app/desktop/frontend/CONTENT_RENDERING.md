@@ -2064,7 +2064,7 @@ interface ToolSpec {
 
 ```ts
 interface DiscoverResponse {
-  protocol: { current: string; minSupported: string };
+  protocolVersion: string;
   serverInfo: { name: string; version: string; home: string; defaultWorkspace: { path: string } };
   capabilities: ServerCapabilities;
 }

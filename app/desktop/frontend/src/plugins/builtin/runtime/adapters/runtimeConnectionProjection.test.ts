@@ -62,7 +62,7 @@ function inspection(capabilities = makeCaps()): RuntimeConnectionInspection<Serv
     capabilities,
     service: {
       server: { name: "lyra", version: "1.2.3" },
-      protocol: { current: "2026-07-01", minSupported: "2026-07-01" },
+      protocolVersion: "2026-07-01",
       health: "ready",
       checks: {},
     },

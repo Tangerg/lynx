@@ -10,7 +10,7 @@ import {
 import { runtimeServiceInspector } from "./runtimeServiceInspector";
 
 const discovery: DiscoverResponse = {
-  protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+  protocolVersion: PROTOCOL_VERSION,
   serverInfo: {
     instanceId: "runtime_1",
     name: "lyra",
@@ -40,7 +40,7 @@ function runtimeClient(discover = vi.fn().mockResolvedValue(discovery)): LyraCli
 function sidecar(overrides: Partial<SidecarClient> = {}): SidecarClient {
   return {
     info: vi.fn().mockResolvedValue({
-      protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+      protocolVersion: PROTOCOL_VERSION,
       server: { name: "lyra", version: "1.2.3", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
@@ -73,7 +73,7 @@ describe("runtime service inspector", () => {
       processGeneration: "runtime_1",
       service: {
         server: { name: "lyra", version: "1.2.3" },
-        protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+        protocolVersion: PROTOCOL_VERSION,
         health: "degraded",
         checks: { database: "ready", git: "degraded" },
       },
@@ -90,7 +90,7 @@ describe("runtime service inspector", () => {
   it("refuses a server whose advertised binding disagrees with the compiled contract", async () => {
     const client = sidecar({
       info: vi.fn().mockResolvedValue({
-        protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+        protocolVersion: PROTOCOL_VERSION,
         server: { name: "lyra", version: "1.2.3", instanceId: "runtime_1" },
         transport: "http",
         endpoints: {
@@ -127,7 +127,7 @@ describe("runtime service inspector", () => {
   it("refuses one inspection stitched across Runtime process generations", async () => {
     const client = sidecar({
       info: vi.fn().mockResolvedValue({
-        protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+        protocolVersion: PROTOCOL_VERSION,
         server: { name: "lyra", version: "1.2.3", instanceId: "runtime_retired" },
         transport: "http",
         endpoints: {

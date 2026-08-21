@@ -12,7 +12,7 @@
 
 ## Current server baseline
 
-- Protocol version: `2026-08-17`; `minSupported` is the same value.
+- Protocol version: exactly `2026-08-17`; there is no compatibility range.
 - Session artifact version: `21`; versions 20 and earlier are rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract

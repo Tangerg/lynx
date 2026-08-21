@@ -212,7 +212,6 @@ export type WireTypeName =
   | "PlanSnapshot"
   | "PlanStatus"
   | "ProblemData"
-  | "ProtocolRange"
   | "Provider"
   | "ProviderConfigChange"
   | "ProviderConfigChangeType"
@@ -955,9 +954,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   DiffRowType: enumOf(["hunk", "context", "added", "deleted"]),
   DiscoverResponse: object({
     capabilities: ref(() => CHECKS.ServerCapabilities),
-    protocol: ref(() => CHECKS.ProtocolRange),
+    protocolVersion: text(),
     serverInfo: ref(() => CHECKS.ServerInfo),
-  }, ["capabilities", "protocol", "serverInfo"]),
+  }, ["capabilities", "protocolVersion", "serverInfo"]),
   DroppedRun: object({
     run: ref(() => CHECKS.RunSummary),
     userInput: array(ref(() => CHECKS.ContentBlock)),
@@ -2265,10 +2264,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
     ]),
   ]),
-  ProtocolRange: object({
-    current: text(),
-    minSupported: text(),
-  }, ["current", "minSupported"]),
   Provider: object({
     apiKeyMasked: text(),
     baseUrl: text(),
@@ -2849,10 +2844,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"]),
   RuntimeInfo: object({
     endpoints: ref(() => CHECKS.RuntimeInfoEndpoints),
-    protocol: ref(() => CHECKS.ProtocolRange),
+    protocolVersion: text(),
     server: ref(() => CHECKS.RuntimeServerInfo),
     transport: ref(() => CHECKS.HTTPTransportKind),
-  }, ["endpoints", "protocol", "server", "transport"]),
+  }, ["endpoints", "protocolVersion", "server", "transport"]),
   RuntimeInfoEndpoints: object({
     info: text(),
     liveness: text(),

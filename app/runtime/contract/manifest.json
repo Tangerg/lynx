@@ -1,8 +1,5 @@
 {
-  "protocol": {
-    "current": "2026-08-17",
-    "minSupported": "2026-08-17"
-  },
+  "protocolVersion": "2026-08-17",
   "features": [
     "reasoning",
     "multimodal",

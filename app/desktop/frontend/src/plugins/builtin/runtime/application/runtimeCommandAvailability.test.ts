@@ -4,7 +4,7 @@ import { runtimeServiceAcceptsCommands } from "./runtimeCommandAvailability";
 
 const observation = {
   server: { name: "lyra", version: "test" },
-  protocol: { current: "2", minSupported: "2" },
+  protocolVersion: "2",
   health: "ready" as const,
   checks: {},
 };

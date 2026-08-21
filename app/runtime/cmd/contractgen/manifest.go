@@ -18,7 +18,7 @@ import (
 // the dispatcher, and `go generate` leaving a diff means the artifacts drifted
 // from the code — which is the only way to notice.
 type manifest struct {
-	Protocol            protocol.ProtocolRange        `json:"protocol"`
+	ProtocolVersion     string                        `json:"protocolVersion"`
 	Features            []string                      `json:"features"`
 	Methods             []methodEntry                 `json:"methods"`
 	Notifications       []string                      `json:"notifications"`
@@ -191,7 +191,7 @@ func build(walked *schemaSet) manifest {
 	registry := operation.Contract()
 	shapes := dispatch.WireShapes()
 	return manifest{
-		Protocol:            protocol.SupportedProtocolRange(),
+		ProtocolVersion:     protocol.ProtocolVersion,
 		Features:            protocol.FeatureKeys(),
 		Methods:             methods(registry),
 		Notifications:       notificationNames(shapes),

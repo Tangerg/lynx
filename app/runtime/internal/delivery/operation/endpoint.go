@@ -207,10 +207,10 @@ func validateOptions(options Options) *Failure {
 		return InvalidParameters(err)
 	}
 	version := options.RequestMeta.ProtocolVersion
-	if version != "" && !protocol.SupportsProtocolVersion(version) {
+	if version != "" && version != protocol.ProtocolVersion {
 		return NewFailure(
 			protocol.ErrInvalidProtocolVersion,
-			fmt.Sprintf("protocolVersion %q is unsupported; supported range is %q through %q", version, protocol.MinProtocolVersion, protocol.ProtocolVersion),
+			fmt.Sprintf("protocolVersion %q is unsupported; expected %q", version, protocol.ProtocolVersion),
 		)
 	}
 	return nil

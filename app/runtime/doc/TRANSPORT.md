@@ -429,7 +429,7 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。�
 
 ```json
 {
-  "protocol": { "current": "2026-08-17", "minSupported": "2026-08-17" },
+  "protocolVersion": "2026-08-17",
   "server": {
     "instanceId": "runtime_019c765b-2f8f-7e36-a2b4-31cb11f48d10",
     "name": "lyra-runtime",

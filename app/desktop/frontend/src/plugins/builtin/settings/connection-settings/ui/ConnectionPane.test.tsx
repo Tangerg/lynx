@@ -43,7 +43,7 @@ describe("ConnectionPane runtime status", () => {
       failure: null,
       observation: {
         server: { name: "lyra-runtime", version: "1.2.3" },
-        protocol: { current: "2026-07-01", minSupported: "2026-01-01" },
+        protocolVersion: "2026-07-01",
         health: "ready",
         checks: {},
       },
@@ -71,7 +71,7 @@ describe("ConnectionPane runtime status", () => {
       failure: null,
       observation: {
         server: { name: "lyra-runtime", version: "1.2.3" },
-        protocol: { current: "2026-07-01", minSupported: "2026-01-01" },
+        protocolVersion: "2026-07-01",
         health: "degraded",
         checks: { sqlite: "ready", git: "degraded" },
       },

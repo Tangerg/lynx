@@ -42,11 +42,8 @@ func TestInfoIsMinimalAndTyped(t *testing.T) {
 	defer resp.Body.Close()
 
 	var body struct {
-		Protocol struct {
-			Current      string `json:"current"`
-			MinSupported string `json:"minSupported"`
-		} `json:"protocol"`
-		Server struct {
+		ProtocolVersion string `json:"protocolVersion"`
+		Server          struct {
 			Name       string `json:"name"`
 			Version    string `json:"version"`
 			InstanceID string `json:"instanceId"`
@@ -62,8 +59,8 @@ func TestInfoIsMinimalAndTyped(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Protocol.Current != testProtocolVersion || body.Protocol.MinSupported != testProtocolVersion {
-		t.Fatalf("protocol = %+v", body.Protocol)
+	if body.ProtocolVersion != testProtocolVersion {
+		t.Fatalf("protocolVersion = %q", body.ProtocolVersion)
 	}
 	if body.Server.Name != "lyra-test" || body.Server.Version != "0.0.0" || body.Server.InstanceID != testRuntimeInstanceID {
 		t.Fatalf("server = %+v", body.Server)

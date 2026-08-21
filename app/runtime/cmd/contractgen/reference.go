@@ -19,8 +19,7 @@ func reference(m manifest) string {
 	b.WriteString("> Contract Registry the dispatcher routes off, so this file cannot describe a\n")
 	b.WriteString("> method the runtime does not serve. Prose, rationale and wire examples live in\n")
 	b.WriteString("> `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.\n\n")
-	fmt.Fprintf(&b, "Protocol `%s` (minimum supported `%s`) · %d methods\n\n",
-		m.Protocol.Current, m.Protocol.MinSupported, len(m.Methods))
+	fmt.Fprintf(&b, "Protocol `%s` · %d methods\n\n", m.ProtocolVersion, len(m.Methods))
 
 	b.WriteString("## Methods\n\n")
 	b.WriteString("| method | operation | response | retry | pagination | materializes | features | documented errors |\n")

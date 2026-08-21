@@ -93,8 +93,7 @@ func TestExtractRequestMetaRejectsNullMeta(t *testing.T) {
 // "2026-07-19" is the version this runtime served until the cutover, and it is the
 // case that matters — a client that still ships it must be told so, not quietly
 // handed current frames it will fold as if they were the old shape. A far-past date
-// alone would not prove that: a minSupported left behind would refuse 1900 and
-// accept the predecessor.
+// alone would not prove that the predecessor is rejected.
 func TestDispatchRejectsUnsupportedProtocolVersion(t *testing.T) {
 	for _, version := range []string{
 		"2026-07-19", // the version served before the current protocol cutover
@@ -116,7 +115,7 @@ func TestDispatchRejectsUnsupportedProtocolVersion(t *testing.T) {
 			if rpcErr.Code != codeInvalidProtocolVersion {
 				t.Fatalf("code = %d, want %d", rpcErr.Code, codeInvalidProtocolVersion)
 			}
-			// The refusal has to name the range: a client that only learns "no" cannot
+			// The refusal has to name the exact version: a client that only learns "no" cannot
 			// tell an unsupported version from a malformed request.
 			var problem struct {
 				Type   string `json:"type"`

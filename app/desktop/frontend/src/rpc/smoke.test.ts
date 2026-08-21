@@ -75,7 +75,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     });
     respondSuccess(transport, discoverReq.id, discoverResponse);
     const discovery = await discoverPromise;
-    expect(discovery.protocol.current).toBe(PROTOCOL_VERSION);
+    expect(discovery.protocolVersion).toBe(PROTOCOL_VERSION);
     expect(discovery.serverInfo.defaultWorkspace).toEqual(
       discoverResponse.serverInfo.defaultWorkspace,
     );

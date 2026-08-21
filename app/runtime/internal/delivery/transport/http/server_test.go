@@ -12,7 +12,7 @@ import (
 
 // testProtocolVersion is what the test server is configured to announce. It reads
 // the build's constant rather than a literal because the discover assertion below
-// reaches the real SupportedProtocolRange — spelling the date here would make these
+// reaches the real ProtocolVersion — spelling the date here would make these
 // transport tests fail on the next version bump for a reason that has nothing to do
 // with transport.
 const testProtocolVersion = protocol.ProtocolVersion
@@ -31,18 +31,16 @@ func TestSidecarInfo(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
-		Protocol struct {
-			Current string `json:"current"`
-		} `json:"protocol"`
-		Server struct {
+		ProtocolVersion string `json:"protocolVersion"`
+		Server          struct {
 			Name string `json:"name"`
 		} `json:"server"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Protocol.Current != testProtocolVersion {
-		t.Fatalf("protocol.current = %q", body.Protocol.Current)
+	if body.ProtocolVersion != testProtocolVersion {
+		t.Fatalf("protocolVersion = %q", body.ProtocolVersion)
 	}
 	if body.Server.Name != "lyra-test" {
 		t.Fatalf("server.name = %q", body.Server.Name)

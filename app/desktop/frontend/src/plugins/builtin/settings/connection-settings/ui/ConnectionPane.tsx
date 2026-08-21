@@ -167,7 +167,7 @@ export function ConnectionPane() {
                 </dd>
                 <dt className="text-fg-faint">{t("settings.connection.status.protocol")}</dt>
                 <dd className="truncate font-mono text-fg-muted">
-                  {service.observation.protocol.current}
+                  {service.observation.protocolVersion}
                 </dd>
                 {unhealthyChecks.length > 0 ? (
                   <>

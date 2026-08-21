@@ -15,7 +15,7 @@ export function installVisualRuntimeServiceStatusPort(): void {
     phase: "ready",
     observation: {
       server: { name: "lyra-runtime", version: "0.0.0-visual" },
-      protocol: { current: "2", minSupported: "2" },
+      protocolVersion: "2",
       health: "ready",
       checks: {},
     },

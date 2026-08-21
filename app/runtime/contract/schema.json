@@ -1948,8 +1948,8 @@
         "capabilities": {
           "$ref": "#/$defs/ServerCapabilities"
         },
-        "protocol": {
-          "$ref": "#/$defs/ProtocolRange"
+        "protocolVersion": {
+          "type": "string"
         },
         "serverInfo": {
           "$ref": "#/$defs/ServerInfo"
@@ -1957,7 +1957,7 @@
       },
       "required": [
         "capabilities",
-        "protocol",
+        "protocolVersion",
         "serverInfo"
       ]
     },
@@ -5732,21 +5732,6 @@
         }
       ]
     },
-    "ProtocolRange": {
-      "type": "object",
-      "properties": {
-        "current": {
-          "type": "string"
-        },
-        "minSupported": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "current",
-        "minSupported"
-      ]
-    },
     "Provider": {
       "type": "object",
       "properties": {
@@ -7316,8 +7301,8 @@
         "endpoints": {
           "$ref": "#/$defs/RuntimeInfoEndpoints"
         },
-        "protocol": {
-          "$ref": "#/$defs/ProtocolRange"
+        "protocolVersion": {
+          "type": "string"
         },
         "server": {
           "$ref": "#/$defs/RuntimeServerInfo"
@@ -7328,7 +7313,7 @@
       },
       "required": [
         "endpoints",
-        "protocol",
+        "protocolVersion",
         "server",
         "transport"
       ]

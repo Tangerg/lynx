@@ -38,11 +38,8 @@ function assertRuntimeIdentity(info: RuntimeInfo, discovery: DiscoverResponse): 
   ) {
     throw new Error("Runtime info and discovery identify different servers");
   }
-  if (
-    info.protocol.current !== discovery.protocol.current ||
-    info.protocol.minSupported !== discovery.protocol.minSupported
-  ) {
-    throw new Error("Runtime info and discovery advertise different protocol ranges");
+  if (info.protocolVersion !== discovery.protocolVersion) {
+    throw new Error("Runtime info and discovery advertise different protocol versions");
   }
 }
 
@@ -104,10 +101,7 @@ export function runtimeServiceInspector(): RuntimeConnectionInspector<ServerCapa
         processGeneration,
         service: {
           server: { name: info.server.name, version: info.server.version },
-          protocol: {
-            current: info.protocol.current,
-            minSupported: info.protocol.minSupported,
-          },
+          protocolVersion: info.protocolVersion,
           health: serviceHealth(readiness.status),
           checks,
         },

@@ -129,10 +129,10 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		t.Fatalf("read manifest: %v", err)
 	}
 	var manifest struct {
-		Protocol         map[string]string `json:"protocol"`
-		Methods          []struct{}        `json:"methods"`
-		StreamingMethods []string          `json:"streamingMethods"`
-		HTTPEndpoints    []struct{}        `json:"httpEndpoints"`
+		ProtocolVersion  string     `json:"protocolVersion"`
+		Methods          []struct{} `json:"methods"`
+		StreamingMethods []string   `json:"streamingMethods"`
+		HTTPEndpoints    []struct{} `json:"httpEndpoints"`
 		Errors           struct {
 			Types []struct{} `json:"types"`
 		} `json:"errors"`
@@ -150,7 +150,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		t.Fatalf("decode manifest: %v", err)
 	}
 	sections := map[string]int{
-		"protocol":                len(manifest.Protocol),
+		"protocolVersion":         len(manifest.ProtocolVersion),
 		"methods":                 len(manifest.Methods),
 		"streamingMethods":        len(manifest.StreamingMethods),
 		"httpEndpoints":           len(manifest.HTTPEndpoints),
@@ -256,10 +256,7 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 	root := moduleRoot(t)
 
 	var manifest struct {
-		Protocol struct {
-			Current      string `json:"current"`
-			MinSupported string `json:"minSupported"`
-		} `json:"protocol"`
+		ProtocolVersion string `json:"protocolVersion"`
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "contract", "manifest.json"))
 	if err != nil {
@@ -268,11 +265,8 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		t.Fatalf("decode manifest: %v", err)
 	}
-	if manifest.Protocol.Current != protocol.ProtocolVersion {
-		t.Errorf("manifest protocol %q != code %q", manifest.Protocol.Current, protocol.ProtocolVersion)
-	}
-	if manifest.Protocol.MinSupported != protocol.MinProtocolVersion {
-		t.Errorf("manifest minSupported %q != code %q", manifest.Protocol.MinSupported, protocol.MinProtocolVersion)
+	if manifest.ProtocolVersion != protocol.ProtocolVersion {
+		t.Errorf("manifest protocol %q != code %q", manifest.ProtocolVersion, protocol.ProtocolVersion)
 	}
 
 	// The canonical docs each state the version in their own header. Any version
@@ -288,7 +282,7 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 		}
 		found := false
 		for _, match := range dateLiteral.FindAllString(string(text), -1) {
-			if !protocol.SupportsProtocolVersion(match) {
+			if match != protocol.ProtocolVersion {
 				t.Errorf("%s names protocol version %q, which this build does not serve", name, match)
 				continue
 			}
@@ -322,7 +316,7 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 		}
 		for _, version := range collectProtocolVersions(decoded) {
 			stated++
-			if !protocol.SupportsProtocolVersion(version) {
+			if version != protocol.ProtocolVersion {
 				t.Errorf("canonical sample %s states protocol version %q, which this build does not serve",
 					filepath.Base(path), version)
 			}
@@ -379,9 +373,8 @@ func TestProtocolContractIsRuntimeOwned(t *testing.T) {
 	}
 }
 
-// protocolVersionKeys are the wire's only spellings of a protocol version:
-// RequestMeta.protocolVersion and the two members of ProtocolRange.
-var protocolVersionKeys = []string{"protocolVersion", "current", "minSupported"}
+// protocolVersionKeys are the wire's only spellings of a protocol version.
+var protocolVersionKeys = []string{"protocolVersion"}
 
 // collectProtocolVersions walks decoded JSON for values stated under those keys, so
 // a sample added later is swept without anyone remembering to list it.

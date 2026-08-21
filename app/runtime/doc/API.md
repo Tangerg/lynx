@@ -13,7 +13,7 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-08-17`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-17`**（本 build 只服务这一个精确版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
@@ -1057,9 +1057,8 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-08-17`），`minSupported` 与之同值：**本 build 只服务一个版本**。
-  一个更宽的范围会宣称一次代码并不执行的协商。
-- 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的范围），**不存在连接级硬断开**。
+- `protocolVersion` 是日期串（本定稿 `2026-08-17`）：**本 build 只服务一个精确版本**，协议没有兼容范围。
+- 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的精确版本），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
 - **加什么必须 bump**：新增请求字段（旧 server 严格拒绝）、**给闭合枚举或闭合 union 加成员**（客户端对它写
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。

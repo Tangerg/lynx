@@ -24,7 +24,7 @@ import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel
 // `events` years after the wire dropped them. A fixture the compiler holds cannot
 // describe a runtime that does not exist.
 const discovery: DiscoverResponse = {
-  protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+  protocolVersion: PROTOCOL_VERSION,
   serverInfo: {
     instanceId: "runtime_1",
     name: "lyra-runtime",
@@ -50,7 +50,7 @@ const discovery: DiscoverResponse = {
 function healthySidecar(): SidecarClient {
   return {
     info: vi.fn().mockResolvedValue({
-      protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+      protocolVersion: PROTOCOL_VERSION,
       server: { name: "lyra-runtime", version: "1.2.3", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {

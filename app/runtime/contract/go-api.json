@@ -1317,11 +1317,6 @@
           "value": "\"finalAnswer\""
         },
         {
-          "name": "MinProtocolVersion",
-          "type": "untyped string",
-          "value": "\"2026-08-17\""
-        },
-        {
           "name": "ModalityAudio",
           "type": "Modality",
           "value": "\"audio\""
@@ -2170,14 +2165,6 @@
         {
           "name": "RuntimeTopics",
           "signature": "func() []RuntimeTopic"
-        },
-        {
-          "name": "SupportedProtocolRange",
-          "signature": "func() ProtocolRange"
-        },
-        {
-          "name": "SupportsProtocolVersion",
-          "signature": "func(version string) bool"
         },
         {
           "name": "ValidateWireTree",
@@ -3692,9 +3679,9 @@
           "kind": "struct",
           "fields": [
             {
-              "name": "Protocol",
-              "type": "ProtocolRange",
-              "tag": "json:\"protocol\""
+              "name": "ProtocolVersion",
+              "type": "string",
+              "tag": "json:\"protocolVersion\""
             },
             {
               "name": "ServerInfo",
@@ -6051,22 +6038,6 @@
             {
               "name": "Problem",
               "signature": "func() ProblemData"
-            }
-          ]
-        },
-        {
-          "name": "ProtocolRange",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Current",
-              "type": "string",
-              "tag": "json:\"current\""
-            },
-            {
-              "name": "MinSupported",
-              "type": "string",
-              "tag": "json:\"minSupported\""
             }
           ]
         },

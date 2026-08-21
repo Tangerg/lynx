@@ -2,7 +2,7 @@ export type RuntimeServiceHealth = "ready" | "degraded" | "unhealthy";
 
 export interface RuntimeServiceObservation {
   server: { name: string; version: string };
-  protocol: { current: string; minSupported: string };
+  protocolVersion: string;
   health: RuntimeServiceHealth;
   checks: Record<string, RuntimeServiceHealth>;
 }
