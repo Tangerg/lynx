@@ -10,8 +10,8 @@
 // `use*` for render, `lookup*` everywhere else; `*ByKey` when you want one entry
 // by id/fn/combo, `*Point` for the whole list. `useExtensionEntries` is the rare
 // "I also need each item's key" variant (slash triggers). `lookupExtensionOwner`
-// / `lookupExtensionOwnedEntries` surface the contributing plugin for error
-// attribution. `createPointSubIndex` is the engine for sub-keyed fan-out (events
+// surfaces the contributing plugin for error attribution. `createPointSubIndex`
+// is the engine for sub-keyed fan-out (events
 // by type, layout by slot) — not a general read.
 //
 // Every derived structure caches on the entries array the catalog returns, which
@@ -51,12 +51,6 @@ function normalized<T>(point: ExtensionPoint<T>, key: string): string {
  *  doesn't carry (slash trigger, tool fn). */
 export interface ExtensionEntry<T> {
   key: string;
-  item: T;
-}
-
-/** Item paired with its owner plugin. */
-export interface ExtensionOwnedEntry<T> {
-  pluginName: string;
   item: T;
 }
 
@@ -100,17 +94,6 @@ export function useExtensionByKey<T>(point: ExtensionPoint<T>, key: string): T |
  */
 export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): string | undefined {
   return byKey(contributionsTo(point)).get(normalized(point, key))?.plugin;
-}
-
-/**
- * Every contribution to a `multi` point with its owner — for fan-out loops that
- * attribute a per-handler error back to the contributing plugin (the global
- * beforeunload listener).
- */
-export function lookupExtensionOwnedEntries<T>(
-  point: ExtensionPoint<T>,
-): Array<ExtensionOwnedEntry<T>> {
-  return contributionsTo(point).map((e) => ({ pluginName: e.plugin, item: e.item }));
 }
 
 /**

@@ -441,14 +441,8 @@ export const en: Record<string, string> = {
   "plugins.errors": "{{count}} error(s)",
   "plugins.clear": "Clear",
   "plugins.copyError": "Copy error",
-  "plugins.origin.builtin": "Built-in",
-  "plugins.origin.builtin.title": "Ships with Lyra",
-  "plugins.origin.sideload": "Sideload",
-  "plugins.origin.sideload.title": "User-installed",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> failed to render.",
   "plugins.mainView": "main view",
-  "plugins.sideload":
-    "Sideload by dropping a plugin folder containing <code>{{file}}</code> into <code>{{dir}}</code> and restarting the app. See <code>{{sample}}</code> for a template.",
 
   "connection.error.invalidUrl": "Invalid URL",
   "shape.radius.aria": "Corner radius",

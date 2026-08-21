@@ -1,6 +1,5 @@
-// UI-surface selectors — layout slots, Work Index items, and
-// the "registered + declared placeholder" merged surfaces (workspace
-// views + settings panes).
+// UI-surface selectors — layout slots, Work Index items, workspace views and
+// settings panes.
 
 import { useMemo } from "react";
 import type {

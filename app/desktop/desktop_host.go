@@ -16,20 +16,8 @@ type LocalRuntimeConnection struct {
 	LocalToken string `json:"localToken,omitempty"`
 }
 
-type SideloadedPlugin struct {
-	ID     string `json:"id"`
-	Source string `json:"source"`
-}
-
-type SideloadIssue struct {
-	ID     string `json:"id"`
-	Detail string `json:"detail"`
-}
-
 type DesktopBootstrap struct {
-	LocalRuntime      LocalRuntimeConnection `json:"localRuntime"`
-	SideloadedPlugins []SideloadedPlugin     `json:"sideloadedPlugins"`
-	SideloadIssues    []SideloadIssue        `json:"sideloadIssues"`
+	LocalRuntime LocalRuntimeConnection `json:"localRuntime"`
 }
 
 // WindowChrome is where the platform put the window's own controls, in CSS pixels
@@ -78,7 +66,6 @@ type imageSaver interface {
 // pins the set.
 type DesktopHost struct {
 	localTokenPath         string
-	pluginRoot             string
 	workingDirectoryPicker workingDirectoryPicker
 	imageSaver             imageSaver
 	// Nil until the window exists. The application is constructed with this service
@@ -91,7 +78,6 @@ func newDesktopHost(home string) *DesktopHost {
 	root := filepath.Join(home, ".lyra")
 	return &DesktopHost{
 		localTokenPath: filepath.Join(root, "local-token"),
-		pluginRoot:     filepath.Join(root, "plugins"),
 	}
 }
 
@@ -188,21 +174,15 @@ func (h *DesktopHost) SaveImage(source string) (bool, error) {
 	return saved, nil
 }
 
-// Bootstrap returns the local runtime connection and immutable plugin sources
-// the frontend needs before it starts loading application plugins.
+// Bootstrap returns the local runtime connection the frontend needs before it
+// starts the application.
 func (h *DesktopHost) Bootstrap() (DesktopBootstrap, error) {
 	token, err := h.localToken()
 	if err != nil {
 		return DesktopBootstrap{}, err
 	}
-	plugins, issues, err := h.sideloadedPlugins()
-	if err != nil {
-		return DesktopBootstrap{}, err
-	}
 	return DesktopBootstrap{
-		LocalRuntime:      LocalRuntimeConnection{Endpoint: localRuntimeEndpoint, LocalToken: token},
-		SideloadedPlugins: plugins,
-		SideloadIssues:    issues,
+		LocalRuntime: LocalRuntimeConnection{Endpoint: localRuntimeEndpoint, LocalToken: token},
 	}, nil
 }
 
@@ -215,37 +195,4 @@ func (h *DesktopHost) localToken() (string, error) {
 		return "", fmt.Errorf("desktop host: read local runtime token: %w", err)
 	}
 	return strings.TrimSpace(string(data)), nil
-}
-
-func (h *DesktopHost) sideloadedPlugins() ([]SideloadedPlugin, []SideloadIssue, error) {
-	entries, err := os.ReadDir(h.pluginRoot)
-	if errors.Is(err, os.ErrNotExist) {
-		return []SideloadedPlugin{}, []SideloadIssue{}, nil
-	}
-	if err != nil {
-		return nil, nil, fmt.Errorf("desktop host: read plugin directory: %w", err)
-	}
-
-	plugins := make([]SideloadedPlugin, 0, len(entries))
-	issues := make([]SideloadIssue, 0)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		id := entry.Name()
-		source, readErr := os.ReadFile(filepath.Join(h.pluginRoot, id, "index.js"))
-		if readErr != nil {
-			if errors.Is(readErr, os.ErrNotExist) {
-				continue
-			}
-			issues = append(issues, SideloadIssue{ID: id, Detail: readErr.Error()})
-			continue
-		}
-		if len(source) == 0 {
-			issues = append(issues, SideloadIssue{ID: id, Detail: "index.js is empty"})
-			continue
-		}
-		plugins = append(plugins, SideloadedPlugin{ID: id, Source: string(source)})
-	}
-	return plugins, issues, nil
 }

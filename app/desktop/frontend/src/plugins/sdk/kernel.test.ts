@@ -246,41 +246,4 @@ describe("contribute policy", () => {
 
     await expect(host.start()).rejects.toThrow(/requires opts.key, keyOf, or a non-empty item.id/);
   });
-
-  it("denies a capability-gated point to a plugin that did not declare it", async () => {
-    const THEMED = defineExtensionPoint<{ id: string }>({
-      id: "test.themed",
-      keying: "single",
-      capability: "theme",
-    });
-    const plugin = definePlugin({
-      name: "test.untrusted",
-      capabilities: ["commands"],
-      setup: (ctx) => {
-        ctx.contribute(THEMED, { id: "x" });
-      },
-    });
-
-    host = stand([plugin]);
-
-    await expect(host.start()).rejects.toThrow(/needs capability "theme"/);
-  });
-
-  it("lets a plugin with no declared capabilities contribute anywhere", async () => {
-    const THEMED = defineExtensionPoint<{ id: string }>({
-      id: "test.themed",
-      keying: "single",
-      capability: "theme",
-    });
-    const plugin = definePlugin({
-      name: "test.builtin",
-      setup: (ctx) => {
-        ctx.contribute(THEMED, { id: "x" });
-      },
-    });
-
-    const index = await start([plugin]);
-
-    expect(index.entries(THEMED)).toHaveLength(1);
-  });
 });

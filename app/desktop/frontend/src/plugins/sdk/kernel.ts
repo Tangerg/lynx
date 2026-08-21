@@ -22,25 +22,11 @@ interface Removable {
   remove(): Promise<void>;
 }
 
-export type PluginOrigin = "builtin" | "sideload";
-
-export interface InstalledPlugin {
-  readonly name: string;
-  readonly origin: PluginOrigin;
-}
-
-const EMPTY_INSTALLED: ReadonlyArray<InstalledPlugin> = Object.freeze([]);
-
-interface TrackedInstallation extends InstalledPlugin {
-  readonly handle: Removable;
-}
-
 let host: Host | undefined;
 let revision = 0;
 let names: ReadonlyArray<string> = EMPTY_NAMES;
-let installed: ReadonlyArray<InstalledPlugin> = EMPTY_INSTALLED;
 const listeners = new Set<() => void>();
-const installationsByHost = new WeakMap<Host, Map<string, TrackedInstallation>>();
+const installationsByHost = new WeakMap<Host, Map<string, Removable>>();
 
 // Per point, resolved on first read and held until the kernel is retracted: the
 // view's subscription is what invalidates the cached array.
@@ -50,19 +36,14 @@ let entries = new Map<string, ReadonlyArray<Contribution<unknown>>>();
 
 function announce(): void {
   revision += 1;
-  installed = Object.freeze(
-    [...(host ? installationsFor(host).values() : [])]
-      .map(({ name, origin }) => Object.freeze({ name, origin }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-  );
-  names = Object.freeze(installed.map(({ name }) => name));
+  names = Object.freeze([...(host ? installationsFor(host).keys() : [])].sort());
   for (const listener of [...listeners]) listener();
 }
 
-function installationsFor(owner: Host): Map<string, TrackedInstallation> {
+function installationsFor(owner: Host): Map<string, Removable> {
   const existing = installationsByHost.get(owner);
   if (existing) return existing;
-  const created = new Map<string, TrackedInstallation>();
+  const created = new Map<string, Removable>();
   installationsByHost.set(owner, created);
   return created;
 }
@@ -103,26 +84,13 @@ export function publishedKernel(): Host | undefined {
   return host;
 }
 
-export function trackInstallation(
-  owner: Host,
-  name: string,
-  handle: Removable,
-  origin: PluginOrigin = "builtin",
-): void {
-  installationsFor(owner).set(name, { name, origin, handle });
+export function trackInstallation(owner: Host, name: string, handle: Removable): void {
+  installationsFor(owner).set(name, handle);
   if (host === owner) announce();
-}
-
-export function hasInstallation(owner: Host, name: string): boolean {
-  return installationsFor(owner).has(name);
 }
 
 export function installedPlugins(): ReadonlyArray<string> {
   return names;
-}
-
-export function installedPluginRecords(): ReadonlyArray<InstalledPlugin> {
-  return installed;
 }
 
 export async function removeInstallation(name: string): Promise<void> {
@@ -131,7 +99,7 @@ export async function removeInstallation(name: string): Promise<void> {
   const installations = installationsFor(owner);
   const tracked = installations.get(name);
   if (!tracked) return;
-  await tracked.handle.remove();
+  await tracked.remove();
   if (installations.get(name) !== tracked) return;
   installations.delete(name);
   if (host === owner) announce();
@@ -218,16 +186,8 @@ function installedSnapshot(): ReadonlyArray<string> {
   return names;
 }
 
-function installedRecordsSnapshot(): ReadonlyArray<InstalledPlugin> {
-  return installed;
-}
-
 export function useInstalledPlugins(): ReadonlyArray<string> {
   return useSyncExternalStore(subscribe, installedSnapshot, () => EMPTY_NAMES);
-}
-
-export function useInstalledPluginRecords(): ReadonlyArray<InstalledPlugin> {
-  return useSyncExternalStore(subscribe, installedRecordsSnapshot, () => EMPTY_INSTALLED);
 }
 
 /** The resolved array is stable by reference between changes, so this re-renders

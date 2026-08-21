@@ -17,8 +17,8 @@ export interface CommandSpec {
    * NOT resolved text: a command is registered once, and nothing re-registers on
    * a language switch, so a `t(...)` here froze the label in whatever locale the
    * app booted in while the view titles beside it (which are keys) updated. A key
-   * the catalog doesn't have renders as itself, which is what lets a sideloaded
-   * plugin pass its own literal text.
+   * the catalog doesn't have renders as itself, which also keeps identifiers
+   * visible instead of silently rendering an empty label.
    */
   label: string;
   /** Short explanation shown below the label — a catalog key, as `label` is. */
@@ -49,15 +49,6 @@ export interface CommandSpec {
    */
   run: (...args: unknown[]) => void | Promise<void>;
 }
-
-/**
- * Declarative command — same shape as CommandSpec minus the run handler.
- * Lives in `PluginSpec.contributes.commands` so the kernel can show the
- * palette entry *before* the plugin is activated. Picking the entry
- * triggers the plugin's activation; after setup runs, the real
- * `host.commands.register` call replaces this placeholder.
- */
-export type ContributedCommand = Omit<CommandSpec, "run">;
 
 /**
  * Handler invoked when the matching key combo is pressed. Receives the

@@ -22,7 +22,6 @@ interface Instruments {
   markdown: Histogram;
   shiki: Histogram;
   mermaid: Histogram;
-  pluginLoad: Histogram;
   events: Counter;
 }
 
@@ -47,10 +46,6 @@ export function bindMetricInstruments(): void {
     }),
     mermaid: meter.createHistogram("lyra.mermaid.render.duration", {
       description: "Time spent rendering one mermaid diagram",
-      unit: "ms",
-    }),
-    pluginLoad: meter.createHistogram("lyra.plugin.load.duration", {
-      description: "Time spent loading + running setup() for one plugin",
       unit: "ms",
     }),
     events: meter.createCounter("lyra.run.event.count", {
@@ -86,13 +81,6 @@ export function measureShikiHighlight(ms: number, lang: string): void {
 
 export function measureMermaidRender(ms: number): void {
   inst?.mermaid.record(ms);
-}
-
-/** Outcome of one definePlugin loadPlugin() invocation. */
-export type PluginLoadResult = "loaded" | "failed" | "skipped";
-
-export function measurePluginLoad(ms: number, pluginName: string, result: PluginLoadResult): void {
-  inst?.pluginLoad.record(ms, { plugin: pluginName, result });
 }
 
 // Coarse buckets — keeps cardinality bounded without losing the

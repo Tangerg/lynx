@@ -299,14 +299,8 @@ export const de: Record<string, string> = {
   "plugins.errors": "{{count}} Fehler",
   "plugins.clear": "Löschen",
   "plugins.copyError": "Fehler kopieren",
-  "plugins.origin.builtin": "Integriert",
-  "plugins.origin.builtin.title": "Wird mit Lyra ausgeliefert",
-  "plugins.origin.sideload": "Sideload",
-  "plugins.origin.sideload.title": "Vom Benutzer installiert",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> konnte nicht gerendert werden.",
   "plugins.mainView": "Hauptansicht",
-  "plugins.sideload":
-    "Zum Sideload einen Plugin-Ordner mit <code>{{file}}</code> in <code>{{dir}}</code> legen und die App neu starten. Eine Vorlage findest du unter <code>{{sample}}</code>.",
 
   "connection.error.invalidUrl": "Ungültige URL",
   "shape.radius.aria": "Eckenradius",

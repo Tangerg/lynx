@@ -295,14 +295,8 @@ export const ko: Record<string, string> = {
   "plugins.errors": "오류 {{count}}건",
   "plugins.clear": "지우기",
   "plugins.copyError": "오류 복사",
-  "plugins.origin.builtin": "내장",
-  "plugins.origin.builtin.title": "Lyra에 포함됨",
-  "plugins.origin.sideload": "사이드로드",
-  "plugins.origin.sideload.title": "사용자 설치",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> 렌더링에 실패했습니다.",
   "plugins.mainView": "메인 뷰",
-  "plugins.sideload":
-    "<code>{{file}}</code>이 들어 있는 플러그인 폴더를 <code>{{dir}}</code>에 넣고 앱을 다시 시작하면 사이드로드됩니다. 템플릿은 <code>{{sample}}</code>을 참고하세요.",
 
   "connection.error.invalidUrl": "잘못된 URL",
   "shape.radius.aria": "모서리 반경",

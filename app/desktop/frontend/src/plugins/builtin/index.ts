@@ -120,8 +120,7 @@ import {
 
 // Agent fold — fold v2 RunEvents (run.* / item.* / state.*) into view state.
 // All semantics (messages, reasoning, tools, plan, questions, HITL) are
-// first-class Items now, so the built-in agent fold owns the whole fold;
-// `custom` StreamEvents are reserved for third-party plugins.
+// first-class Items now, so the built-in agent fold owns the whole fold.
 const protocol: AnyPlugin[] = [agentFold];
 
 // Configuration & infrastructure.

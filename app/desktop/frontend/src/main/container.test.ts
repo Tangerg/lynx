@@ -82,8 +82,6 @@ describe("main/container", () => {
     const desktop = (localToken: string): DesktopHostClient => ({
       bootstrap: async () => ({
         localRuntime: { endpoint: "http://127.0.0.1:17171", localToken },
-        sideloadedPlugins: [],
-        sideloadIssues: [],
       }),
       chooseWorkingDirectory: async () => null,
       saveImage: async () => false,
@@ -127,8 +125,6 @@ describe("main/container", () => {
           endpoint: "http://127.0.0.1:17171",
           localToken: "successor-token",
         },
-        sideloadedPlugins: [],
-        sideloadIssues: [],
       })),
     });
     await initializeDesktopHost();
@@ -138,8 +134,6 @@ describe("main/container", () => {
         endpoint: "http://127.0.0.1:17171",
         localToken: "retired-token",
       },
-      sideloadedPlugins: [],
-      sideloadIssues: [],
     });
     await retiredInitialization;
 

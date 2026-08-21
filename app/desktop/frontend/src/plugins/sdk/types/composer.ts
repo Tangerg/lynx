@@ -1,5 +1,5 @@
 // Everything the composer textarea + its surrounding toolbar exposes
-// to plugins: key bindings, attachment chips, placeholders, status chips,
+// to plugins: key bindings, placeholders, status chips,
 // slash commands.
 
 /**
@@ -21,39 +21,6 @@ export interface ComposerKeyBindingSpec {
   description?: string;
   /** Return `true` to call `preventDefault` on the keypress. */
   handler: (ctx: ComposerKeyContext) => boolean | void;
-}
-
-/**
- * Shape of one chip rendered in the composer attachments row. Declared here
- * (the SDK) so plugins don't have to import from `components/`.
- */
-export interface ComposerAttachment {
-  /** Display label, e.g. "src/api/auth.ts". */
-  label: string;
-  /** Optional icon glyph name. Defaults to "file" when omitted. */
-  icon?: string;
-  /**
-   * Optional stable React-key id. When omitted the renderer falls back
-   * to `${source.id}:${label}` — sufficient for the typical case where
-   * each source emits unique labels.
-   */
-  id?: string;
-}
-
-/**
- * A plugin contribution that produces attachment chips. The composer renders
- * every source's chips (ordered by `order`) in their own row, independent of
- * the user's staged `images` (which render as separate thumbnails).
- *
- * `useAttachments` is a hook — plugins can derive the list from query
- * data ("recently edited files") or other stores.
- */
-export interface ComposerAttachmentSourceSpec {
-  id: string;
-  /** Sort hint — lower comes first. Built-ins use 0..99. */
-  order?: number;
-  /** Hook that returns the current attachments. */
-  useAttachments: () => ComposerAttachment[];
 }
 
 export interface ComposerSubmitModeDraft {

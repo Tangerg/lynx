@@ -59,7 +59,7 @@
 - renderer replacement、Plugin Host replacement、Runtime process restart 和迟到 async settlement 必须继续服从各自的 exact owner；process generation 不能替代逻辑 Runtime 或 durable store identity；
 - durable idempotency identity 必须跨 renderer reload、Runtime response loss 和进程 crash 保留；
 - mounted Session 的 HITL、Plan、Goal、Run、Tool material 仍由一次 authoritative snapshot 提交；
-- Plugin Host、extension point、sideload transaction 和 public context boundary 是已存在的产品能力，不因内部 builtin 较多而回退成直接 import 图；
+- Plugin Host、被真实内置消费者使用的 extension point 和 public context boundary 继续保留；P140 已证明 sideload 没有真实安装且样例不满足当前 Host API，因而整条外部动态加载 transaction 已删除；
 - Wails v3 壳继续只提供 packaged-app capability，不内嵌第二 Runtime 业务 API。
 
 ## 4. 红色反例与根因假设
@@ -235,7 +235,7 @@ generation 是真实横切机制，但当前以每功能复制完整 singleton l
 - `delivery/server` 按协议能力定义的 use-case interfaces；
 - `adapter/agentexec` 的 Agent Framework 防腐边界；
 - Run reducer、exact commit value、Pending projection closure 和 SQLite strict codec；
-- Plugin SDK 的外部公共 barrel、ExtensionPoint 和 sideload transaction；
+- Plugin SDK 的内置 composition barrel 与有真实贡献者/消费者的 ExtensionPoint；
 - `rpc/methods.ts` 的集中 typed transport 编排，仅因行数大不足以证明要拆；
 - `createSingletonPort` 的 exact-instance disposer 语义；
 - Wails v3 的单一 Desktop Host 边界；

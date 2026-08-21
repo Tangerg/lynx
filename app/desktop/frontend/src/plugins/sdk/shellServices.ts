@@ -1,7 +1,7 @@
 // The plugin that provides the shell's Services.
 //
-// One plugin rather than seven: the reason any of these changes is the same one —
-// the app shell grew a capability — and splitting a seven-line provider per
+// One plugin rather than five: the reason any of these changes is the same one —
+// the app shell grew a capability — and splitting a tiny provider per
 // contract buys indirection, not cohesion. The consumers are still decoupled;
 // each declares only the contract it uses, which is the property that matters.
 
@@ -10,7 +10,6 @@ import { addLocaleBundle } from "@/lib/i18n";
 import { navigator } from "@/lib/navigation";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
-import { installedPlugins, removeInstallation } from "./kernel";
 import { WORKSPACE_VIEW } from "./kernelPoints";
 import { executeCommand } from "./selectors/commands";
 import { lookupExtensionByKey } from "./selectors/extensions";
@@ -18,13 +17,11 @@ import {
   COMMANDS,
   CONFIG,
   I18N,
-  PLUGINS,
   WINDOW,
   WORKSPACE,
   type CommandsService,
   type ConfigService,
   type I18nService,
-  type PluginsService,
   type WindowService,
   type WorkspaceService,
 } from "./services";
@@ -68,11 +65,6 @@ const commands: CommandsService = {
   execute: (id, ...args) => executeCommand(id, ...args),
 };
 
-const plugins: PluginsService = {
-  list: () => installedPlugins(),
-  remove: (name) => removeInstallation(name),
-};
-
 export const shellServices = definePlugin({
   name: "lyra.kernel.shell",
   provides: {
@@ -81,7 +73,6 @@ export const shellServices = definePlugin({
     window: WINDOW,
     workspace: WORKSPACE,
     commands: COMMANDS,
-    plugins: PLUGINS,
   },
-  setup: () => ({ config, i18n, window, workspace, commands, plugins }),
+  setup: () => ({ config, i18n, window, workspace, commands }),
 });

@@ -165,11 +165,8 @@ function appRouter(): ReturnType<typeof buildRouter> {
 }
 
 export function AppRouter() {
-  // By the time this renders, PluginProvider has loaded built-in plugins
-  // synchronously and the registry is populated. Sideloaded plugins that arrive
-  // later won't appear until the next reload — pluginifying *that* requires a
-  // `rebuildRouter()` host API, which we'll add only when there's a real need
-  // (sideloaded routes are not on the current roadmap).
+  // By the time this renders, PluginProvider has loaded every route-contributing
+  // built-in and the registry is complete, so route identity can stay stable.
   const router = appRouter();
   return (
     <>

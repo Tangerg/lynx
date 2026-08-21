@@ -1,27 +1,26 @@
 // The "Plugins" settings pane.
 //
-// Lists every installed plugin with name + origin + error count.
+// Lists every installed plugin with its error count.
 // Errored rows expand inline to show each error's source, message, and
 // stack (captured at the catch site, see sdk/errors.ts) so a broken
 // plugin is debuggable without opening the browser console. Errored rows
 // surface a Clear-errors button.
 //
-// No per-row reload: a built-in's installation is part of one boot transaction
-// and reinstalling it alone would leave the graph in a state the Host never
-// agreed to. Sideloaded plugins are removed and re-registered by the platform.
+// No per-row reload: installation is part of one boot transaction and
+// reinstalling one plugin alone would leave the graph in a state the Host never
+// agreed to.
 
-import { Trans } from "@/lib/i18n";
 import type { PluginError, PluginErrorSource } from "@/plugins/sdk";
 import { useState } from "react";
 import { Icon, IconButton, PillButton, TextButton } from "@/ui";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { useInstalledPluginRecords, usePluginErrorStore } from "@/plugins/sdk";
+import { useInstalledPlugins, usePluginErrorStore } from "@/plugins/sdk";
 
 export function PluginsPane() {
   const t = useT();
-  const installed = useInstalledPluginRecords();
+  const installed = useInstalledPlugins();
   const log = usePluginErrorStore((s) => s.log);
   const clearFor = usePluginErrorStore((s) => s.clearFor);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -34,14 +33,12 @@ export function PluginsPane() {
     else errorsByPlugin.set(err.plugin, [err]);
   }
 
-  // Sort: built-ins first (alphabetical), then sideloaded (alphabetical).
-  // Within each origin group, errored plugins float to the top.
+  // Errored plugins float to the top, then names sort alphabetically.
   const rows = [...installed].sort((a, b) => {
-    if (a.origin !== b.origin) return a.origin === "builtin" ? -1 : 1;
-    const ea = errorsByPlugin.get(a.name)?.length ?? 0;
-    const eb = errorsByPlugin.get(b.name)?.length ?? 0;
+    const ea = errorsByPlugin.get(a)?.length ?? 0;
+    const eb = errorsByPlugin.get(b)?.length ?? 0;
     if (ea !== eb) return eb - ea;
-    return a.name.localeCompare(b.name);
+    return a.localeCompare(b);
   });
 
   const toggle = (name: string) =>
@@ -54,7 +51,7 @@ export function PluginsPane() {
   return (
     <div>
       <div className="flex flex-col gap-2">
-        {rows.map(({ name, origin }) => {
+        {rows.map((name) => {
           const errors = errorsByPlugin.get(name) ?? [];
           const errCount = errors.length;
           const open = expanded.has(name);
@@ -68,10 +65,7 @@ export function PluginsPane() {
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">
                 <div>
-                  <div className="text-ui-md font-medium text-fg">
-                    {name}
-                    <OriginBadge origin={origin} />
-                  </div>
+                  <div className="text-ui-md font-medium text-fg">{name}</div>
                   {errCount > 0 && (
                     <TextButton
                       tone="negative"
@@ -104,23 +98,9 @@ export function PluginsPane() {
           );
         })}
       </div>
-
-      <div className="mt-4 text-ui-md leading-body text-fg-muted">
-        <Trans
-          i18nKey="plugins.sideload"
-          values={{
-            file: "index.js",
-            dir: "~/.lyra/plugins/",
-            sample: "frontend/sample-plugins/hello-sideload/",
-          }}
-          components={{ code: <code className={INLINE_CODE} /> }}
-        />
-      </div>
     </div>
   );
 }
-
-const INLINE_CODE = "rounded-2xs bg-surface-2 px-1.5 py-px font-mono text-fg";
 
 // Where the error was caught (sdk/errors.ts PluginErrorSource).
 const SOURCE_LABEL: Record<PluginErrorSource, string> = {
@@ -158,24 +138,5 @@ function ErrorEntry({ err }: { err: PluginError }) {
         </pre>
       )}
     </div>
-  );
-}
-
-function OriginBadge({ origin }: { origin: "builtin" | "sideload" }) {
-  const t = useT();
-  return (
-    <span
-      title={
-        origin === "builtin"
-          ? t("plugins.origin.builtin.title")
-          : t("plugins.origin.sideload.title")
-      }
-      className={cn(
-        "ml-2 inline-block rounded-full px-1.5 py-px font-mono text-ui-xs font-semibold align-middle tracking-normal",
-        origin === "builtin" ? "bg-surface-2 text-fg-muted" : "bg-info-wash text-info",
-      )}
-    >
-      {origin === "builtin" ? t("plugins.origin.builtin") : t("plugins.origin.sideload")}
-    </span>
   );
 }

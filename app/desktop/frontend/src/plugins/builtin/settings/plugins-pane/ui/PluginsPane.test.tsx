@@ -15,17 +15,13 @@ afterEach(async () => {
 });
 
 describe("PluginsPane installation facts", () => {
-  it("renders built-in and sideload origins from the active Host read model", async () => {
+  it("renders installed plugins from the active Host read model", async () => {
     host = await startKernel([]);
     trackInstallation(host, "lyra.builtin.example", { remove: vi.fn() });
-    trackInstallation(host, "third.party", { remove: vi.fn() }, "sideload");
 
     const view = render(<PluginsPane />);
 
     expect(screen.getByText("lyra.builtin.example")).toBeTruthy();
-    expect(screen.getByTitle("Ships with Lyra")).toBeTruthy();
-    expect(screen.getByText("third.party")).toBeTruthy();
-    expect(screen.getByTitle("User-installed")).toBeTruthy();
     view.unmount();
   });
 });

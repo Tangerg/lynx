@@ -199,9 +199,6 @@ Composer 不应直接依赖 agent 内部 store。它可以依赖 agent 暴露的
 - ExtensionPoint
 - Contribution
 - Command
-- Capability
-- Activation
-- PluginOrigin
 
 职责：
 

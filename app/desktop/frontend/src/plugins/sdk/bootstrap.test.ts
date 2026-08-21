@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createKernel, startKernel, stopKernel } from "./bootstrap";
 import { definePlugin } from "./definePlugin";
 import {
-  installedPluginRecords,
   installedPlugins,
   kernelHost,
   removeInstallation,
@@ -51,17 +50,6 @@ describe("kernel generation ownership", () => {
 
     expect(kernelHost()).toBe(successor);
     expect(installedPlugins()).toEqual(["test.successor"]);
-  });
-
-  it("does not let a retired sideload origin relabel a successor built-in", async () => {
-    const old = await startKernel([]);
-    trackInstallation(old, "same.name", { remove: vi.fn() }, "sideload");
-    const successor = await startKernel([plugin("same.name")]);
-    hosts.push(old, successor);
-
-    await stopKernel(old);
-
-    expect(installedPluginRecords()).toEqual([{ name: "same.name", origin: "builtin" }]);
   });
 
   it("keeps unpublished installation handles isolated from the active generation", async () => {

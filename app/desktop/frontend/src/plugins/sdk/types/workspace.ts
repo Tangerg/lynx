@@ -35,7 +35,7 @@ export interface WorkspaceViewSpec {
   id: string;
   /** Tab title shown in the panel header — a catalog key, resolved where the tab
    *  renders. A key the catalog doesn't have renders as itself, which is how a
-   *  file view passes a filename and a sideloaded plugin passes its own words.
+   *  file view passes a filename.
    *  (See `CommandSpec.label`: a contribution outlives the moment it is made, and
    *  nothing re-registers on a language switch.) */
   title: string;

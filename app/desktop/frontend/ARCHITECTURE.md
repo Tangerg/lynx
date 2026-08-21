@@ -30,7 +30,7 @@
 | 数据     | TanStack React Query                                              |
 | 协议     | 自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，`src/rpc/`）         |
 | 动画     | motion/react                                                      |
-| 桌面壳   | Wails v3 beta（Go 后端 + WebView 前端，版本钉死）                  |
+| 桌面壳   | Wails v3 beta（Go 后端 + WebView 前端，版本钉死）                 |
 | 测试     | Vitest 4 + Testing Library + happy-dom                            |
 | 构建     | Vite 8（内置 Rolldown bundler）                                   |
 | Lint     | OxLint 1.x（Rust-based）；`prettier` 格式化                       |
@@ -52,31 +52,25 @@ src/
 │
 ├── plugins/              插件系统
 │   ├── host/                 插件宿主运行时
-│   │   ├── PluginProvider.tsx    启动编排与代际 owner：bridge → Host.start → ready → sideload
+│   │   ├── PluginProvider.tsx    启动编排与代际 owner：Host.start → ready → stop
 │   │   ├── Slot.tsx              <Slot name="…"/> 渲染注册到该 slot 的插件组件
 │   │   ├── PluginBoundary.tsx    每个插件组件的 React Error Boundary
 │   │   ├── PluginContentBlock.tsx 包装消息内容块的边界
 │   │   ├── PluginToaster.tsx     全局 toast 层（sonner）
-│   │   ├── ShortcutsProvider.tsx 全局键盘快捷键派发
-│   │   ├── hostBridge.ts         挂 window.__LYRA__，让 sideload 包共用 React/SDK
-│   │   └── sideloadDiscovery.ts  从 Wails Host Bridge 读取并 dynamic-import 用户插件
+│   │   └── ShortcutsProvider.tsx 全局键盘快捷键派发
 │   │
 │   ├── sdk/                  插件平台
 │   │   ├── types/                17 个 domain 文件 + barrel（按贡献面拆）
 │   │   ├── kernelPoints.ts       ~35 个内置 ExtensionPoint（THEME / COMMAND / LAYOUT_SLOT / …）
-│   │   ├── contracts.ts          dougong token + Lyra key/capability/read policy
+│   │   ├── contracts.ts          dougong token + Lyra key/read policy
 │   │   ├── definePlugin.ts       绑定 dougong context 与 Lyra contribute policy
 │   │   ├── bootstrap.ts          Host create/start/stop + installation transaction
 │   │   ├── kernel.ts             当前 Host 代际、ContributionView cache 与安装 read model
 │   │   ├── services.ts / shellServices.ts  typed shell capability contracts
 │   │   ├── selectors/            按面分组的 useXxx / lookupXxx + extensions.ts（读侧底座 + O(1) 索引）
-│   │   ├── sideload.ts           dougong Platform / permission / lazy activation adapter
-│   │   ├── capabilities.ts        capability vocabulary；安装来源随 Host read model 保存
 │   │   ├── evalWhen.ts           when 子句求值器（VS Code-when 子集）
-│   │   ├── lazyActivator.ts      activationEvents + contributes 占位激活
 │   │   ├── state.ts / stateSlice.ts / sharedState.ts  插件共享 state
-│   │   ├── config.ts / storage.ts / notifications.ts / errors.ts
-│   │   └── apiVersion.ts         HOST_API_VERSION 常量
+│   │   └── config.ts / storage.ts / notifications.ts / errors.ts
 │   │
 │   └── builtin/              内置插件，按领域（限界上下文）分组
 │       ├── index.ts          manifest（依赖由 requires / provides contract graph 驱动）
@@ -219,8 +213,8 @@ endpoint 与 Wails bootstrap 返回的 local token 缓存客户端。Connection 
 文案；应用变更后重载前端，让 streams、queries、capabilities 与 Session read models
 在同一个 Runtime 边界上重新装配，不做半热切换。
 
-本地 token 与 sideload bundle 属于 Wails Host Bridge；它们不进入 Runtime Protocol，
-也不借 Runtime HTTP endpoint 建立第二套旁路 API。
+本地 token 属于 Wails DesktopHost；它不进入 Runtime Protocol，也不借 Runtime HTTP
+endpoint 建立第二套旁路 API。Desktop 不扫描或执行用户目录中的 JavaScript。
 Capability discovery application 只依赖 `RuntimeDiscovery.discoverCapabilities()`；
 adapter 调用 typed `client.runtime.discover()` 并移除 `DiscoverResponse` envelope。
 插件 unload 后迟到的 discovery result 不得重新发布 capability。
@@ -312,11 +306,10 @@ App.tsx
 
 `src/plugins/host/PluginProvider.tsx`：
 
-1. **`publishHostBridge()`** — 把 React / motion / SDK 单例挂到 `window.__LYRA__`，先于第三方模块求值。
-2. **`startKernel(builtinPlugins, signal)`** — 创建 dougong Host，将 shell Services 与全部 built-ins 作为一个启动事务安装；Host 根据 `requires` / `provides` 解析契约图。启动失败整笔 rollback，不暴露半启动 read model。
-3. **`publishKernel(host)` + ready handlers** — `host.start()` 成功后才发布当前 Host 代际与安装 read model，并触发 ready contributions。
-4. **`setReady(true)`** — 解除 children 渲染门；随后启动不阻塞首屏的 sideload discovery。每个第三方 artifact 走独立 Platform transaction，失败只回滚自身。
-5. **effect cleanup** — `beforeunload` 的唯一 host teardown 先同步 unmount React root；Provider cleanup 同步撤销 exact Host publication，再取消/释放本代 sideload Platform 与 blob URL，最后 `stopKernel(ownedHost)`。旧 renderer 的迟到 cleanup 不能撤销 successor Host，启动在 owner 退休后才结算时也必须 rollback。
+1. **`startKernel(builtinPlugins, signal)`** — 创建 dougong Host，将 shell Services 与全部 built-ins 作为一个启动事务安装；Host 根据 `requires` / `provides` 解析契约图。启动失败整笔 rollback，不暴露半启动 read model。
+2. **`publishKernel(host)` + ready handlers** — `host.start()` 成功后才发布当前 Host 代际与安装 read model，并触发 ready contributions。
+3. **`setReady(true)`** — 解除 children 渲染门。
+4. **effect cleanup** — `stopKernel(ownedHost)` 同步撤销 exact Host publication，再等待 Host 结构化资源回收。旧 renderer 的迟到 cleanup 不能撤销 successor Host；启动在 owner 退休后才结算时也必须 rollback。`main.tsx` 的 `beforeunload` 直接关闭它拥有的 renderer。
 
 外层再包一个 `TooltipProvider`（Base UI provider，250ms delay），让 kernel + 任意插件的 `<Tooltip>` 不必各自带 provider。
 
@@ -400,23 +393,16 @@ export default definePlugin({
 - Runtime 网络访问不属于通用 shell Service；内置业务仍经 context adapter → `main/container` → typed JSON-RPC client，Runtime DTO 停在 Adapter。
 - `kernel.ts` 只发布一个 Host generation。views、installation handles 与 installed-plugin read model 都绑定该 Host identity；stale stop / subscription callback 不能清理或写入 successor generation。
 
-#### 启动、移除与懒激活
+#### 启动与移除
 
 - **built-ins**：`createKernel` 先安装 shell Services 和 manifest，`host.start()` 作为一个完整 transaction；任一 setup 失败就 rollback 全部，不发布半成品。
 - **运行期安装**：`installPlugins` 使用一个 dougong change transaction；commit 成功后才发布 installation handles。
 - **移除**：`Installation.remove()` 成功后才从 Plugins read model 删除；失败仍显示原安装，迟到旧 settlement 不能删除同名 replacement handle。
-- **sideload**：每个 artifact 通过 dougong Platform 独立注册；manifest permission 在代码加载前授权。lazy artifact 先装 placeholder，activation event 再由同一 Platform transaction替换为真实模块。
 - **when 子句**：`CommandSpec.when?` 使用 `evalWhen.ts` 的 VS Code-when 子集，只决定可见/可用条件，不参与 lifecycle。
 
-#### 内置 vs 外置（sideload）
-
-|                | 内置                                     | 外置（sideload）                                  |
-| -------------- | ---------------------------------------- | ------------------------------------------------- |
-| 来源           | 同 bundle 静态 import                    | Desktop bootstrap source + dynamic `import(url)` |
-| transaction    | 全 manifest 一次 Host start              | 每个 artifact 独立 Platform registration         |
-| capability     | trusted contract graph + point policy    | manifest permission + point policy               |
-| 共享 React/SDK | 同 bundle                                | `window.__LYRA__` bridge                         |
-| 资源 owner     | exact Host / Installation generation     | exact Host-bound Platform + blob URL set         |
+Desktop 只安装同 bundle 静态 import 的内置插件。不存在外部插件目录、动态 module
+import、Host API 版本协商或 permission manifest；需要新的内置能力时直接改当前
+manifest 和调用方，不留兼容 loader。
 
 `builtin/index.ts` 的分组只供人阅读；依赖真相在各 spec 的 `requires` / `provides`，贡献覆盖的稳定 tie-break 才使用 manifest 顺序。
 
@@ -593,16 +579,16 @@ return specs.map(spec => (
 
 ### 6.2 其它"消费端"选择器（`sdk/selectors/`）
 
-| Hook / 函数                                                 | 用途                            |
-| ----------------------------------------------------------- | ------------------------------- |
-| `useToolPreview(fn)` / `useToolActions()`                   | 工具卡片预览 / 头部按钮         |
-| `useWorkspaceViews()` / `useSettingsPanes()`                | 主区 workspace view / 设置左栏  |
-| `useSidebarSections()` / `useSidebarRailItems()`            | 侧栏内部                        |
-| `useCommands()` / `useSlashCommands()`                      | 命令面板 / composer slash 提示  |
-| `useComposerModes()` / `useComposerStatus()` / …            | composer 工具栏                 |
-| `useThemes()` / `useAccents()`                              | Appearance 面板                 |
-| `useMessageRole(id)`                                        | 消息头像 / 名字                 |
-| `lookupStreamHandlers(type)`                               | reducer 内部用，非 React 选择器 |
+| Hook / 函数                                      | 用途                            |
+| ------------------------------------------------ | ------------------------------- |
+| `useToolPreview(fn)` / `useToolActions()`        | 工具卡片预览 / 头部按钮         |
+| `useWorkspaceViews()` / `useSettingsPanes()`     | 主区 workspace view / 设置左栏  |
+| `useSidebarSections()` / `useSidebarRailItems()` | 侧栏内部                        |
+| `useCommands()` / `useSlashCommands()`           | 命令面板 / composer slash 提示  |
+| `useComposerModes()` / `useComposerStatus()` / … | composer 工具栏                 |
+| `useThemes()` / `useAccents()`                   | Appearance 面板                 |
+| `useMessageRole(id)`                             | 消息头像 / 名字                 |
+| `lookupStreamHandlers(type)`                     | reducer 内部用，非 React 选择器 |
 
 ---
 
@@ -647,19 +633,18 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 
 ## 8. 错误隔离策略
 
-| 失败点                                | 行为                                                      |
-| ------------------------------------- | --------------------------------------------------------- |
-| 插件 `setup` 抛错                     | dispose 已注册部分；其它插件继续；写错误到 Plugins 面板   |
-| 插件组件 render 抛错                  | PluginBoundary 接住画 fallback；其余 kernel 正常          |
-| stream handler 抛错                   | 该 handler 跳过，state 保持入态；其余 handler 继续        |
-| 插件 tool action / command 抛错       | console.error + `reportPluginError`，UI 不挂              |
-| `runs.start/resume` 在 ack 前 reject  | channel-a 失败：无流；保存 Session command problem        |
+| 失败点                                  | 行为                                                      |
+| --------------------------------------- | --------------------------------------------------------- |
+| 插件 `setup` 抛错                       | dispose 已注册部分；其它插件继续；写错误到 Plugins 面板   |
+| 插件组件 render 抛错                    | PluginBoundary 接住画 fallback；其余 kernel 正常          |
+| stream handler 抛错                     | 该 handler 跳过，state 保持入态；其余 handler 继续        |
+| 插件 tool action / command 抛错         | console.error + `reportPluginError`，UI 不挂              |
+| `runs.start/resume` 在 ack 前 reject    | channel-a 失败：无流；保存 Session command problem        |
 | 已 accepted Run 的 stream/recovery 失败 | 不回滚命令；durable projection 负责权威收敛               |
-| `segment.finished{error}`             | terminal Run outcome 投影为可 dismiss problem             |
-| stream 断线且 replay 可用             | 从最后 folded eventId reattach                            |
-| `replay_unavailable` / runtime resync | 读取完整 durable Session snapshot，再做 CAS 原子替换      |
-| fold 来源或 lifecycle 不变量失败      | 当前 handler fail closed；保留入态并写 plugin diagnostics |
-| sideload 模块读取 / import 失败       | 跳过，其它继续；console.warn                              |
+| `segment.finished{error}`               | terminal Run outcome 投影为可 dismiss problem             |
+| stream 断线且 replay 可用               | 从最后 folded eventId reattach                            |
+| `replay_unavailable` / runtime resync   | 读取完整 durable Session snapshot，再做 CAS 原子替换      |
+| fold 来源或 lifecycle 不变量失败        | 当前 handler fail closed；保留入态并写 plugin diagnostics |
 
 Plugins 面板（Settings → Plugins）汇总所有 `reportPluginError` 的红 badge。
 
@@ -679,7 +664,9 @@ export default definePlugin({
   setup(ctx) {
     // 1. 加一个 Cmd+K 命令
     ctx.contribute(COMMAND, {
-      id: "hello.world", label: "Hello, world!", group: "Examples",
+      id: "hello.world",
+      label: "Hello, world!",
+      group: "Examples",
       run: () => ctx.notify("hi", "info"),
     });
     // 2. 副作用归当前 Installation lifetime
@@ -689,8 +676,7 @@ export default definePlugin({
 });
 ```
 
-> 内置：放 `plugins/builtin/<domain>/<name>/index.ts(x)`，在 `builtin/index.ts` 合适分组 import + 加进数组。
-> 外置：构建成 ESM，把 React/motion/SDK 标 external 去引用 `window.__LYRA__`，放 `~/.lyra/plugins/<id>/index.js`；Wails Host Bridge 读取源码后交给前端作为 module blob 加载。
+> 放到 `plugins/builtin/<domain>/<name>/index.ts(x)`，在 `builtin/index.ts` 合适分组 import 并加入数组。
 
 静态 registration 是 plugin composition，不是 application use case。只返回 `{ id, order, component }` 或同类 extension spec 的 factory 必须直接写在插件入口；不得为它单建 `application/*Contributions.ts` 和只复述字面量的测试。只有 contribution module 自己拥有稳定策略或行为时才保留，例如 Composer key-binding 语义、默认命令集合、tool family 映射，或跨 context 的 SDK published-language facade。`check:published-boundaries` 会拒绝只投影对象字面量的 application contribution module。
 
@@ -704,7 +690,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 }
 ```
 
-> 内置块（text/reasoning/plan/tool/approval/question）在 `plugins/builtin/chat/message/ui/` 内部直渲（`renderBlock` switch）；扩展块（第三方 / `preview-blocks`）才走 typed content-block extension point。
+> 内置协议块（text/reasoning/plan/tool/approval/question）在 `plugins/builtin/chat/message/ui/` 内部直渲（`renderBlock` switch）；可拆卸功能块（如 `preview-blocks`）才走 typed content-block extension point。
 
 ---
 
@@ -716,29 +702,28 @@ declare module "@/plugins/sdk/types/contentBlock" {
 - **Agent projection 只有一个作者**——live fold 与 durable snapshot 投影共享规则；
   render 不回写 store，跨 context 只调用 Agent `public/` command/read model。
 - **components 不直连后端**——只经 context public facade / store selector / SDK selector，**禁** import `@/main` / `@/rpc`（`check:layers` 强制）。
-- **插件资源归结构化 lifetime**——setup 中用 `ctx.cleanup`，composition root 只停止自己持有的 exact Host / Platform generation。
+- **插件资源归结构化 lifetime**——setup 中用 `ctx.cleanup`，composition root 只停止自己持有的 exact Host generation。
 - **协议是唯一 outbound 边界**——不在 UI/store 里直接 `fetch` / 开 SSE / 调 IPC，都走 `rpc/`。
 - **交互语义只向外组合**——Base UI / 原生标签只在 primitives；业务 UI 只用 atoms /
   agent primitives，复合内容用 `Pressable` 而不是反向撤销 `Button` 样式。
-- **API breaking 改动碰 `apiVersion.ts`**——破坏 Host 接口/spec 形状的改动 bump major。
 
 ---
 
 ## 11. 进一步的阅读路径
 
-| 想了解                           | 先看                                                                                        |
-| -------------------------------- | ------------------------------------------------------------------------------------------- |
-| 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                                                          |
-| 视觉规范 / 颜色 / 排版           | `frontend/DESIGN.md`                                                                        |
-| 后端给什么数据 / 每个字段要表达什么（自包含，可给外部人看） | `frontend/CONTENT_RENDERING.md`                                     |
-| 协议 method 表 / envelope / 语义 | `app/runtime/doc/API.md` + `app/runtime/doc/AUX_API.md`                                     |
-| transport / handshake / 错误码   | `app/runtime/doc/TRANSPORT.md`                                                              |
-| 插件 context / shell contracts  | `src/plugins/sdk/definePlugin.ts` + `src/plugins/sdk/services.ts`                            |
-| 协议 fold                        | `src/plugins/builtin/agent/application/fold/reducer.ts` + `builtin/agent/application/fold/` |
-| 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                                              |
-| Agent Session driver / recovery  | `src/plugins/builtin/agent/adapters/useAgentSession.ts`                                     |
-| Run tree read model / commands   | `src/plugins/builtin/agent/application/run/` + `src/plugins/builtin/agent/public/run.ts`    |
-| 主题如何注册                     | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`                                    |
+| 想了解                                                      | 先看                                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 决策透镜 / 工程约定 / 反向不变量                            | 仓库根 `CLAUDE.md`                                                                          |
+| 视觉规范 / 颜色 / 排版                                      | `frontend/DESIGN.md`                                                                        |
+| 后端给什么数据 / 每个字段要表达什么（自包含，可给外部人看） | `frontend/CONTENT_RENDERING.md`                                                             |
+| 协议 method 表 / envelope / 语义                            | `app/runtime/doc/API.md` + `app/runtime/doc/AUX_API.md`                                     |
+| transport / handshake / 错误码                              | `app/runtime/doc/TRANSPORT.md`                                                              |
+| 插件 context / shell contracts                              | `src/plugins/sdk/definePlugin.ts` + `src/plugins/sdk/services.ts`                           |
+| 协议 fold                                                   | `src/plugins/builtin/agent/application/fold/reducer.ts` + `builtin/agent/application/fold/` |
+| 一个完整内置插件                                            | `src/plugins/builtin/agent/rpc-agent/index.ts`                                              |
+| Agent Session driver / recovery                             | `src/plugins/builtin/agent/adapters/useAgentSession.ts`                                     |
+| Run tree read model / commands                              | `src/plugins/builtin/agent/application/run/` + `src/plugins/builtin/agent/public/run.ts`    |
+| 主题如何注册                                                | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`                                    |
 
 ---
 

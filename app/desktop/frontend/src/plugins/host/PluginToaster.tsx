@@ -3,9 +3,8 @@
 // the de-facto Tailwind community choice for toasts (Linear / Vercel /
 // Resend / shadcn default).
 //
-// We keep this as a separate component (not part of the SDK) so the SDK
-// surface is event-only — third-party plugins don't depend on React's
-// portal / motion machinery.
+// We keep this as a separate component (not part of the SDK) so notification
+// producers do not depend on React's portal / motion machinery.
 
 import type { PluginToastDetail } from "../sdk/hostToast";
 import { useEffect } from "react";

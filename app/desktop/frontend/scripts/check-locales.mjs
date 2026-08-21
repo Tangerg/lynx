@@ -54,8 +54,8 @@
 //  11. No copy inside a component. A view is the right ring for words, but a
 //      literal there still bypasses all eight catalogs, and twenty-six had: five
 //      tool previews' placeholders, four overflow footers, a diagnostics panel's
-//      title / description / signal switch, the plugin boundary's error line, the
-//      sideload hint, the loader's screen-reader label. Three shapes are checked —
+//      title / description / signal switch, the plugin boundary's error line, and
+//      the loader's screen-reader label. Three shapes are checked —
 //      a text node of two or more words, a text node that mixes an expression
 //      with words ("{count} more"), and a string-valued prop that reads as a
 //      sentence. Single tokens are NOT caught: a regex can't tell the `esc` on a

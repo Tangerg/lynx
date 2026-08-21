@@ -3,7 +3,7 @@ import App from "./App";
 import { disposeContainer, initializeDesktopHost } from "./main/container";
 import { DesktopRenderer } from "./main/renderer";
 import { applyWindowChrome, watchWindowChrome } from "./main/windowChrome";
-import { configureHostTeardown, publishHostBridge } from "./plugins/host/hostBridge";
+import { disposeOnHmr } from "./lib/hmr";
 // Fonts: the native OS stack (SF Pro / PingFang on macOS) — see globals.css
 // --font-sans. No bundled webfont; the system face is the premium, native
 // default, loads instantly, and renders mixed CJK best.
@@ -37,14 +37,13 @@ const renderer = new DesktopRenderer({
   },
 });
 
-configureHostTeardown(() => {
+const teardown = () => {
   void renderer.dispose().catch((error: unknown) => {
     console.error("[desktop] teardown failed:", error);
   });
-});
-// Install the bridge and its one beforeunload listener before asynchronous
-// bootstrap. PluginProvider republishes the same idempotent bridge after mount.
-publishHostBridge();
+};
+window.addEventListener("beforeunload", teardown);
+disposeOnHmr(() => window.removeEventListener("beforeunload", teardown));
 
 void renderer.start().catch((error: unknown) => {
   console.error("[desktop] startup failed:", error);

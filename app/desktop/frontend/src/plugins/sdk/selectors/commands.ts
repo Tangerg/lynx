@@ -2,10 +2,6 @@
 // lookups for error attribution. Plain reads (a single command / shortcut by id)
 // go through the generic substrate: `lookupExtensionByKey(COMMAND, id)`,
 // `useExtensionPoint(SHORTCUT)`, etc.
-//
-// A not-yet-activated plugin's commands need no special case here: its
-// placeholder contributes them like any other, and activating replaces the
-// contribution.
 
 import { useMemo } from "react";
 import type { CommandSpec, SlashCommandSpec } from "../types";
@@ -27,9 +23,8 @@ export function lookupCommandOwner(id: string): string | undefined {
 }
 
 /**
- * Run a command by id — the imperative cross-plugin call. A placeholder's `run`
- * triggers its own activation, so this needs no branch for it. Warns and no-ops
- * when nothing matches; args forward to the command's `run`.
+ * Run a command by id — the imperative cross-plugin call. Warns and no-ops when
+ * nothing matches; args forward to the command's `run`.
  */
 export function executeCommand(id: string, ...args: unknown[]): Promise<void> {
   const command = lookupExtensionByKey(COMMAND, id);

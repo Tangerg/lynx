@@ -12,7 +12,6 @@ import {
 import { AgentComposerSurface } from "@/ui/agent";
 import { FileMentionPopup } from "./FileMentionPopup";
 import { useT } from "@/lib/i18n";
-import { COMPOSER_ATTACHMENT_SOURCE, useExtensionPoint } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { ComposerAttachments } from "./ComposerAttachments";
 import { ComposerImageDrop } from "./ComposerImageDrop";
@@ -53,7 +52,6 @@ export function Composer({
 }: Props) {
   const t = useT();
   const recordHistory = useRecordComposerHistory();
-  const attachmentSources = useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
   const input = useComposerInputController({
     value,
     onChange,
@@ -79,7 +77,6 @@ export function Composer({
       )}
       <div className="pt-[var(--density-composer-editor-top)] pr-[var(--density-composer-editor-end)] pb-[var(--density-composer-editor-bottom)] pl-[var(--density-composer-editor-start)]">
         <ComposerAttachments
-          sources={attachmentSources}
           images={images}
           pastes={pastes}
           value={value}

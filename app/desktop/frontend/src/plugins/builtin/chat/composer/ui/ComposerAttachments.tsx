@@ -1,16 +1,11 @@
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
-import type { IconName } from "@/ui";
-import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
 import { AnimatePresence, motion } from "motion/react";
 import { chipPresence } from "@/lib/motion";
 import { Chip, Icon, IconButton, Tooltip } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { draftMentions, removeMention } from "../application/draftContext";
 
-type AttachmentSource = ComposerAttachmentSourceSpec;
-
 interface Props {
-  sources: AttachmentSource[];
   images: ComposerImage[];
   pastes: PastedText[];
   /** The draft, for the files it references. */
@@ -21,7 +16,6 @@ interface Props {
 }
 
 export function ComposerAttachments({
-  sources,
   images,
   pastes,
   value,
@@ -31,7 +25,6 @@ export function ComposerAttachments({
 }: Props) {
   return (
     <>
-      <PluginAttachments sources={sources} />
       <DraftContext value={value} onChange={onChange} />
       {/* These arrive and leave because the USER put them there and took them away,
           which is the one thing presence animation is for.
@@ -101,36 +94,6 @@ function DraftContext({ value, onChange }: { value: string; onChange: (v: string
 function basename(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut >= 0 ? path.slice(cut + 1) : path;
-}
-
-function PluginAttachments({ sources }: { sources: AttachmentSource[] }) {
-  if (sources.length === 0) return null;
-  return (
-    <div className="flex flex-wrap gap-1.5 pb-0.5 pt-1">
-      {sources.map((source) => (
-        <SourceChips key={source.id} source={source} />
-      ))}
-    </div>
-  );
-}
-
-// Each contributed source runs its hook inside its own component, so a buggy
-// attachment source is isolated to that one chip group.
-function SourceChips({ source }: { source: AttachmentSource }) {
-  const items = source.useAttachments();
-  return (
-    <>
-      {items.map((attachment) => (
-        <Chip
-          key={`${source.id}:${attachment.id ?? attachment.label}`}
-          icon={(attachment.icon as IconName | undefined) ?? "file"}
-          title={attachment.label}
-        >
-          {attachment.label}
-        </Chip>
-      ))}
-    </>
-  );
 }
 
 function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () => void }) {

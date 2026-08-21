@@ -19,28 +19,20 @@ export {
   contributionsTo,
   subscribeContributions,
   useContributions,
-  useInstalledPluginRecords,
   useInstalledPlugins,
   useKernelRevision,
 } from "./kernel";
-export type { InstalledPlugin, PluginOrigin } from "./kernel";
-export { COMMANDS, CONFIG, I18N, PLUGINS, WINDOW, WORKSPACE } from "./services";
+export { COMMANDS, CONFIG, I18N, WINDOW, WORKSPACE } from "./services";
 export type {
   AmbientShell,
   CommandsService,
   ConfigService,
   I18nService,
-  PluginsService,
   WindowService,
   WorkspaceService,
 } from "./services";
 
-// Open extension points — the JetBrains-style substrate: a plugin defines a
-// typed point, any plugin contributes, any plugin consumes.
-export { defineExtensionPoint } from "./contracts";
-// Built-in kernel points (COLOR_THEME / COMMAND / LAYOUT_SLOT / …). Re-exported so
-// sideload bundles — which only see the SDK via `window.__LYRA__.SDK` — can
-// contribute to kernel surfaces, the same way built-ins do via the deep path.
+// Built-in kernel points (COLOR_THEME / COMMAND / LAYOUT_SLOT / …).
 export * from "./kernelPoints";
 
 // Plugin error aggregation.
@@ -129,10 +121,7 @@ export type {
   AgentRunOptionsProviderSpec,
   AgentRunStartOptions,
   AgentSourceSpec,
-  BeforeUnloadHandler,
   CommandSpec,
-  ComposerAttachment,
-  ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
   ComposerKeyContext,
   ComposerSubmitModeContext,

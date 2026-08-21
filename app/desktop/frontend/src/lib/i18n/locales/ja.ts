@@ -296,14 +296,8 @@ export const ja: Record<string, string> = {
   "plugins.errors": "{{count}} 件のエラー",
   "plugins.clear": "クリア",
   "plugins.copyError": "エラーをコピー",
-  "plugins.origin.builtin": "組み込み",
-  "plugins.origin.builtin.title": "Lyra に同梱",
-  "plugins.origin.sideload": "サイドロード",
-  "plugins.origin.sideload.title": "ユーザーがインストール",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> の描画に失敗しました。",
   "plugins.mainView": "メインビュー",
-  "plugins.sideload":
-    "<code>{{file}}</code> を含むプラグインフォルダーを <code>{{dir}}</code> に置き、アプリを再起動するとサイドロードされます。テンプレートは <code>{{sample}}</code> を参照してください。",
 
   "connection.error.invalidUrl": "無効な URL",
   "shape.radius.aria": "角丸",

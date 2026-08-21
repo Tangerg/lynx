@@ -64,17 +64,10 @@ export interface WorkspaceService {
 
 export interface CommandsService {
   /**
-   * Run a command by id — the lightweight cross-plugin call. Activates a lazy
-   * command first; warns and no-ops on an unknown id.
+   * Run a command by id — the lightweight cross-plugin call. Warns and no-ops
+   * on an unknown id.
    */
   execute(id: string, ...args: unknown[]): Promise<void>;
-}
-
-export interface PluginsService {
-  /** Names of the plugins currently installed. */
-  list(): ReadonlyArray<string>;
-  /** Remove one, by name. No-op if it isn't installed. */
-  remove(name: string): Promise<void>;
 }
 
 export const CONFIG = service<ConfigService>("lyra.shell.config");
@@ -82,7 +75,6 @@ export const I18N = service<I18nService>("lyra.shell.i18n");
 export const WINDOW = service<WindowService>("lyra.shell.window");
 export const WORKSPACE = service<WorkspaceService>("lyra.shell.workspace");
 export const COMMANDS = service<CommandsService>("lyra.shell.commands");
-export const PLUGINS = service<PluginsService>("lyra.shell.plugins");
 
 /** The ambient half, bound per plugin by `definePlugin` — all three carry the
  *  plugin's identity, so there is no provider to declare. */

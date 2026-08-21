@@ -1,7 +1,7 @@
 // Read side of the plugin registry. Plain reads (a list / one item by key) use
 // the generic substrate below; this barrel only adds the selectors with real
-// logic on top of it (declared-merge, weighted-random, priority pick, cached
-// sub-index, owner attribution).
+// logic on top of it (weighted-random, priority pick, cached sub-index, owner
+// attribution).
 
 // Open extension points — the one read API for plain reads (kernel + plugins).
 export {
@@ -12,8 +12,7 @@ export {
   useExtensionPoint,
 } from "./extensions";
 
-// Palette commands (registered + declared merge) + slash-command pairing +
-// owner attribution.
+// Palette commands + slash-command pairing + owner attribution.
 export {
   executeCommand,
   lookupCommandOwner,
@@ -27,8 +26,7 @@ export {
 // StreamEvent handler fan-out (cached sub-index, hit per event).
 export { lookupStreamHandlers } from "./events";
 
-// Layout slot (sub-keyed by slot) + workspace views / settings panes
-// (registered + declared merge).
+// Layout slot (sub-keyed by slot) + workspace views / settings panes.
 export {
   useContextDockDestinations,
   useLayoutSlot,

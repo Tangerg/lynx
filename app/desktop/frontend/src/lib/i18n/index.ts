@@ -8,12 +8,10 @@
 // the plugin store's `locales` registry (read via `useExtensionPoint(LOCALE)` from
 // the SDK), not a hardcoded array here.
 //
-// Locale type is `string` rather than a union because the set of
-// shipped locales is open: a sideloaded plugin can drop a Vietnamese
-// bundle in and the picker shows it. The kernel only knows two things
-// statically — what "English" looks like (the bootstrap dict so first
-// paint always has strings) and how to detect the user's preferred
-// locale from `navigator.language`.
+// Locale type stays `string` because selection and browser preference are
+// runtime values. The kernel knows statically what "English" looks like (the
+// bootstrap dict so first paint always has strings) and how to detect the
+// user's preferred locale from `navigator.language`.
 
 import i18next from "i18next";
 import { initReactI18next, useTranslation } from "react-i18next";

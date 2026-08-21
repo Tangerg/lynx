@@ -297,14 +297,8 @@ export const es: Record<string, string> = {
   "plugins.errors": "{{count}} error(es)",
   "plugins.clear": "Borrar",
   "plugins.copyError": "Copiar error",
-  "plugins.origin.builtin": "Integrado",
-  "plugins.origin.builtin.title": "Incluido con Lyra",
-  "plugins.origin.sideload": "Sideload",
-  "plugins.origin.sideload.title": "Instalado por el usuario",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> no se pudo renderizar.",
   "plugins.mainView": "vista principal",
-  "plugins.sideload":
-    "Para cargar un plugin, coloca una carpeta con <code>{{file}}</code> en <code>{{dir}}</code> y reinicia la app. Tienes una plantilla en <code>{{sample}}</code>.",
 
   "connection.error.invalidUrl": "URL no válida",
   "shape.radius.aria": "Radio de esquina",

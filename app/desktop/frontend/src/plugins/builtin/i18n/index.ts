@@ -1,6 +1,5 @@
-// Every built-in language, each its own plugin so a third party can ship
-// Vietnamese / Arabic / … the same way. English's dictionary is bootstrapped by
-// `lib/i18n.ts` for first paint, but its plugin still registers the picker entry.
+// Every bundled language is its own plugin. English's dictionary is bootstrapped
+// by `lib/i18n.ts` for first paint, but its plugin still registers the picker entry.
 
 import type { AnyPlugin } from "dougong";
 import {

@@ -1,9 +1,8 @@
 // Extension points, as Contract tokens.
 //
 // A point is a dougong `ExtensionPoint` token plus the policy the old kernel used
-// to enforce around it: which capability a sideloaded plugin needs before it may
-// contribute, how a contribution's domain key is derived, and how that key is
-// normalized so a registration and a lookup of the same combo agree.
+// to enforce around it: how a contribution's domain key is derived, and how
+// that key is normalized so a registration and a lookup of the same combo agree.
 //
 // The token carries a `Contribution<T>` envelope rather than the bare item,
 // because Core keys a contribution by its OWNER — `plugin:installation/key` — a
@@ -19,7 +18,6 @@
 // contribution it shadowed comes back, where before it had been destroyed.
 
 import { extensionPoint } from "dougong";
-import type { HostCapability } from "./types/common";
 import type { ExtensionKeying, ExtensionPoint } from "./types/extensions";
 
 /**
@@ -41,10 +39,9 @@ export interface Contribution<T> {
 // the second definition would read the first's contributions as its own.
 const taken = new Set<string>();
 
-export interface ExtensionPointSpec<T> {
+interface ExtensionPointSpec<T> {
   readonly id: string;
   readonly keying: ExtensionKeying;
-  readonly capability?: HostCapability;
   readonly keyOf?: (item: T) => string;
   readonly normalizeKey?: (key: string) => string;
 }

@@ -428,14 +428,8 @@ export const zh: Record<string, string> = {
   "plugins.errors": "{{count}} 个错误",
   "plugins.clear": "清除",
   "plugins.copyError": "复制错误",
-  "plugins.origin.builtin": "内置",
-  "plugins.origin.builtin.title": "随 Lyra 一同发布",
-  "plugins.origin.sideload": "旁加载",
-  "plugins.origin.sideload.title": "用户安装",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> 渲染失败。",
   "plugins.mainView": "主视图",
-  "plugins.sideload":
-    "将包含 <code>{{file}}</code> 的插件目录放入 <code>{{dir}}</code> 并重启应用即可旁加载。模板见 <code>{{sample}}</code>。",
 
   "connection.error.invalidUrl": "无效的 URL",
   "shape.radius.aria": "圆角",

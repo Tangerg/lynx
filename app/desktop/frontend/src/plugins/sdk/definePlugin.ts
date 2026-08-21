@@ -3,8 +3,8 @@
 // A thin layer over Core's `definePlugin`, and it earns its keep by owning
 // exactly one thing: `contribute`. Core's is `contribute(token, key, value)`,
 // where `key` is a raw string it then qualifies with the owner. Ours takes a
-// point HANDLE and applies the policy that handle carries — the capability gate,
-// the key derivation (`opts.key` → `point.keyOf` → `item.id`), the key
+// point HANDLE and applies the policy that handle carries — the key derivation
+// (`opts.key` → `point.keyOf` → `item.id`), the key
 // normalizer — and stores the result in the envelope the read side needs. Doing
 // that at the call site 146 times is how the policy stops being a policy.
 //
@@ -29,7 +29,7 @@ import { notifyFrom } from "./notifications";
 import type { AmbientShell } from "./services";
 import { startTask } from "@/state/tasksStore";
 import { createStorage } from "./storage";
-import type { HostCapability, Disposable } from "./types/common";
+import type { Disposable } from "./types/common";
 import type { ExtensionContributionOptions, ExtensionPoint } from "./types/extensions";
 import type { NotificationLevel, TaskStartOptions } from "./types/infra";
 
@@ -55,11 +55,6 @@ export interface PluginSpec<
 > {
   /** Unique identifier. Built-ins use the `lyra.builtin.*` namespace. */
   readonly name: string;
-  /**
-   * Capability whitelist. When present, `contribute` only accepts points whose
-   * `capability` is listed. Omit for full access (built-ins).
-   */
-  readonly capabilities?: ReadonlyArray<HostCapability>;
   readonly requires?: Requires;
   readonly provides?: Provides;
   readonly setup: (
@@ -93,22 +88,12 @@ function domainKey<T>(
   return point.normalizeKey ? point.normalizeKey(key) : key;
 }
 
-function createContribute(
-  ctx: ContractContext<Requirements>,
-  name: string,
-  capabilities: ReadonlyArray<HostCapability> | undefined,
-) {
+function createContribute(ctx: ContractContext<Requirements>, name: string) {
   return <T>(
     point: ExtensionPoint<T>,
     item: T,
     opts?: ExtensionContributionOptions,
   ): Disposable => {
-    if (capabilities && point.capability && !capabilities.includes(point.capability)) {
-      throw new Error(
-        `[plugin] ${name}: contributing to "${point.id}" needs capability ` +
-          `"${point.capability}" — add it to spec.capabilities`,
-      );
-    }
     const key = domainKey(point, item, opts);
     const envelope: Contribution<T> = { key, order: opts?.order, plugin: name, item };
     return ctx.contribute(point.token, key, envelope);
@@ -121,11 +106,10 @@ function createContribute(
 function bindContext<Requires extends Requirements>(
   ctx: ContractContext<Requires>,
   name: string,
-  capabilities: ReadonlyArray<HostCapability> | undefined,
 ): PluginContext<Requires> {
   const wrapped = {
     ...ctx,
-    contribute: createContribute(ctx as ContractContext<Requirements>, name, capabilities),
+    contribute: createContribute(ctx as ContractContext<Requirements>, name),
     notify: (message: string, level: NotificationLevel = "info") =>
       notifyFrom(name, message, level),
     storage: createStorage(name),
@@ -142,7 +126,7 @@ export function definePlugin<Requires extends Requirements = {}, Provides extend
     name: spec.name,
     ...(spec.requires ? { requires: spec.requires } : {}),
     ...(spec.provides ? { provides: spec.provides } : {}),
-    setup: (ctx) => spec.setup(bindContext(ctx, spec.name, spec.capabilities)) as never,
+    setup: (ctx) => spec.setup(bindContext(ctx, spec.name)) as never,
   });
 }
 

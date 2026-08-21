@@ -12,7 +12,6 @@
 
 import type { ExtensionPoint as ContractToken } from "dougong";
 import type { Contribution } from "../contracts";
-import type { HostCapability } from "./common";
 
 /** How a point resolves two contributions that claim the same domain key. */
 export type ExtensionKeying =
@@ -49,17 +48,6 @@ export interface ExtensionPoint<T> {
    * lookups agree.
    */
   readonly normalizeKey?: (key: string) => string;
-  /**
-   * Capability a plugin must hold to contribute here — the permission gate for
-   * sideloaded plugins. Kernel points carry their domain capability
-   * (COLOR_THEME → "theme"); a plugin's own points omit it, since contributing
-   * to your own point needs no kernel permission. Plugins with no declared
-   * capability set (built-ins) skip the check.
-   *
-   * Enforced by our `contribute`, not by the platform layer: `PermissionSet`
-   * authorizes a manifest once at registration and never sees a contribution.
-   */
-  readonly capability?: HostCapability;
 }
 
 /** Per-contribution options passed to `contribute`. */

@@ -15,8 +15,6 @@ function hostBinding(
   const defaults: Record<string, () => Promise<unknown>> = {
     [BOOTSTRAP]: async () => ({
       localRuntime: { endpoint: "http://127.0.0.1:17171" },
-      sideloadedPlugins: [],
-      sideloadIssues: [],
     }),
     [CHOOSE_WORKING_DIRECTORY]: async () => "/tmp/project",
     [SAVE_IMAGE]: async () => true,
@@ -41,15 +39,12 @@ describe("DesktopHostClient", () => {
     const binding = hostBinding({
       [BOOTSTRAP]: async () => ({
         localRuntime: { endpoint: "http://127.0.0.1:17171", localToken: "token" },
-        sideloadedPlugins: [{ id: "acme.tools", source: "export default {};" }],
-        sideloadIssues: [],
       }),
     });
     const client = createDesktopHostClient(binding);
 
     await expect(client.bootstrap()).resolves.toMatchObject({
       localRuntime: { localToken: "token" },
-      sideloadedPlugins: [{ id: "acme.tools" }],
     });
     await client.bootstrap();
     expect(binding.call).toHaveBeenCalledTimes(1);

@@ -295,14 +295,8 @@ export const zhTW: Record<string, string> = {
   "plugins.errors": "{{count}} 個錯誤",
   "plugins.clear": "清除",
   "plugins.copyError": "複製錯誤",
-  "plugins.origin.builtin": "內建",
-  "plugins.origin.builtin.title": "隨 Lyra 一同發布",
-  "plugins.origin.sideload": "旁載入",
-  "plugins.origin.sideload.title": "使用者安裝",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> 算繪失敗。",
   "plugins.mainView": "主檢視",
-  "plugins.sideload":
-    "將含有 <code>{{file}}</code> 的外掛資料夾放入 <code>{{dir}}</code> 並重新啟動應用程式即可側載。範本請見 <code>{{sample}}</code>。",
 
   "connection.error.invalidUrl": "無效的 URL",
   "shape.radius.aria": "圓角",

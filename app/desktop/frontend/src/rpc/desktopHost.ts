@@ -6,20 +6,8 @@ export interface LocalRuntimeConnection {
   localToken?: string;
 }
 
-export interface SideloadedPlugin {
-  id: string;
-  source: string;
-}
-
-export interface SideloadIssue {
-  id: string;
-  detail: string;
-}
-
 export interface DesktopBootstrap {
   localRuntime: LocalRuntimeConnection;
-  sideloadedPlugins: SideloadedPlugin[];
-  sideloadIssues: SideloadIssue[];
 }
 
 /**
@@ -87,8 +75,6 @@ const DesktopBootstrapSchema = z.object({
     endpoint: z.url(),
     localToken: z.string().min(1).optional(),
   }),
-  sideloadedPlugins: z.array(z.object({ id: z.string().min(1), source: z.string().min(1) })),
-  sideloadIssues: z.array(z.object({ id: z.string().min(1), detail: z.string().min(1) })),
 });
 
 /**

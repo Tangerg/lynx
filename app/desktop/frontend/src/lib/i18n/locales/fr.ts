@@ -300,14 +300,8 @@ export const fr: Record<string, string> = {
   "plugins.errors": "{{count}} erreur(s)",
   "plugins.clear": "Effacer",
   "plugins.copyError": "Copier l'erreur",
-  "plugins.origin.builtin": "Intégré",
-  "plugins.origin.builtin.title": "Fourni avec Lyra",
-  "plugins.origin.sideload": "Sideload",
-  "plugins.origin.sideload.title": "Installé par l'utilisateur",
   "plugins.renderFailed": "<strong>{{plugin}}</strong> n'a pas pu s'afficher.",
   "plugins.mainView": "vue principale",
-  "plugins.sideload":
-    "Pour charger un plug-in, placez un dossier contenant <code>{{file}}</code> dans <code>{{dir}}</code> puis redémarrez l'application. Un modèle est disponible dans <code>{{sample}}</code>.",
 
   "connection.error.invalidUrl": "URL invalide",
   "shape.radius.aria": "Rayon des coins",
