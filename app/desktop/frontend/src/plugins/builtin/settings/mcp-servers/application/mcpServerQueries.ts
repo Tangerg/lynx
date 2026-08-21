@@ -31,8 +31,6 @@ export interface MCPServerSettings {
   toolCount?: number;
 }
 
-export type MCPServerSummary = MCPServerSettings;
-
 export interface MCPToolSummary {
   name: string;
   description: string;

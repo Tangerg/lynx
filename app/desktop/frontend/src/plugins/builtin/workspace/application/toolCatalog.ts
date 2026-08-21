@@ -4,7 +4,7 @@ import { TOOL_FAMILIES, TOOL_ICON_BY_NAME, toolFamilyId } from "@/lib/toolFamili
 import {
   useMCPServers,
   useMCPTools,
-  type MCPServerSummary,
+  type MCPServerSettings,
 } from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
 import { useWorkspaceBuiltinTools, type BuiltinToolSummary } from "./workspaceQueries";
 
@@ -35,7 +35,7 @@ export interface BuiltinToolCatalogViewModel {
 }
 
 export interface ToolCatalogViewModel {
-  mcpServers: MCPServerSummary[];
+  mcpServers: MCPServerSettings[];
   activeMcpServerCount: number;
   configuredMcpServerCount: number;
 }
@@ -61,7 +61,7 @@ export function useMCPServerToolConfigs(server: string) {
   return useMCPTools({ server });
 }
 
-export function toolCatalogViewModel(servers: readonly MCPServerSummary[]): ToolCatalogViewModel {
+export function toolCatalogViewModel(servers: readonly MCPServerSettings[]): ToolCatalogViewModel {
   let activeMcpServerCount = 0;
   for (const server of servers) {
     if (server.status === "connected") {

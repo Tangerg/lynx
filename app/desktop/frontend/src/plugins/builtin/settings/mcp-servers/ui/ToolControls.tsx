@@ -15,7 +15,7 @@
 
 import { DataView, Switch } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { useMCPServerTools } from "../application/mcpServerTools";
+import { useMCPTools } from "../application/mcpServerQueries";
 
 interface Props {
   server: string;
@@ -26,7 +26,7 @@ interface Props {
 
 export function ToolControls({ server, disabledTools, autoApproveTools, onChange }: Props) {
   const t = useT();
-  const { data, isLoading, isError } = useMCPServerTools(server);
+  const { data, isLoading, isError } = useMCPTools({ server });
 
   const disabled = new Set(disabledTools);
   const autoApprove = new Set(autoApproveTools);

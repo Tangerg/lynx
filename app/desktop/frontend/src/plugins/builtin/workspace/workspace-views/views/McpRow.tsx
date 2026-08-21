@@ -8,7 +8,7 @@ import { notifyError } from "@/plugins/sdk";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/classNames";
 import {
-  type MCPServerSummary,
+  type MCPServerSettings,
   mcpServerMutationWasRetired,
   reconnectMCPServer,
 } from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
@@ -19,7 +19,7 @@ import { useMCPServerToolConfigs } from "@/plugins/builtin/workspace/application
 // until the owner repairs that projection; connecting → terminal remains the
 // Runtime event stream's authoritative state (§5.2).
 // i18n key → pill classes. Labels are resolved at render via t().
-const STATUS_CLASSES: Record<MCPServerSummary["status"], { key: string; classes: string }> = {
+const STATUS_CLASSES: Record<MCPServerSettings["status"], { key: string; classes: string }> = {
   disabled: { key: "tools.status.off", classes: "bg-surface-2 text-fg-faint" },
   connecting: {
     key: "tools.status.connecting",
@@ -77,7 +77,7 @@ function McpAuthGuide({ server }: { server: string }) {
   );
 }
 
-export function McpRow({ server }: { server: MCPServerSummary }) {
+export function McpRow({ server }: { server: MCPServerSettings }) {
   const t = useT();
   const pill = STATUS_CLASSES[server.status];
   const reconnectingRef = useRef(false);

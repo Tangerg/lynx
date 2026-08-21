@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MCPServerSummary } from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
+import type { MCPServerSettings } from "@/plugins/builtin/settings/mcp-servers/public/serverCatalog";
 import { notifyError } from "@/plugins/sdk";
 import { McpRow } from "./McpRow";
 
@@ -62,7 +62,7 @@ describe("McpRow", () => {
   });
 });
 
-function server(overrides: Partial<MCPServerSummary> = {}): MCPServerSummary {
+function server(overrides: Partial<MCPServerSettings> = {}): MCPServerSettings {
   return {
     id: "cloud",
     name: "Cloud",
