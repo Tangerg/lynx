@@ -144,6 +144,7 @@ export function ChatPanel({ onSend }: Props) {
   const dockOpen =
     hasDockOwner && dock.open && dock.activeViewId !== null && dock.viewIds.length > 0;
   const ownedDockViewIds = hasDockOwner ? dock.viewIds : [];
+  const shellVisible = !isLoading || activeMainView !== null || dock.open;
 
   // Codex folds its panel when the window cannot keep both work surfaces
   // operable. The existing navigation owner performs that fold here, so tab
@@ -162,9 +163,9 @@ export function ChatPanel({ onSend }: Props) {
     const observer = new ResizeObserver(reconcile);
     observer.observe(row);
     return () => observer.disconnect();
-  }, [dockOpen]);
+  }, [dockOpen, shellVisible]);
 
-  if (isLoading && !activeMainView && !dock.open) return null;
+  if (!shellVisible) return null;
 
   const viewsById = new Map(views.map((view) => [view.id, view]));
 

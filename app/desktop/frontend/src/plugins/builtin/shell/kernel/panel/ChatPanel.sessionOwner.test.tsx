@@ -145,7 +145,10 @@ describe("ChatPanel Session-owned workspace view state", () => {
     model.isLoading = false;
     view.rerender(<ChatPanel onSend={() => true} />);
 
-    expect(screen.getByRole("button", { name: "Widen the window to open the right workspace" }))
-      .toBeDisabled();
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Widen the window to open the right workspace",
+      }).disabled,
+    ).toBe(true);
   });
 });
