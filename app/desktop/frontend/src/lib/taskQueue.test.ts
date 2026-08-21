@@ -1,68 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  createKeyedSerialTaskQueue,
-  createSerialTaskQueue,
-  RetirableTaskCohort,
-} from "./taskQueue";
+import { describe, expect, it } from "vitest";
+import { RetirableTaskCohort } from "./taskQueue";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((settle, fail) => {
+  const promise = new Promise<T>((settle) => {
     resolve = settle;
-    reject = fail;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve };
 }
 
-describe("task queues and cohorts", () => {
-  it("runs tasks in submission order", async () => {
-    const first = deferred<string>();
-    const second = vi.fn().mockResolvedValue("second");
-    const queue = createSerialTaskQueue();
-
-    const firstResult = queue.run(() => first.promise);
-    const secondResult = queue.run(second);
-    await Promise.resolve();
-    expect(second).not.toHaveBeenCalled();
-
-    first.resolve("first");
-    await expect(firstResult).resolves.toBe("first");
-    await expect(secondResult).resolves.toBe("second");
-  });
-
-  it("continues after a task fails", async () => {
-    const first = deferred<string>();
-    const second = vi.fn().mockResolvedValue("second");
-    const queue = createSerialTaskQueue();
-
-    const firstResult = queue.run(() => first.promise);
-    const secondResult = queue.run(second);
-    first.reject(new Error("failed"));
-
-    await expect(firstResult).rejects.toThrow("failed");
-    await expect(secondResult).resolves.toBe("second");
-  });
-
-  it("serializes equal keys without blocking independent keys", async () => {
-    const firstA = deferred<string>();
-    const secondA = vi.fn().mockResolvedValue("second-a");
-    const firstB = vi.fn().mockResolvedValue("first-b");
-    const queue = createKeyedSerialTaskQueue<string>();
-
-    const firstAResult = queue.run("a", () => firstA.promise);
-    const secondAResult = queue.run("a", secondA);
-    const firstBResult = queue.run("b", firstB);
-    await Promise.resolve();
-    expect(secondA).not.toHaveBeenCalled();
-    expect(firstB).toHaveBeenCalledTimes(1);
-
-    firstA.resolve("first-a");
-    await expect(firstAResult).resolves.toBe("first-a");
-    await expect(secondAResult).resolves.toBe("second-a");
-    await expect(firstBResult).resolves.toBe("first-b");
-  });
-
+describe("retirable task cohort", () => {
   it("retires only pending cohort settlements and ignores non-cooperative late results", async () => {
     const retired = new Error("generation retired");
     const cohort = new RetirableTaskCohort(retired);

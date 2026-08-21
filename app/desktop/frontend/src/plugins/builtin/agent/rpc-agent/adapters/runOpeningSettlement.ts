@@ -236,20 +236,3 @@ export function createRunOpeningSettler(): RunOpeningSettler {
     },
   };
 }
-
-/**
- * Settle one replayable streaming opening without conflating its handshake
- * deadline with the accepted stream's lifetime.
- *
- * Runtime owns same-key replay; this Adapter owns the product deadline. A
- * timed-out first delivery is ambiguous, so the second delivery reuses the
- * original MutationPromise identity with a fresh signal. The budget is finite:
- * a second timeout returns to the opening controller and releases its latch.
- */
-export async function settleRunOpening<T>(
-  open: (signal: AbortSignal) => MutationPromise<T>,
-  parent?: AbortSignal,
-  timeoutMs: number = RUN_OPENING_ATTEMPT_TIMEOUT_MS,
-): Promise<T> {
-  return createRunOpeningSettler().settle("unscoped", open, parent, timeoutMs);
-}

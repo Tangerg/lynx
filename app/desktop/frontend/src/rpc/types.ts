@@ -66,11 +66,7 @@ export interface RpcErrorPayload {
 // number: the numeric space is the runtime's to assign, it has retired codes and
 // left holes, and a mirror of it here is a second copy of a table that only one
 // side edits. Use errorType(err.data) to branch; use lib/rpcErrors for words.
-export const RPC_PARSE_ERROR = -32700;
-export const RPC_INVALID_REQUEST = -32600;
 export const RPC_METHOD_NOT_FOUND = -32601;
-export const RPC_INVALID_PARAMS = -32602;
-export const RPC_INTERNAL_ERROR = -32603;
 
 // Read the stable symbolic error name from an RPCError.data.type (§8.2).
 // This is the canonical way to branch on errors — never compare codes.

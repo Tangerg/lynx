@@ -248,8 +248,16 @@ export function runtimeInterrupt(interrupt: Interrupt): AgentInterrupt {
   switch (interrupt.type) {
     case "approval":
       return {
-        ...interrupt,
-        payload: { ...interrupt.payload, tool: runtimeTool(interrupt.payload.tool) },
+        type: "approval",
+        itemId: interrupt.itemId,
+        runId: interrupt.runId,
+        payload: {
+          ...(interrupt.payload.reason !== undefined ? { reason: interrupt.payload.reason } : {}),
+          ...(interrupt.payload.rememberable !== undefined
+            ? { rememberable: interrupt.payload.rememberable }
+            : {}),
+          tool: runtimeTool(interrupt.payload.tool),
+        },
       };
     case "question":
       return {

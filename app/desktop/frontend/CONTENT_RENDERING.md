@@ -845,23 +845,18 @@ interface BlockCtx {
 
 ---
 
-### 4.8 审批卡
+### 4.8 审批请求
 
 **位置** D3。
 **何时** `segment.finished{outcome:{type:"interrupt"}}` 里带 `approval`。此时 Run 已转 `waiting`，资源全释放。
 
 ```
-┌─ 需要你批准 ─────────────────────────── [risk] ─┐
-│ [icon] 执行命令                                  │
+┌─ Shell command ──────────────────────────────────┐
+│ 清理构建产物                     ← payload.reason│
 │                                                  │
 │   $ rm -rf ./dist                                │
 │                                                  │
-│ ⚠ 递归删除                        ← 客户端启发式 │
-│ 原因：清理构建产物                ← payload.reason│
-│                                                  │
-│ ▸ 参数（可编辑）                  ← 仅部分工具   │
-│                                                  │
-│ [拒绝]  [批准]        □ 以后都这样 ▾（会话/项目/全局）│
+│ [拒绝]  [允许一次]  [允许此会话/项目/全局]       │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -870,19 +865,17 @@ interface BlockCtx {
 | `payload.tool.name` | 标题（"执行命令" / 工具名） | 卡头 |
 | `payload.tool.arguments.command` | `$ cmd` 行（mono，**不截断**） | 卡身 |
 | `payload.reason` | 原因句 | 命令下方 |
-| `payload.risk` | 风险标（low/medium/high） | 卡头右 |
-| `payload.rememberable` | 是否显示"以后都这样" | 卡脚 |
+| `payload.rememberable` | 是否提供明确的 Session / Project / Global allow action | 卡脚 |
 | 派生 `args` | 可编辑参数区（**只对自由形态工具开放**） | 卡身可折叠区 |
-| 派生 危险提示 | 客户端正则启发式，与后端 `risk` **相互独立** | 命令下方 |
 | `itemId` | React key + resume 关联键 | — |
 
-**客户端危险启发式**（漏判只是少个横幅，误判只是多个横幅）：递归删除 `rm -rf` · 提权 `sudo`/`doas` · 管道进 shell `curl … | sh` · 覆写设备 `dd of=` · 格式化 `mkfs` · 全局可写 `chmod 777` · fork 炸弹 · 裸盘写 · 强制推送 `git push -f`。
+客户端只呈现 Runtime 提供的工具身份、原因和调用 material，不从命令文本推断危险等级、权限或可逆性。只有用户明确选择 scoped allow 时才提交 remember scope；拒绝和允许一次不携带 scope。
 
 **渲染要求**
 
 - Fold 可以同时保留同一调用的 ToolCall 与 approval block；当两者 `itemId` 完全相同且双方状态均为 `requires-action` 时，presentation planner 只渲染 approval request，不能再画一条重复命令的透明工具行。审批结算后该条件自然失效，历史 ToolCall 恢复；不得通过删除 Fold 事实、匹配命令文案或 CSS 隐藏实现去重。
 - 三态：**待决**（阻塞视线）→ **已批准** / **已拒绝**（收成一行记录留在 transcript 里）。
-- **React key 必须是 `itemId`**，不能是数组下标 —— 卡持有本地草稿（记忆勾选、编辑过的参数），下标 key 会把上一个 interrupt 的草稿泄漏给下一个。
+- **React key 必须是 `itemId`**，不能是数组下标 —— 卡持有本地参数草稿，下标 key 会把上一个 interrupt 的草稿泄漏给下一个。
 - 重连 / 重放再看到同一个 interrupt 要 **upsert 重申**同一张卡，不能追加第二张。
 - 「以后都这样」的记忆键是**模型可见名** —— 塌名的两个 MCP 工具会共享一条规则，UI 不要假装能区分。
 
@@ -2188,10 +2181,9 @@ interface Page<T> { data: T[]; nextCursor?: string }
 
 | # | 位置 | 现状 | 真值 |
 | --- | --- | --- | --- |
-| D9 | 视图模型 approval 块 | 声明了 `scope` / `target` / `reversible` | fold 从不设置它们（协议的审批载荷只有 `tool`/`reason`/`risk`/`rememberable`）→ 推测性占位 |
 | D10 | 前端错误文案表 + 八份 locale | 为 `no_language_server` / `is_a_directory` / `file_too_large` 备了文案 | 这三个**不在协议的 `ProblemData` 联合里**（历史遗留）→ 24 条（3 × 8 语言）不可达文案 |
 
-**处理原则**：D9–D10 需从独立反例与爆炸半径开始。涉及公开形状的删除必须先取得显式授权。
+**处理原则**：D10 需从独立反例与爆炸半径开始。涉及公开形状的删除必须先取得显式授权。
 
 ---
 

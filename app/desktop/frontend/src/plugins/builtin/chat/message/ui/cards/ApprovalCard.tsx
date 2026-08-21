@@ -1,9 +1,6 @@
 import { toolCategory, type BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { type ApprovalDecision, type RememberScope } from "@/plugins/builtin/agent/public/hitl";
-import {
-  approvalSettledDecision,
-  type ApprovalRisk,
-} from "@/plugins/builtin/agent/public/messagePresentation";
+import { approvalSettledDecision } from "@/plugins/builtin/agent/public/messagePresentation";
 import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 import { useT } from "@/lib/i18n";
 import { Button, Divider, DropdownMenu, Icon, Surface, type IconName } from "@/ui";
@@ -31,17 +28,8 @@ interface Props {
   /** Tool arguments about to be executed. When present, the user may edit them
    *  before approving (approve-with-modified-args, §4.3). */
   args?: Record<string, unknown>;
-  /** Runtime-owned metadata retained in the published block shape. The Codex
-   *  request surface does not turn it into a client-authored risk claim. */
-  risk?: ApprovalRisk;
   /** Whether this approval may create a standing allow rule. */
   rememberable?: boolean;
-  /** Existing block-shape metadata retained for compatibility. These values do
-   *  not enter the Codex approval hierarchy because the Runtime reason and
-   *  exact call material are the authoritative facts shown to the user. */
-  scope?: string[];
-  target?: string;
-  reversible?: boolean;
 }
 
 const REMEMBER_ACTIONS: readonly {

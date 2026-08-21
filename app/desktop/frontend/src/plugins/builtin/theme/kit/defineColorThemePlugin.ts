@@ -14,15 +14,7 @@ import { COLOR_THEME } from "@/plugins/sdk/kernelPoints";
 import { colorThemeContribution } from "./colorThemeContribution";
 import type { ColorThemePluginSpec } from "./types";
 
-export type {
-  ThemeBorders,
-  ThemeBrand,
-  ThemeCta,
-  ThemeInk,
-  ColorThemePluginSpec,
-  ThemeSemantic,
-  ThemeSurfaces,
-} from "./types";
+export type { ColorThemePluginSpec } from "./types";
 
 export function defineColorThemePlugin(spec: ColorThemePluginSpec): AnyPlugin {
   const theme = colorThemeContribution(spec);

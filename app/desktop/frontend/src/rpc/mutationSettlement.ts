@@ -232,15 +232,3 @@ export function createUnaryMutationSettler(): UnaryMutationSettler {
     },
   };
 }
-
-/**
- * Give one replayable unary command a finite product deadline. Runtime owns
- * same-key idempotency; this transport helper owns two bounded delivery
- * attempts and never manufactures a second logical command.
- */
-export async function settleUnaryMutation<T>(
-  open: (signal: AbortSignal) => MutationPromise<T>,
-  timeoutMs: number = UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
-): Promise<T> {
-  return createUnaryMutationSettler().settle("unscoped", open, timeoutMs);
-}

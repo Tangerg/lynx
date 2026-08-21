@@ -524,7 +524,6 @@ describe("reducer — HITL interrupt", () => {
             type: "approval",
             payload: {
               tool: { name: "fs.write", arguments: { path: "/etc/hosts" } },
-              risk: "high",
               rememberable: false,
             },
           },
@@ -537,7 +536,6 @@ describe("reducer — HITL interrupt", () => {
       kind: "approval",
       command: "",
       args: { path: "/etc/hosts" },
-      risk: "high",
       rememberable: false,
     });
   });

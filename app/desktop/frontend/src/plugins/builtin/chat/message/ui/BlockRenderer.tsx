@@ -110,11 +110,7 @@ export function renderBlock(
           itemId={block.itemId}
           decision={block.decision}
           args={block.args}
-          risk={block.risk}
           rememberable={block.rememberable}
-          scope={block.scope}
-          target={block.target}
-          reversible={block.reversible}
         />
       );
 

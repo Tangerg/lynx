@@ -7,7 +7,6 @@ import type {
   AgentSafetyClass,
   AgentMessagePhase,
 } from "./agentSessionView";
-import type { AgentApprovalRisk } from "./contentBlock";
 
 /** Product-owned message input observed from an Agent run. */
 export type AgentMessagePart =
@@ -133,7 +132,6 @@ export type AgentInterrupt =
       payload: {
         reason?: string;
         rememberable?: boolean;
-        risk?: AgentApprovalRisk;
         tool: AgentToolInvocation;
       };
     }

@@ -3,7 +3,6 @@ import { RpcTransportError } from "./errors";
 import type { MutationPromise } from "./mutation";
 import {
   createUnaryMutationSettler,
-  settleUnaryMutation,
   UnaryMutationSettlementClosedError,
 } from "./mutationSettlement";
 
@@ -16,7 +15,7 @@ function resolvedMutation<T>(value: T): MutationPromise<T> {
   });
 }
 
-describe("settleUnaryMutation", () => {
+describe("unary mutation settlement", () => {
   it("replays a timed-out attempt with the same logical mutation", async () => {
     vi.useFakeTimers();
     const retry = vi.fn((_options?: { signal?: AbortSignal }) => resolvedMutation("committed"));
@@ -29,7 +28,7 @@ describe("settleUnaryMutation", () => {
       ),
     );
 
-    const result = settleUnaryMutation(open, 10);
+    const result = createUnaryMutationSettler().settle("test:timeout-replay", open, 10);
     await vi.advanceTimersByTimeAsync(10);
 
     await expect(result).resolves.toBe("committed");
@@ -49,7 +48,7 @@ describe("settleUnaryMutation", () => {
     mutation = Object.assign(ignored, { idempotencyKey: "same-key", retry });
     const open = vi.fn(() => mutation);
 
-    const result = settleUnaryMutation(open, 10);
+    const result = createUnaryMutationSettler().settle("test:ignored-abort", open, 10);
     const settlement = result.then(
       () => null,
       (error: unknown) => error,

@@ -15,9 +15,7 @@ type ActivityTone = "neutral" | "warning" | "negative";
 //   card     Fill and the card corner.
 //   flagged  A card plus the tone's edge for "this is waiting on you".
 //            Deliberately NOT a filled tone band
-//            across the header, which is what both references do: we would then
-//            have three spellings of one boundary — that band, this edge, and
-//            ApprovalCard's `bg-<tone>-wash` strip.
+//            across the header, which would duplicate the status edge.
 
 type ActivityLeading = { icon: IconName; leading?: never } | { icon?: never; leading: ReactNode };
 

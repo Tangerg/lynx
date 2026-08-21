@@ -48,7 +48,6 @@ export function materializeInterrupt(
       command: tool ? commandString(tool) : "",
       reason: interrupt.payload.reason ?? "",
       args: tool ? editableArgs(tool) : undefined,
-      risk: interrupt.payload.risk,
       rememberable: interrupt.payload.rememberable ?? false,
     };
     const withBlock = appendToTurn(

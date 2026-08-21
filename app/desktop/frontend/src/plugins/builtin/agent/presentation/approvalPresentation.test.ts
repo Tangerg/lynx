@@ -1,46 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  approvalReversibilityView,
-  approvalRiskView,
-  approvalScopeViews,
-  approvalSettledDecision,
-  canSubmitApproval,
-  type ApprovalTone,
-} from "../public/messagePresentation";
+import { approvalSettledDecision, canSubmitApproval } from "../public/messagePresentation";
 
 describe("approvalPresentation", () => {
-  it("defaults unknown approval risk to medium caution", () => {
-    expect(approvalRiskView()).toEqual({
-      risk: "medium",
-      labelKey: "approval.risk.medium",
-      tone: "warning",
-    });
-  });
-
-  it("maps scopes to presentation tones", () => {
-    const views = approvalScopeViews(["read", "write", "delete", "custom"]);
-    const tones: ApprovalTone[] = views.map((view) => view.tone);
-    expect(views).toEqual([
-      { scope: "read", tone: "neutral" },
-      { scope: "write", tone: "warning" },
-      { scope: "delete", tone: "danger" },
-      { scope: "custom", tone: "neutral" },
-    ]);
-    expect(tones).toEqual(["neutral", "warning", "danger", "neutral"]);
-  });
-
-  it("projects reversibility hints", () => {
-    expect(approvalReversibilityView(true)).toEqual({
-      labelKey: "approval.reversible",
-      tone: "neutral",
-    });
-    expect(approvalReversibilityView(false)).toEqual({
-      labelKey: "approval.permanent",
-      tone: "danger",
-    });
-    expect(approvalReversibilityView(undefined)).toBeNull();
-  });
-
   it("prefers completed decisions over pending decisions", () => {
     expect(approvalSettledDecision("complete", "approved", "declined")).toBe("approved");
     expect(approvalSettledDecision("requires-action", undefined, "declined")).toBe("declined");

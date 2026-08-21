@@ -6,7 +6,6 @@
 // read model.
 
 export type BlockStatus = "running" | "complete" | "incomplete" | "requires-action";
-export type AgentApprovalRisk = "low" | "medium" | "high";
 
 export interface QuestionOption {
   label: string;
@@ -50,11 +49,7 @@ export interface BuiltinContentBlockMap {
     runId?: string;
     decision?: "approved" | "declined";
     args?: Record<string, unknown>;
-    risk?: AgentApprovalRisk;
     rememberable?: boolean;
-    scope?: string[];
-    target?: string;
-    reversible?: boolean;
   };
   question: {
     kind: "question";

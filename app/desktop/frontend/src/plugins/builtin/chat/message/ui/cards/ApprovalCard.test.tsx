@@ -51,7 +51,7 @@ describe("ApprovalCard actions", () => {
     ]);
   });
 
-  it("uses the Codex request hierarchy without local risk or danger chrome", () => {
+  it("uses the Codex request hierarchy without local danger chrome", () => {
     const { container } = render(
       <ApprovalCard
         status="requires-action"
@@ -60,7 +60,6 @@ describe("ApprovalCard actions", () => {
         toolName="shell"
         cmd="rm -rf node_modules && pnpm install"
         reason="Reinstall dependencies from the lockfile."
-        risk="high"
         rememberable
       />,
     );
@@ -71,7 +70,6 @@ describe("ApprovalCard actions", () => {
       screen.getByText("Reinstall dependencies from the lockfile.", { exact: true }),
     ).toBeTruthy();
     expect(screen.queryByText("Approval required", { exact: true })).toBeNull();
-    expect(screen.queryByText("High risk", { exact: true })).toBeNull();
     expect(screen.queryByText(/Potentially destructive/)).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
   });

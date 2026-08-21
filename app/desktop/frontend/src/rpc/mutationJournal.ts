@@ -12,7 +12,6 @@ import { mutationSettlementIsUnknown, type MutationPromise } from "./mutation";
 
 export {
   MutationJournalCapacityError,
-  MutationJournalError,
   MutationJournalOwnershipError,
   MutationJournalScopeUnavailableError,
   MutationJournalStorageError,

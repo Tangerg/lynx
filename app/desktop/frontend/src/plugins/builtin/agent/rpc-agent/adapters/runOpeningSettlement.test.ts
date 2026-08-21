@@ -1,16 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcTransportError, type MutationAttemptOptions, type MutationPromise } from "@/rpc";
-import { createRunOpeningSettler, settleRunOpening } from "./runOpeningSettlement";
+import { createRunOpeningSettler } from "./runOpeningSettlement";
 
 afterEach(() => vi.useRealTimers());
 
 describe("run opening settlement", () => {
   it("retries a timed-out opening with the same identity and a fresh signal", async () => {
     vi.useFakeTimers();
+    const settler = createRunOpeningSettler();
     const signals: AbortSignal[] = [];
     const keys: string[] = [];
     let execution = 0;
-    const opening = settleRunOpening(
+    const opening = settler.settle(
+      "test:timeout-replay",
       (signal) =>
         replayableMutation(async (key, attempt) => {
           keys.push(key);
@@ -30,13 +32,16 @@ describe("run opening settlement", () => {
     expect(signals[0]?.aborted).toBe(true);
     expect(signals[1]).not.toBe(signals[0]);
     expect(signals[1]?.aborted).toBe(false);
+    settler.dispose();
   });
 
   it("releases the winning deadline without releasing parent stream ownership", async () => {
     vi.useFakeTimers();
+    const settler = createRunOpeningSettler();
     const parent = new AbortController();
     let winningSignal: AbortSignal | undefined;
-    const opening = settleRunOpening(
+    const opening = settler.settle(
+      "test:parent-lifetime",
       (signal) =>
         replayableMutation(async (_key, attempt) => {
           winningSignal = attempt.signal;
@@ -52,14 +57,17 @@ describe("run opening settlement", () => {
 
     parent.abort();
     expect(winningSignal?.aborted).toBe(true);
+    settler.dispose();
   });
 
   it("does not retry when the session owner cancels the opening", async () => {
     const parent = new AbortController();
+    const settler = createRunOpeningSettler();
     const execute = vi.fn(async (_key: string, attempt: { signal?: AbortSignal }) =>
       rejectWhenAborted(attempt.signal!),
     );
-    const opening = settleRunOpening(
+    const opening = settler.settle(
+      "test:parent-cancel",
       (signal) => replayableMutation(execute, signal),
       parent.signal,
       1_000,
@@ -68,14 +76,17 @@ describe("run opening settlement", () => {
     parent.abort();
     await expect(opening).rejects.toMatchObject({ name: "AbortError" });
     expect(execute).toHaveBeenCalledOnce();
+    settler.dispose();
   });
 
   it("bounds deadline recovery to two delivery attempts", async () => {
     vi.useFakeTimers();
+    const settler = createRunOpeningSettler();
     const execute = vi.fn(async (_key: string, attempt: { signal?: AbortSignal }) =>
       rejectWhenAborted(attempt.signal!),
     );
-    const opening = settleRunOpening(
+    const opening = settler.settle(
+      "test:finite-budget",
       (signal) => replayableMutation(execute, signal),
       undefined,
       1_000,
@@ -88,10 +99,12 @@ describe("run opening settlement", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     await expect(settlement).resolves.toMatchObject({ name: "TimeoutError" });
     expect(execute).toHaveBeenCalledTimes(2);
+    settler.dispose();
   });
 
   it("settles its finite budget even when the transport ignores cancellation", async () => {
     vi.useFakeTimers();
+    const settler = createRunOpeningSettler();
     let settleIgnored!: (value: string) => void;
     const ignored = new Promise<string>((resolve) => {
       settleIgnored = resolve;
@@ -102,12 +115,13 @@ describe("run opening settlement", () => {
       retry: vi.fn(() => mutation),
     });
 
-    const opening = settleRunOpening(() => mutation, undefined, 1_000);
+    const opening = settler.settle("test:ignored-cancellation", () => mutation, undefined, 1_000);
     const settlement = opening.catch((error: unknown) => error);
     await vi.advanceTimersByTimeAsync(2_000);
 
     await expect(settlement).resolves.toMatchObject({ name: "TimeoutError" });
     expect(mutation.retry).toHaveBeenCalledOnce();
+    settler.dispose();
     settleIgnored("late ignored opening");
     await ignored;
   });

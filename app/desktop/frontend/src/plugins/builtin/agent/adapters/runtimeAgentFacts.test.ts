@@ -206,7 +206,6 @@ describe("Runtime → Agent fact adapter", () => {
           payload: {
             reason: "writes a file",
             rememberable: true,
-            risk: "high",
             tool: { name: "apply_patch", arguments: { patch: "*** Begin Patch\n…" } },
           },
         },

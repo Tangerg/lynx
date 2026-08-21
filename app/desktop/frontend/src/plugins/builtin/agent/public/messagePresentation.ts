@@ -9,15 +9,7 @@ export {
   toolMetaItems,
 } from "../presentation/toolPresentation";
 export type { ToolDetail, ToolIntent, ToolMetaItem } from "../presentation/toolPresentation";
-export {
-  approvalReversibilityView,
-  approvalRiskView,
-  approvalScopeViews,
-  approvalSettledDecision,
-  canSubmitApproval,
-  dangerHints,
-} from "../presentation/approvalPresentation";
-export type { ApprovalRisk, ApprovalTone } from "../presentation/approvalPresentation";
+export { approvalSettledDecision, canSubmitApproval } from "../presentation/approvalPresentation";
 export {
   canSubmitQuestion,
   clearQuestionAnswer,

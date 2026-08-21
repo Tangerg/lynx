@@ -712,7 +712,6 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
               },
               reason: "Run the race detector across the workspace before committing.",
               rememberable: true,
-              risk: "medium",
             },
           },
         ],
@@ -899,7 +898,6 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
             payload: {
               tool: { name: "shell", arguments: { command: "go list -deps ./..." } },
               reason: "Inspect the complete dependency graph.",
-              risk: "low",
             },
           },
         ],
@@ -967,7 +965,6 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
               },
               reason: "rm -rf deletes uncommitted build output and cannot be undone.",
               rememberable: true,
-              risk: "high",
             },
           },
         ],
