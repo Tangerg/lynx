@@ -21,10 +21,9 @@ function snapshot(revision: number): AgentSessionSnapshot {
     items: [],
     runs: [],
     pendingInterruptSets: [],
-    state: {
-      type: "plan",
+    plan: {
       revision,
-      plan: [],
+      steps: [],
     },
   };
 }
@@ -95,11 +94,10 @@ describe("refreshAgentSessionProjection", () => {
     read.resolve(material(snapshot(1), projectCompanion));
     await expect(refreshing).resolves.toMatchObject({
       commandError: null,
-      shared: { plan: { revision: 1 }, companion: "complete" },
+      plan: { revision: 1 },
+      shared: { companion: "complete" },
     });
-    expect(projectCompanion).toHaveBeenCalledWith(
-      expect.objectContaining({ plan: expect.objectContaining({ revision: 1 }) }),
-    );
+    expect(projectCompanion).toHaveBeenCalledWith({});
   });
 
   it("discards an older read when a newer refresh starts", async () => {
@@ -119,13 +117,14 @@ describe("refreshAgentSessionProjection", () => {
     const newerRefresh = refreshAgentSessionProjection(SESSION_ID);
     newer.resolve(material(snapshot(2), projectNewer));
     await expect(newerRefresh).resolves.toMatchObject({
-      shared: { plan: { revision: 2 }, companion: "newer" },
+      plan: { revision: 2 },
+      shared: { companion: "newer" },
     });
     older.resolve(material(snapshot(1), projectOlder));
     await expect(olderRefresh).resolves.toBeNull();
-    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared).toMatchObject({
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view).toMatchObject({
       plan: { revision: 2 },
-      companion: "newer",
+      shared: { companion: "newer" },
     });
     expect(projectNewer).toHaveBeenCalledOnce();
     expect(projectOlder).toHaveBeenCalledOnce();
@@ -164,7 +163,8 @@ describe("refreshAgentSessionProjection", () => {
     await expect(revalidating).resolves.toMatchObject({
       committed: false,
       authoritativeView: {
-        shared: { plan: { revision: 4 }, companion: "authoritative-only" },
+        plan: { revision: 4 },
+        shared: { companion: "authoritative-only" },
       },
     });
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toEqual({
@@ -211,8 +211,7 @@ describe("refreshAgentSessionProjection", () => {
 
     read.resolve(material(snapshot(9), projectCompanion));
     await Promise.resolve();
-    const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
-      { revision?: number } | null | undefined;
+    const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.plan;
     expect(plan?.revision).not.toBe(9);
     expect(projectCompanion).not.toHaveBeenCalled();
   });
@@ -229,8 +228,7 @@ describe("refreshAgentSessionProjection", () => {
     read.resolve(material(snapshot(11), projectCompanion));
 
     await expect(refreshing).resolves.toBeNull();
-    const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
-      { revision?: number } | null | undefined;
+    const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.plan;
     expect(plan?.revision).not.toBe(11);
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.companion).toBeUndefined();
     expect(projectCompanion).toHaveBeenCalledOnce();
@@ -255,14 +253,14 @@ describe("refreshAgentSessionProjection", () => {
     expect(loadSessionSnapshot).toHaveBeenCalledTimes(2);
     successor.resolve(material(snapshot(22)));
     await vi.waitFor(() =>
-      expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan).toMatchObject({
+      expect(useAgentStore.getState().sessions[SESSION_ID]!.view.plan).toMatchObject({
         revision: 22,
       }),
     );
 
     predecessor.resolve(material(snapshot(11)));
     await expect(retiredRead).resolves.toBeNull();
-    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan).toMatchObject({
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.plan).toMatchObject({
       revision: 22,
     });
   });
@@ -282,8 +280,7 @@ describe("refreshAgentSessionProjection", () => {
       read.resolve(material(snapshot(10), projectCompanion));
 
       await expect(refreshing).resolves.toBeNull();
-      const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan as
-        { revision?: number } | null | undefined;
+      const plan = useAgentStore.getState().sessions[SESSION_ID]!.view.plan;
       expect(plan?.revision).not.toBe(10);
       expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.companion).toBeUndefined();
       expect(projectCompanion).toHaveBeenCalledOnce();

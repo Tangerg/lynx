@@ -65,15 +65,11 @@ func walkWireTypes(registry *operation.Registry, shapes *dispatch.Shapes) *schem
 	for _, constraint := range shapes.Constraints() {
 		set.walk(constraint.GoType)
 	}
-	// These two, by contrast, are reachable from NOTHING else — a carried shape rides
-	// outside typed params and a state key's value rides an untyped map — so without
-	// the declarations the published contract would simply omit them. Concrete tool
-	// results are walked from toolset's own presentation contracts above.
+	// Carried shapes, by contrast, are reachable from nothing else because they ride
+	// outside typed params. Concrete tool results are walked from toolset's own
+	// presentation contracts above.
 	for _, carried := range shapes.Carried() {
 		set.walk(carried.GoType)
-	}
-	for _, key := range shapes.StateKeys() {
-		set.walk(key.PayloadType)
 	}
 	return set
 }

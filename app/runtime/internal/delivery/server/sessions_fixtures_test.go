@@ -184,7 +184,7 @@ type stubRuntime struct {
 	runs        *sqlite.RunStore          // durable Run records (rollback/fork read runs)
 	goals       *sqlite.GoalStore         // autonomous objective included in mounted material reads
 	toolResults *sqlite.ToolResultStore
-	plan        *sqlite.PlanStore                   // session-scoped state: exported, restored, dropped with the session
+	plan        *sqlite.PlanStore                   // exported, restored, and dropped with the Session
 	interrupts  *persistence.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *persistence.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	execution   executionRuntime

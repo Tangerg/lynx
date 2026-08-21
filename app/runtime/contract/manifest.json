@@ -2088,7 +2088,7 @@
       "replayable": true
     },
     {
-      "type": "state.snapshot",
+      "type": "plan.updated",
       "authoritative": true,
       "replayable": true
     }
@@ -2114,7 +2114,7 @@
       "type": "runs.changed"
     },
     {
-      "type": "state.changed"
+      "type": "plan.changed"
     },
     {
       "type": "goals.changed"
@@ -2181,18 +2181,6 @@
       "toolName": "web_search",
       "schema": {
         "$ref": "schema.json#/$defs/WebSearchResult"
-      }
-    }
-  ],
-  "statePolicy": [
-    {
-      "key": "plan",
-      "recoveryMethod": "plan.get",
-      "scope": "session",
-      "writer": "rootRun",
-      "feature": "plan",
-      "payload": {
-        "$ref": "schema.json#/$defs/StateSnapshot"
       }
     }
   ],
@@ -2660,18 +2648,6 @@
       ]
     },
     {
-      "type": "ArtifactState",
-      "discriminator": "type",
-      "variants": [
-        {
-          "tag": "plan",
-          "required": [
-            "plan"
-          ]
-        }
-      ]
-    },
-    {
       "type": "Item",
       "discriminator": "type",
       "variants": [
@@ -2810,29 +2786,6 @@
           "tag": "runtimeTopic",
           "required": [
             "name"
-          ]
-        },
-        {
-          "tag": "stateSnapshot",
-          "required": [
-            "name"
-          ]
-        }
-      ]
-    },
-    {
-      "type": "StateSnapshot",
-      "discriminator": "type",
-      "variants": [
-        {
-          "tag": "plan",
-          "required": [
-            "sessionId",
-            "revision",
-            "plan"
-          ],
-          "optional": [
-            "updatedAt"
           ]
         }
       ]
@@ -3192,9 +3145,9 @@
           ]
         },
         {
-          "tag": "state.snapshot",
+          "tag": "plan.updated",
           "required": [
-            "state"
+            "plan"
           ]
         }
       ],
@@ -3264,14 +3217,12 @@
           ]
         },
         {
-          "tag": "state.changed",
+          "tag": "plan.changed",
           "required": [
-            "sequence",
-            "key"
+            "sequence"
           ],
           "optional": [
-            "sessionIds",
-            "runIds"
+            "sessionIds"
           ]
         },
         {
@@ -4344,11 +4295,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(21)"
+          "constraint": "minimum(22)"
         },
         {
           "field": "version",
-          "constraint": "maximum(21)"
+          "constraint": "maximum(22)"
         }
       ]
     },
@@ -5585,7 +5536,7 @@
       "shape": "RunEvent"
     },
     {
-      "file": "state.snapshot.json",
+      "file": "plan.updated.json",
       "shape": "RunEvent"
     },
     {
@@ -5741,7 +5692,7 @@
       "shape": "RuntimeEvent"
     },
     {
-      "file": "rtevent.state-changed.json",
+      "file": "rtevent.plan-changed.json",
       "shape": "RuntimeEvent"
     },
     {

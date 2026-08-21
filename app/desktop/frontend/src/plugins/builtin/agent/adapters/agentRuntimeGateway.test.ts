@@ -221,11 +221,11 @@ describe("agentRuntimeGateway", () => {
         items: [],
         runs: [],
         interrupts: [],
-        state: {
-          type: "plan",
+        plan: {
           sessionId: "ses_1",
           revision: 4,
-          plan: [{ id: "step_1", description: "Verify boundaries", status: "in_progress" }],
+          steps: [{ id: "step_1", description: "Verify boundaries", status: "in_progress" }],
+          updatedAt: "2026-08-17T00:00:00Z",
         },
         goal: {
           sessionId: "ses_1",
@@ -248,10 +248,9 @@ describe("agentRuntimeGateway", () => {
       const snapshot = await agentRuntime().loadSessionSnapshot("ses_1");
 
       expect(readSnapshot).toHaveBeenCalledWith(asSessionId("ses_1"), supported, undefined);
-      expect(snapshot?.snapshot.state).toEqual({
-        type: "plan",
+      expect(snapshot?.snapshot.plan).toEqual({
         revision: 4,
-        plan: [{ id: "step_1", text: "Verify boundaries", status: "active" }],
+        steps: [{ id: "step_1", text: "Verify boundaries", status: "active" }],
       });
       expect(stageMaterial).toHaveBeenCalledWith(
         "ses_1",

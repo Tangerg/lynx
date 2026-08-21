@@ -136,7 +136,6 @@ describe("createLyraClient", () => {
     const capabilities = {
       runEvents: [],
       runtimeTopics: [],
-      stateSnapshots: [],
       streamingMethods: [],
       features: {
         subagents: {

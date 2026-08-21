@@ -68,7 +68,7 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 			Preview: encoded.Preview, Body: encoded.Body, CreatedAt: encoded.CreatedAt,
 		})
 	}
-	plan, err := portablePlanFromArtifact(art.States)
+	plan, err := portablePlanFromArtifact(art.Plan)
 	if err != nil {
 		return sessions.PortableSnapshot{}, err
 	}
@@ -81,33 +81,19 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 	}, nil
 }
 
-// portablePlanFromArtifact reads the archived Plan. The states array is a MAP
-// of keys to values, so a repeated key is refused rather than resolved by order:
-// two answers to "what was the Plan" is not a list the import may pick from.
-func portablePlanFromArtifact(states []protocol.ArtifactState) ([]plan.Step, error) {
-	var steps []plan.Step
-	seen := make(map[protocol.ArtifactStateType]bool, len(states))
-	for index, state := range states {
-		path := fmt.Sprintf("artifact.states[%d]", index)
-		if seen[state.Type] {
-			return nil, invalidArtifact(path+".type", "repeats state key %q", state.Type)
+// portablePlanFromArtifact reads the archived Plan. The artifact carries the one
+// product value directly, so there is no key union or duplicate-key precedence rule.
+func portablePlanFromArtifact(entries []protocol.PlanStep) ([]plan.Step, error) {
+	steps := make([]plan.Step, 0, len(entries))
+	for index, entry := range entries {
+		status, known := planStatusFromWire(entry.Status)
+		if !known {
+			return nil, invalidArtifact(fmt.Sprintf("artifact.plan[%d].status", index),
+				"unknown value %q", entry.Status)
 		}
-		seen[state.Type] = true
-		switch state.Type {
-		case protocol.ArtifactStatePlan:
-			for stepIndex, entry := range state.Plan {
-				status, known := planStatusFromWire(entry.Status)
-				if !known {
-					return nil, invalidArtifact(fmt.Sprintf("%s.plan[%d].status", path, stepIndex),
-						"unknown value %q", entry.Status)
-				}
-				steps = append(steps, plan.Step{
-					Description: entry.Description, Status: status,
-				})
-			}
-		default:
-			return nil, invalidArtifact(path+".type", "unknown value %q", state.Type)
-		}
+		steps = append(steps, plan.Step{
+			Description: entry.Description, Status: status,
+		})
 	}
 	return steps, nil
 }

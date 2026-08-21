@@ -29,9 +29,8 @@ func (c *Coordinator) publishRunsMoved(sessionID string, copied []run.Run) {
 	})
 }
 
-// publishStateMoved reports a committed session-scoped state projection — the value
-// a fork seeded, or the one a rollback republished.
-func (c *Coordinator) publishStateMoved(sessionIDs ...string) {
+// publishPlanMoved reports the Plan a fork seeded or a rollback republished.
+func (c *Coordinator) publishPlanMoved(sessionIDs ...string) {
 	c.invalidations.Notify(invalidation.InSessions(invalidation.PlanState, sessionIDs...))
 }
 

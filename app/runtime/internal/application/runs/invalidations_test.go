@@ -164,12 +164,12 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 	}
 	sawSnapshot := false
 	for event := range result.Events {
-		if _, ok := event.Payload.(StateSnapshot); ok {
+		if _, ok := event.Payload.(PlanSnapshot); ok {
 			sawSnapshot = true
 		}
 	}
 	if !sawSnapshot {
-		t.Fatal("the run stream carried no state snapshot; the fixture proves nothing about the notice beside it")
+		t.Fatal("the run stream carried no Plan; the fixture proves nothing about the notice beside it")
 	}
 	if got := invalidations.count(invalidation.PlanState); got != 0 {
 		t.Fatalf("run projection published %d Plan notices; application/plans owns them", got)

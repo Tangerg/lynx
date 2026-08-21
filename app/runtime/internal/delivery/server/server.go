@@ -5,11 +5,11 @@ package server
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -303,24 +303,29 @@ func capabilitiesFor(
 	idempotency protocol.IdempotencyLimits,
 	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits,
 ) protocol.ServerCapabilities {
+	runEvents := []protocol.StreamEventType{
+		protocol.StreamSegmentStarted,
+		protocol.StreamSegmentProgress,
+		protocol.StreamSegmentFinished,
+		protocol.StreamItemStarted,
+		protocol.StreamItemDelta,
+		protocol.StreamItemCompleted,
+	}
+	if features.plan {
+		runEvents = append(runEvents, protocol.StreamPlanUpdated)
+	}
+	runtimeTopics := protocol.RuntimeTopics()
+	if !features.plan {
+		runtimeTopics = slices.DeleteFunc(runtimeTopics, func(topic protocol.RuntimeTopic) bool {
+			return topic == protocol.TopicPlanChanged
+		})
+	}
 	return protocol.ServerCapabilities{
-		RunEvents: []protocol.StreamEventType{
-			protocol.StreamSegmentStarted,
-			protocol.StreamSegmentProgress,
-			protocol.StreamSegmentFinished,
-			protocol.StreamItemStarted,
-			protocol.StreamItemDelta,
-			protocol.StreamItemCompleted,
-			protocol.StreamStateSnapshot,
-		},
+		RunEvents: runEvents,
 		// The subscribable topics, read from the one closed list the subscribe request
 		// is validated against. A second list here is how discovery comes to offer a
 		// topic the runtime then refuses.
-		RuntimeTopics: protocol.RuntimeTopics(),
-		// Only the state keys THIS build both writes and can serve a cold read for: a
-		// client builds a projection for an advertised key, and a key it could not
-		// recover would leave that projection stale with no way back.
-		StateSnapshots: advertisedStateSnapshots(features.plan),
+		RuntimeTopics: runtimeTopics,
 		// The two bounds a client cannot discover by trying: what a reconnect can expect
 		// to get back, and how wide one subscription may be.
 		Limits: protocol.RuntimeLimits{
@@ -367,30 +372,6 @@ func capabilitiesFor(
 			protocol.FeatureSubagents:   true,
 		}),
 	}
-}
-
-// advertisedStateSnapshots publishes the state keys this composition actually serves.
-// A key is advertised only when its feature is on: the registry says a key exists and
-// names its cold read, but whether THIS build writes it is a composition fact, and a
-// client that built a projection for a key nothing writes would hold an empty value it
-// could never explain.
-//
-// The registry's own scope and writer travel with each entry, unchanged. An SDK reads
-// them to pick its reducer identity — a session-scoped key is one value per session,
-// not one per run — instead of assuming every state belongs to the current run.
-func advertisedStateSnapshots(plan bool) []protocol.StateSnapshotCapability {
-	enabled := map[string]bool{protocol.FeaturePlan: plan}
-	out := make([]protocol.StateSnapshotCapability, 0, len(dispatch.WireShapes().StateKeys()))
-	for _, key := range dispatch.WireShapes().StateKeys() {
-		if !enabled[key.Feature] {
-			continue
-		}
-		out = append(out, protocol.StateSnapshotCapability{
-			Key: protocol.StateSnapshotType(key.Key), RecoveryMethod: key.RecoveryMethod,
-			Scope: protocol.StateSnapshotScope(key.Scope), Writer: protocol.StateSnapshotWriter(key.Writer),
-		})
-	}
-	return out
 }
 
 // advertisedFeatures joins each published feature with this composition's answer

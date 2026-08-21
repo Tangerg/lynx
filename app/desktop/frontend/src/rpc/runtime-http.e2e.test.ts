@@ -2144,14 +2144,9 @@ for await (const line of lines) {
     expect(jsonExport.artifact).toMatchObject({
       session: { id: source.id, title: "HTTP transfer lifecycle" },
       runs: [{ id: first.result.runId }, { id: second.result.runId }],
-      states: [
-        {
-          type: "plan",
-          plan: [
-            { description: "Inspect the runtime contract", status: "completed" },
-            { description: "Verify frontend reconciliation", status: "in_progress" },
-          ],
-        },
+      plan: [
+        { description: "Inspect the runtime contract", status: "completed" },
+        { description: "Verify frontend reconciliation", status: "in_progress" },
       ],
     });
     expect(jsonExport.artifact.items.length).toBeGreaterThanOrEqual(5);
@@ -2169,7 +2164,7 @@ for await (const line of lines) {
       "runs.changed",
       "interrupts.changed",
       "goals.changed",
-      "state.changed",
+      "plan.changed",
     ] as const;
     const streamController = new AbortController();
     const subscription = await client.runtimeEvents.subscribe(
@@ -2203,7 +2198,7 @@ for await (const line of lines) {
     expect(rolledRuns.map((run) => run.id)).toEqual([first.result.runId]);
     expect(rolledItems.every((item) => item.runId === first.result.runId)).toBe(true);
     await expect(client.plan.get(asSessionId(source.id))).resolves.toMatchObject({
-      plan: jsonExport.artifact.states?.[0]?.plan,
+      steps: jsonExport.artifact.plan,
     });
 
     const imported = await client.sessions.import(jsonExport.artifact);
@@ -2223,7 +2218,7 @@ for await (const line of lines) {
     expect(restoredRuns.map((run) => run.id)).toEqual([second.result.runId, first.result.runId]);
     expect(restoredItems).toHaveLength(jsonExport.artifact.items.length);
     await expect(client.plan.get(asSessionId(source.id))).resolves.toMatchObject({
-      plan: jsonExport.artifact.states?.[0]?.plan,
+      steps: jsonExport.artifact.plan,
     });
 
     const continued = await client.runs.start({
@@ -2240,7 +2235,7 @@ for await (const line of lines) {
     await runtimeEvents.return?.();
   }, 30_000);
 
-  it("publishes plan state on the stream and through the exact cold read", async () => {
+  it("publishes the Plan on the stream and through the exact cold read", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
     const session = await client.sessions.create({
@@ -2249,7 +2244,7 @@ for await (const line of lines) {
     });
     const streamController = new AbortController();
     const subscription = await client.runtimeEvents.subscribe(
-      { topics: ["state.changed"] },
+      { topics: ["plan.changed"] },
       streamController.signal,
     );
     const runtimeEvents = subscription.events[Symbol.asyncIterator]();
@@ -2261,24 +2256,19 @@ for await (const line of lines) {
     const events = await collectRunEvents(started.events);
     expect(
       events.some(
-        (event) =>
-          event.event.type === "state.snapshot" &&
-          event.event.state.type === "plan" &&
-          event.event.state.plan.length === 2,
+        (event) => event.event.type === "plan.updated" && event.event.plan.steps.length === 2,
       ),
     ).toBe(true);
 
-    const changed = await nextRuntimeEvent(runtimeEvents, "state.changed");
+    const changed = await nextRuntimeEvent(runtimeEvents, "plan.changed");
     expect(changed).toMatchObject({
-      type: "state.changed",
-      key: "plan",
+      type: "plan.changed",
       sessionIds: [session.id],
     });
     await expect(client.plan.get(asSessionId(session.id))).resolves.toMatchObject({
-      type: "plan",
       revision: 1,
       sessionId: session.id,
-      plan: [
+      steps: [
         { description: "Inspect the runtime contract", status: "completed" },
         { description: "Verify frontend reconciliation", status: "in_progress" },
       ],
@@ -4323,10 +4313,9 @@ for await (const line of lines) {
       expect(afterKill.serverInfo.instanceId).not.toBe(beforeKill.serverInfo.instanceId);
       const planSnapshot = await client.sessions.snapshot(asSessionId(planSession.id));
       expect(planSnapshot).toMatchObject({
-        state: {
-          type: "plan",
+        plan: {
           revision: 1,
-          plan: [
+          steps: [
             { description: "Inspect the runtime contract", status: "completed" },
             { description: "Verify frontend reconciliation", status: "in_progress" },
           ],

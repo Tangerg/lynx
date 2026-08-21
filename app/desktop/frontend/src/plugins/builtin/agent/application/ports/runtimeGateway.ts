@@ -2,7 +2,7 @@ import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentItem, AgentPendingInterruptSet, AgentRunFact } from "@/plugins/sdk";
 import type { ApprovalMode } from "../../domain/hitl";
 import type { AgentInput } from "../../domain/input";
-import type { AgentPlanStateSnapshot } from "../../domain/plan";
+import type { AgentPlan } from "@/plugins/sdk/types/agentSessionView";
 
 export type RestoreType = "history" | "files" | "both";
 
@@ -10,7 +10,7 @@ export interface AgentSessionSnapshot {
   items: AgentItem[];
   runs: AgentRunFact[];
   pendingInterruptSets: AgentPendingInterruptSet[];
-  state?: AgentPlanStateSnapshot;
+  plan?: AgentPlan;
 }
 
 /** One authoritative material read plus adapter-owned shared facts derived from

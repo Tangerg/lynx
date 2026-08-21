@@ -102,13 +102,6 @@ func reference(m manifest) string {
 		}
 	}
 
-	b.WriteString("\n## Shared state keys\n\n")
-	b.WriteString("| key | recovery | scope | writer | feature |\n| --- | --- | --- | --- | --- |\n")
-	for _, key := range m.StatePolicy {
-		fmt.Fprintf(&b, "| `%s` | `%s` | %s | %s | `%s` |\n",
-			key.Key, key.RecoveryMethod, key.Scope, key.Writer, key.Feature)
-	}
-
 	b.WriteString("\n## System invariants\n\n")
 	b.WriteString("Cross-resource facts and the transactions responsible for them. Named, not\n")
 	b.WriteString("enforced by a validator — a frame-local check cannot see the whole system.\n\n")

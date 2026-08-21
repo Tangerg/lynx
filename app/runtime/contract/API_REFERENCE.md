@@ -134,7 +134,7 @@ state is still correct (doc/API.md §5.2).
 | `item.started` | yes | yes |
 | `item.delta` | no | no |
 | `item.completed` | yes | yes |
-| `state.snapshot` | yes | yes |
+| `plan.updated` | yes | yes |
 
 ## Discriminated unions
 
@@ -229,12 +229,6 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `canceled` | — | `detail` |
 | `lost` | `error` | — |
 
-### `ArtifactState`
-
-| tag | required | optional |
-| --- | --- | --- |
-| `plan` | `plan` | — |
-
 ### `Item`
 
 | tag | required | optional |
@@ -262,13 +256,6 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `feature` | `name` | — |
 | `interruptType` | `name` | — |
 | `runtimeTopic` | `name` | — |
-| `stateSnapshot` | `name` | — |
-
-### `StateSnapshot`
-
-| tag | required | optional |
-| --- | --- | --- |
-| `plan` | `sessionId`, `revision`, `plan` | `updatedAt` |
 
 ### `ItemListScope`
 
@@ -386,7 +373,7 @@ Forbidden on every variant: `durable`.
 | `item.started` | `item` | — |
 | `item.delta` | `itemId`, `delta` | — |
 | `item.completed` | `item` | — |
-| `state.snapshot` | `state` | — |
+| `plan.updated` | `plan` | — |
 
 ### `RuntimeEvent`
 
@@ -398,7 +385,7 @@ Forbidden on every variant: `durable`.
 | `schedules.changed` | `sequence` | `scheduleIds` |
 | `sessions.changed` | `sequence` | `sessionIds` |
 | `runs.changed` | `sequence` | `runIds`, `sessionIds` |
-| `state.changed` | `sequence`, `key` | `sessionIds`, `runIds` |
+| `plan.changed` | `sequence` | `sessionIds` |
 | `goals.changed` | `sequence` | `sessionIds` |
 | `interrupts.changed` | `sequence` | `runIds`, `sessionIds` |
 | `knowledge.changed` | `sequence` | — |
@@ -464,8 +451,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(21)` |
-| `SessionArtifact` | `version` | `maximum(21)` |
+| `SessionArtifact` | `version` | `minimum(22)` |
+| `SessionArtifact` | `version` | `maximum(22)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRun` | `contextTokens` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
@@ -702,12 +689,6 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `agentMemory.update` | always | `agentMemory` |
 | `agentMemory.delete` | always | `agentMemory` |
 | `agentMemory.add` | always | `agentMemory` |
-
-## Shared state keys
-
-| key | recovery | scope | writer | feature |
-| --- | --- | --- | --- | --- |
-| `plan` | `plan.get` | session | rootRun | `plan` |
 
 ## System invariants
 

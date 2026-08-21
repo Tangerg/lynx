@@ -3,4 +3,4 @@ export {
   registerAgentSessionSharedMaterial,
   useAgentSessionSharedMaterial,
 } from "../application/ports/sessionSharedMaterial";
-export type { AgentSharedMaterial } from "../application/ports/sessionView";
+export type { AgentProjectionMaterial } from "../application/ports/sessionView";

@@ -573,7 +573,7 @@ func TestSessionImportRejectsAFailedRunWithoutItsFailure(t *testing.T) {
 // the imported value as stale.
 func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	s.features.plan = true // this composition owns the key, so it may restore it
+	s.features.plan = true // this composition owns Plan, so it may restore it
 	ctx := t.Context()
 	ses, err := insertSessionFixture(ctx, rt.sess, "planned", t.TempDir())
 	if err != nil {
@@ -591,12 +591,12 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	states := exported.Artifact.States
-	if len(states) != 1 || states[0].Type != protocol.ArtifactStatePlan || len(states[0].Plan) != 2 {
-		t.Fatalf("artifact states = %+v, want the two-step plan", states)
+	archivedPlan := exported.Artifact.Plan
+	if len(archivedPlan) != 2 {
+		t.Fatalf("artifact plan = %+v, want two steps", archivedPlan)
 	}
-	if states[0].Plan[1].Description != "carry the list" || states[0].Plan[1].Status != protocol.PlanStatusInProgress {
-		t.Fatalf("archived plan = %+v, want the in-progress entry verbatim", states[0].Plan[1])
+	if archivedPlan[1].Description != "carry the list" || archivedPlan[1].Status != protocol.PlanStatusInProgress {
+		t.Fatalf("archived plan = %+v, want the in-progress entry verbatim", archivedPlan[1])
 	}
 
 	// The live projection moves on, so the import has something to be newer than.
@@ -660,10 +660,9 @@ func TestSessionImportAdvancesTargetRevision(t *testing.T) {
 	}
 }
 
-// A build that does not own a state key cannot restore it, and importing the
-// conversation while dropping the key would restore a session the archive does not
-// describe. The refusal names the KEY, so the caller learns which one.
-func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
+// A build without Plan cannot restore it, and importing the conversation while
+// dropping the checklist would restore a session the archive does not describe.
+func TestSessionImportRefusesPlanWhenFeatureIsDisabled(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	s.features.plan = false
@@ -677,10 +676,7 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 		Session: protocol.ArtifactSession{
 			ID: ses.ID(), Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.CWD()},
 		},
-		States: []protocol.ArtifactState{{
-			Type: protocol.ArtifactStatePlan,
-			Plan: []protocol.PlanSnapshot{{ID: "0", Description: "plan", Status: protocol.PlanStatusPending}},
-		}},
+		Plan: []protocol.PlanStep{{ID: "0", Description: "plan", Status: protocol.PlanStatusPending}},
 	}
 	_, err = s.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: artifact})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
@@ -691,8 +687,8 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 		t.Fatalf("gap = %+v, want one requirement", gap)
 	}
 	if gap.Requirements[0] != (protocol.CapabilityRequirement{
-		Type: protocol.RequirementStateSnapshot, Name: string(protocol.ArtifactStatePlan),
+		Type: protocol.RequirementFeature, Name: protocol.FeaturePlan,
 	}) {
-		t.Fatalf("requirement = %+v, want the plan state key", gap.Requirements[0])
+		t.Fatalf("requirement = %+v, want the plan feature", gap.Requirements[0])
 	}
 }

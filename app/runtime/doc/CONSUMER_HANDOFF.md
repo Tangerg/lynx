@@ -7,13 +7,13 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-21, during the P138 durable context-footprint audit.
+> Desktop generated consumer: 2026-08-21, during the P140 Plan-contract cutover.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
 
 - Protocol version: exactly `2026-08-21`; there is no compatibility range.
-- Session artifact version: `21`; versions 20 and earlier are rejected before
+- Session artifact version: `22`; every other version is rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`; `go-api.json` freezes the complete public
@@ -29,7 +29,16 @@ The Runtime event vocabulary now contains only the seven variants production
 publishes. The unproduced `custom` RunEvent, its `name`/`payload` fields, the
 disabled `clientTools` feature, and both `toolResult` interrupt/response variants
 are deleted rather than advertised as dormant extension points. Consumers must
-use first-class Item/state/resource contracts for new facts.
+use first-class Item or resource contracts for new facts.
+
+Plan is no longer the sole member of a speculative shared-state registry. The
+only spellings are `plan.updated`, `plan.changed`, `plan.get`,
+`SessionSnapshot.plan`, and `SessionArtifact.plan`; discovery has no
+`stateSnapshots`, RuntimeEvent has no state key, and Artifact v22 has no
+`states[]` union. Consumers must not retain `state.snapshot`, `state.changed`,
+`StateSnapshot`, the old `states[]` archive shape, or a generic shared-state Plan
+reader. Desktop projects the Runtime Plan into the explicit `AgentSessionView.plan`;
+its separate plugin companion-material map is not a protocol-state fallback.
 
 `RunReplayScope` now has the sole value `runtimeInstanceRootSegment`. It means
 that replay is bounded to one Runtime instance and one root Segment; a Runtime
@@ -98,7 +107,7 @@ resolved, preventing duplicate subscriptions during cache catch-up.
 P83-22 adds the stable query `sessions.snapshot`, and P112 extends its existing
 material boundary to the Session Goal. A mounted Session consumer must
 use this single transactionally coherent response for complete Items, durable
-Runs, open Interrupt sets, optional Plan state, and the optional Goal; it must not reconstruct that
+Runs, open Interrupt sets, the optional Plan, and the optional Goal; it must not reconstruct that
 material view with parallel `items.list` / `runs.list` / `interrupts.list` /
 `plan.get` calls or retain that four-read path as a fallback. `includeDescendants`
 has the same `features.subagents` gate as `runs.list`. The consumer commits the
@@ -106,7 +115,7 @@ Goal only when the same snapshot wins the mounted Agent view generation; an
 independent `goals.get` writer remains valid only for an unmounted Goal read.
 
 P138 adds the latest authoritative prompt footprint to durable `RunRef.contextTokens`
-and Session artifact v21. A mounted Desktop consumer still uses live
+and the Session artifact. A mounted Desktop consumer still uses live
 `segment.progress.contextTokens` while a Segment is running, then folds the durable
 Run fact from `sessions.snapshot` after finish, renderer reload, Runtime restart, or
 artifact import. The Session read model selects the newest positive root-run footprint;
@@ -158,7 +167,7 @@ A consumer migration is complete only when it:
 2. sends `protocolVersion: "2026-08-21"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
-4. imports/exports Session artifact v21, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
+4. imports/exports Session artifact v22 with its explicit `plan` field, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
 
 An embedded Go consumer additionally passes an external-module compile test,

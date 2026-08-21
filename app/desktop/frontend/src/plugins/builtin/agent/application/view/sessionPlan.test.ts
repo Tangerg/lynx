@@ -12,7 +12,8 @@ describe("planSteps", () => {
   it("reads the Adapter-owned checklist projection", () => {
     expect(
       planSteps({
-        plan: [
+        revision: 1,
+        steps: [
           { id: "1", text: "Read the code", status: "done" },
           { id: "2", text: "Write the fix", status: "active" },
           { id: "3", text: "Run tests", status: "pending" },
@@ -27,14 +28,13 @@ describe("planSteps", () => {
 
   it("has no steps without a snapshot", () => {
     expect(planSteps(undefined)).toEqual([]);
-    expect(planSteps({})).toEqual([]);
   });
 });
 
 describe("SessionPlan", () => {
   const snapshot = {
     revision: 7,
-    plan: [{ id: "1", text: "Inspect", status: "active" as const }],
+    steps: [{ id: "1", text: "Inspect", status: "active" as const }],
   };
 
   it("uses exact projection generation, Session and whole-replacement revision as identity", () => {
@@ -50,7 +50,7 @@ describe("SessionPlan", () => {
   it("owns active-step and completion behavior", () => {
     const plan = SessionPlan.fromSnapshot("ses-a", 2, {
       revision: 8,
-      plan: [
+      steps: [
         { id: "1", text: "Inspect", status: "done" },
         { id: "2", text: "Fix", status: "active" },
       ],

@@ -1454,7 +1454,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "schema.json#/$defs/StateSnapshot"
+          "$ref": "schema.json#/$defs/Plan"
         }
       },
       "errors": [

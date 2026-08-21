@@ -1,5 +1,5 @@
 // Per-handler contract tests — the ISOLATED state delta each built-in
-// StreamEvent handler (handlers.ts: run.* / item.* / state.*) produces from a
+// StreamEvent handler (handlers.ts: segment.* / item.* / plan.*) produces from a
 // SINGLE event, plus what it deliberately leaves untouched (isolation).
 //
 // reducer.events.test.ts covers multi-event fold scenarios (how a stream
@@ -34,11 +34,10 @@ const runStarted = (id: string, sessionId: string): StreamEvent => ({
 });
 const runProgress = (progress: Record<string, unknown>): StreamEvent =>
   ({ type: "segment.progress", progress }) as StreamEvent;
-const snapshot = (revision: number): StreamEvent =>
-  ({
-    type: "state.snapshot",
-    state: { type: "plan", sessionId: "ses_1", revision, plan: [] },
-  }) as StreamEvent;
+const snapshot = (revision: number): StreamEvent => ({
+  type: "plan.updated",
+  plan: { revision, steps: [] },
+});
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
@@ -145,12 +144,12 @@ describe("handler contract — item.delta targeting", () => {
   });
 });
 
-describe("handler contract — state.*", () => {
-  it("state.snapshot replaces its key wholesale, isolating run + stream", () => {
+describe("handler contract — plan.*", () => {
+  it("plan.updated replaces the Plan wholesale, isolating run + stream", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("r1", "s1"));
     s = reduce(s, snapshot(1));
     const out = reduce(s, snapshot(2));
-    expect(out.shared.plan).toMatchObject({ revision: 2 });
+    expect(out.plan).toMatchObject({ revision: 2 });
     expect(out.runsById).toBe(s.runsById);
     expect(out.messages).toBe(s.messages);
   });

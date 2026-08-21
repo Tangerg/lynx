@@ -1,4 +1,4 @@
-import type { AgentSharedMaterial } from "./sessionView";
+import type { AgentProjectionMaterial } from "./sessionView";
 import { agentSessionView } from "./sessionView";
 
 export type AgentSessionSharedMaterialContributor<T> = (sessionId: string, material: T) => unknown;
@@ -58,7 +58,7 @@ export function stageAgentSessionSharedMaterial<T>(
 
 /** Read one companion value together with the exact active Session generation
  * that admitted it. */
-export function useAgentSessionSharedMaterial<T>(path: string): AgentSharedMaterial<T> {
+export function useAgentSessionSharedMaterial<T>(path: string): AgentProjectionMaterial<T> {
   return agentSessionView().useSharedMaterial<T>(path);
 }
 

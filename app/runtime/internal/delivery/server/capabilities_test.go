@@ -22,7 +22,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 		protocol.StreamItemStarted,
 		protocol.StreamItemDelta,
 		protocol.StreamItemCompleted,
-		protocol.StreamStateSnapshot,
+		protocol.StreamPlanUpdated,
 	}
 	if !slices.Equal(caps.RunEvents, want) {
 		t.Fatalf("events = %v, want %v", caps.RunEvents, want)

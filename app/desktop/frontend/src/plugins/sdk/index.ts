@@ -88,7 +88,7 @@ export {
   useSlashCommands,
   useWorkspaceViews,
 } from "./selectors";
-// Backend-driven shared state — agent state.snapshot.
+// Backend-driven Plan updates and plugin event folds.
 
 export {
   appendBlockToLatestAssistant,
@@ -99,7 +99,7 @@ export {
 } from "./state";
 
 export type { KeyValueStore } from "./storage";
-export type { AgentMessagePhase } from "./types/agentSessionView";
+export type { AgentMessagePhase, AgentPlan, PlanStep } from "./types/agentSessionView";
 
 export type {
   AgentDriver,

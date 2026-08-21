@@ -61,7 +61,7 @@ type TranscriptStore interface {
 // boundary recorded. Rollback and fork both need "the value as of that run", which
 // the live projection cannot answer: it keeps the latest value and no history. A
 // false ok is "never recorded", not "empty" — see [PlanBoundary]. nil disables it
-// (no Plan state to move with a boundary).
+// (no Plan to move with a boundary).
 type PlanBoundaries interface {
 	Boundary(ctx context.Context, runID string) ([]plan.Step, bool, error)
 }

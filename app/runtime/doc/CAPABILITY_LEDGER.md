@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P140 进行中。
+> 状态：当前能力快照；P140 已完成。
 >
 > 基线日期：2026-08-21。
 
@@ -13,8 +13,9 @@
 
 - Runtime 是 Lyra 的应用后端，同时提供 HTTP Runtime Protocol 与同进程 Go binding。
 - 公共 Go API 仅由 `runtime/protocol` 和 `runtime/embedded` 拥有；内部 exported identifiers 不构成兼容承诺。
-- 当前合同为 Protocol `2026-08-21`、Artifact v21、SQLite epoch 77、Agent Framework Baseline 20。
+- 当前合同为 Protocol `2026-08-21`、Artifact v22、SQLite epoch 77、Agent Framework Baseline 20。
 - Runtime/Desktop 只接受当前精确 Protocol 版本；没有上一发行版 baseline、版本范围或兼容 reader。生产协议不再声明无生产者的 `custom` RunEvent、`clientTools` feature 或 `toolResult` interrupt/response variant。
+- Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 资源；没有通用 state registry、state key/scope/writer metadata、Artifact union 或 Desktop shared-state Plan reader。Artifact v22 只接受当前显式 `plan` shape。
 - Desktop 只加载编译进同一 bundle 的内置插件；Wails Bootstrap 只返回本地 Runtime 连接，不扫描 `~/.lyra/plugins`，前端不执行用户目录 JavaScript、不发布 `window.__LYRA__`，也没有外部 manifest、Host API version、permission whitelist、origin 双态或 lazy-activation placeholder。图片、粘贴和 `@file` 附件仍由 Composer 自己拥有。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
@@ -146,7 +147,7 @@
 - Session title maintenance 只有 `runsegment.Finalizer` 一个 owner，并只经 Session Application first-writer 持久提交；utility model 缺失、空回复或 provider error 时，opening user text 的首个有效行提供 Unicode-safe、有界 deterministic fallback。provider error 仍进入既有 maintenance telemetry，不以“未命名会话”或 Frontend 第二 writer 吞掉降级事实。
 - Goal、Plan、HITL/审批只呈现当前 projection generation；accepted mutation intent 可在 authoritative projection 追平前保持稳定 busy 反馈，不写第二 cache。
 - Plan 只在 active Run 期间以环形进度和“第 N / M 步”pill 呈现；完整 Session plan 由同一 projection 在 hover/focus tooltip 展开，不复制成 disclosure card、progress bar 或第二 expanded state。Plan 位于 composer overlay，Goal 使用 overlay 中的 attached top tray；空 contribution 不留下固定边线或高度。
-- Composer Context 环把当前 root Run 的 live `segment.progress.contextTokens` 或 durable `RunRef.contextTokens` 与 active Session 实际 served model 的 `contextWindow` 配对，按 `min(used, window) / window` 投影占比；Run progress writer、SQLite epoch 77、Artifact v21、Protocol/generated surface 与 mounted Session projection 共同持久化最后一次正值 footprint。Session view 从 root history 选择最新正值，尚无模型响应的 successor 不会抹掉已有证据；终态、renderer reload、Runtime restart 与 Artifact import 均恢复同一读数。缺任一权威事实时不绘制，Session 累计 usage 或客户端估算不参与该读数。触发器是保持原 glyph 光学中心的 28px 可聚焦按钮，hover 与 keyboard focus 共用同一 tooltip。
+- Composer Context 环把当前 root Run 的 live `segment.progress.contextTokens` 或 durable `RunRef.contextTokens` 与 active Session 实际 served model 的 `contextWindow` 配对，按 `min(used, window) / window` 投影占比；Run progress writer、SQLite epoch 77、Artifact v22、Protocol/generated surface 与 mounted Session projection 共同持久化最后一次正值 footprint。Session view 从 root history 选择最新正值，尚无模型响应的 successor 不会抹掉已有证据；终态、renderer reload、Runtime restart 与 Artifact import 均恢复同一读数。缺任一权威事实时不绘制，Session 累计 usage 或客户端估算不参与该读数。触发器是保持原 glyph 光学中心的 28px 可聚焦按钮，hover 与 keyboard focus 共用同一 tooltip。
 - 设置主色的唯一状态 owner 是 appearance preference；preset/custom 控件、`aria-pressed`、document CSS paint 与 localStorage 恢复都消费同一次 mutation。custom theme plugin 对单键 `COLOR_THEME` contribution 持有 exact disposable，更新时先退休旧 contribution 再发布新值，cleanup/HMR 同步退订 listener 并释放 contribution；不得以重复注册、异常吞噬、刷新或第二 theme cache 代替 replacement lifecycle。
 - 标题栏不呈现 Session 累计 token/cost；普通 completed/failed Run 不在最终回答后重复绘制耗时、步数、token、费用或“完成”结算条。canceled/limit 的 quiet reason 与 actionable failure recovery 仍按各自既有 owner 呈现。
 - Composer 的 composition lifecycle 是 Enter 提交判定的唯一 owner：`compositionend` 后保留一次性 commit intent，首个无修饰 `Enter/keyCode=13/isComposing=false` 只结束中文输入法的中英混合文本提交，随后明确 Enter 才发送。active composition、浏览器缺失 `compositionend` 的 plain-input recovery、focus/pointer/paste/drop retirement 与 Mod/Shift shortcut 均消费同一 intent，不使用 timeout、timestamp/UA 猜测、第二 draft 或第二发送入口。
@@ -160,7 +161,7 @@
 - 中栏 Markdown presentation 由一个 renderer owner 统一持有：semantic rich/plain table copy 与展开预览、Shiki code wrap/copy、HTML/SVG fence 隔离、Mermaid、selection copy、matched citation、image-only grouping、message-scoped image gallery、inline/fenced LTR isolation、Han/RTL direction、Codex heading/paragraph/list/task/blockquote/rule rhythm 均消费同一 message material。表格正文固定 14/21px、表头 14/16px、容器零额外块间距；task checkbox 是 list grid 的直接子项，正文统一位于第二列；行内代码使用可换行的 cloned neutral well、0.92em 字号、6px 圆角与 `overflow-wrap:anywhere`。图库在 nearest exact message-content root 内提供全屏 90% 黑色画布、显式关闭、前后/方向键导航、Escape、100–400% 缩放与切图重置，并排除 nested delegated message；代码块使用同材质 14px sans caption、4×8px header、8px source inset，且不设人工高度上限。模型 raw HTML 只允许无属性 basic inline 标签与 `br`；远程图片、style、native disclosure/layout 和属性注入不会成为活动 DOM。上述能力不持久化、不注册全局 owner。
 - KaTeX 样式由既有 Markdown 动态 loader 唯一拥有；构建分块必须把 `katex.min.css` 与静态可达的 KaTeX JavaScript 分离，产物可以存在但不得由 `index.html` 提前引用。当前启动 CSS 为 112.8KB，动态 math CSS 为 29.0KB，bundle gate 同时约束启动预算和 lazy ownership。
 - context compaction 使用左对齐 quiet activity row 而非居中 divider；压缩图标保持可见，Runtime 提供 summary 时沿同一可键盘操作的 disclosure 展开，不增加第二 transcript/material owner。
-- Agent message 的 authoritative phase 已进入公共能力：terminal AgentMessage 必带 `commentary | finalAnswer`，running shell 不带 phase；Runtime completion/termination boundary、Domain Transcript、SQLite epoch 77、Artifact v21、Protocol/generated Go/TypeScript surface 与 Frontend published SDK 共同持有该事实。Frontend 不从 streaming、位置或文案推断分组，live/replay/mixed hydration 都把 final answer 归入稳定 `final:<itemId>` row。
+- Agent message 的 authoritative phase 已进入公共能力：terminal AgentMessage 必带 `commentary | finalAnswer`，running shell 不带 phase；Runtime completion/termination boundary、Domain Transcript、SQLite epoch 77、Artifact v22、Protocol/generated Go/TypeScript surface 与 Frontend published SDK 共同持有该事实。Frontend 不从 streaming、位置或文案推断分组，live/replay/mixed hydration 都把 final answer 归入稳定 `final:<itemId>` row。
 - 图片预览 Download 是 Desktop 应用能力而非 Runtime Protocol：Frontend gallery 把当前 restricted inline image 交给 `DesktopHost.SaveImage`，Host 在打开原生 save sheet 前校验 MIME 与解码内容，Wails adapter 绑定 exact window 并只在用户选定目的地后写入；取消返回 `false`，remote URL 与 browser download 没有 fallback。
 
 ## 7. 公共合同
@@ -218,7 +219,7 @@ P138 完成 durable Context footprint 与 Codex 流式滚动逃逸收口：`cont
 
 P139 完成 Runtime/Desktop 证据化熵回收：Desktop 的三份 Runtime 协议镜像与三份设计导出都没有真实消费者或动态入口，现已删除，所有引用回到 Runtime canonical docs；客户端审批危险度推断和 risk/scope/reversibility 公共副本被移除，Runtime wire risk 仍保留为协议事实，但 Desktop 不再把它复制到 Agent event/content block 或据此建立第二套 presentation。被 scoped lifecycle owner 取代的串行队列、unscoped settlement 包装、无消费者 locale/facade/barrel export，以及 Runtime 仅供 dispatch 测试使用的 request/id 构造 helper 同步删除。Frontend published approval facade 的缩减是显式 breaking cleanup；没有 deprecated alias、兼容双读或 fallback。generated wire、compatibility baseline 与动态 sideload plugin SDK 均因真实生成/发布入口保留。Frontend 323 files / 2017 tests、完整静态/构建门禁、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events 全绿；Runtime/Desktop test/vet/build 与受影响 transport/dispatch race tests 全绿。Protocol、Artifact、SQLite 与 Runtime 公共 Go API 未改变。
 
-P140 正在执行第二轮 Runtime/Desktop 根因级熵回收，明确不保留兼容。前三批已分别删除上一发行版兼容基线与 protocol range、生产不可达的 `custom`/`clientTools`/`toolResult` wire，以及没有真实安装入口且样例已失效的 Desktop 外部 sideload 整条链路与随附空扩展点。第四批证明 Feature、Method、StateKey 的 stability 元数据在全部生产注册中恒为 `stable`，没有协商、路由、降级或 UI 决策读取它；canonical Go 类型与校验、operation/state 注册、合同生成器、OpenRPC extension、manifest/schema/Go API、TypeScript binding、Desktop samples/tests/fixture 已同步删除该字段。唯一精确 Protocol 版本前移到 `2026-08-21`，旧 wire shape 没有 alias、双读、fallback 或迁移层；Artifact 与 SQLite shape 未改变。生成器二次运行 diff-free；Frontend 318 files / 1993 tests、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events、完整静态/边界/消费者/bundle 门禁与 Runtime/Desktop test/vet/build 全绿。
+P140 已完成第二轮 Runtime/Desktop 根因级熵回收，明确不保留兼容。前三批分别删除上一发行版兼容基线与 protocol range、生产不可达的 `custom`/`clientTools`/`toolResult` wire，以及没有真实安装入口且样例已失效的 Desktop 外部 sideload 整条链路与随附空扩展点。第四批证明 Feature、Method、StateKey 的 stability 元数据在全部生产注册中恒为 `stable`，没有协商、路由、降级或 UI 决策读取它；canonical Go 类型与校验、operation/state 注册、合同生成器、OpenRPC extension、manifest/schema/Go API、TypeScript binding、Desktop samples/tests/fixture 已同步删除该字段。第五批把唯一 state 变体 Plan 收敛为一等资源，删除 registry/key/scope/writer、通用 unions、RuntimeEvent key、Artifact `states[]`、Desktop generic shared-state reader 与 Application 重复 Step DTO；Artifact 前移到 v22。唯一精确 Protocol 版本为 `2026-08-21`，旧 wire/archive shape 没有 alias、双读、fallback 或迁移层；SQLite shape 未改变。Frontend 318 files / 1993 tests、全部静态/边界/消费者/bundle 门禁、Runtime/Desktop 全量 test/vet/build/staticcheck、受影响 Runtime 与 Desktop 全量 race tests 均通过；生成器重跑 diff-free，Runtime/Desktop TypeScript 合同与样例逐字节一致。
 
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 

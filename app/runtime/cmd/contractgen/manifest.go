@@ -30,7 +30,6 @@ type manifest struct {
 	RuntimeTopics       []topicEntry                  `json:"runtimeTopics"`
 	CarriedShapes       []carriedEntry                `json:"carriedShapes"`
 	ResultPresentations []toolResultPresentationEntry `json:"toolResultPresentations"`
-	StatePolicy         []stateEntry                  `json:"statePolicy"`
 	Unions              []unionEntry                  `json:"unions"`
 	Constraints         []constraintEntry             `json:"objectConstraints"`
 	ValueConstraints    []valueConstraintEntry        `json:"valueConstraints"`
@@ -109,15 +108,6 @@ type eventEntry struct {
 type topicEntry struct {
 	Type    string `json:"type"`
 	Feature string `json:"feature,omitempty"`
-}
-
-type stateEntry struct {
-	Key            string  `json:"key"`
-	RecoveryMethod string  `json:"recoveryMethod"`
-	Scope          string  `json:"scope"`
-	Writer         string  `json:"writer"`
-	Feature        string  `json:"feature"`
-	Payload        *schema `json:"payload"`
 }
 
 // carriedEntry says where on the wire a shape rides that no method frame reaches.
@@ -201,7 +191,6 @@ func build(walked *schemaSet) manifest {
 		RuntimeTopics:       topics(shapes),
 		CarriedShapes:       carriedShapes(shapes, walked),
 		ResultPresentations: toolResultPresentations(walked),
-		StatePolicy:         stateKeys(shapes, walked),
 		Unions:              unions(shapes),
 		Constraints:         constraints(shapes),
 		ValueConstraints:    valueConstraints(shapes),
@@ -343,20 +332,6 @@ func topicFeature(topic string) string {
 		return protocol.FeatureFileWatch
 	}
 	return ""
-}
-
-func stateKeys(shapes *dispatch.Shapes, walked *schemaSet) []stateEntry {
-	keys := shapes.StateKeys()
-	out := make([]stateEntry, 0, len(keys))
-	for _, key := range keys {
-		out = append(out, stateEntry{
-			Key: key.Key, RecoveryMethod: key.RecoveryMethod,
-			Scope: string(key.Scope), Writer: string(key.Writer),
-			Feature: key.Feature,
-			Payload: external(walked.walk(key.PayloadType)),
-		})
-	}
-	return out
 }
 
 func carriedShapes(shapes *dispatch.Shapes, walked *schemaSet) []carriedEntry {

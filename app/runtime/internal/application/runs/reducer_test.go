@@ -942,8 +942,8 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		}},
 		Revision: 3, UpdatedAt: time.Unix(7, 0).UTC(),
 	})})
-	state, ok := snapshot[0].Event.(StateSnapshot)
-	if !ok || len(state.Plan) != 1 || state.Plan[0].Description != "write tests" || state.Plan[0].Status != plan.StatusInProgress {
+	state, ok := snapshot[0].Event.(PlanSnapshot)
+	if !ok || len(state.Steps) != 1 || state.Steps[0].Description != "write tests" || state.Steps[0].Status != plan.StatusInProgress {
 		t.Fatalf("plan snapshot = %#v", snapshot[0].Event)
 	}
 	if state.Revision != 3 || state.SessionID != "ses_1" {
@@ -955,9 +955,9 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		t.Fatalf("compaction item = %+v", item)
 	}
 
-	// The segment's last state snapshot is republished immediately before the
+	// The segment's last Plan is republished immediately before the
 	// segment finishes, so whoever receives the finish has received the final value
-	// — see reducer.fenceFinalState.
+	// — see reducer.fenceFinalPlan.
 	terminal := mustReduce(t, reducer, SegmentEnded{
 		Reason: run.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
 		Usage: &SegmentUsage{
@@ -974,9 +974,9 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	if finished.Run.Metrics().ActiveDuration() != 1500*time.Millisecond || finished.Run.Detail() != "" {
 		t.Fatalf("budget terminal = %+v", finished.Run)
 	}
-	fence, fenced := terminal[len(terminal)-2].Event.(StateSnapshot)
+	fence, fenced := terminal[len(terminal)-2].Event.(PlanSnapshot)
 	if !fenced || fence.Revision != 3 {
-		t.Fatalf("event before the finish = %#v, want the segment's final state snapshot", terminal[len(terminal)-2].Event)
+		t.Fatalf("event before the finish = %#v, want the segment's final Plan", terminal[len(terminal)-2].Event)
 	}
 }
 
@@ -1748,9 +1748,9 @@ func assertFrozenCapabilities(t *testing.T, got, want run.Capabilities, where st
 	}
 }
 
-// TestSegmentFencesItsFinalStateBeforeFinishing proves
-// segment_fences_its_final_state: the last replayable event before a segment's finish
-// is the final value of every state key that segment changed.
+// TestSegmentFencesItsFinalPlanBeforeFinishing proves
+// segment_fences_its_final_plan: the last replayable event before a segment's finish
+// is the final Plan value that segment changed.
 //
 // The guarantee is POSITIONAL, and that is the point: a subscriber that attached
 // late, or replayed from a cursor past the change itself, would otherwise reach
@@ -1761,7 +1761,7 @@ func assertFrozenCapabilities(t *testing.T, got, want run.Capabilities, where st
 // The second half matters as much: a segment that changed nothing publishes NO
 // fence. An empty snapshot at revision 0 does not read as "unchanged" to a client
 // that folds by revision — it reads as "the list was cleared".
-func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
+func TestSegmentFencesItsFinalPlanBeforeFinishing(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	mustReduce(t, reducer, PlanUpdated{State: testPlanState(t, plan.Snapshot{
 		Steps:    []plan.Step{{Description: "fence this", Status: plan.StatusInProgress}},
@@ -1775,18 +1775,18 @@ func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 	if _, finished := terminal[len(terminal)-1].Event.(SegmentFinished); !finished {
 		t.Fatalf("last event = %#v, want the segment finish", terminal[len(terminal)-1].Event)
 	}
-	fence, fenced := terminal[len(terminal)-2].Event.(StateSnapshot)
+	fence, fenced := terminal[len(terminal)-2].Event.(PlanSnapshot)
 	if !fenced {
-		t.Fatalf("event before the finish = %#v, want the segment's final state", terminal[len(terminal)-2].Event)
+		t.Fatalf("event before the finish = %#v, want the segment's final Plan", terminal[len(terminal)-2].Event)
 	}
-	if fence.Revision != 4 || len(fence.Plan) != 1 || fence.SessionID != "ses_1" {
+	if fence.Revision != 4 || len(fence.Steps) != 1 || fence.SessionID != "ses_1" {
 		t.Fatalf("fence = %+v, want session ses_1's revision 4 list", fence)
 	}
 
 	untouched := newReducer(testReducerConfig())
 	quiet := mustReduce(t, untouched, SegmentEnded{Reason: run.OutcomeCompleted})
 	for _, reduced := range quiet {
-		if snapshot, ok := reduced.Event.(StateSnapshot); ok {
+		if snapshot, ok := reduced.Event.(PlanSnapshot); ok {
 			t.Fatalf("a segment that changed no state published %+v", snapshot)
 		}
 	}

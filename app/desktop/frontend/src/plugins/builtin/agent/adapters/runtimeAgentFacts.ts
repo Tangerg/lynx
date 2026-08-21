@@ -38,7 +38,7 @@ import type {
   AgentRunProgress,
   RunUsage,
 } from "@/plugins/sdk/types/agentSessionView";
-import { runtimePlanState } from "./runtimePlanState";
+import { runtimePlan } from "./runtimePlan";
 
 function runtimeUsage(usage?: Usage): RunUsage {
   return {
@@ -311,8 +311,8 @@ export function runtimeAgentEvent(envelope: RunEvent): AgentEventEnvelope {
           itemId: event.itemId,
           delta: runtimeItemDelta(event.delta),
         } as const;
-      case "state.snapshot":
-        return { type: event.type, state: runtimePlanState(event.state) } as const;
+      case "plan.updated":
+        return { type: event.type, plan: runtimePlan(event.plan) } as const;
     }
   })();
   return { ...envelope, event: mapped };

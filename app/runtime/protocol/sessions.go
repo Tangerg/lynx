@@ -41,14 +41,14 @@ type GetSessionSnapshotRequest struct {
 }
 
 // SessionSnapshot is one transactionally coherent material read of the facts a
-// live client folds together. State is absent when this Runtime does not expose
+// live client folds together. Plan is absent when this Runtime does not expose
 // the Plan capability. Goal is absent when Goal mode is unavailable or this
 // Session has no standing objective.
 type SessionSnapshot struct {
 	Items      []Item                `json:"items"`
 	Runs       []RunRef              `json:"runs"`
 	Interrupts []PendingInterruptSet `json:"interrupts"`
-	State      *StateSnapshot        `json:"state,omitempty"`
+	Plan       *Plan                 `json:"plan,omitempty"`
 	Goal       *Goal                 `json:"goal,omitempty"`
 }
 
@@ -160,9 +160,9 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 21 also preserves each Run's latest authoritative prompt footprint,
-// so an imported Session renders the same context-window state as its source.
-const SessionArtifactVersion = 21
+// Version 22 preserves each Run's latest authoritative prompt footprint and the
+// Session Plan, so an imported Session renders the same durable state as its source.
+const SessionArtifactVersion = 22
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -182,34 +182,16 @@ type SessionArtifact struct {
 	Runs        []ArtifactRun        `json:"runs"`
 	Items       []ArtifactItem       `json:"items"`
 	ToolResults []ArtifactToolResult `json:"toolResults"`
-	// States carries the session-scoped projections a person would notice losing —
-	// today the Plan. An archive without them round-trips a conversation and
-	// silently drops the work plan attached to it.
+	// Plan carries the portable semantic checklist a person would notice losing.
+	// An archive without it round-trips a conversation and silently drops the work
+	// plan attached to it.
 	//
 	// Only the portable semantic VALUE travels: no revision and no updatedAt. Those
 	// are the source runtime's ordering tokens, and carrying them would let an
 	// imported value claim a position in the target's revision space that the
 	// target never issued — which is how a client comes to ignore a newer value as
 	// stale. The importing runtime assigns its own.
-	States []ArtifactState `json:"states,omitempty"`
-}
-
-// ArtifactStateType is the portable state-key vocabulary. It is the same closed
-// first-party set the live stream publishes, because an archive that could carry
-// a key the runtime does not own would be restoring a projection with no writer
-// and no read.
-type ArtifactStateType string
-
-const ArtifactStatePlan ArtifactStateType = "plan"
-
-// ArtifactState is one session-scoped projection's portable value, discriminated
-// by its key. At most one entry per type: this is a map of keys to values, and a
-// second entry for one key would be two answers to "what was the Plan".
-// That rule is an aggregate invariant rather than a schema keyword — the same
-// place duplicate item ids are refused.
-type ArtifactState struct {
-	Type ArtifactStateType `json:"type"`
-	Plan []PlanSnapshot    `json:"plan,omitempty"`
+	Plan []PlanStep `json:"plan,omitempty"`
 }
 
 // ArtifactSession is the durable session identity and user-owned metadata. It

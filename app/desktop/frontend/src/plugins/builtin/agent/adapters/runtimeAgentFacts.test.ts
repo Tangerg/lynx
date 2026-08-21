@@ -155,21 +155,20 @@ describe("Runtime → Agent fact adapter", () => {
     expect(
       runtimeAgentEvent(
         event({
-          type: "state.snapshot",
-          state: {
-            type: "plan",
+          type: "plan.updated",
+          plan: {
             sessionId: "ses_1",
             revision: 6,
-            plan: [{ id: "step_1", description: "Verify", status: "in_progress" }],
+            steps: [{ id: "step_1", description: "Verify", status: "in_progress" }],
+            updatedAt: "2026-08-17T00:00:00Z",
           },
         }),
       ).event,
     ).toEqual({
-      type: "state.snapshot",
-      state: {
-        type: "plan",
+      type: "plan.updated",
+      plan: {
         revision: 6,
-        plan: [{ id: "step_1", text: "Verify", status: "active" }],
+        steps: [{ id: "step_1", text: "Verify", status: "active" }],
       },
     });
   });

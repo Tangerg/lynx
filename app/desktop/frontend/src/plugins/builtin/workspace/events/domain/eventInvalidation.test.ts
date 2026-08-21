@@ -89,7 +89,7 @@ describe("workspaceInvalidations", () => {
     expect(workspaceInvalidations({ type: "goals.changed", sequence: 3 })).toEqual([
       "agentSessionProjection",
     ]);
-    expect(workspaceInvalidations({ type: "state.changed", sequence: 4 })).toEqual([
+    expect(workspaceInvalidations({ type: "plan.changed", sequence: 4 })).toEqual([
       "agentSessionProjection",
     ]);
   });

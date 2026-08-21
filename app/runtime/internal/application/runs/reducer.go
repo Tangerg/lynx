@@ -129,11 +129,11 @@ type reducer struct {
 	tools                 openTools
 	drained               []DrainedTool
 	errFailure            *run.Failure
-	// plan is the last state snapshot this segment published, kept so the segment
+	// plan is the last Plan this segment published, kept so the segment
 	// can fence its final value before finishing. Nil means this segment never
 	// changed the projection, and a segment that changed nothing has nothing to
 	// fence.
-	plan *StateSnapshot
+	plan *PlanSnapshot
 	// toolContext mirrors only this root Segment's provider-neutral assistant
 	// ToolCall and ToolResult messages. It lets a terminal boundary close calls
 	// the model committed even when cancellation won before ToolCallStarted.
@@ -238,7 +238,7 @@ func (r *reducer) clone() *reducer {
 	cloned.resume = cloneResumeBinding(r.resume)
 	if r.plan != nil {
 		plan := *r.plan
-		plan.Plan = slices.Clone(r.plan.Plan)
+		plan.Steps = slices.Clone(r.plan.Steps)
 		cloned.plan = &plan
 	}
 	if r.errFailure != nil {
@@ -894,7 +894,7 @@ func (r *reducer) abort() {
 }
 
 func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
-	events = r.fenceFinalState(events)
+	events = r.fenceFinalPlan(events)
 	reductions := make([]reduction, 0, len(events))
 	for _, event := range events {
 		reduced, err := r.projectOne(event)
@@ -957,10 +957,10 @@ func parkReductionBatch(reductions []reduction, parkBoundary int) (reductionBatc
 	return reductionBatch{events: reductions, parkCommit: parkCommit}, nil
 }
 
-// fenceFinalState republishes the segment's last state snapshot immediately before
-// the segment finishes, for every key the segment changed.
+// fenceFinalPlan republishes the segment's last Plan immediately before the
+// segment finishes when that segment changed it.
 //
-// Without it, a client only holds the state if it received the change event itself.
+// Without it, a client only holds the Plan if it received the change event itself.
 // A subscriber that attached later — or replayed from a cursor past that event —
 // reaches segment.finished having never seen a snapshot, and renders a stale panel
 // until something makes it refetch. The fence makes the guarantee positional:
@@ -973,7 +973,7 @@ func parkReductionBatch(reductions []reduction, parkBoundary int) (reductionBatc
 // It belongs to the batch rather than to either finish path: a park and a terminal
 // are two reasons for one boundary, and a rule stated in both places is a rule that
 // drifts in one of them.
-func (r *reducer) fenceFinalState(events []RunEvent) []RunEvent {
+func (r *reducer) fenceFinalPlan(events []RunEvent) []RunEvent {
 	if r.plan == nil {
 		return events
 	}
@@ -1015,7 +1015,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		if err := e.Item.validate(); err != nil {
 			return reduction{}, fmt.Errorf("%w: Item start: %v", errReducerInvariant, err)
 		}
-	case SegmentStarted, SegmentProgressed, ItemChanged, StateSnapshot:
+	case SegmentStarted, SegmentProgressed, ItemChanged, PlanSnapshot:
 		// These events have no standalone EventCommit. SegmentStarted carries a Run
 		// for the stream, but the Run's durable opening IS its admission (or its
 		// resume) — recording it a second time here would be a second writer of

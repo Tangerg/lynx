@@ -224,7 +224,7 @@ type SegmentOutcome struct {
 }
 
 // StartRunRequest is the runs.start body (API.md §7.1). The session owns cwd,
-// available tools, and shared state, so clients send only the user input and
+// available tools, and its Plan, so clients send only the user input and
 // explicit execution limits/model selection.
 type StartRunRequest struct {
 	SessionID string         `json:"sessionId"`

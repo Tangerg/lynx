@@ -3,8 +3,7 @@ import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { onItemCompleted, onItemDelta, onItemStarted } from "../application/fold/itemHandlers";
 import { onRunFinished, onRunProgress, onRunStarted } from "../application/fold/runHandlers";
 import { runEventSource } from "../application/fold/source";
-import { onStateSnapshot } from "../application/fold/stateHandlers";
-import type { AgentPlanStateSnapshot } from "../domain/plan";
+import { onPlanUpdated } from "../application/fold/planHandlers";
 
 function bind<T extends AgentStreamEvent["type"]>(
   type: T,
@@ -21,7 +20,7 @@ function bind<T extends AgentStreamEvent["type"]>(
   ];
 }
 
-/** Runtime event dispatch lives at the Adapter boundary. Shared Plan state is
+/** Runtime event dispatch lives at the Adapter boundary. The wire Plan is
  * translated here before it enters the Agent product fold. */
 export const RUNTIME_EVENT_HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
   bind("segment.started", (state, event, envelope) =>
@@ -42,7 +41,5 @@ export const RUNTIME_EVENT_HANDLERS: ReadonlyArray<[string, StreamEventHandler]>
   bind("item.completed", (state, event, envelope) =>
     onItemCompleted(state, event.item, runEventSource(envelope)),
   ),
-  bind("state.snapshot", (state, event) =>
-    onStateSnapshot(state, event.state as AgentPlanStateSnapshot),
-  ),
+  bind("plan.updated", (state, event) => onPlanUpdated(state, event.plan)),
 ];

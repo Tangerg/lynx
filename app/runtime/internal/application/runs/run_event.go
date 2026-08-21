@@ -57,13 +57,13 @@ type ItemCompleted struct {
 	mutatedPaths []string
 }
 
-// StateSnapshot publishes a persisted latest-value projection the run changed. It
+// PlanSnapshot publishes a persisted latest-value projection the run changed. It
 // carries the projection's own revision, not just its contents: the list is
 // replaced wholesale, so a fold that only saw contents could not tell an older
 // snapshot from a newer one.
-type StateSnapshot struct {
+type PlanSnapshot struct {
 	SessionID string
-	Plan      []PlanSnapshot
+	Steps     []plan.Step
 	Revision  uint64
 	UpdatedAt time.Time
 }
@@ -74,7 +74,7 @@ func (SegmentFinished) runEvent()   {}
 func (ItemStarted) runEvent()       {}
 func (ItemChanged) runEvent()       {}
 func (ItemCompleted) runEvent()     {}
-func (StateSnapshot) runEvent()     {}
+func (PlanSnapshot) runEvent()      {}
 
 func (SegmentStarted) Replayable() bool    { return true }
 func (SegmentProgressed) Replayable() bool { return false }
@@ -82,7 +82,7 @@ func (SegmentFinished) Replayable() bool   { return true }
 func (ItemStarted) Replayable() bool       { return true }
 func (ItemChanged) Replayable() bool       { return false }
 func (ItemCompleted) Replayable() bool     { return true }
-func (StateSnapshot) Replayable() bool     { return true }
+func (PlanSnapshot) Replayable() bool      { return true }
 
 func (SegmentStarted) Terminal() bool    { return false }
 func (SegmentProgressed) Terminal() bool { return false }
@@ -90,7 +90,7 @@ func (SegmentFinished) Terminal() bool   { return true }
 func (ItemStarted) Terminal() bool       { return false }
 func (ItemChanged) Terminal() bool       { return false }
 func (ItemCompleted) Terminal() bool     { return false }
-func (StateSnapshot) Terminal() bool     { return false }
+func (PlanSnapshot) Terminal() bool      { return false }
 
 func (event SegmentStarted) retainedBytes() int { return retainedRunBytes(event.Run) }
 func (SegmentProgressed) retainedBytes() int    { return 0 }
@@ -104,7 +104,7 @@ func (event SegmentFinished) retainedBytes() int {
 func (event ItemStarted) retainedBytes() int   { return retainedItemStartBytes(event.Item) }
 func (ItemChanged) retainedBytes() int         { return 0 }
 func (event ItemCompleted) retainedBytes() int { return retainedItemBytes(event.Item) }
-func (event StateSnapshot) retainedBytes() int { return retainedStateSnapshotBytes(event) }
+func (event PlanSnapshot) retainedBytes() int  { return retainedPlanSnapshotBytes(event) }
 
 type RunProgress struct {
 	Step          *int
@@ -128,12 +128,6 @@ type ItemDelta struct {
 	Index              *int
 	Text               string
 	ArgumentsTextDelta string
-}
-
-type PlanSnapshot struct {
-	ID          string
-	Description string
-	Status      plan.Status
 }
 
 func newTransientItemStart(identity transcript.ItemIdentity, kind transcript.ItemKind) (ItemStart, error) {

@@ -29,11 +29,6 @@ func TestRegisteredShapesDescribeRealTypes(t *testing.T) {
 			t.Errorf("constraint %s: %v", constraint.GoType.Name(), err)
 		}
 	}
-	for _, key := range shapes.StateKeys() {
-		if err := key.validate(); err != nil {
-			t.Errorf("state key %s: %v", key.Key, err)
-		}
-	}
 	if len(shapes.Notifications()) == 0 {
 		t.Fatal("no downstream notification is registered")
 	}
@@ -70,13 +65,6 @@ func TestShapeViewsAreSnapshots(t *testing.T) {
 	values[0].Constraints[0].Field = "corrupted"
 	if got := shapes.ValueConstraints()[0].Constraints[0].Field; got != originalField {
 		t.Fatalf("ValueConstraints exposed registry storage: got %q, want %q", got, originalField)
-	}
-
-	stateKeys := shapes.StateKeys()
-	originalKey := stateKeys[0].Key
-	stateKeys[0].Key = "corrupted"
-	if got := shapes.StateKeys()[0].Key; got != originalKey {
-		t.Fatalf("StateKeys exposed registry storage: got %q, want %q", got, originalKey)
 	}
 
 	notifications := shapes.Notifications()
@@ -140,9 +128,9 @@ func TestEveryWireUnionIsRegistered(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
-		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome", "ArtifactQuestionField", "ArtifactState",
+		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome", "ArtifactQuestionField",
 		"CancelRunResponse", "CapabilityRequirement", "ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
-		"ItemListScope", "MCPAuthorizationAttemptStatus", "MCPAuthorizationChange", "MCPConnection", "MCPConnectionInput", "MCPEnvironmentChange", "MCPHeadersChange", "MCPServerState", "ProblemData", "ProviderConfigChange", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StateSnapshot", "StreamEvent",
+		"ItemListScope", "MCPAuthorizationAttemptStatus", "MCPAuthorizationChange", "MCPConnection", "MCPConnectionInput", "MCPEnvironmentChange", "MCPHeadersChange", "MCPServerState", "ProblemData", "ProviderConfigChange", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StreamEvent",
 	}
 	got := make([]string, 0, len(shapes.Unions()))
 	for _, union := range shapes.Unions() {
@@ -297,21 +285,5 @@ func TestUnionValidationAcceptsRemovedForbiddenField(t *testing.T) {
 	}
 	if err := spec.validate(); err != nil {
 		t.Fatalf("validate rejected a protocol-level negative invariant: %v", err)
-	}
-}
-
-// TestStateKeyMustHaveARecoveryMethodThatExists keeps the reconnect story real: a
-// key whose recovery method is unregistered promises a call the client cannot
-// make, which is worse than admitting there is no cold read.
-func TestStateKeyMustHaveARecoveryMethodThatExists(t *testing.T) {
-	t.Parallel()
-
-	spec := StateKeySpec{
-		Key: "plan", RecoveryMethod: "plan.fetch",
-		Scope: StateScopeSession, Writer: StateWriterRootRun,
-		Feature: "plan",
-	}
-	if err := spec.validate(); err == nil {
-		t.Fatal("validate accepted a recovery method no registration serves")
 	}
 }

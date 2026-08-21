@@ -29,7 +29,6 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
       "item.completed",
     ],
     runtimeTopics: ["files.changed", "skills.changed", "mcp.changed"],
-    stateSnapshots: [],
     features: {
       multimodal: feature(false),
       reasoning: feature(true),

@@ -6,6 +6,7 @@ import type {
   AgentRunStatus,
   AgentSafetyClass,
   AgentMessagePhase,
+  AgentPlan,
 } from "./agentSessionView";
 
 /** Product-owned message input observed from an Agent run. */
@@ -159,7 +160,7 @@ export type AgentStreamEvent =
   | { type: "item.started"; item: AgentItem }
   | { type: "item.delta"; delta: AgentItemDelta; itemId: string }
   | { type: "item.completed"; item: AgentItem }
-  | { type: "state.snapshot"; state: unknown };
+  | { type: "plan.updated"; plan: AgentPlan };
 
 /** Provenance that every live Agent fact carries independent of transport. */
 export interface AgentEventEnvelope {

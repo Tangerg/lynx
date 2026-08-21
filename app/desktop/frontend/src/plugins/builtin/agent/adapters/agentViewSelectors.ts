@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { navigator } from "@/lib/navigation";
 import type {
+  AgentPlan,
   AgentProblem,
   AgentSessionView,
   Message,
@@ -24,7 +25,7 @@ import {
   type TranscriptRowCache,
 } from "../application/conversation/transcriptRows";
 import type {
-  AgentSharedMaterial,
+  AgentProjectionMaterial,
   SendAgentInputAction,
   StopCurrentRootRunAction,
 } from "../application/ports/sessionView";
@@ -91,7 +92,20 @@ export function useAgentProblem(): AgentProblem | null {
   return useActiveAgentView(selectVisibleProblem);
 }
 
-export function useAgentSharedMaterial<T = unknown>(path?: string): AgentSharedMaterial<T> {
+export function useAgentPlan(): AgentProjectionMaterial<AgentPlan> {
+  const sessionId = navigator().use((location) => location.session);
+  return useAgentStore(
+    useShallow((state) => {
+      const entry = state.sessions[sessionId];
+      return {
+        generation: entry?.viewEpoch ?? 0,
+        value: entry?.view.plan ?? undefined,
+      };
+    }),
+  );
+}
+
+export function useAgentSharedMaterial<T = unknown>(path?: string): AgentProjectionMaterial<T> {
   const sessionId = navigator().use((location) => location.session);
   return useAgentStore(
     useShallow((state) => {

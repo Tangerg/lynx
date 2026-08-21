@@ -3,7 +3,7 @@ import { asRunId, asSegmentId, asSessionId, createUnaryMutationSettler, isErrorT
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import { agentInputToContentBlocks, contentBlocksToAgentInput } from "./wireInput";
-import { runtimePlanState } from "./runtimePlanState";
+import { runtimePlan } from "./runtimePlan";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
 import { stageAgentSessionSharedMaterial } from "../application/ports/sessionSharedMaterial";
@@ -67,7 +67,7 @@ class RuntimeAgentGateway implements AgentRuntimeGateway {
           items: snapshot.items.map(runtimeItem),
           runs: snapshot.runs.map(runtimeRunFact),
           pendingInterruptSets: snapshot.interrupts.map(runtimePendingInterruptSet),
-          ...(snapshot.state ? { state: runtimePlanState(snapshot.state) } : {}),
+          ...(snapshot.plan ? { plan: runtimePlan(snapshot.plan) } : {}),
         },
         projectAssociatedSharedMaterial: stageAgentSessionSharedMaterial(sessionId, snapshot),
       };

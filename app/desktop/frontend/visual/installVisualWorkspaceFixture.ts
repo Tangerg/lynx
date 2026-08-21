@@ -176,7 +176,6 @@ function feature(enabled: boolean): FeatureCapability {
 const VISUAL_CAPABILITIES: ServerCapabilities = {
   runEvents: [],
   runtimeTopics: [],
-  stateSnapshots: [],
   features: { git: feature(true), plan: feature(true) },
   streamingMethods: [],
   limits: {

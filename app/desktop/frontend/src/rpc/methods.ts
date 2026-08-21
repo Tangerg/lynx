@@ -78,7 +78,7 @@ import type {
   CreateScheduleRequest,
   UpdateScheduleRequest,
   ServerCapabilities,
-  StateSnapshot,
+  Plan,
   Session,
   SessionArtifact,
   SessionSnapshot,
@@ -315,9 +315,9 @@ export interface Methods {
     ) => AutoPagingPromise<Page<RunRef>>;
   };
   plan: {
-    // The cold read the plan state key declares (§5.6). A session with no plan yet
-    // answers with the empty state at revision 0 — the same shape the stream pushes.
-    get: (sessionId: SessionId, signal?: AbortSignal) => Promise<StateSnapshot>;
+    // The Plan's cold read (§5.6). A session with no plan yet answers with revision
+    // 0 and no steps — the same shape plan.updated pushes.
+    get: (sessionId: SessionId, signal?: AbortSignal) => Promise<Plan>;
   };
   interrupts: {
     // Durable HITL discovery — the waiting sets, longest wait first (§7.3 / §10.2).

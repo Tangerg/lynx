@@ -4,14 +4,13 @@
   "eventId": "evt_07",
   "timestamp": "2026-07-07T10:00:03Z",
   "event": {
-    "type": "state.snapshot",
-    "state": {
-      "type": "plan",
+    "type": "plan.updated",
+    "plan": {
       "sessionId": "ses_01",
       "revision": 4,
-      "plan": [
+      "steps": [
         {
-          "id": "1",
+          "id": "0",
           "description": "read the file",
           "status": "in_progress"
         }

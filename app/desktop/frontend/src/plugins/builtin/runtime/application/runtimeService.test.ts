@@ -25,7 +25,6 @@ const inspection: RuntimeConnectionInspection<ServerCapabilities> = {
   capabilities: {
     runEvents: [],
     runtimeTopics: [],
-    stateSnapshots: [],
     features: {},
     streamingMethods: [],
     limits: {

@@ -345,8 +345,8 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 所以
 
 - 别的进程或别的段的 cursor 被**拒绝**（`replay_cursor_invalid`）而不是被将就解释 —— 后者会把重放落到另一条流上；
-- 曾经合法、但已被保留窗口淘汰的位置返回 `replay_unavailable`。事件没了，但它们产出的 Item 已持久化：客户端
-  冷读 `items.list` + 各 state key 的 recovery 方法，再**不带 cursor** 重接（= 只订将来）。
+- 曾经合法、但已被保留窗口淘汰的位置返回 `replay_unavailable`。事件没了，但它们产出的 Item 与 Plan 已持久化：客户端
+  冷读 `items.list` + `plan.get`，再**不带 cursor** 重接（= 只订将来）。
 
 保留窗口的 scope 与容量在 `capabilities.limits.runReplay` 里公布**并被强制执行**（API.md §9）。server 只保留
 replayable 事件以支撑续流；**正确性不得依赖 non-authoritative preview 的重放**。
@@ -360,8 +360,8 @@ replayable 事件以支撑续流；**正确性不得依赖 non-authoritative pre
    `Last-Event-Id: <最后一个成功折叠的 eventId>`；
 2. server 在新响应流里**重放该 id 之后的 replayable 事件**，再接上 live；
 3. 客户端按 `eventId` 与 `itemId` 去重；
-4. 若客户端本地状态仍不完整（或拿到 `replay_unavailable`），调用 `items.list` 重建持久化历史 + 各 state key 的
-   recovery 方法补状态；`item.completed` / `state.snapshot` 保证终态正确（API.md §5.2）。
+4. 若客户端本地投影仍不完整（或拿到 `replay_unavailable`），调用 `items.list` 重建持久化历史并用 `plan.get`
+   恢复 Plan；`item.completed` / `plan.updated` 保证终态正确（API.md §5.2）。
 
 > 重连的是**具体某个 run 的某一段**，粒度准，且不需要维护连接身份。
 >
@@ -374,7 +374,7 @@ replayable 事件以支撑续流；**正确性不得依赖 non-authoritative pre
 
 server **不重放 non-replayable 事件：`item.delta`、`segment.progress`**。
 
-server **必须**通过 authoritative 的 `item.completed` / `state.snapshot` 与对应持久化读让最终态可得
+server **必须**通过 authoritative 的 `item.completed` / `plan.updated` 与对应持久化读让最终态可得
 （API.md §5.2 不变量）。
 
 ## 10. 创建请求重试

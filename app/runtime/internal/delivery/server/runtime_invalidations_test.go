@@ -52,25 +52,23 @@ func TestEveryInvalidationResourceIsPublishable(t *testing.T) {
 	}
 }
 
-// TestStateChangeNamesItsKeyAndKeepsSessionScope: state.changed is the one signal
-// with a required field beyond the sequence — without the key a client cannot tell
-// which recovery method to call — and a session-scoped key must not carry run ids,
-// which would narrow a refetch by something the key is not keyed on.
+// TestPlanChangeKeepsSessionScope proves plan.changed names the product resource
+// directly and carries only the Session identity needed by plan.get.
 //
-// It is the wire half of session_state_is_owned_by_its_session and of
-// committed_state_change_reaches_other_windows: the store keeps one value per
+// It is the wire half of session_plan_is_owned_by_its_session and of
+// committed_plan_change_reaches_other_windows: the store keeps one value per
 // session, and this is where that scope survives being published.
-func TestStateChangeNamesItsKeyAndKeepsSessionScope(t *testing.T) {
+func TestPlanChangeKeepsSessionScope(t *testing.T) {
 	ev, ok := runtimeEventFor(invalidation.Notice{
 		Resource: invalidation.PlanState, SessionIDs: []string{"ses_1"}, RunIDs: []string{"run_1"},
 	})
 	if !ok {
-		t.Fatal("plan state has no runtime event")
+		t.Fatal("Plan has no runtime event")
 	}
-	if ev.Type != protocol.RuntimeStateChanged || ev.Key != protocol.StatePlan {
-		t.Fatalf("event = %s key %q, want state.changed/plan", ev.Type, ev.Key)
+	if ev.Type != protocol.RuntimePlanChanged {
+		t.Fatalf("event = %s, want plan.changed", ev.Type)
 	}
-	if len(ev.RunIDs) != 0 {
-		t.Fatalf("run ids = %v, want none on a session-scoped key", ev.RunIDs)
+	if !slices.Equal(ev.SessionIDs, []string{"ses_1"}) || len(ev.RunIDs) != 0 {
+		t.Fatalf("scope = sessions %v runs %v, want only ses_1", ev.SessionIDs, ev.RunIDs)
 	}
 }

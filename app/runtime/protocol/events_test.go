@@ -16,7 +16,7 @@ func TestStreamEventReliabilityIsTypeOwned(t *testing.T) {
 		{event: StreamEvent{Type: StreamItemStarted}, authoritative: true, replayable: true},
 		{event: StreamEvent{Type: StreamItemDelta}},
 		{event: StreamEvent{Type: StreamItemCompleted}, authoritative: true, replayable: true},
-		{event: StreamEvent{Type: StreamStateSnapshot}, authoritative: true, replayable: true},
+		{event: StreamEvent{Type: StreamPlanUpdated}, authoritative: true, replayable: true},
 		{event: StreamEvent{Type: StreamEventType("unknown")}},
 	}
 

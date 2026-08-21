@@ -89,6 +89,7 @@ import type {
   PageOfWorkspaceFileChange,
   PageOfWorkspaceSummary,
   PageQuery,
+  Plan,
   Provider,
   ProviderTestResult,
   ReadFileRequest,
@@ -113,7 +114,6 @@ import type {
   StartGoalRequest,
   StartRunRequest,
   StartRunResponse,
-  StateSnapshot,
   SteerRunRequest,
   SubscribeRunRequest,
   SubscribeRunResponse,
@@ -1119,7 +1119,7 @@ export interface WireShapes {
   "runs.get": { params: GetRunRequest; result: RunRef };
   "runs.list": { params: ListRunsRequest; result: PageOfRunRef };
   "interrupts.list": { params: ListInterruptsRequest; result: PageOfPendingInterruptSet };
-  "plan.get": { params: GetPlanRequest; result: StateSnapshot };
+  "plan.get": { params: GetPlanRequest; result: Plan };
   "items.list": { params: ListItemsRequest; result: ListItemsResponse };
   "workspaces.resolve": { params: ResolveWorkspaceRequest; result: WorkspaceInfo };
   "workspaces.list": { params: Record<string, never>; result: PageOfWorkspaceSummary };

@@ -50,7 +50,6 @@ func validTestCapabilities() protocol.ServerCapabilities {
 	return protocol.ServerCapabilities{
 		RunEvents:        []protocol.StreamEventType{},
 		RuntimeTopics:    []protocol.RuntimeTopic{},
-		StateSnapshots:   []protocol.StateSnapshotCapability{},
 		StreamingMethods: []string{},
 		Features:         map[string]protocol.FeatureCapability{},
 		Limits: protocol.RuntimeLimits{

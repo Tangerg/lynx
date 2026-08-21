@@ -1,6 +1,6 @@
 // Reducer — accumulator-shape tests. These cover the *view-level* data
 // structures the reducer maintains alongside the message stream: the audit
-// `timeline`, the agent-owned shared state (state.snapshot), and durable
+// `timeline`, the Runtime-owned Plan, and durable
 // history hydration via item.completed.
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -102,19 +102,18 @@ describe("reducer — timeline accumulator", () => {
   });
 });
 
-describe("reducer — shared state", () => {
+describe("reducer — plan", () => {
   const plan = (revision: number, description: string): StreamEvent => ({
-    type: "state.snapshot",
-    state: {
-      type: "plan",
+    type: "plan.updated",
+    plan: {
       revision,
-      plan: [{ id: "1", text: description, status: "pending" }],
+      steps: [{ id: "1", text: description, status: "pending" }],
     },
   });
 
-  it("a state snapshot replaces its own key wholesale", () => {
+  it("a plan update replaces the Plan wholesale", () => {
     const s = reduce(EMPTY_AGENT_SESSION_VIEW, plan(1, "first"));
-    expect(s.shared.plan).toMatchObject({ revision: 1, plan: [{ text: "first" }] });
+    expect(s.plan).toMatchObject({ revision: 1, steps: [{ text: "first" }] });
   });
 
   // The list is replaced whole, so contents cannot say which snapshot is later — an
@@ -122,7 +121,7 @@ describe("reducer — shared state", () => {
   it("an older revision does not overwrite a newer one", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, plan(4, "current"));
     s = reduce(s, plan(2, "stale"));
-    expect(s.shared.plan).toMatchObject({ revision: 4, plan: [{ text: "current" }] });
+    expect(s.plan).toMatchObject({ revision: 4, steps: [{ text: "current" }] });
   });
 
   it("a duplicate revision is a no-op even if a drifted replay arrives", () => {
@@ -130,9 +129,9 @@ describe("reducer — shared state", () => {
     const duplicate = reduce(current, plan(4, "drifted replay"));
 
     expect(duplicate).toBe(current);
-    expect(duplicate.shared.plan).toMatchObject({
+    expect(duplicate.plan).toMatchObject({
       revision: 4,
-      plan: [{ text: "current" }],
+      steps: [{ text: "current" }],
     });
   });
 });

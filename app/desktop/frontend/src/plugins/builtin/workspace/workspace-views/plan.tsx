@@ -5,8 +5,8 @@ import { PlanList } from "./views/PlanList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
-// The agent's working plan. Reads live from the agent's shared state — the
-// backend pushes it via state.snapshot{plan} (no new event type), which the fold
+// The agent's working plan. Reads live from the explicit Session Plan — the
+// backend pushes it via plan.updated, which the fold
 // already lands in view.shared. Session-scoped and root-run-written, so it
 // outlives the turn that set it.
 function PlanTab() {

@@ -94,10 +94,10 @@ func retainedItemStartBytes(item ItemStart) int {
 	return bytes
 }
 
-func retainedStateSnapshotBytes(snapshot StateSnapshot) int {
-	bytes := retainedEventHeaderBytes + len(snapshot.SessionID) + cap(snapshot.Plan)*retainedPlanEntryBytes
-	for _, item := range snapshot.Plan {
-		bytes += len(item.ID) + len(item.Description)
+func retainedPlanSnapshotBytes(snapshot PlanSnapshot) int {
+	bytes := retainedEventHeaderBytes + len(snapshot.SessionID) + cap(snapshot.Steps)*retainedPlanEntryBytes
+	for _, item := range snapshot.Steps {
+		bytes += len(item.Description)
 	}
 	return bytes
 }

@@ -113,10 +113,9 @@ describe("projectAgentSessionSnapshot", () => {
           ],
         },
       ],
-      state: {
-        type: "plan",
+      plan: {
         revision: 4,
-        plan: [{ id: "step_1", text: "Verify", status: "active" }],
+        steps: [{ id: "step_1", text: "Verify", status: "active" }],
       },
     };
 
@@ -167,7 +166,7 @@ describe("projectAgentSessionSnapshot", () => {
         interrupts: [{ itemId: "item_approval", kind: "approval" }],
       },
     ]);
-    expect(view.shared.plan).toMatchObject({ revision: 4 });
+    expect(view.plan).toMatchObject({ revision: 4 });
     expect(
       view.timeline.filter((entry) => entry.kind === "run-start").map((entry) => entry.runId),
     ).toEqual([LOST_RUN_ID, ROOT_RUN_ID, CHILD_RUN_ID, RUNNING_CHILD_RUN_ID]);

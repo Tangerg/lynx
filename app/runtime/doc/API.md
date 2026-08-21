@@ -218,10 +218,10 @@ client identity 返回带精确 `errors[].field` 的 `invalid_params`，不会�
 ### 2.5 事件名 / 方法名
 
 - 事件名小写 `domain.action`：`segment.started` / `segment.progress` / `segment.finished` / `item.started` /
-  `item.delta` / `item.completed` / `state.snapshot`；失效信号同形：`files.changed` / `runs.changed` /
-  `state.changed` / …（§7.8）。运行时行为必须使用一等事件或 Item 类型。
+  `item.delta` / `item.completed` / `plan.updated`；失效信号同形：`files.changed` / `runs.changed` /
+  `plan.changed` / …（§7.8）。运行时行为必须使用一等事件或 Item 类型。
 - 方法名 `<domain>.<verb>`，HTTP URL 保留点（不斜杠化）。例：`runs.start` / `items.list` / `mcp.servers.list`。
-- **一件事一种拼写**：信号名与它的资源同名（`runs.changed` 对 `runs.*`、`state.changed` 对 state key），不出现
+- **一件事一种拼写**：信号名与它的资源同名（`runs.changed` 对 `runs.*`、`plan.changed` 对 `plan.get`），不出现
   `mcp.serverChanged` 这类"动词挪进名词"的第二种拼法。
 
 ### 2.6 第三方扩展命名空间（防撞名）
@@ -538,7 +538,7 @@ MCP 只发布一个 `MCPServer` 资源，不再把可编辑配置与连接状态
 | `item.started`     | 一个 Item 的壳落地                                               |
 | `item.delta`       | 该 Item 的增量预览（五种，§5.1）                                 |
 | `item.completed`   | 该 Item 的**权威终态**                                           |
-| `state.snapshot`   | 一个 session-scoped 共享状态的**整份**当前值（§5.3）             |
+| `plan.updated`     | Session Plan 的**整份**当前值（§5.3）                            |
 | `segment.finished` | 这一段结束，带 `outcome: SegmentOutcome` + `metrics: RunMetrics` |
 
 > **`contextTokens` 不是 `usage.inputTokens`**：前者是**此刻**窗口占了多少（压缩后会回落），后者是跨轮**累计**只增。
@@ -567,7 +567,7 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 
 - authoritative：客户端能否把事件当作可折叠事实；
 - replayable：当前 process / root Segment 的有界窗口是否保留它；
-- persisted：事实是否已经进入可跨进程恢复的 Run / Item / state 持久化投影。
+- persisted：事实是否已经进入可跨进程恢复的 Run / Item / Plan 持久化投影。
 
 前两项由 `event.type` 决定，wire 上没有 sender-controlled reliability flag。这张表由 Registry 生成到
 `manifest.json.runEventPolicy`，SSE id 与 replay journal 只读取 replayable：
@@ -578,7 +578,7 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 | `segment.finished`          | ✅            | ✅         | RunRef / Interrupt query                    |
 | `item.started`              | ✅            | ✅         | `items.list`                                |
 | `item.completed`            | ✅            | ✅         | `items.list`                                |
-| `state.snapshot`            | ✅            | ✅         | Registry 登记的 recovery query              |
+| `plan.updated`              | ✅            | ✅         | `plan.get`                                  |
 | `segment.progress`          | ⬜            | ⬜         | `segment.finished.metrics` / RunRef.metrics |
 | `item.delta{content}`       | ⬜            | ⬜         | `agentMessage.content`（completed）         |
 | `item.delta{reasoning}`     | ⬜            | ⬜         | `reasoning.text`（completed）               |
@@ -592,25 +592,21 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 推论：客户端可排除高频 delta（§9 `excludedEphemeralEvents`）而仍保持正确；不流式的 runtime
 可不发任何 delta，completed item 一样必发权威终值。
 
-### 5.3 state.snapshot 必发边界
+### 5.3 Plan 必发边界
 
-共享状态只以整份 `state.snapshot` 传播（**无增量事件**）。每个 state key 在 discovery 里声明自己的
-`scope` / `writer` / `recoveryMethod`（§9），并遵守：
+Plan 只以整份 `plan.updated` 传播（**无增量事件**），由 root Run 写入，作用域固定为 Session；它不是通用 state
+registry 的一个变体。`plan.updated` 与 `plan.get` 使用同一个 `Plan` shape，并遵守：
 
 - **每次改变时发**（快照即当前完整视图，带单调 `revision`）；
-- **`segment.finished` 之前必发**该段改过的每个 key —— 这条是**位置保证**：收到终态的人就已经收到了终值。晚接入或
-  从更后的 cursor 重放的订阅者，否则会走到终态却从没见过快照。**这一段没改过该 key 就不发**：一份 revision 0 的
-  空快照在按 revision 折叠的客户端那里读作"清单被清空了"，不是"没变"。
+- **`segment.finished` 之前必发**该段改过的 Plan —— 这条是**位置保证**：收到终态的人就已经收到了终值。晚接入或
+  从更后的 cursor 重放的订阅者，否则会走到终态却从没见过 Plan。**这一段没改过 Plan 就不发**：一份 revision 0 的
+  空 Plan 在按 revision 折叠的客户端那里读作"清单被清空了"，不是"没变"。
 - **revision 只增不减**：把一个更早的值重新发布（回退、导入归档）也是**一次新的写入**，拿到更大的 revision。
   否则客户端会把回退后的清单当旧值丢掉。
-- **`scope: session` 的 key 不带 runId**：它一个会话一份值，用 run 去窄化 refetch 会按一个它并不索引的键去查。
+- **Plan 不带 runId**：它一个 Session 一份值，用 Run 去窄化 refetch 会按一个它并不索引的键去查。
 
-**cold read 是一等公民**：每个 key 声明一个 `recoveryMethod`（`todos` → `todos.get`），返回与事件**同形同 revision**
-的快照。重载、回退、replay 窗口过期之后，客户端靠它把面板接回来 —— 一个只能靠事件才拿得到的状态，在错过事件的那一刻
-就永久错了。
-
-**first-party 共享 key**：`todos`（模型的任务清单，`scope: session`、`writer: rootRun`，形状见附录 C.4）。
-第三方 key 遵 §2.6 命名空间。
+**cold read 是一等公民**：`plan.get` 返回与事件**同形同 revision**的 Plan。重载、回退、replay 窗口过期之后，
+客户端靠它把面板接回来；Plan 不是第三方扩展缝，也没有动态 key、scope、writer 或 recovery-method metadata。
 
 ### 5.4 Run 树
 
@@ -696,7 +692,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 ### 7.1 runtime.\*
 
 - `runtime.discover` —— 读 `{protocol, serverInfo, capabilities}`。它是无状态查询，不是生命周期切换。
-  **discovery 只说 runtime 真做得到的事**：每个 topic 都有生产者，每个 state key 都有 writer 与 cold read，每个
+  **discovery 只说 runtime 真做得到的事**：每个 topic 都有生产者，每个 feature 都有真实门控，每个
   数字（replay 窗口 / 订阅上限）都被强制执行。发布一个没人实现的能力比不发布更糟。
 - `runtime.subscribe` —— 工作区/会话/run 的**失效流**（§7.8、AUX_API §3）。
 
@@ -709,20 +705,20 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 
 - **`create` 的 `workspace` 缺省 = `ServerInfo.defaultWorkspace`**（冷启动零摩擦），返回完整 `WorkspaceInfo`。
 - **`snapshot` 是挂载恢复的原子 material read**：Runtime 在一个存储事务内读取完整 Items、Runs、open
-  Interrupt sets 与当前 Plan state，客户端不能再把四次独立查询的不同提交点拼成一个从未存在过的视图。
+  Interrupt sets 与当前 Plan，客户端不能再把四次独立查询的不同提交点拼成一个从未存在过的视图。
   `includeDescendants:true` 与 `runs.list` 一样要求 `features.subagents`；未提供 Plan 能力的 composition 省略
-  `state`。它不是通用 `expand[]`，也不替代下面各资源的分页/筛选接口。
+  `plan`。它不是通用 `expand[]`，也不替代下面各资源的分页/筛选接口。
 - **`update` 是条件写**：必带 `expectedRevision`（§4.1）。改 `workspace` 需 `features.relocate`。
-- **`fork` 在一个 run 边界切开**：`fromRunId` 之前（含）的历史进新会话，之后的不进。会话级 state 也按同一个边界
+- **`fork` 在一个 run 边界切开**：`fromRunId` 之前（含）的历史进新会话，之后的不进。Plan 也按同一个边界
   走 —— fork 出来的会话拿到的是**那一刻**的任务清单，不是现在的。
 - **`rollback` 是回退到某个 run 之前**（AUX_API §4.1）：删掉之后的 run、把消息日志截回该 run 的水位、按
-  `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的会话 state 作为一次新写入重新发布**
+  `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的 Plan 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v21）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
-  chat 消息 + offload 的工具正文 + 会话级 state 的**语义值**（不带 revision / updatedAt —— 那是源 runtime 的排序
+- **`export` / `import` 是同一份 `SessionArtifact`（v22）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+  chat 消息 + offload 的工具正文 + 显式 `plan` 语义值（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
-  确定性拒绝、**不迁移**；未广告的 state key 在任何写入之前拒绝。
+  确定性拒绝、**不迁移**，只接受当前 v22 shape。
 
 ### 7.3 runs.\*
 
@@ -828,8 +824,8 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 
 | method                        | params         | 载什么                                                                                                                                                                                         |
 | ----------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `notifications.run.event`     | `RunEvent`     | 一个 run 段的 run/item/state 事件（§5）                                                                                                                                                        |
-| `notifications.runtime.event` | `RuntimeEvent` | 失效信号：`files.changed` / `skills.changed` / `mcp.changed` / `schedules.changed` / `sessions.changed` / `runs.changed` / `state.changed` / `goals.changed` / `interrupts.changed` / `knowledge.changed` / `hooks.changed` / `models.changed` / `approvals.changed` / `agentMemory.changed` / `codebase.changed` / `resync` |
+| `notifications.run.event`     | `RunEvent`     | 一个 run 段的 segment/item/Plan 事件（§5）                                                                                                                                                     |
+| `notifications.runtime.event` | `RuntimeEvent` | 失效信号：`files.changed` / `skills.changed` / `mcp.changed` / `schedules.changed` / `sessions.changed` / `runs.changed` / `plan.changed` / `goals.changed` / `interrupts.changed` / `knowledge.changed` / `hooks.changed` / `models.changed` / `approvals.changed` / `agentMemory.changed` / `codebase.changed` / `resync` |
 
 失效信号的契约（§9 / AUX_API §3）：
 
@@ -837,8 +833,8 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
   信号而跳。
 - **不丢帧**：来不及投递的失效**合并**成一条点名 topic 的 `resync`（"这些 topic 你重读一遍"），而不是丢掉后让
   客户端靠"看见空号"去发现 —— 安静的流上永远看不见。`resync.topics` 必填且非空。
-- **一个 topic 一个资源**：客户端收到信号后调该资源的读方法重取（`state.changed` 带 `key`，指向那个 key 的
-  `recoveryMethod`）。信号本身不带业务数据，它只说"再读一次"。
+- **一个 topic 一个资源**：客户端收到信号后调该资源的读方法重取（`plan.changed` → `plan.get`）。信号本身不带
+  业务数据，它只说"再读一次"。
 - **narrowing array 出现即有意义**：`files.changed.paths` 必填且非空；其余
   `names/serverIds/scheduleIds/sessionIds/runIds/watchIds` 出现时均非空，所有集合均无重复。空数组不用来表达
   “全部”，省略才表示该 variant 没有进一步收窄。
@@ -961,7 +957,7 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 
 ## 9. Capabilities 与请求能力
 
-`ServerCapabilities`（仅由 `runtime.discover` 返回）由六部分组成，每部分都是**runtime 真做得到的事**：
+`ServerCapabilities`（仅由 `runtime.discover` 返回）由五部分组成，每部分都是**runtime 真做得到的事**：
 
 | 字段               | 含义                                                                                                       |
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -969,7 +965,6 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 | `limits`           | 强制执行的正数值：idempotency / run replay / MCP authorization-attempt retention / subscription fan-out |
 | `runEvents`        | 本 build 会发的 `StreamEventType` 集合                                                                     |
 | `runtimeTopics`    | 可订阅的失效 topic 集合（每个都有生产者）                                                                  |
-| `stateSnapshots`   | 每个 state key 的 `{key, scope, writer, recoveryMethod}`（§5.3）                                           |
 | `streamingMethods` | 走流式响应的方法名集合（§7）                                                                               |
 
 **`features` 是开放 map（与 `ClientCapabilities.features` 对称）**：runtime advertise 新能力 = 加一个 key，
@@ -1007,7 +1002,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 2. 带上最后一个**折叠成功**的事件 id（`Last-Event-Id`）让 server 重放 replayable 缺口。**cursor 只由折叠推进** ——
    不要用 ack 回来的 `headEventId` 覆盖自己的位置（§7.3）；
 3. `replay_unavailable` 时，已挂载 Session 改走 `sessions.snapshot` 一次补齐 material view；只持有单个 Run
-   的通用消费者仍可用 `items.list` + 各 state key 的 `recoveryMethod`，然后 tail 重接（不带 cursor = 只订将来）；
+   的通用消费者仍可用 `items.list` + `plan.get`，然后 tail 重接（不带 cursor = 只订将来）；
 4. 按 `itemId` 与 `eventId` 去重。**non-replayable preview 不重放**（§5.2 保证正确）。
 
 一个 Run **活得比它的流长**：流在没有本段终态的情况下结束，是**连接掉了**，不是 run 结束了——服务端那边它还在跑。
@@ -1033,17 +1028,12 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ---
 
-## 11. 两个扩展缝：Item / state（选择指南）
+## 11. 扩展选择指南
 
-| 缝         | 是什么                 | 何时用                                                           | 跨进程持久化 | 命名空间             |
-| ---------- | ---------------------- | ---------------------------------------------------------------- | ------------ | -------------------- |
-| **Item**   | 持久化历史工作单元     | 要进历史、用户回看的产物（消息 / 推理 / 工具调用 / 计划 / 提问） | ✅           | `item.type` 一等枚举 |
-| **state**  | 共享可变视图态         | 一直在变、最后有稳定终值的面板（任务清单一类）                   | 快照 ✅      | 顶层 key（§2.6）     |
-
-- 选 **Item**：它是工作回看的一部分吗？是 → Item（享受 `items.list` 历史 + run 树）。
-- 选 **state**：它是一直在变、最后有个稳定终态的视图吗？是 → state。**代价要认**：加一个 state key 必须同批给出
-  typed 事件分支、`scope`、`writer`、`recoveryMethod` 与 revision 策略，并 bump `protocolVersion`（§12）——
-  一个没有冷读的 state key 在客户端错过事件的那一刻就永久错了。
+- 要进历史、供用户回看的工作产物使用一等 Item，并通过 `items.list` 与 Run 树恢复。
+- 独立可变事实使用一等领域资源：定义命名 event、冷读、写 owner、scope 与 revision 语义。Plan 是当前实例；它不建立
+  通用 key registry，也不授权第三方把任意 JSON 塞进 Run 流。新增一等资源会扩充闭合 event/topic union，必须按 §12
+  评估并前移 `protocolVersion`。
 
 ---
 
@@ -1053,10 +1043,10 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的精确版本），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
 - **加什么必须 bump**：新增请求字段（旧 server 严格拒绝）、**给闭合枚举或闭合 union 加成员**（客户端对它写
-  exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
+  exhaustive switch，§2.3）、加一等事件/资源、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **21**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **22**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。
@@ -1082,7 +1072,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 ## 14. 机器可读制品 / 漂移闸
 
 公共 Go `runtime/protocol` + 私有 binding-neutral Operation Registry 是**机械 SSOT**。`go generate ./...` 从它们导出
-`runtime/contract/`（manifest / JSON Schema / OpenRPC / 人读索引 / 错误注册表 / 能力门禁 / 事件与 state 策略 /
+`runtime/contract/`（manifest / JSON Schema / OpenRPC / 人读索引 / 错误注册表 / 能力门禁 / 事件策略 /
 canonical 样本）以及前端消费的 TS 类型、校验器与 client stub。
 
 Registry 自身也属于合同边界：method / retry / condition / constraint / recovery 等闭合 metadata
@@ -1099,8 +1089,8 @@ capability 规则在 dispatcher / discovery / SDK preflight 三方等价；schem
 每个闭合 union 有 discriminator 与完整变体；约束在 Go / schema / TS 三方等价；DTO validator 无 store 依赖；
 每条 system invariant 有跨 projection fixture；TS 产物可编译且**都有消费者**；canonical 样本三方通过（含一个不
 参与生产的 JSON Schema 验证器）；list query fixture；**protocol manifest / canonical 文档 / 代码 / canonical 样本
-版本一致**；错误 type↔code 单一源；每个 state key 有 typed 事件、冷读、scope、writer 与 revision 策略；
-Artifact v21 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
+版本一致**；错误 type↔code 单一源；Plan 的 live event、cold read、Session material 与 archive shape 一致；
+Artifact v22 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
 
 ---
 
@@ -1111,7 +1101,7 @@ Artifact v21 round-trip；compatibility differ 判定 breaking 并要求同批 b
 - **协议层零鉴权**：无 user / account 概念；本地进程门禁由 transport 层处理（TRANSPORT §11）。
 - **workspace 是业务身份不是传输上下文**：`WorkspaceRef` 走 body，不走带外 directory header（TRANSPORT §2）。
 - **防挂死**：server 不产出 client 解不了的 open interrupt（§6.2）。
-- **归档不越权**：import 在任何写入之前拒绝它无法完整还原的文档（未广告的 state key、带血缘的 run 树、
+- **归档不越权**：import 在任何写入之前拒绝它无法完整还原的文档（未提供 Plan 能力、带血缘的 run 树、
   不认识的版本）。
 
 ---
@@ -1127,9 +1117,9 @@ Artifact v21 round-trip；compatibility differ 判定 breaking 并要求同批 b
 5. **HITL = R 模型**：interrupt 收尾当前**段**、`runs.resume` 在同一 Run 上续段；所有 interrupt payload
    **自包含**（§6 / §4.8）。
 6. **元数据带外、业务进 params**：workspace/sessionId/runId 进 params；trace/版本/token/游标走带外（TRANSPORT §2）。
-7. **能力开放可加、但闭合集合加成员要 bump**：`features` 是开放 map；闭合 union / 枚举 / state key 加成员是
+7. **能力开放可加、但闭合集合加成员要 bump**：`features` 是开放 map；闭合 union / 枚举 / 一等事件加成员是
    breaking（§2.3 / §12）。
-8. **discovery 只说做得到的事**：每个 topic 有生产者、每个 state key 有 writer 与冷读、每个数字被强制执行（§9）。
+8. **discovery 只说做得到的事**：每个 topic 有生产者、每个 feature 有真实门控、每个数字被强制执行（§9）。
 9. **错误三落点、一个形状**：`ProblemData` 唯一形状，落点即判别，符号名即判别键（§8）。
 10. **集合一个信封，能力不造假**：所有 list 是 `Page<T>`；只有真正可续页的读接受 cursor，且 cursor 绑定完整查询；
     有界集合不静默截断（§4.11）。
@@ -1181,13 +1171,10 @@ runtime 在 turn 边界需要压缩时产出它（`item.started` + `item.complet
 fold 成时间线分隔条。摘要文本已折进重写后的对话历史。压缩策略属于 runtime 领域服务，不开放会与自动策略竞争的
 手动 RPC。
 
-### C.4 · `state.snapshot{todos}`（门控 `todos`）—— 模型的工作清单
+### C.4 · `plan.updated`（门控 `plan`）—— 模型的工作清单
 
-模型 `todo_write` 的清单，`scope: session` / `writer: rootRun` / `recoveryMethod: todos.get`。整表替换、带单调
-`revision`（§5.3）。
-
-> 类型名是 `TodoSnapshot` —— 它是一份快照里的一条，不是有身份的实体，命名刻意不叫 `TodoItem`（`Item` 在本协议里
-> 专指 §4.3 的 transcript Item）。条目 `id` 是**位置序**，随整表替换，不是持久身份。
+模型 `set_plan` 写入 Session Plan；root Run 是唯一 writer，`plan.get` 是 cold read。整表替换、带单调 `revision`
+（§5.3）。`PlanStep.id` 是**位置序**，随整表替换，不是持久身份。
 
 ---
 

@@ -104,7 +104,7 @@
   Knowledge / Hook 配置，不凭空猜测 workspace。
 - **作用域 = 这条流本身**：topic / watch 集随订阅参数走，无独立 `watch` / `unwatch` 方法——**改集合 = 关流重订**。
 - **信号只说"再读一次"**：每条事件带被影响资源的 id（`sessionIds` / `runIds` / `paths` / …），**不带业务数据**。
-  客户端收到后调对应读方法重取（`state.changed` 带 `key`，指向该 key 声明的 `recoveryMethod`，`API.md §5.3`）。
+  客户端收到后调对应读方法重取（`plan.changed` 指向 `plan.get`，`API.md §5.3`）。
 - **每个 topic 都有生产者**：discovery 里出现的 topic，runtime 一定会在对应提交之后发它。一个"名字在、流是静的"
   topic 比没有更糟——第二个窗口会安静地过时，并且察觉不到。
 - **配置与后台任务有专用信号**：成功的 Skill library/proposal、`knowledge.update` / `hooks.setTrust`、provider/role、approval policy、agent-memory
@@ -171,19 +171,19 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 - 省略 `fromRunId` = 整段 fork；给定 = **含 `fromRunId` 在内**截断复制到该 run 边界。
 - **只复制已完结的 run**（in-flight run 不进副本，等价"先 interrupt 再 fork"）——故 fork **无 `session_busy`**，
   与 §4.1 的"运行中拒绝"差异即在此。
-- **会话级 state 取那个边界的值**（不是源会话现在的值）：fork 出来的会话是"那一刻"的复制品，把现在的清单塞进去
+- **Plan 取那个边界的值**（不是源会话现在的值）：fork 出来的会话是"那一刻"的复制品，把现在的清单塞进去
   等于伪造它的历史。
 
 ### 4.3 `sessions.export` / `sessions.import`
 
-同一份 `SessionArtifact`（**version 18**）的两端：终态 run + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
-会话级 state 的语义值。`format:"md"` 是人读转录（**不可再导入**）。
+同一份 `SessionArtifact`（**version 22**）的两端：终态 run + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
+显式 Plan 语义值。`format:"md"` 是人读转录（**不可再导入**）。
 
 - **只带终态 run**：live 与 interrupted 的 executor 状态是进程本地的，不可移植。
-- **state 只带语义值**，不带 `revision` / `updatedAt`：那是源 runtime 的排序凭证，带过去会让导入的值声称一个目标
+- **Plan 只带 `plan` steps**，不带 `revision` / `updatedAt`：那是源 runtime 的排序凭证，带过去会让导入的值声称一个目标
   runtime 从未发出的位置。导入方**自己发号**。
 - **import 是替换语义**（同 id 覆盖），在**任何写入之前**拒绝它无法完整还原的文档：版本不认识（不迁移）、
-  含本 build 未广告的 state key、含 run 树（`features.subagents` 关时 —— 摊平一棵树等于导入一个归档没有描述过的
+  当前 build 未提供 Plan 能力却归档含 Plan、含 run 树（`features.subagents` 关时 —— 摊平一棵树等于导入一个归档没有描述过的
   会话）。
 - **归档记录不复用 live 响应 DTO**：live 响应带进程本地与派生的展示态，归档是一份 durable 输入文档。
 - ToolCall 的 `startedAt` / `finishedAt` 保存可见 lifecycle；可选 `durationMillis` 保存精确 Tool execution，排除审批等

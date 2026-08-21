@@ -507,7 +507,7 @@ func validateRoutedEvent(route *executorRoute, sessionID string, routed RunEvent
 		return validateRouteItemStart(route, sessionID, event.Item)
 	case ItemCompleted:
 		return validateRouteItem(route, sessionID, event.Item)
-	case StateSnapshot:
+	case PlanSnapshot:
 		if event.SessionID != sessionID {
 			return fmt.Errorf(
 				"%w: route %q carries state for session %q, want %q",

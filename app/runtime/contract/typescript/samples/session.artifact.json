@@ -1,5 +1,5 @@
 {
-  "version": 21,
+  "version": 22,
   "session": {
     "id": "ses_01",
     "title": "Refactor the runtime protocol",
@@ -63,21 +63,16 @@
       "createdAt": "2026-07-07T10:00:05Z"
     }
   ],
-  "states": [
+  "plan": [
     {
-      "type": "plan",
-      "plan": [
-        {
-          "id": "0",
-          "description": "Split the run outcome",
-          "status": "completed"
-        },
-        {
-          "id": "1",
-          "description": "Carry the plan through export",
-          "status": "in_progress"
-        }
-      ]
+      "id": "0",
+      "description": "Split the run outcome",
+      "status": "completed"
+    },
+    {
+      "id": "1",
+      "description": "Carry the plan through export",
+      "status": "in_progress"
     }
   ]
 }

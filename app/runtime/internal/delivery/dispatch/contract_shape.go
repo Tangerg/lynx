@@ -10,12 +10,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // This file holds the shape half of the contract: which wire types are closed
-// unions, which cross-field constraints they carry, and which shared-state keys
-// exist. The method half is contract.go.
+// unions and which cross-field constraints they carry. The method half is
+// contract.go.
 //
 // Go models these unions as FLAT tag-discriminated structs (one `type` field plus
 // the optional fields that tag allows), which is the right wire shape but tells a
@@ -79,41 +78,6 @@ type PresenceRule struct {
 	When      []operation.FieldCondition
 	Required  []string
 	Forbidden []string
-}
-
-// StateSnapshotScope is how far one shared-state key reaches.
-type StateSnapshotScope string
-
-// StateScopeSession is the only scope today: a state key belongs to its session
-// and every Run in that session reads and writes the same value.
-const StateScopeSession StateSnapshotScope = "session"
-
-// StateSnapshotWriter is who is allowed to publish a key's value.
-type StateSnapshotWriter string
-
-// StateWriterRootRun is the only writer today: the session's root Run. Child Runs
-// may execute, but the projection transaction rejects their shared-state writes so
-// a session keeps one authoritative value.
-const StateWriterRootRun StateSnapshotWriter = "rootRun"
-
-// StateKeySpec declares one first-party `state.snapshot` key (contract §11.2).
-// RecoveryMethod names how a client that missed the event gets the current value
-// — a key with no recovery path would break reconnect, so it is stated, not
-// assumed.
-type StateKeySpec struct {
-	Key            string
-	RecoveryMethod string
-	Scope          StateSnapshotScope
-	Writer         StateSnapshotWriter
-	Feature        string
-
-	// PayloadType is the Go type of the value published under this key.
-	//
-	// The state envelope is a `map[string]any` — deliberately, so a new key needs no
-	// wire change — which means the shape of a key's value is invisible to
-	// reflection. Declaring it is the only way the published contract can say what
-	// `state.snapshot` actually carries; without it a client reads "some JSON".
-	PayloadType reflect.Type
 }
 
 // CarriedSpec declares a wire type the method graph cannot reach.
@@ -245,7 +209,6 @@ type FieldConstraintSpec struct {
 type Shapes struct {
 	unions        []UnionSpec
 	constraints   []ObjectConstraintSpec
-	stateKeys     []StateKeySpec
 	carried       []CarriedSpec
 	notifications []NotificationSpec
 	values        []FieldConstraintSpec
@@ -287,8 +250,7 @@ func (s *Shapes) Constraints() []ObjectConstraintSpec {
 	}
 	return out
 }
-func (s *Shapes) StateKeys() []StateKeySpec { return slices.Clone(s.stateKeys) }
-func (s *Shapes) Carried() []CarriedSpec    { return slices.Clone(s.carried) }
+func (s *Shapes) Carried() []CarriedSpec { return slices.Clone(s.carried) }
 func (s *Shapes) Notifications() []NotificationSpec {
 	return slices.Clone(s.notifications)
 }
@@ -355,18 +317,6 @@ func (s *Shapes) constraint(spec ObjectConstraintSpec) {
 		))
 	}
 	s.constraints = append(s.constraints, cloneObjectConstraintSpec(spec))
-}
-
-func (s *Shapes) stateKey(spec StateKeySpec) {
-	if err := spec.validate(); err != nil {
-		panic("dispatch: invalid state key spec: " + err.Error())
-	}
-	if slices.ContainsFunc(s.stateKeys, func(existing StateKeySpec) bool {
-		return existing.Key == spec.Key
-	}) {
-		panic(fmt.Sprintf("dispatch: state key %q is registered twice", spec.Key))
-	}
-	s.stateKeys = append(s.stateKeys, spec)
 }
 
 func (s *Shapes) valueConstraint(spec FieldConstraintSpec) {
@@ -784,39 +734,6 @@ func (n NotificationSpec) validate() error {
 		return fmt.Errorf("notification %q params must be a named struct, got %v", n.Name, n.ParamsType)
 	case !strings.HasPrefix(n.Name, "notifications."):
 		return fmt.Errorf("notification %q must use the notifications namespace", n.Name)
-	}
-	return nil
-}
-
-func (k StateKeySpec) validate() error {
-	switch {
-	case k.Key == "":
-		return errors.New("state key spec needs a key")
-	case k.RecoveryMethod == "":
-		return fmt.Errorf("state key %q: a key with no recovery method breaks reconnect", k.Key)
-	case k.Scope != StateScopeSession:
-		return fmt.Errorf(
-			"state key %q: invalid scope %q; expected %q",
-			k.Key, k.Scope, StateScopeSession,
-		)
-	case k.Writer != StateWriterRootRun:
-		return fmt.Errorf(
-			"state key %q: invalid writer %q; expected %q",
-			k.Key, k.Writer, StateWriterRootRun,
-		)
-	case k.Feature == "":
-		return fmt.Errorf("state key %q: feature gate is required", k.Key)
-	case k.PayloadType == nil:
-		return fmt.Errorf("state key %q: payload type is required — an untyped key publishes \"some JSON\"", k.Key)
-	}
-	if _, published := protocol.LookupFeature(k.Feature); !published {
-		return fmt.Errorf(
-			"state key %q: feature gate %q is not published",
-			k.Key, k.Feature,
-		)
-	}
-	if _, ok := operation.Contract().Lookup(k.RecoveryMethod); !ok {
-		return fmt.Errorf("state key %q: recovery method %q is not a registered method", k.Key, k.RecoveryMethod)
 	}
 	return nil
 }

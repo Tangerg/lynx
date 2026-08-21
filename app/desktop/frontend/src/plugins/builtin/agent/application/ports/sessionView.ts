@@ -5,6 +5,7 @@ import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
 import type { WireDecision } from "../hitl/wireDecision";
 import type {
   AgentProblem,
+  AgentPlan,
   AgentRunView,
   AgentSessionView,
   Message,
@@ -77,10 +78,10 @@ export interface AgentViewRefreshToken {
   readonly viewRevision: number;
 }
 
-/** One shared-state value together with the mounted projection generation that
+/** One projected value together with the mounted projection generation that
  * admitted it. Local presentation state must not cross this boundary even when
  * a successor server reuses the same Session and domain revision. */
-export interface AgentSharedMaterial<T> {
+export interface AgentProjectionMaterial<T> {
   readonly generation: number;
   readonly value: T | undefined;
 }
@@ -98,7 +99,8 @@ export interface AgentSessionViewPort {
   useTranscriptRows(): readonly TranscriptRow[];
   useRunTree(): AgentRunTreeNode[];
   useProblem(): AgentProblem | null;
-  useSharedMaterial<T = unknown>(path?: string): AgentSharedMaterial<T>;
+  usePlan(): AgentProjectionMaterial<AgentPlan>;
+  useSharedMaterial<T = unknown>(path?: string): AgentProjectionMaterial<T>;
   useAction(kind: "stop"): StopCurrentRootRunAction | null;
   useAction(kind: "send"): SendAgentInputAction | null;
   getCurrentView(): AgentSessionView;

@@ -1250,39 +1250,6 @@
         "workspace"
       ]
     },
-    "ArtifactState": {
-      "type": "object",
-      "properties": {
-        "plan": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PlanSnapshot"
-          }
-        },
-        "type": {
-          "$ref": "#/$defs/ArtifactStateType"
-        }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "type": {
-              "const": "plan"
-            }
-          },
-          "required": [
-            "plan",
-            "type"
-          ]
-        }
-      ]
-    },
-    "ArtifactStateType": {
-      "type": "string",
-      "enum": [
-        "plan"
-      ]
-    },
     "ArtifactToolInvocation": {
       "type": "object",
       "properties": {
@@ -1474,17 +1441,6 @@
             "name",
             "type"
           ]
-        },
-        {
-          "properties": {
-            "type": {
-              "const": "stateSnapshot"
-            }
-          },
-          "required": [
-            "name",
-            "type"
-          ]
         }
       ]
     },
@@ -1493,8 +1449,7 @@
       "enum": [
         "feature",
         "interruptType",
-        "runtimeTopic",
-        "stateSnapshot"
+        "runtimeTopic"
       ]
     },
     "ChangeStatus": {
@@ -4923,7 +4878,42 @@
         }
       ]
     },
-    "PlanSnapshot": {
+    "Plan": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanStep"
+          }
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "revision",
+        "sessionId",
+        "steps"
+      ]
+    },
+    "PlanStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed"
+      ]
+    },
+    "PlanStep": {
       "type": "object",
       "properties": {
         "description": {
@@ -4940,14 +4930,6 @@
         "description",
         "id",
         "status"
-      ]
-    },
-    "PlanStatus": {
-      "type": "string",
-      "enum": [
-        "pending",
-        "in_progress",
-        "completed"
       ]
     },
     "ProblemData": {
@@ -6788,9 +6770,6 @@
     "RuntimeEvent": {
       "type": "object",
       "properties": {
-        "key": {
-          "$ref": "#/$defs/StateSnapshotType"
-        },
         "names": {
           "type": "array",
           "minItems": 1,
@@ -6872,7 +6851,6 @@
       "oneOf": [
         {
           "properties": {
-            "key": false,
             "names": false,
             "runIds": false,
             "scheduleIds": false,
@@ -6892,7 +6870,6 @@
         },
         {
           "properties": {
-            "key": false,
             "paths": false,
             "runIds": false,
             "scheduleIds": false,
@@ -6913,7 +6890,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -6934,7 +6910,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -6955,7 +6930,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -6976,7 +6950,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "scheduleIds": false,
@@ -6998,25 +6971,24 @@
           "properties": {
             "names": false,
             "paths": false,
+            "runIds": false,
             "scheduleIds": false,
             "serverIds": false,
             "topics": false,
             "type": {
-              "const": "state.changed"
+              "const": "plan.changed"
             },
             "watchId": false,
             "watchIds": false,
             "workspace": false
           },
           "required": [
-            "key",
             "sequence",
             "type"
           ]
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7037,7 +7009,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "scheduleIds": false,
@@ -7057,7 +7028,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7079,7 +7049,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7101,7 +7070,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7123,7 +7091,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7145,7 +7112,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7167,7 +7133,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7189,7 +7154,6 @@
         },
         {
           "properties": {
-            "key": false,
             "names": false,
             "paths": false,
             "runIds": false,
@@ -7230,7 +7194,7 @@
         "schedules.changed",
         "sessions.changed",
         "runs.changed",
-        "state.changed",
+        "plan.changed",
         "goals.changed",
         "interrupts.changed",
         "knowledge.changed",
@@ -7367,7 +7331,7 @@
         "schedules.changed",
         "sessions.changed",
         "runs.changed",
-        "state.changed",
+        "plan.changed",
         "goals.changed",
         "interrupts.changed",
         "knowledge.changed",
@@ -7754,12 +7718,6 @@
             "$ref": "#/$defs/RuntimeTopic"
           }
         },
-        "stateSnapshots": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StateSnapshotCapability"
-          }
-        },
         "streamingMethods": {
           "type": "array",
           "items": {
@@ -7772,7 +7730,6 @@
         "limits",
         "runEvents",
         "runtimeTopics",
-        "stateSnapshots",
         "streamingMethods"
       ]
     },
@@ -7861,6 +7818,12 @@
           "type": "array",
           "items": {}
         },
+        "plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanStep"
+          }
+        },
         "runs": {
           "type": "array",
           "items": {
@@ -7870,12 +7833,6 @@
         "session": {
           "$ref": "#/$defs/ArtifactSession"
         },
-        "states": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ArtifactState"
-          }
-        },
         "toolResults": {
           "type": "array",
           "items": {
@@ -7884,8 +7841,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 21,
-          "maximum": 21
+          "minimum": 22,
+          "maximum": 22
         }
       },
       "required": [
@@ -7915,14 +7872,14 @@
             "$ref": "#/$defs/Item"
           }
         },
+        "plan": {
+          "$ref": "#/$defs/Plan"
+        },
         "runs": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/RunRef"
           }
-        },
-        "state": {
-          "$ref": "#/$defs/StateSnapshot"
         }
       },
       "required": [
@@ -8179,89 +8136,6 @@
         "userItemId"
       ]
     },
-    "StateSnapshot": {
-      "type": "object",
-      "properties": {
-        "plan": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PlanSnapshot"
-          }
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "sessionId": {
-          "type": "string"
-        },
-        "type": {
-          "$ref": "#/$defs/StateSnapshotType"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "type": {
-              "const": "plan"
-            }
-          },
-          "required": [
-            "plan",
-            "revision",
-            "sessionId",
-            "type"
-          ]
-        }
-      ]
-    },
-    "StateSnapshotCapability": {
-      "type": "object",
-      "properties": {
-        "key": {
-          "$ref": "#/$defs/StateSnapshotType"
-        },
-        "recoveryMethod": {
-          "type": "string"
-        },
-        "scope": {
-          "$ref": "#/$defs/StateSnapshotScope"
-        },
-        "writer": {
-          "$ref": "#/$defs/StateSnapshotWriter"
-        }
-      },
-      "required": [
-        "key",
-        "recoveryMethod",
-        "scope",
-        "writer"
-      ]
-    },
-    "StateSnapshotScope": {
-      "type": "string",
-      "enum": [
-        "session",
-        "run"
-      ]
-    },
-    "StateSnapshotType": {
-      "type": "string",
-      "enum": [
-        "plan"
-      ]
-    },
-    "StateSnapshotWriter": {
-      "type": "string",
-      "enum": [
-        "rootRun",
-        "anyRun"
-      ]
-    },
     "SteerRunRequest": {
       "type": "object",
       "properties": {
@@ -8305,14 +8179,14 @@
         "outcome": {
           "$ref": "#/$defs/SegmentOutcome"
         },
+        "plan": {
+          "$ref": "#/$defs/Plan"
+        },
         "progress": {
           "$ref": "#/$defs/RunProgress"
         },
         "run": {
           "$ref": "#/$defs/RunRef"
-        },
-        "state": {
-          "$ref": "#/$defs/StateSnapshot"
         },
         "type": {
           "$ref": "#/$defs/StreamEventType"
@@ -8327,8 +8201,8 @@
             "itemId": false,
             "metrics": false,
             "outcome": false,
+            "plan": false,
             "progress": false,
-            "state": false,
             "type": {
               "const": "segment.started"
             }
@@ -8346,8 +8220,8 @@
             "itemId": false,
             "metrics": false,
             "outcome": false,
+            "plan": false,
             "run": false,
-            "state": false,
             "type": {
               "const": "segment.progress"
             }
@@ -8363,9 +8237,9 @@
             "durable": false,
             "item": false,
             "itemId": false,
+            "plan": false,
             "progress": false,
             "run": false,
-            "state": false,
             "type": {
               "const": "segment.finished"
             }
@@ -8383,9 +8257,9 @@
             "itemId": false,
             "metrics": false,
             "outcome": false,
+            "plan": false,
             "progress": false,
             "run": false,
-            "state": false,
             "type": {
               "const": "item.started"
             }
@@ -8401,9 +8275,9 @@
             "item": false,
             "metrics": false,
             "outcome": false,
+            "plan": false,
             "progress": false,
             "run": false,
-            "state": false,
             "type": {
               "const": "item.delta"
             }
@@ -8421,9 +8295,9 @@
             "itemId": false,
             "metrics": false,
             "outcome": false,
+            "plan": false,
             "progress": false,
             "run": false,
-            "state": false,
             "type": {
               "const": "item.completed"
             }
@@ -8444,11 +8318,11 @@
             "progress": false,
             "run": false,
             "type": {
-              "const": "state.snapshot"
+              "const": "plan.updated"
             }
           },
           "required": [
-            "state",
+            "plan",
             "type"
           ]
         }
@@ -8463,7 +8337,7 @@
         "item.started",
         "item.delta",
         "item.completed",
-        "state.snapshot"
+        "plan.updated"
       ]
     },
     "SubscribeRunRequest": {

@@ -28,7 +28,7 @@ vi.mock("@/plugins/builtin/agent/public/plan", async (importOriginal) => {
     useSessionPlan: () =>
       original.SessionPlan.fromSnapshot(model.sessionId, model.generation, {
         revision: model.revision,
-        plan: model.steps,
+        steps: model.steps,
       }),
   };
 });

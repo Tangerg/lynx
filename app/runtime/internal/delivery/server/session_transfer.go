@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -56,28 +55,16 @@ func (s *Server) ExportSession(ctx context.Context, request protocol.ExportSessi
 	}, nil
 }
 
-// validateArtifactStateCapabilities rejects an artifact carrying a state key this build does
-// not own. It reads the same advertised set discovery publishes, so "the runtime
-// offers this key" and "the runtime can import this key" cannot come apart.
-func (s *Server) validateArtifactStateCapabilities(states []protocol.ArtifactState) error {
-	if len(states) == 0 {
+// validateArtifactPlanCapability rejects a Plan when this composition does not own
+// Plan. Import must not restore the conversation while silently dropping companion
+// product material.
+func (s *Server) validateArtifactPlanCapability(plan []protocol.PlanStep) error {
+	if len(plan) == 0 || s.features.plan {
 		return nil
 	}
-	advertised := advertisedStateSnapshots(s.features.plan)
-	var gaps []protocol.CapabilityRequirement
-	for _, state := range states {
-		key := protocol.StateSnapshotType(state.Type)
-		if slices.ContainsFunc(advertised, func(c protocol.StateSnapshotCapability) bool { return c.Key == key }) {
-			continue
-		}
-		gaps = append(gaps, protocol.CapabilityRequirement{
-			Type: protocol.RequirementStateSnapshot, Name: string(state.Type),
-		})
-	}
-	if len(gaps) == 0 {
-		return nil
-	}
-	return operation.NewCapabilityGapError(gaps...)
+	return operation.NewCapabilityGapError(protocol.CapabilityRequirement{
+		Type: protocol.RequirementFeature, Name: protocol.FeaturePlan,
+	})
 }
 
 // ImportSession recreates a Session from a SessionArtifact under its original
@@ -92,11 +79,9 @@ func (s *Server) ImportSession(ctx context.Context, request protocol.ImportSessi
 	if err != nil {
 		return nil, err
 	}
-	// Before any write: an archive whose state keys this composition does not
-	// advertise cannot be restored, and restoring the conversation while dropping
-	// the key would import a session the archive does not describe. The gap names
-	// the key so the caller learns WHICH one rather than that "something" is off.
-	if err := s.validateArtifactStateCapabilities(artifact.States); err != nil {
+	// Before any write: restoring the conversation while dropping its Plan would
+	// import a session the archive does not describe.
+	if err := s.validateArtifactPlanCapability(artifact.Plan); err != nil {
 		return nil, err
 	}
 	sessionID := artifact.Session.ID

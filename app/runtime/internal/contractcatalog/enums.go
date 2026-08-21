@@ -31,7 +31,6 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[protocol.ApprovalRuleDecision]():              {string(protocol.ApprovalRuleDecisionAllow), string(protocol.ApprovalRuleDecisionDeny)},
 	reflect.TypeFor[protocol.ApprovalRuleScope]():                 {string(protocol.ApprovalRuleScopeSession), string(protocol.ApprovalRuleScopeProject), string(protocol.ApprovalRuleScopeGlobal)},
 	reflect.TypeFor[protocol.ArtifactOutcomeType]():               {string(protocol.ArtifactOutcomeCompleted), string(protocol.ArtifactOutcomeTimedOut), string(protocol.ArtifactOutcomeFailed), string(protocol.ArtifactOutcomeMaxSteps), string(protocol.ArtifactOutcomeMaxBudget), string(protocol.ArtifactOutcomeCanceled), string(protocol.ArtifactOutcomeLost)},
-	reflect.TypeFor[protocol.ArtifactStateType]():                 {string(protocol.ArtifactStatePlan)},
 	reflect.TypeFor[protocol.ArtifactProblemType]():               {string(protocol.ArtifactProblemInternalError), string(protocol.ArtifactProblemRunLost), string(protocol.ArtifactProblemAgentStuck), string(protocol.ArtifactProblemRateLimited), string(protocol.ArtifactProblemInvalidAPIKey), string(protocol.ArtifactProblemTimeout), string(protocol.ArtifactProblemProviderUnavailable), string(protocol.ArtifactProblemProviderRejected), string(protocol.ArtifactProblemDeniedByUser), string(protocol.ArtifactProblemToolFailed), string(protocol.ArtifactProblemChildRunCanceled), string(protocol.ArtifactProblemToolCanceled)},
 	reflect.TypeFor[protocol.CodebaseState]():                     {string(protocol.CodebaseStateNone), string(protocol.CodebaseStateIndexing), string(protocol.CodebaseStateReady), string(protocol.CodebaseStateError)},
 	reflect.TypeFor[protocol.ContentBlockType]():                  {string(protocol.ContentBlockText), string(protocol.ContentBlockImage)},
@@ -43,7 +42,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[protocol.FeedbackRating]():                    {string(protocol.FeedbackPositive), string(protocol.FeedbackNegative)},
 	reflect.TypeFor[protocol.FileEntryType]():                     {string(protocol.FileEntryFile), string(protocol.FileEntryDir), string(protocol.FileEntrySymlink)},
 	reflect.TypeFor[protocol.FileStatus]():                        {string(protocol.FileStatusAdded), string(protocol.FileStatusModified), string(protocol.FileStatusDeleted), string(protocol.FileStatusRenamed), string(protocol.FileStatusUntracked)},
-	reflect.TypeFor[protocol.CapabilityRequirementType]():         {string(protocol.RequirementFeature), string(protocol.RequirementInterruptType), string(protocol.RequirementRuntimeTopic), string(protocol.RequirementStateSnapshot)},
+	reflect.TypeFor[protocol.CapabilityRequirementType]():         {string(protocol.RequirementFeature), string(protocol.RequirementInterruptType), string(protocol.RequirementRuntimeTopic)},
 	reflect.TypeFor[protocol.CancelRunResponseType]():             {string(protocol.CancelRunRoot), string(protocol.CancelRunChild)},
 	reflect.TypeFor[protocol.RecoveryAction]():                    {string(protocol.RecoveryRefetch), string(protocol.RecoveryColdRecover), string(protocol.RecoveryResubscribe), string(protocol.RecoveryReauthenticate), string(protocol.RecoveryWaitRetryAfter), string(protocol.RecoveryPromptUser), string(protocol.RecoveryStop)},
 	reflect.TypeFor[protocol.GoalStatus]():                        {string(protocol.GoalActive), string(protocol.GoalPaused), string(protocol.GoalBlocked), string(protocol.GoalCompleting)},
@@ -80,15 +79,12 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[protocol.SkillLifecycle]():                    {string(protocol.SkillLifecycleActive), string(protocol.SkillLifecycleArchived)},
 	reflect.TypeFor[protocol.SkillScope]():                        {string(protocol.SkillScopeProject), string(protocol.SkillScopeUser)},
 	reflect.TypeFor[protocol.SkillProposalOrigin]():               {string(protocol.SkillProposalOriginRequested), string(protocol.SkillProposalOriginMined)},
-	reflect.TypeFor[protocol.StateSnapshotType]():                 {string(protocol.StatePlan)},
-	reflect.TypeFor[protocol.StreamEventType]():                   {string(protocol.StreamSegmentStarted), string(protocol.StreamSegmentProgress), string(protocol.StreamSegmentFinished), string(protocol.StreamItemStarted), string(protocol.StreamItemDelta), string(protocol.StreamItemCompleted), string(protocol.StreamStateSnapshot)},
+	reflect.TypeFor[protocol.StreamEventType]():                   {string(protocol.StreamSegmentStarted), string(protocol.StreamSegmentProgress), string(protocol.StreamSegmentFinished), string(protocol.StreamItemStarted), string(protocol.StreamItemDelta), string(protocol.StreamItemCompleted), string(protocol.StreamPlanUpdated)},
 	reflect.TypeFor[protocol.PlanStatus]():                        {string(protocol.PlanStatusPending), string(protocol.PlanStatusInProgress), string(protocol.PlanStatusCompleted)},
 	reflect.TypeFor[protocol.WorkspaceAvailability]():             {string(protocol.WorkspaceAvailable), string(protocol.WorkspaceMissing)},
 	reflect.TypeFor[protocol.RuntimeEventType]():                  runtimeEventValues(),
 	reflect.TypeFor[protocol.RuntimeTopic]():                      runtimeTopicValues(),
 	reflect.TypeFor[protocol.RunReplayScope]():                    {string(protocol.ReplayScopeRuntimeInstanceRootSegment)},
-	reflect.TypeFor[protocol.StateSnapshotScope]():                {string(protocol.StateScopeSession), string(protocol.StateScopeRun)},
-	reflect.TypeFor[protocol.StateSnapshotWriter]():               {string(protocol.StateWriterRootRun), string(protocol.StateWriterAnyRun)},
 }
 
 // EnumValues reports the closed value set of a wire enum type, and false when t is

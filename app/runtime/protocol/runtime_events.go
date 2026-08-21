@@ -24,10 +24,10 @@ const (
 	RuntimeSessionsChanged RuntimeEventType = "sessions.changed"
 	// RuntimeRunsChanged — a run's lifecycle position changed.
 	RuntimeRunsChanged RuntimeEventType = "runs.changed"
-	// RuntimeStateChanged — a durable state projection changed, for a client that is
-	// NOT following the run that wrote it. The run's own stream carries the snapshot
-	// itself (§5.6); this only says "read it again".
-	RuntimeStateChanged RuntimeEventType = "state.changed"
+	// RuntimePlanChanged — a Session's Plan changed, for a client that is not
+	// following the root Run that wrote it. The run stream carries the Plan itself;
+	// this only says "call plan.get again" (§5.6).
+	RuntimePlanChanged RuntimeEventType = "plan.changed"
 	// RuntimeGoalsChanged — a session's goal changed.
 	RuntimeGoalsChanged RuntimeEventType = "goals.changed"
 	// RuntimeInterruptsChanged — a waiting set opened, was answered, or was canceled.
@@ -62,7 +62,7 @@ const (
 	TopicSchedulesChanged   = RuntimeTopic(RuntimeSchedulesChanged)
 	TopicSessionsChanged    = RuntimeTopic(RuntimeSessionsChanged)
 	TopicRunsChanged        = RuntimeTopic(RuntimeRunsChanged)
-	TopicStateChanged       = RuntimeTopic(RuntimeStateChanged)
+	TopicPlanChanged        = RuntimeTopic(RuntimePlanChanged)
 	TopicGoalsChanged       = RuntimeTopic(RuntimeGoalsChanged)
 	TopicInterruptsChanged  = RuntimeTopic(RuntimeInterruptsChanged)
 	TopicKnowledgeChanged   = RuntimeTopic(RuntimeKnowledgeChanged)
@@ -80,7 +80,7 @@ const (
 func RuntimeTopics() []RuntimeTopic {
 	return []RuntimeTopic{
 		TopicFilesChanged, TopicSkillsChanged, TopicMCPChanged, TopicSchedulesChanged,
-		TopicSessionsChanged, TopicRunsChanged, TopicStateChanged, TopicGoalsChanged,
+		TopicSessionsChanged, TopicRunsChanged, TopicPlanChanged, TopicGoalsChanged,
 		TopicInterruptsChanged, TopicKnowledgeChanged, TopicHooksChanged,
 		TopicModelsChanged, TopicApprovalsChanged, TopicAgentMemoryChanged,
 		TopicCodebaseChanged,
@@ -146,13 +146,10 @@ type RuntimeEvent struct {
 	ServerIDs []string `json:"serverIds,omitempty"`
 	// schedules.changed
 	ScheduleIDs []string `json:"scheduleIds,omitempty"`
-	// sessions.changed / runs.changed / state.changed / goals.changed /
+	// sessions.changed / runs.changed / plan.changed / goals.changed /
 	// interrupts.changed — the resources to read again.
 	SessionIDs []string `json:"sessionIds,omitempty"`
 	RunIDs     []string `json:"runIds,omitempty"`
-	// state.changed names which projection moved, so a client refetches that key
-	// rather than every key it holds.
-	Key StateSnapshotType `json:"key,omitempty"`
 	// resync
 	Topics   []RuntimeTopic `json:"topics,omitempty"`
 	WatchIDs []string       `json:"watchIds,omitempty"`

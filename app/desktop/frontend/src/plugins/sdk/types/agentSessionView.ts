@@ -9,6 +9,19 @@ import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 export type MessageRole = "user" | "assistant" | "system";
 export type AgentMessagePhase = "commentary" | "finalAnswer";
 
+export interface PlanStep {
+  readonly id: string;
+  readonly text: string;
+  readonly status: "done" | "active" | "pending";
+}
+
+/** Session-scoped latest Plan. Revision orders whole replacements; it is never
+ * derived from mutable step content. */
+export interface AgentPlan {
+  readonly revision: number;
+  readonly steps: readonly PlanStep[];
+}
+
 // Client-side display convention (API.md §4.4.2) — maps a domain-neutral tool
 // `name` to a presentation category. This is NOT on the wire: the protocol core
 // only knows `{ name, arguments, result }`; how a tool renders richly is client
@@ -258,12 +271,11 @@ export interface AgentSessionView {
    *  materialized into message blocks at the fold boundary; the read model
    *  retains only the identity and kind needed to resume or settle them. */
   pendingInterrupts: PendingInterruptGroup[];
-  /**
-   * Backend-owned shared state — v2 state.snapshot. Free-form
-   * JSON the agent maintains and the UI observes; plugins subscribe to
-   * generation-bound subtrees through the Agent Session view port. Empty by
-   * default.
-   */
+  /** The Runtime-owned Session Plan, or null before one has been written. */
+  plan: AgentPlan | null;
+  /** Plugin-owned companion material projected beside the Runtime-owned
+   * Session view. Plugins subscribe to generation-bound subtrees through the
+   * Agent Session view port. Empty by default. */
   shared: Record<string, unknown>;
 }
 
@@ -276,5 +288,6 @@ export const EMPTY_AGENT_SESSION_VIEW: AgentSessionView = {
   assistantTurnByRunId: {},
   timeline: [],
   pendingInterrupts: [],
+  plan: null,
   shared: {},
 };

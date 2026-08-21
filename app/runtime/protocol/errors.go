@@ -94,7 +94,6 @@ const (
 	RequirementFeature       CapabilityRequirementType = "feature"
 	RequirementInterruptType CapabilityRequirementType = "interruptType"
 	RequirementRuntimeTopic  CapabilityRequirementType = "runtimeTopic"
-	RequirementStateSnapshot CapabilityRequirementType = "stateSnapshot"
 )
 
 // CapabilityRequirement is one thing the caller would have to declare or the runtime

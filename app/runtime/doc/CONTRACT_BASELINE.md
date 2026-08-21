@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `2f102ba3f9e42a44e4cff8e54e9ee0c321bb4fcbc61d88845574f99c03ec1511` |
-| `contract/openrpc.json` | `3be2e8de9aad45aa5cd5970e0d08b39ebfd9bb9c121b24bbf15bd32dc5ed8a61` |
-| `contract/schema.json` | `6992ce9b8c2888355fa1820d5b1fa3ef5b1087ce88adb9ef9590f594b694e57e` |
-| `contract/go-api.json` | `7a3b709604137b4cbdbebd305b3aa70c0c492768d37022fe56c16af149bcc827` |
+| `contract/manifest.json` | `b457dd2a4933c83ffc43cb64bfed324f47fde18496864bf1c4f1a3401e78fced` |
+| `contract/openrpc.json` | `9285440cdfb945a1d79a9b1f8d014f9a729969c71548888c96acb0fdff9ef9b8` |
+| `contract/schema.json` | `efeb5890a7f9ccb2f75c468b9abe76cae3bd473c2b4eb5810c61adfa46555dec` |
+| `contract/go-api.json` | `0c6bc51920c99070c24249202391d630c167f5f5c9009f32cf46057003d4a6e7` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -50,7 +50,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为精确值 `2026-08-21`，不存在兼容范围。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Feature、Method 与 StateKey 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为精确值 `2026-08-21`，Artifact 为 v22，不存在兼容范围或旧归档 reader。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
@@ -119,7 +119,7 @@ P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 �
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 21；v20 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Artifact Run 保留最新权威 prompt footprint，因此导入前后 Context gauge 的事实一致。AgentMessage 的 `phase` 是 Runtime 在模型调用边界写入的过程说明 / 最终回答语义，并随 Transcript、Artifact 与客户端恢复保持一致。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall 的 `approvalDecision` 是该调用实际接受的人类决定，和 Pending consume/checkpoint invalidation/commit receipt 同事务写入，并随续跑终态与 artifact 保留；自动放行不伪造。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 22；其他版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Artifact 以显式 `plan` steps 携带 Plan 语义，不携带源 Runtime 的 revision/timestamp；Artifact Run 保留最新权威 prompt footprint，因此导入前后 Context gauge 的事实一致。AgentMessage 的 `phase` 是 Runtime 在模型调用边界写入的过程说明 / 最终回答语义，并随 Transcript、Artifact 与客户端恢复保持一致。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall 的 `approvalDecision` 是该调用实际接受的人类决定，和 Pending consume/checkpoint invalidation/commit receipt 同事务写入，并随续跑终态与 artifact 保留；自动放行不伪造。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
 
 ## 4. Agent Framework 消费 Baseline
 

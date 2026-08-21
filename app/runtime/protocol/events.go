@@ -3,7 +3,7 @@ package protocol
 import "time"
 
 // RunEvent is the params of the notifications.run.event notification —
-// the single downstream stream carrying run / item / state events
+// the single downstream stream carrying segment / item / Plan events
 // (API.md §5). RunID is the stable logical run; SegmentID is the streamed
 // segment the event belongs to (§0.3) — a client scopes its stream tree +
 // reconnect-replay dedup to it. eventId is monotonic within one segment stream.
@@ -28,7 +28,7 @@ const (
 	StreamItemStarted     StreamEventType = "item.started"
 	StreamItemDelta       StreamEventType = "item.delta"
 	StreamItemCompleted   StreamEventType = "item.completed"
-	StreamStateSnapshot   StreamEventType = "state.snapshot"
+	StreamPlanUpdated     StreamEventType = "plan.updated"
 )
 
 // StreamEvent is a tag-discriminated union over downstream events
@@ -40,7 +40,7 @@ const (
 //	item.started    → Item
 //	item.delta      → ItemID, Delta
 //	item.completed  → Item
-//	state.snapshot  → State
+//	plan.updated    → Plan
 type StreamEvent struct {
 	Type StreamEventType `json:"type"`
 
@@ -50,11 +50,11 @@ type StreamEvent struct {
 	// Metrics rides every segment.finished, terminal or not: a client reads what
 	// the run consumed from one field instead of looking for it in whichever
 	// branch of the outcome happens to carry it.
-	Metrics *RunMetrics    `json:"metrics,omitempty"`
-	Item    *Item          `json:"item,omitempty"`
-	ItemID  string         `json:"itemId,omitempty"`
-	Delta   *ItemDelta     `json:"delta,omitempty"`
-	State   *StateSnapshot `json:"state,omitempty"`
+	Metrics *RunMetrics `json:"metrics,omitempty"`
+	Item    *Item       `json:"item,omitempty"`
+	ItemID  string      `json:"itemId,omitempty"`
+	Delta   *ItemDelta  `json:"delta,omitempty"`
+	Plan    *Plan       `json:"plan,omitempty"`
 }
 
 // Authoritative reports whether the event itself is a fact a client may fold.
@@ -64,7 +64,7 @@ type StreamEvent struct {
 func (value StreamEvent) Authoritative() bool {
 	switch value.Type {
 	case StreamSegmentStarted, StreamSegmentFinished,
-		StreamItemStarted, StreamItemCompleted, StreamStateSnapshot:
+		StreamItemStarted, StreamItemCompleted, StreamPlanUpdated:
 		return true
 	default:
 		return false
@@ -77,7 +77,7 @@ func (value StreamEvent) Authoritative() bool {
 func (value StreamEvent) Replayable() bool {
 	switch value.Type {
 	case StreamSegmentStarted, StreamSegmentFinished,
-		StreamItemStarted, StreamItemCompleted, StreamStateSnapshot:
+		StreamItemStarted, StreamItemCompleted, StreamPlanUpdated:
 		return true
 	default:
 		return false
@@ -100,49 +100,33 @@ type RunProgress struct {
 	Activity      string `json:"activity,omitempty"` // human-readable current action
 }
 
-// StateSnapshotType discriminates [StateSnapshot]. One key exists today; the
-// discriminator is on the wire from the start because a second key must not be
-// able to arrive as an untagged shape a client has to guess at.
-type StateSnapshotType string
-
-const (
-	// StatePlan — the session's Plan.
-	StatePlan StateSnapshotType = "plan"
-)
-
-// StateSnapshot is a persisted latest-value projection a run publishes and a cold
-// read returns UNCHANGED — one shape, so the stream and the query cannot describe
-// the same state differently (§5.2 / §5.6).
-//
-// It is discriminated by its own `type`, never by the envelope: the RunEvent's runId
-// says which run wrote it, which is provenance and not identity. A session-scoped
-// state bucketed by writer would split one list into one per run.
+// Plan is the Session's persisted latest Plan. A root Run publishes it through
+// plan.updated, and plan.get returns the same shape, so live and cold recovery cannot
+// describe the checklist differently (§5.2 / §5.3).
 //
 // Revision is the projection's own monotonic counter, assigned by the replacement
 // that produced it. Zero means nothing has ever been written — the empty list a
 // session starts with — and it is what tells an older snapshot from a newer one when
 // the contents alone cannot: the list is replaced wholesale, so it can shrink.
-type StateSnapshot struct {
-	Type      StateSnapshotType `json:"type"`
-	SessionID string            `json:"sessionId"`
-	Revision  uint64            `json:"revision"`
-	Plan      []PlanSnapshot    `json:"plan"`
+type Plan struct {
+	SessionID string     `json:"sessionId"`
+	Revision  uint64     `json:"revision"`
+	Steps     []PlanStep `json:"steps"`
 	// UpdatedAt is absent exactly while Revision is 0: nothing was written, so there
 	// is no time at which it was.
 	UpdatedAt time.Time `json:"updatedAt,omitzero"`
 }
 
-// GetPlanRequest is the plan.get body — the cold read the state.snapshot key
-// declares as its recovery source.
+// GetPlanRequest is the plan.get body — the cold read for the Plan projection.
 type GetPlanRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// PlanSnapshot is one Step of the session Plan, carried by [StateSnapshot].
+// PlanStep is one Step of the session [Plan].
 // The Plan is replaced whole each set_plan, so ID is positional — a stable key
 // within a snapshot, not a durable identity. Status is
 // "pending" | "in_progress" | "completed".
-type PlanSnapshot struct {
+type PlanStep struct {
 	ID          string     `json:"id"`
 	Description string     `json:"description"`
 	Status      PlanStatus `json:"status"`

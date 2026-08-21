@@ -429,7 +429,7 @@ agent/application/fold/reducer.ts
    ▼
 Agent public read model → Chat / Workspace / Shell consumers
 
-durable items + runs + pending interrupts + optional shared state
+durable items + runs + pending interrupts + optional Plan
    │   projectAgentSessionSnapshot（Store 外完整构建）
    ▼
 refreshSequence + viewRevision CAS → 整份 AgentSessionView 原子替换
@@ -741,8 +741,8 @@ declare module "@/plugins/sdk/types/contentBlock" {
 `projections`（纯 wire → view）/ `fold`（source-owned upsert）；`reducer.*.test.ts`
 覆盖 dispatcher、聚合、root/child/sibling/nested lifecycle 与主要 Item 路径。
 `reducer.handlers.test.ts` 为每个 handler 钉住“完整 RunEvent → 隔离 projection delta”
-契约，包括 plan 三阶段、未知 ItemID delta no-op、`segment.started` lifecycle 初始化与
-`state.snapshot` 只更新 `shared`。
+契约，包括 Plan replacement、未知 ItemID delta no-op、`segment.started` lifecycle 初始化与
+`plan.updated` 只更新显式 `plan` projection。
 **维护触发**：加新的内置事件类型 / Item 类型时，一并补对应 handler 的语义测试（input→state delta）。
 
 #### B. search / webSearch 富结果渲染（已落地）

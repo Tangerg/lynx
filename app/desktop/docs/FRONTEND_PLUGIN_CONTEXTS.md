@@ -82,7 +82,7 @@ plugin A -> plugin B internal files
 职责：
 
 - 以完整 `RunEvent` provenance 折叠 live stream；
-- 从 durable items / runs / pending interrupts / shared state 原子构建 Session
+- 从 durable items / runs / pending interrupts / Plan 原子构建 Session
   projection；
 - 维护 normalized Run tree 与 source-owned conversation/read model；
 - 处理 send / steer / stop / exact cancel / resume / recover 等 use case；

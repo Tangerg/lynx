@@ -25,10 +25,10 @@ func (s *fakeStore) Save(_ context.Context, _ string, expected uint64, replaceme
 	return s.saveErr
 }
 
-// TestCommittedStateChangeReachesOtherWindows proves
-// committed_state_change_reaches_other_windows at its mutation owner: only a
+// TestCommittedPlanChangeReachesOtherWindows proves
+// committed_plan_change_reaches_other_windows at its mutation owner: only a
 // successful CAS publishes a session-scoped Plan invalidation.
-func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
+func TestCommittedPlanChangeReachesOtherWindows(t *testing.T) {
 	now := time.Date(2026, 8, 10, 2, 3, 4, 0, time.UTC)
 	current, err := plan.Restore(plan.Snapshot{Revision: 3, UpdatedAt: now.Add(-time.Minute)})
 	if err != nil {

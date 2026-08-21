@@ -41,7 +41,7 @@ export type WorkspaceEventType =
   | "schedules.changed"
   | "sessions.changed"
   | "runs.changed"
-  | "state.changed"
+  | "plan.changed"
   | "goals.changed"
   | "interrupts.changed"
   | "knowledge.changed"
@@ -112,7 +112,7 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
       // Goal is companion material of the mounted Session snapshot. Re-reading it
       // independently would split Plan/HITL/Run/Tool from the autonomous move.
       return ["agentSessionProjection"];
-    case "state.changed":
+    case "plan.changed":
       return ["agentSessionProjection"];
     case "knowledge.changed":
       return ["knowledge"];

@@ -21,7 +21,6 @@ const discovery: DiscoverResponse = {
   capabilities: {
     runEvents: [],
     runtimeTopics: ["files.changed"],
-    stateSnapshots: [],
     features: {},
     streamingMethods: ["runtime.subscribe"],
     limits: {

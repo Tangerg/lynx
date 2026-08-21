@@ -105,8 +105,8 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	if len(snapshot.Interrupts) != 1 || snapshot.Interrupts[0].RootRunID != "run_waiting" {
 		t.Fatalf("Interrupts = %+v, want the open waiting set", snapshot.Interrupts)
 	}
-	if snapshot.State == nil || snapshot.State.Revision != 1 || len(snapshot.State.Plan) != 1 {
-		t.Fatalf("State = %+v, want Plan revision 1", snapshot.State)
+	if snapshot.Plan == nil || snapshot.Plan.Revision != 1 || len(snapshot.Plan.Steps) != 1 {
+		t.Fatalf("Plan = %+v, want revision 1", snapshot.Plan)
 	}
 	if snapshot.Goal == nil || snapshot.Goal.Objective != "Finish the recovery" || snapshot.Goal.Status != protocol.GoalActive {
 		t.Fatalf("Goal = %+v, want the active standing objective", snapshot.Goal)

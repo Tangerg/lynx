@@ -1,6 +1,6 @@
 import {
   useAgentSessionSharedMaterial,
-  type AgentSharedMaterial,
+  type AgentProjectionMaterial,
 } from "@/plugins/builtin/agent/public/sessionMaterial";
 
 export type GoalStatus = "active" | "paused" | "blocked" | "completing";
@@ -66,6 +66,6 @@ export interface GoalState {
 
 /** The active Session's Goal and the exact Agent projection generation that
  * admitted it. There is deliberately no independent Goal query or store. */
-export function useGoalMaterial(): AgentSharedMaterial<GoalState> {
+export function useGoalMaterial(): AgentProjectionMaterial<GoalState> {
   return useAgentSessionSharedMaterial<GoalState>("goal");
 }

@@ -36,7 +36,6 @@ const discovery: DiscoverResponse = {
     features: {},
     runEvents: [],
     runtimeTopics: [],
-    stateSnapshots: [],
     streamingMethods: [],
     limits: {
       idempotency: { namespace: "idp_test", retentionSeconds: 86_400 },

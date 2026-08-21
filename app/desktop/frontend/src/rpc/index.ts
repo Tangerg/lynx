@@ -67,13 +67,13 @@ export type {
   // HITL
   Interrupt,
   PendingInterruptSet,
-  StateSnapshot,
+  Plan,
   InterruptResponse,
   Goal,
   // Files
   WorkspaceFileChange,
   // Plan
-  PlanSnapshot,
+  PlanStep,
   // Usage / error
   Usage,
   ProblemData,

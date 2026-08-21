@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P139 已完成；P140 Runtime/Desktop 第二轮熵回收进行中。
+> 状态：P0–P140 已完成。
 >
-> 最近基线：2026-08-21，P140 第四批恒定 stability 元数据删除。
+> 最近基线：2026-08-21，P140 第五批 Plan 一等合同收敛。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P140 进行中，且明确不保留兼容。第一批已删除上一发行版兼容基线与 protocol range，Runtime/Desktop 只接受当前精确 `protocolVersion`；第二批已端到端删除生产不可达的 `custom` RunEvent、`clientTools` feature 与 `toolResult` interrupt/response wire；第三批已证明 `~/.lyra/plugins` 没有真实安装，仓库样例也不满足当前 loader/Host API，因而删除 Go 目录扫描、Bootstrap 源码传输、前端 dynamic import、`window.__LYRA__`、Platform permission/API-version/lazy-activation surface 与失效样例。内置插件仍作为同 bundle 的单一 Host transaction 启动。第四批证明 Feature、Method、StateKey 的 stability 全量恒为 `stable`，没有协商分支或真实实验消费者；现已从 canonical Go、注册表、生成器、OpenRPC/manifest/schema/Go API、TypeScript binding、Desktop fixture 与文档一次性删除，并把唯一精确 Protocol 前移到 `2026-08-21`，没有旧 shape reader。生成器二次运行 diff-free；Frontend 318 files / 1993 tests、全部静态/边界/消费者/bundle 门禁与 Runtime/Desktop test/vet/build 全绿。
+- P140 已完成，且明确不保留兼容。第一批已删除上一发行版兼容基线与 protocol range，Runtime/Desktop 只接受当前精确 `protocolVersion`；第二批已端到端删除生产不可达的 `custom` RunEvent、`clientTools` feature 与 `toolResult` interrupt/response wire；第三批已证明 `~/.lyra/plugins` 没有真实安装，仓库样例也不满足当前 loader/Host API，因而删除 Go 目录扫描、Bootstrap 源码传输、前端 dynamic import、`window.__LYRA__`、Platform permission/API-version/lazy-activation surface 与失效样例。内置插件仍作为同 bundle 的单一 Host transaction 启动。第四批证明 Feature、Method、StateKey 的 stability 全量恒为 `stable`，没有协商分支或真实实验消费者；现已从 canonical Go、注册表、生成器、OpenRPC/manifest/schema/Go API、TypeScript binding、Desktop fixture 与文档一次性删除，并把唯一精确 Protocol 前移到 `2026-08-21`，没有旧 shape reader。
+- 第五批证明通用 state registry 只有 Plan 一个变体，且 scope 恒为 Session、writer 恒为 root Run、cold read 恒为 `plan.get`；现已收敛为一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan`。Artifact 前移到 v22；`stateSnapshots` discovery、state key/scope/writer metadata、`StateSnapshot` union、RuntimeEvent key、Artifact `states[]`、Desktop generic shared-state Plan reader 与 Application 重复 `PlanStep` 表示均已删除。Goal 插件伴随材料继续由独立 `shared` owner 持有，不作为协议 Plan 的 fallback。没有 alias、双写、旧归档 reader 或迁移层。Frontend 318 files / 1993 tests、全部静态/边界/消费者/bundle 门禁、Runtime/Desktop 全量 test/vet/build/staticcheck、受影响 Runtime 与 Desktop 全量 race tests 均通过；生成器重跑 diff-free，Runtime/Desktop TypeScript 合同与样例逐字节一致。
 - 第三批同时删除仅为外部插件存在的 installation origin 双态、Host capability whitelist/risk metadata、无消费者 Plugins shell service，以及从无生产贡献者的 plugin load/unload/beforeunload、Composer attachment-source 扩展点。图片、粘贴、`@file` 附件仍由 Composer 直接拥有；renderer `beforeunload` 由 composition root 直接关闭，不再经过空插件 hook。没有 alias、双 shape、fallback、旧目录 reader 或迁移层。Frontend 318 files / 1993 tests、全部静态与 bundle 门禁、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events 全绿；Runtime/Desktop test/vet/build 全绿。
 - P139 已完成：本轮以真实消费者、动态入口、兼容义务和生命周期 owner 为证据，对 `app/runtime` 与 `app/desktop` 做 breaking simplification。Desktop 删除三份已失去所有权的 Runtime 协议镜像与三份孤儿设计导出；审批 presentation 删除客户端命令危险度推断及其 risk/scope/reversibility 公共副本，只保留 Runtime reason、工具 material 与用户明确选择的 allow scope；被 scoped owner 取代的串行队列、unscoped settlement 包装、无消费者 barrel export 与 locale 文案一并删除。Runtime 删除仅由 dispatch 测试调用的 `transport.NewCall` / `StringID`，测试自行构造 wire request，不再让生产包替测试拥有 convenience API。
 - 该批没有改变 Runtime Protocol、Artifact、SQLite、Runtime 公共 Go API 或 operation/event consumer 集合；generated wire、兼容基线、动态 sideload plugin SDK 仍有明确消费者/发布义务，因而保留。Frontend published approval facade 的删减属于本轮明确授权的 intentional breaking surface，不保留 deprecated alias、双 shape 或 fallback。Desktop 完整门禁为 323 files / 2017 tests、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events；Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与受影响 transport/dispatch race tests 全绿。
@@ -324,7 +325,7 @@ P113–P139 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 324 files / 2025 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 321 tests 覆盖 streaming follow/escape、HITL、Session/Dock、Goal、Context keyboard tooltip、modal scope、commentary/final answer、待审批命令单一表面、projectless rear tray、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、generator diff、Wails v3 production `.app` package 与 strict codesign 全绿；fresh SQLite 的真实 Run 产生 `contextTokens=4152`，终态、整页 reload 与 Runtime restart 后同一 footprint 均恢复，真实流式 DOM 增长也保持 reader-owned `scrollTop`。当前合同为 Artifact v21、SQLite epoch 77、Protocol `2026-08-21`；`app/cli` 未修改或暂存。
+最近一次完整验收基线：Frontend 324 files / 2025 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 321 tests 覆盖 streaming follow/escape、HITL、Session/Dock、Goal、Context keyboard tooltip、modal scope、commentary/final answer、待审批命令单一表面、projectless rear tray、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、generator diff、Wails v3 production `.app` package 与 strict codesign 全绿；fresh SQLite 的真实 Run 产生 `contextTokens=4152`，终态、整页 reload 与 Runtime restart 后同一 footprint 均恢复，真实流式 DOM 增长也保持 reader-owned `scrollTop`。当前合同为 Artifact v22、SQLite epoch 77、Protocol `2026-08-21`；`app/cli` 未修改或暂存。
 
 ## 6. 新阶段准入
 

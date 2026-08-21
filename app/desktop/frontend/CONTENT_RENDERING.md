@@ -34,7 +34,7 @@
 | 事实 | 文件 |
 | --- | --- |
 | wire 形状 / 枚举 | `frontend/src/rpc/wire.generated.ts`（codegen，含 `PROTOCOL_VERSION`） |
-| state key / 事件可靠性 / feature 门控 / 工具 result 归一化登记 | `app/runtime/contract/manifest.json` |
+| 事件可靠性 / feature 门控 / 工具 result 归一化登记 | `app/runtime/contract/manifest.json` |
 | 字段级 presence 规则（跨字段约束） | `app/runtime/contract/schema.json` |
 | 工具身份 + safetyClass + 进行中文案 | `app/runtime/internal/adapter/toolset/catalog/` |
 | 被归一化的工具 result | `app/runtime/internal/adapter/toolset/presentation.go` |
@@ -80,7 +80,7 @@ Session ──┬── Run ──┬── Item   (userMessage / agentMessage /
    │  ◄── item.delta           { toolArguments: "..." } × N
    │  ◄── item.delta           { toolOutput: "..." } × N
    │  ◄── item.completed       { item: toolCall }        ← 权威：arguments + result 在这里落定
-   │  ◄── state.snapshot       { plan: [...] }           ← 整份共享状态
+   │  ◄── plan.updated         { plan: { steps: [...] } } ← 整份 Session Plan
    │  ◄── item.started/delta/completed { agentMessage }
    │  ◄── segment.finished     { outcome, metrics }
    ▼
@@ -199,7 +199,7 @@ type StreamEvent =
   | { type: "item.started"; item: Item }
   | { type: "item.delta"; itemId: string; delta: ItemDelta }
   | { type: "item.completed"; item: Item }
-  | { type: "state.snapshot"; state: StateSnapshot };
+  | { type: "plan.updated"; plan: Plan };
 ```
 
 | 事件 | 权威 | 可重放 | 渲染含义 |
@@ -208,7 +208,7 @@ type StreamEvent =
 | `segment.finished` | ✅ | ✅ | 同上 |
 | `item.started` | ✅ | ✅ | 同上 |
 | `item.completed` | ✅ | ✅ | 同上 |
-| `state.snapshot` | ✅ | ✅ | 同上 |
+| `plan.updated` | ✅ | ✅ | 同上 |
 | `segment.progress` | ⬜ | ⬜ | **只能改善实时观感** |
 | `item.delta` | ⬜ | ⬜ | 同上 |
 
@@ -404,14 +404,17 @@ interface PendingInterruptSet {
 - **拒绝 ≠ 取消**：拒绝走 `runs.resume{decision:"deny"}`，Run 继续（agent 换方案）；取消走 `runs.cancel`，硬终止整棵树。
 - **半个集合无法应答** —— 所以分页单位是整集，不按条分页。
 
-### 2.7 共享状态
+### 2.7 Session Plan
 
 ```ts
-type StateSnapshot =
-  | { type: "plan"; plan: PlanSnapshot[]; revision: number;
-      sessionId: string; updatedAt?: string };
+interface Plan {
+  sessionId: string;
+  revision: number;
+  steps: PlanStep[];
+  updatedAt?: string;
+}
 
-interface PlanSnapshot {
+interface PlanStep {
   id: string;
   description: string;
   status: "pending" | "in_progress" | "completed";   // 至多一个 in_progress
@@ -420,11 +423,11 @@ interface PlanSnapshot {
 
 传播规则（**三条都会影响 UI 正确性**）：
 
-1. **只有整份快照，没有增量事件。**
-2. **`segment.finished` 之前必发**该段改过的每个 key —— 收到终态的人就已经收到了终值。**这一段没改过就不发**（一份 revision 0 的空快照会被按 revision 折叠的客户端读作"清单被清空了"）。
+1. **只有整份 Plan，没有增量事件。**
+2. **`segment.finished` 之前必发**该段改过的 Plan —— 收到终态的人就已经收到了终值。**这一段没改过就不发**。
 3. **`revision` 单调只增**。重新发布一个更早的值（回退、导入归档）也是一次**新写入**，拿更大的 revision。
 
-**冷读是一等公民**：`plan.get` 返回与事件**同形同 revision**的快照。重载 / 回退 / replay 窗口过期后靠它接回来。
+**冷读是一等公民**：`plan.get` 返回与事件**同形同 revision**的 Plan。重载 / 回退 / replay 窗口过期后靠它接回来。
 
 ### 2.8 错误
 
@@ -1429,7 +1432,7 @@ interface SetPlanArguments {
 type SetPlanResult = string;
 ```
 
-真正的 plan 走 `state.snapshot{plan}`，**不靠这个 result**。
+真正的 Plan 走 `plan.updated`，**不靠这个 result**。
 
 #### `exit_plan_mode` — 请求批准计划并退出
 
@@ -2075,12 +2078,10 @@ interface ServerCapabilities {
   }>;
   runEvents: string[];
   runtimeTopics: RuntimeTopic[];
-  stateSnapshots: { key: string; scope: "session" | "run";
-                    writer: "rootRun" | "anyRun"; recoveryMethod: string }[];
   streamingMethods: string[];
   limits: {
     maxConcurrentRuns?: number;
-    runReplay: { maxEvents: number; maxBytes: number; scope: "processRootSegment" };
+    runReplay: { maxEvents: number; maxBytes: number; scope: "runtimeInstanceRootSegment" };
     runtimeSubscription: { maxTopics: number; maxWatches: number };
     idempotency: { retentionSeconds: number };
     mcpAuthorizationAttempts: { retentionSeconds: number };
@@ -2102,8 +2103,7 @@ type RuntimeEvent =
   | { type: "schedules.changed";  sequence: number; scheduleIds?: string[] }
   | { type: "sessions.changed";   sequence: number; sessionIds?: string[] }
   | { type: "runs.changed";       sequence: number; runIds?: string[]; sessionIds?: string[] }
-  | { type: "state.changed";      sequence: number; key: "plan";
-      runIds?: string[]; sessionIds?: string[] }
+  | { type: "plan.changed";       sequence: number; sessionIds?: string[] }
   | { type: "goals.changed";      sequence: number; sessionIds?: string[] }
   | { type: "interrupts.changed"; sequence: number; runIds?: string[]; sessionIds?: string[] }
   | { type: "resync";             sequence: number; topics: RuntimeTopic[]; watchIds?: string[] };
@@ -2117,7 +2117,7 @@ type RuntimeEvent =
 | `schedules.changed` | H 设置定时任务面板 |
 | `sessions.changed` | A 侧栏 |
 | `runs.changed` | A 侧栏状态点 / G 区 run 列表 |
-| `state.changed{plan}` | **C3 Plan 常驻条** |
+| `plan.changed` | **C3 Plan 常驻条** |
 | `goals.changed` | **C4 Goal 常驻条** |
 | `interrupts.changed` | G 区待办 |
 | `resync` | **全量重拉列出的话题** |
@@ -2138,7 +2138,7 @@ interface ExportSessionResponse {
 }
 interface SessionArtifact {
   version: number;
-  session: unknown; runs: unknown[]; items: unknown[]; states?: unknown[]; messages: unknown[];
+  session: unknown; runs: unknown[]; items: unknown[]; plan?: PlanStep[]; messages: unknown[];
   toolResults: {
     id: string; itemId: string; toolName: string;
     preview: string;

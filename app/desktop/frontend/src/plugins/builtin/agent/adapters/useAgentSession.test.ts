@@ -82,11 +82,11 @@ describe("useAgentSession driver lifecycle", () => {
               items: [],
               runs: [],
               interrupts: [],
-              state: {
-                type: "plan",
+              plan: {
                 sessionId: SID,
                 revision: 0,
-                plan: [],
+                steps: [],
+                updatedAt: "2026-07-29T00:00:00Z",
               },
             }),
           },
@@ -252,7 +252,12 @@ describe("useAgentSession run timing guards", () => {
               items: [],
               runs: [canceledRun],
               interrupts: [],
-              state: { type: "plan", sessionId: SID, revision: 0, plan: [] },
+              plan: {
+                sessionId: SID,
+                revision: 0,
+                steps: [],
+                updatedAt: "2026-07-29T00:00:00Z",
+              },
             }),
           },
           runs: {
@@ -407,7 +412,12 @@ describe("useAgentSession run timing guards", () => {
                     : restoredRun,
                 ],
                 interrupts: [],
-                state: { type: "plan", sessionId: SID, revision: 0, plan: [] },
+                plan: {
+                  sessionId: SID,
+                  revision: 0,
+                  steps: [],
+                  updatedAt: "2026-07-29T00:00:00Z",
+                },
               }),
             ),
           },
@@ -519,7 +529,12 @@ describe("useAgentSession run timing guards", () => {
               items: [],
               runs: [terminal],
               interrupts: [],
-              state: { type: "plan", sessionId: SID, revision: 0, plan: [] },
+              plan: {
+                sessionId: SID,
+                revision: 0,
+                steps: [],
+                updatedAt: "2026-07-29T00:00:00Z",
+              },
             }),
           },
           runs: {
@@ -564,11 +579,10 @@ describe("useAgentSession durable recovery", () => {
       items: [],
       runs: [],
       interrupts: [],
-      state: {
-        type: "plan",
+      plan: {
         sessionId: RID,
         revision: 0,
-        plan: [],
+        steps: [],
         updatedAt: "2026-07-29T00:00:00Z",
       },
       ...overrides,
@@ -797,17 +811,17 @@ describe("useAgentSession durable recovery", () => {
                 },
               ]
             : [],
-          state: {
-            type: "plan",
+          plan: {
             sessionId: RID,
             revision: restarted ? 2 : 1,
-            plan: [
+            steps: [
               {
                 id: restarted ? "step_after_restart" : "step_before_restart",
                 description: restarted ? "Approve resumed tool" : "Run old generation",
                 status: "in_progress",
               },
             ],
+            updatedAt: "2026-08-13T00:00:03.000Z",
           },
         }),
       ),
@@ -851,7 +865,7 @@ describe("useAgentSession durable recovery", () => {
       id: "run_after_restart",
       status: "waiting",
     });
-    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(view.plan).toMatchObject({ revision: 2 });
     expect(view.pendingInterrupts).toHaveLength(1);
     expect(view.toolCalls.item_after_restart).toMatchObject({
       name: "shell",
@@ -912,17 +926,17 @@ describe("useAgentSession durable recovery", () => {
                 ],
               },
             ],
-            state: {
-              type: "plan",
+            plan: {
               sessionId: RID,
               revision: 2,
-              plan: [
+              steps: [
                 {
                   id: "step_restarted",
                   description: "Approve recovered tool",
                   status: "in_progress",
                 },
               ],
+              updatedAt: "2026-08-13T00:00:03.000Z",
             },
           }),
         );
@@ -948,7 +962,7 @@ describe("useAgentSession durable recovery", () => {
       id: "run_restarted_waiting",
       status: "waiting",
     });
-    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(view.plan).toMatchObject({ revision: 2 });
     expect(view.pendingInterrupts).toHaveLength(1);
     expect(view.toolCalls.item_restarted_tool).toMatchObject({
       name: "shell",
@@ -1002,11 +1016,11 @@ describe("useAgentSession durable recovery", () => {
                   activeSegmentId: "seg_retired_opening",
                 }),
               ],
-          state: {
-            type: "plan",
+          plan: {
             sessionId: RID,
             revision: restarted ? 2 : 1,
-            plan: [],
+            steps: [],
+            updatedAt: "2026-08-13T00:00:03.000Z",
           },
         }),
       ),
@@ -1026,7 +1040,7 @@ describe("useAgentSession durable recovery", () => {
     await expect(
       useAgentStore.getState().sessions[RID]!.synchronize!("replace-live"),
     ).resolves.toBe(true);
-    expect(useAgentStore.getState().sessions[RID]!.view.shared.plan).toMatchObject({
+    expect(useAgentStore.getState().sessions[RID]!.view.plan).toMatchObject({
       revision: 2,
     });
 
@@ -1086,11 +1100,11 @@ describe("useAgentSession durable recovery", () => {
                   activeSegmentId: "seg_reconnect",
                 }),
               ],
-          state: {
-            type: "plan",
+          plan: {
             sessionId: RID,
             revision: restarted ? 2 : 1,
-            plan: [],
+            steps: [],
+            updatedAt: "2026-08-13T00:00:03.000Z",
           },
         }),
       ),
@@ -1112,7 +1126,7 @@ describe("useAgentSession durable recovery", () => {
     ).resolves.toBe(true);
 
     const view = useAgentStore.getState().sessions[RID]!.view;
-    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(view.plan).toMatchObject({ revision: 2 });
     expect(selectCurrentRootRun(view)).toBeNull();
 
     resolveReconnect({
@@ -1167,11 +1181,11 @@ describe("useAgentSession durable recovery", () => {
                   activeSegmentId: "seg_exact_read",
                 }),
               ],
-          state: {
-            type: "plan",
+          plan: {
             sessionId: RID,
             revision: restarted ? 2 : 1,
-            plan: [],
+            steps: [],
+            updatedAt: "2026-08-13T00:00:03.000Z",
           },
         }),
       ),
@@ -1193,7 +1207,7 @@ describe("useAgentSession durable recovery", () => {
     ).resolves.toBe(true);
 
     const view = useAgentStore.getState().sessions[RID]!.view;
-    expect(view.shared.plan).toMatchObject({ revision: 2 });
+    expect(view.plan).toMatchObject({ revision: 2 });
     expect(selectCurrentRootRun(view)).toBeNull();
     expect(JSON.stringify(view)).not.toContain("run_exact_read");
 

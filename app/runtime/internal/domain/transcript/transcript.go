@@ -85,7 +85,7 @@ func OpeningUserMessagesByRun(items []Item) map[string][]ContentBlock {
 //     kept. -1 when that watermark is unknown (in-flight / pre-watermark), which
 //     the caller clamps.
 //   - KeepRunID: the run that watermark belongs to — the boundary's identity for
-//     the session-scoped state recorded per run, which unlike the message log has
+//     the Session Plan recorded per run, which unlike the message log has
 //     no watermark of its own to seek to. It is deliberately the SAME node
 //     KeepMessageMark comes from: two answers to "where does this boundary sit" is one
 //     answer too many. Empty when nothing is kept (the whole timeline is dropped),

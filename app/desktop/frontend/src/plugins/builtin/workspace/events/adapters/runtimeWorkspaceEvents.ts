@@ -22,7 +22,7 @@ const SUBSCRIBED_TOPICS: readonly RuntimeTopic[] = [
   "runs.changed",
   "interrupts.changed",
   "goals.changed",
-  "state.changed",
+  "plan.changed",
   "knowledge.changed",
   "hooks.changed",
   "models.changed",

@@ -42,7 +42,7 @@ func Samples() []Sample {
 		{"item.started.json", reflect.TypeFor[protocol.RunEvent]()},
 		{"item.delta.json", reflect.TypeFor[protocol.RunEvent]()},
 		{"item.completed.json", reflect.TypeFor[protocol.RunEvent]()},
-		{"state.snapshot.json", reflect.TypeFor[protocol.RunEvent]()},
+		{"plan.updated.json", reflect.TypeFor[protocol.RunEvent]()},
 
 		// §4.3 Item union (bare) + ContentBlock.
 		{"item.userMessage.json", reflect.TypeFor[protocol.Item]()},
@@ -103,7 +103,7 @@ func Samples() []Sample {
 		{"rtevent.skills-changed.json", reflect.TypeFor[protocol.RuntimeEvent]()},
 		{"rtevent.mcp-changed.json", reflect.TypeFor[protocol.RuntimeEvent]()},
 		{"rtevent.schedules-changed.json", reflect.TypeFor[protocol.RuntimeEvent]()},
-		{"rtevent.state-changed.json", reflect.TypeFor[protocol.RuntimeEvent]()},
+		{"rtevent.plan-changed.json", reflect.TypeFor[protocol.RuntimeEvent]()},
 		{"rtevent.resync.json", reflect.TypeFor[protocol.RuntimeEvent]()},
 
 		// §4.5 Workspace — Diff/DiffRow, file shapes, methods.

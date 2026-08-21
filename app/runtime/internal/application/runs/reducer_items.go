@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -616,22 +615,15 @@ func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, erro
 func (r *reducer) planSnapshot(e PlanUpdated) []RunEvent {
 	snapshot := r.planState(e.State)
 	// Remembered so the segment can fence its final value: a client folding this
-	// stream must reach segment.finished holding the state the segment ended with,
-	// not the state as of whichever change happened to be published last.
+	// stream must reach segment.finished holding the Plan the segment ended with,
+	// not the Plan as of whichever change happened to be published last.
 	r.plan = &snapshot
 	return []RunEvent{snapshot}
 }
 
-func (r *reducer) planState(state plan.State) StateSnapshot {
-	steps := state.Steps()
-	current := make([]PlanSnapshot, len(steps))
-	for i, step := range steps {
-		current[i] = PlanSnapshot{
-			ID: strconv.Itoa(i), Description: step.Description, Status: step.Status,
-		}
-	}
-	return StateSnapshot{
-		SessionID: r.cfg.SessionID, Plan: current,
+func (r *reducer) planState(state plan.State) PlanSnapshot {
+	return PlanSnapshot{
+		SessionID: r.cfg.SessionID, Steps: state.Steps(),
 		Revision: state.Revision(), UpdatedAt: state.UpdatedAt(),
 	}
 }

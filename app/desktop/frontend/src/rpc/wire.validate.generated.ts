@@ -52,8 +52,6 @@ export type WireTypeName =
   | "ArtifactRunLimits"
   | "ArtifactRunMetrics"
   | "ArtifactSession"
-  | "ArtifactState"
-  | "ArtifactStateType"
   | "ArtifactToolInvocation"
   | "ArtifactToolResult"
   | "ArtifactUsage"
@@ -209,8 +207,9 @@ export type WireTypeName =
   | "PageQuery"
   | "PatchResult"
   | "PendingInterruptSet"
-  | "PlanSnapshot"
+  | "Plan"
   | "PlanStatus"
+  | "PlanStep"
   | "ProblemData"
   | "Provider"
   | "ProviderConfigChange"
@@ -285,11 +284,6 @@ export type WireTypeName =
   | "StartGoalRequest"
   | "StartRunRequest"
   | "StartRunResponse"
-  | "StateSnapshot"
-  | "StateSnapshotCapability"
-  | "StateSnapshotScope"
-  | "StateSnapshotType"
-  | "StateSnapshotWriter"
   | "SteerRunRequest"
   | "StreamEvent"
   | "StreamEventType"
@@ -747,18 +741,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     updatedAt: text(),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["createdAt", "id", "model", "title", "updatedAt", "workspace"]),
-  ArtifactState: allOf([
-    object({
-      plan: array(ref(() => CHECKS.PlanSnapshot)),
-      type: ref(() => CHECKS.ArtifactStateType),
-    }, []),
-    oneOf([
-      fields({
-        type: literal("plan"),
-      }, ["plan", "type"]),
-    ]),
-  ]),
-  ArtifactStateType: enumOf(["plan"]),
   ArtifactToolInvocation: object({
     arguments: record(anything()),
     name: text(),
@@ -817,12 +799,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         type: literal("runtimeTopic"),
       }, ["name", "type"]),
-      fields({
-        type: literal("stateSnapshot"),
-      }, ["name", "type"]),
     ]),
   ]),
-  CapabilityRequirementType: enumOf(["feature", "interruptType", "runtimeTopic", "stateSnapshot"]),
+  CapabilityRequirementType: enumOf(["feature", "interruptType", "runtimeTopic"]),
   ChangeStatus: enumOf(["added", "deleted", "modified", "moved"]),
   ClientCapabilities: object({
     excludedEphemeralEvents: allOf([array(ref(() => CHECKS.SuppressibleRunEventType)), uniqueItems()]),
@@ -1875,12 +1854,18 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     }, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
     fields({}, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
   ]),
-  PlanSnapshot: object({
+  Plan: object({
+    revision: allOf([integer(), minimum(0)]),
+    sessionId: text(),
+    steps: array(ref(() => CHECKS.PlanStep)),
+    updatedAt: text(),
+  }, ["revision", "sessionId", "steps"]),
+  PlanStatus: enumOf(["pending", "in_progress", "completed"]),
+  PlanStep: object({
     description: text(),
     id: text(),
     status: ref(() => CHECKS.PlanStatus),
   }, ["description", "id", "status"]),
-  PlanStatus: enumOf(["pending", "in_progress", "completed"]),
   ProblemData: allOf([
     object({
       activeRun: ref(() => CHECKS.ActiveRunRef),
@@ -2589,7 +2574,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ]),
   RuntimeEvent: allOf([
     object({
-      key: ref(() => CHECKS.StateSnapshotType),
       names: allOf([array(text()), minItems(1), uniqueItems()]),
       paths: allOf([array(text()), minItems(1), uniqueItems()]),
       runIds: allOf([array(text()), minItems(1), uniqueItems()]),
@@ -2605,7 +2589,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     }, []),
     oneOf([
       fields({
-        key: absent(),
         names: absent(),
         runIds: absent(),
         scheduleIds: absent(),
@@ -2616,7 +2599,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         watchIds: absent(),
       }, ["paths", "sequence", "type"]),
       fields({
-        key: absent(),
         paths: absent(),
         runIds: absent(),
         scheduleIds: absent(),
@@ -2629,7 +2611,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2642,7 +2623,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2655,7 +2635,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2668,7 +2647,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         scheduleIds: absent(),
@@ -2682,16 +2660,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         names: absent(),
         paths: absent(),
+        runIds: absent(),
         scheduleIds: absent(),
         serverIds: absent(),
         topics: absent(),
-        type: literal("state.changed"),
+        type: literal("plan.changed"),
         watchId: absent(),
         watchIds: absent(),
         workspace: absent(),
-      }, ["key", "sequence", "type"]),
+      }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2704,7 +2682,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         scheduleIds: absent(),
@@ -2716,7 +2693,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2730,7 +2706,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2744,7 +2719,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2758,7 +2732,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2772,7 +2745,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2786,7 +2758,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2800,7 +2771,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        key: absent(),
         names: absent(),
         paths: absent(),
         runIds: absent(),
@@ -2816,7 +2786,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   RuntimeEventNotification: object({
     event: ref(() => CHECKS.RuntimeEvent),
   }, ["event"]),
-  RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"]),
+  RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"]),
   RuntimeInfo: object({
     endpoints: ref(() => CHECKS.RuntimeInfoEndpoints),
     protocolVersion: text(),
@@ -2846,7 +2816,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     watches: array(ref(() => CHECKS.WatchSpec)),
   }, ["topics"]),
   RuntimeSubscribeResponse: object({}, []),
-  RuntimeTopic: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"]),
+  RuntimeTopic: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"]),
   SafetyClass: enumOf(["safe", "write", "exec", "network"]),
   Schedule: object({
     createdAt: text(),
@@ -2977,9 +2947,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     limits: ref(() => CHECKS.RuntimeLimits),
     runEvents: array(ref(() => CHECKS.StreamEventType)),
     runtimeTopics: array(ref(() => CHECKS.RuntimeTopic)),
-    stateSnapshots: array(ref(() => CHECKS.StateSnapshotCapability)),
     streamingMethods: array(text()),
-  }, ["features", "limits", "runEvents", "runtimeTopics", "stateSnapshots", "streamingMethods"]),
+  }, ["features", "limits", "runEvents", "runtimeTopics", "streamingMethods"]),
   ServerInfo: object({
     defaultWorkspace: ref(() => CHECKS.WorkspaceRef),
     home: text(),
@@ -3001,18 +2970,18 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   SessionArtifact: object({
     items: array(ref(() => CHECKS.ArtifactItem)),
     messages: array(anything()),
+    plan: array(ref(() => CHECKS.PlanStep)),
     runs: array(ref(() => CHECKS.ArtifactRun)),
     session: ref(() => CHECKS.ArtifactSession),
-    states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(21), maximum(21)]),
+    version: allOf([integer(), minimum(22), maximum(22)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionSnapshot: object({
     goal: ref(() => CHECKS.Goal),
     interrupts: array(ref(() => CHECKS.PendingInterruptSet)),
     items: array(ref(() => CHECKS.Item)),
+    plan: ref(() => CHECKS.Plan),
     runs: array(ref(() => CHECKS.RunRef)),
-    state: ref(() => CHECKS.StateSnapshot),
   }, ["interrupts", "items", "runs"]),
   SessionStatus: enumOf(["running", "waiting", "idle"]),
   SessionUsageRequest: object({
@@ -3074,29 +3043,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     segmentId: allOf([text(), minLength(1)]),
     userItemId: allOf([text(), minLength(1)]),
   }, ["runId", "segmentId", "userItemId"]),
-  StateSnapshot: allOf([
-    object({
-      plan: array(ref(() => CHECKS.PlanSnapshot)),
-      revision: allOf([integer(), minimum(0)]),
-      sessionId: text(),
-      type: ref(() => CHECKS.StateSnapshotType),
-      updatedAt: text(),
-    }, []),
-    oneOf([
-      fields({
-        type: literal("plan"),
-      }, ["plan", "revision", "sessionId", "type"]),
-    ]),
-  ]),
-  StateSnapshotCapability: object({
-    key: ref(() => CHECKS.StateSnapshotType),
-    recoveryMethod: text(),
-    scope: ref(() => CHECKS.StateSnapshotScope),
-    writer: ref(() => CHECKS.StateSnapshotWriter),
-  }, ["key", "recoveryMethod", "scope", "writer"]),
-  StateSnapshotScope: enumOf(["session", "run"]),
-  StateSnapshotType: enumOf(["plan"]),
-  StateSnapshotWriter: enumOf(["rootRun", "anyRun"]),
   SteerRunRequest: object({
     expectedSegmentId: allOf([text(), minLength(1)]),
     input: allOf([array(ref(() => CHECKS.ContentBlock)), minItems(1)]),
@@ -3109,9 +3055,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       itemId: text(),
       metrics: ref(() => CHECKS.RunMetrics),
       outcome: ref(() => CHECKS.SegmentOutcome),
+      plan: ref(() => CHECKS.Plan),
       progress: ref(() => CHECKS.RunProgress),
       run: ref(() => CHECKS.RunRef),
-      state: ref(() => CHECKS.StateSnapshot),
       type: ref(() => CHECKS.StreamEventType),
     }, []),
     oneOf([
@@ -3122,8 +3068,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         itemId: absent(),
         metrics: absent(),
         outcome: absent(),
+        plan: absent(),
         progress: absent(),
-        state: absent(),
         type: literal("segment.started"),
       }, ["run", "type"]),
       fields({
@@ -3133,8 +3079,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         itemId: absent(),
         metrics: absent(),
         outcome: absent(),
+        plan: absent(),
         run: absent(),
-        state: absent(),
         type: literal("segment.progress"),
       }, ["progress", "type"]),
       fields({
@@ -3142,9 +3088,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durable: absent(),
         item: absent(),
         itemId: absent(),
+        plan: absent(),
         progress: absent(),
         run: absent(),
-        state: absent(),
         type: literal("segment.finished"),
       }, ["metrics", "outcome", "type"]),
       fields({
@@ -3153,9 +3099,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         itemId: absent(),
         metrics: absent(),
         outcome: absent(),
+        plan: absent(),
         progress: absent(),
         run: absent(),
-        state: absent(),
         type: literal("item.started"),
       }, ["item", "type"]),
       fields({
@@ -3163,9 +3109,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         item: absent(),
         metrics: absent(),
         outcome: absent(),
+        plan: absent(),
         progress: absent(),
         run: absent(),
-        state: absent(),
         type: literal("item.delta"),
       }, ["delta", "itemId", "type"]),
       fields({
@@ -3174,9 +3120,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         itemId: absent(),
         metrics: absent(),
         outcome: absent(),
+        plan: absent(),
         progress: absent(),
         run: absent(),
-        state: absent(),
         type: literal("item.completed"),
       }, ["item", "type"]),
       fields({
@@ -3188,11 +3134,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         outcome: absent(),
         progress: absent(),
         run: absent(),
-        type: literal("state.snapshot"),
-      }, ["state", "type"]),
+        type: literal("plan.updated"),
+      }, ["plan", "type"]),
     ]),
   ]),
-  StreamEventType: enumOf(["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot"]),
+  StreamEventType: enumOf(["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "plan.updated"]),
   SubscribeRunRequest: object({
     runId: allOf([text(), minLength(1)]),
     segmentId: allOf([text(), minLength(1)]),
@@ -3370,7 +3316,7 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "runs.get": ref(() => CHECKS.RunRef),
   "runs.list": ref(() => CHECKS.PageOfRunRef),
   "interrupts.list": ref(() => CHECKS.PageOfPendingInterruptSet),
-  "plan.get": ref(() => CHECKS.StateSnapshot),
+  "plan.get": ref(() => CHECKS.Plan),
   "items.list": ref(() => CHECKS.ListItemsResponse),
   "workspaces.resolve": ref(() => CHECKS.WorkspaceInfo),
   "workspaces.list": ref(() => CHECKS.PageOfWorkspaceSummary),

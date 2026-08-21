@@ -251,11 +251,6 @@ export interface ArtifactSession {
   workspace: WorkspaceRef;
 }
 
-export type ArtifactState =
-  | { type: "plan"; plan: PlanSnapshot[] };
-
-export type ArtifactStateType = "plan";
-
 export interface ArtifactToolInvocation {
   arguments: Record<string, unknown>;
   name: string;
@@ -295,10 +290,9 @@ export type CancelRunResponseType = "root" | "child";
 export type CapabilityRequirement =
   | { type: "feature"; name: string }
   | { type: "interruptType"; name: string }
-  | { type: "runtimeTopic"; name: string }
-  | { type: "stateSnapshot"; name: string };
+  | { type: "runtimeTopic"; name: string };
 
-export type CapabilityRequirementType = "feature" | "interruptType" | "runtimeTopic" | "stateSnapshot";
+export type CapabilityRequirementType = "feature" | "interruptType" | "runtimeTopic";
 
 export type ChangeStatus = "added" | "deleted" | "modified" | "moved";
 
@@ -982,13 +976,20 @@ export interface PendingInterruptSet {
   sessionId: string;
 }
 
-export interface PlanSnapshot {
+export interface Plan {
+  revision: number;
+  sessionId: string;
+  steps: PlanStep[];
+  updatedAt?: string;
+}
+
+export type PlanStatus = "pending" | "in_progress" | "completed";
+
+export interface PlanStep {
   description: string;
   id: string;
   status: PlanStatus;
 }
-
-export type PlanStatus = "pending" | "in_progress" | "completed";
 
 export type ProblemData =
   | { type: "agent_stuck"; detail?: string; docUrl?: string }
@@ -1251,7 +1252,7 @@ export type RuntimeEvent =
   | { type: "schedules.changed"; scheduleIds?: string[]; sequence: number }
   | { type: "sessions.changed"; sequence: number; sessionIds?: string[] }
   | { type: "runs.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
-  | { type: "state.changed"; key: StateSnapshotType; runIds?: string[]; sequence: number; sessionIds?: string[] }
+  | { type: "plan.changed"; sequence: number; sessionIds?: string[] }
   | { type: "goals.changed"; sequence: number; sessionIds?: string[] }
   | { type: "interrupts.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
   | { type: "knowledge.changed"; sequence: number }
@@ -1266,7 +1267,7 @@ export interface RuntimeEventNotification {
   event: RuntimeEvent;
 }
 
-export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed" | "resync";
+export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "plan.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed" | "resync";
 
 export interface RuntimeInfo {
   endpoints: RuntimeInfoEndpoints;
@@ -1304,7 +1305,7 @@ export interface RuntimeSubscribeRequest {
 export interface RuntimeSubscribeResponse {
 }
 
-export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed";
+export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "plan.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed";
 
 export type SafetyClass = "safe" | "write" | "exec" | "network";
 
@@ -1353,7 +1354,6 @@ export interface ServerCapabilities {
   limits: RuntimeLimits;
   runEvents: StreamEventType[];
   runtimeTopics: RuntimeTopic[];
-  stateSnapshots: StateSnapshotCapability[];
   streamingMethods: string[];
 }
 
@@ -1380,9 +1380,9 @@ export interface Session {
 export interface SessionArtifact {
   items: ArtifactItem[];
   messages: unknown[];
+  plan?: PlanStep[];
   runs: ArtifactRun[];
   session: ArtifactSession;
-  states?: ArtifactState[];
   toolResults: ArtifactToolResult[];
   version: number;
 }
@@ -1391,8 +1391,8 @@ export interface SessionSnapshot {
   goal?: Goal;
   interrupts: PendingInterruptSet[];
   items: Item[];
+  plan?: Plan;
   runs: RunRef[];
-  state?: StateSnapshot;
 }
 
 export type SessionStatus = "running" | "waiting" | "idle";
@@ -1469,22 +1469,6 @@ export interface StartRunResponse {
   userItemId: string;
 }
 
-export type StateSnapshot =
-  | { type: "plan"; plan: PlanSnapshot[]; revision: number; sessionId: string; updatedAt?: string };
-
-export interface StateSnapshotCapability {
-  key: StateSnapshotType;
-  recoveryMethod: string;
-  scope: StateSnapshotScope;
-  writer: StateSnapshotWriter;
-}
-
-export type StateSnapshotScope = "session" | "run";
-
-export type StateSnapshotType = "plan";
-
-export type StateSnapshotWriter = "rootRun" | "anyRun";
-
 export interface SteerRunRequest {
   expectedSegmentId: string;
   input: ContentBlock[];
@@ -1498,9 +1482,9 @@ export type StreamEvent =
   | { type: "item.started"; item: Item }
   | { type: "item.delta"; delta: ItemDelta; itemId: string }
   | { type: "item.completed"; item: Item }
-  | { type: "state.snapshot"; state: StateSnapshot };
+  | { type: "plan.updated"; plan: Plan };
 
-export type StreamEventType = "segment.started" | "segment.progress" | "segment.finished" | "item.started" | "item.delta" | "item.completed" | "state.snapshot";
+export type StreamEventType = "segment.started" | "segment.progress" | "segment.finished" | "item.started" | "item.delta" | "item.completed" | "plan.updated";
 
 export interface SubscribeRunRequest {
   runId: string;
@@ -1688,9 +1672,8 @@ export const WIRE_ENUMS = {
   ApprovalRuleScope: ["session", "project", "global"],
   ArtifactOutcomeType: ["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
   ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled", "toolCanceled"],
-  ArtifactStateType: ["plan"],
   CancelRunResponseType: ["root", "child"],
-  CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic", "stateSnapshot"],
+  CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic"],
   ChangeStatus: ["added", "deleted", "modified", "moved"],
   CodebaseState: ["none", "indexing", "ready", "error"],
   ContentBlockType: ["text", "image"],
@@ -1733,8 +1716,8 @@ export const WIRE_ENUMS = {
   RunProtocolFeature: ["subagents"],
   RunReplayScope: ["runtimeInstanceRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
-  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"],
-  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"],
+  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"],
+  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"],
   SafetyClass: ["safe", "write", "exec", "network"],
   ScheduleWorkspaceMode: ["default"],
   SegmentOutcomeType: ["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
@@ -1742,10 +1725,7 @@ export const WIRE_ENUMS = {
   SkillLifecycle: ["active", "archived"],
   SkillProposalOrigin: ["requested", "mined"],
   SkillScope: ["project", "user"],
-  StateSnapshotScope: ["session", "run"],
-  StateSnapshotType: ["plan"],
-  StateSnapshotWriter: ["rootRun", "anyRun"],
-  StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot"],
+  StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "plan.updated"],
   SuppressibleRunEventType: ["segment.progress", "item.delta"],
   WorkspaceAvailability: ["available", "missing"],
 } as const;
@@ -1759,7 +1739,7 @@ export const RUN_EVENT_RELIABILITY = {
   "item.started": "authoritative",
   "item.delta": "ephemeral",
   "item.completed": "authoritative",
-  "state.snapshot": "authoritative",
+  "plan.updated": "authoritative",
 } as const satisfies Record<StreamEventType, RunEventReliability>;
 
 export function runEventReliability(value: unknown): RunEventReliability | undefined {

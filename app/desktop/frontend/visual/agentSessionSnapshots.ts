@@ -651,10 +651,9 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
     runs: [run("running")],
     items: [PROMPT],
     pendingInterruptSets: [],
-    state: {
-      type: "plan",
+    plan: {
       revision: 3,
-      plan: [
+      steps: [
         { id: "step_boundary", text: "Verify boundary ownership", status: "done" },
         { id: "step_visual", text: "Review visual evidence", status: "active" },
         { id: "step_gates", text: "Run quality gates", status: "pending" },
@@ -665,10 +664,9 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
     runs: [run("running")],
     items: [PROMPT],
     pendingInterruptSets: [],
-    state: {
-      type: "plan",
+    plan: {
       revision: 3,
-      plan: [
+      steps: [
         { id: "step_boundary", text: "Verify boundary ownership", status: "done" },
         { id: "step_visual", text: "Review visual evidence", status: "active" },
         { id: "step_gates", text: "Run quality gates", status: "pending" },
@@ -679,10 +677,9 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
     runs: [run("running")],
     items: [PROMPT],
     pendingInterruptSets: [],
-    state: {
-      type: "plan",
+    plan: {
       revision: 3,
-      plan: [
+      steps: [
         { id: "step_boundary", text: "Verify boundary ownership", status: "done" },
         { id: "step_visual", text: "Review visual evidence", status: "active" },
         { id: "step_gates", text: "Run quality gates", status: "pending" },

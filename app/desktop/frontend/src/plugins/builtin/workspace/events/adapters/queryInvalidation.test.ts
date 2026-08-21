@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("workspace session projection invalidation", () => {
-  it.each(["runs.changed", "interrupts.changed", "state.changed", "goals.changed"] as const)(
+  it.each(["runs.changed", "interrupts.changed", "plan.changed", "goals.changed"] as const)(
     "targets the mounted sessions named by %s",
     (type) => {
       invalidateWorkspaceEvent({
@@ -202,7 +202,7 @@ describe("workspace session projection invalidation", () => {
           // The missing HITL signal arrives after its gap was already covered
           // by the authoritative replacement snapshot.
           yield { type: "interrupts.changed", sequence: 2, sessionIds: ["ses_a"] } as const;
-          yield { type: "state.changed", sequence: 4, sessionIds: ["ses_a"] } as const;
+          yield { type: "plan.changed", sequence: 4, sessionIds: ["ses_a"] } as const;
           await new Promise<void>((resolve) => {
             signal.addEventListener("abort", () => resolve(), { once: true });
           });

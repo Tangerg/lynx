@@ -214,8 +214,8 @@ func TestPlanBoundaryDiesWithItsRun(t *testing.T) {
 	}
 }
 
-// TestPlanStateIsOwnedByItsSession proves session_state_is_owned_by_its_session and
-// state_revision_never_goes_backwards, the two halves of a session-scoped state key.
+// TestPlanIsOwnedByItsSession proves session_plan_is_owned_by_its_session and
+// plan_revision_never_goes_backwards, the two halves of the Session Plan.
 //
 // The key is declared session-scoped, which means one value per session and one
 // revision space per session. Two sessions sharing either would be a panel that
@@ -227,7 +227,7 @@ func TestPlanBoundaryDiesWithItsRun(t *testing.T) {
 // backwards and the revision must not, because a client folds by revision and would
 // otherwise treat the restored list as the stale one. That is the shape of the bug
 // rollback and import both had.
-func TestPlanStateIsOwnedByItsSession(t *testing.T) {
+func TestPlanIsOwnedByItsSession(t *testing.T) {
 	ctx := context.Background()
 	store := newPlanStore(t)
 

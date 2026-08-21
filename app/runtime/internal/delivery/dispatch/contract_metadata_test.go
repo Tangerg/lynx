@@ -104,10 +104,4 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 		t.Fatalf("object constraint error = %v, want shape, field and illegal operator", err)
 	}
 
-	stateKey := shapes.StateKeys()[0]
-	stateKey.Scope = StateSnapshotScope("workspace")
-	err = stateKey.validate()
-	if err == nil || !strings.Contains(err.Error(), "workspace") || !strings.Contains(err.Error(), "scope") {
-		t.Fatalf("state key error = %v, want illegal scope", err)
-	}
 }

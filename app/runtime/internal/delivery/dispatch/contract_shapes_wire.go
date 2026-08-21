@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-// shapes is the registered union / constraint / state-key contract.
+// shapes is the registered union / constraint contract.
 //
 // Every high-risk discriminated union in the contract is registered here. The Go
 // type, runtime validator, JSON Schema, and generated TypeScript all consume the
@@ -29,7 +29,6 @@ func buildShapes() *Shapes {
 	registerArtifactUnions(s)
 	registerDiffUnions(s)
 	registerObjectConstraints(s)
-	registerStateKeys(s)
 	registerCarriedShapes(s)
 	registerValueConstraints(s)
 	return s
@@ -203,18 +202,6 @@ func registerItemUnions(s *Shapes) {
 	itemIdentityFields := []string{"id", "runId", "status"}
 	createdItemFields := slices.Concat(itemIdentityFields, []string{"createdAt"})
 	toolItemFields := slices.Concat(itemIdentityFields, []string{"startedAt"})
-	// The archive's session-scoped state values, keyed the same way the live stream
-	// keys them. One variant today, declared as a union because the KEY is the
-	// discriminator: a reader must branch on it rather than guess from which field
-	// happens to be set.
-	s.union(UnionSpec{
-		GoType:        typeOf[protocol.ArtifactState](),
-		Discriminator: "type",
-		Variants: []VariantSpec{
-			{Tag: string(protocol.ArtifactStatePlan), Required: []string{"plan"}},
-		},
-	})
-
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.Item](),
 		Discriminator: "type",
@@ -242,7 +229,7 @@ func registerItemUnions(s *Shapes) {
 		},
 	})
 
-	// Four short registries, so a gap says which vocabulary its name belongs to. The
+	// Three short registries, so a gap says which vocabulary its name belongs to. The
 	// variants carry the same field set on purpose: what differs is what `name` MEANS,
 	// and each registry publishes its own values rather than restating them here.
 	s.union(UnionSpec{
@@ -252,22 +239,6 @@ func registerItemUnions(s *Shapes) {
 			{Tag: string(protocol.RequirementFeature), Required: []string{"name"}},
 			{Tag: string(protocol.RequirementInterruptType), Required: []string{"name"}},
 			{Tag: string(protocol.RequirementRuntimeTopic), Required: []string{"name"}},
-			{Tag: string(protocol.RequirementStateSnapshot), Required: []string{"name"}},
-		},
-	})
-
-	// One key today, and it is tagged: the stream event and the cold read carry the
-	// same shape, so a second key must arrive as a new tag rather than as extra
-	// optional fields nobody can tell apart.
-	s.union(UnionSpec{
-		GoType:        typeOf[protocol.StateSnapshot](),
-		Discriminator: "type",
-		Variants: []VariantSpec{
-			{
-				Tag:      string(protocol.StatePlan),
-				Required: []string{"sessionId", "revision", "plan"},
-				Optional: []string{"updatedAt"},
-			},
 		},
 	})
 
@@ -357,7 +328,7 @@ func registerEventUnions(s *Shapes) {
 			{Tag: string(protocol.StreamItemStarted), Required: []string{"item"}},
 			{Tag: string(protocol.StreamItemDelta), Required: []string{"itemId", "delta"}},
 			{Tag: string(protocol.StreamItemCompleted), Required: []string{"item"}},
-			{Tag: string(protocol.StreamStateSnapshot), Required: []string{"state"}},
+			{Tag: string(protocol.StreamPlanUpdated), Required: []string{"plan"}},
 		},
 	})
 
@@ -374,9 +345,7 @@ func registerEventUnions(s *Shapes) {
 			{Tag: string(protocol.RuntimeSchedulesChanged), Required: []string{"sequence"}, Optional: []string{"scheduleIds"}},
 			{Tag: string(protocol.RuntimeSessionsChanged), Required: []string{"sequence"}, Optional: []string{"sessionIds"}},
 			{Tag: string(protocol.RuntimeRunsChanged), Required: []string{"sequence"}, Optional: []string{"runIds", "sessionIds"}},
-			// The key is required: a client holds one projection per key, and a signal
-			// that does not say which one asks it to refetch all of them.
-			{Tag: string(protocol.RuntimeStateChanged), Required: []string{"sequence", "key"}, Optional: []string{"sessionIds", "runIds"}},
+			{Tag: string(protocol.RuntimePlanChanged), Required: []string{"sequence"}, Optional: []string{"sessionIds"}},
 			{Tag: string(protocol.RuntimeGoalsChanged), Required: []string{"sequence"}, Optional: []string{"sessionIds"}},
 			{Tag: string(protocol.RuntimeInterruptsChanged), Required: []string{"sequence"}, Optional: []string{"runIds", "sessionIds"}},
 			{Tag: string(protocol.RuntimeKnowledgeChanged), Required: []string{"sequence"}},
@@ -688,22 +657,6 @@ func failureTerminalRules() []PresenceRule {
 		{When: []operation.FieldCondition{{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.OutcomeFailed)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
 		{When: []operation.FieldCondition{{Field: "type", Operator: operation.OperatorEquals, Value: string(protocol.OutcomeLost)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
 	}
-}
-
-func registerStateKeys(s *Shapes) {
-	// `plan` is the only first-party shared-state key today.
-	//
-	// The event is authoritative and replayable in the Runtime-instance-local segment
-	// window; the persisted projection is independently recoverable through
-	// plan.get. These are three different guarantees and are kept explicit.
-	s.stateKey(StateKeySpec{
-		Key:            string(protocol.StatePlan),
-		RecoveryMethod: "plan.get",
-		Scope:          StateScopeSession,
-		Writer:         StateWriterRootRun,
-		Feature:        "plan",
-		PayloadType:    typeOf[protocol.StateSnapshot](),
-	})
 }
 
 func registerCarriedShapes(s *Shapes) {

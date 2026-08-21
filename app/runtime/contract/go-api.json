@@ -212,7 +212,7 @@
             },
             {
               "name": "GetPlan",
-              "signature": "func(ctx context.Context, request protocol.GetPlanRequest, options CallOptions) (*protocol.StateSnapshot, error)"
+              "signature": "func(ctx context.Context, request protocol.GetPlanRequest, options CallOptions) (*protocol.Plan, error)"
             },
             {
               "name": "GetRun",
@@ -705,11 +705,6 @@
           "name": "ArtifactProblemToolFailed",
           "type": "ArtifactProblemType",
           "value": "\"toolFailed\""
-        },
-        {
-          "name": "ArtifactStatePlan",
-          "type": "ArtifactStateType",
-          "value": "\"plan\""
         },
         {
           "name": "CancelRunChild",
@@ -1582,11 +1577,6 @@
           "value": "\"runtimeTopic\""
         },
         {
-          "name": "RequirementStateSnapshot",
-          "type": "CapabilityRequirementType",
-          "value": "\"stateSnapshot\""
-        },
-        {
           "name": "RestoreBoth",
           "type": "RestoreType",
           "value": "\"both\""
@@ -1672,6 +1662,11 @@
           "value": "\"models.changed\""
         },
         {
+          "name": "RuntimePlanChanged",
+          "type": "RuntimeEventType",
+          "value": "\"plan.changed\""
+        },
+        {
           "name": "RuntimeResync",
           "type": "RuntimeEventType",
           "value": "\"resync\""
@@ -1695,11 +1690,6 @@
           "name": "RuntimeSkillsChanged",
           "type": "RuntimeEventType",
           "value": "\"skills.changed\""
-        },
-        {
-          "name": "RuntimeStateChanged",
-          "type": "RuntimeEventType",
-          "value": "\"state.changed\""
         },
         {
           "name": "SafetyClassExec",
@@ -1774,7 +1764,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "21"
+          "value": "22"
         },
         {
           "name": "SessionStatusIdle",
@@ -1822,31 +1812,6 @@
           "value": "\"user\""
         },
         {
-          "name": "StatePlan",
-          "type": "StateSnapshotType",
-          "value": "\"plan\""
-        },
-        {
-          "name": "StateScopeRun",
-          "type": "StateSnapshotScope",
-          "value": "\"run\""
-        },
-        {
-          "name": "StateScopeSession",
-          "type": "StateSnapshotScope",
-          "value": "\"session\""
-        },
-        {
-          "name": "StateWriterAnyRun",
-          "type": "StateSnapshotWriter",
-          "value": "\"anyRun\""
-        },
-        {
-          "name": "StateWriterRootRun",
-          "type": "StateSnapshotWriter",
-          "value": "\"rootRun\""
-        },
-        {
           "name": "StreamItemCompleted",
           "type": "StreamEventType",
           "value": "\"item.completed\""
@@ -1862,6 +1827,11 @@
           "value": "\"item.started\""
         },
         {
+          "name": "StreamPlanUpdated",
+          "type": "StreamEventType",
+          "value": "\"plan.updated\""
+        },
+        {
           "name": "StreamSegmentFinished",
           "type": "StreamEventType",
           "value": "\"segment.finished\""
@@ -1875,11 +1845,6 @@
           "name": "StreamSegmentStarted",
           "type": "StreamEventType",
           "value": "\"segment.started\""
-        },
-        {
-          "name": "StreamStateSnapshot",
-          "type": "StreamEventType",
-          "value": "\"state.snapshot\""
         },
         {
           "name": "SuppressibleRunItemDelta",
@@ -1942,6 +1907,11 @@
           "value": "\"models.changed\""
         },
         {
+          "name": "TopicPlanChanged",
+          "type": "RuntimeTopic",
+          "value": "\"plan.changed\""
+        },
+        {
           "name": "TopicRunsChanged",
           "type": "RuntimeTopic",
           "value": "\"runs.changed\""
@@ -1960,11 +1930,6 @@
           "name": "TopicSkillsChanged",
           "type": "RuntimeTopic",
           "value": "\"skills.changed\""
-        },
-        {
-          "name": "TopicStateChanged",
-          "type": "RuntimeTopic",
-          "value": "\"state.changed\""
         },
         {
           "name": "WorkspaceAvailable",
@@ -2991,33 +2956,6 @@
               "tag": "json:\"favorite,omitempty\""
             }
           ]
-        },
-        {
-          "name": "ArtifactState",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Type",
-              "type": "ArtifactStateType",
-              "tag": "json:\"type\""
-            },
-            {
-              "name": "Plan",
-              "type": "[]PlanSnapshot",
-              "tag": "json:\"plan,omitempty\""
-            }
-          ],
-          "methods": [
-            {
-              "name": "ValidateWire",
-              "signature": "func() error"
-            }
-          ]
-        },
-        {
-          "name": "ArtifactStateType",
-          "kind": "defined",
-          "underlying": "string"
         },
         {
           "name": "ArtifactToolInvocation",
@@ -5906,7 +5844,38 @@
           ]
         },
         {
-          "name": "PlanSnapshot",
+          "name": "Plan",
+          "kind": "struct",
+          "fields": [
+            {
+              "name": "SessionID",
+              "type": "string",
+              "tag": "json:\"sessionId\""
+            },
+            {
+              "name": "Revision",
+              "type": "uint64",
+              "tag": "json:\"revision\""
+            },
+            {
+              "name": "Steps",
+              "type": "[]PlanStep",
+              "tag": "json:\"steps\""
+            },
+            {
+              "name": "UpdatedAt",
+              "type": "time.Time",
+              "tag": "json:\"updatedAt,omitzero\""
+            }
+          ]
+        },
+        {
+          "name": "PlanStatus",
+          "kind": "defined",
+          "underlying": "string"
+        },
+        {
+          "name": "PlanStep",
           "kind": "struct",
           "fields": [
             {
@@ -5925,11 +5894,6 @@
               "tag": "json:\"status\""
             }
           ]
-        },
-        {
-          "name": "PlanStatus",
-          "kind": "defined",
-          "underlying": "string"
         },
         {
           "name": "ProblemData",
@@ -6813,11 +6777,6 @@
               "tag": "json:\"runIds,omitempty\""
             },
             {
-              "name": "Key",
-              "type": "StateSnapshotType",
-              "tag": "json:\"key,omitempty\""
-            },
-            {
               "name": "Topics",
               "type": "[]RuntimeTopic",
               "tag": "json:\"topics,omitempty\""
@@ -7041,11 +7000,6 @@
               "tag": "json:\"runtimeTopics\""
             },
             {
-              "name": "StateSnapshots",
-              "type": "[]StateSnapshotCapability",
-              "tag": "json:\"stateSnapshots\""
-            },
-            {
               "name": "StreamingMethods",
               "type": "[]string",
               "tag": "json:\"streamingMethods\""
@@ -7179,9 +7133,9 @@
               "tag": "json:\"toolResults\""
             },
             {
-              "name": "States",
-              "type": "[]ArtifactState",
-              "tag": "json:\"states,omitempty\""
+              "name": "Plan",
+              "type": "[]PlanStep",
+              "tag": "json:\"plan,omitempty\""
             }
           ],
           "methods": [
@@ -7211,9 +7165,9 @@
               "tag": "json:\"interrupts\""
             },
             {
-              "name": "State",
-              "type": "*StateSnapshot",
-              "tag": "json:\"state,omitempty\""
+              "name": "Plan",
+              "type": "*Plan",
+              "tag": "json:\"plan,omitempty\""
             },
             {
               "name": "Goal",
@@ -7531,84 +7485,6 @@
           ]
         },
         {
-          "name": "StateSnapshot",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Type",
-              "type": "StateSnapshotType",
-              "tag": "json:\"type\""
-            },
-            {
-              "name": "SessionID",
-              "type": "string",
-              "tag": "json:\"sessionId\""
-            },
-            {
-              "name": "Revision",
-              "type": "uint64",
-              "tag": "json:\"revision\""
-            },
-            {
-              "name": "Plan",
-              "type": "[]PlanSnapshot",
-              "tag": "json:\"plan\""
-            },
-            {
-              "name": "UpdatedAt",
-              "type": "time.Time",
-              "tag": "json:\"updatedAt,omitzero\""
-            }
-          ],
-          "methods": [
-            {
-              "name": "ValidateWire",
-              "signature": "func() error"
-            }
-          ]
-        },
-        {
-          "name": "StateSnapshotCapability",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Key",
-              "type": "StateSnapshotType",
-              "tag": "json:\"key\""
-            },
-            {
-              "name": "RecoveryMethod",
-              "type": "string",
-              "tag": "json:\"recoveryMethod\""
-            },
-            {
-              "name": "Scope",
-              "type": "StateSnapshotScope",
-              "tag": "json:\"scope\""
-            },
-            {
-              "name": "Writer",
-              "type": "StateSnapshotWriter",
-              "tag": "json:\"writer\""
-            }
-          ]
-        },
-        {
-          "name": "StateSnapshotScope",
-          "kind": "defined",
-          "underlying": "string"
-        },
-        {
-          "name": "StateSnapshotType",
-          "kind": "defined",
-          "underlying": "string"
-        },
-        {
-          "name": "StateSnapshotWriter",
-          "kind": "defined",
-          "underlying": "string"
-        },
-        {
           "name": "SteerRunRequest",
           "kind": "struct",
           "fields": [
@@ -7680,9 +7556,9 @@
               "tag": "json:\"delta,omitempty\""
             },
             {
-              "name": "State",
-              "type": "*StateSnapshot",
-              "tag": "json:\"state,omitempty\""
+              "name": "Plan",
+              "type": "*Plan",
+              "tag": "json:\"plan,omitempty\""
             }
           ],
           "methods": [

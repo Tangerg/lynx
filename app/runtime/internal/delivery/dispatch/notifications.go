@@ -15,7 +15,7 @@ const (
 
 // EncodeRunEvent wraps one RunEvent into a notifications.run.event
 // JSON-RPC notification (API.md §5). The single downstream stream
-// carries run / item / state events; segment.finished (the terminal event)
+// carries segment / item / Plan events; segment.finished (the terminal event)
 // rides this same stream — there is no separate run-closed
 // notification. runId + eventId let the client filter by stream and
 // de-duplicate on reconnect (Last-Event-Id).
@@ -46,7 +46,7 @@ func (r *Router) handleNotification(context.Context, *transport.Request) {}
 
 // runEventToFrameFor returns the per-request encoder for RunEvent stream
 // notifications. Every authoritative event goes out; a client's opt-out only
-// suppresses ephemeral previews, so final state stays recoverable from the stream
+// suppresses ephemeral previews, so every final fact stays recoverable from the stream
 // alone (§5.2).
 func runEventToFrame(event protocol.RunEvent) (StreamFrame, bool) {
 	notification, err := EncodeRunEvent(event)

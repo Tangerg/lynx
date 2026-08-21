@@ -11,8 +11,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 )
 
 type transactionBoundary string
@@ -201,45 +199,7 @@ func assertFixtureProves(t *testing.T, root string, fixture fixtureRef, key stri
 	t.Errorf("%s is named as the fixture for %q and does not exist", fixture, key)
 }
 
-// TestEveryStateKeyHasAShapeFixture is the achievable half of contract §11.4
-// gate 14: every first-party state key's published payload is the one the runtime
-// actually emits.
-//
-// The rest of the gate is already structural. The recovery method must be a
-// registered method — the registration refuses one that is not, so a key cannot
-// promise a call no client can make — and scope, writer and feature are
-// declared and projected. What the declaration alone cannot establish is that the
-// PRODUCER agrees: the envelope is a map[string]any, so a key whose value drifted
-// from its published shape looks correct from both ends.
-//
-// The revision / lifecycle half and the state.changed fixture wait for C: today's
-// wire carries state.snapshot with no revision, so there is no policy to pin yet.
-func TestEveryStateKeyHasAShapeFixture(t *testing.T) {
-	root := moduleRoot(t)
-
-	for _, spec := range dispatch.WireShapes().StateKeys() {
-		fixture, ok := stateKeyFixtures[spec.Key]
-		if !ok {
-			t.Errorf("state key %q publishes a payload shape and nothing proves the runtime emits it", spec.Key)
-			continue
-		}
-		assertFixtureProves(t, root, fixture, spec.Key)
-	}
-	for key := range stateKeyFixtures {
-		if !slices.ContainsFunc(dispatch.WireShapes().StateKeys(), func(spec dispatch.StateKeySpec) bool {
-			return spec.Key == key
-		}) {
-			t.Errorf("a fixture claims state key %q, which nothing registers", key)
-		}
-	}
-}
-
-// stateKeyFixtures is the evidence index for the state envelope's keys.
-var stateKeyFixtures = map[string]fixtureRef{
-	"plan": {"internal/delivery/server", "TestStateSnapshotCarriesItsDeclaredPlanPayload"},
-}
-
-// TestEveryStateLifecycleClaimHasAFixture is contract §11.4 gate 18: the state
+// TestEveryPlanLifecycleClaimHasAFixture is contract §11.4 gate 18: the Plan
 // fixtures prove that the query and the event reducer do not go backwards, that
 // session and root ownership is not exceeded, and that the segment's final snapshot
 // fence and the runtime invalidation both hold.
@@ -251,11 +211,11 @@ var stateKeyFixtures = map[string]fixtureRef{
 // comment names the claim. Three of these four had no dedicated fixture before this
 // gate existed, and the cold read had none at any layer — the same blind spot that
 // left plan.get with no caller on the client.
-func TestEveryStateLifecycleClaimHasAFixture(t *testing.T) {
+func TestEveryPlanLifecycleClaimHasAFixture(t *testing.T) {
 	root := moduleRoot(t)
 
-	for _, claim := range slices.Sorted(maps.Keys(stateLifecycleFixtures)) {
-		fixtures := stateLifecycleFixtures[claim]
+	for _, claim := range slices.Sorted(maps.Keys(planLifecycleFixtures)) {
+		fixtures := planLifecycleFixtures[claim]
 		if len(fixtures) == 0 {
 			t.Errorf("state lifecycle claim %q names no fixture", claim)
 			continue
@@ -266,25 +226,25 @@ func TestEveryStateLifecycleClaimHasAFixture(t *testing.T) {
 	}
 }
 
-// stateLifecycleFixtures is the evidence index for the state lifecycle claims. A
+// planLifecycleFixtures is the evidence index for the Plan lifecycle claims. A
 // claim may need more than one fixture: "ownership" is enforced in the store that
 // keeps the value and in the projection that publishes it, and a fixture at either
 // layer alone would leave the other free to leak.
-var stateLifecycleFixtures = map[string][]fixtureRef{
-	"state_revision_never_goes_backwards": {
-		{"internal/infra/sqlite", "TestPlanStateIsOwnedByItsSession"},
+var planLifecycleFixtures = map[string][]fixtureRef{
+	"plan_revision_never_goes_backwards": {
+		{"internal/infra/sqlite", "TestPlanIsOwnedByItsSession"},
 		{"internal/delivery/server", "TestPlanQueryAnswersWithTheStreamsOwnSnapshot"},
 		{"internal/bootstrap", "TestApplyRollbackRepublishesBoundaryPlan"},
 	},
-	"session_state_is_owned_by_its_session": {
-		{"internal/infra/sqlite", "TestPlanStateIsOwnedByItsSession"},
-		{"internal/delivery/server", "TestStateChangeNamesItsKeyAndKeepsSessionScope"},
+	"session_plan_is_owned_by_its_session": {
+		{"internal/infra/sqlite", "TestPlanIsOwnedByItsSession"},
+		{"internal/delivery/server", "TestPlanChangeKeepsSessionScope"},
 	},
-	"segment_fences_its_final_state": {
-		{"internal/application/runs", "TestSegmentFencesItsFinalStateBeforeFinishing"},
+	"segment_fences_its_final_plan": {
+		{"internal/application/runs", "TestSegmentFencesItsFinalPlanBeforeFinishing"},
 	},
-	"committed_state_change_reaches_other_windows": {
-		{"internal/delivery/server", "TestStateChangeNamesItsKeyAndKeepsSessionScope"},
-		{"internal/application/plans", "TestCommittedStateChangeReachesOtherWindows"},
+	"committed_plan_change_reaches_other_windows": {
+		{"internal/delivery/server", "TestPlanChangeKeepsSessionScope"},
+		{"internal/application/plans", "TestCommittedPlanChangeReachesOtherWindows"},
 	},
 }

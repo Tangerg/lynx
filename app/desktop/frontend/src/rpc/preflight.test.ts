@@ -18,7 +18,6 @@ function advertising(
   return {
     runEvents: [],
     runtimeTopics: [],
-    stateSnapshots: [],
     streamingMethods: [],
     features: Object.fromEntries(
       Object.entries(features).map(([name, enabled]) => [

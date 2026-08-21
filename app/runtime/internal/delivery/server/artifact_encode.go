@@ -52,23 +52,8 @@ func artifactFromPortable(portable sessions.PortableSnapshot) (protocol.SessionA
 		Version:  protocol.SessionArtifactVersion,
 		Session:  artifactSessionFromPortable(portable.Session),
 		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults,
-		States: artifactStatesFromPortable(portable),
+		Plan: presentPlanSteps(portable.Plan),
 	}, nil
-}
-
-// artifactStatesFromPortable carries the session-scoped projections that have a
-// value. An empty list is omitted rather than written as an entry with nothing in
-// it: "no Plan" and "an empty Plan" are the same fact here, and only the
-// live projection's revision distinguishes them — which an archive deliberately
-// does not carry.
-func artifactStatesFromPortable(portable sessions.PortableSnapshot) []protocol.ArtifactState {
-	if len(portable.Plan) == 0 {
-		return nil
-	}
-	return []protocol.ArtifactState{{
-		Type: protocol.ArtifactStatePlan,
-		Plan: presentPlanSnapshots(portable.Plan),
-	}}
 }
 
 func artifactSessionFromPortable(value sessions.PortableSession) protocol.ArtifactSession {

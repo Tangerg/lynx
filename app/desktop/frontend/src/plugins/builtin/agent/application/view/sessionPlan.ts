@@ -1,15 +1,15 @@
 import { useMemo } from "react";
-import type { PlanStep } from "../../domain/plan";
+import type { AgentPlan, PlanStep } from "@/plugins/sdk/types/agentSessionView";
 import { agentSessionView } from "../ports/sessionView";
 import { useActiveSessionId } from "../session/activeSession";
 
-export type { PlanStep } from "../../domain/plan";
+export type { PlanStep } from "@/plugins/sdk/types/agentSessionView";
 
 /**
  * One step of the session's plan, in this context's own words.
  *
- * The plan is a session-scoped state snapshot written only by the root Run
- * (`plan.get` / `state.snapshot{plan}`), not a transcript Item — so it has no run
+ * The Plan is a Session projection written only by the root Run
+ * (`plan.get` / `plan.updated`), not a transcript Item — so it has no run
  * of its own and nothing about it is per-turn.
  */
 const TOOL_STEP_STATUS: Record<string, PlanStep["status"]> = {
@@ -20,16 +20,8 @@ const TOOL_STEP_STATUS: Record<string, PlanStep["status"]> = {
 
 const NO_STEPS: readonly PlanStep[] = Object.freeze([]);
 
-/** The snapshot the fold lands under `shared.plan`. Revision first orders
- * deliveries in the fold, then identifies the accepted whole replacement to
- * mounted readers; content is never asked to serve as identity. */
-interface SharedPlan {
-  revision?: number;
-  plan?: readonly PlanStep[];
-}
-
-export function planSteps(snapshot: SharedPlan | undefined): readonly PlanStep[] {
-  const steps = snapshot?.plan;
+export function planSteps(plan: AgentPlan | undefined): readonly PlanStep[] {
+  const steps = plan?.steps;
   if (!steps || steps.length === 0) return NO_STEPS;
   return Object.freeze(steps.map((step) => Object.freeze({ ...step })));
 }
@@ -59,9 +51,9 @@ export class SessionPlan {
   static fromSnapshot(
     sessionId: string,
     generation: number,
-    snapshot: SharedPlan | undefined,
+    plan: AgentPlan | undefined,
   ): SessionPlan {
-    return new SessionPlan(sessionId, generation, snapshot?.revision ?? 0, planSteps(snapshot));
+    return new SessionPlan(sessionId, generation, plan?.revision ?? 0, planSteps(plan));
   }
 
   activeStep(): PlanStep | undefined {
@@ -149,7 +141,7 @@ export function planProgress(steps: readonly PlanStep[]): { done: number; total:
  */
 export function useSessionPlan(): SessionPlan {
   const sessionId = useActiveSessionId();
-  const material = agentSessionView().useSharedMaterial<SharedPlan>("plan");
+  const material = agentSessionView().usePlan();
   return useMemo(
     () => SessionPlan.fromSnapshot(sessionId, material.generation, material.value),
     [material, sessionId],

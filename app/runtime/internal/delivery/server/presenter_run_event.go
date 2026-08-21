@@ -33,57 +33,43 @@ func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {
 	case runs.ItemCompleted:
 		item := presentItem(event.Item)
 		return protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item}
-	case runs.StateSnapshot:
-		state := presentStateSnapshot(event)
-		return protocol.StreamEvent{Type: protocol.StreamStateSnapshot, State: &state}
+	case runs.PlanSnapshot:
+		plan := presentPlan(event)
+		return protocol.StreamEvent{Type: protocol.StreamPlanUpdated, Plan: &plan}
 	default:
 		panic("server: unknown canonical run event")
 	}
 }
 
-// presentStateSnapshot publishes what a run changed. The stream and plan.get go
-// through one shape, so "recover this key" cannot mean something different from
-// "follow this key".
-func presentStateSnapshot(event runs.StateSnapshot) protocol.StateSnapshot {
-	plan := make([]protocol.PlanSnapshot, 0, len(event.Plan))
-	for _, step := range event.Plan {
-		plan = append(plan, protocol.PlanSnapshot{
-			ID: step.ID, Description: step.Description, Status: presentPlanStatus(step.Status),
+// presentPlan publishes what a root Run changed. The stream and plan.get go through
+// one shape, so live following and cold recovery cannot disagree about the Plan.
+func presentPlan(event runs.PlanSnapshot) protocol.Plan {
+	steps := make([]protocol.PlanStep, 0, len(event.Steps))
+	for index, step := range event.Steps {
+		steps = append(steps, protocol.PlanStep{
+			ID: strconv.Itoa(index), Description: step.Description, Status: presentPlanStatus(step.Status),
 		})
 	}
-	return protocol.StateSnapshot{
-		Type: protocol.StatePlan, SessionID: event.SessionID,
-		Revision: event.Revision, Plan: plan, UpdatedAt: event.UpdatedAt,
+	return protocol.Plan{
+		SessionID: event.SessionID, Revision: event.Revision,
+		Steps: steps, UpdatedAt: event.UpdatedAt,
 	}
 }
 
-// presentPlanState is the same projection read cold. It goes through the run-event
+// presentStoredPlan is the same projection read cold. It goes through the run-event
 // shape so the two cannot describe the list differently: one presenter, one answer.
-func presentPlanState(sessionID string, state plan.State) protocol.StateSnapshot {
-	return presentStateSnapshot(runs.StateSnapshot{
+func presentStoredPlan(sessionID string, state plan.State) protocol.Plan {
+	return presentPlan(runs.PlanSnapshot{
 		SessionID: sessionID, Revision: state.Revision(), UpdatedAt: state.UpdatedAt(),
-		Plan: planSnapshots(state.Steps()),
+		Steps: state.Steps(),
 	})
 }
 
-// presentPlanSnapshots is the list a portable archive carries: the same items as
+// presentPlanSteps is the list a portable archive carries: the same items as
 // the live projection, through the same presenter, with none of the revision or
 // timestamp the archive deliberately leaves behind.
-func presentPlanSnapshots(steps []plan.Step) []protocol.PlanSnapshot {
-	return presentStateSnapshot(runs.StateSnapshot{Plan: planSnapshots(steps)}).Plan
-}
-
-// planSnapshots numbers the items by position, which is what a Plan's
-// identity IS: the model replaces the whole list, so an item is the nth entry
-// rather than a thing with a durable id.
-func planSnapshots(steps []plan.Step) []runs.PlanSnapshot {
-	out := make([]runs.PlanSnapshot, 0, len(steps))
-	for index, step := range steps {
-		out = append(out, runs.PlanSnapshot{
-			ID: strconv.Itoa(index), Description: step.Description, Status: step.Status,
-		})
-	}
-	return out
+func presentPlanSteps(steps []plan.Step) []protocol.PlanStep {
+	return presentPlan(runs.PlanSnapshot{Steps: steps}).Steps
 }
 
 func presentPlanStatus(status plan.Status) protocol.PlanStatus {

@@ -57,9 +57,9 @@ func TestRetentionChargeTracksEveryVariableReplayPayload(t *testing.T) {
 			})},
 		},
 		{
-			name:  "state snapshot",
-			small: StateSnapshot{SessionID: "session"},
-			large: StateSnapshot{SessionID: "session", Plan: []PlanSnapshot{{ID: "step", Description: largeText, Status: plan.StatusPending}}},
+			name:  "Plan snapshot",
+			small: PlanSnapshot{SessionID: "session"},
+			large: PlanSnapshot{SessionID: "session", Steps: []plan.Step{{Description: largeText, Status: plan.StatusPending}}},
 		},
 	}
 

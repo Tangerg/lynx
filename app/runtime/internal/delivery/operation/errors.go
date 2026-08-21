@@ -37,7 +37,6 @@ func requirementOrder(kind protocol.CapabilityRequirementType) int {
 		protocol.RequirementFeature,
 		protocol.RequirementInterruptType,
 		protocol.RequirementRuntimeTopic,
-		protocol.RequirementStateSnapshot,
 	}, kind)
 }
 

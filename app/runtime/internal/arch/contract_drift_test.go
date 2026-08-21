@@ -140,7 +140,6 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		RunEventPolicy      []struct{} `json:"runEventPolicy"`
 		CarriedShapes       []struct{} `json:"carriedShapes"`
 		ResultPresentations []struct{} `json:"toolResultPresentations"`
-		StatePolicy         []struct{} `json:"statePolicy"`
 		Unions              []struct{} `json:"unions"`
 		Constraints         []struct{} `json:"objectConstraints"`
 		ValueConstraints    []struct{} `json:"valueConstraints"`
@@ -159,7 +158,6 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		"carriedShapes":           len(manifest.CarriedShapes),
 		"toolResultPresentations": len(manifest.ResultPresentations),
 		"runEventPolicy":          len(manifest.RunEventPolicy),
-		"statePolicy":             len(manifest.StatePolicy),
 		"unions":                  len(manifest.Unions),
 		"objectConstraints":       len(manifest.Constraints),
 		"valueConstraints":        len(manifest.ValueConstraints),

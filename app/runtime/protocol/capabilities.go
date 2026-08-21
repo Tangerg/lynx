@@ -43,49 +43,11 @@ type ServerCapabilities struct {
 	// RuntimeTopics is what runtime.subscribe accepts. Advertised from the same
 	// registry the subscribe request is validated against, so a client cannot be
 	// refused for asking exactly what discovery offered.
-	RuntimeTopics []RuntimeTopic `json:"runtimeTopics"`
-	// StateSnapshots are the durable projections THIS composition both writes and
-	// can serve a cold read for. A client builds a projection only for an advertised
-	// key, and each entry carries the registry's own scope and writer: an SDK reads
-	// them to pick its reducer identity, instead of assuming every state belongs to
-	// the current run.
-	StateSnapshots   []StateSnapshotCapability    `json:"stateSnapshots"`
+	RuntimeTopics    []RuntimeTopic               `json:"runtimeTopics"`
 	StreamingMethods []string                     `json:"streamingMethods"`
 	Features         map[string]FeatureCapability `json:"features"`
 	Limits           RuntimeLimits                `json:"limits"`
 }
-
-// StateSnapshotCapability is one advertised state key with the facts an SDK needs to
-// fold and to recover it (§5.6). It is a registry descriptor, not a wire union: the
-// key is a name, not a discriminator.
-type StateSnapshotCapability struct {
-	Key StateSnapshotType `json:"key"`
-	// RecoveryMethod is the cold read for this key. A key with no read is not
-	// advertised, because "recover it" would have no answer.
-	RecoveryMethod string `json:"recoveryMethod"`
-	// Scope decides the projection's identity — which value a client is holding —
-	// and Writer decides which run may change it.
-	Scope  StateSnapshotScope  `json:"scope"`
-	Writer StateSnapshotWriter `json:"writer"`
-}
-
-// StateSnapshotScope is what a state key is keyed BY. A session-scoped key is one
-// value per session; a run-scoped one is one per run, and its payload and recovery
-// request must both carry the runId.
-type StateSnapshotScope string
-
-const (
-	StateScopeSession StateSnapshotScope = "session"
-	StateScopeRun     StateSnapshotScope = "run"
-)
-
-// StateSnapshotWriter is which run in a tree may change a key.
-type StateSnapshotWriter string
-
-const (
-	StateWriterRootRun StateSnapshotWriter = "rootRun"
-	StateWriterAnyRun  StateSnapshotWriter = "anyRun"
-)
 
 // FeatureCapability is one advertised capability: whether this build offers it,
 // and the two negotiation facts that belong to the feature itself rather than to

@@ -21,7 +21,7 @@ type ForkSpec struct {
 
 // ForkBoundary is where a fork branches: the parent history prefix the child is
 // seeded with, and the run that prefix stops at. They travel together because the
-// child's session-scoped state is copied from that same run's boundary — a fork
+// child's Plan is copied from that same run's boundary — a fork
 // whose conversation and Plan came from different runs would hand the branch
 // a plan that never went with what it remembers.
 type ForkBoundary struct {
@@ -153,7 +153,7 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 		c.publishRunsMoved(child.ID(), forked.Runs)
 	}
 	if planReplacement != nil {
-		c.publishStateMoved(child.ID())
+		c.publishPlanMoved(child.ID())
 	}
 	return child, nil
 }

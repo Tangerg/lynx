@@ -2,7 +2,7 @@
 // activeSessionId switch, not just to agent-store mutations. They read the
 // active session's view, and activeSessionId lives in a SEPARATE store
 // (useAgentSessionStore); if the switch isn't a reactive dependency, a
-// consumer keeps rendering the previous session's error / shared state until
+// consumer keeps rendering the previous session's error / Plan until
 // the agent store happens to mutate. Locking the reactive contract here keeps
 // these two selectors from drifting off the useActiveAgentView pattern the
 // other view selectors share.

@@ -82,12 +82,12 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 // A session with no list yet answers with the empty state at revision 0. That is a
 // fact rather than a gap: the panel renders empty, and only a session that does not
 // exist is an error.
-func (s *Server) GetPlan(ctx context.Context, in protocol.GetPlanRequest) (*protocol.StateSnapshot, error) {
+func (s *Server) GetPlan(ctx context.Context, in protocol.GetPlanRequest) (*protocol.Plan, error) {
 	state, err := s.queries.PlanState(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireItemScopeError(err)
 	}
-	snapshot := presentPlanState(in.SessionID, state)
+	snapshot := presentStoredPlan(in.SessionID, state)
 	return &snapshot, nil
 }
 

@@ -21,7 +21,7 @@ type ShutdownResource interface {
 }
 
 // PlanStore is the composition-root union shared by prompt assembly, Plan use cases,
-// the state.snapshot projection, the plan.get read, and session lifecycle
+// the plan.updated projection, the plan.get read, and session lifecycle
 // cleanup. Boundary is the run-boundary history rollback and fork restore from;
 // capturing a boundary is not here, because no consumer asks for it — a Run
 // reaching terminal is what records one.

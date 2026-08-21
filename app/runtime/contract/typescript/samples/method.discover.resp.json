@@ -15,7 +15,7 @@
       "item.started",
       "item.delta",
       "item.completed",
-      "state.snapshot"
+      "plan.updated"
     ],
     "runtimeTopics": [
       "files.changed",
@@ -24,17 +24,9 @@
       "schedules.changed",
       "sessions.changed",
       "runs.changed",
-      "state.changed",
+      "plan.changed",
       "goals.changed",
       "interrupts.changed"
-    ],
-    "stateSnapshots": [
-      {
-        "key": "plan",
-        "recoveryMethod": "plan.get",
-        "scope": "session",
-        "writer": "rootRun"
-      }
     ],
     "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "runtime.subscribe"],
     "features": {
