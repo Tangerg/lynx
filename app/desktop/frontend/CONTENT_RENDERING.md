@@ -1088,9 +1088,9 @@ Goal 与 Composer 同宽，以重叠 1px 接缝组成一个 stack；空态不留
 ### 5.5 Composer Context 环
 
 **位置** 只在 F Composer 工具条；B 顶栏不展示 Session 累计上下文、token 或费用。
-**来自** 当前 root Run 最新的 `segment.progress.contextTokens` 与 active Session 实际 served model 的 `contextWindow`。
+**来自** 当前 root Run live `segment.progress.contextTokens`、durable `RunRef.contextTokens` 与 active Session 实际 served model 的 `contextWindow`。Session view 从 root history 选择最新正值 footprint；刚 admission、尚无模型响应的 successor 不会抹掉上一份已证明读数。
 
-`used = min(contextTokens, contextWindow)`，环形占比为 `used / contextWindow`。tooltip 显示已用比例、剩余比例与 `used / contextWindow` token；终态保留最后一次真实 footprint。缺少任一权威事实时不绘制，不能用 Session 累计 usage、费用或客户端估算代替。
+`used = min(contextTokens, contextWindow)`，环形占比为 `used / contextWindow`。tooltip 显示已用比例、剩余比例与 `used / contextWindow` token；终态、renderer reload、Runtime restart 与 artifact import 都保留最后一次真实 footprint。触发器是可聚焦按钮，hover 与键盘 focus 共用同一 tooltip。缺少任一权威事实时不绘制，不能用 Session 累计 usage、费用或客户端估算代替。
 
 ---
 
@@ -1752,7 +1752,7 @@ interface UnknownToolCall {
 
 ### 8.6 可靠性对渲染的三条约束
 
-- **重连后 `contextTokens` 是"没有值"不是"旧值"** → 占用条要能画「未知」。
+- **重连先消费 durable `RunRef.contextTokens`，live progress 到达后再收敛到新 footprint** → 未取得任何正值前保持缺席，不能回退到累计 usage 或客户端估算。
 - **历史加载只有 completed、零 delta** → 所有流式视觉（打字机、live chip、增量高亮）必须优雅缺席，而不是留一个半成品。
 - **客户端可以主动排除高频事件并仍然正确** → 低配模式下 UI 不能崩。
 

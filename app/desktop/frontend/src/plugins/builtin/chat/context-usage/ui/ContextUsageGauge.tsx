@@ -21,7 +21,7 @@ export function ContextUsageGauge() {
   const trigger = (
     <Pressable
       aria-label={label}
-      className="inline-flex size-7 items-center justify-center rounded-control text-fg-muted hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-focus"
+      className="-mx-1.5 inline-flex size-7 items-center justify-center rounded-control text-fg-muted hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-focus"
     >
       <Gauge value={readout.ratio} label={t("context.usage.aria", { percent: readout.percent })} />
     </Pressable>

@@ -164,7 +164,7 @@
 ## 7. 公共合同
 
 - Runtime Protocol 当前版本 `2026-08-17`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
-- Artifact 当前版本 20；旧版本在写入前确定性拒绝，不猜测缺失事实。
+- Artifact 当前版本 21；旧版本在写入前确定性拒绝，不猜测缺失事实。
 - SQLite 当前 epoch 77；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
 - Agent Framework 当前 Baseline 20；Runtime 不依赖 private state 或迁移前 module path。
 - 所有生成合同必须 diff-free；consumer 缺口记录在 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md)，服务端不为消费者恢复旧字段。

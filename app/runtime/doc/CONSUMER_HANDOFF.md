@@ -7,13 +7,13 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-17, during the P106 Tool-approval recovery audit.
+> Desktop generated consumer: 2026-08-21, during the P138 durable context-footprint audit.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
 
 - Protocol version: `2026-08-17`; `minSupported` is the same value.
-- Session artifact version: `20`; versions 19 and earlier are rejected before
+- Session artifact version: `21`; versions 20 and earlier are rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`; `go-api.json` freezes the complete public
@@ -99,6 +99,14 @@ has the same `features.subagents` gate as `runs.list`. The consumer commits the
 Goal only when the same snapshot wins the mounted Agent view generation; an
 independent `goals.get` writer remains valid only for an unmounted Goal read.
 
+P138 adds the latest authoritative prompt footprint to durable `RunRef.contextTokens`
+and Session artifact v21. A mounted Desktop consumer still uses live
+`segment.progress.contextTokens` while a Segment is running, then folds the durable
+Run fact from `sessions.snapshot` after finish, renderer reload, Runtime restart, or
+artifact import. The Session read model selects the newest positive root-run footprint;
+it never substitutes cumulative `RunMetrics.usage.inputTokens`, and a newly admitted
+successor with no model response does not erase the preceding proven footprint.
+
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;
 - `app/desktop/frontend/src/plugins/builtin/runtime/` discovery and capability
@@ -144,7 +152,7 @@ A consumer migration is complete only when it:
 2. sends `protocolVersion: "2026-08-17"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
-4. imports/exports Session artifact v20, including authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
+4. imports/exports Session artifact v21, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
 
 An embedded Go consumer additionally passes an external-module compile test,

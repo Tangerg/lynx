@@ -473,7 +473,8 @@ process、session、审批或模型循环的只读诊断能力。
 ### 4.9 Provider / Model
 
 provider 凭证只回 `apiKeyMasked`，永不可逆推。per-run 的 provider + model **显式配对**（缺一即错、都缺用默认），
-provider **不从 model 名推断**。`models.list` 的 `contextWindow` 配 `RunProgress.contextTokens` 做占用条。
+provider **不从 model 名推断**。`models.list` 的 `contextWindow` 配 live `RunProgress.contextTokens` 或 durable
+`RunRef.contextTokens` 做占用条。
 
 ### 4.10 Workspace 周边 / 可选域类型
 
@@ -542,8 +543,9 @@ MCP 只发布一个 `MCPServer` 资源，不再把可编辑配置与连接状态
 | `custom`           | 第三方扩展的一次性实时信号（`name` + 可选 `payload`）            |
 
 > **`contextTokens` 不是 `usage.inputTokens`**：前者是**此刻**窗口占了多少（压缩后会回落），后者是跨轮**累计**只增。
-> 它**没有 authoritative 落点** —— 重连或历史回放的客户端在下一个 `segment.progress` 到达前**不知道**当前占用（不是拿到
-> 旧值，是没有值）。这与 §5.2 不冲突：那条规则管"预览通道的终值去哪"，而占用是瞬时读数、没有"终值"这回事。
+> 正值在每次 progress commit 时同时推进到 root Run 的 `RunRef.contextTokens`，因此终态、重连、Runtime restart 与
+> Artifact round-trip 都能恢复最近一次权威 prompt footprint；压缩后的较小正值允许覆盖旧值。`0` 表示本次没有新读数，
+> 不得擦除已有 footprint。客户端按 Session 中最新的正值 root Run 读取，不能把累计 usage 当作窗口占用。
 >
 > **`segment.finished` 不带 `run`**：一段结束时 Run 的完整状态该从 `runs.get` 读，把 RunRef 再抄一份到终态帧上，
 > 就等于让终态成为 Run 状态的第二个作者。
@@ -722,7 +724,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的会话 state 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v18）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v21）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 会话级 state 的**语义值**（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
   确定性拒绝、**不迁移**；未广告的 state key 在任何写入之前拒绝。
@@ -1063,7 +1065,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **19**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **21**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。
@@ -1107,7 +1109,7 @@ capability 规则在 dispatcher / discovery / SDK preflight 三方等价；schem
 每条 system invariant 有跨 projection fixture；TS 产物可编译且**都有消费者**；canonical 样本三方通过（含一个不
 参与生产的 JSON Schema 验证器）；list query fixture；**protocol manifest / canonical 文档 / 代码 / canonical 样本
 版本一致**；错误 type↔code 单一源；每个 state key 有 typed 事件、冷读、scope、writer 与 revision 策略；
-Artifact v9 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
+Artifact v21 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
 
 ---
 
