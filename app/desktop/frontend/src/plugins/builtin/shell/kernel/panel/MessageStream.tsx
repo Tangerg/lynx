@@ -229,7 +229,10 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
     const reconcileFollowingTail = () => {
       const current = stickContextRef.current;
       const currentViewport = current?.scrollRef.current;
-      if (!current?.isAtBottom || !currentViewport) return;
+      // The public convenience value also stays true inside the library's
+      // 70px "near bottom" band. Only the raw lock is allowed to move the
+      // viewport: wheel-up releases it immediately, before that band is left.
+      if (!current?.state.isAtBottom || !currentViewport) return;
       currentViewport.scrollTop = current.state.calculatedTargetScrollTop;
     };
     const mutationObserver = new MutationObserver(reconcileFollowingTail);
