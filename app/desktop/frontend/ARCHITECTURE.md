@@ -3,7 +3,7 @@
 > 本文档描述 `frontend/` 这个 React + TypeScript 应用是怎么组织、怎么运行的。
 > 主 UI 心智模型看 [`../docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`](../docs/FRONTEND_AGENT_WORKSPACE_MODEL.md)；
 > 设计系统 / 视觉规范看 `DESIGN.md`；决策透镜 / 工程约定看仓库根的 `CLAUDE.md`；
-> 协议权威定义看 `docs/protocol/API.md` + `docs/protocol/AUX_API.md` + `docs/protocol/TRANSPORT.md`。
+> 协议权威定义看 `app/runtime/doc/API.md` + `app/runtime/doc/AUX_API.md` + `app/runtime/doc/TRANSPORT.md`。
 >
 > **分工**：`CLAUDE.md` 讲"怎么判断"（决策与硬约定），本文讲"系统长什么样"（结构与运行）。两者尽量不重述。
 
@@ -245,9 +245,9 @@ public facade，不互相泄露抽象。
    protocol boundary 测试才注入 fake client。
 
 > 协议 method 表 / envelope / transport 形状的权威定义在
-> [`../docs/protocol/API.md`](../docs/protocol/API.md)、
-> [`../docs/protocol/AUX_API.md`](../docs/protocol/AUX_API.md) 与
-> [`../docs/protocol/TRANSPORT.md`](../docs/protocol/TRANSPORT.md)，勿在本文重述。
+> [`app/runtime/doc/API.md`](../../runtime/doc/API.md)、
+> [`app/runtime/doc/AUX_API.md`](../../runtime/doc/AUX_API.md) 与
+> [`app/runtime/doc/TRANSPORT.md`](../../runtime/doc/TRANSPORT.md)，勿在本文重述。
 
 ### 3.2 Design System 反腐边界
 
@@ -743,8 +743,8 @@ declare module "@/plugins/sdk/types/contentBlock" {
 | 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                                                          |
 | 视觉规范 / 颜色 / 排版           | `frontend/DESIGN.md`                                                                        |
 | 后端给什么数据 / 每个字段要表达什么（自包含，可给外部人看） | `frontend/CONTENT_RENDERING.md`                                     |
-| 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`                                         |
-| transport / handshake / 错误码   | `docs/protocol/TRANSPORT.md`                                                                |
+| 协议 method 表 / envelope / 语义 | `app/runtime/doc/API.md` + `app/runtime/doc/AUX_API.md`                                     |
+| transport / handshake / 错误码   | `app/runtime/doc/TRANSPORT.md`                                                              |
 | 插件 context / shell contracts  | `src/plugins/sdk/definePlugin.ts` + `src/plugins/sdk/services.ts`                            |
 | 协议 fold                        | `src/plugins/builtin/agent/application/fold/reducer.ts` + `builtin/agent/application/fold/` |
 | 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                                              |
@@ -811,7 +811,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 OxLint / Vite；不给内部数据流加 Zod（只在信任边界）；不把贡献面退回 per-slot
 add/remove map（已塌进 `extensions` 底座）；协议保持 JSON-RPC，不 RESTy 化、不在
 envelope 装 transport 元数据。详见 `CLAUDE.md §6` +
-`docs/protocol/API.md §0`。
+`app/runtime/doc/API.md §0`。
 
 ---
 

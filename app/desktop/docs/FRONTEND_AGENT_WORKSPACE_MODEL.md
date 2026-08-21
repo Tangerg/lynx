@@ -6,7 +6,7 @@
 > 视觉 token、阴影、字体、圆角等细节看 [`../frontend/DESIGN.md`](../frontend/DESIGN.md)
 > 与 [`../frontend/DESKTOP_UI_POLISH.md`](../frontend/DESKTOP_UI_POLISH.md)；插件限界上下文与依赖规则看
 > [`FRONTEND_PLUGIN_CONTEXTS.md`](./FRONTEND_PLUGIN_CONTEXTS.md)；协议权威定义看
-> [`protocol/API.md`](./protocol/API.md)。
+> [`app/runtime/doc/API.md`](../../runtime/doc/API.md)。
 
 ## 1. North Star
 

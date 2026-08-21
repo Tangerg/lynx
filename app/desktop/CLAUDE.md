@@ -1,7 +1,7 @@
 # CLAUDE.md — project context for Claude Code
 
 > **Lyra** — Wails 桌面应用（Go 壳 + React/TS 前端），由自研 **Lyra Runtime Protocol v2**（JSON-RPC，Session→Run→Item 流式）驱动的插件化 agent client。
-> 结构看 `frontend/ARCHITECTURE.md`，主 UI 心智模型看 `docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，后端数据 ↔ 渲染意图的自包含规格看 `frontend/CONTENT_RENDERING.md`，协议看 `docs/protocol/`。
+> 结构看 `frontend/ARCHITECTURE.md`，主 UI 心智模型看 `docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，后端数据 ↔ 渲染意图的自包含规格看 `frontend/CONTENT_RENDERING.md`，协议看 `../runtime/doc/`。
 >
 > 本文件只放**法则 —— 只宏观、不写具体**（具体文件名 / 符号 / 版本 / 行数 / 历史会随演化变动，活在代码 / git / ARCHITECTURE.md 里，不进本则）。读法：先「两条法则」（总透镜）→ §1 架构心智 → §2-§5 写代码的判断与硬约定 → §6 别走的方向 → §7 怎么干活。
 
@@ -49,7 +49,7 @@
 - **样式**：Tailwind（utility-first）+ `cva` / `cn()`；**所有新代码用 utility class，不写新 .css 文件**，全局样式只剩一个 `globals.css`。
 - **Headless 基件**：**Base UI primitives first**（带交互 / 焦点 / 键盘 / aria 的一律先用 Base UI，没有的才自写）。Base UI 只作为行为 primitive；视觉、主题 token、阴影、圆角、密度归 Lyra 自己。
 - **状态 / 数据 / 路由**：Zustand（多小 store）/ TanStack React Query / TanStack Router。
-- **协议**：自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，已弃用 AG-UI），见 `docs/protocol/`。
+- **协议**：自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，已弃用 AG-UI），权威定义见 `../runtime/doc/`。
 - **桌面壳**：Wails v3（beta，版本钉在 `go.mod`）。**测试**：Vitest + Testing Library。**构建 / 质检**：VoidZero 栈（Vite + Rolldown / Vitest / OxLint）+ prettier + knip。
 - 具体库（命令面板 / Toast / 图标 / 高亮 / i18n / 动画 等）见 `package.json` 与 §3「不重复造轮子」。
 
@@ -122,7 +122,7 @@ perf 排查沉淀的硬规则 —— 几个"看似没事其实在累积"的坑�
 - ❌ **把"远程后端 / 团队 server / 云端订阅"当部署形态**：那是未来 facade 层的事，Runtime 协议永不感知 facade（同一份代码跑桌面也跑服务器）。
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）：走 `context.Context` 或 HTTP header，永不进 message body。
 - ❌ **协议 wire 用 REST + verb / 状态码**：是 JSON-RPC 2.0 envelope（参考 MCP），HTTP 只是其中一种 transport；method 名照搬 method 表、点保留（不斜杠化）；不加 RESTy read-only shadow（sidecar 只限 info / health）；业务 error 走 `error.code`，不映射 HTTP status。
-- 协议细节见 `docs/protocol/API.md` + `docs/protocol/TRANSPORT.md`。
+- 协议细节见 `../runtime/doc/API.md` + `../runtime/doc/TRANSPORT.md`。
 
 ---
 

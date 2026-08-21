@@ -1,4 +1,4 @@
-// Public surface of the Lyra Runtime Protocol v2 client. See docs/protocol/API.md.
+// Public surface of the Lyra Runtime Protocol v2 client. See app/runtime/doc/API.md.
 //
 // The SDK is transport-agnostic: inject a `Transport`, get a typed client.
 //

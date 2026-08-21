@@ -39,7 +39,7 @@
 | 工具身份 + safetyClass + 进行中文案 | `app/runtime/internal/adapter/toolset/catalog/` |
 | 被归一化的工具 result | `app/runtime/internal/adapter/toolset/presentation.go` |
 | 未归一化工具的入参/出参 | `tools/**` 与 `app/runtime/internal/adapter/toolset/<tool>/` |
-| 协议为什么长这样 | `app/desktop/docs/protocol/API.md` |
+| 协议为什么长这样 | `app/runtime/doc/API.md` |
 
 本文档**只写渲染**：不写视觉 token（见 `DESIGN.md`）、不写插件装配（见 `ARCHITECTURE.md`）。
 
@@ -2184,22 +2184,14 @@ interface Page<T> { data: T[]; nextCursor?: string }
 
 ## 10 · 已知漂移
 
-对照契约登记与运行时工具表核出来的**文档/代码与真值源不一致**处。D5–D8 已在 P121 闭环；其余条目仍是后续准入输入。
+对照契约登记与运行时工具表核出来的**代码与真值源不一致**处。
 
 | # | 位置 | 现状 | 真值 |
 | --- | --- | --- | --- |
-| D1 | `docs/protocol/API.md` §4.3 | 称 Item 有**七个**变体，含 `plan` | 只有**六个**（§2.2）。plan 是**共享状态**不是 Item |
-| D2 | `docs/protocol/API.md` §5.1 / §5.2 | 称增量有**五种**，含 `plan` | 只有**四种**（§2.3） |
-| D3 | `docs/protocol/API.md` §5.3 / 附录 C.4 | 共享状态 key 是 `todos`，冷读方法 `todos.get` | 契约登记：key = **`plan`**，冷读 = **`plan.get`** |
-| D4 | `docs/protocol/API.md` §4.4.2 | 列了 `edit` / `write` 两个工具，参数写 `file_path` | 运行时**没有** `edit`/`write`，文件变更只有 **`apply_patch`**（参数 `patch`）。所有文件工具的路径参数是 **`path`** |
-| D5 | 前端补丁展开体注册 | **P121 已修**：只注册 `apply_patch` | 与 Runtime 唯一文件修改工具一致；`edit`/`write` 死键已删除 |
-| D6 | 前端工具分类表 + 图标表 | **P121 已修**：删除 `edit`/`write` 分类和图标 | 内部目录与 Runtime **30** 个内建工具守恒 |
-| D7 | 前端写入内容投影 | **P121 已修**：删除 `writtenHead()` 与 `arguments.content` 推测 | fold 只携带 Runtime 的 exact result；published 历史字段暂为兼容保留但不再被生产 renderer 填充或消费 |
-| D8 | 前端补丁结果投影 | **P121 已修**：共享 strict parser 只接受 `changes:[{path,status,from?}]`，inline preview 与 Run Summary 不再回落到全工作区 diff | 无 Runtime 行级事实时不展示 diff 片段或 `+/-`；published 历史字段不在未授权批次删除 |
 | D9 | 视图模型 approval 块 | 声明了 `scope` / `target` / `reversible` | fold 从不设置它们（协议的审批载荷只有 `tool`/`reason`/`risk`/`rememberable`）→ 推测性占位 |
 | D10 | 前端错误文案表 + 八份 locale | 为 `no_language_server` / `is_a_directory` / `file_too_large` 备了文案 | 这三个**不在协议的 `ProblemData` 联合里**（历史遗留）→ 24 条（3 × 8 语言）不可达文案 |
 
-**处理原则**：D1–D3 是文档滞后于契约，改文档；D4 同时是文档滞后 + 生成的 wire 里有类型残留，需要一起核。D5–D8 已在不破坏 published SDK 的边界内删除生产死路；D9–D10 仍需从独立反例与爆炸半径开始。涉及公开形状的删除必须先取得显式授权。
+**处理原则**：D9–D10 需从独立反例与爆炸半径开始。涉及公开形状的删除必须先取得显式授权。
 
 ---
 

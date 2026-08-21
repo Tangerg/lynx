@@ -1,5 +1,5 @@
 // Typed JSON-RPC client wrapping a Transport. Owns id allocation,
-// response correlation, notification dispatch. See docs/protocol/API.md §1.
+// response correlation, notification dispatch. See app/runtime/doc/API.md §1.
 //
 // Correlation pattern borrowed from kimi-code's controlledPromise idea:
 // each Request creates a pending entry with resolve/reject handles;
@@ -259,7 +259,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       return;
     }
     // Unexpected: server-initiated Requests are not in our protocol.
-    // Drop them — see docs/protocol/API.md §1.1 (we don't do server→client RPC).
+    // Drop them — see app/runtime/doc/API.md §1.1 (we don't do server→client RPC).
     console.warn("[rpc] dropping unexpected server-initiated Request", msg);
   }
 

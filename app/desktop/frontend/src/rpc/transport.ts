@@ -1,5 +1,5 @@
 // Transport interface — request output plus typed inbound transport events.
-// See docs/protocol/TRANSPORT.md §2. Implementations: transports/http.ts (Web /
+// See app/runtime/doc/TRANSPORT.md §2. Implementations: transports/http.ts (Web /
 // future facade), transports/memory.ts (tests).
 //
 // Send() is fire-and-forget: it returns when the message has been

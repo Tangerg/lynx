@@ -1,6 +1,6 @@
 // Lyra Runtime Protocol SDK — the one ergonomic entry point.
 //
-// The protocol is transport-agnostic (docs/protocol/TRANSPORT.md): the same JSON-RPC
+// The protocol is transport-agnostic (app/runtime/doc/TRANSPORT.md): the same JSON-RPC
 // semantics ride InProcess / HTTP. So the SDK takes a `Transport` and
 // nothing else — inject the transport, get back a fully-typed client:
 //

@@ -1,5 +1,5 @@
 // HTTPTransport — JSON-RPC over HTTP for the web frontend, using
-// **streamable HTTP** (docs/protocol/TRANSPORT.md §6): a streaming method's POST
+// **streamable HTTP** (app/runtime/doc/TRANSPORT.md §6): a streaming method's POST
 // response body IS its event stream. There is no separate notification
 // connection — every server→client message rides the POST response it
 // belongs to.
@@ -18,7 +18,7 @@
 // per-run concern (runs.subscribe + Last-Event-Id, TRANSPORT.md §9.2) handled
 // above the transport — there is no standing-connection reconnect loop here.
 //
-// HTTP status (docs/protocol/TRANSPORT.md §6.3): 200 = JSON-RPC response (json) or
+// HTTP status (app/runtime/doc/TRANSPORT.md §6.3): 200 = JSON-RPC response (json) or
 // stream opened (event-stream). The runtime reserves 204/202 for client
 // notifications, but this closed SDK sends Requests only, so either is a protocol
 // mismatch here. Any other status is a transport failure → RpcTransportError.
@@ -73,7 +73,7 @@ export interface HttpTransportConfig {
   /**
    * Local-loopback data-directory gate token (read from `~/.lyra/local-token` by the
    * host shell, passed in here). Sent as `Authorization: Bearer`. Not a
-   * user-auth credential — see docs/protocol/TRANSPORT.md §11.
+   * user-auth credential — see app/runtime/doc/TRANSPORT.md §11.
    */
   localToken?: string;
   /** Custom fetch impl (tests inject one). Defaults to globalThis.fetch. */
