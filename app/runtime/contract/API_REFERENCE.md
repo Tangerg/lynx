@@ -135,7 +135,6 @@ state is still correct (doc/API.md §5.2).
 | `item.delta` | no | no |
 | `item.completed` | yes | yes |
 | `state.snapshot` | yes | yes |
-| `custom` | no | no |
 
 ## Discriminated unions
 
@@ -367,7 +366,6 @@ publish one namespaced pattern branch without weakening first-party tags.
 | --- | --- | --- |
 | `approval` | `itemId`, `runId`, `payload.tool` | `payload.risk`, `payload.reason`, `payload.rememberable` |
 | `question` | `itemId`, `runId`, `payload.question` | — |
-| `toolResult` | `itemId`, `runId`, `payload.tool` | — |
 
 ### `InterruptResponseValue`
 
@@ -375,7 +373,6 @@ publish one namespaced pattern branch without weakening first-party tags.
 | --- | --- | --- |
 | `approval` | `decision` | `remember`, `editedArgs`, `reason` |
 | `answer` | `answers` | — |
-| `toolResult` | — | `result`, `error` |
 
 ### `StreamEvent`
 
@@ -390,7 +387,6 @@ Forbidden on every variant: `durable`.
 | `item.delta` | `itemId`, `delta` | — |
 | `item.completed` | `item` | — |
 | `state.snapshot` | `state` | — |
-| `custom` | `name` | `payload` |
 
 ### `RuntimeEvent`
 

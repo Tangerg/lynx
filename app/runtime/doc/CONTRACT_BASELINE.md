@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `d87209b6c1b6345aa2fbd7d61f64404faa4502cfc89256bb50e4e7db71e7af78` |
+| `contract/manifest.json` | `e4c18311ef2762e3fb4e51283b7ab2e6eb66898cc757eef53d92eab01c5cd4bd` |
 | `contract/openrpc.json` | `df52cddd2c96ab9bae54f390059937cebfd8e1faad2ab1ca729e985b1d4ee492` |
-| `contract/schema.json` | `217a698e312ead7191a2ff89cedfe93915ef7865e1ca3bf8d19b54f53cb952bf` |
-| `contract/go-api.json` | `11b1f2c53d16d8fcdc198a59ced41e589cb0f93d0e7d17b8902d5f7243fa1851` |
+| `contract/schema.json` | `83a33ddad5b985c7d5c6ac54d30eb291a4513c1e64b44d10fcfc6f63c52cf2a9` |
+| `contract/go-api.json` | `71e91496bed2c89373bef4133825f0a547eea418cbb73e304a1aa63ad0e0947d` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -50,7 +50,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为精确值 `2026-08-17`，不存在兼容范围。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为精确值 `2026-08-17`，不存在兼容范围。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting

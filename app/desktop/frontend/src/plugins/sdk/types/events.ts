@@ -1,9 +1,7 @@
 // Run-event handler types. The reducer is a pure
 // dispatcher: it routes each v2 `StreamEvent` to the plugin handlers
-// registered via `host.events.onStream(type, …)` (first-class events:
-// run.* / item.* / state.*) and `host.events.onCustom(name, …)` (the
-// `custom` StreamEvent, third-party extension only). The built-in protocol
-// semantics live in `lyra.builtin.agent-fold`.
+// registered for first-class run.* / item.* / state.* events. The built-in
+// protocol semantics live in `lyra.builtin.agent-fold`.
 
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import type { AgentEventEnvelope } from "./agentEvents";
@@ -15,15 +13,6 @@ import type { AgentEventEnvelope } from "./agentEvents";
  * (e.g. `appendBlockToMessage`) so they don't have to know the state shape.
  */
 export type StateUpdate = (state: AgentSessionView) => AgentSessionView;
-
-/**
- * `custom` StreamEvent handler. Receives the event's `payload` and returns
- * either a StateUpdate (to mutate the view state) or void (for
- * side-effect-only handlers like analytics). For third-party extensions —
- * the runtime's own behaviour uses first-class event/Item types, never
- * `custom` (API.md §2.3).
- */
-export type CustomEventHandler<T = unknown> = (value: T) => StateUpdate | void;
 
 /**
  * Handler for a first-class StreamEvent type (segment.started / segment.finished /

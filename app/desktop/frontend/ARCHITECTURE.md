@@ -435,7 +435,6 @@ useAgentStore.applyRunEvents(sessionId, batch)  ◄── rAF 批处理，~1 com
    ▼
 agent/application/fold/reducer.ts
    │
-   ├─ custom              → lookupCustomHandlers(name)
    └─ protocol event      → lookupStreamHandlers(type)
        └─ source Run / Segment / eventId / timestamp 全部来自 RunEvent envelope
    ▼
@@ -603,7 +602,7 @@ return specs.map(spec => (
 | `useComposerModes()` / `useComposerStatus()` / …            | composer 工具栏                 |
 | `useThemes()` / `useAccents()`                              | Appearance 面板                 |
 | `useMessageRole(id)`                                        | 消息头像 / 名字                 |
-| `lookupStreamHandlers(type)` / `lookupCustomHandlers(name)` | reducer 内部用，非 React 选择器 |
+| `lookupStreamHandlers(type)`                               | reducer 内部用，非 React 选择器 |
 
 ---
 
@@ -646,24 +645,13 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
    → 卡片乐观 settle（resolveInterrupt）
 ```
 
-### 7.4 一个 custom 协议事件落地
-
-```
-后端发 custom StreamEvent { name: "vendor.example", payload: {...} }
-   → reduceRunEvent → type==="custom" → lookupCustomHandlers("vendor.example")
-   → 插件 handler(payload) 返回 StateUpdate
-   → reducer 套到 AgentSessionView；未注册的 custom event 安全忽略
-```
-
----
-
 ## 8. 错误隔离策略
 
 | 失败点                                | 行为                                                      |
 | ------------------------------------- | --------------------------------------------------------- |
 | 插件 `setup` 抛错                     | dispose 已注册部分；其它插件继续；写错误到 Plugins 面板   |
 | 插件组件 render 抛错                  | PluginBoundary 接住画 fallback；其余 kernel 正常          |
-| stream / custom handler 抛错          | 该 handler 跳过，state 保持入态；其余 handler 继续        |
+| stream handler 抛错                   | 该 handler 跳过，state 保持入态；其余 handler 继续        |
 | 插件 tool action / command 抛错       | console.error + `reportPluginError`，UI 不挂              |
 | `runs.start/resume` 在 ack 前 reject  | channel-a 失败：无流；保存 Session command problem        |
 | 已 accepted Run 的 stream/recovery 失败 | 不回滚命令；durable projection 负责权威收敛               |
@@ -766,7 +754,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 **现状**：`builtin/agent/application/fold/` 拆成 `handlers`（派发）/
 `projections`（纯 wire → view）/ `fold`（source-owned upsert）；`reducer.*.test.ts`
-覆盖 dispatcher、聚合、custom、root/child/sibling/nested lifecycle 与主要 Item 路径。
+覆盖 dispatcher、聚合、root/child/sibling/nested lifecycle 与主要 Item 路径。
 `reducer.handlers.test.ts` 为每个 handler 钉住“完整 RunEvent → 隔离 projection delta”
 契约，包括 plan 三阶段、未知 ItemID delta no-op、`segment.started` lifecycle 初始化与
 `state.snapshot` 只更新 `shared`。

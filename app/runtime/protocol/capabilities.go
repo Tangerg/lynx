@@ -16,15 +16,13 @@ type ClientCapabilities struct {
 	// same thing: a client that answers nothing.
 	InterruptTypes []InterruptType `json:"interruptTypes,omitempty"`
 	// ExcludedEphemeralEvents lets a client suppress the two high-frequency
-	// previews. Its dedicated closed type makes an authoritative or custom event
+	// previews. Its dedicated closed type makes an authoritative event
 	// unrepresentable instead of accepting the broad StreamEventType and checking
 	// it later. It does not reach the workspace stream.
 	ExcludedEphemeralEvents []SuppressibleRunEventType `json:"excludedEphemeralEvents,omitempty"`
 }
 
 // SuppressibleRunEventType is the complete client-suppressible run-event set.
-// Custom is always ephemeral but deliberately not suppressible by type: its
-// namespaced name, rather than the shared envelope tag, identifies its meaning.
 type SuppressibleRunEventType string
 
 const (

@@ -15,7 +15,7 @@ func TestClientCapabilitiesWireValidationRejectsUnknownEphemeralEvents(t *testin
 		t.Fatalf("ValidateWire rejected the complete opt-out set: %v", err)
 	}
 
-	for _, event := range []SuppressibleRunEventType{"custom", "item.completed", "vendor.preview"} {
+	for _, event := range []SuppressibleRunEventType{"item.completed", "vendor.preview"} {
 		t.Run(string(event), func(t *testing.T) {
 			t.Parallel()
 

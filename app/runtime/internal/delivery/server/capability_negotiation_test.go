@@ -38,10 +38,6 @@ func TestStartRunRefusesCapabilitiesThisBuildDoesNotHave(t *testing.T) {
 		caps:  protocol.ClientCapabilities{Features: map[string]protocol.FeaturePreference{"telepathy": {Enabled: true}}},
 		wants: protocol.ErrCapabilityNotNeg,
 	}, {
-		name:  "interrupt type only client tools can answer",
-		caps:  protocol.ClientCapabilities{InterruptTypes: []protocol.InterruptType{protocol.InterruptToolResult}},
-		wants: protocol.ErrCapabilityNotNeg,
-	}, {
 		name:  "interrupt type that is not a type",
 		caps:  protocol.ClientCapabilities{InterruptTypes: []protocol.InterruptType{"telepathy"}},
 		wants: protocol.ErrInvalidParams,
@@ -125,9 +121,8 @@ func TestNegotiationDeclinedFeatureIsNotARefusal(t *testing.T) {
 
 	capabilities, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
 		Features: map[string]protocol.FeaturePreference{
-			protocol.FeatureSubagents:   {Enabled: false},
-			protocol.FeatureMultimodal:  {Enabled: true},
-			protocol.FeatureClientTools: {Enabled: false},
+			protocol.FeatureSubagents:  {Enabled: false},
+			protocol.FeatureMultimodal: {Enabled: true},
 		},
 		InterruptTypes: []protocol.InterruptType{protocol.InterruptApproval, protocol.InterruptQuestion},
 	}))

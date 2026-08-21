@@ -43,7 +43,6 @@ func Samples() []Sample {
 		{"item.delta.json", reflect.TypeFor[protocol.RunEvent]()},
 		{"item.completed.json", reflect.TypeFor[protocol.RunEvent]()},
 		{"state.snapshot.json", reflect.TypeFor[protocol.RunEvent]()},
-		{"custom.json", reflect.TypeFor[protocol.RunEvent]()},
 
 		// §4.3 Item union (bare) + ContentBlock.
 		{"item.userMessage.json", reflect.TypeFor[protocol.Item]()},
@@ -75,7 +74,6 @@ func Samples() []Sample {
 		{"runsummary.child.json", reflect.TypeFor[protocol.RunSummary]()},
 		{"interrupt.approval.json", reflect.TypeFor[protocol.Interrupt]()},
 		{"interrupt.question.json", reflect.TypeFor[protocol.Interrupt]()},
-		{"interrupt.toolResult.json", reflect.TypeFor[protocol.Interrupt]()},
 		{"method.runs.start.req.json", reflect.TypeFor[protocol.StartRunRequest]()},
 		{"method.runs.start.resp.json", reflect.TypeFor[protocol.StartRunResponse]()},
 		{"method.runs.resume.req.json", reflect.TypeFor[protocol.ResumeRunRequest]()},

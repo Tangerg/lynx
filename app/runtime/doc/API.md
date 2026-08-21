@@ -31,7 +31,7 @@
 - §8 错误（三个落点 + 符号名判别 + ProblemData）
 - §9 Capabilities 与请求能力
 - §10 历史 / 重连 / 恢复
-- §11 三个扩展缝：Item / state / custom（选择指南）
+- §11 两个扩展缝：Item / state（选择指南）
 - §12 版本规则
 - §13 明确不做
 - §14 机器可读制品 / 漂移闸
@@ -194,7 +194,7 @@ client identity 返回带精确 `errors[].field` 的 `invalid_params`，不会�
 ### 2.3 开放 vs 闭合枚举（原则）
 
 - **面向插件 / 未来扩展的分类** → **开放 `string` + §2.6 命名空间**（first-party 裸符号，第三方 `plugin:` 前缀）。
-  例：`safetyClass`、error `type`、`custom` 事件 `name`、`features` map 的 key。
+  例：`safetyClass`、error `type`、`features` map 的 key。
 - **客户端要穷举分支的分类** → **闭合枚举**。例：`RunStatus`、`ItemStatus`、`SessionStatus`、`StreamEventType`、
   `RuntimeTopic`、`SegmentOutcomeType`。
 - 判据不是"会不会加值"，而是**"加一个值会不会让老客户端做错事"**：客户端对它写 exhaustive switch → 闭合，加值即
@@ -218,8 +218,8 @@ client identity 返回带精确 `errors[].field` 的 `invalid_params`，不会�
 ### 2.5 事件名 / 方法名
 
 - 事件名小写 `domain.action`：`segment.started` / `segment.progress` / `segment.finished` / `item.started` /
-  `item.delta` / `item.completed` / `state.snapshot` / `custom`；失效信号同形：`files.changed` / `runs.changed` /
-  `state.changed` / …（§7.8）。运行时自有行为**必须**用一等事件/Item 类型；`custom` 只留第三方扩展。
+  `item.delta` / `item.completed` / `state.snapshot`；失效信号同形：`files.changed` / `runs.changed` /
+  `state.changed` / …（§7.8）。运行时行为必须使用一等事件或 Item 类型。
 - 方法名 `<domain>.<verb>`，HTTP URL 保留点（不斜杠化）。例：`runs.start` / `items.list` / `mcp.servers.list`。
 - **一件事一种拼写**：信号名与它的资源同名（`runs.changed` 对 `runs.*`、`state.changed` 对 state key），不出现
   `mcp.serverChanged` 这类"动词挪进名词"的第二种拼法。
@@ -231,7 +231,7 @@ client identity 返回带精确 `errors[].field` 的 `invalid_params`，不会�
 - **first-party**（runtime 自身 / 内置）用**裸符号**（`session_not_found` / `progress`）。
 - **第三方插件**产出的同类标识一律加前缀 `plugin:<pluginName>/<symbol>`（如 `plugin:acme/progress`）。
 
-适用面：`custom` 事件 `name`（§5 / §9）、error `type`（§8.4）、开放枚举值（§2.3）、`features` map 的 key（§9）。
+适用面：error `type`（§8.4）、开放枚举值（§2.3）、`features` map 的 key（§9）。
 client 路由：裸符号按 first-party 集匹配；`plugin:` 前缀按 `<pluginName>` 分发。
 
 ---
@@ -528,7 +528,7 @@ MCP 只发布一个 `MCPServer` 资源，不再把可编辑配置与连接状态
 ## 5. 流式
 
 所有 run 事件走**一个**通知方法 `notifications.run.event`，params 为 `RunEvent`
-（`runId` / `segmentId` / `eventId` / `timestamp` / `event: StreamEvent`）。八个 `StreamEvent` 变体与各自必填字段见
+（`runId` / `segmentId` / `eventId` / `timestamp` / `event: StreamEvent`）。七个 `StreamEvent` 变体与各自必填字段见
 `manifest.json` 的 `unions`；下面是它们的语义。
 
 | event.type         | 语义                                                             |
@@ -540,7 +540,6 @@ MCP 只发布一个 `MCPServer` 资源，不再把可编辑配置与连接状态
 | `item.completed`   | 该 Item 的**权威终态**                                           |
 | `state.snapshot`   | 一个 session-scoped 共享状态的**整份**当前值（§5.3）             |
 | `segment.finished` | 这一段结束，带 `outcome: SegmentOutcome` + `metrics: RunMetrics` |
-| `custom`           | 第三方扩展的一次性实时信号（`name` + 可选 `payload`）            |
 
 > **`contextTokens` 不是 `usage.inputTokens`**：前者是**此刻**窗口占了多少（压缩后会回落），后者是跨轮**累计**只增。
 > 正值在每次 progress commit 时同时推进到 root Run 的 `RunRef.contextTokens`，因此终态、重连、Runtime restart 与
@@ -570,9 +569,7 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 - replayable：当前 process / root Segment 的有界窗口是否保留它；
 - persisted：事实是否已经进入可跨进程恢复的 Run / Item / state 持久化投影。
 
-前两项由 `event.type` 决定，wire 上没有 sender-controlled reliability flag；`custom`
-固定为 non-authoritative、non-replayable。一个 payload 自称 durable 不能替代 projection，
-因此 `custom.durable` 在所有变体上明确禁止。这张表由 Registry 生成到
+前两项由 `event.type` 决定，wire 上没有 sender-controlled reliability flag。这张表由 Registry 生成到
 `manifest.json.runEventPolicy`，SSE id 与 replay journal 只读取 replayable：
 
 | event.type                  | authoritative | replayable | 冷恢复 / 权威落点                           |
@@ -588,11 +585,9 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 | `item.delta{toolArguments}` | ⬜            | ⬜         | `tool.arguments`（completed，§4.4）         |
 | `item.delta{toolOutput}`    | ⬜            | ⬜         | `tool.result.output`（completed，§4.4.2）   |
 | `item.delta{plan}`          | ⬜            | ⬜         | `plan.steps`（completed）                   |
-| `custom`                    | ⬜            | ⬜         | 无；只能改善实时体验                        |
 
-**硬规则**：每个 first-party preview **必须**在 authoritative projection 上有命名终值。
-`custom` 不得承载正确性所依赖的事实；第三方若需要持久化事实，使用已有的领域中立 Item，
-或定义带 read model 的 capability-gated 领域资源。
+**硬规则**：每个 preview **必须**在 authoritative projection 上有命名终值。第三方扩展若需要新事实，
+使用已有的领域中立 Item，或定义带 read model 的 capability-gated 领域资源。
 
 推论：客户端可排除高频 delta（§9 `excludedEphemeralEvents`）而仍保持正确；不流式的 runtime
 可不发任何 delta，completed item 一样必发权威终值。
@@ -656,7 +651,7 @@ root cancel。root cancel 始终允许，作为所有客户端都能使用的 em
 
 ### 6.1 InterruptResponse
 
-`{ itemId, response: InterruptResponseValue }`，三种 response 与 interrupt 三型对应。
+`{ itemId, response: InterruptResponseValue }`，两种 response 与 interrupt 两型对应。
 
 > question response 的 `answers` 是 `string[][]`，与 `Question.fields` **按下标一一对应**；每个 field 的值始终
 > 是 `string[]`（text/单选是一元素，多选可多元素）。它删除了 `q0` 之类可推导 id 和动态 map key，同时避免
@@ -674,7 +669,7 @@ root cancel。root cancel 始终允许，作为所有客户端都能使用的 em
 
 client 在 `ClientCapabilities.interruptTypes` 声明能处理的 `Interrupt.type`。server **必须不产出 client 未声明 type
 的 open interrupt** —— 否则会留下一个**永远 `runs.resume` 不了的持久 open interrupt**（比挂起 run 更糟）。不支持时
-server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` interrupt 额外受 `features.clientTools` 门控。
+server 走非阻塞默认策略（auto-deny / 不进该模式）。
 
 Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2），**Run 整个生命周期不变**：应答一个 interrupt
 不该悄悄改变下一段可以停在什么上面。
@@ -994,9 +989,9 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 - 门禁只咬真正要求能力的请求：root-only 查询和 root cancel 不要求 `features.subagents`；请求参数显式展开子树或
   durable identity 确认目标是 child 时才要求。这样既不返回假装完整的降级结果，也不让能力协商妨碍紧急停止。
 - server **必须不**产出 client 未在 `interruptTypes` 声明的 open interrupt（§6.2）。
-- `features.subagents` 关 → 不产出子 Run；`features.clientTools` 关 → 不产出 `toolResult` interrupt。
+- `features.subagents` 关 → 不产出子 Run。
 - **`excludedEphemeralEvents` 是专用两值集合**：
-  `"item.delta" | "segment.progress"`。authoritative 事件和 `custom` 在类型上都不可填入，
+  `"item.delta" | "segment.progress"`。authoritative 事件在类型上不可填入，
   未知值返回 `invalid_params`，不会被静默忽略。
 - `excludedEphemeralEvents` **不作用于失效流**（§7.8）：那条流的收敛范围由订阅的 topic 决定。
 - **client 必须忽略未知字段**，server 不得在本 request/stream 发出 `runEvents` 之外的事件类型。
@@ -1038,20 +1033,17 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ---
 
-## 11. 三个扩展缝：Item / state / custom（选择指南）
+## 11. 两个扩展缝：Item / state（选择指南）
 
 | 缝         | 是什么                 | 何时用                                                           | 跨进程持久化 | 命名空间             |
 | ---------- | ---------------------- | ---------------------------------------------------------------- | ------------ | -------------------- |
 | **Item**   | 持久化历史工作单元     | 要进历史、用户回看的产物（消息 / 推理 / 工具调用 / 计划 / 提问） | ✅           | `item.type` 一等枚举 |
 | **state**  | 共享可变视图态         | 一直在变、最后有稳定终值的面板（任务清单一类）                   | 快照 ✅      | 顶层 key（§2.6）     |
-| **custom** | 一次性、非权威实时信号 | **不进历史、不改状态**的瞬时提示                                 | ⬜           | `name`（§2.6）       |
 
 - 选 **Item**：它是工作回看的一部分吗？是 → Item（享受 `items.list` 历史 + run 树）。
 - 选 **state**：它是一直在变、最后有个稳定终态的视图吗？是 → state。**代价要认**：加一个 state key 必须同批给出
   typed 事件分支、`scope`、`writer`、`recoveryMethod` 与 revision 策略，并 bump `protocolVersion`（§12）——
   一个没有冷读的 state key 在客户端错过事件的那一刻就永久错了。
-- 选 **custom**：它既不回看、也不构成状态，只是一次性提示吗？是 → custom。若需要恢复，它就不是 custom：
-  改用 Item，或定义带 recovery query 的 capability-gated state/resource。
 
 ---
 
@@ -1129,8 +1121,7 @@ Artifact v21 round-trip；compatibility differ 判定 breaking 并要求同批 b
 1. **领域中立核心**：核心只懂 Session/Run/Item/通用 `tool`；新工具零协议成本（§4.4）。
 2. **一个判别字段 `type`**：所有联合看 `type`，`kind` 不在 wire 上出现（§2.1）。
 3. **authoritative / replayable / persisted 三分**：丢掉每个 non-authoritative 事件仍得正确终态；
-   replay journal 与 SSE id 只看 replayable；跨进程恢复只读持久化 projection。wire 上没有 reliability flag，
-   `custom` 固定三者皆否（§5.2）。
+   replay journal 与 SSE id 只看 replayable；跨进程恢复只读持久化 projection。wire 上没有 reliability flag（§5.2）。
 4. **状态与终态正交**：`RunStatus` 三态，`outcome` / `activeSegmentId` / `finishedAt` 各只在对应状态下存在；
    `metrics` 与 `outcome` 分家（§4.2）。
 5. **HITL = R 模型**：interrupt 收尾当前**段**、`runs.resume` 在同一 Run 上续段；所有 interrupt payload

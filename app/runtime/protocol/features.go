@@ -32,7 +32,6 @@ const (
 	FeatureSessionExport = "sessionExport"
 	FeatureRelocate      = "relocate"
 	FeatureSubagents     = "subagents"
-	FeatureClientTools   = "clientTools"
 )
 
 // Feature is one entry of the published capability vocabulary: the key, plus the
@@ -89,9 +88,6 @@ var features = mustFeatures([]Feature{
 	// not understand them cannot follow such a Run at all, which is why it is
 	// opt-in AND frozen onto the Run (§8.2).
 	{Key: FeatureSubagents, Stability: StabilityStable, ClientOptIn: true, RequiredByRunProtocol: true},
-	// Client tools park the run on a `toolResult` interrupt the CLIENT executes,
-	// so a client that did not ask for them would be handed a wait it cannot answer.
-	{Key: FeatureClientTools, Stability: StabilityStable, ClientOptIn: true},
 })
 
 // Features returns a snapshot of the published capability vocabulary.

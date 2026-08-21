@@ -363,19 +363,6 @@ describe("the generated wire checks", () => {
     ).toEqual([{ path: "PageOfSession.data[1].revision", detail: "expected an integer" }]);
   });
 
-  it("carries any JSON where the contract publishes an opaque passthrough", () => {
-    const custom = {
-      type: "custom",
-      name: "vendor.event",
-      payload: { anything: [1, "two", null] },
-    };
-    expect(validateWire("StreamEvent", custom)).toEqual([]);
-    expect(validateWire("StreamEvent", { ...custom, durable: true })).toEqual([
-      { path: "StreamEvent", detail: "matches no permitted variant" },
-      { path: "StreamEvent.durable", detail: "must not be present here" },
-    ]);
-  });
-
   it("keeps the run-event opt-out vocabulary narrower than the event union", () => {
     expect(
       validateWire("ClientCapabilities", {
@@ -384,7 +371,7 @@ describe("the generated wire checks", () => {
     ).toEqual([]);
     expect(
       validateWire("ClientCapabilities", {
-        excludedEphemeralEvents: ["custom"],
+        excludedEphemeralEvents: ["item.completed"],
       }),
     ).toEqual([
       {

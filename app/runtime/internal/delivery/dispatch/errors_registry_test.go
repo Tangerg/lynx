@@ -118,7 +118,7 @@ func TestAStructuredProblemCarriesItsPayload(t *testing.T) {
 	// Deduplicated and ordered by (registry, name), so two refusals for the same gap
 	// are the same frame instead of two transcripts of it.
 	gap := problemOf(t, operation.NewCapabilityGapError(
-		protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: "toolResult"},
+		protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: "question"},
 		protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: "subagents"},
 		protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: "subagents"},
 	))
@@ -127,7 +127,7 @@ func TestAStructuredProblemCarriesItsPayload(t *testing.T) {
 	}
 	want := []protocol.CapabilityRequirement{
 		{Type: protocol.RequirementFeature, Name: "subagents"},
-		{Type: protocol.RequirementInterruptType, Name: "toolResult"},
+		{Type: protocol.RequirementInterruptType, Name: "question"},
 	}
 	if len(gap.RequiredCapabilities) != len(want) {
 		t.Fatalf("requiredCapabilities = %+v, want %+v", gap.RequiredCapabilities, want)

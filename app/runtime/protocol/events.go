@@ -9,8 +9,7 @@ import "time"
 // reconnect-replay dedup to it. eventId is monotonic within one segment stream.
 //
 // There is no per-frame reliability flag. Authoritativeness and replayability
-// are protocol facts owned by the event type; a sender cannot promote custom
-// payload into an authoritative or replayable fact by assertion.
+// are protocol facts owned by the event type.
 type RunEvent struct {
 	RunID     string      `json:"runId"`
 	SegmentID string      `json:"segmentId"` // seg_…
@@ -30,7 +29,6 @@ const (
 	StreamItemDelta       StreamEventType = "item.delta"
 	StreamItemCompleted   StreamEventType = "item.completed"
 	StreamStateSnapshot   StreamEventType = "state.snapshot"
-	StreamCustom          StreamEventType = "custom"
 )
 
 // StreamEvent is a tag-discriminated union over downstream events
@@ -43,7 +41,6 @@ const (
 //	item.delta      → ItemID, Delta
 //	item.completed  → Item
 //	state.snapshot  → State
-//	custom          → Name, Payload
 type StreamEvent struct {
 	Type StreamEventType `json:"type"`
 
@@ -58,8 +55,6 @@ type StreamEvent struct {
 	ItemID  string         `json:"itemId,omitempty"`
 	Delta   *ItemDelta     `json:"delta,omitempty"`
 	State   *StateSnapshot `json:"state,omitempty"`
-	Name    string         `json:"name,omitempty"`    // custom
-	Payload any            `json:"payload,omitempty"` // custom
 }
 
 // Authoritative reports whether the event itself is a fact a client may fold.
@@ -77,8 +72,8 @@ func (value StreamEvent) Authoritative() bool {
 }
 
 // Replayable reports whether the Runtime-instance-local segment journal retains this
-// event and whether its HTTP frame receives an SSE id. Unknown and custom
-// events fail closed: neither enters the replay window.
+// event and whether its HTTP frame receives an SSE id. Unknown events fail
+// closed and never enter the replay window.
 func (value StreamEvent) Replayable() bool {
 	switch value.Type {
 	case StreamSegmentStarted, StreamSegmentFinished,

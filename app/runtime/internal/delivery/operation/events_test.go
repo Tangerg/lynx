@@ -29,8 +29,4 @@ func TestEventPolicyOnlyDropsOptedOutEphemerals(t *testing.T) {
 	if allowsEvent(ctx, itemDelta) {
 		t.Fatal("opted-out ephemeral event should be filtered")
 	}
-	custom := protocol.RunEvent{Event: protocol.StreamEvent{Type: protocol.StreamCustom}}
-	if !allowsEvent(ctx, custom) {
-		t.Fatal("custom is ephemeral but not an opt-out event type")
-	}
 }

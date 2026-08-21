@@ -403,9 +403,8 @@ type SubscribeRunResponse struct {
 type InterruptResponseType string
 
 const (
-	InterruptResponseApproval   InterruptResponseType = "approval"
-	InterruptResponseAnswer     InterruptResponseType = "answer"
-	InterruptResponseToolResult InterruptResponseType = "toolResult"
+	InterruptResponseApproval InterruptResponseType = "approval"
+	InterruptResponseAnswer   InterruptResponseType = "answer"
 )
 
 // ApprovalDecision is the verdict on an approval interrupt (API.md §6.1).
@@ -419,18 +418,14 @@ const (
 // InterruptResponse answers one open interrupt, keyed by itemId (API.md §6.1).
 // Response is a tag-discriminated union (Type):
 //
-//	approval   → Decision, EditedArgs, Reason
-//	answer     → Answers
-//	toolResult → Result, Error
+//	approval → Decision, EditedArgs, Reason
+//	answer   → Answers
 type InterruptResponse struct {
 	ItemID   string                 `json:"itemId"`
 	Response InterruptResponseValue `json:"response"`
 }
 
-// InterruptResponseValue is the discriminated response payload. toolResult
-// carries the client-side tool's outcome the same shape as
-// ToolInvocation.result (API.md §6.1): a best-effort JSON Result, or an
-// Error when the client tool failed.
+// InterruptResponseValue is the discriminated response payload.
 type InterruptResponseValue struct {
 	Type       InterruptResponseType `json:"type"`                 // see InterruptResponseType
 	Decision   ApprovalDecision      `json:"decision,omitempty"`   // approval: see ApprovalDecision
@@ -438,8 +433,6 @@ type InterruptResponseValue struct {
 	EditedArgs map[string]any        `json:"editedArgs,omitempty"` // approval: one-shot arg override
 	Reason     string                `json:"reason,omitempty"`     // approval (deny rationale)
 	Answers    [][]string            `json:"answers,omitempty"`    // answer: one values array per Question.fields entry, in the same order
-	Result     any                   `json:"result,omitempty"`     // toolResult: best-effort JSON
-	Error      *ProblemData          `json:"error,omitempty"`      // toolResult: client tool failure
 }
 
 // RememberScopeKind is the persistence scope of a remembered approval (AUX_API
@@ -466,13 +459,12 @@ type RememberScope struct {
 }
 
 // InterruptType discriminates a pending interrupt (API.md §4.8): a tool awaiting
-// approval, a question awaiting an answer, or a client-side tool to run.
+// approval or a question awaiting an answer.
 type InterruptType string
 
 const (
-	InterruptApproval   InterruptType = "approval"
-	InterruptQuestion   InterruptType = "question"
-	InterruptToolResult InterruptType = "toolResult"
+	InterruptApproval InterruptType = "approval"
+	InterruptQuestion InterruptType = "question"
 )
 
 // ApprovalRisk is the coarse severity shown on an approval prompt.
@@ -487,9 +479,8 @@ const (
 // InterruptPayload is the self-contained data for one [Interrupt]. Type
 // determines the legal fields:
 //
-//	approval   -> Tool, optional Risk and Reason, Rememberable
-//	question   -> Question
-//	toolResult -> Tool
+//	approval -> Tool, optional Risk and Reason, Rememberable
+//	question -> Question
 //
 // The pointer fields retain the wire distinction between an absent member and
 // a member whose value happens to be empty while avoiding an open-ended map at

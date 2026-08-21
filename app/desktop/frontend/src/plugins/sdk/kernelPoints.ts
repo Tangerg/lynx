@@ -17,7 +17,6 @@ import type {
   ComposerSubmitModeSpec,
   ContextDockDestinationSpec,
   StreamEventHandler,
-  CustomEventHandler,
   DataProviderSpec,
   LayoutSlotSpec,
   LocaleSpec,
@@ -193,10 +192,6 @@ export const PLUGIN_UNLOAD_LISTENER = defineExtensionPoint<(name: string) => voi
 // The item wraps its sub-key (name / eventType / slot) alongside the payload;
 // the events + layout selectors build a cached secondary index over it (see
 // `createPointSubIndex`). The reducer hits these per StreamEvent.
-export const CUSTOM_EVENT_HANDLER = defineExtensionPoint<{
-  name: string;
-  handler: CustomEventHandler<unknown>;
-}>({ id: "lyra.events.custom", capability: "events", keying: "multi" });
 export const STREAM_EVENT_HANDLER = defineExtensionPoint<{
   eventType: string;
   handler: StreamEventHandler;

@@ -33,17 +33,17 @@ func TestDispatchNotificationSuppressesMetadataErrors(t *testing.T) {
 	}
 }
 
-func TestCustomEventNeverCarriesAnSSEReplayID(t *testing.T) {
+func TestEphemeralEventNeverCarriesAnSSEReplayID(t *testing.T) {
 	t.Parallel()
 
 	frame, ok := runEventToFrame(protocol.RunEvent{
 		RunID: "run_1", SegmentID: "seg_1", EventID: "evt_1",
-		Event: protocol.StreamEvent{Type: protocol.StreamCustom, Name: "vendor.preview"},
+		Event: protocol.StreamEvent{Type: protocol.StreamSegmentProgress, Progress: &protocol.RunProgress{}},
 	})
 	if !ok {
-		t.Fatal("custom event was not encoded")
+		t.Fatal("segment progress event was not encoded")
 	}
 	if frame.SSEID != "" {
-		t.Fatalf("custom SSE id = %q, want none", frame.SSEID)
+		t.Fatalf("ephemeral SSE id = %q, want none", frame.SSEID)
 	}
 }

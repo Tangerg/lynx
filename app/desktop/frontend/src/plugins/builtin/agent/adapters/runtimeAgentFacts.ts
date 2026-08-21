@@ -264,11 +264,6 @@ export function runtimeInterrupt(interrupt: Interrupt): AgentInterrupt {
         ...interrupt,
         payload: { question: runtimeQuestion(interrupt.payload.question) },
       };
-    case "toolResult":
-      return {
-        ...interrupt,
-        payload: { tool: runtimeTool(interrupt.payload.tool) },
-      };
   }
 }
 
@@ -318,8 +313,6 @@ export function runtimeAgentEvent(envelope: RunEvent): AgentEventEnvelope {
         } as const;
       case "state.snapshot":
         return { type: event.type, state: runtimePlanState(event.state) } as const;
-      case "custom":
-        return { ...event };
     }
   })();
   return { ...envelope, event: mapped };

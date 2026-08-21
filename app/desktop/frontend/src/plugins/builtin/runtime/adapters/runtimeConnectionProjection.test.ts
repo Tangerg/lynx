@@ -43,7 +43,6 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
       sessionExport: stable(false),
       memory: stable(false),
       relocate: stable(true),
-      clientTools: stable(false),
     },
     streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
     limits: {

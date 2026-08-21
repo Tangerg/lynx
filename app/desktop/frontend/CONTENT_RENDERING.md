@@ -105,7 +105,7 @@ Session ──┬── Run ──┬── Item   (userMessage / agentMessage /
 ### 0.4 三条铁律
 
 1. **`item.delta` 是预览，`item.completed` 是权威。** 流式攒的值在 completed 到达时必须被**覆盖**（不是累加）；而 completed 上**缺席**的键要**省略**（不是写 `undefined`），否则会把攒到的预览清空。
-2. **丢掉每一个非权威事件，UI 仍必须正确。** `segment.progress` / `item.delta` / `custom` 可丢、不重放、重连后可能永远见不到。任何"只有流式才出现"的视觉，在**历史加载**路径（只有 completed、零 delta）里必须优雅缺席。
+2. **丢掉每一个非权威事件，UI 仍必须正确。** `segment.progress` / `item.delta` 可丢、不重放、重连后可能永远见不到。任何"只有流式才出现"的视觉，在**历史加载**路径（只有 completed、零 delta）里必须优雅缺席。
 3. **fold 层不产出人类语言。** 所有文案是 i18n key，locale 在组件层解析。fold 里出现一句英文 = 缺陷。
 
 ---
@@ -199,8 +199,7 @@ type StreamEvent =
   | { type: "item.started"; item: Item }
   | { type: "item.delta"; itemId: string; delta: ItemDelta }
   | { type: "item.completed"; item: Item }
-  | { type: "state.snapshot"; state: StateSnapshot }
-  | { type: "custom"; name: string; payload?: unknown };
+  | { type: "state.snapshot"; state: StateSnapshot };
 ```
 
 | 事件 | 权威 | 可重放 | 渲染含义 |
@@ -212,7 +211,6 @@ type StreamEvent =
 | `state.snapshot` | ✅ | ✅ | 同上 |
 | `segment.progress` | ⬜ | ⬜ | **只能改善实时观感** |
 | `item.delta` | ⬜ | ⬜ | 同上 |
-| `custom` | ⬜ | ⬜ | 同上；**禁止承载正确性依赖的事实** |
 
 > `segment.finished` **不带 `run`** —— 段结束时 Run 的完整状态要从 `runs.get` 读。
 
@@ -2091,7 +2089,7 @@ interface ServerCapabilities {
 }
 ```
 
-**19 个 feature**：`reasoning` `multimodal` `compaction` `plan` `goals` `agentMemory` `knowledge` `skills` `mcp` `schedules` `codebase` `git` `checkpoints` `fileWatch` `lsp` `sessionExport` `relocate` `subagents` `clientTools`。
+**18 个 feature**：`reasoning` `multimodal` `compaction` `plan` `goals` `agentMemory` `knowledge` `skills` `mcp` `schedules` `codebase` `git` `checkpoints` `fileWatch` `lsp` `sessionExport` `relocate` `subagents`。
 **关闭的域整块不渲染** —— 不是渲染出来再报错。
 
 ### 9.15 后台变更通知：哪个话题让哪块 UI 失效
@@ -2206,7 +2204,7 @@ interface Page<T> { data: T[]; nextCursor?: string }
 
 ### 11.2 加一个新渲染物之前
 
-1. **它是协议的哪个缝？** 只能选一个 —— **Item**（要进历史、要能回放的事实）/ **共享状态**（"当前是什么"的整份值，要登记作用域 + 写者 + 冷读方法）/ **custom**（只改善实时体验，**丢了不影响正确性**）。选错的代价：拿 `custom` 承载事实 = 重连后永久丢失。
+1. **它是协议的哪个缝？** 只能选一个 —— **Item**（要进历史、要能回放的事实）/ **共享状态或资源**（"当前是什么"的整份值，要登记作用域 + 写者 + 冷读方法）。纯预览必须附着在已有权威事实上，不能另开无恢复路径的通用事件缝。
 2. **参数从哪一层取？** 能在 fold 里一次算出来的，不许留到 render 期算（render 期 parse = 每个 token 一次）。
 3. **有没有权威落点？** 每个预览通道**必须**在权威投影上有命名终值。没有 = 设计还没想清楚。
 4. **文案是词条 key 吗？** fold 层出现英文句子 = 缺陷。

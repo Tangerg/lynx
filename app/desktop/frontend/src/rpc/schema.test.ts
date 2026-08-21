@@ -91,8 +91,7 @@ describe("the published JSON Schema bundle", () => {
     );
 
     const streamEvent = ajv.getSchema("schema.json#/$defs/StreamEvent");
-    expect(streamEvent?.({ type: "custom", name: "vendor.preview" })).toBe(true);
-    expect(streamEvent?.({ type: "custom", name: "vendor.preview", durable: true })).toBe(false);
+    expect(streamEvent?.({ type: "vendor.preview" })).toBe(false);
 
     const clientCapabilities = ajv.getSchema("schema.json#/$defs/ClientCapabilities");
     expect(
@@ -100,7 +99,6 @@ describe("the published JSON Schema bundle", () => {
         excludedEphemeralEvents: ["segment.progress", "item.delta"],
       }),
     ).toBe(true);
-    expect(clientCapabilities?.({ excludedEphemeralEvents: ["custom"] })).toBe(false);
     expect(clientCapabilities?.({ excludedEphemeralEvents: ["item.completed"] })).toBe(false);
 
     const runtimeEvent = ajv.getSchema("schema.json#/$defs/RuntimeEvent");

@@ -18,8 +18,7 @@
     "lsp",
     "sessionExport",
     "relocate",
-    "subagents",
-    "clientTools"
+    "subagents"
   ],
   "methods": [
     {
@@ -2181,11 +2180,6 @@
       "type": "state.snapshot",
       "authoritative": true,
       "replayable": true
-    },
-    {
-      "type": "custom",
-      "authoritative": false,
-      "replayable": false
     }
   ],
   "runtimeTopics": [
@@ -3219,14 +3213,6 @@
             "runId",
             "payload.question"
           ]
-        },
-        {
-          "tag": "toolResult",
-          "required": [
-            "itemId",
-            "runId",
-            "payload.tool"
-          ]
         }
       ]
     },
@@ -3249,13 +3235,6 @@
           "tag": "answer",
           "required": [
             "answers"
-          ]
-        },
-        {
-          "tag": "toolResult",
-          "optional": [
-            "result",
-            "error"
           ]
         }
       ]
@@ -3306,15 +3285,6 @@
           "tag": "state.snapshot",
           "required": [
             "state"
-          ]
-        },
-        {
-          "tag": "custom",
-          "required": [
-            "name"
-          ],
-          "optional": [
-            "payload"
           ]
         }
       ],
@@ -5709,10 +5679,6 @@
       "shape": "RunEvent"
     },
     {
-      "file": "custom.json",
-      "shape": "RunEvent"
-    },
-    {
       "file": "item.userMessage.json",
       "shape": "Item"
     },
@@ -5786,10 +5752,6 @@
     },
     {
       "file": "interrupt.question.json",
-      "shape": "Interrupt"
-    },
-    {
-      "file": "interrupt.toolResult.json",
       "shape": "Interrupt"
     },
     {

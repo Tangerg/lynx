@@ -25,6 +25,12 @@
 
 ## Breaking surface
 
+The Runtime event vocabulary now contains only the seven variants production
+publishes. The unproduced `custom` RunEvent, its `name`/`payload` fields, the
+disabled `clientTools` feature, and both `toolResult` interrupt/response variants
+are deleted rather than advertised as dormant extension points. Consumers must
+use first-class Item/state/resource contracts for new facts.
+
 `RunReplayScope` now has the sole value `runtimeInstanceRootSegment`. It means
 that replay is bounded to one Runtime instance and one root Segment; a Runtime
 restart or a new Segment owns a new buffer. The former

@@ -18,19 +18,13 @@ import { createDataQuery } from "@/plugins/sdk";
 
 export const PENDING_WORK_KEY = "pendingWork";
 
-/** What the agent stopped to ask a PERSON for — the interrupt vocabulary minus
- *  `toolResult`, which is the runtime asking the runtime. Derived rather than
- *  respelled: a third copy of the union is a third thing to update when the
- *  protocol grows a kind. */
-export type PendingWorkKind = Exclude<PendingInterruptKind, "toolResult">;
-
 export interface PendingWorkItem {
   /** Interrupt sets resume as a unit, so the set — not the interrupt — is the
    *  row: one click, one destination, one resume. */
   id: string;
   sessionId: string;
   rootRunId: string;
-  kind: PendingWorkKind;
+  kind: PendingInterruptKind;
   /** The tool an approval is for, or the question being asked. Already the
    *  reader's words: nothing here is a catalog key, because the subject is the
    *  agent's own text. */
@@ -41,23 +35,10 @@ export interface PendingWorkItem {
   waitingSince: string;
 }
 
-/** An interrupt a PERSON answers, narrowed off the wire union so the payload each
- *  kind carries is the compiler's business rather than a guess. Reading a question
- *  through a hand-written mirror of the shape is how this first looked for a
- *  prompt on the question itself; the prompts are on its FIELDS. */
-type AnswerableInterrupt = Extract<AgentInterrupt, { type: PendingWorkKind }>;
-
-function answerable(set: AgentPendingInterruptSet): AnswerableInterrupt[] {
-  return set.interrupts.filter(
-    (interrupt): interrupt is AnswerableInterrupt =>
-      interrupt.type === "approval" || interrupt.type === "question",
-  );
-}
-
 /** The one line of the ask a row shows: the tool an approval is for, or the first
  *  of a question's fields — a Question is a LIST of prompts, and the rest of them
  *  are part of the same ask. */
-function subjectOf(interrupt: AnswerableInterrupt): string {
+function subjectOf(interrupt: AgentInterrupt): string {
   return interrupt.type === "question"
     ? (interrupt.payload.question.fields[0]?.prompt ?? "")
     : interrupt.payload.tool.name;
@@ -74,8 +55,7 @@ function subjectOf(interrupt: AnswerableInterrupt): string {
 export function pendingWorkItems(sets: readonly AgentPendingInterruptSet[]): PendingWorkItem[] {
   const items: PendingWorkItem[] = [];
   for (const set of sets) {
-    const asks = answerable(set);
-    const first = asks[0];
+    const first = set.interrupts[0];
     if (!first) continue;
     items.push({
       id: `${set.sessionId}:${set.rootRunId}`,
@@ -83,7 +63,7 @@ export function pendingWorkItems(sets: readonly AgentPendingInterruptSet[]): Pen
       rootRunId: set.rootRunId,
       kind: first.type,
       subject: subjectOf(first),
-      more: asks.length - 1,
+      more: set.interrupts.length - 1,
       waitingSince: set.createdAt,
     });
   }

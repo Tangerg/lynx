@@ -72,16 +72,6 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.Capabilities, e
 			capabilities.InterruptKinds = append(capabilities.InterruptKinds, kind)
 			continue
 		}
-		if declared == protocol.InterruptToolResult {
-			// A client tool's wait is raised for and answered by the CLIENT, so the
-			// runtime can only produce it with features.clientTools. Both gaps are named:
-			// the type the caller asked for and the feature that would make it possible,
-			// because fixing only one of them changes nothing.
-			return run.Capabilities{}, operation.NewCapabilityGapError(
-				protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: string(declared)},
-				protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: protocol.FeatureClientTools},
-			)
-		}
 		return run.Capabilities{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
 	}
 	return capabilities.Normalized(), nil

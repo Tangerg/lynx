@@ -106,8 +106,6 @@ func decodeResumeResponse(wire protocol.InterruptResponse) (runs.ResumeResponse,
 		}
 		response.Kind = runs.QuestionResponseKind
 		response.Question = question
-	case protocol.InterruptResponseToolResult:
-		return runs.ResumeResponse{}, fmt.Errorf("%w: toolResult does not answer a runtime interrupt", protocol.ErrInvalidParams)
 	default:
 		return runs.ResumeResponse{}, fmt.Errorf("%w: unknown interrupt response type %q", protocol.ErrInvalidParams, wire.Response.Type)
 	}
@@ -115,7 +113,7 @@ func decodeResumeResponse(wire protocol.InterruptResponse) (runs.ResumeResponse,
 }
 
 func decodeApprovalResponse(wire protocol.InterruptResponseValue) (*runs.ApprovalResponse, error) {
-	if wire.Answers != nil || wire.Result != nil || wire.Error != nil {
+	if wire.Answers != nil {
 		return nil, fmt.Errorf("%w: approval response contains fields for another response type", protocol.ErrInvalidParams)
 	}
 	// remember{scope} persists this decision as a rule at the chosen scope.
@@ -147,7 +145,7 @@ func decodeApprovalResponse(wire protocol.InterruptResponseValue) (*runs.Approva
 }
 
 func decodeQuestionResponse(wire protocol.InterruptResponseValue) (*runs.QuestionResponse, error) {
-	if wire.Decision != "" || wire.Remember != nil || wire.EditedArgs != nil || wire.Reason != "" || wire.Result != nil || wire.Error != nil {
+	if wire.Decision != "" || wire.Remember != nil || wire.EditedArgs != nil || wire.Reason != "" {
 		return nil, fmt.Errorf("%w: answer response contains fields for another response type", protocol.ErrInvalidParams)
 	}
 	// The ordered answer list is the complete question resolution. The

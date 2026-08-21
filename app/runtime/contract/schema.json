@@ -2816,30 +2816,6 @@
             "runId",
             "type"
           ]
-        },
-        {
-          "properties": {
-            "payload": {
-              "properties": {
-                "question": false,
-                "reason": false,
-                "rememberable": false,
-                "risk": false
-              },
-              "required": [
-                "tool"
-              ]
-            },
-            "type": {
-              "const": "toolResult"
-            }
-          },
-          "required": [
-            "itemId",
-            "payload",
-            "runId",
-            "type"
-          ]
         }
       ]
     },
@@ -2882,8 +2858,7 @@
       "type": "string",
       "enum": [
         "approval",
-        "answer",
-        "toolResult"
+        "answer"
       ]
     },
     "InterruptResponseValue": {
@@ -2906,16 +2881,12 @@
           "type": "object",
           "additionalProperties": {}
         },
-        "error": {
-          "$ref": "#/$defs/ProblemData"
-        },
         "reason": {
           "type": "string"
         },
         "remember": {
           "$ref": "#/$defs/RememberScope"
         },
-        "result": {},
         "type": {
           "$ref": "#/$defs/InterruptResponseType"
         }
@@ -2924,8 +2895,6 @@
         {
           "properties": {
             "answers": false,
-            "error": false,
-            "result": false,
             "type": {
               "const": "approval"
             }
@@ -2939,31 +2908,14 @@
           "properties": {
             "decision": false,
             "editedArgs": false,
-            "error": false,
             "reason": false,
             "remember": false,
-            "result": false,
             "type": {
               "const": "answer"
             }
           },
           "required": [
             "answers",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "answers": false,
-            "decision": false,
-            "editedArgs": false,
-            "reason": false,
-            "remember": false,
-            "type": {
-              "const": "toolResult"
-            }
-          },
-          "required": [
             "type"
           ]
         }
@@ -2973,8 +2925,7 @@
       "type": "string",
       "enum": [
         "approval",
-        "question",
-        "toolResult"
+        "question"
       ]
     },
     "InvokeToolRequest": {
@@ -8362,13 +8313,9 @@
         "metrics": {
           "$ref": "#/$defs/RunMetrics"
         },
-        "name": {
-          "type": "string"
-        },
         "outcome": {
           "$ref": "#/$defs/SegmentOutcome"
         },
-        "payload": {},
         "progress": {
           "$ref": "#/$defs/RunProgress"
         },
@@ -8390,9 +8337,7 @@
             "item": false,
             "itemId": false,
             "metrics": false,
-            "name": false,
             "outcome": false,
-            "payload": false,
             "progress": false,
             "state": false,
             "type": {
@@ -8411,9 +8356,7 @@
             "item": false,
             "itemId": false,
             "metrics": false,
-            "name": false,
             "outcome": false,
-            "payload": false,
             "run": false,
             "state": false,
             "type": {
@@ -8431,8 +8374,6 @@
             "durable": false,
             "item": false,
             "itemId": false,
-            "name": false,
-            "payload": false,
             "progress": false,
             "run": false,
             "state": false,
@@ -8452,9 +8393,7 @@
             "durable": false,
             "itemId": false,
             "metrics": false,
-            "name": false,
             "outcome": false,
-            "payload": false,
             "progress": false,
             "run": false,
             "state": false,
@@ -8472,9 +8411,7 @@
             "durable": false,
             "item": false,
             "metrics": false,
-            "name": false,
             "outcome": false,
-            "payload": false,
             "progress": false,
             "run": false,
             "state": false,
@@ -8494,9 +8431,7 @@
             "durable": false,
             "itemId": false,
             "metrics": false,
-            "name": false,
             "outcome": false,
-            "payload": false,
             "progress": false,
             "run": false,
             "state": false,
@@ -8516,9 +8451,7 @@
             "item": false,
             "itemId": false,
             "metrics": false,
-            "name": false,
             "outcome": false,
-            "payload": false,
             "progress": false,
             "run": false,
             "type": {
@@ -8527,26 +8460,6 @@
           },
           "required": [
             "state",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "delta": false,
-            "durable": false,
-            "item": false,
-            "itemId": false,
-            "metrics": false,
-            "outcome": false,
-            "progress": false,
-            "run": false,
-            "state": false,
-            "type": {
-              "const": "custom"
-            }
-          },
-          "required": [
-            "name",
             "type"
           ]
         }
@@ -8561,8 +8474,7 @@
         "item.started",
         "item.delta",
         "item.completed",
-        "state.snapshot",
-        "custom"
+        "state.snapshot"
       ]
     },
     "SubscribeRunRequest": {

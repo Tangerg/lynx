@@ -1,7 +1,7 @@
 import type { AgentEventEnvelope, AgentItem } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { measureReduce } from "@/lib/metrics";
-import { lookupCustomHandlers, lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
+import { lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
 import { onItemCompleted, onItemStarted } from "./itemHandlers";
 import { durableItemSource } from "./source";
 
@@ -20,31 +20,11 @@ function applyStreamHandlers(state: AgentSessionView, event: AgentEventEnvelope)
   return next;
 }
 
-function applyCustom(state: AgentSessionView, event: AgentEventEnvelope): AgentSessionView {
-  if (event.event.type !== "custom") return state;
-  const handlers = lookupCustomHandlers(event.event.name);
-  if (handlers.length === 0) return state;
-  let next = state;
-  for (const { pluginName, handler } of handlers) {
-    try {
-      const update = handler(event.event.payload);
-      if (typeof update === "function") next = update(next);
-    } catch (error) {
-      console.error(`[plugin] custom handler "${event.event.name}" (${pluginName}) threw:`, error);
-      reportPluginError(pluginName, "events", error, `event: ${event.event.name}`);
-    }
-  }
-  return next;
-}
-
 export function reduceAgentEvent(
   state: AgentSessionView,
   event: AgentEventEnvelope,
 ): AgentSessionView {
-  const tag = event.event.type === "custom" ? event.event.name : event.event.type;
-  return measureReduce(tag, () =>
-    event.event.type === "custom" ? applyCustom(state, event) : applyStreamHandlers(state, event),
-  );
+  return measureReduce(event.event.type, () => applyStreamHandlers(state, event));
 }
 
 export function reduceDurableItem(state: AgentSessionView, item: AgentItem): AgentSessionView {

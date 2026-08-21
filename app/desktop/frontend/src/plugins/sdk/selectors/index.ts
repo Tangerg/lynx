@@ -25,7 +25,7 @@ export {
 // Composer placeholder weighted-random pick.
 
 // StreamEvent handler fan-out (cached sub-index, hit per event).
-export { lookupStreamHandlers, lookupCustomHandlers } from "./events";
+export { lookupStreamHandlers } from "./events";
 
 // Layout slot (sub-keyed by slot) + workspace views / settings panes
 // (registered + declared merge).

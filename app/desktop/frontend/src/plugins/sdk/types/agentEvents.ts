@@ -140,12 +140,6 @@ export type AgentInterrupt =
       itemId: string;
       runId: string;
       payload: { question: AgentQuestion };
-    }
-  | {
-      type: "toolResult";
-      itemId: string;
-      runId: string;
-      payload: { tool: AgentToolInvocation };
     };
 
 export interface AgentPendingInterruptSet {
@@ -165,8 +159,7 @@ export type AgentStreamEvent =
   | { type: "item.started"; item: AgentItem }
   | { type: "item.delta"; delta: AgentItemDelta; itemId: string }
   | { type: "item.completed"; item: AgentItem }
-  | { type: "state.snapshot"; state: unknown }
-  | { type: "custom"; name: string; payload?: unknown };
+  | { type: "state.snapshot"; state: unknown };
 
 /** Provenance that every live Agent fact carries independent of transport. */
 export interface AgentEventEnvelope {

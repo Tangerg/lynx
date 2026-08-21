@@ -153,7 +153,6 @@ const FEATURES = [
   "sessionExport",
   "relocate",
   "subagents",
-  "clientTools",
 ] as const;
 
 /** One capability key discovery may advertise. */

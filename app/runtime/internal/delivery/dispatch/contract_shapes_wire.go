@@ -312,7 +312,7 @@ func registerItemUnions(s *Shapes) {
 
 func registerInterruptUnions(s *Shapes) {
 	// The variant fields live inside `payload`, so the spec addresses them by
-	// dotted path. Each of the three is self-contained — §4.8's whole point is that
+	// dotted path. Each variant is self-contained — §4.8's whole point is that
 	// rendering a pending interrupt never needs a second request — and every one
 	// carries the identity pair: which item is waiting, and which run asked.
 	identity := []string{"itemId", "runId"}
@@ -326,7 +326,6 @@ func registerInterruptUnions(s *Shapes) {
 				Optional: []string{"payload.risk", "payload.reason", "payload.rememberable"},
 			},
 			{Tag: string(protocol.InterruptQuestion), Required: append(slices.Clone(identity), "payload.question")},
-			{Tag: string(protocol.InterruptToolResult), Required: append(slices.Clone(identity), "payload.tool")},
 		},
 	})
 
@@ -342,9 +341,6 @@ func registerInterruptUnions(s *Shapes) {
 				Optional: []string{"remember", "editedArgs", "reason"},
 			},
 			{Tag: string(protocol.InterruptResponseAnswer), Required: []string{"answers"}},
-			// A client tool reports either a result or a failure, so both are optional
-			// individually; "exactly one" is a presence rule, not a variant field list.
-			{Tag: string(protocol.InterruptResponseToolResult), Optional: []string{"result", "error"}},
 		},
 	})
 }
@@ -362,7 +358,6 @@ func registerEventUnions(s *Shapes) {
 			{Tag: string(protocol.StreamItemDelta), Required: []string{"itemId", "delta"}},
 			{Tag: string(protocol.StreamItemCompleted), Required: []string{"item"}},
 			{Tag: string(protocol.StreamStateSnapshot), Required: []string{"state"}},
-			{Tag: string(protocol.StreamCustom), Required: []string{"name"}, Optional: []string{"payload"}},
 		},
 	})
 

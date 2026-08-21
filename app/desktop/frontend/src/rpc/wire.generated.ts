@@ -656,8 +656,7 @@ export interface ImportSessionResponse {
 
 export type Interrupt =
   | { type: "approval"; itemId: string; payload: { reason?: string; rememberable?: boolean; risk?: ApprovalRisk; tool: ToolInvocation }; runId: string }
-  | { type: "question"; itemId: string; payload: { question: Question }; runId: string }
-  | { type: "toolResult"; itemId: string; payload: { tool: ToolInvocation }; runId: string };
+  | { type: "question"; itemId: string; payload: { question: Question }; runId: string };
 
 export interface InterruptPayload {
   question?: Question;
@@ -672,14 +671,13 @@ export interface InterruptResponse {
   response: InterruptResponseValue;
 }
 
-export type InterruptResponseType = "approval" | "answer" | "toolResult";
+export type InterruptResponseType = "approval" | "answer";
 
 export type InterruptResponseValue =
   | { type: "approval"; decision: ApprovalDecision; editedArgs?: Record<string, unknown>; reason?: string; remember?: RememberScope }
-  | { type: "answer"; answers: string[][] }
-  | { type: "toolResult"; error?: ProblemData; result?: unknown };
+  | { type: "answer"; answers: string[][] };
 
-export type InterruptType = "approval" | "question" | "toolResult";
+export type InterruptType = "approval" | "question";
 
 export interface InvokeToolRequest {
   arguments: Record<string, unknown>;
@@ -1503,10 +1501,9 @@ export type StreamEvent =
   | { type: "item.started"; item: Item }
   | { type: "item.delta"; delta: ItemDelta; itemId: string }
   | { type: "item.completed"; item: Item }
-  | { type: "state.snapshot"; state: StateSnapshot }
-  | { type: "custom"; name: string; payload?: unknown };
+  | { type: "state.snapshot"; state: StateSnapshot };
 
-export type StreamEventType = "segment.started" | "segment.progress" | "segment.finished" | "item.started" | "item.delta" | "item.completed" | "state.snapshot" | "custom";
+export type StreamEventType = "segment.started" | "segment.progress" | "segment.finished" | "item.started" | "item.delta" | "item.completed" | "state.snapshot";
 
 export interface SubscribeRunRequest {
   runId: string;
@@ -1713,8 +1710,8 @@ export const WIRE_ENUMS = {
   HealthStatus: ["ok", "degraded", "unhealthy"],
   HookEvent: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SubagentStart", "SubagentStop", "PreCompact", "Stop", "Notification"],
   HookScope: ["global", "project"],
-  InterruptResponseType: ["approval", "answer", "toolResult"],
-  InterruptType: ["approval", "question", "toolResult"],
+  InterruptResponseType: ["approval", "answer"],
+  InterruptType: ["approval", "question"],
   ItemDeltaType: ["content", "reasoning", "toolArguments", "toolOutput"],
   ItemOrder: ["asc", "desc"],
   ItemScopeType: ["session", "run"],
@@ -1752,7 +1749,7 @@ export const WIRE_ENUMS = {
   StateSnapshotScope: ["session", "run"],
   StateSnapshotType: ["plan"],
   StateSnapshotWriter: ["rootRun", "anyRun"],
-  StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "custom"],
+  StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot"],
   SuppressibleRunEventType: ["segment.progress", "item.delta"],
   WorkspaceAvailability: ["available", "missing"],
 } as const;
@@ -1767,7 +1764,6 @@ export const RUN_EVENT_RELIABILITY = {
   "item.delta": "ephemeral",
   "item.completed": "authoritative",
   "state.snapshot": "authoritative",
-  "custom": "ephemeral",
 } as const satisfies Record<StreamEventType, RunEventReliability>;
 
 export function runEventReliability(value: unknown): RunEventReliability | undefined {

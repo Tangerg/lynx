@@ -268,7 +268,7 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run
 ```
 
 > `RunEvent` 信封和 `StreamEvent` 都**不带 reliability flag**。authoritative /
-> replayable 由 `event.type` 决定；`custom` 固定 non-authoritative、non-replayable。
+> replayable 由 `event.type` 决定。
 > SSE 重放（§9）只按 API.md §5.2 的 replayable 分类决定 `id:`。
 
 要点：
@@ -372,7 +372,7 @@ replayable 事件以支撑续流；**正确性不得依赖 non-authoritative pre
 
 ### 9.3 Delta 重放
 
-server **不重放 non-replayable 事件：`item.delta`、`segment.progress`、`custom`**。
+server **不重放 non-replayable 事件：`item.delta`、`segment.progress`**。
 
 server **必须**通过 authoritative 的 `item.completed` / `state.snapshot` 与对应持久化读让最终态可得
 （API.md §5.2 不变量）。

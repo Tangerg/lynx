@@ -832,11 +832,6 @@
           "value": "\"checkpoints\""
         },
         {
-          "name": "FeatureClientTools",
-          "type": "untyped string",
-          "value": "\"clientTools\""
-        },
-        {
           "name": "FeatureCodebase",
           "type": "untyped string",
           "value": "\"codebase\""
@@ -1135,16 +1130,6 @@
           "name": "InterruptResponseApproval",
           "type": "InterruptResponseType",
           "value": "\"approval\""
-        },
-        {
-          "name": "InterruptResponseToolResult",
-          "type": "InterruptResponseType",
-          "value": "\"toolResult\""
-        },
-        {
-          "name": "InterruptToolResult",
-          "type": "InterruptType",
-          "value": "\"toolResult\""
         },
         {
           "name": "ItemOrderAsc",
@@ -1870,11 +1855,6 @@
           "name": "StateWriterRootRun",
           "type": "StateSnapshotWriter",
           "value": "\"rootRun\""
-        },
-        {
-          "name": "StreamCustom",
-          "type": "StreamEventType",
-          "value": "\"custom\""
         },
         {
           "name": "StreamItemCompleted",
@@ -4742,16 +4722,6 @@
               "name": "Answers",
               "type": "[][]string",
               "tag": "json:\"answers,omitempty\""
-            },
-            {
-              "name": "Result",
-              "type": "any",
-              "tag": "json:\"result,omitempty\""
-            },
-            {
-              "name": "Error",
-              "type": "*ProblemData",
-              "tag": "json:\"error,omitempty\""
             }
           ],
           "methods": [
@@ -7743,16 +7713,6 @@
               "name": "State",
               "type": "*StateSnapshot",
               "tag": "json:\"state,omitempty\""
-            },
-            {
-              "name": "Name",
-              "type": "string",
-              "tag": "json:\"name,omitempty\""
-            },
-            {
-              "name": "Payload",
-              "type": "any",
-              "tag": "json:\"payload,omitempty\""
             }
           ],
           "methods": [

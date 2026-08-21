@@ -224,7 +224,7 @@ export interface TimelineEntry {
   status?: "ok" | "err" | "approved" | "declined";
 }
 
-export type PendingInterruptKind = "approval" | "question" | "toolResult";
+export type PendingInterruptKind = "approval" | "question";
 
 export interface PendingInterrupt {
   itemId: string;

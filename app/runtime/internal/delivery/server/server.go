@@ -365,7 +365,6 @@ func capabilitiesFor(
 			protocol.FeatureSchedules:   features.schedules,
 			protocol.FeatureCodebase:    features.codebase,
 			protocol.FeatureSubagents:   true,
-			protocol.FeatureClientTools: false,
 		}),
 	}
 }

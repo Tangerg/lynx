@@ -22,15 +22,6 @@ function question(...prompts: string[]): Interrupt {
   };
 }
 
-function toolResult(): Interrupt {
-  return {
-    type: "toolResult",
-    itemId: "item_deferred",
-    runId: "run_1",
-    payload: { tool: { name: "read", arguments: {} } },
-  };
-}
-
 function set(
   patch: Partial<PendingInterruptSet> & Pick<PendingInterruptSet, "interrupts">,
 ): PendingInterruptSet {
@@ -54,18 +45,6 @@ describe("the queue of what is waiting on a person", () => {
     const items = pendingWorkItems([set({ interrupts: [question("Which database?")] })]);
 
     expect(items[0]).toMatchObject({ kind: "question", subject: "Which database?", more: 0 });
-  });
-
-  // A toolResult interrupt is the runtime asking the runtime. Counting it would
-  // put a row in a person's queue that no person can ever clear.
-  it("drops a set that holds nothing a person can answer", () => {
-    expect(pendingWorkItems([set({ interrupts: [toolResult()] })])).toEqual([]);
-  });
-
-  it("keeps the answerable ask when it shares a set with one that is not", () => {
-    const items = pendingWorkItems([set({ interrupts: [toolResult(), approval("edit")] })]);
-
-    expect(items[0]).toMatchObject({ subject: "edit", more: 0 });
   });
 
   it("keys a row by the set it resumes, so two sessions never collide", () => {
