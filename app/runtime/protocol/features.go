@@ -44,8 +44,7 @@ const (
 // than maintained beside the advertised map, because a hand-kept `clientOptIn`
 // would let discovery promise a negotiation the runtime does not perform.
 type Feature struct {
-	Key       string
-	Stability Stability
+	Key string
 	// ClientOptIn: the runtime uses the feature only for a request whose
 	// capabilities declare it, even where this build supports it.
 	ClientOptIn bool
@@ -65,29 +64,29 @@ type Feature struct {
 // declared constant, so a key cannot exist as a constant a rule references while
 // being invisible to discovery.
 var features = mustFeatures([]Feature{
-	{Key: FeatureReasoning, Stability: StabilityStable},
-	{Key: FeatureMultimodal, Stability: StabilityStable},
-	{Key: FeatureCompaction, Stability: StabilityStable},
-	{Key: FeaturePlan, Stability: StabilityStable},
-	{Key: FeatureGoals, Stability: StabilityStable},
-	{Key: FeatureAgentMemory, Stability: StabilityStable},
-	{Key: FeatureKnowledge, Stability: StabilityStable},
-	{Key: FeatureSkills, Stability: StabilityStable},
-	{Key: FeatureMCP, Stability: StabilityStable},
-	{Key: FeatureSchedules, Stability: StabilityStable},
-	{Key: FeatureCodebase, Stability: StabilityStable},
-	{Key: FeatureGit, Stability: StabilityStable},
-	{Key: FeatureCheckpoints, Stability: StabilityStable},
-	{Key: FeatureFileWatch, Stability: StabilityStable},
-	{Key: FeatureLSP, Stability: StabilityStable},
-	{Key: FeatureSessionExport, Stability: StabilityStable},
-	{Key: FeatureRelocate, Stability: StabilityStable},
+	{Key: FeatureReasoning},
+	{Key: FeatureMultimodal},
+	{Key: FeatureCompaction},
+	{Key: FeaturePlan},
+	{Key: FeatureGoals},
+	{Key: FeatureAgentMemory},
+	{Key: FeatureKnowledge},
+	{Key: FeatureSkills},
+	{Key: FeatureMCP},
+	{Key: FeatureSchedules},
+	{Key: FeatureCodebase},
+	{Key: FeatureGit},
+	{Key: FeatureCheckpoints},
+	{Key: FeatureFileWatch},
+	{Key: FeatureLSP},
+	{Key: FeatureSessionExport},
+	{Key: FeatureRelocate},
 	// Subagents is the one feature that reshapes a Run's authoritative stream:
 	// child runs, child lineage on every summary, and the `suspended` segment
 	// outcome only exist for a Run whose profile carries it. A subscriber that does
 	// not understand them cannot follow such a Run at all, which is why it is
 	// opt-in AND frozen onto the Run (§8.2).
-	{Key: FeatureSubagents, Stability: StabilityStable, ClientOptIn: true, RequiredByRunProtocol: true},
+	{Key: FeatureSubagents, ClientOptIn: true, RequiredByRunProtocol: true},
 })
 
 // Features returns a snapshot of the published capability vocabulary.
@@ -130,14 +129,6 @@ func mustFeatures(features []Feature) []Feature {
 			panic("protocol: a feature needs a key")
 		case seen[feature.Key]:
 			panic(fmt.Sprintf("protocol: feature %q is declared twice", feature.Key))
-		case !feature.Stability.Valid():
-			panic(fmt.Sprintf(
-				"protocol: feature %q has invalid stability %q; expected %q or %q",
-				feature.Key,
-				feature.Stability,
-				StabilityStable,
-				StabilityExperimental,
-			))
 		case feature.RequiredByRunProtocol && !feature.ClientOptIn:
 			panic(fmt.Sprintf("protocol: feature %q reshapes the run protocol without opt-in — it belongs in stable core, not in features", feature.Key))
 		}

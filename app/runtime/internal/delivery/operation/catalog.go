@@ -7,8 +7,6 @@ package operation
 //
 //go:generate go run github.com/Tangerg/lynx/app/runtime/cmd/contractgen -out ../../../contract -validators ../../../protocol -ts ../../../contract/typescript
 
-import "github.com/Tangerg/lynx/app/runtime/protocol"
-
 // contract is the runtime's method surface. It is built once, at package init,
 // from method expressions — so it exists without a Runtime and a build-time tool
 // can read the whole contract without standing one up.
@@ -46,10 +44,6 @@ func buildContract() *Registry {
 	registerFeedback(registry)
 	return registry
 }
-
-// stable is the stability every method carries today. Named so a future
-// experimental method reads as a deliberate exception rather than a typo.
-const stable = protocol.StabilityStable
 
 // requires builds the common rule: the whole method needs these features.
 func requires(features ...string) []CapabilityRule {

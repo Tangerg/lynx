@@ -487,7 +487,6 @@ func TestOpenRPCDescribesEveryMethod(t *testing.T) {
 			Name           string `json:"name"`
 			ParamStructure string `json:"paramStructure"`
 			Kind           string `json:"x-lyra-kind"`
-			Stability      string `json:"x-lyra-stability"`
 		} `json:"methods"`
 	}
 	if err := json.Unmarshal(readArtifact(t, dir, "openrpc.json"), &document); err != nil {
@@ -502,9 +501,8 @@ func TestOpenRPCDescribesEveryMethod(t *testing.T) {
 
 	var manifest struct {
 		Methods []struct {
-			Name      string `json:"name"`
-			Kind      string `json:"kind"`
-			Stability string `json:"stability"`
+			Name string `json:"name"`
+			Kind string `json:"kind"`
 		} `json:"methods"`
 	}
 	if err := json.Unmarshal(readArtifact(t, dir, "manifest.json"), &manifest); err != nil {
@@ -520,8 +518,6 @@ func TestOpenRPCDescribesEveryMethod(t *testing.T) {
 			t.Errorf("method %d: openrpc says %q, the manifest says %q", index, described.Name, method.Name)
 		case described.Kind != method.Kind:
 			t.Errorf("%s: openrpc says %q, the manifest says %q", method.Name, described.Kind, method.Kind)
-		case described.Stability != method.Stability:
-			t.Errorf("%s: openrpc says %q, the manifest says %q", method.Name, described.Stability, method.Stability)
 		case described.ParamStructure != "by-name":
 			t.Errorf("%s: params are %q; the wire passes one object keyed by field name", method.Name, described.ParamStructure)
 		}

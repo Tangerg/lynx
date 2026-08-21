@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-17";
+export const PROTOCOL_VERSION = "2026-08-21";
 
 // HTTP entrypoints implemented by this runtime build.
 export const HTTP_ENDPOINTS = {
@@ -443,7 +443,6 @@ export interface FeatureCapability {
   clientOptIn: boolean;
   enabled: boolean;
   requiredByRunProtocol: boolean;
-  stability: Stability;
 }
 
 export interface FeaturePreference {
@@ -1445,8 +1444,6 @@ export interface SkillProposalRef {
 
 export type SkillScope = "project" | "user";
 
-export type Stability = "stable" | "experimental";
-
 export interface StartGoalRequest {
   budget?: GoalBudget;
   model?: string;
@@ -1745,7 +1742,6 @@ export const WIRE_ENUMS = {
   SkillLifecycle: ["active", "archived"],
   SkillProposalOrigin: ["requested", "mined"],
   SkillScope: ["project", "user"],
-  Stability: ["stable", "experimental"],
   StateSnapshotScope: ["session", "run"],
   StateSnapshotType: ["plan"],
   StateSnapshotWriter: ["rootRun", "anyRun"],

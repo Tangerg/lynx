@@ -8,9 +8,8 @@ import (
 
 func registerHooks(registry *Registry) {
 	Query(registry, MethodMeta{
-		Name:      "hooks.list",
-		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
-		Stability: stable,
+		Name:   "hooks.list",
+		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		ListHooks(context.Context, protocol.ListHooksRequest) (*protocol.HooksListResult, error)
 	}, ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
@@ -18,8 +17,7 @@ func registerHooks(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name:      "hooks.setTrust",
-		Stability: stable,
+		Name: "hooks.setTrust",
 	}, func(service interface {
 		SetHookTrust(context.Context, protocol.SetHookTrustRequest) error
 	}, ctx context.Context, request protocol.SetHookTrustRequest) error {

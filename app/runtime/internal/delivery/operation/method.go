@@ -187,8 +187,6 @@ type MethodMeta struct {
 	// an orphaned backend capability without forcing redundant network calls.
 	Materializes []string
 
-	Stability protocol.Stability
-
 	// Params, Result and Event are the Go types of the method's wire frames, filled
 	// in by the registration factory from its own type parameters — the one place
 	// that knows them without a second declaration to keep in step.
@@ -306,15 +304,6 @@ func (m MethodMeta) validateIdentity() error {
 		return fmt.Errorf(
 			"%s: invalid pagination kind %s; expected %s or %s",
 			m.Name, m.Pagination, PaginationNone, PaginationCursor,
-		)
-	}
-	if !m.Stability.Valid() {
-		return fmt.Errorf(
-			"%s: invalid stability %q; expected %q or %q",
-			m.Name,
-			m.Stability,
-			protocol.StabilityStable,
-			protocol.StabilityExperimental,
 		)
 	}
 	return nil

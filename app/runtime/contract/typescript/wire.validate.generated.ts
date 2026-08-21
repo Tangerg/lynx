@@ -282,7 +282,6 @@ export type WireTypeName =
   | "SkillProposalOrigin"
   | "SkillProposalRef"
   | "SkillScope"
-  | "Stability"
   | "StartGoalRequest"
   | "StartRunRequest"
   | "StartRunResponse"
@@ -979,8 +978,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     clientOptIn: flag(),
     enabled: flag(),
     requiredByRunProtocol: flag(),
-    stability: ref(() => CHECKS.Stability),
-  }, ["clientOptIn", "enabled", "requiredByRunProtocol", "stability"]),
+  }, ["clientOptIn", "enabled", "requiredByRunProtocol"]),
   FeaturePreference: object({
     enabled: flag(),
   }, ["enabled"]),
@@ -3054,7 +3052,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["name", "revision", "scope", "workspace"]),
   SkillScope: enumOf(["project", "user"]),
-  Stability: enumOf(["stable", "experimental"]),
   StartGoalRequest: object({
     budget: ref(() => CHECKS.GoalBudget),
     model: text(),

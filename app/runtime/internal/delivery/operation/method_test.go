@@ -61,7 +61,6 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 		{name: "idempotency policy", mutate: func(meta *MethodMeta) { meta.Idempotency = IdempotencyPolicy(255) }, want: []string{"runs.list", "IdempotencyPolicy(255)"}},
 		{name: "pagination kind", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationKind(255) }, want: []string{"runs.list", "PaginationKind(255)"}},
 		{name: "pagination disagrees with shapes", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationNone }, want: []string{"runs.list", "shapes derive cursor"}},
-		{name: "stability", mutate: func(meta *MethodMeta) { meta.Stability = protocol.Stability("accidental") }, want: []string{"runs.list", `"accidental"`, "stability"}},
 		{name: "condition operator", mutate: func(meta *MethodMeta) { meta.CapabilityRules[0].When[0].Operator = ConditionOperator(255) }, want: []string{"runs.list", "includeDescendants", "ConditionOperator(255)"}},
 		{name: "materializes itself", mutate: func(meta *MethodMeta) { meta.Materializes = []string{meta.Name} }, want: []string{"runs.list", "cannot materialize itself"}},
 		{name: "repeated materialized query", mutate: func(meta *MethodMeta) { meta.Materializes = []string{"items.list", "items.list"} }, want: []string{"runs.list", "items.list", "declared twice"}},

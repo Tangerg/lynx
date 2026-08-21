@@ -13,7 +13,7 @@
 
 - Runtime 是 Lyra 的应用后端，同时提供 HTTP Runtime Protocol 与同进程 Go binding。
 - 公共 Go API 仅由 `runtime/protocol` 和 `runtime/embedded` 拥有；内部 exported identifiers 不构成兼容承诺。
-- 当前合同为 Protocol `2026-08-17`、Artifact v21、SQLite epoch 77、Agent Framework Baseline 20。
+- 当前合同为 Protocol `2026-08-21`、Artifact v21、SQLite epoch 77、Agent Framework Baseline 20。
 - Runtime/Desktop 只接受当前精确 Protocol 版本；没有上一发行版 baseline、版本范围或兼容 reader。生产协议不再声明无生产者的 `custom` RunEvent、`clientTools` feature 或 `toolResult` interrupt/response variant。
 - Desktop 只加载编译进同一 bundle 的内置插件；Wails Bootstrap 只返回本地 Runtime 连接，不扫描 `~/.lyra/plugins`，前端不执行用户目录 JavaScript、不发布 `window.__LYRA__`，也没有外部 manifest、Host API version、permission whitelist、origin 双态或 lazy-activation placeholder。图片、粘贴和 `@file` 附件仍由 Composer 自己拥有。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
@@ -165,7 +165,7 @@
 
 ## 7. 公共合同
 
-- Runtime Protocol 当前版本 `2026-08-17`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
+- Runtime Protocol 当前版本 `2026-08-21`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
 - Artifact 当前版本 21；旧版本在写入前确定性拒绝，不猜测缺失事实。
 - SQLite 当前 epoch 77；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
 - Agent Framework 当前 Baseline 20；Runtime 不依赖 private state 或迁移前 module path。
@@ -217,6 +217,8 @@ P137 完成 Codex 窄窗 Context Dock 可用性时序收口：fresh 1180px produ
 P138 完成 durable Context footprint 与 Codex 流式滚动逃逸收口：`contextTokens` 从 live-only progress 提升为 Domain Run 事实，SQLite epoch 77、Artifact v21、Protocol/generated surface、Session snapshot 与 Frontend selector 同步携带；fresh 真实 Run 得到 `4152` tokens，终态、整页 reload 与 Runtime restart 后仍恢复同一 tooltip，累计 usage 不参与。Context trigger 使用可聚焦 28px button，同时保持原 16px ring 光学中心。流式滚动红例证明 public near-bottom convenience value 会在 wheel-up 后误授权额外 observer 抢回视口；`MessageStream` 现只读 raw follow lock。真实页面从旧底部 `936px` 向上离开至 `896px`，内容把新底部推进至 `1136px` 后仍保持 `896px`。durable Context 红例 `4e4776499`、根修复 `a01c10e9a`、光学收口 `e91eccebd`，以及滚动红例 `d655e3408`、根修复 `b5378fa94` 已推送。Frontend 324 files / 2025 tests、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events、全部静态/构建门禁与 321 项 visual 矩阵全绿；Runtime/Desktop test/vet/build、generator diff、Wails v3 production `.app` package 与 strict codesign 全绿。Protocol 日期保持 `2026-08-17`，`app/cli` 未修改或暂存。
 
 P139 完成 Runtime/Desktop 证据化熵回收：Desktop 的三份 Runtime 协议镜像与三份设计导出都没有真实消费者或动态入口，现已删除，所有引用回到 Runtime canonical docs；客户端审批危险度推断和 risk/scope/reversibility 公共副本被移除，Runtime wire risk 仍保留为协议事实，但 Desktop 不再把它复制到 Agent event/content block 或据此建立第二套 presentation。被 scoped lifecycle owner 取代的串行队列、unscoped settlement 包装、无消费者 locale/facade/barrel export，以及 Runtime 仅供 dispatch 测试使用的 request/id 构造 helper 同步删除。Frontend published approval facade 的缩减是显式 breaking cleanup；没有 deprecated alias、兼容双读或 fallback。generated wire、compatibility baseline 与动态 sideload plugin SDK 均因真实生成/发布入口保留。Frontend 323 files / 2017 tests、完整静态/构建门禁、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events 全绿；Runtime/Desktop test/vet/build 与受影响 transport/dispatch race tests 全绿。Protocol、Artifact、SQLite 与 Runtime 公共 Go API 未改变。
+
+P140 正在执行第二轮 Runtime/Desktop 根因级熵回收，明确不保留兼容。前三批已分别删除上一发行版兼容基线与 protocol range、生产不可达的 `custom`/`clientTools`/`toolResult` wire，以及没有真实安装入口且样例已失效的 Desktop 外部 sideload 整条链路与随附空扩展点。第四批证明 Feature、Method、StateKey 的 stability 元数据在全部生产注册中恒为 `stable`，没有协商、路由、降级或 UI 决策读取它；canonical Go 类型与校验、operation/state 注册、合同生成器、OpenRPC extension、manifest/schema/Go API、TypeScript binding、Desktop samples/tests/fixture 已同步删除该字段。唯一精确 Protocol 版本前移到 `2026-08-21`，旧 wire shape 没有 alias、双读、fallback 或迁移层；Artifact 与 SQLite shape 未改变。生成器二次运行 diff-free；Frontend 318 files / 1993 tests、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events、完整静态/边界/消费者/bundle 门禁与 Runtime/Desktop test/vet/build 全绿。
 
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 

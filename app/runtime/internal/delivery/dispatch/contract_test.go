@@ -32,7 +32,6 @@ func (r *capabilityRuntime) Discover(context.Context) (*protocol.DiscoverRespons
 		published, _ := protocol.LookupFeature(name)
 		advertised[name] = protocol.FeatureCapability{
 			Enabled:               enabled,
-			Stability:             published.Stability,
 			ClientOptIn:           published.ClientOptIn,
 			RequiredByRunProtocol: published.RequiredByRunProtocol,
 		}

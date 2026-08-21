@@ -1469,7 +1469,7 @@
         {
           "name": "ProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-17\""
+          "value": "\"2026-08-21\""
         },
         {
           "name": "ProviderConfigClear",
@@ -1820,16 +1820,6 @@
           "name": "SkillScopeUser",
           "type": "SkillScope",
           "value": "\"user\""
-        },
-        {
-          "name": "StabilityExperimental",
-          "type": "Stability",
-          "value": "\"experimental\""
-        },
-        {
-          "name": "StabilityStable",
-          "type": "Stability",
-          "value": "\"stable\""
         },
         {
           "name": "StatePlan",
@@ -3764,10 +3754,6 @@
               "type": "string"
             },
             {
-              "name": "Stability",
-              "type": "Stability"
-            },
-            {
               "name": "ClientOptIn",
               "type": "bool"
             },
@@ -3785,11 +3771,6 @@
               "name": "Enabled",
               "type": "bool",
               "tag": "json:\"enabled\""
-            },
-            {
-              "name": "Stability",
-              "type": "Stability",
-              "tag": "json:\"stability\""
             },
             {
               "name": "ClientOptIn",
@@ -7432,17 +7413,6 @@
           "name": "SkillScope",
           "kind": "defined",
           "underlying": "string"
-        },
-        {
-          "name": "Stability",
-          "kind": "defined",
-          "underlying": "string",
-          "methods": [
-            {
-              "name": "Valid",
-              "signature": "func() bool"
-            }
-          ]
         },
         {
           "name": "StartGoalRequest",

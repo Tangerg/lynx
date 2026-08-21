@@ -21,7 +21,6 @@ func registerRuntimeSubscription(registry *Registry) {
 			When:     []FieldCondition{{Field: "watches", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureFileWatch},
 		}},
-		Stability: stable,
 	}, func(service interface {
 		SubscribeRuntime(context.Context, protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error)
 	}, ctx context.Context, request protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {

@@ -9,7 +9,7 @@ import (
 func registerCodebase(registry *Registry) {
 	Query(registry, MethodMeta{
 		Name: "codebase.search", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
-		CapabilityRules: requires(protocol.FeatureCodebase), Stability: stable,
+		CapabilityRules: requires(protocol.FeatureCodebase),
 	}, func(service interface {
 		CodebaseSearch(context.Context, protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error)
 	}, ctx context.Context, request protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
@@ -18,7 +18,7 @@ func registerCodebase(registry *Registry) {
 
 	Query(registry, MethodMeta{
 		Name: "codebase.status", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
-		CapabilityRules: requires(protocol.FeatureCodebase), Stability: stable,
+		CapabilityRules: requires(protocol.FeatureCodebase),
 	}, func(service interface {
 		CodebaseStatus(context.Context, protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error)
 	}, ctx context.Context, request protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
@@ -27,7 +27,7 @@ func registerCodebase(registry *Registry) {
 
 	Command(registry, MethodMeta{
 		Name: "codebase.reindex", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
-		CapabilityRules: requires(protocol.FeatureCodebase), Stability: stable,
+		CapabilityRules: requires(protocol.FeatureCodebase),
 	}, func(service interface {
 		CodebaseReindex(context.Context, protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error)
 	}, ctx context.Context, request protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {

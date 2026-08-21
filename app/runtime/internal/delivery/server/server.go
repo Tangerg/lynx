@@ -339,7 +339,7 @@ func capabilitiesFor(
 		StreamingMethods: operation.Contract().StreamMethods(),
 		// Open features map (§9): a client treats an absent key as off. This is the
 		// one composition fact per key — whether THIS build offers it — joined with
-		// the feature's own published facts (stability, opt-in, whether it reshapes
+		// the feature's own published facts (opt-in and whether it reshapes
 		// the run protocol), which come from protocol's registry. Advertising them
 		// here by hand would let discovery promise a negotiation the runtime does
 		// not perform.
@@ -409,7 +409,6 @@ func advertisedFeatures(enabled map[string]bool) map[string]protocol.FeatureCapa
 	for _, feature := range features {
 		out[feature.Key] = protocol.FeatureCapability{
 			Enabled:               enabled[feature.Key],
-			Stability:             feature.Stability,
 			ClientOptIn:           feature.ClientOptIn,
 			RequiredByRunProtocol: feature.RequiredByRunProtocol,
 		}

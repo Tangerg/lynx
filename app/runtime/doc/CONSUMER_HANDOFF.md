@@ -12,7 +12,7 @@
 
 ## Current server baseline
 
-- Protocol version: exactly `2026-08-17`; there is no compatibility range.
+- Protocol version: exactly `2026-08-21`; there is no compatibility range.
 - Session artifact version: `21`; versions 20 and earlier are rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
@@ -155,7 +155,7 @@ that an in-tree or out-of-tree consumer is compatible.
 A consumer migration is complete only when it:
 
 1. vendors or generates from the current Runtime-owned contract;
-2. sends `protocolVersion: "2026-08-17"` and rejects any different discovered
+2. sends `protocolVersion: "2026-08-21"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
 4. imports/exports Session artifact v21, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;

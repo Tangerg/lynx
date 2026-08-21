@@ -7,7 +7,7 @@ import (
 )
 
 func registerFeedback(registry *Registry) {
-	CommandAck(registry, MethodMeta{Name: "feedback.create", Stability: stable},
+	CommandAck(registry, MethodMeta{Name: "feedback.create"},
 		func(service interface {
 			CreateFeedback(context.Context, protocol.FeedbackRequest) error
 		}, ctx context.Context, request protocol.FeedbackRequest) error {

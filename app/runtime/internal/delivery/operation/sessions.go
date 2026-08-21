@@ -7,7 +7,7 @@ import (
 )
 
 func registerSessions(registry *Registry) {
-	Query(registry, MethodMeta{Name: "sessions.list", Stability: stable},
+	Query(registry, MethodMeta{Name: "sessions.list"},
 		func(service interface {
 			ListSessions(context.Context, protocol.PageQuery) (*protocol.Page[protocol.Session], error)
 		}, ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
@@ -15,9 +15,8 @@ func registerSessions(registry *Registry) {
 		})
 
 	Query(registry, MethodMeta{
-		Name:      "sessions.get",
-		Errors:    []string{protocol.ErrSessionNotFound.Error()},
-		Stability: stable,
+		Name:   "sessions.get",
+		Errors: []string{protocol.ErrSessionNotFound.Error()},
 	}, func(service interface {
 		GetSession(context.Context, string) (*protocol.Session, error)
 	}, ctx context.Context, request protocol.GetSessionRequest) (*protocol.Session, error) {
@@ -32,7 +31,6 @@ func registerSessions(registry *Registry) {
 			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureSubagents},
 		}},
-		Stability: stable,
 	}, func(service interface {
 		GetSessionSnapshot(context.Context, protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error)
 	}, ctx context.Context, request protocol.GetSessionSnapshotRequest) (*protocol.SessionSnapshot, error) {
@@ -40,9 +38,8 @@ func registerSessions(registry *Registry) {
 	})
 
 	Command(registry, MethodMeta{
-		Name:      "sessions.create",
-		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
-		Stability: stable,
+		Name:   "sessions.create",
+		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		CreateSession(context.Context, protocol.CreateSessionRequest) (*protocol.Session, error)
 	}, ctx context.Context, request protocol.CreateSessionRequest) (*protocol.Session, error) {
@@ -63,7 +60,6 @@ func registerSessions(registry *Registry) {
 			When:     []FieldCondition{{Field: "workspace", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureRelocate},
 		}},
-		Stability: stable,
 	}, func(service interface {
 		UpdateSession(context.Context, protocol.UpdateSessionRequest) (*protocol.Session, error)
 	}, ctx context.Context, request protocol.UpdateSessionRequest) (*protocol.Session, error) {
@@ -71,9 +67,8 @@ func registerSessions(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name:      "sessions.delete",
-		Errors:    []string{protocol.ErrSessionNotFound.Error()},
-		Stability: stable,
+		Name:   "sessions.delete",
+		Errors: []string{protocol.ErrSessionNotFound.Error()},
 	}, func(service interface {
 		DeleteSession(context.Context, string) error
 	}, ctx context.Context, request protocol.DeleteSessionRequest) error {
@@ -86,7 +81,6 @@ func registerSessions(registry *Registry) {
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrRunNotFound.Error(),
 		},
-		Stability: stable,
 	}, func(service interface {
 		ForkSession(context.Context, protocol.ForkSessionRequest) (*protocol.Session, error)
 	}, ctx context.Context, request protocol.ForkSessionRequest) (*protocol.Session, error) {
@@ -115,7 +109,6 @@ func registerSessions(registry *Registry) {
 				Requires: []string{protocol.FeatureCheckpoints},
 			},
 		},
-		Stability: stable,
 	}, func(service interface {
 		RollbackSession(context.Context, protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error)
 	}, ctx context.Context, request protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
@@ -126,7 +119,6 @@ func registerSessions(registry *Registry) {
 		Name:            "sessions.export",
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureSessionExport),
-		Stability:       stable,
 	}, func(service interface {
 		ExportSession(context.Context, protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error)
 	}, ctx context.Context, request protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
@@ -136,7 +128,6 @@ func registerSessions(registry *Registry) {
 	Command(registry, MethodMeta{
 		Name:            "sessions.import",
 		CapabilityRules: requires(protocol.FeatureSessionExport),
-		Stability:       stable,
 	}, func(service interface {
 		ImportSession(context.Context, protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error)
 	}, ctx context.Context, request protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {

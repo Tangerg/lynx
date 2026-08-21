@@ -8,7 +8,7 @@ import (
 
 func registerAgentMemory(registry *Registry) {
 	Query(registry, MethodMeta{
-		Name: "agentMemory.list", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
+		Name: "agentMemory.list", CapabilityRules: requires(protocol.FeatureAgentMemory),
 	}, func(service interface {
 		ListAgentMemory(context.Context, protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error)
 	}, ctx context.Context, request protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
@@ -16,7 +16,7 @@ func registerAgentMemory(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name: "agentMemory.review", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
+		Name: "agentMemory.review", CapabilityRules: requires(protocol.FeatureAgentMemory),
 	}, func(service interface {
 		ReviewAgentMemory(context.Context, protocol.AgentMemoryReviewRequest) error
 	}, ctx context.Context, request protocol.AgentMemoryReviewRequest) error {
@@ -24,7 +24,7 @@ func registerAgentMemory(registry *Registry) {
 	})
 
 	Command(registry, MethodMeta{
-		Name: "agentMemory.update", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
+		Name: "agentMemory.update", CapabilityRules: requires(protocol.FeatureAgentMemory),
 	}, func(service interface {
 		UpdateAgentMemory(context.Context, protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error)
 	}, ctx context.Context, request protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
@@ -32,7 +32,7 @@ func registerAgentMemory(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name: "agentMemory.delete", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
+		Name: "agentMemory.delete", CapabilityRules: requires(protocol.FeatureAgentMemory),
 	}, func(service interface {
 		DeleteAgentMemory(context.Context, protocol.AgentMemoryItemRequest) error
 	}, ctx context.Context, request protocol.AgentMemoryItemRequest) error {
@@ -40,7 +40,7 @@ func registerAgentMemory(registry *Registry) {
 	})
 
 	Command(registry, MethodMeta{
-		Name: "agentMemory.add", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
+		Name: "agentMemory.add", CapabilityRules: requires(protocol.FeatureAgentMemory),
 	}, func(service interface {
 		AddAgentMemory(context.Context, protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error)
 	}, ctx context.Context, request protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {

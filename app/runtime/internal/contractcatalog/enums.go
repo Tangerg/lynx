@@ -81,7 +81,6 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[protocol.SkillScope]():                        {string(protocol.SkillScopeProject), string(protocol.SkillScopeUser)},
 	reflect.TypeFor[protocol.SkillProposalOrigin]():               {string(protocol.SkillProposalOriginRequested), string(protocol.SkillProposalOriginMined)},
 	reflect.TypeFor[protocol.StateSnapshotType]():                 {string(protocol.StatePlan)},
-	reflect.TypeFor[protocol.Stability]():                         {string(protocol.StabilityStable), string(protocol.StabilityExperimental)},
 	reflect.TypeFor[protocol.StreamEventType]():                   {string(protocol.StreamSegmentStarted), string(protocol.StreamSegmentProgress), string(protocol.StreamSegmentFinished), string(protocol.StreamItemStarted), string(protocol.StreamItemDelta), string(protocol.StreamItemCompleted), string(protocol.StreamStateSnapshot)},
 	reflect.TypeFor[protocol.PlanStatus]():                        {string(protocol.PlanStatusPending), string(protocol.PlanStatusInProgress), string(protocol.PlanStatusCompleted)},
 	reflect.TypeFor[protocol.WorkspaceAvailability]():             {string(protocol.WorkspaceAvailable), string(protocol.WorkspaceMissing)},

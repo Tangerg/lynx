@@ -169,15 +169,15 @@ const PROVIDERS: ProviderConfiguration[] = [
   },
 ];
 
-function stable(enabled: boolean): FeatureCapability {
-  return { enabled, stability: "stable", clientOptIn: false, requiredByRunProtocol: false };
+function feature(enabled: boolean): FeatureCapability {
+  return { enabled, clientOptIn: false, requiredByRunProtocol: false };
 }
 
 const VISUAL_CAPABILITIES: ServerCapabilities = {
   runEvents: [],
   runtimeTopics: [],
   stateSnapshots: [],
-  features: { git: stable(true), plan: stable(true) },
+  features: { git: feature(true), plan: feature(true) },
   streamingMethods: [],
   limits: {
     runReplay: { scope: "runtimeInstanceRootSegment", maxEvents: 2_048, maxBytes: 16_777_216 },

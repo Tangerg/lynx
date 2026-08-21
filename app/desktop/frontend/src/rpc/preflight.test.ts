@@ -25,7 +25,6 @@ function advertising(
         name,
         {
           enabled,
-          stability: "stable" as const,
           clientOptIn: clientOptIn.includes(name),
           requiredByRunProtocol: false,
         },

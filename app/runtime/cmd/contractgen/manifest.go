@@ -57,7 +57,6 @@ type methodEntry struct {
 	Errors       []string `json:"errors,omitempty"`
 	Features     []string `json:"features,omitempty"`
 	Materializes []string `json:"materializes,omitempty"`
-	Stability    string   `json:"stability"`
 }
 
 // errorRegistry is the single source for business error identity (contract §11.4
@@ -118,7 +117,6 @@ type stateEntry struct {
 	Scope          string  `json:"scope"`
 	Writer         string  `json:"writer"`
 	Feature        string  `json:"feature"`
-	Stability      string  `json:"stability"`
 	Payload        *schema `json:"payload"`
 }
 
@@ -256,7 +254,6 @@ func methods(registry *operation.Registry) []methodEntry {
 			Errors:       meta.ProblemTypes(),
 			Features:     meta.Features(),
 			Materializes: slices.Clone(meta.Materializes),
-			Stability:    string(meta.Stability),
 		})
 	}
 	return out
@@ -355,7 +352,7 @@ func stateKeys(shapes *dispatch.Shapes, walked *schemaSet) []stateEntry {
 		out = append(out, stateEntry{
 			Key: key.Key, RecoveryMethod: key.RecoveryMethod,
 			Scope: string(key.Scope), Writer: string(key.Writer),
-			Feature: key.Feature, Stability: string(key.Stability),
+			Feature: key.Feature,
 			Payload: external(walked.walk(key.PayloadType)),
 		})
 	}

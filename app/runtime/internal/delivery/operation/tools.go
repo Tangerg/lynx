@@ -7,7 +7,7 @@ import (
 )
 
 func registerTools(registry *Registry) {
-	Query(registry, MethodMeta{Name: "tools.list", Stability: stable},
+	Query(registry, MethodMeta{Name: "tools.list"},
 		func(service interface {
 			ListTools(context.Context) (*protocol.Page[protocol.ToolSpec], error)
 		}, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ToolSpec], error) {
@@ -20,7 +20,6 @@ func registerTools(registry *Registry) {
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
 		},
-		Stability: stable,
 	}, func(service interface {
 		InvokeTool(context.Context, protocol.InvokeToolRequest) (any, error)
 	}, ctx context.Context, request protocol.InvokeToolRequest) (any, error) {

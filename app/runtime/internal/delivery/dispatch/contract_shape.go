@@ -106,7 +106,6 @@ type StateKeySpec struct {
 	Scope          StateSnapshotScope
 	Writer         StateSnapshotWriter
 	Feature        string
-	Stability      protocol.Stability
 
 	// PayloadType is the Go type of the value published under this key.
 	//
@@ -807,14 +806,6 @@ func (k StateKeySpec) validate() error {
 		)
 	case k.Feature == "":
 		return fmt.Errorf("state key %q: feature gate is required", k.Key)
-	case !k.Stability.Valid():
-		return fmt.Errorf(
-			"state key %q: invalid stability %q; expected %q or %q",
-			k.Key,
-			k.Stability,
-			protocol.StabilityStable,
-			protocol.StabilityExperimental,
-		)
 	case k.PayloadType == nil:
 		return fmt.Errorf("state key %q: payload type is required — an untyped key publishes \"some JSON\"", k.Key)
 	}

@@ -81,11 +81,9 @@ func TestCapabilitiesAdvertiseNegotiableSubagents(t *testing.T) {
 	if !ok {
 		t.Fatal("capabilities omit features.subagents")
 	}
-	if !feature.Enabled ||
-		feature.Stability != protocol.StabilityStable ||
-		!feature.ClientOptIn ||
+	if !feature.Enabled || !feature.ClientOptIn ||
 		!feature.RequiredByRunProtocol {
-		t.Fatalf("features.subagents = %+v, want enabled stable opt-in Run protocol feature", feature)
+		t.Fatalf("features.subagents = %+v, want enabled opt-in Run protocol feature", feature)
 	}
 }
 

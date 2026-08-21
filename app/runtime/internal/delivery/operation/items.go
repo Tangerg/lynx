@@ -21,7 +21,6 @@ func registerItems(registry *Registry) {
 			When:     []FieldCondition{{Field: "scope.includeDescendants", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureSubagents},
 		}},
-		Stability: stable,
 	}, func(service interface {
 		ListItems(context.Context, protocol.ListItemsRequest) (*protocol.ListItemsResponse, error)
 	}, ctx context.Context, request protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {

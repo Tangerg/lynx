@@ -8,9 +8,8 @@ import (
 
 func registerRecipes(registry *Registry) {
 	Query(registry, MethodMeta{
-		Name:      "recipes.list",
-		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
-		Stability: stable,
+		Name:   "recipes.list",
+		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		ListRecipes(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error)
 	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {

@@ -87,31 +87,11 @@ const (
 	StateWriterAnyRun  StateSnapshotWriter = "anyRun"
 )
 
-type Stability string
-
-const (
-	StabilityStable       Stability = "stable"
-	StabilityExperimental Stability = "experimental"
-)
-
-// Valid reports whether stability belongs to the closed first-party vocabulary.
-// The wire is still a string, so every registry boundary must reject values Go can
-// represent but the protocol does not define.
-func (s Stability) Valid() bool {
-	switch s {
-	case StabilityStable, StabilityExperimental:
-		return true
-	default:
-		return false
-	}
-}
-
 // FeatureCapability is one advertised capability: whether this build offers it,
 // and the two negotiation facts that belong to the feature itself rather than to
 // the build ([Feature]).
 type FeatureCapability struct {
-	Enabled   bool      `json:"enabled"`
-	Stability Stability `json:"stability"`
+	Enabled bool `json:"enabled"`
 	// ClientOptIn says server support is not sufficient: the runtime uses the
 	// feature only for a request whose capabilities declare it. A client that reads
 	// `enabled:true` and never declares it still gets the feature's absence.

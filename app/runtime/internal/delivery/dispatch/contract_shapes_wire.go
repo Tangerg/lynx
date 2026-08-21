@@ -702,7 +702,6 @@ func registerStateKeys(s *Shapes) {
 		Scope:          StateScopeSession,
 		Writer:         StateWriterRootRun,
 		Feature:        "plan",
-		Stability:      protocol.StabilityStable,
 		PayloadType:    typeOf[protocol.StateSnapshot](),
 	})
 }

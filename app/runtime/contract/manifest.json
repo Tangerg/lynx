@@ -1,5 +1,5 @@
 {
-  "protocolVersion": "2026-08-17",
+  "protocolVersion": "2026-08-21",
   "features": [
     "reasoning",
     "multimodal",
@@ -26,16 +26,14 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "sessions.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "cursor",
-      "stability": "stable"
+      "pagination": "cursor"
     },
     {
       "name": "sessions.get",
@@ -45,8 +43,7 @@
       "pagination": "none",
       "errors": [
         "session_not_found"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.snapshot",
@@ -67,8 +64,7 @@
         "interrupts.list",
         "plan.get",
         "goals.get"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.create",
@@ -78,8 +74,7 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.update",
@@ -95,8 +90,7 @@
       ],
       "features": [
         "relocate"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.delete",
@@ -106,8 +100,7 @@
       "pagination": "none",
       "errors": [
         "session_not_found"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.fork",
@@ -118,8 +111,7 @@
       "errors": [
         "session_not_found",
         "run_not_found"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.rollback",
@@ -136,8 +128,7 @@
       ],
       "features": [
         "checkpoints"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.export",
@@ -151,8 +142,7 @@
       ],
       "features": [
         "sessionExport"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "sessions.import",
@@ -165,8 +155,7 @@
       ],
       "features": [
         "sessionExport"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runs.start",
@@ -180,8 +169,7 @@
         "session_has_active_run",
         "unsupported_mime",
         "capability_not_negotiated"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runs.resume",
@@ -193,8 +181,7 @@
         "run_not_found",
         "interrupt_not_open",
         "capability_not_negotiated"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runs.subscribe",
@@ -211,8 +198,7 @@
         "replay_cursor_invalid",
         "replay_unavailable",
         "capability_not_negotiated"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runs.cancel",
@@ -225,8 +211,7 @@
         "run_finished",
         "session_busy",
         "capability_not_negotiated"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runs.steer",
@@ -240,8 +225,7 @@
         "run_waiting",
         "run_finished",
         "stale_segment"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runs.get",
@@ -252,8 +236,7 @@
       "errors": [
         "run_not_found",
         "capability_not_negotiated"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runs.list",
@@ -266,8 +249,7 @@
       ],
       "features": [
         "subagents"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "interrupts.list",
@@ -278,8 +260,7 @@
       "errors": [
         "run_not_root",
         "capability_not_negotiated"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "plan.get",
@@ -293,8 +274,7 @@
       ],
       "features": [
         "plan"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "items.list",
@@ -309,8 +289,7 @@
       ],
       "features": [
         "subagents"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "workspaces.resolve",
@@ -320,16 +299,14 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "workspaces.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "workspace.changes.list",
@@ -344,8 +321,7 @@
       ],
       "features": [
         "git"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "workspace.diff.get",
@@ -361,8 +337,7 @@
       ],
       "features": [
         "git"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "workspace.files.head",
@@ -373,8 +348,7 @@
       "errors": [
         "workspace_unavailable",
         "path_outside_root"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "workspace.files.search",
@@ -385,8 +359,7 @@
       "errors": [
         "workspace_unavailable",
         "path_outside_root"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "workspace.files.list",
@@ -397,8 +370,7 @@
       "errors": [
         "workspace_unavailable",
         "path_outside_root"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "workspace.files.read",
@@ -409,8 +381,7 @@
       "errors": [
         "workspace_unavailable",
         "path_outside_root"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "runtime.subscribe",
@@ -423,8 +394,7 @@
       ],
       "features": [
         "fileWatch"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "skills.discovered.list",
@@ -438,8 +408,7 @@
       ],
       "features": [
         "skills"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "skills.library.list",
@@ -452,8 +421,7 @@
       ],
       "features": [
         "skills"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "skills.library.archive",
@@ -466,8 +434,7 @@
       ],
       "features": [
         "skills"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "skills.library.restore",
@@ -480,8 +447,7 @@
       ],
       "features": [
         "skills"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "skills.proposals.list",
@@ -494,8 +460,7 @@
       ],
       "features": [
         "skills"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "skills.proposals.approve",
@@ -508,8 +473,7 @@
       ],
       "features": [
         "skills"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "skills.proposals.reject",
@@ -522,8 +486,7 @@
       ],
       "features": [
         "skills"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "recipes.list",
@@ -533,8 +496,7 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "agentDocs.list",
@@ -544,8 +506,7 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.servers.list",
@@ -558,8 +519,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.servers.create",
@@ -573,8 +533,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.servers.update",
@@ -588,8 +547,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.servers.delete",
@@ -603,8 +561,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.servers.test",
@@ -617,8 +574,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.tools.list",
@@ -631,8 +587,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.servers.reconnect",
@@ -647,8 +602,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.authorizationAttempts.create",
@@ -663,8 +617,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "mcp.authorizationAttempts.get",
@@ -678,8 +631,7 @@
       ],
       "features": [
         "mcp"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "hooks.list",
@@ -689,48 +641,42 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "hooks.setTrust",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "approval.getMode",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "approval.setMode",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "approval.listRules",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "approval.forgetRule",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "schedules.list",
@@ -743,8 +689,7 @@
       ],
       "features": [
         "schedules"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "schedules.create",
@@ -757,8 +702,7 @@
       ],
       "features": [
         "schedules"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "schedules.update",
@@ -772,8 +716,7 @@
       ],
       "features": [
         "schedules"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "schedules.delete",
@@ -786,8 +729,7 @@
       ],
       "features": [
         "schedules"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "schedules.runNow",
@@ -800,8 +742,7 @@
       ],
       "features": [
         "schedules"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "goals.start",
@@ -815,8 +756,7 @@
       ],
       "features": [
         "goals"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "goals.update",
@@ -830,8 +770,7 @@
       ],
       "features": [
         "goals"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "goals.clear",
@@ -845,8 +784,7 @@
       ],
       "features": [
         "goals"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "goals.get",
@@ -860,8 +798,7 @@
       ],
       "features": [
         "goals"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "goals.stop",
@@ -875,8 +812,7 @@
       ],
       "features": [
         "goals"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "goals.resume",
@@ -890,8 +826,7 @@
       ],
       "features": [
         "goals"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "codebase.search",
@@ -905,8 +840,7 @@
       ],
       "features": [
         "codebase"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "codebase.status",
@@ -920,8 +854,7 @@
       ],
       "features": [
         "codebase"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "codebase.reindex",
@@ -935,80 +868,70 @@
       ],
       "features": [
         "codebase"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "providers.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "providers.update",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "providers.test",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "models.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "models.getUtilityRole",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "models.setUtilityRole",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "models.getEmbeddingRole",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "models.setEmbeddingRole",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "tools.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "tools.invoke",
@@ -1019,8 +942,7 @@
       "errors": [
         "workspace_unavailable",
         "path_outside_root"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "usage.session",
@@ -1030,16 +952,14 @@
       "pagination": "none",
       "errors": [
         "session_not_found"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "usage.summary",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     },
     {
       "name": "knowledge.list",
@@ -1054,8 +974,7 @@
       ],
       "features": [
         "knowledge"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "knowledge.get",
@@ -1070,8 +989,7 @@
       ],
       "features": [
         "knowledge"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "knowledge.update",
@@ -1087,8 +1005,7 @@
       ],
       "features": [
         "knowledge"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "agentMemory.list",
@@ -1101,8 +1018,7 @@
       ],
       "features": [
         "agentMemory"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "agentMemory.review",
@@ -1115,8 +1031,7 @@
       ],
       "features": [
         "agentMemory"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "agentMemory.update",
@@ -1129,8 +1044,7 @@
       ],
       "features": [
         "agentMemory"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "agentMemory.delete",
@@ -1143,8 +1057,7 @@
       ],
       "features": [
         "agentMemory"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "agentMemory.add",
@@ -1157,16 +1070,14 @@
       ],
       "features": [
         "agentMemory"
-      ],
-      "stability": "stable"
+      ]
     },
     {
       "name": "feedback.create",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
-      "pagination": "none",
-      "stability": "stable"
+      "pagination": "none"
     }
   ],
   "notifications": [
@@ -2280,7 +2191,6 @@
       "scope": "session",
       "writer": "rootRun",
       "feature": "plan",
-      "stability": "stable",
       "payload": {
         "$ref": "schema.json#/$defs/StateSnapshot"
       }

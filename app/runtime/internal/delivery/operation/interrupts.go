@@ -19,7 +19,6 @@ func registerInterrupts(registry *Registry) {
 			protocol.ErrRunNotRoot.Error(),
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
-		Stability: stable,
 	}, func(service interface {
 		ListInterrupts(context.Context, protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error)
 	}, ctx context.Context, request protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {

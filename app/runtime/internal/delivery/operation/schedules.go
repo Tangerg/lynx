@@ -8,7 +8,7 @@ import (
 
 func registerSchedules(registry *Registry) {
 	Query(registry, MethodMeta{
-		Name: "schedules.list", CapabilityRules: requires(protocol.FeatureSchedules), Stability: stable,
+		Name: "schedules.list", CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		ListSchedules(context.Context, protocol.PageQuery) (*protocol.Page[protocol.Schedule], error)
 	}, ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {
@@ -16,7 +16,7 @@ func registerSchedules(registry *Registry) {
 	})
 
 	Command(registry, MethodMeta{
-		Name: "schedules.create", CapabilityRules: requires(protocol.FeatureSchedules), Stability: stable,
+		Name: "schedules.create", CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		CreateSchedule(context.Context, protocol.CreateScheduleRequest) (*protocol.Schedule, error)
 	}, ctx context.Context, request protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
@@ -25,7 +25,7 @@ func registerSchedules(registry *Registry) {
 
 	Command(registry, MethodMeta{
 		Name: "schedules.update", Errors: []string{protocol.ErrRevisionConflict.Error()},
-		CapabilityRules: requires(protocol.FeatureSchedules), Stability: stable,
+		CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		UpdateSchedule(context.Context, protocol.UpdateScheduleRequest) (*protocol.Schedule, error)
 	}, ctx context.Context, request protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
@@ -33,7 +33,7 @@ func registerSchedules(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name: "schedules.delete", CapabilityRules: requires(protocol.FeatureSchedules), Stability: stable,
+		Name: "schedules.delete", CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		DeleteSchedule(context.Context, protocol.DeleteScheduleRequest) error
 	}, ctx context.Context, request protocol.DeleteScheduleRequest) error {
@@ -41,7 +41,7 @@ func registerSchedules(registry *Registry) {
 	})
 
 	Command(registry, MethodMeta{
-		Name: "schedules.runNow", CapabilityRules: requires(protocol.FeatureSchedules), Stability: stable,
+		Name: "schedules.runNow", CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		RunScheduleNow(context.Context, protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error)
 	}, ctx context.Context, request protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {

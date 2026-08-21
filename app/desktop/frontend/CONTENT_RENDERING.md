@@ -2072,7 +2072,6 @@ interface ServerCapabilities {
     enabled: boolean;
     clientOptIn: boolean;              // 需要客户端在请求里声明
     requiredByRunProtocol: boolean;
-    stability: "stable" | "experimental";   // experimental → 可以打标
   }>;
   runEvents: string[];
   runtimeTopics: RuntimeTopic[];

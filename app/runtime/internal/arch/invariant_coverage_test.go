@@ -207,7 +207,7 @@ func assertFixtureProves(t *testing.T, root string, fixture fixtureRef, key stri
 //
 // The rest of the gate is already structural. The recovery method must be a
 // registered method — the registration refuses one that is not, so a key cannot
-// promise a call no client can make — and scope, writer, feature and stability are
+// promise a call no client can make — and scope, writer and feature are
 // declared and projected. What the declaration alone cannot establish is that the
 // PRODUCER agrees: the envelope is a map[string]any, so a key whose value drifted
 // from its published shape looks correct from both ends.

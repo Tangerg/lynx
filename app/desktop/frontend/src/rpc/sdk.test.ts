@@ -141,7 +141,6 @@ describe("createLyraClient", () => {
       features: {
         subagents: {
           enabled: true,
-          stability: "experimental",
           clientOptIn: true,
           requiredByRunProtocol: true,
         },

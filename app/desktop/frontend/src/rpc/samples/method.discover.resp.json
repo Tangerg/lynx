@@ -1,5 +1,5 @@
 {
-  "protocolVersion": "2026-08-17",
+  "protocolVersion": "2026-08-21",
   "serverInfo": {
     "instanceId": "runtime_019c765b-2f8f-7e36-a2b4-31cb11f48d10",
     "name": "lyra",
@@ -40,85 +40,71 @@
     "features": {
       "reasoning": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "mcp": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "multimodal": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "git": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "fileWatch": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "checkpoints": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "lsp": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "subagents": {
         "enabled": false,
-        "stability": "stable",
         "clientOptIn": true,
         "requiredByRunProtocol": true
       },
       "skills": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "sessionExport": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "knowledge": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "relocate": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "plan": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
       "compaction": {
         "enabled": true,
-        "stability": "stable",
         "clientOptIn": false,
         "requiredByRunProtocol": false
       }

@@ -8,9 +8,8 @@ import (
 
 func registerAgentDocs(registry *Registry) {
 	Query(registry, MethodMeta{
-		Name:      "agentDocs.list",
-		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
-		Stability: stable,
+		Name:   "agentDocs.list",
+		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		ListAgentDocs(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error)
 	}, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {

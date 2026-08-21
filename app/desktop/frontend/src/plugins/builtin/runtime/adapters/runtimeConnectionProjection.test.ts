@@ -15,8 +15,8 @@ import {
   useServerFeature,
 } from "./runtimeConnectionProjection";
 
-function stable(enabled: boolean): FeatureCapability {
-  return { enabled, stability: "stable", clientOptIn: false, requiredByRunProtocol: false };
+function feature(enabled: boolean): FeatureCapability {
+  return { enabled, clientOptIn: false, requiredByRunProtocol: false };
 }
 
 function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabilities {
@@ -31,18 +31,18 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
     runtimeTopics: ["files.changed", "skills.changed", "mcp.changed"],
     stateSnapshots: [],
     features: {
-      multimodal: stable(false),
-      reasoning: stable(true),
-      checkpoints: stable(false),
-      git: stable(true),
-      fileWatch: stable(false),
-      lsp: stable(false),
-      subagents: stable(false),
-      skills: stable(false),
-      mcp: stable(true),
-      sessionExport: stable(false),
-      memory: stable(false),
-      relocate: stable(true),
+      multimodal: feature(false),
+      reasoning: feature(true),
+      checkpoints: feature(false),
+      git: feature(true),
+      fileWatch: feature(false),
+      lsp: feature(false),
+      subagents: feature(false),
+      skills: feature(false),
+      mcp: feature(true),
+      sessionExport: feature(false),
+      memory: feature(false),
+      relocate: feature(true),
     },
     streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
     limits: {

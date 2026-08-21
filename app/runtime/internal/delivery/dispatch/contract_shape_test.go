@@ -309,7 +309,7 @@ func TestStateKeyMustHaveARecoveryMethodThatExists(t *testing.T) {
 	spec := StateKeySpec{
 		Key: "plan", RecoveryMethod: "plan.fetch",
 		Scope: StateScopeSession, Writer: StateWriterRootRun,
-		Feature: "plan", Stability: protocol.StabilityStable,
+		Feature: "plan",
 	}
 	if err := spec.validate(); err == nil {
 		t.Fatal("validate accepted a recovery method no registration serves")
