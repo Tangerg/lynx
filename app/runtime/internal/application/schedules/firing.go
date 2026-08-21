@@ -30,30 +30,30 @@ type Firing struct {
 	workerStore   WorkerStore
 	runStarter    ScheduledRunStarter
 	now           func() time.Time
-	enabled       bool
 	invalidations invalidation.Publish
 }
 
 // NewFiring builds the schedule execution use case. A nil store behaves as
 // the unavailable scheduling capability.
 func NewFiring(store FiringStore, runStarter ScheduledRunStarter, invalidations invalidation.Publish) *Firing {
-	enabled := store != nil
-	if store == nil {
-		store = disabledFiringStore{}
-	}
 	return &Firing{
 		runNowStore: store, workerStore: store, runStarter: runStarter,
-		now: time.Now, enabled: enabled, invalidations: invalidations,
+		now: time.Now, invalidations: invalidations,
 	}
 }
 
 // Available reports whether schedule-firing use cases are wired.
-func (f *Firing) Available() bool { return f != nil && f.enabled }
+func (f *Firing) Available() bool {
+	return f != nil && f.runNowStore != nil && f.workerStore != nil
+}
 
 // RunNow starts one off-cycle schedule firing and records it without advancing
 // the cron cursor. Once accepted, recording outlives request cancellation so a
 // durable LastRunAt fact cannot be lost after a client disconnect.
 func (f *Firing) RunNow(ctx context.Context, id string) (StartedRun, error) {
+	if !f.Available() {
+		return StartedRun{}, ErrUnavailable
+	}
 	scheduled, err := f.runNowStore.Get(ctx, id)
 	if err != nil {
 		return StartedRun{}, err
@@ -75,26 +75,4 @@ func (f *Firing) RunNow(ctx context.Context, id string) (StartedRun, error) {
 // RunWorker starts the due-schedule scanner until ctx is canceled.
 func (f *Firing) RunWorker(ctx context.Context) {
 	NewWorker(f.workerStore, f.runStarter, f.invalidations).Run(ctx)
-}
-
-type disabledFiringStore struct{}
-
-func (disabledFiringStore) Get(context.Context, string) (schedule.Schedule, error) {
-	return schedule.Schedule{}, ErrUnavailable
-}
-
-func (disabledFiringStore) RecordRun(context.Context, string, time.Time) error {
-	return ErrUnavailable
-}
-
-func (disabledFiringStore) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
-	return nil, nil
-}
-
-func (disabledFiringStore) Claim(context.Context, schedule.Occurrence) (bool, error) {
-	return false, ErrUnavailable
-}
-
-func (disabledFiringStore) Pending(context.Context, int) ([]schedule.Occurrence, error) {
-	return nil, ErrUnavailable
 }

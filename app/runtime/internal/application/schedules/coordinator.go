@@ -35,7 +35,6 @@ type Coordinator struct {
 	paths         CWDResolver
 	now           func() time.Time
 	invalidations invalidation.Publish
-	enabled       bool
 }
 
 // CWDResolver is the filesystem boundary used to admit a schedule's working
@@ -76,25 +75,22 @@ type UpdateCommand struct {
 // New returns a Coordinator over deps. A nil store yields a disabled
 // coordinator (every CRUD operation returns [ErrUnavailable]).
 func New(deps Dependencies) *Coordinator {
-	store := deps.Store
-	enabled := store != nil
-	if store == nil {
-		store = disabledManagementStore{}
-	}
 	return &Coordinator{
-		store:         store,
+		store:         deps.Store,
 		paths:         deps.Paths,
 		now:           time.Now,
 		invalidations: deps.Invalidations,
-		enabled:       enabled,
 	}
 }
 
 // Available reports whether schedule-management use cases are wired.
-func (c *Coordinator) Available() bool { return c != nil && c.enabled }
+func (c *Coordinator) Available() bool { return c != nil && c.store != nil }
 
 // List returns every saved schedule, newest-created first.
 func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
+	if !c.Available() {
+		return nil, ErrUnavailable
+	}
 	return c.store.List(ctx)
 }
 
@@ -129,6 +125,9 @@ func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (p
 	if err != nil {
 		return pagination.Page[schedule.Schedule]{}, err
 	}
+	if !c.Available() {
+		return pagination.Page[schedule.Schedule]{}, ErrUnavailable
+	}
 	rows, err := c.store.ListPage(ctx, afterCreatedAt, afterID, size+1)
 	if err != nil {
 		return pagination.Page[schedule.Schedule]{}, err
@@ -140,7 +139,7 @@ func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (p
 
 // Create validates, normalizes, schedules, and persists a new schedule.
 func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.Schedule, error) {
-	if !c.enabled {
+	if !c.Available() {
 		return schedule.Schedule{}, ErrUnavailable
 	}
 	scheduled, err := (schedule.Schedule{
@@ -169,7 +168,7 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 // Update applies a patch to an existing schedule, preserving durable identity
 // and timestamps while recomputing its next due time.
 func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.Schedule, error) {
-	if !c.enabled {
+	if !c.Available() {
 		return schedule.Schedule{}, ErrUnavailable
 	}
 	if cmd.ID == "" {
@@ -215,7 +214,7 @@ func (c *Coordinator) updateExisting(
 
 // Delete removes a schedule by id.
 func (c *Coordinator) Delete(ctx context.Context, id string) error {
-	if !c.enabled {
+	if !c.Available() {
 		return ErrUnavailable
 	}
 	if id == "" {
@@ -243,31 +242,4 @@ func (c *Coordinator) resolveCWD(cwd string) (string, error) {
 		return "", fmt.Errorf("%w: resolve %q: %w", workspaceapp.ErrCWDUnavailable, cwd, err)
 	}
 	return resolved, nil
-}
-
-// disabledManagementStore is the no-scheduling CRUD fallback.
-type disabledManagementStore struct{}
-
-func (disabledManagementStore) List(context.Context) ([]schedule.Schedule, error) {
-	return nil, ErrUnavailable
-}
-
-func (disabledManagementStore) ListPage(context.Context, time.Time, string, int) ([]schedule.Schedule, error) {
-	return nil, ErrUnavailable
-}
-
-func (disabledManagementStore) Get(context.Context, string) (schedule.Schedule, error) {
-	return schedule.Schedule{}, ErrUnavailable
-}
-
-func (disabledManagementStore) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
-	return schedule.Schedule{}, ErrUnavailable
-}
-
-func (disabledManagementStore) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
-	return schedule.Schedule{}, ErrUnavailable
-}
-
-func (disabledManagementStore) Delete(context.Context, string) (bool, error) {
-	return false, ErrUnavailable
 }
