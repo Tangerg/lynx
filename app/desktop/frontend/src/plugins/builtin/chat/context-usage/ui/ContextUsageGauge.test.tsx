@@ -3,17 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ContextUsageGauge } from "./ContextUsageGauge";
 
 const model = vi.hoisted(() => ({
-  material: {
-    contextTokens: 198_000,
-    progress: { contextTokens: 198_000 },
-    metrics: {
-      usage: { inputTokens: 900_000, outputTokens: 1_000, cacheReadTokens: 0 },
-    },
-  },
+  contextTokens: 198_000,
 }));
 
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
-  useCurrentRootMaterial: () => model.material,
+  useSessionContextTokens: () => model.contextTokens,
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
@@ -31,6 +25,6 @@ describe("ContextUsageGauge", () => {
   it("reads the latest prompt footprint instead of cumulative Run input usage", () => {
     render(<ContextUsageGauge />);
 
-    expect(screen.getByRole("img", { name: "Context usage: 77%" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Context usage: 77%" })).toBeTruthy();
   });
 });

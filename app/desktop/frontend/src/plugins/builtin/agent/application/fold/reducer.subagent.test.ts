@@ -289,6 +289,19 @@ describe("reducer — source-owned Run tree", () => {
     expect(cold.runsById.root).toEqual(live.runsById.root);
   });
 
+  it("hydrates the last authoritative prompt footprint from a durable Run snapshot", () => {
+    const cold = foldRunSnapshot(EMPTY_AGENT_SESSION_VIEW, {
+      ...runningRun("root", "seg_root"),
+      status: "finished",
+      activeSegmentId: null,
+      outcome: { type: "completed" },
+      contextTokens: 87_900,
+      finishedAt: "2026-06-03T00:01:00.000Z",
+    });
+
+    expect(cold.runsById.root?.progress).toEqual({ contextTokens: 87_900 });
+  });
+
   it("does not let duplicate or late segment.started regress a newer Run state", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const root = runningRun("root", "seg_root");

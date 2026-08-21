@@ -49,6 +49,43 @@ func TestRunLifecyclePreservesAdmissionFactsAndAdvancesMetrics(t *testing.T) {
 	}
 }
 
+func TestRunProgressPreservesLatestPromptFootprintAcrossLifecycle(t *testing.T) {
+	createdAt := time.Unix(1, 0).UTC()
+	value, err := Admit(Draft{
+		RunID: "run_1", SessionID: "session_1", SegmentID: "segment_1", CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("Admit: %v", err)
+	}
+	metrics, err := NewMetrics(nil, 1, time.Second)
+	if err != nil {
+		t.Fatalf("NewMetrics: %v", err)
+	}
+	value, err = value.AdvanceProgress(metrics, 198_000, createdAt.Add(time.Second))
+	if err != nil {
+		t.Fatalf("AdvanceProgress: %v", err)
+	}
+	if got := value.ContextTokens(); got != 198_000 {
+		t.Fatalf("ContextTokens = %d, want 198000", got)
+	}
+
+	// Prompt footprint is a point-in-time fact, not cumulative accounting: a
+	// compaction may legitimately make it smaller while Metrics stay monotonic.
+	value, err = value.AdvanceProgress(metrics, 87_900, createdAt.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("AdvanceProgress after compaction: %v", err)
+	}
+	value, err = value.Terminate(Termination{
+		Outcome: OutcomeCompleted, FinishedAt: createdAt.Add(3 * time.Second), MessageMark: 1,
+	})
+	if err != nil {
+		t.Fatalf("Terminate: %v", err)
+	}
+	if got := value.ContextTokens(); got != 87_900 {
+		t.Fatalf("terminal ContextTokens = %d, want 87900", got)
+	}
+}
+
 func TestRunTerminalFactsRemainCoherent(t *testing.T) {
 	tests := []struct {
 		name    string

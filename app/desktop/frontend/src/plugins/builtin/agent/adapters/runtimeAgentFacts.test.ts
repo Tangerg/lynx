@@ -36,7 +36,7 @@ function event(value: RunEvent["event"]): RunEvent {
 
 describe("Runtime → Agent fact adapter", () => {
   it("normalizes a live root Run into a complete product fact", () => {
-    expect(runtimeRunFact(runningRoot())).toEqual({
+    expect(runtimeRunFact(runningRoot({ contextTokens: 198_000 }))).toEqual({
       id: "run_root",
       sessionId: "ses_1",
       parentRunId: null,
@@ -50,6 +50,7 @@ describe("Runtime → Agent fact adapter", () => {
         activeDurationMillis: 25,
         usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
       },
+      contextTokens: 198_000,
       createdAt: "2026-08-12T08:00:00.000Z",
       finishedAt: null,
     });

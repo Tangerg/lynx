@@ -41,3 +41,10 @@ func TestPresentationDoesNotAuthorOutcomeOrFailureDetail(t *testing.T) {
 		t.Fatalf("canceled tool problem = %+v", canceledTool)
 	}
 }
+
+func TestPresentRunCarriesDurablePromptFootprint(t *testing.T) {
+	value := runfixture.MustRestore(run.Snapshot{ContextTokens: 87_900})
+	if got := presentRun(value).ContextTokens; got != 87_900 {
+		t.Fatalf("presented contextTokens = %d, want 87900", got)
+	}
+}

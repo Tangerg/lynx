@@ -255,6 +255,41 @@ func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 	}
 }
 
+func TestRunProgressFootprintSurvivesTerminalRead(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+	if err := store.Admit(ctx, runDraft("run_context", "ses_context")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	metrics := runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1})
+	updatedAt := runCreatedAt.Add(time.Second)
+	if err := store.UpdateProgress(
+		ctx, "ses_context", "run_context", "seg_open", metrics, 87_900, updatedAt,
+	); err != nil {
+		t.Fatalf("UpdateProgress: %v", err)
+	}
+	current, found, err := store.Run(ctx, "run_context")
+	if err != nil || !found {
+		t.Fatalf("read running Run: found=%v err=%v", found, err)
+	}
+	terminal, err := current.Terminate(run.Termination{
+		Outcome: run.OutcomeCompleted, FinishedAt: updatedAt.Add(time.Second), MessageMark: 1,
+	})
+	if err != nil {
+		t.Fatalf("Terminate: %v", err)
+	}
+	if err := store.Terminalize(ctx, terminal); err != nil {
+		t.Fatalf("Terminalize: %v", err)
+	}
+	recovered, found, err := store.Run(ctx, "run_context")
+	if err != nil || !found {
+		t.Fatalf("read terminal Run: found=%v err=%v", found, err)
+	}
+	if got := recovered.ContextTokens(); got != 87_900 {
+		t.Fatalf("recovered ContextTokens = %d, want 87900", got)
+	}
+}
+
 // TestRunAdmitSharesOneRootAdmissionAcrossTheTree proves the durable B1
 // foundation: one Session admits one non-terminal root tree, not one row. Child
 // and grandchild Runs may execute under that root, retain their immutable
