@@ -72,7 +72,7 @@ Session ──┬── Run ──┬── Item   (userMessage / agentMessage /
    │  ◄── segment.started      { run: RunRef }
    │  ◄── item.started         { item: userMessage }     ← 壳
    │  ◄── item.completed       { item: userMessage }
-   │  ◄── segment.progress     { step, activity, usage, contextTokens }   ← 瞬时，可丢
+   │  ◄── segment.progress     { step, activity, usage, contextTokens }   ← stream 可丢；footprint 同步进入 durable RunRef
    │  ◄── item.started         { item: reasoning }
    │  ◄── item.delta           { reasoning: "..." } × N  ← 预览，可丢
    │  ◄── item.completed       { item: reasoning }
@@ -1750,9 +1750,10 @@ interface UnknownToolCall {
 2. **有但是空**（`hits: []` / `changes: []` / `steps: []`）→ 一句"没有结果"，**不是留白**。
 3. **不可用**（feature 关闭 / 工作区失联 / 该 runtime 没实现这个方法）→ **平静的"此运行时不提供"**，不是错误红。
 
-### 8.6 可靠性对渲染的三条约束
+### 8.6 可靠性对渲染的四条约束
 
 - **重连先消费 durable `RunRef.contextTokens`，live progress 到达后再收敛到新 footprint** → 未取得任何正值前保持缺席，不能回退到累计 usage 或客户端估算。
+- **流式 viewport 只服从 raw follow lock，public near-bottom 值只负责展示** → 用户 wheel-up 后立即退出尾随，即使仍在邻近底部区间，后续 token、Markdown/Shiki materialization 与 composer clearance 增长也不能改写 reader-owned `scrollTop`；只有主动回到底部或点击回到最新才恢复。
 - **历史加载只有 completed、零 delta** → 所有流式视觉（打字机、live chip、增量高亮）必须优雅缺席，而不是留一个半成品。
 - **客户端可以主动排除高频事件并仍然正确** → 低配模式下 UI 不能崩。
 
