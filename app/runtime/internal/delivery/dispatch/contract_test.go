@@ -60,7 +60,7 @@ func call(t *testing.T, features map[string]bool, method, params string) *transp
 	t.Helper()
 	d := New(newOperationEndpoint(t, &capabilityRuntime{features: features}))
 	res := d.Dispatch(t.Context(), &transport.Request{
-		ID: transport.StringID("1"), Method: method, Params: json.RawMessage(params),
+		ID: testID("1"), Method: method, Params: json.RawMessage(params),
 	})
 	if res.Response == nil {
 		t.Fatalf("%s returned no response", method)

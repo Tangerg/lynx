@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P138 已完成。
+> 状态：当前能力快照；P139 已完成。
 >
 > 基线日期：2026-08-21。
 
@@ -214,14 +214,14 @@ P137 完成 Codex 窄窗 Context Dock 可用性时序收口：fresh 1180px produ
 
 P138 完成 durable Context footprint 与 Codex 流式滚动逃逸收口：`contextTokens` 从 live-only progress 提升为 Domain Run 事实，SQLite epoch 77、Artifact v21、Protocol/generated surface、Session snapshot 与 Frontend selector 同步携带；fresh 真实 Run 得到 `4152` tokens，终态、整页 reload 与 Runtime restart 后仍恢复同一 tooltip，累计 usage 不参与。Context trigger 使用可聚焦 28px button，同时保持原 16px ring 光学中心。流式滚动红例证明 public near-bottom convenience value 会在 wheel-up 后误授权额外 observer 抢回视口；`MessageStream` 现只读 raw follow lock。真实页面从旧底部 `936px` 向上离开至 `896px`，内容把新底部推进至 `1136px` 后仍保持 `896px`。durable Context 红例 `4e4776499`、根修复 `a01c10e9a`、光学收口 `e91eccebd`，以及滚动红例 `d655e3408`、根修复 `b5378fa94` 已推送。Frontend 324 files / 2025 tests、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events、全部静态/构建门禁与 321 项 visual 矩阵全绿；Runtime/Desktop test/vet/build、generator diff、Wails v3 production `.app` package 与 strict codesign 全绿。Protocol 日期保持 `2026-08-17`，`app/cli` 未修改或暂存。
 
+P139 完成 Runtime/Desktop 证据化熵回收：Desktop 的三份 Runtime 协议镜像与三份设计导出都没有真实消费者或动态入口，现已删除，所有引用回到 Runtime canonical docs；客户端审批危险度推断和 risk/scope/reversibility 公共副本被移除，Runtime wire risk 仍保留为协议事实，但 Desktop 不再把它复制到 Agent event/content block 或据此建立第二套 presentation。被 scoped lifecycle owner 取代的串行队列、unscoped settlement 包装、无消费者 locale/facade/barrel export，以及 Runtime 仅供 dispatch 测试使用的 request/id 构造 helper 同步删除。Frontend published approval facade 的缩减是显式 breaking cleanup；没有 deprecated alias、兼容双读或 fallback。generated wire、compatibility baseline 与动态 sideload plugin SDK 均因真实生成/发布入口保留。Frontend 323 files / 2017 tests、完整静态/构建门禁、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events 全绿；Runtime/Desktop test/vet/build 与受影响 transport/dispatch race tests 全绿。Protocol、Artifact、SQLite 与 Runtime 公共 Go API 未改变。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
-## 10. 已知未闭环
+## 10. 当前结论
 
-- 旧 approval risk/scope/reversibility/danger presentation helpers 仍保留在 Frontend published facade 以避免未授权 breaking cleanup，但 production renderer 已不消费或展示这些客户端推导；其删除与 `ToolCall` 历史兼容字段分别等待显式 breaking-surface 授权。
-
-## 11. 当前结论
+P0–P139 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade 和测试 convenience API 从生产面删除；P139 的 breaking surface 已由本轮 Goal 明确授权，保留项都有生成入口、运行时消费者或发布兼容义务。
 
 P0–P138 已把主要缺陷从“调用处补判断”上移到领域不变量、Application transaction、进程/renderer generation、credential lifecycle、read-model 与 presentation owner；P120 把中央 Plan/Goal/Context/terminal narrative 从“移动旧 chrome”收敛为 Codex 的紧凑 standing grammar，P121 让文件变更 narrative 与右侧 Run Summary 共同服从 exact ToolCall 的持久补丁回执，P122 让审批可见事实与动作 scope 回到 Runtime material 和用户明确意图，P123 让 Question 的唯一展示位置、输入动作、IME 与 ordered Skip 共同服从 transcript/Runtime 权威结算，P124 让普通 ToolCall 回到统一的透明 work narrative，P125 让设置主色的 mutation、动态 contribution replacement、document paint、反馈与恢复服从同一 preference owner，P126 让 Goal edit/clear 的可见动作、Runtime quiesce/CAS 事务与 mounted snapshot 收敛服从同一权威纵切，P127 把新 Goal 从重复表单收敛为 Composer submit mode，并让早到 standing projection 与 Runtime mutation settlement 服从同一个 exact commit owner，P128 让 Runtime terminal phase、durable transcript 与 Frontend work/final presentation 共同服从同一事实，最终回答不再与过程工作共享 turn 或 actions，P129 进一步让 Application 生成的 Goal 控制上下文只对模型可见，不再污染用户 Transcript，P130 让所有新会话入口服从显式 exact-cwd，P131 把完成态 Question、active Plan、Goal tray 和正文节奏的剩余视觉偏差归还给各自唯一 presentation owner，P132 让图片查看器的 Download 从缺失/伪浏览器路径收敛到 exact Wails window 的原生 save owner，P133 让所有 dialog 的 interaction scope 回到同一个 scheme-independent scrim owner，由 surface 而非深色遮罩表达层级，P134 让 Work Index 的首帧、resize、ARIA、偏好与视觉证据服从同一 Codex geometry，并给 fractional composer tail 保留确定净空，P135 让同一待决命令的 approval/ToolCall 双事实服从单一 Codex request surface，结算后再恢复工具历史，P136 让 projectless 项目入口服从 composer overlay 层级、Work Index/native picker 与唯一 exact-cwd Session owner，P137 让 loading placeholder、真实 Shell 与 Context Dock 几何 observer 服从同一个可见性事实，入口能力不再早于布局 owner，P138 则让 Context footprint 成为可恢复 Run 事实，并让流式 viewport 的写权严格服从 Codex 式 raw follow/reader escape 边界。后续工作仍必须从真实产品反例开始，若不能说明唯一 owner、提交能力和失败后的 durable winner，就不能以新增 helper、刷新或兼容路径进入生产代码。

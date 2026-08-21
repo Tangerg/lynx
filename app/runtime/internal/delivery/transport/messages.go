@@ -2,25 +2,10 @@ package transport
 
 import (
 	"encoding/json"
-
-	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
-// Message constructors — the MCP SDK's public `jsonrpc` package doesn't
-// re-export its internal constructors. We reproduce them here using the public
-// type aliases so callers
-// don't have to construct envelopes by hand or reach into internal/jsonrpc2.
-
-// NewCall builds a Request with the given string ID + marshaled params.
-// API.md §1.1: envelope ids are strings (the router rejects
-// non-string ids at the boundary).
-func NewCall(id string, method string, params any) (*Request, error) {
-	encodedParams, err := marshalPayload(params)
-	if err != nil {
-		return nil, err
-	}
-	return &Request{ID: StringID(id), Method: method, Params: encodedParams}, nil
-}
+// Message constructors use the SDK's public transport aliases so production
+// callers do not have to reach into its internal JSON-RPC package.
 
 // NewNotification builds a no-id Request — JSON-RPC Notification.
 // Notifications get no response on the wire; senders are expected to
@@ -53,13 +38,6 @@ func NewResponseError(id ID, rpcError *Error) *Response {
 // data — useful when a downstream error's detail is safe to surface.
 func NewError(code int, message string, data json.RawMessage) *Error {
 	return &Error{Code: int64(code), Message: message, Data: data}
-}
-
-// StringID constructs a string JSON-RPC id (API.md §1.1 — all envelope
-// ids are strings). The SDK exposes only MakeID(any); we wrap it.
-func StringID(value string) ID {
-	id, _ := jsonrpc.MakeID(value)
-	return id
 }
 
 // marshalPayload JSON-encodes a params/result value. Nil returns nil so

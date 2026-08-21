@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P138 已完成并形成里程碑。
+> 状态：P0–P139 已完成并形成里程碑。
 >
-> 最近基线：2026-08-21，P138 durable Context footprint 与 Codex 流式滚动逃逸收口。
+> 最近基线：2026-08-21，P139 Runtime/Desktop 证据化熵回收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P139 已完成：本轮以真实消费者、动态入口、兼容义务和生命周期 owner 为证据，对 `app/runtime` 与 `app/desktop` 做 breaking simplification。Desktop 删除三份已失去所有权的 Runtime 协议镜像与三份孤儿设计导出；审批 presentation 删除客户端命令危险度推断及其 risk/scope/reversibility 公共副本，只保留 Runtime reason、工具 material 与用户明确选择的 allow scope；被 scoped owner 取代的串行队列、unscoped settlement 包装、无消费者 barrel export 与 locale 文案一并删除。Runtime 删除仅由 dispatch 测试调用的 `transport.NewCall` / `StringID`，测试自行构造 wire request，不再让生产包替测试拥有 convenience API。
+- 该批没有改变 Runtime Protocol、Artifact、SQLite、Runtime 公共 Go API 或 operation/event consumer 集合；generated wire、兼容基线、动态 sideload plugin SDK 仍有明确消费者/发布义务，因而保留。Frontend published approval facade 的删减属于本轮明确授权的 intentional breaking surface，不保留 deprecated alias、双 shape 或 fallback。Desktop 完整门禁为 323 files / 2017 tests、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events；Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与受影响 transport/dispatch race tests 全绿。
 - P138 已完成：Composer Context 环原先只消费 live `segment.progress.contextTokens`，Run 终态、renderer reload 或 Runtime restart 后便丢失真实窗口占用；Session 累计 input usage 又不能替代当前 prompt footprint。Domain Run 现在权威拥有最后一次正值 `contextTokens`，Run progress writer、SQLite epoch 77、Artifact v21、Protocol/generated surface 与 mounted Session projection 同步持久化该事实；Session selector 只从 root history 选择最新正值 footprint，刚 admission 且尚无模型响应的 successor 不会抹掉已有证据，也绝不回退到累计 usage 或客户端估算。
 - Context 环继续只位于 Composer footer。触发器现为可聚焦按钮，hover 与 keyboard focus 共用同一 Runtime 占用 tooltip；28px 点击目标与原 16px glyph 的光学中心分别拥有尺寸，不因扩大 hit target 改动 golden 位置。fresh Runtime 真调用得到 `contextTokens=4152`，终态、整页 reload 与同一 `LYRA_HOME` 的 Runtime stop/start 后均恢复同一读数和 tooltip；标题栏及普通结束态仍不呈现 token、费用或结算杂项。
 - 同批流式输出红例证明：`use-stick-to-bottom` 的 public `isAtBottom` 会在 70px near-bottom 展示带内保持 true，额外的 Mutation/Resize reconciliation 因而把“接近底部”误当成“用户仍授权尾随”；wheel-up 后下一次 token 会把视口抢回。对照 Codex `thread-scroll-layout` 的 reader-owned distance/away 机制后，`MessageStream` 只以 library raw `state.isAtBottom` follow lock 决定是否写 exact target；wheel-up 同步释放该锁，后续 Markdown/Shiki、token 与 composer clearance 增长只保留读者位置，主动回到底部/点击回到最新才恢复跟随。没有第二 scroll state、timer、阈值猜测或 CSS 掩盖。
@@ -288,10 +290,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P136     | Codex 空态项目 rear tray 与 exact-cwd 接线                                                                          | projectless welcome state 由 composer overlay 贡献缩进后层托盘；项目菜单继续消费 Work Index/native picker 并由唯一 Session owner 提交 exact cwd，不在 footer 或第二 selection state 复制入口 |
 | P137     | Codex 窄窗 Context Dock 可用性时序                                                                                  | loading placeholder 与真实 Shell 共用 `shellVisible` 派生事实；row 挂载后立即绑定唯一几何 observer，窄窗入口不再先可点后闪退，宽窗 tab/URL/file 恢复保持不变                           |
 | P138     | durable Context footprint 与 Codex 流式滚动逃逸                                                                     | `contextTokens` 由 Run 持久化并跨终态/reload/restart 恢复；Context button 保持光学中心且支持键盘 tooltip，wheel-up 立即释放 raw follow lock，后续 token 不再抢回读者位置                |
+| P139     | Runtime/Desktop 证据化熵回收                                                                                       | 删除孤儿设计/协议副本、客户端审批风险推断、已取代队列与 settlement 包装、无消费者 facade/export 及 Runtime 测试专用生产 helper；保留有发布义务的 wire、compat baseline 与动态 plugin SDK |
 
 ## 5. 当前里程碑结论
 
-P113–P138 共同建立了以下不可回退的心智模型：
+P113–P139 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -332,4 +335,4 @@ P113–P138 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P136 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P139 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

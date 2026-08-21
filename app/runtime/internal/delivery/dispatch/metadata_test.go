@@ -10,11 +10,17 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
+
+func testID(value string) transport.ID {
+	id, _ := jsonrpc.MakeID(value)
+	return id
+}
 
 func TestExtractRequestMetaStripsTransportMember(t *testing.T) {
 	req := &transport.Request{
-		ID:     transport.StringID("1"),
+		ID:     testID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(fmt.Sprintf(`{
 			"_meta": {
@@ -50,7 +56,7 @@ func TestExtractRequestMetaStripsTransportMember(t *testing.T) {
 
 func TestExtractRequestMetaRejectsMalformedMeta(t *testing.T) {
 	req := &transport.Request{
-		ID:     transport.StringID("1"),
+		ID:     testID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":"bad","runId":"run_1"}`),
 	}
@@ -66,7 +72,7 @@ func TestExtractRequestMetaRejectsMalformedMeta(t *testing.T) {
 
 func TestExtractRequestMetaRejectsNullMeta(t *testing.T) {
 	req := &transport.Request{
-		ID:     transport.StringID("1"),
+		ID:     testID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":null,"runId":"run_1"}`),
 	}
@@ -98,7 +104,7 @@ func TestDispatchRejectsUnsupportedProtocolVersion(t *testing.T) {
 	} {
 		t.Run(version, func(t *testing.T) {
 			req := &transport.Request{
-				ID:     transport.StringID("1"),
+				ID:     testID("1"),
 				Method: "runs.cancel",
 				Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"runId":"run_1"}`, version)),
 			}
@@ -131,7 +137,7 @@ func TestDispatchRejectsUnsupportedProtocolVersion(t *testing.T) {
 
 func TestDispatchDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 	req := &transport.Request{
-		ID:     transport.StringID("1"),
+		ID:     testID("1"),
 		Method: "unknown.method",
 		Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"value":1}`, protocol.ProtocolVersion)),
 	}
@@ -149,7 +155,7 @@ func TestDispatchDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 // discarding every ephemeral event still converges.
 func TestDispatchRefusesANonSuppressibleEvent(t *testing.T) {
 	req := &transport.Request{
-		ID:     transport.StringID("1"),
+		ID:     testID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(`{
 			"_meta": {
@@ -192,7 +198,7 @@ func TestDispatchValidatesMetadataWireShape(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			req := &transport.Request{
-				ID:     transport.StringID("1"),
+				ID:     testID("1"),
 				Method: "runs.cancel",
 				Params: json.RawMessage(`{"_meta":` + test.meta + `,"runId":"run_1"}`),
 			}
@@ -217,7 +223,7 @@ func TestDispatchValidatesMetadataWireShape(t *testing.T) {
 
 func TestExtractRequestMetaRejectsUnknownFields(t *testing.T) {
 	req := &transport.Request{
-		ID:     transport.StringID("1"),
+		ID:     testID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":{"capabilities":{}},"runId":"run_1"}`),
 	}

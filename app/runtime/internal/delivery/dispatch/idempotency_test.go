@@ -41,14 +41,12 @@ func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	runtime := &blockingCancelRuntime{started: make(chan struct{}), release: make(chan struct{})}
 	router := New(newOperationEndpoint(t, runtime))
 	ctx := transport.WithIdempotencyKey(context.Background(), "cancel-once")
-	first, err := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
+	params, err := json.Marshal(protocol.CancelRunRequest{RunID: "run_1"})
 	if err != nil {
-		t.Fatalf("build first request: %v", err)
+		t.Fatalf("marshal request params: %v", err)
 	}
-	second, err := transport.NewCall("second", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
-	if err != nil {
-		t.Fatalf("build second request: %v", err)
-	}
+	first := &transport.Request{ID: testID("first"), Method: "runs.cancel", Params: params}
+	second := &transport.Request{ID: testID("second"), Method: "runs.cancel", Params: params}
 	results := make(chan Result, 2)
 	go func() { results <- router.Dispatch(ctx, first) }()
 	<-runtime.started
