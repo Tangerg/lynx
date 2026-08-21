@@ -107,7 +107,7 @@ import type {
   WorkspaceInfo,
   WorkspaceRef,
   WorkspaceSummary,
-} from "./wire.generated";
+} from "@lyra/runtime-contract/wire";
 import { streamRunEvents, streamRuntimeEvents } from "./stream";
 import { createAutoPagingPromise, type AutoPagingPromise, type CursorPage } from "./pagination";
 import {
@@ -118,7 +118,7 @@ import {
   type WirePaginatedMethodName,
   type WireParams,
   type WireResult,
-} from "./wire.methods.generated";
+} from "@lyra/runtime-contract/methods";
 import { RUNTIME_SUBSCRIBE_METHOD } from "./transport";
 
 export interface StreamingResult<R, E> {

@@ -20,7 +20,7 @@ import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import { createLyraClient, JSONRPC_VERSION } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
-import type { WireMethodName } from "@/rpc/wire.methods.generated";
+import type { WireMethodName } from "@lyra/runtime-contract/methods";
 import { defaultDataProviders } from "./index";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 

@@ -9,13 +9,13 @@ import {
   MutationJournalScopeUnavailableError,
   type MutationJournalStorage,
 } from "./mutationJournal";
-import type { Item, RunEvent, StreamEvent } from "./wire.generated";
+import type { Item, RunEvent, StreamEvent } from "@lyra/runtime-contract/wire";
 import { RUN_EVENT_METHOD, RUNTIME_EVENT_METHOD } from "./stream";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION } from "./types";
-import runRef from "./samples/runref.full.json";
+import runRef from "@lyra/runtime-contract/samples/runref.full.json";
 
 function runEvent(runId: string, segmentId: string, eventId: string, event: StreamEvent): RunEvent {
   return { runId, segmentId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;

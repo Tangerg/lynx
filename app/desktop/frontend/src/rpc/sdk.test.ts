@@ -3,8 +3,8 @@ import { createLyraClient } from "./sdk";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import { JSONRPC_VERSION, type RpcMessage } from "./types";
-import { PROTOCOL_VERSION, type ServerCapabilities } from "./wire.generated";
-import discoverResponse from "./samples/method.discover.resp.json";
+import { PROTOCOL_VERSION, type ServerCapabilities } from "@lyra/runtime-contract/wire";
+import discoverResponse from "@lyra/runtime-contract/samples/method.discover.resp.json";
 
 describe("createLyraClient", () => {
   it("disposes journal ownership before closing the transport", async () => {

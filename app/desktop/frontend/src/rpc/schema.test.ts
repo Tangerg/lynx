@@ -4,7 +4,7 @@ import { join } from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import { describe, expect, it } from "vitest";
 
-import { WIRE_SAMPLES } from "./wire.samples.generated";
+import { WIRE_SAMPLES } from "@lyra/runtime-contract/samples";
 
 // The PUBLISHED schema, checked by a validator that had no hand in producing it.
 //
@@ -20,7 +20,7 @@ import { WIRE_SAMPLES } from "./wire.samples.generated";
 // round-trip already reads this repository's samples across the same boundary, for
 // the same reason: an artifact with two homes has two versions.
 const CONTRACT = join(import.meta.dirname, "../../../../runtime/contract");
-const SAMPLES = join(import.meta.dirname, "samples");
+const SAMPLES = join(CONTRACT, "typescript", "samples");
 
 function read(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8")) as unknown;

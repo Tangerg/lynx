@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { RpcTransportError } from "./errors";
 import { createSidecarClient } from "./sidecar";
-import { PROTOCOL_VERSION } from "./wire.generated";
+import { PROTOCOL_VERSION } from "@lyra/runtime-contract/wire";
 
 function makeFetch(status: number, body: unknown): typeof fetch {
   const stub = vi.fn(

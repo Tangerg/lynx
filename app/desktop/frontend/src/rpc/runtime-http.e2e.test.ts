@@ -30,13 +30,13 @@ import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { errorType } from "./types";
 import { createSidecarClient } from "./sidecar";
 import { createHttpTransport } from "./transports/http";
-import { isWireStreamingMethodName, type WireMethodName } from "./wire.methods.generated";
+import { isWireStreamingMethodName, type WireMethodName } from "@lyra/runtime-contract/methods";
 import {
   PROTOCOL_VERSION,
   type RequestMeta,
   type RunEvent,
   type RuntimeEvent,
-} from "./wire.generated";
+} from "@lyra/runtime-contract/wire";
 
 const execFileAsync = promisify(execFile);
 const runtimeDirectory = resolve(process.cwd(), "../../runtime");

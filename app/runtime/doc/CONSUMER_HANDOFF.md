@@ -72,10 +72,11 @@ mutually exclusive; an empty ref is invalid and never means clear.
 
 ## Desktop follow-up
 
-The desktop vendors generated Runtime bindings and samples from
-`app/runtime/contract/typescript`. P25 synchronized the projection/runtime
-contract; every later protocol batch must continue replacing those generated
-copies atomically with handwritten SDK semantics and fixtures:
+The desktop consumes generated Runtime bindings, validators, and samples directly
+from the private local `@lyra/runtime-contract` package rooted at
+`app/runtime/contract/typescript`; it does not vendor a second generated tree.
+Every later protocol batch regenerates this one package and updates handwritten
+SDK semantics and fixtures against it:
 
 P33 synchronized the generated Schedule request and validator, changed the
 handwritten `schedules.update` wrapper to consume `UpdateScheduleRequest`
@@ -122,8 +123,9 @@ artifact import. The Session read model selects the newest positive root-run foo
 it never substitutes cumulative `RunMetrics.usage.inputTokens`, and a newly admitted
 successor with no model response does not erase the preceding proven footprint.
 
-- `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
-  preflight, and schema tests;
+- `app/runtime/contract/typescript/` generated bindings, validators, canonical
+  samples, and the handwritten JSON Schema check vocabulary;
+- `app/desktop/frontend/src/rpc/` SDK, preflight, and schema tests;
 - `app/desktop/frontend/src/plugins/builtin/runtime/` discovery and capability
   store tests;
 - `app/desktop/frontend/visual/installVisualWorkspaceFixture.ts`;

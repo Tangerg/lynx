@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { validateWire } from "./wire.validate.generated";
-import { WIRE_ENUMS } from "./wire.generated";
-import { WIRE_SAMPLES } from "./wire.samples.generated";
-import requestMeta from "./samples/request.meta.json";
+import { validateWire } from "@lyra/runtime-contract/validate";
+import { WIRE_ENUMS } from "@lyra/runtime-contract/wire";
+import { WIRE_SAMPLES } from "@lyra/runtime-contract/samples";
+import requestMeta from "@lyra/runtime-contract/samples/request.meta.json";
 
 // The TypeScript half of contract §11.3's canonical-sample gate: every hand-written
 // fixture is checked against the shape the binding says it is — the SAME binding the
@@ -20,10 +20,14 @@ import requestMeta from "./samples/request.meta.json";
 //
 // Sample loading is by directory, not by 78 import statements, so a fixture that
 // nobody bound fails HERE as well as on the Go side.
-const files = import.meta.glob<{ default: unknown }>("./samples/*.json", { eager: true });
+const canonicalSamplePrefix = "../../../../runtime/contract/typescript/samples/";
+const files = import.meta.glob<{ default: unknown }>(
+  "../../../../runtime/contract/typescript/samples/*.json",
+  { eager: true },
+);
 
 function sample(file: string): unknown {
-  const loaded = files[`./samples/${file}`];
+  const loaded = files[`${canonicalSamplePrefix}${file}`];
   if (!loaded) throw new Error(`no such canonical sample: ${file}`);
   return loaded.default;
 }
@@ -31,7 +35,7 @@ function sample(file: string): unknown {
 describe("the canonical wire samples", () => {
   it("covers every file in the samples directory", () => {
     const bound = new Set(WIRE_SAMPLES.map((entry) => entry.file));
-    const present = Object.keys(files).map((path) => path.replace("./samples/", ""));
+    const present = Object.keys(files).map((path) => path.replace(canonicalSamplePrefix, ""));
     expect(present.filter((file) => !bound.has(file))).toEqual([]);
     expect(WIRE_SAMPLES.length).toBe(present.length);
   });

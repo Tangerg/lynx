@@ -6,7 +6,7 @@ import { waitForRequest } from "./transports/memory.testkit";
 import type { Transport } from "./transport";
 import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION, RPC_METHOD_NOT_FOUND } from "./types";
-import session from "./samples/session.json";
+import session from "@lyra/runtime-contract/samples/session.json";
 
 const SOME_BUSINESS_CODE = -32002;
 

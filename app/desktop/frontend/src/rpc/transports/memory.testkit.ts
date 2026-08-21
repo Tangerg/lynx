@@ -12,8 +12,8 @@
 
 import type { MemoryTransport } from "./memory";
 import type { TransportRequest } from "../transport";
-import type { RunMetrics, SegmentOutcome, StreamEvent } from "../wire.generated";
-import type { WireMethodName } from "../wire.methods.generated";
+import type { RunMetrics, SegmentOutcome, StreamEvent } from "@lyra/runtime-contract/wire";
+import type { WireMethodName } from "@lyra/runtime-contract/methods";
 import { RUN_EVENT_METHOD } from "../stream";
 import { JSONRPC_VERSION, type RpcId, type RpcMessage } from "../types";
 

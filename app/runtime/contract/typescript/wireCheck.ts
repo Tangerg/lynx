@@ -1,4 +1,4 @@
-// The vocabulary a generated wire check is written in.
+// The Runtime-owned vocabulary a generated wire check is written in.
 //
 // Protocol §11.3 asks for a terminal runtime validator on the client side, and
 // TypeScript's types are erased long before a frame arrives — so without this,

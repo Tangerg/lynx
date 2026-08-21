@@ -4,7 +4,7 @@ import {
   RpcConnectionError,
   RpcTransportError,
 } from "./errors";
-import { validateHTTPSidecarResponse } from "./wire.validate.generated";
+import { validateHTTPSidecarResponse } from "@lyra/runtime-contract/validate";
 import {
   HTTP_ENDPOINTS,
   type HTTPSidecarEndpointName,
@@ -12,9 +12,9 @@ import {
   type LivenessStatus,
   type ReadinessStatus,
   type RuntimeInfo,
-} from "./wire.generated";
+} from "@lyra/runtime-contract/wire";
 
-export type { LivenessStatus, ReadinessStatus, RuntimeInfo } from "./wire.generated";
+export type { LivenessStatus, ReadinessStatus, RuntimeInfo } from "@lyra/runtime-contract/wire";
 
 export interface SidecarClientConfig {
   baseUrl: string;

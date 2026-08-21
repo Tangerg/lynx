@@ -33,7 +33,7 @@
 
 | 事实 | 文件 |
 | --- | --- |
-| wire 形状 / 枚举 | `frontend/src/rpc/wire.generated.ts`（codegen，含 `PROTOCOL_VERSION`） |
+| wire 形状 / 枚举 | `app/runtime/contract/typescript` 的 `@lyra/runtime-contract/wire`（codegen，含 `PROTOCOL_VERSION`） |
 | 事件可靠性 / feature 门控 / 工具 result 归一化登记 | `app/runtime/contract/manifest.json` |
 | 字段级 presence 规则（跨字段约束） | `app/runtime/contract/schema.json` |
 | 工具身份 + safetyClass + 进行中文案 | `app/runtime/internal/adapter/toolset/catalog/` |

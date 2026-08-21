@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { unnegotiated } from "./preflight";
-import type { ServerCapabilities } from "./wire.generated";
+import type { ServerCapabilities } from "@lyra/runtime-contract/wire";
 
 // These are the runtime's own capability-gate cases, asked of the client's matcher:
 // dispatch/contract_test.go pins the same seven requests against the same rules.

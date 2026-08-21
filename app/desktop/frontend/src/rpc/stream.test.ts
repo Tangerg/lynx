@@ -10,14 +10,14 @@
 
 import type { NotificationObserver, RpcClient, StreamEndHandler } from "./client";
 import { describe, expect, it } from "vitest";
-import type { RunEvent, RuntimeEvent } from "./wire.generated";
+import type { RunEvent, RuntimeEvent } from "@lyra/runtime-contract/wire";
 import {
   RUN_EVENT_METHOD,
   RUNTIME_EVENT_METHOD,
   streamRunEvents,
   streamRuntimeEvents,
 } from "./stream";
-import type { WireNotificationName, WireNotificationParams } from "./wire.validate.generated";
+import type { WireNotificationName, WireNotificationParams } from "@lyra/runtime-contract/validate";
 
 function fakeClient() {
   const subs = new Map<WireNotificationName, Set<NotificationObserver>>();

@@ -1,5 +1,0 @@
-{
-  "name": "pdf-processing",
-  "description": "Extract text and tables from PDF documents.",
-  "scope": "user"
-}

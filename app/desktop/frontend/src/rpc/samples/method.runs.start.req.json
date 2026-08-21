@@ -1,7 +1,0 @@
-{
-  "sessionId": "ses_01",
-  "input": [{ "type": "text", "text": "List the files in this directory." }],
-  "provider": "anthropic",
-  "model": "claude-opus-4-8",
-  "maxSteps": 20
-}

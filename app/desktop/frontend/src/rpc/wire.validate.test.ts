@@ -4,8 +4,8 @@ import {
   validateMethodResult,
   validateNotificationParams,
   validateWire,
-} from "./wire.validate.generated";
-import { runEventReliability } from "./wire.generated";
+} from "@lyra/runtime-contract/validate";
+import { runEventReliability } from "@lyra/runtime-contract/wire";
 
 // One case per rule the compiler translates, because each rule takes its own code
 // path out of the schema tree: a type keyword, `required`, a closed `enum`, a value

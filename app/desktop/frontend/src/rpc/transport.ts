@@ -9,7 +9,7 @@
 // Response correlation by `id` is the RpcClient's job, not Transport's.
 
 import type { RpcId, RpcMessage, RpcRequest } from "./types";
-import type { WireMethodName, WireStreamingMethodName } from "./wire.methods.generated";
+import type { WireMethodName, WireStreamingMethodName } from "@lyra/runtime-contract/methods";
 
 /** The one non-run streaming method, shared by transport and stream lifecycle. */
 export const RUNTIME_SUBSCRIBE_METHOD = "runtime.subscribe" satisfies WireMethodName;

@@ -1,7 +1,7 @@
 import type { TransportRequest } from "../transport";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcConnectionError, RpcTransportError } from "../errors";
-import type { WireMethodName } from "../wire.methods.generated";
+import type { WireMethodName } from "@lyra/runtime-contract/methods";
 import { createHttpTransport } from "./http";
 
 afterEach(() => vi.restoreAllMocks());

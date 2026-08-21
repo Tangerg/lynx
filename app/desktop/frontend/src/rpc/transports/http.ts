@@ -48,8 +48,11 @@ import {
 } from "../transport";
 import type { RpcId } from "../types";
 import { isResponse, parseRpcMessage } from "../types";
-import { HTTP_ENDPOINTS } from "../wire.generated";
-import { isWireStreamingMethodName, type WireStreamingMethodName } from "../wire.methods.generated";
+import { HTTP_ENDPOINTS } from "@lyra/runtime-contract/wire";
+import {
+  isWireStreamingMethodName,
+  type WireStreamingMethodName,
+} from "@lyra/runtime-contract/methods";
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the

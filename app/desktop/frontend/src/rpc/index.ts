@@ -33,7 +33,7 @@ export type { UnaryMutationSettler } from "./mutationSettlement";
 export type { Methods, StreamingResult } from "./methods";
 export { createLyraClient } from "./sdk";
 export type { LyraClient } from "./sdk";
-export { HTTP_ENDPOINTS, PROTOCOL_VERSION } from "./wire.generated";
+export { HTTP_ENDPOINTS, PROTOCOL_VERSION } from "@lyra/runtime-contract/wire";
 export type {
   // Lifecycle / capabilities
   ClientCapabilities,
@@ -95,8 +95,8 @@ export type {
   KnowledgeEntry,
   RuntimeEvent,
   RuntimeTopic,
-} from "./wire.generated";
-export type { WireFeature } from "./wire.methods.generated";
+} from "@lyra/runtime-contract/wire";
+export type { WireFeature } from "@lyra/runtime-contract/methods";
 export { createSidecarClient } from "./sidecar";
 export type { LivenessStatus, ReadinessStatus, RuntimeInfo, SidecarClient } from "./sidecar";
 export { createDesktopHostClient } from "./desktopHost";

@@ -1,0 +1,14 @@
+{
+  "name": "@lyra/runtime-contract",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./methods": "./wire.methods.generated.ts",
+    "./samples": "./wire.samples.generated.ts",
+    "./samples/*": "./samples/*",
+    "./validate": "./wire.validate.generated.ts",
+    "./wire": "./wire.generated.ts",
+    "./wire-check": "./wireCheck.ts"
+  }
+}

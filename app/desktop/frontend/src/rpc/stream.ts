@@ -19,9 +19,9 @@
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
 import type { RpcId } from "./types";
-import type { RunEvent, RuntimeEvent } from "./wire.generated";
+import type { RunEvent, RuntimeEvent } from "@lyra/runtime-contract/wire";
 import { RUNTIME_SUBSCRIBE_METHOD } from "./transport";
-import { NOTIFICATIONS_RUN_EVENT, NOTIFICATIONS_RUNTIME_EVENT } from "./wire.generated";
+import { NOTIFICATIONS_RUN_EVENT, NOTIFICATIONS_RUNTIME_EVENT } from "@lyra/runtime-contract/wire";
 
 export const RUN_EVENT_METHOD = NOTIFICATIONS_RUN_EVENT;
 export const RUNTIME_EVENT_METHOD = NOTIFICATIONS_RUNTIME_EVENT;

@@ -11,13 +11,13 @@
 // one — every call goes out and the runtime stays authoritative: a client guessing
 // "probably unsupported" would take away a feature the server offers.
 
-import type { ClientCapabilities, ServerCapabilities } from "./wire.generated";
+import type { ClientCapabilities, ServerCapabilities } from "@lyra/runtime-contract/wire";
 import {
   WIRE_CAPABILITY_POLICY,
   type WireCapabilityCondition,
   type WireFeature,
   type WireMethodName,
-} from "./wire.methods.generated";
+} from "@lyra/runtime-contract/methods";
 
 /**
  * The features this call needs that the server did not advertise.

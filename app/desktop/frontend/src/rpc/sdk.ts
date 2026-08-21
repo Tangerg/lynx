@@ -20,7 +20,7 @@
 import { createRpcClient } from "./client";
 import { createMethods, type Methods } from "./methods";
 import type { MutationJournal } from "./mutationJournal";
-import type { RequestMeta, ServerCapabilities } from "./wire.generated";
+import type { RequestMeta, ServerCapabilities } from "@lyra/runtime-contract/wire";
 import type { Transport } from "./transport";
 
 /** Options for [createLyraClient]. */
