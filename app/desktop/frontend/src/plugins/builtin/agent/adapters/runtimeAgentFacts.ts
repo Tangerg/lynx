@@ -129,6 +129,9 @@ export function runtimeRunFact(run: RunRef): AgentRunFact {
     activeSegmentId: run.activeSegmentId ?? null,
     outcome: run.outcome ? runtimeRunOutcome(run.outcome) : null,
     metrics: runtimeRunMetrics(run.metrics),
+    ...(run.contextTokens !== undefined && run.contextTokens > 0
+      ? { contextTokens: run.contextTokens }
+      : {}),
     createdAt: run.createdAt,
     finishedAt: run.finishedAt ?? null,
   };

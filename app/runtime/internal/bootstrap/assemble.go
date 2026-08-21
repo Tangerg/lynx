@@ -277,7 +277,7 @@ func buildAssemblyCore(
 		ToolInvocations:     cfg.ToolInvocationStore,
 		Conversation:        execution.conversation.store,
 		State:               cfg.RunStore,
-		RunMetrics:          cfg.RunStore,
+		RunProgress:         cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
 		ChildRunStarts:      cfg.ChildRunStartStore,
 		Tx:                  runsegment.Transactor(cfg.Transactor),

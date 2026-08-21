@@ -88,11 +88,11 @@ func mustNewEffects(cfg Config) *Effects {
 	if nilDependency(cfg.State) {
 		cfg.State = &fakeRunState{}
 	}
-	if nilDependency(cfg.RunMetrics) {
-		if metrics, ok := cfg.State.(RunMetricsWriter); ok {
-			cfg.RunMetrics = metrics
+	if nilDependency(cfg.RunProgress) {
+		if progress, ok := cfg.State.(RunProgressWriter); ok {
+			cfg.RunProgress = progress
 		} else {
-			cfg.RunMetrics = &fakeRunState{}
+			cfg.RunProgress = &fakeRunState{}
 		}
 	}
 	if nilDependency(cfg.ExecutorCheckpoints) {

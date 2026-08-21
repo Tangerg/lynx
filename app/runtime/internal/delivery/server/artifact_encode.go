@@ -94,6 +94,7 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 		RootRunID:       run.RootRunID,
 		Limits:          artifactLimitsFromDomain(run.Limits),
 		Metrics:         artifactMetricsFromDomain(run.Metrics),
+		ContextTokens:   run.ContextTokens,
 		ProtocolProfile: presentArtifactProtocolProfile(run.Capabilities),
 		Outcome: protocol.ArtifactOutcome{
 			Type: outcome, Error: problem, Detail: run.Detail,

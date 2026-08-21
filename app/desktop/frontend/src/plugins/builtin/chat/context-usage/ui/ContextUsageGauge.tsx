@@ -1,29 +1,30 @@
-import { Gauge, RichTooltip } from "@/ui";
+import { Gauge, Pressable, RichTooltip } from "@/ui";
 import { fmtTokens } from "@/lib/format";
 import { useT } from "@/lib/i18n";
-import { useCurrentRootMaterial } from "@/plugins/builtin/agent/public/run";
+import { useSessionContextTokens } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId, useAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { contextUsageReadout } from "../application/contextUsageReadout";
 
 export function ContextUsageGauge() {
   const t = useT();
-  const material = useCurrentRootMaterial();
+  const contextTokens = useSessionContextTokens();
   const activeSessionId = useActiveSessionId();
   const { data: sessions } = useAgentSessions();
   const { data: models = [] } = useModels();
   const servedModelId = sessions?.find((session) => session.id === activeSessionId)?.model;
   const servedModel = models.find((model) => model.id === servedModelId);
-  const readout = contextUsageReadout(
-    material.contextTokens ?? undefined,
-    servedModel?.contextWindow,
-  );
+  const readout = contextUsageReadout(contextTokens ?? undefined, servedModel?.contextWindow);
   if (!readout) return null;
 
+  const label = t("context.usage.aria", { percent: readout.percent });
   const trigger = (
-    <span className="inline-flex items-center justify-center text-fg-muted">
+    <Pressable
+      aria-label={label}
+      className="inline-flex size-7 items-center justify-center rounded-control text-fg-muted hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-focus"
+    >
       <Gauge value={readout.ratio} label={t("context.usage.aria", { percent: readout.percent })} />
-    </span>
+    </Pressable>
   );
 
   return (

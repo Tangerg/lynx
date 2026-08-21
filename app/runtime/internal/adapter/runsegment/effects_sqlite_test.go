@@ -277,7 +277,7 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 		Transcript:       history,
 		ModelInvocations: invocations,
 		State:            runState,
-		RunMetrics:       runState,
+		RunProgress:      runState,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -497,7 +497,7 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 	history := sqlite.NewTranscriptStore(db)
 	invocations := sqlite.NewToolInvocationStore(db)
 	effects := mustNewEffects(Config{
-		Transcript: history, ToolInvocations: invocations, State: runState, RunMetrics: runState,
+		Transcript: history, ToolInvocations: invocations, State: runState, RunProgress: runState,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -867,8 +867,8 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 		t.Fatalf("build admitted Run: %v", err)
 	}
 	finishedAt := created.Add(time.Second)
-	updated, err = updated.AdvanceMetrics(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 2,
-		Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &costUSD}}}), finishedAt)
+	updated, err = updated.AdvanceProgress(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 2,
+		Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &costUSD}}}), 0, finishedAt)
 	if err != nil {
 		t.Fatalf("advance Run metrics: %v", err)
 	}
@@ -2722,7 +2722,7 @@ func TestCommitEventReconcilesAmbiguousAuthoritativeCommit(t *testing.T) {
 	invocations := sqlite.NewModelInvocationStore(db)
 	baseConfig := Config{
 		Conversation: messages, ModelInvocations: invocations,
-		State: state, RunMetrics: state,
+		State: state, RunProgress: state,
 	}
 	baseConfig.Tx = func(ctx context.Context, fn func(context.Context) error) error {
 		return sqlite.RunInTx(ctx, db, fn)

@@ -10,6 +10,7 @@ export {
   useActiveSessionTimeline,
   useActiveSessionToolCalls,
   useCurrentRootMaterial,
+  useSessionContextTokens,
   useIsCurrentRootRunning,
 } from "../application/run/runReadModel";
 export { CurrentRootMaterial } from "../application/run/runReadModel";

@@ -119,6 +119,8 @@ export interface AgentRunFact {
   activeSegmentId: string | null;
   outcome: AgentRunOutcome | null;
   metrics: AgentRunMetrics;
+  /** Latest authoritative prompt footprint; absent until a model response reports one. */
+  contextTokens?: number;
   createdAt: string;
   finishedAt: string | null;
 }

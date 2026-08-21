@@ -51,6 +51,7 @@ func presentRun(run rundomain.Run) protocol.RunRef {
 		RunSummary:      presentRunSummary(run),
 		ActiveSegmentID: run.ActiveSegmentID(),
 		Metrics:         presentMetrics(run.Metrics()),
+		ContextTokens:   run.ContextTokens(),
 		Limits:          presentLimits(run.Limits()),
 		ProtocolProfile: presentRunProtocolProfile(run.Capabilities()),
 	}

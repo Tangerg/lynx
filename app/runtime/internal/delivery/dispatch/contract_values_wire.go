@@ -98,7 +98,7 @@ func registerArtifactValues(s *Shapes) {
 			{Field: "version", Kind: ConstraintMaximum, Limit: protocol.SessionArtifactVersion},
 		},
 	})
-	nonNegative[protocol.ArtifactRun](s, "messageMark")
+	nonNegative[protocol.ArtifactRun](s, "messageMark", "contextTokens")
 	nonNegative[protocol.ArtifactRunMetrics](s, "steps", "activeDurationMillis")
 	nonNegative[protocol.ArtifactUsage](s,
 		"inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd",
@@ -115,6 +115,7 @@ func registerArtifactValues(s *Shapes) {
 
 func registerRunValues(s *Shapes) {
 	nonNegative[protocol.Item](s, "durationMillis")
+	nonNegative[protocol.RunRef](s, "contextTokens")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.RunProtocolProfile](),
 		Constraints: []FieldConstraint{

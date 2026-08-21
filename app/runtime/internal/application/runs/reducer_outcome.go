@@ -67,7 +67,8 @@ func (r *reducer) runRecord(state run.State) (run.Run, error) {
 		SessionID: r.cfg.SessionID, ID: r.cfg.RunID, Lineage: r.cfg.Lineage,
 		ModelSelection: r.cfg.ModelSelection, GoalIncarnationID: r.cfg.GoalIncarnationID,
 		State: run.Running, ActiveSegmentID: r.cfg.SegmentID,
-		Metrics: metrics, Limits: r.cfg.Limits, Capabilities: r.cfg.Capabilities,
+		Metrics: metrics, ContextTokens: r.contextTokens,
+		Limits: r.cfg.Limits, Capabilities: r.cfg.Capabilities,
 		CreatedAt: createdAt, UpdatedAt: updatedAt, MessageMark: run.UnknownMessageMark,
 	})
 	if err != nil {

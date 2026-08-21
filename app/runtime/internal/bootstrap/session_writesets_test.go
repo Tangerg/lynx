@@ -428,8 +428,8 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("read parked Goal Run: found=%t err=%v", found, err)
 	}
-	parked, err = parked.AdvanceMetrics(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 4,
-		Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &costUSD}}}), finishedAt)
+	parked, err = parked.AdvanceProgress(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 4,
+		Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &costUSD}}}), 0, finishedAt)
 	if err != nil {
 		t.Fatalf("advance parked Goal Run metrics: %v", err)
 	}

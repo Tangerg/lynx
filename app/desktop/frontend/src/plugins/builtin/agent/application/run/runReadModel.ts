@@ -77,6 +77,10 @@ export function useCurrentRootMaterial(): CurrentRootMaterial {
   return useMemo(() => CurrentRootMaterial.from(run), [run]);
 }
 
+export function useSessionContextTokens(): number | null {
+  return agentSessionView().useContextTokens();
+}
+
 export function useIsCurrentRootRunning(): boolean {
   return useCurrentRootMaterial().running;
 }

@@ -1491,6 +1491,7 @@ func (value RunSummary) ValidateWire() error {
 
 func (value RunRef) ValidateWire() error {
 	return collectWireViolations("RunRef",
+		nonNegativeNumber("contextTokens", value.ContextTokens),
 		closedEnum("status", string(value.Status), []string{"running", "waiting", "finished"}, true),
 		requiredWhen(wireFieldEquals(value, "status", "finished"), "outcome", value),
 		requiredWhen(wireFieldEquals(value, "status", "finished"), "finishedAt", value),
@@ -1525,6 +1526,7 @@ func (value PendingInterruptSet) ValidateWire() error {
 func (value ArtifactRun) ValidateWire() error {
 	return collectWireViolations("ArtifactRun",
 		nonNegativeNumber("messageMark", value.MessageMark),
+		nonNegativeNumber("contextTokens", value.ContextTokens),
 		forbiddenWhen(wireFieldPresent(value, "spawnedByItemId"), "protocolProfile", value),
 		requiredWhen(wireFieldPresent(value, "spawnedByItemId"), "parentRunId", value),
 		requiredWhen(wireFieldPresent(value, "spawnedByItemId"), "rootRunId", value),
@@ -1537,8 +1539,8 @@ func (value ArtifactRun) ValidateWire() error {
 
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 20),
-		maximumNumber("version", value.Version, 20),
+		minimumNumber("version", value.Version, 21),
+		maximumNumber("version", value.Version, 21),
 	)
 }
 

@@ -54,14 +54,15 @@ type PortableRun struct {
 	SpawnedByItemID string
 	// ParentRunID and RootRunID are the child edges. Together with
 	// SpawnedByItemID they preserve the execution tree exactly across export/import.
-	ParentRunID string
-	RootRunID   string
-	Provider    string
-	Model       string
-	Outcome     run.Outcome
-	Failure     *run.Failure
-	Metrics     run.Metrics
-	Limits      run.Limits
+	ParentRunID   string
+	RootRunID     string
+	Provider      string
+	Model         string
+	Outcome       run.Outcome
+	Failure       *run.Failure
+	Metrics       run.Metrics
+	ContextTokens int64
+	Limits        run.Limits
 	// Capabilities is a pointer because an empty set is a known minimal Run while
 	// nil means the archive omitted the root-owned fact. A root must carry it; a
 	// child must not and inherits its root's value.
@@ -166,6 +167,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			Outcome:        &outcome,
 			Failure:        portable.Failure,
 			Metrics:        portable.Metrics,
+			ContextTokens:  portable.ContextTokens,
 			Limits:         portable.Limits,
 			Capabilities:   capabilitySets[portable.rootID()],
 			Detail:         portable.Detail,
@@ -263,6 +265,7 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 			Model:           run.ModelSelection().Model(),
 			Outcome:         outcome,
 			Metrics:         run.Metrics(),
+			ContextTokens:   run.ContextTokens(),
 			Limits:          run.Limits(),
 			Detail:          run.Detail(),
 			CreatedAt:       run.CreatedAt(),

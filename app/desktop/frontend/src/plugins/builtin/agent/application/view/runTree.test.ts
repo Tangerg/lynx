@@ -174,6 +174,9 @@ describe("Session context footprint", () => {
     const projection = view([previous, opening]);
     expect(selectSessionContextTokens(projection)).toBe(87_900);
 
+    opening.progress = { contextTokens: 0 };
+    expect(selectSessionContextTokens(view([previous, opening]))).toBe(87_900);
+
     opening.progress = { contextTokens: 91_000 };
     expect(selectSessionContextTokens(view([previous, opening]))).toBe(91_000);
   });

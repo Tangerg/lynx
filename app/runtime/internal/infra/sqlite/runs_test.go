@@ -62,7 +62,7 @@ func finishedRunFromDraft(draft run.Draft, outcome run.Outcome) run.Run {
 		panic(err)
 	}
 	finishedAt := time.Unix(9, 0).UTC()
-	value, err = value.AdvanceMetrics(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1}), finishedAt)
+	value, err = value.AdvanceProgress(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1}), 0, finishedAt)
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +96,7 @@ func parkedRunFromDraft(draft run.Draft) run.Run {
 		panic(err)
 	}
 	at := time.Unix(5, 0).UTC()
-	value, err = value.AdvanceMetrics(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1}), at)
+	value, err = value.AdvanceProgress(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1}), 0, at)
 	if err != nil {
 		panic(err)
 	}

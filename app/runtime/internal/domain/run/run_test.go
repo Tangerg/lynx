@@ -27,7 +27,7 @@ func TestRunLifecyclePreservesAdmissionFactsAndAdvancesMetrics(t *testing.T) {
 		t.Fatalf("NewMetrics: %v", err)
 	}
 	updatedAt := createdAt.Add(3 * time.Second)
-	value, err = value.AdvanceMetrics(metrics, updatedAt)
+	value, err = value.AdvanceProgress(metrics, 0, updatedAt)
 	if err != nil {
 		t.Fatalf("AdvanceMetrics: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestRunRejectsIllegalTransitionsAndRegressingFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMetrics: %v", err)
 	}
-	value, err = value.AdvanceMetrics(advanced, createdAt.Add(time.Second))
+	value, err = value.AdvanceProgress(advanced, 0, createdAt.Add(time.Second))
 	if err != nil {
 		t.Fatalf("AdvanceMetrics: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestRunRejectsIllegalTransitionsAndRegressingFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMetrics: %v", err)
 	}
-	if _, err := value.AdvanceMetrics(regressed, createdAt.Add(2*time.Second)); err == nil {
+	if _, err := value.AdvanceProgress(regressed, 0, createdAt.Add(2*time.Second)); err == nil {
 		t.Fatal("Run accepted regressing metrics")
 	}
 	terminal, err := value.Terminate(Termination{
@@ -208,7 +208,7 @@ func TestRunRejectsIllegalTransitionsAndRegressingFacts(t *testing.T) {
 	if _, err := terminal.Suspend(terminal.UpdatedAt()); err == nil {
 		t.Fatal("terminal Run suspended")
 	}
-	if _, err := terminal.AdvanceMetrics(advanced, terminal.UpdatedAt()); err == nil {
+	if _, err := terminal.AdvanceProgress(advanced, 0, terminal.UpdatedAt()); err == nil {
 		t.Fatal("terminal Run advanced metrics")
 	}
 }

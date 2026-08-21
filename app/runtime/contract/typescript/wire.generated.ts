@@ -211,6 +211,7 @@ export interface ArtifactQuestionOption {
 }
 
 export interface ArtifactRun {
+  contextTokens?: number;
   createdAt: string;
   finishedAt: string;
   id: string;
@@ -1201,6 +1202,7 @@ export interface RunProtocolProfile {
 
 export interface RunRef {
   activeSegmentId?: string;
+  contextTokens?: number;
   createdAt?: string;
   finishedAt?: string;
   id: string;

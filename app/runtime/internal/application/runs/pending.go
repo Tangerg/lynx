@@ -57,6 +57,7 @@ type Continuation struct {
 	CommittedTools []CommittedTool
 	RunCreatedAt   time.Time
 	Metrics        run.Metrics
+	ContextTokens  int64
 	Limits         run.Limits
 }
 
@@ -390,6 +391,9 @@ func (c Continuation) Validate() error {
 	}
 	if err := c.Metrics.Validate(); err != nil {
 		return fmt.Errorf("metrics: %w", err)
+	}
+	if c.ContextTokens < 0 {
+		return errors.New("context tokens must not be negative")
 	}
 	if err := c.Limits.Validate(); err != nil {
 		return fmt.Errorf("limits: %w", err)

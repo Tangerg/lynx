@@ -32,6 +32,7 @@ type Run struct {
 	detail            string
 	failure           *Failure
 	metrics           Metrics
+	contextTokens     int64
 	limits            Limits
 	capabilities      Capabilities
 	createdAt         time.Time
@@ -54,12 +55,15 @@ type Snapshot struct {
 	Detail            string
 	Failure           *Failure
 	Metrics           Metrics
-	Limits            Limits
-	Capabilities      Capabilities
-	CreatedAt         time.Time
-	FinishedAt        time.Time
-	UpdatedAt         time.Time
-	MessageMark       int
+	// ContextTokens is the latest completed model request's prompt footprint.
+	// Zero means no authoritative footprint has been observed yet.
+	ContextTokens int64
+	Limits        Limits
+	Capabilities  Capabilities
+	CreatedAt     time.Time
+	FinishedAt    time.Time
+	UpdatedAt     time.Time
+	MessageMark   int
 }
 
 // Admit creates the authoritative aggregate for a fresh root or child Run.
@@ -84,7 +88,8 @@ func Restore(snapshot Snapshot) (Run, error) {
 		state: snapshot.State, activeSegmentID: snapshot.ActiveSegmentID,
 		outcome: cloneOutcome(snapshot.Outcome), detail: snapshot.Detail,
 		failure: cloneFailure(snapshot.Failure), metrics: snapshot.Metrics,
-		limits: snapshot.Limits, capabilities: snapshot.Capabilities.Clone(),
+		contextTokens: snapshot.ContextTokens,
+		limits:        snapshot.Limits, capabilities: snapshot.Capabilities.Clone(),
 		createdAt: snapshot.CreatedAt.UTC(), finishedAt: snapshot.FinishedAt.UTC(),
 		updatedAt: snapshot.UpdatedAt.UTC(), messageMark: snapshot.MessageMark,
 	}
@@ -102,7 +107,8 @@ func (run Run) Snapshot() Snapshot {
 		State: run.state, ActiveSegmentID: run.activeSegmentID,
 		Outcome: cloneOutcome(run.outcome), Detail: run.detail,
 		Failure: cloneFailure(run.failure), Metrics: run.metrics,
-		Limits: run.limits, Capabilities: run.capabilities.Clone(),
+		ContextTokens: run.contextTokens,
+		Limits:        run.limits, Capabilities: run.capabilities.Clone(),
 		CreatedAt: run.createdAt, FinishedAt: run.finishedAt,
 		UpdatedAt: run.updatedAt, MessageMark: run.messageMark,
 	}
@@ -134,7 +140,8 @@ func (run Run) Equal(other Run) bool {
 	if run.sessionID != other.sessionID || run.id != other.id || run.lineage != other.lineage ||
 		run.modelSelection != other.modelSelection || run.goalIncarnationID != other.goalIncarnationID ||
 		run.state != other.state || run.activeSegmentID != other.activeSegmentID ||
-		run.detail != other.detail || !run.metrics.Equal(other.metrics) || run.limits != other.limits ||
+		run.detail != other.detail || !run.metrics.Equal(other.metrics) ||
+		run.contextTokens != other.contextTokens || run.limits != other.limits ||
 		!run.capabilities.Equal(other.capabilities) || !run.createdAt.Equal(other.createdAt) ||
 		!run.finishedAt.Equal(other.finishedAt) || !run.updatedAt.Equal(other.updatedAt) ||
 		run.messageMark != other.messageMark {
@@ -201,6 +208,9 @@ func (run Run) Validate() error {
 	}
 	if err := run.metrics.Validate(); err != nil {
 		return err
+	}
+	if run.contextTokens < 0 {
+		return errors.New("run: context tokens must not be negative")
 	}
 	if err := run.limits.Validate(); err != nil {
 		return err
@@ -274,18 +284,27 @@ func (run Run) validateTerminal() error {
 	return nil
 }
 
-// AdvanceMetrics returns a Run with a monotonic cumulative accounting snapshot.
-func (run Run) AdvanceMetrics(metrics Metrics, updatedAt time.Time) (Run, error) {
+// AdvanceProgress returns a Run with one model-response boundary committed.
+// Metrics are cumulative and must remain monotonic. contextTokens is a latest
+// point-in-time prompt footprint and may decrease after compaction; zero means
+// the provider supplied no authoritative footprint, so the prior value remains.
+func (run Run) AdvanceProgress(metrics Metrics, contextTokens int64, updatedAt time.Time) (Run, error) {
 	if run.state.IsTerminal() {
-		return Run{}, errors.New("run: terminal Run cannot advance metrics")
+		return Run{}, errors.New("run: terminal Run cannot advance progress")
 	}
 	if err := metrics.ValidateAdvanceFrom(run.metrics); err != nil {
 		return Run{}, err
+	}
+	if contextTokens < 0 {
+		return Run{}, errors.New("run: context tokens must not be negative")
 	}
 	if err := run.validateTransitionTime(updatedAt); err != nil {
 		return Run{}, err
 	}
 	run.metrics = metrics
+	if contextTokens > 0 {
+		run.contextTokens = contextTokens
+	}
 	run.updatedAt = updatedAt.UTC()
 	return run, nil
 }
@@ -422,6 +441,7 @@ func (run Run) Failure() (Failure, bool) {
 	return *cloneFailure(run.failure), true
 }
 func (run Run) Metrics() Metrics           { return run.metrics }
+func (run Run) ContextTokens() int64       { return run.contextTokens }
 func (run Run) Limits() Limits             { return run.limits }
 func (run Run) Capabilities() Capabilities { return run.capabilities.Clone() }
 func (run Run) CreatedAt() time.Time       { return run.createdAt }

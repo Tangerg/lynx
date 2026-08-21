@@ -171,16 +171,17 @@ type RunStore interface {
 	RunCommitCommitted(ctx context.Context, sessionID, runID, segmentID, commitID string) (bool, error)
 }
 
-// RunMetricsWriter updates only cumulative consumption for one exact active
-// segment. Keeping it separate from lifecycle writing lets consumers depend on
-// the narrower behavior they actually exercise.
-type RunMetricsWriter interface {
-	UpdateMetrics(
+// RunProgressWriter updates cumulative consumption and latest prompt footprint
+// for one exact active segment. Keeping it separate from lifecycle writing lets
+// consumers depend on the narrower behavior they actually exercise.
+type RunProgressWriter interface {
+	UpdateProgress(
 		ctx context.Context,
 		sessionID string,
 		runID string,
 		segmentID string,
 		metrics run.Metrics,
+		contextTokens int64,
 		updatedAt time.Time,
 	) error
 }
@@ -234,7 +235,7 @@ type Config struct {
 	ToolInvocations     ToolInvocationJournal
 	Conversation        ConversationStore
 	State               RunStore
-	RunMetrics          RunMetricsWriter
+	RunProgress         RunProgressWriter
 	ExecutorCheckpoints ExecutorCheckpointStore
 	ChildRunStarts      ChildRunStartReservationStore
 	Tx                  Transactor
@@ -256,7 +257,7 @@ type Effects struct {
 	toolInvocations     ToolInvocationJournal
 	conversation        ConversationStore
 	runState            RunStore
-	runMetrics          RunMetricsWriter
+	runProgress         RunProgressWriter
 	executorCheckpoints ExecutorCheckpointStore
 	childRunStarts      ChildRunStartReservationStore
 	tx                  Transactor
@@ -292,7 +293,7 @@ func New(cfg Config) (*Effects, error) {
 		{"tool invocation journal", cfg.ToolInvocations},
 		{"conversation store", cfg.Conversation},
 		{"run store", cfg.State},
-		{"run metrics writer", cfg.RunMetrics},
+		{"run progress writer", cfg.RunProgress},
 		{"executor checkpoint store", cfg.ExecutorCheckpoints},
 		{"child run start store", cfg.ChildRunStarts},
 		{"transactor", cfg.Tx},
@@ -329,7 +330,7 @@ func New(cfg Config) (*Effects, error) {
 		toolInvocations:     cfg.ToolInvocations,
 		conversation:        cfg.Conversation,
 		runState:            cfg.State,
-		runMetrics:          cfg.RunMetrics,
+		runProgress:         cfg.RunProgress,
 		executorCheckpoints: cfg.ExecutorCheckpoints,
 		childRunStarts:      cfg.ChildRunStarts,
 		tx:                  cfg.Tx,

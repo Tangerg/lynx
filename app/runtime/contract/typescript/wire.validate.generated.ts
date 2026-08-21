@@ -694,6 +694,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["label"]),
   ArtifactRun: allOf([
     object({
+      contextTokens: allOf([integer(), minimum(0)]),
       createdAt: text(),
       finishedAt: text(),
       id: text(),
@@ -2476,6 +2477,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   RunRef: allOf([
     object({
       activeSegmentId: text(),
+      contextTokens: allOf([integer(), minimum(0)]),
       createdAt: text(),
       finishedAt: text(),
       id: text(),
@@ -3033,7 +3035,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(20), maximum(20)]),
+    version: allOf([integer(), minimum(21), maximum(21)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionSnapshot: object({
     goal: ref(() => CHECKS.Goal),

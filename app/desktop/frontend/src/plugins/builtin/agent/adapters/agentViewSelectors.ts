@@ -11,6 +11,7 @@ import type {
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
   selectCurrentRootRun,
+  selectSessionContextTokens,
   selectRootNarrativeMessages,
   selectRunTree,
   selectVisibleProblem,
@@ -38,6 +39,10 @@ function useActiveAgentView<T>(select: (view: AgentSessionView) => T): T {
 
 export function useCurrentRootRun() {
   return useActiveAgentView(selectCurrentRootRun);
+}
+
+export function useAgentSessionContextTokens(): number | null {
+  return useActiveAgentView(selectSessionContextTokens);
 }
 
 export function useAgentAction(kind: "stop"): StopCurrentRootRunAction | null;

@@ -79,6 +79,9 @@ type reducerConfig struct {
 	// Run record this reducer commits is the sum of this and the current segment,
 	// so a resumed Run reports the Run rather than its latest continuation.
 	Metrics run.Metrics
+	// ContextTokens is the latest authoritative prompt footprint brought into a
+	// resumed Segment. Zero means the Run has not observed one yet.
+	ContextTokens int64
 	// Limits is the allowance in force for the whole Run, frozen at admission and
 	// carried unchanged through every continuation.
 	Limits run.Limits
@@ -106,6 +109,7 @@ type reducer struct {
 	// the executor. Nil means this segment has not advanced the committed
 	// snapshot in cfg.Metrics.
 	usage           *accounting.Usage
+	contextTokens   int64
 	segmentDuration time.Duration
 	userInput       []transcript.ContentBlock
 	text            *openText
@@ -181,7 +185,8 @@ func newReducer(cfg reducerConfig) *reducer {
 		resume = resumeBindingFrom(*cfg.Continuation, cfg.RunID)
 	}
 	return &reducer{
-		cfg: cfg, resume: resume, userInput: transcript.CloneContent(cfg.UserInput), step: cfg.Metrics.Steps(),
+		cfg: cfg, resume: resume, userInput: transcript.CloneContent(cfg.UserInput),
+		step: cfg.Metrics.Steps(), contextTokens: cfg.ContextTokens,
 		modelCalls: make(map[string]time.Time), toolCallIDs: make(map[string]struct{}),
 		toolPositions: make(map[toolPosition]string), tools: make(openTools),
 	}
@@ -537,7 +542,8 @@ func (r *reducer) completeModelCall(completed ModelCallCompleted) (factReduction
 			State: ModelInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
 		}},
 		progress: &RunProgressCommit{
-			SegmentID: r.cfg.SegmentID, Metrics: metrics, UpdatedAt: finishedAt,
+			SegmentID: r.cfg.SegmentID, Metrics: metrics,
+			ContextTokens: r.contextTokens, UpdatedAt: finishedAt,
 		},
 	}, nil
 }

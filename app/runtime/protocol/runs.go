@@ -72,6 +72,10 @@ type RunRef struct {
 	// and present in every status. It is not optional: a running run costs money,
 	// and a client that can only see spend once a run ends cannot show a budget.
 	Metrics RunMetrics `json:"metrics"`
+	// ContextTokens is the latest completed model request's prompt footprint.
+	// It survives waiting, terminalization, and restart; absence means this Run
+	// has not produced an authoritative footprint yet.
+	ContextTokens int64 `json:"contextTokens,omitempty"`
 	// Limits is the allowance in force for this run, omitted when it runs
 	// uncapped. It is the durable execution policy the run was admitted under,
 	// not an echo of the request — a resume and a cross-restart recovery report

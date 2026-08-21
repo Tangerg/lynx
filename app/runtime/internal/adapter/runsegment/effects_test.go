@@ -903,12 +903,13 @@ func (r *fakeRunState) Terminalize(_ context.Context, run run.Run) error {
 	return nil
 }
 
-func (*fakeRunState) UpdateMetrics(
+func (*fakeRunState) UpdateProgress(
 	context.Context,
 	string,
 	string,
 	string,
 	run.Metrics,
+	int64,
 	time.Time,
 ) error {
 	return nil

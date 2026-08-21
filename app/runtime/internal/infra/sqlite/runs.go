@@ -263,7 +263,9 @@ func (s *RunStore) suspend(
 				current.ActiveSegmentID(), commit.segmentID,
 			)
 		}
-		next, err := current.AdvanceMetrics(value.Metrics(), value.UpdatedAt())
+		next, err := current.AdvanceProgress(
+			value.Metrics(), value.ContextTokens(), value.UpdatedAt(),
+		)
 		if err != nil {
 			return fmt.Errorf("sqlite: suspend run: advance aggregate metrics: %w", err)
 		}
@@ -278,10 +280,10 @@ func (s *RunStore) suspend(
 		// a Run waiting on a person has no segment to attach to.
 		res, err := conn(ctx, s.db).ExecContext(ctx,
 			`UPDATE runs SET state = ?, active_segment_id = '', commit_segment_id = ?, commit_id = ?,
-			        steps = ?, active_duration_ns = ?, usage = ?, updated_at = ?
+			        steps = ?, active_duration_ns = ?, usage = ?, context_tokens = ?, updated_at = ?
 			 WHERE session_id = ? AND run_id = ? AND state = ?`,
 			coarseState(next.State()), commit.segmentID, commit.commitID,
-			metrics.steps, metrics.durationNs, metrics.usage, runUpdatedAt(value),
+			metrics.steps, metrics.durationNs, metrics.usage, next.ContextTokens(), runUpdatedAt(value),
 			value.SessionID(), value.ID(), coarseState(current.State()))
 		if err != nil {
 			return fmt.Errorf("sqlite: suspend run: %w", err)
@@ -374,25 +376,30 @@ func (s *RunStore) RequireActiveSegment(ctx context.Context, sessionID, runID, s
 	return nil
 }
 
-// UpdateMetrics records the cumulative accounting observed at one model-call
-// boundary while fencing the write to the exact active segment. It never moves
-// lifecycle state and rejects a stale or regressing snapshot.
-func (s *RunStore) UpdateMetrics(
+// UpdateProgress records cumulative accounting and the latest prompt footprint
+// observed at one model-call boundary while fencing both facts to the exact
+// active segment. It never moves lifecycle state and rejects stale or regressing
+// cumulative accounting.
+func (s *RunStore) UpdateProgress(
 	ctx context.Context,
 	sessionID string,
 	runID string,
 	segmentID string,
 	metrics rundomain.Metrics,
+	contextTokens int64,
 	updatedAt time.Time,
 ) error {
 	if sessionID == "" || runID == "" || segmentID == "" {
-		return errors.New("sqlite: update Run metrics requires session, Run, and segment identity")
+		return errors.New("sqlite: update Run progress requires session, Run, and segment identity")
 	}
 	if updatedAt.IsZero() {
-		return errors.New("sqlite: update Run metrics requires an update time")
+		return errors.New("sqlite: update Run progress requires an update time")
 	}
 	if err := metrics.Validate(); err != nil {
-		return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+		return fmt.Errorf("sqlite: update Run progress for %q: %w", runID, err)
+	}
+	if contextTokens < 0 {
+		return fmt.Errorf("sqlite: update Run progress for %q: context tokens must not be negative", runID)
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		current, found, err := s.Run(ctx, runID)
@@ -400,31 +407,32 @@ func (s *RunStore) UpdateMetrics(
 			return err
 		}
 		if !found || current.SessionID() != sessionID {
-			return fmt.Errorf("sqlite: update Run metrics: running Run %q was not found in session %q", runID, sessionID)
+			return fmt.Errorf("sqlite: update Run progress: running Run %q was not found in session %q", runID, sessionID)
 		}
 		if current.State() != rundomain.Running || current.ActiveSegmentID() != segmentID {
 			return fmt.Errorf(
-				"sqlite: update Run metrics: Run %q is %s in segment %q, want running segment %q",
+				"sqlite: update Run progress: Run %q is %s in segment %q, want running segment %q",
 				runID,
 				current.State(),
 				current.ActiveSegmentID(),
 				segmentID,
 			)
 		}
-		next, err := current.AdvanceMetrics(metrics, updatedAt)
+		next, err := current.AdvanceProgress(metrics, contextTokens, updatedAt)
 		if err != nil {
-			return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+			return fmt.Errorf("sqlite: update Run progress for %q: %w", runID, err)
 		}
 		encoded, err := runMetricsRow(next.Metrics())
 		if err != nil {
-			return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+			return fmt.Errorf("sqlite: update Run progress for %q: %w", runID, err)
 		}
 		result, err := conn(ctx, s.db).ExecContext(ctx,
-			`UPDATE runs SET steps = ?, active_duration_ns = ?, usage = ?, updated_at = ?
+			`UPDATE runs SET steps = ?, active_duration_ns = ?, usage = ?, context_tokens = ?, updated_at = ?
 			 WHERE session_id = ? AND run_id = ? AND state = ? AND active_segment_id = ?`,
 			encoded.steps,
 			encoded.durationNs,
 			encoded.usage,
+			next.ContextTokens(),
 			updatedAt.UTC().UnixNano(),
 			sessionID,
 			runID,
@@ -432,14 +440,14 @@ func (s *RunStore) UpdateMetrics(
 			segmentID,
 		)
 		if err != nil {
-			return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+			return fmt.Errorf("sqlite: update Run progress for %q: %w", runID, err)
 		}
 		changed, err := result.RowsAffected()
 		if err != nil {
-			return fmt.Errorf("sqlite: inspect Run metrics update for %q: %w", runID, err)
+			return fmt.Errorf("sqlite: inspect Run progress update for %q: %w", runID, err)
 		}
 		if changed != 1 {
-			return fmt.Errorf("sqlite: update Run metrics for %q lost its active-segment fence", runID)
+			return fmt.Errorf("sqlite: update Run progress for %q lost its active-segment fence", runID)
 		}
 		return nil
 	})
@@ -737,7 +745,9 @@ func (s *RunStore) finish(
 				commit.segmentID,
 			)
 		}
-		current, err = current.AdvanceMetrics(value.Metrics(), value.FinishedAt())
+		current, err = current.AdvanceProgress(
+			value.Metrics(), value.ContextTokens(), value.FinishedAt(),
+		)
 		if err != nil {
 			return fmt.Errorf("sqlite: %s run: advance aggregate metrics: %w", op, err)
 		}
@@ -753,12 +763,13 @@ func (s *RunStore) finish(
 			`UPDATE runs SET
 			   state = ?, active_segment_id = '', commit_segment_id = ?, commit_id = ?,
 			   outcome = ?, detail = ?, steps = ?, active_duration_ns = ?,
-			   usage = ?, problem = ?, message_mark = ?, finished_at = ?, updated_at = ?
+			   usage = ?, context_tokens = ?, problem = ?, message_mark = ?, finished_at = ?, updated_at = ?
 			 WHERE session_id = ? AND run_id = ? AND state = ?`
 		args := []any{
 			coarseState(next.State()), commit.segmentID, commit.commitID,
 			outcome.String(), value.Detail(), metrics.steps, metrics.durationNs,
-			metrics.usage, encodedFailure, value.MessageMark(), value.FinishedAt().UTC().UnixNano(),
+			metrics.usage, next.ContextTokens(), encodedFailure,
+			value.MessageMark(), value.FinishedAt().UTC().UnixNano(),
 			runUpdatedAt(value), value.SessionID(), value.ID(), coarseState(current.State()),
 		}
 		if commit.commitID != "" {
@@ -842,15 +853,16 @@ func (s *RunStore) Restore(ctx context.Context, value rundomain.Run) error {
 		`INSERT INTO runs(
 		   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
 		   state, outcome, provider, model, goal_incarnation_id,
-		   detail, steps, active_duration_ns, usage, problem, max_total_tokens, max_steps, max_budget_usd,
+		   detail, steps, active_duration_ns, usage, context_tokens, problem,
+		   max_total_tokens, max_steps, max_budget_usd,
 		   capabilities, message_mark, started_at, finished_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		value.ID(), value.SessionID(),
 		lineage.SpawnedByItemID, lineage.ParentRunID, lineage.RootRunID,
 		coarseState(value.State()), outcome.String(),
 		selection.Provider(), selection.Model(),
 		value.GoalIncarnationID(),
-		value.Detail(), metrics.steps, metrics.durationNs, metrics.usage, encodedFailure,
+		value.Detail(), metrics.steps, metrics.durationNs, metrics.usage, value.ContextTokens(), encodedFailure,
 		limits.MaxTotalTokens, limits.MaxSteps, limits.MaxBudgetUSD, capabilities, value.MessageMark(),
 		value.CreatedAt().UTC().UnixNano(), value.FinishedAt().UTC().UnixNano(), runUpdatedAt(value))
 	if isPrimaryKeyViolation(err) {
@@ -1078,7 +1090,8 @@ func placeholders(n int) string {
 // is waiting on — kept in the interrupts table so one park is one record.
 const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.parent_run_id, r.root_run_id,
 	r.state, r.active_segment_id, r.outcome,
-	r.provider, r.model, r.goal_incarnation_id, r.detail, r.steps, r.active_duration_ns, r.usage, r.problem,
+	r.provider, r.model, r.goal_incarnation_id, r.detail,
+	r.steps, r.active_duration_ns, r.usage, r.context_tokens, r.problem,
 	r.max_total_tokens, r.max_steps, r.max_budget_usd, r.capabilities, tree_root.capabilities,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`
 

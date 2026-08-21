@@ -468,9 +468,10 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(20)` |
-| `SessionArtifact` | `version` | `maximum(20)` |
+| `SessionArtifact` | `version` | `minimum(21)` |
+| `SessionArtifact` | `version` | `maximum(21)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
+| `ArtifactRun` | `contextTokens` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMillis` | `nonNegative` |
 | `ArtifactUsage` | `inputTokens` | `nonNegative` |
@@ -489,6 +490,7 @@ TypeScript validator from this single registry projection.
 | `ArtifactItem` | `durationMillis` | `nonNegative` |
 | `ArtifactProblem` | `retryAfterSeconds` | `positive` |
 | `Item` | `durationMillis` | `nonNegative` |
+| `RunRef` | `contextTokens` | `nonNegative` |
 | `RunProtocolProfile` | `requiredFeatures` | `uniqueItems` |
 | `RunProtocolProfile` | `interruptTypes` | `uniqueItems` |
 | `StartRunRequest` | `sessionId` | `nonEmpty` |

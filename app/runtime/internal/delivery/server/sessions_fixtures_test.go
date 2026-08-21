@@ -1095,12 +1095,12 @@ func nonNilRunsegmentApprovals(store *sqlite.TranscriptStore, fallback inertRunt
 	return store
 }
 
-func runMetricsFor(state runsegment.RunStore) runsegment.RunMetricsWriter {
-	metrics, ok := state.(runsegment.RunMetricsWriter)
+func runProgressFor(state runsegment.RunStore) runsegment.RunProgressWriter {
+	progress, ok := state.(runsegment.RunProgressWriter)
 	if !ok {
-		panic("test Run store does not implement metrics writes")
+		panic("test Run store does not implement progress writes")
 	}
-	return metrics
+	return progress
 }
 
 func (s stubRuntime) RunSegmentEffects() *runsegment.Effects {
@@ -1117,7 +1117,7 @@ func (s stubRuntime) RunSegmentEffects() *runsegment.Effects {
 		ToolInvocations:     stores,
 		Conversation:        stubMessageCounter{rt: s},
 		State:               state,
-		RunMetrics:          runMetricsFor(state),
+		RunProgress:         runProgressFor(state),
 		ExecutorCheckpoints: stores,
 		ChildRunStarts:      stores,
 		Tx:                  s.RunInTx,
@@ -1176,7 +1176,7 @@ func (stubRunState) SuspendBarrier(context.Context, run.Run, string, string) err
 func (stubRunState) RunCommitCommitted(context.Context, string, string, string, string) (bool, error) {
 	return false, nil
 }
-func (stubRunState) UpdateMetrics(context.Context, string, string, string, run.Metrics, time.Time) error {
+func (stubRunState) UpdateProgress(context.Context, string, string, string, run.Metrics, int64, time.Time) error {
 	return nil
 }
 

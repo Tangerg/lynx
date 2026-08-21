@@ -160,10 +160,9 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 20 preserves the authored AgentMessage phase in addition to exact
-// ToolCall decisions and accepted Question answers. Commentary and final answers
-// therefore recover into the same narrative grouping they had live.
-const SessionArtifactVersion = 20
+// Version 21 also preserves each Run's latest authoritative prompt footprint,
+// so an imported Session renders the same context-window state as its source.
+const SessionArtifactVersion = 21
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -242,8 +241,9 @@ type ArtifactRun struct {
 	// Limits and Metrics split the same way the live wire does. The archive has
 	// to move with it: leaving the old combined shape here would keep a second,
 	// older account of what a run cost alive inside the export format.
-	Limits  *ArtifactRunLimits `json:"limits,omitempty"`
-	Metrics ArtifactRunMetrics `json:"metrics"`
+	Limits        *ArtifactRunLimits `json:"limits,omitempty"`
+	Metrics       ArtifactRunMetrics `json:"metrics"`
+	ContextTokens int64              `json:"contextTokens,omitempty"`
 	// ProtocolProfile is the contract the run published under, required on a root
 	// and absent on a child. An import that dropped it would restore a run claiming
 	// the Minimal Profile, which is a different run: §14.8 requires the round-trip

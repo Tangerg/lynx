@@ -543,7 +543,7 @@ func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
 	}
 	want := []string{
 		"RunID", "MemberID", "Lineage", "ModelSelection", "DrainedTools",
-		"CommittedTools", "RunCreatedAt", "Metrics", "Limits",
+		"CommittedTools", "RunCreatedAt", "Metrics", "ContextTokens", "Limits",
 	}
 	if fields := structFields(interruptFile, "Continuation"); strings.Join(fields, ",") != strings.Join(want, ",") {
 		t.Fatalf("Continuation fields = %v, want application facts plus one opaque executor binding %v", fields, want)

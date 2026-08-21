@@ -1794,7 +1794,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "20"
+          "value": "21"
         },
         {
           "name": "SessionStatusIdle",
@@ -2896,6 +2896,11 @@
               "name": "Metrics",
               "type": "ArtifactRunMetrics",
               "tag": "json:\"metrics\""
+            },
+            {
+              "name": "ContextTokens",
+              "type": "int64",
+              "tag": "json:\"contextTokens,omitempty\""
             },
             {
               "name": "ProtocolProfile",
@@ -6670,6 +6675,11 @@
               "name": "Metrics",
               "type": "RunMetrics",
               "tag": "json:\"metrics\""
+            },
+            {
+              "name": "ContextTokens",
+              "type": "int64",
+              "tag": "json:\"contextTokens,omitempty\""
             },
             {
               "name": "Limits",

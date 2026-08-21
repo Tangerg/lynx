@@ -374,13 +374,15 @@ func (commit ModelInvocationCommit) validate() error {
 	return nil
 }
 
-// RunProgressCommit is the durable cumulative accounting snapshot produced at
-// a model-response boundary. SegmentID fences the update to the exact running
-// segment; a stale continuation cannot overwrite a newer Run.
+// RunProgressCommit is the durable progress snapshot produced at a model-response
+// boundary. Metrics are cumulative; ContextTokens is the latest prompt footprint
+// and may decrease after compaction. SegmentID fences both facts to the exact
+// running segment so a stale continuation cannot overwrite a newer Run.
 type RunProgressCommit struct {
-	SegmentID string
-	Metrics   run.Metrics
-	UpdatedAt time.Time
+	SegmentID     string
+	Metrics       run.Metrics
+	ContextTokens int64
+	UpdatedAt     time.Time
 }
 
 func (progress RunProgressCommit) validate() error {
@@ -392,6 +394,9 @@ func (progress RunProgressCommit) validate() error {
 	}
 	if err := progress.Metrics.Validate(); err != nil {
 		return fmt.Errorf("runs: progress metrics: %w", err)
+	}
+	if progress.ContextTokens < 0 {
+		return errors.New("runs: progress context tokens must not be negative")
 	}
 	return nil
 }

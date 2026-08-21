@@ -1059,6 +1059,10 @@
     "ArtifactRun": {
       "type": "object",
       "properties": {
+        "contextTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -6446,6 +6450,10 @@
         "activeSegmentId": {
           "type": "string"
         },
+        "contextTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -7944,8 +7952,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 20,
-          "maximum": 20
+          "minimum": 21,
+          "maximum": 21
         }
       },
       "required": [

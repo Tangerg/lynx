@@ -4467,11 +4467,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(20)"
+          "constraint": "minimum(21)"
         },
         {
           "field": "version",
-          "constraint": "maximum(20)"
+          "constraint": "maximum(21)"
         }
       ]
     },
@@ -4480,6 +4480,10 @@
       "rules": [
         {
           "field": "messageMark",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "contextTokens",
           "constraint": "nonNegative"
         }
       ]
@@ -4582,6 +4586,15 @@
       "rules": [
         {
           "field": "durationMillis",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "RunRef",
+      "rules": [
+        {
+          "field": "contextTokens",
           "constraint": "nonNegative"
         }
       ]

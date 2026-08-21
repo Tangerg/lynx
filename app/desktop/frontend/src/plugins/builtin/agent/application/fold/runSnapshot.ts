@@ -16,7 +16,7 @@ export function foldRunSnapshot(state: AgentSessionView, run: AgentRunFact): Age
     projected.status === "running" &&
     previous.activeSegmentId === projected.activeSegmentId
       ? previous.progress
-      : null;
+      : projected.progress;
   let next: AgentSessionView = {
     ...state,
     runsById: {

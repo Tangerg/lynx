@@ -546,6 +546,7 @@ func (r *reducer) usageProgress(e UsageReported) ([]RunEvent, error) {
 		progress.Usage = &usage
 	}
 	if e.ContextTokens > 0 {
+		r.contextTokens = e.ContextTokens
 		contextTokens := e.ContextTokens
 		progress.ContextTokens = &contextTokens
 	}

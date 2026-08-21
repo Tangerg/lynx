@@ -49,6 +49,7 @@ type ContinuationRecord struct {
 	CommittedTools []CommittedToolRecord
 	RunCreatedAt   time.Time
 	Metrics        run.Metrics
+	ContextTokens  int64
 	Limits         run.Limits
 }
 
@@ -160,6 +161,7 @@ type continuationRow struct {
 	DrainedTools    []drainedToolRow   `json:"drainedTools,omitempty"`
 	CommittedTools  []committedToolRow `json:"committedTools,omitempty"`
 	RunCreatedAt    int64              `json:"runCreatedAt"`
+	ContextTokens   int64              `json:"contextTokens,omitempty"`
 	Accounting      runAccountingRow   `json:"accounting"`
 }
 
@@ -683,6 +685,7 @@ func continuationRows(values []ContinuationRecord) ([]continuationRow, error) {
 			DrainedTools:    drainedToolRows(value.DrainedTools),
 			CommittedTools:  committedTools,
 			RunCreatedAt:    value.RunCreatedAt.UnixNano(),
+			ContextTokens:   value.ContextTokens,
 			Accounting:      runAccountingRowOf(value.Metrics, value.Limits),
 		}
 	}
@@ -717,6 +720,7 @@ func continuationsFromRows(rows []continuationRow) ([]ContinuationRecord, error)
 			CommittedTools: committedTools,
 			RunCreatedAt:   time.Unix(0, row.RunCreatedAt).UTC(),
 			Metrics:        metrics,
+			ContextTokens:  row.ContextTokens,
 			Limits:         limits,
 		}
 	}
