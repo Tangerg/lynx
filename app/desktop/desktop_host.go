@@ -53,7 +53,7 @@ type workingDirectoryPicker interface {
 // hands DesktopHost an inline image; it never receives a filesystem path and cannot
 // bypass the platform picker with a browser download.
 type imageSaver interface {
-	SaveImage(suggestedFilename, mimeType string, contents []byte) (bool, error)
+	SaveImage(suggestedFilename string, contents []byte) (bool, error)
 }
 
 // DesktopHost is the Wails-owned boundary for capabilities that belong to the
@@ -163,11 +163,11 @@ func (h *DesktopHost) SaveImage(source string) (bool, error) {
 	if h.imageSaver == nil {
 		return false, errors.New("desktop host: image saver is not configured")
 	}
-	mimeType, extension, contents, err := decodeInlineImage(source)
+	extension, contents, err := decodeInlineImage(source)
 	if err != nil {
 		return false, fmt.Errorf("desktop host: save image: %w", err)
 	}
-	saved, err := h.imageSaver.SaveImage(suggestedImageFilename(extension), mimeType, contents)
+	saved, err := h.imageSaver.SaveImage(suggestedImageFilename(extension), contents)
 	if err != nil {
 		return false, fmt.Errorf("desktop host: save image: %w", err)
 	}

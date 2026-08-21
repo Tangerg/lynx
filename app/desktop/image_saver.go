@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -15,20 +16,12 @@ type wailsImageSaver struct {
 	window  application.Window
 }
 
-func (s wailsImageSaver) SaveImage(
-	suggestedFilename,
-	mimeType string,
-	contents []byte,
-) (bool, error) {
-	extension, ok := imageExtensionByMIME[mimeType]
-	if !ok {
-		return false, fmt.Errorf("unsupported image media type %q", mimeType)
-	}
+func (s wailsImageSaver) SaveImage(suggestedFilename string, contents []byte) (bool, error) {
 	destination, err := s.dialogs.SaveFile().
 		CanCreateDirectories(true).
 		AllowsOtherFileTypes(false).
 		SetFilename(suggestedFilename).
-		AddFilter("Image Files", "*."+extension).
+		AddFilter("Image Files", "*"+filepath.Ext(suggestedFilename)).
 		AttachToWindow(s.window).
 		PromptForSingleSelection()
 	if err != nil {

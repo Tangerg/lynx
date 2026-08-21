@@ -15,14 +15,10 @@ func (f workingDirectoryPickerFunc) ChooseWorkingDirectory() (string, error) {
 	return f()
 }
 
-type imageSaverFunc func(suggestedFilename, mimeType string, contents []byte) (bool, error)
+type imageSaverFunc func(suggestedFilename string, contents []byte) (bool, error)
 
-func (f imageSaverFunc) SaveImage(
-	suggestedFilename,
-	mimeType string,
-	contents []byte,
-) (bool, error) {
-	return f(suggestedFilename, mimeType, contents)
+func (f imageSaverFunc) SaveImage(suggestedFilename string, contents []byte) (bool, error) {
+	return f(suggestedFilename, contents)
 }
 
 func TestDesktopHostBootstrap(t *testing.T) {
@@ -135,15 +131,10 @@ func TestDesktopHostChooseWorkingDirectoryRejectsInvalidSelections(t *testing.T)
 
 func TestDesktopHostSaveImageDecodesInlineMaterial(t *testing.T) {
 	host := newDesktopHost(t.TempDir())
-	var filename, mimeType string
+	var filename string
 	var contents []byte
-	host.useImageSaver(imageSaverFunc(func(
-		suggestedFilename,
-		mediaType string,
-		material []byte,
-	) (bool, error) {
+	host.useImageSaver(imageSaverFunc(func(suggestedFilename string, material []byte) (bool, error) {
 		filename = suggestedFilename
-		mimeType = mediaType
 		contents = append([]byte(nil), material...)
 		return true, nil
 	}))
@@ -155,8 +146,8 @@ func TestDesktopHostSaveImageDecodesInlineMaterial(t *testing.T) {
 	if !saved {
 		t.Fatal("SaveImage() = false, want completed save")
 	}
-	if mimeType != "image/png" || !bytes.Equal(contents, []byte("image")) {
-		t.Fatalf("saved material = %q, %q; want image/png bytes", mimeType, contents)
+	if !bytes.Equal(contents, []byte("image")) {
+		t.Fatalf("saved material = %q; want image bytes", contents)
 	}
 	if !strings.HasPrefix(filename, "Lyra Image ") || !strings.HasSuffix(filename, ".png") {
 		t.Fatalf("suggested filename = %q, want Lyra image PNG name", filename)
@@ -165,7 +156,7 @@ func TestDesktopHostSaveImageDecodesInlineMaterial(t *testing.T) {
 
 func TestDesktopHostSaveImagePreservesCancellation(t *testing.T) {
 	host := newDesktopHost(t.TempDir())
-	host.useImageSaver(imageSaverFunc(func(string, string, []byte) (bool, error) {
+	host.useImageSaver(imageSaverFunc(func(string, []byte) (bool, error) {
 		return false, nil
 	}))
 
@@ -187,7 +178,7 @@ func TestDesktopHostSaveImageRejectsInvalidSourcesBeforeOpeningDialog(t *testing
 		t.Run(source, func(t *testing.T) {
 			called := false
 			host := newDesktopHost(t.TempDir())
-			host.useImageSaver(imageSaverFunc(func(string, string, []byte) (bool, error) {
+			host.useImageSaver(imageSaverFunc(func(string, []byte) (bool, error) {
 				called = true
 				return true, nil
 			}))
@@ -208,7 +199,7 @@ func TestDesktopHostSaveImageRequiresAndPropagatesNativeOwner(t *testing.T) {
 	}
 
 	host := newDesktopHost(t.TempDir())
-	host.useImageSaver(imageSaverFunc(func(string, string, []byte) (bool, error) {
+	host.useImageSaver(imageSaverFunc(func(string, []byte) (bool, error) {
 		return false, errors.New("disk full")
 	}))
 	if saved, err := host.SaveImage("data:image/png;base64,aW1hZ2U="); err == nil {
