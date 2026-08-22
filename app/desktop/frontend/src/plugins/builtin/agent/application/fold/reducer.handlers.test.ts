@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import { selectCurrentRootRun, selectRun, selectVisibleProblem } from "../view/runTree";
+import { selectCurrentRootRun, selectVisibleProblem } from "../view/runTree";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
 // Terse builders (mirror reducer.events.test.ts). Items are partial — only the
@@ -64,7 +64,7 @@ describe("handler contract — run.*", () => {
       ),
     );
     s = reduce(s, started(item({ id: "a", type: "agentMessage", content: [] })));
-    expect(selectRun(s, "r0")?.metrics.usage.inputTokens).toBe(500);
+    expect(s.runsById.r0?.metrics.usage.inputTokens).toBe(500);
     expect(selectVisibleProblem(s)).not.toBeNull();
 
     const out = reduce(s, runStarted("r1", "s1"));
@@ -117,7 +117,7 @@ describe("handler contract — run.*", () => {
       s,
       runFinished({ type: "completed" }, { steps: 2, activeDurationMillis: 0 }),
     );
-    expect(selectRun(out, "r1")?.status).toBe("finished");
+    expect(out.runsById.r1?.status).toBe("finished");
     expect(out.messages).toEqual(s.messages);
     expect(out.shared).toEqual(s.shared);
   });

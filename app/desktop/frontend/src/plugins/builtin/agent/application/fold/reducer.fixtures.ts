@@ -8,7 +8,7 @@ import type {
   AgentRunMetrics as RunMetrics,
   AgentSessionView,
 } from "@/plugins/sdk/types/agentSessionView";
-import { selectCurrentRootRun, selectRun } from "../view/runTree";
+import { selectCurrentRootRun } from "../view/runTree";
 import { reduceAgentEvent } from "./reducer";
 
 /** The accounting of a run that has reported none. */
@@ -60,7 +60,7 @@ export function testRunEvent(
         ? event.item.runId
         : undefined;
   const ownerRunId = runId ?? payloadRunId ?? selectCurrentRootRun(state)?.id ?? "run_1";
-  const owner = selectRun(state, ownerRunId);
+  const owner = state.runsById[ownerRunId];
   const ownerSegmentId =
     segmentId ??
     (event.type === "segment.started" ? event.run.activeSegmentId : owner?.activeSegmentId) ??

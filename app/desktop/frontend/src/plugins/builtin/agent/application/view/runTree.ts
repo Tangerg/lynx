@@ -67,13 +67,6 @@ export function selectCurrentRootAttention(view: AgentSessionView): AgentRootAtt
   return root ? { status: root.status, runId: root.id } : { status: "idle", runId: null };
 }
 
-export function selectRun(
-  view: AgentSessionView,
-  runId: string | null | undefined,
-): AgentRunView | null {
-  return runId ? (view.runsById[runId] ?? null) : null;
-}
-
 /**
  * The main Session narrative: optimistic local messages plus material owned by
  * every root Run, in projection order. Descendant material is selected
