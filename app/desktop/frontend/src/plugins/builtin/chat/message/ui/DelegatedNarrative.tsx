@@ -8,10 +8,9 @@ import type {
 } from "@/plugins/builtin/agent/public/conversation";
 import { cancelSessionRun } from "@/plugins/builtin/agent/public/run";
 import { MessageContext } from "@/plugins/sdk/messageContext";
-import { useCitationSources, useCurrentMessageSessionId } from "@/plugins/sdk";
+import { useCurrentMessageSessionId } from "@/plugins/sdk";
 import { openTimelineView } from "@/plugins/builtin/workspace/public/deeplinks";
-import { messageBlocksRenderInstant, messageCitations } from "../application/messageBlockModel";
-import { CitationContext } from "./CitationContext";
+import { messageBlocksRenderInstant } from "../application/messageBlockModel";
 import { DelegatedRunDisclosure } from "./DelegatedRunDisclosure";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
 import { cn } from "@/lib/classNames";
@@ -77,11 +76,6 @@ function DelegatedMessage({
   renderMessageBlocks: Props["renderMessageBlocks"];
 }) {
   const sessionId = useCurrentMessageSessionId();
-  const sources = useCitationSources();
-  const citations = useMemo(
-    () => messageCitations(message.blocks, sources),
-    [message.blocks, sources],
-  );
   const blockCtx: BlockCtx = messageBlocksRenderInstant(message.role)
     ? { ...ctx, textReveal: "instant" }
     : ctx;
@@ -89,17 +83,15 @@ function DelegatedMessage({
 
   return (
     <MessageContext.Provider value={messageContext}>
-      <CitationContext.Provider value={citations}>
-        <div
-          className={cn(
-            MESSAGE_CONTENT_CLASS,
-            "min-w-0 text-pretty text-prose leading-prose text-fg-soft",
-            message.role === "user" && "rounded-md bg-sunken px-3 py-2 text-fg",
-          )}
-        >
-          {renderMessageBlocks({ message, facts }, blockCtx)}
-        </div>
-      </CitationContext.Provider>
+      <div
+        className={cn(
+          MESSAGE_CONTENT_CLASS,
+          "min-w-0 text-pretty text-prose leading-prose text-fg-soft",
+          message.role === "user" && "rounded-md bg-sunken px-3 py-2 text-fg",
+        )}
+      >
+        {renderMessageBlocks({ message, facts }, blockCtx)}
+      </div>
     </MessageContext.Provider>
   );
 }

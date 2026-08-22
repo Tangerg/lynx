@@ -18,7 +18,6 @@ const copy = (
   overrides: Partial<MessageContextMenuCopyState> = {},
 ): MessageContextMenuCopyState => ({
   plain: "",
-  code: "",
   canCopy: false,
   ...overrides,
 });
@@ -27,13 +26,12 @@ describe("messageContextMenuModel", () => {
   it("projects copy payload availability independently from message actions", () => {
     const model = messageContextMenuModel({
       msg: message({ role: "assistant" }),
-      copy: copy({ plain: "hi", code: "const x = 1", canCopy: true }),
+      copy: copy({ plain: "hi", canCopy: true }),
       canRestoreFiles: false,
     });
 
     expect(model.copyMarkdown).toBe(true);
     expect(model.copyPlain).toBe(true);
-    expect(model.copyCode).toBe(true);
   });
 
   it("uses draftable content, not plain copy text, for user edit actions", () => {

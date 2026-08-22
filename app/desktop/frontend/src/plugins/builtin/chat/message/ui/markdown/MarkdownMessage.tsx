@@ -15,7 +15,6 @@ import { isInlineMarkdownImage } from "./MarkdownImage";
 import { handleMarkdownCopy } from "./markdownSelectionCopy";
 import { ensureKatexCss } from "./katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
-import { rehypeCitations } from "./rehypeCitations";
 import { rehypeFadeIn } from "./rehypeFadeIn";
 import { rehypeFileRefs } from "./rehypeFileRefs";
 import { rehypeStreamCaret } from "./rehypeStreamCaret";
@@ -172,8 +171,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, streaming, reveal }: M
     if (hasMath) ensureKatexCss();
   }, [hasMath]);
 
-  // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
-  // `[n]` markers for <sup> badges) → rehypeFileRefs (linkify file:line) →
+  // Pipeline: rehypeRaw (parse inline HTML) → rehypeFileRefs (linkify file:line) →
   // rehypeFadeIn (per-word streaming animation, non-instant only — CSS runs
   // once per span mount, so settled blocks animate on first paint then stay
   // inert) → rehypeKatex. rehypeRaw must come first so later plugins see the
@@ -187,16 +185,16 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, streaming, reveal }: M
   // blocks are settled by definition, so they always linkify.
   const rehypePlugins = useMemo(() => {
     if (reveal === "instant") {
-      return [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeKatex];
+      return [rehypeRaw, rehypeFileRefs, rehypeKatex];
     }
     if (reveal === "typewriter") {
       return streaming
-        ? [rehypeRaw, rehypeCitations, rehypeKatex, rehypeStreamCaret]
-        : [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeKatex];
+        ? [rehypeRaw, rehypeKatex, rehypeStreamCaret]
+        : [rehypeRaw, rehypeFileRefs, rehypeKatex];
     }
     return streaming
-      ? [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex]
-      : [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeFadeIn, rehypeKatex];
+      ? [rehypeRaw, rehypeFadeIn, rehypeKatex]
+      : [rehypeRaw, rehypeFileRefs, rehypeFadeIn, rehypeKatex];
   }, [reveal, streaming]);
   const components = useMemo(() => createMarkdownComponents(text), [text]);
 

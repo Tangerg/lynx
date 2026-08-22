@@ -9,13 +9,11 @@ import {
 export interface MessageContextMenuCopyState {
   canCopy: boolean;
   plain: string;
-  code: string;
 }
 
 export interface MessageContextMenuModel {
   copyMarkdown: boolean;
   copyPlain: boolean;
-  copyCode: boolean;
   user: {
     visible: boolean;
     editInComposer: boolean;
@@ -50,7 +48,6 @@ export function messageContextMenuModel({
   return {
     copyMarkdown: canCopyMessage(copy),
     copyPlain: Boolean(copy.plain),
-    copyCode: Boolean(copy.code),
     user: {
       visible: canEdit || canUseRunCheckpoint,
       editInComposer: canEdit,

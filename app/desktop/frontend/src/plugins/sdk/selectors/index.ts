@@ -36,7 +36,7 @@ export {
 } from "./layout";
 
 // Tool owner attribution + per-message citation sources.
-export { lookupToolActionOwner, lookupToolViewOpenerOwner, useCitationSources } from "./messages";
+export { lookupToolActionOwner, lookupToolViewOpenerOwner } from "./messages";
 
 // Runtime / data-layer: priority picks + data-provider fetcher.
 export {

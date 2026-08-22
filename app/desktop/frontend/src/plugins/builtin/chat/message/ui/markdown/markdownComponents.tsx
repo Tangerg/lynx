@@ -7,64 +7,13 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { ExternalLink, RichTooltip, ShikiCodeBlock } from "@/ui";
+import { ExternalLink, ShikiCodeBlock } from "@/ui";
 import { cn } from "@/lib/classNames";
-import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidBlock } from "./MermaidBlock";
 import { MarkdownTable } from "./MarkdownTable";
 import { SvgArtifact } from "./SvgArtifact";
-
-// Local favicon stand-in — a domain-initial tile, mirroring the web-search
-// result card badge. The desktop build must NOT fetch a remote favicon (e.g.
-// google's `s2/favicons` endpoint): that would leak which sources the user is
-// reading to a third party. The glyph is derived from the domain on-device.
-function SourceFavicon({ domain }: { domain: string }) {
-  const letter = (domain.replace(/^www\./, "")[0] ?? "?").toUpperCase();
-  return (
-    <span className="grid h-4 w-4 shrink-0 place-items-center rounded-2xs bg-surface-3 text-ui-2xs font-semibold text-fg-muted">
-      {letter}
-    </span>
-  );
-}
-
-// Per-message citation lookup. CitationContext is scoped to the
-// owning message so two messages with [1] markers don't collide.
-function CitationBadge({ n, label }: { n: number; label: string }) {
-  const citations = useCitations();
-  const source = citations.find((c) => c.index === n);
-
-  // Marker without a matching source (e.g. agent wrote [3] but only
-  // 2 results in search block) renders as plain text — no tooltip.
-  if (!source) return label;
-
-  return (
-    <RichTooltip
-      delay={200}
-      side="top"
-      sideOffset={6}
-      className="max-w-[360px] px-3 py-2.5"
-      trigger={
-        <sup
-          className="cite-marker cursor-help rounded-2xs bg-surface-2 px-1.5 py-px text-ui-sm font-medium text-fg-muted transition-colors hover:bg-cta hover:text-cta-text"
-          data-citation={n}
-        >
-          {label}
-        </sup>
-      }
-    >
-      <div className="flex items-center gap-1.5">
-        <SourceFavicon domain={source.domain} />
-        <span className="truncate font-mono text-ui-sm text-fg-faint">{source.domain}</span>
-      </div>
-      <div className="mt-1.5 text-ui-md font-semibold text-fg leading-snug">{source.title}</div>
-      <div className="mt-1 text-ui-sm text-fg-muted leading-snug line-clamp-3">
-        {source.snippet}
-      </div>
-    </RichTooltip>
-  );
-}
 
 // `pre` unwraps because the `code` override below emits its own block
 // container. `a` forces target=_blank because a click inside the
@@ -317,21 +266,6 @@ const sharedMarkdownComponents: Components = {
         {children}
       </ExternalLink>
     );
-  },
-  // Only `<sup>` carrying `data-citation` (emitted by rehypeCitations)
-  // becomes a CitationBadge; any other `<sup>` the user wrote by hand
-  // passes through unchanged.
-  sup({ children, ...rest }) {
-    const ds = (rest as { "data-citation"?: string })["data-citation"];
-    const n = Number(ds);
-    // Only the rehypeCitations-emitted numeric data-citation becomes a badge; a
-    // hand-authored `<sup data-citation="abc">` (n=NaN) falls through to plain.
-    if (ds && Number.isInteger(n)) {
-      const label = typeof children === "string" ? children : `[${ds}]`;
-      return <CitationBadge n={n} label={label} />;
-    }
-    // No rest spread — keep the hast `node` off the DOM (see `code`).
-    return <sup>{children}</sup>;
   },
 };
 

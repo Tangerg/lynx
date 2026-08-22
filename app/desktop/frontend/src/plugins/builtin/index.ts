@@ -22,7 +22,6 @@ import {
   composerToolbar,
 } from "./chat/composer";
 import connectionSettings from "./settings/connection-settings";
-import previewBlocks from "./chat/preview-blocks";
 import agentBootstrap from "./agent/bootstrap";
 import observability from "./observability";
 import runtime from "./runtime";
@@ -145,18 +144,14 @@ const infrastructure: AnyPlugin[] = [
   mainRoute,
 ];
 
-// Message rendering — roles, content blocks, per-message decorations.
-
-// Built-in content blocks (text / tool / reasoning / plan / approval /
-// question) render directly in the message module — no plugin here. This
-// group is roles + per-message actions + the extension-only preview blocks.
+// Message rendering — roles and per-message actions. Protocol content blocks
+// render directly in the message module; there is no second renderer registry.
 const messageRendering: AnyPlugin[] = [
   defaultRoles,
   messageCopy,
   messageEdit,
   messageRegenerate,
   messageFeedback,
-  previewBlocks,
 ];
 
 // Tool rendering — previews, header actions, icon glyph map.

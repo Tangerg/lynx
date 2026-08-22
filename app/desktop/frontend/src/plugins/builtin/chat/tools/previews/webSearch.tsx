@@ -1,5 +1,4 @@
-// web_search preview family — rich title/url/snippet result cards (the search
-// rendering is the tool preview; see preview-blocks/viewBlocks).
+// web_search preview family — rich title/url/snippet result cards.
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";

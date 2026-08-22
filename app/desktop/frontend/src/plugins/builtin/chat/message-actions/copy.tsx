@@ -1,8 +1,6 @@
 // Copy action — a dropdown in `message.actions`. Default click writes Markdown
 // (preserves headings / lists / fences as rendered). The submenu surfaces the
-// alternates: Plain text drops markup so it pastes flat into editors; Code only
-// concatenates the fenced code blocks for users who just want the snippets. The
-// Code variant hides when the message has none.
+// alternate: Plain text drops markup so it pastes flat into editors.
 
 import { DropdownMenu, Tooltip } from "@/ui";
 import { writeToClipboard } from "@/lib/clipboard";
@@ -44,15 +42,6 @@ function CopyButton() {
             writeToClipboard(copy.plain, { successLabel: t("msgActions.copiedPlain") })
           }
         />
-        {copy.code && (
-          <CopyItem
-            label={t("msgActions.copyCode")}
-            hint={t("msgActions.copyCodeHint")}
-            onSelect={() =>
-              writeToClipboard(copy.code, { successLabel: t("msgActions.copiedCode") })
-            }
-          />
-        )}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   );

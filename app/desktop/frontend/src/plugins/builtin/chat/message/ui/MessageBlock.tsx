@@ -1,7 +1,6 @@
 import type { BlockCtx } from "./BlockRenderer";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import { memo, useMemo, type ReactNode } from "react";
-import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import {
@@ -11,12 +10,10 @@ import {
 import {
   messageActionMaterialization,
   messageBlocksRenderInstant,
-  messageCitations,
 } from "../application/messageBlockModel";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
-import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { renderBlock, renderMessageBlocks } from "./BlockRenderer";
 import {
@@ -52,8 +49,6 @@ function MessageBlockInner({
   const t = useT();
   const messageContext = useMemo(() => ({ sessionId, message: msg }), [sessionId, msg]);
 
-  const sources = useCitationSources();
-  const citations = useMemo(() => messageCitations(msg.blocks, sources), [msg.blocks, sources]);
   const visibleMaterialOwner = useMemo(
     () => new MessageVisibleMaterialOwner(sessionId, msg.id),
     [msg.id, sessionId],
@@ -120,40 +115,38 @@ function MessageBlockInner({
 
   return (
     <MessageContext.Provider value={messageContext}>
-      <CitationContext.Provider value={citations}>
-        <MessageVisibleMaterialProvider
-          owner={visibleMaterialOwner}
-          generation={visibleMaterialGeneration}
-        >
-          <div className={cn("group relative flex min-w-0 flex-col gap-2", isUser && "items-end")}>
-            <h4 className="sr-only select-none">{roleLabel}</h4>
-            {msg.phase === "commentary" ? (
-              messageContent
-            ) : (
-              <MessageContextMenu msg={msg}>{messageContent}</MessageContextMenu>
-            )}
-            {/* Pulled outward by the button's own optical inset so the first glyph
+      <MessageVisibleMaterialProvider
+        owner={visibleMaterialOwner}
+        generation={visibleMaterialGeneration}
+      >
+        <div className={cn("group relative flex min-w-0 flex-col gap-2", isUser && "items-end")}>
+          <h4 className="sr-only select-none">{roleLabel}</h4>
+          {msg.phase === "commentary" ? (
+            messageContent
+          ) : (
+            <MessageContextMenu msg={msg}>{messageContent}</MessageContextMenu>
+          )}
+          {/* Pulled outward by the button's own optical inset so the first glyph
               lands on the text's edge rather than its box doing so — and outward is a
               different side per role now that a user turn hugs the trailing edge. With
               the inset always on the left, the bar under a right-aligned bubble grew
               leftward and its last glyph sat ~5px inside the text it belongs to. */}
-            {actionsVisibility !== "absent" && (
-              <div
-                className={cn(
-                  "flex shrink-0 transition-[opacity,visibility] duration-[var(--dur-fast)]",
-                  ACTIONS_VISIBILITY[actionsVisibility],
-                  isUser
-                    ? "-mr-[calc((var(--control-height-sm)-var(--icon-sm))/2)]"
-                    : "-ml-[calc((var(--control-height-sm)-var(--icon-sm))/2)]",
-                )}
-              >
-                <Slot name="message.actions" />
-              </div>
-            )}
-          </div>
-          {actionMaterialization === "settled" && terminalFooter}
-        </MessageVisibleMaterialProvider>
-      </CitationContext.Provider>
+          {actionsVisibility !== "absent" && (
+            <div
+              className={cn(
+                "flex shrink-0 transition-[opacity,visibility] duration-[var(--dur-fast)]",
+                ACTIONS_VISIBILITY[actionsVisibility],
+                isUser
+                  ? "-mr-[calc((var(--control-height-sm)-var(--icon-sm))/2)]"
+                  : "-ml-[calc((var(--control-height-sm)-var(--icon-sm))/2)]",
+              )}
+            >
+              <Slot name="message.actions" />
+            </div>
+          )}
+        </div>
+        {actionMaterialization === "settled" && terminalFooter}
+      </MessageVisibleMaterialProvider>
     </MessageContext.Provider>
   );
 }

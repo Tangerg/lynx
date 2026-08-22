@@ -13,7 +13,7 @@ export type { ConfigValue } from "./config";
 export { definePlugin } from "./definePlugin";
 export { createKernel, startKernel, stopKernel } from "./bootstrap";
 export type { Contributor, PluginContext, PluginSpec } from "./definePlugin";
-export { contributeContentBlock, contributeLayout } from "./contributeHelpers";
+export { contributeLayout } from "./contributeHelpers";
 export type { Contribution } from "./contracts";
 export {
   contributionsTo,
@@ -69,7 +69,6 @@ export {
   pickAgentSource,
   pickPluginErrorFallback,
   resolveAgentRunStartOptions,
-  useCitationSources,
   useCommands,
   useExtensionByKey,
   useExtensionPoint,
@@ -113,14 +112,7 @@ export type {
   ComposerSubmitModeSpec,
   ContextDockDestinationScope,
   ContextDockDestinationSpec,
-  Citation,
-  CitationSource,
   ContentBlock,
-  ContentBlockKind,
-  ContentBlockMap,
-  ContentBlockRenderer,
-  ContentBlockRendererProps,
-  CustomContentBlockMap,
   StreamEventHandler,
   DataProviderSpec,
   Disposable,

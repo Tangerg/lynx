@@ -9,7 +9,6 @@ import { cn } from "@/lib/classNames";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import { ApprovalCard, CompactionBlock, ImageBlock, QuestionCard, ReasoningBlock } from "./cards";
 import { ToolCard, ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
-import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 import { lookupExtensionByKey } from "@/plugins/sdk";
 import { TOOL_STANDING_SURFACE } from "@/plugins/sdk/kernelPoints";
 import { messageBlockRenderUnits, narratedBlocks } from "../application/messageBlockModel";
@@ -21,13 +20,9 @@ import { NarrativeWave } from "./NarrativeWave";
 /**
  * Render one content block.
  *
- * Every `BuiltinContentBlockMap` kind — the enumerable, protocol-first-class
- * blocks (text / tool / reasoning / approval / question) — is rendered
- * directly by this module from its own `cards/` + `markdown/` sub-modules. No
- * registry hop: the message module owns the rendering of the blocks the fold
- * produces. `CONTENT_BLOCK` registry / `PluginContentBlock` is reserved for
- * `CustomContentBlockMap` kinds — third-party plugins + the quarantined
- * preview-blocks (search / code / checkpoint) — which fall through to default.
+ * Every protocol content block is rendered directly by this module from its
+ * own `cards/` + `markdown/` sub-modules. The message module owns the exact
+ * closed union that the Runtime fold produces.
  */
 export function renderBlock(
   block: ContentBlock,
@@ -136,10 +131,6 @@ export function renderBlock(
           droppedMessages={block.droppedMessages}
         />
       );
-
-    // CustomContentBlockMap kinds (third-party + preview-blocks) only.
-    default:
-      return <PluginContentBlock key={key} block={block} />;
   }
 }
 

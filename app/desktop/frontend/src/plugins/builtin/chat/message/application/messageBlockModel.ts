@@ -10,19 +10,6 @@ import {
   planRenderUnits,
   type MessageRenderUnit,
 } from "@/plugins/builtin/agent/public/messagePresentation";
-import type { Citation, CitationSource } from "@/plugins/sdk";
-
-export function messageCitations(
-  blocks: ContentBlock[],
-  sources: readonly CitationSource[],
-): Citation[] {
-  return sources
-    .flatMap((source) => source(blocks))
-    .map((citation, index) => ({
-      ...citation,
-      index: index + 1,
-    }));
-}
 
 /**
  * The blocks the narrative tells, which is not every block the turn produced: a tool

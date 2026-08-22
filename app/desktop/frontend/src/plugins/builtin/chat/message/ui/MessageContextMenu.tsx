@@ -65,16 +65,6 @@ export function MessageContextMenu({ msg, children }: Props) {
             {t("msgActions.copyPlain")}
           </ContextMenu.IconItem>
         )}
-        {menu.copyCode && (
-          <ContextMenu.IconItem
-            icon="code"
-            onSelect={() =>
-              void writeToClipboard(copy.code, { successLabel: t("msgActions.copiedCode") })
-            }
-          >
-            {t("msgActions.copyCode")}
-          </ContextMenu.IconItem>
-        )}
         {menu.user.visible && (
           <>
             <Separator />

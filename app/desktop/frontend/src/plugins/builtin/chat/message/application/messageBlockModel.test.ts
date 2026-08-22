@@ -5,13 +5,11 @@ import type {
   ToolCall,
 } from "@/plugins/builtin/agent/public/viewState";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
-import type { CitationSource } from "@/plugins/sdk";
 import {
   finalAnswerFollows,
   messageActionMaterialization,
   messageBlockRenderUnits,
   messageBlocksRenderInstant,
-  messageCitations,
   narratedBlocks,
 } from "./messageBlockModel";
 
@@ -42,25 +40,6 @@ const tool = (
   args: "",
   status: "ok",
   safetyClass,
-});
-
-describe("messageCitations", () => {
-  it("flattens citation sources and owns continuous indices", () => {
-    const blocks = [text("See [1] and [2].")];
-    const sources: CitationSource[] = [
-      () => [{ index: 99, domain: "a.test", title: "A", snippet: "first" }],
-      () => [
-        { index: 42, domain: "b.test", title: "B", snippet: "second" },
-        { index: 43, domain: "c.test", title: "C", snippet: "third" },
-      ],
-    ];
-
-    expect(messageCitations(blocks, sources)).toEqual([
-      { index: 1, domain: "a.test", title: "A", snippet: "first" },
-      { index: 2, domain: "b.test", title: "B", snippet: "second" },
-      { index: 3, domain: "c.test", title: "C", snippet: "third" },
-    ]);
-  });
 });
 
 describe("messageBlockRenderUnits", () => {

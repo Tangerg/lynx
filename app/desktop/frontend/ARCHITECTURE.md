@@ -55,7 +55,6 @@ src/
 │   │   ├── PluginProvider.tsx    启动编排与代际 owner：Host.start → ready → stop
 │   │   ├── Slot.tsx              <Slot name="…"/> 渲染注册到该 slot 的插件组件
 │   │   ├── PluginBoundary.tsx    每个插件组件的 React Error Boundary
-│   │   ├── PluginContentBlock.tsx 包装消息内容块的边界
 │   │   ├── PluginToaster.tsx     全局 toast 层（sonner）
 │   │   └── ShortcutsProvider.tsx 全局键盘快捷键派发
 │   │
@@ -74,7 +73,7 @@ src/
 │       ├── index.ts          manifest（依赖由 requires / provides contract graph 驱动）
 │       ├── agent/            agent ports bootstrap · fold（StreamEvent→view state）· rpc-agent
 │       ├── chat/             composer · message/(渲染 ui/ + public) · message-actions · plan-progress ·
-│       │                     slash-hints · chat-search · preview-blocks · file-references ·
+│       │                     slash-hints · chat-search · file-references ·
 │       │                     tools/(meta + previews + ui/)
 │       ├── command/          command-palette · global-keymap · shortcuts
 │       ├── defaults/         默认 commands / data / accents / roles / title
@@ -675,17 +674,8 @@ export default definePlugin({
 
 静态 registration 是 plugin composition，不是 application use case。只返回 `{ id, order, component }` 或同类 extension spec 的 factory 必须直接写在插件入口；不得为它单建 `application/*Contributions.ts` 和只复述字面量的测试。只有 contribution module 自己拥有稳定策略或行为时才保留，例如 Composer key-binding 语义、默认命令集合、tool family 映射，或跨 context 的 SDK published-language facade。`check:published-boundaries` 会拒绝只投影对象字面量的 application contribution module。
 
-**自定义内容块的类型注册**（让 TS 满意）：
-
-```ts
-declare module "@/plugins/sdk/types/contentBlock" {
-  interface CustomContentBlockMap {
-    exampleBanner: { kind: "exampleBanner"; text: string };
-  }
-}
-```
-
-> 内置协议块（text/reasoning/plan/tool/approval/question）在 `plugins/builtin/chat/message/ui/` 内部直渲（`renderBlock` switch）；可拆卸功能块（如 `preview-blocks`）才走 typed content-block extension point。
+Runtime fold 产生的 closed content-block union（text/image/reasoning/tool/approval/question/compaction）由
+`plugins/builtin/chat/message/ui/BlockRenderer.tsx` 直接穷举渲染；不存在未接线 block 或第二 renderer registry。
 
 ---
 

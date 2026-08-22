@@ -17,7 +17,6 @@ import type {
   LayoutSlotSpec,
   LocaleSpec,
   LogSubscriber,
-  CitationSource,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
   ReadyHandler,
@@ -34,12 +33,8 @@ import type {
   WorkIndexItemSpec,
   WorkspaceViewSpec,
 } from "./types";
-import type { ReactNode } from "react";
-import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import { defineExtensionPoint } from "./contracts";
 import { normalizeCombo } from "./combo";
-
-type RegisteredContentBlockRenderer = (block: ContentBlock) => ReactNode;
 
 export const COLOR_THEME = defineExtensionPoint<ColorThemeSpec>({
   id: "lyra.colorTheme",
@@ -191,16 +186,4 @@ export const TOOL_ICON = defineExtensionPoint<string>({
 export const TOOL_STANDING_SURFACE = defineExtensionPoint<string>({
   id: "lyra.tool.standingSurface",
   keying: "single",
-});
-export const CONTENT_BLOCK = defineExtensionPoint<RegisteredContentBlockRenderer>({
-  id: "lyra.message.contentBlock",
-  keying: "single",
-});
-// Per-message citation sources — each maps the message's blocks to the
-// citations they imply (multi: every contribution's output is concatenated).
-// Keeps the kernel ignorant of which block kind carries sources, so a
-// citation-producing feature (e.g. the search block) stays fully removable.
-export const MESSAGE_CITATION_SOURCE = defineExtensionPoint<CitationSource>({
-  id: "lyra.message.citationSource",
-  keying: "multi",
 });

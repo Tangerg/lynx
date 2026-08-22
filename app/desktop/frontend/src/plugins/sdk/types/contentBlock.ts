@@ -1,9 +1,4 @@
-// Message content-block plugin surface.
-//
-// This file owns the discriminated union that plugin authors can extend via
-// declaration merging. Keep it separate from agentSessionView.ts: content blocks are
-// an SDK extension contract, while AgentSessionView is one built-in context's
-// read model.
+// Message content blocks projected by the Runtime fold.
 
 export type BlockStatus = "running" | "complete" | "incomplete" | "requires-action";
 
@@ -32,7 +27,7 @@ export interface ChoiceQuestionItem extends QuestionItemBase {
 // One required clarifying field projected from the runtime's closed union.
 export type QuestionItem = TextQuestionItem | ChoiceQuestionItem;
 
-export interface BuiltinContentBlockMap {
+interface ContentBlockMap {
   text: { kind: "text"; text: string; status: BlockStatus; itemId?: string };
   image: { kind: "image"; mime: string; data: string };
   reasoning: { kind: "reasoning"; reasoningId: string; text: string; status: BlockStatus };
@@ -63,15 +58,4 @@ export interface BuiltinContentBlockMap {
   compaction: { kind: "compaction"; summary?: string; droppedMessages?: number };
 }
 
-// Empty by design. Plugins augment this interface:
-//
-//   declare module "@/plugins/sdk/types/contentBlock" {
-//     interface CustomContentBlockMap {
-//       cpuChart: { kind: "cpuChart"; series: ChartPoint[] };
-//     }
-//   }
-export interface CustomContentBlockMap {}
-
-export type ContentBlockMap = BuiltinContentBlockMap & CustomContentBlockMap;
-export type ContentBlockKind = keyof ContentBlockMap;
-export type ContentBlock = ContentBlockMap[ContentBlockKind];
+export type ContentBlock = ContentBlockMap[keyof ContentBlockMap];
