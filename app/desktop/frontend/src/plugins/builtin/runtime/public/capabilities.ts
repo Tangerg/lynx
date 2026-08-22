@@ -21,7 +21,3 @@ export function runtimeSupportsStreamingMethod(method: string): boolean {
 
 export const runtimeSupportsTopic: RuntimeCapabilityPort["supportsRuntimeTopic"] = (topic) =>
   runtimeCapabilities().supportsRuntimeTopic(topic);
-
-export function subscribeRuntimeCapabilities(onChange: () => void): () => void {
-  return runtimeCapabilities().subscribe(onChange);
-}

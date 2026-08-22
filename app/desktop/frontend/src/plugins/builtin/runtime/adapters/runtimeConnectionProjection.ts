@@ -72,15 +72,6 @@ export function runtimeSupportsTopic(topic: string): boolean {
   );
 }
 
-function subscribeRuntimeCapabilities(onChange: () => void): () => void {
-  let current = useRuntimeConnectionStore.getState().capabilities;
-  return useRuntimeConnectionStore.subscribe((state) => {
-    if (state.capabilities === current) return;
-    current = state.capabilities;
-    onChange();
-  });
-}
-
 /** Install the read-only capability boundary used by tests without a Runtime owner. */
 export function installRuntimeCapabilityPort(): () => void {
   return configureRuntimeCapabilityPort({
@@ -89,7 +80,6 @@ export function installRuntimeCapabilityPort(): () => void {
     supportsStreamingMethod: runtimeSupportsStreamingMethod,
     supportsRuntimeTopic: runtimeSupportsTopic,
     negotiated: () => useRuntimeConnectionStore.getState().capabilities,
-    subscribe: subscribeRuntimeCapabilities,
   });
 }
 

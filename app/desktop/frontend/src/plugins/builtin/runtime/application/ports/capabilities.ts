@@ -8,7 +8,6 @@ export interface RuntimeCapabilityPort {
   supportsRuntimeTopic(topic: string): boolean;
   /** What the server advertised, or null before discovery. */
   negotiated(): ServerCapabilities | null;
-  subscribe(onChange: () => void): () => void;
 }
 
 const port = createSingletonPort<RuntimeCapabilityPort>(

@@ -5,7 +5,6 @@ import {
   type RuntimeConnectionInspection,
   type RuntimeConnectionInspector,
 } from "../application/runtimeService";
-import { runtimeCapabilities } from "../application/ports/capabilities";
 import { runtimeServiceStatus } from "../application/ports/serviceStatus";
 import {
   resetRuntimeConnectionForTest,
@@ -351,42 +350,5 @@ describe("runtime connection projection", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it("keeps the successor read port installed while capability subscribers reconcile", async () => {
-    const retired = startRuntimeConnection({ inspect: vi.fn().mockResolvedValue(inspection()) });
-    await vi.waitFor(() => {
-      expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
-    });
-    const reconciled: boolean[] = [];
-    const unsubscribe = runtimeCapabilities().subscribe(() => {
-      reconciled.push(runtimeCapabilities().supportsRuntimeTopic("mcp.changed"));
-    });
-
-    let successor: ReturnType<typeof startRuntimeConnection> | undefined;
-    expect(() => {
-      successor = startRuntimeConnection({ inspect: vi.fn().mockResolvedValue(inspection()) });
-    }).not.toThrow();
-
-    expect(reconciled).toContain(false);
-    unsubscribe();
-    retired.dispose();
-    successor?.dispose();
-  });
-
-  it("keeps the retiring read port installed until final capability reconciliation finishes", async () => {
-    const owner = startRuntimeConnection({ inspect: vi.fn().mockResolvedValue(inspection()) });
-    await vi.waitFor(() => {
-      expect(useRuntimeConnectionStore.getState().service.phase).toBe("ready");
-    });
-    const reconciled: boolean[] = [];
-    const unsubscribe = runtimeCapabilities().subscribe(() => {
-      reconciled.push(runtimeCapabilities().supportsRuntimeTopic("mcp.changed"));
-    });
-
-    expect(() => owner.dispose()).not.toThrow();
-
-    expect(reconciled).toContain(false);
-    unsubscribe();
   });
 });
