@@ -81,15 +81,7 @@ export {
   useSlashCommands,
   useWorkspaceViews,
 } from "./selectors";
-// Backend-driven Plan updates and plugin event folds.
-
-export {
-  appendBlockToLatestAssistant,
-  appendBlockToMessage,
-  appendTimelineEntry,
-  compose,
-  patchBlocksWhere,
-} from "./state";
+export { appendTimelineEntry } from "./types/agentTimeline";
 
 export type { KeyValueStore } from "./storage";
 export type { AgentMessagePhase, AgentPlan, PlanStep } from "./types/agentSessionView";
@@ -150,7 +142,6 @@ export type {
   ShortcutSpec,
   SlashCommandRunCtx,
   SlashCommandSpec,
-  StateUpdate,
   ColorThemeSpec,
   NeutralStep,
   ThemeNeutralSteps,

@@ -68,7 +68,6 @@ src/
 │   │   ├── kernel.ts             当前 Host 代际、ContributionView cache 与安装 read model
 │   │   ├── services.ts / shellServices.ts  typed shell capability contracts
 │   │   ├── selectors/            按面分组的 useXxx / lookupXxx + extensions.ts（读侧底座 + O(1) 索引）
-│   │   ├── state.ts / stateSlice.ts / sharedState.ts  插件共享 state
 │   │   └── config.ts / storage.ts / notifications.ts / errors.ts
 │   │
 │   └── builtin/              内置插件，按领域（限界上下文）分组

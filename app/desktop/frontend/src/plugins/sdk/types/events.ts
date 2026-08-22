@@ -7,14 +7,6 @@ import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import type { AgentEventEnvelope } from "./agentEvents";
 
 /**
- * Pure state update — takes the current view state, returns the next.
- *
- * Handlers compose updates from helpers exported by `@/plugins/sdk/state`
- * (e.g. `appendBlockToMessage`) so they don't have to know the state shape.
- */
-export type StateUpdate = (state: AgentSessionView) => AgentSessionView;
-
-/**
  * Handler for a first-class StreamEvent type (segment.started / segment.finished /
  * item.started / item.delta / item.completed / plan.updated).
  * Receives the full session projection + the complete RunEvent envelope and

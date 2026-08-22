@@ -1,6 +1,6 @@
 import type { AgentSessionView, TimelineEntry } from "@/plugins/sdk/types/agentSessionView";
 
-export type StateUpdate = (state: AgentSessionView) => AgentSessionView;
+type StateUpdate = (state: AgentSessionView) => AgentSessionView;
 
 const TIMELINE_MAX = 500;
 
