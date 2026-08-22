@@ -1,8 +1,7 @@
 import { disposeOnHmr } from "@/lib/hmr";
 import type { AgentSessionPorts } from "@/plugins/builtin/agent/public/ports";
-import { replaceDraft } from "../application/draft";
+import { focusComposer } from "../application/focus";
 import { configureComposerStatePort } from "../application/ports/state";
-import { composerDraftPort } from "./composerDraftPort";
 import { useComposerStore } from "./composerStore";
 
 let stopSessionSync: (() => void) | null = null;
@@ -13,7 +12,13 @@ export function installComposerStatePorts(sessions: AgentSessionPorts): () => vo
     useSetText: () => useComposerStore((state) => state.setValue),
     useClearDraft: () => useComposerStore((state) => state.clear),
     getText: () => useComposerStore.getState().value,
-    replaceDraft: (input) => replaceDraft(input, composerDraftPort),
+    replaceDraft: (input) => {
+      const store = useComposerStore.getState();
+      store.clear();
+      store.setValue(input.text);
+      if (input.images?.length) store.addImages(input.images);
+      focusComposer(input.text.length);
+    },
     useImages: () => useComposerStore((state) => state.images),
     usePastes: () => useComposerStore((state) => state.pastes),
     useAddImageFiles: () => useComposerStore((state) => state.addImageFiles),

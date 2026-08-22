@@ -1,6 +1,6 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P140 已完成。
+> 状态：P0–P140 已完成；P141 进行中。
 >
 > 最近基线：2026-08-21，P140 第五批 Plan 一等合同收敛。
 
@@ -15,6 +15,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P141 已由当前 Goal 明确授权：继续只在 `app/runtime` 与 `app/desktop` 做证据化减法，直到形成新的独立里程碑。公开 Runtime Protocol、Artifact/SQLite 持久化格式、Wails 动态绑定和现有用户能力保持不变；每个批次必须证明真实消费者、动态入口、兼容义务与生命周期 owner，并独立验证、提交和推送。首个已准入反例位于 Desktop Composer：草稿替换经过一个单实现 port、一个只转发 use case 和一个只组装该 port 的 adapter，而发送意图还为已有 draft image/paste 事实复制三套局部 DTO；这些表示没有外部消费者或动态入口，行为应归还唯一 Composer state adapter。
 - P140 已完成，且明确不保留兼容。第一批已删除上一发行版兼容基线与 protocol range，Runtime/Desktop 只接受当前精确 `protocolVersion`；第二批已端到端删除生产不可达的 `custom` RunEvent、`clientTools` feature 与 `toolResult` interrupt/response wire；第三批已证明 `~/.lyra/plugins` 没有真实安装，仓库样例也不满足当前 loader/Host API，因而删除 Go 目录扫描、Bootstrap 源码传输、前端 dynamic import、`window.__LYRA__`、Platform permission/API-version/lazy-activation surface 与失效样例。内置插件仍作为同 bundle 的单一 Host transaction 启动。第四批证明 Feature、Method、StateKey 的 stability 全量恒为 `stable`，没有协商分支或真实实验消费者；现已从 canonical Go、注册表、生成器、OpenRPC/manifest/schema/Go API、TypeScript binding、Desktop fixture 与文档一次性删除，并把唯一精确 Protocol 前移到 `2026-08-21`，没有旧 shape reader。
 - 第五批证明通用 state registry 只有 Plan 一个变体，且 scope 恒为 Session、writer 恒为 root Run、cold read 恒为 `plan.get`；现已收敛为一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan`。Artifact 前移到 v22；`stateSnapshots` discovery、state key/scope/writer metadata、`StateSnapshot` union、RuntimeEvent key、Artifact `states[]`、Desktop generic shared-state Plan reader 与 Application 重复 `PlanStep` 表示均已删除。Goal 插件伴随材料继续由独立 `shared` owner 持有，不作为协议 Plan 的 fallback。没有 alias、双写、旧归档 reader 或迁移层。Frontend 318 files / 1993 tests、全部静态/边界/消费者/bundle 门禁、Runtime/Desktop 全量 test/vet/build/staticcheck、受影响 Runtime 与 Desktop 全量 race tests 均通过；生成器重跑 diff-free，Runtime/Desktop TypeScript 合同与样例逐字节一致。
 - 第三批同时删除仅为外部插件存在的 installation origin 双态、Host capability whitelist/risk metadata、无消费者 Plugins shell service，以及从无生产贡献者的 plugin load/unload/beforeunload、Composer attachment-source 扩展点。图片、粘贴、`@file` 附件仍由 Composer 直接拥有；renderer `beforeunload` 由 composition root 直接关闭，不再经过空插件 hook。没有 alias、双 shape、fallback、旧目录 reader 或迁移层。Frontend 318 files / 1993 tests、全部静态与 bundle 门禁、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events 全绿；Runtime/Desktop test/vet/build 全绿。

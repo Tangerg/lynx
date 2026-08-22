@@ -1,18 +1,3 @@
-export interface ComposerImageInput {
-  mime: string;
-  data: string;
-}
-
-export interface ComposerPasteInput {
-  text: string;
-}
-
-export interface ComposerDraftInput {
-  value: string;
-  images: readonly ComposerImageInput[];
-  pastes: readonly ComposerPasteInput[];
-}
-
 export interface SlashIntent {
   cmd: string;
   args: string;
@@ -30,7 +15,11 @@ export function createComposerSendIntent({
   value,
   images,
   pastes,
-}: ComposerDraftInput): ComposerSendIntent {
+}: {
+  value: string;
+  images: readonly unknown[];
+  pastes: ReadonlyArray<{ text: string }>;
+}): ComposerSendIntent {
   const text = value.trim();
   const body = [text, ...pastes.map((paste) => paste.text)].filter(Boolean).join("\n\n");
   const shouldSend = Boolean(text || images.length > 0 || pastes.length > 0);
