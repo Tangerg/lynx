@@ -16,12 +16,7 @@ function runtimeFeedbackGateway(client: LyraClient): MessageFeedbackGateway {
   };
 }
 
-interface RuntimeFeedbackInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installRuntimeFeedbackGateway(): RuntimeFeedbackInstallation {
+export function installRuntimeFeedbackGateway() {
   const owner = MessageFeedbackOwner.install(runtimeFeedbackGateway(getContainer().client()));
   return {
     replaceRuntimeGeneration: () => owner.replaceRuntimeGeneration(),

@@ -2,12 +2,7 @@ import { getContainer } from "@/main/container";
 import { DiagnosticToolOwner } from "../application/diagnosticTool";
 import type { DiagnosticToolGateway } from "../application/ports/diagnosticToolGateway";
 
-export interface DiagnosticToolGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installDiagnosticToolGateway(): DiagnosticToolGatewayInstallation {
+export function installDiagnosticToolGateway() {
   const client = getContainer().client();
   const gateway: DiagnosticToolGateway = {
     invoke(input) {

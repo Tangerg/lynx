@@ -42,12 +42,7 @@ const gateway: AgentMemoryGateway = {
   },
 };
 
-export interface AgentMemoryGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installAgentMemoryGateway(): AgentMemoryGatewayInstallation {
+export function installAgentMemoryGateway() {
   const mutationOwner = AgentMemoryMutationOwner.install(gateway);
   return {
     replaceRuntimeGeneration: () => mutationOwner.replaceRuntimeGeneration(),

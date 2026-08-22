@@ -19,12 +19,7 @@ function runtimeCodebaseGateway(client: LyraClient): CodebaseGateway {
   };
 }
 
-export interface CodebaseGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installCodebaseGateway(): CodebaseGatewayInstallation {
+export function installCodebaseGateway() {
   const gateway = runtimeCodebaseGateway(getContainer().client());
   const commandOwner = CodebaseCommandOwner.install(gateway);
   return {

@@ -5,12 +5,9 @@ import type { LyraClient } from "@/rpc";
 import { RpcError } from "@/rpc";
 import { loadWorkspaceKnowledge, saveWorkspaceKnowledge } from "../application/knowledge";
 import { WorkspaceKnowledgeRevisionConflictError } from "../application/ports/knowledgeGateway";
-import {
-  installWorkspaceKnowledgeGateway,
-  type WorkspaceKnowledgeGatewayInstallation,
-} from "./runtimeKnowledgeGateway";
+import { installWorkspaceKnowledgeGateway } from "./runtimeKnowledgeGateway";
 
-const installations: WorkspaceKnowledgeGatewayInstallation[] = [];
+const installations: Array<ReturnType<typeof installWorkspaceKnowledgeGateway>> = [];
 
 afterEach(async () => {
   for (const installation of installations.splice(0).reverse()) installation.dispose();

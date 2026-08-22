@@ -7,15 +7,12 @@ import { createLyraClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess } from "@/rpc/transports/memory.testkit";
 import { AGENT_SESSION_USAGE_KEY, useAgentSessionUsage } from "../application/session/sessionUsage";
-import {
-  installAgentRuntimeGateway,
-  type AgentRuntimeGatewayInstallation,
-} from "./agentRuntimeGateway";
+import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 import { queryClient } from "@/lib/queryClient";
 
 let transport: ReturnType<typeof createMemoryTransport>;
 let client: ReturnType<typeof createLyraClient>;
-let restoreGateway: AgentRuntimeGatewayInstallation | undefined;
+let restoreGateway: ReturnType<typeof installAgentRuntimeGateway> | undefined;
 let unmountHook: (() => void) | undefined;
 let restoreQueryDefaults: (() => void) | undefined;
 
@@ -139,7 +136,7 @@ describe("mounted Session usage generation", () => {
     const successorClient = createLyraClient(successorTransport);
     const successorSend = vi.spyOn(successorTransport, "send");
     setContainer({ client: () => successorClient });
-    let disposeSuccessor!: AgentRuntimeGatewayInstallation;
+    let disposeSuccessor!: ReturnType<typeof installAgentRuntimeGateway>;
     await act(async () => {
       disposeSuccessor = installAgentRuntimeGateway();
       await Promise.resolve();

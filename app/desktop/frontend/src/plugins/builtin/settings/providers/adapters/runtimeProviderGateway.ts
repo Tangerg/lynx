@@ -53,12 +53,7 @@ function toWireChange(value: string | null | undefined): ProviderConfigChange | 
   return value === null ? { type: "clear" } : { type: "set", value };
 }
 
-export interface ProviderGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installProviderGateway(): ProviderGatewayInstallation {
+export function installProviderGateway() {
   const gateway = runtimeProviderGateway(getContainer().client());
   const mutationOwner = ProviderMutationOwner.install(gateway);
   return {

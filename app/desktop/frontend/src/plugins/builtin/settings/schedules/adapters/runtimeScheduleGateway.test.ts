@@ -9,13 +9,13 @@ import {
   updateSchedule,
 } from "../application/scheduleCommands";
 import { SCHEDULES_KEY } from "../application/scheduleQueries";
-import { installScheduleGateway, type ScheduleGatewayInstallation } from "./runtimeScheduleGateway";
+import { installScheduleGateway } from "./runtimeScheduleGateway";
 
 const { selectAgentSession } = vi.hoisted(() => ({ selectAgentSession: vi.fn() }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({ selectAgentSession }));
 
-let installation: ScheduleGatewayInstallation | undefined;
+let installation: ReturnType<typeof installScheduleGateway> | undefined;
 
 afterEach(() => {
   installation?.dispose();

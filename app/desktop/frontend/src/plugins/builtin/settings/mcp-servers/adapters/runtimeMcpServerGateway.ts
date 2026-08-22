@@ -132,12 +132,7 @@ function runtimeMCPServerGateway(client: LyraClient): MCPServerGateway {
   };
 }
 
-export interface MCPServerGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installMCPServerGateway(): MCPServerGatewayInstallation {
+export function installMCPServerGateway() {
   const gateway = runtimeMCPServerGateway(getContainer().client());
   const mutationOwner = MCPServerMutationOwner.install(gateway);
   return {

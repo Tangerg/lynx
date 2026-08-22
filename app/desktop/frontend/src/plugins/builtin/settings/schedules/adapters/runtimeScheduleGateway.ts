@@ -55,12 +55,7 @@ function runtimeScheduleGateway(client: LyraClient): ScheduleGateway {
   };
 }
 
-export interface ScheduleGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installScheduleGateway(): ScheduleGatewayInstallation {
+export function installScheduleGateway() {
   const owner = ScheduleMutationOwner.install(runtimeScheduleGateway(getContainer().client()));
   return {
     replaceRuntimeGeneration: () => owner.replaceRuntimeGeneration(),

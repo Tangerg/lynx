@@ -36,12 +36,7 @@ function knowledgeDocument(entry: KnowledgeEntry, scope: KnowledgeEntry["scope"]
   };
 }
 
-export interface WorkspaceKnowledgeGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installWorkspaceKnowledgeGateway(): WorkspaceKnowledgeGatewayInstallation {
+export function installWorkspaceKnowledgeGateway() {
   const gateway = runtimeKnowledgeGateway(getContainer().client());
   const owner = KnowledgeOwner.install(gateway);
   return {

@@ -2,12 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { invokeDiagnosticTool } from "../application/diagnosticTool";
-import {
-  installDiagnosticToolGateway,
-  type DiagnosticToolGatewayInstallation,
-} from "./runtimeDiagnosticToolGateway";
+import { installDiagnosticToolGateway } from "./runtimeDiagnosticToolGateway";
 
-const installations: DiagnosticToolGatewayInstallation[] = [];
+const installations: Array<ReturnType<typeof installDiagnosticToolGateway>> = [];
 
 afterEach(() => {
   for (let index = installations.length - 1; index >= 0; index--) {

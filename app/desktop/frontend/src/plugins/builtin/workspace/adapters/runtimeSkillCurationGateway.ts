@@ -20,12 +20,7 @@ function runtimeSkillCurationGateway(client: LyraClient): SkillCurationGateway {
   };
 }
 
-export interface SkillCurationGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installSkillCurationGateway(): SkillCurationGatewayInstallation {
+export function installSkillCurationGateway() {
   const gateway = runtimeSkillCurationGateway(getContainer().client());
   const owner = SkillCurationOwner.install(gateway);
   return {

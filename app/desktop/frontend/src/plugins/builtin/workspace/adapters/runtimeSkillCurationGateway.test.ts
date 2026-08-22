@@ -7,12 +7,9 @@ import {
   rejectSkillProposal,
   restoreSkill,
 } from "../application/skillCuration";
-import {
-  installSkillCurationGateway,
-  type SkillCurationGatewayInstallation,
-} from "./runtimeSkillCurationGateway";
+import { installSkillCurationGateway } from "./runtimeSkillCurationGateway";
 
-let installation: SkillCurationGatewayInstallation | undefined;
+let installation: ReturnType<typeof installSkillCurationGateway> | undefined;
 
 afterEach(async () => {
   installation?.dispose();

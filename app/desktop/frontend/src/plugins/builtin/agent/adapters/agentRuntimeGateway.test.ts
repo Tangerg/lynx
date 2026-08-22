@@ -13,13 +13,10 @@ import { asRunId, asSegmentId, asSessionId } from "@/rpc";
 import { createMutationPromise } from "@/rpc/mutation";
 import * as runtimeCapabilities from "@/plugins/builtin/runtime/public/capabilities";
 import { agentRuntime } from "../application/ports/runtimeGateway";
-import {
-  installAgentRuntimeGateway,
-  type AgentRuntimeGatewayInstallation,
-} from "./agentRuntimeGateway";
+import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 import { registerAgentSessionSharedMaterial } from "../application/ports/sessionSharedMaterial";
 
-let uninstall: AgentRuntimeGatewayInstallation | undefined;
+let uninstall: ReturnType<typeof installAgentRuntimeGateway> | undefined;
 let uninstallMaterialCommitter: (() => void) | undefined;
 
 afterEach(() => {

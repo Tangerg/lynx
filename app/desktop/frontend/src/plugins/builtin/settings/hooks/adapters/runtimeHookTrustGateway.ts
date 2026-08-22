@@ -10,12 +10,7 @@ function runtimeHookTrustGateway(client: LyraClient): HookTrustGateway {
   };
 }
 
-export interface HookTrustGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installHookTrustGateway(): HookTrustGatewayInstallation {
+export function installHookTrustGateway() {
   const owner = HookTrustMutationOwner.install(runtimeHookTrustGateway(getContainer().client()));
   return {
     replaceRuntimeGeneration: () => owner.replaceRuntimeGeneration(),

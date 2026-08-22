@@ -19,12 +19,7 @@ function runtimeConversationArchiveGateway(client: LyraClient): ConversationArch
   };
 }
 
-export interface ConversationArchiveGatewayInstallation {
-  replaceRuntimeGeneration(): void;
-  dispose(): void;
-}
-
-export function installConversationArchiveGateway(): ConversationArchiveGatewayInstallation {
+export function installConversationArchiveGateway() {
   const owner = ConversationArchiveOwner.install({
     gateway: runtimeConversationArchiveGateway(getContainer().client()),
     files: browserFileTransfer(),

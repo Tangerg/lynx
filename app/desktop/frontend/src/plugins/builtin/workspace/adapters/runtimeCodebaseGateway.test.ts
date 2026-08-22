@@ -4,9 +4,9 @@ import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { CODEBASE_STATUS_KEY } from "@/plugins/builtin/settings/providers/public/queries";
 import { reindexCodebase, searchCodebase } from "../application/codebaseCommands";
-import { installCodebaseGateway, type CodebaseGatewayInstallation } from "./runtimeCodebaseGateway";
+import { installCodebaseGateway } from "./runtimeCodebaseGateway";
 
-const installations: CodebaseGatewayInstallation[] = [];
+const installations: Array<ReturnType<typeof installCodebaseGateway>> = [];
 
 afterEach(async () => {
   for (const installation of installations.splice(0).reverse()) installation.dispose();

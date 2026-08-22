@@ -2,10 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient } from "@/rpc";
 import { exportConversationMarkdown } from "../application/conversationExport";
-import {
-  installConversationArchiveGateway,
-  type ConversationArchiveGatewayInstallation,
-} from "./runtimeConversationArchiveGateway";
+import { installConversationArchiveGateway } from "./runtimeConversationArchiveGateway";
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn<(filename: string, content: string, mime: string) => void>(),
@@ -40,7 +37,7 @@ vi.mock("./browserFileTransfer", () => ({
   browserFileTransfer: () => ({ download: mocks.download, pickText: vi.fn() }),
 }));
 
-const installations: ConversationArchiveGatewayInstallation[] = [];
+const installations: Array<ReturnType<typeof installConversationArchiveGateway>> = [];
 
 beforeEach(() => mocks.download.mockReset());
 
