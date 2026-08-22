@@ -75,7 +75,7 @@ src/
 │       ├── chat/             composer · message/(渲染 ui/ + public) · message-actions · plan-progress ·
 │       │                     slash-hints · chat-search · file-references ·
 │       │                     tools/(meta + previews + ui/)
-│       ├── command/          command-palette · global-keymap · shortcuts
+│       ├── command/          session-search · global-keymap · shortcuts
 │       ├── defaults/         默认 commands / data / accents / roles / title
 │       ├── i18n/             locales pack（8 语言）
 │       ├── navigation/       Work Index read model（projects/sessions/attention）
@@ -122,10 +122,7 @@ src/
 ├── state/                Kernel 共享 store（不承载业务规则）
 │   ├── uiStore.ts        主题 / accent / 字体 / motion / sidebarRail（持久化）
 │   ├── tasksStore.ts     后台任务
-│   ├── paletteStore.ts   命令面板 UI 状态
-│   ├── workspaceSurfaceStore.ts  app-global workspace tabs / settings target
 │   ├── contextDockStore.ts       session-scoped split / file / tool material
-│   └── useWhenContext.ts  build context for `when` clauses
 │
 ├── ui/                   本地 UI kit：primitives(Base UI 防腐层) / atoms / agent 业务原子
 │                         页面只消费 atoms 或 agent 原子，不直连 headless 外部库
@@ -335,7 +332,7 @@ App.tsx
 | ------------- | ------------------------------------------- |
 | `app.sidebar` | `kernel-sidebar`                            |
 | `app.main`    | `kernel-chat`（ChatPanel）                  |
-| `app.overlay` | `command-palette` / `toaster` / `shortcuts` |
+| `app.overlay` | `session-search` / `chat-search` / `toaster` / `shortcuts` |
 
 `AgentAppShell` 拥有窗口外壳、Work Index 区域和 settings 的 single-surface
 组合；实时 resize 只写 shell custom property，release/keyboard step 才通过
@@ -578,7 +575,7 @@ return specs.map(spec => (
 | `useToolPreview(fn)` / `useToolActions()`        | 工具卡片预览 / 头部按钮         |
 | `useWorkspaceViews()` / `useSettingsPanes()`     | 主区 workspace view / 设置左栏  |
 | `useSidebarSections()` / `useSidebarRailItems()` | 侧栏内部                        |
-| `useCommands()` / `useSlashCommands()`           | 命令面板 / composer slash 提示  |
+| `executeCommand()` / `useSlashCommands()`        | 命令调用 / composer slash 提示  |
 | `useComposerModes()` / `useComposerStatus()` / … | composer 工具栏                 |
 | `useThemes()` / `useAccents()`                   | Appearance 面板                 |
 | `useMessageRole(id)`                             | 消息头像 / 名字                 |
@@ -656,11 +653,10 @@ export default definePlugin({
   name: "lyra.example.hello",
   capabilities: ["commands"],
   setup(ctx) {
-    // 1. 加一个 Cmd+K 命令
+    // 1. 注册一个可按 id 执行的命令
     ctx.contribute(COMMAND, {
       id: "hello.world",
       label: "Hello, world!",
-      group: "Examples",
       run: () => ctx.notify("hi", "info"),
     });
     // 2. 副作用归当前 Installation lifetime

@@ -714,8 +714,6 @@ export const ko: Record<string, string> = {
   "command.toggleTheme": "다크/라이트 테마 전환",
   "command.newChat": "새 채팅",
   "command.closeFocused": "패널 또는 채팅 닫기",
-  "command.closeFocused.desc":
-    "열린 패널을 닫고, 없으면 채팅에서 나갑니다 — 채팅은 작업 색인에 남습니다",
   "command.focusComposer": "컴포저에 포커스",
   "command.historyBack": "뒤로 가기",
   "command.historyForward": "앞으로 가기",
@@ -1092,9 +1090,4 @@ export const ko: Record<string, string> = {
   "runDigest.plaintext.commands": "명령:",
   "runDigest.plaintext.approvals": "승인:",
   "runDigest.plaintext.errors": "오류:",
-
-  "command.group.chat": "대화",
-  "command.group.view": "보기",
-  "command.group.theme": "테마",
-  "command.group.composer": "입력창",
 };

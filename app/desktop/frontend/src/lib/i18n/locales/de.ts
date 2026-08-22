@@ -733,8 +733,6 @@ export const de: Record<string, string> = {
   "command.toggleTheme": "Dunkles/Helles Theme umschalten",
   "command.newChat": "Neuer Chat",
   "command.closeFocused": "Panel oder Chat schließen",
-  "command.closeFocused.desc":
-    "Schließt das offene Panel; sonst verlässt es den Chat, der im Arbeitsindex bleibt",
   "command.focusComposer": "Editor fokussieren",
   "command.historyBack": "Zurück",
   "command.historyForward": "Vorwärts",
@@ -1129,9 +1127,4 @@ export const de: Record<string, string> = {
   "runDigest.plaintext.commands": "Befehle:",
   "runDigest.plaintext.approvals": "Freigaben:",
   "runDigest.plaintext.errors": "Fehler:",
-
-  "command.group.chat": "Chat",
-  "command.group.view": "Ansicht",
-  "command.group.theme": "Thema",
-  "command.group.composer": "Eingabe",
 };

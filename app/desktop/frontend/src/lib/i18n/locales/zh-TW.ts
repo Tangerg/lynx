@@ -725,7 +725,6 @@ export const zhTW: Record<string, string> = {
   "command.toggleTheme": "切換深色/淺色佈景",
   "command.newChat": "新增聊天",
   "command.closeFocused": "關閉面板或對話",
-  "command.closeFocused.desc": "先關閉開啟的面板；否則離開目前對話 —— 對話仍留在工作索引中",
   "command.focusComposer": "聚焦輸入框",
   "command.historyBack": "上一頁",
   "command.historyForward": "下一頁",
@@ -1071,9 +1070,4 @@ export const zhTW: Record<string, string> = {
   "runDigest.plaintext.commands": "命令：",
   "runDigest.plaintext.approvals": "審批：",
   "runDigest.plaintext.errors": "錯誤：",
-
-  "command.group.chat": "對話",
-  "command.group.view": "檢視",
-  "command.group.theme": "主題",
-  "command.group.composer": "輸入區",
 };

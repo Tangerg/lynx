@@ -1,26 +1,12 @@
-// Command surface with real logic: the slash-command key pairing and owner
-// lookups for error attribution. Plain reads (a single command / shortcut by id)
+// Command surface with real logic: imperative execution plus slash-command key
+// pairing and owner attribution. Plain reads (a single command / shortcut by id)
 // go through the generic substrate: `lookupExtensionByKey(COMMAND, id)`,
 // `useExtensionPoint(SHORTCUT)`, etc.
 
 import { useMemo } from "react";
-import type { CommandSpec, SlashCommandSpec } from "../types";
+import type { SlashCommandSpec } from "../types";
 import { COMMAND, SLASH_COMMAND } from "../kernelPoints";
-import {
-  lookupExtensionByKey,
-  lookupExtensionOwner,
-  useExtensionEntries,
-  useExtensionPoint,
-} from "./extensions";
-
-export function useCommands(): CommandSpec[] {
-  return useExtensionPoint(COMMAND);
-}
-
-/** Owner plugin of a registered command — used for error attribution. */
-export function lookupCommandOwner(id: string): string | undefined {
-  return lookupExtensionOwner(COMMAND, id);
-}
+import { lookupExtensionByKey, lookupExtensionOwner, useExtensionEntries } from "./extensions";
 
 /**
  * Run a command by id — the imperative cross-plugin call. Warns and no-ops when

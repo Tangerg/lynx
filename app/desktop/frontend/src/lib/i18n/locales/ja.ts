@@ -721,8 +721,6 @@ export const ja: Record<string, string> = {
   "command.toggleTheme": "ダーク/ライトテーマを切り替え",
   "command.newChat": "新しいチャット",
   "command.closeFocused": "パネルまたはチャットを閉じる",
-  "command.closeFocused.desc":
-    "開いているパネルを閉じ、なければチャットから離れます（チャットは作業インデックスに残ります）",
   "command.focusComposer": "コンポーザーにフォーカス",
   "command.historyBack": "戻る",
   "command.historyForward": "進む",
@@ -1110,9 +1108,4 @@ export const ja: Record<string, string> = {
   "runDigest.plaintext.commands": "コマンド:",
   "runDigest.plaintext.approvals": "承認:",
   "runDigest.plaintext.errors": "エラー:",
-
-  "command.group.chat": "チャット",
-  "command.group.view": "ビュー",
-  "command.group.theme": "テーマ",
-  "command.group.composer": "入力欄",
 };

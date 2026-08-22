@@ -10,14 +10,10 @@ export default definePlugin({
       order: 50,
       component: ChatSearchOverlay,
     });
-    // A command, not a bare shortcut, so it remains discoverable in the palette.
+    // A command keeps the shortcut description and handler in one declaration.
     ctx.contribute(COMMAND, {
       id: "chat.search",
       label: "command.chatSearch",
-      icon: "search",
-      group: "command.group.chat",
-      keywords: ["find", "search", "conversation", "messages", "transcript"],
-      order: 2,
       combo: "Mod+F",
       run: openChatSearch,
     });

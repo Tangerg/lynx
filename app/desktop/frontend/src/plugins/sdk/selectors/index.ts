@@ -12,14 +12,8 @@ export {
   useExtensionPoint,
 } from "./extensions";
 
-// Palette commands + slash-command pairing + owner attribution.
-export {
-  executeCommand,
-  lookupCommandOwner,
-  lookupSlashCommandOwner,
-  useCommands,
-  useSlashCommands,
-} from "./commands";
+// Command execution + slash-command pairing and owner attribution.
+export { executeCommand, lookupSlashCommandOwner, useSlashCommands } from "./commands";
 
 // Composer placeholder weighted-random pick.
 
@@ -35,7 +29,7 @@ export {
   useWorkspaceViews,
 } from "./layout";
 
-// Tool owner attribution + per-message citation sources.
+// Tool owner attribution.
 export { lookupToolActionOwner, lookupToolViewOpenerOwner } from "./messages";
 
 // Runtime / data-layer: priority picks + data-provider fetcher.

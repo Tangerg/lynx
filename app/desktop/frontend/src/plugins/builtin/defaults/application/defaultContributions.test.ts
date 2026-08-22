@@ -51,7 +51,7 @@ describe("defaultMessageRoles", () => {
 });
 
 describe("defaultStaticCommands", () => {
-  it("projects default command metadata in stable palette order", () => {
+  it("projects the stable command ids, combos, and shortcut labels", () => {
     const run = () => {};
     const commands = defaultStaticCommands({
       toggleSidebar: run,

@@ -1,17 +1,6 @@
-// Built-in plugin: the palette's command set.
-//
-// Eight static application actions. Workspace destinations and theme accents
-// belong to their own selection surfaces rather than command registration.
-//
-// Both had a better home already. Panels belong to the Context Dock's own picker,
-// which groups them by scope and shows which are open; the palette reaches the
-// same list directly and gates it behind a query, the way it already gated
-// sessions. Accents belong to Appearance settings — a colour is a preference, not
-// an action, and "Blue" as a top-level command said nothing about what it did.
-//
-// Losing the dynamic half also loses the machinery it needed: a registry
-// subscription, a content signature to stop it re-firing on its own writes, and a
-// dispose-and-re-register cycle. None of that has anything left to serve.
+// The eight static application commands that also own the global shortcuts
+// listed in Settings. Workspace destinations and theme accents stay in their
+// dedicated selection surfaces.
 
 import { toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import {

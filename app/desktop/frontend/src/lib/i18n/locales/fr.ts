@@ -732,8 +732,6 @@ export const fr: Record<string, string> = {
   "command.toggleTheme": "Basculer thème sombre/clair",
   "command.newChat": "Nouveau chat",
   "command.closeFocused": "Fermer le panneau ou le chat",
-  "command.closeFocused.desc":
-    "Ferme le panneau ouvert ; sinon quitte le chat, qui reste dans l'index de travail",
   "command.focusComposer": "Focus sur le compositeur",
   "command.historyBack": "Retour",
   "command.historyForward": "Suivant",
@@ -1126,9 +1124,4 @@ export const fr: Record<string, string> = {
   "runDigest.plaintext.commands": "Commandes :",
   "runDigest.plaintext.approvals": "Approbations :",
   "runDigest.plaintext.errors": "Erreurs :",
-
-  "command.group.chat": "Discussion",
-  "command.group.view": "Vue",
-  "command.group.theme": "Thème",
-  "command.group.composer": "Saisie",
 };

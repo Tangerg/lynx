@@ -57,7 +57,6 @@ export type { ParameterizedQueryOptions } from "./dataQuery";
 // use/lookupExtensionByKey); the rest are selectors with real logic.
 export {
   executeCommand,
-  lookupCommandOwner,
   lookupStreamHandlers,
   lookupDataProvider,
   lookupExtensionByKey,
@@ -69,7 +68,6 @@ export {
   pickAgentSource,
   pickPluginErrorFallback,
   resolveAgentRunStartOptions,
-  useCommands,
   useExtensionByKey,
   useExtensionPoint,
   useContextDockDestinations,

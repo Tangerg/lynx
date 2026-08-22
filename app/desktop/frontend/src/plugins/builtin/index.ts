@@ -244,7 +244,7 @@ const kernel: AnyPlugin[] = [kernelSidebar, kernelChat, kernelSettings];
 
 const sidebar: AnyPlugin[] = [sidebarActions, sidebarProjects, sidebarRecents, sidebarFooter];
 
-// Overlays + chrome — toasts, command palette, status bar, …
+// Overlays + chrome — toasts, search, shortcuts, status, …
 
 const overlays: AnyPlugin[] = [
   toaster,

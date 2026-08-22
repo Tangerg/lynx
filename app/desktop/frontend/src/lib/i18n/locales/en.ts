@@ -1024,8 +1024,6 @@ export const en: Record<string, string> = {
   "command.toggleTheme": "Toggle dark/light theme",
   "command.newChat": "New chat",
   "command.closeFocused": "Close panel or chat",
-  "command.closeFocused.desc":
-    "Closes the open panel; otherwise leaves the chat, which stays in the work index",
   "command.focusComposer": "Focus composer",
   "command.historyBack": "Go back",
   "command.historyForward": "Go forward",
@@ -1145,9 +1143,4 @@ export const en: Record<string, string> = {
   "runDigest.plaintext.commands": "Commands:",
   "runDigest.plaintext.approvals": "Approvals:",
   "runDigest.plaintext.errors": "Errors:",
-
-  "command.group.chat": "Chat",
-  "command.group.view": "View",
-  "command.group.theme": "Theme",
-  "command.group.composer": "Composer",
 };

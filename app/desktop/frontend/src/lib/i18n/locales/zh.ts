@@ -908,7 +908,6 @@ export const zh: Record<string, string> = {
   "command.toggleTheme": "切换深色/浅色主题",
   "command.newChat": "新建聊天",
   "command.closeFocused": "关闭面板或会话",
-  "command.closeFocused.desc": "先关闭打开的面板；否则离开当前会话 —— 会话仍留在工作索引中",
   "command.focusComposer": "聚焦输入框",
   "command.historyBack": "后退",
   "command.historyForward": "前进",
@@ -1072,9 +1071,4 @@ export const zh: Record<string, string> = {
   "runDigest.plaintext.commands": "命令：",
   "runDigest.plaintext.approvals": "审批：",
   "runDigest.plaintext.errors": "错误：",
-
-  "command.group.chat": "对话",
-  "command.group.view": "视图",
-  "command.group.theme": "主题",
-  "command.group.composer": "输入区",
 };

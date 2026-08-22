@@ -3,8 +3,8 @@
 // but presents the keys the way the OS prints them. Detection is one-shot at
 // module load — switching OS mid-session isn't a thing.
 //
-// Pure formatting util shared by the command palette (compact glyph string),
-// the shortcuts pane (one <kbd> per part), and the welcome screen. Lives in
+// Pure formatting util shared by the shortcuts pane (one <kbd> per part) and
+// the welcome screen. Lives in
 // lib/ so any plugin can consume it without reaching into another plugin's
 // directory.
 
