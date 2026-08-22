@@ -5,7 +5,7 @@
 
 import { createHost, type AnyPlugin, type Host } from "dougong";
 import { afterEach, describe, expect, it } from "vitest";
-import { defineExtensionPoint, resetExtensionPointsForTest } from "./contracts";
+import { defineExtensionPoint } from "./contracts";
 import { contributionsTo, publishKernel, retractKernel, subscribeContributions } from "./kernel";
 import { definePlugin } from "./definePlugin";
 
@@ -15,6 +15,8 @@ interface Theme {
   order?: number;
 }
 
+const THEME = defineExtensionPoint<Theme>({ id: "test.theme", keying: "single" });
+
 let host: Host | undefined;
 
 afterEach(async () => {
@@ -23,7 +25,6 @@ afterEach(async () => {
     await host.stop();
   }
   host = undefined;
-  resetExtensionPointsForTest();
 });
 
 // A point is read straight off the Host, so nothing has to be declared up front;
@@ -45,7 +46,6 @@ async function start(plugins: AnyPlugin[]) {
 
 describe("kernel contribution reads", () => {
   it("publishes a contribution under its domain key, not Core's owner-qualified one", async () => {
-    const THEME = defineExtensionPoint<Theme>({ id: "test.theme", keying: "single" });
     const contributor = definePlugin({
       name: "test.contributor",
       setup: (ctx) => {
@@ -60,7 +60,6 @@ describe("kernel contribution reads", () => {
   });
 
   it("sorts by the item's own order ahead of the contribute-time hint", async () => {
-    const THEME = defineExtensionPoint<Theme>({ id: "test.theme", keying: "single" });
     const plugin = definePlugin({
       name: "test.many",
       setup: (ctx) => {
@@ -76,7 +75,6 @@ describe("kernel contribution reads", () => {
   });
 
   it("gives a single point's key to the last contributor", async () => {
-    const THEME = defineExtensionPoint<Theme>({ id: "test.theme", keying: "single" });
     const base = definePlugin({
       name: "test.base",
       setup: (ctx) => {
@@ -114,7 +112,6 @@ describe("kernel contribution reads", () => {
   });
 
   it("returns the same array reference until something changes", async () => {
-    const THEME = defineExtensionPoint<Theme>({ id: "test.theme", keying: "single" });
     const plugin = definePlugin({
       name: "test.stable",
       setup: (ctx) => {
@@ -137,7 +134,6 @@ describe("kernel contribution reads", () => {
   });
 
   it("notifies subscribers when a later change adds a contribution", async () => {
-    const THEME = defineExtensionPoint<Theme>({ id: "test.theme", keying: "single" });
     const base = definePlugin({
       name: "test.base",
       setup: (ctx) => {
@@ -167,7 +163,6 @@ describe("kernel contribution reads", () => {
   });
 
   it("restores a shadowed contribution when the plugin shadowing it is removed", async () => {
-    const THEME = defineExtensionPoint<Theme>({ id: "test.theme", keying: "single" });
     const base = definePlugin({
       name: "test.base",
       setup: (ctx) => {

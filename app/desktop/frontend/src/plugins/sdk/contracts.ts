@@ -65,8 +65,3 @@ export function defineExtensionPoint<T>(spec: ExtensionPointSpec<T>): ExtensionP
   taken.add(spec.id);
   return point;
 }
-
-/** Test-only — points are module-eval singletons, so a suite that redefines one needs this. */
-export function resetExtensionPointsForTest(): void {
-  taken.clear();
-}
