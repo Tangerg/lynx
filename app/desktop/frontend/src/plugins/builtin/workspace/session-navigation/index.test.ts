@@ -9,8 +9,7 @@ import {
   activateWorkspaceSessionScope,
   forgetWorkspaceSessionScopes,
 } from "@/plugins/builtin/workspace/public/navigation";
-import { removeInstallation } from "@/plugins/sdk/kernel";
-import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
+import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 
 // The plugin's job: keep the dock's per-session memory pointed at the session the
 // user is in. It observes the session through the agent facade and answers by
@@ -121,7 +120,7 @@ describe("workspace session navigation", () => {
 
   it("stops following once unloaded", async () => {
     await loadPluginsForTest(ports, sessionNavigation);
-    await removeInstallation(sessionNavigation.name);
+    await resetKernelForTest();
 
     agentSession.goTo("s2");
 

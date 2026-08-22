@@ -6,7 +6,7 @@
 import { createHost, type AnyPlugin, type Host } from "dougong";
 import { reportPluginError } from "./errors";
 import { kernelLogger } from "./hostLog";
-import { contributionsTo, publishKernel, retractKernel, trackInstallation } from "./kernel";
+import { contributionsTo, publishKernel, retractKernel, trackInstalledPlugin } from "./kernel";
 import { READY_HANDLER } from "./kernelPoints";
 import { shellServices } from "./shellServices";
 
@@ -17,7 +17,10 @@ export function createKernel(plugins: ReadonlyArray<AnyPlugin>): Host {
     onError: (error) => reportPluginError("kernel", "setup", error),
   });
   host.install(shellServices);
-  for (const plugin of plugins) trackInstallation(host, plugin.name, host.install(plugin));
+  for (const plugin of plugins) {
+    host.install(plugin);
+    trackInstalledPlugin(host, plugin.name);
+  }
   return host;
 }
 
@@ -46,16 +49,6 @@ export async function startKernel(
 export async function stopKernel(host: Host): Promise<void> {
   retractKernel(host);
   await host.stop();
-}
-
-/** Add plugins to a running kernel in one transaction, so a failure rolls back
- *  alone and leaves what is already running untouched. */
-export async function installPlugins(host: Host, plugins: ReadonlyArray<AnyPlugin>): Promise<void> {
-  if (!plugins.length) return;
-  const change = host.change();
-  const installed = plugins.map((plugin) => [plugin.name, change.install(plugin)] as const);
-  await change.commit();
-  for (const [name, installation] of installed) trackInstallation(host, name, installation);
 }
 
 // `host.start()` resolving is the ready point; Core has no post-start hook

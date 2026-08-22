@@ -16,17 +16,10 @@ import type { ExtensionPoint } from "./types/extensions";
 const NOTHING: ReadonlyArray<Contribution<never>> = Object.freeze([]);
 const EMPTY_NAMES: ReadonlyArray<string> = Object.freeze([]);
 
-/** What the kernel needs back from an installation. Core's diagnostics are a
- *  read model and carry no `remove()`, so whoever installs keeps the handle. */
-interface Removable {
-  remove(): Promise<void>;
-}
-
 let host: Host | undefined;
-let revision = 0;
 let names: ReadonlyArray<string> = EMPTY_NAMES;
 const listeners = new Set<() => void>();
-const installationsByHost = new WeakMap<Host, Map<string, Removable>>();
+const pluginNamesByHost = new WeakMap<Host, Set<string>>();
 
 // Per point, resolved on first read and held until the kernel is retracted: the
 // view's subscription is what invalidates the cached array.
@@ -35,16 +28,15 @@ let releases: Array<() => void> = [];
 let entries = new Map<string, ReadonlyArray<Contribution<unknown>>>();
 
 function announce(): void {
-  revision += 1;
-  names = Object.freeze([...(host ? installationsFor(host).keys() : [])].sort());
+  names = Object.freeze([...(host ? pluginNamesFor(host) : [])].sort());
   for (const listener of [...listeners]) listener();
 }
 
-function installationsFor(owner: Host): Map<string, Removable> {
-  const existing = installationsByHost.get(owner);
+function pluginNamesFor(owner: Host): Set<string> {
+  const existing = pluginNamesByHost.get(owner);
   if (existing) return existing;
-  const created = new Map<string, Removable>();
-  installationsByHost.set(owner, created);
+  const created = new Set<string>();
+  pluginNamesByHost.set(owner, created);
   return created;
 }
 
@@ -71,12 +63,6 @@ export function retractKernel(owner: Host): boolean {
   return true;
 }
 
-/** Throws when nothing booted — callers are imperative actions where that is a bug. */
-export function kernelHost(): Host {
-  if (!host) throw new Error("No kernel is running — call publishKernel first");
-  return host;
-}
-
 /** Exact owner of the currently published contribution generation. Internal
  * readers use this identity to distinguish a Host replacement from a change
  * inside the same Host without widening the public plugin SDK. */
@@ -84,24 +70,8 @@ export function publishedKernel(): Host | undefined {
   return host;
 }
 
-export function trackInstallation(owner: Host, name: string, handle: Removable): void {
-  installationsFor(owner).set(name, handle);
-  if (host === owner) announce();
-}
-
-export function installedPlugins(): ReadonlyArray<string> {
-  return names;
-}
-
-export async function removeInstallation(name: string): Promise<void> {
-  const owner = host;
-  if (!owner) return;
-  const installations = installationsFor(owner);
-  const tracked = installations.get(name);
-  if (!tracked) return;
-  await tracked.remove();
-  if (installations.get(name) !== tracked) return;
-  installations.delete(name);
+export function trackInstalledPlugin(owner: Host, name: string): void {
+  pluginNamesFor(owner).add(name);
   if (host === owner) announce();
 }
 
@@ -197,13 +167,5 @@ export function useContributions<T>(point: ExtensionPoint<T>): ReadonlyArray<Con
     subscribe,
     () => contributionsTo(point),
     () => NOTHING as ReadonlyArray<Contribution<T>>,
-  );
-}
-
-export function useKernelRevision(): number {
-  return useSyncExternalStore(
-    subscribe,
-    () => revision,
-    () => 0,
   );
 }

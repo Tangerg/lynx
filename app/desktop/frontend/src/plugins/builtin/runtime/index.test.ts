@@ -14,7 +14,6 @@ import {
   useRuntimeConnectionStore,
 } from "./adapters/runtimeConnectionProjection";
 import runtimePlugin from "./index";
-import { removeInstallation } from "@/plugins/sdk/kernel";
 import { startKernel, stopKernel } from "@/plugins/sdk/bootstrap";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 
@@ -153,7 +152,7 @@ describe("runtime plugin", () => {
 
     await loadPluginsForTest(runtimePlugin);
     await vi.waitFor(() => expect(discover).toHaveBeenCalledOnce());
-    await removeInstallation(runtimePlugin.name);
+    await resetKernelForTest();
 
     resolveDiscovery(discovery);
     await Promise.resolve();
@@ -198,7 +197,7 @@ describe("runtime plugin", () => {
 
     await loadPluginsForTest(runtimePlugin);
     await vi.waitFor(() => expect(sidecar.readiness).toHaveBeenCalledOnce());
-    await removeInstallation(runtimePlugin.name);
+    await resetKernelForTest();
 
     resolveReadiness({ status: "ok", instanceId: "runtime_1" });
     await Promise.resolve();

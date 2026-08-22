@@ -389,13 +389,11 @@ export default definePlugin({
 - dougong `Host` 只由 composition root 持有：安装、启动、事务变更、贡献 read model 与 stop；产品插件不通过全局 Host 绕过契约。
 - 插件间命令式能力通过 `services.ts` token 与 `requires` / `provides` 注入。Lyra shell 只提供 config、i18n、window、workspace、commands、plugins 六类明确 Service。
 - Runtime 网络访问不属于通用 shell Service；内置业务仍经 context adapter → `main/container` → typed JSON-RPC client，Runtime DTO 停在 Adapter。
-- `kernel.ts` 只发布一个 Host generation。views、installation handles 与 installed-plugin read model 都绑定该 Host identity；stale stop / subscription callback 不能清理或写入 successor generation。
+- `kernel.ts` 只发布一个 Host generation。views 与 installed-plugin read model 都绑定该 Host identity；stale stop / subscription callback 不能清理或写入 successor generation。
 
-#### 启动与移除
+#### 启动
 
 - **built-ins**：`createKernel` 先安装 shell Services 和 manifest，`host.start()` 作为一个完整 transaction；任一 setup 失败就 rollback 全部，不发布半成品。
-- **运行期安装**：`installPlugins` 使用一个 dougong change transaction；commit 成功后才发布 installation handles。
-- **移除**：`Installation.remove()` 成功后才从 Plugins read model 删除；失败仍显示原安装，迟到旧 settlement 不能删除同名 replacement handle。
 
 Desktop 只安装同 bundle 静态 import 的内置插件。不存在外部插件目录、动态 module
 import、Host API 版本协商或 permission manifest；需要新的内置能力时直接改当前

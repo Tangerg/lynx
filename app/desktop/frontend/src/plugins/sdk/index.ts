@@ -11,7 +11,7 @@ export { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 export type { ConfigValue } from "./config";
 
 export { definePlugin } from "./definePlugin";
-export { createKernel, installPlugins, startKernel, stopKernel } from "./bootstrap";
+export { createKernel, startKernel, stopKernel } from "./bootstrap";
 export type { Contributor, PluginContext, PluginSpec } from "./definePlugin";
 export { contributeContentBlock, contributeLayout } from "./contributeHelpers";
 export type { Contribution } from "./contracts";
@@ -20,7 +20,6 @@ export {
   subscribeContributions,
   useContributions,
   useInstalledPlugins,
-  useKernelRevision,
 } from "./kernel";
 export { COMMANDS, CONFIG, I18N, WINDOW, WORKSPACE } from "./services";
 export type {

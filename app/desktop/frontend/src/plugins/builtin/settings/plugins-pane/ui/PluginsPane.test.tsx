@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import type { Host } from "dougong";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { startKernel, stopKernel } from "@/plugins/sdk";
-import { trackInstallation } from "@/plugins/sdk/kernel";
+import { trackInstalledPlugin } from "@/plugins/sdk/kernel";
 import { PluginsPane } from "./PluginsPane";
 
 let host: Host | undefined;
@@ -17,7 +17,7 @@ afterEach(async () => {
 describe("PluginsPane installation facts", () => {
   it("renders installed plugins from the active Host read model", async () => {
     host = await startKernel([]);
-    trackInstallation(host, "lyra.builtin.example", { remove: vi.fn() });
+    trackInstalledPlugin(host, "lyra.builtin.example");
 
     const view = render(<PluginsPane />);
 

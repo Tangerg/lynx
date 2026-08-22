@@ -12,8 +12,8 @@ import { queryClient } from "@/lib/queryClient";
 import { DATA_PROVIDER } from "./kernelPoints";
 import { definePlugin } from "./definePlugin";
 import { createParameterizedDataQuery } from "./dataQuery";
-import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
-import { installPlugins, startKernel, stopKernel } from "./bootstrap";
+import { addPluginsForTest, loadPluginsForTest } from "@/plugins/sdk/testKernel";
+import { startKernel, stopKernel } from "./bootstrap";
 
 const ownedHosts: Host[] = [];
 let restoreProductQueryDefaults: (() => void) | undefined;
@@ -290,7 +290,7 @@ describe("createParameterizedDataQuery", () => {
     });
     await waitFor(() => expect(retiredFetcher).toHaveBeenCalledOnce());
 
-    await installPlugins(host, [
+    await addPluginsForTest(host, [
       definePlugin({
         name: "test.override-data-provider",
         setup(ctx) {
@@ -326,7 +326,7 @@ describe("createParameterizedDataQuery", () => {
     await act(async () => Promise.resolve());
     expect(resourceFetcher).toHaveBeenCalledOnce();
 
-    await installPlugins(host, [
+    await addPluginsForTest(host, [
       definePlugin({
         name: "test.unrelated-data-provider",
         setup(ctx) {

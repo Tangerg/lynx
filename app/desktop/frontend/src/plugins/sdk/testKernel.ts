@@ -4,7 +4,8 @@
 
 import type { AnyPlugin, Host } from "dougong";
 import { definePlugin, type PluginContext } from "./definePlugin";
-import { installPlugins, startKernel, stopKernel } from "./bootstrap";
+import { startKernel, stopKernel } from "./bootstrap";
+import { trackInstalledPlugin } from "./kernel";
 
 let running: Host | undefined;
 
@@ -18,11 +19,22 @@ let running: Host | undefined;
  */
 export async function loadPluginsForTest(...plugins: AnyPlugin[]): Promise<Host> {
   if (running) {
-    await installPlugins(running, plugins);
+    await addPluginsForTest(running, plugins);
     return running;
   }
   running = await startKernel(plugins);
   return running;
+}
+
+export async function addPluginsForTest(
+  host: Host,
+  plugins: ReadonlyArray<AnyPlugin>,
+): Promise<void> {
+  if (!plugins.length) return;
+  const change = host.change();
+  for (const plugin of plugins) change.install(plugin);
+  await change.commit();
+  for (const plugin of plugins) trackInstalledPlugin(host, plugin.name);
 }
 
 /** Boot a kernel whose only plugin contributes whatever the test needs. */
