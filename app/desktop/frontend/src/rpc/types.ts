@@ -106,10 +106,6 @@ export function errorRetryAfterSeconds(data: unknown): number | undefined {
 }
 
 // Discriminators — used by transport layer to route inbound messages.
-export function isRequest(msg: RpcMessage): msg is RpcRequest {
-  return "id" in msg && msg.id !== undefined && "method" in msg;
-}
-
 export function isResponse(msg: RpcMessage): msg is RpcResponse {
   return "id" in msg && msg.id !== undefined && !("method" in msg);
 }
