@@ -10,10 +10,7 @@ import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import { useApprovalSubmit } from "./useApprovalSubmit";
-import {
-  discardStagedInterruptResponses,
-  installInterruptResponseCoordinator,
-} from "./interruptResponseCoordinator";
+import { installInterruptResponseCoordinator } from "./interruptResponseCoordinator";
 
 const SID = "ses_1";
 let disposeCoordinator: () => void = () => undefined;
@@ -52,11 +49,9 @@ function seedPending(itemId: string): void {
 
 afterEach(() => {
   disposeCoordinator();
-  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
 });
 beforeEach(() => {
-  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
   disposeCoordinator = installInterruptResponseCoordinator();
 });

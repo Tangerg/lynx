@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import type { PendingInterruptGroup } from "@/plugins/sdk/types/agentSessionView";
 import {
-  discardStagedInterruptResponses,
   installInterruptResponseCoordinator,
   interruptResponseIsStaged,
   stageInterruptResponse,
@@ -38,14 +37,12 @@ function groups(): PendingInterruptGroup[] {
 }
 
 beforeEach(() => {
-  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
   disposeCoordinator = installInterruptResponseCoordinator();
 });
 
 afterEach(() => {
   disposeCoordinator();
-  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
 });
 

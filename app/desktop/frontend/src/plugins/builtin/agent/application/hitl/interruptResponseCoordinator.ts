@@ -256,8 +256,3 @@ export function installInterruptResponseCoordinator(): () => void {
     next.retire();
   };
 }
-
-/** Test seam for hook tests which configure the Agent ports once per process. */
-export function discardStagedInterruptResponses(): void {
-  interruptResponsePublication.current()?.discard();
-}

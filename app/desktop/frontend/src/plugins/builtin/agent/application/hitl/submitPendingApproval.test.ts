@@ -2,10 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { navigator } from "@/lib/navigation";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import type { PendingInterruptGroup } from "@/plugins/sdk/types/agentSessionView";
-import {
-  discardStagedInterruptResponses,
-  installInterruptResponseCoordinator,
-} from "./interruptResponseCoordinator";
+import { installInterruptResponseCoordinator } from "./interruptResponseCoordinator";
 import { registerApprovalActions } from "./useApprovalSubmit";
 import { submitPendingApproval } from "./submitPendingApproval";
 
@@ -22,7 +19,6 @@ function seedPending(groups: PendingInterruptGroup[]): void {
 }
 
 beforeEach(() => {
-  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
   navigator().go({ session: SESSION_ID });
   disposeCoordinator = installInterruptResponseCoordinator();
@@ -30,7 +26,6 @@ beforeEach(() => {
 
 afterEach(() => {
   disposeCoordinator();
-  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SESSION_ID);
 });
 
