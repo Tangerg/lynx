@@ -43,13 +43,6 @@ export {
   usePluginErrorStore,
 } from "./errors";
 
-// `when` clause evaluator + context shape — exposed so plugin command
-// consumers (palette, future menu providers) can filter declarative
-// commands consistently.
-export { evalWhen } from "./evalWhen";
-
-export type { WhenContext } from "./evalWhen";
-
 // Persistent notification feed + the app-side notify pair that writes to it.
 export { notifyError, notifyInfo, useNotificationStore } from "./notifications";
 export type { NotifyOptions, NotifySource } from "./notifications";

@@ -36,13 +36,6 @@ export interface CommandSpec {
   /** Sort hint within the group. Lower comes first. */
   order?: number;
   /**
-   * Optional `when` clause filtering when this command is visible in the
-   * palette. See `evalWhen.ts` for the supported syntax. Identifiers come
-   * from the runtime when-context (e.g. `mainViewActive`, `mainView`,
-   * `theme`, `sidebarRail`). Missing/invalid → command hidden.
-   */
-  when?: string;
-  /**
    * What to do. Optional `args` are forwarded by `host.commands.execute(id,
    * …args)` (cross-plugin invocation, VSCode-style); palette / shortcut
    * triggers pass none, so most commands take zero params.

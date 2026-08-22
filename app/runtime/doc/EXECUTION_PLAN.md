@@ -1,6 +1,6 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P141 已完成。
+> 状态：P0–P141 已完成；P142 进行中。
 >
 > 最近基线：2026-08-22，P141 Runtime/Desktop 证据化熵回收。
 
@@ -15,6 +15,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P142 已由当前 Goal 明确授权：继续只在 `app/runtime` 与 `app/desktop` 做证据化减法，直到形成新的独立里程碑。公开 Runtime Protocol、Artifact/SQLite、Wails v3 动态绑定、现有用户能力与 `app/cli` 保持不变；每批必须证明消费者、动态入口、兼容义务、历史理由和生命周期 owner，并独立验证、提交和推送。首个反例是命令面板删除后遗留的 `CommandSpec.when`、完整表达式解析器、SDK 导出和自证测试：没有命令声明、产品读取或外部动态插件入口，属于 added-then-abandoned surface。
 - P141 已完成：七个可独立回滚批次继续只在 `app/runtime` 与 `app/desktop` 做证据化减法。Desktop Composer 草稿行为已归还唯一 state adapter；测试 reset/discard seam 已归还真实 disposer；十二份 Runtime gateway installation 平行接口改由构造器返回形状推断；无消费者 capability subscription、RPC request discriminator 与 test-only Run selector 已端到端删除。Runtime 全生产树的 `deadcode` 与 consumer 复核没有发现可安全删除的内部实现；命中的 `embedded` 公共 API、operation 泛型入口和 testsupport 均有发布、动态 dispatch 或测试基础设施义务，因而保留。七批实现合计 41 个文件、55 行新增、267 行删除，净减 212 行；没有修改 Runtime Protocol、Artifact/SQLite、Wails 动态绑定或用户能力。
 - P140 已完成，且明确不保留兼容。第一批已删除上一发行版兼容基线与 protocol range，Runtime/Desktop 只接受当前精确 `protocolVersion`；第二批已端到端删除生产不可达的 `custom` RunEvent、`clientTools` feature 与 `toolResult` interrupt/response wire；第三批已证明 `~/.lyra/plugins` 没有真实安装，仓库样例也不满足当前 loader/Host API，因而删除 Go 目录扫描、Bootstrap 源码传输、前端 dynamic import、`window.__LYRA__`、Platform permission/API-version/lazy-activation surface 与失效样例。内置插件仍作为同 bundle 的单一 Host transaction 启动。第四批证明 Feature、Method、StateKey 的 stability 全量恒为 `stable`，没有协商分支或真实实验消费者；现已从 canonical Go、注册表、生成器、OpenRPC/manifest/schema/Go API、TypeScript binding、Desktop fixture 与文档一次性删除，并把唯一精确 Protocol 前移到 `2026-08-21`，没有旧 shape reader。
 - 第五批证明通用 state registry 只有 Plan 一个变体，且 scope 恒为 Session、writer 恒为 root Run、cold read 恒为 `plan.get`；现已收敛为一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan`。Artifact 前移到 v22；`stateSnapshots` discovery、state key/scope/writer metadata、`StateSnapshot` union、RuntimeEvent key、Artifact `states[]`、Desktop generic shared-state Plan reader 与 Application 重复 `PlanStep` 表示均已删除。Goal 插件伴随材料继续由独立 `shared` owner 持有，不作为协议 Plan 的 fallback。没有 alias、双写、旧归档 reader 或迁移层。Frontend 318 files / 1993 tests、全部静态/边界/消费者/bundle 门禁、Runtime/Desktop 全量 test/vet/build/staticcheck、受影响 Runtime 与 Desktop 全量 race tests 均通过；生成器重跑 diff-free，Runtime/Desktop TypeScript 合同与样例逐字节一致。

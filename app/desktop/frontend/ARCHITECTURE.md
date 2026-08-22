@@ -68,7 +68,6 @@ src/
 │   │   ├── kernel.ts             当前 Host 代际、ContributionView cache 与安装 read model
 │   │   ├── services.ts / shellServices.ts  typed shell capability contracts
 │   │   ├── selectors/            按面分组的 useXxx / lookupXxx + extensions.ts（读侧底座 + O(1) 索引）
-│   │   ├── evalWhen.ts           when 子句求值器（VS Code-when 子集）
 │   │   ├── state.ts / stateSlice.ts / sharedState.ts  插件共享 state
 │   │   └── config.ts / storage.ts / notifications.ts / errors.ts
 │   │
@@ -398,7 +397,6 @@ export default definePlugin({
 - **built-ins**：`createKernel` 先安装 shell Services 和 manifest，`host.start()` 作为一个完整 transaction；任一 setup 失败就 rollback 全部，不发布半成品。
 - **运行期安装**：`installPlugins` 使用一个 dougong change transaction；commit 成功后才发布 installation handles。
 - **移除**：`Installation.remove()` 成功后才从 Plugins read model 删除；失败仍显示原安装，迟到旧 settlement 不能删除同名 replacement handle。
-- **when 子句**：`CommandSpec.when?` 使用 `evalWhen.ts` 的 VS Code-when 子集，只决定可见/可用条件，不参与 lifecycle。
 
 Desktop 只安装同 bundle 静态 import 的内置插件。不存在外部插件目录、动态 module
 import、Host API 版本协商或 permission manifest；需要新的内置能力时直接改当前
