@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P140 已完成；P141 进行中。
+> 状态：P0–P141 已完成。
 >
-> 最近基线：2026-08-21，P140 第五批 Plan 一等合同收敛。
+> 最近基线：2026-08-22，P141 Runtime/Desktop 证据化熵回收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P141 已由当前 Goal 明确授权：继续只在 `app/runtime` 与 `app/desktop` 做证据化减法，直到形成新的独立里程碑。公开 Runtime Protocol、Artifact/SQLite 持久化格式、Wails 动态绑定和现有用户能力保持不变；每个批次必须证明真实消费者、动态入口、兼容义务与生命周期 owner，并独立验证、提交和推送。首个已准入反例位于 Desktop Composer：草稿替换经过一个单实现 port、一个只转发 use case 和一个只组装该 port 的 adapter，而发送意图还为已有 draft image/paste 事实复制三套局部 DTO；这些表示没有外部消费者或动态入口，行为应归还唯一 Composer state adapter。
+- P141 已完成：七个可独立回滚批次继续只在 `app/runtime` 与 `app/desktop` 做证据化减法。Desktop Composer 草稿行为已归还唯一 state adapter；测试 reset/discard seam 已归还真实 disposer；十二份 Runtime gateway installation 平行接口改由构造器返回形状推断；无消费者 capability subscription、RPC request discriminator 与 test-only Run selector 已端到端删除。Runtime 全生产树的 `deadcode` 与 consumer 复核没有发现可安全删除的内部实现；命中的 `embedded` 公共 API、operation 泛型入口和 testsupport 均有发布、动态 dispatch 或测试基础设施义务，因而保留。七批实现合计 41 个文件、55 行新增、267 行删除，净减 212 行；没有修改 Runtime Protocol、Artifact/SQLite、Wails 动态绑定或用户能力。
 - P140 已完成，且明确不保留兼容。第一批已删除上一发行版兼容基线与 protocol range，Runtime/Desktop 只接受当前精确 `protocolVersion`；第二批已端到端删除生产不可达的 `custom` RunEvent、`clientTools` feature 与 `toolResult` interrupt/response wire；第三批已证明 `~/.lyra/plugins` 没有真实安装，仓库样例也不满足当前 loader/Host API，因而删除 Go 目录扫描、Bootstrap 源码传输、前端 dynamic import、`window.__LYRA__`、Platform permission/API-version/lazy-activation surface 与失效样例。内置插件仍作为同 bundle 的单一 Host transaction 启动。第四批证明 Feature、Method、StateKey 的 stability 全量恒为 `stable`，没有协商分支或真实实验消费者；现已从 canonical Go、注册表、生成器、OpenRPC/manifest/schema/Go API、TypeScript binding、Desktop fixture 与文档一次性删除，并把唯一精确 Protocol 前移到 `2026-08-21`，没有旧 shape reader。
 - 第五批证明通用 state registry 只有 Plan 一个变体，且 scope 恒为 Session、writer 恒为 root Run、cold read 恒为 `plan.get`；现已收敛为一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan`。Artifact 前移到 v22；`stateSnapshots` discovery、state key/scope/writer metadata、`StateSnapshot` union、RuntimeEvent key、Artifact `states[]`、Desktop generic shared-state Plan reader 与 Application 重复 `PlanStep` 表示均已删除。Goal 插件伴随材料继续由独立 `shared` owner 持有，不作为协议 Plan 的 fallback。没有 alias、双写、旧归档 reader 或迁移层。Frontend 318 files / 1993 tests、全部静态/边界/消费者/bundle 门禁、Runtime/Desktop 全量 test/vet/build/staticcheck、受影响 Runtime 与 Desktop 全量 race tests 均通过；生成器重跑 diff-free，Runtime/Desktop TypeScript 合同与样例逐字节一致。
 - 第三批同时删除仅为外部插件存在的 installation origin 双态、Host capability whitelist/risk metadata、无消费者 Plugins shell service，以及从无生产贡献者的 plugin load/unload/beforeunload、Composer attachment-source 扩展点。图片、粘贴、`@file` 附件仍由 Composer 直接拥有；renderer `beforeunload` 由 composition root 直接关闭，不再经过空插件 hook。没有 alias、双 shape、fallback、旧目录 reader 或迁移层。Frontend 318 files / 1993 tests、全部静态与 bundle 门禁、98 条 published context edge、89/89 operations、3/3 sidecars、16/16 events 全绿；Runtime/Desktop test/vet/build 全绿。
@@ -295,10 +295,12 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P137     | Codex 窄窗 Context Dock 可用性时序                                                                              | loading placeholder 与真实 Shell 共用 `shellVisible` 派生事实；row 挂载后立即绑定唯一几何 observer，窄窗入口不再先可点后闪退，宽窗 tab/URL/file 恢复保持不变                                 |
 | P138     | durable Context footprint 与 Codex 流式滚动逃逸                                                                 | `contextTokens` 由 Run 持久化并跨终态/reload/restart 恢复；Context button 保持光学中心且支持键盘 tooltip，wheel-up 立即释放 raw follow lock，后续 token 不再抢回读者位置                     |
 | P139     | Runtime/Desktop 证据化熵回收                                                                                    | 删除孤儿设计/协议副本、客户端审批风险推断、已取代队列与 settlement 包装、无消费者 facade/export 及 Runtime 测试专用生产 helper；保留有发布义务的 wire、compat baseline 与动态 plugin SDK     |
+| P140     | Runtime/Desktop 合同与插件面根因级熵回收                                                                        | 删除旧协议兼容、不可达 wire、失效外部 sideload、恒定 stability 元数据与通用 state registry；Plan 成为一等资源，唯一合同前移到 Protocol `2026-08-21` / Artifact v22                         |
+| P141     | Runtime/Desktop 消费者与生命周期熵回收                                                                          | Composer 行为归还唯一 adapter，测试 seam 归还 disposer，gateway 返回形状由构造器推断；删除无消费者 capability/RPC/selector 链，保留有发布、动态 dispatch 或测试基础设施义务的 Runtime surface |
 
 ## 5. 当前里程碑结论
 
-P113–P139 共同建立了以下不可回退的心智模型：
+P113–P141 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -326,7 +328,7 @@ P113–P139 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 324 files / 2025 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；agent/shell/workspace/closure/foundation/WebKit visual 321 tests 覆盖 streaming follow/escape、HITL、Session/Dock、Goal、Context keyboard tooltip、modal scope、commentary/final answer、待审批命令单一表面、projectless rear tray、图片原生保存入口、WCAG、键盘、coarse pointer、IME、CJK、18px、reduced motion、Retina 与 light/dark golden。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、generator diff、Wails v3 production `.app` package 与 strict codesign 全绿；fresh SQLite 的真实 Run 产生 `contextTokens=4152`，终态、整页 reload 与 Runtime restart 后同一 footprint 均恢复，真实流式 DOM 增长也保持 reader-owned `scrollTop`。当前合同为 Artifact v22、SQLite epoch 77、Protocol `2026-08-21`；`app/cli` 未修改或暂存。
+最近一次完整验收基线：Frontend 318 files / 1990 tests 全绿，98 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./...` 与生成合同 diff 均通过。当前合同保持 Artifact v22、SQLite epoch 77、Protocol `2026-08-21`；Wails v3 动态绑定与 `app/cli` 未修改或暂存。
 
 ## 6. 新阶段准入
 
@@ -339,4 +341,4 @@ P113–P139 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P139 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P141 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
