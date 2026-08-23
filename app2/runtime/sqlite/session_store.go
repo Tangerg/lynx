@@ -31,16 +31,11 @@ func (database *Database) GetSession(ctx context.Context, id session.ID) (sessio
 }
 
 func (database *Database) GetSessionProjection(ctx context.Context, id session.ID) (session.Projection, error) {
-	return scanSessionProjection(database.database.QueryRowContext(ctx, `
-		SELECT
-			s.id, s.title, s.workspace_path, s.model, s.favorite, s.revision,
-			s.created_at, s.updated_at, coalesce(open_run.status, '')
-		FROM sessions AS s
-		LEFT JOIN runs AS open_run
-			ON open_run.session_id = s.id
-			AND open_run.parent_run_id IS NULL
-			AND open_run.status != 'finished'
-		WHERE s.id = ?`, id.String()))
+	return scanSessionProjection(database.database.QueryRowContext(
+		ctx,
+		sessionProjectionSelect+` WHERE s.id = ?`,
+		id.String(),
+	))
 }
 
 func (database *Database) ListSessionProjections(ctx context.Context, limit int, after *session.Cursor) (session.Page, error) {
@@ -50,15 +45,7 @@ func (database *Database) ListSessionProjections(ctx context.Context, limit int,
 	if limit > 200 {
 		limit = 200
 	}
-	query := `
-		SELECT
-			s.id, s.title, s.workspace_path, s.model, s.favorite, s.revision,
-			s.created_at, s.updated_at, coalesce(open_run.status, '')
-		FROM sessions AS s
-		LEFT JOIN runs AS open_run
-			ON open_run.session_id = s.id
-			AND open_run.parent_run_id IS NULL
-			AND open_run.status != 'finished'`
+	query := sessionProjectionSelect
 	arguments := make([]any, 0, 6)
 	if after != nil {
 		query += ` WHERE (
@@ -107,6 +94,27 @@ func (database *Database) ListSessionProjections(ctx context.Context, limit int,
 	}
 	return page, nil
 }
+
+const sessionProjectionSelect = `
+	SELECT
+		s.id, s.title, s.workspace_path, s.model, s.favorite, s.revision,
+		s.created_at, s.updated_at,
+		CASE
+			WHEN open_root.id IS NULL THEN ''
+			WHEN EXISTS (
+				SELECT 1
+				FROM runs AS tree_run
+				WHERE tree_run.session_id = s.id
+					AND tree_run.status = 'running'
+					AND (tree_run.id = open_root.id OR tree_run.root_run_id = open_root.id)
+			) THEN 'running'
+			ELSE 'waiting'
+		END
+	FROM sessions AS s
+	LEFT JOIN runs AS open_root
+		ON open_root.session_id = s.id
+		AND open_root.parent_run_id IS NULL
+		AND open_root.status != 'finished'`
 
 func (database *Database) UpdateSession(ctx context.Context, value session.Session, previousRevision uint64) error {
 	result, err := database.database.ExecContext(ctx, `
