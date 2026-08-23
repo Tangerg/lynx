@@ -2,18 +2,30 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 
 import type {
   ContentBlock,
+  InterruptResponse,
   Item,
+  PendingInterruptSet,
   RunProgress,
   RunRef,
 } from "@lyra/runtime-contract";
+
+import { InterruptSetCard } from "./InterruptSetCard";
 
 interface AgentNarrativeProps {
   sessionTitle: string;
   items: Item[];
   runs: RunRef[];
+  interrupts: PendingInterruptSet[];
   progress?: RunProgress;
   pending: boolean;
+  interruptPending: boolean;
+  interruptError?: string;
   streamError?: string;
+  onResume(
+    interruptSet: PendingInterruptSet,
+    responses: InterruptResponse[],
+    idempotencyKey: string,
+  ): Promise<void>;
   children?: ReactNode;
 }
 
@@ -26,6 +38,11 @@ export function AgentNarrative(props: AgentNarrativeProps) {
   );
   const materialVersion = props.items
     .map((item) => `${item.id}:${item.status}:${itemTextLength(item)}`)
+    .concat(
+      props.interrupts.map(
+        (set) => `${set.rootRunId}:${set.createdAt}:${set.interrupts.length}`,
+      ),
+    )
     .join("|");
 
   useEffect(() => {
@@ -75,6 +92,15 @@ export function AgentNarrative(props: AgentNarrativeProps) {
             />
           ))
         )}
+        {props.interrupts.map((interruptSet) => (
+          <InterruptSetCard
+            key={`${interruptSet.rootRunId}:${interruptSet.createdAt}`}
+            interruptSet={interruptSet}
+            pending={props.interruptPending}
+            error={props.interruptError}
+            onResume={props.onResume}
+          />
+        ))}
         {props.children}
         {props.progress ? <LiveProgress progress={props.progress} /> : null}
       </div>

@@ -63,6 +63,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "runs.changed",
         "plan.changed",
         "goals.changed",
+        "interrupts.changed",
         "models.changed",
       ] as const
     ).every((topic) =>
@@ -256,9 +257,13 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 sessionTitle={selectedSession.title}
                 items={agentView.items}
                 runs={agentView.runs}
+                interrupts={agentView.interrupts}
                 progress={agentView.progress}
-                pending={snapshot.isFetching}
+                pending={snapshot.isFetching || agentView.actionPending}
+                interruptPending={agentView.actionPending}
+                interruptError={agentView.interruptError}
                 streamError={agentView.streamError}
+                onResume={agentView.resume}
               >
                 {goalsEnabled ? (
                   <GoalComposer

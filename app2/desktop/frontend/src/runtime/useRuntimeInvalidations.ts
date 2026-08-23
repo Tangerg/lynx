@@ -46,6 +46,7 @@ export function useRuntimeInvalidations(
       if (
         topics.includes("plan.changed") ||
         topics.includes("goals.changed") ||
+        topics.includes("interrupts.changed") ||
         topics.includes("runs.changed") ||
         topics.includes("sessions.changed")
       ) {

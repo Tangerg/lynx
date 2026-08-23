@@ -38,8 +38,8 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O01a | `runtime.discover` | 1 | runtime protocol/discovery | R1 | verified | exact RequestMeta/capability、generated client、sidecar/instance/namespace identity、strict failure |
 | O01b | `runtime.subscribe` | 1 | runtime subscription | R8 | specified | topic watch 有界；gap/new generation/buffer eviction resync |
 | O02 | `sessions.list`, `sessions.get`, `sessions.snapshot`, `sessions.create`, `sessions.update`, `sessions.delete`, `sessions.fork`, `sessions.rollback`, `sessions.export`, `sessions.import` | 10 | session + sessionflow + artifact | R2/R9 | specified | CRUD/CAS、snapshot closure、fork boundary、rollback files/history、exact app2 artifact、cascade cleanup |
-| O03 | `runs.start`, `runs.resume`, `runs.subscribe`, `runs.cancel`, `runs.steer`, `runs.get`, `runs.list` | 7 | run + runflow + session hydration | R3/R4 | implemented | single-open-tree、stable Segment stream、replay/live handoff、exact cancel/steer、cursor list 已实现；R4 recovery/HITL 统一门禁后 verified |
-| O04 | `interrupts.list` | 1 | interrupt query in snapshot/audit | R4 | specified | pending exact identity、cursor、settled 不复活、Session/Run filtering |
+| O03 | `runs.start`, `runs.resume`, `runs.subscribe`, `runs.cancel`, `runs.steer`, `runs.get`, `runs.list` | 7 | run + runflow + session hydration | R3/R4 | implemented | single-open-tree、stable Segment stream、replay/live handoff、exact cancel/steer、cursor list 与 Desktop resume lease 已实现；recovery/HITL 统一门禁后 verified |
+| O04 | `interrupts.list` | 1 | interrupt query in snapshot/audit | R4 | implemented | pending exact identity、cursor、settled 不复活、Session/Run filtering 与 snapshot consumer 已实现；待统一门禁 |
 | O05 | `plan.get` | 1 | plan + planflow | R5 | implemented | Session current Plan、CAS revision、root terminal boundary、fork/rollback/import lifecycle、snapshot/event 同源、无 generic state registry；待 Desktop 与最终统一门禁 |
 | O06 | `items.list` | 1 | transcript | R3 | implemented | Session/Run subtree + ASC/DESC keyset cursor、query-bound cursor、page Run ancestor closure；待统一门禁 |
 | O07 | `workspaces.resolve`, `workspaces.list` | 2 | workspaceflow | R2/R6 | implemented | absolute identity、projectRoot 派生、missing 显式、无 active Project；Session create/native picker 已消费 exact ref，待统一门禁与 R6 consumer |
@@ -82,7 +82,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
 | `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效，Desktop SSE consumer 回读 coherent snapshot；待最终统一门禁 |
 | `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布，Desktop SSE consumer 精确失效；待最终统一门禁 |
-| `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | implemented | open/resume-consume/waiting-cancel transaction 后发布 exact Session/Run ids；待 Desktop HITL 与统一门禁 |
+| `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | implemented | open/resume-consume/waiting-cancel transaction 后发布 exact Session/Run ids；Desktop 精确失效 snapshot，待统一门禁 |
 | `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
 | `hooks.changed` | hook/trust owner | Hooks settings | R7 | specified | trust/source change 收敛 |
 | `models.changed` | provider/catalog owner | model picker/settings | R8 | specified | catalog/role/provider update 收敛 |
@@ -116,8 +116,8 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U05 | Composer draft/attachments/paste/@file/history/IME | composer context | R3 | implemented | per-Session draft、image/text attachment+paste、history、IME-safe send、start/steer/stop、success clear/failure exact retry |
 | U06 | Root narrative commentary/final hierarchy | agent presentation | R3 | implemented | user/work/reasoning/final/tool/question/compaction 同 renderer，work/final 分层与 reader-owned follow lock；待视觉统一门禁 |
 | U07 | Delegated Run tree/disclosures | agent presentation | R4 | specified | exact lineage、nested/sibling、source-owned plan/tool/usage、exact cancel |
-| U08 | Approval interaction | interrupt context | R4 | specified | 24px request surface、allow once/scope split/deny、edited args、settled exact identity |
-| U09 | Question interaction | interrupt + composer | R4 | specified | one surface、多题顺序、single auto-next、text/multi、explicit Skip、IME |
+| U08 | Approval interaction | interrupt context | R4 | implemented | 单一整组 request surface、allow once/scope split/deny、edited JSON args、reason、settled exact identity；待统一门禁 |
+| U09 | Question interaction | interrupt + composer | R4 | implemented | one atomic surface、多题顺序、text/single/multi/custom、IME-safe；当前 wire 无 Skip，待统一门禁 |
 | U10 | Plan compact progress | plan context | R5 | implemented | canonical snapshot 的 ring + N/M、当前步骤、完整 checklist hover/focus；无复制 Plan state；待最终统一门禁 |
 | U11 | Goal submit/tray/editor | goal + composer | R5 | implemented | `/goal` mode、budget、start/update/pause/resume/two-step clear、外部变化不覆盖 draft、SSE recovery；待最终统一门禁 |
 | U12 | Context token gauge | agent projection + model catalog | R3/R8 | implemented | live preview + durable Run footprint 与 provider model contextWindow 合成；unknown 容量只显示 token，待 reload/import 统一门禁 |

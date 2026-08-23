@@ -239,7 +239,7 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   renderer，projector 在 Executor 返回后先 drain/close，再进入 terminal commit。本批未启动 Runtime、Wails、Vite、
   browser/agent-browser 或 watcher，无待释放的外部资源。
 - **仍未关闭的门**：reload/restart、长历史接续与故障矩阵仍待 production implementation；
-  approval/question 的可操作表面与 delegated disclosure 属于 R4。按集中验证约定，本阶段不运行分批测试，
+  delegated disclosure 属于 R4。按集中验证约定，本阶段不运行分批测试，
   不把 R3 提前标为 verified。
 
 ## 8. R4：HITL、Tool、delegation 与恢复
@@ -262,6 +262,21 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - child lineage 不猜，parent/child terminal 和 callback/reservation 原子清理；
 - 所有 Tool presentation 的 identity/material/duration/result ownership；
 - O03 控制面、O04、O13、U07–U09/U16 和相关 tool groups verified。
+
+### 当前实现记录（尚未统一验证）
+
+- Runtime 的 waiting open、resume consumption 与 waiting cancel 均在 durable transaction 提交后发布
+  `interrupts.changed`；事件只携带 exact identity，PendingInterruptSet 仍由 snapshot/query owner 提供；
+- Desktop 只有在 approval/question 的完整答复面可用后才声明这两种 `interruptTypes`，并订阅
+  `interrupts.changed` 做 Session snapshot 精确失效；
+- AgentSessionView 以 `rootRunId` 归一化 cold/live PendingInterruptSet；`segment.finished(interrupt)` 可立即建立
+  committed live projection，`segment.started` 或 authoritative snapshot 清除已消费集合；
+- `runs.resume` 与 start 共用 generation-fenced stream lease、replay cursor 和 receipt-loss retry；同一
+  idempotency key 固定第一次提交的 exact full response set，不能被后续 UI draft 改写；
+- Narrative 内只有一个整组 HITL action surface：approval 支持 approve/deny、one-shot edited JSON args、reason 与
+  rememberable scope；question 按字段顺序支持 text、single/multi choice 和 custom answer，IME composition 不触发误提交；
+- 当前 Lyra Protocol 没有 skip response，因此 Desktop 不发明无法被 Runtime 原子校验或持久化的 Skip 语义；
+- 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal
 

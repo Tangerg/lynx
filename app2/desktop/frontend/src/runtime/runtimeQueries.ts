@@ -8,9 +8,12 @@ import {
   type EmptyObject,
   type Goal,
   type GoalBudget,
+  type InterruptResponse,
   type Model,
   type Page,
   type RequestMeta,
+  type ResumeRunRequest,
+  type ResumeRunResponse,
   type RuntimeEvent,
   type RuntimeConnection,
   type OpenRuntimeStream,
@@ -26,7 +29,7 @@ const clientMeta: RequestMeta = {
   clientInfo: { name: "lyra-desktop-app2", version: "0.0.0" },
   clientCapabilities: {
     features: { plan: { enabled: true }, goals: { enabled: true } },
-    interruptTypes: [],
+    interruptTypes: ["approval", "question"],
   },
 };
 
@@ -115,6 +118,21 @@ export function startRun(
   return client(connection).stream(
     "runs.start",
     { sessionId, input },
+    { meta: clientMeta, idempotencyKey, signal },
+  );
+}
+
+export function resumeRun(
+  connection: RuntimeConnection,
+  runId: string,
+  responses: InterruptResponse[],
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<OpenRuntimeStream<ResumeRunResponse, RunEvent>> {
+  const request: ResumeRunRequest = { runId, responses };
+  return client(connection).stream(
+    "runs.resume",
+    request,
     { meta: clientMeta, idempotencyKey, signal },
   );
 }
@@ -263,6 +281,7 @@ export async function consumeRuntimeInvalidations(
         "runs.changed",
         "plan.changed",
         "goals.changed",
+        "interrupts.changed",
         "models.changed",
       ],
     },

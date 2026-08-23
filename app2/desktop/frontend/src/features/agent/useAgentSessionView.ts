@@ -11,8 +11,10 @@ import {
 
 import type {
   ContentBlock,
+  InterruptResponse,
   Item,
   OpenRuntimeStream,
+  PendingInterruptSet,
   Plan,
   RunEvent,
   RunProgress,
@@ -23,6 +25,7 @@ import type {
 
 import {
   cancelRun,
+  resumeRun,
   runtimeQueryKeys,
   startRun,
   steerRun,
@@ -37,6 +40,7 @@ interface AgentSessionState {
   runOrder: string[];
   itemsById: Record<string, Item>;
   itemOrder: string[];
+  interruptsByRootRunId: Record<string, PendingInterruptSet>;
   progressByRunId: Record<string, RunProgress>;
   plan?: Plan;
 }
@@ -59,11 +63,18 @@ type SendCommand =
   | { key: string; type: "start" }
   | { key: string; type: "steer"; runId: string; segmentId: string };
 
+interface ResumeCommand {
+  key: string;
+  runId: string;
+  responses: InterruptResponse[];
+}
+
 type RunStream = OpenRuntimeStream<unknown, RunEvent>;
 
 export interface AgentSessionView {
   items: Item[];
   runs: RunRef[];
+  interrupts: PendingInterruptSet[];
   plan?: Plan;
   activeRootRun?: RunRef;
   focusRootRun?: RunRef;
@@ -71,8 +82,14 @@ export interface AgentSessionView {
   contextTokens?: number;
   actionPending: boolean;
   actionError?: string;
+  interruptError?: string;
   streamError?: string;
   send(input: ContentBlock[], idempotencyKey: string): Promise<void>;
+  resume(
+    interruptSet: PendingInterruptSet,
+    responses: InterruptResponse[],
+    idempotencyKey: string,
+  ): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -82,6 +99,7 @@ const emptyState: AgentSessionState = {
   runOrder: [],
   itemsById: {},
   itemOrder: [],
+  interruptsByRootRunId: {},
   progressByRunId: {},
 };
 
@@ -97,11 +115,13 @@ export function useAgentSessionView(
   const [state, dispatch] = useReducer(agentSessionReducer, emptyState);
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  const [interruptError, setInterruptError] = useState<string>();
   const [streamError, setStreamError] = useState<string>();
   const leases = useRef(new Map<string, RunLease>());
   const actionInFlight = useRef(false);
   const pendingAction = useRef<AbortController | undefined>(undefined);
   const sendCommand = useRef<SendCommand | undefined>(undefined);
+  const resumeCommand = useRef<ResumeCommand | undefined>(undefined);
   const currentIdentity = useRef(identity);
   const seenEvents = useRef(new Set<string>());
   const seenOrder = useRef<string[]>([]);
@@ -117,6 +137,7 @@ export function useAgentSessionView(
   useEffect(() => {
     setActionPending(false);
     setActionError(undefined);
+    setInterruptError(undefined);
     setStreamError(undefined);
     seenEvents.current.clear();
     seenOrder.current = [];
@@ -124,6 +145,7 @@ export function useAgentSessionView(
       pendingAction.current?.abort();
       pendingAction.current = undefined;
       sendCommand.current = undefined;
+      resumeCommand.current = undefined;
       actionInFlight.current = false;
       for (const lease of leases.current.values()) {
         lease.controller.abort();
@@ -140,6 +162,13 @@ export function useAgentSessionView(
   const items = useMemo(
     () => visible.itemOrder.flatMap((id) => valueOf(visible.itemsById, id)),
     [visible.itemOrder, visible.itemsById],
+  );
+  const interrupts = useMemo(
+    () =>
+      Object.values(visible.interruptsByRootRunId).toSorted((left, right) =>
+        left.createdAt.localeCompare(right.createdAt),
+      ),
+    [visible.interruptsByRootRunId],
   );
   const activeRootRun = useMemo(
     () =>
@@ -354,6 +383,13 @@ export function useAgentSessionView(
             controller.abort();
             throw error;
           }
+          if (
+            controller.signal.aborted ||
+            currentIdentity.current !== actionIdentity
+          ) {
+            stream.close();
+            return;
+          }
           const { runId, segmentId } = stream.acknowledgement;
           const key = segmentKey(runId, segmentId);
           const existing = leases.current.get(key);
@@ -435,9 +471,95 @@ export function useAgentSessionView(
     }
   }, [activeRootRun, connection, identity, invalidateMaterial]);
 
+  const resume = useCallback(
+    async (
+      interruptSet: PendingInterruptSet,
+      responses: InterruptResponse[],
+      idempotencyKey: string,
+    ) => {
+      if (!sessionId) throw new Error("No session is mounted.");
+      if (interruptSet.sessionId !== sessionId) {
+        throw new Error("This interrupt belongs to a different session.");
+      }
+      if (responses.length !== interruptSet.interrupts.length) {
+        throw new Error("Responses must cover the complete interrupt set.");
+      }
+      if (actionInFlight.current) {
+        throw new Error("Another run action is already in progress.");
+      }
+      const actionIdentity = identity;
+      const controller = new AbortController();
+      actionInFlight.current = true;
+      pendingAction.current = controller;
+      setActionPending(true);
+      setInterruptError(undefined);
+      try {
+        let command = resumeCommand.current;
+        if (command?.key !== idempotencyKey) {
+          command = {
+            key: idempotencyKey,
+            runId: interruptSet.rootRunId,
+            responses: structuredClone(responses),
+          };
+          resumeCommand.current = command;
+        }
+        let stream: Awaited<ReturnType<typeof resumeRun>>;
+        try {
+          stream = await resumeRun(
+            connection,
+            command.runId,
+            command.responses,
+            idempotencyKey,
+            controller.signal,
+          );
+        } catch (error) {
+          controller.abort();
+          throw error;
+        }
+        if (
+          controller.signal.aborted ||
+          currentIdentity.current !== actionIdentity
+        ) {
+          stream.close();
+          return;
+        }
+        const { runId, segmentId } = stream.acknowledgement;
+        const key = segmentKey(runId, segmentId);
+        const existing = leases.current.get(key);
+        existing?.controller.abort();
+        const lease: RunLease = {
+          key,
+          identity: actionIdentity,
+          runId,
+          segmentId,
+          controller,
+        };
+        leases.current.set(key, lease);
+        void runLease(lease, stream);
+        if (resumeCommand.current?.key === idempotencyKey) {
+          resumeCommand.current = undefined;
+        }
+        invalidateMaterial();
+      } catch (error) {
+        if (currentIdentity.current === actionIdentity && !isAbort(error)) {
+          setInterruptError(messageOf(error));
+        }
+        throw error;
+      } finally {
+        if (pendingAction.current === controller) {
+          pendingAction.current = undefined;
+          actionInFlight.current = false;
+          setActionPending(false);
+        }
+      }
+    },
+    [connection, identity, invalidateMaterial, runLease, sessionId],
+  );
+
   return {
     items,
     runs,
+    interrupts,
     plan: visible.plan,
     activeRootRun,
     focusRootRun,
@@ -452,8 +574,10 @@ export function useAgentSessionView(
       focusRootRun?.contextTokens,
     actionPending,
     actionError,
+    interruptError,
     streamError,
     send,
+    resume,
     stop,
   };
 }
@@ -482,6 +606,9 @@ function hydrateState(
     runOrder: snapshot.runs.map((run) => run.id),
     itemsById: Object.fromEntries(snapshot.items.map((item) => [item.id, item])),
     itemOrder: snapshot.items.map((item) => item.id),
+    interruptsByRootRunId: Object.fromEntries(
+      snapshot.interrupts.map((set) => [set.rootRunId, set]),
+    ),
     progressByRunId: {},
     ...(snapshot.plan === undefined ? {} : { plan: snapshot.plan }),
   };
@@ -506,6 +633,16 @@ function hydrateState(
       next.progressByRunId[runId] = progress;
     }
   }
+  for (const [rootRunId, interruptSet] of Object.entries(
+    state.interruptsByRootRunId,
+  )) {
+    if (
+      next.interruptsByRootRunId[rootRunId] === undefined &&
+      next.runsById[rootRunId]?.status === "waiting"
+    ) {
+      next.interruptsByRootRunId[rootRunId] = interruptSet;
+    }
+  }
   if (
     state.plan !== undefined &&
     (next.plan === undefined || state.plan.revision > next.plan.revision)
@@ -519,7 +656,9 @@ function foldRunEvent(state: AgentSessionState, value: RunEvent): AgentSessionSt
   const event = value.event;
   switch (event.type) {
     case "segment.started":
-      return event.run === undefined ? state : putRun(state, event.run);
+      return event.run === undefined
+        ? state
+        : clearInterruptSet(putRun(state, event.run), rootRunIdentity(event.run));
     case "segment.progress":
       return event.progress === undefined
         ? state
@@ -554,6 +693,13 @@ function putRun(state: AgentSessionState, run: RunRef): AgentSessionState {
       ? state.runOrder
       : [...state.runOrder, run.id],
   };
+}
+
+function clearInterruptSet(state: AgentSessionState, rootRunId: string) {
+  if (state.interruptsByRootRunId[rootRunId] === undefined) return state;
+  const interruptsByRootRunId = { ...state.interruptsByRootRunId };
+  delete interruptsByRootRunId[rootRunId];
+  return { ...state, interruptsByRootRunId };
 }
 
 function finishSegment(state: AgentSessionState, value: RunEvent) {
@@ -594,7 +740,25 @@ function finishSegment(state: AgentSessionState, value: RunEvent) {
   });
   const progressByRunId = { ...next.progressByRunId };
   delete progressByRunId[value.runId];
-  return { ...next, itemsById, itemOrder, progressByRunId };
+  let settled = { ...next, itemsById, itemOrder, progressByRunId };
+  const rootRunId = rootRunIdentity(current);
+  if (outcome.type === "interrupt" && (outcome.interrupts?.length ?? 0) > 0) {
+    settled = {
+      ...settled,
+      interruptsByRootRunId: {
+        ...settled.interruptsByRootRunId,
+        [rootRunId]: {
+          rootRunId,
+          sessionId: current.sessionId,
+          interrupts: outcome.interrupts ?? [],
+          createdAt: value.timestamp,
+        },
+      },
+    };
+  } else if (outcome.type !== "suspended") {
+    settled = clearInterruptSet(settled, rootRunId);
+  }
+  return settled;
 }
 
 function startItem(state: AgentSessionState, item: Item): AgentSessionState {
@@ -650,6 +814,10 @@ function valueOf<Value>(values: Record<string, Value>, id: string): Value[] {
 
 function segmentKey(runId: string, segmentId: string) {
   return `${runId}:${segmentId}`;
+}
+
+function rootRunIdentity(run: RunRef) {
+  return run.parentRunId === undefined ? run.id : (run.rootRunId ?? run.id);
 }
 
 function messageOf(error: unknown) {
