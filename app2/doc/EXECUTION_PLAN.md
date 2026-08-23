@@ -327,9 +327,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   settlement 在对应 assistant call 已持久化时与 parent Item/result 同事务追加，segment terminal/tree wait 则把本代 observation
   与 durable Delegate Item 合并后统一收口。single/delegated waiting cancel 同时把开放 Item 标记 incomplete 并持久化 error result，
   fresh Run 不再继承悬空 provider ToolCall；该修正没有扩展或复制 Lyra wire；
-- **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；tree recovery、
-  Desktop nested disclosure 尚未完成前，任何 client 都不能协商出半成品 tree；
-- **仍关闭的 delegation 门**：tree recovery 和 Desktop nested disclosure 尚未完成；
+- **Atomic tree recovery**：Runtime 启动恢复与 launch-failure settlement 都先按 root 聚合完整 running tree，验证每个 parent
+  仍在同一开放 lineage，再以 descendant-first/root-last 的一笔 transaction 收敛为 `lost`。每个 source Segment 保留自己的
+  ordinal/metrics，事件统一挂到 root Segment stream；开放 Tool/Question/流式占位按各自 Item union 规则变为 incomplete，child
+  对应的 parent Delegate Item、provider error result、interrupt/checkpoint 清理和 root Plan boundary 同步提交。waiting tree 不进入
+  此路径，仍保留完整 checkpoint 可恢复；
+- **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；Desktop nested disclosure
+  尚未完成前，任何 client 都不能协商出半成品 tree；
+- **仍关闭的 delegation 门**：Desktop nested disclosure 尚未完成；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

@@ -35,6 +35,7 @@ type Store interface {
 	ListRuns(context.Context, string, []rundomain.Status, bool, int, *rundomain.Cursor) (rundomain.Page, error)
 	CreateRun(context.Context, rundomain.Record, *transcript.Record, *conversationdomain.Record, []rundomain.EventRecord) error
 	CommitRun(context.Context, CommitWrite) error
+	CommitTreeRecovery(context.Context, TreeRecoveryWrite) error
 	CommitRunEvent(context.Context, RunEventWrite) error
 	CommitRunItemEvents(context.Context, RunItemEventWrite) error
 	ListItems(context.Context, string, string) ([]transcript.Record, error)
@@ -849,13 +850,9 @@ func (service *Service) cancelSingleWaiting(
 			return nil, err
 		}
 		if item.Status == protocol.ItemStatusRunning {
-			item.Status = protocol.ItemStatusIncomplete
-			item.FinishedAt = now
-			item.DurationMillis = nil
-			if item.Tool != nil {
-				item.Tool.Result = nil
+			if err := interruptRunningItem(&item, protocol.ProblemToolCanceled, reason, now); err != nil {
+				return nil, err
 			}
-			item.Error = &protocol.ProblemData{Type: protocol.ProblemToolCanceled, Detail: reason}
 			stored.Body, err = json.Marshal(item)
 			if err != nil {
 				return nil, err

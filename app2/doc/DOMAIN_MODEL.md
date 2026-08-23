@@ -132,6 +132,10 @@ Run tree 不变量：
 9. cancel 是控制意图，不是客户端先写 terminal；只有权威 termination 提交终态；
 10. active-step crash 没有完整 quiescent checkpoint 时收敛为 `lost`，不得伪造可恢复。
 
+Recovery 的原子边界也是整棵 root tree，而不是逐个 Run：同一 predecessor generation 的所有 running member 必须在一笔
+transaction 内 child-before-parent 收敛为 `lost`，并以 root 的旧 Segment 作为 carrying stream。任何遗漏、异树成员、失踪 parent
+或代际 CAS 失败都会拒绝整笔提交；完整 waiting tree 不属于 recovery lost 路径。
+
 当 tree 中任一 member 产生 Interrupt，checkpoint 是整棵 tree 的一致性边界，不是该 child 的局部快照：
 所有仍 running 的 member 必须先停在执行框架的 safe boundary；产生输入的 source Run 以 `interrupt` 结束当前
 Segment，其余非终态 member 以 `suspended` 结束。所有 Run 状态、source-owned material、tree stream events、完整

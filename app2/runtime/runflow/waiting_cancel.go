@@ -322,13 +322,9 @@ func (service *Service) projectWaitingTreeCancel(
 		if item.Status != protocol.ItemStatusRunning {
 			return nil
 		}
-		item.Status = protocol.ItemStatusIncomplete
-		item.FinishedAt = now
-		item.DurationMillis = nil
-		if item.Tool != nil {
-			item.Tool.Result = nil
+		if err := interruptRunningItem(&item, problemType, reason, now); err != nil {
+			return err
 		}
-		item.Error = &protocol.ProblemData{Type: problemType, Detail: reason}
 		stored, found := items[item.ID]
 		if !found || stored.RunID != state.record.Run.ID() {
 			return errors.New("runflow: canceled Item ownership is invalid")
