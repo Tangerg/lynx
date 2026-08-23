@@ -44,6 +44,7 @@ type Store interface {
 	GetInterruptSet(context.Context, string) (protocol.PendingInterruptSet, error)
 	CommitResume(context.Context, ResumeWrite) error
 	CommitTreeResume(context.Context, TreeResumeWrite) error
+	CommitWaitingTreeCancel(context.Context, WaitingTreeCancelWrite) error
 	CommitWait(context.Context, WaitWrite) error
 	CommitTreeWait(context.Context, TreeWaitWrite) error
 	CommitSteer(context.Context, SteerWrite) error
@@ -55,6 +56,7 @@ type IDs interface{ New(string) (string, error) }
 type Executor interface {
 	Execute(context.Context, agentexec.Input) (agentexec.Output, error)
 	Resume(context.Context, agentexec.ResumeInput) (agentexec.Output, error)
+	CancelWaitingTree(context.Context, agentexec.WaitingTreeCancelInput) (agentexec.WaitingTreeCancelOutput, error)
 }
 
 type ModelSelection interface {
@@ -675,8 +677,11 @@ func (service *Service) CancelWith(
 		return nil, protocol.ErrRunFinished
 	}
 	if record.Run.Status() == rundomain.Waiting {
-		if record.Run.ParentRunID() != "" || runUsesSubagents(record.Body) {
-			return nil, protocol.ErrSessionBusy
+		if record.Run.ParentRunID() != "" {
+			return service.cancelWaitingTreeChild(ctx, record, request.Reason)
+		}
+		if runUsesSubagents(record.Body) {
+			return service.cancelWaitingTreeRoot(ctx, record, request.Reason)
 		}
 		return service.cancelSingleWaiting(ctx, record, request.Reason)
 	}

@@ -314,14 +314,17 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   InterruptSet/checkpoint，并把 answer 按 source Run 精确交回 restored Framework Process。paused sibling 原位恢复，
   terminal snapshot 不再生成第二份 child settlement；root stream 继续承载整棵 resumed tree。可选 resume input 在只有一个
   interrupted branch 时与该 response 同一 Framework safe boundary 接受，多 branch 时 fail closed 而不猜投递目标；
-- **Live exact cancel**：running root/child cancel 不再由 API 直接写伪造 terminal。runflow 将意图送入 active root owner，
+- **Exact cancel**：running root/child cancel 不再由 API 直接写伪造 terminal。runflow 将意图送入 active root owner，
   agentexec 以 Run→Process binding 对 root 或 exact child subtree 调用 Framework cancellation；child subtree terminal material
   按 depth-descending 回交既有 parent/child transaction，root cancellation 则由正常 tree settlement 收口。RPC 等待 durable
   terminal 后返回；child response 同时携带同一 command boundary 读取的 root Run。single-process waiting cancel 现在显式
-  打开并关闭一个新 Segment；delegated waiting subtree cancel 仍 fail closed，待 checkpoint transformation 完成；
-- **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；完整 tree resume、
-  root/child exact cancel、recovery 和 Desktop nested disclosure 尚未完成前，任何 client 都不能协商出半成品 tree；
-- **仍关闭的 delegation 门**：waiting-subtree exact cancel、recovery 和 Desktop nested disclosure 尚未完成；
+  打开并关闭一个新 Segment。delegated waiting child cancel 由 Framework 对完整 opaque checkpoint 计算 exact subtree replacement，
+  Lyra 再按 descendant-first/root-last 原子开启新代际并终结目标子树，survivor 以 replacement checkpoint 自动续跑；整棵 waiting
+  tree 的 root cancel 同样在一个事务内终结全部开放成员并消费 interrupt/checkpoint。Framework 当前不能安全变换的 paused child
+  继续 fail closed，不以产品层猜测状态；
+- **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；tree recovery、
+  provider Conversation closure 和 Desktop nested disclosure 尚未完成前，任何 client 都不能协商出半成品 tree；
+- **仍关闭的 delegation 门**：tree recovery、provider Conversation closure 和 Desktop nested disclosure 尚未完成；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

@@ -84,6 +84,7 @@ type ResumeInput struct {
 	Response                   json.RawMessage
 	TreeMembers                []TreeResumeMember
 	TreeResponses              []TreeResumeResponse
+	ContinueTree               bool
 	AdditionalInput            []protocol.ContentBlock
 	Steers                     <-chan Steer
 	Cancels                    <-chan Cancel
@@ -181,6 +182,35 @@ type Cancel struct {
 type CancelResult struct {
 	Children []ChildOutput
 	Err      error
+}
+
+// ErrWaitingTreeCancelUnavailable reports a checkpoint whose exact target
+// cannot be transformed without guessing Framework state.
+var ErrWaitingTreeCancelUnavailable = errors.New("agentexec: waiting tree cancel is unavailable")
+
+// WaitingTreeMember binds one durable open Run to its opaque Framework member.
+type WaitingTreeMember struct {
+	MemberID                         string
+	RunID, ParentRunID, RootRunID   string
+	Depth                            uint32
+}
+
+// WaitingTreeCancelInput describes one side-effect-free checkpoint transform.
+type WaitingTreeCancelInput struct {
+	Provider, Model, Workspace string
+	SessionID, RootRunID       string
+	TargetRunID, Reason        string
+	MaxSteps                   int
+	Checkpoint                 json.RawMessage
+	Members                    []WaitingTreeMember
+	Delegation                 DelegationCoordinator
+}
+
+// WaitingTreeCancelOutput returns the replacement checkpoint and the exact
+// product subtree proven canceled by Framework.
+type WaitingTreeCancelOutput struct {
+	Checkpoint     json.RawMessage
+	CanceledRunIDs []string
 }
 
 type Waiting struct {
@@ -325,6 +355,91 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers, input.Cancels)
 }
 
+// CancelWaitingTree projects Framework's exact Strategy-safe subtree
+// cancellation into a replacement checkpoint. The ephemeral restored Engine is
+// discarded; only the returned opaque snapshot may cross the application
+// transaction boundary.
+func (executor *Executor) CancelWaitingTree(
+	ctx context.Context,
+	input WaitingTreeCancelInput,
+) (WaitingTreeCancelOutput, error) {
+	const waitingGeneration = "waiting-tree-cancel"
+	prepared, err := executor.deployment(ctx, deploymentRequest{
+		provider: input.Provider, model: input.Model, sessionID: input.SessionID,
+		runID: input.RootRunID, segmentID: waitingGeneration, workspace: input.Workspace,
+		rootRun: true, subagents: true, maxSteps: input.MaxSteps,
+		delegation: input.Delegation,
+	})
+	if err != nil {
+		return WaitingTreeCancelOutput{}, err
+	}
+	tree, err := agent.ParseTreeSnapshot(input.Checkpoint)
+	if err != nil {
+		return WaitingTreeCancelOutput{}, fmt.Errorf("agentexec: parse waiting tree checkpoint: %w", err)
+	}
+	bindings := make([]TreeResumeMember, 0, len(input.Members))
+	for _, member := range input.Members {
+		bindings = append(bindings, TreeResumeMember{
+			MemberID: member.MemberID, RunID: member.RunID, SegmentID: waitingGeneration,
+			ParentRunID: member.ParentRunID, RootRunID: member.RootRunID, Depth: member.Depth,
+		})
+	}
+	if prepared.observer.delegation == nil {
+		return WaitingTreeCancelOutput{}, errors.New("agentexec: waiting tree cancel has no delegation bridge")
+	}
+	if err := prepared.observer.delegation.restoreBindings(tree, bindings); err != nil {
+		return WaitingTreeCancelOutput{}, err
+	}
+	engine, err := agent.NewEngine(prepared.engine)
+	if err != nil {
+		return WaitingTreeCancelOutput{}, fmt.Errorf("agentexec: create waiting tree cancel engine: %w", err)
+	}
+	root, err := engine.RestoreTree(ctx, prepared.root, tree)
+	if err != nil {
+		_ = engine.Close()
+		return WaitingTreeCancelOutput{}, fmt.Errorf("agentexec: restore waiting tree for cancel: %w", err)
+	}
+	targetID, found := prepared.observer.delegation.processForRun(input.TargetRunID)
+	if !found {
+		_ = stopProcess(engine, root)
+		return WaitingTreeCancelOutput{}, ErrWaitingTreeCancelUnavailable
+	}
+	target, found := engine.Process(targetID)
+	if !found || target.Status() != agent.StatusWaiting {
+		_ = stopProcess(engine, root)
+		return WaitingTreeCancelOutput{}, ErrWaitingTreeCancelUnavailable
+	}
+	projected, err := engine.PrepareWaitingSubtreeCancellation(
+		ctx, root.ID(), targetID, input.Reason,
+	)
+	if err != nil {
+		_ = stopProcess(engine, root)
+		if errors.Is(err, agent.ErrWaitingSubtreeCancellationUnavailable) {
+			return WaitingTreeCancelOutput{}, ErrWaitingTreeCancelUnavailable
+		}
+		return WaitingTreeCancelOutput{}, fmt.Errorf("agentexec: project waiting subtree cancel: %w", err)
+	}
+	resulting := projected.ResultingSnapshot()
+	canceled := make([]string, 0, len(projected.CanceledProcessIDs()))
+	for _, processID := range projected.CanceledProcessIDs() {
+		binding, found := prepared.observer.delegation.bindingProcess(processID)
+		if !found || binding.runID == input.RootRunID {
+			_ = projected.Discard()
+			_ = stopProcess(engine, root)
+			return WaitingTreeCancelOutput{}, errors.New("agentexec: canceled Process has no child Run binding")
+		}
+		canceled = append(canceled, binding.runID)
+	}
+	if err := projected.Discard(); err != nil {
+		_ = stopProcess(engine, root)
+		return WaitingTreeCancelOutput{}, fmt.Errorf("agentexec: discard projected waiting cancel engine: %w", err)
+	}
+	if err := stopProcess(engine, root); err != nil {
+		return WaitingTreeCancelOutput{}, fmt.Errorf("agentexec: release waiting cancel probe: %w", err)
+	}
+	return WaitingTreeCancelOutput{Checkpoint: resulting.JSON(), CanceledRunIDs: canceled}, nil
+}
+
 func (executor *Executor) resumeTree(ctx context.Context, input ResumeInput) (Output, error) {
 	prepared, err := executor.deployment(ctx, deploymentRequest{
 		provider: input.Provider, model: input.Model, sessionID: input.SessionID,
@@ -385,6 +500,9 @@ func (executor *Executor) resumeTree(ctx context.Context, input ResumeInput) (Ou
 		if !found {
 			continue
 		}
+		if input.ContinueTree {
+			continue
+		}
 		binding, bound := prepared.observer.delegation.bindingProcess(snapshot.ProcessID())
 		payload, answered := responses[binding.runID]
 		if !bound || !answered {
@@ -409,7 +527,12 @@ func (executor *Executor) resumeTree(ctx context.Context, input ResumeInput) (Ou
 		preparedResponses = append(preparedResponses, preparedResponse{process: process, signal: signal})
 		delete(responses, binding.runID)
 	}
-	if len(responses) != 0 || len(preparedResponses) == 0 {
+	if input.ContinueTree {
+		if len(responses) != 0 || len(input.AdditionalInput) != 0 {
+			_ = stopProcess(engine, root)
+			return Output{}, errors.New("agentexec: automatic tree continuation carries user input")
+		}
+	} else if len(responses) != 0 || len(preparedResponses) == 0 {
 		_ = stopProcess(engine, root)
 		return Output{}, errors.New("agentexec: tree answers do not exactly cover restored inputs")
 	}
