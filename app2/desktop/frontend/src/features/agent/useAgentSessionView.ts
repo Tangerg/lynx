@@ -241,7 +241,11 @@ export function useAgentSessionView(
                 lease.lastEventId = frame.eventId;
               }
               fold(frame, lease.identity);
-              if (frame.event.event.type === "segment.finished") {
+              if (
+                frame.event.runId === lease.runId &&
+                frame.event.segmentId === lease.segmentId &&
+                frame.event.event.type === "segment.finished"
+              ) {
                 terminal = true;
                 break;
               }

@@ -300,8 +300,12 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   每份 material 的 source 与 lineage；child transcript/metrics/context/terminal event 和父级 `delegate_task` terminal Item
   在同一 SQLite transaction 结算，后代失败时 fail-fast，祖先不能提前完成。child provider conversation 从投影策略入口
   排除，不会污染 root Session Conversation；
-- **仍关闭的 delegation 门**：root tree stream 的 replay/live cursor、完整 tree checkpoint/HITL resume、root/child exact
-  cancel、recovery 和 Desktop nested disclosure 尚未完成，因此 Desktop 仍不声明 `subagents` feature；
+- **Root tree stream**：durable journal 同时保存 source Run/Segment 与 carrying root Run/root Segment；SQLite commit
+  sequence 给整棵树一个 replay 顺序，attach-first handoff 以 eventId 去重。Hub 按 root scope fan-out，child
+  `segment.finished` 不再关闭 Runtime iterator 或 Desktop lease，只有 root Segment terminal 才结束流；wire shape 与 7 种
+  Lyra event 均未改变。该内部修正提升 app2 SQLite schema epoch 到 6，不承担旧 app2 开发库兼容；
+- **仍关闭的 delegation 门**：完整 tree checkpoint/HITL resume、root/child exact cancel、recovery 和 Desktop nested
+  disclosure 尚未完成，因此 Desktop 仍不声明 `subagents` feature；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

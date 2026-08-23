@@ -29,6 +29,10 @@ type WaitWrite struct {
 }
 
 func (service *Service) parkExecution(ctx context.Context, record rundomain.Record, facts runFacts, segmentID string, waiting agentexec.Waiting, tools []agentexec.ToolObservation, projection executionProjection, now time.Time) error {
+	stream, err := service.activeTreeStream(ctx, record.Run, segmentID)
+	if err != nil {
+		return err
+	}
 	var prompt agentexec.ToolInputPrompt
 	if err := json.Unmarshal(waiting.Prompt, &prompt); err != nil {
 		return fmt.Errorf("decode tool input prompt: %w", err)
@@ -93,7 +97,7 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 		return err
 	}
 	events = append(events, event)
-	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1)
+	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1, stream)
 	if err != nil {
 		return err
 	}
@@ -103,7 +107,9 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 	}
 	service.publishLifecycleChange(record.Run)
 	service.publishInterruptChange(record.Run)
-	for _, event := range events { service.hub.PublishRun(event) }
+	for _, event := range events {
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
+	}
 	return nil
 }
 

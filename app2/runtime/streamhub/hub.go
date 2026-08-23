@@ -13,7 +13,7 @@ import (
 
 const subscriberCapacity = 64
 
-type runKey struct{ runID, segmentID string }
+type runKey struct{ rootRunID, rootSegmentID string }
 
 type runSubscriber struct {
 	values chan protocol.RunEvent
@@ -39,9 +39,13 @@ func New() *Hub { return &Hub{runSubs: make(map[runKey]map[uint64]*runSubscriber
 // PublishRun sends a committed replayable fact or an explicitly ephemeral
 // preview. A lagging consumer is detached instead of blocking the Runtime; its
 // next subscription replays authoritative facts and resumes fresh previews.
-func (hub *Hub) PublishRun(event protocol.RunEvent) {
-	key := runKey{runID: event.RunID, segmentID: event.SegmentID}
-	terminal := event.Event.Type == protocol.StreamSegmentFinished
+func (hub *Hub) PublishRun(rootRunID, rootSegmentID string, event protocol.RunEvent) {
+	if rootRunID == "" || rootSegmentID == "" || event.RunID == "" || event.SegmentID == "" {
+		return
+	}
+	key := runKey{rootRunID: rootRunID, rootSegmentID: rootSegmentID}
+	terminal := event.RunID == rootRunID && event.SegmentID == rootSegmentID &&
+		event.Event.Type == protocol.StreamSegmentFinished
 	hub.mu.Lock()
 	for id, subscriber := range hub.runSubs[key] {
 		select {
@@ -61,10 +65,10 @@ func (hub *Hub) PublishRun(event protocol.RunEvent) {
 
 func (hub *Hub) SubscribeRun(
 	ctx context.Context,
-	runID, segmentID string,
+	rootRunID, rootSegmentID string,
 	replay []protocol.RunEvent,
 ) iter.Seq[protocol.RunEvent] {
-	key := runKey{runID: runID, segmentID: segmentID}
+	key := runKey{rootRunID: rootRunID, rootSegmentID: rootSegmentID}
 	subscriber := newRunSubscriber()
 	hub.mu.Lock()
 	if hub.closed {

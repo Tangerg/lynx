@@ -67,10 +67,11 @@ type Page struct {
 }
 
 type EventRecord struct {
+	RootRunID, RootSegmentID string
 	RunID, SegmentID, EventID string
-	Ordinal                   int
-	Body                      []byte
-	CreatedAt                 time.Time
+	Ordinal                    int
+	Body                       []byte
+	CreatedAt                  time.Time
 }
 
 type Start struct {

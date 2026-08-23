@@ -114,8 +114,11 @@ func capturePlanBoundary(ctx context.Context, transaction *sql.Tx, runID, sessio
 func insertRunEvents(ctx context.Context, transaction *sql.Tx, events []rundomain.EventRecord) error {
 	for _, event := range events {
 		if _, err := transaction.ExecContext(ctx, `
-			INSERT INTO run_events (run_id, segment_id, event_id, ordinal, body, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)`, event.RunID, event.SegmentID, event.EventID,
+			INSERT INTO run_events (
+				root_run_id, root_segment_id, run_id, segment_id,
+				event_id, ordinal, body, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			event.RootRunID, event.RootSegmentID, event.RunID, event.SegmentID, event.EventID,
 			event.Ordinal, string(event.Body), encodeTime(event.CreatedAt)); err != nil {
 			return fmt.Errorf("sqlite: append run event %s: %w", event.EventID, err)
 		}
@@ -125,13 +128,14 @@ func insertRunEvents(ctx context.Context, transaction *sql.Tx, events []rundomai
 
 func (database *Database) ListRunEvents(
 	ctx context.Context,
-	runID, segmentID, afterEventID string,
+	rootRunID, rootSegmentID, afterEventID string,
 ) ([]rundomain.EventRecord, error) {
-	afterOrdinal := 0
+	var afterSequence int64
 	if afterEventID != "" {
 		err := database.database.QueryRowContext(ctx, `
-			SELECT ordinal FROM run_events WHERE run_id = ? AND segment_id = ? AND event_id = ?`,
-			runID, segmentID, afterEventID).Scan(&afterOrdinal)
+			SELECT sequence FROM run_events
+			WHERE root_run_id = ? AND root_segment_id = ? AND event_id = ?`,
+			rootRunID, rootSegmentID, afterEventID).Scan(&afterSequence)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: event cursor is unknown", rundomain.ErrStaleSegment)
 		}
@@ -140,9 +144,10 @@ func (database *Database) ListRunEvents(
 		}
 	}
 	rows, err := database.database.QueryContext(ctx, `
-		SELECT run_id, segment_id, event_id, ordinal, body, created_at
-		FROM run_events WHERE run_id = ? AND segment_id = ? AND ordinal > ?
-		ORDER BY ordinal`, runID, segmentID, afterOrdinal)
+		SELECT root_run_id, root_segment_id, run_id, segment_id, event_id, ordinal, body, created_at
+		FROM run_events
+		WHERE root_run_id = ? AND root_segment_id = ? AND sequence > ?
+		ORDER BY sequence`, rootRunID, rootSegmentID, afterSequence)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list run events: %w", err)
 	}
@@ -151,7 +156,16 @@ func (database *Database) ListRunEvents(
 	for rows.Next() {
 		var record rundomain.EventRecord
 		var created string
-		if err := rows.Scan(&record.RunID, &record.SegmentID, &record.EventID, &record.Ordinal, &record.Body, &created); err != nil {
+		if err := rows.Scan(
+			&record.RootRunID,
+			&record.RootSegmentID,
+			&record.RunID,
+			&record.SegmentID,
+			&record.EventID,
+			&record.Ordinal,
+			&record.Body,
+			&created,
+		); err != nil {
 			return nil, fmt.Errorf("sqlite: scan run event: %w", err)
 		}
 		record.CreatedAt, err = decodeTime(created)

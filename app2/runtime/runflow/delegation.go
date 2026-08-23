@@ -96,6 +96,10 @@ func (service *Service) ReserveDelegate(
 	if !runAllowsSubagents(parent.Run, facts.Profile) {
 		return agentexec.DelegateBinding{}, errors.New("runflow: delegated child was not negotiated")
 	}
+	stream, err := service.activeTreeStream(ctx, parent.Run, request.ParentSegmentID)
+	if err != nil {
+		return agentexec.DelegateBinding{}, err
+	}
 	runID, err := service.ids.New("run_")
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
@@ -150,7 +154,7 @@ func (service *Service) ReserveDelegate(
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
 	}
-	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal)
+	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal, stream)
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
 	}
@@ -168,7 +172,7 @@ func (service *Service) ReserveDelegate(
 	}
 	if created {
 		service.publishRunChange(parent.Run)
-		service.hub.PublishRun(event)
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
 	}
 	return delegateBinding(committed), nil
 }
@@ -212,6 +216,10 @@ func (service *Service) commitDelegateStarted(
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
 	}
+	stream, err := service.activeTreeStream(ctx, child, admission.SegmentID)
+	if err != nil {
+		return agentexec.DelegateBinding{}, err
+	}
 	record, err := makeRecord(child, runFacts{Metrics: protocol.RunMetrics{}, EventOrdinal: 1})
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
@@ -220,7 +228,14 @@ func (service *Service) commitDelegateStarted(
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
 	}
-	events, persisted, err := service.startEvents(child.ID(), admission.SegmentID, *presented, nil, admission.StartedAt)
+	events, persisted, err := service.startEvents(
+		child.ID(),
+		admission.SegmentID,
+		stream,
+		*presented,
+		nil,
+		admission.StartedAt,
+	)
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
 	}
@@ -232,7 +247,7 @@ func (service *Service) commitDelegateStarted(
 	}
 	if created {
 		service.publishLifecycleChange(child)
-		service.hub.PublishRun(events[0])
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, events[0])
 	}
 	return delegateBinding(admission), nil
 }
@@ -255,6 +270,10 @@ func (service *Service) commitDelegateAborted(
 	segmentID := parent.Run.ActiveSegmentID()
 	if parent.Run.Status() != rundomain.Running || segmentID == "" {
 		return agentexec.DelegateBinding{}, rundomain.ErrInvalidTransition
+	}
+	stream, err := service.activeTreeStream(ctx, parent.Run, segmentID)
+	if err != nil {
+		return agentexec.DelegateBinding{}, err
 	}
 	facts, err := decodeFacts(parent.Body)
 	if err != nil {
@@ -296,7 +315,7 @@ func (service *Service) commitDelegateAborted(
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
 	}
-	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal)
+	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal, stream)
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
 	}
@@ -309,7 +328,7 @@ func (service *Service) commitDelegateAborted(
 	}
 	if committed {
 		service.publishRunChange(parent.Run)
-		service.hub.PublishRun(event)
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
 	}
 	return delegateBinding(admission), nil
 }
@@ -371,6 +390,10 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 	if parent.Run.Status() != rundomain.Running || parentSegmentID == "" {
 		return rundomain.ErrInvalidTransition
 	}
+	stream, err := service.activeTreeStream(ctx, child.Run, output.SegmentID)
+	if err != nil {
+		return err
+	}
 	childFacts, err := decodeFacts(child.Body)
 	if err != nil {
 		return err
@@ -405,6 +428,7 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 	childEvents, err := persistEvents(
 		projection.events,
 		childFacts.EventOrdinal-len(projection.events)+1,
+		stream,
 	)
 	if err != nil {
 		return err
@@ -465,7 +489,11 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 	if err != nil {
 		return err
 	}
-	parentEvents, err := persistEvents([]protocol.RunEvent{parentCompleted}, parentFacts.EventOrdinal)
+	parentEvents, err := persistEvents(
+		[]protocol.RunEvent{parentCompleted},
+		parentFacts.EventOrdinal,
+		stream,
+	)
 	if err != nil {
 		return err
 	}
@@ -480,9 +508,9 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 	service.publishLifecycleChange(child.Run)
 	service.publishRunChange(parent.Run)
 	for _, event := range projection.events {
-		service.hub.PublishRun(event)
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
 	}
-	service.hub.PublishRun(parentCompleted)
+	service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, parentCompleted)
 	return nil
 }
 

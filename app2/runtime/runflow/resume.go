@@ -332,6 +332,10 @@ func resolveInterruptItems(records []transcript.Record, pending protocol.Pending
 }
 
 func (service *Service) resumeEvents(run protocol.RunRef, opening *transcript.Record, facts *runFacts, now time.Time) ([]protocol.RunEvent, []rundomain.EventRecord, error) {
+	stream, err := newTreeStream(run.ID, run.ActiveSegmentID)
+	if err != nil {
+		return nil, nil, err
+	}
 	started, err := service.event(run.ID, run.ActiveSegmentID, facts, protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &run}, now)
 	if err != nil {
 		return nil, nil, err
@@ -348,7 +352,7 @@ func (service *Service) resumeEvents(run protocol.RunRef, opening *transcript.Re
 		}
 		events = append(events, completed)
 	}
-	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1)
+	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1, stream)
 	return events, persisted, err
 }
 

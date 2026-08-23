@@ -134,15 +134,19 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS one_goal_per_owned_run
 			ON goals(active_run_id) WHERE active_run_id IS NOT NULL`,
 		`CREATE TABLE IF NOT EXISTS run_events (
+			sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+			root_run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+			root_segment_id TEXT NOT NULL,
 			run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
 			segment_id TEXT NOT NULL,
-			event_id TEXT NOT NULL,
+			event_id TEXT NOT NULL UNIQUE,
 			ordinal INTEGER NOT NULL CHECK (ordinal > 0),
 			body TEXT NOT NULL CHECK (json_valid(body)),
 			created_at TEXT NOT NULL,
-			PRIMARY KEY(run_id, segment_id, event_id),
 			UNIQUE(run_id, segment_id, ordinal)
 		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS run_events_by_tree_stream
+			ON run_events(root_run_id, root_segment_id, sequence)`,
 		`CREATE TABLE IF NOT EXISTS schedules (
 			id TEXT PRIMARY KEY,
 			body TEXT NOT NULL CHECK (json_valid(body)),

@@ -85,7 +85,11 @@ func (service *Service) recoverRun(ctx context.Context, runID string) error {
 	if err != nil {
 		return err
 	}
-	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1)
+	stream, err := newTreeStream(runID, segmentID)
+	if err != nil {
+		return err
+	}
+	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1, stream)
 	if err != nil {
 		return err
 	}
@@ -96,7 +100,9 @@ func (service *Service) recoverRun(ctx context.Context, runID string) error {
 		return err
 	}
 	service.publishLifecycleChange(record.Run)
-	for _, event := range events { service.hub.PublishRun(event) }
+	for _, event := range events {
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
+	}
 	return nil
 }
 

@@ -5,8 +5,10 @@ import "time"
 // RunEvent is the params of the notifications.run.event notification —
 // the single downstream stream carrying segment / item / Plan events
 // (API.md §5). RunID is the stable logical run; SegmentID is the streamed
-// segment the event belongs to (§0.3) — a client scopes its stream tree +
-// reconnect-replay dedup to it. eventId is monotonic within one segment stream.
+// segment the event belongs to (§0.3). A root Segment stream also carries child
+// Segment events, so reconnect/replay scopes eventId to the carrying root tree
+// stream, not blindly to this source SegmentID. eventId is monotonic within that
+// one root Segment stream.
 //
 // There is no per-frame reliability flag. Authoritativeness and replayability
 // are protocol facts owned by the event type.

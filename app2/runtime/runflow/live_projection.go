@@ -148,7 +148,7 @@ func (projector *liveProjector) projectDelta(delta agentexec.ModelDelta) {
 			return
 		}
 		projector.modelStarted[item.ID] = true
-		projector.service.hub.PublishRun(started)
+		projector.service.hub.PublishRun(projector.runID, projector.segmentID, started)
 	}
 	eventID, err := projector.service.ids.New("evt_")
 	if err != nil {
@@ -158,7 +158,7 @@ func (projector *liveProjector) projectDelta(delta agentexec.ModelDelta) {
 	if occurredAt.IsZero() {
 		occurredAt = projector.service.now().UTC()
 	}
-	projector.service.hub.PublishRun(protocol.RunEvent{
+	projector.service.hub.PublishRun(projector.runID, projector.segmentID, protocol.RunEvent{
 		RunID: runID, SegmentID: segmentID,
 		EventID: eventID, Timestamp: occurredAt,
 		Event: protocol.StreamEvent{Type: protocol.StreamItemDelta, ItemID: item.ID, Delta: &itemDelta},
@@ -276,7 +276,11 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 	if err != nil {
 		return
 	}
-	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1)
+	stream, err := newTreeStream(projector.runID, projector.segmentID)
+	if err != nil {
+		return
+	}
+	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1, stream)
 	if err != nil {
 		return
 	}
@@ -287,7 +291,7 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 		return
 	}
 	for _, event := range events {
-		projector.service.hub.PublishRun(event)
+		projector.service.hub.PublishRun(projector.runID, projector.segmentID, event)
 	}
 }
 
@@ -330,7 +334,7 @@ func (projector *liveProjector) projectProgress(progress agentexec.ModelProgress
 	if occurredAt.IsZero() {
 		occurredAt = projector.service.now().UTC()
 	}
-	projector.service.hub.PublishRun(protocol.RunEvent{
+	projector.service.hub.PublishRun(projector.runID, projector.segmentID, protocol.RunEvent{
 		RunID: runID, SegmentID: segmentID,
 		EventID: eventID, Timestamp: occurredAt,
 		Event: protocol.StreamEvent{Type: protocol.StreamSegmentProgress, Progress: &value},
@@ -387,7 +391,11 @@ func (projector *liveProjector) commitAnchor(runID, segmentID string, item proto
 	if err != nil {
 		return protocol.RunEvent{}, false
 	}
-	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal)
+	stream, err := newTreeStream(projector.runID, projector.segmentID)
+	if err != nil {
+		return protocol.RunEvent{}, false
+	}
+	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal, stream)
 	if err != nil {
 		return protocol.RunEvent{}, false
 	}

@@ -167,6 +167,40 @@ type openedRoot struct {
 	runID, segmentID, userItemID string
 }
 
+// treeStream is the delivery/replay scope of one active root Segment. Event
+// source identity remains on RunEvent; this value only says which root stream
+// carries it.
+type treeStream struct {
+	rootRunID     string
+	rootSegmentID string
+}
+
+func newTreeStream(rootRunID, rootSegmentID string) (treeStream, error) {
+	if rootRunID == "" || rootSegmentID == "" {
+		return treeStream{}, errors.New("runflow: root tree stream identity is incomplete")
+	}
+	return treeStream{rootRunID: rootRunID, rootSegmentID: rootSegmentID}, nil
+}
+
+func (service *Service) activeTreeStream(
+	ctx context.Context,
+	value rundomain.Run,
+	segmentID string,
+) (treeStream, error) {
+	if value.ParentRunID() == "" {
+		return newTreeStream(value.ID(), segmentID)
+	}
+	root, err := service.store.GetRun(ctx, value.RootRunID())
+	if err != nil {
+		return treeStream{}, err
+	}
+	if root.Run.ParentRunID() != "" || root.Run.Status() != rundomain.Running ||
+		root.Run.ActiveSegmentID() == "" || root.Run.SessionID() != value.SessionID() {
+		return treeStream{}, errors.New("runflow: delegated Run has no active root tree stream")
+	}
+	return newTreeStream(root.Run.ID(), root.Run.ActiveSegmentID())
+}
+
 // CommitWrite is the single terminal/update transaction for an admitted Run.
 // ExpectedStatus and ExpectedSegmentID are the generation token: every caller
 // must prove which durable lifecycle version it is replacing.
@@ -280,7 +314,11 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 	if err != nil {
 		return nil, nil, err
 	}
-	events, persisted, err := service.startEvents(runID, segmentID, *presented, userItem, now)
+	stream, err := newTreeStream(runID, segmentID)
+	if err != nil {
+		return nil, nil, err
+	}
+	events, persisted, err := service.startEvents(runID, segmentID, stream, *presented, userItem, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -476,7 +514,11 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 		return
 	}
 	firstOrdinal := facts.EventOrdinal - len(events) + 1
-	persisted, err := persistEvents(events, firstOrdinal)
+	stream, err := newTreeStream(runID, segmentID)
+	if err != nil {
+		return
+	}
+	persisted, err := persistEvents(events, firstOrdinal, stream)
 	if err != nil {
 		return
 	}
@@ -485,7 +527,7 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	}
 	service.publishLifecycleChange(record.Run)
 	for _, event := range events {
-		service.hub.PublishRun(event)
+		service.hub.PublishRun(runID, segmentID, event)
 	}
 }
 
@@ -560,7 +602,7 @@ func (service *Service) Subscribe(ctx context.Context, request protocol.Subscrib
 	}
 	return &protocol.SubscribeRunResponse{
 		RunID: request.RunID, SegmentID: request.SegmentID, HeadEventID: head,
-	}, mergeRunEvents(cancelSubscription, replay, live), nil
+	}, mergeRunEvents(cancelSubscription, request.RunID, request.SegmentID, replay, live), nil
 }
 
 func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
@@ -591,6 +633,10 @@ func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRe
 			return nil, err
 		}
 	}
+	stream, err := service.activeTreeStream(ctx, record.Run, segmentID)
+	if err != nil {
+		return nil, err
+	}
 	facts, err := decodeFacts(record.Body)
 	if err != nil {
 		return nil, err
@@ -618,7 +664,7 @@ func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRe
 	if err != nil {
 		return nil, err
 	}
-	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal)
+	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal, stream)
 	if err != nil {
 		return nil, err
 	}
@@ -629,7 +675,7 @@ func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRe
 	if expectedStatus == rundomain.Waiting {
 		service.publishInterruptChange(record.Run)
 	}
-	service.hub.PublishRun(event)
+	service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
 	presented, err := presentRecord(record)
 	if err != nil {
 		return nil, err
@@ -706,11 +752,13 @@ func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequ
 		if err != nil { active.cancel(); return err }
 		record, err = makeRecord(record.Run, facts)
 		if err != nil { active.cancel(); return err }
-		persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal)
+		stream, err := newTreeStream(request.RunID, request.ExpectedSegmentID)
+		if err != nil { active.cancel(); return err }
+		persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal, stream)
 		if err != nil { active.cancel(); return err }
 		if err := service.store.CommitSteer(ctx, SteerWrite{Run: record, ExpectedSegmentID: request.ExpectedSegmentID, Item: storedItem, Message: storedMessage, Event: persisted[0]}); err != nil { active.cancel(); return err }
 		service.publishRunChange(record.Run)
-		service.hub.PublishRun(event)
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -721,6 +769,8 @@ func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequ
 
 func mergeRunEvents(
 	cancel context.CancelFunc,
+	rootRunID string,
+	rootSegmentID string,
 	replay []protocol.RunEvent,
 	live iter.Seq[protocol.RunEvent],
 ) iter.Seq[protocol.RunEvent] {
@@ -729,7 +779,7 @@ func mergeRunEvents(
 		seen := make(map[string]struct{}, len(replay))
 		for _, event := range replay {
 			seen[event.EventID] = struct{}{}
-			if !yield(event) || event.Event.Type == protocol.StreamSegmentFinished {
+			if !yield(event) || closesTreeStream(rootRunID, rootSegmentID, event) {
 				return
 			}
 		}
@@ -738,11 +788,16 @@ func mergeRunEvents(
 				continue
 			}
 			seen[event.EventID] = struct{}{}
-			if !yield(event) || event.Event.Type == protocol.StreamSegmentFinished {
+			if !yield(event) || closesTreeStream(rootRunID, rootSegmentID, event) {
 				return
 			}
 		}
 	}
+}
+
+func closesTreeStream(rootRunID, rootSegmentID string, event protocol.RunEvent) bool {
+	return event.RunID == rootRunID && event.SegmentID == rootSegmentID &&
+		event.Event.Type == protocol.StreamSegmentFinished
 }
 
 func (service *Service) publishLifecycleChange(value rundomain.Run) {
@@ -877,9 +932,15 @@ func (service *Service) replay(ctx context.Context, runID, segmentID, after stri
 	events := make([]protocol.RunEvent, 0, len(records))
 	head := after
 	for _, record := range records {
+		if record.RootRunID != runID || record.RootSegmentID != segmentID {
+			return nil, "", errors.New("runflow: replay store returned another tree stream")
+		}
 		var event protocol.RunEvent
 		if err := json.Unmarshal(record.Body, &event); err != nil {
 			return nil, "", fmt.Errorf("runflow: decode event: %w", err)
+		}
+		if event.RunID != record.RunID || event.SegmentID != record.SegmentID || event.EventID != record.EventID {
+			return nil, "", errors.New("runflow: replay event identity differs from its journal record")
 		}
 		events = append(events, event)
 		head = event.EventID
@@ -889,6 +950,7 @@ func (service *Service) replay(ctx context.Context, runID, segmentID, after stri
 
 func (service *Service) startEvents(
 	runID, segmentID string,
+	stream treeStream,
 	run protocol.RunRef,
 	item *protocol.Item,
 	now time.Time,
@@ -909,7 +971,7 @@ func (service *Service) startEvents(
 			Event: protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item},
 		})
 	}
-	persisted, err := persistEvents(events, 1)
+	persisted, err := persistEvents(events, 1, stream)
 	return events, persisted, err
 }
 
@@ -929,14 +991,25 @@ func (service *Service) event(
 	}, nil
 }
 
-func persistEvents(events []protocol.RunEvent, firstOrdinal int) ([]rundomain.EventRecord, error) {
+func persistEvents(
+	events []protocol.RunEvent,
+	firstOrdinal int,
+	stream treeStream,
+) ([]rundomain.EventRecord, error) {
+	if _, err := newTreeStream(stream.rootRunID, stream.rootSegmentID); err != nil {
+		return nil, err
+	}
 	records := make([]rundomain.EventRecord, 0, len(events))
 	for index, event := range events {
+		if event.RunID == "" || event.SegmentID == "" || event.EventID == "" {
+			return nil, errors.New("runflow: persisted Run event identity is incomplete")
+		}
 		body, err := json.Marshal(event)
 		if err != nil {
 			return nil, err
 		}
 		records = append(records, rundomain.EventRecord{
+			RootRunID: stream.rootRunID, RootSegmentID: stream.rootSegmentID,
 			RunID: event.RunID, SegmentID: event.SegmentID, EventID: event.EventID,
 			Ordinal: firstOrdinal + index, Body: body, CreatedAt: event.Timestamp,
 		})
