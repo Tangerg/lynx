@@ -2,6 +2,8 @@ import {
   LyraClient,
   protocolVersion,
   type DiscoverResponse,
+  type CancelRunResponse,
+  type ContentBlock,
   type CreateSessionRequest,
   type EmptyObject,
   type Goal,
@@ -10,8 +12,11 @@ import {
   type RequestMeta,
   type RuntimeEvent,
   type RuntimeConnection,
+  type OpenRuntimeStream,
+  type RunEvent,
   type Session,
   type SessionSnapshot,
+  type StartRunResponse,
   type UpdateSessionRequest,
 } from "@lyra/runtime-contract";
 
@@ -80,6 +85,61 @@ export function loadSessionSnapshot(
   return client(connection).call(
     "sessions.snapshot",
     { sessionId },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function startRun(
+  connection: RuntimeConnection,
+  sessionId: string,
+  input: ContentBlock[],
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<OpenRuntimeStream<StartRunResponse, RunEvent>> {
+  return client(connection).stream(
+    "runs.start",
+    { sessionId, input },
+    { meta: clientMeta, idempotencyKey, signal },
+  );
+}
+
+export function subscribeRun(
+  connection: RuntimeConnection,
+  runId: string,
+  segmentId: string,
+  signal?: AbortSignal,
+  afterEventId?: string,
+) {
+  return client(connection).stream(
+    "runs.subscribe",
+    { runId, segmentId },
+    { meta: clientMeta, signal, afterEventId },
+  );
+}
+
+export function steerRun(
+  connection: RuntimeConnection,
+  runId: string,
+  segmentId: string,
+  input: ContentBlock[],
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<EmptyObject> {
+  return client(connection).call(
+    "runs.steer",
+    { runId, expectedSegmentId: segmentId, input },
+    { meta: clientMeta, idempotencyKey, signal },
+  );
+}
+
+export function cancelRun(
+  connection: RuntimeConnection,
+  runId: string,
+  signal?: AbortSignal,
+): Promise<CancelRunResponse> {
+  return client(connection).call(
+    "runs.cancel",
+    { runId, reason: "Stopped from Lyra Desktop" },
     { meta: clientMeta, signal },
   );
 }

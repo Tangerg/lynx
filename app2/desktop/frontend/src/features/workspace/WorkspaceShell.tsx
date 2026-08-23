@@ -7,6 +7,13 @@ import type {
   Session,
 } from "@lyra/runtime-contract";
 
+import { AgentNarrative } from "../agent/AgentNarrative";
+import {
+  Composer,
+  emptyComposerDraft,
+  type ComposerDraft,
+} from "../agent/Composer";
+import { useAgentSessionView } from "../agent/useAgentSessionView";
 import { GoalComposer } from "../goals/GoalComposer";
 import { GoalTray } from "../goals/GoalTray";
 import { useGoalActions } from "../goals/useGoalActions";
@@ -42,6 +49,9 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     ],
   );
   const [selectedSessionId, setSelectedSessionId] = useState<string>();
+  const [composerDrafts, setComposerDrafts] = useState<
+    Record<string, ComposerDraft>
+  >({});
   const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
   const goalsEnabled = props.discovery.capabilities.features.goals?.enabled === true;
   const liveUpdatesEnabled =
@@ -71,6 +81,27 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     retry: 2,
   });
   const goalActions = useGoalActions(connection, selectedSession?.id);
+  const agentView = useAgentSessionView(
+    connection,
+    selectedSession?.id,
+    snapshot.data,
+  );
+  const composerDraft = selectedSession
+    ? (composerDrafts[selectedSession.id] ?? emptyComposerDraft)
+    : emptyComposerDraft;
+  const updateComposerDraft = useCallback(
+    (update: (draft: ComposerDraft) => ComposerDraft) => {
+      if (!selectedSession) return;
+      setComposerDrafts((current) => {
+        const draft = current[selectedSession.id] ?? emptyComposerDraft;
+        return {
+          ...current,
+          [selectedSession.id]: update(draft),
+        };
+      });
+    },
+    [selectedSession],
+  );
   const createSession = useCallback(
     async (request = {}) => {
       const session = await catalog.create(request);
@@ -85,6 +116,12 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         (candidate) => candidate.id !== session.id,
       );
       await catalog.remove(session);
+      setComposerDrafts((current) => {
+        if (current[session.id] === undefined) return current;
+        const next = { ...current };
+        delete next[session.id];
+        return next;
+      });
       if (selectedSession?.id === session.id) {
         setSelectedSessionId(fallback?.id);
       }
@@ -165,7 +202,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           <div className="narrative-tools window-no-drag">
             {selectedSession && planEnabled ? (
               <PlanCompact
-                plan={snapshot.data?.plan}
+                plan={agentView.plan}
                 pending={snapshot.isPending}
                 error={snapshot.isError}
               />
@@ -186,22 +223,39 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
               action="Try again"
               onAction={() => void snapshot.refetch()}
             />
+          ) : snapshot.isPending || snapshot.data === undefined ? (
+            <SessionLoading title={selectedSession.title} />
           ) : (
             <>
-              <SessionOverview
-                session={selectedSession}
-                itemCount={snapshot.data?.items.length}
-                runCount={snapshot.data?.runs.length}
-                pending={snapshot.isPending}
+              <AgentNarrative
+                key={`narrative:${selectedSession.id}`}
+                sessionTitle={selectedSession.title}
+                items={agentView.items}
+                runs={agentView.runs}
+                progress={agentView.progress}
+                pending={snapshot.isFetching}
+                streamError={agentView.streamError}
+              >
+                {goalsEnabled ? (
+                  <GoalComposer
+                    key={selectedSession.id}
+                    sessionId={selectedSession.id}
+                    goal={snapshot.data.goal}
+                    actions={goalActions}
+                  />
+                ) : null}
+              </AgentNarrative>
+              <Composer
+                key={`composer:${selectedSession.id}`}
+                sessionId={selectedSession.id}
+                draft={composerDraft}
+                activeRun={agentView.activeRootRun}
+                pending={agentView.actionPending}
+                error={agentView.actionError}
+                onChange={updateComposerDraft}
+                onSend={agentView.send}
+                onStop={agentView.stop}
               />
-              {goalsEnabled && snapshot.data ? (
-                <GoalComposer
-                  key={selectedSession.id}
-                  sessionId={selectedSession.id}
-                  goal={snapshot.data.goal}
-                  actions={goalActions}
-                />
-              ) : null}
             </>
           )}
         </div>
@@ -251,21 +305,12 @@ function EmptySession(props: { onCreate: () => void; pending: boolean }) {
   );
 }
 
-function SessionOverview(props: {
-  session: Session;
-  itemCount: number | undefined;
-  runCount: number | undefined;
-  pending: boolean;
-}) {
+function SessionLoading({ title }: { title: string }) {
   return (
-    <section className="session-overview" aria-busy={props.pending}>
-      <span className="eyebrow">Mounted session</span>
-      <h3>{props.session.title || "Untitled session"}</h3>
-      <p>
-        {props.pending
-          ? "Loading the coherent session snapshot…"
-          : `${props.itemCount ?? 0} narrative items across ${props.runCount ?? 0} runs are mounted from the Runtime.`}
-      </p>
+    <section className="session-overview" aria-busy="true">
+      <span className="eyebrow">Mounting session</span>
+      <h3>{title || "Untitled session"}</h3>
+      <p>Loading one coherent Runtime snapshot before accepting new work…</p>
     </section>
   );
 }

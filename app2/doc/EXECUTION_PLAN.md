@@ -220,11 +220,19 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - **Model streaming projection**：Agent Framework delta 只在 `agentexec` 内解析为 provider-neutral append；Run projection
   以 Framework Effect identity 派生稳定 Lyra Item key，先原子提交可回放 `item.started` anchor，再发布非权威、
   非回放 `item.delta`。最终 `item.completed` 使用同一 key 并写入 durable Transcript，delta 永不成为内容真相。
+- **AgentSessionView owner**：Desktop 用 `runsById/itemsById` normalized fold 合并 coherent snapshot、完整 replay 与
+  live event；重叠 stream 以 `eventId` bounded dedupe，connection/session generation fencing 会终止旧 lease，
+  authoritative completion 替换 provisional，terminal 清理未完成的纯渲染 anchor。
+- **Composer SendIntent**：每 Session 独立保存 draft/attachment/history；支持 image/text file picker、paste、IME-safe
+  Enter、成功后清空与失败保留。start/steer retry 复用同一 idempotency key，running Run 可 steer/stop，mutation 与
+  stream 均 single-flight 且切换 Session 会 abort 旧 owner。
+- **Agent Narrative**：root user/commentary/reasoning/final/tool/question/compaction 已有 source-aware presentation；
+  commentary work wave 与 final answer card 分离，stream/cold 共用同一 Item renderer，follow lock 尊重用户向上阅读。
 - **Bounds/resource ownership**：Framework、agentexec 和 Run projector 均为 bounded queue；provider 不等待 SQLite 或
   renderer，projector 在 Executor 返回后先 drain/close，再进入 terminal commit。本批未启动 Runtime、Wails、Vite、
   browser/agent-browser 或 watcher，无待释放的外部资源。
-- **仍未关闭的门**：AgentSessionView normalized fold、Composer/Narrative、snapshot/replay watermark、progress/context
-  footprint、reload/restart 与故障矩阵仍待 production implementation；按集中验证约定，本阶段不运行分批测试，
+- **仍未关闭的门**：progress/context footprint、reload/restart、长历史接续与故障矩阵仍待 production implementation；
+  approval/question 的可操作表面与 delegated disclosure 属于 R4。按集中验证约定，本阶段不运行分批测试，
   不把 R3 提前标为 verified。
 
 ## 8. R4：HITL、Tool、delegation 与恢复
