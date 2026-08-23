@@ -49,7 +49,10 @@ func (startup *watchStartup) markReady() {
 }
 
 func newSubscriber(request protocol.RuntimeSubscribeRequest) *subscriber {
-	watchIDs := make([]string, 0, len(request.Watches))
+	var watchIDs []string
+	if len(request.Watches) > 0 {
+		watchIDs = make([]string, 0, len(request.Watches))
+	}
 	for _, watch := range request.Watches {
 		watchIDs = append(watchIDs, watch.WatchID)
 	}

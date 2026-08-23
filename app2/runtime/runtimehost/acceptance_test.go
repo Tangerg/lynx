@@ -20,53 +20,8 @@ import (
 )
 
 func TestPublicRunLifecycleNormalQuestionApprovalAndDelegation(t *testing.T) {
-	model := newScenarioModel(t)
-	t.Cleanup(model.Close)
-	data := privateDirectory(t, "data")
-	workspace := privateDirectory(t, "workspace")
-	home := privateDirectory(t, "home")
-	runtime := startRuntime(t, runtimehost.Config{
-		Listen: "127.0.0.1:0", DatabasePath: filepath.Join(data, "runtime.sqlite"),
-		DefaultWorkspace: workspace, UserHome: home,
-		ServerName: "lyra-runtime", ServerVersion: "acceptance",
-	})
-	t.Cleanup(func() { runtime.stop(t) })
-
-	discovered := rpcCall[protocol.DiscoverResponse](
-		t, runtime.baseURL, "runtime.discover", struct{}{}, "", "",
-	)
-	namespace := discovered.Capabilities.Limits.Idempotency.Namespace
-	set := func(value string) *protocol.ProviderConfigChange {
-		return &protocol.ProviderConfigChange{Type: protocol.ProviderConfigSet, Value: &value}
-	}
-	configured := rpcCall[*protocol.Provider](
-		t, runtime.baseURL, "providers.update", protocol.UpdateProviderRequest{
-			Provider: "openai-compatible", BaseURL: set(model.URL), APIKey: set("test-key"),
-		}, "configure-provider", namespace,
-	)
-	if configured.APIKeyMasked == "" || configured.BaseURL != model.URL {
-		t.Fatalf("configured provider = %+v", configured)
-	}
-	probe := rpcCall[*protocol.ProviderTestResult](
-		t, runtime.baseURL, "providers.test",
-		protocol.TestProviderRequest{Provider: "openai-compatible"}, "", "",
-	)
-	if !probe.OK || probe.Error != nil {
-		t.Fatalf("provider probe = %+v", probe)
-	}
-
-	meta := protocol.RequestMeta{
-		ProtocolVersion: protocol.ProtocolVersion,
-		ClientInfo:      &protocol.ClientInfo{Name: "runtime-acceptance", Version: "1"},
-		ClientCapabilities: &protocol.ClientCapabilities{
-			Features: map[string]protocol.FeaturePreference{
-				protocol.FeatureSubagents: {Enabled: true},
-			},
-			InterruptTypes: []protocol.InterruptType{
-				protocol.InterruptApproval, protocol.InterruptQuestion,
-			},
-		},
-	}
+	harness := newAcceptanceHarness(t)
+	model, runtime, namespace, meta := harness.model, harness.runtime, harness.namespace, harness.meta
 
 	t.Run("normal", func(t *testing.T) {
 		session := createRunSession(t, runtime.baseURL, namespace, "normal")
@@ -195,6 +150,212 @@ func TestPublicRunLifecycleNormalQuestionApprovalAndDelegation(t *testing.T) {
 	}
 }
 
+func TestPublicSessionLifecycleRoundTrips(t *testing.T) {
+	harness := newAcceptanceHarness(t)
+	runtime, namespace, meta := harness.runtime, harness.namespace, harness.meta
+	session := createRunSession(t, runtime.baseURL, namespace, "lifecycle")
+
+	first, firstEvents := rpcRunStream[*protocol.StartRunResponse](
+		t, runtime.baseURL, "runs.start", protocol.StartRunRequest{
+			SessionID: session.ID,
+			Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "first message"}},
+			Provider:  "openai-compatible", Model: "test-model",
+		}, meta, "lifecycle-run-1", namespace,
+	)
+	assertCompletedRunStream(t, first.RunID, firstEvents)
+	second, secondEvents := rpcRunStream[*protocol.StartRunResponse](
+		t, runtime.baseURL, "runs.start", protocol.StartRunRequest{
+			SessionID: session.ID,
+			Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "second message"}},
+			Provider:  "openai-compatible", Model: "test-model",
+		}, meta, "lifecycle-run-2", namespace,
+	)
+	assertCompletedRunStream(t, second.RunID, secondEvents)
+
+	title, favorite := "renamed lifecycle", true
+	updated := rpcCall[*protocol.Session](
+		t, runtime.baseURL, "sessions.update", protocol.UpdateSessionRequest{
+			SessionID: session.ID, ExpectedRevision: session.Revision,
+			Title: &title, Favorite: &favorite,
+		}, "lifecycle-update", namespace,
+	)
+	if updated.Title != title || !updated.Favorite || updated.Revision <= session.Revision {
+		t.Fatalf("updated session = %+v", updated)
+	}
+	got := rpcCall[*protocol.Session](
+		t, runtime.baseURL, "sessions.get", protocol.GetSessionRequest{SessionID: session.ID}, "", "",
+	)
+	if got.ID != session.ID || got.Revision != updated.Revision {
+		t.Fatalf("sessions.get = %+v, want revision %d", got, updated.Revision)
+	}
+	page := rpcCall[*protocol.Page[protocol.Session]](
+		t, runtime.baseURL, "sessions.list", protocol.PageQuery{Limit: 100}, "", "",
+	)
+	if len(page.Data) != 1 || page.Data[0].ID != session.ID {
+		t.Fatalf("sessions.list = %+v", page.Data)
+	}
+	snapshot := rpcCallWithMeta[*protocol.SessionSnapshot](
+		t, runtime.baseURL, "sessions.snapshot", protocol.GetSessionSnapshotRequest{
+			SessionID: session.ID, IncludeDescendants: true,
+		}, meta,
+	)
+	if len(snapshot.Runs) != 2 || len(snapshot.Items) < 4 {
+		t.Fatalf("sessions.snapshot = %d Runs, %d Items", len(snapshot.Runs), len(snapshot.Items))
+	}
+
+	forked := rpcCall[*protocol.Session](
+		t, runtime.baseURL, "sessions.fork", protocol.ForkSessionRequest{
+			SessionID: session.ID, FromRunID: first.RunID, Title: "forked lifecycle",
+		}, "lifecycle-fork", namespace,
+	)
+	forkRuns := rpcCallWithMeta[*protocol.Page[protocol.RunRef]](
+		t, runtime.baseURL, "runs.list", protocol.ListRunsRequest{
+			SessionID: forked.ID, IncludeDescendants: true, PageQuery: protocol.PageQuery{Limit: 100},
+		}, meta,
+	)
+	if len(forkRuns.Data) != 1 {
+		t.Fatalf("forked Runs = %+v", forkRuns.Data)
+	}
+
+	rolledBack := rpcCall[*protocol.RollbackSessionResponse](
+		t, runtime.baseURL, "sessions.rollback", protocol.RollbackSessionRequest{
+			SessionID: session.ID, ToRunID: first.RunID, RestoreType: protocol.RestoreHistory,
+		}, "lifecycle-rollback", namespace,
+	)
+	if len(rolledBack.DroppedRuns) != 1 || rolledBack.DroppedRuns[0].Run.ID != second.RunID {
+		t.Fatalf("rollback dropped Runs = %+v", rolledBack.DroppedRuns)
+	}
+
+	exported := rpcCall[*protocol.ExportSessionResponse](
+		t, runtime.baseURL, "sessions.export", protocol.ExportSessionRequest{
+			SessionID: session.ID, Format: protocol.ExportFormatJSON,
+		}, "", "",
+	)
+	if exported.Artifact == nil || exported.Artifact.Version != protocol.SessionArtifactVersion || len(exported.Artifact.Runs) != 1 {
+		t.Fatalf("JSON export = %+v", exported)
+	}
+	markdown := rpcCall[*protocol.ExportSessionResponse](
+		t, runtime.baseURL, "sessions.export", protocol.ExportSessionRequest{
+			SessionID: session.ID, Format: protocol.ExportFormatMarkdown,
+		}, "", "",
+	)
+	if markdown.Markdown == "" || markdown.Artifact != nil {
+		t.Fatalf("Markdown export = %+v", markdown)
+	}
+
+	rpcCall[struct{}](
+		t, runtime.baseURL, "sessions.delete", protocol.DeleteSessionRequest{SessionID: session.ID},
+		"lifecycle-delete", namespace,
+	)
+	imported := rpcCall[*protocol.ImportSessionResponse](
+		t, runtime.baseURL, "sessions.import", protocol.ImportSessionRequest{Artifact: *exported.Artifact},
+		"lifecycle-import", namespace,
+	)
+	if imported.Session.ID != session.ID {
+		t.Fatalf("imported Session = %+v, want %q", imported.Session, session.ID)
+	}
+	importedRuns := rpcCallWithMeta[*protocol.Page[protocol.RunRef]](
+		t, runtime.baseURL, "runs.list", protocol.ListRunsRequest{
+			SessionID: session.ID, IncludeDescendants: true, PageQuery: protocol.PageQuery{Limit: 100},
+		}, meta,
+	)
+	if len(importedRuns.Data) != 1 || importedRuns.Data[0].ID != first.RunID {
+		t.Fatalf("imported Runs = %+v", importedRuns.Data)
+	}
+}
+
+func TestPublicRuntimeSubscriptionResyncsAcrossTransportReconnect(t *testing.T) {
+	harness := newAcceptanceHarness(t)
+	var created *protocol.Session
+	events := rpcRuntimeEvents(
+		t, harness.runtime.baseURL,
+		protocol.RuntimeSubscribeRequest{Topics: []protocol.RuntimeTopic{protocol.TopicSessionsChanged}},
+		harness.meta, 2,
+		func() {
+			created = createRunSession(t, harness.runtime.baseURL, harness.namespace, "subscription")
+		},
+	)
+	if events[0].Type != protocol.RuntimeResync || events[0].Sequence != 1 ||
+		len(events[0].Topics) != 1 || events[0].Topics[0] != protocol.TopicSessionsChanged {
+		t.Fatalf("cold subscription event = %+v", events[0])
+	}
+	if events[1].Type != protocol.RuntimeSessionsChanged || events[1].Sequence != 2 ||
+		len(events[1].SessionIDs) != 1 || events[1].SessionIDs[0] != created.ID {
+		t.Fatalf("session invalidation = %+v, session = %q", events[1], created.ID)
+	}
+
+	reconnected := rpcRuntimeEvents(
+		t, harness.runtime.baseURL,
+		protocol.RuntimeSubscribeRequest{Topics: []protocol.RuntimeTopic{protocol.TopicSessionsChanged}},
+		harness.meta, 1, nil,
+	)
+	if reconnected[0].Type != protocol.RuntimeResync || reconnected[0].Sequence != 1 {
+		t.Fatalf("reconnected cold event = %+v", reconnected[0])
+	}
+	got := rpcCall[*protocol.Session](
+		t, harness.runtime.baseURL, "sessions.get", protocol.GetSessionRequest{SessionID: created.ID}, "", "",
+	)
+	if got.ID != created.ID {
+		t.Fatalf("session after transport reconnect = %+v", got)
+	}
+}
+
+type acceptanceHarness struct {
+	runtime   *runningRuntime
+	model     *scenarioModel
+	namespace string
+	meta      protocol.RequestMeta
+}
+
+func newAcceptanceHarness(t *testing.T) acceptanceHarness {
+	t.Helper()
+	model := newScenarioModel(t)
+	t.Cleanup(model.Close)
+	runtime := startRuntime(t, runtimehost.Config{
+		Listen: "127.0.0.1:0", DatabasePath: filepath.Join(privateDirectory(t, "data"), "runtime.sqlite"),
+		DefaultWorkspace: privateDirectory(t, "workspace"), UserHome: privateDirectory(t, "home"),
+		ServerName: "lyra-runtime", ServerVersion: "acceptance",
+	})
+	t.Cleanup(func() { runtime.stop(t) })
+	discovered := rpcCall[protocol.DiscoverResponse](
+		t, runtime.baseURL, "runtime.discover", struct{}{}, "", "",
+	)
+	namespace := discovered.Capabilities.Limits.Idempotency.Namespace
+	set := func(value string) *protocol.ProviderConfigChange {
+		return &protocol.ProviderConfigChange{Type: protocol.ProviderConfigSet, Value: &value}
+	}
+	configured := rpcCall[*protocol.Provider](
+		t, runtime.baseURL, "providers.update", protocol.UpdateProviderRequest{
+			Provider: "openai-compatible", BaseURL: set(model.URL), APIKey: set("test-key"),
+		}, "configure-provider", namespace,
+	)
+	if configured.APIKeyMasked == "" || configured.BaseURL != model.URL {
+		t.Fatalf("configured provider = %+v", configured)
+	}
+	probe := rpcCall[*protocol.ProviderTestResult](
+		t, runtime.baseURL, "providers.test",
+		protocol.TestProviderRequest{Provider: "openai-compatible"}, "", "",
+	)
+	if !probe.OK || probe.Error != nil {
+		t.Fatalf("provider probe = %+v", probe)
+	}
+	return acceptanceHarness{
+		runtime: runtime, model: model, namespace: namespace,
+		meta: protocol.RequestMeta{
+			ProtocolVersion: protocol.ProtocolVersion,
+			ClientInfo:      &protocol.ClientInfo{Name: "runtime-acceptance", Version: "1"},
+			ClientCapabilities: &protocol.ClientCapabilities{
+				Features: map[string]protocol.FeaturePreference{
+					protocol.FeatureSubagents: {Enabled: true},
+				},
+				InterruptTypes: []protocol.InterruptType{
+					protocol.InterruptApproval, protocol.InterruptQuestion,
+				},
+			},
+		},
+	}
+}
+
 func createRunSession(t *testing.T, baseURL string, namespace string, title string) *protocol.Session {
 	t.Helper()
 	return rpcCall[*protocol.Session](
@@ -302,6 +463,82 @@ func rpcRunStream[Ack any](
 		t.Fatalf("%s stream returned no acknowledgement", method)
 	}
 	return ack, events
+}
+
+func rpcRuntimeEvents(
+	t *testing.T,
+	baseURL string,
+	params protocol.RuntimeSubscribeRequest,
+	meta protocol.RequestMeta,
+	count int,
+	afterFirst func(),
+) []protocol.RuntimeEvent {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": "runtime-subscription-acceptance", "method": "runtime.subscribe",
+		"params": rpcParameters(t, params, &meta),
+	})
+	if err != nil {
+		t.Fatalf("encode runtime.subscribe request error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(
+		ctx, http.MethodPost, baseURL+httptransport.PathRPC, bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatalf("build runtime.subscribe request error = %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("call runtime.subscribe error = %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("runtime.subscribe status = %d", response.StatusCode)
+	}
+	reader, err := sse.NewHTTPReader(response)
+	if err != nil {
+		t.Fatalf("open runtime.subscribe SSE error = %v", err)
+	}
+	events := make([]protocol.RuntimeEvent, 0, count)
+	messageN := 0
+	for message, messageErr := range reader.Messages() {
+		if messageErr != nil {
+			t.Fatalf("read runtime.subscribe SSE error = %v", messageErr)
+		}
+		messageN++
+		if messageN == 1 {
+			var envelope rpcResponse
+			if err := json.Unmarshal(message.Data, &envelope); err != nil {
+				t.Fatalf("decode runtime.subscribe acknowledgement error = %v", err)
+			}
+			if envelope.Error != nil {
+				t.Fatalf("runtime.subscribe problem = %+v", envelope.Error.Data)
+			}
+			continue
+		}
+		var notification struct {
+			Method string                            `json:"method"`
+			Params protocol.RuntimeEventNotification `json:"params"`
+		}
+		if err := json.Unmarshal(message.Data, &notification); err != nil {
+			t.Fatalf("decode runtime.subscribe notification error = %v", err)
+		}
+		if notification.Method != "notifications.runtime.event" {
+			t.Fatalf("runtime.subscribe notification method = %q", notification.Method)
+		}
+		events = append(events, notification.Params.Event)
+		if len(events) == 1 && afterFirst != nil {
+			afterFirst()
+		}
+		if len(events) == count {
+			return events
+		}
+	}
+	t.Fatalf("runtime.subscribe closed after %d/%d events", len(events), count)
+	return nil
 }
 
 func assertCompletedRunStream(t *testing.T, runID string, events []protocol.RunEvent) {
