@@ -231,11 +231,12 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   stream 均 single-flight 且切换 Session 会 abort 旧 owner。
 - **Agent Narrative**：root user/commentary/reasoning/final/tool/question/compaction 已有 source-aware presentation；
   commentary work wave 与 final answer card 分离，stream/cold 共用同一 Item renderer，follow lock 尊重用户向上阅读。
+- **Context gauge**：Desktop 从 AgentSessionView 的 live/cold context footprint 与 provider-scoped `models.list`
+  合成占用比例；model window 未知时只显示 token count，绝不把未知容量画成 0%。`models.changed` 只失效 catalog query。
 - **Bounds/resource ownership**：Framework、agentexec 和 Run projector 均为 bounded queue；provider 不等待 SQLite 或
   renderer，projector 在 Executor 返回后先 drain/close，再进入 terminal commit。本批未启动 Runtime、Wails、Vite、
   browser/agent-browser 或 watcher，无待释放的外部资源。
-- **仍未关闭的门**：Desktop context gauge 的 model-window 百分比、reload/restart、长历史接续与故障矩阵仍待
-  production implementation；
+- **仍未关闭的门**：reload/restart、长历史接续与故障矩阵仍待 production implementation；
   approval/question 的可操作表面与 delegated disclosure 属于 R4。按集中验证约定，本阶段不运行分批测试，
   不把 R3 提前标为 verified。
 

@@ -120,7 +120,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U09 | Question interaction | interrupt + composer | R4 | specified | one surface、多题顺序、single auto-next、text/multi、explicit Skip、IME |
 | U10 | Plan compact progress | plan context | R5 | implemented | canonical snapshot 的 ring + N/M、当前步骤、完整 checklist hover/focus；无复制 Plan state；待最终统一门禁 |
 | U11 | Goal submit/tray/editor | goal + composer | R5 | implemented | `/goal` mode、budget、start/update/pause/resume/two-step clear、外部变化不覆盖 draft、SSE recovery；待最终统一门禁 |
-| U12 | Context token gauge | agent projection + model catalog | R3/R8 | specified | authoritative contextTokens、unknown 缺席、terminal/reload/restart/import 保持 |
+| U12 | Context token gauge | agent projection + model catalog | R3/R8 | implemented | live preview + durable Run footprint 与 provider model contextWindow 合成；unknown 容量只显示 token，待 reload/import 统一门禁 |
 | U13 | Context Dock tabs/split/persistence | workspace context | R6 | specified | per-Session open tabs/last view/file target、close/reopen、narrow window capability |
 | U14 | Files/tree/read/head/search | workspace context | R6 | specified | pagination、path truncation、loading/error/empty、syntax highlight、external change |
 | U15 | Diff/Review Workspace | workspace context | R6 | specified | all files、collapse/nav scroll、binary/rename/untracked、light/review density |

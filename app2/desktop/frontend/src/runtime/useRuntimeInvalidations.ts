@@ -38,6 +38,11 @@ export function useRuntimeInvalidations(
           queryKey: runtimeQueryKeys.sessions(connection),
         });
       }
+      if (topics.includes("models.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: [...runtimeQueryKeys.scope(connection), "models"],
+        });
+      }
       if (
         topics.includes("plan.changed") ||
         topics.includes("goals.changed") ||

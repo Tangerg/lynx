@@ -23,6 +23,7 @@ import { SessionIndex } from "../sessions/SessionIndex";
 import { compactPath } from "../sessions/sessionPresentation";
 import { useSessionCatalog } from "../sessions/useSessionCatalog";
 import {
+  listModels,
   loadSessionSnapshot,
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
@@ -62,6 +63,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "runs.changed",
         "plan.changed",
         "goals.changed",
+        "models.changed",
       ] as const
     ).every((topic) =>
       props.discovery.capabilities.runtimeTopics.includes(topic),
@@ -85,6 +87,23 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     connection,
     selectedSession?.id,
     snapshot.data,
+  );
+  const modelCatalog = useQuery({
+    queryKey: runtimeQueryKeys.models(
+      connection,
+      agentView.focusRootRun?.provider ?? "unselected",
+    ),
+    queryFn: ({ signal }) =>
+      listModels(
+        connection,
+        agentView.focusRootRun?.provider ?? "",
+        signal,
+      ),
+    enabled: agentView.focusRootRun?.provider !== undefined,
+    staleTime: 5 * 60_000,
+  });
+  const contextModel = modelCatalog.data?.data.find(
+    (model) => model.id === agentView.focusRootRun?.model,
   );
   const composerDraft = selectedSession
     ? (composerDrafts[selectedSession.id] ?? emptyComposerDraft)
@@ -207,6 +226,11 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 error={snapshot.isError}
               />
             ) : null}
+            <ContextGauge
+              tokens={agentView.contextTokens}
+              contextWindow={contextModel?.contextWindow}
+              model={contextModel?.displayName ?? agentView.focusRootRun?.model}
+            />
             <ConnectionPill state={syncState} />
           </div>
         </header>
@@ -347,6 +371,45 @@ function ConnectionPill({ state }: { state: RuntimeSyncState }) {
       {label}
     </span>
   );
+}
+
+function ContextGauge(props: {
+  tokens: number | undefined;
+  contextWindow: number | undefined;
+  model: string | undefined;
+}) {
+  if (props.tokens === undefined || props.tokens <= 0) return null;
+  const ratio =
+    props.contextWindow && props.contextWindow > 0
+      ? Math.min(props.tokens / props.contextWindow, 1)
+      : undefined;
+  const label =
+    ratio === undefined
+      ? `${formatTokens(props.tokens)} context tokens`
+      : `${Math.round(ratio * 100)}% of ${formatTokens(props.contextWindow ?? 0)} context`;
+  return (
+    <div className="context-gauge" title={props.model} aria-label={label}>
+      <span>
+        <i
+          style={
+            ratio === undefined ? undefined : { width: `${ratio * 100}%` }
+          }
+        />
+      </span>
+      <b>
+        {ratio === undefined
+          ? formatTokens(props.tokens)
+          : `${Math.round(ratio * 100)}%`}
+      </b>
+      <small>ctx</small>
+    </div>
+  );
+}
+
+function formatTokens(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value.toLocaleString();
 }
 
 function RuntimeFacts(props: {

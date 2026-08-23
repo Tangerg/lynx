@@ -8,6 +8,7 @@ import {
   type EmptyObject,
   type Goal,
   type GoalBudget,
+  type Model,
   type Page,
   type RequestMeta,
   type RuntimeEvent,
@@ -42,6 +43,9 @@ export const runtimeQueryKeys = {
   },
   snapshot(connection: RuntimeConnection, sessionId: string) {
     return [...this.scope(connection), "session", sessionId, "snapshot"] as const;
+  },
+  models(connection: RuntimeConnection, provider: string) {
+    return [...this.scope(connection), "models", provider] as const;
   },
 };
 
@@ -85,6 +89,18 @@ export function loadSessionSnapshot(
   return client(connection).call(
     "sessions.snapshot",
     { sessionId },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listModels(
+  connection: RuntimeConnection,
+  provider: string,
+  signal?: AbortSignal,
+): Promise<Page<Model>> {
+  return client(connection).call(
+    "models.list",
+    { provider },
     { meta: clientMeta, signal },
   );
 }
@@ -247,6 +263,7 @@ export async function consumeRuntimeInvalidations(
         "runs.changed",
         "plan.changed",
         "goals.changed",
+        "models.changed",
       ],
     },
     { meta: clientMeta, signal },

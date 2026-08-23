@@ -730,6 +730,46 @@ input::placeholder {
   background: rgba(166, 107, 37, 0.08);
 }
 
+.context-gauge {
+  display: grid;
+  grid-template-columns: 42px auto auto;
+  min-height: 32px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: var(--ink-subtle);
+  background: rgba(40, 39, 34, 0.045);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.context-gauge > span {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--paper-strong);
+}
+
+.context-gauge i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.context-gauge b {
+  font-weight: 720;
+}
+
+.context-gauge small {
+  color: var(--ink-muted);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .narrative-content {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;

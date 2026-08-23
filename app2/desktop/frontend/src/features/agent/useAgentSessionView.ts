@@ -66,7 +66,9 @@ export interface AgentSessionView {
   runs: RunRef[];
   plan?: Plan;
   activeRootRun?: RunRef;
+  focusRootRun?: RunRef;
   progress?: RunProgress;
+  contextTokens?: number;
   actionPending: boolean;
   actionError?: string;
   streamError?: string;
@@ -151,6 +153,16 @@ export function useAgentSessionView(
           (right.createdAt ?? "").localeCompare(left.createdAt ?? ""),
         )[0],
     [runs],
+  );
+  const focusRootRun = useMemo(
+    () =>
+      activeRootRun ??
+      runs
+        .filter((run) => run.parentRunId === undefined)
+        .toSorted((left, right) =>
+          (right.createdAt ?? "").localeCompare(left.createdAt ?? ""),
+        )[0],
+    [activeRootRun, runs],
   );
 
   const invalidateMaterial = useCallback(() => {
@@ -428,10 +440,16 @@ export function useAgentSessionView(
     runs,
     plan: visible.plan,
     activeRootRun,
+    focusRootRun,
     progress:
       activeRootRun === undefined
         ? undefined
         : visible.progressByRunId[activeRootRun.id],
+    contextTokens:
+      (activeRootRun === undefined
+        ? undefined
+        : visible.progressByRunId[activeRootRun.id]?.contextTokens) ??
+      focusRootRun?.contextTokens,
     actionPending,
     actionError,
     streamError,
@@ -542,6 +560,8 @@ function finishSegment(state: AgentSessionState, value: RunEvent) {
   const current = state.runsById[value.runId];
   if (current === undefined || value.event.outcome === undefined) return state;
   const outcome = value.event.outcome;
+  const contextTokens =
+    state.progressByRunId[value.runId]?.contextTokens ?? current.contextTokens;
   const next = putRun(state, {
     ...current,
     status:
@@ -560,6 +580,7 @@ function finishSegment(state: AgentSessionState, value: RunEvent) {
         }),
     activeSegmentId: undefined,
     metrics: value.event.metrics ?? current.metrics,
+    ...(contextTokens === undefined ? {} : { contextTokens }),
   });
   const itemsById = { ...next.itemsById };
   const itemOrder = next.itemOrder.filter((itemId) => {
