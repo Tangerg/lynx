@@ -51,7 +51,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O13 | `approval.getMode`, `approval.setMode`, `approval.listRules`, `approval.forgetRule` | 4 | interaction policy | R4/R8 | specified | safe/balanced/yolo、rule scope/identity、explicit forget、Run decision transcript 独立 |
 | O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | operations/schedule | R8 | specified | cron validation、revision、workspace/model、next run、runNow 返回可导航 Run/Session |
 | O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | implemented | one incarnation、quiesce/CAS、paused/active/blocked/completing、Session cascade、autonomous control 不进 Transcript；待最终统一门禁 |
-| O16 | `codebase.search`, `codebase.status`, `codebase.reindex` | 3 | workspace index | R6 | specified | none/indexing/ready/error、operation identity、embedding role、bounded hits/reindex cancellation |
+| O16 | `codebase.search`, `codebase.status`, `codebase.reindex` | 3 | workspace index | R6 | implemented | exact Session workspace、none/indexing/ready/error、durable operation CAS、replacement cancellation/crash recovery、Git-aware bounded source corpus、embedding role identity、atomic document replacement、bounded ranked hits 与 Desktop exact-line consumer；待最终统一门禁 |
 | O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | specified | masked key/source、explicit secret change、base URL validation、test 业务判决、不泄漏原文 |
 | O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | specified | provider/model 显式配对、capability/pricing/context、role validation、catalog invalidation |
 | O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | specified | catalog 是诊断非 Run 配置；manual invoke 完整 approval/safety/result/error 语义 |
@@ -88,7 +88,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `models.changed` | provider/catalog owner | model picker/settings | R8 | specified | catalog/role/provider update 收敛 |
 | `approvals.changed` | policy owner | Approval settings | R8 | specified | mode/rules exact invalidation |
 | `agentMemory.changed` | memory owner | Memory view | R7 | specified | review/add/update/delete 收敛 |
-| `codebase.changed` | index worker | Search/index view | R6 | specified | operation/state/progress/resync 收敛 |
+| `codebase.changed` | index worker | Search/index view | R6 | implemented | committed admission/terminal settlement 后通知；Desktop 按 Runtime generation + workspace query scope 回读 canonical status/search，resync 同样收敛；待最终统一门禁 |
 | `resync` | runtime subscription | topic router | R1 | specified | gap/new generation/buffer eviction 后只重拉列出 topics |
 
 ## 6. Run event 映射（7）
@@ -121,14 +121,14 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U10 | Plan compact progress | plan context | R5 | implemented | canonical snapshot 的 ring + N/M、当前步骤、完整 checklist hover/focus；无复制 Plan state；待最终统一门禁 |
 | U11 | Goal submit/tray/editor | goal + composer | R5 | implemented | `/goal` mode、budget、start/update/pause/resume/two-step clear、外部变化不覆盖 draft、SSE recovery；待最终统一门禁 |
 | U12 | Context token gauge | agent projection + model catalog | R3/R8 | implemented | live preview + durable Run footprint 与 provider model contextWindow 合成；unknown 容量只显示 token，待 reload/import 统一门禁 |
-| U13 | Context Dock tabs/split/persistence | workspace context | R6 | implemented | Workspace/Session owner 分离；per-Session open tabs/selected target/expanded tree/search 有界持久化；阅读时覆盖式扩展保留窄窗 Work Index；待最终统一门禁 |
+| U13 | Context Dock tabs/split/persistence | workspace context | R6 | implemented | Workspace/Session owner 分离；per-Session Files/Review/Codebase view、open tabs/selected target/expanded tree/search 有界持久化；阅读与复合 workspace view 覆盖式扩展并保留窄窗 Work Index；待最终统一门禁 |
 | U14 | Files/tree/read/head/search | workspace context | R6 | in_progress | lazy directory pagination、plain-text grep hit、exact line navigation、1000-line reader window、loading/error/empty/truncated/external change 已实现；语法 material 随 R10 renderer 收口 |
 | U15 | Diff/Review Workspace | workspace context | R6 | implemented | Session-owned Files/Review switch、whole-change cards、exact-scroll navigator、true-unmount collapse、worktree/branch、unified/split、rename/untracked/binary/empty/error/truncated states 与 exact Open file 已实现；待最终统一门禁 |
 | U16 | Terminal/tool detail/timeline/run summary | workspace + agent public | R4/R6 | specified | Tool disclosure 已覆盖 exact identity/status/duration/safety/approval 与 known material + unknown fallback；terminal/timeline/run summary 随 R6 |
 | U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
-| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | specified | capability-gated、three empty states、scope/source/review/editor actions |
+| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | in_progress | Codebase index/search 已覆盖 none/indexing/ready/error/provider failure/empty/result 与 exact-line navigation；其余 capability resources 随 R7 |
 | U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | specified | form draft 与 wire 分离、validation/test/save、secret masked、query invalidation |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |

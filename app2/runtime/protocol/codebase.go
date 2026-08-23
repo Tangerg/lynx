@@ -50,6 +50,7 @@ type CodebaseStatus struct {
 	ChunkCount  int           `json:"chunkCount"`
 	IndexedAt   string        `json:"indexedAt,omitempty"`
 	Truncated   bool          `json:"truncated,omitempty"`
+	// OperationID is present only while State is indexing.
 	OperationID string        `json:"operationId,omitempty"`
 }
 

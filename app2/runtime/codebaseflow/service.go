@@ -1,14 +1,13 @@
-// Package codebaseflow owns the asynchronous semantic source index.
+// Package codebaseflow owns the semantic source-index use cases and the exact
+// lifecycle of asynchronous rebuilds.
 package codebaseflow
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"math"
-	"os"
-	"path/filepath"
+	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -22,111 +21,418 @@ import (
 )
 
 const (
-	maxIndexFiles = 5000
-	maxIndexBytes = 64 << 20
-	chunkLines = 80
-	embedBatch = 32
+	defaultSearchLimit = 8
+	maxSearchLimit     = 50
+	settlementTimeout  = 10 * time.Second
 )
 
 type Store interface {
 	GetCodebaseIndex(context.Context, string) (codebase.Index, error)
-	PutCodebaseIndexState(context.Context, codebase.Index) error
-	ReplaceCodebaseDocuments(context.Context, codebase.Index, []codebase.Document) error
+	BeginCodebaseIndex(context.Context, codebase.Index) error
+	CompleteCodebaseIndex(
+		context.Context,
+		string,
+		codebase.Index,
+		[]codebase.Document,
+	) (bool, error)
+	FailCodebaseIndex(context.Context, string, codebase.Index) (bool, error)
 	ListCodebaseDocuments(context.Context, string) ([]codebase.Document, error)
 }
-type Resolver interface { Resolve(context.Context, string) (workspacefs.Resolution, error) }
-type Models interface { ResolveEmbedding(context.Context) (embedding.Model, protocol.EmbeddingRole, error) }
-type IDs interface { New(string) (string, error) }
-type Publisher interface { Publish(protocol.RuntimeEvent) }
 
-type activeTask struct { generation uint64; cancel context.CancelFunc }
+type Resolver interface {
+	Resolve(context.Context, string) (workspacefs.Resolution, error)
+}
+
+type Models interface {
+	ResolveEmbedding(context.Context) (embedding.Model, protocol.EmbeddingRole, error)
+}
+
+type IDs interface {
+	New(string) (string, error)
+}
+
+type Publisher interface {
+	Publish(protocol.RuntimeEvent)
+}
+
+type workspaceOwner struct {
+	admission   sync.Mutex
+	generation  uint64
+	operationID string
+	cancel      context.CancelFunc
+}
+
 type Service struct {
-	store Store
+	store    Store
 	resolver Resolver
-	models Models
-	ids IDs
-	events Publisher
+	models   Models
+	ids      IDs
+	events   Publisher
 	lifetime context.Context
-	mu sync.Mutex
-	nextGeneration uint64
-	active map[string]activeTask
-	tasks sync.WaitGroup
+	logger   *slog.Logger
+
+	mu     sync.Mutex
+	owners map[string]*workspaceOwner
+	tasks  sync.WaitGroup
 	closed bool
 }
 
-func New(store Store, resolver Resolver, models Models, ids IDs, events Publisher, lifetime context.Context) (*Service,error) {
-	if store==nil||resolver==nil||models==nil||ids==nil||events==nil||lifetime==nil{return nil,errors.New("codebaseflow: dependencies are required")}
-	return &Service{store:store,resolver:resolver,models:models,ids:ids,events:events,lifetime:lifetime,active:map[string]activeTask{}},nil
+func New(
+	store Store,
+	resolver Resolver,
+	models Models,
+	ids IDs,
+	events Publisher,
+	lifetime context.Context,
+	logger *slog.Logger,
+) (*Service, error) {
+	if store == nil || resolver == nil || models == nil || ids == nil ||
+		events == nil || lifetime == nil {
+		return nil, errors.New("codebaseflow: dependencies are required")
+	}
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	return &Service{
+		store:    store,
+		resolver: resolver,
+		models:   models,
+		ids:      ids,
+		events:   events,
+		lifetime: lifetime,
+		logger:   logger,
+		owners:   make(map[string]*workspaceOwner),
+	}, nil
 }
 
-func(s *Service) Status(ctx context.Context, request protocol.CodebaseStatusRequest)(*protocol.CodebaseStatus,error){
-	workspace,err:=s.workspace(ctx,request.Workspace);if err!=nil{return nil,err}
-	index,err:=s.store.GetCodebaseIndex(ctx,workspace);if err!=nil{return nil,err}
-	return present(index),nil
+func (service *Service) Status(
+	ctx context.Context,
+	request protocol.CodebaseStatusRequest,
+) (*protocol.CodebaseStatus, error) {
+	workspace, err := service.workspace(ctx, request.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	index, err := service.store.GetCodebaseIndex(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	if index.State != codebase.StateIndexing ||
+		service.activeOperation(workspace) == index.OperationID {
+		return present(index), nil
+	}
+
+	interrupted := index
+	interrupted.State = codebase.StateError
+	interrupted.OperationID = ""
+	applied, err := service.store.FailCodebaseIndex(
+		ctx,
+		index.OperationID,
+		interrupted,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if applied {
+		service.publishChange()
+	}
+	index, err = service.store.GetCodebaseIndex(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	return present(index), nil
 }
 
-func(s *Service) Reindex(ctx context.Context, request protocol.CodebaseReindexRequest)(*protocol.CodebaseReindexResponse,error){
-	workspace,err:=s.workspace(ctx,request.Workspace);if err!=nil{return nil,err}
-	operationID,err:=s.ids.New("idx_");if err!=nil{return nil,err}
-	model,role,err:=s.models.ResolveEmbedding(ctx);if err!=nil{return nil,err}
-	s.mu.Lock()
-	if s.closed{s.mu.Unlock();return nil,errors.New("codebaseflow: closed")}
-	if current,ok:=s.active[workspace];ok{current.cancel()}
-	s.nextGeneration++;generation:=s.nextGeneration
-	taskCtx,cancel:=context.WithCancel(s.lifetime);s.active[workspace]=activeTask{generation:generation,cancel:cancel};s.tasks.Add(1);s.mu.Unlock()
-	index:=codebase.Index{Workspace:workspace,State:string(protocol.CodebaseStateIndexing),OperationID:operationID,ModelID:role.Provider+"/"+role.Model}
-	if err:=s.store.PutCodebaseIndexState(ctx,index);err!=nil{cancel();s.finish(workspace,generation);return nil,err}
-	s.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeCodebaseChanged})
-	go s.build(taskCtx,index,model,generation)
-	return &protocol.CodebaseReindexResponse{OperationID:operationID},nil
+func (service *Service) Reindex(
+	ctx context.Context,
+	request protocol.CodebaseReindexRequest,
+) (*protocol.CodebaseReindexResponse, error) {
+	workspace, err := service.workspace(ctx, request.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := service.ownerFor(workspace)
+	if err != nil {
+		return nil, err
+	}
+
+	owner.admission.Lock()
+	defer owner.admission.Unlock()
+	if service.isClosed() {
+		return nil, errors.New("codebaseflow: closed")
+	}
+	operationID, err := service.ids.New("idx_")
+	if err != nil {
+		return nil, err
+	}
+	model, role, err := service.models.ResolveEmbedding(ctx)
+	if err != nil {
+		return nil, err
+	}
+	previous, err := service.store.GetCodebaseIndex(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	index := previous
+	index.Workspace = workspace
+	index.State = codebase.StateIndexing
+	index.OperationID = operationID
+	index.ModelID = embeddingRoleID(role)
+	if err := service.store.BeginCodebaseIndex(ctx, index); err != nil {
+		return nil, err
+	}
+
+	if owner.cancel != nil {
+		owner.cancel()
+	}
+	owner.generation++
+	generation := owner.generation
+	taskContext, cancel := context.WithCancel(service.lifetime)
+	owner.operationID = operationID
+	owner.cancel = cancel
+	service.tasks.Add(1)
+	service.publishChange()
+	go service.build(taskContext, owner, generation, index, model)
+	return &protocol.CodebaseReindexResponse{OperationID: operationID}, nil
 }
 
-func(s *Service) Search(ctx context.Context, request protocol.CodebaseSearchRequest)(*protocol.CodebaseSearchResult,error){
-	if strings.TrimSpace(request.Query)==""{return nil,fmt.Errorf("%w: query is required",protocol.ErrInvalidParams)}
-	workspace,err:=s.workspace(ctx,request.Workspace);if err!=nil{return nil,err}
-	index,err:=s.store.GetCodebaseIndex(ctx,workspace);if err!=nil{return nil,err}
-	if index.State!=string(protocol.CodebaseStateReady){return &protocol.CodebaseSearchResult{Hits:[]protocol.CodebaseHit{}},nil}
-	model,_,err:=s.models.ResolveEmbedding(ctx);if err!=nil{return nil,err}
-	vectors,err:=embed(ctx,model,[]string{request.Query});if err!=nil{return nil,err}
-	documents,err:=s.store.ListCodebaseDocuments(ctx,workspace);if err!=nil{return nil,err}
-	hits:=make([]protocol.CodebaseHit,0,len(documents))
-	for _,document:=range documents{score:=cosine(vectors[0],document.Vector);if score<=0{continue};hits=append(hits,protocol.CodebaseHit{Path:document.Path,StartLine:document.StartLine,EndLine:document.EndLine,Snippet:document.Snippet,Score:score})}
-	slices.SortFunc(hits,func(a,b protocol.CodebaseHit)int{if a.Score>b.Score{return -1};if a.Score<b.Score{return 1};return strings.Compare(a.Path,b.Path)})
-	limit:=request.Limit;if limit<=0{limit=8};limit=min(limit,50);if len(hits)>limit{hits=hits[:limit]}
-	return &protocol.CodebaseSearchResult{Hits:hits},nil
+func (service *Service) Search(
+	ctx context.Context,
+	request protocol.CodebaseSearchRequest,
+) (*protocol.CodebaseSearchResult, error) {
+	query := strings.TrimSpace(request.Query)
+	if query == "" {
+		return nil, fmt.Errorf("%w: query is required", protocol.ErrInvalidParams)
+	}
+	workspace, err := service.workspace(ctx, request.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	index, err := service.store.GetCodebaseIndex(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	if index.State != codebase.StateReady {
+		return &protocol.CodebaseSearchResult{Hits: []protocol.CodebaseHit{}}, nil
+	}
+	model, role, err := service.models.ResolveEmbedding(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if current := embeddingRoleID(role); current != index.ModelID {
+		return nil, fmt.Errorf(
+			"%w: codebase index uses %q; reindex with %q before searching",
+			protocol.ErrProviderError,
+			index.ModelID,
+			current,
+		)
+	}
+	vectors, err := embedTexts(ctx, model, []string{query})
+	if err != nil {
+		return nil, err
+	}
+	documents, err := service.store.ListCodebaseDocuments(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	hits := rankDocuments(vectors[0], documents)
+	limit := request.Limit
+	if limit <= 0 {
+		limit = defaultSearchLimit
+	}
+	limit = min(limit, maxSearchLimit)
+	if len(hits) > limit {
+		hits = slices.Clone(hits[:limit])
+	}
+	return &protocol.CodebaseSearchResult{Hits: hits}, nil
 }
 
-func(s *Service) Close(){s.mu.Lock();if s.closed{s.mu.Unlock();return};s.closed=true;for _,task:=range s.active{task.cancel()};s.mu.Unlock();s.tasks.Wait()}
+func (service *Service) Close() {
+	if service == nil {
+		return
+	}
+	service.mu.Lock()
+	if service.closed {
+		service.mu.Unlock()
+		return
+	}
+	service.closed = true
+	owners := make([]*workspaceOwner, 0, len(service.owners))
+	for _, owner := range service.owners {
+		owners = append(owners, owner)
+	}
+	service.mu.Unlock()
 
-func(s *Service) build(ctx context.Context,index codebase.Index,model embedding.Model,generation uint64){
-	defer s.tasks.Done();defer s.finish(index.Workspace,generation)
-	documents,files,truncated,err:=scan(ctx,index.Workspace)
-	if err==nil{for begin:=0;begin<len(documents);begin+=embedBatch{end:=min(begin+embedBatch,len(documents));texts:=make([]string,end-begin);for i:=begin;i<end;i++{texts[i-begin]=documents[i].Snippet};vectors,embedErr:=embed(ctx,model,texts);if embedErr!=nil{err=embedErr;break};for i:=range vectors{documents[begin+i].Vector=vectors[i]}}}
-	if ctx.Err()!=nil{return}
-	persistCtx,cancel:=context.WithTimeout(context.WithoutCancel(ctx),10*time.Second);defer cancel()
-	now:=time.Now().UTC()
-	if err!=nil{index.State=string(protocol.CodebaseStateError);_ = s.store.PutCodebaseIndexState(persistCtx,index)}else{index.State=string(protocol.CodebaseStateReady);index.FileCount=files;index.ChunkCount=len(documents);index.Truncated=truncated;index.IndexedAt=&now;_ = s.store.ReplaceCodebaseDocuments(persistCtx,index,documents)}
-	s.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeCodebaseChanged})
+	for _, owner := range owners {
+		owner.admission.Lock()
+		if owner.cancel != nil {
+			owner.cancel()
+		}
+		owner.admission.Unlock()
+	}
+	service.tasks.Wait()
 }
 
-func(s *Service) finish(workspace string,generation uint64){s.mu.Lock();if current,ok:=s.active[workspace];ok&&current.generation==generation{current.cancel();delete(s.active,workspace)};s.mu.Unlock()}
-func(s *Service) workspace(ctx context.Context,ref protocol.WorkspaceRef)(string,error){resolved,err:=s.resolver.Resolve(ctx,ref.Path);if err!=nil||!resolved.Available{return "",protocol.ErrWorkspaceUnavailable};if resolved.ProjectRoot!=""{return resolved.ProjectRoot,nil};return resolved.Workspace.Path(),nil}
+func (service *Service) build(
+	ctx context.Context,
+	owner *workspaceOwner,
+	generation uint64,
+	index codebase.Index,
+	model embedding.Model,
+) {
+	defer service.tasks.Done()
+	notifyAfterFinish := false
+	defer func() {
+		if service.finish(owner, generation) && notifyAfterFinish {
+			service.publishChange()
+		}
+	}()
 
-func scan(ctx context.Context,root string)([]codebase.Document,int,bool,error){
-	documents:=make([]codebase.Document,0);files:=0;var total int64;truncated:=false
-	err:=filepath.WalkDir(root,func(path string,entry os.DirEntry,walkErr error)error{
-		if walkErr!=nil{return nil};if err:=ctx.Err();err!=nil{return err}
-		if entry.IsDir(){if path!=root&&(entry.Name()==".git"||entry.Name()=="node_modules"||entry.Name()=="vendor"||entry.Name()=="dist"||entry.Name()=="build"){return filepath.SkipDir};return nil}
-		info,err:=entry.Info();if err!=nil||info.Size()>2<<20{return nil};if files>=maxIndexFiles||total+info.Size()>maxIndexBytes{truncated=true;return nil}
-		file,err:=os.Open(path);if err!=nil{return nil};scanner:=bufio.NewScanner(file);scanner.Buffer(make([]byte,64<<10),2<<20);lines:=make([]string,0)
-		for scanner.Scan(){line:=scanner.Text();if strings.IndexByte(line,0)>=0{lines=nil;break};lines=append(lines,line)}
-		closeErr:=file.Close();if scanner.Err()!=nil||closeErr!=nil||len(lines)==0{return nil}
-		relative,_:=filepath.Rel(root,path);for start:=0;start<len(lines);start+=chunkLines{end:=min(start+chunkLines,len(lines));snippet:=strings.Join(lines[start:end],"\n");if strings.TrimSpace(snippet)==""{continue};documents=append(documents,codebase.Document{Path:filepath.ToSlash(relative),StartLine:start+1,EndLine:end,Snippet:snippet})}
-		files++;total+=info.Size();return nil
-	})
-	return documents,files,truncated,err
+	corpus, buildErr := scanWorkspace(ctx, index.Workspace)
+	if buildErr == nil {
+		buildErr = embedDocuments(ctx, model, corpus.documents)
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	if buildErr != nil {
+		service.logger.ErrorContext(
+			ctx,
+			"Codebase index build failed",
+			"operationId", index.OperationID,
+			"error", buildErr,
+		)
+	}
+
+	owner.admission.Lock()
+	if owner.generation == generation && owner.operationID == index.OperationID &&
+		!service.isClosed() && ctx.Err() == nil {
+		notifyAfterFinish = true
+		persistContext, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			settlementTimeout,
+		)
+		var applied bool
+		var settlementErr error
+		if buildErr != nil {
+			failed := index
+			failed.State = codebase.StateError
+			failed.OperationID = ""
+			applied, settlementErr = service.store.FailCodebaseIndex(
+				persistContext,
+				index.OperationID,
+				failed,
+			)
+		} else {
+			now := time.Now().UTC()
+			ready := index
+			ready.State = codebase.StateReady
+			ready.OperationID = ""
+			ready.FileCount = corpus.fileCount
+			ready.ChunkCount = len(corpus.documents)
+			ready.Truncated = corpus.truncated
+			ready.IndexedAt = &now
+			applied, settlementErr = service.store.CompleteCodebaseIndex(
+				persistContext,
+				index.OperationID,
+				ready,
+				corpus.documents,
+			)
+		}
+		if settlementErr != nil {
+			service.logger.ErrorContext(
+				persistContext,
+				"Codebase index settlement failed",
+				"operationId", index.OperationID,
+				"error", settlementErr,
+			)
+		} else if !applied {
+			service.logger.ErrorContext(
+				persistContext,
+				"Codebase index settlement lost its durable operation",
+				"operationId", index.OperationID,
+			)
+		}
+		cancel()
+	}
+	owner.admission.Unlock()
 }
 
-func embed(ctx context.Context,model embedding.Model,texts []string)([][]float64,error){request,err:=embedding.NewRequest(texts);if err!=nil{return nil,err};response,err:=model.Call(ctx,request);if err!=nil{return nil,err};vectors:=make([][]float64,len(response.Results));for i,result:=range response.Results{vectors[i]=slices.Clone(result.Embedding)};return vectors,nil}
-func cosine(left,right []float64)float64{if len(left)==0||len(left)!=len(right){return 0};var dot,a,b float64;for i:=range left{dot+=left[i]*right[i];a+=left[i]*left[i];b+=right[i]*right[i]};if a==0||b==0{return 0};score:=dot/(math.Sqrt(a)*math.Sqrt(b));return max(0,min(1,score))}
-func present(index codebase.Index)*protocol.CodebaseStatus{value:=&protocol.CodebaseStatus{State:protocol.CodebaseState(index.State),ModelID:index.ModelID,FileCount:index.FileCount,ChunkCount:index.ChunkCount,Truncated:index.Truncated,OperationID:index.OperationID};if index.IndexedAt!=nil{value.IndexedAt=index.IndexedAt.Format(time.RFC3339)};return value}
+func (service *Service) ownerFor(workspace string) (*workspaceOwner, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if service.closed {
+		return nil, errors.New("codebaseflow: closed")
+	}
+	owner := service.owners[workspace]
+	if owner == nil {
+		owner = &workspaceOwner{}
+		service.owners[workspace] = owner
+	}
+	return owner, nil
+}
+
+func (service *Service) activeOperation(workspace string) string {
+	service.mu.Lock()
+	owner := service.owners[workspace]
+	service.mu.Unlock()
+	if owner == nil {
+		return ""
+	}
+	owner.admission.Lock()
+	defer owner.admission.Unlock()
+	return owner.operationID
+}
+
+func (service *Service) finish(
+	owner *workspaceOwner,
+	generation uint64,
+) bool {
+	owner.admission.Lock()
+	defer owner.admission.Unlock()
+	if owner.generation != generation {
+		return false
+	}
+	if owner.cancel != nil {
+		owner.cancel()
+	}
+	owner.cancel = nil
+	owner.operationID = ""
+	return true
+}
+
+func (service *Service) isClosed() bool {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	return service.closed
+}
+
+func (service *Service) workspace(
+	ctx context.Context,
+	ref protocol.WorkspaceRef,
+) (string, error) {
+	resolved, err := service.resolver.Resolve(ctx, ref.Path)
+	if err != nil || !resolved.Available {
+		return "", protocol.ErrWorkspaceUnavailable
+	}
+	return resolved.Workspace.Path(), nil
+}
+
+func (service *Service) publishChange() {
+	service.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeCodebaseChanged})
+}
+
+func present(index codebase.Index) *protocol.CodebaseStatus {
+	value := &protocol.CodebaseStatus{
+		State:       protocol.CodebaseState(index.State),
+		ModelID:     index.ModelID,
+		FileCount:   index.FileCount,
+		ChunkCount:  index.ChunkCount,
+		Truncated:   index.Truncated,
+		OperationID: index.OperationID,
+	}
+	if index.IndexedAt != nil {
+		value.IndexedAt = index.IndexedAt.Format(time.RFC3339)
+	}
+	return value
+}

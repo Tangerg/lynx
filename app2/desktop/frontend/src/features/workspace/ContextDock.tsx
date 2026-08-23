@@ -25,6 +25,7 @@ import {
 } from "../../runtime/runtimeQueries";
 import {
   maxCollapsedReviewFiles,
+  maxCodebaseQueryLength,
   maxExpandedDirectories,
   maxOpenFiles,
   newDockState,
@@ -36,6 +37,7 @@ import {
   type ReviewMode,
   type SessionDockState,
 } from "./contextDockState";
+import { CodebaseWorkspace } from "./CodebaseWorkspace";
 import { WorkspaceReview } from "./WorkspaceReview";
 
 const fileWindowLines = 1_000;
@@ -65,7 +67,7 @@ export function ContextDock(props: ContextDockProps) {
   useEffect(() => {
     props.onExpandedChange(
       state?.pane === "workspace" &&
-        (state.workspaceView === "review" || state.selectedPath !== undefined),
+        (state.workspaceView !== "files" || state.selectedPath !== undefined),
     );
   }, [
     props.onExpandedChange,
@@ -234,6 +236,20 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
             >
               Review
             </button>
+            <button
+              type="button"
+              aria-current={
+                props.state.workspaceView === "codebase" ? "page" : undefined
+              }
+              onClick={() =>
+                props.update((current) => ({
+                  ...current,
+                  workspaceView: "codebase",
+                }))
+              }
+            >
+              Codebase
+            </button>
           </nav>
           <small title={props.workspace.path}>
             {compactPath(props.workspace.path)}
@@ -312,6 +328,24 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
                     -maxCollapsedReviewFiles,
                   ),
             }))
+          }
+          onOpenFile={props.onOpenFile}
+        />
+      ) : props.state.workspaceView === "codebase" ? (
+        <CodebaseWorkspace
+          connection={props.connection}
+          workspace={props.workspace}
+          draft={props.state.codebaseDraft}
+          query={props.state.codebaseQuery}
+          onDraftChange={(codebaseDraft) =>
+            props.update((current) => ({
+              ...current,
+              codebaseDraft: codebaseDraft.slice(0, maxCodebaseQueryLength),
+              ...(codebaseDraft === "" ? { codebaseQuery: "" } : {}),
+            }))
+          }
+          onSubmit={(codebaseQuery) =>
+            props.update((current) => ({ ...current, codebaseQuery }))
           }
           onOpenFile={props.onOpenFile}
         />

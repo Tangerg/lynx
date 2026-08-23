@@ -3,6 +3,15 @@ package codebase
 
 import "time"
 
+type State string
+
+const (
+	StateNone     State = "none"
+	StateIndexing State = "indexing"
+	StateReady    State = "ready"
+	StateError    State = "error"
+)
+
 type Document struct {
 	Path      string    `json:"path"`
 	StartLine int       `json:"startLine"`
@@ -12,8 +21,8 @@ type Document struct {
 }
 
 type Index struct {
-	Workspace  string
-	State      string
+	Workspace   string
+	State       State
 	OperationID string
 	ModelID    string
 	FileCount  int

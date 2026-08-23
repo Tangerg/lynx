@@ -1,12 +1,13 @@
 const dockStorageKey = "lyra.app2.context-dock.v1";
 const maxRememberedSessions = 32;
 export const maxCollapsedReviewFiles = 100;
+export const maxCodebaseQueryLength = 500;
 
 export const maxOpenFiles = 8;
 export const maxExpandedDirectories = 100;
 
 export type DockPane = "workspace" | "session";
-export type WorkspaceView = "files" | "review";
+export type WorkspaceView = "files" | "review" | "codebase";
 export type ReviewMode = "worktree" | "base";
 export type DiffLayout = "unified" | "split";
 
@@ -19,6 +20,8 @@ export interface SessionDockState {
   expandedDirectories: string[];
   searchDraft: string;
   searchQuery: string;
+  codebaseDraft: string;
+  codebaseQuery: string;
   selectedChangePath?: string;
   reviewMode: ReviewMode;
   diffLayout: DiffLayout;
@@ -37,6 +40,8 @@ export function newDockState(workspacePath: string): SessionDockState {
     expandedDirectories: [],
     searchDraft: "",
     searchQuery: "",
+    codebaseDraft: "",
+    codebaseQuery: "",
     reviewMode: "worktree",
     diffLayout: "unified",
     reviewNavigatorOpen: true,
@@ -101,7 +106,10 @@ function parseDockState(value: unknown): SessionDockState | undefined {
   return {
     workspacePath: value.workspacePath,
     pane: value.pane === "workspace" ? "workspace" : "session",
-    workspaceView: value.workspaceView === "review" ? "review" : "files",
+    workspaceView:
+      value.workspaceView === "review" || value.workspaceView === "codebase"
+        ? value.workspaceView
+        : "files",
     openPaths,
     ...(selectedPath === undefined ? {} : { selectedPath }),
     expandedDirectories: stringArray(value.expandedDirectories).slice(
@@ -109,6 +117,8 @@ function parseDockState(value: unknown): SessionDockState | undefined {
     ),
     searchDraft: typeof value.searchDraft === "string" ? value.searchDraft : "",
     searchQuery: typeof value.searchQuery === "string" ? value.searchQuery : "",
+    codebaseDraft: boundedCodebaseQuery(value.codebaseDraft),
+    codebaseQuery: boundedCodebaseQuery(value.codebaseQuery),
     ...(typeof value.selectedChangePath === "string"
       ? { selectedChangePath: value.selectedChangePath }
       : {}),
@@ -121,6 +131,12 @@ function parseDockState(value: unknown): SessionDockState | undefined {
     targetLines,
     touchedAt: typeof value.touchedAt === "number" ? value.touchedAt : 0,
   };
+}
+
+function boundedCodebaseQuery(value: unknown) {
+  return typeof value === "string"
+    ? value.slice(0, maxCodebaseQueryLength)
+    : "";
 }
 
 function mostRecent(states: Record<string, SessionDockState>) {

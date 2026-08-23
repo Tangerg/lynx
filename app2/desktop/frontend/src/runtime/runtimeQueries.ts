@@ -3,6 +3,9 @@ import {
   protocolVersion,
   type DiscoverResponse,
   type CancelRunResponse,
+  type CodebaseReindexResponse,
+  type CodebaseSearchResult,
+  type CodebaseStatus,
   type ContentBlock,
   type CreateSessionRequest,
   type Diff,
@@ -112,6 +115,23 @@ export const runtimeQueryKeys = {
       "diff",
       mode,
       path,
+    ] as const;
+  },
+  codebase(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.scope(connection), "codebase", workspacePath] as const;
+  },
+  codebaseStatus(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.codebase(connection, workspacePath), "status"] as const;
+  },
+  codebaseSearch(
+    connection: RuntimeConnection,
+    workspacePath: string,
+    query: string,
+  ) {
+    return [
+      ...this.codebase(connection, workspacePath),
+      "search",
+      query,
     ] as const;
   },
 };
@@ -242,6 +262,42 @@ export function getWorkspaceDiff(
     "workspace.diff.get",
     { workspace, path, mode, format: "rows", limit: 100_000 },
     { meta: clientMeta, signal },
+  );
+}
+
+export function getCodebaseStatus(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<CodebaseStatus> {
+  return client(connection).call(
+    "codebase.status",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function searchCodebase(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  query: string,
+  signal?: AbortSignal,
+): Promise<CodebaseSearchResult> {
+  return client(connection).call(
+    "codebase.search",
+    { workspace, query, limit: 12 },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function reindexCodebase(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+): Promise<CodebaseReindexResponse> {
+  return client(connection).call(
+    "codebase.reindex",
+    { workspace },
+    { meta: clientMeta },
   );
 }
 

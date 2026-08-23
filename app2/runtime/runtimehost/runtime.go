@@ -201,7 +201,15 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
-	codebase, err := codebaseflow.New(database, workspaceResolver, providers, identity.Generator{}, events, lifetime)
+	codebase, err := codebaseflow.New(
+		database,
+		workspaceResolver,
+		providers,
+		identity.Generator{},
+		events,
+		lifetime,
+		config.Logger,
+	)
 	if err != nil { return nil, err }
 	guard.AddClose(codebase.Close)
 	tools, err := toolflow.New(workspaceResolver)

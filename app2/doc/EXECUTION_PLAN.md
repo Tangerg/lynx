@@ -28,7 +28,7 @@
 | R3 | root Run + Item stream + Composer + Agent Narrative + durable cold restore | pending |
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
-| R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review production 已实现，待其余纵切与最终统一门禁） |
+| R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | pending |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
@@ -429,6 +429,17 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   而不是永久挤压 Agent Narrative 或扩大应用最小宽度；Review 主动请求同一扩展面，关闭最后 tab 或切回 Session pane 即释放；
 - **File watch ownership**：全局 Runtime invalidation lease 随 selected Session 注册一个 exact workspace watch；Session/Runtime
   generation 切换会 abort 旧 subscription，`files.changed`/resync 只失效对应 workspace query prefix；
+- **Codebase index owner**：索引 identity 是 exact Session workspace，不再暗中扩大到 repository root。每个 workspace 只有一个
+  admission owner；新 operation durable admission 后才取消前任，终态通过 operation ID CAS 提交，因此旧 generation 无法覆盖新索引。
+  Runtime restart 或异常结算遗留的 `indexing` 会由 status 回读识别并收敛为可重建 error，terminal state 不保留伪 active operation；
+- **Bounded semantic material**：source discovery 优先使用 Git tracked/untracked + ignore 语义，非 Git workspace 才使用有界 walk；
+  path jail、symlink、UTF-8/NUL、extension、file/path/byte/chunk/line 限制都在 embedding 前完成。embedding response 的数量、finite
+  vector 与跨 batch dimension 被显式验证；只有同一 embedding role identity 能搜索既有索引，documents 与 ready metadata 原子替换；
+- **Codebase Desktop consumer**：Context Dock 的 Workspace view 增加 Session-owned Codebase，而不是复制另一套产品协议。UI 直接消费
+  Lyra `codebase.status/reindex/search` 与 `codebase.changed`，覆盖 none/indexing/ready/error、provider/reindex/search failure、empty、
+  truncated metadata 与 bounded results；点击 passage 回到 Files 并定位 exact start line，draft/submitted query 有界持久化；
+- **Protocol boundary**：本纵切不引入 Codex wire、progress shape 或兼容 adapter；Codex 仍只作为 lifecycle/recovery 机制研究样本，
+  Lyra Protocol 的既有 operation、state、event 与 generated client 继续是唯一合同真源；
 - 当前实现批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher 进程；仅声明式 Runtime file-watch subscription 会在
   Desktop 运行时存在，并由 React effect cleanup 明确释放。
 
