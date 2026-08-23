@@ -10,8 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
-var ErrCapabilityNotFound = errors.New("sqlite: capability resource not found")
-
 func (database *Database) ListManagedSkillRecords(ctx context.Context) ([]protocol.ManagedSkill, error) {
 	rows, err := database.database.QueryContext(ctx, `SELECT body, archived FROM managed_skills ORDER BY name`)
 	if err != nil {
@@ -92,7 +90,7 @@ func (database *Database) GetSkillProposalRecord(ctx context.Context, workspace,
 		revision,
 	).Scan(&body)
 	if errors.Is(err, sql.ErrNoRows) {
-		return protocol.SkillProposal{}, ErrCapabilityNotFound
+		return protocol.SkillProposal{}, protocol.ErrItemNotFound
 	}
 	if err != nil {
 		return protocol.SkillProposal{}, err
@@ -138,7 +136,7 @@ func (database *Database) DeleteSkillProposalRecord(ctx context.Context, workspa
 		return err
 	}
 	if changed == 0 {
-		return ErrCapabilityNotFound
+		return protocol.ErrItemNotFound
 	}
 	return nil
 }

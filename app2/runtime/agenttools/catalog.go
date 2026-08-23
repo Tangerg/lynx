@@ -14,7 +14,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools/fs"
@@ -443,7 +442,7 @@ func newAskUser(runID string) (toolcontract.Tool, error) {
 	return toolcontract.NewFunc(toolcontract.FuncConfig{
 		Name: "ask_user", Description: "Ask the user one to three short questions when their choice is required to continue. The Run pauses durably and resumes with ordered answers.",
 	}, func(ctx context.Context, request askUserRequest) (string, error) {
-		if continuation, resumed := interaction.ToolInputContinuationFromContext(ctx); resumed {
+		if continuation, resumed := agentexec.ToolInputContinuationFromContext(ctx); resumed {
 			var response askUserResponse
 			if err := json.Unmarshal(continuation.Response(), &response); err != nil {
 				return "", err
@@ -455,18 +454,18 @@ func newAskUser(runID string) (toolcontract.Tool, error) {
 		if err := question.ValidateWire(); err != nil {
 			return "", fmt.Errorf("ask_user: %w", err)
 		}
-		invocation, ok := interaction.ToolInvocationFromContext(ctx)
+		invocation, ok := agentexec.ToolInvocationFromContext(ctx)
 		if !ok {
 			return "", errors.New("ask_user: called outside an Interaction")
 		}
-		prompt, err := json.Marshal(agentexec.ToolInputPrompt{Kind: "question", ItemID: itemID(runID, invocation.ToolCall().ID), Question: &question})
+		prompt, err := json.Marshal(agentexec.ToolInputPrompt{Kind: "question", ItemID: itemID(runID, invocation.CallID()), Question: &question})
 		if err != nil {
 			return "", err
 		}
 		state, _ := json.Marshal(struct {
 			CallID string `json:"callId"`
-		}{CallID: invocation.ToolCall().ID})
-		return "", interaction.RequireToolInput(prompt, questionResponseSchema, state)
+		}{CallID: invocation.CallID()})
+		return "", agentexec.RequireToolInput(prompt, questionResponseSchema, state)
 	})
 }
 

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/agent/interaction"
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
@@ -55,11 +54,11 @@ func (tool *lifecyclePolicyTool) Call(
 	ctx context.Context,
 	arguments string,
 ) (string, error) {
-	invocation, ok := interaction.ToolInvocationFromContext(ctx)
+	invocation, ok := agentexec.ToolInvocationFromContext(ctx)
 	if !ok {
 		return "", errors.New("agenttools: lifecycle policy called outside an Interaction")
 	}
-	if continuation, resumed := interaction.ToolInputContinuationFromContext(ctx); resumed {
+	if continuation, resumed := agentexec.ToolInputContinuationFromContext(ctx); resumed {
 		var state lifecycleApprovalState
 		if err := json.Unmarshal(continuation.State(), &state); err == nil &&
 			state.Kind == lifecycleApprovalStateKind {
@@ -99,7 +98,7 @@ func (tool *lifecyclePolicyTool) Call(
 	if policyPrompt || hookPrompt || catastrophic {
 		query := approvalpolicy.Query{
 			SessionID: tool.scope.SessionID, ProjectDir: tool.scope.Workspace,
-			Tool: invocation.ToolCall().Name, Subject: subject,
+			Tool: invocation.Name(), Subject: subject,
 		}
 		remembered, matched, err := tool.policy.Decide(ctx, query)
 		if err != nil {
@@ -145,8 +144,8 @@ func (tool *lifecyclePolicyTool) Call(
 
 func (tool *lifecyclePolicyTool) resumeApproval(
 	ctx context.Context,
-	invocation interaction.ToolInvocation,
-	continuation interaction.ToolInputContinuation,
+	invocation agentexec.ToolInvocation,
+	continuation agentexec.ToolInputContinuation,
 	state lifecycleApprovalState,
 ) (string, error) {
 	var response lifecycleApprovalResponse
@@ -163,7 +162,7 @@ func (tool *lifecyclePolicyTool) resumeApproval(
 		remember := approvalpolicy.Remember{
 			Scope:     rememberScope(response.Remember.Scope),
 			SessionID: tool.scope.SessionID, ProjectDir: tool.scope.Workspace,
-			Tool: invocation.ToolCall().Name, Subject: state.Subject,
+			Tool: invocation.Name(), Subject: state.Subject,
 			Decision: approvalDecision(response.Decision),
 		}
 		if err := tool.policy.Remember(ctx, remember); err != nil {
@@ -224,7 +223,7 @@ func (tool *lifecyclePolicyTool) resumeApproval(
 
 func (tool *lifecyclePolicyTool) before(
 	ctx context.Context,
-	invocation interaction.ToolInvocation,
+	invocation agentexec.ToolInvocation,
 	arguments string,
 ) (lifecyclehook.Decision, error) {
 	if len(arguments) > lifecyclehook.MaxArgumentsBytes {
@@ -241,13 +240,13 @@ func (tool *lifecyclePolicyTool) before(
 		SessionID: tool.scope.SessionID, RunID: tool.scope.RunID,
 		Workspace: tool.scope.Workspace,
 		Tool: &lifecyclehook.ToolInput{
-			Name: invocation.ToolCall().Name, Arguments: arguments,
+			Name: invocation.Name(), Arguments: arguments,
 		},
 	})
 }
 
 func (tool *lifecyclePolicyTool) requireApproval(
-	invocation interaction.ToolInvocation,
+	invocation agentexec.ToolInvocation,
 	arguments string,
 	subject string,
 	rememberable bool,
@@ -257,15 +256,15 @@ func (tool *lifecyclePolicyTool) requireApproval(
 	if err != nil {
 		return fmt.Errorf("agenttools: decode lifecycle approval arguments: %w", err)
 	}
-	tool.scope.Facts.RecordEffectiveToolArguments(invocation.ToolCall().ID, decoded)
+	tool.scope.Facts.RecordEffectiveToolArguments(invocation.CallID(), decoded)
 	risk := protocol.ApprovalRiskMedium
 	if tool.safety == protocol.SafetyClassExec || tool.safety == protocol.SafetyClassNetwork {
 		risk = protocol.ApprovalRiskHigh
 	}
 	prompt, err := json.Marshal(agentexec.ToolInputPrompt{
-		Kind: "approval", ItemID: agentexec.ToolItemID(tool.scope.RunID, invocation.ToolCall().ID),
+		Kind: "approval", ItemID: agentexec.ToolItemID(tool.scope.RunID, invocation.CallID()),
 		Tool: &agentexec.ToolInputInvocation{
-			Name: invocation.ToolCall().Name, Arguments: decoded,
+			Name: invocation.Name(), Arguments: decoded,
 		},
 		SafetyClass: tool.safety, Risk: risk,
 		Reason: strings.TrimSpace(reason), Rememberable: rememberable,
@@ -282,20 +281,20 @@ func (tool *lifecyclePolicyTool) requireApproval(
 	if err != nil {
 		return err
 	}
-	return interaction.RequireToolInput(prompt, lifecycleApprovalSchema, state)
+	return agentexec.RequireToolInput(prompt, lifecycleApprovalSchema, state)
 }
 
 func (tool *lifecyclePolicyTool) callAndEnrich(
 	ctx context.Context,
-	invocation interaction.ToolInvocation,
+	invocation agentexec.ToolInvocation,
 	arguments string,
 	preContext string,
 ) (string, error) {
 	if decoded, err := decodeLifecycleArguments(arguments); err == nil {
-		tool.scope.Facts.RecordEffectiveToolArguments(invocation.ToolCall().ID, decoded)
+		tool.scope.Facts.RecordEffectiveToolArguments(invocation.CallID(), decoded)
 	}
 	result, callErr := tool.Tool.Call(ctx, arguments)
-	if errors.Is(callErr, interaction.ErrToolInputRequired) ||
+	if errors.Is(callErr, agentexec.ErrToolInputRequired) ||
 		errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded) {
 		return result, callErr
 	}
@@ -312,7 +311,7 @@ func (tool *lifecyclePolicyTool) callAndEnrich(
 		SessionID: tool.scope.SessionID, RunID: tool.scope.RunID,
 		Workspace: tool.scope.Workspace,
 		Tool: &lifecyclehook.ToolInput{
-			Name: invocation.ToolCall().Name, Arguments: arguments,
+			Name: invocation.Name(), Arguments: arguments,
 			Result: boundedResult, Error: errorText,
 			ResultTruncated: resultTruncated,
 		},

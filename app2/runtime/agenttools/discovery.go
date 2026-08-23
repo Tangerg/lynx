@@ -8,7 +8,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Tangerg/lynx/agent/interaction"
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
@@ -120,7 +119,7 @@ func loadTools(
 	if len(selected) == 0 {
 		return searchToolsResponse{}, errors.New("search_tools: select must contain a tool name")
 	}
-	if err := interaction.AdvertiseTools(ctx, selected...); err != nil {
+	if err := agentexec.AdvertiseTools(ctx, selected...); err != nil {
 		return searchToolsResponse{}, fmt.Errorf("search_tools: load selected tools: %w", err)
 	}
 	return searchToolsResponse{Mode: "select", Loaded: loaded}, nil

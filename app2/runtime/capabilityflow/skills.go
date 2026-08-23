@@ -11,7 +11,6 @@ import (
 	lyraskills "github.com/Tangerg/lynx/skills"
 
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
-	"github.com/Tangerg/lynx/app2/runtime/sqlite"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
 )
 
@@ -298,7 +297,7 @@ func (service *Service) ApproveProposal(ctx context.Context, ref protocol.SkillP
 		ctx, resolved.Workspace.Path(), ref.Name, ref.Revision,
 	)
 	if err != nil {
-		if errors.Is(err, sqlite.ErrCapabilityNotFound) {
+		if errors.Is(err, protocol.ErrItemNotFound) {
 			return protocol.ErrItemNotFound
 		}
 		return err
@@ -340,7 +339,7 @@ func (service *Service) ApproveProposal(ctx context.Context, ref protocol.SkillP
 	if err := service.store.DeleteSkillProposalRecord(
 		ctx, resolved.Workspace.Path(), proposal.Name, proposal.Revision,
 	); err != nil {
-		if errors.Is(err, sqlite.ErrCapabilityNotFound) {
+		if errors.Is(err, protocol.ErrItemNotFound) {
 			return protocol.ErrItemNotFound
 		}
 		return err
@@ -367,7 +366,7 @@ func (service *Service) RejectProposal(ctx context.Context, ref protocol.SkillPr
 		ctx, resolved.Workspace.Path(), ref.Name, ref.Revision,
 	)
 	if err != nil {
-		if errors.Is(err, sqlite.ErrCapabilityNotFound) {
+		if errors.Is(err, protocol.ErrItemNotFound) {
 			return protocol.ErrItemNotFound
 		}
 		return err
@@ -378,7 +377,7 @@ func (service *Service) RejectProposal(ctx context.Context, ref protocol.SkillPr
 	if err := service.store.DeleteSkillProposalRecord(
 		ctx, resolved.Workspace.Path(), ref.Name, ref.Revision,
 	); err != nil {
-		if errors.Is(err, sqlite.ErrCapabilityNotFound) {
+		if errors.Is(err, protocol.ErrItemNotFound) {
 			return protocol.ErrItemNotFound
 		}
 		return err

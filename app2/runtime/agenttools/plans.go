@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/agent/interaction"
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
@@ -49,7 +48,7 @@ func (catalog *Catalog) planTools(scope agentexec.ToolScope) ([]scopedTool, erro
 		Name:        "set_plan",
 		Description: "Replace this session's complete ordered execution Plan. Use it for non-trivial multi-step work and whenever progress changes. Each step is pending, in_progress, or completed; at most one may be in_progress. An empty list clears the Plan.",
 	}, func(ctx context.Context, request setPlanRequest) (string, error) {
-		invocation, ok := interaction.ToolInvocationFromContext(ctx)
+		invocation, ok := agentexec.ToolInvocationFromContext(ctx)
 		if !ok {
 			return "", errors.New("set_plan: called outside an Interaction")
 		}
@@ -61,7 +60,7 @@ func (catalog *Catalog) planTools(scope agentexec.ToolScope) ([]scopedTool, erro
 		if err != nil {
 			return "", err
 		}
-		scope.Facts.RecordCommittedPlan(invocation.ToolCall().ID, *value)
+		scope.Facts.RecordCommittedPlan(invocation.CallID(), *value)
 		message := "Plan cleared."
 		if len(value.Steps) > 0 {
 			message = "Plan updated:\n" + renderPlan(value.Steps)
@@ -95,7 +94,7 @@ func (catalog *Catalog) newExitPlanMode(scope agentexec.ToolScope) (toolcontract
 		if !active {
 			return "", errors.New("exit_plan_mode: this session is not in Plan mode")
 		}
-		if continuation, resumed := interaction.ToolInputContinuationFromContext(ctx); resumed {
+		if continuation, resumed := agentexec.ToolInputContinuationFromContext(ctx); resumed {
 			var state exitPlanModeState
 			var response askUserResponse
 			if err := json.Unmarshal(continuation.State(), &state); err != nil {
@@ -140,11 +139,11 @@ func (catalog *Catalog) newExitPlanMode(scope agentexec.ToolScope) (toolcontract
 		if err := question.ValidateWire(); err != nil {
 			return "", err
 		}
-		invocation, ok := interaction.ToolInvocationFromContext(ctx)
+		invocation, ok := agentexec.ToolInvocationFromContext(ctx)
 		if !ok {
 			return "", errors.New("exit_plan_mode: called outside an Interaction")
 		}
-		prompt, err := json.Marshal(agentexec.ToolInputPrompt{Kind: "question", ItemID: itemID(scope.RunID, invocation.ToolCall().ID), Question: &question})
+		prompt, err := json.Marshal(agentexec.ToolInputPrompt{Kind: "question", ItemID: itemID(scope.RunID, invocation.CallID()), Question: &question})
 		if err != nil {
 			return "", err
 		}
@@ -152,7 +151,7 @@ func (catalog *Catalog) newExitPlanMode(scope agentexec.ToolScope) (toolcontract
 		if err != nil {
 			return "", err
 		}
-		return "", interaction.RequireToolInput(prompt, questionResponseSchema, state)
+		return "", agentexec.RequireToolInput(prompt, questionResponseSchema, state)
 	})
 }
 
