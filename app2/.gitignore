@@ -1,0 +1,5 @@
+desktop/build/bin/
+desktop/.task/
+desktop/frontend/node_modules/
+desktop/frontend/dist/*
+!desktop/frontend/dist/.gitkeep

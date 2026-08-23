@@ -7,6 +7,8 @@ use (
 	./app/cli
 	./app/desktop
 	./app/runtime
+	./app2/desktop
+	./app2/runtime
 	./chathistory/cassandra
 	./chathistory/cosmosdb
 	./chathistory/mongodb

@@ -1,0 +1,219 @@
+{
+  "protocolVersion": "2026-08-21",
+  "methods": [
+    {
+      "name": "runtime.discover",
+      "kind": "unary",
+      "operation": "query",
+      "idempotency": "none",
+      "pagination": "none",
+      "params": "EmptyObject",
+      "result": "DiscoverResponse",
+      "errors": [],
+      "materializes": []
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "rpc",
+      "method": "POST",
+      "path": "/v2/rpc",
+      "authentication": "localToken",
+      "responseStatuses": [
+        200,
+        204
+      ]
+    },
+    {
+      "name": "info",
+      "method": "GET",
+      "path": "/v2/info",
+      "authentication": "none",
+      "responseStatuses": [
+        200
+      ],
+      "responseType": "RuntimeInfo"
+    },
+    {
+      "name": "liveness",
+      "method": "GET",
+      "path": "/v2/health/live",
+      "authentication": "none",
+      "responseStatuses": [
+        200
+      ],
+      "responseType": "LivenessStatus"
+    },
+    {
+      "name": "readiness",
+      "method": "GET",
+      "path": "/v2/health/ready",
+      "authentication": "none",
+      "responseStatuses": [
+        200,
+        503
+      ],
+      "responseType": "ReadinessStatus"
+    }
+  ],
+  "enums": [
+    {
+      "name": "HealthStatus",
+      "values": [
+        "ok",
+        "degraded",
+        "unhealthy"
+      ]
+    },
+    {
+      "name": "InterruptType",
+      "values": [
+        "approval",
+        "question"
+      ]
+    },
+    {
+      "name": "RunReplayScope",
+      "values": [
+        "runtimeInstanceRootSegment"
+      ]
+    },
+    {
+      "name": "RuntimeTopic",
+      "values": [
+        "files.changed",
+        "skills.changed",
+        "mcp.changed",
+        "schedules.changed",
+        "sessions.changed",
+        "runs.changed",
+        "plan.changed",
+        "goals.changed",
+        "interrupts.changed",
+        "knowledge.changed",
+        "hooks.changed",
+        "models.changed",
+        "approvals.changed",
+        "agentMemory.changed",
+        "codebase.changed"
+      ]
+    },
+    {
+      "name": "StreamEventType",
+      "values": [
+        "segment.started",
+        "segment.progress",
+        "segment.finished",
+        "item.started",
+        "item.delta",
+        "item.completed",
+        "plan.updated"
+      ]
+    },
+    {
+      "name": "SuppressibleRunEventType",
+      "values": [
+        "segment.progress",
+        "item.delta"
+      ]
+    },
+    {
+      "name": "TransportKind",
+      "values": [
+        "http"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "Key": "reasoning",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "multimodal",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "compaction",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "plan",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "goals",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "agentMemory",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "knowledge",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "skills",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "mcp",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "schedules",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "codebase",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "git",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "checkpoints",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "fileWatch",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "lsp",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "sessionExport",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "relocate",
+      "ClientOptIn": false,
+      "RequiredByRunProtocol": false
+    },
+    {
+      "Key": "subagents",
+      "ClientOptIn": true,
+      "RequiredByRunProtocol": true
+    }
+  ]
+}

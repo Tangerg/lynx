@@ -36,6 +36,16 @@ type signalMailbox struct {
 	signalCursor uint64
 }
 
+func (mailbox signalMailbox) clone() signalMailbox {
+	clone := signalMailbox{
+		records: slices.Clone(mailbox.records), seen: make(map[SignalID]struct{}, len(mailbox.seen)),
+		waits: make(map[WaitID]waitRecord, len(mailbox.waits)), signalCursor: mailbox.signalCursor,
+	}
+	for id := range mailbox.seen { clone.seen[id] = struct{}{} }
+	for id, record := range mailbox.waits { clone.waits[id] = record }
+	return clone
+}
+
 func newSignalMailbox() signalMailbox {
 	return signalMailbox{
 		seen:  make(map[SignalID]struct{}),

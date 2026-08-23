@@ -96,6 +96,19 @@ func (process *Process) DeliverSignal(ctx context.Context, request SignalRequest
 	return response.accepted, err
 }
 
+// DeliverSignals atomically appends an ordered Signal batch. This is useful
+// when one WaitID-addressed response and ordinary follow-up input must become
+// visible at the same safe Strategy boundary. Either the complete batch is
+// accepted in order or the mailbox remains unchanged.
+func (process *Process) DeliverSignals(ctx context.Context, requests ...SignalRequest) (accepted bool, err error) {
+	if len(requests) == 0 {
+		return false, ErrInvalidSignalRequest
+	}
+	owned := append([]SignalRequest(nil), requests...)
+	response, err := process.request(ctx, processCommand{kind: commandDeliverBatch, signalRequests: owned})
+	return response.accepted, err
+}
+
 // Pause requests a scheduling pause at the next safe Step boundary. An
 // in-flight Effect is allowed to settle before the pause becomes visible.
 func (process *Process) Pause(ctx context.Context, reason string) error {
@@ -373,6 +386,7 @@ type commandKind uint8
 const (
 	commandInvalid commandKind = iota
 	commandDeliver
+	commandDeliverBatch
 	commandPause
 	commandResume
 	commandCancel
@@ -389,6 +403,7 @@ const (
 type processCommand struct {
 	kind                commandKind
 	signalRequest       SignalRequest
+	signalRequests      []SignalRequest
 	settlement          Settlement
 	internalSignal      Signal
 	parentTermination   Termination

@@ -1,0 +1,97 @@
+version: "3"
+
+vars:
+  APP_NAME: lyra-app2
+  OUTPUT_DIR: build/bin
+  APP_BUNDLE: "{{.OUTPUT_DIR}}/{{.APP_NAME}}.app"
+  STATICCHECK_VERSION: v0.7.0-0.dev.0.20260821203000-f2e7b72a56da
+
+tasks:
+  check:
+    desc: Runs every deterministic Runtime, Desktop, contract, and frontend gate.
+    deps: [check:desktop, check:runtime, check:frontend]
+
+  check:desktop:
+    internal: true
+    cmds:
+      - GOWORK=off go test -race ./...
+      - GOWORK=off go vet ./...
+      - GOWORK=off go run honnef.co/go/tools/cmd/staticcheck@{{.STATICCHECK_VERSION}} ./...
+
+  check:runtime:
+    internal: true
+    dir: ../runtime
+    cmds:
+      - GOWORK=off go test -race ./...
+      - GOWORK=off go vet ./...
+      - GOWORK=off go run honnef.co/go/tools/cmd/staticcheck@{{.STATICCHECK_VERSION}} ./...
+      - GOWORK=off go run ./cmd/contractgen -out contract -check
+
+  check:frontend:
+    internal: true
+    dir: frontend
+    cmds:
+      - npm ci
+      - npm run check
+
+  build:frontend:
+    internal: true
+    dir: frontend
+    sources:
+      - src/**/*
+      - index.html
+      - package.json
+      - package-lock.json
+      - tsconfig.json
+      - vite.config.ts
+      - ../../runtime/contract/typescript/**/*
+    generates:
+      - dist/**/*
+    cmds:
+      - npm ci
+      - npm run build
+
+  build:runtime:
+    internal: true
+    dir: ../runtime
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - ../desktop/build/bin/lyra-runtime
+    cmds:
+      - mkdir -p ../desktop/build/bin
+      - GOWORK=off go build -trimpath -buildvcs=false -ldflags="-w -s" -o ../desktop/build/bin/lyra-runtime ./cmd/lyra-runtime
+
+  build:desktop:
+    internal: true
+    deps: [build:frontend]
+    sources:
+      - "*.go"
+      - supervisor/**/*.go
+      - go.mod
+      - go.sum
+      - frontend/dist/**/*
+    generates:
+      - "{{.OUTPUT_DIR}}/{{.APP_NAME}}"
+    cmds:
+      - mkdir -p "{{.OUTPUT_DIR}}"
+      - GOWORK=off go build -tags production -trimpath -buildvcs=false -ldflags="-w -s" -o "{{.OUTPUT_DIR}}/{{.APP_NAME}}" .
+    env:
+      CGO_ENABLED: "1"
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+  build:
+    desc: Builds the production Desktop and supervised Runtime binaries.
+    deps: [build:runtime, build:desktop]
+
+  package:
+    desc: Creates and ad-hoc signs a self-contained macOS application bundle.
+    deps: [build]
+    cmds:
+      - mkdir -p "{{.APP_BUNDLE}}/Contents/MacOS"
+      - cp "{{.OUTPUT_DIR}}/{{.APP_NAME}}" "{{.APP_BUNDLE}}/Contents/MacOS/{{.APP_NAME}}"
+      - cp "{{.OUTPUT_DIR}}/lyra-runtime" "{{.APP_BUNDLE}}/Contents/MacOS/lyra-runtime"
+      - cp build/darwin/Info.plist "{{.APP_BUNDLE}}/Contents/Info.plist"
+      - codesign --force --deep --sign - "{{.APP_BUNDLE}}"

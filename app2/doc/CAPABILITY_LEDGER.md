@@ -1,0 +1,213 @@
+# app2 能力迁移账本
+
+> 基线：2026-08-22；最近核验：2026-08-23。本文是迁移状态的唯一 owner。当前 app2 已完成 R1：
+> `runtime.discover` 与 U02 verified，3 个 operational probes 与 U01 implemented（本地证据已通过，remote 仍归 R10）；
+> 旧 app 的全绿证据不能冒充 app2 已完成。
+
+## 1. 状态定义
+
+| 状态 | 含义 |
+| --- | --- |
+| `specified` | 已登记目标 owner、阶段与验收，尚无 app2 生产实现 |
+| `implemented` | app2 纵切存在，定向测试通过，尚未完成 parity/recovery/product 证据 |
+| `verified` | 场景、合同、恢复、Desktop consumer 和相应视觉/包体验收均通过 |
+| `cutover` | 产品入口已切换且旧实现已删除 |
+| `blocked` | 有具名外部阻塞；必须记录 owner/解除条件，不能用作普通 pending |
+
+能力只有达到 `verified` 才计入 Wave A parity。文件已复制、编译通过、mock UI、unit test 或旧 app 已通过均不算。
+
+## 2. 总量基线
+
+| 集合 | 旧基线 | app2 R0 | 完成门 |
+| --- | ---: | ---: | --- |
+| Runtime operations | 89 | 1 verified，88 specified | 89 verified |
+| Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
+| Runtime resource topics | 16 | 16 已映射，0 implemented | 16 producer/consumer/resync verified |
+| Run event variants | 7 | 7 语义已映射，0 implemented | live + replay + recovery verified |
+| Desktop product surfaces | 24 groups | 1 verified，1 implemented，22 specified | 全部 verified |
+| 内置 tool presentation | 30 + MCP/unknown | 已登记，0 implemented | 全部真实 material verified |
+
+## 3. Runtime operation 全量映射（89）
+
+目标 method 名精确保留当前 89 个名称；R1 generator 冻结其 shape 和 manifest。下表的 `target family` 只表达
+app2 内部 owner，不代表改名或新建第二套 surface。
+
+| ID | 旧 operation（完整集合） | 数量 | app2 owner / target family | 阶段 | 状态 | 核心验收 |
+| --- | --- | ---: | --- | --- | --- | --- |
+| O01a | `runtime.discover` | 1 | runtime protocol/discovery | R1 | verified | exact RequestMeta/capability、generated client、sidecar/instance/namespace identity、strict failure |
+| O01b | `runtime.subscribe` | 1 | runtime subscription | R8 | specified | topic watch 有界；gap/new generation/buffer eviction resync |
+| O02 | `sessions.list`, `sessions.get`, `sessions.snapshot`, `sessions.create`, `sessions.update`, `sessions.delete`, `sessions.fork`, `sessions.rollback`, `sessions.export`, `sessions.import` | 10 | session + sessionflow + artifact | R2/R9 | specified | CRUD/CAS、snapshot closure、fork boundary、rollback files/history、exact app2 artifact、cascade cleanup |
+| O03 | `runs.start`, `runs.resume`, `runs.subscribe`, `runs.cancel`, `runs.steer`, `runs.get`, `runs.list` | 7 | run + runflow + session hydration | R3/R4 | specified | single open tree、source ownership、exact control、snapshot/stream handoff、terminal outcome、pagination、recovery |
+| O04 | `interrupts.list` | 1 | interrupt query in snapshot/audit | R4 | specified | pending exact identity、cursor、settled 不复活、Session/Run filtering |
+| O05 | `plan.get` | 1 | plan | R5 | specified | one current root plan、revision、snapshot/event 一致、无 generic state registry |
+| O06 | `items.list` | 1 | transcript | R3 | specified | cursor、page Run closure、source Run/phase/order、completed-only cold history |
+| O07 | `workspaces.resolve`, `workspaces.list` | 2 | workspaceflow | R2/R6 | specified | absolute identity、projectRoot 派生、missing 显式、无 active Project |
+| O08 | `workspace.changes.list`, `workspace.diff.get`, `workspace.files.head`, `workspace.files.search`, `workspace.files.list`, `workspace.files.read` | 6 | workspaceflow + filesystem/git | R6 | specified | scope/path safety、rows/raw sum type、binary/rename/untracked、cursor/bounds、纯文本无 server HTML |
+| O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | specified | project/user scope、active/archive、proposal revision/origin/source、watch invalidation |
+| O10 | `recipes.list`, `agentDocs.list` | 2 | capability/recipes/docs | R7 | specified | cwd/project/home precedence、argument hint/source、bounded full content、files change refresh |
+| O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | specified | closed transport union、secret set/clear/keep、six states、generation-safe reconnect、auth retention |
+| O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | specified | global/project sources、project trust、event/matcher/timeout、untrusted hook 不执行 |
+| O13 | `approval.getMode`, `approval.setMode`, `approval.listRules`, `approval.forgetRule` | 4 | interaction policy | R4/R8 | specified | safe/balanced/yolo、rule scope/identity、explicit forget、Run decision transcript 独立 |
+| O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | operations/schedule | R8 | specified | cron validation、revision、workspace/model、next run、runNow 返回可导航 Run/Session |
+| O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | specified | one incarnation、quiesce/CAS、paused/active/completing、Session cascade、autonomous control 不进 Transcript |
+| O16 | `codebase.search`, `codebase.status`, `codebase.reindex` | 3 | workspace index | R6 | specified | none/indexing/ready/error、operation identity、embedding role、bounded hits/reindex cancellation |
+| O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | specified | masked key/source、explicit secret change、base URL validation、test 业务判决、不泄漏原文 |
+| O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | specified | provider/model 显式配对、capability/pricing/context、role validation、catalog invalidation |
+| O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | specified | catalog 是诊断非 Run 配置；manual invoke 完整 approval/safety/result/error 语义 |
+| O20 | `usage.session`, `usage.summary` | 2 | operations/usage | R9 | specified | exact attribution、day/model/provider buckets、unknown cost 缺席、terminal/restart 稳定 |
+| O21 | `knowledge.list`, `knowledge.get`, `knowledge.update` | 3 | capability/knowledge | R7 | specified | cwd/projectRoot/home、path/content/revision、CAS、外部文件变化 invalidation |
+| O22 | `agentMemory.list`, `agentMemory.review`, `agentMemory.update`, `agentMemory.delete`, `agentMemory.add` | 5 | capability/memory | R7 | specified | project/user、pending/active、auto/user、pin/source、review 后才注入、条件写 |
+| O23 | `feedback.create` | 1 | operations/feedback | R9 | specified | bounded/redacted payload、run/session attribution、transport failure 不改 Run outcome |
+
+总数：`1+1+10+7+1+1+1+2+6+7+2+9+2+4+5+6+3+3+5+2+2+3+5+1 = 89`。
+
+## 4. Operational probe 映射（3）
+
+| ID | 旧 endpoint | app2 本地 | app2 remote | 阶段 | 状态 | 验收 |
+| --- | --- | --- | --- | --- | --- | --- |
+| P01 | `/v2/info` | `/v2/info` + supervisor identity check | `/v2/info` | R1/R10 | implemented | local protocol/server/instance 与 `runtime.discover` 同 generation 已验证；remote 待 R10 |
+| P02 | `/v2/health/live` | `/v2/health/live` | `/v2/health/live` | R1/R10 | implemented | local process/event loop 语义已验证；remote 待 R10 |
+| P03 | `/v2/health/ready` | `/v2/health/ready` | `/v2/health/ready` | R1/R10 | implemented | local schema/store/dispatcher 与 draining 语义已验证；remote 待 R10 |
+
+## 5. Runtime topics 映射（16）
+
+| Topic | Producer owner | Desktop consumer | 阶段 | 状态 | 验收 |
+| --- | --- | --- | --- | --- | --- |
+| `files.changed` | filesystem/watch | Context Dock files/diff | R6 | specified | path set 或 full resync；watch close 无残留 |
+| `skills.changed` | skill store/watch | Skills view/query | R7 | specified | names 可选；archive/restore/external edit 收敛 |
+| `mcp.changed` | MCP lifecycle | MCP settings/tool catalog | R8 | specified | status/auth/reconnect invalidate exact server |
+| `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
+| `sessions.changed` | session transaction | Work Index | R2 | specified | create/update/delete/archive/status attention 收敛 |
+| `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
+| `plan.changed` | plan transaction | Plan pill/tooltip | R5 | specified | revision/snapshot/event convergent |
+| `goals.changed` | goal transaction | Goal tray | R5 | specified | incarnation/lifecycle exact，不显示旧 goal |
+| `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | specified | answer settlement 后 exact pending 消失 |
+| `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
+| `hooks.changed` | hook/trust owner | Hooks settings | R7 | specified | trust/source change 收敛 |
+| `models.changed` | provider/catalog owner | model picker/settings | R8 | specified | catalog/role/provider update 收敛 |
+| `approvals.changed` | policy owner | Approval settings | R8 | specified | mode/rules exact invalidation |
+| `agentMemory.changed` | memory owner | Memory view | R7 | specified | review/add/update/delete 收敛 |
+| `codebase.changed` | index worker | Search/index view | R6 | specified | operation/state/progress/resync 收敛 |
+| `resync` | runtime subscription | topic router | R1 | specified | gap/new generation/buffer eviction 后只重拉列出 topics |
+
+## 6. Run event 映射（7）
+
+| Event | Authority/replay | app2 projection | 阶段 | 状态 | 验收 |
+| --- | --- | --- | --- | --- | --- |
+| `segment.started` | authoritative/replayable | Run/Segment lifecycle | R3 | specified | cold read 与 live 同一 identity |
+| `segment.progress` | ephemeral/non-replay | usage/context/live progress | R3 | specified | 丢失可容忍；terminal durable footprint 收敛 |
+| `segment.finished` | authoritative/replayable | outcome/segment terminal | R3 | specified | terminal explains end |
+| `item.started` | authoritative/replayable | placeholder/source owner | R3 | specified | stable item key、no cross-run merge |
+| `item.delta` | ephemeral/non-replay | message/reasoning/tool streaming | R3 | specified | monotonic fold、duplicate/gap rules、history 无 typing effect |
+| `item.completed` | authoritative/replayable | durable content/material | R3/R4 | specified | completion replaces provisional, phase/source exact |
+| `plan.updated` | authoritative/replayable | Plan resource projection | R5 | specified | revision/order/status invariant |
+
+app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化必须满足 ADR-A2-022 的协议门槛。
+
+## 7. Desktop 产品表面（24 groups）
+
+| ID | 产品表面 | 目标 owner | 阶段 | 状态 | 可观察验收 |
+| --- | --- | --- | --- | --- | --- |
+| U01 | Wails window/titlebar/chrome/min geometry | NativeHost + shell | R1/R10 | implemented | Wails v3 beta.12、精确 host surface、min 1120×720、signed package；R10 完成全量视觉/原生验收 |
+| U02 | Runtime start/reconnect/error/version | supervisor + runtime context | R1 | verified | one-shot descriptor、sidecars + `runtime.discover`、SIGKILL successor、stale callback ignored、bounded backoff、quit join |
+| U03 | Work Index/new Session/cwd grouping/search | sessions context | R2 | specified | source list 非功能菜单、exact cwd、attention、rename/fork/delete/favorite、keyboard |
+| U04 | Agent Session hydrate/cold restore | agent context | R2/R3 | specified | `sessions.snapshot` 与 stream watermark handoff，reload/restart 无 duplicate/lost material |
+| U05 | Composer draft/attachments/paste/@file/history/IME | composer context | R3 | specified | send/stop、success clear/failure retain、CJK composition、projectless new Session |
+| U06 | Root narrative commentary/final hierarchy | agent presentation | R3 | specified | work wave 与 final row 分离，仅 final actions，history/live 相同 |
+| U07 | Delegated Run tree/disclosures | agent presentation | R4 | specified | exact lineage、nested/sibling、source-owned plan/tool/usage、exact cancel |
+| U08 | Approval interaction | interrupt context | R4 | specified | 24px request surface、allow once/scope split/deny、edited args、settled exact identity |
+| U09 | Question interaction | interrupt + composer | R4 | specified | one surface、多题顺序、single auto-next、text/multi、explicit Skip、IME |
+| U10 | Plan compact progress | plan context | R5 | specified | ring + N/M，完整 checklist hover/focus，one inProgress，无第二 expand state |
+| U11 | Goal submit/tray/editor | goal + composer | R5 | specified | `/goal` mode、start/update/pause/resume/clear、draft ownership、compact layout、recovery |
+| U12 | Context token gauge | agent projection + model catalog | R3/R8 | specified | authoritative contextTokens、unknown 缺席、terminal/reload/restart/import 保持 |
+| U13 | Context Dock tabs/split/persistence | workspace context | R6 | specified | per-Session open tabs/last view/file target、close/reopen、narrow window capability |
+| U14 | Files/tree/read/head/search | workspace context | R6 | specified | pagination、path truncation、loading/error/empty、syntax highlight、external change |
+| U15 | Diff/Review Workspace | workspace context | R6 | specified | all files、collapse/nav scroll、binary/rename/untracked、light/review density |
+| U16 | Terminal/tool detail/timeline/run summary | workspace + agent public | R4/R6 | specified | exact Tool/Run identity、durable end-only restore、connection-aware commands |
+| U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |
+| U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
+| U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
+| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | specified | capability-gated、three empty states、scope/source/review/editor actions |
+| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | specified | form draft 与 wire 分离、validation/test/save、secret masked、query invalidation |
+| U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
+| U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
+| U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |
+
+## 8. 内置 Tool presentation 全量
+
+所有普通 ToolCall 使用透明 activity row；只有 delegated Run 等复合生命周期边界可使用 card hierarchy。
+
+| Family | Tool names | 阶段 | 状态 | 验收重点 |
+| --- | --- | --- | --- | --- |
+| 文件与代码（5） | `read`, `glob`, `grep`, `lsp`, `apply_patch` | R4/R6 | specified | path/range/hits/symbol/diff；真实 material；不把 VCS status 与 patch status 合并 |
+| 命令（3） | `shell`, `read_shell_output`, `stop_shell` | R4 | specified | command/description、stream/output、exit/duration、background exact ID、cancel |
+| 网络（3） | `web_search`, `web_fetch`, `http_request` | R4 | specified | URL/status/header/body、安全 link、result normalization、bounded preview |
+| Skill（4） | `list_skills`, `load_skill`, `read_skill_resource`, `propose_skill` | R7 | specified | scope/name/resource/proposal，正文滚动，不与 Skill 管理 UI 混 owner |
+| Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | specified | 工具行不重复 Plan/HITL 真身，closed approve/reject question |
+| Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | specified | 工具行不重复 standing Goal，incarnation/outcome exact |
+| Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |
+| 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | specified | prose/bounded result、完整正文按需读取、history search scope |
+| 委派与提问（2） | `delegate_task`, `ask_user` | R4 | specified | child Run disclosure、Question 为唯一交互真身、model/protocol field mapping |
+| MCP/unknown | dynamically discovered names | R8 | specified | remote original name 与 model-visible collapsed name 分离、safety class、JSON fallback |
+
+当前仅 `glob/grep/apply_patch/shell/web_search` 有旧 Runtime 归一化 result schema；app2 R1–R8 要么为被 UI
+读取的结果建立 canonical typed presentation，要么明确只用 safe generic preview，不能继续依赖无门禁约定。
+
+## 9. 跨能力不变量
+
+| ID | 不变量 | 必须覆盖的阶段 | 证据要求 |
+| --- | --- | --- | --- |
+| I01 | Session 至多一个 open root Run tree | R3/R4 | concurrent admission + DB unique/CAS + multi-process |
+| I02 | terminal Run 说明如何结束 | R3/R4 | every terminal variant + recovery/import corruption |
+| I03 | admitted Run capabilities immutable | R3/R5 | resume/Goal/delegated attempts to alter rejected |
+| I04 | waiting tree 恰好一个完整 open Interrupt set | R4 | multi-question/approval/child barrier/crash |
+| I05 | continuation 与 Run facts/occurrence/checkpoint 匹配 | R4 | stale/foreign/replayed responses rejected |
+| I06 | dropped Run 不留任何资源 | R4/R9 | rollback/delete/import failure + task/listener ledger zero |
+| I07 | imported Session identity closure 一致 | R9 | conflict/partial/corrupt/checksum/all-or-nothing |
+| I08 | Goal 不晚于 Session | R5/R9 | delete/rollback/fork/archive lifecycle |
+| I09 | Transcript/Conversation/WorkingContext 不互相冒充 | R3/R5 | autonomous control visibility + compaction/recovery |
+| I10 | only committed facts reach UI/events | all | fault injection before/during/after commit |
+| I11 | old generation cannot commit to successor | R1/R3/R4 | renderer/connection/Runtime replacement races |
+| I12 | every acquired resource has bounded cleanup/join | all | leak detector + process/port/temp-home audit |
+
+## 10. Intentional breaking / 非目标
+
+以下不计为功能丢失：
+
+- 不读取旧 SQLite epoch 77、Artifact v22；
+- 不保留旧 Go package layout、handler/repository concrete API、frontend facade/store shape；
+- Runtime Protocol `2026-08-21`、89 个 dotted methods、HTTP/SSE、sidecars 与部署所需 token/CORS 是主动继承的
+  合同基线，不是兼容负担；只有 ADR-A2-022 规定的证据和版本门槛才能改变；
+- 不保留外部 JavaScript plugin/sideload（当前生产已无此能力）；
+- 不保留无生产者的 custom RunEvent、clientTools feature、toolResult Interrupt、generic state registry；
+- 不保留旧 frontend public facade、plugin identity、extension point 或 store shape；
+- 不保留已知不可达 locale/error 文案；
+- 不迁移旧 bug。语义对照差异必须裁决并记录。
+
+## 11. 每项能力的证据格式
+
+一行从 `implemented` 升为 `verified` 时，在行下或对应阶段记录：
+
+```text
+Implementation: paths / canonical owners
+Contract: generated method/types/events/errors
+Tests: domain + transaction + adapter + Desktop scenario
+Recovery: reload/reconnect/restart/SIGKILL as applicable
+Product: package/visual/a11y/IME evidence as applicable
+Resources: processes/ports/temp homes/browser sessions released
+Decision: intentional differences from old app
+```
+
+没有上述闭环，不得仅凭“功能看起来能用”更新状态。
+
+## 12. R1 证据索引
+
+```text
+Implementation: runtime/{operation,dispatch,rpcwire,httptransport,runtimehost,localruntime,sqlite,cli,contractgen}; desktop/{supervisor,DesktopHost,NativeHost,frontend,Taskfile}
+Contract: protocol 2026-08-21; 1 concrete method; 4 fixed HTTP endpoints; generated manifest/wire/client diff-free
+Tests: Runtime/Desktop race+vet+Staticcheck; frontend type+lint+format+7 tests+build; signed package verification
+Recovery: real child SIGKILL -> successor generation; graceful close; corrupt DB/no descriptor; predecessor UI result ignored
+Product: arm64 lyra-app2.app contains sibling lyra-runtime; U01 remains implemented pending R10 visual/native matrix
+Resources: controlled Runtime/Vite/agent-browser/Chrome/ports/temp roots released; unrelated user processes preserved
+Decision: current Lyra contract preserved; no Codex protocol surface copied
+```

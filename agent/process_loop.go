@@ -197,6 +197,8 @@ func (loop *processLoop) applyCommand(ctx context.Context, command processComman
 	switch command.kind {
 	case commandDeliver:
 		loop.deliver(ctx, command)
+	case commandDeliverBatch:
+		loop.deliverBatch(ctx, command)
 	case commandPause:
 		loop.requestPause(command)
 	case commandResume:
@@ -376,6 +378,60 @@ func (loop *processLoop) deliver(ctx context.Context, command processCommand) {
 		loop.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	}
 	command.reply(processResponse{accepted: accepted})
+}
+
+func (loop *processLoop) deliverBatch(ctx context.Context, command processCommand) {
+	if len(command.signalRequests) == 0 {
+		command.reply(processResponse{err: ErrInvalidSignalRequest})
+		return
+	}
+	count := uint64(len(command.signalRequests))
+	reserved := loop.reservedSettlementSignals()
+	if !resourceQuantitiesFit(loop.limits.MaxSignals, loop.usage.AcceptedSignals, reserved, count) ||
+		!resourceQuantitiesFit(loop.limits.MaxPendingSignals, loop.mailbox.pendingCount(), reserved, count) ||
+		!resourceQuantitiesFit(loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, reserved, count) {
+		command.reply(processResponse{err: ErrResourceLimitExceeded})
+		return
+	}
+	candidate := loop.mailbox.clone()
+	status := loop.status
+	signals := make([]Signal, 0, len(command.signalRequests))
+	for _, request := range command.signalRequests {
+		if !request.Valid() {
+			command.reply(processResponse{err: ErrInvalidSignalRequest})
+			return
+		}
+		if candidate.contains(request.ID()) {
+			command.reply(processResponse{accepted: false})
+			return
+		}
+		signal, err := request.signal(time.Now())
+		if err != nil {
+			command.reply(processResponse{err: err})
+			return
+		}
+		accepted, err := candidate.enqueue(status, signal)
+		if err != nil || !accepted {
+			command.reply(processResponse{err: err, accepted: false})
+			return
+		}
+		if status == StatusWaiting {
+			if _, addressed := signal.WaitID(); addressed { status = StatusRunning }
+		}
+		signals = append(signals, signal)
+	}
+	loop.mailbox = candidate
+	if loop.status == StatusWaiting && status == StatusRunning {
+		loop.status = StatusRunning
+		loop.currentWaitID = WaitID{}
+	}
+	loop.usage.AcceptedSignals += count
+	loop.updateView()
+	for index, signal := range signals {
+		payload, _ := json.Marshal(signalAcceptedEventPayload{SignalID: signal.ID().String(), WaitID: commandWaitID(command.signalRequests[index])})
+		loop.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
+	}
+	command.reply(processResponse{accepted: true})
 }
 
 func (loop *processLoop) requestPause(command processCommand) {

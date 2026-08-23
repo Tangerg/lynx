@@ -36,6 +36,11 @@ type DispatcherConfig struct {
 	// StreamModelResponses selects Client.Stream and publishes each validated
 	// response chunk as a best-effort ModelResponseDelta. False uses Client.Call.
 	StreamModelResponses bool
+
+	// Observer receives exact settled Interaction facts. It is intentionally
+	// separate from Engine Events/Deltas: those describe execution mechanics,
+	// while this boundary exposes typed model and Tool semantics.
+	Observer ExecutionObserver
 }
 
 type boundTool struct {
@@ -57,6 +62,7 @@ type Dispatcher struct {
 	deferredToolNames  map[string]struct{}
 	stream             bool
 	maxParallel        int
+	observer           ExecutionObserver
 }
 
 // NewDispatcher binds one exact Definition's Delegate manifest alongside its
@@ -80,6 +86,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 		deferredToolNames: make(map[string]struct{}, len(config.DeferredTools)),
 		stream:            config.StreamModelResponses,
 		maxParallel:       maxParallel,
+		observer:          config.Observer,
 	}
 	for index, executable := range config.Tools {
 		if err := dispatcher.bindTool(executable, false); err != nil {
@@ -205,6 +212,9 @@ func (dispatcher *Dispatcher) dispatchModel(
 	if err := response.Validate(); err != nil {
 		return modelFailureSettlement(request.ID(), fmt.Errorf("invalid model response: %w", err))
 	}
+	dispatcher.observeModel(ctx, modelInvocationFromRequest(
+		request, call.ModelCallSequence, call.AppliedSteerSignalIDs,
+	), response)
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationModelCall,
@@ -483,6 +493,23 @@ func (dispatcher *Dispatcher) callTool(
 	required *ToolInputRequest,
 	err error,
 ) {
+	invocation := toolInvocationFromRequest(
+		request, modelCallSequence, toolCallIndex, call,
+	)
+	dispatcher.observeToolStarted(ctx, invocation)
+	defer func() {
+		settlement := ToolSettlement{}
+		switch {
+		case required != nil:
+			settlement.InputRequired = true
+		case result.ID != "":
+			settlement.Result = &result
+		case err != nil:
+			settlement.Failure = boundedDiagnostic(err.Error())
+			settlement.Unknown = errors.Is(err, ErrHostFailure)
+		}
+		dispatcher.observeToolSettled(ctx, invocation, settlement)
+	}()
 	hosted, found := dispatcher.tools[call.Name]
 	if !found {
 		return chat.ToolResult{
@@ -490,9 +517,6 @@ func (dispatcher *Dispatcher) callTool(
 			Result: fmt.Sprintf("error: tool %q is not available", call.Name), IsError: true,
 		}, nil, nil, nil
 	}
-	invocation := toolInvocationFromRequest(
-		request, modelCallSequence, toolCallIndex, call,
-	)
 	advertiser := newToolAdvertiser(dispatcher.deferredToolNames)
 	ctx = withToolInvocation(ctx, invocation)
 	ctx = withToolAdvertiser(ctx, advertiser)
