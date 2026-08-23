@@ -8,6 +8,7 @@ type Record struct {
 	ID, SessionID, RunID string
 	Ordinal              int
 	Body                 []byte
+	SearchText           SearchableText
 	CreatedAt            time.Time
 }
 

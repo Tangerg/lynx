@@ -3281,6 +3281,96 @@ input::placeholder {
   margin: 0 auto;
 }
 
+.history-navigator {
+  position: sticky;
+  z-index: 12;
+  top: 0;
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--divider);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--paper-raised) 92%, transparent);
+  box-shadow: var(--shadow-sm);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.history-navigator > label {
+  display: flex;
+  min-width: 148px;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  padding-left: 8px;
+  color: var(--ink-muted);
+}
+
+.history-navigator input {
+  min-width: 0;
+  height: 30px;
+  flex: 1;
+  color: var(--ink);
+  background: transparent;
+  font-size: 9px;
+}
+
+.history-navigator input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.history-navigator button {
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 8px;
+  font-weight: 680;
+}
+
+.history-navigator button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--paper-muted);
+}
+
+.history-match-count {
+  color: var(--ink-muted);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.history-match-actions {
+  display: flex;
+}
+
+.history-match-actions button {
+  width: 28px;
+  padding: 0;
+}
+
+.history-navigator .history-load-older {
+  border: 1px solid var(--divider);
+  white-space: nowrap;
+}
+
+.history-navigator > p {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  max-width: 360px;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 9px;
+  color: var(--red);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-popover);
+  font-size: 8px;
+}
+
 .stream-warning {
   margin: 0;
   padding: 9px 12px;
@@ -3317,6 +3407,22 @@ input::placeholder {
 
 .narrative-item {
   min-width: 0;
+}
+
+.narrative-item[data-search-match="true"],
+.narrative-boundary[data-search-match="true"] {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 4px;
+}
+
+.message-content mark,
+.reasoning-turn mark,
+.question-turn mark {
+  border-radius: 3px;
+  padding: 0 1px;
+  color: inherit;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-decoration-break: clone;
 }
 
 .narrative-item[data-child="true"] {

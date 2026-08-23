@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
+	"github.com/Tangerg/lynx/app2/runtime/transcriptflow"
 )
 
 const maxArtifactRecords = 200_000
@@ -153,6 +154,7 @@ func (service *Service) importMaterial(
 			RunID:     item.RunID,
 			Ordinal:   ordinals[item.RunID],
 			Body:      body,
+			SearchText: transcriptflow.SearchableItem(item),
 			CreatedAt: itemOccurrence(item),
 		})
 		ordinals[item.RunID]++

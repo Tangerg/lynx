@@ -125,6 +125,9 @@ export function useRuntimeInvalidations(
             void queryClient.invalidateQueries({
               queryKey: runtimeQueryKeys.snapshot(connection, sessionId),
             });
+			void queryClient.invalidateQueries({
+			  queryKey: runtimeQueryKeys.sessionHistory(connection, sessionId),
+			});
           }
         }
       }

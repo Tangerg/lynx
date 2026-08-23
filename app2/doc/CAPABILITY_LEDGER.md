@@ -25,8 +25,8 @@
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
 | Runtime resource topics | 16 | 16 implemented | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
-| Desktop product surfaces | 24 groups | 1 verified，16 implemented，1 in_progress，6 specified | 全部 verified |
-| 内置 tool presentation | 30 + MCP/unknown | 15 + MCP/unknown implemented，4 in_progress，11 specified | 全部真实 material verified |
+| Desktop product surfaces | 24 groups | 1 verified，17 implemented，1 in_progress，5 specified | 全部 verified |
+| 内置 tool presentation | 30 + MCP/unknown | 19 + MCP/unknown implemented，0 in_progress，11 specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
 
@@ -127,7 +127,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U16 | Terminal/tool detail/timeline/run summary | workspace + agent public | R4/R6 | implemented | shared tool presentation + known/unknown material disclosure；Session-owned overview/timeline/terminal/summary 从 canonical Run tree/Item/HITL 即时派生，支持 active child cancel、lineage integrity、bounded live tool output/follow lock、latest-tree summary/copy 与 complete empty/error states；无第二 timeline store，待最终统一门禁 |
 | U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
-| U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
+| U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | implemented | 既有 `items.list(desc)` 按需翻页、snapshot overlap skip、Run summary merge、Cmd/Ctrl+F、Enter/Shift+Enter、loaded highlight/exact scroll 与逐 window Search older 已实现；mount 不 eager 全历史，待 large-history/a11y/visual/package 门禁 |
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
 | U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8/R9 | implemented | explicit Settings 已完成 Provider/Model、MCP、Approval、Schedules、Lifecycle Hooks 与 7/30/all-time Usage；用量只消费 terminal Runtime authority，明确 unknown-cost，selected Session 单独展示；待最终 UI/restart/package 门禁 |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
@@ -147,7 +147,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | implemented | root-only、durable Session read-only policy、dynamic effect gate、committed Plan fact、revision-bound approve/reject question；待 Desktop 与最终统一门禁 |
 | Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |
 | Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | implemented | root-only deferred action schema、cursor list、paired model/default workspace、write safety、same Schedule owner/event invalidation；待最终门禁 |
-| 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | in_progress | `search_memory` 已使用 reviewed corpus 与有界 lexical/semantic degradation；`search_tools` 已对 Run-frozen deferred manifest 做 query→exact select 渐进暴露并跨 checkpoint 恢复；`read_tool_result` 已有界读取 durable overflow；`search_conversations` 随 R9 |
+| 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | implemented | `search_memory` 使用 reviewed corpus；`search_conversations` 使用 exact workspace/Session 的 bounded user-visible FTS projection并排除 reasoning/Tool material；`search_tools` 对 Run-frozen deferred manifest 做渐进暴露并跨 checkpoint 恢复；`read_tool_result` 有界读取 durable overflow；待最终统一门禁 |
 | 委派与提问（2） | `delegate_task`, `ask_user` | R4 | implemented | child Run 以父 Delegate Item 为唯一 disclosure anchor；Question 为唯一交互真身；model/protocol field mapping 保持 Lyra 自有语义；待最终统一门禁 |
 | MCP/unknown | dynamically discovered names | R8 | implemented | private execution始终保留 `(server, remote)`；domain 唯一生成 bounded model-visible name，完整 MCP result envelope 使用 safe JSON material；待最终门禁 |
 

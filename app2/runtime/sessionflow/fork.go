@@ -232,6 +232,7 @@ func forkItems(
 			RunID:     item.RunID,
 			Ordinal:   record.Ordinal,
 			Body:      body,
+			SearchText: record.SearchText,
 			CreatedAt: record.CreatedAt,
 		})
 	}

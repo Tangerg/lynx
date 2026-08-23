@@ -30,6 +30,8 @@ import {
   type AgentMemoryScope,
   type KnowledgeEntry,
   type KnowledgeScope,
+	type ListItemsRequest,
+	type ListItemsResponse,
   type ManagedSkill,
   type MCPAuthorizationAttempt,
   type MCPServer,
@@ -103,6 +105,9 @@ export const runtimeQueryKeys = {
 	},
 	sessionUsage(connection: RuntimeConnection, sessionId: string) {
 		return [...this.scope(connection), "usage", "session", sessionId] as const;
+	},
+	sessionHistory(connection: RuntimeConnection, sessionId: string) {
+		return [...this.scope(connection), "session", sessionId, "history"] as const;
 	},
   snapshot(connection: RuntimeConnection, sessionId: string) {
     return [...this.scope(connection), "session", sessionId, "snapshot"] as const;
@@ -336,6 +341,14 @@ export function loadSessionUsage(
 		{ sessionId },
 		{ meta: clientMeta, signal },
 	);
+}
+
+export function listItems(
+	connection: RuntimeConnection,
+	request: ListItemsRequest,
+	signal?: AbortSignal,
+): Promise<ListItemsResponse> {
+	return client(connection).call("items.list", request, { meta: clientMeta, signal });
 }
 
 export function loadUsageSummary(

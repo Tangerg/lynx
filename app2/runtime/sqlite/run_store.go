@@ -367,9 +367,9 @@ func (database *Database) AppendItem(ctx context.Context, item transcript.Record
 
 func insertItem(ctx context.Context, transaction *sql.Tx, item transcript.Record) error {
 	_, err := transaction.ExecContext(ctx, `
-		INSERT INTO items (id, session_id, run_id, ordinal, body, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, item.ID, item.SessionID, item.RunID, item.Ordinal,
-		string(item.Body), encodeTime(item.CreatedAt))
+		INSERT INTO items (id, session_id, run_id, ordinal, body, search_text, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, item.ID, item.SessionID, item.RunID, item.Ordinal,
+		string(item.Body), string(item.SearchText), encodeTime(item.CreatedAt))
 	if err != nil {
 		return fmt.Errorf("sqlite: append item %s: %w", item.ID, err)
 	}
@@ -378,11 +378,12 @@ func insertItem(ctx context.Context, transaction *sql.Tx, item transcript.Record
 
 func putItem(ctx context.Context, transaction *sql.Tx, item transcript.Record) error {
 	result, err := transaction.ExecContext(ctx, `
-		INSERT INTO items (id, session_id, run_id, ordinal, body, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET body=excluded.body
+		INSERT INTO items (id, session_id, run_id, ordinal, body, search_text, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET body=excluded.body,search_text=excluded.search_text
 		WHERE items.session_id=excluded.session_id AND items.run_id=excluded.run_id AND items.ordinal=excluded.ordinal`,
-		item.ID, item.SessionID, item.RunID, item.Ordinal, string(item.Body), encodeTime(item.CreatedAt))
+		item.ID, item.SessionID, item.RunID, item.Ordinal, string(item.Body),
+		string(item.SearchText), encodeTime(item.CreatedAt))
 	if err != nil { return fmt.Errorf("sqlite: put item %s: %w", item.ID, err) }
 	changed, _ := result.RowsAffected()
 	if changed != 1 { return fmt.Errorf("sqlite: item %s identity conflicts with its owner or ordinal", item.ID) }
@@ -390,7 +391,7 @@ func putItem(ctx context.Context, transaction *sql.Tx, item transcript.Record) e
 }
 
 func (database *Database) ListItems(ctx context.Context, sessionID, runID string) ([]transcript.Record, error) {
-	query := `SELECT id, session_id, run_id, ordinal, body, created_at FROM items WHERE 1 = 1`
+	query := `SELECT id, session_id, run_id, ordinal, body, search_text, created_at FROM items WHERE 1 = 1`
 	var arguments []any
 	if sessionID != "" {
 		query += ` AND session_id = ?`
@@ -439,7 +440,7 @@ func (database *Database) PageItems(ctx context.Context, query transcript.Query)
 			return transcript.Page{}, err
 		}
 		statement = `
-			SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.created_at
+			SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.search_text, i.created_at
 			FROM items AS i
 			WHERE i.session_id = ?`
 		arguments = append(arguments, query.Scope.SessionID)
@@ -456,13 +457,13 @@ func (database *Database) PageItems(ctx context.Context, query transcript.Query)
 					FROM runs AS child
 					JOIN subtree ON child.parent_run_id = subtree.id
 				)
-				SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.created_at
+				SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.search_text, i.created_at
 				FROM items AS i
 				JOIN subtree ON subtree.id = i.run_id
 				WHERE 1 = 1`
 		} else {
 			statement = `
-				SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.created_at
+				SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.search_text, i.created_at
 				FROM items AS i
 				WHERE i.run_id = ?`
 		}
@@ -560,6 +561,7 @@ func scanItem(row rowScanner) (transcript.Record, error) {
 		&record.RunID,
 		&record.Ordinal,
 		&record.Body,
+		&record.SearchText,
 		&created,
 	); err != nil {
 		return transcript.Record{}, fmt.Errorf("sqlite: scan item: %w", err)

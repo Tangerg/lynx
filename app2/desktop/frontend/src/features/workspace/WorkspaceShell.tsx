@@ -20,6 +20,7 @@ import {
   type ComposerDraft,
 } from "../agent/Composer";
 import { useAgentSessionView } from "../agent/useAgentSessionView";
+import { useSessionHistory } from "../agent/useSessionHistory";
 import { ContextDock } from "./ContextDock";
 import { GoalComposer } from "../goals/GoalComposer";
 import { GoalTray } from "../goals/GoalTray";
@@ -146,6 +147,20 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     snapshot.data,
 		durableSelection,
   );
+	const history = useSessionHistory(
+		connection,
+		selectedSession?.id,
+		agentView.items,
+	);
+	const narrativeItems = useMemo(
+		() => [...history.items, ...agentView.items],
+		[agentView.items, history.items],
+	);
+	const narrativeRuns = useMemo(() => {
+		const values = new Map(history.runs.map((run) => [run.id, run]));
+		for (const run of agentView.runs) values.set(run.id, run);
+		return [...values.values()];
+	}, [agentView.runs, history.runs]);
 	const modelProvider =
 		agentView.focusRootRun?.provider ?? selectedSession?.provider;
   const modelCatalog = useQuery({
@@ -446,8 +461,8 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
               <AgentNarrative
                 key={`narrative:${selectedSession.id}`}
                 sessionTitle={selectedSession.title}
-                items={agentView.items}
-                runs={agentView.runs}
+                items={narrativeItems}
+                runs={narrativeRuns}
                 liveToolOutputs={agentView.liveToolOutputs}
                 interrupts={agentView.interrupts}
                 progress={agentView.progress}
@@ -460,6 +475,10 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 onResume={agentView.resume}
                 onCancelRun={agentView.cancel}
 				onFeedback={submitFeedback}
+				hasOlderHistory={history.hasOlder}
+				historyPending={history.loading}
+				historyError={history.error}
+				onLoadOlderHistory={history.loadOlder}
 				onForkFrom={forkSessionFrom}
 				onRollback={rollbackSessionTo}
               >

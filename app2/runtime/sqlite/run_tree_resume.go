@@ -102,8 +102,9 @@ func (database *Database) CommitTreeResume(ctx context.Context, write runflow.Tr
 			return errors.New("sqlite: answered tree Item changed ownership")
 		}
 		result, err := transaction.ExecContext(ctx, `
-			UPDATE items SET body = ? WHERE id = ? AND session_id = ? AND run_id = ?`,
-			string(item.Body), item.ID, item.SessionID, item.RunID,
+			UPDATE items SET body = ?, search_text = ?
+			WHERE id = ? AND session_id = ? AND run_id = ?`,
+			string(item.Body), string(item.SearchText), item.ID, item.SessionID, item.RunID,
 		)
 		if err != nil {
 			return fmt.Errorf("sqlite: update answered tree Item %s: %w", item.ID, err)

@@ -83,11 +83,30 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
 			ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
 			body TEXT NOT NULL CHECK (json_valid(body)),
+			search_text TEXT NOT NULL,
 			created_at TEXT NOT NULL,
 			UNIQUE(run_id, ordinal)
 		) STRICT`,
 		`CREATE INDEX IF NOT EXISTS items_timeline
 			ON items(session_id, created_at, run_id, ordinal)`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS transcript_search USING fts5(
+			search_text,
+			content='items',
+			content_rowid='rowid',
+			tokenize='unicode61 remove_diacritics 2'
+		)`,
+		`CREATE TRIGGER IF NOT EXISTS transcript_search_insert AFTER INSERT ON items BEGIN
+			INSERT INTO transcript_search(rowid, search_text) VALUES (new.rowid, new.search_text);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS transcript_search_delete AFTER DELETE ON items BEGIN
+			INSERT INTO transcript_search(transcript_search, rowid, search_text)
+			VALUES ('delete', old.rowid, old.search_text);
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS transcript_search_update AFTER UPDATE OF search_text ON items BEGIN
+			INSERT INTO transcript_search(transcript_search, rowid, search_text)
+			VALUES ('delete', old.rowid, old.search_text);
+			INSERT INTO transcript_search(rowid, search_text) VALUES (new.rowid, new.search_text);
+		END`,
 		`CREATE TABLE IF NOT EXISTS conversation_messages (
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 			run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,

@@ -7,7 +7,7 @@ import type {
   Item,
   PendingInterruptSet,
   RunProgress,
-  RunRef,
+	RunSummary,
 	RestoreType,
 } from "@lyra/runtime-contract";
 
@@ -18,7 +18,7 @@ import type { LiveToolOutput } from "./agentSessionTypes";
 interface AgentNarrativeProps {
   sessionTitle: string;
   items: Item[];
-  runs: RunRef[];
+	runs: RunSummary[];
   liveToolOutputs: Record<string, LiveToolOutput>;
   interrupts: PendingInterruptSet[];
   progress?: RunProgress;
@@ -35,23 +35,30 @@ interface AgentNarrativeProps {
   ): Promise<void>;
   onCancelRun(runId: string): Promise<void>;
 	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
+	hasOlderHistory: boolean;
+	historyPending: boolean;
+	historyError?: string;
+	onLoadOlderHistory(): Promise<void>;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
   children?: ReactNode;
 }
 
 interface NarrativeMaterial {
-  runById: Map<string, RunRef>;
+	runById: Map<string, RunSummary>;
   itemsByRunId: Map<string, Item[]>;
-  childRunsByItemId: Map<string, RunRef[]>;
+	childRunsByItemId: Map<string, RunSummary[]>;
   rootItems: Item[];
-  orphanRuns: RunRef[];
+	orphanRuns: RunSummary[];
   liveToolOutputs: Record<string, LiveToolOutput>;
 }
 
 export function AgentNarrative(props: AgentNarrativeProps) {
   const scroll = useRef<HTMLDivElement>(null);
+	const searchInput = useRef<HTMLInputElement>(null);
   const followsTail = useRef(true);
+	const [search, setSearch] = useState("");
+	const [activeMatch, setActiveMatch] = useState(0);
   const material = useMemo(
     () => indexNarrative(props.items, props.runs, props.liveToolOutputs),
     [props.items, props.liveToolOutputs, props.runs],
@@ -74,6 +81,17 @@ export function AgentNarrative(props: AgentNarrativeProps) {
       ),
     )
     .join("|");
+	const normalizedSearch = search.trim().toLocaleLowerCase();
+	const searchMatches = useMemo(
+		() =>
+			normalizedSearch === ""
+				? []
+				: props.items.filter((item) =>
+						itemSearchText(item).toLocaleLowerCase().includes(normalizedSearch),
+					),
+		[normalizedSearch, props.items],
+	);
+	const activeMatchID = searchMatches[activeMatch]?.id;
 
   useEffect(() => {
     if (!followsTail.current || scroll.current === null) return;
@@ -82,6 +100,56 @@ export function AgentNarrative(props: AgentNarrativeProps) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [materialVersion]);
+
+	useEffect(() => {
+		setActiveMatch(0);
+	}, [normalizedSearch]);
+
+	useEffect(() => {
+		if (activeMatch < searchMatches.length) return;
+		setActiveMatch(Math.max(0, searchMatches.length - 1));
+	}, [activeMatch, searchMatches.length]);
+
+	useEffect(() => {
+		if (activeMatchID === undefined) return;
+		const frame = window.requestAnimationFrame(() => {
+			const target = [...(scroll.current?.querySelectorAll<HTMLElement>("[data-item-id]") ?? [])]
+				.find((element) => element.dataset.itemId === activeMatchID);
+			target?.scrollIntoView({
+				block: "center",
+				behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+					? "auto"
+					: "smooth",
+			});
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [activeMatchID]);
+
+	useEffect(() => {
+		const focusSearch = (event: KeyboardEvent) => {
+			if (!(event.metaKey || event.ctrlKey) || event.key.toLocaleLowerCase() !== "f") return;
+			if (document.querySelector(".settings-surface") !== null) return;
+			if (searchInput.current === null) return;
+			event.preventDefault();
+			searchInput.current?.focus();
+			searchInput.current?.select();
+		};
+		window.addEventListener("keydown", focusSearch);
+		return () => window.removeEventListener("keydown", focusSearch);
+	}, []);
+
+	const moveMatch = (direction: -1 | 1) => {
+		if (searchMatches.length === 0) {
+			if (props.hasOlderHistory && !props.historyPending) {
+				followsTail.current = false;
+				void props.onLoadOlderHistory().catch(() => undefined);
+			}
+			return;
+		}
+		setActiveMatch((current) =>
+			(current + direction + searchMatches.length) % searchMatches.length,
+		);
+	};
 
   const trackReader = () => {
     const element = scroll.current;
@@ -95,9 +163,70 @@ export function AgentNarrative(props: AgentNarrativeProps) {
       className="narrative-scroll"
       ref={scroll}
       onScroll={trackReader}
-      aria-busy={props.pending}
+	  aria-busy={props.pending || props.historyPending}
     >
       <div className="narrative-timeline">
+		{props.items.length > 0 ? (
+		  <div className="history-navigator">
+			<label>
+			  <span aria-hidden="true">⌕</span>
+			  <span className="sr-only">Search loaded conversation history</span>
+			  <input
+				ref={searchInput}
+				type="search"
+				value={search}
+				placeholder="Search conversation"
+				autoComplete="off"
+				aria-keyshortcuts="Control+f Meta+f"
+				onChange={(event) => setSearch(event.target.value)}
+				onKeyDown={(event) => {
+				  if (event.key === "Escape") {
+					setSearch("");
+					return;
+				  }
+				  if (event.key === "Enter") {
+					event.preventDefault();
+					moveMatch(event.shiftKey ? -1 : 1);
+				  }
+				}}
+			  />
+			  {search ? (
+				<button type="button" aria-label="Clear conversation search" onClick={() => setSearch("")}>×</button>
+			  ) : null}
+			</label>
+			{normalizedSearch !== "" ? (
+			  <span className="history-match-count" aria-live="polite">
+				{searchMatches.length === 0 ? "No loaded matches" : `${activeMatch + 1} / ${searchMatches.length}`}
+			  </span>
+			) : null}
+			{searchMatches.length > 0 ? (
+			  <span className="history-match-actions">
+				<button type="button" aria-label="Previous match" onClick={() => moveMatch(-1)}>↑</button>
+				<button type="button" aria-label="Next match" onClick={() => moveMatch(1)}>↓</button>
+			  </span>
+			) : null}
+			{props.hasOlderHistory || props.historyError ? (
+			  <button
+				className="history-load-older"
+				type="button"
+				disabled={props.historyPending}
+				onClick={() => {
+				  followsTail.current = false;
+				  void props.onLoadOlderHistory().catch(() => undefined);
+				}}
+			  >
+				{props.historyPending
+				  ? "Loading…"
+				  : props.historyError
+					? "Retry history"
+					: normalizedSearch !== "" && searchMatches.length === 0
+					  ? "Search older"
+					  : "Load older"}
+			  </button>
+			) : null}
+			{props.historyError ? <p role="alert">{props.historyError}</p> : null}
+		  </div>
+		) : null}
         {props.streamError ? (
           <p className="stream-warning" role="status">
             Live updates paused: {props.streamError}. Durable material is being
@@ -125,6 +254,8 @@ export function AgentNarrative(props: AgentNarrativeProps) {
               cancelError={props.cancelError}
               onCancelRun={props.onCancelRun}
 			  onFeedback={props.onFeedback}
+			  searchQuery={normalizedSearch}
+			  activeMatchID={activeMatchID}
 			  onForkFrom={props.onForkFrom}
 			  onRollback={props.onRollback}
             />
@@ -141,6 +272,8 @@ export function AgentNarrative(props: AgentNarrativeProps) {
             cancelError={props.cancelError}
             onCancelRun={props.onCancelRun}
 			onFeedback={props.onFeedback}
+			searchQuery={normalizedSearch}
+			activeMatchID={activeMatchID}
 			onForkFrom={props.onForkFrom}
 			onRollback={props.onRollback}
             integrity="The parent delegation is unavailable in this snapshot."
@@ -171,6 +304,8 @@ interface MaterialItemProps {
   cancelError?: { runId: string; message: string };
   onCancelRun(runId: string): Promise<void>;
 	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
+	searchQuery: string;
+	activeMatchID?: string;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }
@@ -192,6 +327,8 @@ function MaterialItem(props: MaterialItemProps) {
       liveOutput={props.material.liveToolOutputs[props.item.id]}
 	  historyBoundary={historyBoundary}
 	  onFeedback={props.onFeedback}
+	  searchQuery={props.searchQuery}
+	  activeMatch={props.item.id === props.activeMatchID}
 	  onForkFrom={props.onForkFrom}
 	  onRollback={props.onRollback}
     >
@@ -206,6 +343,8 @@ function MaterialItem(props: MaterialItemProps) {
           cancelError={props.cancelError}
           onCancelRun={props.onCancelRun}
 		  onFeedback={props.onFeedback}
+		  searchQuery={props.searchQuery}
+		  activeMatchID={props.activeMatchID}
 		  onForkFrom={props.onForkFrom}
 		  onRollback={props.onRollback}
         />
@@ -221,15 +360,19 @@ function NarrativeItem({
   liveOutput,
 	historyBoundary,
 	onFeedback,
+	searchQuery,
+	activeMatch,
 	onForkFrom,
 	onRollback,
 }: {
   item: Item;
-  run?: RunRef;
+  run?: RunSummary;
   children?: ReactNode;
   liveOutput?: LiveToolOutput;
 	historyBoundary: boolean;
 	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
+	searchQuery: string;
+	activeMatch: boolean;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }) {
@@ -237,9 +380,14 @@ function NarrativeItem({
   switch (item.type) {
     case "userMessage":
       return (
-        <article className="narrative-item user-turn" data-child={child}>
+        <article
+		  className="narrative-item user-turn"
+		  data-child={child}
+		  data-item-id={item.id}
+		  data-search-match={activeMatch}
+		>
           <ItemMeta label="You" item={item} run={run} />
-          <Content content={item.content} />
+		  <Content content={item.content} highlight={searchQuery} />
 		  {historyBoundary ? (
 			<SessionHistoryActions
 			  runId={run.id}
@@ -256,9 +404,11 @@ function NarrativeItem({
           className={`narrative-item agent-turn ${final ? "final-turn" : "work-turn"}`}
           data-child={child}
           data-running={item.status === "running"}
+		  data-item-id={item.id}
+		  data-search-match={activeMatch}
         >
           <ItemMeta label={final ? "Answer" : "Lyra"} item={item} run={run} />
-          <Content content={item.content} />
+		  <Content content={item.content} highlight={searchQuery} />
           {item.status === "running" ? <TypingMark /> : null}
 		  {final && !child && run?.status === "finished" && item.status === "completed" ? (
 			<FeedbackActions
@@ -276,33 +426,52 @@ function NarrativeItem({
           className="narrative-item reasoning-turn"
           data-child={child}
           defaultOpen={item.status === "running"}
+		  data-item-id={item.id}
+		  data-search-match={activeMatch}
         >
           <summary>
             <span>Reasoning</span>
             <small>{item.status === "running" ? "working" : "complete"}</small>
           </summary>
-          <NarrativeText text={item.redacted ? "Reasoning was redacted." : item.text ?? ""} />
+		  <NarrativeText
+			text={item.redacted ? "Reasoning was redacted." : item.text ?? ""}
+			highlight={searchQuery}
+		  />
           {item.status === "running" ? <TypingMark /> : null}
         </details>
       );
     case "toolCall":
       return (
-        <ToolDisclosure item={item} run={run} liveOutput={liveOutput}>
+        <ToolDisclosure
+		  item={item}
+		  run={run}
+		  liveOutput={liveOutput}
+		  searchMatch={activeMatch}
+		>
           {children}
         </ToolDisclosure>
       );
     case "question":
       return (
-        <article className="narrative-item question-turn" data-child={child}>
+        <article
+		  className="narrative-item question-turn"
+		  data-child={child}
+		  data-item-id={item.id}
+		  data-search-match={activeMatch}
+		>
           <ItemMeta label="Input needed" item={item} run={run} />
           {item.question?.fields.map((field, index) => (
-            <p key={`${item.id}:${index}`}>{field.prompt}</p>
+			<p key={`${item.id}:${index}`}><HighlightedText text={field.prompt} query={searchQuery} /></p>
           ))}
         </article>
       );
     case "compaction":
       return (
-        <aside className="narrative-boundary">
+        <aside
+		  className="narrative-boundary"
+		  data-item-id={item.id}
+		  data-search-match={activeMatch}
+		>
           Context compacted
           {item.droppedMessages
             ? ` · ${item.droppedMessages} messages condensed`
@@ -315,7 +484,7 @@ function NarrativeItem({
 }
 
 interface DelegatedRunDisclosureProps {
-  run: RunRef;
+	run: RunSummary;
   material: NarrativeMaterial;
   ancestry: Set<string>;
   pending: boolean;
@@ -324,6 +493,8 @@ interface DelegatedRunDisclosureProps {
   integrity?: string;
   onCancelRun(runId: string): Promise<void>;
 	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
+	searchQuery: string;
+	activeMatchID?: string;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }
@@ -404,6 +575,8 @@ function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
               cancelError={props.cancelError}
               onCancelRun={props.onCancelRun}
 			  onFeedback={props.onFeedback}
+			  searchQuery={props.searchQuery}
+			  activeMatchID={props.activeMatchID}
 			  onForkFrom={props.onForkFrom}
 			  onRollback={props.onRollback}
             />
@@ -468,7 +641,7 @@ function FeedbackActions(props: {
 	);
 }
 
-function ItemMeta(props: { label: string; item: Item; run?: RunRef }) {
+function ItemMeta(props: { label: string; item: Item; run?: RunSummary }) {
   const occurredAt = props.item.createdAt ?? props.item.startedAt;
   return (
     <header className="item-meta">
@@ -550,7 +723,13 @@ function SessionHistoryActions(props: {
 	);
 }
 
-function Content({ content = [] }: { content: ContentBlock[] | undefined }) {
+function Content({
+	content = [],
+	highlight,
+}: {
+	content: ContentBlock[] | undefined;
+	highlight: string;
+}) {
   return (
     <div className="message-content">
       {content.map((block, index) =>
@@ -562,14 +741,14 @@ function Content({ content = [] }: { content: ContentBlock[] | undefined }) {
             loading="lazy"
           />
         ) : (
-          <NarrativeText key={index} text={block.text ?? ""} />
+		  <NarrativeText key={index} text={block.text ?? ""} highlight={highlight} />
         ),
       )}
     </div>
   );
 }
 
-function NarrativeText({ text }: { text: string }) {
+function NarrativeText({ text, highlight }: { text: string; highlight: string }) {
   if (text === "") return null;
   const blocks = text.split(/```/g);
   return (
@@ -580,11 +759,46 @@ function NarrativeText({ text }: { text: string }) {
             <code>{block.replace(/^\w+\n/, "")}</code>
           </pre>
         ) : (
-          <p key={index}>{block}</p>
+		  <p key={index}><HighlightedText text={block} query={highlight} /></p>
         ),
       )}
     </>
   );
+}
+
+function HighlightedText(props: { text: string; query: string }) {
+	if (props.query === "") return props.text;
+	const source = props.text.toLocaleLowerCase();
+	const query = props.query.toLocaleLowerCase();
+	const fragments: ReactNode[] = [];
+	let cursor = 0;
+	let match = source.indexOf(query);
+	while (match >= 0) {
+		if (match > cursor) fragments.push(props.text.slice(cursor, match));
+		fragments.push(
+			<mark key={`${match}:${fragments.length}`}>
+				{props.text.slice(match, match + query.length)}
+			</mark>,
+		);
+		cursor = match + query.length;
+		match = source.indexOf(query, cursor);
+	}
+	if (cursor < props.text.length) fragments.push(props.text.slice(cursor));
+	return fragments.length === 0 ? props.text : fragments;
+}
+
+function itemSearchText(item: Item): string {
+	const content = (item.content ?? []).map((block) => block.text ?? "");
+	const prompts = item.question?.fields.map((field) => field.prompt) ?? [];
+	return [
+		item.type,
+		item.text ?? "",
+		item.summary ?? "",
+		item.tool?.name ?? "",
+		item.error?.detail ?? "",
+		...content,
+		...prompts,
+	].join("\n");
 }
 
 function TypingMark() {
@@ -623,7 +837,7 @@ function itemTextLength(item: Item) {
 
 function indexNarrative(
   items: Item[],
-  runs: RunRef[],
+	runs: RunSummary[],
   liveToolOutputs: Record<string, LiveToolOutput>,
 ): NarrativeMaterial {
   const runById = new Map(runs.map((run) => [run.id, run]));
@@ -635,8 +849,8 @@ function indexNarrative(
     itemsByRunId.set(item.runId, material);
   }
 
-  const childRunsByItemId = new Map<string, RunRef[]>();
-  const orphanRuns: RunRef[] = [];
+	const childRunsByItemId = new Map<string, RunSummary[]>();
+	const orphanRuns: RunSummary[] = [];
   for (const run of runs) {
     if (run.parentRunId === undefined) continue;
     const parent = runById.get(run.parentRunId);
@@ -671,13 +885,13 @@ function indexNarrative(
   };
 }
 
-function runState(run: RunRef) {
+function runState(run: RunSummary) {
   return run.status === "finished"
     ? (run.outcome?.type ?? "finished")
     : (run.status ?? "unknown");
 }
 
-function modelIdentity(run: RunRef) {
+function modelIdentity(run: RunSummary) {
   if (run.provider && run.model) return `${run.provider}/${run.model}`;
   return run.model ?? run.provider ?? "default model";
 }

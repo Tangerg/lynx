@@ -24,6 +24,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/approvalpolicy"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/domain/mcpserver"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
@@ -66,6 +67,10 @@ type ScheduleGateway interface {
 	Delete(context.Context, protocol.DeleteScheduleRequest) error
 }
 
+type ConversationGateway interface {
+	SearchConversations(context.Context, string, string, string, int) ([]transcript.SearchHit, error)
+}
+
 type LifecycleHooks interface {
 	Evaluate(context.Context, lifecyclehook.Invocation) (lifecyclehook.Decision, error)
 	EvaluateBestEffort(context.Context, lifecyclehook.Invocation) lifecyclehook.Decision
@@ -80,6 +85,7 @@ type Catalog struct {
 	schedules    ScheduleGateway
 	skillGateway SkillGateway
 	memory       MemoryGateway
+	conversations ConversationGateway
 	hooks        LifecycleHooks
 }
 
@@ -92,19 +98,20 @@ type Config struct {
 	Schedules ScheduleGateway
 	Skills  SkillGateway
 	Memory  MemoryGateway
+	Conversations ConversationGateway
 	Hooks   LifecycleHooks
 }
 
 func New(config Config) (*Catalog, error) {
 	if config.Policy == nil || config.Goals == nil || config.Plans == nil || config.Schedules == nil ||
-		config.Skills == nil || config.Memory == nil || config.Hooks == nil {
+		config.Skills == nil || config.Memory == nil || config.Conversations == nil || config.Hooks == nil {
 		return nil, errors.New("agenttools: policy, domain gateways, and lifecycle hooks are required")
 	}
 	return &Catalog{
 		policy: config.Policy, mcp: config.MCP, results: config.Results,
 		goals: config.Goals, plans: config.Plans, schedules: config.Schedules,
 		skillGateway: config.Skills,
-		memory: config.Memory, hooks: config.Hooks,
+		memory: config.Memory, conversations: config.Conversations, hooks: config.Hooks,
 	}, nil
 }
 
@@ -138,6 +145,11 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		return nil, err
 	}
 	values = append(values, memoryValues...)
+	conversationValues, err := catalog.conversationTools(scope)
+	if err != nil {
+		return nil, err
+	}
+	values = append(values, conversationValues...)
 	question, err := newAskUser(scope.RunID)
 	if err != nil {
 		return nil, err

@@ -31,7 +31,7 @@
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（全部 production 纵切已实现；Hooks 只待真实 PreCompact producer，整体待最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | implemented（production 纵切与全 topic/resync 已闭环，最终统一门禁留到 R11） |
-| R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
+| R9 | Session fork/rollback/import/export、history search、usage、feedback | implemented（production 纵切已闭环，最终统一门禁留到 R11） |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
 | R12 | 迁移 CLI/其余 consumer（deferred，本轮不实施） | deferred |
@@ -777,6 +777,21 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   error，不修改 Run outcome、snapshot 或 Session 状态，delegated final material 没有反馈入口；
 - O20、O23、U21 当前只标记为 `implemented`。production code 已完成；compile/test/restart/corruption/transport/UI/package 与
   resource-leak 证据按集中验证约定留到 R11 一次执行。
+
+### R9c Transcript Search + Long History 纵切（已实现，待最终统一门禁）
+
+- **Item 是唯一 durable source**：private `SearchableText` 只投影 user/agent text 与 Question prompt，明确排除 reasoning、Tool
+  arguments/result 与 Conversation model journal；SQLite external-content FTS5 与 Item insert/update/delete/cascade 同事务维护，
+  不建立异步搜索 owner、第二 revision 或 parallel conversation store；
+- **Agent search 不扩张协议**：`search_conversations` 作为 deferred safe Tool 进入 Run-frozen catalog，经既有 `search_tools`
+  渐进暴露；scope 只能是 mounted Session 或 exact workspace，query/term/hit/snippet/output 全部有界，结果明确为 untrusted
+  historical excerpts。89 个 dotted operations、HTTP/SSE 与 generated contract shape 均不变；
+- **既有 cursor 承担长历史**：Desktop 使用 `items.list(order=desc, limit=100)` infinite query，自动跨过与 bounded snapshot
+  重叠的 page，只在用户要求时 materialize older window；每页同时合并 Runtime 返回的 Run ancestor summary，不伪造 metrics；
+- **本地查找与阅读控制**：已 materialize 的 Item 支持 Cmd/Ctrl+F、Enter/Shift+Enter、previous/next、match count、message
+  highlight 与 exact Item scroll；无 match 时可逐 window “Search older”，加载旧材料会退出 follow-tail，避免跳回最新回答；
+- SQLite exact epoch 为 15。U19 与回忆/发现 Tool family 当前标记 `implemented`；large-history/FTS corruption/rebuild、
+  rollback/import/delete、keyboard/a11y/visual/package、统一 compile/test 与 resource-leak 证据仍留到 R11。
 
 ## 14. R10：Remote、内容与产品打磨
 

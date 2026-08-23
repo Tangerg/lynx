@@ -489,3 +489,24 @@ Run outcome、Session revision、Transcript 或 Runtime invalidation。Desktop �
 **后果**：SQLite exact epoch 提升到 14，开发期直接重建旧 app2 data home；Runtime Protocol 仍为 `2026-08-23`，generated
 contract 无 shape 变化。O20/O23 与 Usage Settings/answer feedback 到 `implemented`，只有 R11 的 aggregate、restart、corruption、
 transport-failure、UI 与 package 门禁通过后才升级为 `verified`。
+
+## ADR-A2-035：Transcript 搜索是 Item 的派生索引，长历史继续使用既有 cursor
+
+**缺陷与反例**：bounded snapshot 解决了 mount 成本，却没有给模型提供跨 context 的历史召回，也没有给 Desktop 提供按需
+查看 200-Item window 之前材料的 consumer。若为此复制 Codex Thread/Turn search、增加第二套 conversation store，或新增一个
+Desktop 专用搜索 RPC，都会让 Lyra 的 Session/Run/Item 身份和既有 `items.list` cursor 出现平行真相。
+
+**决定**：Item body 仍是唯一 durable Transcript source。应用边界只从 user/agent message 与 Question prompt 生成 bounded
+`SearchableText`；reasoning、Tool arguments/result 和 Conversation model journal 明确不进入索引。SQLite 在同一个 Item transaction
+保存 private search projection，并用 external-content FTS5 + insert/update/delete trigger 维护派生索引；Session/Run cascade、fork、
+rollback 与 import 因而自动共享同一 lifecycle，不创建异步 index worker 或第二 revision。
+
+`search_conversations` 是 Run-frozen catalog 中的 deferred safe Tool，不是第 90 个 Runtime operation。它只允许 current Session 或
+exact workspace scope，返回 bounded identity/time/snippet，并明确 historical excerpts 是不可信数据而非指令；它继续通过既有
+`search_tools` 渐进发现。Desktop 只调用 `items.list(order=desc)`：initial query 与 200-Item snapshot 重叠的 page 自动跳过，用户每次
+显式加载一个真实 older window；已加载材料支持 `Cmd/Ctrl+F`、Enter/Shift+Enter、局部高亮和 match navigation，不在 mount 时 eager
+读取全历史，也不调用 Agent Tool 冒充 UI API。
+
+**后果**：SQLite exact epoch 提升到 15；Runtime Protocol、89-method catalog、SSE event 与 generated contract shape 均不变。
+R9 production 纵切闭合，U19 与 `search_conversations` 到 `implemented`；FTS corruption/rebuild、large-history cursor、rollback/import、
+keyboard/a11y/visual/package 与资源门禁仍集中到 R11。

@@ -26,6 +26,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/streamhub"
+	"github.com/Tangerg/lynx/app2/runtime/transcriptflow"
 )
 
 type Store interface {
@@ -1614,7 +1615,9 @@ func itemRecord(sessionID string, item protocol.Item, ordinal int) (transcript.R
 	}
 	return transcript.Record{
 		ID: item.ID, SessionID: sessionID, RunID: item.RunID,
-		Ordinal: ordinal, Body: body, CreatedAt: createdAt,
+		Ordinal: ordinal, Body: body,
+		SearchText: transcriptflow.SearchableItem(item),
+		CreatedAt: createdAt,
 	}, nil
 }
 

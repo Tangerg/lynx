@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { Item, RunRef } from "@lyra/runtime-contract";
+import type { Item, RunSummary } from "@lyra/runtime-contract";
 
 import {
   formatToolDuration,
@@ -13,8 +13,9 @@ import type { LiveToolOutput } from "./agentSessionTypes";
 
 interface ToolDisclosureProps {
   item: Item;
-  run?: RunRef;
+  run?: RunSummary;
   liveOutput?: LiveToolOutput;
+	searchMatch?: boolean;
   children?: ReactNode;
 }
 
@@ -22,6 +23,7 @@ export function ToolDisclosure({
   item,
   run,
   liveOutput,
+	searchMatch,
   children,
 }: ToolDisclosureProps) {
   const tool = item.tool;
@@ -32,6 +34,8 @@ export function ToolDisclosure({
       className="narrative-item tool-turn"
       data-child={child}
       data-status={item.status}
+	  data-item-id={item.id}
+	  data-search-match={searchMatch === true}
       defaultOpen={item.status === "running"}
     >
       <summary>

@@ -46,6 +46,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/sqlite"
 	"github.com/Tangerg/lynx/app2/runtime/streamhub"
 	"github.com/Tangerg/lynx/app2/runtime/toolflow"
+	"github.com/Tangerg/lynx/app2/runtime/transcriptflow"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
 	"github.com/Tangerg/lynx/app2/runtime/workspaceflow"
 )
@@ -211,11 +212,15 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	transcripts, err := transcriptflow.New(database)
+	if err != nil {
+		return nil, err
+	}
 	agentToolCatalog, err := agenttools.New(agenttools.Config{
 		Policy: approvals, MCP: mcp, Results: database,
 		Goals: goals, Plans: plans, Schedules: schedules,
 		Skills: runtimeSkillGateway{capabilities: capabilities, events: events},
-		Memory: runtimeMemory{service: memory}, Hooks: hooks,
+		Memory: runtimeMemory{service: memory}, Conversations: transcripts, Hooks: hooks,
 	})
 	if err != nil {
 		return nil, err

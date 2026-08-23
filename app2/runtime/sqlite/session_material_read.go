@@ -106,7 +106,7 @@ func readMaterialItems(
 	material *sessionflow.Material,
 ) error {
 	rows, err := transaction.QueryContext(ctx, `
-		SELECT id,session_id,run_id,ordinal,body,created_at
+		SELECT id,session_id,run_id,ordinal,body,search_text,created_at
 		FROM items WHERE session_id=? ORDER BY created_at,run_id,ordinal`, sessionID)
 	if err != nil {
 		return err
@@ -121,6 +121,7 @@ func readMaterialItems(
 			&record.RunID,
 			&record.Ordinal,
 			&record.Body,
+			&record.SearchText,
 			&createdAt,
 		); err != nil {
 			return err
