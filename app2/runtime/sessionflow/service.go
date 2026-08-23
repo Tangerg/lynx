@@ -21,7 +21,8 @@ import (
 type Store interface {
 	CreateSession(context.Context, session.Session) error
 	GetSession(context.Context, session.ID) (session.Session, error)
-	ListSessions(context.Context, int, *session.Cursor) (session.Page, error)
+	GetSessionProjection(context.Context, session.ID) (session.Projection, error)
+	ListSessionProjections(context.Context, int, *session.Cursor) (session.Page, error)
 	UpdateSession(context.Context, session.Session, uint64) error
 	DeleteSession(context.Context, session.ID) error
 	LoadPlan(context.Context, string) (plandomain.State, error)
@@ -91,19 +92,20 @@ func (service *Service) Create(ctx context.Context, request protocol.CreateSessi
 	if err := service.store.CreateSession(ctx, value); err != nil {
 		return nil, err
 	}
-	return present(value, resolved, protocol.SessionStatusIdle), nil
+	return present(value, resolved, session.StatusIdle), nil
 }
 
 func (service *Service) Get(ctx context.Context, id string) (*protocol.Session, error) {
-	value, err := service.store.GetSession(ctx, session.ID(id))
+	projection, err := service.store.GetSessionProjection(ctx, session.ID(id))
 	if err != nil {
 		return nil, projectLookup(err)
 	}
+	value := projection.Session
 	resolved, err := service.workspaces.Resolve(ctx, value.Workspace().Path())
 	if err != nil {
 		return nil, err
 	}
-	return present(value, resolved, protocol.SessionStatusIdle), nil
+	return present(value, resolved, projection.Status), nil
 }
 
 func (service *Service) List(ctx context.Context, query protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
@@ -111,17 +113,18 @@ func (service *Service) List(ctx context.Context, query protocol.PageQuery) (*pr
 	if err != nil {
 		return nil, fmt.Errorf("%w: cursor is invalid", protocol.ErrInvalidParams)
 	}
-	page, err := service.store.ListSessions(ctx, query.Limit, cursor)
+	page, err := service.store.ListSessionProjections(ctx, query.Limit, cursor)
 	if err != nil {
 		return nil, err
 	}
-	data := make([]protocol.Session, 0, len(page.Sessions))
-	for _, value := range page.Sessions {
+	data := make([]protocol.Session, 0, len(page.Projections))
+	for _, projection := range page.Projections {
+		value := projection.Session
 		resolved, err := service.workspaces.Resolve(ctx, value.Workspace().Path())
 		if err != nil {
 			return nil, err
 		}
-		data = append(data, *present(value, resolved, protocol.SessionStatusIdle))
+		data = append(data, *present(value, resolved, projection.Status))
 	}
 	next := ""
 	if page.Next != nil {
@@ -160,13 +163,15 @@ func (service *Service) Update(ctx context.Context, request protocol.UpdateSessi
 		}
 		return nil, projectLookup(err)
 	}
-	if request.Workspace == nil {
-		resolved, err = service.workspaces.Resolve(ctx, value.Workspace().Path())
-		if err != nil {
-			return nil, err
-		}
+	projection, err := service.store.GetSessionProjection(ctx, value.ID())
+	if err != nil {
+		return nil, projectLookup(err)
 	}
-	return present(value, resolved, protocol.SessionStatusIdle), nil
+	resolved, err = service.workspaces.Resolve(ctx, projection.Session.Workspace().Path())
+	if err != nil {
+		return nil, err
+	}
+	return present(projection.Session, resolved, projection.Status), nil
 }
 
 func (service *Service) Delete(ctx context.Context, id string) error {
@@ -200,11 +205,12 @@ func (service *Service) ListWorkspaces(ctx context.Context) (*protocol.Page[prot
 	byPath := make(map[string]*aggregate)
 	var cursor *session.Cursor
 	for {
-		page, err := service.store.ListSessions(ctx, 200, cursor)
+		page, err := service.store.ListSessionProjections(ctx, 200, cursor)
 		if err != nil {
 			return nil, err
 		}
-		for _, value := range page.Sessions {
+		for _, projection := range page.Projections {
+			value := projection.Session
 			path := value.Workspace().Path()
 			entry := byPath[path]
 			if entry == nil {
@@ -249,13 +255,13 @@ func (service *Service) ListWorkspaces(ctx context.Context) (*protocol.Page[prot
 	return protocol.NewPage(data), nil
 }
 
-func present(value session.Session, resolved workspacefs.Resolution, status protocol.SessionStatus) *protocol.Session {
+func present(value session.Session, resolved workspacefs.Resolution, status session.Status) *protocol.Session {
 	availability := protocol.WorkspaceMissing
 	if resolved.Available {
 		availability = protocol.WorkspaceAvailable
 	}
 	return &protocol.Session{
-		ID: value.ID().String(), Title: value.Title(), Status: status, Model: value.Model(),
+		ID: value.ID().String(), Title: value.Title(), Status: protocol.SessionStatus(status), Model: value.Model(),
 		Workspace: protocol.WorkspaceInfo{
 			Ref: protocol.WorkspaceRef{Path: resolved.Workspace.Path()},
 			ProjectRoot: resolved.ProjectRoot, Availability: availability,
@@ -273,7 +279,11 @@ func projectLookup(err error) error {
 }
 
 func encodeCursor(cursor session.Cursor) string {
-	value := cursor.UpdatedAt.UTC().Format(time.RFC3339Nano) + "\n" + cursor.ID
+	favorite := "0"
+	if cursor.Favorite {
+		favorite = "1"
+	}
+	value := favorite + "\n" + cursor.UpdatedAt.UTC().Format(time.RFC3339Nano) + "\n" + cursor.ID
 	return base64.RawURLEncoding.EncodeToString([]byte(value))
 }
 
@@ -285,13 +295,13 @@ func decodeCursor(value string) (*session.Cursor, error) {
 	if err != nil {
 		return nil, err
 	}
-	parts := strings.SplitN(string(decoded), "\n", 2)
-	if len(parts) != 2 || parts[1] == "" {
+	parts := strings.SplitN(string(decoded), "\n", 3)
+	if len(parts) != 3 || parts[2] == "" || (parts[0] != "0" && parts[0] != "1") {
 		return nil, errors.New("invalid cursor")
 	}
-	updatedAt, err := time.Parse(time.RFC3339Nano, parts[0])
+	updatedAt, err := time.Parse(time.RFC3339Nano, parts[1])
 	if err != nil {
 		return nil, err
 	}
-	return &session.Cursor{UpdatedAt: updatedAt, ID: parts[1]}, nil
+	return &session.Cursor{Favorite: parts[0] == "1", UpdatedAt: updatedAt, ID: parts[2]}, nil
 }

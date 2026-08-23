@@ -30,7 +30,20 @@ func (database *Database) GetSession(ctx context.Context, id session.ID) (sessio
 		FROM sessions WHERE id = ?`, id.String()))
 }
 
-func (database *Database) ListSessions(ctx context.Context, limit int, after *session.Cursor) (session.Page, error) {
+func (database *Database) GetSessionProjection(ctx context.Context, id session.ID) (session.Projection, error) {
+	return scanSessionProjection(database.database.QueryRowContext(ctx, `
+		SELECT
+			s.id, s.title, s.workspace_path, s.model, s.favorite, s.revision,
+			s.created_at, s.updated_at, coalesce(open_run.status, '')
+		FROM sessions AS s
+		LEFT JOIN runs AS open_run
+			ON open_run.session_id = s.id
+			AND open_run.parent_run_id IS NULL
+			AND open_run.status != 'finished'
+		WHERE s.id = ?`, id.String()))
+}
+
+func (database *Database) ListSessionProjections(ctx context.Context, limit int, after *session.Cursor) (session.Page, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -38,36 +51,59 @@ func (database *Database) ListSessions(ctx context.Context, limit int, after *se
 		limit = 200
 	}
 	query := `
-		SELECT id, title, workspace_path, model, favorite, revision, created_at, updated_at
-		FROM sessions`
-	arguments := make([]any, 0, 3)
+		SELECT
+			s.id, s.title, s.workspace_path, s.model, s.favorite, s.revision,
+			s.created_at, s.updated_at, coalesce(open_run.status, '')
+		FROM sessions AS s
+		LEFT JOIN runs AS open_run
+			ON open_run.session_id = s.id
+			AND open_run.parent_run_id IS NULL
+			AND open_run.status != 'finished'`
+	arguments := make([]any, 0, 6)
 	if after != nil {
-		query += ` WHERE (updated_at < ? OR (updated_at = ? AND id < ?))`
-		arguments = append(arguments, encodeTime(after.UpdatedAt), encodeTime(after.UpdatedAt), after.ID)
+		query += ` WHERE (
+			s.favorite < ?
+			OR (s.favorite = ? AND (
+				s.updated_at < ?
+				OR (s.updated_at = ? AND s.id < ?)
+			))
+		)`
+		arguments = append(
+			arguments,
+			after.Favorite,
+			after.Favorite,
+			encodeTime(after.UpdatedAt),
+			encodeTime(after.UpdatedAt),
+			after.ID,
+		)
 	}
-	query += ` ORDER BY favorite DESC, updated_at DESC, id DESC LIMIT ?`
+	query += ` ORDER BY s.favorite DESC, s.updated_at DESC, s.id DESC LIMIT ?`
 	arguments = append(arguments, limit+1)
 	rows, err := database.database.QueryContext(ctx, query, arguments...)
 	if err != nil {
 		return session.Page{}, fmt.Errorf("sqlite: list sessions: %w", err)
 	}
 	defer rows.Close()
-	values := make([]session.Session, 0, limit+1)
+	projections := make([]session.Projection, 0, limit+1)
 	for rows.Next() {
-		value, err := scanSession(rows)
+		projection, err := scanSessionProjection(rows)
 		if err != nil {
 			return session.Page{}, err
 		}
-		values = append(values, value)
+		projections = append(projections, projection)
 	}
 	if err := rows.Err(); err != nil {
 		return session.Page{}, fmt.Errorf("sqlite: iterate sessions: %w", err)
 	}
-	page := session.Page{Sessions: values}
-	if len(values) > limit {
-		last := values[limit-1]
-		page.Sessions = values[:limit]
-		page.Next = &session.Cursor{UpdatedAt: last.UpdatedAt(), ID: last.ID().String()}
+	page := session.Page{Projections: projections}
+	if len(projections) > limit {
+		last := projections[limit-1].Session
+		page.Projections = projections[:limit]
+		page.Next = &session.Cursor{
+			Favorite: last.Favorite(),
+			UpdatedAt: last.UpdatedAt(),
+			ID:        last.ID().String(),
+		}
 	}
 	return page, nil
 }
@@ -114,37 +150,92 @@ func (database *Database) DeleteSession(ctx context.Context, id session.ID) erro
 type rowScanner interface{ Scan(...any) error }
 
 func scanSession(row rowScanner) (session.Session, error) {
-	var (
-		id, title, workspacePath, model, created, updated string
-		favorite bool
-		revision uint64
-	)
-	if err := row.Scan(&id, &title, &workspacePath, &model, &favorite, &revision, &created, &updated); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return session.Session{}, session.ErrNotFound
-		}
-		return session.Session{}, fmt.Errorf("sqlite: scan session: %w", err)
+	var stored storedSession
+	if err := scanSessionRow(row, stored.destinations()); err != nil {
+		return session.Session{}, err
 	}
-	workspace, err := session.NewWorkspace(workspacePath)
+	return stored.restore()
+}
+
+func scanSessionProjection(row rowScanner) (session.Projection, error) {
+	var (
+		stored storedSession
+		status string
+	)
+	destinations := append(stored.destinations(), &status)
+	if err := scanSessionRow(row, destinations); err != nil {
+		return session.Projection{}, err
+	}
+	value, err := stored.restore()
+	if err != nil {
+		return session.Projection{}, err
+	}
+	if status == "" {
+		status = string(session.StatusIdle)
+	}
+	projection, err := session.NewProjection(value, session.Status(status))
+	if err != nil {
+		return session.Projection{}, fmt.Errorf("sqlite: restore session projection %s: %w", value.ID(), err)
+	}
+	return projection, nil
+}
+
+type storedSession struct {
+	id, title, workspacePath, model, created, updated string
+	favorite bool
+	revision uint64
+}
+
+func (stored *storedSession) destinations() []any {
+	return []any{
+		&stored.id,
+		&stored.title,
+		&stored.workspacePath,
+		&stored.model,
+		&stored.favorite,
+		&stored.revision,
+		&stored.created,
+		&stored.updated,
+	}
+}
+
+func (stored storedSession) restore() (session.Session, error) {
+	workspace, err := session.NewWorkspace(stored.workspacePath)
 	if err != nil {
 		return session.Session{}, fmt.Errorf("sqlite: restore session workspace: %w", err)
 	}
-	createdAt, err := decodeTime(created)
+	createdAt, err := decodeTime(stored.created)
 	if err != nil {
 		return session.Session{}, err
 	}
-	updatedAt, err := decodeTime(updated)
+	updatedAt, err := decodeTime(stored.updated)
 	if err != nil {
 		return session.Session{}, err
 	}
 	value, err := session.Rehydrate(session.Restore{
-		ID: session.ID(id), Title: title, Workspace: workspace, Model: model,
-		Favorite: favorite, Revision: revision, CreatedAt: createdAt, UpdatedAt: updatedAt,
+		ID: session.ID(stored.id),
+		Title: stored.title,
+		Workspace: workspace,
+		Model: stored.model,
+		Favorite: stored.favorite,
+		Revision: stored.revision,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	})
 	if err != nil {
-		return session.Session{}, fmt.Errorf("sqlite: restore session %s: %w", id, err)
+		return session.Session{}, fmt.Errorf("sqlite: restore session %s: %w", stored.id, err)
 	}
 	return value, nil
+}
+
+func scanSessionRow(row rowScanner, destinations []any) error {
+	if err := row.Scan(destinations...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return session.ErrNotFound
+		}
+		return fmt.Errorf("sqlite: scan session: %w", err)
+	}
+	return nil
 }
 
 func encodeTime(value time.Time) string { return value.UTC().Format(time.RFC3339Nano) }

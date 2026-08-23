@@ -18,11 +18,49 @@ var (
 type Cursor struct {
 	UpdatedAt time.Time
 	ID        string
+	Favorite  bool
 }
 
 type Page struct {
-	Sessions []Session
-	Next     *Cursor
+	Projections []Projection
+	Next        *Cursor
+}
+
+// Status is the current activity projected from the one open root Run tree. It
+// is not persisted on Session: doing so would create a second lifecycle owner
+// that could disagree with Run after a crash or concurrent transition.
+type Status string
+
+const (
+	StatusIdle    Status = "idle"
+	StatusRunning Status = "running"
+	StatusWaiting Status = "waiting"
+)
+
+func (status Status) Valid() bool {
+	switch status {
+	case StatusIdle, StatusRunning, StatusWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
+// Projection is the Work Index read model: one durable Session aggregate plus
+// its activity derived by the adapter in the same database read.
+type Projection struct {
+	Session Session
+	Status  Status
+}
+
+func NewProjection(value Session, status Status) (Projection, error) {
+	if err := value.Validate(); err != nil {
+		return Projection{}, err
+	}
+	if !status.Valid() {
+		return Projection{}, fmt.Errorf("%w: invalid projected status %q", ErrInvalid, status)
+	}
+	return Projection{Session: value, Status: status}, nil
 }
 
 type ID string
