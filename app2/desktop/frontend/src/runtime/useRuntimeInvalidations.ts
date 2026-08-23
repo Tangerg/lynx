@@ -1,7 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import type { RuntimeConnection, RuntimeEvent } from "@lyra/runtime-contract";
+import type {
+  RuntimeConnection,
+  RuntimeEvent,
+  WorkspaceRef,
+} from "@lyra/runtime-contract";
 
 import {
   consumeRuntimeInvalidations,
@@ -13,8 +17,11 @@ export type RuntimeSyncState = "connecting" | "live" | "retrying" | "idle";
 export function useRuntimeInvalidations(
   connection: RuntimeConnection,
   enabled: boolean,
+  watch?: { id: string; workspace: WorkspaceRef },
 ): RuntimeSyncState {
   const queryClient = useQueryClient();
+  const watchId = watch?.id;
+  const watchWorkspacePath = watch?.workspace.path;
   const [state, setState] = useState<RuntimeSyncState>(
     enabled ? "connecting" : "idle",
   );
@@ -26,6 +33,10 @@ export function useRuntimeInvalidations(
     }
 
     const controller = new AbortController();
+    const activeWatch =
+      watchId === undefined || watchWorkspacePath === undefined
+        ? undefined
+        : { id: watchId, workspace: { path: watchWorkspacePath } };
     let retry = 0;
     const invalidate = (event: RuntimeEvent) => {
       const topics =
@@ -41,6 +52,19 @@ export function useRuntimeInvalidations(
       if (topics.includes("models.changed")) {
         void queryClient.invalidateQueries({
           queryKey: [...runtimeQueryKeys.scope(connection), "models"],
+        });
+      }
+      if (topics.includes("files.changed")) {
+        const workspace = event.workspace ?? activeWatch?.workspace;
+        if (workspace !== undefined) {
+          void queryClient.invalidateQueries({
+            queryKey: runtimeQueryKeys.workspace(connection, workspace.path),
+          });
+        }
+      }
+      if (topics.includes("codebase.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: [...runtimeQueryKeys.scope(connection), "codebase"],
         });
       }
       if (
@@ -78,6 +102,7 @@ export function useRuntimeInvalidations(
               setState("live");
             },
             invalidate,
+            activeWatch,
           );
         } catch (error) {
           if (controller.signal.aborted || isAbort(error)) return;
@@ -94,7 +119,13 @@ export function useRuntimeInvalidations(
 
     void run();
     return () => controller.abort();
-  }, [connection, enabled, queryClient]);
+  }, [
+    connection,
+    enabled,
+    queryClient,
+    watchId,
+    watchWorkspacePath,
+  ]);
 
   return state;
 }

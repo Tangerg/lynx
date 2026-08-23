@@ -43,7 +43,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O05 | `plan.get` | 1 | plan + planflow | R5 | implemented | Session current Plan、CAS revision、root terminal boundary、fork/rollback/import lifecycle、snapshot/event 同源、无 generic state registry；待 Desktop 与最终统一门禁 |
 | O06 | `items.list` | 1 | transcript | R3 | implemented | Session/Run subtree + ASC/DESC keyset cursor、query-bound cursor、page Run ancestor closure；待统一门禁 |
 | O07 | `workspaces.resolve`, `workspaces.list` | 2 | workspaceflow | R2/R6 | implemented | absolute identity、projectRoot 派生、missing 显式、无 active Project；Session create/native picker 已消费 exact ref，待统一门禁与 R6 consumer |
-| O08 | `workspace.changes.list`, `workspace.diff.get`, `workspace.files.head`, `workspace.files.search`, `workspace.files.list`, `workspace.files.read` | 6 | workspaceflow + filesystem/git | R6 | specified | scope/path safety、rows/raw sum type、binary/rename/untracked、cursor/bounds、纯文本无 server HTML |
+| O08 | `workspace.changes.list`, `workspace.diff.get`, `workspace.files.head`, `workspace.files.search`, `workspace.files.list`, `workspace.files.read` | 6 | workspaceflow + filesystem/git | R6 | in_progress | jailed file list/read/head/search 与 Desktop consumer 已接通：lazy cursor tree、exact grep hit、1000-line window、whole-file line count、binary/UTF-8 refusal；Git rows/raw 与 review consumer 待下一纵切 |
 | O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | specified | project/user scope、active/archive、proposal revision/origin/source、watch invalidation |
 | O10 | `recipes.list`, `agentDocs.list` | 2 | capability/recipes/docs | R7 | specified | cwd/project/home precedence、argument hint/source、bounded full content、files change refresh |
 | O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | specified | closed transport union、secret set/clear/keep、six states、generation-safe reconnect、auth retention |
@@ -74,7 +74,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 
 | Topic | Producer owner | Desktop consumer | 阶段 | 状态 | 验收 |
 | --- | --- | --- | --- | --- | --- |
-| `files.changed` | filesystem/watch | Context Dock files/diff | R6 | specified | path set 或 full resync；watch close 无残留 |
+| `files.changed` | filesystem/watch | Context Dock files/diff | R6 | implemented | selected Session 注册 exact workspace watch；path event 或 resync 失效 workspace query scope，Session/generation switch abort 旧订阅；待最终资源门禁 |
 | `skills.changed` | skill store/watch | Skills view/query | R7 | specified | names 可选；archive/restore/external edit 收敛 |
 | `mcp.changed` | MCP lifecycle | MCP settings/tool catalog | R8 | specified | status/auth/reconnect invalidate exact server |
 | `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
@@ -121,8 +121,8 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U10 | Plan compact progress | plan context | R5 | implemented | canonical snapshot 的 ring + N/M、当前步骤、完整 checklist hover/focus；无复制 Plan state；待最终统一门禁 |
 | U11 | Goal submit/tray/editor | goal + composer | R5 | implemented | `/goal` mode、budget、start/update/pause/resume/two-step clear、外部变化不覆盖 draft、SSE recovery；待最终统一门禁 |
 | U12 | Context token gauge | agent projection + model catalog | R3/R8 | implemented | live preview + durable Run footprint 与 provider model contextWindow 合成；unknown 容量只显示 token，待 reload/import 统一门禁 |
-| U13 | Context Dock tabs/split/persistence | workspace context | R6 | specified | per-Session open tabs/last view/file target、close/reopen、narrow window capability |
-| U14 | Files/tree/read/head/search | workspace context | R6 | specified | pagination、path truncation、loading/error/empty、syntax highlight、external change |
+| U13 | Context Dock tabs/split/persistence | workspace context | R6 | implemented | Workspace/Session owner 分离；per-Session open tabs/selected target/expanded tree/search 有界持久化；阅读时覆盖式扩展保留窄窗 Work Index；待最终统一门禁 |
+| U14 | Files/tree/read/head/search | workspace context | R6 | in_progress | lazy directory pagination、plain-text grep hit、exact line navigation、1000-line reader window、loading/error/empty/truncated/external change 已实现；语法 material 随 R10 renderer 收口 |
 | U15 | Diff/Review Workspace | workspace context | R6 | specified | all files、collapse/nav scroll、binary/rename/untracked、light/review density |
 | U16 | Terminal/tool detail/timeline/run summary | workspace + agent public | R4/R6 | specified | Tool disclosure 已覆盖 exact identity/status/duration/safety/approval 与 known material + unknown fallback；terminal/timeline/run summary 随 R6 |
 | U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |

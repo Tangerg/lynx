@@ -405,6 +405,23 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - 640px reading floor、light/review density、全文件 diff；
 - O08/O16、files/codebase topics、U13–U16 verified。
 
+### 当前实现记录（尚未统一验证）
+
+- **Workspace file read model**：`workspaceflow` 继续独占 path jail 与 plain-text material；file read 改为流式扫描完整文件，
+  因而 `totalLines` 不再等于预览字节内的偶然行数。UTF-8/NUL、最大单行/返回字节与 line window 都显式有界，served
+  `startLine/endLine` 不再回显未实际读取的请求值；
+- **Session-owned Context Dock**：Workspace/Session 是同一 Dock 的两个明确 pane。每个 Session 只持久化有界的 open file、
+  selected target、expanded directory 与 search draft/query；workspace identity 改变即丢弃旧 presentation state，不把 path
+  暗中带到新 workspace；
+- **Files consumer**：Desktop 用 lazy per-directory cursor query 构造树，text search 只消费 canonical `GrepMatch`，点击命中
+  打开包含目标行的 1000-line window。最多保留 8 个 tab、100 个展开目录和 32 个 Session 状态；大文件不会一次生成无界 DOM；
+- **Reading floor**：选中文件后 Context Dock 覆盖式扩展到 Work Index 右侧的可用宽度，最窄窗口仍保留约 640px reader，
+  而不是永久挤压 Agent Narrative 或扩大应用最小宽度；关闭最后 tab 或切回 Session pane 即释放扩展面；
+- **File watch ownership**：全局 Runtime invalidation lease 随 selected Session 注册一个 exact workspace watch；Session/Runtime
+  generation 切换会 abort 旧 subscription，`files.changed`/resync 只失效对应 workspace query prefix；
+- 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher 进程；仅声明式 Runtime file-watch subscription 会在
+  Desktop 运行时存在，并由 React effect cleanup 明确释放。
+
 ## 11. R7：能力资源
 
 按真实 UI/agent consumer 顺序完成：Skills → Recipes/AgentDocs → Knowledge → AgentMemory → Hooks → Tool catalog。

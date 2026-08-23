@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,10 +42,17 @@ func New(resolver Resolver) (*Service, error) {
 }
 
 func (service *Service) ReadFile(ctx context.Context, request protocol.ReadFileRequest) (*protocol.FileContent, error) {
-	root, path, relative, err := service.file(ctx, request.Workspace.Path, request.Path)
-	_ = root
+	_, path, relative, err := service.file(ctx, request.Workspace.Path, request.Path)
 	if err != nil {
 		return nil, err
+	}
+	windowed := request.StartLine != 0 || request.EndLine != 0
+	start, end := request.StartLine, request.EndLine
+	if start <= 0 {
+		start = 1
+	}
+	if end < 0 || (end != 0 && end < start) {
+		return nil, fmt.Errorf("%w: invalid line range", protocol.ErrInvalidParams)
 	}
 	limit := request.MaxBytes
 	if limit <= 0 {
@@ -60,44 +66,65 @@ func (service *Service) ReadFile(ctx context.Context, request protocol.ReadFileR
 		return nil, fmt.Errorf("workspaceflow: open %s: %w", relative, err)
 	}
 	defer file.Close()
-	encoded, err := io.ReadAll(io.LimitReader(file, int64(limit+1)))
-	if err != nil {
-		return nil, fmt.Errorf("workspaceflow: read %s: %w", relative, err)
-	}
-	truncated := len(encoded) > limit
-	if truncated {
-		encoded = encoded[:limit]
-	}
-	if bytes.IndexByte(encoded, 0) >= 0 || !utf8.Valid(encoded) {
-		return nil, fmt.Errorf("%w: %s is not UTF-8 text", protocol.ErrUnsupportedMime, relative)
-	}
-	text := string(encoded)
-	lines := strings.Split(text, "\n")
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	total := len(lines)
-	start, end := request.StartLine, request.EndLine
-	if start != 0 || end != 0 {
-		if start <= 0 {
-			start = 1
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64<<10), maxReadBytes+1)
+	var content strings.Builder
+	total, selected, servedEnd := 0, 0, 0
+	clipped := false
+	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		if end <= 0 || end > total {
-			end = total
+		total++
+		line := scanner.Bytes()
+		if bytes.IndexByte(line, 0) >= 0 || !utf8.Valid(line) {
+			return nil, fmt.Errorf("%w: %s is not UTF-8 text", protocol.ErrUnsupportedMime, relative)
 		}
-		if start > end+1 || start > total+1 {
-			return nil, fmt.Errorf("%w: requested line range is outside the file", protocol.ErrInvalidParams)
+		if clipped || total < start || (end != 0 && total > end) {
+			continue
 		}
-		lines = lines[start-1 : end]
-		text = strings.Join(lines, "\n")
-		if end < total {
-			truncated = true
+		if selected > 0 {
+			if content.Len() == limit {
+				clipped = true
+				continue
+			}
+			content.WriteByte('\n')
+		}
+		remaining := limit - content.Len()
+		if len(line) > remaining {
+			prefix := remaining
+			for prefix > 0 && !utf8.Valid(line[:prefix]) {
+				prefix--
+			}
+			content.Write(line[:prefix])
+			clipped = true
+		} else {
+			content.Write(line)
+		}
+		selected++
+		servedEnd = total
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("workspaceflow: scan %s: %w", relative, err)
+	}
+	if start > total && !(total == 0 && start == 1) {
+		return nil, fmt.Errorf("%w: requested line range is outside the file", protocol.ErrInvalidParams)
+	}
+	if end == 0 || end > total {
+		end = total
+	}
+	result := &protocol.FileContent{
+		Path: relative, Content: content.String(), Encoding: "utf-8", TotalLines: total,
+		Truncated: clipped || (windowed && (start > 1 || end < total)),
+	}
+	if windowed {
+		result.StartLine = start
+		result.EndLine = end
+		if clipped {
+			result.EndLine = servedEnd
 		}
 	}
-	return &protocol.FileContent{
-		Path: relative, Content: text, Encoding: "utf-8", TotalLines: total,
-		Truncated: truncated, StartLine: request.StartLine, EndLine: request.EndLine,
-	}, nil
+	return result, nil
 }
 
 func (service *Service) Head(ctx context.Context, request protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
@@ -114,7 +141,10 @@ func (service *Service) Head(ctx context.Context, request protocol.GetFileHeadRe
 	if err != nil {
 		return nil, err
 	}
-	text := strings.Split(content.Content, "\n")
+	text := []string{}
+	if content.TotalLines > 0 {
+		text = strings.Split(content.Content, "\n")
+	}
 	result := make([]protocol.FileLine, 0, len(text))
 	for index, line := range text {
 		result = append(result, protocol.FileLine{LineNumber: index + 1, Text: line})

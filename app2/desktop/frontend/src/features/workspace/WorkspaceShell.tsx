@@ -14,6 +14,7 @@ import {
   type ComposerDraft,
 } from "../agent/Composer";
 import { useAgentSessionView } from "../agent/useAgentSessionView";
+import { ContextDock } from "./ContextDock";
 import { GoalComposer } from "../goals/GoalComposer";
 import { GoalTray } from "../goals/GoalTray";
 import { useGoalActions } from "../goals/useGoalActions";
@@ -53,6 +54,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
   const [composerDrafts, setComposerDrafts] = useState<
     Record<string, ComposerDraft>
   >({});
+  const [dockExpanded, setDockExpanded] = useState(false);
   const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
   const goalsEnabled = props.discovery.capabilities.features.goals?.enabled === true;
   const liveUpdatesEnabled =
@@ -65,14 +67,35 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "goals.changed",
         "interrupts.changed",
         "models.changed",
+        "files.changed",
+        "codebase.changed",
       ] as const
     ).every((topic) =>
       props.discovery.capabilities.runtimeTopics.includes(topic),
     );
-  const syncState = useRuntimeInvalidations(connection, liveUpdatesEnabled);
-
   const catalog = useSessionCatalog(connection);
   const selectedSession = selectSession(catalog.sessions, selectedSessionId);
+  const fileWatch = useMemo(
+    () =>
+      props.discovery.capabilities.features.fileWatch?.enabled === true &&
+      selectedSession?.workspace.availability === "available"
+        ? {
+            id: `session:${selectedSession.id}`,
+            workspace: selectedSession.workspace.ref,
+          }
+        : undefined,
+    [
+      props.discovery.capabilities.features.fileWatch?.enabled,
+      selectedSession?.id,
+      selectedSession?.workspace.availability,
+      selectedSession?.workspace.ref.path,
+    ],
+  );
+  const syncState = useRuntimeInvalidations(
+    connection,
+    liveUpdatesEnabled,
+    fileWatch,
+  );
   const snapshot = useQuery({
     queryKey: runtimeQueryKeys.snapshot(
       connection,
@@ -293,24 +316,34 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         </div>
       </section>
 
-      <aside className="context-dock" aria-labelledby="context-title">
+      <aside
+        className="context-dock"
+        data-expanded={dockExpanded}
+        aria-labelledby="context-title"
+      >
         <header className="panel-header window-drag">
           <div>
             <span className="eyebrow">Context Dock</span>
             <h2 id="context-title">Session</h2>
           </div>
         </header>
-        {selectedSession && goalsEnabled ? (
-          <GoalTray
-            key={selectedSession.id}
-            sessionId={selectedSession.id}
-            goal={snapshot.data?.goal}
-            pending={snapshot.isPending}
-            error={snapshot.error}
-            actions={goalActions}
-          />
-        ) : null}
-        <RuntimeFacts connection={connection} discovery={props.discovery} />
+        <ContextDock
+          connection={connection}
+          session={selectedSession}
+          onExpandedChange={setDockExpanded}
+        >
+          {selectedSession && goalsEnabled ? (
+            <GoalTray
+              key={selectedSession.id}
+              sessionId={selectedSession.id}
+              goal={snapshot.data?.goal}
+              pending={snapshot.isPending}
+              error={snapshot.error}
+              actions={goalActions}
+            />
+          ) : null}
+          <RuntimeFacts connection={connection} discovery={props.discovery} />
+        </ContextDock>
       </aside>
     </main>
   );

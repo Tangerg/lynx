@@ -6,8 +6,11 @@ import {
   type ContentBlock,
   type CreateSessionRequest,
   type EmptyObject,
+  type FileContent,
+  type FileEntry,
   type Goal,
   type GoalBudget,
+  type GrepResult,
   type InterruptResponse,
   type Model,
   type Page,
@@ -22,6 +25,7 @@ import {
   type SessionSnapshot,
   type StartRunResponse,
   type UpdateSessionRequest,
+  type WorkspaceRef,
 } from "@lyra/runtime-contract";
 
 const clientMeta: RequestMeta = {
@@ -53,6 +57,44 @@ export const runtimeQueryKeys = {
   },
   models(connection: RuntimeConnection, provider: string) {
     return [...this.scope(connection), "models", provider] as const;
+  },
+  workspace(connection: RuntimeConnection, path: string) {
+    return [...this.scope(connection), "workspace", path] as const;
+  },
+  workspaceFiles(
+    connection: RuntimeConnection,
+    workspacePath: string,
+    directory: string,
+  ) {
+    return [
+      ...this.workspace(connection, workspacePath),
+      "files",
+      directory,
+    ] as const;
+  },
+  workspaceFile(
+    connection: RuntimeConnection,
+    workspacePath: string,
+    path: string,
+    startLine: number,
+  ) {
+    return [
+      ...this.workspace(connection, workspacePath),
+      "file",
+      path,
+      startLine,
+    ] as const;
+  },
+  workspaceSearch(
+    connection: RuntimeConnection,
+    workspacePath: string,
+    query: string,
+  ) {
+    return [
+      ...this.workspace(connection, workspacePath),
+      "search",
+      query,
+    ] as const;
   },
 };
 
@@ -108,6 +150,53 @@ export function listModels(
   return client(connection).call(
     "models.list",
     { provider },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listWorkspaceFiles(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  path: string,
+  cursor?: string,
+  signal?: AbortSignal,
+): Promise<Page<FileEntry>> {
+  return client(connection).call(
+    "workspace.files.list",
+    {
+      workspace,
+      path,
+      limit: 200,
+      ...(cursor === undefined ? {} : { cursor }),
+    },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function readWorkspaceFile(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  path: string,
+  startLine: number,
+  endLine: number,
+  signal?: AbortSignal,
+): Promise<FileContent> {
+  return client(connection).call(
+    "workspace.files.read",
+    { workspace, path, startLine, endLine, maxBytes: 2 * 1024 * 1024 },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function searchWorkspaceFiles(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  query: string,
+  signal?: AbortSignal,
+): Promise<GrepResult> {
+  return client(connection).call(
+    "workspace.files.search",
+    { workspace, query, limit: 200 },
     { meta: clientMeta, signal },
   );
 }
@@ -276,6 +365,7 @@ export async function consumeRuntimeInvalidations(
   signal: AbortSignal,
   onOpen: () => void,
   onEvent: (event: RuntimeEvent) => void,
+  watch?: { id: string; workspace: WorkspaceRef },
 ): Promise<void> {
   const stream = await client(connection).stream(
     "runtime.subscribe",
@@ -287,7 +377,12 @@ export async function consumeRuntimeInvalidations(
         "goals.changed",
         "interrupts.changed",
         "models.changed",
+        "files.changed",
+        "codebase.changed",
       ],
+      ...(watch === undefined
+        ? {}
+        : { watches: [{ watchId: watch.id, workspace: watch.workspace }] }),
     },
     { meta: clientMeta, signal },
   );
