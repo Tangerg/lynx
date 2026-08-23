@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -140,6 +141,30 @@ type Waiting struct {
 	Prompt         json.RawMessage
 	ResponseSchema json.RawMessage
 	Checkpoint     json.RawMessage
+	Tree           bool
+	Runs           []WaitingRun
+}
+
+type WaitingDisposition string
+
+const (
+	WaitingInterrupt WaitingDisposition = "interrupt"
+	WaitingSuspended WaitingDisposition = "suspended"
+)
+
+// WaitingRun is one non-terminal product Run captured at a complete tree
+// checkpoint. Interrupt material belongs only to the exact source Run; every
+// other member closes its current Segment as suspended.
+type WaitingRun struct {
+	RunID, SegmentID, ParentRunID, RootRunID string
+	Depth                                    uint32
+	Disposition                              WaitingDisposition
+	Prompt, ResponseSchema                   json.RawMessage
+	Usage                                    protocol.Usage
+	ModelCalls                               int
+	ContextTokens                            int64
+	Models                                   []ModelObservation
+	Tools                                    []ToolObservation
 }
 
 // ToolInputPrompt is the private mechanism contract shared by app2 tool
@@ -375,6 +400,23 @@ func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Proc
 			if process.Status() != agent.StatusWaiting {
 				continue
 			}
+			if observer.delegation != nil {
+				waiting, children, err := captureWaitingTree(context.WithoutCancel(ctx), engine, process, observer)
+				models, tools, usage, contextTokens := observer.snapshot(runID)
+				partial := Output{
+					Waiting: waiting, Children: children,
+					Models: models, Tools: tools, Usage: usage,
+					ModelCalls: len(models), ContextTokens: contextTokens,
+				}
+				if err != nil {
+					_ = stopProcess(engine, process)
+					return partial, err
+				}
+				if err := stopProcess(engine, process); err != nil {
+					return partial, fmt.Errorf("agentexec: release checkpointed tree: %w", err)
+				}
+				return partial, nil
+			}
 			pending, found, err := interaction.PendingToolInputFromProcess(context.WithoutCancel(ctx), process)
 			if err != nil || !found {
 				_ = stopProcess(engine, process)
@@ -401,7 +443,7 @@ func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Proc
 completed:
 	models, tools, usage, contextTokens := observer.snapshot(runID)
 	partial := Output{Usage: usage, ModelCalls: len(models), Models: models, Tools: tools, ContextTokens: contextTokens}
-	children, childErr := collectChildOutputs(ctx, engine, observer)
+	children, childErr := collectChildOutputs(ctx, engine, observer, nil)
 	partial.Children = children
 	if childErr != nil {
 		_ = engine.Close()
@@ -423,10 +465,99 @@ completed:
 	return partial, nil
 }
 
+func captureWaitingTree(
+	ctx context.Context,
+	engine *agent.Engine,
+	root *agent.Process,
+	observer *executionObserver,
+) (*Waiting, []ChildOutput, error) {
+	tree, err := parkTreeMembers(ctx, engine, root.ID())
+	if err != nil {
+		return nil, nil, fmt.Errorf("agentexec: park waiting tree: %w", err)
+	}
+	terminal := make(map[agent.ProcessID]bool)
+	runs := make([]WaitingRun, 0, len(tree.ProcessSnapshots()))
+	interrupts := 0
+	for _, snapshot := range tree.ProcessSnapshots() {
+		if snapshot.Status().Terminal() {
+			terminal[snapshot.ProcessID()] = true
+			continue
+		}
+		binding, found := observer.delegation.bindingProcess(snapshot.ProcessID())
+		if !found {
+			return nil, nil, fmt.Errorf("agentexec: checkpointed Process %s has no product Run", snapshot.ProcessID())
+		}
+		value := WaitingRun{
+			RunID: binding.runID, SegmentID: binding.segmentID,
+			ParentRunID: binding.parentRunID, RootRunID: binding.rootRunID,
+			Depth: binding.depth, Disposition: WaitingSuspended,
+		}
+		pending, found, pendingErr := interaction.PendingToolInputFromSnapshot(snapshot)
+		if pendingErr != nil {
+			return nil, nil, fmt.Errorf("agentexec: inspect waiting Process %s: %w", snapshot.ProcessID(), pendingErr)
+		}
+		if found {
+			value.Disposition = WaitingInterrupt
+			value.Prompt = pending.Prompt()
+			value.ResponseSchema = pending.ResponseSchema()
+			interrupts++
+		} else if snapshot.Status() != agent.StatusPaused && snapshot.Status() != agent.StatusWaiting {
+			return nil, nil, fmt.Errorf("agentexec: checkpointed Process %s remained %s", snapshot.ProcessID(), snapshot.Status())
+		}
+		value.Models, value.Tools, value.Usage, value.ContextTokens = observer.snapshot(binding.runID)
+		value.ModelCalls = len(value.Models)
+		runs = append(runs, value)
+	}
+	if interrupts == 0 {
+		return nil, nil, errors.New("agentexec: waiting tree has no external Tool input")
+	}
+	sort.Slice(runs, func(left, right int) bool {
+		if runs[left].Depth != runs[right].Depth {
+			return runs[left].Depth > runs[right].Depth
+		}
+		return runs[left].RunID < runs[right].RunID
+	})
+	children, err := collectChildOutputs(ctx, engine, observer, terminal)
+	if err != nil {
+		return nil, children, err
+	}
+	return &Waiting{Tree: true, Checkpoint: tree.JSON(), Runs: runs}, children, nil
+}
+
+func parkTreeMembers(ctx context.Context, engine *agent.Engine, rootID agent.ProcessID) (agent.TreeSnapshot, error) {
+	for attempts := 0; attempts < 64; attempts++ {
+		tree, err := engine.CaptureTree(ctx, rootID)
+		if err != nil {
+			return agent.TreeSnapshot{}, err
+		}
+		running := make([]agent.ProcessID, 0)
+		for _, snapshot := range tree.ProcessSnapshots() {
+			if snapshot.Status() == agent.StatusRunning {
+				running = append(running, snapshot.ProcessID())
+			}
+		}
+		if len(running) == 0 {
+			return tree, nil
+		}
+		for _, processID := range running {
+			member, found := engine.Process(processID)
+			if !found {
+				return agent.TreeSnapshot{}, fmt.Errorf("Process %s disappeared while parking", processID)
+			}
+			if err := member.Pause(ctx, "checkpointing a waiting Lyra Run tree"); err != nil &&
+				!errors.Is(err, agent.ErrProcessFinished) {
+				return agent.TreeSnapshot{}, err
+			}
+		}
+	}
+	return agent.TreeSnapshot{}, errors.New("agentexec: waiting tree did not reach a stable checkpoint boundary")
+}
+
 func collectChildOutputs(
 	ctx context.Context,
 	engine *agent.Engine,
 	observer *executionObserver,
+	only map[agent.ProcessID]bool,
 ) ([]ChildOutput, error) {
 	if observer == nil || observer.delegation == nil {
 		return nil, nil
@@ -434,6 +565,9 @@ func collectChildOutputs(
 	bindings := observer.delegation.children()
 	children := make([]ChildOutput, 0, len(bindings))
 	for _, child := range bindings {
+		if only != nil && !only[child.processID] {
+			continue
+		}
 		process, found := engine.Process(child.processID)
 		if !found {
 			return children, fmt.Errorf("agentexec: delegated Process %s is unavailable", child.processID)

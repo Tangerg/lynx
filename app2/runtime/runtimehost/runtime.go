@@ -117,6 +117,10 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	for _, feature := range protocol.Features() {
 		enabledFeatures[feature.Key] = true
 	}
+	// Tree execution exists internally, but the public capability remains gated
+	// until checkpoint/resume, exact cancellation, recovery, and Desktop
+	// disclosure all preserve source-owned child Runs end to end.
+	enabledFeatures[protocol.FeatureSubagents] = false
 	service, err := discovery.New(discovery.Config{
 		ServerInfo: protocol.ServerInfo{
 			InstanceID: instanceID, Name: config.ServerName, Version: config.ServerVersion,

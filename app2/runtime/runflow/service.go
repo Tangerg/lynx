@@ -43,6 +43,7 @@ type Store interface {
 	GetInterruptSet(context.Context, string) (protocol.PendingInterruptSet, error)
 	CommitResume(context.Context, ResumeWrite) error
 	CommitWait(context.Context, WaitWrite) error
+	CommitTreeWait(context.Context, TreeWaitWrite) error
 	CommitSteer(context.Context, SteerWrite) error
 	GetExecutorCheckpoint(context.Context, string) ([]byte, error)
 }
@@ -452,6 +453,13 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 		return
 	}
 	now := service.now().UTC()
+	if executeErr == nil && output.Waiting != nil && output.Waiting.Tree {
+		if err := service.parkTreeExecution(ctx, record, segmentID, *output.Waiting, now); err == nil {
+			return
+		} else {
+			executeErr = err
+		}
+	}
 	mergeRunUsage(&facts.Metrics, output.Usage, output.ModelCalls)
 	if output.ContextTokens > 0 {
 		facts.ContextTokens = output.ContextTokens

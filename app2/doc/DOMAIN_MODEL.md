@@ -132,6 +132,11 @@ Run tree 不变量：
 9. cancel 是控制意图，不是客户端先写 terminal；只有权威 termination 提交终态；
 10. active-step crash 没有完整 quiescent checkpoint 时收敛为 `lost`，不得伪造可恢复。
 
+当 tree 中任一 member 产生 Interrupt，checkpoint 是整棵 tree 的一致性边界，不是该 child 的局部快照：
+所有仍 running 的 member 必须先停在执行框架的 safe boundary；产生输入的 source Run 以 `interrupt` 结束当前
+Segment，其余非终态 member 以 `suspended` 结束。所有 Run 状态、source-owned material、tree stream events、完整
+Interrupt set 与 opaque checkpoint 必须在一笔事务提交，且 root 最后关闭；缺少任一 open member 时整笔拒绝。
+
 ## 6. Item、Transcript、Conversation 与 WorkingContext
 
 `Item` 是持久、可回放、可归因的历史事实。最小闭合族：

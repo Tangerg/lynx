@@ -304,8 +304,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   sequence 给整棵树一个 replay 顺序，attach-first handoff 以 eventId 去重。Hub 按 root scope fan-out，child
   `segment.finished` 不再关闭 Runtime iterator 或 Desktop lease，只有 root Segment terminal 才结束流；wire shape 与 7 种
   Lyra event 均未改变。该内部修正提升 app2 SQLite schema epoch 到 6，不承担旧 app2 开发库兼容；
-- **仍关闭的 delegation 门**：完整 tree checkpoint/HITL resume、root/child exact cancel、recovery 和 Desktop nested
-  disclosure 尚未完成，因此 Desktop 仍不声明 `subagents` feature；
+- **Atomic tree wait**：Framework tree 在 external input 出现后先把所有 running member 停到 safe boundary，再捕获
+  only-waiting/paused/terminal 的完整 opaque checkpoint；terminal descendants 先按既有 parent/child transaction 结算，
+  其余 source Run 按 depth-descending 投影各自 transcript/metrics/context，并以 `interrupt | suspended` 结束当前 Segment。
+  SQLite 用一笔 transaction CAS 整棵 open tree、写入 child-before-root event order，并只在 root 保存完整
+  `PendingInterruptSet` 与 checkpoint；任一遗漏 member 都拒绝提交；
+- **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；完整 tree resume、
+  root/child exact cancel、recovery 和 Desktop nested disclosure 尚未完成前，任何 client 都不能协商出半成品 tree；
+- **仍关闭的 delegation 门**：tree HITL resume、root/child exact cancel、recovery 和 Desktop nested disclosure 尚未完成；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal
