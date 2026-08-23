@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | pending |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills production 已实现，待其余资源与最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -459,6 +459,29 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 empty/error/unavailable states、Run injection boundary 和资源清理。
 
 完成 O09/O10/O12/O19/O21/O22，skills/knowledge/hooks/agentMemory topics，U20 与 Skill/回忆 tools。
+
+### R7 Skills 纵切（已实现，待最终统一门禁）
+
+- **单一内容事实源**：project `<workspace>/.lyra/skills` 与 user `~/.lyra/skills` 是唯一 Skill bundle
+  来源；SQLite 只记录 user library 的 active/archived 生命周期。每次 Desktop/Agent 读取都会让物理有效 bundle 与生命周期记录
+  收敛，外部新增默认 active，外部删除或失效会清理 ghost metadata；project 同名 Skill 始终优先，但 user archive 不会错误隐藏
+  project Skill；
+- **同一 Agent source**：`skills.discovered.list`、Desktop Available 与 Run 内 `list_skills`/`load_skill`/
+  `read_skill_resource` 共用同一个 project-first、archive-aware `ResourceSource`，不再扫描 `.agents`、`.claude` 或 `.codex`
+  fallback。`propose_skill` 仅 root Run 可见，只在用户明确要求复用工作流时提交 pending review，不直接发布或执行；
+- **精确审核与安全发布**：proposal 保存完整 instructions、trusted origin/source Session、scope、revises 和由 canonical
+  `SKILL.md` 内容生成的 revision。approve/reject 必须携带 exact workspace/name/scope/revision；approve 会重新校验 Agent Skills
+  frontmatter、大小与已知破坏性指令，以 `os.Root` confinement + 同目录原子 rename 发布，发布后 metadata/delete 失败可按同一内容安全重试；
+- **按身份串行**：user library 与 exact workspace/name proposal 使用可取消的 identity lane 串行，不用全局 Skill 大锁；不同 project
+  Skill 可并行，user lifecycle reconciliation 不与 archive/restore/approve 相互覆盖；
+- **外部变化与资源所有权**：Runtime subscription 为 `skills.changed` subscriber 独立拥有并释放 user Skill watcher；selected
+  Workspace watcher 会把 `.lyra/skills` 外部变化同时投影为 files/skills invalidation。subscription cancel、Runtime close 都会取消并
+  join watcher；本实现批未启动 Runtime、Wails、Vite、browser/agent-browser 或独立 watcher 进程；
+- **Desktop 工作台**：Context Dock Workspace 增加 per-Session 持久化 Skills 视图，含 Available/Proposals/Library 三个子视图，覆盖
+  capability unavailable、loading、error/retry、empty、action pending/error；proposal 展示 complete instructions 与精确 provenance，
+  approve/reject 使用 exact ref；user library 明确分组 active/archived，archive 永不删除物理 bundle；
+- **协议边界**：继续使用既有 Lyra dotted operations、Skill/Proposal types、`skills.changed` 与 generated TypeScript client；没有引入
+  Codex wire、Skill 路径或兼容 adapter。Codex 只作为 progressive disclosure / lifecycle 机制研究样本。
 
 ## 12. R8：Integration 与 Settings
 

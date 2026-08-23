@@ -16,6 +16,7 @@ import {
   type GoalBudget,
   type GrepResult,
   type InterruptResponse,
+  type ManagedSkill,
   type Model,
   type Page,
   type RequestMeta,
@@ -27,6 +28,9 @@ import {
   type RunEvent,
   type Session,
   type SessionSnapshot,
+  type Skill,
+  type SkillProposal,
+  type SkillProposalRef,
   type StartRunResponse,
   type UpdateSessionRequest,
   type WorkspaceRef,
@@ -134,6 +138,18 @@ export const runtimeQueryKeys = {
       query,
     ] as const;
   },
+  skills(connection: RuntimeConnection) {
+    return [...this.scope(connection), "skills"] as const;
+  },
+  discoveredSkills(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.skills(connection), "discovered", workspacePath] as const;
+  },
+  skillProposals(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.skills(connection), "proposals", workspacePath] as const;
+  },
+  skillLibrary(connection: RuntimeConnection) {
+    return [...this.skills(connection), "library"] as const;
+  },
 };
 
 function client(connection: RuntimeConnection): LyraClient {
@@ -235,6 +251,89 @@ export function searchWorkspaceFiles(
   return client(connection).call(
     "workspace.files.search",
     { workspace, query, limit: 200 },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listDiscoveredSkills(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<Page<Skill>> {
+  return client(connection).call(
+    "skills.discovered.list",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listSkillProposals(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<Page<SkillProposal>> {
+  return client(connection).call(
+    "skills.proposals.list",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listManagedSkills(
+  connection: RuntimeConnection,
+  signal?: AbortSignal,
+): Promise<Page<ManagedSkill>> {
+  return client(connection).call(
+    "skills.library.list",
+    {},
+    { meta: clientMeta, signal },
+  );
+}
+
+export async function archiveSkill(
+  connection: RuntimeConnection,
+  name: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await client(connection).call(
+    "skills.library.archive",
+    { name },
+    { meta: clientMeta, signal },
+  );
+}
+
+export async function restoreSkill(
+  connection: RuntimeConnection,
+  name: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await client(connection).call(
+    "skills.library.restore",
+    { name },
+    { meta: clientMeta, signal },
+  );
+}
+
+export async function approveSkillProposal(
+  connection: RuntimeConnection,
+  proposal: SkillProposalRef,
+  signal?: AbortSignal,
+): Promise<void> {
+  await client(connection).call(
+    "skills.proposals.approve",
+    proposal,
+    { meta: clientMeta, signal },
+  );
+}
+
+export async function rejectSkillProposal(
+  connection: RuntimeConnection,
+  proposal: SkillProposalRef,
+  signal?: AbortSignal,
+): Promise<void> {
+  await client(connection).call(
+    "skills.proposals.reject",
+    proposal,
     { meta: clientMeta, signal },
   );
 }
@@ -478,6 +577,7 @@ export async function consumeRuntimeInvalidations(
         "interrupts.changed",
         "models.changed",
         "files.changed",
+        "skills.changed",
         "codebase.changed",
       ],
       ...(watch === undefined

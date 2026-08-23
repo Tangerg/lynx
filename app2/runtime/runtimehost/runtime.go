@@ -134,6 +134,10 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	capabilities, err := capabilityflow.New(database, workspaceResolver, identity.Generator{}, config.UserHome)
+	if err != nil {
+		return nil, err
+	}
 	checkpoints := checkpoint.NewStore(filepath.Join(filepath.Dir(config.DatabasePath), "checkpoints"))
 	sessions, err := sessionflow.New(sessionflow.Config{
 		Store: database, IDs: identity.Generator{}, Workspaces: workspaceResolver,
@@ -146,7 +150,12 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
-	events := runtimeevents.New()
+	events, err := runtimeevents.New(runtimeevents.Config{
+		UserSkillsDirectory: filepath.Join(config.UserHome, ".lyra", "skills"),
+	})
+	if err != nil {
+		return nil, err
+	}
 	guard.AddClose(events.Close)
 	goalSignals := goalflow.NewSignals()
 	goals, err := goalflow.New(database, identity.Generator{}, goalSignals, events)
@@ -158,7 +167,14 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	guard.AddClose(mcp.Close)
-	agentToolCatalog, err := agenttools.New(database, mcp, database, goals, plans, config.UserHome)
+	agentToolCatalog, err := agenttools.New(
+		database,
+		mcp,
+		database,
+		goals,
+		plans,
+		runtimeSkillGateway{capabilities: capabilities, events: events},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -194,10 +210,6 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	guard.AddClose(settings.Close)
 	interrupts, err := interruptflow.New(database)
-	if err != nil {
-		return nil, err
-	}
-	capabilities, err := capabilityflow.New(database, workspaceResolver, identity.Generator{}, config.UserHome)
 	if err != nil {
 		return nil, err
 	}

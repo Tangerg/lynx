@@ -71,6 +71,13 @@ export function presentTool(
         "read",
         "◇",
       );
+    case "propose_skill":
+      return tool(
+        "Propose skill",
+        stringArgument(argumentsValue, "name"),
+        "control",
+        "◇",
+      );
     case "enter_plan_mode":
       return tool("Enter Plan mode", undefined, "control", "▤");
     case "set_plan":

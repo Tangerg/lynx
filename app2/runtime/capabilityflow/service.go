@@ -12,13 +12,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	lyraskills "github.com/Tangerg/lynx/skills"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -30,10 +28,11 @@ const maxAuthoredDocumentBytes = 1 << 20
 
 type Store interface {
 	ListManagedSkillRecords(context.Context) ([]protocol.ManagedSkill, error)
-	SetManagedSkillLifecycle(context.Context, string, protocol.SkillLifecycle) error
 	PutManagedSkill(context.Context, protocol.ManagedSkill) error
+	DeleteManagedSkill(context.Context, string) error
 	ListSkillProposalRecords(context.Context, string) ([]protocol.SkillProposal, error)
 	GetSkillProposalRecord(context.Context, string, string, string) (protocol.SkillProposal, error)
+	PutSkillProposalRecord(context.Context, string, protocol.SkillProposal) error
 	DeleteSkillProposalRecord(context.Context, string, string, string) error
 	ListAgentMemoryRecords(context.Context, protocol.AgentMemoryScope, string) ([]protocol.AgentMemoryItem, error)
 	GetAgentMemoryRecord(context.Context, string) (protocol.AgentMemoryItem, string, error)
@@ -47,47 +46,31 @@ type Resolver interface { Resolve(context.Context, string) (workspacefs.Resoluti
 type IDs interface { New(string) (string, error) }
 
 type Service struct {
-	store Store
-	resolver Resolver
-	ids IDs
-	home string
-	userRoot string
-	mu sync.Mutex
+	store       Store
+	resolver    Resolver
+	ids         IDs
+	home        string
+	userRoot    string
+	mu          sync.Mutex
+	skillSerial *skillCoordinator
 }
 
-func New(store Store, resolver Resolver, ids IDs, home string) (*Service,error) {
-	if store==nil||resolver==nil||ids==nil||!filepath.IsAbs(home){return nil,errors.New("capabilityflow: store, resolver, ids and absolute home are required")}
-	return &Service{store:store,resolver:resolver,ids:ids,home:filepath.Clean(home),userRoot:filepath.Join(home,".lyra" )},nil
-}
-
-func (service *Service) DiscoveredSkills(ctx context.Context,query protocol.WorkspaceQuery)(*protocol.Page[protocol.Skill],error){
-	resolved,err:=service.resolve(ctx,&query.Workspace);if err!=nil{return nil,err}
-	managed,err:=service.ManagedSkills(ctx);if err!=nil{return nil,err}; archived:=map[string]bool{};for _,item:=range managed.Data{archived[item.Name]=item.Lifecycle==protocol.SkillLifecycleArchived}
-	seen:=map[string]bool{}; values:=make([]protocol.Skill,0)
-	add:=func(dir string,scope protocol.SkillScope)error{if !directoryExists(dir){return nil}; summaries,err:=lyraskills.Dir(dir).List(ctx);if err!=nil{return err};for _,summary:=range summaries{if seen[summary.Name]||archived[summary.Name]{continue};seen[summary.Name]=true;values=append(values,protocol.Skill{Name:summary.Name,Description:summary.Description,Scope:scope})};return nil}
-	if err:=add(filepath.Join(resolved.Workspace.Path(),".lyra","skills"),protocol.SkillScopeProject);err!=nil{return nil,err}
-	if err:=add(filepath.Join(service.userRoot,"skills"),protocol.SkillScopeUser);err!=nil{return nil,err}
-	slices.SortFunc(values,func(a,b protocol.Skill)int{return strings.Compare(a.Name,b.Name)});return protocol.NewPage(values),nil
-}
-
-func (service *Service) ManagedSkills(ctx context.Context)(*protocol.Page[protocol.ManagedSkill],error){
-	service.mu.Lock();defer service.mu.Unlock()
-	stored,err:=service.store.ListManagedSkillRecords(ctx);if err!=nil{return nil,err};byName:=map[string]protocol.ManagedSkill{};for _,value:=range stored{byName[value.Name]=value}
-	dir:=filepath.Join(service.userRoot,"skills");if directoryExists(dir){summaries,err:=lyraskills.Dir(dir).List(ctx);if err!=nil{return nil,err};for _,summary:=range summaries{if _,ok:=byName[summary.Name];ok{continue};value:=protocol.ManagedSkill{Name:summary.Name,Description:summary.Description,Lifecycle:protocol.SkillLifecycleActive};if err:=service.store.PutManagedSkill(ctx,value);err!=nil{return nil,err};byName[value.Name]=value}}
-	values:=make([]protocol.ManagedSkill,0,len(byName));for _,value:=range byName{values=append(values,value)};slices.SortFunc(values,func(a,b protocol.ManagedSkill)int{return strings.Compare(a.Name,b.Name)});return protocol.NewPage(values),nil
-}
-
-func (service *Service) SetSkillLifecycle(ctx context.Context,request protocol.SkillNameRequest,lifecycle protocol.SkillLifecycle)error{if !validName(request.Name){return fmt.Errorf("%w: invalid skill name",protocol.ErrInvalidParams)};if err:=service.store.SetManagedSkillLifecycle(ctx,request.Name,lifecycle);err!=nil{if errors.Is(err,sqlite.ErrCapabilityNotFound){return protocol.ErrItemNotFound};return err};return nil}
-
-func (service *Service) SkillProposals(ctx context.Context,query protocol.WorkspaceQuery)(*protocol.Page[protocol.SkillProposal],error){resolved,err:=service.resolve(ctx,&query.Workspace);if err!=nil{return nil,err};values,err:=service.store.ListSkillProposalRecords(ctx,resolved.Workspace.Path());if err!=nil{return nil,err};return protocol.NewPage(values),nil}
-
-func (service *Service) ApproveProposal(ctx context.Context,ref protocol.SkillProposalRef)error{return service.settleProposal(ctx,ref,true)}
-func (service *Service) RejectProposal(ctx context.Context,ref protocol.SkillProposalRef)error{return service.settleProposal(ctx,ref,false)}
-func (service *Service) settleProposal(ctx context.Context,ref protocol.SkillProposalRef,approve bool)error{
-	resolved,err:=service.resolve(ctx,&ref.Workspace);if err!=nil{return err}; proposal,err:=service.store.GetSkillProposalRecord(ctx,resolved.Workspace.Path(),ref.Name,ref.Revision);if err!=nil{return protocol.ErrItemNotFound}
-	if proposal.Scope!=ref.Scope{return fmt.Errorf("%w: proposal scope mismatch",protocol.ErrInvalidParams)}
-	if approve{root:=filepath.Join(service.userRoot,"skills");if proposal.Scope==protocol.SkillScopeProject{root=filepath.Join(resolved.Workspace.Path(),".lyra","skills")};dir:=filepath.Join(root,proposal.Name);content:="---\nname: "+proposal.Name+"\ndescription: "+yamlQuote(proposal.Description)+"\n---\n\n"+proposal.Instructions+"\n";if err:=atomicWrite(filepath.Join(dir,"SKILL.md"),[]byte(content),0o644);err!=nil{return err};if proposal.Scope==protocol.SkillScopeUser{_ = service.store.PutManagedSkill(ctx,protocol.ManagedSkill{Name:proposal.Name,Description:proposal.Description,Lifecycle:protocol.SkillLifecycleActive})}}
-	return service.store.DeleteSkillProposalRecord(ctx,resolved.Workspace.Path(),ref.Name,ref.Revision)
+func New(store Store, resolver Resolver, ids IDs, home string) (*Service, error) {
+	if store == nil || resolver == nil || ids == nil || !filepath.IsAbs(home) {
+		return nil, errors.New("capabilityflow: store, resolver, ids and absolute home are required")
+	}
+	home = filepath.Clean(home)
+	if err := prepareUserSkillLibrary(home); err != nil {
+		return nil, fmt.Errorf("capabilityflow: prepare user skills: %w", err)
+	}
+	return &Service{
+		store:       store,
+		resolver:    resolver,
+		ids:         ids,
+		home:        home,
+		userRoot:    filepath.Join(home, ".lyra"),
+		skillSerial: newSkillCoordinator(),
+	}, nil
 }
 
 func (service *Service) Recipes(ctx context.Context,query protocol.WorkspaceQuery)(*protocol.Page[protocol.Recipe],error){resolved,err:=service.resolve(ctx,&query.Workspace);if err!=nil{return nil,err};seen:=map[string]bool{};values:=make([]protocol.Recipe,0);add:=func(dir string,scope protocol.RecipeScope){entries,_:=os.ReadDir(dir);for _,entry:=range entries{if entry.IsDir()||strings.HasPrefix(entry.Name(),".")||!strings.HasSuffix(entry.Name(),".md"){continue};name:=strings.TrimSuffix(entry.Name(),".md");if seen[name]{continue};path:=filepath.Join(dir,entry.Name());data,err:=os.ReadFile(path);if err!=nil||len(data)>maxAuthoredDocumentBytes{continue};front,body:=parseRecipe(data);seen[name]=true;values=append(values,protocol.Recipe{Name:name,Description:front.Description,ArgumentHint:front.ArgumentHint,Body:body,Scope:scope,Source:path})}}
@@ -117,12 +100,8 @@ func (service *Service) memoryProject(ctx context.Context,scope protocol.AgentMe
 
 type recipeFrontmatter struct{Description string `yaml:"description"`;ArgumentHint string `yaml:"argumentHint"`}
 func parseRecipe(data []byte)(recipeFrontmatter,string){text:=strings.TrimPrefix(strings.ReplaceAll(string(data),"\r\n","\n"),"\ufeff");lines:=strings.Split(text,"\n");if len(lines)==0||strings.TrimSpace(lines[0])!="---"{return recipeFrontmatter{},strings.TrimSpace(text)};end:=-1;for i:=1;i<len(lines);i++{if strings.TrimSpace(lines[i])=="---"{end=i;break}};if end<0{return recipeFrontmatter{},strings.TrimSpace(text)};var front recipeFrontmatter;if yaml.Unmarshal([]byte(strings.Join(lines[1:end],"\n")),&front)!=nil{return recipeFrontmatter{},strings.TrimSpace(text)};front.Description=strings.TrimSpace(front.Description);front.ArgumentHint=strings.TrimSpace(front.ArgumentHint);return front,strings.TrimSpace(strings.Join(lines[end+1:],"\n"))}
-var safeName=regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
-func validName(value string)bool{return safeName.MatchString(value)}
-func directoryExists(path string)bool{info,err:=os.Stat(path);return err==nil&&info.IsDir()}
 func firstHeading(path string)string{data,err:=os.ReadFile(path);if err!=nil{return ""};for _,line:=range strings.Split(string(data),"\n"){line=strings.TrimSpace(line);if strings.HasPrefix(line,"# "){return strings.TrimSpace(strings.TrimPrefix(line,"# "))}};return filepath.Base(path)}
 func rootToLeaf(root,leaf string)[]string{root=filepath.Clean(root);leaf=filepath.Clean(leaf);values:=[]string{};for current:=leaf;;current=filepath.Dir(current){values=append(values,current);if current==root||filepath.Dir(current)==current{break}};slices.Reverse(values);return values}
 func revision(data []byte)string{sum:=sha256.Sum256(data);return hex.EncodeToString(sum[:])}
 func readOptional(path string)([]byte,time.Time,error){info,err:=os.Stat(path);if errors.Is(err,os.ErrNotExist){return nil,time.Time{},nil};if err!=nil{return nil,time.Time{},err};if !info.Mode().IsRegular()||info.Size()>maxAuthoredDocumentBytes{return nil,time.Time{},fmt.Errorf("capabilityflow: invalid authored document %s",path)};data,err:=os.ReadFile(path);return data,info.ModTime(),err}
 func atomicWrite(path string,data []byte,mode os.FileMode)error{if err:=os.MkdirAll(filepath.Dir(path),0o755);err!=nil{return err};temporary,err:=os.CreateTemp(filepath.Dir(path),".lyra-write-*");if err!=nil{return err};name:=temporary.Name();committed:=false;defer func(){_ = temporary.Close();if !committed{_ = os.Remove(name)}}();if err:=temporary.Chmod(mode);err!=nil{return err};if _,err:=temporary.Write(data);err!=nil{return err};if err:=temporary.Sync();err!=nil{return err};if err:=temporary.Close();err!=nil{return err};if err:=os.Rename(name,path);err!=nil{return err};committed=true;return nil}
-func yamlQuote(value string)string{encoded,_:=yaml.Marshal(value);return strings.TrimSpace(string(encoded))}

@@ -1735,6 +1735,258 @@ input::placeholder {
   margin-top: 15px;
 }
 
+.skills-workspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.skill-view-switch {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.skill-view-switch button {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.skill-view-switch button[aria-current="page"] {
+  color: var(--ink);
+  background: var(--paper-strong);
+}
+
+.skill-view-switch small,
+.managed-skill-section > header small {
+  min-width: 18px;
+  color: var(--ink-muted);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.skill-action-error {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  color: var(--red);
+  background: rgba(164, 71, 61, 0.07);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.skill-action-error button {
+  min-height: 32px;
+  padding: 0 9px;
+  color: var(--red);
+  background: transparent;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.skill-card-list,
+.managed-skill-library {
+  display: grid;
+  min-height: 0;
+  gap: 9px;
+}
+
+.skills-workspace > .skill-card-list,
+.managed-skill-library {
+  flex: 1;
+  align-content: start;
+  padding: 12px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.skill-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: var(--paper-raised);
+  box-shadow: 0 1px 1px rgba(28, 27, 23, 0.025);
+}
+
+.skill-card > header,
+.skill-proposal-card > footer,
+.managed-skill-section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.skill-card h4,
+.skill-card h5,
+.managed-skill-section h4,
+.skills-state h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 730;
+  overflow-wrap: anywhere;
+}
+
+.skill-card p,
+.managed-skill-empty,
+.skills-state p {
+  margin: 7px 0 0;
+  color: var(--ink-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.skill-tag {
+  display: inline-flex;
+  min-height: 21px;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--ink-subtle);
+  background: var(--paper-strong);
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.skill-tags {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.skill-proposal-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 12px 0;
+}
+
+.skill-proposal-facts > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: var(--paper-muted);
+}
+
+.skill-proposal-facts dt {
+  color: var(--ink-muted);
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.skill-proposal-facts dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--ink-subtle);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-proposal-card details {
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+}
+
+.skill-proposal-card summary {
+  padding: 10px 0;
+  color: var(--ink-subtle);
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.skill-proposal-card pre {
+  max-height: 320px;
+  margin: 0 0 11px;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 9px;
+  color: var(--ink-subtle);
+  background: var(--paper-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+.skill-proposal-card > footer {
+  justify-content: flex-end;
+  margin-top: 11px;
+}
+
+.skill-proposal-card > footer button,
+.managed-skill-section .skill-card button,
+.skills-state button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.managed-skill-section {
+  display: grid;
+  gap: 8px;
+}
+
+.managed-skill-section + .managed-skill-section {
+  padding-top: 13px;
+  border-top: 1px solid var(--divider);
+}
+
+.managed-skill-section > header {
+  justify-content: flex-start;
+}
+
+.managed-skill-empty {
+  padding: 11px;
+  border-radius: 10px;
+  background: var(--paper-muted);
+}
+
+.skills-state {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  align-content: center;
+  justify-items: center;
+  padding: 28px;
+  text-align: center;
+}
+
+.skills-state p {
+  max-width: 430px;
+  text-wrap: balance;
+}
+
+.skills-state button {
+  margin-top: 14px;
+}
+
 .codebase-results {
   display: grid;
   min-height: 0;

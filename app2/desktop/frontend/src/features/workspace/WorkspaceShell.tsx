@@ -57,6 +57,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
   const [dockExpanded, setDockExpanded] = useState(false);
   const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
   const goalsEnabled = props.discovery.capabilities.features.goals?.enabled === true;
+  const skillsEnabled = props.discovery.capabilities.features.skills?.enabled === true;
   const liveUpdatesEnabled =
     props.discovery.capabilities.streamingMethods.includes("runtime.subscribe") &&
     (
@@ -68,6 +69,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "interrupts.changed",
         "models.changed",
         "files.changed",
+        "skills.changed",
         "codebase.changed",
       ] as const
     ).every((topic) =>
@@ -340,6 +342,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           cancelError={agentView.cancelError}
           onExpandedChange={setDockExpanded}
           onCancelRun={agentView.cancel}
+          skillsEnabled={skillsEnabled}
         >
           {selectedSession && goalsEnabled ? (
             <GoalTray

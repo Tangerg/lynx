@@ -44,7 +44,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O06 | `items.list` | 1 | transcript | R3 | implemented | Session/Run subtree + ASC/DESC keyset cursor、query-bound cursor、page Run ancestor closure；待统一门禁 |
 | O07 | `workspaces.resolve`, `workspaces.list` | 2 | workspaceflow | R2/R6 | implemented | absolute identity、projectRoot 派生、missing 显式、无 active Project；Session create/native picker 已消费 exact ref，待统一门禁与 R6 consumer |
 | O08 | `workspace.changes.list`, `workspace.diff.get`, `workspace.files.head`, `workspace.files.search`, `workspace.files.list`, `workspace.files.read` | 6 | workspaceflow + filesystem/git | R6 | implemented | jailed file list/read/head/search + Desktop lazy tree/exact grep/1000-line window 已接通；Git exact repository/workspace scope、staged+unstaged+untracked、unborn HEAD、honest numstat/binary、bounded subprocess output、raw/rows file-boundary truncation 与 Review consumer 已实现；待最终统一门禁 |
-| O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | specified | project/user scope、active/archive、proposal revision/origin/source、watch invalidation |
+| O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | implemented | `.lyra/skills` 单一内容源、project-first/user lifecycle reconcile、exact immutable proposal review、confined atomic publish、Desktop 三面 consumer 与 external watch 已实现；待最终统一门禁 |
 | O10 | `recipes.list`, `agentDocs.list` | 2 | capability/recipes/docs | R7 | specified | cwd/project/home precedence、argument hint/source、bounded full content、files change refresh |
 | O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | specified | closed transport union、secret set/clear/keep、six states、generation-safe reconnect、auth retention |
 | O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | specified | global/project sources、project trust、event/matcher/timeout、untrusted hook 不执行 |
@@ -75,7 +75,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | Topic | Producer owner | Desktop consumer | 阶段 | 状态 | 验收 |
 | --- | --- | --- | --- | --- | --- |
 | `files.changed` | filesystem/watch | Context Dock files/diff | R6 | implemented | selected Session 注册 exact workspace watch；path event 或 resync 失效 workspace query scope，Session/generation switch abort 旧订阅；待最终资源门禁 |
-| `skills.changed` | skill store/watch | Skills view/query | R7 | specified | names 可选；archive/restore/external edit 收敛 |
+| `skills.changed` | skill store/watch | Skills view/query | R7 | implemented | archive/restore/approve/reject/propose committed mutation 与 project/user external edit 均失效同一 Skills query scope；每订阅 watcher 可取消并由 Bus close join，待最终统一门禁 |
 | `mcp.changed` | MCP lifecycle | MCP settings/tool catalog | R8 | specified | status/auth/reconnect invalidate exact server |
 | `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
 | `sessions.changed` | session transaction | Work Index | R2 | implemented | create/update/delete/fork/rollback/import committed mutation 发布，Desktop cursor catalog 与 exact snapshot 收敛；待统一门禁 |
@@ -128,7 +128,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
-| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | in_progress | Codebase index/search 已覆盖 none/indexing/ready/error/provider failure/empty/result 与 exact-line navigation；其余 capability resources 随 R7 |
+| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | in_progress | Codebase index/search 已覆盖 none/indexing/ready/error/provider failure/empty/result 与 exact-line navigation；Skills Available/Proposals/Library 已覆盖 unavailable/loading/error/empty/exact review/archive/restore；其余 capability resources 随 R7 |
 | U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | specified | form draft 与 wire 分离、validation/test/save、secret masked、query invalidation |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
@@ -143,7 +143,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | 文件与代码（5） | `read`, `glob`, `grep`, `lsp`, `apply_patch` | R4/R6 | specified | path/range/hits/symbol/diff；真实 material；不把 VCS status 与 patch status 合并 |
 | 命令（3） | `shell`, `read_shell_output`, `stop_shell` | R4 | specified | command/description、stream/output、exit/duration、background exact ID、cancel |
 | 网络（3） | `web_search`, `web_fetch`, `http_request` | R4 | specified | URL/status/header/body、安全 link、result normalization、bounded preview |
-| Skill（4） | `list_skills`, `load_skill`, `read_skill_resource`, `propose_skill` | R7 | specified | scope/name/resource/proposal，正文滚动，不与 Skill 管理 UI 混 owner |
+| Skill（4） | `list_skills`, `load_skill`, `read_skill_resource`, `propose_skill` | R7 | implemented | progressive tools 与 Desktop discovery 共用 archive-aware Lyra source；resource confined；root-only proposal 只进 review queue，正文与管理 UI owner 分离；待最终统一门禁 |
 | Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | implemented | root-only、durable Session read-only policy、dynamic effect gate、committed Plan fact、revision-bound approve/reject question；待 Desktop 与最终统一门禁 |
 | Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |
 | Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |

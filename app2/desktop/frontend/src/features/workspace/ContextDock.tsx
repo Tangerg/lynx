@@ -43,6 +43,7 @@ import {
   type SessionDockState,
 } from "./contextDockState";
 import { CodebaseWorkspace } from "./CodebaseWorkspace";
+import { SkillsWorkspace } from "./SkillsWorkspace";
 import { WorkspaceReview } from "./WorkspaceReview";
 
 const fileWindowLines = 1_000;
@@ -57,6 +58,7 @@ interface ContextDockProps {
   actionPending: boolean;
   cancelingRunId?: string;
   cancelError?: { runId: string; message: string };
+  skillsEnabled: boolean;
   onExpandedChange(expanded: boolean): void;
   onCancelRun(runId: string): Promise<void>;
   children: ReactNode;
@@ -170,6 +172,7 @@ export function ContextDock(props: ContextDockProps) {
             connection={props.connection}
             workspace={props.session.workspace.ref}
             state={state}
+            skillsEnabled={props.skillsEnabled}
             update={update}
             onOpenFile={openFile}
             onCloseFile={closeFile}
@@ -212,6 +215,7 @@ interface WorkspaceBrowserProps {
   connection: RuntimeConnection;
   workspace: WorkspaceRef;
   state: SessionDockState;
+  skillsEnabled: boolean;
   update(change: (current: SessionDockState) => SessionDockState): void;
   onOpenFile(path: string, line?: number): void;
   onCloseFile(path: string): void;
@@ -283,6 +287,25 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
               }
             >
               Codebase
+            </button>
+            <button
+              type="button"
+              aria-current={
+                props.state.workspaceView === "skills" ? "page" : undefined
+              }
+              title={
+                props.skillsEnabled
+                  ? undefined
+                  : "Skills are unavailable in this Runtime"
+              }
+              onClick={() =>
+                props.update((current) => ({
+                  ...current,
+                  workspaceView: "skills",
+                }))
+              }
+            >
+              Skills
             </button>
           </nav>
           <small title={props.workspace.path}>
@@ -364,6 +387,16 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
             }))
           }
           onOpenFile={props.onOpenFile}
+        />
+      ) : props.state.workspaceView === "skills" ? (
+        <SkillsWorkspace
+          connection={props.connection}
+          workspace={props.workspace}
+          enabled={props.skillsEnabled}
+          view={props.state.skillView}
+          onViewChange={(skillView) =>
+            props.update((current) => ({ ...current, skillView }))
+          }
         />
       ) : props.state.workspaceView === "codebase" ? (
         <CodebaseWorkspace

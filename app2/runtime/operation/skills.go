@@ -8,8 +8,11 @@ import (
 
 func registerSkills(registry *Registry) {
 	Query(registry, MethodMeta{
-		Name:            "skills.discovered.list",
-		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
+		Name: "skills.discovered.list",
+		Errors: []string{
+			protocol.ErrWorkspaceUnavailable.Error(),
+			protocol.ErrPathOutsideRoot.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ListDiscoveredSkills(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error)
@@ -19,6 +22,7 @@ func registerSkills(registry *Registry) {
 
 	Query(registry, MethodMeta{
 		Name:            "skills.library.list",
+		Errors:          []string{protocol.ErrPathOutsideRoot.Error()},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ListManagedSkills(context.Context) (*protocol.Page[protocol.ManagedSkill], error)
@@ -27,7 +31,11 @@ func registerSkills(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name:            "skills.library.archive",
+		Name: "skills.library.archive",
+		Errors: []string{
+			protocol.ErrItemNotFound.Error(),
+			protocol.ErrPathOutsideRoot.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ArchiveSkill(context.Context, protocol.SkillNameRequest) error
@@ -36,7 +44,11 @@ func registerSkills(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name:            "skills.library.restore",
+		Name: "skills.library.restore",
+		Errors: []string{
+			protocol.ErrItemNotFound.Error(),
+			protocol.ErrPathOutsideRoot.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		RestoreSkill(context.Context, protocol.SkillNameRequest) error
@@ -46,6 +58,7 @@ func registerSkills(registry *Registry) {
 
 	Query(registry, MethodMeta{
 		Name:            "skills.proposals.list",
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ListSkillProposals(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error)
@@ -54,7 +67,13 @@ func registerSkills(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name:            "skills.proposals.approve",
+		Name: "skills.proposals.approve",
+		Errors: []string{
+			protocol.ErrWorkspaceUnavailable.Error(),
+			protocol.ErrPathOutsideRoot.Error(),
+			protocol.ErrItemNotFound.Error(),
+			protocol.ErrRevisionConflict.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ApproveSkillProposal(context.Context, protocol.SkillProposalRef) error
@@ -63,7 +82,12 @@ func registerSkills(registry *Registry) {
 	})
 
 	CommandAck(registry, MethodMeta{
-		Name:            "skills.proposals.reject",
+		Name: "skills.proposals.reject",
+		Errors: []string{
+			protocol.ErrWorkspaceUnavailable.Error(),
+			protocol.ErrItemNotFound.Error(),
+			protocol.ErrRevisionConflict.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		RejectSkillProposal(context.Context, protocol.SkillProposalRef) error

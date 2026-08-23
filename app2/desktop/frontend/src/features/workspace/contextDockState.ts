@@ -9,7 +9,8 @@ export const maxOpenFiles = 8;
 export const maxExpandedDirectories = 100;
 
 export type DockPane = "workspace" | "session";
-export type WorkspaceView = "files" | "review" | "codebase";
+export type WorkspaceView = "files" | "review" | "codebase" | "skills";
+export type SkillView = "available" | "proposals" | "library";
 export type ReviewMode = "worktree" | "base";
 export type DiffLayout = "unified" | "split";
 
@@ -18,6 +19,7 @@ export interface SessionDockState {
   pane: DockPane;
   sessionView: SessionActivityView;
   workspaceView: WorkspaceView;
+  skillView: SkillView;
   openPaths: string[];
   selectedPath?: string;
   expandedDirectories: string[];
@@ -40,6 +42,7 @@ export function newDockState(workspacePath: string): SessionDockState {
     pane: "session",
     sessionView: "overview",
     workspaceView: "files",
+    skillView: "available",
     openPaths: [],
     expandedDirectories: [],
     searchDraft: "",
@@ -112,9 +115,15 @@ function parseDockState(value: unknown): SessionDockState | undefined {
     pane: value.pane === "workspace" ? "workspace" : "session",
     sessionView: parseSessionView(value.sessionView),
     workspaceView:
-      value.workspaceView === "review" || value.workspaceView === "codebase"
+      value.workspaceView === "review" ||
+      value.workspaceView === "codebase" ||
+      value.workspaceView === "skills"
         ? value.workspaceView
         : "files",
+    skillView:
+      value.skillView === "proposals" || value.skillView === "library"
+        ? value.skillView
+        : "available",
     openPaths,
     ...(selectedPath === undefined ? {} : { selectedPath }),
     expandedDirectories: stringArray(value.expandedDirectories).slice(

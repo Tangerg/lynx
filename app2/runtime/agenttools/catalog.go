@@ -20,11 +20,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/skills"
 	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/shell"
-	skilltools "github.com/Tangerg/lynx/tools/skills"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
@@ -61,19 +59,29 @@ type PlanGateway interface {
 }
 
 type Catalog struct {
-	policy   ApprovalPolicy
-	mcp      MCPGateway
-	results  ToolResultReader
-	goals    GoalGateway
-	plans    PlanGateway
-	userHome string
+	policy       ApprovalPolicy
+	mcp          MCPGateway
+	results      ToolResultReader
+	goals        GoalGateway
+	plans        PlanGateway
+	skillGateway SkillGateway
 }
 
-func New(policy ApprovalPolicy, mcp MCPGateway, results ToolResultReader, goals GoalGateway, plans PlanGateway, userHome string) (*Catalog, error) {
-	if policy == nil || goals == nil || plans == nil || !filepath.IsAbs(userHome) {
-		return nil, errors.New("agenttools: approval policy, goal and Plan gateways, and absolute user home are required")
+func New(
+	policy ApprovalPolicy,
+	mcp MCPGateway,
+	results ToolResultReader,
+	goals GoalGateway,
+	plans PlanGateway,
+	skillGateway SkillGateway,
+) (*Catalog, error) {
+	if policy == nil || goals == nil || plans == nil || skillGateway == nil {
+		return nil, errors.New("agenttools: approval policy, goal, Plan, and Skill gateways are required")
 	}
-	return &Catalog{policy: policy, mcp: mcp, results: results, goals: goals, plans: plans, userHome: filepath.Clean(userHome)}, nil
+	return &Catalog{
+		policy: policy, mcp: mcp, results: results,
+		goals: goals, plans: plans, skillGateway: skillGateway,
+	}, nil
 }
 
 func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) ([]agentexec.ExecutableTool, error) {
@@ -96,19 +104,11 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 	shellExecutor.Dir = scope.Workspace
 	values = append(values, scopedTool{tool: shell.NewTool(shellExecutor), safety: protocol.SafetyClassExec})
 
-	sources := skills.Merge(
-		skills.Dir(filepath.Join(scope.Workspace, ".agents", "skills")),
-		skills.Dir(filepath.Join(scope.Workspace, ".claude", "skills")),
-		skills.Dir(filepath.Join(catalog.userHome, ".agents", "skills")),
-		skills.Dir(filepath.Join(catalog.userHome, ".codex", "skills")),
-	)
-	progressive, err := skilltools.NewTools(sources)
+	skillValues, err := catalog.skillTools(ctx, scope)
 	if err != nil {
-		return nil, fmt.Errorf("agenttools: skills: %w", err)
+		return nil, err
 	}
-	for _, executable := range progressive {
-		values = append(values, scopedTool{tool: executable, safety: protocol.SafetyClassSafe})
-	}
+	values = append(values, skillValues...)
 	question, err := newAskUser(scope.RunID)
 	if err != nil {
 		return nil, err

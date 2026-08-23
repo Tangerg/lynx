@@ -89,14 +89,37 @@ func (subscriber *subscriber) emit(event protocol.RuntimeEvent) {
 }
 
 type Bus struct {
-	mu          sync.Mutex
-	nextID      uint64
-	subscribers map[uint64]*subscriber
-	closed      bool
-	watches     sync.WaitGroup
+	mu                  sync.Mutex
+	nextID              uint64
+	subscribers         map[uint64]*subscriber
+	userSkillsDirectory string
+	closed              bool
+	watches             sync.WaitGroup
 }
 
-func New() *Bus { return &Bus{subscribers: make(map[uint64]*subscriber)} }
+type Config struct {
+	// UserSkillsDirectory is optional. When set, subscribers to skills.changed
+	// also observe external edits in this absolute, existing directory.
+	UserSkillsDirectory string
+}
+
+func New(config Config) (*Bus, error) {
+	directory := ""
+	if config.UserSkillsDirectory != "" {
+		if !filepath.IsAbs(config.UserSkillsDirectory) {
+			return nil, errors.New("runtimeevents: user Skills directory must be absolute")
+		}
+		physical, err := filepath.EvalSymlinks(config.UserSkillsDirectory)
+		if err != nil {
+			return nil, fmt.Errorf("runtimeevents: resolve user Skills directory: %w", err)
+		}
+		directory = filepath.Clean(physical)
+	}
+	return &Bus{
+		subscribers: make(map[uint64]*subscriber),
+		userSkillsDirectory: directory,
+	}, nil
+}
 
 func (bus *Bus) Publish(event protocol.RuntimeEvent) {
 	topic := protocol.RuntimeTopic(event.Type)
@@ -140,6 +163,13 @@ func (bus *Bus) Subscribe(
 			defer bus.watches.Done()
 			watchFiles(watchContext, subscription, spec)
 		}(watch)
+	}
+	if subscription.accepts(protocol.TopicSkillsChanged) && bus.userSkillsDirectory != "" {
+		bus.watches.Add(1)
+		go func() {
+			defer bus.watches.Done()
+			watchUserSkills(watchContext, subscription, bus.userSkillsDirectory)
+		}()
 	}
 	remove := func() {
 		cancelWatches()
@@ -251,6 +281,15 @@ func watchFiles(ctx context.Context, target *subscriber, spec protocol.WatchSpec
 				Type: protocol.RuntimeFilesChanged, WatchID: spec.WatchID,
 				Workspace: &spec.Workspace, Paths: []string{filepath.ToSlash(relative)},
 			})
+			if target.accepts(protocol.TopicSkillsChanged) {
+				if name, skillChange := workspaceSkillChange(relative); skillChange {
+					names := []string(nil)
+					if name != "" {
+						names = []string{name}
+					}
+					target.emit(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged, Names: names})
+				}
+			}
 		case _, ok := <-watcher.Errors:
 			if !ok {
 				return
@@ -260,6 +299,79 @@ func watchFiles(ctx context.Context, target *subscriber, spec protocol.WatchSpec
 			return
 		}
 	}
+}
+
+func watchUserSkills(ctx context.Context, target *subscriber, directory string) {
+	root, err := filepath.EvalSymlinks(directory)
+	if err != nil {
+		target.emit(resyncTopic(protocol.TopicSkillsChanged))
+		return
+	}
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		target.emit(resyncTopic(protocol.TopicSkillsChanged))
+		return
+	}
+	defer watcher.Close()
+	if err := addTree(watcher, root); err != nil {
+		target.emit(resyncTopic(protocol.TopicSkillsChanged))
+		return
+	}
+	if err := watcher.Add(filepath.Dir(root)); err != nil {
+		target.emit(resyncTopic(protocol.TopicSkillsChanged))
+		return
+	}
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			relative, err := filepath.Rel(root, event.Name)
+			if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+				continue
+			}
+			if event.Op&fsnotify.Create != 0 {
+				if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
+					_ = addTree(watcher, event.Name)
+				}
+			}
+			if relative == "." {
+				target.emit(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
+				continue
+			}
+			name := strings.Split(filepath.ToSlash(relative), "/")[0]
+			names := []string(nil)
+			if name != "" && !strings.HasPrefix(name, ".") {
+				names = []string{name}
+			}
+			target.emit(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged, Names: names})
+		case _, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			target.emit(resyncTopic(protocol.TopicSkillsChanged))
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func workspaceSkillChange(relative string) (string, bool) {
+	const prefix = ".lyra/skills"
+	path := filepath.ToSlash(relative)
+	if path == prefix {
+		return "", true
+	}
+	if !strings.HasPrefix(path, prefix+"/") {
+		return "", false
+	}
+	remainder := strings.TrimPrefix(path, prefix+"/")
+	name := strings.Split(remainder, "/")[0]
+	if strings.HasPrefix(name, ".") {
+		return "", true
+	}
+	return name, true
 }
 
 func addTree(watcher *fsnotify.Watcher, root string) error {
@@ -283,4 +395,8 @@ func resyncWatch(id string) protocol.RuntimeEvent {
 		Type: protocol.RuntimeResync, Topics: []protocol.RuntimeTopic{protocol.TopicFilesChanged},
 		WatchIDs: []string{id},
 	}
+}
+
+func resyncTopic(topic protocol.RuntimeTopic) protocol.RuntimeEvent {
+	return protocol.RuntimeEvent{Type: protocol.RuntimeResync, Topics: []protocol.RuntimeTopic{topic}}
 }

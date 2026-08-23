@@ -62,6 +62,11 @@ export function useRuntimeInvalidations(
           });
         }
       }
+      if (topics.includes("skills.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: runtimeQueryKeys.skills(connection),
+        });
+      }
       if (topics.includes("codebase.changed")) {
         void queryClient.invalidateQueries({
           queryKey: [...runtimeQueryKeys.scope(connection), "codebase"],
