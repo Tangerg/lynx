@@ -570,7 +570,11 @@ func delegatedOutcome(output agentexec.ChildOutput) (rundomain.Outcome, *protoco
 	case agentexec.ChildCanceled, agentexec.ChildKilled:
 		return rundomain.Canceled, nil, nil
 	case agentexec.ChildFailed:
-		return rundomain.Failed, &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: output.Detail}, nil
+		problem := modelFailureProblem(output.ModelFailure)
+		if problem == nil {
+			problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: output.Detail}
+		}
+		return rundomain.Failed, problem, nil
 	default:
 		return "", nil, errors.New("runflow: delegated execution has invalid terminal status")
 	}

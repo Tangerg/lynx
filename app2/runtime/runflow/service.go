@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
+	"github.com/Tangerg/lynx/app2/runtime/domain/modelcall"
 	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
@@ -733,7 +734,10 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 			if detail == "" {
 				detail = "the agent execution failed"
 			}
-			problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
+			problem = modelFailureProblem(output.ModelFailure)
+			if problem == nil {
+				problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
+			}
 		default:
 			outcome = rundomain.Failed
 			detail = "the agent execution returned an unknown terminal status"
@@ -775,6 +779,32 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	if record.Run.ParentRunID() == "" {
 		service.memory.RunSettled()
 		service.compaction.RunSettled(record.Run.SessionID(), record.Run.ID(), workspace)
+	}
+}
+
+func modelFailureProblem(failure *modelcall.Failure) *protocol.ProblemData {
+	if failure == nil || !failure.Valid() {
+		return nil
+	}
+	problemType := ""
+	switch failure.Kind() {
+	case modelcall.FailureRateLimited:
+		problemType = protocol.ProblemRateLimited
+	case modelcall.FailureInvalidCredentials:
+		problemType = protocol.ProblemInvalidAPIKey
+	case modelcall.FailureTimeout:
+		problemType = protocol.ProblemTimeout
+	case modelcall.FailureUnavailable:
+		problemType = protocol.ProblemProviderUnavailable
+	case modelcall.FailureRejected:
+		problemType = protocol.ProblemProviderRejected
+	}
+	if problemType == "" {
+		return nil
+	}
+	return &protocol.ProblemData{
+		Type: problemType, Detail: failure.Detail(),
+		RetryAfterSeconds: failure.RetryAfterSeconds(),
 	}
 }
 

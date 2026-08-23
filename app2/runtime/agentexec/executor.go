@@ -23,6 +23,8 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
+	"github.com/Tangerg/lynx/app2/runtime/domain/modelcall"
+	"github.com/Tangerg/lynx/app2/runtime/modelboundary"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -198,6 +200,7 @@ type Output struct {
 	Tools         []ToolObservation
 	Waiting       *Waiting
 	Children      []ChildOutput
+	ModelFailure  *modelcall.Failure
 }
 
 type ExecutionStatus string
@@ -236,6 +239,7 @@ type ChildOutput struct {
 	ContextTokens                            int64
 	Models                                   []ModelObservation
 	Tools                                    []ToolObservation
+	ModelFailure                             *modelcall.Failure
 }
 
 // Cancel is an exact live control-plane request. The adapter acknowledges only
@@ -984,7 +988,7 @@ completed:
 	if err := engine.Close(); err != nil {
 		return partial, fmt.Errorf("agentexec: close completed engine: %w", err)
 	}
-	partial.Status, partial.Detail = executionResult(result)
+	partial.Status, partial.Detail, partial.ModelFailure = executionResult(result)
 	if partial.Status != ExecutionCompleted {
 		return partial, nil
 	}
@@ -1041,7 +1045,7 @@ func cancelRunTreeMember(
 	return CancelResult{Children: children, Err: err}
 }
 
-func executionResult(result agent.Result) (ExecutionStatus, string) {
+func executionResult(result agent.Result) (ExecutionStatus, string, *modelcall.Failure) {
 	status := ExecutionFailed
 	switch result.Status() {
 	case agent.StatusCompleted:
@@ -1062,8 +1066,14 @@ func executionResult(result agent.Result) (ExecutionStatus, string) {
 		if termination.Reason() != "" {
 			detail += ": " + termination.Reason()
 		}
+		if frameworkFailure, ok := termination.Failure(); ok && frameworkFailure.Code() == "interaction.model.failed" {
+			if failure, decoded := modelboundary.Decode(frameworkFailure.Message()); decoded {
+				detail = failure.Detail()
+				return status, detail, &failure
+			}
+		}
 	}
-	return status, detail
+	return status, detail, nil
 }
 
 func captureWaitingTree(
@@ -1195,6 +1205,12 @@ func collectChildOutputs(
 			output.Detail = termination.Cause().String()
 			if termination.Reason() != "" {
 				output.Detail += ": " + termination.Reason()
+			}
+			if frameworkFailure, ok := termination.Failure(); ok && frameworkFailure.Code() == "interaction.model.failed" {
+				if failure, decoded := modelboundary.Decode(frameworkFailure.Message()); decoded {
+					output.Detail = failure.Detail()
+					output.ModelFailure = &failure
+				}
 			}
 		}
 		if erased, present := result.Output(); present {
