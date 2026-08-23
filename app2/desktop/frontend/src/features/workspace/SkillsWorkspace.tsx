@@ -9,6 +9,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
   approveSkillProposal,
   archiveSkill,
@@ -35,6 +36,7 @@ interface SkillAction {
 }
 
 export function SkillsWorkspace(props: SkillsWorkspaceProps) {
+  const { t } = useLocalization();
   const queryClient = useQueryClient();
   const actionController = useRef<AbortController | undefined>(undefined);
   const [action, setAction] = useState<SkillAction>();
@@ -94,39 +96,42 @@ export function SkillsWorkspace(props: SkillsWorkspaceProps) {
       } catch (error) {
         if (controller.signal.aborted) return;
         if (actionController.current === controller) {
-          setAction({ key, error: messageOf(error) });
+          setAction({
+            key,
+            error: messageOf(error, t("skills.runtimeFailure")),
+          });
         }
       }
     },
-    [props.connection, queryClient],
+    [props.connection, queryClient, t],
   );
 
   if (!props.enabled) {
     return (
       <SkillsState
-        title="Skills unavailable"
-        detail="This Runtime does not advertise the Lyra Skills capability."
+        title={t("skills.unavailable")}
+        detail={t("skills.unavailableDetail")}
       />
     );
   }
 
   return (
-    <section className="skills-workspace" aria-label="Skills workspace">
-      <nav className="skill-view-switch" aria-label="Skill views">
+    <section className="skills-workspace" aria-label={t("skills.workspace")}>
+      <nav className="skill-view-switch" aria-label={t("skills.views")}>
         <SkillViewButton
-          label="Available"
+          label={t("skills.available")}
           count={available.data?.data.length}
           selected={props.view === "available"}
           onSelect={() => props.onViewChange("available")}
         />
         <SkillViewButton
-          label="Proposals"
+          label={t("skills.proposals")}
           count={proposals.data?.data.length}
           selected={props.view === "proposals"}
           onSelect={() => props.onViewChange("proposals")}
         />
         <SkillViewButton
-          label="Library"
+          label={t("skills.library")}
           count={library.data?.data.length}
           selected={props.view === "library"}
           onSelect={() => props.onViewChange("library")}
@@ -136,7 +141,7 @@ export function SkillsWorkspace(props: SkillsWorkspaceProps) {
         <div className="skill-action-error" role="alert">
           <span>{action.error}</span>
           <button type="button" onClick={() => setAction(undefined)}>
-            Dismiss
+            {t("skills.dismiss")}
           </button>
         </div>
       ) : null}
@@ -202,6 +207,7 @@ function SkillViewButton(props: {
   selected: boolean;
   onSelect(): void;
 }) {
+  const { formatNumber } = useLocalization();
   return (
     <button
       type="button"
@@ -209,7 +215,7 @@ function SkillViewButton(props: {
       onClick={props.onSelect}
     >
       <span>{props.label}</span>
-      {props.count === undefined ? null : <small>{props.count}</small>}
+      {props.count === undefined ? null : <small>{formatNumber(props.count)}</small>}
     </button>
   );
 }
@@ -220,13 +226,14 @@ function AvailableSkills(props: {
   error: Error | null;
   onRetry(): void;
 }) {
-  if (props.pending) return <SkillsState title="Discovering Skills…" />;
+  const { t } = useLocalization();
+  if (props.pending) return <SkillsState title={t("skills.discovering")} />;
   if (props.error) {
     return (
       <SkillsState
-        title="Skills could not be discovered"
-        detail={messageOf(props.error)}
-        action="Try again"
+        title={t("skills.discoveryFailed")}
+        detail={messageOf(props.error, t("skills.runtimeFailure"))}
+        action={t("resource.tryAgain")}
         onAction={props.onRetry}
       />
     );
@@ -234,8 +241,8 @@ function AvailableSkills(props: {
   if (!props.values || props.values.length === 0) {
     return (
       <SkillsState
-        title="No Skills available"
-        detail="Add a valid SKILL.md under .lyra/skills, or approve a pending proposal."
+        title={t("skills.empty")}
+        detail={t("skills.emptyDetail")}
       />
     );
   }
@@ -247,7 +254,7 @@ function AvailableSkills(props: {
             <h4>{skill.name}</h4>
             <SkillTag>{skill.scope}</SkillTag>
           </header>
-          <p>{skill.description || "No description provided."}</p>
+          <p>{skill.description || t("resource.noDescription")}</p>
         </article>
       ))}
     </div>
@@ -263,13 +270,14 @@ function SkillProposals(props: {
   onApprove(proposal: SkillProposal): Promise<void>;
   onReject(proposal: SkillProposal): Promise<void>;
 }) {
-  if (props.pending) return <SkillsState title="Loading proposals…" />;
+  const { t } = useLocalization();
+  if (props.pending) return <SkillsState title={t("skills.loadingProposals")} />;
   if (props.error) {
     return (
       <SkillsState
-        title="Proposals could not be loaded"
-        detail={messageOf(props.error)}
-        action="Try again"
+        title={t("skills.proposalsFailed")}
+        detail={messageOf(props.error, t("skills.runtimeFailure"))}
+        action={t("resource.tryAgain")}
         onAction={props.onRetry}
       />
     );
@@ -277,8 +285,8 @@ function SkillProposals(props: {
   if (!props.values || props.values.length === 0) {
     return (
       <SkillsState
-        title="No pending proposals"
-        detail="Agent-authored Skills remain inactive until a proposal appears here and you approve its exact revision."
+        title={t("skills.noProposals")}
+        detail={t("skills.noProposalsDetail")}
       />
     );
   }
@@ -297,28 +305,30 @@ function SkillProposals(props: {
               <h4>{proposal.name}</h4>
               <span className="skill-tags">
                 <SkillTag>{proposal.scope}</SkillTag>
-                {proposal.revises ? <SkillTag>revision</SkillTag> : null}
+                {proposal.revises ? (
+                  <SkillTag>{t("skills.revision")}</SkillTag>
+                ) : null}
               </span>
             </header>
             <p>{proposal.description}</p>
             <dl className="skill-proposal-facts">
               <div>
-                <dt>Origin</dt>
-                <dd>{proposal.origin || "unknown"}</dd>
+                <dt>{t("skills.origin")}</dt>
+                <dd>{proposal.origin || t("skills.unknown")}</dd>
               </div>
               <div>
-                <dt>Session</dt>
+                <dt>{t("skills.session")}</dt>
                 <dd title={proposal.sourceSession}>{proposal.sourceSession || "—"}</dd>
               </div>
               <div>
-                <dt>Revision</dt>
+                <dt>{t("skills.revisionFact")}</dt>
                 <dd title={proposal.revision}>
                   <code>{proposal.revision.slice(0, 12)}</code>
                 </dd>
               </div>
             </dl>
             <details open>
-              <summary>Complete instructions</summary>
+              <summary>{t("skills.instructions")}</summary>
               <pre>{proposal.instructions}</pre>
             </details>
             <footer>
@@ -328,7 +338,9 @@ function SkillProposals(props: {
                 disabled={busy}
                 onClick={() => void props.onReject(proposal)}
               >
-                {props.actionKey === rejectKey ? "Rejecting…" : "Reject"}
+                {props.actionKey === rejectKey
+                  ? t("skills.rejecting")
+                  : t("skills.reject")}
               </button>
               <button
                 className="primary-action"
@@ -336,7 +348,9 @@ function SkillProposals(props: {
                 disabled={busy}
                 onClick={() => void props.onApprove(proposal)}
               >
-                {props.actionKey === approveKey ? "Approving…" : "Approve exact revision"}
+                {props.actionKey === approveKey
+                  ? t("skills.approving")
+                  : t("skills.approveRevision")}
               </button>
             </footer>
           </article>
@@ -355,13 +369,14 @@ function ManagedSkillLibrary(props: {
   onArchive(skill: ManagedSkill): Promise<void>;
   onRestore(skill: ManagedSkill): Promise<void>;
 }) {
-  if (props.pending) return <SkillsState title="Loading user library…" />;
+  const { t } = useLocalization();
+  if (props.pending) return <SkillsState title={t("skills.loadingLibrary")} />;
   if (props.error) {
     return (
       <SkillsState
-        title="Skill library could not be loaded"
-        detail={messageOf(props.error)}
-        action="Try again"
+        title={t("skills.libraryFailed")}
+        detail={messageOf(props.error, t("skills.runtimeFailure"))}
+        action={t("resource.tryAgain")}
         onAction={props.onRetry}
       />
     );
@@ -369,8 +384,8 @@ function ManagedSkillLibrary(props: {
   if (!props.values || props.values.length === 0) {
     return (
       <SkillsState
-        title="User library is empty"
-        detail="Approved user-scoped Skills and externally authored ~/.lyra/skills bundles appear here."
+        title={t("skills.libraryEmpty")}
+        detail={t("skills.libraryEmptyDetail")}
       />
     );
   }
@@ -379,19 +394,21 @@ function ManagedSkillLibrary(props: {
   return (
     <div className="managed-skill-library">
       <ManagedSkillSection
-        title="Active"
-        empty="No active user Skills."
+        title={t("skills.active")}
+        empty={t("skills.noActive")}
         values={active}
         actionKey={props.actionKey}
-        action="Archive"
+        action="archive"
+        actionLabel={t("skills.archive")}
         onAction={props.onArchive}
       />
       <ManagedSkillSection
-        title="Archived"
-        empty="No archived Skills."
+        title={t("skills.archived")}
+        empty={t("skills.noArchived")}
         values={archived}
         actionKey={props.actionKey}
-        action="Restore"
+        action="restore"
+        actionLabel={t("skills.restore")}
         onAction={props.onRestore}
       />
     </div>
@@ -403,21 +420,23 @@ function ManagedSkillSection(props: {
   empty: string;
   values: ManagedSkill[];
   actionKey?: string;
-  action: "Archive" | "Restore";
+  action: "archive" | "restore";
+  actionLabel: string;
   onAction(skill: ManagedSkill): Promise<void>;
 }) {
+  const { formatNumber, t } = useLocalization();
   return (
     <section className="managed-skill-section">
       <header>
         <h4>{props.title}</h4>
-        <small>{props.values.length}</small>
+        <small>{formatNumber(props.values.length)}</small>
       </header>
       {props.values.length === 0 ? (
         <p className="managed-skill-empty">{props.empty}</p>
       ) : (
         <div className="skill-card-list">
           {props.values.map((skill) => {
-            const key = `${props.action.toLowerCase()}:${skill.name}`;
+            const key = `${props.action}:${skill.name}`;
             return (
               <article className="skill-card" key={skill.name}>
                 <header>
@@ -428,10 +447,12 @@ function ManagedSkillSection(props: {
                     disabled={props.actionKey !== undefined}
                     onClick={() => void props.onAction(skill)}
                   >
-                    {props.actionKey === key ? `${props.action}…` : props.action}
+                    {props.actionKey === key
+                      ? t("skills.actionPending", { action: props.actionLabel })
+                      : props.actionLabel}
                   </button>
                 </header>
-                <p>{skill.description || "No description provided."}</p>
+                <p>{skill.description || t("resource.noDescription")}</p>
               </article>
             );
           })}
@@ -479,6 +500,6 @@ function proposalActionKey(
   return `${action}:${proposal.scope}:${proposal.name}:${proposal.revision}`;
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "Unexpected Runtime failure";
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }

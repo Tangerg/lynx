@@ -863,6 +863,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - Recipe body、Agent doc/Knowledge 文档、code snippet、diff row、path、tool schema/arguments/result、model/index identity 与 Runtime error detail 仍是原始内容；本地化不会改变 search query、diagnostic invocation 或 Knowledge CAS revision；
 - direct diagnostic 继续是 workspace-scoped read-only Runtime capability，不因 presentation 迁移伪装成 Agent Run。Skills/Memory 与 Settings 仍待后续批，U22 保持 `in_progress`。
 
+### R10d4b Skills / Agent Memory language 实现记录（尚未统一验证）
+
+- Skills discovery/proposals/library 与 Agent Memory scope/add/review/edit/pin/delete surfaces 已迁入 typed localization boundary，覆盖 unavailable/loading/empty/error、exact-revision approve/reject、archive/restore、byte bound 与 CAS conflict copy；
+- Skill name/scope/revision/instructions、Memory content/origin identity、proposal decision 与 query keys 保持 Runtime canonical value；翻译不改变 proposal approval、managed lifecycle、Memory convergence refresh 或 abort owner；
+- Resources production copy 已闭合，后续只剩 Settings surface、dictionary/locale owner/selector 与 RTL/CSS 收口；U22 仍保持 `in_progress`。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

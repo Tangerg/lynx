@@ -13,6 +13,10 @@ import type {
 } from "@lyra/runtime-contract";
 
 import {
+  useLocalization,
+  type Translate,
+} from "../localization/Localization";
+import {
   addAgentMemory,
   listAgentMemory,
   runtimeQueryKeys,
@@ -35,6 +39,7 @@ interface MemoryWorkspaceProps {
 }
 
 export function MemoryWorkspace(props: MemoryWorkspaceProps) {
+  const { formatNumber, t } = useLocalization();
   const [scope, setScope] = useState<AgentMemoryScope>("project");
   const queryKey = runtimeQueryKeys.memoryTarget(
     props.connection,
@@ -52,8 +57,8 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps) {
   if (!props.enabled) {
     return (
       <ResourceState
-        title="Agent Memory unavailable"
-        detail="This Runtime does not advertise the Lyra Agent Memory capability."
+        title={t("memory.unavailable")}
+        detail={t("memory.unavailableDetail")}
       />
     );
   }
@@ -66,20 +71,23 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps) {
   return (
     <div className="memory-workspace">
       <header className="memory-toolbar">
-        <div className="memory-scope-switch" aria-label="Memory scope">
+        <div className="memory-scope-switch" aria-label={t("memory.scope")}>
           <ScopeButton
-            label="Project"
+            label={t("memory.project")}
             selected={scope === "project"}
             onSelect={() => setScope("project")}
           />
           <ScopeButton
-            label="User"
+            label={t("memory.user")}
             selected={scope === "user"}
             onSelect={() => setScope("user")}
           />
         </div>
         <span>
-          {pending.length} pending · {active.length} active
+          {t("memory.counts", {
+            pending: formatNumber(pending.length),
+            active: formatNumber(active.length),
+          })}
         </span>
       </header>
       <AddMemory
@@ -89,23 +97,27 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps) {
         queryKey={queryKey}
       />
       {query.isPending ? (
-        <ResourceState title="Loading Agent Memory…" />
+        <ResourceState title={t("memory.loading")} />
       ) : query.error ? (
         <ResourceState
-          title="Agent Memory could not be loaded"
-          detail={messageOf(query.error)}
-          action="Try again"
+          title={t("memory.loadFailed")}
+          detail={messageOf(query.error, t("memory.operationFailed"))}
+          action={t("resource.tryAgain")}
           onAction={() => void query.refetch()}
         />
       ) : items.length === 0 ? (
         <ResourceState
-          title={`No ${scope} memory yet`}
-          detail="Add a durable fact, or review proposals Lyra distills from completed work."
+          title={
+            scope === "project"
+              ? t("memory.emptyProject")
+              : t("memory.emptyUser")
+          }
+          detail={t("memory.emptyDetail")}
         />
       ) : (
         <div className="memory-list">
           {pending.length > 0 ? (
-            <MemorySection label="Pending review">
+            <MemorySection label={t("memory.pendingReview")}>
               {pending.map((item) => (
                 <PendingMemory
                   key={item.id}
@@ -118,7 +130,7 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps) {
             </MemorySection>
           ) : null}
           {active.length > 0 ? (
-            <MemorySection label="Active memory">
+            <MemorySection label={t("memory.active")}>
               {active.map((item) => (
                 <ActiveMemory
                   key={item.id}
@@ -141,6 +153,7 @@ function ScopeButton(props: {
   selected: boolean;
   onSelect(): void;
 }) {
+  const { t } = useLocalization();
   return (
     <button
       type="button"
@@ -176,7 +189,7 @@ function AddMemory(props: {
     return (
       <div className="memory-add-collapsed">
         <button type="button" onClick={() => setOpen(true)}>
-          Add memory
+          {t("memory.add")}
         </button>
       </div>
     );
@@ -218,8 +231,10 @@ function AddMemory(props: {
         rows={3}
         value={draft}
         spellCheck={false}
-        aria-label={`Add ${props.scope} memory`}
-        placeholder="A durable preference, convention, decision, or gotcha…"
+        aria-label={t("memory.addLabel", {
+          scope: memoryScopeLabel(props.scope, t),
+        })}
+        placeholder={t("memory.placeholder")}
         onChange={(event) => {
           action.clearError();
           setDraft(event.currentTarget.value);
@@ -232,7 +247,7 @@ function AddMemory(props: {
           disabled={!contentValid || action.pending}
           onClick={() => void submit()}
         >
-          {action.pending ? "Saving…" : "Save"}
+          {action.pending ? t("memory.saving") : t("memory.save")}
         </button>
         <button
           type="button"
@@ -243,7 +258,7 @@ function AddMemory(props: {
             action.clearError();
           }}
         >
-          Cancel
+          {t("memory.cancel")}
         </button>
       </footer>
       <ActionError value={action.error} />
@@ -258,4 +273,8 @@ function MemorySection(props: { label: string; children: ReactNode }) {
       <div>{props.children}</div>
     </section>
   );
+}
+
+function memoryScopeLabel(scope: AgentMemoryScope, t: Translate) {
+  return scope === "project" ? t("memory.project") : t("memory.user");
 }

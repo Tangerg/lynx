@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useLocalization } from "../localization/Localization";
+
 export const maxMemoryBytes = 8_192;
 
 const utf8Encoder = new TextEncoder();
 
 export function useMemoryAction() {
+  const { t } = useLocalization();
   const controller = useRef<AbortController | undefined>(undefined);
   const busy = useRef(false);
   const [pending, setPending] = useState(false);
@@ -32,7 +35,9 @@ export function useMemoryAction() {
       try {
         return await operation(request.signal);
       } catch (cause) {
-        if (!request.signal.aborted) setError(messageOf(cause));
+        if (!request.signal.aborted) {
+          setError(messageOf(cause, t("memory.operationFailed")));
+        }
         return undefined;
       } finally {
         if (controller.current === request) {
@@ -42,7 +47,7 @@ export function useMemoryAction() {
         }
       }
     },
-    [],
+    [t],
   );
   const clearError = useCallback(() => setError(undefined), []);
 
@@ -63,12 +68,16 @@ export function ActionError(props: { value: string | undefined }) {
 }
 
 export function MemoryByteCount(props: { value: number }) {
+  const { formatNumber, t } = useLocalization();
   const invalid = props.value > maxMemoryBytes;
   return (
     <span
       className={invalid ? "memory-byte-count invalid" : "memory-byte-count"}
     >
-      {props.value.toLocaleString()} / {maxMemoryBytes.toLocaleString()} bytes
+      {t("memory.byteCount", {
+        used: formatNumber(props.value),
+        limit: formatNumber(maxMemoryBytes),
+      })}
     </span>
   );
 }
@@ -77,8 +86,8 @@ export function memoryBytes(value: string) {
   return utf8Encoder.encode(value).byteLength;
 }
 
-export function messageOf(error: unknown) {
+export function messageOf(error: unknown, fallback: string) {
   return error instanceof Error
     ? error.message
-    : "Agent Memory operation failed.";
+    : fallback;
 }

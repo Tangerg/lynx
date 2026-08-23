@@ -8,6 +8,7 @@ import type {
   RuntimeConnection,
 } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
   deleteAgentMemory,
   reviewAgentMemory,
@@ -30,6 +31,7 @@ interface MemoryItemProps {
 }
 
 export function PendingMemory(props: MemoryItemProps) {
+  const { t } = useLocalization();
   const queryClient = useQueryClient();
   const action = useMemoryAction();
 
@@ -83,14 +85,14 @@ export function PendingMemory(props: MemoryItemProps) {
           disabled={action.pending}
           onClick={() => void review("reject")}
         >
-          Reject
+          {t("memory.reject")}
         </button>
         <button
           type="button"
           disabled={action.pending}
           onClick={() => void review("approve")}
         >
-          {action.pending ? "Reviewing…" : "Approve"}
+          {action.pending ? t("memory.reviewing") : t("memory.approve")}
         </button>
       </footer>
       <ActionError value={action.error} />
@@ -99,6 +101,7 @@ export function PendingMemory(props: MemoryItemProps) {
 }
 
 export function ActiveMemory(props: MemoryItemProps) {
+  const { t } = useLocalization();
   const queryClient = useQueryClient();
   const action = useMemoryAction();
   const [editing, setEditing] = useState(false);
@@ -204,7 +207,7 @@ export function ActiveMemory(props: MemoryItemProps) {
           rows={4}
           value={draft}
           spellCheck={false}
-          aria-label="Edit memory"
+          aria-label={t("memory.editLabel")}
           onChange={(event) => {
             action.clearError();
             setDraft(event.currentTarget.value);
@@ -216,7 +219,7 @@ export function ActiveMemory(props: MemoryItemProps) {
       <MemoryMeta item={props.item} />
       {stale ? (
         <p className="memory-error" role="alert">
-          This memory changed elsewhere. Cancel and reopen it before editing.
+          {t("memory.externalChange")}
         </p>
       ) : null}
       <footer>
@@ -232,7 +235,7 @@ export function ActiveMemory(props: MemoryItemProps) {
                 });
               }}
             >
-              {action.pending ? "Saving…" : "Save"}
+              {action.pending ? t("memory.saving") : t("memory.save")}
             </button>
             <button
               type="button"
@@ -244,7 +247,7 @@ export function ActiveMemory(props: MemoryItemProps) {
                 action.clearError();
               }}
             >
-              Cancel
+              {t("memory.cancel")}
             </button>
           </>
         ) : (
@@ -255,7 +258,7 @@ export function ActiveMemory(props: MemoryItemProps) {
               aria-pressed={props.item.pinned}
               onClick={() => void update({ pinned: !props.item.pinned })}
             >
-              {props.item.pinned ? "Unpin" : "Pin"}
+              {props.item.pinned ? t("memory.unpin") : t("memory.pin")}
             </button>
             <button
               type="button"
@@ -266,7 +269,7 @@ export function ActiveMemory(props: MemoryItemProps) {
                 setEditing(true);
               }}
             >
-              Edit
+              {t("memory.edit")}
             </button>
             <button
               type="button"
@@ -280,7 +283,9 @@ export function ActiveMemory(props: MemoryItemProps) {
                 void remove();
               }}
             >
-              {confirmDelete ? "Confirm delete" : "Delete"}
+              {confirmDelete
+                ? t("memory.confirmDelete")
+                : t("memory.delete")}
             </button>
           </>
         )}
@@ -291,15 +296,21 @@ export function ActiveMemory(props: MemoryItemProps) {
 }
 
 function MemoryMeta(props: { item: AgentMemoryItem }) {
+  const { formatDateTime, t } = useLocalization();
+  const updatedAt = new Date(props.item.updatedAt);
   return (
     <div className="memory-meta">
-      {props.item.pinned ? <strong>Pinned</strong> : null}
+      {props.item.pinned ? <strong>{t("memory.pinned")}</strong> : null}
       <span>
-        {props.item.origin === "auto" ? "Lyra proposal" : "User authored"}
+        {props.item.origin === "auto"
+          ? t("memory.lyraProposal")
+          : t("memory.userAuthored")}
       </span>
-      {props.item.sessionId ? <span>From session</span> : null}
+      {props.item.sessionId ? <span>{t("memory.fromSession")}</span> : null}
       <time dateTime={props.item.updatedAt}>
-        {new Date(props.item.updatedAt).toLocaleDateString()}
+        {Number.isNaN(updatedAt.valueOf())
+          ? props.item.updatedAt
+          : formatDateTime(updatedAt, { dateStyle: "medium" })}
       </time>
     </div>
   );
