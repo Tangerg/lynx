@@ -104,7 +104,7 @@ func (catalog *Catalog) scheduleTools() ([]scopedTool, error) {
 		if err := catalog.schedules.Delete(ctx, protocol.DeleteScheduleRequest{ID: request.ScheduleID}); err != nil {
 			return "", err
 		}
-		return encodeScheduleToolResult(scheduleDeleteResult{ScheduleID: request.ScheduleID})
+		return encodeScheduleToolResult(scheduleDeleteResult(request))
 	})
 	if err != nil {
 		return nil, fmt.Errorf("agenttools: delete Schedule tool: %w", err)

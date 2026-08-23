@@ -163,14 +163,6 @@ func internalFailure() *Failure {
 	return newFailure(spec, protocol.ErrInternalError, "the runtime could not complete the request")
 }
 
-func failureFromData(data protocol.ProblemData) *Failure {
-	spec, ok := problemSpecForType(data.Type)
-	if !ok || protocol.ValidateWireTree(data) != nil {
-		return internalFailure()
-	}
-	return &Failure{cause: spec.sentinel, data: cloneProblemData(data)}
-}
-
 func cloneProblemData(data protocol.ProblemData) protocol.ProblemData {
 	data.RequiredCapabilities = slices.Clone(data.RequiredCapabilities)
 	data.Errors = slices.Clone(data.Errors)

@@ -1153,7 +1153,7 @@ func parkTreeMembers(ctx context.Context, engine *agent.Engine, rootID agent.Pro
 		for _, processID := range running {
 			member, found := engine.Process(processID)
 			if !found {
-				return agent.TreeSnapshot{}, fmt.Errorf("Process %s disappeared while parking", processID)
+				return agent.TreeSnapshot{}, fmt.Errorf("process %s disappeared while parking", processID)
 			}
 			if err := member.Pause(ctx, "checkpointing a waiting Lyra Run tree"); err != nil &&
 				!errors.Is(err, agent.ErrProcessFinished) {
