@@ -7,6 +7,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
   listAgentDocs,
   listDiagnosticTools,
@@ -33,6 +34,7 @@ interface ResourcesWorkspaceProps {
 }
 
 export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
+  const { t } = useLocalization();
   const recipes = useQuery({
     queryKey: runtimeQueryKeys.workspaceRecipes(
       props.connection,
@@ -58,38 +60,41 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
   });
 
   return (
-    <section className="resources-workspace" aria-label="Workspace resources">
-      <nav className="resource-view-switch" aria-label="Resource types">
+    <section
+      className="resources-workspace"
+      aria-label={t("resource.workspace")}
+    >
+      <nav className="resource-view-switch" aria-label={t("resource.types")}>
         <ResourceButton
-          label="Skills"
+          label={t("resource.skills")}
           selected={props.view === "skills"}
           onSelect={() => props.onViewChange("skills")}
         />
         <ResourceButton
-          label="Tools"
+          label={t("resource.tools")}
           count={tools.data?.data.length}
           selected={props.view === "tools"}
           onSelect={() => props.onViewChange("tools")}
         />
         <ResourceButton
-          label="Recipes"
+          label={t("resource.recipes")}
           count={recipes.data?.data.length}
           selected={props.view === "recipes"}
           onSelect={() => props.onViewChange("recipes")}
         />
         <ResourceButton
-          label="Agent docs"
+          label={t("resource.agentDocs")}
           count={agentDocs.data?.data.length}
           selected={props.view === "agentDocs"}
           onSelect={() => props.onViewChange("agentDocs")}
         />
         <ResourceButton
-          label="Knowledge"
+          label={t("resource.knowledge")}
           selected={props.view === "knowledge"}
           onSelect={() => props.onViewChange("knowledge")}
         />
         <ResourceButton
-          label="Memory"
+          label={t("resource.memory")}
           selected={props.view === "memory"}
           onSelect={() => props.onViewChange("memory")}
         />
@@ -148,6 +153,7 @@ function ResourceButton(props: {
   selected: boolean;
   onSelect(): void;
 }) {
+  const { formatNumber } = useLocalization();
   return (
     <button
       type="button"
@@ -155,7 +161,7 @@ function ResourceButton(props: {
       onClick={props.onSelect}
     >
       <span>{props.label}</span>
-      {props.count === undefined ? null : <small>{props.count}</small>}
+      {props.count === undefined ? null : <small>{formatNumber(props.count)}</small>}
     </button>
   );
 }
@@ -166,13 +172,16 @@ function RecipeCatalog(props: {
   error: Error | null;
   onRetry(): void;
 }) {
-  if (props.pending) return <ResourceState title="Discovering Recipes…" />;
+  const { t } = useLocalization();
+  if (props.pending) {
+    return <ResourceState title={t("resource.discoveringRecipes")} />;
+  }
   if (props.error) {
     return (
       <ResourceState
-        title="Recipes could not be discovered"
-        detail={messageOf(props.error)}
-        action="Try again"
+        title={t("resource.recipesFailed")}
+        detail={messageOf(props.error, t("resource.loadingFailed"))}
+        action={t("resource.tryAgain")}
         onAction={props.onRetry}
       />
     );
@@ -180,8 +189,8 @@ function RecipeCatalog(props: {
   if (!props.values || props.values.length === 0) {
     return (
       <ResourceState
-        title="No Recipes available"
-        detail="Add a slash-invocable Markdown recipe under .lyra/recipes."
+        title={t("resource.noRecipes")}
+        detail={t("resource.noRecipesDetail")}
       />
     );
   }
@@ -196,9 +205,9 @@ function RecipeCatalog(props: {
             </div>
             <ResourceTag>{recipe.scope}</ResourceTag>
           </header>
-          <p>{recipe.description || "No description provided."}</p>
+          <p>{recipe.description || t("resource.noDescription")}</p>
           <details>
-            <summary>View prompt</summary>
+            <summary>{t("resource.viewPrompt")}</summary>
             <pre>{recipe.body}</pre>
           </details>
           <footer title={recipe.source}>{compactPath(recipe.source)}</footer>
@@ -214,13 +223,16 @@ function AgentDocCatalog(props: {
   error: Error | null;
   onRetry(): void;
 }) {
-  if (props.pending) return <ResourceState title="Resolving Agent docs…" />;
+  const { t } = useLocalization();
+  if (props.pending) {
+    return <ResourceState title={t("resource.resolvingAgentDocs")} />;
+  }
   if (props.error) {
     return (
       <ResourceState
-        title="Agent docs could not be resolved"
-        detail={messageOf(props.error)}
-        action="Try again"
+        title={t("resource.agentDocsFailed")}
+        detail={messageOf(props.error, t("resource.loadingFailed"))}
+        action={t("resource.tryAgain")}
         onAction={props.onRetry}
       />
     );
@@ -228,8 +240,8 @@ function AgentDocCatalog(props: {
   if (!props.values || props.values.length === 0) {
     return (
       <ResourceState
-        title="No Agent docs apply"
-        detail="Add AGENTS.md at home, project root, or below the selected workspace."
+        title={t("resource.noAgentDocs")}
+        detail={t("resource.noAgentDocsDetail")}
       />
     );
   }
@@ -257,8 +269,8 @@ function compactPath(path: string) {
   return parts.length > 3 ? `…/${parts.slice(-3).join("/")}` : path;
 }
 
-function messageOf(error: unknown) {
+function messageOf(error: unknown, fallback: string) {
   return error instanceof Error
     ? error.message
-    : "The resource could not be loaded.";
+    : fallback;
 }

@@ -10,6 +10,10 @@ import type {
 } from "@lyra/runtime-contract";
 
 import {
+  useLocalization,
+  type Translate,
+} from "../localization/Localization";
+import {
   getWorkspaceDiff,
   listWorkspaceChanges,
   runtimeQueryKeys,
@@ -33,6 +37,7 @@ interface WorkspaceReviewProps {
 }
 
 export function WorkspaceReview(props: WorkspaceReviewProps) {
+  const { t } = useLocalization();
   const scrollRef = useRef<HTMLDivElement>(null);
   const changes = useQuery({
     queryKey: runtimeQueryKeys.workspaceChanges(
@@ -81,7 +86,7 @@ export function WorkspaceReview(props: WorkspaceReviewProps) {
 
   const worktreeError = props.mode === "worktree" && changes.isError;
   if (diff.isPending || (props.mode === "worktree" && changes.isPending)) {
-    return <ReviewState title="Building workspace review" />;
+    return <ReviewState title={t("review.building")} />;
   }
   if (diff.isError || worktreeError) {
     const error = diff.isError ? diff.error : changes.error;
@@ -89,10 +94,10 @@ export function WorkspaceReview(props: WorkspaceReviewProps) {
       <ReviewState
         title={
           props.mode === "base"
-            ? "Branch comparison is unavailable"
-            : "Workspace review could not be loaded"
+            ? t("review.branchUnavailable")
+            : t("review.loadFailed")
         }
-        detail={messageOf(error)}
+        detail={messageOf(error, t("review.requestFailed"))}
         onRetry={() => {
           void diff.refetch();
           if (props.mode === "worktree") void changes.refetch();
@@ -103,8 +108,8 @@ export function WorkspaceReview(props: WorkspaceReviewProps) {
   if (diff.data.truncated && files.length === 0) {
     return (
       <ReviewState
-        title="Review boundary reached"
-        detail="The first changed file exceeds the 100,000-row boundary. Open it from Files to inspect bounded windows."
+        title={t("review.boundary")}
+        detail={t("review.boundaryDetail")}
       />
     );
   }
@@ -115,26 +120,26 @@ export function WorkspaceReview(props: WorkspaceReviewProps) {
   ) {
     return (
       <ReviewState
-        title="Diff material is unavailable"
-        detail="Git reported changed file identities but produced no reviewable patch."
+        title={t("review.materialUnavailable")}
+        detail={t("review.materialUnavailableDetail")}
       />
     );
   }
   if (files.length === 0) {
     return (
       <ReviewState
-        title={props.mode === "base" ? "No branch changes" : "Workspace is clean"}
+        title={props.mode === "base" ? t("review.noBranchChanges") : t("review.clean")}
         detail={
           props.mode === "base"
-            ? "The workspace matches the merge-base of the default branch."
-            : "Tracked and untracked files match the current HEAD."
+            ? t("review.noBranchChangesDetail")
+            : t("review.cleanDetail")
         }
       />
     );
   }
 
   return (
-    <section className="workspace-review-shell" aria-label="Workspace review">
+    <section className="workspace-review-shell" aria-label={t("review.label")}>
       <ReviewToolbar
         files={files}
         changes={props.mode === "worktree" ? changes.data?.data : undefined}
@@ -147,8 +152,7 @@ export function WorkspaceReview(props: WorkspaceReviewProps) {
       />
       {diff.data.truncated ? (
         <p className="review-warning" role="status">
-          Review stopped at the 100,000-row boundary; every visible file is
-          complete.
+          {t("review.truncated")}
         </p>
       ) : null}
       <div className="workspace-review" data-navigator-open={props.navigatorOpen}>
@@ -188,31 +192,34 @@ function ReviewToolbar(props: {
   onLayoutChange(layout: DiffLayout): void;
   onNavigatorOpenChange(open: boolean): void;
 }) {
+  const { formatNumber, t } = useLocalization();
   return (
     <header className="review-toolbar">
-      <small>{summarizeFiles(props.files, props.changes)}</small>
+      <small>
+        {summarizeFiles(props.files, props.changes, t, formatNumber)}
+      </small>
       <div>
-        <ButtonGroup label="Review baseline">
+        <ButtonGroup label={t("review.baseline")}>
           <ToggleButton
             active={props.mode === "worktree"}
-            label="Worktree"
+            label={t("review.worktree")}
             onClick={() => props.onModeChange("worktree")}
           />
           <ToggleButton
             active={props.mode === "base"}
-            label="Branch"
+            label={t("review.branch")}
             onClick={() => props.onModeChange("base")}
           />
         </ButtonGroup>
-        <ButtonGroup label="Diff layout">
+        <ButtonGroup label={t("review.layout")}>
           <ToggleButton
             active={props.layout === "unified"}
-            label="Unified"
+            label={t("review.unified")}
             onClick={() => props.onLayoutChange("unified")}
           />
           <ToggleButton
             active={props.layout === "split"}
-            label="Split"
+            label={t("review.split")}
             onClick={() => props.onLayoutChange("split")}
           />
         </ButtonGroup>
@@ -221,7 +228,7 @@ function ReviewToolbar(props: {
           aria-pressed={props.navigatorOpen}
           onClick={() => props.onNavigatorOpenChange(!props.navigatorOpen)}
         >
-          Files
+          {t("review.files")}
         </button>
       </div>
     </header>
@@ -253,8 +260,9 @@ function FileNavigator(props: {
   selectedPath: string | undefined;
   onSelect(path: string): void;
 }) {
+  const { t } = useLocalization();
   return (
-    <aside className="workspace-change-list" aria-label="Changed files">
+    <aside className="workspace-change-list" aria-label={t("review.changedFiles")}>
       {props.files.map((file) => (
         <button
           key={file.path}
@@ -286,6 +294,7 @@ function FileReview(props: {
   onToggleCollapsed(path: string): void;
   onOpenFile(path: string): void;
 }) {
+  const { t } = useLocalization();
   const toggle = () => {
     props.onSelect(props.file.path);
     props.onToggleCollapsed(props.file.path);
@@ -295,7 +304,7 @@ function FileReview(props: {
       className="file-review"
       data-diff-file={props.file.path}
       data-selected={props.selected}
-      aria-label={`Diff for ${props.file.path}`}
+      aria-label={t("review.diffFor", { path: props.file.path })}
     >
       <header>
         <button
@@ -314,7 +323,7 @@ function FileReview(props: {
         </button>
         {props.file.status !== "deleted" ? (
           <button type="button" onClick={() => props.onOpenFile(props.file.path)}>
-            Open file
+            {t("review.openFile")}
           </button>
         ) : null}
       </header>
@@ -334,9 +343,14 @@ function StatusMark({ status }: { status: string }) {
 }
 
 function ChangeCount({ change }: { change: FileDiff }) {
-  if (change.binary) return <small className="change-count">binary</small>;
+  const { t } = useLocalization();
+  if (change.binary) {
+    return <small className="change-count">{t("review.binary")}</small>;
+  }
   if (change.added === undefined || change.removed === undefined) {
-    return <small className="change-count">counts unavailable</small>;
+    return (
+      <small className="change-count">{t("review.countsUnavailable")}</small>
+    );
   }
   return (
     <small className="change-count tabular">
@@ -347,11 +361,12 @@ function ChangeCount({ change }: { change: FileDiff }) {
 }
 
 function FileDiffMaterial(props: { file: FileDiff; layout: DiffLayout }) {
+  const { t } = useLocalization();
   if (props.file.binary) {
-    return <p className="file-diff-empty">Binary material has no line-oriented diff.</p>;
+    return <p className="file-diff-empty">{t("review.binaryNoDiff")}</p>;
   }
   if (props.file.rows.length === 0) {
-    return <p className="file-diff-empty">Git produced no textual rows for this change.</p>;
+    return <p className="file-diff-empty">{t("review.noTextRows")}</p>;
   }
   return props.layout === "split" ? (
     <SplitDiff rows={props.file.rows} />
@@ -361,8 +376,9 @@ function FileDiffMaterial(props: { file: FileDiff; layout: DiffLayout }) {
 }
 
 function UnifiedDiff({ rows }: { rows: DiffRow[] }) {
+  const { t } = useLocalization();
   return (
-    <div className="diff-rows" aria-label="Changed lines">
+    <div className="diff-rows" aria-label={t("review.changedLines")}>
       {rows.map((row, index) => (
         <UnifiedLine key={`${index}:${row.type}`} row={row} />
       ))}
@@ -395,8 +411,9 @@ type SplitMaterial =
     };
 
 function SplitDiff({ rows }: { rows: DiffRow[] }) {
+  const { t } = useLocalization();
   return (
-    <div className="split-diff" aria-label="Changed lines in split layout">
+    <div className="split-diff" aria-label={t("review.changedLinesSplit")}>
       {splitMaterial(rows).map((material, index) =>
         material.type === "hunk" ? (
           <div key={index} className="diff-hunk">
@@ -470,13 +487,14 @@ function ReviewState(props: {
   detail?: string;
   onRetry?: () => void;
 }) {
+  const { t } = useLocalization();
   return (
     <section className="review-state">
       <strong>{props.title}</strong>
       {props.detail ? <p>{props.detail}</p> : null}
       {props.onRetry ? (
         <button type="button" onClick={props.onRetry}>
-          Try again
+          {t("review.tryAgain")}
         </button>
       ) : null}
     </section>
@@ -486,6 +504,8 @@ function ReviewState(props: {
 function summarizeFiles(
   files: FileDiff[],
   changes: WorkspaceFileChange[] | undefined,
+  t: Translate,
+  formatNumber: (value: number) => string,
 ) {
   const source = changes ?? files;
   const additions = source.reduce(
@@ -500,7 +520,11 @@ function summarizeFiles(
     (change) =>
       change.binary || change.added === undefined || change.removed === undefined,
   );
-  return `${source.length} files · +${additions} −${removals}${partial ? " · partial" : ""}`;
+  return `${t("review.summary", {
+    files: formatNumber(source.length),
+    additions: formatNumber(additions),
+    removals: formatNumber(removals),
+  })}${partial ? ` · ${t("review.partial")}` : ""}`;
 }
 
 function statusMark(status: string) {
@@ -528,6 +552,6 @@ function baseName(path: string) {
   return path.split("/").at(-1) || path;
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "The review request failed.";
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }

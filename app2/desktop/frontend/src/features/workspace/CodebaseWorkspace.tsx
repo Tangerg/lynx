@@ -9,6 +9,10 @@ import type {
 } from "@lyra/runtime-contract";
 
 import {
+  useLocalization,
+  type Translate,
+} from "../localization/Localization";
+import {
   getCodebaseStatus,
   reindexCodebase,
   runtimeQueryKeys,
@@ -27,6 +31,7 @@ interface CodebaseWorkspaceProps {
 }
 
 export function CodebaseWorkspace(props: CodebaseWorkspaceProps) {
+  const { t } = useLocalization();
   const queryClient = useQueryClient();
   const status = useQuery({
     queryKey: runtimeQueryKeys.codebaseStatus(
@@ -83,21 +88,24 @@ export function CodebaseWorkspace(props: CodebaseWorkspaceProps) {
   };
 
   if (status.isPending) {
-    return <CodebaseState title="Reading semantic index" />;
+    return <CodebaseState title={t("codebase.readingIndex")} />;
   }
   if (status.isError) {
     return (
       <CodebaseState
-        title="Semantic index is unavailable"
-        detail={messageOf(status.error)}
-        action="Try again"
+        title={t("codebase.indexUnavailable")}
+        detail={messageOf(status.error, t("codebase.runtimeError"))}
+        action={t("resource.tryAgain")}
         onAction={() => void status.refetch()}
       />
     );
   }
 
   return (
-    <section className="codebase-workspace" aria-label="Semantic codebase search">
+    <section
+      className="codebase-workspace"
+      aria-label={t("codebase.searchLabel")}
+    >
       <CodebaseHeader
         status={status.data}
         rebuilding={reindex.isPending}
@@ -105,26 +113,26 @@ export function CodebaseWorkspace(props: CodebaseWorkspaceProps) {
       />
       {reindex.isError ? (
         <p className="codebase-error" role="alert">
-          {messageOf(reindex.error)}
+          {messageOf(reindex.error, t("codebase.runtimeError"))}
         </p>
       ) : null}
       {status.data.state === "ready" ? (
         <>
           <form className="codebase-search" role="search" onSubmit={submit}>
-            <label htmlFor="codebase-search-input">Ask the codebase</label>
+            <label htmlFor="codebase-search-input">{t("codebase.ask")}</label>
             <div>
               <input
                 id="codebase-search-input"
                 type="search"
                 maxLength={maxCodebaseQueryLength}
                 value={props.draft}
-                placeholder="Where is session recovery handled?"
+                placeholder={t("codebase.placeholder")}
                 onChange={(event) =>
                   props.onDraftChange(event.currentTarget.value)
                 }
               />
               <button type="submit" disabled={props.draft.trim() === ""}>
-                Search
+                {t("codebase.search")}
               </button>
             </div>
           </form>
@@ -152,24 +160,29 @@ function CodebaseHeader(props: {
   rebuilding: boolean;
   onReindex(): void;
 }) {
+  const { formatDateTime, formatNumber, t } = useLocalization();
   return (
     <header className="codebase-header">
       <div>
-        <p>Semantic index</p>
+        <p>{t("codebase.index")}</p>
         {props.status.state === "ready" ? (
           <small>
-            {props.status.fileCount.toLocaleString()} files ·{" "}
-            {props.status.chunkCount.toLocaleString()} passages
-            {props.status.truncated ? " · bounded" : ""}
+            {t("codebase.indexFacts", {
+              files: formatNumber(props.status.fileCount),
+              passages: formatNumber(props.status.chunkCount),
+            })}
+            {props.status.truncated ? ` · ${t("codebase.bounded")}` : ""}
           </small>
         ) : (
-          <small>{statusLabel(props.status.state)}</small>
+          <small>{statusLabel(props.status.state, t)}</small>
         )}
         {props.status.state === "ready" ? (
           <small title={props.status.modelId}>
             {props.status.modelId}
             {props.status.indexedAt
-              ? ` · Indexed ${formatIndexedAt(props.status.indexedAt)}`
+              ? ` · ${t("codebase.indexedAt", {
+                  date: formatIndexedAt(props.status.indexedAt, formatDateTime),
+                })}`
               : ""}
           </small>
         ) : null}
@@ -181,8 +194,8 @@ function CodebaseHeader(props: {
           onClick={props.onReindex}
         >
           {props.rebuilding || props.status.state === "indexing"
-            ? "Indexing…"
-            : "Reindex"}
+            ? t("codebase.indexing")
+            : t("codebase.reindex")}
         </button>
       ) : null}
     </header>
@@ -194,20 +207,21 @@ function IndexLifecycleState(props: {
   mutationPending: boolean;
   onReindex(): void;
 }) {
+  const { t } = useLocalization();
   if (props.status.state === "indexing") {
     return (
       <CodebaseState
-        title="Building the semantic index"
-        detail="Source discovery, chunking, and embeddings run in the Runtime. This view updates when the durable index settles."
+        title={t("codebase.building")}
+        detail={t("codebase.buildingDetail")}
       />
     );
   }
   if (props.status.state === "error") {
     return (
       <CodebaseState
-        title="The last index build did not finish"
-        detail="Check the embedding provider configuration, then rebuild the index. The previous searchable index is never partially replaced."
-        action={props.mutationPending ? "Starting…" : "Build again"}
+        title={t("codebase.lastBuildFailed")}
+        detail={t("codebase.lastBuildFailedDetail")}
+        action={props.mutationPending ? t("codebase.starting") : t("codebase.buildAgain")}
         disabled={props.mutationPending}
         onAction={props.onReindex}
       />
@@ -215,9 +229,9 @@ function IndexLifecycleState(props: {
   }
   return (
     <CodebaseState
-      title="Search by meaning, not only text"
-      detail="Build a workspace-scoped semantic index to find relevant code passages across the current Session workspace."
-      action={props.mutationPending ? "Starting…" : "Build index"}
+      title={t("codebase.semanticTitle")}
+      detail={t("codebase.semanticDetail")}
+      action={props.mutationPending ? t("codebase.starting") : t("codebase.buildIndex")}
       disabled={props.mutationPending}
       onAction={props.onReindex}
     />
@@ -231,35 +245,36 @@ function CodebaseResults(props: {
   hits: CodebaseHit[] | undefined;
   onOpenFile(path: string, line?: number): void;
 }) {
+  const { t } = useLocalization();
   if (props.query === "") {
     return (
       <CodebaseState
-        title="Ready to search"
-        detail="Describe a responsibility, behavior, or concept in plain language."
+        title={t("codebase.readySearch")}
+        detail={t("codebase.readySearchDetail")}
       />
     );
   }
   if (props.pending) {
-    return <CodebaseState title="Searching code passages" />;
+    return <CodebaseState title={t("codebase.searchingPassages")} />;
   }
   if (props.error !== null && props.error !== undefined) {
     return (
       <CodebaseState
-        title="Semantic search failed"
-        detail={messageOf(props.error)}
+        title={t("codebase.searchFailed")}
+        detail={messageOf(props.error, t("codebase.runtimeError"))}
       />
     );
   }
   if ((props.hits?.length ?? 0) === 0) {
     return (
       <CodebaseState
-        title="No relevant passage found"
-        detail="Try a broader description, or rebuild after changing source files."
+        title={t("codebase.noPassage")}
+        detail={t("codebase.noPassageDetail")}
       />
     );
   }
   return (
-    <ol className="codebase-results" aria-label="Semantic search results">
+    <ol className="codebase-results" aria-label={t("codebase.results")}>
       {props.hits?.map((hit) => (
         <li key={`${hit.path}:${hit.startLine}:${hit.endLine}`}>
           <button
@@ -269,7 +284,11 @@ function CodebaseResults(props: {
             <span>
               <strong>{hit.path}</strong>
               <small>
-                L{hit.startLine}–{hit.endLine} · {Math.round(hit.score * 100)}%
+                {t("codebase.lineRangeScore", {
+                  start: hit.startLine,
+                  end: hit.endLine,
+                  score: Math.round(hit.score * 100),
+                })}
               </small>
             </span>
             <pre>{hit.snippet}</pre>
@@ -300,29 +319,35 @@ function CodebaseState(props: {
   );
 }
 
-function statusLabel(state: CodebaseStatus["state"]) {
+function statusLabel(state: CodebaseStatus["state"], t: Translate) {
   switch (state) {
     case "indexing":
-      return "Building index";
+      return t("codebase.status.building");
     case "error":
-      return "Build interrupted";
+      return t("codebase.status.interrupted");
     case "ready":
-      return "Ready";
+      return t("codebase.status.ready");
     default:
-      return "Not indexed";
+      return t("codebase.status.notIndexed");
   }
 }
 
-function formatIndexedAt(value: string) {
+function formatIndexedAt(
+  value: string,
+  formatDateTime: (
+    value: Date,
+    options?: Intl.DateTimeFormatOptions,
+  ) => string,
+) {
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp)
     ? value
-    : new Intl.DateTimeFormat(undefined, {
+    : formatDateTime(new Date(timestamp), {
         dateStyle: "medium",
         timeStyle: "short",
-      }).format(timestamp);
+      });
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "Unexpected Runtime error";
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }

@@ -6,6 +6,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import { invokeDiagnosticTool } from "../../runtime/runtimeQueries";
 import { ResourceState } from "./ResourceState";
 
@@ -19,13 +20,16 @@ interface ToolCatalogWorkspaceProps {
 }
 
 export function ToolCatalogWorkspace(props: ToolCatalogWorkspaceProps) {
-  if (props.pending) return <ResourceState title="Loading diagnostic tools…" />;
+  const { t } = useLocalization();
+  if (props.pending) {
+    return <ResourceState title={t("diagnostic.loading")} />;
+  }
   if (props.error) {
     return (
       <ResourceState
-        title="Diagnostic tools could not be loaded"
-        detail={messageOf(props.error)}
-        action="Try again"
+        title={t("diagnostic.loadFailed")}
+        detail={messageOf(props.error, t("diagnostic.requestFailed"))}
+        action={t("resource.tryAgain")}
         onAction={props.onRetry}
       />
     );
@@ -33,8 +37,8 @@ export function ToolCatalogWorkspace(props: ToolCatalogWorkspaceProps) {
   if (!props.values || props.values.length === 0) {
     return (
       <ResourceState
-        title="No direct tools available"
-        detail="This Runtime does not expose any capability that is safe to invoke outside an Agent Run."
+        title={t("diagnostic.empty")}
+        detail={t("diagnostic.emptyDetail")}
       />
     );
   }
@@ -42,12 +46,8 @@ export function ToolCatalogWorkspace(props: ToolCatalogWorkspaceProps) {
   return (
     <div className="tool-catalog">
       <header className="tool-catalog-intro">
-        <strong>Direct diagnostics</strong>
-        <p>
-          These read-only tools run against the current workspace without a
-          session, model loop, or approval flow. Agent-only tools remain inside
-          the Run that owns their authority.
-        </p>
+        <strong>{t("diagnostic.title")}</strong>
+        <p>{t("diagnostic.detail")}</p>
       </header>
       <div className="resource-card-list tool-card-list">
         {props.values.map((tool) => (
@@ -68,6 +68,7 @@ function ToolCard(props: {
   workspace: WorkspaceRef;
   tool: ToolSpec;
 }) {
+  const { t } = useLocalization();
   const active = useRef<AbortController | undefined>(undefined);
   const [draft, setDraft] = useState(() => exampleArguments(props.tool.name));
   const [pending, setPending] = useState(false);
@@ -89,9 +90,9 @@ function ToolCard(props: {
     setResult(undefined);
     let args: Record<string, unknown>;
     try {
-      args = parseArguments(draft);
+      args = parseArguments(draft, t("diagnostic.invalidArguments"));
     } catch (cause) {
-      setError(messageOf(cause));
+      setError(messageOf(cause, t("diagnostic.requestFailed")));
       return;
     }
     active.current?.abort();
@@ -108,7 +109,9 @@ function ToolCard(props: {
       );
       if (!request.signal.aborted) setResult(renderResult(value));
     } catch (cause) {
-      if (!request.signal.aborted) setError(messageOf(cause));
+      if (!request.signal.aborted) {
+        setError(messageOf(cause, t("diagnostic.requestFailed")));
+      }
     } finally {
       if (active.current === request) {
         active.current = undefined;
@@ -124,15 +127,19 @@ function ToolCard(props: {
           <h4>{props.tool.name}</h4>
           <small title={props.workspace.path}>{props.workspace.path}</small>
         </div>
-        <span className="resource-tag">{props.tool.safetyClass ?? "safe"}</span>
+        <span className="resource-tag">
+          {props.tool.safetyClass ?? t("diagnostic.safe")}
+        </span>
       </header>
-      <p>{props.tool.description || "No description provided."}</p>
+      <p>{props.tool.description || t("resource.noDescription")}</p>
       <details>
-        <summary>JSON Schema</summary>
+        <summary>{t("diagnostic.schema")}</summary>
         <pre>{JSON.stringify(props.tool.parameters ?? {}, null, 2)}</pre>
       </details>
       <form className="tool-invocation" onSubmit={(event) => void invoke(event)}>
-        <label htmlFor={`tool-arguments-${props.tool.name}`}>Arguments</label>
+        <label htmlFor={`tool-arguments-${props.tool.name}`}>
+          {t("diagnostic.arguments")}
+        </label>
         <textarea
           id={`tool-arguments-${props.tool.name}`}
           rows={5}
@@ -145,9 +152,9 @@ function ToolCard(props: {
           }}
         />
         <footer>
-          <span>JSON object</span>
+          <span>{t("diagnostic.jsonObject")}</span>
           <button type="submit" disabled={pending || draft.trim() === ""}>
-            {pending ? "Running…" : "Run diagnostic"}
+            {pending ? t("diagnostic.running") : t("diagnostic.run")}
           </button>
         </footer>
       </form>
@@ -158,7 +165,7 @@ function ToolCard(props: {
       ) : null}
       {result === undefined ? null : (
         <section className="tool-invocation-result" aria-live="polite">
-          <strong>Result</strong>
+          <strong>{t("diagnostic.result")}</strong>
           <pre>{result}</pre>
         </section>
       )}
@@ -166,10 +173,13 @@ function ToolCard(props: {
   );
 }
 
-function parseArguments(value: string): Record<string, unknown> {
+function parseArguments(
+  value: string,
+  invalidArguments: string,
+): Record<string, unknown> {
   const parsed: unknown = JSON.parse(value);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("Arguments must be one JSON object.");
+    throw new Error(invalidArguments);
   }
   return parsed as Record<string, unknown>;
 }
@@ -197,8 +207,8 @@ function exampleArguments(name: string) {
   return "{}";
 }
 
-function messageOf(error: unknown) {
+function messageOf(error: unknown, fallback: string) {
   return error instanceof Error
     ? error.message
-    : "The request could not be completed.";
+    : fallback;
 }

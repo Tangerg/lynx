@@ -9,6 +9,10 @@ import type {
 } from "@lyra/runtime-contract";
 
 import {
+  useLocalization,
+  type Translate,
+} from "../localization/Localization";
+import {
   listKnowledge,
   runtimeQueryKeys,
   updateKnowledge,
@@ -22,6 +26,7 @@ interface KnowledgeWorkspaceProps {
 }
 
 export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps) {
+  const { t } = useLocalization();
   const query = useQuery({
     queryKey: runtimeQueryKeys.workspaceKnowledge(
       props.connection,
@@ -36,18 +41,18 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps) {
   if (!props.enabled) {
     return (
       <ResourceState
-        title="Knowledge unavailable"
-        detail="This Runtime does not advertise the Lyra Knowledge capability."
+        title={t("knowledge.unavailable")}
+        detail={t("knowledge.unavailableDetail")}
       />
     );
   }
-  if (query.isPending) return <ResourceState title="Loading Knowledge…" />;
+  if (query.isPending) return <ResourceState title={t("knowledge.loading")} />;
   if (query.error) {
     return (
       <ResourceState
-        title="Knowledge could not be loaded"
-        detail={messageOf(query.error)}
-        action="Try again"
+        title={t("knowledge.loadFailed")}
+        detail={messageOf(query.error, t("knowledge.operationFailed"))}
+        action={t("resource.tryAgain")}
         onAction={() => void query.refetch()}
       />
     );
@@ -55,14 +60,17 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps) {
   if (!query.data || query.data.data.length === 0) {
     return (
       <ResourceState
-        title="No Knowledge scopes available"
-        detail="Lyra could not resolve a writable LYRA.md scope for this workspace."
+        title={t("knowledge.noScopes")}
+        detail={t("knowledge.noScopesDetail")}
       />
     );
   }
 
   return (
-    <div className="knowledge-document-list" aria-label="Knowledge documents">
+    <div
+      className="knowledge-document-list"
+      aria-label={t("knowledge.documents")}
+    >
       {query.data.data.map((entry) => (
         <KnowledgeEditor
           key={`${props.connection.generation}:${props.workspace.path}:${entry.scope}`}
@@ -94,6 +102,7 @@ function KnowledgeEditor(props: {
   queryKey: readonly unknown[];
   onRefresh(): Promise<Page<KnowledgeEntry> | undefined>;
 }) {
+  const { formatDateTime, t } = useLocalization();
   const queryClient = useQueryClient();
   const controller = useRef<AbortController | undefined>(undefined);
   const saving = useRef(false);
@@ -154,7 +163,7 @@ function KnowledgeEditor(props: {
       });
     } catch (cause) {
       if (request.signal.aborted) return;
-      let message = messageOf(cause);
+      let message = messageOf(cause, t("knowledge.operationFailed"));
       try {
         const latestPage = await props.onRefresh();
         const latest = latestPage?.data.find(
@@ -170,7 +179,7 @@ function KnowledgeEditor(props: {
               value: current.value,
             }));
             message =
-              "This Knowledge document changed externally. Your draft is preserved against the latest revision; review it before saving again.";
+              t("knowledge.externalChange");
           }
         }
       } catch {
@@ -190,15 +199,15 @@ function KnowledgeEditor(props: {
     <article className="knowledge-document">
       <header>
         <div>
-          <h4>{knowledgePath(props.entry.scope)}</h4>
-          <p>{knowledgeScope(props.entry.scope)}</p>
+          <h4>{knowledgePath(props.entry.scope, t)}</h4>
+          <p>{knowledgeScope(props.entry.scope, t)}</p>
         </div>
         {draft.updatedAt ? (
           <time dateTime={draft.updatedAt}>
-            {new Date(draft.updatedAt).toLocaleString()}
+            {formatKnowledgeTime(draft.updatedAt, formatDateTime)}
           </time>
         ) : (
-          <span>Not created</span>
+          <span>{t("knowledge.notCreated")}</span>
         )}
       </header>
       <textarea
@@ -206,14 +215,18 @@ function KnowledgeEditor(props: {
         rows={10}
         maxLength={1_048_576}
         spellCheck={false}
-        aria-label={`${knowledgeScope(props.entry.scope)} Knowledge`}
+        aria-label={t("knowledge.editorLabel", {
+          scope: knowledgeScope(props.entry.scope, t),
+        })}
         onChange={(event) => {
           setError(undefined);
           setDraft((current) => ({ ...current, value: event.currentTarget.value }));
         }}
       />
       <footer>
-        <span>{dirty ? "Unsaved changes" : "Saved"}</span>
+        <span>
+          {dirty ? t("knowledge.unsaved") : t("knowledge.saved")}
+        </span>
         <button
           type="button"
           disabled={!dirty || pending}
@@ -222,14 +235,14 @@ function KnowledgeEditor(props: {
             setDraft(openDraft(props.entry));
           }}
         >
-          Revert
+          {t("knowledge.revert")}
         </button>
         <button
           type="button"
           disabled={!dirty || pending}
           onClick={() => void save()}
         >
-          {pending ? "Saving…" : "Save"}
+          {pending ? t("knowledge.saving") : t("knowledge.save")}
         </button>
       </footer>
       {error ? <p className="knowledge-error" role="alert">{error}</p> : null}
@@ -246,18 +259,34 @@ function openDraft(entry: KnowledgeEntry): KnowledgeDraft {
   };
 }
 
-function knowledgePath(scope: string) {
+function knowledgePath(scope: string, t: Translate) {
   if (scope === "home") return "~/.lyra/LYRA.md";
-  if (scope === "projectRoot") return "Project root / LYRA.md";
-  return "Workspace / LYRA.md";
+  if (scope === "projectRoot") return t("knowledge.path.projectRoot");
+  return t("knowledge.path.workspace");
 }
 
-function knowledgeScope(scope: string) {
-  if (scope === "home") return "User preferences";
-  if (scope === "projectRoot") return "Project Knowledge";
-  return "Workspace Knowledge";
+function knowledgeScope(scope: string, t: Translate) {
+  if (scope === "home") return t("knowledge.scope.home");
+  if (scope === "projectRoot") return t("knowledge.scope.projectRoot");
+  return t("knowledge.scope.workspace");
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "Knowledge operation failed.";
+function formatKnowledgeTime(
+  value: string,
+  formatDateTime: (
+    value: Date,
+    options?: Intl.DateTimeFormatOptions,
+  ) => string,
+) {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? value
+    : formatDateTime(date, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+}
+
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
