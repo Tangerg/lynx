@@ -330,6 +330,7 @@ func mergeRunUsage(metrics *protocol.RunMetrics, usage protocol.Usage, steps int
 	metrics.Usage.CacheReadTokens += usage.CacheReadTokens
 	metrics.Usage.CacheWriteTokens += usage.CacheWriteTokens
 	metrics.Usage.ReasoningTokens += usage.ReasoningTokens
+	mergeUsageCost(&metrics.Usage.CostUSD, usage.CostUSD)
 	if len(usage.ByModel) > 0 && metrics.Usage.ByModel == nil { metrics.Usage.ByModel = make(map[string]protocol.ModelUsage) }
 	for model, value := range usage.ByModel {
 		current := metrics.Usage.ByModel[model]
@@ -338,7 +339,19 @@ func mergeRunUsage(metrics *protocol.RunMetrics, usage protocol.Usage, steps int
 		current.CacheReadTokens += value.CacheReadTokens
 		current.CacheWriteTokens += value.CacheWriteTokens
 		current.ReasoningTokens += value.ReasoningTokens
+		mergeUsageCost(&current.CostUSD, value.CostUSD)
 		metrics.Usage.ByModel[model] = current
 	}
 	metrics.Steps += steps
+}
+
+func mergeUsageCost(total **float64, value *float64) {
+	if value == nil {
+		return
+	}
+	merged := *value
+	if *total != nil {
+		merged += **total
+	}
+	*total = &merged
 }

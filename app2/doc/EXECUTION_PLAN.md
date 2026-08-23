@@ -220,6 +220,9 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - **Model streaming projection**：Agent Framework delta 只在 `agentexec` 内解析为 provider-neutral append；Run projection
   以 Framework Effect identity 派生稳定 Lyra Item key，先原子提交可回放 `item.started` anchor，再发布非权威、
   非回放 `item.delta`。最终 `item.completed` 使用同一 key 并写入 durable Transcript，delta 永不成为内容真相。
+- **Progress/context footprint**：每次 settled model call 产生 bounded `segment.progress`，其 usage/step 从 Run 的 durable
+  baseline 累加；最后一次已知 input token footprint 写入 `RunRef.contextTokens`，waiting/terminal/reload 不退回
+  ephemeral preview。unknown usage 保持缺席，不伪造为零。
 - **AgentSessionView owner**：Desktop 用 `runsById/itemsById` normalized fold 合并 coherent snapshot、完整 replay 与
   live event；重叠 stream 以 `eventId` bounded dedupe，connection/session generation fencing 会终止旧 lease，
   authoritative completion 替换 provisional，terminal 清理未完成的纯渲染 anchor。
@@ -231,7 +234,8 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - **Bounds/resource ownership**：Framework、agentexec 和 Run projector 均为 bounded queue；provider 不等待 SQLite 或
   renderer，projector 在 Executor 返回后先 drain/close，再进入 terminal commit。本批未启动 Runtime、Wails、Vite、
   browser/agent-browser 或 watcher，无待释放的外部资源。
-- **仍未关闭的门**：progress/context footprint、reload/restart、长历史接续与故障矩阵仍待 production implementation；
+- **仍未关闭的门**：Desktop context gauge 的 model-window 百分比、reload/restart、长历史接续与故障矩阵仍待
+  production implementation；
   approval/question 的可操作表面与 delegated disclosure 属于 R4。按集中验证约定，本阶段不运行分批测试，
   不把 R3 提前标为 verified。
 

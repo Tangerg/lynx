@@ -96,7 +96,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | Event | Authority/replay | app2 projection | 阶段 | 状态 | 验收 |
 | --- | --- | --- | --- | --- | --- |
 | `segment.started` | authoritative/replayable | Run/Segment lifecycle | R3 | implemented | committed admission/resume/replay 使用同一 Run/Segment identity；待统一门禁 |
-| `segment.progress` | ephemeral/non-replay | usage/context/live progress | R3 | specified | 丢失可容忍；terminal durable footprint 收敛 |
+| `segment.progress` | ephemeral/non-replay | usage/context/live progress | R3 | implemented | settled model call 发布 cumulative usage/step/context preview；terminal Run facts 收敛，drop 不改结果 |
 | `segment.finished` | authoritative/replayable | outcome/segment terminal | R3 | implemented | terminal outcome/metrics durable commit 后发布；待故障矩阵统一门禁 |
 | `item.started` | authoritative/replayable | placeholder/source owner | R3 | implemented | model anchor 以 Effect identity 派生稳定 key 并先 durable commit；Tool/HITL 随 R4 完成 |
 | `item.delta` | ephemeral/non-replay | message/reasoning/tool streaming | R3 | implemented | message/reasoning append bounded live-only，SSE 无 id；Tool streaming 随 R4 完成 |

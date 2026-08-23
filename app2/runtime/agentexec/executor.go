@@ -96,6 +96,7 @@ type Output struct {
 	Text       string
 	Usage      protocol.Usage
 	ModelCalls int
+	ContextTokens int64
 	Models     []ModelObservation
 	Tools      []ToolObservation
 	Waiting    *Waiting
@@ -287,8 +288,8 @@ func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Proc
 				return Output{}, fmt.Errorf("agentexec: capture waiting interaction: %w", err)
 			}
 			waiting := &Waiting{Prompt: pending.Prompt(), ResponseSchema: pending.ResponseSchema(), Checkpoint: snapshot.JSON()}
-			models, tools, usage := observer.snapshot()
-			partial := Output{Waiting: waiting, Models: models, Tools: tools, Usage: usage, ModelCalls: len(models)}
+			models, tools, usage, contextTokens := observer.snapshot()
+			partial := Output{Waiting: waiting, Models: models, Tools: tools, Usage: usage, ModelCalls: len(models), ContextTokens: contextTokens}
 			if err := stopProcess(engine, process); err != nil {
 				return partial, fmt.Errorf("agentexec: release checkpointed interaction: %w", err)
 			}
@@ -297,8 +298,8 @@ func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Proc
 	}
 
 completed:
-	models, tools, usage := observer.snapshot()
-	partial := Output{Usage: usage, ModelCalls: len(models), Models: models, Tools: tools}
+	models, tools, usage, contextTokens := observer.snapshot()
+	partial := Output{Usage: usage, ModelCalls: len(models), Models: models, Tools: tools, ContextTokens: contextTokens}
 	if err := engine.Close(); err != nil {
 		return partial, fmt.Errorf("agentexec: close completed engine: %w", err)
 	}

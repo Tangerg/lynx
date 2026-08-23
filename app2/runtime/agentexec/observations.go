@@ -59,6 +59,17 @@ type ModelDelta struct {
 // dropped delta never changes the settled executor Output.
 type ModelDeltaSink interface {
 	OfferModelDelta(ModelDelta)
+	OfferModelProgress(ModelProgress)
+}
+
+// ModelProgress is emitted after one complete model call. Usage belongs to that
+// call; the Run owner combines it with the durable run-cumulative baseline.
+type ModelProgress struct {
+	Sequence      int
+	OccurredAt    time.Time
+	Usage         protocol.Usage
+	ContextTokens int64
+	Model         string
 }
 
 type ToolObservation struct {
@@ -130,6 +141,17 @@ func (observer *executionObserver) OnModelResponse(_ context.Context, invocation
 		EffectID: effectID, Sequence: int(invocation.ModelCallSequence()), OccurredAt: occurredAt, Response: response.Clone(),
 	})
 	observer.mu.Unlock()
+	if observer.live != nil {
+		model := response.Model
+		if model == "" {
+			model = observer.defaultModel
+		}
+		usage := usageForModel(model, response.Usage)
+		observer.live.OfferModelProgress(ModelProgress{
+			Sequence: int(invocation.ModelCallSequence()), OccurredAt: time.Now().UTC(),
+			Usage: usage, ContextTokens: response.Usage.InputTokens, Model: model,
+		})
+	}
 }
 
 func (observer *executionObserver) OnDelta(_ context.Context, delta agent.Delta) {
@@ -200,11 +222,13 @@ func (observer *executionObserver) OnToolSettled(_ context.Context, invocation i
 	observer.mu.Unlock()
 }
 
-func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObservation, protocol.Usage) {
+func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObservation, protocol.Usage, int64) {
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
 	models := make([]ModelObservation, len(observer.models))
 	usage := protocol.Usage{ByModel: make(map[string]protocol.ModelUsage)}
+	contextTokens := int64(0)
+	contextSequence := 0
 	for index, value := range observer.models {
 		models[index] = ModelObservation{EffectID: value.EffectID, Sequence: value.Sequence, OccurredAt: value.OccurredAt, Response: value.Response.Clone()}
 		model := value.Response.Model
@@ -212,6 +236,10 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 			model = observer.defaultModel
 		}
 		addUsage(&usage, model, presentUsage(value.Response.Usage).ModelUsage)
+		if value.Sequence >= contextSequence && value.Response.Usage.InputTokens > 0 {
+			contextSequence = value.Sequence
+			contextTokens = value.Response.Usage.InputTokens
+		}
 	}
 	sort.SliceStable(models, func(left, right int) bool { return models[left].Sequence < models[right].Sequence })
 	tools := make([]ToolObservation, 0, len(observer.tools))
@@ -232,7 +260,7 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 	if len(usage.ByModel) == 0 {
 		usage.ByModel = nil
 	}
-	return models, tools, usage
+	return models, tools, usage, contextTokens
 }
 
 func streamProjection(response *chat.Response) (content, reasoning []string) {
@@ -328,13 +356,34 @@ func addUsage(total *protocol.Usage, model string, value protocol.ModelUsage) {
 	total.CacheReadTokens += value.CacheReadTokens
 	total.CacheWriteTokens += value.CacheWriteTokens
 	total.ReasoningTokens += value.ReasoningTokens
+	addObservedCost(&total.CostUSD, value.CostUSD)
 	byModel := total.ByModel[model]
 	byModel.InputTokens += value.InputTokens
 	byModel.OutputTokens += value.OutputTokens
 	byModel.CacheReadTokens += value.CacheReadTokens
 	byModel.CacheWriteTokens += value.CacheWriteTokens
 	byModel.ReasoningTokens += value.ReasoningTokens
+	addObservedCost(&byModel.CostUSD, value.CostUSD)
 	total.ByModel[model] = byModel
+}
+
+func addObservedCost(total **float64, value *float64) {
+	if value == nil {
+		return
+	}
+	merged := *value
+	if *total != nil {
+		merged += **total
+	}
+	*total = &merged
+}
+
+func usageForModel(model string, value chat.Usage) protocol.Usage {
+	usage := presentUsage(value)
+	if model != "" {
+		usage.ByModel = map[string]protocol.ModelUsage{model: usage.ModelUsage}
+	}
+	return usage
 }
 
 var _ interaction.ExecutionObserver = (*executionObserver)(nil)

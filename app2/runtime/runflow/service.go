@@ -342,7 +342,7 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 		if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != segmentID {
 			return
 		}
-		live := newLiveProjector(service, runID, segmentID)
+		live := newLiveProjector(service, record, segmentID)
 		output, executeErr := service.executor.Execute(ctx, agentexec.Input{
 			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
 			SessionID: record.Run.SessionID(), RunID: runID, IsRootRun: record.Run.ParentRunID() == "", Conversation: conversation, Steers: steers,
@@ -395,6 +395,9 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	}
 	now := service.now().UTC()
 	mergeRunUsage(&facts.Metrics, output.Usage, output.ModelCalls)
+	if output.ContextTokens > 0 {
+		facts.ContextTokens = output.ContextTokens
+	}
 	terminalProjection := executeErr == nil && output.Waiting == nil
 	projectedFacts := facts
 	projection, projectionErr := service.projectExecution(ctx, record, segmentID, output, &projectedFacts, terminalProjection)
