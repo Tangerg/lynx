@@ -1,0 +1,93 @@
+.boot-state {
+  display: grid;
+  min-width: 100vw;
+  min-height: 100vh;
+  align-content: center;
+  justify-items: center;
+  padding: 40px;
+  background: var(--paper-muted);
+  text-align: center;
+}
+
+.boot-state h1 {
+  margin: 22px 0 8px;
+  font-size: 28px;
+  text-wrap: balance;
+}
+
+.boot-state p {
+  max-width: 460px;
+  margin: 0 0 24px;
+  color: var(--ink-muted);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.boot-state button {
+  padding: 0 18px;
+  color: var(--on-solid);
+  background: var(--ink);
+}
+
+.boot-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.boot-actions button + button {
+  border: 1px solid var(--divider-strong);
+  color: var(--ink);
+  background: var(--paper-raised);
+}
+
+.boot-state p[role="alert"] {
+  margin-top: 14px;
+  color: var(--red);
+}
+
+.brand-mark {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border-radius: 18px;
+  color: var(--on-solid);
+  background: var(--ink);
+  box-shadow: var(--shadow-sm);
+  font-family: Georgia, serif;
+  font-size: 24px;
+}
+
+.brand-mark-error {
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+.boot-state {
+  background: var(--paper);
+}
+
+.boot-state h1 {
+  margin: 16px 0 7px;
+  font-size: 22px;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+}
+
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 600;
+}

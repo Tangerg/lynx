@@ -4,10 +4,7 @@ import { createRoot } from "react-dom/client";
 import { LocalizationProvider } from "../features/localization/Localization";
 import { ShellPreferencesProvider } from "../features/preferences/ShellPreferences";
 import { VisualApp } from "./VisualApp";
-import "../styles.css";
-import "../styles/foundation.css";
-import "../styles/shell.css";
-import "../styles/settings.css";
+import "../styles/index.css";
 
 const root = document.getElementById("root");
 if (root === null) throw new Error("Visual acceptance root is missing");

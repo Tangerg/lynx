@@ -28,7 +28,6 @@ import { RuntimeSettings } from "./RuntimeSettings";
 import { KeyboardSettings } from "./KeyboardSettings";
 import { ariaKeyShortcuts, commandByID } from "../shell/commandCatalog";
 import { Icon } from "../shell/Icon";
-import "./ShellSettings.css";
 
 interface SettingsSurfaceProps {
   connection: RuntimeConnection;

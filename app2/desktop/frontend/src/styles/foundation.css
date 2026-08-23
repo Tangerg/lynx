@@ -93,15 +93,21 @@ body,
   height: 100%;
   min-width: 0;
   min-height: 0;
+  margin: 0;
 }
 
 body {
+  overflow: hidden;
   color: var(--ink);
   background: var(--paper);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 430;
   line-height: 1.45;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 button,
@@ -118,8 +124,15 @@ summary {
 
 button {
   min-width: 32px;
+  border: 0;
   border-radius: var(--radius-md);
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.48;
 }
 
 button:focus-visible,
@@ -156,6 +169,12 @@ pre,
 kbd,
 samp {
   font-family: var(--font-mono);
+}
+
+code,
+pre {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .ui-icon {

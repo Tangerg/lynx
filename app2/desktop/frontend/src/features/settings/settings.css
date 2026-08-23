@@ -197,12 +197,16 @@
 
 .settings-section > header,
 .provider-section-heading {
+  display: flex;
   align-items: flex-end;
+  justify-content: space-between;
   gap: 20px;
   margin-bottom: 11px;
 }
 
 .settings-section h2 {
+  margin: 0;
+  color: var(--ink);
   font-size: 13px;
   font-weight: 560;
   letter-spacing: 0;
