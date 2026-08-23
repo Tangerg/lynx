@@ -6,6 +6,25 @@ import type {
 } from "@lyra/runtime-contract";
 
 export type MCPTransport = "streamableHttp" | "stdio";
+export type MCPSecretKind = "headers" | "environment";
+export type MCPDraftValidationCode =
+	| "stableNameRequired"
+	| "endpointRequired"
+	| "commandRequired"
+	| "timeoutInvalid"
+	| "secretInvalidJSON"
+	| "secretNotObject"
+	| "secretInvalidEntries";
+
+export class MCPDraftValidationError extends Error {
+	constructor(
+		readonly code: MCPDraftValidationCode,
+		readonly secretKind?: MCPSecretKind,
+	) {
+		super(code);
+		this.name = "MCPDraftValidationError";
+	}
+}
 
 export interface MCPDraft {
 	name: string;
@@ -84,7 +103,7 @@ export function durableMCPServerSignature(server: MCPServer) {
 export function candidateFromDraft(draft: MCPDraft): MCPServerCandidate {
 	const timeoutSeconds = timeoutFromDraft(draft);
 	return {
-		name: required(draft.name, "A stable server name is required."),
+		name: required(draft.name, "stableNameRequired"),
 		enabled: draft.enabled,
 		...(draft.description.trim() === "" ? {} : { description: draft.description.trim() }),
 		connection: connectionFromDraft(draft, true),
@@ -151,7 +170,7 @@ function connectionFromDraft(draft: MCPDraft, candidate: boolean): MCPConnection
 			: draft.headersJSON.trim() === "" ? undefined : { type: "set", value: parseSecretObject(draft.headersJSON, "headers") };
 		return {
 			type: "streamableHttp",
-			url: required(draft.url, "An endpoint URL is required."),
+			url: required(draft.url, "endpointRequired"),
 			...((candidate && authorization?.type === "clear") || authorization === undefined ? {} : { authorization }),
 			...((candidate && headers?.type === "clear") || headers === undefined ? {} : { headers }),
 		};
@@ -161,7 +180,7 @@ function connectionFromDraft(draft: MCPDraft, candidate: boolean): MCPConnection
 		: draft.environmentJSON.trim() === "" ? undefined : { type: "set", value: parseSecretObject(draft.environmentJSON, "environment") };
 	return {
 		type: "stdio",
-		command: required(draft.command, "A stdio command is required."),
+		command: required(draft.command, "commandRequired"),
 		args: argumentLines(draft.argsText),
 		...(draft.dir.trim() === "" ? {} : { dir: draft.dir.trim() }),
 		...((candidate && environment?.type === "clear") || environment === undefined ? {} : { env: environment }),
@@ -171,21 +190,25 @@ function connectionFromDraft(draft: MCPDraft, candidate: boolean): MCPConnection
 function timeoutFromDraft(draft: MCPDraft) {
 	if (draft.timeoutSeconds.trim() === "") return 0;
 	const value = Number(draft.timeoutSeconds);
-	if (!Number.isInteger(value) || value < 0 || value > 3600) throw new Error("Timeout must be a whole number from 0 to 3600 seconds.");
+	if (!Number.isInteger(value) || value < 0 || value > 3600) {
+		throw new MCPDraftValidationError("timeoutInvalid");
+	}
 	return value;
 }
 
-function parseSecretObject(source: string, label: string): Record<string, string> {
+function parseSecretObject(source: string, label: MCPSecretKind): Record<string, string> {
 	let value: unknown;
 	try {
 		value = JSON.parse(source);
 	} catch {
-		throw new Error(`${capitalize(label)} must be valid JSON.`);
+		throw new MCPDraftValidationError("secretInvalidJSON", label);
 	}
-	if (value === null || Array.isArray(value) || typeof value !== "object") throw new Error(`${capitalize(label)} must be a JSON object.`);
+	if (value === null || Array.isArray(value) || typeof value !== "object") {
+		throw new MCPDraftValidationError("secretNotObject", label);
+	}
 	const entries = Object.entries(value);
 	if (entries.length === 0 || entries.some(([name, entry]) => name === "" || typeof entry !== "string")) {
-		throw new Error(`${capitalize(label)} must contain non-empty names with string values.`);
+		throw new MCPDraftValidationError("secretInvalidEntries", label);
 	}
 	return Object.fromEntries(entries) as Record<string, string>;
 }
@@ -198,12 +221,8 @@ function sameValues(left: string[], right: string[]) {
 	return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function required(value: string, message: string) {
+function required(value: string, code: MCPDraftValidationCode) {
 	const normalized = value.trim();
-	if (normalized === "") throw new Error(message);
+	if (normalized === "") throw new MCPDraftValidationError(code);
 	return normalized;
-}
-
-function capitalize(value: string) {
-	return value.charAt(0).toUpperCase() + value.slice(1);
 }

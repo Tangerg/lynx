@@ -14,6 +14,7 @@ import {
 	testMCPServer,
 	updateMCPServer,
 } from "../../runtime/runtimeQueries";
+import { useLocalization, type Translate } from "../localization/Localization";
 import { MCPConnectionFields } from "./MCPConnectionFields";
 import {
 	candidateFromDraft,
@@ -24,6 +25,7 @@ import {
 	newMCPDraft,
 	requestFromDraft,
 	withToolPolicy,
+	MCPDraftValidationError,
 	type MCPDraft,
 } from "./mcpDraft";
 
@@ -34,6 +36,7 @@ interface MCPSettingsProps {
 type Verdict = { tone: "ok" | "error"; message: string };
 
 export function MCPSettings(props: MCPSettingsProps) {
+	const { t } = useLocalization();
 	const servers = useQuery({
 		queryKey: runtimeQueryKeys.mcpServers(props.connection),
 		queryFn: ({ signal }) => listMCPServers(props.connection, signal),
@@ -45,8 +48,8 @@ export function MCPSettings(props: MCPSettingsProps) {
 			<section className="settings-section" aria-labelledby="mcp-add-title">
 				<header>
 					<div>
-						<h2 id="mcp-add-title">Add a server</h2>
-						<p>Probe a complete candidate without persisting it, then add it when ready.</p>
+						<h2 id="mcp-add-title">{t("settings.mcp.addServer")}</h2>
+						<p>{t("settings.mcp.addServerDetail")}</p>
 					</div>
 				</header>
 				<NewMCPServer connection={props.connection} />
@@ -54,18 +57,18 @@ export function MCPSettings(props: MCPSettingsProps) {
 			<section className="settings-section" aria-labelledby="mcp-connections-title">
 				<header>
 					<div>
-						<h2 id="mcp-connections-title">Configured servers</h2>
-						<p>Live status comes from Runtime; reconnect never guesses at success.</p>
+						<h2 id="mcp-connections-title">{t("settings.mcp.configuredServers")}</h2>
+						<p>{t("settings.mcp.configuredServersDetail")}</p>
 					</div>
 				</header>
 				{servers.isPending ? (
-					<SettingsState>Loading MCP servers…</SettingsState>
+					<SettingsState>{t("settings.mcp.loadingServers")}</SettingsState>
 				) : servers.isError ? (
-					<SettingsState action="Try again" onAction={() => void servers.refetch()}>
-						{messageOf(servers.error)}
+					<SettingsState action={t("settings.common.tryAgain")} onAction={() => void servers.refetch()}>
+						{messageOf(servers.error, t)}
 					</SettingsState>
 				) : (servers.data?.data.length ?? 0) === 0 ? (
-					<SettingsState>No MCP servers are configured yet.</SettingsState>
+					<SettingsState>{t("settings.mcp.empty")}</SettingsState>
 				) : (
 					<div className="mcp-server-list">
 						{servers.data?.data.map((server) => (
@@ -79,6 +82,7 @@ export function MCPSettings(props: MCPSettingsProps) {
 }
 
 function NewMCPServer(props: MCPSettingsProps) {
+	const { t } = useLocalization();
 	const queryClient = useQueryClient();
 	const [draft, setDraft] = useState<MCPDraft>(newMCPDraft);
 	const [verdict, setVerdict] = useState<Verdict>();
@@ -108,8 +112,8 @@ function NewMCPServer(props: MCPSettingsProps) {
 		onMutate: () => setVerdict(undefined),
 		onSuccess: (result) => setVerdict(
 			result.ok
-				? { tone: "ok", message: "Candidate connected successfully." }
-				: { tone: "error", message: problemMessage(result.error) },
+				? { tone: "ok", message: t("settings.mcp.candidateConnected") }
+				: { tone: "error", message: problemMessage(result.error, t) },
 		),
 	});
 
@@ -119,15 +123,15 @@ function NewMCPServer(props: MCPSettingsProps) {
 			<footer className="mcp-editor-actions">
 				<div aria-live="polite">
 					{verdict ? <span className="provider-verdict" data-tone={verdict.tone}>{verdict.message}</span> : null}
-					{test.isError && !isAbortError(test.error) ? <span className="settings-inline-error">{messageOf(test.error)}</span> : null}
-					{create.isError ? <span className="settings-inline-error">{messageOf(create.error)}</span> : null}
+					{test.isError && !isAbortError(test.error) ? <span className="settings-inline-error">{messageOf(test.error, t)}</span> : null}
+					{create.isError ? <span className="settings-inline-error">{messageOf(create.error, t)}</span> : null}
 				</div>
 				<div>
 					<button className="secondary-action" type="button" disabled={test.isPending || create.isPending} onClick={() => test.mutate()}>
-						{test.isPending ? "Testing…" : "Test candidate"}
+						{test.isPending ? t("settings.mcp.testing") : t("settings.mcp.testCandidate")}
 					</button>
 					<button className="primary-action" type="button" disabled={create.isPending || test.isPending} onClick={() => create.mutate()}>
-						{create.isPending ? "Adding…" : "Add server"}
+						{create.isPending ? t("settings.mcp.adding") : t("settings.mcp.addServer")}
 					</button>
 				</div>
 			</footer>
@@ -136,6 +140,7 @@ function NewMCPServer(props: MCPSettingsProps) {
 }
 
 function MCPServerCard(props: MCPSettingsProps & { server: MCPServer }) {
+	const { t } = useLocalization();
 	const queryClient = useQueryClient();
 	const [draft, setDraft] = useState(() => draftFromServer(props.server));
 	const [confirmDelete, setConfirmDelete] = useState(false);
@@ -186,13 +191,14 @@ function MCPServerCard(props: MCPSettingsProps & { server: MCPServer }) {
 		onSuccess: (attempt) => {
 			setAuthorizationVerdict(
 				attempt.status.type === "succeeded"
-					? { tone: "ok", message: "Authorization completed." }
-					: { tone: "error", message: attempt.status.type === "canceled" ? "Authorization was canceled." : problemMessage(attempt.status.error) },
+					? { tone: "ok", message: t("settings.mcp.authorizationCompleted") }
+					: { tone: "error", message: attempt.status.type === "canceled" ? t("settings.mcp.authorizationCanceled") : problemMessage(attempt.status.error, t) },
 			);
 			void invalidate();
 		},
 	});
 	const busy = save.isPending || reconnect.isPending || remove.isPending || authorize.isPending;
+	const failure = mutationError(t, save.error, reconnect.error, remove.error, authorize.error);
 
 	return (
 		<article className="mcp-editor" data-status={props.server.status.type}>
@@ -222,11 +228,11 @@ function MCPServerCard(props: MCPSettingsProps & { server: MCPServer }) {
 			{props.server.status.type === "needsAuth" ? (
 				<div className="mcp-auth-callout">
 					<div>
-						<strong>Interactive authorization required</strong>
-						<p>{problemMessage(props.server.status.error)}</p>
+						<strong>{t("settings.mcp.interactiveAuthorization")}</strong>
+						<p>{problemMessage(props.server.status.error, t)}</p>
 					</div>
-					<button className="primary-action" type="button" disabled={busy || changed} title={changed ? "Save changes before authorizing" : undefined} onClick={() => authorize.mutate()}>
-						{authorize.isPending ? "Waiting for authorization…" : "Authorize"}
+					<button className="primary-action" type="button" disabled={busy || changed} title={changed ? t("settings.mcp.saveBeforeAuthorize") : undefined} onClick={() => authorize.mutate()}>
+						{authorize.isPending ? t("settings.mcp.waitingAuthorization") : t("settings.mcp.authorize")}
 					</button>
 				</div>
 			) : null}
@@ -235,23 +241,23 @@ function MCPServerCard(props: MCPSettingsProps & { server: MCPServer }) {
 				<div>
 					{confirmDelete ? (
 						<span className="mcp-delete-confirm">
-							Delete permanently?
-							<button type="button" className="text-action" onClick={() => setConfirmDelete(false)}>Keep</button>
-							<button type="button" className="text-action danger" disabled={remove.isPending} onClick={() => remove.mutate()}>{remove.isPending ? "Deleting…" : "Delete"}</button>
+							{t("settings.mcp.deletePermanently")}
+							<button type="button" className="text-action" onClick={() => setConfirmDelete(false)}>{t("settings.common.keep")}</button>
+							<button type="button" className="text-action danger" disabled={remove.isPending} onClick={() => remove.mutate()}>{remove.isPending ? t("settings.common.deleting") : t("settings.common.delete")}</button>
 						</span>
 					) : (
-						<button className="text-action danger" type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete server</button>
+						<button className="text-action danger" type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>{t("settings.mcp.deleteServer")}</button>
 					)}
-					{mutationError(save.error, reconnect.error, remove.error, authorize.error) ? (
-						<span className="settings-inline-error" role="alert">{mutationError(save.error, reconnect.error, remove.error, authorize.error)}</span>
+					{failure ? (
+						<span className="settings-inline-error" role="alert">{failure}</span>
 					) : null}
 				</div>
 				<div>
-					<button className="secondary-action" type="button" disabled={busy || changed || props.server.status.type === "disabled"} title={changed ? "Save draft changes before reconnecting" : undefined} onClick={() => reconnect.mutate()}>
-						{reconnect.isPending ? "Reconnecting…" : "Reconnect"}
+					<button className="secondary-action" type="button" disabled={busy || changed || props.server.status.type === "disabled"} title={changed ? t("settings.mcp.saveBeforeReconnect") : undefined} onClick={() => reconnect.mutate()}>
+						{reconnect.isPending ? t("settings.mcp.reconnecting") : t("settings.mcp.reconnect")}
 					</button>
 					<button className="primary-action" type="button" disabled={busy || !changed} onClick={() => save.mutate()}>
-						{save.isPending ? "Saving…" : "Save changes"}
+						{save.isPending ? t("settings.common.saving") : t("settings.common.saveChanges")}
 					</button>
 				</div>
 			</footer>
@@ -266,25 +272,26 @@ function ToolPolicies(props: {
 	draft: MCPDraft;
 	onChange: (draft: MCPDraft) => void;
 }) {
+	const { t, formatNumber } = useLocalization();
 	const names = useMemo(() => Array.from(new Set([
 		...props.tools.map((tool) => tool.name),
 		...props.draft.disabledTools,
 		...props.draft.autoApproveTools,
 	])).sort(), [props.draft.autoApproveTools, props.draft.disabledTools, props.tools]);
-	if (props.pending) return <p className="mcp-tool-state">Loading tools…</p>;
-	if (props.error && names.length === 0) return <p className="mcp-tool-state" data-error="true">{messageOf(props.error)}</p>;
+	if (props.pending) return <p className="mcp-tool-state">{t("settings.mcp.loadingTools")}</p>;
+	if (props.error && names.length === 0) return <p className="mcp-tool-state" data-error="true">{messageOf(props.error, t)}</p>;
 	if (names.length === 0) return null;
 
 	return (
-		<section className="mcp-tool-policies" aria-label="Tool policies">
+		<section className="mcp-tool-policies" aria-label={t("settings.mcp.toolPolicies")}>
 			<header>
 				<div>
-					<strong>Tool trust</strong>
-					<p>Disabled tools stay hidden. Auto-approved tools may run without an approval prompt.</p>
+					<strong>{t("settings.mcp.toolTrust")}</strong>
+					<p>{t("settings.mcp.toolTrustDetail")}</p>
 				</div>
-				<span>{names.length} tools</span>
+				<span>{t(names.length === 1 ? "settings.mcp.toolCountOne" : "settings.mcp.toolCountMany", { count: formatNumber(names.length) })}</span>
 			</header>
-			{props.error ? <p className="mcp-tool-state" data-error="true">Live tools could not be refreshed. Stored policies remain editable.</p> : null}
+			{props.error ? <p className="mcp-tool-state" data-error="true">{t("settings.mcp.toolsRefreshFailed")}</p> : null}
 			<div>
 				{names.map((name) => {
 					const policy = props.draft.disabledTools.includes(name)
@@ -295,9 +302,9 @@ function ToolPolicies(props: {
 						<label key={name}>
 							<span><code>{name}</code>{tool?.description ? <small>{tool.description}</small> : null}</span>
 							<select value={policy} onChange={(event) => props.onChange(withToolPolicy(props.draft, name, event.currentTarget.value))}>
-								<option value="default">Ask when needed</option>
-								<option value="disabled">Disabled</option>
-								<option value="autoApprove">Auto-approve</option>
+								<option value="default">{t("settings.mcp.askWhenNeeded")}</option>
+								<option value="disabled">{t("settings.mcp.disabled")}</option>
+								<option value="autoApprove">{t("settings.mcp.autoApprove")}</option>
 							</select>
 						</label>
 					);
@@ -308,41 +315,44 @@ function ToolPolicies(props: {
 }
 
 function ServerStatus({ server }: { server: MCPServer }) {
+	const { t, formatNumber } = useLocalization();
 	const label = server.status.type === "connected" && server.status.toolCount !== undefined
-		? `Connected · ${server.status.toolCount} tools`
-		: statusLabel(server.status.type);
+		? t(server.status.toolCount === 1 ? "settings.mcp.connectedToolOne" : "settings.mcp.connectedToolMany", { count: formatNumber(server.status.toolCount) })
+		: statusLabel(server.status.type, t);
 	return (
 		<div className="mcp-status-block">
 			<span className="mcp-status" data-status={server.status.type}><i aria-hidden="true" />{label}</span>
-			{server.status.error ? <small>{problemMessage(server.status.error)}</small> : null}
+			{server.status.error ? <small>{problemMessage(server.status.error, t)}</small> : null}
 		</div>
 	);
 }
 
-function statusLabel(status: string) {
-	return ({
-		disabled: "Disabled",
-		disconnected: "Disconnected",
-		connecting: "Connecting",
-		connected: "Connected",
-		failed: "Connection failed",
-		needsAuth: "Authorization required",
-	} as Record<string, string>)[status] ?? status;
+function statusLabel(status: string, t: Translate) {
+	switch (status) {
+	case "disabled": return t("settings.mcp.status.disabled");
+	case "disconnected": return t("settings.mcp.status.disconnected");
+	case "connecting": return t("settings.mcp.status.connecting");
+	case "connected": return t("settings.mcp.status.connected");
+	case "failed": return t("settings.mcp.status.failed");
+	case "needsAuth": return t("settings.mcp.status.needsAuth");
+	default: return status;
+	}
 }
 
-function problemMessage(problem: { type: string; detail?: string } | undefined) {
+function problemMessage(problem: { type: string; detail?: string } | undefined, t: Translate) {
 	if (problem?.detail) return problem.detail;
-	return ({
-		mcp_authorization_required: "This server requires interactive authorization.",
-		mcp_authorization_failed: "Authorization did not complete.",
-		mcp_dial_failed: "Runtime could not connect to this server.",
-		timeout: "The server did not respond before the timeout.",
-	} as Record<string, string>)[problem?.type ?? ""] ?? "The MCP operation did not succeed.";
+	switch (problem?.type) {
+	case "mcp_authorization_required": return t("settings.mcp.problem.authorizationRequired");
+	case "mcp_authorization_failed": return t("settings.mcp.problem.authorizationFailed");
+	case "mcp_dial_failed": return t("settings.mcp.problem.dialFailed");
+	case "timeout": return t("settings.mcp.problem.timeout");
+	default: return t("settings.mcp.problem.failed");
+	}
 }
 
-function mutationError(...errors: unknown[]) {
+function mutationError(t: Translate, ...errors: unknown[]) {
 	const error = errors.find(Boolean);
-	return error === undefined ? "" : messageOf(error);
+	return error === undefined ? "" : messageOf(error, t);
 }
 
 function isAbortError(error: unknown) {
@@ -358,6 +368,23 @@ function SettingsState(props: { children: string; action?: string; onAction?: ()
 	);
 }
 
-function messageOf(error: unknown) {
-	return error instanceof Error ? error.message : "The Runtime request failed.";
+function messageOf(error: unknown, t: Translate) {
+	if (error instanceof MCPDraftValidationError) {
+		switch (error.code) {
+		case "stableNameRequired": return t("settings.mcp.validation.stableNameRequired");
+		case "endpointRequired": return t("settings.mcp.validation.endpointRequired");
+		case "commandRequired": return t("settings.mcp.validation.commandRequired");
+		case "timeoutInvalid": return t("settings.mcp.validation.timeoutInvalid");
+		case "secretInvalidJSON": return t("settings.mcp.validation.secretInvalidJSON", { field: secretField(error, t) });
+		case "secretNotObject": return t("settings.mcp.validation.secretNotObject", { field: secretField(error, t) });
+		case "secretInvalidEntries": return t("settings.mcp.validation.secretInvalidEntries", { field: secretField(error, t) });
+		}
+	}
+	return error instanceof Error ? error.message : t("settings.common.requestFailed");
+}
+
+function secretField(error: MCPDraftValidationError, t: Translate) {
+	return error.secretKind === "environment"
+		? t("settings.mcp.environment")
+		: t("settings.mcp.headers");
 }

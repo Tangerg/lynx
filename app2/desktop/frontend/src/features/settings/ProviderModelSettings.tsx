@@ -20,12 +20,14 @@ import {
 	testProvider,
 	updateProvider,
 } from "../../runtime/runtimeQueries";
+import { useLocalization, type Translate } from "../localization/Localization";
 
 interface ProviderModelSettingsProps {
 	connection: RuntimeConnection;
 }
 
 export function ProviderModelSettings(props: ProviderModelSettingsProps) {
+	const { t } = useLocalization();
 	const [query, setQuery] = useState("");
 	const providers = useQuery({
 		queryKey: runtimeQueryKeys.providers(props.connection),
@@ -47,8 +49,8 @@ export function ProviderModelSettings(props: ProviderModelSettingsProps) {
 			<section className="settings-section" aria-labelledby="model-roles-title">
 				<header>
 					<div>
-						<h2 id="model-roles-title">Model roles</h2>
-						<p>Optional Runtime-wide models for maintenance and semantic indexing.</p>
+						<h2 id="model-roles-title">{t("settings.provider.roles")}</h2>
+						<p>{t("settings.provider.rolesDetail")}</p>
 					</div>
 				</header>
 				<div className="model-role-grid">
@@ -59,20 +61,20 @@ export function ProviderModelSettings(props: ProviderModelSettingsProps) {
 			<section className="settings-section" aria-labelledby="provider-settings-title">
 				<header className="provider-section-heading">
 					<div>
-						<h2 id="provider-settings-title">Provider connections</h2>
-						<p>Secrets are write-only. Environment credentials remain read-only.</p>
+						<h2 id="provider-settings-title">{t("settings.provider.connections")}</h2>
+						<p>{t("settings.provider.connectionsDetail")}</p>
 					</div>
 					<label>
-						<span className="sr-only">Filter providers</span>
-						<input value={query} maxLength={80} placeholder="Filter providers…" onChange={(event) => setQuery(event.currentTarget.value)} />
+						<span className="sr-only">{t("settings.provider.filter")}</span>
+						<input value={query} maxLength={80} placeholder={t("settings.provider.filterPlaceholder")} onChange={(event) => setQuery(event.currentTarget.value)} />
 					</label>
 				</header>
 				{providers.isPending ? (
-					<SettingsState>Loading providers…</SettingsState>
+					<SettingsState>{t("settings.provider.loading")}</SettingsState>
 				) : providers.isError ? (
-					<SettingsState action="Try again" onAction={() => void providers.refetch()}>{messageOf(providers.error)}</SettingsState>
+					<SettingsState action={t("settings.provider.tryAgain")} onAction={() => void providers.refetch()}>{messageOf(providers.error, t)}</SettingsState>
 				) : visible.length === 0 ? (
-					<SettingsState>No providers match this filter.</SettingsState>
+					<SettingsState>{t("settings.provider.noMatch")}</SettingsState>
 				) : (
 					<div className="provider-card-list">
 						{visible.map((provider) => (
@@ -86,6 +88,7 @@ export function ProviderModelSettings(props: ProviderModelSettingsProps) {
 }
 
 function ProviderCard(props: { connection: RuntimeConnection; provider: Provider }) {
+	const { t } = useLocalization();
 	const queryClient = useQueryClient();
 	const [baseURL, setBaseURL] = useState(props.provider.baseUrl ?? "");
 	const [apiKey, setAPIKey] = useState("");
@@ -131,8 +134,8 @@ function ProviderCard(props: { connection: RuntimeConnection; provider: Provider
 		onMutate: () => setTestResult(undefined),
 		onSuccess: (result) => setTestResult(
 			result.ok
-				? { tone: "ok", message: "Connection succeeded." }
-				: { tone: "error", message: result.error?.detail || result.error?.type || "Connection failed." },
+				? { tone: "ok", message: t("settings.provider.connectionSucceeded") }
+				: { tone: "error", message: result.error?.detail || result.error?.type || t("settings.provider.connectionFailed") },
 		),
 	});
 	const configured = props.provider.apiKeyMasked !== "" || props.provider.id === "ollama";
@@ -144,39 +147,39 @@ function ProviderCard(props: { connection: RuntimeConnection; provider: Provider
 					<h3>{providerName(props.provider.id)}</h3>
 					<code>{props.provider.id}</code>
 				</div>
-				<span>{configured ? "Configured" : "Not configured"}</span>
+				<span>{configured ? t("settings.provider.configured") : t("settings.provider.notConfigured")}</span>
 			</header>
 			<div className="provider-fields">
 				<label>
-					<span>Base URL {props.provider.requiresBaseUrl ? <b>Required</b> : <small>Optional override</small>}</span>
-					<input type="url" value={baseURL} maxLength={2048} placeholder={props.provider.requiresBaseUrl ? "https://…/v1" : "Use provider default"} onChange={(event) => setBaseURL(event.currentTarget.value)} />
+					<span>{t("settings.provider.baseURL")} {props.provider.requiresBaseUrl ? <b>{t("settings.common.required")}</b> : <small>{t("settings.provider.optionalOverride")}</small>}</span>
+					<input type="url" value={baseURL} maxLength={2048} placeholder={props.provider.requiresBaseUrl ? "https://…/v1" : t("settings.provider.useDefault")} onChange={(event) => setBaseURL(event.currentTarget.value)} />
 				</label>
 				<label>
-					<span>API key <small>{props.provider.keySource === "env" ? "From environment · read-only" : props.provider.apiKeyMasked || "Not set"}</small></span>
-					<input type="password" value={apiKey} maxLength={4096} autoComplete="off" placeholder={clearStoredKey ? "Stored key will be removed" : "Enter a replacement key"} disabled={clearStoredKey} onChange={(event) => setAPIKey(event.currentTarget.value)} />
+					<span>{t("settings.provider.apiKey")} <small>{props.provider.keySource === "env" ? t("settings.provider.environmentReadOnly") : props.provider.apiKeyMasked || t("settings.provider.notSet")}</small></span>
+					<input type="password" value={apiKey} maxLength={4096} autoComplete="off" placeholder={clearStoredKey ? t("settings.provider.keyRemoved") : t("settings.provider.replacementKey")} disabled={clearStoredKey} onChange={(event) => setAPIKey(event.currentTarget.value)} />
 				</label>
 			</div>
 			<footer>
 				<div>
 					{props.provider.keySource === "stored" ? (
 						<button className="text-action danger" type="button" onClick={() => { setAPIKey(""); setClearStoredKey((current) => !current); }}>
-							{clearStoredKey ? "Keep stored key" : "Remove stored key"}
+							{clearStoredKey ? t("settings.provider.keepKey") : t("settings.provider.removeKey")}
 						</button>
 					) : null}
 					{testResult ? <span className="provider-verdict" data-tone={testResult.tone}>{testResult.message}</span> : null}
-					{test.isError ? <span className="provider-verdict" data-tone="error">{messageOf(test.error)}</span> : null}
+					{test.isError ? <span className="provider-verdict" data-tone="error">{messageOf(test.error, t)}</span> : null}
 				</div>
 				<div>
-					<button className="secondary-action" type="button" disabled={test.isPending || baseChanged || keyChanged} title={baseChanged || keyChanged ? "Save draft changes before testing" : undefined} onClick={() => test.mutate()}>
-						{test.isPending ? "Testing…" : "Test"}
+					<button className="secondary-action" type="button" disabled={test.isPending || baseChanged || keyChanged} title={baseChanged || keyChanged ? t("settings.provider.saveBeforeTest") : undefined} onClick={() => test.mutate()}>
+						{test.isPending ? t("settings.provider.testing") : t("settings.provider.test")}
 					</button>
 					<button className="primary-action" type="button" disabled={save.isPending || incompleteEndpoint || (!baseChanged && !keyChanged)} onClick={() => save.mutate()}>
-						{save.isPending ? "Saving…" : "Save"}
+						{save.isPending ? t("settings.common.saving") : t("settings.common.save")}
 					</button>
 				</div>
 			</footer>
-			{save.isError ? <p className="settings-inline-error" role="alert">{messageOf(save.error)}</p> : null}
-			{incompleteEndpoint ? <p className="settings-inline-error" role="alert">A base URL is required while a stored key is present.</p> : null}
+			{save.isError ? <p className="settings-inline-error" role="alert">{messageOf(save.error, t)}</p> : null}
+			{incompleteEndpoint ? <p className="settings-inline-error" role="alert">{t("settings.provider.baseURLRequired")}</p> : null}
 		</article>
 	);
 }
@@ -186,6 +189,7 @@ function ModelRoleEditor(props: {
 	role: "utility" | "embedding";
 	providers: Provider[];
 }) {
+	const { t } = useLocalization();
 	const queryClient = useQueryClient();
 	const key = runtimeQueryKeys.modelRole(props.connection, props.role);
 	const role = useQuery({
@@ -234,19 +238,19 @@ function ModelRoleEditor(props: {
 		<article className="model-role-card">
 			<header>
 				<div>
-					<h3>{props.role === "utility" ? "Utility model" : "Embedding model"}</h3>
-					<p>{props.role === "utility" ? "Background curation and maintenance." : "Semantic codebase indexing."}</p>
+					<h3>{props.role === "utility" ? t("settings.provider.utilityModel") : t("settings.provider.embeddingModel")}</h3>
+					<p>{props.role === "utility" ? t("settings.provider.utilityDetail") : t("settings.provider.embeddingDetail")}</p>
 				</div>
-				<span>{role.data?.model ? "Assigned" : "Optional"}</span>
+				<span>{role.data?.model ? t("settings.provider.assigned") : t("settings.common.optional")}</span>
 			</header>
 			{role.isPending ? (
-				<SettingsState>Loading role…</SettingsState>
+				<SettingsState>{t("settings.provider.loadingRole")}</SettingsState>
 			) : role.isError ? (
-				<SettingsState>{messageOf(role.error)}</SettingsState>
+				<SettingsState>{messageOf(role.error, t)}</SettingsState>
 			) : (
 				<>
 					<label>
-						<span>Provider</span>
+						<span>{t("settings.provider.provider")}</span>
 						<select value={provider} onChange={(event) => {
 							const next = event.currentTarget.value;
 							const metadata = available.find((candidate) => candidate.id === next);
@@ -254,24 +258,24 @@ function ModelRoleEditor(props: {
 							setModel(props.role === "embedding" ? metadata?.defaultEmbeddingModel ?? "" : "");
 							setDirty(true);
 						}}>
-							<option value="">Not assigned</option>
+							<option value="">{t("settings.provider.notAssigned")}</option>
 							{available.map((candidate) => <option key={candidate.id} value={candidate.id}>{providerName(candidate.id)}</option>)}
 						</select>
 					</label>
 					<label>
-						<span>Model</span>
-						<input value={model} list={`role-models-${props.role}`} disabled={provider === ""} maxLength={256} placeholder={props.role === "embedding" && selectedProvider?.defaultEmbeddingModel === "" ? "Deployment or model id" : "Model id"} onChange={(event) => { setModel(event.currentTarget.value); setDirty(true); }} />
+						<span>{t("settings.provider.model")}</span>
+						<input value={model} list={`role-models-${props.role}`} disabled={provider === ""} maxLength={256} placeholder={props.role === "embedding" && selectedProvider?.defaultEmbeddingModel === "" ? t("settings.provider.deploymentOrModel") : t("settings.provider.modelID")} onChange={(event) => { setModel(event.currentTarget.value); setDirty(true); }} />
 						{props.role === "utility" ? (
 							<datalist id={`role-models-${props.role}`}>{models.data?.data.map((candidate) => <option key={candidate.id} value={candidate.id} />)}</datalist>
 						) : null}
 					</label>
 					<footer>
-						{models.isError ? <span className="settings-inline-error">{messageOf(models.error)}</span> : <span />}
+						{models.isError ? <span className="settings-inline-error">{messageOf(models.error, t)}</span> : <span />}
 						<button className="secondary-action" type="button" disabled={save.isPending || !changed || ((provider === "") !== (model === ""))} onClick={() => save.mutate()}>
-							{save.isPending ? "Saving…" : provider === "" ? "Clear role" : "Save role"}
+							{save.isPending ? t("settings.common.saving") : provider === "" ? t("settings.provider.clearRole") : t("settings.provider.saveRole")}
 						</button>
 					</footer>
-					{save.isError ? <p className="settings-inline-error" role="alert">{messageOf(save.error)}</p> : null}
+					{save.isError ? <p className="settings-inline-error" role="alert">{messageOf(save.error, t)}</p> : null}
 				</>
 			)}
 		</article>
@@ -294,6 +298,6 @@ function providerName(value: string) {
 		.join(" ");
 }
 
-function messageOf(error: unknown) {
-	return error instanceof Error ? error.message : "The Runtime request failed.";
+function messageOf(error: unknown, t: Translate) {
+	return error instanceof Error ? error.message : t("settings.common.requestFailed");
 }

@@ -8,6 +8,7 @@ import {
 	runtimeQueryKeys,
 	setHookTrust,
 } from "../../runtime/runtimeQueries";
+import { useLocalization, type Translate } from "../localization/Localization";
 
 interface HookSettingsProps {
 	connection: RuntimeConnection;
@@ -15,6 +16,7 @@ interface HookSettingsProps {
 }
 
 export function HookSettings(props: HookSettingsProps) {
+	const { t, formatNumber } = useLocalization();
 	const queryClient = useQueryClient();
 	const [confirmingTrust, setConfirmingTrust] = useState(false);
 	const key = runtimeQueryKeys.workspaceHooks(
@@ -30,7 +32,7 @@ export function HookSettings(props: HookSettingsProps) {
 	useEffect(() => setConfirmingTrust(false), [props.workspace?.path]);
 	const trust = useMutation({
 		mutationFn: (trusted: boolean) => {
-			if (!hooks.data?.projectRoot) throw new Error("The Runtime did not report a project root.");
+			if (!hooks.data?.projectRoot) throw new MissingProjectRootError();
 			return setHookTrust(props.connection, hooks.data.projectRoot, trusted);
 		},
 		onSuccess: () => {
@@ -43,8 +45,8 @@ export function HookSettings(props: HookSettingsProps) {
 	if (props.workspace === undefined) {
 		return (
 			<section className="settings-section" aria-labelledby="hook-settings-title">
-				<header><div><h2 id="hook-settings-title">Effective hooks</h2><p>Hooks are resolved against an exact Session workspace.</p></div></header>
-				<HookState>Select a session in the Work Index to review its global and project hooks.</HookState>
+				<header><div><h2 id="hook-settings-title">{t("settings.hook.effective")}</h2><p>{t("settings.hook.effectiveDetail")}</p></div></header>
+				<HookState>{t("settings.hook.selectSession")}</HookState>
 			</section>
 		);
 	}
@@ -54,35 +56,35 @@ export function HookSettings(props: HookSettingsProps) {
 			<section className="settings-section" aria-labelledby="hook-trust-title">
 				<header>
 					<div>
-						<h2 id="hook-trust-title">Project trust</h2>
-						<p>Global hooks belong to you and stay active. Cloned project hooks remain inert until this exact project root is trusted.</p>
+						<h2 id="hook-trust-title">{t("settings.hook.projectTrust")}</h2>
+						<p>{t("settings.hook.projectTrustDetail")}</p>
 					</div>
 				</header>
 				{hooks.isPending ? (
-					<HookState>Resolving lifecycle hooks…</HookState>
+					<HookState>{t("settings.hook.resolving")}</HookState>
 				) : hooks.isError ? (
-					<HookState action="Try again" onAction={() => void hooks.refetch()}>{messageOf(hooks.error)}</HookState>
+					<HookState action={t("settings.common.tryAgain")} onAction={() => void hooks.refetch()}>{messageOf(hooks.error, t)}</HookState>
 				) : (
 					<div className="hook-trust-card" data-trusted={hooks.data.projectTrusted || undefined}>
 						<div>
-							<span className="hook-trust-status">{hooks.data.projectTrusted ? "Trusted" : "Not trusted"}</span>
-							<strong>{projectHooks.length} project hooks</strong>
-							<code title={hooks.data.projectRoot}>{hooks.data.projectRoot || "No project root"}</code>
+							<span className="hook-trust-status">{hooks.data.projectTrusted ? t("settings.hook.trusted") : t("settings.hook.notTrusted")}</span>
+							<strong>{t(projectHooks.length === 1 ? "settings.hook.projectCountOne" : "settings.hook.projectCountMany", { count: formatNumber(projectHooks.length) })}</strong>
+							<code title={hooks.data.projectRoot}>{hooks.data.projectRoot || t("settings.hook.noProjectRoot")}</code>
 						</div>
 						{hooks.data.projectRoot ? (
 							hooks.data.projectTrusted ? (
-								<button className="secondary-action" type="button" disabled={trust.isPending} onClick={() => trust.mutate(false)}>{trust.isPending ? "Revoking…" : "Revoke trust"}</button>
+								<button className="secondary-action" type="button" disabled={trust.isPending} onClick={() => trust.mutate(false)}>{trust.isPending ? t("settings.hook.revoking") : t("settings.hook.revoke")}</button>
 							) : projectHooks.length === 0 ? null : confirmingTrust ? (
 								<div className="hook-trust-confirm">
-									<span>I reviewed the commands and injections below.</span>
-									<button type="button" disabled={trust.isPending} onClick={() => setConfirmingTrust(false)}>Cancel</button>
-									<button className="danger" type="button" disabled={trust.isPending} onClick={() => trust.mutate(true)}>{trust.isPending ? "Trusting…" : "Trust project"}</button>
+									<span>{t("settings.hook.reviewed")}</span>
+									<button type="button" disabled={trust.isPending} onClick={() => setConfirmingTrust(false)}>{t("settings.common.cancel")}</button>
+									<button className="danger" type="button" disabled={trust.isPending} onClick={() => trust.mutate(true)}>{trust.isPending ? t("settings.hook.trusting") : t("settings.hook.trustProject")}</button>
 								</div>
 							) : (
-								<button className="primary-action" type="button" onClick={() => setConfirmingTrust(true)}>Review and trust</button>
+								<button className="primary-action" type="button" onClick={() => setConfirmingTrust(true)}>{t("settings.hook.reviewAndTrust")}</button>
 							)
 						) : null}
-						{trust.isError ? <p className="settings-inline-error" role="alert">{messageOf(trust.error)}</p> : null}
+						{trust.isError ? <p className="settings-inline-error" role="alert">{messageOf(trust.error, t)}</p> : null}
 					</div>
 				)}
 			</section>
@@ -90,17 +92,17 @@ export function HookSettings(props: HookSettingsProps) {
 			<section className="settings-section" aria-labelledby="hook-list-title">
 				<header>
 					<div>
-						<h2 id="hook-list-title">Effective cascade</h2>
-						<p>Commands are shown verbatim for audit. Inject actions add bounded context without spawning a process.</p>
+						<h2 id="hook-list-title">{t("settings.hook.cascade")}</h2>
+						<p>{t("settings.hook.cascadeDetail")}</p>
 					</div>
-					{hooks.data ? <span className="hook-count">{hooks.data.hooks.length} hooks</span> : null}
+					{hooks.data ? <span className="hook-count">{t(hooks.data.hooks.length === 1 ? "settings.hook.countOne" : "settings.hook.countMany", { count: formatNumber(hooks.data.hooks.length) })}</span> : null}
 				</header>
 				{hooks.isPending ? (
-					<HookState>Loading hook definitions…</HookState>
+					<HookState>{t("settings.hook.loading")}</HookState>
 				) : hooks.isError ? (
-					<HookState>{messageOf(hooks.error)}</HookState>
+					<HookState>{messageOf(hooks.error, t)}</HookState>
 				) : hooks.data.hooks.length === 0 ? (
-					<HookState>No global or project hooks apply to this workspace.</HookState>
+					<HookState>{t("settings.hook.empty")}</HookState>
 				) : (
 					<div className="hook-list">
 						{hooks.data.hooks.map((hook, index) => <HookCard key={`${hook.source}:${hook.event}:${index}`} hook={hook} />)}
@@ -112,8 +114,9 @@ export function HookSettings(props: HookSettingsProps) {
 }
 
 function HookCard(props: { hook: HookInfo }) {
+	const { t, formatNumber } = useLocalization();
 	const action = props.hook.command ?? props.hook.inject ?? "";
-	const actionKind = props.hook.command ? "Command" : "Inject";
+	const actionKind = props.hook.command ? t("settings.hook.command") : t("settings.hook.inject");
 	return (
 		<article className="hook-card" data-active={props.hook.active || undefined}>
 			<header>
@@ -122,10 +125,10 @@ function HookCard(props: { hook: HookInfo }) {
 					<span>{props.hook.scope}</span>
 					{props.hook.matcher ? <code>{props.hook.matcher}</code> : null}
 				</div>
-				<span className="hook-active-state">{props.hook.active ? "Active" : "Inert"}</span>
+				<span className="hook-active-state">{props.hook.active ? t("settings.hook.active") : t("settings.hook.inert")}</span>
 			</header>
 			<div className="hook-action">
-				<span>{actionKind}{props.hook.timeoutMillis ? ` · ${props.hook.timeoutMillis} ms` : ""}</span>
+				<span>{actionKind}{props.hook.timeoutMillis ? t("settings.hook.timeout", { count: formatNumber(props.hook.timeoutMillis) }) : ""}</span>
 				<pre>{action}</pre>
 			</div>
 			<footer title={props.hook.source}>{props.hook.source}</footer>
@@ -142,6 +145,9 @@ function HookState(props: { children: string; action?: string; onAction?: () => 
 	);
 }
 
-function messageOf(error: unknown) {
-	return error instanceof Error ? error.message : "The Runtime request failed.";
+class MissingProjectRootError extends Error {}
+
+function messageOf(error: unknown, t: Translate) {
+	if (error instanceof MissingProjectRootError) return t("settings.hook.missingProjectRoot");
+	return error instanceof Error ? error.message : t("settings.common.requestFailed");
 }

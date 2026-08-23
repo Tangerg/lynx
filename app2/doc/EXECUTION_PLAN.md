@@ -875,6 +875,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - Runtime endpoint/server、provider/model、rule tool/subject/path 与 Runtime error detail 保持 canonical 原值；仅 known connection/mode/scope/decision 经显式 display resolver 映射。Usage 的 compact count 与 USD presentation 使用 active locale formatter，但不推导 Runtime 未提供的价格；
 - Settings trigger 使用稳定 data identity 恢复焦点，不再依赖翻译后的 aria-label。Provider/MCP/Hooks/Schedules 仍是下一 bounded 批；dictionary/locale owner/selector 与 RTL/CSS 未闭合前 U22 继续保持 `in_progress`。
 
+### R10d5b Provider / MCP / Hook / Schedule settings language 实现记录（尚未统一验证）
+
+- Provider/Model role、MCP connection/tool trust/authorization、Lifecycle Hook trust/audit 与 Schedule create/edit/run/pause/delete surfaces 已迁入 typed localization boundary，Settings production copy 至此闭合；counts、schedule timestamp 与 USD/count presentation 共用 active locale formatter；
+- provider/model/server/tool/hook event/scope/matcher/command/injection/source、MCP transport/config、cron/workspace 与 Runtime problem detail 仍保留 canonical 原值；`Scheduled task` 继续是 Schedule application request 的稳定默认标题，不随 UI locale 改写 durable domain data；
+- MCP draft conversion 不再抛 presentation English，而是抛 stable `MCPDraftValidationError` code，由 Settings adapter 映射 semantic key；这不会新增或改变 Lyra Protocol error shape。后续只剩全 surface 字符串盘点、8 个 parity locale + Arabic、locale preference/selector 与 RTL logical CSS，U22 继续保持 `in_progress`。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入
