@@ -170,6 +170,53 @@ func TestPublicRPCIdempotencySurvivesRuntimeReplacement(t *testing.T) {
 	}
 }
 
+func TestPublicIdempotencyIsSharedByConcurrentRuntimes(t *testing.T) {
+	config := runtimehost.Config{
+		Listen:           "127.0.0.1:0",
+		DatabasePath:     filepath.Join(privateDirectory(t, "data"), "runtime.sqlite"),
+		DefaultWorkspace: privateDirectory(t, "workspace"), UserHome: privateDirectory(t, "home"),
+		ServerName: "lyra-runtime", ServerVersion: "test",
+	}
+	first := startRuntime(t, config)
+	t.Cleanup(func() { first.stop(t) })
+	second := startRuntime(t, config)
+	t.Cleanup(func() { second.stop(t) })
+	firstDiscovery := rpcCall[protocol.DiscoverResponse](
+		t, first.baseURL, "runtime.discover", struct{}{}, "", "",
+	)
+	secondDiscovery := rpcCall[protocol.DiscoverResponse](
+		t, second.baseURL, "runtime.discover", struct{}{}, "", "",
+	)
+	firstNamespace := firstDiscovery.Capabilities.Limits.Idempotency.Namespace
+	secondNamespace := secondDiscovery.Capabilities.Limits.Idempotency.Namespace
+	if first.instanceID == second.instanceID || firstNamespace == "" || firstNamespace != secondNamespace {
+		t.Fatalf(
+			"concurrent identities = %q/%q, namespaces = %q/%q",
+			first.instanceID, second.instanceID, firstNamespace, secondNamespace,
+		)
+	}
+	request := protocol.CreateSessionRequest{
+		Title: "one durable winner", Provider: "openai-compatible", Model: "test-model",
+	}
+	created := rpcCall[*protocol.Session](
+		t, first.baseURL, "sessions.create", request, "shared-runtime-key", firstNamespace,
+	)
+	replayed := rpcCall[*protocol.Session](
+		t, second.baseURL, "sessions.create", request, "shared-runtime-key", secondNamespace,
+	)
+	if replayed.ID != created.ID || replayed.Revision != created.Revision || !replayed.CreatedAt.Equal(created.CreatedAt) {
+		t.Fatalf("concurrent Runtime replay = %+v, want %+v", replayed, created)
+	}
+	for name, baseURL := range map[string]string{"first": first.baseURL, "second": second.baseURL} {
+		page := rpcCall[*protocol.Page[protocol.Session]](
+			t, baseURL, "sessions.list", protocol.PageQuery{Limit: 100}, "", "",
+		)
+		if len(page.Data) != 1 || page.Data[0].ID != created.ID {
+			t.Fatalf("%s Runtime sessions = %+v", name, page.Data)
+		}
+	}
+}
+
 type runningRuntime struct {
 	host       *runtimehost.Runtime
 	baseURL    string
