@@ -37,8 +37,10 @@
 
 R2–R11 只从以下已验证基础继续，不重新发明协议或进程拓扑：
 
-1. `runtime.discover` 是 app2 registry 中唯一已迁入的 operation，另外 88 项仍不得用 placeholder 冒充；
+1. canonical registry 已生成全部 89 个 method shape；只有账本中达到 `implemented/verified` 的纵切才算迁入，
+   其余 method 仍不得用注册 shape 或 placeholder 冒充；
 2. `/v2/info`、live、ready、one-shot descriptor、token 与 generation identity 已验证；
 3. Desktop 只通过生成的 Lyra client 访问 Runtime，Wails 只保留 native/bootstrap surface；
-4. SQLite epoch 1 是 app2 durable truth，R2 在其上增加 Workspace/Session schema 与事务；
+4. SQLite 当前 schema epoch 是 app2 唯一 durable truth；R2 的 Workspace/Session transaction 与 Work Index
+   projection 已落到该 owner，不读取旧 app store；
 5. 迁移状态与 R1 证据以 `CAPABILITY_LEDGER.md` 和 `EXECUTION_PLAN.md` 为准。

@@ -2,13 +2,17 @@ import {
   LyraClient,
   protocolVersion,
   type DiscoverResponse,
+  type CreateSessionRequest,
+  type EmptyObject,
   type Goal,
   type GoalBudget,
+  type Page,
   type RequestMeta,
   type RuntimeEvent,
   type RuntimeConnection,
   type Session,
   type SessionSnapshot,
+  type UpdateSessionRequest,
 } from "@lyra/runtime-contract";
 
 const clientMeta: RequestMeta = {
@@ -58,14 +62,14 @@ export async function discoverRuntime(
 
 export async function listSessions(
   connection: RuntimeConnection,
+  cursor?: string,
   signal?: AbortSignal,
-): Promise<Session[]> {
-  const page = await client(connection).call(
+): Promise<Page<Session>> {
+  return client(connection).call(
     "sessions.list",
-    { limit: 100 },
+    { limit: 100, ...(cursor === undefined ? {} : { cursor }) },
     { meta: clientMeta, signal },
   );
-  return page.data;
 }
 
 export function loadSessionSnapshot(
@@ -82,11 +86,31 @@ export function loadSessionSnapshot(
 
 export function createSession(
   connection: RuntimeConnection,
-  title?: string,
+  request: CreateSessionRequest = {},
 ): Promise<Session> {
   return client(connection).call(
     "sessions.create",
-    { ...(title === undefined ? {} : { title }) },
+    request,
+    { meta: clientMeta },
+  );
+}
+
+export function updateSession(
+  connection: RuntimeConnection,
+  request: UpdateSessionRequest,
+): Promise<Session> {
+  return client(connection).call("sessions.update", request, {
+    meta: clientMeta,
+  });
+}
+
+export function deleteSession(
+  connection: RuntimeConnection,
+  sessionId: string,
+): Promise<EmptyObject> {
+  return client(connection).call(
+    "sessions.delete",
+    { sessionId },
     { meta: clientMeta },
   );
 }
@@ -157,7 +181,14 @@ export async function consumeRuntimeInvalidations(
 ): Promise<void> {
   const stream = await client(connection).stream(
     "runtime.subscribe",
-    { topics: ["sessions.changed", "plan.changed", "goals.changed"] },
+    {
+      topics: [
+        "sessions.changed",
+        "runs.changed",
+        "plan.changed",
+        "goals.changed",
+      ],
+    },
     { meta: clientMeta, signal },
   );
   onOpen();

@@ -12,6 +12,11 @@ export interface DesktopBinding {
 }
 
 const bootstrapMethod = "main.DesktopHost.Bootstrap";
+const chooseDirectoryMethod = "main.NativeHost.ChooseDirectory";
+
+export type DirectorySelection =
+  | { type: "selected"; path: string }
+  | { type: "canceled" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -92,4 +97,35 @@ export async function loadDesktopBootstrap(
     throw new TypeError("Desktop returned an invalid bootstrap envelope");
   }
   return { runtime: parseConnection(value.runtime) };
+}
+
+export async function chooseDirectory(
+  binding?: DesktopBinding,
+): Promise<DirectorySelection> {
+  const activeBinding = binding ?? (await defaultBinding());
+  const value: unknown = await activeBinding.call(chooseDirectoryMethod);
+  if (!isRecord(value) || typeof value.type !== "string") {
+    throw new TypeError("Desktop returned an invalid directory selection");
+  }
+  if (value.type === "canceled" && exactKeys(value, ["type"])) {
+    return { type: "canceled" };
+  }
+  if (
+    value.type === "selected" &&
+    exactKeys(value, ["type", "path"]) &&
+    typeof value.path === "string" &&
+    value.path === value.path.trim() &&
+    isAbsoluteFilesystemPath(value.path)
+  ) {
+    return { type: "selected", path: value.path };
+  }
+  throw new TypeError("Desktop returned an invalid directory selection");
+}
+
+function isAbsoluteFilesystemPath(path: string): boolean {
+  return (
+    path.startsWith("/") ||
+    /^[A-Za-z]:[\\/]/.test(path) ||
+    path.startsWith("\\\\")
+  );
 }

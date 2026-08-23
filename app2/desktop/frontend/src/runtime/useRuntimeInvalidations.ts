@@ -30,7 +30,10 @@ export function useRuntimeInvalidations(
     const invalidate = (event: RuntimeEvent) => {
       const topics =
         event.type === "resync" ? (event.topics ?? []) : [event.type];
-      if (topics.includes("sessions.changed")) {
+      if (
+        topics.includes("sessions.changed") ||
+        topics.includes("runs.changed")
+      ) {
         void queryClient.invalidateQueries({
           queryKey: runtimeQueryKeys.sessions(connection),
         });
@@ -38,6 +41,7 @@ export function useRuntimeInvalidations(
       if (
         topics.includes("plan.changed") ||
         topics.includes("goals.changed") ||
+        topics.includes("runs.changed") ||
         topics.includes("sessions.changed")
       ) {
         const sessionIds = event.sessionIds ?? [];

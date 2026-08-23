@@ -1,0 +1,395 @@
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+
+import type { Session } from "@lyra/runtime-contract";
+
+import {
+  compactPath,
+  formatUpdatedAt,
+  sessionStatus,
+  workspaceName,
+} from "./sessionPresentation";
+
+interface SessionIndexProps {
+  sessions: Session[];
+  selectedId: string | undefined;
+  pending: boolean;
+  error: unknown;
+  actionPending: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onSelect: (sessionId: string) => void;
+  onUpdate: (
+    session: Session,
+    patch: { title?: string; favorite?: boolean },
+  ) => Promise<Session>;
+  onRemove: (session: Session) => Promise<unknown>;
+  onRetry: () => void;
+  onLoadMore: () => void;
+}
+
+export function SessionIndex(props: SessionIndexProps) {
+  const [search, setSearch] = useState("");
+  const groups = useMemo(
+    () => groupSessions(props.sessions, search),
+    [props.sessions, search],
+  );
+  const visible = useMemo(
+    () => groups.flatMap((group) => group.sessions),
+    [groups],
+  );
+
+  if (props.pending) {
+    return (
+      <p className="panel-note" aria-busy="true">
+        Loading sessions…
+      </p>
+    );
+  }
+  if (props.error && props.sessions.length === 0) {
+    return (
+      <div className="panel-error" role="alert">
+        <p>{messageOf(props.error)}</p>
+        <button className="quiet-action" type="button" onClick={props.onRetry}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (props.sessions.length === 0) {
+    return <p className="panel-note">No sessions yet. Start one when you’re ready.</p>;
+  }
+
+  return (
+    <div className="session-index">
+      <label className="session-search">
+        <span aria-hidden="true">⌕</span>
+        <span className="sr-only">Search sessions</span>
+        <input
+          type="search"
+          value={search}
+          placeholder="Search sessions"
+          autoComplete="off"
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        {search ? (
+          <button
+            type="button"
+            aria-label="Clear session search"
+            onClick={() => setSearch("")}
+          >
+            ×
+          </button>
+        ) : null}
+      </label>
+      <span className="sr-only" aria-live="polite">
+        {visible.length} sessions shown
+      </span>
+      {props.error ? (
+        <p className="session-refresh-warning" role="status">
+          Showing saved sessions. Refresh failed: {messageOf(props.error)}
+        </p>
+      ) : null}
+      {visible.length === 0 ? (
+        <p className="panel-note">No sessions match “{search.trim()}”.</p>
+      ) : (
+        <nav
+          className="session-list"
+          aria-label="Sessions by workspace"
+          onKeyDown={(event) =>
+            navigateSessions(event, visible, props.onSelect)
+          }
+        >
+          {groups.map((group) => (
+            <section className="session-group" key={group.path}>
+              <header title={group.path}>
+                <span>{workspaceName(group.path)}</span>
+                <small>{group.sessions.length}</small>
+              </header>
+              {group.sessions.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  selected={session.id === props.selectedId}
+                  busy={props.actionPending}
+                  onSelect={props.onSelect}
+                  onUpdate={props.onUpdate}
+                  onRemove={props.onRemove}
+                />
+              ))}
+            </section>
+          ))}
+        </nav>
+      )}
+      {props.hasMore ? (
+        <button
+          className="load-more-sessions quiet-action"
+          type="button"
+          disabled={props.loadingMore}
+          onClick={props.onLoadMore}
+        >
+          {props.loadingMore ? "Loading…" : "Load older sessions"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function SessionRow(props: {
+  session: Session;
+  selected: boolean;
+  busy: boolean;
+  onSelect: (sessionId: string) => void;
+  onUpdate: SessionIndexProps["onUpdate"];
+  onRemove: SessionIndexProps["onRemove"];
+}) {
+  const menu = useRef<HTMLDetailsElement>(null);
+  const renameInput = useRef<HTMLInputElement>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(props.session.title);
+  const [renameSource, setRenameSource] = useState<Session>();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState<unknown>();
+
+  useEffect(() => {
+    if (!renaming) setDraft(props.session.title);
+  }, [props.session.title, renaming]);
+  useEffect(() => {
+    if (renaming) renameInput.current?.select();
+  }, [renaming]);
+
+  const saveRename = async () => {
+    const title = draft.trim();
+    if (!title) {
+      setError(new Error("Session title cannot be empty."));
+      return;
+    }
+    const source = renameSource ?? props.session;
+    if (title === source.title) {
+      setRenaming(false);
+      setRenameSource(undefined);
+      return;
+    }
+    setError(undefined);
+    try {
+      await props.onUpdate(source, { title });
+      setRenaming(false);
+      setRenameSource(undefined);
+    } catch (failure) {
+      setError(failure);
+    }
+  };
+  const toggleFavorite = async () => {
+    setError(undefined);
+    try {
+      await props.onUpdate(props.session, { favorite: !props.session.favorite });
+      if (menu.current) menu.current.open = false;
+    } catch (failure) {
+      setError(failure);
+    }
+  };
+  const remove = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setError(undefined);
+    try {
+      await props.onRemove(props.session);
+    } catch (failure) {
+      setError(failure);
+    }
+  };
+
+  return (
+    <article
+      className="session-row"
+      data-selected={props.selected}
+    >
+      {renaming ? (
+        <form
+          className="session-rename-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveRename();
+          }}
+        >
+          <label>
+            <span className="sr-only">Session title</span>
+            <input
+              ref={renameInput}
+              value={draft}
+              disabled={props.busy}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setDraft(props.session.title);
+                  setRenaming(false);
+                  setRenameSource(undefined);
+                  setError(undefined);
+                }
+              }}
+            />
+          </label>
+          <div>
+            <button type="submit" disabled={props.busy} aria-label="Save title">
+              ✓
+            </button>
+            <button
+              type="button"
+              disabled={props.busy}
+              aria-label="Cancel rename"
+              onClick={() => {
+                setDraft(props.session.title);
+                setRenaming(false);
+                setRenameSource(undefined);
+                setError(undefined);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          className="session-row-select"
+          id={sessionControlId(props.session.id)}
+          data-session-id={props.session.id}
+          type="button"
+          onClick={() => props.onSelect(props.session.id)}
+        >
+          <span className="session-row-main">
+            <strong>
+              {props.session.favorite ? <span aria-label="Favorite">★</span> : null}
+              {props.session.title || "Untitled session"}
+            </strong>
+            <small title={props.session.workspace.ref.path}>
+              {compactPath(props.session.workspace.ref.path)}
+            </small>
+          </span>
+          <span className="session-row-meta">
+            <span className="session-state" data-status={props.session.status}>
+              {sessionStatus(props.session.status)}
+            </span>
+            <time dateTime={props.session.updatedAt}>
+              {formatUpdatedAt(props.session.updatedAt)}
+            </time>
+          </span>
+        </button>
+      )}
+      {!renaming ? (
+        <details
+          className="session-actions"
+          ref={menu}
+          onToggle={(event) => {
+            if (event.currentTarget.open) return;
+            setConfirmDelete(false);
+            setError(undefined);
+          }}
+        >
+          <summary aria-label={`Actions for ${props.session.title}`}>•••</summary>
+          <div>
+            <button
+              type="button"
+              disabled={props.busy}
+              onClick={() => {
+                setDraft(props.session.title);
+                setRenameSource(props.session);
+                setRenaming(true);
+                if (menu.current) menu.current.open = false;
+              }}
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              disabled={props.busy}
+              onClick={() => void toggleFavorite()}
+            >
+              {props.session.favorite ? "Remove favorite" : "Favorite"}
+            </button>
+            <button
+              className={confirmDelete ? "confirm-delete" : undefined}
+              type="button"
+              disabled={props.busy}
+              onClick={() => void remove()}
+            >
+              {confirmDelete ? "Confirm delete" : "Delete…"}
+            </button>
+            {error ? <p role="alert">{messageOf(error)}</p> : null}
+          </div>
+        </details>
+      ) : null}
+      {renaming && error ? (
+        <p className="session-action-error" role="alert">
+          {messageOf(error)}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+interface SessionGroup {
+  path: string;
+  sessions: Session[];
+}
+
+function groupSessions(sessions: Session[], search: string): SessionGroup[] {
+  const needle = search.trim().toLocaleLowerCase();
+  const groups = new Map<string, Session[]>();
+  for (const session of sessions) {
+    const path = session.workspace.ref.path;
+    if (
+      needle &&
+      !session.title.toLocaleLowerCase().includes(needle) &&
+      !path.toLocaleLowerCase().includes(needle)
+    ) {
+      continue;
+    }
+    const group = groups.get(path);
+    if (group) group.push(session);
+    else groups.set(path, [session]);
+  }
+  return Array.from(groups, ([path, groupedSessions]) => ({
+    path,
+    sessions: groupedSessions,
+  }));
+}
+
+function navigateSessions(
+  event: ReactKeyboardEvent<HTMLElement>,
+  sessions: Session[],
+  onSelect: (sessionId: string) => void,
+) {
+  const control = (event.target as HTMLElement).closest<HTMLButtonElement>(
+    ".session-row-select",
+  );
+  if (!control) return;
+  const current = sessions.findIndex(
+    (session) => session.id === control.dataset.sessionId,
+  );
+  let next = current;
+  if (event.key === "ArrowDown") next = Math.min(current + 1, sessions.length - 1);
+  else if (event.key === "ArrowUp") next = Math.max(current - 1, 0);
+  else if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = sessions.length - 1;
+  else return;
+  event.preventDefault();
+  const session = sessions[next];
+  if (!session) return;
+  onSelect(session.id);
+  document.getElementById(sessionControlId(session.id))?.focus();
+}
+
+function sessionControlId(sessionId: string): string {
+  return `session-${sessionId}`;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : "The session could not be changed.";
+}

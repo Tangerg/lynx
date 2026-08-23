@@ -1,7 +1,8 @@
 # app2 能力迁移账本
 
 > 基线：2026-08-22；最近更新：2026-08-23。本文是迁移状态的唯一 owner。当前 app2 已完成 R1，并在继续
-> R2–R11 production implementation；R5 的 Plan/Goal Runtime 与 Desktop consumer 已到 implemented，最终统一门禁未完成。
+> R2–R11 production implementation；R2 的 Workspace 与 Session/Work Index 部分纵切、R5 的 Plan/Goal Runtime
+> 与 Desktop consumer 已到 implemented，最终统一门禁未完成。
 > 旧 app 的全绿证据不能冒充 app2 已完成。
 
 ## 1. 状态定义
@@ -20,11 +21,11 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，7 implemented，81 specified | 89 verified |
+| Runtime operations | 89 | 1 verified，9 implemented，79 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
-| Runtime resource topics | 16 | 2 implemented，14 specified | 16 producer/consumer/resync verified |
+| Runtime resource topics | 16 | 3 implemented，13 specified | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 1 implemented，6 specified | live + replay + recovery verified |
-| Desktop product surfaces | 24 groups | 1 verified，1 implemented，22 specified | 全部 verified |
+| Desktop product surfaces | 24 groups | 1 verified，3 implemented，20 specified | 全部 verified |
 | 内置 tool presentation | 30 + MCP/unknown | 6 implemented，24 + MCP/unknown specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
@@ -41,7 +42,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O04 | `interrupts.list` | 1 | interrupt query in snapshot/audit | R4 | specified | pending exact identity、cursor、settled 不复活、Session/Run filtering |
 | O05 | `plan.get` | 1 | plan + planflow | R5 | implemented | Session current Plan、CAS revision、root terminal boundary、fork/rollback/import lifecycle、snapshot/event 同源、无 generic state registry；待 Desktop 与最终统一门禁 |
 | O06 | `items.list` | 1 | transcript | R3 | specified | cursor、page Run closure、source Run/phase/order、completed-only cold history |
-| O07 | `workspaces.resolve`, `workspaces.list` | 2 | workspaceflow | R2/R6 | specified | absolute identity、projectRoot 派生、missing 显式、无 active Project |
+| O07 | `workspaces.resolve`, `workspaces.list` | 2 | workspaceflow | R2/R6 | implemented | absolute identity、projectRoot 派生、missing 显式、无 active Project；Session create/native picker 已消费 exact ref，待统一门禁与 R6 consumer |
 | O08 | `workspace.changes.list`, `workspace.diff.get`, `workspace.files.head`, `workspace.files.search`, `workspace.files.list`, `workspace.files.read` | 6 | workspaceflow + filesystem/git | R6 | specified | scope/path safety、rows/raw sum type、binary/rename/untracked、cursor/bounds、纯文本无 server HTML |
 | O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | specified | project/user scope、active/archive、proposal revision/origin/source、watch invalidation |
 | O10 | `recipes.list`, `agentDocs.list` | 2 | capability/recipes/docs | R7 | specified | cwd/project/home precedence、argument hint/source、bounded full content、files change refresh |
@@ -77,7 +78,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `skills.changed` | skill store/watch | Skills view/query | R7 | specified | names 可选；archive/restore/external edit 收敛 |
 | `mcp.changed` | MCP lifecycle | MCP settings/tool catalog | R8 | specified | status/auth/reconnect invalidate exact server |
 | `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
-| `sessions.changed` | session transaction | Work Index | R2 | specified | create/update/delete/archive/status attention 收敛 |
+| `sessions.changed` | session transaction | Work Index | R2 | implemented | create/update/delete/fork/rollback/import committed mutation 发布，Desktop cursor catalog 与 exact snapshot 收敛；待统一门禁 |
 | `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
 | `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效，Desktop SSE consumer 回读 coherent snapshot；待最终统一门禁 |
 | `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布，Desktop SSE consumer 精确失效；待最终统一门禁 |

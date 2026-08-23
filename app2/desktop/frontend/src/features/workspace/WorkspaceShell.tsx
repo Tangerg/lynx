@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type {
   DiscoverResponse,
@@ -11,9 +11,11 @@ import { GoalComposer } from "../goals/GoalComposer";
 import { GoalTray } from "../goals/GoalTray";
 import { useGoalActions } from "../goals/useGoalActions";
 import { PlanCompact } from "../plan/PlanCompact";
+import { NewSessionMenu } from "../sessions/NewSessionMenu";
+import { SessionIndex } from "../sessions/SessionIndex";
+import { compactPath } from "../sessions/sessionPresentation";
+import { useSessionCatalog } from "../sessions/useSessionCatalog";
 import {
-  createSession,
-  listSessions,
   loadSessionSnapshot,
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
@@ -39,23 +41,25 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       props.connection.protocolVersion,
     ],
   );
-  const queryClient = useQueryClient();
   const [selectedSessionId, setSelectedSessionId] = useState<string>();
   const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
   const goalsEnabled = props.discovery.capabilities.features.goals?.enabled === true;
   const liveUpdatesEnabled =
     props.discovery.capabilities.streamingMethods.includes("runtime.subscribe") &&
-    (["sessions.changed", "plan.changed", "goals.changed"] as const).every(
-      (topic) => props.discovery.capabilities.runtimeTopics.includes(topic),
+    (
+      [
+        "sessions.changed",
+        "runs.changed",
+        "plan.changed",
+        "goals.changed",
+      ] as const
+    ).every((topic) =>
+      props.discovery.capabilities.runtimeTopics.includes(topic),
     );
   const syncState = useRuntimeInvalidations(connection, liveUpdatesEnabled);
 
-  const sessions = useQuery({
-    queryKey: runtimeQueryKeys.sessions(connection),
-    queryFn: ({ signal }) => listSessions(connection, signal),
-    retry: 2,
-  });
-  const selectedSession = selectSession(sessions.data, selectedSessionId);
+  const catalog = useSessionCatalog(connection);
+  const selectedSession = selectSession(catalog.sessions, selectedSessionId);
   const snapshot = useQuery({
     queryKey: runtimeQueryKeys.snapshot(
       connection,
@@ -67,22 +71,44 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     retry: 2,
   });
   const goalActions = useGoalActions(connection, selectedSession?.id);
-  const create = useMutation({
-    mutationFn: () => createSession(connection),
-    onSuccess: (session) => {
-      queryClient.setQueryData<Session[]>(
-        runtimeQueryKeys.sessions(connection),
-        (current) => [
-          session,
-          ...(current ?? []).filter((candidate) => candidate.id !== session.id),
-        ],
-      );
+  const createSession = useCallback(
+    async (request = {}) => {
+      const session = await catalog.create(request);
       setSelectedSessionId(session.id);
-      void queryClient.invalidateQueries({
-        queryKey: runtimeQueryKeys.sessions(connection),
-      });
+      return session;
     },
-  });
+    [catalog.create],
+  );
+  const removeSession = useCallback(
+    async (session: Session) => {
+      const fallback = catalog.sessions.find(
+        (candidate) => candidate.id !== session.id,
+      );
+      await catalog.remove(session);
+      if (selectedSession?.id === session.id) {
+        setSelectedSessionId(fallback?.id);
+      }
+    },
+    [catalog.remove, catalog.sessions, selectedSession?.id],
+  );
+
+  useEffect(() => {
+    const createOnShortcut = (event: KeyboardEvent) => {
+      if (
+        event.key.toLocaleLowerCase() !== "n" ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        catalog.createPending
+      ) {
+        return;
+      }
+      event.preventDefault();
+      void createSession().catch(() => undefined);
+    };
+    window.addEventListener("keydown", createOnShortcut);
+    return () => window.removeEventListener("keydown", createOnShortcut);
+  }, [catalog.createPending, createSession]);
 
   return (
     <main className="app-shell">
@@ -92,34 +118,40 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
             <span className="eyebrow">Lyra</span>
             <h1 id="work-index-title">Work Index</h1>
           </div>
-          <button
-            className="icon-action window-no-drag"
-            type="button"
-            aria-label="New session"
-            title="New session"
-            disabled={create.isPending}
-            onClick={() => create.mutate()}
-          >
-            <span aria-hidden="true">＋</span>
-          </button>
+          <NewSessionMenu
+            pending={catalog.createPending}
+            defaultWorkspace={props.discovery.serverInfo.defaultWorkspace.path}
+            onCreate={createSession}
+          />
         </header>
-        <section className="workspace-card" aria-label="Current workspace">
+        <section className="workspace-card" aria-label="Runtime default workspace">
           <span className="status-dot" aria-hidden="true" />
           <div>
-            <strong>Current workspace</strong>
+            <strong>Runtime default</strong>
             <p title={props.discovery.serverInfo.defaultWorkspace.path}>
               {compactPath(props.discovery.serverInfo.defaultWorkspace.path)}
             </p>
           </div>
         </section>
-        <SessionList
-          sessions={sessions.data}
+        <SessionIndex
+          sessions={catalog.sessions}
           selectedId={selectedSession?.id}
-          pending={sessions.isPending}
-          error={sessions.error ?? create.error}
+          pending={catalog.query.isPending}
+          error={catalog.query.error}
+          actionPending={catalog.updatePending || catalog.removePending}
+          hasMore={catalog.query.hasNextPage}
+          loadingMore={catalog.query.isFetchingNextPage}
           onSelect={setSelectedSessionId}
-          onRetry={() => void sessions.refetch()}
+          onUpdate={(session, patch) => catalog.update({ source: session, patch })}
+          onRemove={removeSession}
+          onRetry={() => void catalog.query.refetch()}
+          onLoadMore={() => void catalog.query.fetchNextPage()}
         />
+        {catalog.createError ? (
+          <p className="sidebar-command-error" role="alert">
+            {messageOf(catalog.createError)}
+          </p>
+        ) : null}
       </aside>
 
       <section className="narrative" aria-labelledby="narrative-title">
@@ -143,7 +175,10 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         </header>
         <div className="narrative-content">
           {!selectedSession ? (
-            <EmptySession onCreate={() => create.mutate()} pending={create.isPending} />
+            <EmptySession
+              onCreate={() => void createSession().catch(() => undefined)}
+              pending={catalog.createPending}
+            />
           ) : snapshot.isError ? (
             <StatePanel
               title="Session could not be loaded"
@@ -192,56 +227,6 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         <RuntimeFacts connection={connection} discovery={props.discovery} />
       </aside>
     </main>
-  );
-}
-
-function SessionList(props: {
-  sessions: Session[] | undefined;
-  selectedId: string | undefined;
-  pending: boolean;
-  error: unknown;
-  onSelect: (sessionId: string) => void;
-  onRetry: () => void;
-}) {
-  if (props.pending) {
-    return <p className="panel-note" aria-busy="true">Loading sessions…</p>;
-  }
-  if (props.error) {
-    return (
-      <div className="panel-error" role="alert">
-        <p>{messageOf(props.error)}</p>
-        <button className="quiet-action" type="button" onClick={props.onRetry}>
-          Retry
-        </button>
-      </div>
-    );
-  }
-  if (!props.sessions || props.sessions.length === 0) {
-    return <p className="panel-note">No sessions in this workspace yet.</p>;
-  }
-  return (
-    <nav className="session-list" aria-label="Sessions">
-      {props.sessions.map((session) => (
-        <button
-          className="session-row"
-          data-selected={session.id === props.selectedId}
-          type="button"
-          key={session.id}
-          onClick={() => props.onSelect(session.id)}
-        >
-          <span className="session-row-main">
-            <strong>{session.title || "Untitled session"}</strong>
-            <small>{compactPath(session.workspace.ref.path)}</small>
-          </span>
-          <span className="session-row-meta">
-            <span className="session-state" data-status={session.status}>
-              {sessionStatus(session.status)}
-            </span>
-            <time dateTime={session.updatedAt}>{formatUpdatedAt(session.updatedAt)}</time>
-          </span>
-        </button>
-      ))}
-    </nav>
   );
 }
 
@@ -357,38 +342,16 @@ function Fact(props: { label: string; value: string; numeric?: boolean }) {
 }
 
 function selectSession(
-  sessions: Session[] | undefined,
+  sessions: Session[],
   selectedId: string | undefined,
 ): Session | undefined {
-  return sessions?.find((session) => session.id === selectedId) ?? sessions?.[0];
-}
-
-function sessionStatus(status: string): string {
-  if (status === "running") return "Running";
-  if (status === "waiting") return "Waiting";
-  if (status === "idle") return "Idle";
-  return status;
-}
-
-function compactPath(path: string): string {
-  const parts = path.split("/").filter(Boolean);
-  return parts.length <= 2 ? path : `…/${parts.slice(-2).join("/")}`;
+  return sessions.find((session) => session.id === selectedId) ?? sessions[0];
 }
 
 function shortIdentity(identity: string): string {
   return identity.length <= 18
     ? identity
     : `${identity.slice(0, 10)}…${identity.slice(-6)}`;
-}
-
-function formatUpdatedAt(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? ""
-    : new Intl.DateTimeFormat(undefined, {
-        month: "short",
-        day: "numeric",
-      }).format(date);
 }
 
 function messageOf(error: unknown): string {

@@ -173,6 +173,25 @@
 - new Session、rename、favorite、delete、group/search 的键盘/a11y/窄窗状态；
 - O02 中基础 CRUD/snapshot、O07、U03–U04 分批 verified。
 
+### R2 production implementation 进度（2026-08-23）
+
+- **Workspace/Session truth**：Session aggregate 只拥有 identity/title/workspace/model/favorite/revision；活动状态不落到
+  Session，也不由 flow 猜测。SQLite 的 Work Index projection 在同一次读取中从唯一 open root Run 派生
+  `idle | running | waiting`，`sessions.get/list/update` 返回该 committed projection。
+- **Catalog ordering**：分页游标覆盖完整的 `favorite DESC, updated_at DESC, id DESC` 排序键，跨 favorite 分区不会
+  跳过或重复 Session；Desktop 用生成 client 的 cursor page 增量读取，不一次 eager load 全历史。
+- **Desktop Work Index**：已实现默认 workspace 与 Wails v3 原生目录选择两条 new Session 路径、exact cwd 分组、
+  title/path 搜索、Session 选择、rename CAS（冲突保留 draft）、favorite、二次确认 delete、长列表继续加载、
+  Arrow/Home/End 与 Cmd/Ctrl+N；行级选择和操作没有 nested button。
+- **Client ownership**：mutation 先把 Runtime 返回的 committed Session 写入唯一 infinite-query cache，再精确失效；
+  删除同步移除 snapshot cache 并选择可用 fallback。`sessions.changed`/`runs.changed` 回拉 catalog，Plan/Goal/Session
+  topic 回拉 exact snapshot；连接 replacement 仍由 generation-scoped query key 隔离。
+- **仍未关闭的 R2 门**：snapshot 与 Run stream 的无丢失 watermark handoff、reload/restart 证据随 R3 root Run 纵切
+  完成；fork/history action 随 R9 完成。按集中验证约定，本批只写 production code，状态保持 `in progress`，不提前
+  把 O02/U03/U04 升为 `verified`。
+- **协议与资源**：继续使用 Lyra Protocol 的 Session/Workspace/Runtime topic；Codex 仅作为进程/状态所有权参考，
+  未复制其协议或领域命名。本批未启动 Runtime、Wails、Vite、浏览器、agent-browser 或 watcher，无持有资源。
+
 ## 7. R3：Root Run + Narrative 首个真实 agent 纵切
 
 ### 首个场景

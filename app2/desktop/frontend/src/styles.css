@@ -34,6 +34,57 @@
     0 5px 16px rgba(28, 27, 23, 0.035);
   --shadow-popover:
     0 0 0 1px rgba(28, 27, 23, 0.08), 0 16px 40px rgba(28, 27, 23, 0.14);
+  --dropdown-open-dur: 250ms;
+  --dropdown-close-dur: 150ms;
+  --dropdown-pre-scale: 0.97;
+  --dropdown-closing-scale: 0.99;
+  --dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.t-dropdown {
+  transform-origin: top left;
+  transform: scale(var(--dropdown-pre-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-open-dur) var(--dropdown-ease),
+    opacity var(--dropdown-open-dur) var(--dropdown-ease);
+  will-change: transform, opacity;
+}
+.t-dropdown[data-origin="top-right"] {
+  transform-origin: top right;
+}
+.t-dropdown[data-origin="top-center"] {
+  transform-origin: top center;
+}
+.t-dropdown[data-origin="bottom-left"] {
+  transform-origin: bottom left;
+}
+.t-dropdown[data-origin="bottom-center"] {
+  transform-origin: bottom center;
+}
+.t-dropdown[data-origin="bottom-right"] {
+  transform-origin: bottom right;
+}
+
+.t-dropdown.is-open {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+.t-dropdown.is-closing {
+  transform: scale(var(--dropdown-closing-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-close-dur) var(--dropdown-ease),
+    opacity var(--dropdown-close-dur) var(--dropdown-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-dropdown {
+    transition: none !important;
+  }
 }
 
 * {
@@ -181,6 +232,88 @@ input::placeholder {
   transform: scale(0.95);
 }
 
+.new-session-menu {
+  position: relative;
+}
+
+.new-session-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 232px;
+  padding: 8px;
+  border-radius: 15px;
+  color: var(--ink);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+.new-session-popover header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px 8px;
+  color: var(--ink-muted);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.new-session-popover header strong {
+  font-weight: 720;
+}
+
+.new-session-popover > button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  min-height: 54px;
+  align-items: center;
+  padding: 7px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.new-session-popover > button:hover {
+  background: var(--paper-muted);
+}
+
+.new-session-popover > button > span:first-child {
+  color: var(--accent-dark);
+  font-size: 17px;
+  text-align: center;
+}
+
+.new-session-popover > button > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.new-session-popover button strong {
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.new-session-popover button small {
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--ink-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-session-popover > p {
+  margin: 6px 8px 4px;
+  color: var(--red);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 .workspace-card {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr);
@@ -216,33 +349,115 @@ input::placeholder {
   box-shadow: 0 0 0 3px rgba(63, 119, 92, 0.12);
 }
 
+.session-index {
+  margin-top: 14px;
+}
+
+.session-search {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 5px 0 10px;
+  border-radius: 12px;
+  color: var(--ink-muted);
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: inset 0 0 0 1px var(--divider);
+}
+
+.session-search input {
+  min-width: 0;
+  height: 36px;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 11px;
+}
+
+.session-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.session-search button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  color: var(--ink-muted);
+  background: transparent;
+}
+
 .session-list {
   display: grid;
-  gap: 4px;
-  margin-top: 16px;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.session-refresh-warning {
+  margin: 9px 7px 0;
+  color: var(--amber);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.session-group > header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 6px;
+  color: var(--ink-muted);
+  font-size: 9px;
+  font-weight: 720;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.session-group > header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-group > header small {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
 }
 
 .session-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  position: relative;
   width: 100%;
   min-height: 62px;
-  padding: 10px 11px;
+  border-radius: 12px;
   color: var(--ink);
   background: transparent;
-  text-align: left;
   box-shadow: none;
-  transition: background-color 120ms ease-out, box-shadow 120ms ease-out;
+  transition:
+    background-color 120ms ease-out,
+    box-shadow 120ms ease-out;
 }
 
-.session-row:hover {
+.session-row:hover,
+.session-row:focus-within {
   background: rgba(255, 255, 255, 0.54);
 }
 
 .session-row[data-selected="true"] {
   background: var(--paper-raised);
   box-shadow: var(--shadow-sm);
+}
+
+.session-row-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  width: 100%;
+  min-height: 62px;
+  padding: 10px 43px 10px 11px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
 }
 
 .session-row-main,
@@ -268,6 +483,12 @@ input::placeholder {
   font-weight: 650;
 }
 
+.session-row-main strong > span {
+  margin-right: 5px;
+  color: var(--amber);
+  font-size: 9px;
+}
+
 .session-row-main small,
 .session-row-meta time {
   margin-top: 4px;
@@ -278,6 +499,129 @@ input::placeholder {
 .session-row-meta {
   align-items: flex-end;
   justify-content: center;
+}
+
+.session-actions {
+  position: absolute;
+  z-index: 8;
+  top: 11px;
+  right: 5px;
+}
+
+.session-actions summary {
+  display: grid;
+  width: 36px;
+  height: 40px;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  list-style: none;
+  opacity: 0;
+}
+
+.session-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.session-row:hover .session-actions summary,
+.session-row:focus-within .session-actions summary,
+.session-row[data-selected="true"] .session-actions summary,
+.session-actions[open] summary {
+  opacity: 1;
+}
+
+.session-actions summary:hover {
+  color: var(--ink);
+  background: var(--paper-strong);
+}
+
+.session-actions > div {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  width: 156px;
+  padding: 6px;
+  border-radius: 13px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+.session-actions > div button {
+  min-height: 38px;
+  padding: 0 9px;
+  color: var(--ink-subtle);
+  background: transparent;
+  font-size: 10px;
+  text-align: left;
+}
+
+.session-actions > div button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--paper-muted);
+}
+
+.session-actions > div button.confirm-delete {
+  color: white;
+  background: var(--red);
+}
+
+.session-actions > div p,
+.session-action-error {
+  margin: 5px 8px;
+  color: var(--red);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.session-rename-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  min-height: 62px;
+  align-items: center;
+  padding: 9px 7px 9px 10px;
+}
+
+.session-rename-form input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--divider-strong);
+  border-radius: 9px;
+  padding: 0 9px;
+  color: var(--ink);
+  background: var(--paper-raised);
+  font-size: 11px;
+}
+
+.session-rename-form > div {
+  display: flex;
+  gap: 2px;
+}
+
+.session-rename-form button {
+  min-width: 36px;
+  min-height: 38px;
+  padding: 0;
+  color: var(--ink-muted);
+  background: transparent;
+}
+
+.session-rename-form button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--paper-strong);
+}
+
+.session-action-error {
+  padding: 0 7px 8px;
+}
+
+.load-more-sessions {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .session-state {
@@ -313,6 +657,13 @@ input::placeholder {
 
 .panel-error p {
   margin: 0 0 8px;
+}
+
+.sidebar-command-error {
+  margin: 10px 7px;
+  color: var(--red);
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .narrative {
