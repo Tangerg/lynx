@@ -21,9 +21,9 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，72 implemented，2 in_progress，14 specified | 89 verified |
+| Runtime operations | 89 | 1 verified，73 implemented，2 in_progress，13 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
-| Runtime resource topics | 16 | 15 implemented，1 specified | 16 producer/consumer/resync verified |
+| Runtime resource topics | 16 | 16 implemented | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
 | Desktop product surfaces | 24 groups | 1 verified，15 implemented，2 in_progress，6 specified | 全部 verified |
 | 内置 tool presentation | 30 + MCP/unknown | 15 + MCP/unknown implemented，4 in_progress，11 specified | 全部真实 material verified |
@@ -36,7 +36,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | ID | 旧 operation（完整集合） | 数量 | app2 owner / target family | 阶段 | 状态 | 核心验收 |
 | --- | --- | ---: | --- | --- | --- | --- |
 | O01a | `runtime.discover` | 1 | runtime protocol/discovery | R1 | verified | exact RequestMeta/capability、generated client、sidecar/instance/namespace identity、strict failure |
-| O01b | `runtime.subscribe` | 1 | runtime subscription | R8 | specified | topic watch 有界；gap/new generation/buffer eviction resync |
+| O01b | `runtime.subscribe` | 1 | runtimeevents + Desktop invalidation router | R8 | implemented | bounded topic/watch、watch-ready cold resync、per-subscription sequence、gap/reconnect/queue eviction 全范围回读、cancel/join 已实现；待最终门禁 |
 | O02 | `sessions.list`, `sessions.get`, `sessions.snapshot`, `sessions.create`, `sessions.update`, `sessions.delete`, `sessions.fork`, `sessions.rollback`, `sessions.export`, `sessions.import` | 10 | session + sessionflow + artifact | R2/R9 | specified | CRUD/CAS、snapshot closure、fork boundary、rollback files/history、exact app2 artifact、cascade cleanup |
 | O03 | `runs.start`, `runs.resume`, `runs.subscribe`, `runs.cancel`, `runs.steer`, `runs.get`, `runs.list` | 7 | run + runflow + session hydration | R3/R4 | implemented | single-open-tree、root tree Segment stream、tree-scoped replay/live handoff、running/waiting exact cancel、tree-atomic recovery、exact steer、cursor list 与 Desktop resume lease 已实现；HITL 统一门禁后 verified |
 | O04 | `interrupts.list` | 1 | interrupt query in snapshot/audit | R4 | implemented | pending exact identity、cursor、settled 不复活、Session/Run filtering 与 snapshot consumer 已实现；待统一门禁 |
@@ -89,7 +89,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `approvals.changed` | policy owner | Approval settings | R8 | implemented | changed-only mode/remember/forget 由 Approval owner 发布；Desktop 失效 Runtime-generation approval query family，持续 Run 下次 effect 同样读取新策略；待最终门禁 |
 | `agentMemory.changed` | memory owner | Memory view | R7 | implemented | changed-only review/add/update/delete/automatic pending publish；Desktop Runtime-generation query family、acknowledgement-loss cold-read 收敛；待最终统一门禁 |
 | `codebase.changed` | index worker | Search/index view | R6 | implemented | committed admission/terminal settlement 后通知；Desktop 按 Runtime generation + workspace query scope 回读 canonical status/search，resync 同样收敛；待最终统一门禁 |
-| `resync` | runtime subscription | topic router | R1 | specified | gap/new generation/buffer eviction 后只重拉列出 topics |
+| `resync` | runtime subscription | topic router | R1/R8 | implemented | subscriber 注册且 external watcher ready 后先发 cold-read resync；queue eviction 替换为全订阅 resync，Desktop sequence gap/reconnect 同样只失效列出 topics/watch scope；待最终门禁 |
 
 ## 6. Run event 映射（7）
 
@@ -129,7 +129,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
-| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | in_progress | explicit Settings section 已完成 Provider/Model、MCP、Approval 与 Schedules；Schedule create/edit/pause/runNow/confirmed delete、revision conflict 回读、default/explicit workspace/model 与可导航 Session 已接通；usage section 继续 R9 |
+| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8/R9 | in_progress | explicit Settings 已完成 Provider/Model、MCP、Approval、Schedules 与 Lifecycle Hooks；Hook global/project cascade、verbatim action/source、active/inert 与 review-before-trust/revoke 消费 authoritative Runtime 与 `hooks.changed`；usage section 继续 R9 |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
 | U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |

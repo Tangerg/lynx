@@ -5225,6 +5225,201 @@ input::placeholder {
   }
 }
 
+.hook-count,
+.hook-trust-status,
+.hook-active-state {
+  min-height: 23px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+  font-size: 7px;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hook-trust-card,
+.hook-card {
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.hook-trust-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+}
+
+.hook-trust-card > div:first-child {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+}
+
+.hook-trust-card strong {
+  color: var(--ink);
+  font-size: 9px;
+}
+
+.hook-trust-card code {
+  overflow: hidden;
+  grid-column: 1 / -1;
+  color: var(--ink-muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hook-trust-card[data-trusted="true"] .hook-trust-status,
+.hook-card[data-active="true"] .hook-active-state {
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 10%, var(--paper-raised));
+}
+
+.hook-trust-card > button,
+.hook-trust-confirm button {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 8px;
+}
+
+.hook-trust-confirm {
+  display: flex;
+  max-width: 370px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.hook-trust-confirm span {
+  flex-basis: 100%;
+  color: var(--ink-muted);
+  font-size: 8px;
+  text-align: right;
+}
+
+.hook-trust-confirm button {
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+}
+
+.hook-trust-confirm button.danger {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--paper-raised));
+}
+
+.hook-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.hook-card {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 12px;
+  padding: 15px;
+}
+
+.hook-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hook-card > header > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hook-card header strong {
+  color: var(--ink);
+  font-size: 10px;
+}
+
+.hook-card header div > span,
+.hook-card header code {
+  color: var(--ink-muted);
+  font-size: 7px;
+}
+
+.hook-card header code {
+  max-width: 150px;
+  overflow: hidden;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: var(--paper-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hook-action > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink-subtle);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hook-action pre {
+  max-height: 160px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--divider);
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--paper-muted);
+  font-size: 8px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hook-card > footer {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .hook-list {
+    grid-template-columns: 1fr;
+  }
+
+  .hook-trust-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hook-trust-confirm {
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .hook-trust-confirm span {
+    text-align: left;
+  }
+}
+
 .mcp-server-list {
   display: grid;
   gap: 12px;

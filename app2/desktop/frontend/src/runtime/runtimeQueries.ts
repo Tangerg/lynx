@@ -18,6 +18,7 @@ import {
 	type ApprovalRule,
   type Goal,
   type GoalBudget,
+	type HooksListResult,
   type GrepResult,
   type InterruptResponse,
   type AgentMemoryItem,
@@ -43,6 +44,7 @@ import {
   type ResumeRunResponse,
   type RuntimeEvent,
   type RuntimeConnection,
+	type RuntimeTopic,
   type OpenRuntimeStream,
   type RunEvent,
 	type RunScheduleNowResponse,
@@ -116,6 +118,12 @@ export const runtimeQueryKeys = {
 	},
 	approvalRules(connection: RuntimeConnection, sessionId: string) {
 		return [...this.approvals(connection), "rules", sessionId] as const;
+	},
+	hooks(connection: RuntimeConnection) {
+		return [...this.scope(connection), "hooks"] as const;
+	},
+	workspaceHooks(connection: RuntimeConnection, workspacePath: string) {
+		return [...this.hooks(connection), workspacePath] as const;
 	},
 	schedules(connection: RuntimeConnection) {
 		return [...this.scope(connection), "schedules"] as const;
@@ -304,6 +312,26 @@ export function runScheduleNow(
 	id: string,
 ): Promise<RunScheduleNowResponse> {
 	return client(connection).call("schedules.runNow", { id }, { meta: clientMeta });
+}
+
+export function listHooks(
+	connection: RuntimeConnection,
+	workspace: WorkspaceRef,
+	signal?: AbortSignal,
+): Promise<HooksListResult> {
+	return client(connection).call("hooks.list", { workspace }, { meta: clientMeta, signal });
+}
+
+export function setHookTrust(
+	connection: RuntimeConnection,
+	projectRoot: string,
+	trusted: boolean,
+): Promise<EmptyObject> {
+	return client(connection).call(
+		"hooks.setTrust",
+		{ projectRoot, trusted },
+		{ meta: clientMeta },
+	);
 }
 
 export function loadSessionSnapshot(
@@ -1001,6 +1029,24 @@ export async function clearGoal(
   );
 }
 
+const runtimeInvalidationTopics = [
+	"sessions.changed",
+	"runs.changed",
+	"plan.changed",
+	"goals.changed",
+	"interrupts.changed",
+	"models.changed",
+	"mcp.changed",
+	"approvals.changed",
+	"schedules.changed",
+	"files.changed",
+	"skills.changed",
+	"knowledge.changed",
+	"hooks.changed",
+	"agentMemory.changed",
+	"codebase.changed",
+] satisfies RuntimeTopic[];
+
 export async function consumeRuntimeInvalidations(
   connection: RuntimeConnection,
   signal: AbortSignal,
@@ -1011,22 +1057,7 @@ export async function consumeRuntimeInvalidations(
   const stream = await client(connection).stream(
     "runtime.subscribe",
     {
-      topics: [
-        "sessions.changed",
-        "runs.changed",
-        "plan.changed",
-        "goals.changed",
-        "interrupts.changed",
-        "models.changed",
-        "mcp.changed",
-		"approvals.changed",
-		"schedules.changed",
-        "files.changed",
-        "skills.changed",
-        "knowledge.changed",
-        "agentMemory.changed",
-        "codebase.changed",
-      ],
+		topics: runtimeInvalidationTopics,
       ...(watch === undefined
         ? {}
         : { watches: [{ watchId: watch.id, workspace: watch.workspace }] }),
@@ -1034,7 +1065,19 @@ export async function consumeRuntimeInvalidations(
     { meta: clientMeta, signal },
   );
   onOpen();
-  for await (const frame of stream) onEvent(frame.event);
+	let sequence = 0;
+	for await (const frame of stream) {
+		if (frame.event.sequence !== sequence + 1) {
+			onEvent({
+				type: "resync",
+				sequence: frame.event.sequence,
+				topics: [...runtimeInvalidationTopics],
+				...(watch === undefined ? {} : { watchIds: [watch.id] }),
+			});
+		}
+		sequence = frame.event.sequence;
+		onEvent(frame.event);
+	}
 }
 
 function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {

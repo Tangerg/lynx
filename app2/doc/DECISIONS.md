@@ -415,3 +415,24 @@ accepted 后的不可重放 effect 继续遵循 Run recovery 的 visible lost �
 **后果**：SQLite 使用 normalized Schedule 与 durable occurrence，exact epoch 提升到 13；protocol 仍为 `2026-08-23`，不生成新
 合同。Schedule edit/delete/runNow 均允许 breaking implementation change，但不破坏成熟 Lyra wire。该纵切在 R11 最终统一门禁前
 标记为 `implemented`。
+
+## ADR-A2-032：Runtime subscription 用 watch-ready initial resync 建立冷读栅栏
+
+**缺陷与反例**：既有 Bus 先返回 `runtime.subscribe` ack，再由 goroutine 创建 filesystem watcher，也不发送 initial resync。
+Desktop 通常先完成 query 再订阅；若 durable mutation 发生在 query 与 subscriber registration 之间，或 hooks.json 在 ack 与 watcher
+ready 之间改变，该变化没有 frame。断线重连创建新 per-subscription sequence，却也不要求冷读；Desktop 更没有检查 frame sequence gap，
+并遗漏订阅 `hooks.changed`。bounded queue overflow 已能发 resync，但无法覆盖这些窗口。
+
+**决定**：保留现有 Lyra `runtime.subscribe`、RuntimeEvent/RuntimeTopic、WatchSpec、per-subscription sequence 与 `resync` wire。
+Subscribe 必须按以下顺序建立 delivery boundary：先把 subscriber 放入 Bus registry；并行启动该请求的 file/skill/knowledge/hook
+watchers；每个 watcher 在成功观察目标或发出 scoped recovery instruction 后标记 ready；全部 ready 后向该 subscriber 发一次包含 exact
+requested topics/watch IDs 的 initial resync，再返回 stream ack。此后 committed producer event 与 external watcher event 共用一个
+subscriber sequence。
+
+queue overflow 继续清空不可信 backlog并只保留全订阅 resync。Desktop 对每个连接检查 sequence 连续性；gap 合成同订阅范围 resync，
+每次 transport 重连由服务端 initial resync 收敛。generation 仍由 RuntimeConnection/query-key 隔离，不把 instance sequence 跨代比较。
+`hooks.changed` 加入 Desktop 完整 topic 清单与 Hooks query invalidation；Hooks Settings 只消费现有 `hooks.list/setTrust`，不增加协议。
+
+**后果**：Runtime resource event 仍是 invalidation，不建立 durable snapshot/replay store，不与 RunEvent 的 root-Segment replay 混合。
+Watcher startup、递归目录数量、subscription cancel 与 Bus Close 均有硬边界，并由 Runtime task ledger join。Protocol/version/generated contract shape 均不变；
+该纵切在 R11 最终 fault/reconnect/resource 门禁前标记为 `implemented`。

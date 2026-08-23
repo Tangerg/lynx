@@ -79,6 +79,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "mcp.changed",
 		"approvals.changed",
 		"schedules.changed",
+		"hooks.changed",
         "files.changed",
         "skills.changed",
         "knowledge.changed",
@@ -425,6 +426,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 			<SettingsSurface
 				connection={connection}
 				sessionId={selectedSession?.id}
+				workspace={selectedSession?.workspace.ref}
 				onClose={() => setSettingsOpen(false)}
 				onOpenSession={(sessionId) => {
 					setSelectedSessionId(sessionId);

@@ -140,6 +140,10 @@ approvals.changed, agentMemory.changed, codebase.changed, resync
 resource event 是 invalidation/fact hint，不是第二份 authoritative state。consumer 看到 sequence gap、buffer
 eviction、新 instance 或 `resync` 时，按 topic 重新调用 typed query。事件 payload 不携带未界定的任意 JSON 快照。
 
+`runtime.subscribe` 的 ack 之前，Runtime 已注册 subscriber 并使该请求的 external watchers ready；流的首批 frame 包含覆盖
+exact requested topics/watch IDs 的 `resync`，要求 consumer 冷读。sequence 对每个 subscription 从 1 单调递增；非连续、重连或
+新 Runtime generation 均按同一 resync 规则收敛。这个约束不把 resource event 变成 durable replay stream，也不改变现有 wire shape。
+
 ## 9. Command identity 与幂等
 
 保留当前 header/operation metadata 驱动的幂等模型：

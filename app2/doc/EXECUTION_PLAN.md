@@ -30,7 +30,7 @@
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（全部 production 纵切已实现；Hooks 只待真实 PreCompact producer，整体待最终统一门禁） |
-| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | in progress（Provider/Model/MCP/Approval/Schedule production 纵切已实现，仅剩全 topic/resync 收口） |
+| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | implemented（production 纵切与全 topic/resync 已闭环，最终统一门禁留到 R11） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
@@ -703,6 +703,24 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - CRUD、occurrence claim/accept 与 runNow 由 owner 发布 exact `schedules.changed`。Desktop subscription 与 resync
   router 失效同 Runtime generation 的 Schedule query。最终 domain/transaction/race/restart/UI/package 门禁仍留到
   R11 统一执行。
+
+### Runtime Subscription / Hooks Desktop 实现记录（尚未统一验证）
+
+- 保留 Lyra 现有 `runtime.subscribe`、15 个 subscribable topics、`resync` event、WatchSpec 与 HTTP/SSE binding；没有增加
+  event snapshot、Last-Event-Id 资源 journal、connection initialize 或参考产品通知协议，generated contract 无 shape 变化；
+- subscriber 在 ack 前先进入 Bus registry，使事务 producer 从该点起不会漏发；files/skills/knowledge/hooks external watcher
+  各有 startup barrier，只有成功 watch 或明确发出 scoped resync 后才标记 ready。所有 watcher ready 后，Bus 发一次包含 exact
+  requested topics/watch IDs 的 initial resync，关闭 query-before-subscribe 与 reconnect acknowledgement-loss 窗口；
+- 每个 subscriber 拥有独立 sequence 与 128-frame bounded queue。overflow 不挑一条静默丢弃，而是清空不可信 backlog 并替换为
+  全订阅 resync；递归 file watch 同时受 context 与每 watcher 目录硬上限约束，越界后发 scoped resync 并停止不可信 watcher；
+  Close/cancel 删除 subscriber、取消 watcher 并 join Runtime-owned WaitGroup，Subscribe/Close 的 Add/Wait 不竞争；
+- Desktop generated client继续验证每个 frame；invalidation consumer 额外检查 sequence 必须逐一递增，gap 会合成同订阅范围
+  resync。新 connection generation 使用隔离 query key；每次重连都从服务端 initial resync 冷读，不把 renderer cache 当事件真相；
+- Desktop 现在订阅全部 15 topic，并为 `hooks.changed` 失效 Runtime-generation Hooks query。Lifecycle Hooks Settings 按 selected
+  Session workspace 冷读 global/project cascade，逐条展示 event/matcher/verbatim command 或 inject/source/timeout/active；project
+  command 必须经过 review-confirm 才写 exact project trust，revoke 与 external hooks.json edit 同样回读 authority；
+- 至此 Runtime resource topic 的 15 change + resync production producer/consumer 路径均为 implemented。最终 overflow/gap、
+  watcher create/rename、disconnect/reconnect、generation replacement、UI 与 resource-leak 门禁仍集中到 R11。
 
 ## 13. R9：高级 Session 与运营能力
 

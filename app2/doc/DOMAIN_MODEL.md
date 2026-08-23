@@ -382,6 +382,12 @@ Runtime event 只承担两类工作：
 
 事件 sequence 在一个 instance/topic 内单调；gap 触发相应 topic 全量重拉。事件不能写第二份业务事实。
 
+具体 subscription 的 sequence 是 per-subscriber delivery identity，不是持久化 resource revision。Subscribe 先注册 subscriber，
+再使该请求派生的 external file watchers ready，最后发送覆盖 exact topics/watch IDs 的 initial `resync`；consumer 因而可以在
+ack 后安全冷读，而不会依赖建立订阅前的缓存。bounded queue overflow 清空已不可信 backlog 并只保留 scoped `resync`。
+transport/consumer 发现 sequence gap 或重新订阅时执行同样的 typed query invalidation，不要求 Runtime 为 resource event 建立第二份
+跨进程 replay journal。Run event replay 与 Runtime resource invalidation 是不同生命周期，不能混用 cursor。
+
 ## 12. 关键跨上下文用例
 
 ### Start Run

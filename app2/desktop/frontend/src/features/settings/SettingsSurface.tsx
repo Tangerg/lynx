@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { RuntimeConnection } from "@lyra/runtime-contract";
+import type { RuntimeConnection, WorkspaceRef } from "@lyra/runtime-contract";
 
 import { MCPSettings } from "./MCPSettings";
 import { ApprovalSettings } from "./ApprovalSettings";
 import { ProviderModelSettings } from "./ProviderModelSettings";
 import { ScheduleSettings } from "./ScheduleSettings";
+import { HookSettings } from "./HookSettings";
 
 interface SettingsSurfaceProps {
 	connection: RuntimeConnection;
 	sessionId?: string;
+	workspace?: WorkspaceRef;
 	onClose: () => void;
 	onOpenSession: (sessionId: string) => void;
 }
 
-type SettingsPage = "providers" | "mcp" | "approvals" | "schedules";
+type SettingsPage = "providers" | "mcp" | "approvals" | "schedules" | "hooks";
 
 const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	providers: {
@@ -32,6 +34,10 @@ const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	schedules: {
 		title: "Schedules",
 		description: "Create recurring Runs with durable cadence, explicit workspace intent, and recoverable firing.",
+	},
+	hooks: {
+		title: "Lifecycle hooks",
+		description: "Review user and project automation before deciding which project hooks may execute.",
 	},
 };
 
@@ -105,6 +111,14 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<span aria-hidden="true">◷</span>
 						Schedules
 					</button>
+					<button
+						type="button"
+						aria-current={page === "hooks" ? "page" : undefined}
+						onClick={() => setPage("hooks")}
+					>
+						<span aria-hidden="true">⌁</span>
+						Lifecycle hooks
+					</button>
 				</nav>
 				<p>Secrets are write-only. Runtime state remains the authority after every mutation.</p>
 			</aside>
@@ -132,8 +146,10 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<MCPSettings connection={props.connection} />
 					) : page === "approvals" ? (
 						<ApprovalSettings connection={props.connection} sessionId={props.sessionId} />
-					) : (
+					) : page === "schedules" ? (
 						<ScheduleSettings connection={props.connection} onOpenSession={props.onOpenSession} />
+					) : (
+						<HookSettings connection={props.connection} workspace={props.workspace} />
 					)}
 				</div>
 			</div>

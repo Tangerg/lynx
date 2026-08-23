@@ -75,6 +75,11 @@ export function useRuntimeInvalidations(
 				queryKey: runtimeQueryKeys.schedules(connection),
 			});
 		}
+		if (topics.includes("hooks.changed")) {
+			void queryClient.invalidateQueries({
+				queryKey: runtimeQueryKeys.hooks(connection),
+			});
+		}
       if (topics.includes("files.changed")) {
         const workspace = event.workspace ?? activeWatch?.workspace;
         if (workspace !== undefined) {

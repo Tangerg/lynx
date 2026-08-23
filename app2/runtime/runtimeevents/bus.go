@@ -19,7 +19,10 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
-const subscriberCapacity = 128
+const (
+	subscriberCapacity         = 128
+	maxDirectoriesPerFileWatch = 8_192
+)
 
 type subscriber struct {
 	mu       sync.Mutex
@@ -30,6 +33,19 @@ type subscriber struct {
 	done     chan struct{}
 	cancel   context.CancelFunc
 	once     sync.Once
+}
+
+type watchStartup struct {
+	once  sync.Once
+	ready chan struct{}
+}
+
+func newWatchStartup() *watchStartup {
+	return &watchStartup{ready: make(chan struct{})}
+}
+
+func (startup *watchStartup) markReady() {
+	startup.once.Do(func() { close(startup.ready) })
 }
 
 func newSubscriber(request protocol.RuntimeSubscribeRequest) *subscriber {
@@ -173,20 +189,33 @@ func (bus *Bus) Subscribe(
 	id := bus.nextID
 	bus.subscribers[id] = subscription
 	bus.mu.Unlock()
+	remove := func() {
+		cancelWatches()
+		bus.mu.Lock()
+		delete(bus.subscribers, id)
+		bus.mu.Unlock()
+		subscription.close()
+	}
+	context.AfterFunc(ctx, remove)
+	startups := make([]*watchStartup, 0, len(request.Watches)+3)
 
 	for _, watch := range request.Watches {
 		if bus.beginWatch() {
+			startup := newWatchStartup()
+			startups = append(startups, startup)
 			go func(spec protocol.WatchSpec) {
 				defer bus.watches.Done()
-				watchFiles(watchContext, subscription, spec)
+				watchFiles(watchContext, subscription, spec, startup)
 			}(watch)
 		}
 	}
 	if subscription.accepts(protocol.TopicSkillsChanged) && bus.userSkillsDirectory != "" {
 		if bus.beginWatch() {
+			startup := newWatchStartup()
+			startups = append(startups, startup)
 			go func() {
 				defer bus.watches.Done()
-				watchUserSkills(watchContext, subscription, bus.userSkillsDirectory)
+				watchUserSkills(watchContext, subscription, bus.userSkillsDirectory, startup)
 			}()
 		}
 	}
@@ -199,6 +228,8 @@ func (bus *Bus) Subscribe(
 		if filesErr != nil {
 			subscription.emit(resyncTopic(protocol.TopicKnowledgeChanged))
 		} else if len(files) > 0 && bus.beginWatch() {
+			startup := newWatchStartup()
+			startups = append(startups, startup)
 			go func() {
 				defer bus.watches.Done()
 				watchExactFiles(
@@ -206,6 +237,7 @@ func (bus *Bus) Subscribe(
 					subscription,
 					files,
 					protocol.TopicKnowledgeChanged,
+					startup,
 				)
 			}()
 		}
@@ -219,6 +251,8 @@ func (bus *Bus) Subscribe(
 		if filesErr != nil {
 			subscription.emit(resyncTopic(protocol.TopicHooksChanged))
 		} else if len(files) > 0 && bus.beginWatch() {
+			startup := newWatchStartup()
+			startups = append(startups, startup)
 			go func() {
 				defer bus.watches.Done()
 				watchExactFiles(
@@ -226,18 +260,30 @@ func (bus *Bus) Subscribe(
 					subscription,
 					files,
 					protocol.TopicHooksChanged,
+					startup,
 				)
 			}()
 		}
 	}
-	remove := func() {
-		cancelWatches()
-		bus.mu.Lock()
-		delete(bus.subscribers, id)
-		bus.mu.Unlock()
-		subscription.close()
+	for _, startup := range startups {
+		select {
+		case <-startup.ready:
+		case <-ctx.Done():
+			remove()
+			return nil, nil, ctx.Err()
+		}
 	}
-	context.AfterFunc(ctx, remove)
+	if err := ctx.Err(); err != nil {
+		remove()
+		return nil, nil, err
+	}
+	// Register first, make every external watcher ready, then force one cold
+	// read. This closes the query-before-subscribe and reconnect windows without
+	// turning the event stream into a second resource snapshot.
+	subscription.emit(protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync, Topics: slices.Clone(request.Topics),
+		WatchIDs: slices.Clone(subscription.watchIDs),
+	})
 
 	stream := func(yield func(protocol.RuntimeEvent) bool) {
 		defer remove()
@@ -312,7 +358,13 @@ func validateRequest(request protocol.RuntimeSubscribeRequest) error {
 	return nil
 }
 
-func watchFiles(ctx context.Context, target *subscriber, spec protocol.WatchSpec) {
+func watchFiles(
+	ctx context.Context,
+	target *subscriber,
+	spec protocol.WatchSpec,
+	startup *watchStartup,
+) {
+	defer startup.markReady()
 	root, err := filepath.Abs(spec.Workspace.Path)
 	if err != nil {
 		target.emit(resyncWatch(spec.WatchID))
@@ -329,10 +381,12 @@ func watchFiles(ctx context.Context, target *subscriber, spec protocol.WatchSpec
 		return
 	}
 	defer watcher.Close()
-	if err := addTree(watcher, root); err != nil {
+	observed := make(map[string]struct{})
+	if err := addTree(ctx, watcher, root, observed); err != nil {
 		target.emit(resyncWatch(spec.WatchID))
 		return
 	}
+	startup.markReady()
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -341,7 +395,10 @@ func watchFiles(ctx context.Context, target *subscriber, spec protocol.WatchSpec
 			}
 			if event.Op&fsnotify.Create != 0 {
 				if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
-					_ = addTree(watcher, event.Name)
+					if err := addTree(ctx, watcher, event.Name, observed); err != nil {
+						target.emit(resyncWatch(spec.WatchID))
+						return
+					}
 				}
 			}
 			relative, relErr := filepath.Rel(root, event.Name)
@@ -372,7 +429,13 @@ func watchFiles(ctx context.Context, target *subscriber, spec protocol.WatchSpec
 	}
 }
 
-func watchUserSkills(ctx context.Context, target *subscriber, directory string) {
+func watchUserSkills(
+	ctx context.Context,
+	target *subscriber,
+	directory string,
+	startup *watchStartup,
+) {
+	defer startup.markReady()
 	root, err := filepath.EvalSymlinks(directory)
 	if err != nil {
 		target.emit(resyncTopic(protocol.TopicSkillsChanged))
@@ -384,14 +447,16 @@ func watchUserSkills(ctx context.Context, target *subscriber, directory string) 
 		return
 	}
 	defer watcher.Close()
-	if err := addTree(watcher, root); err != nil {
+	observed := make(map[string]struct{})
+	if err := addTree(ctx, watcher, root, observed); err != nil {
 		target.emit(resyncTopic(protocol.TopicSkillsChanged))
 		return
 	}
-	if err := watcher.Add(filepath.Dir(root)); err != nil {
+	if err := addWatchDirectory(watcher, filepath.Dir(root), observed); err != nil {
 		target.emit(resyncTopic(protocol.TopicSkillsChanged))
 		return
 	}
+	startup.markReady()
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -404,7 +469,10 @@ func watchUserSkills(ctx context.Context, target *subscriber, directory string) 
 			}
 			if event.Op&fsnotify.Create != 0 {
 				if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
-					_ = addTree(watcher, event.Name)
+					if err := addTree(ctx, watcher, event.Name, observed); err != nil {
+						target.emit(resyncTopic(protocol.TopicSkillsChanged))
+						return
+					}
 				}
 			}
 			if relative == "." {
@@ -433,7 +501,9 @@ func watchExactFiles(
 	target *subscriber,
 	files []string,
 	topic protocol.RuntimeTopic,
+	startup *watchStartup,
 ) {
+	defer startup.markReady()
 	targets := make(map[string]struct{}, len(files))
 	directories := make(map[string]struct{}, len(files))
 	for _, path := range files {
@@ -454,6 +524,7 @@ func watchExactFiles(
 		target.emit(resyncTopic(topic))
 		return
 	}
+	startup.markReady()
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -538,10 +609,9 @@ func refreshExactWatchDirectories(
 		if _, exists := observed[directory]; exists {
 			continue
 		}
-		if err := watcher.Add(directory); err != nil {
+		if err := addWatchDirectory(watcher, directory, observed); err != nil {
 			return err
 		}
-		observed[directory] = struct{}{}
 	}
 	return nil
 }
@@ -574,8 +644,16 @@ func workspaceSkillChange(relative string) (string, bool) {
 	return name, true
 }
 
-func addTree(watcher *fsnotify.Watcher, root string) error {
+func addTree(
+	ctx context.Context,
+	watcher *fsnotify.Watcher,
+	root string,
+	observed map[string]struct{},
+) error {
 	return filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -586,8 +664,33 @@ func addTree(watcher *fsnotify.Watcher, root string) error {
 		if path != root && (name == ".git" || name == "node_modules" || name == ".cache") {
 			return filepath.SkipDir
 		}
-		return watcher.Add(path)
+		if _, exists := observed[path]; exists {
+			return filepath.SkipDir
+		}
+		return addWatchDirectory(watcher, path, observed)
 	})
+}
+
+func addWatchDirectory(
+	watcher *fsnotify.Watcher,
+	path string,
+	observed map[string]struct{},
+) error {
+	path = filepath.Clean(path)
+	if _, exists := observed[path]; exists {
+		return nil
+	}
+	if len(observed) >= maxDirectoriesPerFileWatch {
+		return fmt.Errorf(
+			"runtimeevents: file watch exceeds %d directories",
+			maxDirectoriesPerFileWatch,
+		)
+	}
+	if err := watcher.Add(path); err != nil {
+		return err
+	}
+	observed[path] = struct{}{}
+	return nil
 }
 
 func resyncWatch(id string) protocol.RuntimeEvent {
