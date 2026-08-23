@@ -131,7 +131,7 @@ func (service *Service) recoverTree(ctx context.Context, rootRunID string) error
 		return err
 	}
 	for _, write := range projection.writes {
-		service.publishLifecycleChange(write.Run.Run)
+		service.publishLifecycleChange(ctx, write.Run.Run)
 	}
 	service.publishInterruptChange(projection.root.Run)
 	for _, event := range projection.events {

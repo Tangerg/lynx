@@ -170,7 +170,7 @@ func (service *Service) resumeTree(
 		return nil, nil, err
 	}
 	for _, write := range writes {
-		service.publishLifecycleChange(write.Run.Run)
+		service.publishLifecycleChange(ctx, write.Run.Run)
 	}
 	service.publishInterruptChange(committedRoot.Run)
 	if command.BeforeLaunch != nil {

@@ -198,11 +198,16 @@ func (service *Service) parkTreeExecution(
 		return err
 	}
 	for _, write := range writes {
-		service.publishLifecycleChange(write.Run.Run)
+		service.publishLifecycleChange(ctx, write.Run.Run)
 	}
 	service.publishInterruptChange(writes[len(writes)-1].Run.Run)
 	for _, event := range published {
 		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
+	}
+	for index, source := range waiting.Runs {
+		if source.Disposition == agentexec.WaitingInterrupt {
+			service.observeWaitingHook(ctx, writes[index].Run.Run)
+		}
 	}
 	return nil
 }
@@ -349,7 +354,8 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 	if err := service.store.CommitWait(ctx, WaitWrite{Run: record, ExpectedSegmentID: segmentID, Items: items, Messages: projection.messages, ToolResults: projection.results, Interrupts: set, Checkpoint: waiting.Checkpoint, Events: persisted}); err != nil {
 		return err
 	}
-	service.publishLifecycleChange(record.Run)
+	service.publishLifecycleChange(ctx, record.Run)
+	service.observeWaitingHook(ctx, record.Run)
 	service.publishInterruptChange(record.Run)
 	for _, event := range events {
 		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)

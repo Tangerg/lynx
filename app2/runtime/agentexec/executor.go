@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -22,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/tool"
 
+	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -58,6 +60,10 @@ type MemorySource interface {
 	Recall(context.Context, string) ([]MemoryItem, error)
 }
 
+type LifecycleHooks interface {
+	Evaluate(context.Context, lifecyclehook.Invocation) (lifecyclehook.Decision, error)
+}
+
 type MemoryItem struct {
 	ID      string
 	Scope   string
@@ -69,6 +75,7 @@ type MemoryItem struct {
 // attaches each fact to the exact observed ToolCall.
 type ToolFactSink interface {
 	RecordCommittedPlan(string, protocol.Plan)
+	RecordEffectiveToolArguments(string, map[string]any)
 }
 
 type ToolScope struct {
@@ -85,6 +92,7 @@ type Executor struct {
 	documents AgentDocumentSource
 	knowledge KnowledgeDocumentSource
 	memory    MemorySource
+	hooks     LifecycleHooks
 }
 
 type Config struct {
@@ -93,16 +101,18 @@ type Config struct {
 	Documents AgentDocumentSource
 	Knowledge KnowledgeDocumentSource
 	Memory    MemorySource
+	Hooks     LifecycleHooks
 }
 
 func New(config Config) (*Executor, error) {
-	if config.Clients == nil || config.Documents == nil || config.Knowledge == nil || config.Memory == nil {
-		return nil, errors.New("agentexec: clients, agent documents, knowledge and memory are required")
+	if config.Clients == nil || config.Documents == nil || config.Knowledge == nil ||
+		config.Memory == nil || config.Hooks == nil {
+		return nil, errors.New("agentexec: clients, context sources, memory and lifecycle hooks are required")
 	}
 	return &Executor{
 		clients: config.Clients, tools: config.Tools,
 		documents: config.Documents, knowledge: config.Knowledge,
-		memory: config.Memory,
+		memory: config.Memory, hooks: config.Hooks,
 	}, nil
 }
 
@@ -112,6 +122,8 @@ type Input struct {
 	RunID                      string
 	SegmentID                  string
 	IsRootRun                  bool
+	SessionStart               bool
+	UserPromptSubmit           bool
 	Subagents                  bool
 	Delegation                 DelegationCoordinator
 	Conversation               []Message
@@ -310,12 +322,22 @@ type ToolInputInvocation struct {
 	Arguments map[string]any `json:"arguments"`
 }
 
+// ErrAdmissionRejected marks a lifecycle-policy denial before a fresh root
+// interaction starts. runflow projects it as an invalid-request outcome.
+var ErrAdmissionRejected = errors.New("agentexec: interaction admission rejected by lifecycle policy")
+
 func (executor *Executor) Execute(ctx context.Context, input Input) (Output, error) {
 	messages, err := materializeConversation(input.Conversation)
 	if err != nil {
 		return Output{}, err
 	}
 	if input.IsRootRun {
+		if input.SessionStart || input.UserPromptSubmit {
+			messages, err = executor.applyPromptHooks(ctx, input, messages)
+			if err != nil {
+				return Output{}, err
+			}
+		}
 		memory, err := executor.memory.Recall(ctx, input.Workspace)
 		if err != nil {
 			return Output{}, fmt.Errorf("agentexec: recall memory: %w", err)
@@ -376,6 +398,90 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 		return Output{}, fmt.Errorf("agentexec: start interaction: %w", err)
 	}
 	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers, input.Cancels)
+}
+
+func (executor *Executor) applyPromptHooks(
+	ctx context.Context,
+	input Input,
+	messages []chat.Message,
+) ([]chat.Message, error) {
+	if len(messages) == 0 || messages[len(messages)-1].Role != chat.RoleUser {
+		return nil, errors.New("agentexec: fresh root conversation must end with user input")
+	}
+	invocations := make([]lifecyclehook.Invocation, 0, 2)
+	if input.SessionStart {
+		invocations = append(invocations, lifecyclehook.Invocation{
+			Event: lifecyclehook.SessionStart,
+			SessionID: input.SessionID, RunID: input.RunID,
+			Workspace: input.Workspace,
+		})
+	}
+	if input.UserPromptSubmit {
+		prompt, truncated := lifecycleText(
+			messages[len(messages)-1].Text(),
+			lifecyclehook.MaxPromptBytes,
+		)
+		invocations = append(invocations, lifecyclehook.Invocation{
+			Event: lifecyclehook.UserPromptSubmit,
+			SessionID: input.SessionID, RunID: input.RunID,
+			Workspace: input.Workspace, Prompt: prompt, PromptTruncated: truncated,
+		})
+	}
+	contexts := make([]lifecyclehook.Context, 0)
+	for _, invocation := range invocations {
+		decision, err := executor.hooks.Evaluate(ctx, invocation)
+		if err != nil {
+			return nil, fmt.Errorf("agentexec: evaluate %s hook: %w", invocation.Event, err)
+		}
+		if decision.Denied() {
+			reason := strings.TrimSpace(decision.Reason)
+			if reason == "" {
+				reason = "blocked by lifecycle policy"
+			}
+			return nil, fmt.Errorf("%w: %s", ErrAdmissionRejected, reason)
+		}
+		contexts = append(contexts, decision.Contexts...)
+	}
+	if len(contexts) == 0 {
+		return messages, nil
+	}
+	contextMessage := chat.NewSystemMessage(RenderLifecycleContext(contexts))
+	result := make([]chat.Message, 0, len(messages)+1)
+	result = append(result, messages[:len(messages)-1]...)
+	result = append(result, contextMessage, messages[len(messages)-1])
+	return result, nil
+}
+
+// RenderLifecycleContext preserves source provenance while turning trusted
+// hook material into one model-visible context block.
+func RenderLifecycleContext(contexts []lifecyclehook.Context) string {
+	if len(contexts) == 0 {
+		return ""
+	}
+	var result strings.Builder
+	result.WriteString("Trusted Lyra lifecycle context:\n")
+	for _, value := range contexts {
+		fmt.Fprintf(
+			&result,
+			"\n[event=%s source=%q]\n%s\n[end lifecycle context]\n",
+			value.Event,
+			value.Source,
+			value.Content,
+		)
+	}
+	return strings.TrimSpace(result.String())
+}
+
+func lifecycleText(value string, limit int) (string, bool) {
+	value = strings.ToValidUTF8(value, "�")
+	if len(value) <= limit {
+		return value, false
+	}
+	value = value[:limit]
+	for len(value) > 0 && !utf8.ValidString(value) {
+		value = value[:len(value)-1]
+	}
+	return value, true
 }
 
 func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output, error) {

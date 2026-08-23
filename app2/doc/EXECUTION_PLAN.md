@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory production 已实现；Hooks 管理基础已实现，待执行语义、Tool catalog 与最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory production 已实现；Hooks 除 PreCompact consumer 外已贯通，待 Tool catalog 与最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -556,7 +556,7 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   失败仅保留 backlog，不改变 Run outcome，不写 LYRA.md，也不扩张现有 Lyra wire；
 - **下一纵切**：Hooks，然后 Tool catalog。
 
-### R7 Hooks 管理 / observation 纵切（已实现，执行语义待下一纵切）
+### R7 Hooks 管理 / execution / observation 纵切（除 PreCompact consumer 外已实现）
 
 - **独立领域与 owner**：移除 `capabilityflow` 内嵌的一行 JSON parser 与 generic `hook_id='project'` persistence；由 closed
   `domain/lifecyclehook`、`hookfs`、`hookflow` 分别拥有规则、受限文件 I/O 与 use case。当前 SQLite epoch 9 只以
@@ -567,8 +567,16 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   changed-only commit 后才发布 `hooks.changed`。effective execution source 在未信任时根本不打开 project hooks，坏配置不能阻断 global hooks；
 - **external convergence**：Runtime event Bus 以 exact logical + confined physical targets 观察 global/project/cwd hooks.json；即使 `.lyra`
   尚不存在，也从最近 existing ancestor 跟进后续目录/文件创建。watch cancel 与 Bus close 仍由既有 owner join；没有新增常驻 owner；
-- **下一纵切**：实现 bounded command runner，以及 UserPromptSubmit/SessionStart、Pre/PostToolUse、Subagent、Stop/Notification/PreCompact
-  的真实 Run consumer；不能让 broken hook 冻结或篡改既有 Lyra approval/interrupt 语义。
+- **bounded command adapter**：Unix `/bin/sh`、Windows `cmd.exe` 只消费 Lyra-owned typed JSON；stdin/stdout/stderr、timeout、单 action 与 aggregate
+  context 均有硬上限。Unix process group 在完成、取消或超时后清理；timeout/spawn/malformed output/非 0、2 exit 只记 warning，不冻结 Run；
+- **prompt / Tool policy**：fresh root 精确触发 first-Session `SessionStart` 与每次用户发起 Run 的 `UserPromptSubmit`（自治 Goal 指令与 live `runs.steer` 均不伪装成 prompt admission），deny 形成明确 failed Run，inject 进入 trusted
+  system context。PreToolUse rewrite 后才走 Plan/path safety，Hook ask 与既有 approval 合并一次；用户 edited args 会重新过 Hook，若再次 rewrite
+  就以最终参数重新审批。PostToolUse 只能补充模型 context，不能把已发生 effect 改写为另一个事实；durable Tool Item 记录 effective args；
+- **committed lifecycle**：SubagentStart 只在 child Run durable admission 后排队；SubagentStop、Stop 覆盖 completion/cancel/lost recovery 等所有
+  terminal commit；Notification 只覆盖真实 interrupt source。observe-only cascade 在 commit 时冻结并进入单一 bounded Runtime worker，Close
+  cancel/join。命令私有契约见 `HOOKS.md`；现有 Lyra management/event wire 未改变；
+- **余项 / 下一纵切**：`PreCompact` 的领域与执行规则已闭合，但必须等真正 compaction producer 在 candidate boundary 调用，不能造假 consumer。
+  R7 主序继续 Tool catalog；compaction 实现时同纵切接入 `PreCompact`，最后统一门禁验证。
 
 ## 12. R8：Integration 与 Settings
 

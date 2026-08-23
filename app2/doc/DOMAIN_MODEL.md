@@ -339,6 +339,13 @@ matcher 与 exactly-one `command | inject` 在进入 application 前成为 close
 项目文件，使恶意或损坏的 cloned config 不能破坏有效 global policy。trust false 由记录缺席表达，重复 trust/revoke 不发布伪 change。
 hooks.json 是 file-owned source；Runtime 只发布 invalidation，不建立第二份可漂移配置镜像。
 
+Run consumer 只接收 Lyra Session/Run/workspace/Tool/Subagent 语义，不把 Agent Framework Process、checkpoint 或 provider payload 暴露给 Hook。
+command adapter 以 bounded typed JSON stdin/stdout 隔离 shell；只有 gated event 的 exit 2 / closed `deny` 是硬拒绝，spawn、timeout、oversized/malformed
+output 与其他 non-zero exit 都记录为非阻塞失败；exit 2 即使 stdout 损坏仍保留 deny。prompt/config discovery 是 effect 前的 fail-closed gate；PostToolUse、Subagent、Notification、
+Stop 是 effect/transaction 后的 best-effort boundary，不能追溯改变 durable 结果。PreToolUse 的 rewrite 先生成 effective arguments，再经过同一
+path/Plan/approval policy；Hook `ask` 与 Lyra approval 合并为一次等待，审批、执行与 Transcript 共用 effective arguments。observe-only command
+由 Runtime-owned bounded queue 串行执行，Close cancel/join；它冻结 commit 时的 trusted cascade，不在延迟执行时重新解释 trust。
+
 ## 11. Runtime 生命周期与事件
 
 `RuntimeInstance` 是进程代际，不是业务聚合：每次启动获得新 `instanceId`，同一 durable store 可跨代保持；

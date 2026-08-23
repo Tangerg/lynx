@@ -107,3 +107,7 @@ type scopedToolFacts struct {
 func (facts scopedToolFacts) RecordCommittedPlan(callID string, plan protocol.Plan) {
 	facts.observer.recordCommittedPlanFor(facts.runID, callID, plan)
 }
+
+func (facts scopedToolFacts) RecordEffectiveToolArguments(callID string, arguments map[string]any) {
+	facts.observer.recordEffectiveToolArgumentsFor(facts.runID, callID, arguments)
+}

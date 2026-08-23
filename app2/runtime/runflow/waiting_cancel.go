@@ -124,7 +124,7 @@ func (service *Service) cancelWaitingTreeChild(
 	}); err != nil {
 		return nil, err
 	}
-	service.publishWaitingCancel(projection)
+	service.publishWaitingCancel(ctx, projection)
 	rootRecord := projection.root
 	rootSegmentID := rootRecord.Run.ActiveSegmentID()
 	if rootSegmentID == "" {
@@ -199,7 +199,7 @@ func (service *Service) cancelWaitingTreeRoot(
 	}); err != nil {
 		return nil, err
 	}
-	service.publishWaitingCancel(projection)
+	service.publishWaitingCancel(ctx, projection)
 	presented, err := presentRecord(projection.root)
 	if err != nil {
 		return nil, err
@@ -408,9 +408,9 @@ func (service *Service) projectWaitingTreeCancel(
 	return projection, nil
 }
 
-func (service *Service) publishWaitingCancel(projection waitingCancelProjection) {
+func (service *Service) publishWaitingCancel(ctx context.Context, projection waitingCancelProjection) {
 	for _, write := range projection.writes {
-		service.publishLifecycleChange(write.Run.Run)
+		service.publishLifecycleChange(ctx, write.Run.Run)
 	}
 	service.publishInterruptChange(projection.root.Run)
 	for _, event := range projection.events {

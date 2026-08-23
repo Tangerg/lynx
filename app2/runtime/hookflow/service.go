@@ -1,12 +1,14 @@
-// Package hookflow owns lifecycle-hook discovery, project trust, and effective
-// activation. Execution remains a separate Run application concern; the
-// protocol sees a reviewable projection of the same domain values Runs use.
+// Package hookflow owns lifecycle-hook discovery, project trust, effective
+// evaluation, and observe-only command lifetime. Run consumers own only the
+// exact lifecycle boundaries; the protocol sees a reviewable projection of
+// the same domain values those consumers use.
 package hookflow
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"slices"
 	"time"
@@ -35,6 +37,9 @@ type Config struct {
 	Store    Store
 	Source   Source
 	Resolver Resolver
+	Commands CommandExecutor
+	Lifetime context.Context
+	Logger   *slog.Logger
 	Clock    func() time.Time
 }
 
@@ -43,20 +48,24 @@ type Service struct {
 	source   Source
 	resolver Resolver
 	now      func() time.Time
+	runner   *runner
 }
 
 func New(config Config) (*Service, error) {
-	if config.Store == nil || config.Source == nil || config.Resolver == nil {
-		return nil, errors.New("hookflow: store, source, and resolver are required")
+	if config.Store == nil || config.Source == nil || config.Resolver == nil ||
+		config.Commands == nil || config.Lifetime == nil {
+		return nil, errors.New("hookflow: store, source, resolver, commands, and lifetime are required")
 	}
 	now := config.Clock
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{
+	service := &Service{
 		store: config.Store, source: config.Source,
 		resolver: config.Resolver, now: now,
-	}, nil
+	}
+	service.runner = newRunner(config.Lifetime, config.Commands, config.Logger)
+	return service, nil
 }
 
 func (service *Service) List(
@@ -210,5 +219,60 @@ func present(hook lifecyclehook.Hook, projectTrusted bool) protocol.HookInfo {
 		TimeoutMillis: hook.TimeoutMillis,
 		Scope: protocol.HookScope(hook.Scope), Source: hook.Source,
 		Active: hook.Scope == lifecyclehook.ScopeGlobal || projectTrusted,
+	}
+}
+
+// Evaluate resolves the effective trusted cascade at the lifecycle boundary
+// and folds it synchronously. Configuration failures stop the gated action;
+// individual broken commands are logged and remain non-blocking.
+func (service *Service) Evaluate(
+	ctx context.Context,
+	invocation lifecyclehook.Invocation,
+) (lifecyclehook.Decision, error) {
+	if err := invocation.Validate(); err != nil {
+		return lifecyclehook.Decision{}, err
+	}
+	hooks, err := service.Active(ctx, invocation.Workspace)
+	if err != nil {
+		return lifecyclehook.Decision{}, err
+	}
+	return service.runner.evaluate(ctx, hooks, invocation)
+}
+
+// EvaluateBestEffort is for an event whose underlying external effect already
+// settled. Failures are observable but cannot retroactively change that fact.
+func (service *Service) EvaluateBestEffort(
+	ctx context.Context,
+	invocation lifecyclehook.Invocation,
+) lifecyclehook.Decision {
+	decision, err := service.Evaluate(ctx, invocation)
+	if err != nil {
+		service.runner.logFailure(ctx, lifecyclehook.Hook{}, invocation, err)
+		return lifecyclehook.Decision{Verdict: lifecyclehook.VerdictAllow}
+	}
+	return decision
+}
+
+// Observe freezes the effective cascade at the committed boundary and queues
+// observe-only execution. It never delays or changes the durable Run outcome.
+func (service *Service) Observe(
+	ctx context.Context,
+	invocation lifecyclehook.Invocation,
+) {
+	if err := invocation.Validate(); err != nil {
+		service.runner.logFailure(ctx, lifecyclehook.Hook{}, invocation, err)
+		return
+	}
+	hooks, err := service.Active(ctx, invocation.Workspace)
+	if err != nil {
+		service.runner.logFailure(ctx, lifecyclehook.Hook{}, invocation, err)
+		return
+	}
+	service.runner.observe(hooks, invocation)
+}
+
+func (service *Service) Close() {
+	if service != nil && service.runner != nil {
+		service.runner.close()
 	}
 }

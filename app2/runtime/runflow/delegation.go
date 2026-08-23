@@ -9,7 +9,9 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	"github.com/Tangerg/lynx/app2/runtime/domain/delegation"
+	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
+	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -249,10 +251,36 @@ func (service *Service) commitDelegateStarted(
 		return agentexec.DelegateBinding{}, err
 	}
 	if created {
-		service.publishLifecycleChange(child)
+		service.publishLifecycleChange(ctx, child)
+		service.observeSubagentStarted(ctx, child, admission)
 		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, events[0])
 	}
 	return delegateBinding(admission), nil
+}
+
+func (service *Service) observeSubagentStarted(
+	ctx context.Context,
+	child rundomain.Run,
+	admission delegation.Admission,
+) {
+	storedSession, err := service.store.GetSession(ctx, session.ID(child.SessionID()))
+	if err != nil {
+		return
+	}
+	prompt, promptTruncated := boundedHookMaterial(
+		admission.Instructions,
+		lifecyclehook.MaxPromptBytes,
+	)
+	service.hooks.Observe(ctx, lifecyclehook.Invocation{
+		Event: lifecyclehook.SubagentStart,
+		SessionID: child.SessionID(), RunID: child.ID(),
+		Workspace: storedSession.Workspace().Path(),
+		Subagent: &lifecyclehook.SubagentInput{
+			RunID: child.ID(), ParentRunID: child.ParentRunID(),
+			Description: boundedHookText(admission.Summary, lifecyclehook.MaxReasonBytes),
+			Prompt: prompt, PromptTruncated: promptTruncated,
+		},
+	})
 }
 
 func (service *Service) commitDelegateAborted(
@@ -524,7 +552,7 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 	}); err != nil {
 		return err
 	}
-	service.publishLifecycleChange(child.Run)
+	service.publishLifecycleChangeWithResult(ctx, child.Run, output.Reply)
 	service.publishRunChange(parent.Run)
 	for _, event := range projection.events {
 		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)

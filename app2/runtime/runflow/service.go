@@ -14,9 +14,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
+	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
@@ -76,6 +78,10 @@ type MemoryMaintenance interface {
 	RunSettled()
 }
 
+type LifecycleHooks interface {
+	Observe(context.Context, lifecyclehook.Invocation)
+}
+
 type ActiveRunError struct{ Run protocol.RunRef }
 
 func (failure *ActiveRunError) Error() string {
@@ -97,6 +103,7 @@ type Service struct {
 	hub       *streamhub.Hub
 	events    Publisher
 	memory    MemoryMaintenance
+	hooks     LifecycleHooks
 	now       func() time.Time
 	lifetime  context.Context
 	cancel    context.CancelFunc
@@ -123,13 +130,14 @@ type Config struct {
 	Hub *streamhub.Hub
 	Events Publisher
 	Memory MemoryMaintenance
+	Hooks LifecycleHooks
 	Lifetime context.Context
 	Clock func() time.Time
 }
 
 func New(config Config) (*Service, error) {
-	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Events == nil || config.Checkpoints == nil || config.Memory == nil {
-		return nil, errors.New("runflow: store, ids, executor, models, checkpoints, hub, events and memory maintenance are required")
+	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Events == nil || config.Checkpoints == nil || config.Memory == nil || config.Hooks == nil {
+		return nil, errors.New("runflow: stores, execution ports, events, memory, and lifecycle hooks are required")
 	}
 	if config.Lifetime == nil {
 		return nil, errors.New("runflow: lifetime is required")
@@ -141,7 +149,7 @@ func New(config Config) (*Service, error) {
 	lifetime, cancel := context.WithCancel(config.Lifetime)
 	return &Service{
 		store: config.Store, ids: config.IDs, executor: config.Executor, models: config.Models, checkpoints: config.Checkpoints,
-		hub: config.Hub, events: config.Events, memory: config.Memory,
+		hub: config.Hub, events: config.Events, memory: config.Memory, hooks: config.Hooks,
 		now: clock, lifetime: lifetime, cancel: cancel,
 		active: make(map[string]activeExecution), locks: make(map[string]*sync.Mutex),
 	}, nil
@@ -342,6 +350,7 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 	}
 	userMessage, err := agentexec.UserMessage(request.Input)
 	if err != nil { return nil, nil, err }
+	sessionStart := len(conversation) == 0
 	conversation = append(conversation, userMessage)
 	messageBody, err := json.Marshal(userMessage)
 	if err != nil { return nil, nil, err }
@@ -355,7 +364,7 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 		}
 		return nil, nil, err
 	}
-	service.publishLifecycleChange(record.Run)
+	service.publishLifecycleChange(ctx, record.Run)
 	if command.claim != nil {
 		if err := command.claim(ctx, runID); err != nil {
 			service.settleUnlaunched(runID)
@@ -367,13 +376,27 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 		}
 	}
 	stream := service.hub.SubscribeRun(ctx, runID, segmentID, events)
-	if !service.launchExecution(runID, segmentID, storedSession.Workspace().Path(), conversation) {
+	if !service.launchExecution(
+		runID,
+		segmentID,
+		storedSession.Workspace().Path(),
+		conversation,
+		sessionStart,
+		command.visibleInput,
+	) {
 		service.settleUnlaunched(runID)
 	}
 	return &openedRoot{runID: runID, segmentID: segmentID, userItemID: itemID}, stream, nil
 }
 
-func (service *Service) launchExecution(runID, segmentID, workspace string, conversation []agentexec.Message) bool {
+func (service *Service) launchExecution(
+	runID string,
+	segmentID string,
+	workspace string,
+	conversation []agentexec.Message,
+	sessionStart bool,
+	userPromptSubmit bool,
+) bool {
 	service.mu.Lock()
 	if service.closing {
 		service.mu.Unlock()
@@ -401,7 +424,9 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 		output, executeErr := service.executor.Execute(ctx, agentexec.Input{
 			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
 			SessionID: record.Run.SessionID(), RunID: runID, SegmentID: segmentID,
-			IsRootRun: record.Run.ParentRunID() == "", Subagents: runUsesSubagents(record.Body), Delegation: service,
+			IsRootRun: record.Run.ParentRunID() == "", SessionStart: sessionStart,
+			UserPromptSubmit: userPromptSubmit,
+			Subagents: runUsesSubagents(record.Body), Delegation: service,
 			Conversation: conversation, Steers: steers, Cancels: cancels,
 			MaxSteps: runMaxSteps(record.Body), Live: live,
 		})
@@ -513,7 +538,18 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	detail := ""
 	problem := (*protocol.ProblemData)(nil)
 	if executeErr != nil {
-		if errors.Is(executeErr, context.Canceled) && service.lifetime.Err() != nil {
+		if errors.Is(executeErr, agentexec.ErrAdmissionRejected) {
+			outcome = rundomain.Failed
+			detail = strings.TrimSpace(strings.TrimPrefix(
+				executeErr.Error(),
+				agentexec.ErrAdmissionRejected.Error()+":",
+			))
+			if detail == "" {
+				detail = "blocked by lifecycle policy"
+			}
+			detail = boundedHookText(detail, lifecyclehook.MaxReasonBytes)
+			problem = &protocol.ProblemData{Type: protocol.ProblemInvalidRequest, Detail: detail}
+		} else if errors.Is(executeErr, context.Canceled) && service.lifetime.Err() != nil {
 			outcome = rundomain.Lost
 			detail = lostRunDetail
 			problem = &protocol.ProblemData{Type: protocol.ProblemRunLost, Detail: detail}
@@ -577,7 +613,7 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	if err := service.store.CommitRun(ctx, CommitWrite{Run: record, ExpectedStatus: rundomain.Running, ExpectedSegmentID: segmentID, Items: items, Messages: projection.messages, ToolResults: projection.results, Events: persisted}); err != nil {
 		return
 	}
-	service.publishLifecycleChange(record.Run)
+	service.publishLifecycleChange(ctx, record.Run)
 	for _, event := range events {
 		service.hub.PublishRun(runID, segmentID, event)
 	}
@@ -925,7 +961,7 @@ func (service *Service) cancelSingleWaiting(
 	}); err != nil {
 		return nil, err
 	}
-	service.publishLifecycleChange(current.Run)
+	service.publishLifecycleChange(ctx, current.Run)
 	service.publishInterruptChange(current.Run)
 	for _, event := range events {
 		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
@@ -1054,12 +1090,113 @@ func closesTreeStream(rootRunID, rootSegmentID string, event protocol.RunEvent) 
 		event.Event.Type == protocol.StreamSegmentFinished
 }
 
-func (service *Service) publishLifecycleChange(value rundomain.Run) {
+func (service *Service) publishLifecycleChange(ctx context.Context, value rundomain.Run) {
+	service.publishLifecycleChangeWithResult(ctx, value, "")
+}
+
+func (service *Service) publishLifecycleChangeWithResult(
+	ctx context.Context,
+	value rundomain.Run,
+	terminalResult string,
+) {
 	service.publishRunChange(value)
 	service.events.Publish(protocol.RuntimeEvent{
 		Type:       protocol.RuntimeSessionsChanged,
 		SessionIDs: []string{value.SessionID()},
 	})
+	if value.Status() == rundomain.Finished {
+		service.observeTerminalHooks(ctx, value, terminalResult)
+	}
+}
+
+func (service *Service) observeTerminalHooks(
+	ctx context.Context,
+	value rundomain.Run,
+	terminalResult string,
+) {
+	storedSession, err := service.store.GetSession(ctx, session.ID(value.SessionID()))
+	if err != nil {
+		return
+	}
+	reason := string(value.Outcome())
+	if value.Detail() != "" {
+		reason += ": " + value.Detail()
+	}
+	reason = boundedHookText(reason, lifecyclehook.MaxReasonBytes)
+	if value.ParentRunID() != "" {
+		result, resultTruncated := boundedHookMaterial(
+			terminalResult,
+			lifecyclehook.MaxResultBytes,
+		)
+		errorText := ""
+		if value.Outcome() != rundomain.Completed {
+			errorText = boundedHookText(value.Detail(), lifecyclehook.MaxReasonBytes)
+		}
+		service.hooks.Observe(ctx, lifecyclehook.Invocation{
+			Event: lifecyclehook.SubagentStop,
+			SessionID: value.SessionID(), RunID: value.ID(),
+			Workspace: storedSession.Workspace().Path(),
+			Subagent: &lifecyclehook.SubagentInput{
+				RunID: value.ID(), ParentRunID: value.ParentRunID(),
+				Status: hookSubagentStatus(value.Outcome()),
+				Result: result, Error: errorText,
+				ResultTruncated: resultTruncated,
+			},
+		})
+	}
+	service.hooks.Observe(ctx, lifecyclehook.Invocation{
+		Event: lifecyclehook.Stop,
+		SessionID: value.SessionID(), RunID: value.ID(),
+		Workspace: storedSession.Workspace().Path(), Reason: reason,
+	})
+}
+
+func (service *Service) observeWaitingHook(ctx context.Context, value rundomain.Run) {
+	storedSession, err := service.store.GetSession(ctx, session.ID(value.SessionID()))
+	if err != nil {
+		return
+	}
+	service.hooks.Observe(ctx, lifecyclehook.Invocation{
+		Event: lifecyclehook.Notification,
+		SessionID: value.SessionID(), RunID: value.ID(),
+		Workspace: storedSession.Workspace().Path(), Reason: "waiting for user input",
+	})
+}
+
+func hookSubagentStatus(outcome rundomain.Outcome) lifecyclehook.SubagentStatus {
+	switch outcome {
+	case rundomain.Completed:
+		return lifecyclehook.SubagentCompleted
+	case rundomain.TimedOut:
+		return lifecyclehook.SubagentTimedOut
+	case rundomain.MaxSteps:
+		return lifecyclehook.SubagentMaxSteps
+	case rundomain.MaxBudget:
+		return lifecyclehook.SubagentMaxBudget
+	case rundomain.Canceled:
+		return lifecyclehook.SubagentCanceled
+	case rundomain.Lost:
+		return lifecyclehook.SubagentLost
+	default:
+		return lifecyclehook.SubagentFailed
+	}
+}
+
+func boundedHookText(value string, limit int) string {
+	result, _ := boundedHookMaterial(value, limit)
+	return result
+}
+
+func boundedHookMaterial(value string, limit int) (string, bool) {
+	value = strings.ToValidUTF8(value, "�")
+	if len(value) <= limit {
+		return value, false
+	}
+	value = value[:limit]
+	for len(value) > 0 && !utf8.ValidString(value) {
+		value = value[:len(value)-1]
+	}
+	return value, true
 }
 
 func (service *Service) publishRunChange(value rundomain.Run) {

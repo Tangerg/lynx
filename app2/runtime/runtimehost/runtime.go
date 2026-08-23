@@ -26,6 +26,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
 	"github.com/Tangerg/lynx/app2/runtime/hookflow"
 	"github.com/Tangerg/lynx/app2/runtime/hookfs"
+	"github.com/Tangerg/lynx/app2/runtime/hookprocess"
 	"github.com/Tangerg/lynx/app2/runtime/httptransport"
 	"github.com/Tangerg/lynx/app2/runtime/identity"
 	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
@@ -147,10 +148,12 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	hooks, err := hookflow.New(hookflow.Config{
 		Store: database, Source: hookSource, Resolver: workspaceResolver,
+		Commands: hookprocess.Executor{}, Lifetime: lifetime, Logger: config.Logger,
 	})
 	if err != nil {
 		return nil, err
 	}
+	guard.AddClose(hooks.Close)
 	checkpoints := checkpoint.NewStore(filepath.Join(filepath.Dir(config.DatabasePath), "checkpoints"))
 	sessions, err := sessionflow.New(sessionflow.Config{
 		Store: database, IDs: identity.Generator{}, Workspaces: workspaceResolver,
@@ -192,15 +195,12 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	guard.AddClose(mcp.Close)
-	agentToolCatalog, err := agenttools.New(
-		database,
-		mcp,
-		database,
-		goals,
-		plans,
-		runtimeSkillGateway{capabilities: capabilities, events: events},
-		runtimeMemory{service: memory},
-	)
+	agentToolCatalog, err := agenttools.New(agenttools.Config{
+		Policy: database, MCP: mcp, Results: database,
+		Goals: goals, Plans: plans,
+		Skills: runtimeSkillGateway{capabilities: capabilities, events: events},
+		Memory: runtimeMemory{service: memory}, Hooks: hooks,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Clients: providers, Tools: agentToolCatalog,
 		Documents: runtimeAgentDocuments{capabilities: capabilities},
 		Knowledge: runtimeKnowledgeDocuments{capabilities: capabilities},
-		Memory: runtimeMemory{service: memory},
+		Memory: runtimeMemory{service: memory}, Hooks: hooks,
 	})
 	if err != nil {
 		return nil, err
@@ -217,7 +217,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	runs, err := runflow.New(runflow.Config{
 		Store: database, IDs: identity.Generator{}, Executor: executor,
 		Models: providers, Hub: hub, Events: events, Lifetime: lifetime, Checkpoints: checkpoints,
-		Memory: memory,
+		Memory: memory, Hooks: hooks,
 	})
 	if err != nil {
 		return nil, err

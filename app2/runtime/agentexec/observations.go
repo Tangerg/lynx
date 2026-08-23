@@ -115,6 +115,7 @@ type executionObserver struct {
 	models         []ModelObservation
 	tools          map[observationIdentity]ToolObservation
 	plans          map[observationIdentity]protocol.Plan
+	effectiveArguments map[observationIdentity]map[string]any
 	live           LiveObservationSink
 	streams        map[string]*modelStream
 	delegation     *delegationBridge
@@ -133,7 +134,8 @@ func newExecutionObserver(runID, segmentID, model string, live LiveObservationSi
 	return &executionObserver{
 		runID: runID, segmentID: segmentID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
 		intrinsicInput: make(map[string]bool),
-		tools: make(map[observationIdentity]ToolObservation), plans: make(map[observationIdentity]protocol.Plan), live: live,
+		tools: make(map[observationIdentity]ToolObservation), plans: make(map[observationIdentity]protocol.Plan),
+		effectiveArguments: make(map[observationIdentity]map[string]any), live: live,
 		streams: make(map[string]*modelStream), delegation: delegation,
 	}
 }
@@ -153,6 +155,22 @@ func (observer *executionObserver) RecordCommittedPlan(callID string, plan proto
 func (observer *executionObserver) recordCommittedPlanFor(runID, callID string, plan protocol.Plan) {
 	observer.mu.Lock()
 	observer.plans[observationIdentity{runID: runID, sourceID: callID}] = clonePlan(plan)
+	observer.mu.Unlock()
+}
+
+func (observer *executionObserver) RecordEffectiveToolArguments(callID string, arguments map[string]any) {
+	observer.recordEffectiveToolArgumentsFor(observer.runID, callID, arguments)
+}
+
+func (observer *executionObserver) recordEffectiveToolArgumentsFor(
+	runID string,
+	callID string,
+	arguments map[string]any,
+) {
+	observer.mu.Lock()
+	observer.effectiveArguments[observationIdentity{
+		runID: runID, sourceID: callID,
+	}] = cloneObject(arguments)
 	observer.mu.Unlock()
 }
 
@@ -284,6 +302,9 @@ func (observer *executionObserver) OnToolSettled(_ context.Context, invocation i
 		clone := clonePlan(plan)
 		value.CommittedPlan = &clone
 	}
+	if arguments, found := observer.effectiveArguments[identity]; found {
+		value.Arguments = cloneObject(arguments)
+	}
 	observer.tools[identity] = value
 	observer.mu.Unlock()
 	if observer.live != nil {
@@ -326,6 +347,9 @@ func (observer *executionObserver) snapshot(runID string) ([]ModelObservation, [
 		if plan, found := observer.plans[observationIdentity{runID: value.RunID, sourceID: value.CallID}]; found {
 			clone := clonePlan(plan)
 			value.CommittedPlan = &clone
+		}
+		if arguments, found := observer.effectiveArguments[observationIdentity{runID: value.RunID, sourceID: value.CallID}]; found {
+			value.Arguments = cloneObject(arguments)
 		}
 		tools = append(tools, value)
 	}

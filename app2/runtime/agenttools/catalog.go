@@ -1,6 +1,6 @@
 // Package agenttools assembles Run-scoped executable capabilities. It owns
-// filesystem confinement and human-input gates; agentexec receives only the
-// frozen tool slice for one Run.
+// filesystem confinement and the composed lifecycle/approval gates; agentexec
+// receives only the frozen tool slice for one Run.
 package agenttools
 
 import (
@@ -25,6 +25,7 @@ import (
 	"github.com/Tangerg/lynx/tools/shell"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
+	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
@@ -58,6 +59,11 @@ type PlanGateway interface {
 	Mode(context.Context, string) (bool, error)
 }
 
+type LifecycleHooks interface {
+	Evaluate(context.Context, lifecyclehook.Invocation) (lifecyclehook.Decision, error)
+	EvaluateBestEffort(context.Context, lifecyclehook.Invocation) lifecyclehook.Decision
+}
+
 type Catalog struct {
 	policy       ApprovalPolicy
 	mcp          MCPGateway
@@ -66,23 +72,29 @@ type Catalog struct {
 	plans        PlanGateway
 	skillGateway SkillGateway
 	memory       MemoryGateway
+	hooks        LifecycleHooks
 }
 
-func New(
-	policy ApprovalPolicy,
-	mcp MCPGateway,
-	results ToolResultReader,
-	goals GoalGateway,
-	plans PlanGateway,
-	skillGateway SkillGateway,
-	memory MemoryGateway,
-) (*Catalog, error) {
-	if policy == nil || goals == nil || plans == nil || skillGateway == nil || memory == nil {
-		return nil, errors.New("agenttools: approval policy, goal, Plan, Skill, and memory gateways are required")
+type Config struct {
+	Policy  ApprovalPolicy
+	MCP     MCPGateway
+	Results ToolResultReader
+	Goals   GoalGateway
+	Plans   PlanGateway
+	Skills  SkillGateway
+	Memory  MemoryGateway
+	Hooks   LifecycleHooks
+}
+
+func New(config Config) (*Catalog, error) {
+	if config.Policy == nil || config.Goals == nil || config.Plans == nil ||
+		config.Skills == nil || config.Memory == nil || config.Hooks == nil {
+		return nil, errors.New("agenttools: policy, domain gateways, and lifecycle hooks are required")
 	}
 	return &Catalog{
-		policy: policy, mcp: mcp, results: results,
-		goals: goals, plans: plans, skillGateway: skillGateway, memory: memory,
+		policy: config.Policy, mcp: config.MCP, results: config.Results,
+		goals: config.Goals, plans: config.Plans, skillGateway: config.Skills,
+		memory: config.Memory, hooks: config.Hooks,
 	}, nil
 }
 
@@ -150,9 +162,6 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 	modelNames := make(map[string]struct{}, len(values))
 	for _, value := range values {
 		tool := value.tool
-		if !value.intrinsicInput && !value.autoApproved && requiresApproval(mode, value.safety) {
-			tool = &approvalTool{Tool: tool, runID: scope.RunID, safety: value.safety}
-		}
 		paths, ok, capabilityErr := toolcontract.Capability[mutationPaths](tool)
 		if capabilityErr != nil {
 			return nil, capabilityErr
@@ -163,13 +172,21 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		if value.safety != protocol.SafetyClassSafe {
 			tool = &planModeGate{Tool: tool, plans: catalog.plans, sessionID: scope.SessionID}
 		}
+		approvalRequired := !value.intrinsicInput && !value.autoApproved &&
+			requiresApproval(mode, value.safety)
+		tool = &lifecyclePolicyTool{
+			Tool: tool, hooks: catalog.hooks, scope: scope,
+			safety: value.safety, approvalRequired: approvalRequired,
+			intrinsicInput: value.intrinsicInput,
+		}
 		name := tool.Definition().Name
 		if _, duplicate := modelNames[name]; duplicate {
 			return nil, fmt.Errorf("agenttools: duplicate model-visible tool name %q", name)
 		}
 		modelNames[name] = struct{}{}
 		result = append(result, agentexec.ExecutableTool{
-			Tool: tool, SafetyClass: value.safety, IntrinsicInput: value.intrinsicInput,
+			Tool: tool, SafetyClass: value.safety,
+			IntrinsicInput: value.intrinsicInput,
 		})
 	}
 	return result, nil
@@ -287,92 +304,6 @@ func requiresApproval(mode protocol.ApprovalMode, safety protocol.SafetyClass) b
 		return safety != protocol.SafetyClassSafe
 	default:
 		return true
-	}
-}
-
-type approvalTool struct {
-	toolcontract.Tool
-	runID  string
-	safety protocol.SafetyClass
-}
-
-func (tool *approvalTool) Unwrap() toolcontract.Tool { return tool.Tool }
-
-type approvalContinuation struct {
-	Arguments string `json:"arguments"`
-}
-
-type approvalResponse struct {
-	Decision   protocol.ApprovalDecision `json:"decision"`
-	EditedArgs map[string]any            `json:"editedArgs,omitempty"`
-	Reason     string                    `json:"reason,omitempty"`
-}
-
-var approvalResponseSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"decision":{"type":"string","enum":["approve","deny"]},"editedArgs":{"type":"object"},"reason":{"type":"string"}},"required":["decision"]}`)
-
-func (tool *approvalTool) Call(ctx context.Context, arguments string) (string, error) {
-	if continuation, resumed := interaction.ToolInputContinuationFromContext(ctx); resumed {
-		var state approvalContinuation
-		var response approvalResponse
-		if err := json.Unmarshal(continuation.State(), &state); err != nil {
-			return "", fmt.Errorf("agenttools: restore approval state: %w", err)
-		}
-		if err := json.Unmarshal(continuation.Response(), &response); err != nil {
-			return "", fmt.Errorf("agenttools: decode approval response: %w", err)
-		}
-		if response.Decision == protocol.ApprovalDeny {
-			return "", fmt.Errorf("tool denied by user: %s", strings.TrimSpace(response.Reason))
-		}
-		if response.Decision != protocol.ApprovalApprove {
-			return "", errors.New("agenttools: unknown approval decision")
-		}
-		arguments = state.Arguments
-		if response.EditedArgs != nil {
-			encoded, err := json.Marshal(response.EditedArgs)
-			if err != nil {
-				return "", err
-			}
-			arguments = string(encoded)
-		}
-		return tool.Tool.Call(ctx, arguments)
-	}
-	invocation, ok := interaction.ToolInvocationFromContext(ctx)
-	if !ok {
-		return "", errors.New("agenttools: approval tool called outside an Interaction")
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal([]byte(arguments), &decoded); err != nil {
-		return "", fmt.Errorf("agenttools: decode approval arguments: %w", err)
-	}
-	risk := protocol.ApprovalRiskMedium
-	if tool.safety == protocol.SafetyClassExec || tool.safety == protocol.SafetyClassNetwork {
-		risk = protocol.ApprovalRiskHigh
-	}
-	prompt, err := json.Marshal(agentexec.ToolInputPrompt{
-		Kind: "approval", ItemID: itemID(tool.runID, invocation.ToolCall().ID),
-		Tool: &agentexec.ToolInputInvocation{Name: invocation.ToolCall().Name, Arguments: decoded},
-		SafetyClass: tool.safety, Risk: risk, Reason: approvalReason(tool.safety), Rememberable: false,
-	})
-	if err != nil {
-		return "", err
-	}
-	state, err := json.Marshal(approvalContinuation{Arguments: arguments})
-	if err != nil {
-		return "", err
-	}
-	return "", interaction.RequireToolInput(prompt, approvalResponseSchema, state)
-}
-
-func approvalReason(safety protocol.SafetyClass) string {
-	switch safety {
-	case protocol.SafetyClassWrite:
-		return "This tool changes workspace files."
-	case protocol.SafetyClassExec:
-		return "This tool executes a local command."
-	case protocol.SafetyClassNetwork:
-		return "This tool accesses the network."
-	default:
-		return "This tool requires confirmation."
 	}
 }
 
