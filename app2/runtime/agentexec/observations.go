@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
@@ -26,9 +28,37 @@ type ExecutableTool struct {
 }
 
 type ModelObservation struct {
+	EffectID   string
 	Sequence   int
 	OccurredAt time.Time
 	Response   *chat.Response
+}
+
+// ModelDeltaKind is the provider-neutral live material that Lyra can project
+// without exposing Agent Framework identities or provider chunk shapes.
+type ModelDeltaKind string
+
+const (
+	ModelDeltaContent   ModelDeltaKind = "content"
+	ModelDeltaReasoning ModelDeltaKind = "reasoning"
+)
+
+// ModelDelta is a best-effort append to one stable model-produced Item. Index
+// addresses a ContentBlock for content deltas and a reasoning Item for
+// reasoning deltas.
+type ModelDelta struct {
+	EffectID       string
+	EffectSequence uint64
+	OccurredAt     time.Time
+	Kind           ModelDeltaKind
+	Index          int
+	Text           string
+}
+
+// ModelDeltaSink must return in bounded time. Delivery is observational: a
+// dropped delta never changes the settled executor Output.
+type ModelDeltaSink interface {
+	OfferModelDelta(ModelDelta)
 }
 
 type ToolObservation struct {
@@ -60,12 +90,20 @@ type executionObserver struct {
 	models         []ModelObservation
 	tools          map[string]ToolObservation
 	plans          map[string]protocol.Plan
+	live           ModelDeltaSink
+	streams        map[string]*modelStream
 }
 
-func newExecutionObserver(runID, model string) *executionObserver {
+type modelStream struct {
+	accumulator chat.ResponseAccumulator
+	startedAt   time.Time
+}
+
+func newExecutionObserver(runID, model string, live ModelDeltaSink) *executionObserver {
 	return &executionObserver{
 		runID: runID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
-		tools: make(map[string]ToolObservation), plans: make(map[string]protocol.Plan),
+		tools: make(map[string]ToolObservation), plans: make(map[string]protocol.Plan), live: live,
+		streams: make(map[string]*modelStream),
 	}
 }
 
@@ -82,11 +120,45 @@ func (observer *executionObserver) RecordCommittedPlan(callID string, plan proto
 }
 
 func (observer *executionObserver) OnModelResponse(_ context.Context, invocation interaction.ModelInvocation, response *chat.Response) {
+	effectID := invocation.EffectID().String()
+	occurredAt := time.Now().UTC()
 	observer.mu.Lock()
+	if stream := observer.streams[effectID]; stream != nil && !stream.startedAt.IsZero() {
+		occurredAt = stream.startedAt
+	}
 	observer.models = append(observer.models, ModelObservation{
-		Sequence: int(invocation.ModelCallSequence()), OccurredAt: time.Now().UTC(), Response: response.Clone(),
+		EffectID: effectID, Sequence: int(invocation.ModelCallSequence()), OccurredAt: occurredAt, Response: response.Clone(),
 	})
 	observer.mu.Unlock()
+}
+
+func (observer *executionObserver) OnDelta(_ context.Context, delta agent.Delta) {
+	if observer.live == nil {
+		return
+	}
+	decoded, err := interaction.ParseModelResponseDelta(delta.Payload())
+	if err != nil {
+		return
+	}
+	effectID := delta.EffectID().String()
+	observer.mu.Lock()
+	stream := observer.streams[effectID]
+	if stream == nil {
+		stream = &modelStream{startedAt: delta.EmittedAt()}
+		observer.streams[effectID] = stream
+	}
+	beforeContent, beforeReasoning := streamProjection(stream.accumulator.Response())
+	if err := stream.accumulator.Add(decoded.Response()); err != nil {
+		observer.mu.Unlock()
+		return
+	}
+	afterContent, afterReasoning := streamProjection(stream.accumulator.Response())
+	updates := appendedModelDeltas(effectID, delta.EffectSequence(), delta.EmittedAt(), beforeContent, afterContent, ModelDeltaContent)
+	updates = append(updates, appendedModelDeltas(effectID, delta.EffectSequence(), delta.EmittedAt(), beforeReasoning, afterReasoning, ModelDeltaReasoning)...)
+	observer.mu.Unlock()
+	for _, update := range updates {
+		observer.live.OfferModelDelta(update)
+	}
 }
 
 func (observer *executionObserver) OnToolStarted(_ context.Context, invocation interaction.ToolInvocation) {
@@ -134,7 +206,7 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 	models := make([]ModelObservation, len(observer.models))
 	usage := protocol.Usage{ByModel: make(map[string]protocol.ModelUsage)}
 	for index, value := range observer.models {
-		models[index] = ModelObservation{Sequence: value.Sequence, OccurredAt: value.OccurredAt, Response: value.Response.Clone()}
+		models[index] = ModelObservation{EffectID: value.EffectID, Sequence: value.Sequence, OccurredAt: value.OccurredAt, Response: value.Response.Clone()}
 		model := value.Response.Model
 		if model == "" {
 			model = observer.defaultModel
@@ -161,6 +233,58 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 		usage.ByModel = nil
 	}
 	return models, tools, usage
+}
+
+func streamProjection(response *chat.Response) (content, reasoning []string) {
+	choice := response.First()
+	if choice == nil || choice.Message == nil {
+		return nil, nil
+	}
+	for _, part := range choice.Message.Parts {
+		switch part.Kind {
+		case chat.PartText:
+			if part.Text != "" {
+				content = append(content, part.Text)
+			}
+		case chat.PartMedia:
+			// Reserve the terminal ContentBlock index. Media is delivered by the
+			// authoritative completion because ItemDelta has no media variant.
+			if part.Media != nil && part.Media.Source.Kind == "bytes" && strings.HasPrefix(part.Media.MIME, "image/") {
+				content = append(content, "")
+			}
+		case chat.PartReasoning:
+			reasoning = append(reasoning, part.Text)
+		}
+	}
+	return content, reasoning
+}
+
+func appendedModelDeltas(
+	effectID string,
+	effectSequence uint64,
+	occurredAt time.Time,
+	before, after []string,
+	kind ModelDeltaKind,
+) []ModelDelta {
+	updates := make([]ModelDelta, 0, len(after))
+	for index, value := range after {
+		previous := ""
+		if index < len(before) {
+			previous = before[index]
+		}
+		if value == previous || !strings.HasPrefix(value, previous) {
+			continue
+		}
+		appendix := strings.TrimPrefix(value, previous)
+		if appendix == "" {
+			continue
+		}
+		updates = append(updates, ModelDelta{
+			EffectID: effectID, EffectSequence: effectSequence, OccurredAt: occurredAt,
+			Kind: kind, Index: index, Text: appendix,
+		})
+	}
+	return updates
 }
 
 func clonePlan(value protocol.Plan) protocol.Plan {
@@ -214,4 +338,5 @@ func addUsage(total *protocol.Usage, model string, value protocol.ModelUsage) {
 }
 
 var _ interaction.ExecutionObserver = (*executionObserver)(nil)
+var _ agent.DeltaListener = (*executionObserver)(nil)
 var _ ToolFactSink = (*executionObserver)(nil)

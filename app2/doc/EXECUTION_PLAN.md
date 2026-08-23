@@ -209,6 +209,24 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - provider failure、pre-opening failure、receipt loss、duplicate delta、notification gap、cold completed history；
 - O03/O06、run events（Plan 除外）、U05/U06/U12 基础 verified。
 
+### R3 production implementation 进度（2026-08-23）
+
+- **Durable/live handoff**：`runs.subscribe` 先挂 live subscriber、再读取 durable replay，并以 `eventId` 去重合并；
+  replay 与 live 之间不再有通知窗口，iterator 退出会释放订阅。
+- **Root lifecycle publication**：Run admission、finish、cancel、wait、resume、recovery 和 steer 的 committed transition
+  已发布 `runs.changed`/`sessions.changed`；Desktop Work Index 与 mounted snapshot 可按 source owner 回拉。
+- **Long history reads**：`items.list` 已按 Session 或 Run subtree 做 ASC/DESC keyset pagination，cursor 绑定完整 query
+  identity，并返回本页引用 Run 的祖先闭包；Run cursor 同样拒绝跨 query 复用。
+- **Model streaming projection**：Agent Framework delta 只在 `agentexec` 内解析为 provider-neutral append；Run projection
+  以 Framework Effect identity 派生稳定 Lyra Item key，先原子提交可回放 `item.started` anchor，再发布非权威、
+  非回放 `item.delta`。最终 `item.completed` 使用同一 key 并写入 durable Transcript，delta 永不成为内容真相。
+- **Bounds/resource ownership**：Framework、agentexec 和 Run projector 均为 bounded queue；provider 不等待 SQLite 或
+  renderer，projector 在 Executor 返回后先 drain/close，再进入 terminal commit。本批未启动 Runtime、Wails、Vite、
+  browser/agent-browser 或 watcher，无待释放的外部资源。
+- **仍未关闭的门**：AgentSessionView normalized fold、Composer/Narrative、snapshot/replay watermark、progress/context
+  footprint、reload/restart 与故障矩阵仍待 production implementation；按集中验证约定，本阶段不运行分批测试，
+  不把 R3 提前标为 verified。
+
 ## 8. R4：HITL、Tool、delegation 与恢复
 
 ### 纵切顺序

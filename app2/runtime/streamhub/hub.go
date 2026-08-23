@@ -36,9 +36,9 @@ type Hub struct {
 
 func New() *Hub { return &Hub{runSubs: make(map[runKey]map[uint64]*runSubscriber)} }
 
-// PublishRun sends an already committed event. A lagging consumer is detached
-// instead of dropping an authoritative frame; it reconnects through durable
-// replay using its last event id.
+// PublishRun sends a committed replayable fact or an explicitly ephemeral
+// preview. A lagging consumer is detached instead of blocking the Runtime; its
+// next subscription replays authoritative facts and resumes fresh previews.
 func (hub *Hub) PublishRun(event protocol.RunEvent) {
 	key := runKey{runID: event.RunID, segmentID: event.SegmentID}
 	terminal := event.Event.Type == protocol.StreamSegmentFinished

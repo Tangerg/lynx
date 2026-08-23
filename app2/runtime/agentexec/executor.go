@@ -65,6 +65,7 @@ type Input struct {
 	Conversation               []Message
 	MaxSteps                   int
 	Steers                     <-chan Steer
+	ModelDeltas                ModelDeltaSink
 }
 
 type ResumeInput struct {
@@ -76,6 +77,7 @@ type ResumeInput struct {
 	Response                   json.RawMessage
 	AdditionalInput            []protocol.ContentBlock
 	Steers                     <-chan Steer
+	ModelDeltas                ModelDeltaSink
 }
 
 type Message = chat.Message
@@ -125,11 +127,11 @@ type ToolInputInvocation struct {
 }
 
 func (executor *Executor) Execute(ctx context.Context, input Input) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps)
+	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.ModelDeltas)
 	if err != nil {
 		return Output{}, err
 	}
-	engine, err := agent.NewEngine(agent.EngineConfig{})
+	engine, err := agent.NewEngine(engineConfig(observer))
 	if err != nil {
 		return Output{}, fmt.Errorf("agentexec: create engine: %w", err)
 	}
@@ -152,7 +154,7 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 }
 
 func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps)
+	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.ModelDeltas)
 	if err != nil {
 		return Output{}, err
 	}
@@ -160,7 +162,7 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 	if err != nil {
 		return Output{}, fmt.Errorf("agentexec: parse checkpoint: %w", err)
 	}
-	engine, err := agent.NewEngine(agent.EngineConfig{})
+	engine, err := agent.NewEngine(engineConfig(observer))
 	if err != nil {
 		return Output{}, fmt.Errorf("agentexec: create resume engine: %w", err)
 	}
@@ -205,12 +207,12 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 	return awaitProcess(ctx, engine, process, observer, input.RunID, input.Steers)
 }
 
-func (executor *Executor) deployment(ctx context.Context, provider, model, sessionID, runID, workspace string, rootRun bool, maxSteps int) (agent.Deployment, *executionObserver, error) {
+func (executor *Executor) deployment(ctx context.Context, provider, model, sessionID, runID, workspace string, rootRun bool, maxSteps int, live ModelDeltaSink) (agent.Deployment, *executionObserver, error) {
 	client, err := executor.clients.ResolveClient(ctx, provider, model)
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	observer := newExecutionObserver(runID, model)
+	observer := newExecutionObserver(runID, model, live)
 	bindings := []ExecutableTool{}
 	if executor.tools != nil {
 		bindings, err = executor.tools.ForRun(ctx, ToolScope{SessionID: sessionID, RunID: runID, Workspace: workspace, IsRootRun: rootRun, Facts: observer})
@@ -243,6 +245,13 @@ func (executor *Executor) deployment(ctx context.Context, provider, model, sessi
 		return agent.Deployment{}, nil, fmt.Errorf("agentexec: create deployment: %w", err)
 	}
 	return deployment, observer, nil
+}
+
+func engineConfig(observer *executionObserver) agent.EngineConfig {
+	if observer == nil || observer.live == nil {
+		return agent.EngineConfig{}
+	}
+	return agent.EngineConfig{DeltaListeners: []agent.DeltaListener{observer}}
 }
 
 func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Process, observer *executionObserver, runID string, steers <-chan Steer) (Output, error) {

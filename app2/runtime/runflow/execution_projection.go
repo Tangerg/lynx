@@ -187,7 +187,12 @@ func modelItems(runID string, observation agentexec.ModelObservation, final bool
 	}
 	content := make([]protocol.ContentBlock, 0)
 	items := make([]protocol.Item, 0)
-	for index, part := range choice.Message.Parts {
+	effectID := observation.EffectID
+	if effectID == "" {
+		effectID = fmt.Sprintf("sequence:%d", observation.Sequence)
+	}
+	reasoningIndex := 0
+	for _, part := range choice.Message.Parts {
 		switch part.Kind {
 		case chat.PartText:
 			if part.Text != "" { content = append(content, protocol.ContentBlock{Type: protocol.ContentBlockText, Text: part.Text}) }
@@ -198,22 +203,31 @@ func modelItems(runID string, observation agentexec.ModelObservation, final bool
 			content = append(content, protocol.ContentBlock{Type: protocol.ContentBlockImage, Mime: part.Media.MIME, Data: base64.StdEncoding.EncodeToString(part.Media.Source.Bytes)})
 		case chat.PartReasoning:
 			items = append(items, protocol.Item{
-				ID: stableItemID(runID, fmt.Sprintf("model:%d:reasoning:%d", observation.Sequence, index)),
+				ID: modelReasoningItemID(runID, effectID, reasoningIndex),
 				RunID: runID, Status: protocol.ItemStatusCompleted, CreatedAt: observation.OccurredAt,
 				Type: protocol.ItemTypeReasoning, Text: part.Text, Redacted: part.Text == "" && len(part.Signature) > 0,
 			})
+			reasoningIndex++
 		}
 	}
 	if len(content) > 0 {
 		phase := protocol.MessagePhaseCommentary
 		if final { phase = protocol.MessagePhaseFinalAnswer }
 		items = append(items, protocol.Item{
-			ID: stableItemID(runID, fmt.Sprintf("model:%d:message", observation.Sequence)),
+			ID: modelMessageItemID(runID, effectID),
 			RunID: runID, Status: protocol.ItemStatusCompleted, CreatedAt: observation.OccurredAt,
 			Type: protocol.ItemTypeAgentMessage, Phase: phase, Content: content,
 		})
 	}
 	return items, nil
+}
+
+func modelMessageItemID(runID, effectID string) string {
+	return stableItemID(runID, "model:"+effectID+":message")
+}
+
+func modelReasoningItemID(runID, effectID string, index int) string {
+	return stableItemID(runID, fmt.Sprintf("model:%s:reasoning:%d", effectID, index))
 }
 
 func responseHasToolCalls(response *chat.Response) bool {
