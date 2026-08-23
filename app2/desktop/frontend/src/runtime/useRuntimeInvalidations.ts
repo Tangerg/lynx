@@ -60,6 +60,11 @@ export function useRuntimeInvalidations(
 			queryKey: [...runtimeQueryKeys.scope(connection), "model-role"],
 		});
       }
+      if (topics.includes("mcp.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: runtimeQueryKeys.mcp(connection),
+        });
+      }
       if (topics.includes("files.changed")) {
         const workspace = event.workspace ?? activeWatch?.workspace;
         if (workspace !== undefined) {

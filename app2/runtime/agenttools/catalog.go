@@ -5,14 +5,11 @@ package agenttools
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -25,6 +22,7 @@ import (
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
+	"github.com/Tangerg/lynx/app2/runtime/domain/mcpserver"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
@@ -259,7 +257,10 @@ func (catalog *Catalog) remoteTools(ctx context.Context) ([]scopedTool, error) {
 			}
 			autoByServer[descriptor.Server] = auto
 		}
-		modelName := mcpModelName(descriptor.Server, descriptor.Name)
+		modelName, err := mcpserver.ToolName(descriptor.Server, descriptor.Name)
+		if err != nil {
+			return nil, err
+		}
 		if _, duplicate := modelNames[modelName]; duplicate {
 			return nil, fmt.Errorf("agenttools: duplicate MCP model name %q", modelName)
 		}
@@ -316,22 +317,6 @@ func (tool *mcpTool) Call(ctx context.Context, arguments string) (string, error)
 		return "", fmt.Errorf("agenttools: decode MCP arguments: %w", err)
 	}
 	return tool.gateway.CallText(ctx, tool.server, tool.remoteName, object)
-}
-
-var invalidMCPName = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
-
-func mcpModelName(server, remote string) string {
-	digest := sha256.Sum256([]byte(server + "\x00" + remote))
-	stem := strings.Trim(invalidMCPName.ReplaceAllString(server+"_"+remote, "_"), "_")
-	const suffixLength = 13 // "_" plus twelve hexadecimal characters.
-	maximumStem := 64 - len("mcp_") - suffixLength
-	if len(stem) > maximumStem {
-		stem = stem[:maximumStem]
-	}
-	if stem == "" {
-		stem = "tool"
-	}
-	return "mcp_" + stem + "_" + hex.EncodeToString(digest[:6])
 }
 
 func requiresApproval(mode protocol.ApprovalMode, safety protocol.SafetyClass) bool {

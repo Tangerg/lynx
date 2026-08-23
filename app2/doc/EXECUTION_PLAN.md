@@ -30,7 +30,7 @@
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（全部 production 纵切已实现；Hooks 只待真实 PreCompact producer，整体待最终统一门禁） |
-| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
+| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | in progress（Provider/Model/MCP production 纵切已实现，继续 Approval/Schedule/Settings topics） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
@@ -640,6 +640,29 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   独立，环境 key 只读；utility/embedding role 各自冷读与保存，dynamic catalog error/empty 分开呈现；
 - `models.changed` 同时失效 models、providers 与 role query，Session update 走既有 `sessions.changed`；所有 UI query
   仍以 Runtime generation 定界。最终测试/打包门禁仍留到 R11 统一执行。
+
+### MCP Runtime/Desktop 实现记录（尚未统一验证）
+
+- 保留 Lyra 既有 9 个 MCP dotted methods、closed transport/secret/status/auth-attempt shape 与 protocol
+  `2026-08-23`；没有引入参考产品 handshake、transport、Thread/Turn 或第二套 tool wire；
+- MCP 配置重写为私有 revisioned aggregate。safe body、secret column、revision 与 `updatedAt` 分离，SQLite CAS
+  使配置更新、OAuth token refresh 与 endpoint/transport 切换共享同一代际；旧 authorization result 不能覆盖新配置；
+- 同 server mutation 使用 cancellable FIFO identity lane，不同 server 并行，registry lock 不跨 I/O；该 coordinator
+  同时替代 capabilityflow 的重复 serializer。connect、reconnect、tool-list notification 与 interactive authorization
+  都由 live generation 拒绝旧 session/result，并由 service `Close` cancel、close、join；
+- `timeoutSeconds` 现在真实约束 connect/test，默认 15 秒；HTTP credential 只发往同 origin，跨 origin redirect fail
+  closed；stdio working directory 必须是 host absolute path，transport 切换原子清除另一 transport 的 secret；
+- authorization attempt 是独立 domain lifecycle。前序进程遗留 pending 在启动时转 canceled，terminal outcome 按
+  discover retention 用 SQLite time comparison 清理；callback listener、browser launch command 与 MCP session 均有界；
+- remote tool 的 lossless `(server, raw name)` 只在 model definition 边界折叠为唯一 64-char name，执行不反解析；
+  tool schema 深拷贝，完整 MCP result envelope 保留 structured content/resource/annotation/error bit；
+- Desktop Settings 通过明确页面组合 Provider/Model 与 MCP section，不建设 generic plugin host。新 server 可对完整
+  candidate 做无副作用 Test；既有 write-only secret 不伪造 candidate test，只提供真实 reconnect。HTTP/stdio draft、
+  masked secret replacement/clear、disabled/auto-approve disjoint policy、OAuth terminal polling、confirmed delete 与所有
+  loading/error/empty state 均回读 Runtime authority；unmount 会取消 test/auth polling；
+- durable mutation和每个 live/auth status transition 都由 MCP owner 发布 `mcp.changed`，Desktop 失效 MCP query root。
+  SQLite 当前 exact epoch 提升到 11；Lyra wire 与 generated client 无 shape 变化。最终测试、恢复与 package 门禁仍留到
+  R11 统一执行。
 
 ## 13. R9：高级 Session 与运营能力
 

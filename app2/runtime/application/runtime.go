@@ -415,21 +415,15 @@ func (runtime *Runtime) ListMCPServers(ctx context.Context) (*protocol.Page[prot
 }
 
 func (runtime *Runtime) CreateMCPServer(ctx context.Context, request protocol.MCPServerCandidate) (*protocol.MCPServer, error) {
-	value, err := runtime.mcp.Create(ctx, request)
-	if err == nil { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged, ServerIDs: []string{value.Name}}) }
-	return value, err
+	return runtime.mcp.Create(ctx, request)
 }
 
 func (runtime *Runtime) UpdateMCPServer(ctx context.Context, request protocol.UpdateMCPServerRequest) (*protocol.MCPServer, error) {
-	value, err := runtime.mcp.Update(ctx, request)
-	if err == nil { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged, ServerIDs: []string{value.Name}}) }
-	return value, err
+	return runtime.mcp.Update(ctx, request)
 }
 
 func (runtime *Runtime) DeleteMCPServer(ctx context.Context, server string) error {
-	err := runtime.mcp.Delete(ctx, server)
-	if err == nil { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged, ServerIDs: []string{server}}) }
-	return err
+	return runtime.mcp.Delete(ctx, server)
 }
 
 func (runtime *Runtime) TestMCPServer(ctx context.Context, request protocol.MCPServerCandidate) (*protocol.MCPTestResult, error) {
@@ -441,15 +435,11 @@ func (runtime *Runtime) ListMCPTools(ctx context.Context, request protocol.MCPLi
 }
 
 func (runtime *Runtime) ReconnectMCPServer(ctx context.Context, server string) error {
-	err := runtime.mcp.Reconnect(ctx, server)
-	if err == nil { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged, ServerIDs: []string{server}}) }
-	return err
+	return runtime.mcp.Reconnect(ctx, server)
 }
 
 func (runtime *Runtime) CreateMCPAuthorizationAttempt(ctx context.Context, server string) (*protocol.MCPAuthorizationAttempt, error) {
-	value, err := runtime.mcp.CreateAuthorizationAttempt(ctx, server)
-	if err == nil { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged, ServerIDs: []string{server}}) }
-	return value, err
+	return runtime.mcp.CreateAuthorizationAttempt(ctx, server)
 }
 
 func (runtime *Runtime) GetMCPAuthorizationAttempt(ctx context.Context, id string) (*protocol.MCPAuthorizationAttempt, error) {

@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"runtime"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -94,15 +93,20 @@ func decodeOAuthSession(payload []byte) (*oauth2.Config, *oauth2.Token, error) {
 		return nil, nil, err
 	}
 	return &oauth2.Config{
-		ClientID: value.Config.ClientID, ClientSecret: value.Config.ClientSecret,
+		ClientID: value.Config.ClientID,
+		ClientSecret: value.Config.ClientSecret,
 		Endpoint: oauth2.Endpoint{
-			AuthURL: value.Config.AuthURL, TokenURL: value.Config.TokenURL,
+			AuthURL: value.Config.AuthURL,
+			TokenURL: value.Config.TokenURL,
 			AuthStyle: value.Config.AuthStyle,
 		},
-		RedirectURL: value.Config.RedirectURL, Scopes: slices.Clone(value.Config.Scopes),
+		RedirectURL: value.Config.RedirectURL,
+		Scopes: slices.Clone(value.Config.Scopes),
 	}, &oauth2.Token{
-		AccessToken: value.Token.AccessToken, TokenType: value.Token.TokenType,
-		RefreshToken: value.Token.RefreshToken, Expiry: value.Token.Expiry,
+		AccessToken: value.Token.AccessToken,
+		TokenType: value.Token.TokenType,
+		RefreshToken: value.Token.RefreshToken,
+		Expiry: value.Token.Expiry,
 	}, nil
 }
 
@@ -123,14 +127,6 @@ func (value oauthSession) validate() error {
 	return nil
 }
 
-func endpointOrigin(endpoint string) (string, error) {
-	parsed, err := url.Parse(endpoint)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return "", errors.New("mcpflow: invalid HTTP endpoint origin")
-	}
-	return (&url.URL{Scheme: strings.ToLower(parsed.Scheme), Host: strings.ToLower(parsed.Host)}).String(), nil
-}
-
 type savingTokenSource struct {
 	mu     sync.Mutex
 	source oauth2.TokenSource
@@ -139,10 +135,18 @@ type savingTokenSource struct {
 	save   func(*oauth2.Config, *oauth2.Token) error
 }
 
-func newSavingTokenSource(source oauth2.TokenSource, config *oauth2.Config, initial *oauth2.Token, save func(*oauth2.Config, *oauth2.Token) error) oauth2.TokenSource {
+func newSavingTokenSource(
+	source oauth2.TokenSource,
+	config *oauth2.Config,
+	initial *oauth2.Token,
+	save func(*oauth2.Config, *oauth2.Token) error,
+) oauth2.TokenSource {
 	copyConfig := *config
 	copyConfig.Scopes = slices.Clone(config.Scopes)
-	return &savingTokenSource{source: source, config: copyConfig, last: cloneToken(initial), save: save}
+	return &savingTokenSource{
+		source: source, config: copyConfig,
+		last: cloneToken(initial), save: save,
+	}
 }
 
 func (source *savingTokenSource) Token() (*oauth2.Token, error) {
@@ -178,6 +182,83 @@ func sameToken(left, right *oauth2.Token) bool {
 		left.RefreshToken == right.RefreshToken && left.Expiry.Equal(right.Expiry)
 }
 
+// oauthSessionWriter owns the exact aggregate generation that authorized a
+// token write. Its local revision advances only after the SQLite CAS commits.
+type oauthSessionWriter struct {
+	mu            sync.Mutex
+	service       *Service
+	configuration mcpserver.Configuration
+}
+
+func newOAuthSessionWriter(
+	service *Service,
+	configuration mcpserver.Configuration,
+) *oauthSessionWriter {
+	return &oauthSessionWriter{service: service, configuration: configuration.Clone()}
+}
+
+func (writer *oauthSessionWriter) Save(
+	ctx context.Context,
+	config *oauth2.Config,
+	token *oauth2.Token,
+) error {
+	payload, err := encodeOAuthSession(config, token)
+	if err != nil {
+		return err
+	}
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	release, err := writer.service.lanes.Acquire(ctx, writer.configuration.Name())
+	if err != nil {
+		return err
+	}
+	defer release()
+	previousRevision := writer.configuration.Revision()
+	previous := writer.configuration.Clone()
+	origin, err := writer.configuration.HTTPOrigin()
+	if err != nil {
+		return err
+	}
+	changed, err := writer.configuration.PutOAuth(origin, payload, writer.service.now())
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	if err := writer.service.store.SaveMCPServer(ctx, writer.configuration, previousRevision); err != nil {
+		writer.configuration = previous
+		return fmt.Errorf("mcpflow: persist OAuth session: %w", err)
+	}
+	return nil
+}
+
+func (writer *oauthSessionWriter) Clear(ctx context.Context) error {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	release, err := writer.service.lanes.Acquire(ctx, writer.configuration.Name())
+	if err != nil {
+		return err
+	}
+	defer release()
+	previousRevision := writer.configuration.Revision()
+	previous := writer.configuration.Clone()
+	if !writer.configuration.ClearOAuth(writer.service.now()) {
+		return nil
+	}
+	if err := writer.service.store.SaveMCPServer(ctx, writer.configuration, previousRevision); err != nil {
+		writer.configuration = previous
+		return fmt.Errorf("mcpflow: clear OAuth session: %w", err)
+	}
+	return nil
+}
+
+func (writer *oauthSessionWriter) Configuration() mcpserver.Configuration {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	return writer.configuration.Clone()
+}
+
 type passiveOAuthHandler struct {
 	source oauth2.TokenSource
 	clear  func(context.Context) error
@@ -187,7 +268,11 @@ func (handler *passiveOAuthHandler) TokenSource(context.Context) (oauth2.TokenSo
 	return handler.source, nil
 }
 
-func (handler *passiveOAuthHandler) Authorize(ctx context.Context, _ *http.Request, response *http.Response) error {
+func (handler *passiveOAuthHandler) Authorize(
+	ctx context.Context,
+	_ *http.Request,
+	response *http.Response,
+) error {
 	if response != nil && response.Body != nil {
 		_, _ = io.Copy(io.Discard, response.Body)
 		_ = response.Body.Close()
@@ -201,8 +286,10 @@ func (handler *passiveOAuthHandler) Authorize(ctx context.Context, _ *http.Reque
 }
 
 type oauthCallback struct {
-	code, state, issuer string
-	err                 error
+	code   string
+	state  string
+	issuer string
+	err    error
 }
 
 type oauthFlow struct {
@@ -213,14 +300,19 @@ type oauthFlow struct {
 	openURL     func(context.Context, string) error
 }
 
-func newOAuthFlow(ctx context.Context, openURL func(context.Context, string) error) (*oauthFlow, error) {
+func newOAuthFlow(
+	ctx context.Context,
+	openURL func(context.Context, string) error,
+) (*oauthFlow, error) {
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("mcpflow: bind OAuth callback: %w", err)
 	}
 	flow := &oauthFlow{
 		redirectURL: "http://" + listener.Addr().String() + oauthCallbackPath,
-		result: make(chan oauthCallback, 1), serveDone: make(chan error, 1), openURL: openURL,
+		result: make(chan oauthCallback, 1),
+		serveDone: make(chan error, 1),
+		openURL: openURL,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(oauthCallbackPath, flow.handle)
@@ -231,7 +323,9 @@ func newOAuthFlow(ctx context.Context, openURL func(context.Context, string) err
 
 func (flow *oauthFlow) handle(writer http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
-	result := oauthCallback{code: query.Get("code"), state: query.Get("state"), issuer: query.Get("iss")}
+	result := oauthCallback{
+		code: query.Get("code"), state: query.Get("state"), issuer: query.Get("iss"),
+	}
 	if providerError := query.Get("error"); providerError != "" {
 		result.err = fmt.Errorf("authorization declined: %s", providerError)
 	} else if result.code == "" {
@@ -243,14 +337,20 @@ func (flow *oauthFlow) handle(writer http.ResponseWriter, request *http.Request)
 	if result.err != nil {
 		message = "Authorization did not complete. You can close this tab and return to Lyra."
 	}
-	_, _ = io.WriteString(writer, "<!doctype html><meta charset=utf-8><title>Lyra</title><body style=\"font:14px system-ui;display:grid;place-items:center;height:100vh;margin:0\"><p>"+message+"</p></body>")
+	_, _ = io.WriteString(writer,
+		"<!doctype html><meta charset=utf-8><title>Lyra</title>"+
+			"<body style=\"font:14px system-ui;display:grid;place-items:center;height:100vh;margin:0\">"+
+			"<p>"+message+"</p></body>")
 	select {
 	case flow.result <- result:
 	default:
 	}
 }
 
-func (flow *oauthFlow) fetch(ctx context.Context, arguments *auth.AuthorizationArgs) (*auth.AuthorizationResult, error) {
+func (flow *oauthFlow) fetch(
+	ctx context.Context,
+	arguments *auth.AuthorizationArgs,
+) (*auth.AuthorizationResult, error) {
 	if err := flow.openURL(ctx, arguments.URL); err != nil {
 		return nil, fmt.Errorf("mcpflow: open authorization URL: %w", err)
 	}
@@ -259,7 +359,9 @@ func (flow *oauthFlow) fetch(ctx context.Context, arguments *auth.AuthorizationA
 		if result.err != nil {
 			return nil, result.err
 		}
-		return &auth.AuthorizationResult{Code: result.code, State: result.state, Iss: result.issuer}, nil
+		return &auth.AuthorizationResult{
+			Code: result.code, State: result.state, Iss: result.issuer,
+		}, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -293,85 +395,100 @@ func openSystemBrowser(ctx context.Context, target string) error {
 }
 
 func oauthHTTPClient() *http.Client {
-	return &http.Client{Transport: http.DefaultTransport, CheckRedirect: func(request *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
-			return errors.New("mcpflow: too many OAuth redirects")
-		}
-		if len(via) > 0 && via[len(via)-1].URL.Scheme == "https" && request.URL.Scheme != "https" {
-			return errors.New("mcpflow: OAuth redirect would downgrade HTTPS")
-		}
-		return nil
-	}}
+	return &http.Client{
+		Transport: http.DefaultTransport,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("mcpflow: too many OAuth redirects")
+			}
+			if len(via) > 0 && via[len(via)-1].URL.Scheme == "https" && request.URL.Scheme != "https" {
+				return errors.New("mcpflow: OAuth redirect would downgrade HTTPS")
+			}
+			return nil
+		},
+	}
 }
 
-func newInteractiveOAuthHandler(flow *oauthFlow, service *Service, server, endpoint string) (auth.OAuthHandler, error) {
-	origin, err := endpointOrigin(endpoint)
-	if err != nil {
+func newInteractiveOAuthHandler(
+	flow *oauthFlow,
+	writer *oauthSessionWriter,
+) (auth.OAuthHandler, error) {
+	configuration := writer.Configuration()
+	if _, err := configuration.HTTPOrigin(); err != nil {
 		return nil, err
 	}
 	config := &auth.AuthorizationCodeHandlerConfig{
-		DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{Metadata: &oauthex.ClientRegistrationMetadata{
-			RedirectURIs: []string{flow.redirectURL}, ClientName: "Lyra",
-			GrantTypes: []string{"authorization_code", "refresh_token"}, ResponseTypes: []string{"code"},
-			TokenEndpointAuthMethod: "none",
-		}},
-		RedirectURL: flow.redirectURL, AuthorizationCodeFetcher: flow.fetch,
-		RequestRefreshToken: true, Client: oauthHTTPClient(),
+		DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{
+			Metadata: &oauthex.ClientRegistrationMetadata{
+				RedirectURIs: []string{flow.redirectURL},
+				ClientName: "Lyra",
+				GrantTypes: []string{"authorization_code", "refresh_token"},
+				ResponseTypes: []string{"code"},
+				TokenEndpointAuthMethod: "none",
+			},
+		},
+		RedirectURL: flow.redirectURL,
+		AuthorizationCodeFetcher: flow.fetch,
+		RequestRefreshToken: true,
+		Client: oauthHTTPClient(),
 	}
-	config.NewTokenSource = func(ctx context.Context, oauthConfig *oauth2.Config, token *oauth2.Token) (oauth2.TokenSource, error) {
-		if err := service.persistOAuthSession(ctx, server, origin, oauthConfig, token); err != nil {
+	config.NewTokenSource = func(
+		ctx context.Context,
+		oauthConfig *oauth2.Config,
+		token *oauth2.Token,
+	) (oauth2.TokenSource, error) {
+		if err := writer.Save(ctx, oauthConfig, token); err != nil {
 			return nil, err
 		}
-		return newSavingTokenSource(oauthConfig.TokenSource(ctx, token), oauthConfig, token, func(updatedConfig *oauth2.Config, updatedToken *oauth2.Token) error {
-			return service.persistOAuthSession(service.lifetime, server, origin, updatedConfig, updatedToken)
-		}), nil
+		return newSavingTokenSource(
+			oauthConfig.TokenSource(ctx, token), oauthConfig, token,
+			func(updatedConfig *oauth2.Config, updatedToken *oauth2.Token) error {
+				return writer.Save(writer.service.lifetime, updatedConfig, updatedToken)
+			},
+		), nil
 	}
 	return auth.NewAuthorizationCodeHandler(config)
 }
 
-func (service *Service) passiveOAuthHandler(server, endpoint string, payload []byte) (auth.OAuthHandler, error) {
-	origin, err := endpointOrigin(endpoint)
-	if err != nil {
-		return nil, err
+func (service *Service) passiveOAuthHandler(
+	configuration mcpserver.Configuration,
+) (auth.OAuthHandler, error) {
+	secrets := configuration.Secrets()
+	writer := newOAuthSessionWriter(service, configuration)
+	handler := &passiveOAuthHandler{
+		clear: func(ctx context.Context) error { return writer.Clear(ctx) },
 	}
-	handler := &passiveOAuthHandler{clear: func(ctx context.Context) error {
-		return service.store.ClearMCPOAuthSession(ctx, server)
-	}}
-	if len(payload) == 0 {
+	if len(secrets.OAuthSession) == 0 {
 		return handler, nil
 	}
-	config, token, err := decodeOAuthSession(payload)
+	config, token, err := decodeOAuthSession(secrets.OAuthSession)
 	if err != nil {
 		return nil, err
 	}
 	sourceContext := context.WithValue(service.lifetime, oauth2.HTTPClient, oauthHTTPClient())
-	handler.source = newSavingTokenSource(config.TokenSource(sourceContext, token), config, token, func(updatedConfig *oauth2.Config, updatedToken *oauth2.Token) error {
-		return service.persistOAuthSession(service.lifetime, server, origin, updatedConfig, updatedToken)
-	})
+	handler.source = newSavingTokenSource(
+		config.TokenSource(sourceContext, token), config, token,
+		func(updatedConfig *oauth2.Config, updatedToken *oauth2.Token) error {
+			return writer.Save(service.lifetime, updatedConfig, updatedToken)
+		},
+	)
 	return handler, nil
 }
 
-func (service *Service) persistOAuthSession(ctx context.Context, server, origin string, config *oauth2.Config, token *oauth2.Token) error {
-	payload, err := encodeOAuthSession(config, token)
-	if err != nil {
-		return err
-	}
-	if err := service.store.PutMCPOAuthSession(ctx, server, origin, payload); err != nil {
-		return fmt.Errorf("mcpflow: persist OAuth session: %w", err)
-	}
-	return nil
-}
-
-func (service *Service) startAuthorization(record mcpserver.Record, secrets mcpserver.Secrets, attempt protocol.MCPAuthorizationAttempt) bool {
+func (service *Service) startAuthorization(
+	configuration mcpserver.Configuration,
+	attempt mcpserver.AuthorizationAttempt,
+) bool {
+	name := configuration.Name()
 	service.mu.Lock()
 	if service.closed {
 		service.mu.Unlock()
 		return false
 	}
-	live := service.live[record.Name]
+	live := service.live[name]
 	if live == nil {
 		live = &liveServer{}
-		service.live[record.Name] = live
+		service.live[name] = live
 	}
 	live.generation++
 	generation := live.generation
@@ -389,34 +506,41 @@ func (service *Service) startAuthorization(record mcpserver.Record, secrets mcps
 	if oldSession != nil {
 		_ = oldSession.Close()
 	}
+	service.publish(name)
 	go func() {
 		defer service.tasks.Done()
 		flowContext, cancelFlow := context.WithTimeout(operationContext, oauthFlowTimeout)
-		session, sessionCancel, tools, err := service.dialInteractive(flowContext, record, secrets)
+		session, sessionCancel, tools, err := service.dialInteractive(flowContext, configuration)
 		cancelFlow()
-		service.commitAuthorization(record.Name, generation, session, sessionCancel, tools, attempt, err)
+		service.commitAuthorization(name, generation, session, sessionCancel, tools, attempt, err)
 	}()
 	return true
 }
 
-func (service *Service) dialInteractive(ctx context.Context, record mcpserver.Record, secrets mcpserver.Secrets) (_ *sdkmcp.ClientSession, _ context.CancelFunc, _ []protocol.MCPTool, resultErr error) {
+func (service *Service) dialInteractive(
+	ctx context.Context,
+	configuration mcpserver.Configuration,
+) (_ *sdkmcp.ClientSession, _ context.CancelFunc, _ []protocol.MCPTool, resultErr error) {
 	flow, err := newOAuthFlow(ctx, service.openURL)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	defer func() { resultErr = errors.Join(resultErr, flow.close(ctx)) }()
-	handler, err := newInteractiveOAuthHandler(flow, service, record.Name, record.URL)
+	writer := newOAuthSessionWriter(service, configuration)
+	handler, err := newInteractiveOAuthHandler(flow, writer)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	client, err := secureHTTPClient(record.URL, secrets, false)
+	client, err := secureHTTPClient(configuration.URL(), configuration.Secrets(), false)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	sessionContext, cancelSession := context.WithCancel(service.lifetime)
 	stop := context.AfterFunc(ctx, cancelSession)
-	transport := &sdkmcp.StreamableClientTransport{Endpoint: record.URL, HTTPClient: client, OAuthHandler: handler}
-	session, err := service.client.Connect(sessionContext, transport, nil)
+	transport := &sdkmcp.StreamableClientTransport{
+		Endpoint: configuration.URL(), HTTPClient: client, OAuthHandler: handler,
+	}
+	session, err := service.clientFor(configuration.Name(), true).Connect(sessionContext, transport, nil)
 	if err != nil {
 		stop()
 		cancelSession()
@@ -427,7 +551,7 @@ func (service *Service) dialInteractive(ctx context.Context, record mcpserver.Re
 		_ = session.Close()
 		return nil, nil, nil, ctx.Err()
 	}
-	tools, err := listTools(ctx, record.Name, record.DisabledTools, session)
+	tools, err := listTools(ctx, configuration.Name(), configuration.DisabledTools(), session)
 	if err != nil {
 		cancelSession()
 		_ = session.Close()
@@ -436,23 +560,40 @@ func (service *Service) dialInteractive(ctx context.Context, record mcpserver.Re
 	return session, cancelSession, tools, nil
 }
 
-func (service *Service) commitAuthorization(name string, generation uint64, session *sdkmcp.ClientSession, sessionCancel context.CancelFunc, tools []protocol.MCPTool, attempt protocol.MCPAuthorizationAttempt, authorizationErr error) {
+func (service *Service) commitAuthorization(
+	name string,
+	generation uint64,
+	session *sdkmcp.ClientSession,
+	sessionCancel context.CancelFunc,
+	tools []protocol.MCPTool,
+	attempt mcpserver.AuthorizationAttempt,
+	authorizationErr error,
+) {
 	service.mu.Lock()
 	live := service.live[name]
 	current := !service.closed && live != nil && live.generation == generation
+	watch := false
 	if current {
 		if live.cancel != nil {
 			live.cancel()
 		}
 		if authorizationErr == nil {
 			count := len(tools)
-			live.status = protocol.MCPServerState{Type: protocol.MCPServerConnected, ToolCount: &count}
-			live.session, live.cancel, live.tools = session, sessionCancel, tools
+			live.status = protocol.MCPServerState{
+				Type: protocol.MCPServerConnected, ToolCount: &count,
+			}
+			live.session = session
+			live.cancel = sessionCancel
+			live.tools = tools
+			service.tasks.Add(1)
+			watch = true
 		} else {
-			live.session, live.cancel, live.tools = nil, nil, nil
+			live.session = nil
+			live.cancel = nil
+			live.tools = nil
 			live.status = protocol.MCPServerState{
 				Type: protocol.MCPServerNeedsAuth,
-				Error: &protocol.ProblemData{Type: protocol.ProblemMCPAuthorizationFailed, Detail: "authorization did not complete"},
+				Error: &protocol.ProblemData{Type: protocol.ProblemMCPAuthorizationFailed},
 			}
 		}
 	}
@@ -466,20 +607,26 @@ func (service *Service) commitAuthorization(name string, generation uint64, sess
 		}
 	}
 
-	finishedAt := service.now()
-	attempt.FinishedAt = &finishedAt
+	status := mcpserver.AuthorizationSucceeded
 	switch {
-	case !current || errors.Is(authorizationErr, context.Canceled) || errors.Is(authorizationErr, context.DeadlineExceeded):
-		attempt.Status = protocol.MCPAuthorizationAttemptStatus{Type: protocol.MCPAuthorizationAttemptCanceled}
+	case !current || errors.Is(authorizationErr, context.Canceled) ||
+		errors.Is(authorizationErr, context.DeadlineExceeded):
+		status = mcpserver.AuthorizationCanceled
 	case authorizationErr != nil:
-		attempt.Status = protocol.MCPAuthorizationAttemptStatus{
-			Type: protocol.MCPAuthorizationAttemptFailed,
-			Error: &protocol.ProblemData{Type: protocol.ProblemMCPAuthorizationFailed},
-		}
-	default:
-		attempt.Status = protocol.MCPAuthorizationAttemptStatus{Type: protocol.MCPAuthorizationAttemptSucceeded}
+		status = mcpserver.AuthorizationFailed
 	}
-	writeContext, cancelWrite := context.WithTimeout(context.WithoutCancel(service.lifetime), 5*time.Second)
-	defer cancelWrite()
-	_ = service.store.PutMCPAuthorizationAttempt(writeContext, attempt)
+	if err := attempt.Finish(status, service.now()); err == nil {
+		writeContext, cancelWrite := context.WithTimeout(context.WithoutCancel(service.lifetime), 5*time.Second)
+		writeErr := service.store.PutMCPAuthorizationAttempt(writeContext, attempt)
+		cancelWrite()
+		if writeErr != nil {
+			service.logger.Error("persist MCP authorization outcome", "server", name, "error", writeErr)
+		}
+	}
+	if current {
+		service.publish(name)
+	}
+	if watch {
+		go service.watchSession(name, generation, session)
+	}
 }

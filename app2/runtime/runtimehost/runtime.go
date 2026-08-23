@@ -190,7 +190,10 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil { return nil, err }
 	plans, err := planflow.New(database, events)
 	if err != nil { return nil, err }
-	mcp, err := mcpflow.New(database, identity.Generator{}, lifetime)
+	mcp, err := mcpflow.New(mcpflow.Config{
+		Store: database, IDs: identity.Generator{}, Events: events,
+		Lifetime: lifetime, Logger: config.Logger,
+	})
 	if err != nil {
 		return nil, err
 	}

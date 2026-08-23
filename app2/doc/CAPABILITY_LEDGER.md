@@ -21,12 +21,12 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，9 implemented，79 specified | 89 verified |
+| Runtime operations | 89 | 1 verified，63 implemented，2 in_progress，23 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
-| Runtime resource topics | 16 | 3 implemented，13 specified | 16 producer/consumer/resync verified |
-| Run event variants | 7 | 1 implemented，6 specified | live + replay + recovery verified |
-| Desktop product surfaces | 24 groups | 1 verified，3 implemented，20 specified | 全部 verified |
-| 内置 tool presentation | 30 + MCP/unknown | 6 implemented，24 + MCP/unknown specified | 全部真实 material verified |
+| Runtime resource topics | 16 | 13 implemented，3 specified | 16 producer/consumer/resync verified |
+| Run event variants | 7 | 7 implemented | live + replay + recovery verified |
+| Desktop product surfaces | 24 groups | 1 verified，15 implemented，2 in_progress，6 specified | 全部 verified |
+| 内置 tool presentation | 30 + MCP/unknown | 12 + MCP/unknown implemented，4 in_progress，14 specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
 
@@ -46,7 +46,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O08 | `workspace.changes.list`, `workspace.diff.get`, `workspace.files.head`, `workspace.files.search`, `workspace.files.list`, `workspace.files.read` | 6 | workspaceflow + filesystem/git | R6 | implemented | jailed file list/read/head/search + Desktop lazy tree/exact grep/1000-line window 已接通；Git exact repository/workspace scope、staged+unstaged+untracked、unborn HEAD、honest numstat/binary、bounded subprocess output、raw/rows file-boundary truncation 与 Review consumer 已实现；待最终统一门禁 |
 | O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | implemented | `.lyra/skills` 单一内容源、project-first/user lifecycle reconcile、exact immutable proposal review、confined atomic publish、Desktop 三面 consumer 与 external watch 已实现；待最终统一门禁 |
 | O10 | `recipes.list`, `agentDocs.list` | 2 | capability/recipes/docs | R7 | implemented | confined project-first/global Recipe discovery、Desktop slash expansion + actual-payload idempotency、home→root→cwd AgentDoc discovery、fresh-root bounded injection/checkpoint freeze、Resources consumer 与 files invalidation 已实现；待最终统一门禁 |
-| O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | specified | closed transport union、secret set/clear/keep、six states、generation-safe reconnect、auth retention |
+| O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | implemented | 既有 9-method Lyra wire 不变；private revisioned aggregate、secret set/clear/keep、真实 timeout、generation-safe connect/tool refresh/OAuth CAS、terminal retention、Desktop candidate test/auth/tool trust 已接通；待最终门禁 |
 | O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | in_progress | 独立 lifecyclehook domain、confined discovery/trust/observation，以及 prompt、Tool、subagent、waiting/terminal execution 已实现；`PreCompact` 等真实 compaction producer，待最终统一门禁 |
 | O13 | `approval.getMode`, `approval.setMode`, `approval.listRules`, `approval.forgetRule` | 4 | interaction policy | R4/R8 | specified | safe/balanced/yolo、rule scope/identity、explicit forget、Run decision transcript 独立 |
 | O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | operations/schedule | R8 | specified | cron validation、revision、workspace/model、next run、runNow 返回可导航 Run/Session |
@@ -76,16 +76,16 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | --- | --- | --- | --- | --- | --- |
 | `files.changed` | filesystem/watch | Context Dock files/diff | R6 | implemented | selected Session 注册 exact workspace watch；path event 或 resync 失效 workspace query scope，Session/generation switch abort 旧订阅；待最终资源门禁 |
 | `skills.changed` | skill store/watch | Skills view/query | R7 | implemented | archive/restore/approve/reject/propose committed mutation 与 project/user external edit 均失效同一 Skills query scope；每订阅 watcher 可取消并由 Bus close join，待最终统一门禁 |
-| `mcp.changed` | MCP lifecycle | MCP settings/tool catalog | R8 | specified | status/auth/reconnect invalidate exact server |
+| `mcp.changed` | MCP lifecycle | MCP settings/tool catalog | R8 | implemented | durable mutation与 connecting/connected/failed/disconnected/needsAuth/auth/reconnect 均由 MCP owner 发布；Desktop 失效 Runtime-generation MCP query family；待最终门禁 |
 | `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
 | `sessions.changed` | session transaction | Work Index | R2 | implemented | create/update/delete/fork/rollback/import committed mutation 发布，Desktop cursor catalog 与 exact snapshot 收敛；待统一门禁 |
-| `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
+| `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | implemented | committed admission/status/recovery 发布 exact Run/Session identity；Desktop catalog/snapshot 失效并冷读收敛；待最终门禁 |
 | `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效，Desktop SSE consumer 回读 coherent snapshot；待最终统一门禁 |
 | `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布，Desktop SSE consumer 精确失效；待最终统一门禁 |
 | `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | implemented | open/resume-consume/waiting-cancel transaction 后发布 exact Session/Run ids；Desktop 精确失效 snapshot，待统一门禁 |
-| `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
+| `knowledge.changed` | knowledge file owner | Knowledge view | R7 | implemented | confined CAS update 与 global/project/cwd external watch 收敛；Desktop 失效 Runtime-generation knowledge query family；待最终门禁 |
 | `hooks.changed` | hook/trust owner | Hooks settings | R7 | implemented | changed-only trust mutation与 global/project/cwd hooks.json exact-file observation 收敛；缺失 parent directory 的后续创建同样可观察，待最终统一门禁 |
-| `models.changed` | provider/catalog owner | model picker/settings | R8 | specified | catalog/role/provider update 收敛 |
+| `models.changed` | provider/catalog owner | model picker/settings | R8 | implemented | changed-only provider/role mutation 发布；Desktop 同时失效 provider/model/role query，Session model identity 仍由 sessions.changed 收敛；待最终门禁 |
 | `approvals.changed` | policy owner | Approval settings | R8 | specified | mode/rules exact invalidation |
 | `agentMemory.changed` | memory owner | Memory view | R7 | implemented | changed-only review/add/update/delete/automatic pending publish；Desktop Runtime-generation query family、acknowledgement-loss cold-read 收敛；待最终统一门禁 |
 | `codebase.changed` | index worker | Search/index view | R6 | implemented | committed admission/terminal settlement 后通知；Desktop 按 Runtime generation + workspace query scope 回读 canonical status/search，resync 同样收敛；待最终统一门禁 |
@@ -129,7 +129,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
-| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | in_progress | explicit Settings section 已完成 Provider cards、masked/env secret、independent draft/save/test、Utility/Embedding role 与 Session model picker；MCP/schedules/approval/usage sections 继续 R8 |
+| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | in_progress | explicit Settings section 已完成 Provider cards、Utility/Embedding role、Session model picker，以及 MCP candidate test、transport/secret editor、live status、OAuth、tool trust 与 delete/reconnect；schedules/approval/usage sections 继续 R8 |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
 | U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |
@@ -149,7 +149,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |
 | 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | in_progress | `search_memory` 已使用 reviewed corpus 与有界 lexical/semantic degradation；`search_tools` 已对 Run-frozen deferred manifest 做 query→exact select 渐进暴露并跨 checkpoint 恢复；`read_tool_result` 已有界读取 durable overflow；`search_conversations` 随 R9 |
 | 委派与提问（2） | `delegate_task`, `ask_user` | R4 | implemented | child Run 以父 Delegate Item 为唯一 disclosure anchor；Question 为唯一交互真身；model/protocol field mapping 保持 Lyra 自有语义；待最终统一门禁 |
-| MCP/unknown | dynamically discovered names | R8 | specified | remote original name 与 model-visible collapsed name 分离、safety class、JSON fallback |
+| MCP/unknown | dynamically discovered names | R8 | implemented | private execution始终保留 `(server, remote)`；domain 唯一生成 bounded model-visible name，完整 MCP result envelope 使用 safe JSON material；待最终门禁 |
 
 当前仅 `glob/grep/apply_patch/shell/web_search` 有旧 Runtime 归一化 result schema；app2 R1–R8 要么为被 UI
 读取的结果建立 canonical typed presentation，要么明确只用 safe generic preview，不能继续依赖无门禁约定。

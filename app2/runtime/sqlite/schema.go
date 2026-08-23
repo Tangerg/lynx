@@ -169,6 +169,7 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			body TEXT NOT NULL CHECK (json_valid(body)),
 			secret BLOB,
+			revision INTEGER NOT NULL CHECK (revision > 0),
 			updated_at TEXT NOT NULL
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS mcp_authorization_attempts (

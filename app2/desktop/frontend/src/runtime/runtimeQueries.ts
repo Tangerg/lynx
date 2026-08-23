@@ -24,6 +24,11 @@ import {
   type KnowledgeEntry,
   type KnowledgeScope,
   type ManagedSkill,
+  type MCPAuthorizationAttempt,
+  type MCPServer,
+  type MCPServerCandidate,
+  type MCPTestResult,
+  type MCPTool,
   type Model,
 	type EmbeddingRole,
 	  type Page,
@@ -46,6 +51,7 @@ import {
   type ToolSpec,
 	type UtilityRole,
 	type UpdateProviderRequest,
+  type UpdateMCPServerRequest,
   type UpdateSessionRequest,
   type WorkspaceRef,
   type WorkspaceFileChange,
@@ -87,6 +93,15 @@ export const runtimeQueryKeys = {
 	modelRole(connection: RuntimeConnection, role: "utility" | "embedding") {
 		return [...this.scope(connection), "model-role", role] as const;
 	},
+  mcp(connection: RuntimeConnection) {
+    return [...this.scope(connection), "mcp"] as const;
+  },
+  mcpServers(connection: RuntimeConnection) {
+    return [...this.mcp(connection), "servers"] as const;
+  },
+  mcpTools(connection: RuntimeConnection, server: string) {
+    return [...this.mcp(connection), "tools", server] as const;
+  },
   workspace(connection: RuntimeConnection, path: string) {
     return [...this.scope(connection), "workspace", path] as const;
   },
@@ -309,6 +324,94 @@ export function setEmbeddingRole(
 	role: EmbeddingRole,
 ): Promise<EmbeddingRole> {
 	return client(connection).call("models.setEmbeddingRole", role, { meta: clientMeta });
+}
+
+export function listMCPServers(
+  connection: RuntimeConnection,
+  signal?: AbortSignal,
+): Promise<Page<MCPServer>> {
+  return client(connection).call("mcp.servers.list", {}, { meta: clientMeta, signal });
+}
+
+export function createMCPServer(
+  connection: RuntimeConnection,
+  candidate: MCPServerCandidate,
+): Promise<MCPServer> {
+  return client(connection).call("mcp.servers.create", candidate, { meta: clientMeta });
+}
+
+export function updateMCPServer(
+  connection: RuntimeConnection,
+  request: UpdateMCPServerRequest,
+): Promise<MCPServer> {
+  return client(connection).call("mcp.servers.update", request, { meta: clientMeta });
+}
+
+export function deleteMCPServer(
+  connection: RuntimeConnection,
+  server: string,
+): Promise<EmptyObject> {
+  return client(connection).call("mcp.servers.delete", { server }, { meta: clientMeta });
+}
+
+export function testMCPServer(
+  connection: RuntimeConnection,
+  candidate: MCPServerCandidate,
+  signal?: AbortSignal,
+): Promise<MCPTestResult> {
+  return client(connection).call("mcp.servers.test", candidate, { meta: clientMeta, signal });
+}
+
+export function reconnectMCPServer(
+  connection: RuntimeConnection,
+  server: string,
+): Promise<EmptyObject> {
+  return client(connection).call("mcp.servers.reconnect", { server }, { meta: clientMeta });
+}
+
+export function listMCPTools(
+  connection: RuntimeConnection,
+  server: string,
+  signal?: AbortSignal,
+): Promise<Page<MCPTool>> {
+  return client(connection).call("mcp.tools.list", { server }, { meta: clientMeta, signal });
+}
+
+export function createMCPAuthorizationAttempt(
+  connection: RuntimeConnection,
+  server: string,
+  signal?: AbortSignal,
+): Promise<MCPAuthorizationAttempt> {
+  return client(connection).call(
+    "mcp.authorizationAttempts.create",
+    { server },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function getMCPAuthorizationAttempt(
+  connection: RuntimeConnection,
+  attemptId: string,
+  signal?: AbortSignal,
+): Promise<MCPAuthorizationAttempt> {
+  return client(connection).call(
+    "mcp.authorizationAttempts.get",
+    { attemptId },
+    { meta: clientMeta, signal },
+  );
+}
+
+export async function authorizeMCPServer(
+  connection: RuntimeConnection,
+  server: string,
+  signal: AbortSignal,
+): Promise<MCPAuthorizationAttempt> {
+  let attempt = await createMCPAuthorizationAttempt(connection, server, signal);
+  while (attempt.status.type === "pending") {
+    await abortableDelay(750, signal);
+    attempt = await getMCPAuthorizationAttempt(connection, attempt.id, signal);
+  }
+  return attempt;
 }
 
 export function listWorkspaceFiles(
@@ -824,6 +927,7 @@ export async function consumeRuntimeInvalidations(
         "goals.changed",
         "interrupts.changed",
         "models.changed",
+        "mcp.changed",
         "files.changed",
         "skills.changed",
         "knowledge.changed",
@@ -838,4 +942,23 @@ export async function consumeRuntimeInvalidations(
   );
   onOpen();
   for await (const frame of stream) onEvent(frame.event);
+}
+
+function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = window.setTimeout(finish, milliseconds);
+    function finish() {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }
+    function abort() {
+      window.clearTimeout(timer);
+      reject(signal.reason);
+    }
+    signal.addEventListener("abort", abort, { once: true });
+  });
 }

@@ -342,3 +342,27 @@ Provider durable aggregate 使用私有 revision 与 SQLite CAS；并发的 base
 **边界**：89 个 dotted methods、JSON-RPC/SSE、RequestMeta/discover、problem code、Runtime topic 与 operation
 catalog 均保持 Lyra 既有设计；没有引入 connection handshake、Thread/Turn、stdio、别名 method 或第二套模型
 协议。该变更只修复可证明的身份歧义，并由 canonical Go types 重新生成 Desktop client。
+
+## ADR-A2-029：MCP 配置与授权共享代际，Lyra MCP wire 保持不变
+
+**缺陷与反例**：既有 MCP Runtime 把 protocol DTO 直接持久化，配置没有 revision；`timeoutSeconds` 被保存却不治理
+真实 dial。更严重的是，HTTP server A 开始 OAuth 后，用户可把同名配置切到 endpoint B，而旧 flow 仍把 A 的 token
+写进同一记录。共享 SDK client 的 tool-list callback 也无法证明 notification 属于当前 session generation；断连、失败和
+授权终态没有完整地收敛到 `mcp.changed`。这些是内部 ownership 与并发缺陷，不是 Lyra MCP 合同不足。
+
+**决定**：保留 `mcp.servers.*`、`mcp.tools.list`、`mcp.authorizationAttempts.*` 共 9 个既有 dotted methods，以及
+streamable HTTP/stdio、secret keep/set/clear、six-state lifecycle 与 attempt retention 的现有 wire。MCP durable owner
+改为私有 `Configuration` aggregate：connection replacement 原子验证，revision/updatedAt 只在真实变化时推进，SQLite
+用 exact CAS 保存 safe body 与独立 secret。配置 mutation、OAuth save/clear 进入同一 server identity lane；OAuth writer
+只携带启动 flow 时的 aggregate generation，endpoint/origin 或 revision 漂移即拒绝 durable write。
+
+live owner 为每次 connect/reconnect/tool refresh/authorization 分配 generation 和独立 SDK client/session；旧 result 只能
+close，不能提交。`timeoutSeconds` 真实约束 dial/test；HTTP credential 禁止跨 origin，stdio directory 使用 host path
+语义。authorization attempt 自己拥有 pending→terminal lifecycle，restart recovery 与 retention pruning 只处理 domain
+record。remote tool 始终以 `(server, original name)` 执行，仅在模型 definition 边界由 domain 生成稳定、bounded 的
+model-visible name；结果保留完整 MCP envelope。
+
+**后果**：MCP service 成为 durable/live event 的唯一发布 owner，application facade 不重复发 `mcp.changed`。Desktop
+继续消费 generated Lyra client，并用明确 MCP Settings section 表达 candidate test、write-only secret、OAuth 与 tool trust；
+不存在 generic plugin host 或第二套配置协议。SQLite exact epoch 提升到 11，开发期直接重建旧 app2 data home；Runtime
+Protocol 仍为 `2026-08-23`，contract generator 无 shape diff。该纵切在 R11 最终统一门禁前标记为 `implemented`。

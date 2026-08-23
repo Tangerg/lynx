@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/Tangerg/lynx/app2/runtime/internal/identitylane"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
 )
@@ -34,7 +35,7 @@ type Service struct {
 	ids         IDs
 	home        string
 	userRoot    string
-	serial      *identityCoordinator
+	serial      *identitylane.Coordinator
 }
 
 func New(store Store, resolver Resolver, ids IDs, home string) (*Service, error) {
@@ -51,7 +52,7 @@ func New(store Store, resolver Resolver, ids IDs, home string) (*Service, error)
 		ids:         ids,
 		home:        home,
 		userRoot:    filepath.Join(home, ".lyra"),
-		serial:      newIdentityCoordinator(),
+		serial:      identitylane.New(),
 	}, nil
 }
 

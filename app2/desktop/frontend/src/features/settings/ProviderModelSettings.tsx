@@ -23,7 +23,6 @@ import {
 
 interface ProviderModelSettingsProps {
 	connection: RuntimeConnection;
-	onClose(): void;
 }
 
 export function ProviderModelSettings(props: ProviderModelSettingsProps) {
@@ -43,79 +42,46 @@ export function ProviderModelSettings(props: ProviderModelSettingsProps) {
 		);
 	}, [providers.data, query]);
 
-	useEffect(() => {
-		const close = (event: KeyboardEvent) => {
-			if (event.key === "Escape") props.onClose();
-		};
-	document.addEventListener("keydown", close);
-		return () => document.removeEventListener("keydown", close);
-	}, [props.onClose]);
-
 	return (
-		<div className="settings-surface" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-			<aside className="settings-nav">
-				<header className="window-drag">
-					<span className="eyebrow">Lyra</span>
-					<h2 id="settings-title">Settings</h2>
-				</header>
-				<nav aria-label="Settings sections">
-					<button type="button" aria-current="page">
-						<span aria-hidden="true">◇</span>
-						Providers & models
-					</button>
-				</nav>
-				<p>Settings are Runtime resources. Saving never writes a second Desktop copy.</p>
-			</aside>
-			<section className="settings-content">
-				<header className="settings-heading window-drag">
+		<>
+			<section className="settings-section" aria-labelledby="model-roles-title">
+				<header>
 					<div>
-						<span className="eyebrow">Integration</span>
-						<h1>Providers & models</h1>
-						<p>Configure credentials, verify connectivity, and choose maintenance roles.</p>
+						<h2 id="model-roles-title">Model roles</h2>
+						<p>Optional Runtime-wide models for maintenance and semantic indexing.</p>
 					</div>
-					<button className="icon-action window-no-drag" type="button" aria-label="Close settings" autoFocus onClick={props.onClose}>×</button>
 				</header>
-				<div className="settings-scroll">
-					<section className="settings-section" aria-labelledby="model-roles-title">
-						<header>
-							<div>
-								<h2 id="model-roles-title">Model roles</h2>
-								<p>Optional Runtime-wide models for maintenance and semantic indexing.</p>
-							</div>
-						</header>
-						<div className="model-role-grid">
-							<ModelRoleEditor connection={props.connection} role="utility" providers={providers.data?.data ?? []} />
-							<ModelRoleEditor connection={props.connection} role="embedding" providers={providers.data?.data ?? []} />
-						</div>
-					</section>
-					<section className="settings-section" aria-labelledby="provider-settings-title">
-						<header className="provider-section-heading">
-							<div>
-								<h2 id="provider-settings-title">Provider connections</h2>
-								<p>Secrets are write-only. Environment credentials remain read-only.</p>
-							</div>
-							<label>
-								<span className="sr-only">Filter providers</span>
-								<input value={query} maxLength={80} placeholder="Filter providers…" onChange={(event) => setQuery(event.currentTarget.value)} />
-							</label>
-						</header>
-						{providers.isPending ? (
-							<SettingsState>Loading providers…</SettingsState>
-						) : providers.isError ? (
-							<SettingsState action="Try again" onAction={() => void providers.refetch()}>{messageOf(providers.error)}</SettingsState>
-						) : visible.length === 0 ? (
-							<SettingsState>No providers match this filter.</SettingsState>
-						) : (
-							<div className="provider-card-list">
-								{visible.map((provider) => (
-									<ProviderCard key={provider.id} connection={props.connection} provider={provider} />
-								))}
-							</div>
-						)}
-					</section>
+				<div className="model-role-grid">
+					<ModelRoleEditor connection={props.connection} role="utility" providers={providers.data?.data ?? []} />
+					<ModelRoleEditor connection={props.connection} role="embedding" providers={providers.data?.data ?? []} />
 				</div>
 			</section>
-		</div>
+			<section className="settings-section" aria-labelledby="provider-settings-title">
+				<header className="provider-section-heading">
+					<div>
+						<h2 id="provider-settings-title">Provider connections</h2>
+						<p>Secrets are write-only. Environment credentials remain read-only.</p>
+					</div>
+					<label>
+						<span className="sr-only">Filter providers</span>
+						<input value={query} maxLength={80} placeholder="Filter providers…" onChange={(event) => setQuery(event.currentTarget.value)} />
+					</label>
+				</header>
+				{providers.isPending ? (
+					<SettingsState>Loading providers…</SettingsState>
+				) : providers.isError ? (
+					<SettingsState action="Try again" onAction={() => void providers.refetch()}>{messageOf(providers.error)}</SettingsState>
+				) : visible.length === 0 ? (
+					<SettingsState>No providers match this filter.</SettingsState>
+				) : (
+					<div className="provider-card-list">
+						{visible.map((provider) => (
+							<ProviderCard key={provider.id} connection={props.connection} provider={provider} />
+						))}
+					</div>
+				)}
+			</section>
+		</>
 	);
 }
 

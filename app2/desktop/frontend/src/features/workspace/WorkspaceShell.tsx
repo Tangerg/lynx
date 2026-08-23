@@ -20,7 +20,7 @@ import { GoalComposer } from "../goals/GoalComposer";
 import { GoalTray } from "../goals/GoalTray";
 import { useGoalActions } from "../goals/useGoalActions";
 import { PlanCompact } from "../plan/PlanCompact";
-import { ProviderModelSettings } from "../settings/ProviderModelSettings";
+import { SettingsSurface } from "../settings/SettingsSurface";
 import { NewSessionMenu } from "../sessions/NewSessionMenu";
 import { SessionIndex } from "../sessions/SessionIndex";
 import { compactPath } from "../sessions/sessionPresentation";
@@ -76,6 +76,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "goals.changed",
         "interrupts.changed",
         "models.changed",
+        "mcp.changed",
         "files.changed",
         "skills.changed",
         "knowledge.changed",
@@ -419,7 +420,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       </aside>
 	</main>
 		{settingsOpen ? (
-			<ProviderModelSettings connection={connection} onClose={() => setSettingsOpen(false)} />
+			<SettingsSurface connection={connection} onClose={() => setSettingsOpen(false)} />
 		) : null}
 		</>
   );
