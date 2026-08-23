@@ -6,6 +6,7 @@ import {
   type ThemePreference,
 } from "../preferences/ShellPreferences";
 import { useLocalization } from "../localization/Localization";
+import { isLocale, localeOptions } from "../localization/locales";
 
 export function AppearanceSettings() {
   const preferences = useShellPreferences();
@@ -63,6 +64,31 @@ export function AppearanceSettings() {
             </button>
           ))}
         </div>
+      </section>
+      <section className="settings-section" aria-labelledby="appearance-language-title">
+        <header>
+          <div>
+            <h2 id="appearance-language-title">{t("settings.appearance.language")}</h2>
+            <p>{t("settings.appearance.languageDetail")}</p>
+          </div>
+        </header>
+        <label className="appearance-language">
+          <span>{t("settings.appearance.language")}</span>
+          <select
+            value={preferences.locale}
+            onChange={(event) => {
+              if (isLocale(event.currentTarget.value)) {
+                preferences.setLocale(event.currentTarget.value);
+              }
+            }}
+          >
+            {localeOptions.map((locale) => (
+              <option key={locale.id} value={locale.id} dir={locale.direction}>
+                {locale.nativeName}
+              </option>
+            ))}
+          </select>
+        </label>
       </section>
     </div>
   );

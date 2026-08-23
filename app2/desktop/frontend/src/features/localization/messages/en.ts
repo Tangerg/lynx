@@ -820,6 +820,9 @@ export const englishMessages = {
   "settings.appearance.accent.ocean": "Ocean",
   "settings.appearance.accent.forest": "Forest",
   "settings.appearance.accent.violet": "Violet",
+  "settings.appearance.language": "Language",
+  "settings.appearance.languageDetail":
+    "Choose the language used by Lyra Desktop on this device.",
 
   "settings.runtime.tryAgain": "Try again",
   "settings.runtime.loading": "Loading Runtime connection…",

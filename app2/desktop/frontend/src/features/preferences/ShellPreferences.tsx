@@ -9,6 +9,11 @@ import {
 } from "react";
 
 import "./theme.css";
+import {
+  detectLocale,
+  isLocale,
+  type Locale,
+} from "../localization/locales";
 
 export const themes = [
   { id: "system" },
@@ -29,19 +34,17 @@ export type AccentPreference = (typeof accents)[number]["id"];
 interface ShellPreferenceState {
   theme: ThemePreference;
   accent: AccentPreference;
+  locale: Locale;
 }
 
 interface ShellPreferenceContext extends ShellPreferenceState {
   resolvedTheme: "linen" | "graphite";
   setTheme(theme: ThemePreference): void;
   setAccent(accent: AccentPreference): void;
+  setLocale(locale: Locale): void;
 }
 
-const storageKey = "lyra.app2.shell.v1";
-const defaults: ShellPreferenceState = {
-  theme: "system",
-  accent: "ember",
-};
+const storageKey = "lyra.app2.shell.v2";
 const ShellPreferencesContext = createContext<ShellPreferenceContext | undefined>(
   undefined,
 );
@@ -90,14 +93,22 @@ export function ShellPreferencesProvider({ children }: { children: ReactNode }) 
       return next;
     });
   }, []);
+  const setLocale = useCallback((locale: Locale) => {
+    setPreferences((current) => {
+      const next = { ...current, locale };
+      writePreferences(next);
+      return next;
+    });
+  }, []);
   const value = useMemo<ShellPreferenceContext>(
     () => ({
       ...preferences,
       resolvedTheme,
       setTheme,
       setAccent,
+      setLocale,
     }),
-    [preferences, resolvedTheme, setAccent, setTheme],
+    [preferences, resolvedTheme, setAccent, setLocale, setTheme],
   );
 
   return (
@@ -120,21 +131,28 @@ function systemPrefersDark() {
 }
 
 function readPreferences(): ShellPreferenceState {
+  const defaults: ShellPreferenceState = {
+    theme: "system",
+    accent: "ember",
+    locale: detectLocale(navigator.languages),
+  };
   try {
     const raw = window.localStorage.getItem(storageKey);
     if (raw === null) return defaults;
     const value: unknown = JSON.parse(raw);
     if (
       !isRecord(value) ||
-      Object.keys(value).length !== 2 ||
+      Object.keys(value).length !== 3 ||
       !themes.some((theme) => theme.id === value.theme) ||
-      !accents.some((accent) => accent.id === value.accent)
+      !accents.some((accent) => accent.id === value.accent) ||
+      !isLocale(value.locale)
     ) {
       return defaults;
     }
     return {
       theme: value.theme as ThemePreference,
       accent: value.accent as AccentPreference,
+      locale: value.locale,
     };
   } catch {
     return defaults;

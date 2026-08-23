@@ -893,6 +893,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - `presentRuntimeError` 是唯一面向这些 infrastructure code 的 presentation adapter，App startup/recovery、new Session folder/import、Workspace snapshot/export 与 Runtime Settings 通过 active dictionary 映射；Native/Wails 抛出的具体外部 Error 仍保留 detail；
 - internal root/provider invariant（React root 缺失、provider 缺失）不进入用户 surface，因此保持 developer diagnostic。此变更不改变 Wails method、native envelope、Runtime connection 或 Lyra Protocol shape。后续进入 locale dictionaries/owner/selector 与 RTL/CSS，U22 保持 `in_progress`。
 
+### R10d7a Complete locale registry / preference owner 实现记录（尚未统一验证）
+
+- canonical English 的 1012 个 semantic key 已建立 `en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`、`ar` 九份 exact `MessageDictionary`；逐 locale 静态盘点确认 0 missing、0 extra、0 placeholder mismatch，并修复批量翻译中被发现的跨条目 newline 污染；
+- 七个旧能力 locale 仅按相同 English semantic value 复用无歧义人工翻译，其余 app2 新语义与 Arabic 形成独立静态词典；production 不 import 旧 app、不含 raw-key/English fallback。机器翻译只作为完整基线，关键简中术语已先行修订，最终 native-language/visual review 仍属于 R11；
+- `ShellPreferences` v2 成为 locale 唯一 owner，首次启动按 `navigator.languages` 解析受支持 BCP 47 locale，严格持久化 theme/accent/locale；Appearance 暴露九种 native-name selector。切换原子替换完整 dictionary，并由 active locale 唯一设置 `html.lang/dir` 与 Intl formatter；Arabic 声明 `rtl`，logical CSS 全面收口仍在下一批，因此 U22 保持 `in_progress`。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

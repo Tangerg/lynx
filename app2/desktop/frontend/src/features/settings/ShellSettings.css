@@ -160,6 +160,26 @@
   --swatch: #7559b9;
 }
 
+.appearance-language {
+  display: grid;
+  width: min(420px, 100%);
+  gap: 7px;
+  color: var(--ink-subtle);
+  font-size: 8px;
+  font-weight: 680;
+}
+
+.appearance-language select {
+  width: 100%;
+  min-height: 42px;
+  padding-inline: 11px 34px;
+  border: 1px solid var(--divider-strong);
+  border-radius: 9px;
+  color: var(--ink);
+  background-color: var(--paper);
+  font: inherit;
+}
+
 .runtime-connection-card,
 .remote-runtime-form {
   padding: 16px;

@@ -7,14 +7,20 @@ import {
 } from "react";
 
 import { englishMessages } from "./messages/en";
+import { localeDefinitions, type Locale, type TextDirection } from "./locales";
+import { useShellPreferences } from "../preferences/ShellPreferences";
+import type {
+  MessageDictionary,
+  MessageKey,
+  MessageValues,
+  Translate,
+} from "./messages/types";
 
-export type MessageKey = keyof typeof englishMessages;
-export type MessageValues = Readonly<Record<string, string | number>>;
-export type Translate = (key: MessageKey, values?: MessageValues) => string;
+export type { MessageDictionary, MessageKey, MessageValues, Translate };
 
 interface LocalizationContextValue {
-  locale: "en";
-  direction: "ltr";
+  locale: Locale;
+  direction: TextDirection;
   t: Translate;
   formatNumber(value: number, options?: Intl.NumberFormatOptions): string;
   formatDateTime(value: Date, options?: Intl.DateTimeFormatOptions): string;
@@ -23,13 +29,14 @@ interface LocalizationContextValue {
 export const translateEnglish: Translate = (key, values) =>
   interpolate(englishMessages[key], values);
 
-const englishLocalization = createLocalization();
+const englishLocalization = createLocalization("en");
 const LocalizationContext = createContext<LocalizationContextValue>(
   englishLocalization,
 );
 
 export function LocalizationProvider({ children }: { children: ReactNode }) {
-  const localization = useMemo(createLocalization, []);
+  const { locale } = useShellPreferences();
+  const localization = useMemo(() => createLocalization(locale), [locale]);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -48,12 +55,12 @@ export function useLocalization() {
   return useContext(LocalizationContext);
 }
 
-function createLocalization(): LocalizationContextValue {
-  const locale = "en" as const;
+function createLocalization(locale: Locale): LocalizationContextValue {
+  const definition = localeDefinitions[locale];
   return {
     locale,
-    direction: "ltr",
-    t: translateEnglish,
+    direction: definition.direction,
+    t: (key, values) => interpolate(definition.messages[key], values),
     formatNumber: (value, options) =>
       new Intl.NumberFormat(locale, options).format(value),
     formatDateTime: (value, options) =>
