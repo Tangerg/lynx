@@ -280,7 +280,8 @@ snapshot 至多一个 `in_progress`。
 
 成功的 `set_plan` 先提交 canonical Plan，再通过 `agentexec` Run-scoped typed fact sink 把该 exact snapshot 绑定到
 同一个 observed ToolCall；runflow 在其 `item.completed` 后投影 authoritative/replayable `plan.updated`。它不解析工具
-参数或字符串 result 反造 Plan。`plan.changed` 仍是无 payload 的冷读失效信号，Desktop 必须回读 `plan.get`。
+参数或字符串 result 反造 Plan。`plan.changed` 仍是无 payload 的冷读失效信号，Desktop 必须回读 `plan.get`，或回读
+显式声明 materialize 该同源事实的 `sessions.snapshot`。
 
 Plan mode 单独持久化为 Session-scoped safety policy，不放进 Plan 聚合，也不改全局 Approval mode。进入后，Run
 catalog 的动态外层 gate 在 approval 之前拒绝 write/exec/network effect；read-only investigation、Plan replacement
@@ -297,5 +298,5 @@ boundary；fork remap 已复制 Run 的 known boundaries，并以所选边界初
 Lyra Plan/Run/Interrupt 合同已经更贴合当前产品，复制其协议只会产生双重真相。
 
 **后果**：Session snapshot/fork/rollback/import/export 统一消费 Plan domain state；`plan.updated` 与 `plan.get` 共享
-committed revision。Plan Runtime 与 tools 在最终统一门禁前只标记 `implemented`，Desktop compact projection 仍是
-R5 的未完成部分。
+committed revision。Desktop compact projection 直接消费 snapshot/`plan.changed`，不创建第二份 Plan state；Plan
+Runtime、tools 与 Desktop 在最终统一门禁前只标记 `implemented`。

@@ -341,6 +341,7 @@ export class LyraClient {
       const close = (reason?: unknown) => {
         detachAbort();
         controller.abort(reason);
+        void frames.return?.(undefined);
       };
       handedOff = true;
       return {

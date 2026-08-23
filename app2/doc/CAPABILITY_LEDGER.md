@@ -1,7 +1,7 @@
 # app2 能力迁移账本
 
 > 基线：2026-08-22；最近更新：2026-08-23。本文是迁移状态的唯一 owner。当前 app2 已完成 R1，并在继续
-> R2–R11 production implementation；R5 的 Plan/Goal Runtime 已到 implemented，Desktop 与最终统一门禁未完成。
+> R2–R11 production implementation；R5 的 Plan/Goal Runtime 与 Desktop consumer 已到 implemented，最终统一门禁未完成。
 > 旧 app 的全绿证据不能冒充 app2 已完成。
 
 ## 1. 状态定义
@@ -79,8 +79,8 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
 | `sessions.changed` | session transaction | Work Index | R2 | specified | create/update/delete/archive/status attention 收敛 |
 | `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
-| `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效；待 Desktop 与最终统一门禁 |
-| `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布；待最终统一门禁 |
+| `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效，Desktop SSE consumer 回读 coherent snapshot；待最终统一门禁 |
+| `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布，Desktop SSE consumer 精确失效；待最终统一门禁 |
 | `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | specified | answer settlement 后 exact pending 消失 |
 | `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
 | `hooks.changed` | hook/trust owner | Hooks settings | R7 | specified | trust/source change 收敛 |
@@ -117,8 +117,8 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U07 | Delegated Run tree/disclosures | agent presentation | R4 | specified | exact lineage、nested/sibling、source-owned plan/tool/usage、exact cancel |
 | U08 | Approval interaction | interrupt context | R4 | specified | 24px request surface、allow once/scope split/deny、edited args、settled exact identity |
 | U09 | Question interaction | interrupt + composer | R4 | specified | one surface、多题顺序、single auto-next、text/multi、explicit Skip、IME |
-| U10 | Plan compact progress | plan context | R5 | specified | ring + N/M，完整 checklist hover/focus，one inProgress，无第二 expand state |
-| U11 | Goal submit/tray/editor | goal + composer | R5 | specified | `/goal` mode、start/update/pause/resume/clear、draft ownership、compact layout、recovery |
+| U10 | Plan compact progress | plan context | R5 | implemented | canonical snapshot 的 ring + N/M、当前步骤、完整 checklist hover/focus；无复制 Plan state；待最终统一门禁 |
+| U11 | Goal submit/tray/editor | goal + composer | R5 | implemented | `/goal` mode、budget、start/update/pause/resume/two-step clear、外部变化不覆盖 draft、SSE recovery；待最终统一门禁 |
 | U12 | Context token gauge | agent projection + model catalog | R3/R8 | specified | authoritative contextTokens、unknown 缺席、terminal/reload/restart/import 保持 |
 | U13 | Context Dock tabs/split/persistence | workspace context | R6 | specified | per-Session open tabs/last view/file target、close/reopen、narrow window capability |
 | U14 | Files/tree/read/head/search | workspace context | R6 | specified | pagination、path truncation、loading/error/empty、syntax highlight、external change |
@@ -204,7 +204,7 @@ Decision: intentional differences from old app
 
 ```text
 Implementation: runtime/{operation,dispatch,rpcwire,httptransport,runtimehost,localruntime,sqlite,cli,contractgen}; desktop/{supervisor,DesktopHost,NativeHost,frontend,Taskfile}
-Contract: protocol 2026-08-21; 1 concrete method; 4 fixed HTTP endpoints; generated manifest/wire/client diff-free
+Contract: protocol 2026-08-21; R1 verified runtime.discover; current 89 registered shapes + 4 fixed HTTP endpoints generated diff-free
 Tests: Runtime/Desktop race+vet+Staticcheck; frontend type+lint+format+7 tests+build; signed package verification
 Recovery: real child SIGKILL -> successor generation; graceful close; corrupt DB/no descriptor; predecessor UI result ignored
 Product: arm64 lyra-app2.app contains sibling lyra-runtime; U01 remains implemented pending R10 visual/native matrix

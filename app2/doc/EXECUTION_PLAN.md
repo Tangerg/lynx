@@ -27,7 +27,7 @@
 | R2 | Workspace + Session 首个完整纵切、snapshot hydration、Work Index、基础 shell | in progress |
 | R3 | root Run + Item stream + Composer + Agent Narrative + durable cold restore | pending |
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | pending |
-| R5 | Plan + Goal 完整生命周期与 UI | in progress（Plan/Goal Runtime 已实现，Desktop 待实现） |
+| R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | pending |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | pending |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
@@ -139,8 +139,9 @@
 - **Implementation**：`app2/runtime` 拥有 protocol/discovery/operation/dispatch/rpcwire/httptransport/
   localruntime/sqlite/runtimehost/cli/contractgen；`app2/desktop` 拥有 supervisor、两个精确 Wails host、
   generated-client frontend 和最小 production package task。
-- **Contract**：canonical Go registry 只发布真实 `runtime.discover`；生成 manifest、TS wire validator/client
-  可重复生成且 `-check` diff-free；现有 89-operation 清单继续只是迁移 oracle。
+- **Contract**：R1 门禁只验证当时已迁移的 `runtime.discover`；当前 canonical Go registry 的 89 个 method shape
+  已在后续批次完整投影为 manifest、TS wire validator/client，并保持可重复生成。注册 shape 本身不冒充对应能力
+  已迁移或 verified。
 - **Tests**：两模块 `go test -race ./...`、`go vet ./...`、固定上游提交的 Staticcheck 全绿；前端
   type/lint/format/7 tests/build 全绿；W3C trace extraction 与 secret-free structured log 有边界测试。
 - **Recovery**：真实 runtime binary 的 descriptor/token/probes/discover/close smoke 通过；supervisor 真实
@@ -244,7 +245,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - restart 先由 runflow 把 predecessor execution 收敛为 `lost`，再把仍 active 的 Goal 显式暂停，绝不暗中续跑；
 - `create_goal`、`get_goal` 常驻，`report_goal_outcome` 只对 exact owned Run 可见；
 - Plan/Goal 均保留现有 Lyra wire；Codex 只提供机制研究，不提供协议或产品语义；
-- 本记录只升到 implemented；Desktop consumer 与最终 R11 统一门禁通过后才可标记 verified。
+- generated Lyra client 从同一 operation registry 投影 89 个 method 的 unary/stream、nullable、幂等与 SSE event
+  边界；Desktop 不维护手写 method shape，也不把 stream 当 unary RPC；
+- Desktop 通过 `sessions.list` 选择 exact Session、由 `sessions.snapshot` 同源读取 Plan/Goal，并消费
+  `runtime.subscribe` 的 `sessions/plan/goals.changed` 做精确失效与有界重连；
+- Plan compact projection 直接计算 canonical checklist 的 ring、N/M 与当前步骤，完整列表仅用 hover/focus
+  disclosure；Goal composer/tray 覆盖 budget、start/update/pause/resume/two-step clear，且远端 objective 变化不覆盖
+  本地 dirty draft；
+- 本记录只升到 implemented；最终 R11 统一门禁通过后才可标记 verified。
 
 ## 10. R6：Workspace 与 Context Dock
 
