@@ -94,12 +94,17 @@ type Bus struct {
 	subscribers         map[uint64]*subscriber
 	userSkillsDirectory string
 	knowledgeFiles      KnowledgeFileSource
+	hookFiles           HookFileSource
 	closed              bool
 	watches             sync.WaitGroup
 }
 
 type KnowledgeFileSource interface {
 	KnowledgeFiles(context.Context, []protocol.WorkspaceRef) ([]string, error)
+}
+
+type HookFileSource interface {
+	HookFiles(context.Context, []protocol.WorkspaceRef) ([]string, error)
 }
 
 type Config struct {
@@ -109,6 +114,8 @@ type Config struct {
 	// KnowledgeFiles resolves the home and selected-workspace LYRA.md documents
 	// observed for subscribers to knowledge.changed.
 	KnowledgeFiles KnowledgeFileSource
+	// HookFiles resolves global and selected-workspace hooks.json documents.
+	HookFiles HookFileSource
 }
 
 func New(config Config) (*Bus, error) {
@@ -127,6 +134,7 @@ func New(config Config) (*Bus, error) {
 		subscribers: make(map[uint64]*subscriber),
 		userSkillsDirectory: directory,
 		knowledgeFiles: config.KnowledgeFiles,
+		hookFiles: config.HookFiles,
 	}, nil
 }
 
@@ -193,7 +201,32 @@ func (bus *Bus) Subscribe(
 		} else if len(files) > 0 && bus.beginWatch() {
 			go func() {
 				defer bus.watches.Done()
-				watchKnowledgeFiles(watchContext, subscription, files)
+				watchExactFiles(
+					watchContext,
+					subscription,
+					files,
+					protocol.TopicKnowledgeChanged,
+				)
+			}()
+		}
+	}
+	if subscription.accepts(protocol.TopicHooksChanged) && bus.hookFiles != nil {
+		workspaces := make([]protocol.WorkspaceRef, 0, len(request.Watches))
+		for _, watch := range request.Watches {
+			workspaces = append(workspaces, watch.Workspace)
+		}
+		files, filesErr := bus.hookFiles.HookFiles(watchContext, workspaces)
+		if filesErr != nil {
+			subscription.emit(resyncTopic(protocol.TopicHooksChanged))
+		} else if len(files) > 0 && bus.beginWatch() {
+			go func() {
+				defer bus.watches.Done()
+				watchExactFiles(
+					watchContext,
+					subscription,
+					files,
+					protocol.TopicHooksChanged,
+				)
 			}()
 		}
 	}
@@ -395,33 +428,31 @@ func watchUserSkills(ctx context.Context, target *subscriber, directory string) 
 	}
 }
 
-func watchKnowledgeFiles(
+func watchExactFiles(
 	ctx context.Context,
 	target *subscriber,
 	files []string,
+	topic protocol.RuntimeTopic,
 ) {
 	targets := make(map[string]struct{}, len(files))
 	directories := make(map[string]struct{}, len(files))
 	for _, path := range files {
 		if !filepath.IsAbs(path) {
-			target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
+			target.emit(resyncTopic(topic))
 			return
 		}
 		path = filepath.Clean(path)
 		targets[path] = struct{}{}
-		directories[filepath.Dir(path)] = struct{}{}
 	}
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
+		target.emit(resyncTopic(topic))
 		return
 	}
 	defer watcher.Close()
-	for directory := range directories {
-		if err := watcher.Add(directory); err != nil {
-			target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
-			return
-		}
+	if err := refreshExactWatchDirectories(watcher, targets, directories); err != nil {
+		target.emit(resyncTopic(topic))
+		return
 	}
 	for {
 		select {
@@ -429,18 +460,101 @@ func watchKnowledgeFiles(
 			if !ok {
 				return
 			}
-			if _, observed := targets[filepath.Clean(event.Name)]; observed {
-				target.emit(protocol.RuntimeEvent{Type: protocol.RuntimeKnowledgeChanged})
+			path := filepath.Clean(event.Name)
+			if exactTargetAffected(path, targets) {
+				target.emit(protocol.RuntimeEvent{Type: protocol.RuntimeEventType(topic)})
+			}
+			if event.Op&(fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
+				if event.Op&(fsnotify.Remove|fsnotify.Rename) != 0 {
+					delete(directories, path)
+				}
+				if err := refreshExactWatchDirectories(
+					watcher,
+					targets,
+					directories,
+				); err != nil {
+					target.emit(resyncTopic(topic))
+					return
+				}
 			}
 		case _, ok := <-watcher.Errors:
 			if !ok {
 				return
 			}
-			target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
+			target.emit(resyncTopic(topic))
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+func exactTargetAffected(path string, targets map[string]struct{}) bool {
+	if _, exact := targets[path]; exact {
+		return true
+	}
+	for target := range targets {
+		relative, err := filepath.Rel(path, target)
+		if err == nil && relative != "." && relative != ".." &&
+			!strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func refreshExactWatchDirectories(
+	watcher *fsnotify.Watcher,
+	targets map[string]struct{},
+	observed map[string]struct{},
+) error {
+	for target := range targets {
+		directory := filepath.Dir(target)
+		for {
+			info, err := os.Stat(directory)
+			if err == nil && info.IsDir() {
+				break
+			}
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			parent := filepath.Dir(directory)
+			if parent == directory {
+				return fmt.Errorf("runtimeevents: exact file %s has no observable ancestor", target)
+			}
+			directory = parent
+		}
+		physical, err := filepath.EvalSymlinks(directory)
+		if err != nil {
+			return err
+		}
+		physical = filepath.Clean(physical)
+		if physical != directory && !exactTargetBelow(physical, targets) {
+			return fmt.Errorf(
+				"runtimeevents: exact file %s changed physical identity",
+				target,
+			)
+		}
+		directory = physical
+		if _, exists := observed[directory]; exists {
+			continue
+		}
+		if err := watcher.Add(directory); err != nil {
+			return err
+		}
+		observed[directory] = struct{}{}
+	}
+	return nil
+}
+
+func exactTargetBelow(directory string, targets map[string]struct{}) bool {
+	for target := range targets {
+		relative, err := filepath.Rel(directory, target)
+		if err == nil && relative != "." && relative != ".." &&
+			!strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 func workspaceSkillChange(relative string) (string, bool) {

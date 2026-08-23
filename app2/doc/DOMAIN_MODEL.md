@@ -332,6 +332,13 @@ provenance，不重复存一份可漂移 metadata。每个 project 的 curation 
 active/user memory。watermark 与 proposal 在同一 transaction 提交，digest duplicate 和 rejected tombstone 都是负证据。terminal Run outcome 与
 event publication 先于非阻塞维护信号，抽取/策展失败只保留 durable backlog，不反向改变 Run 结果。
 
+LifecycleHook 是用户编写的生命周期策略，不属于 generic Capability envelope。global `~/.lyra/hooks.json` 与 projectRoot→cwd
+`.lyra/hooks.json` 形成宽到窄的有序 cascade；每个文件、单个 matcher/action/timeout 及整条 cascade 都有硬边界。Hook event、scope、
+matcher 与 exactly-one `command | inject` 在进入 application 前成为 closed domain value。global 配置属于用户本人；project 配置默认 inert，
+只有 canonical resolved project root 的显式 durable trust 才能激活。管理 inspection 会解析未信任项目以供审计；Run execution 不打开未信任
+项目文件，使恶意或损坏的 cloned config 不能破坏有效 global policy。trust false 由记录缺席表达，重复 trust/revoke 不发布伪 change。
+hooks.json 是 file-owned source；Runtime 只发布 invalidation，不建立第二份可漂移配置镜像。
+
 ## 11. Runtime 生命周期与事件
 
 `RuntimeInstance` 是进程代际，不是业务聚合：每次启动获得新 `instanceId`，同一 durable store 可跨代保持；

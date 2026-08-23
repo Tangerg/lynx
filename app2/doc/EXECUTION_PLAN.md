@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory 含自动维护 production 已实现，待 Hooks、Tool catalog 与最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory production 已实现；Hooks 管理基础已实现，待执行语义、Tool catalog 与最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -555,6 +555,20 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   utility role 可用时用于维护，否则回退 source Run 的 provider/model。单一有界/coalescing worker 归 Runtime lifetime 所有，Close cancel/join；
   失败仅保留 backlog，不改变 Run outcome，不写 LYRA.md，也不扩张现有 Lyra wire；
 - **下一纵切**：Hooks，然后 Tool catalog。
+
+### R7 Hooks 管理 / observation 纵切（已实现，执行语义待下一纵切）
+
+- **独立领域与 owner**：移除 `capabilityflow` 内嵌的一行 JSON parser 与 generic `hook_id='project'` persistence；由 closed
+  `domain/lifecyclehook`、`hookfs`、`hookflow` 分别拥有规则、受限文件 I/O 与 use case。当前 SQLite epoch 9 只以
+  `trusted_hook_projects(project_path, trusted_at)` 表达正向信任，false 是记录缺席；
+- **confined cascade**：global 与 projectRoot→cwd 文件通过 `os.Root` 读取，in-root symlink 可用、escape 被拒绝；同一物理文件只出现一次。
+  JSON 拒绝 unknown/trailing shape，event/scope/matcher/exactly-one action/timeout、单文件 bytes/count、整条 cascade count 均有界；
+- **trust boundary**：`hooks.list` 解析完整 cascade 供用户在执行前审计；`hooks.setTrust` 只接受 list 返回的 canonical resolved project root，
+  changed-only commit 后才发布 `hooks.changed`。effective execution source 在未信任时根本不打开 project hooks，坏配置不能阻断 global hooks；
+- **external convergence**：Runtime event Bus 以 exact logical + confined physical targets 观察 global/project/cwd hooks.json；即使 `.lyra`
+  尚不存在，也从最近 existing ancestor 跟进后续目录/文件创建。watch cancel 与 Bus close 仍由既有 owner join；没有新增常驻 owner；
+- **下一纵切**：实现 bounded command runner，以及 UserPromptSubmit/SessionStart、Pre/PostToolUse、Subagent、Stop/Notification/PreCompact
+  的真实 Run consumer；不能让 broken hook 冻结或篡改既有 Lyra approval/interrupt 语义。
 
 ## 12. R8：Integration 与 Settings
 

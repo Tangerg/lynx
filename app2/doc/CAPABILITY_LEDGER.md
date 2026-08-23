@@ -47,7 +47,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | implemented | `.lyra/skills` 单一内容源、project-first/user lifecycle reconcile、exact immutable proposal review、confined atomic publish、Desktop 三面 consumer 与 external watch 已实现；待最终统一门禁 |
 | O10 | `recipes.list`, `agentDocs.list` | 2 | capability/recipes/docs | R7 | implemented | confined project-first/global Recipe discovery、Desktop slash expansion + actual-payload idempotency、home→root→cwd AgentDoc discovery、fresh-root bounded injection/checkpoint freeze、Resources consumer 与 files invalidation 已实现；待最终统一门禁 |
 | O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | specified | closed transport union、secret set/clear/keep、six states、generation-safe reconnect、auth retention |
-| O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | specified | global/project sources、project trust、event/matcher/timeout、untrusted hook 不执行 |
+| O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | in_progress | 独立 lifecyclehook domain、confined global/root→cwd discovery、strict bounded config、canonical project-root trust、changed-only mutation 已实现；Run lifecycle execution 待下一纵切 |
 | O13 | `approval.getMode`, `approval.setMode`, `approval.listRules`, `approval.forgetRule` | 4 | interaction policy | R4/R8 | specified | safe/balanced/yolo、rule scope/identity、explicit forget、Run decision transcript 独立 |
 | O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | operations/schedule | R8 | specified | cron validation、revision、workspace/model、next run、runNow 返回可导航 Run/Session |
 | O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | implemented | one incarnation、quiesce/CAS、paused/active/blocked/completing、Session cascade、autonomous control 不进 Transcript；待最终统一门禁 |
@@ -84,7 +84,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布，Desktop SSE consumer 精确失效；待最终统一门禁 |
 | `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | implemented | open/resume-consume/waiting-cancel transaction 后发布 exact Session/Run ids；Desktop 精确失效 snapshot，待统一门禁 |
 | `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
-| `hooks.changed` | hook/trust owner | Hooks settings | R7 | specified | trust/source change 收敛 |
+| `hooks.changed` | hook/trust owner | Hooks settings | R7 | implemented | changed-only trust mutation与 global/project/cwd hooks.json exact-file observation 收敛；缺失 parent directory 的后续创建同样可观察，待最终统一门禁 |
 | `models.changed` | provider/catalog owner | model picker/settings | R8 | specified | catalog/role/provider update 收敛 |
 | `approvals.changed` | policy owner | Approval settings | R8 | specified | mode/rules exact invalidation |
 | `agentMemory.changed` | memory owner | Memory view | R7 | implemented | changed-only review/add/update/delete/automatic pending publish；Desktop Runtime-generation query family、acknowledgement-loss cold-read 收敛；待最终统一门禁 |

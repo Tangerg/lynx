@@ -191,5 +191,13 @@ func containedRootToLeaf(root string, leaf string) ([]string, error) {
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return nil, protocol.ErrPathOutsideRoot
 	}
-	return rootToLeaf(root, leaf), nil
+	values := make([]string, 0)
+	for current := leaf; ; current = filepath.Dir(current) {
+		values = append(values, current)
+		if current == root {
+			break
+		}
+	}
+	slices.Reverse(values)
+	return values, nil
 }

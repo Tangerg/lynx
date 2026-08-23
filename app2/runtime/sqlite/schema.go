@@ -258,12 +258,9 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			body TEXT NOT NULL CHECK (json_valid(body)),
 			created_at TEXT NOT NULL
 		) STRICT`,
-		`CREATE TABLE IF NOT EXISTS hook_trust (
-			workspace_path TEXT NOT NULL,
-			hook_id TEXT NOT NULL,
-			trusted INTEGER NOT NULL CHECK (trusted IN (0, 1)),
-			updated_at TEXT NOT NULL,
-			PRIMARY KEY(workspace_path, hook_id)
+		`CREATE TABLE IF NOT EXISTS trusted_hook_projects (
+			project_path TEXT PRIMARY KEY,
+			trusted_at TEXT NOT NULL
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS managed_skills (
 			name TEXT PRIMARY KEY,

@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
+	"github.com/Tangerg/lynx/app2/runtime/hookflow"
 	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
 	"github.com/Tangerg/lynx/app2/runtime/memoryflow"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
@@ -42,6 +43,7 @@ type Runtime struct {
 	goalDriver *goalflow.Driver
 	mcp       *mcpflow.Service
 	capability *capabilityflow.Service
+	hooks *hookflow.Service
 	memory *memoryflow.Service
 	codebase *codebaseflow.Service
 	tools *toolflow.Service
@@ -64,6 +66,7 @@ type Config struct {
 	GoalDriver *goalflow.Driver
 	MCP *mcpflow.Service
 	Capability *capabilityflow.Service
+	Hooks *hookflow.Service
 	Memory *memoryflow.Service
 	Codebase *codebaseflow.Service
 	Tools *toolflow.Service
@@ -71,13 +74,13 @@ type Config struct {
 }
 
 func New(config Config) (*Runtime, error) {
-	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Memory == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
+	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Hooks == nil || config.Memory == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
 		return nil, errors.New("application: all required capability services must be supplied")
 	}
 	return &Runtime{
 		discovery: config.Discovery, sessions: config.Sessions,
 		providers: config.Providers, runs: config.Runs, workspace: config.Workspace,
-		settings: config.Settings, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability, memory: config.Memory,
+		settings: config.Settings, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability, hooks: config.Hooks, memory: config.Memory,
 		codebase: config.Codebase, tools: config.Tools, operations: config.Operations, events: config.Events,
 	}, nil
 }
@@ -462,8 +465,8 @@ func (runtime *Runtime) ApproveSkillProposal(ctx context.Context, request protoc
 func (runtime *Runtime) RejectSkillProposal(ctx context.Context, request protocol.SkillProposalRef) error { err:=runtime.capability.RejectProposal(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeSkillsChanged,Names:[]string{request.Name}})};return err }
 func (runtime *Runtime) ListRecipes(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) { return runtime.capability.Recipes(ctx,request) }
 func (runtime *Runtime) ListAgentDocs(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) { return runtime.capability.AgentDocs(ctx,request) }
-func (runtime *Runtime) ListHooks(ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) { return runtime.capability.ListHooks(ctx,request) }
-func (runtime *Runtime) SetHookTrust(ctx context.Context, request protocol.SetHookTrustRequest) error { err:=runtime.capability.SetHookTrust(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeHooksChanged})};return err }
+func (runtime *Runtime) ListHooks(ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) { return runtime.hooks.List(ctx,request) }
+func (runtime *Runtime) SetHookTrust(ctx context.Context, request protocol.SetHookTrustRequest) error { changed,err:=runtime.hooks.SetTrust(ctx,request);if err==nil&&changed{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeHooksChanged})};return err }
 func (runtime *Runtime) ListKnowledge(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) { return runtime.capability.ListKnowledge(ctx,request) }
 func (runtime *Runtime) GetKnowledge(ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) { return runtime.capability.GetKnowledge(ctx,request) }
 func (runtime *Runtime) UpdateKnowledge(ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) { value,err:=runtime.capability.UpdateKnowledge(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeKnowledgeChanged})};return value,err }

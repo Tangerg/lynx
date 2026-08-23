@@ -24,6 +24,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/dispatch"
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
+	"github.com/Tangerg/lynx/app2/runtime/hookflow"
+	"github.com/Tangerg/lynx/app2/runtime/hookfs"
 	"github.com/Tangerg/lynx/app2/runtime/httptransport"
 	"github.com/Tangerg/lynx/app2/runtime/identity"
 	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
@@ -139,6 +141,16 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	hookSource, err := hookfs.New(config.UserHome)
+	if err != nil {
+		return nil, err
+	}
+	hooks, err := hookflow.New(hookflow.Config{
+		Store: database, Source: hookSource, Resolver: workspaceResolver,
+	})
+	if err != nil {
+		return nil, err
+	}
 	checkpoints := checkpoint.NewStore(filepath.Join(filepath.Dir(config.DatabasePath), "checkpoints"))
 	sessions, err := sessionflow.New(sessionflow.Config{
 		Store: database, IDs: identity.Generator{}, Workspaces: workspaceResolver,
@@ -154,6 +166,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	events, err := runtimeevents.New(runtimeevents.Config{
 		UserSkillsDirectory: filepath.Join(config.UserHome, ".lyra", "skills"),
 		KnowledgeFiles: capabilities,
+		HookFiles: hooks,
 	})
 	if err != nil {
 		return nil, err
@@ -251,7 +264,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
 		Runs: runs, Workspace: workspace, Settings: settings, Interrupts: interrupts, Plans: plans, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
-		Capability: capabilities, Memory: memory, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
+		Capability: capabilities, Hooks: hooks, Memory: memory, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
 	})
 	if err != nil {
 		return nil, err

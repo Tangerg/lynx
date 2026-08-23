@@ -144,7 +144,4 @@ func (database *Database) DeleteSkillProposalRecord(ctx context.Context, workspa
 	return nil
 }
 
-func (database *Database) GetProjectHookTrust(ctx context.Context,project string)(bool,error){var trusted bool;err:=database.database.QueryRowContext(ctx,`SELECT trusted FROM hook_trust WHERE workspace_path=? AND hook_id='project'`,project).Scan(&trusted);if errors.Is(err,sql.ErrNoRows){return false,nil};return trusted,err}
-func (database *Database) SetProjectHookTrust(ctx context.Context,project string,trusted bool)error{_,err:=database.database.ExecContext(ctx,`INSERT INTO hook_trust(workspace_path,hook_id,trusted,updated_at)VALUES(?,'project',?,?) ON CONFLICT(workspace_path,hook_id)DO UPDATE SET trusted=excluded.trusted,updated_at=excluded.updated_at`,project,trusted,encodeTime(time.Now()));return err}
-
 func (database *Database) CreateFeedbackRecord(ctx context.Context,id string,value protocol.FeedbackRequest)error{body,err:=json.Marshal(value);if err!=nil{return err};_,err=database.database.ExecContext(ctx,`INSERT INTO feedback(id,body,created_at)VALUES(?,?,?)`,id,string(body),encodeTime(time.Now()));if err!=nil{return fmt.Errorf("sqlite: create feedback: %w",err)};return nil}
