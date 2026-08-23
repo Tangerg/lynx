@@ -3631,51 +3631,6 @@ input::placeholder {
   line-height: 1.45;
 }
 
-.message-content {
-  min-width: 0;
-  color: var(--ink);
-  font-size: 13px;
-  line-height: 1.68;
-}
-
-.message-content p,
-.reasoning-turn p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.message-content p + p,
-.message-content pre + p,
-.message-content p + pre {
-  margin-top: 11px;
-}
-
-.message-content img {
-  display: block;
-  max-width: min(100%, 560px);
-  max-height: 440px;
-  margin-top: 10px;
-  border-radius: 13px;
-  box-shadow: 0 0 0 1px var(--divider);
-  object-fit: contain;
-}
-
-.message-code,
-.tool-turn pre {
-  max-width: 100%;
-  margin: 10px 0 0;
-  padding: 12px 13px;
-  overflow: auto;
-  border-radius: 11px;
-  color: #e8e4dc;
-  background: #2b2a27;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
 .reasoning-turn,
 .tool-turn {
   padding: 10px 12px;
@@ -3718,6 +3673,20 @@ input::placeholder {
 .tool-turn > p[role="alert"] {
   color: var(--red);
   font-size: 10px;
+}
+
+.tool-turn pre {
+  max-width: 100%;
+  margin: 10px 0 0;
+  padding: 12px 13px;
+  overflow: auto;
+  border-radius: 11px;
+  color: #e8e4dc;
+  background: #2b2a27;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .tool-turn {

@@ -13,6 +13,7 @@ export interface DesktopBinding {
 
 const bootstrapMethod = "main.DesktopHost.Bootstrap";
 const chooseDirectoryMethod = "main.NativeHost.ChooseDirectory";
+const saveImageMethod = "main.NativeHost.SaveImage";
 const openSessionArtifactMethod = "main.NativeHost.OpenSessionArtifact";
 const saveSessionExportMethod = "main.NativeHost.SaveSessionExport";
 const remoteRuntimeMethod = "main.DesktopHost.RemoteRuntime";
@@ -32,6 +33,8 @@ export type SessionArtifactSelection =
 export type SessionExportSaveResult =
   | { type: "saved" }
   | { type: "canceled" };
+
+export type ImageSaveResult = { type: "saved" } | { type: "canceled" };
 
 export interface RemoteRuntimeState {
 	configured: boolean;
@@ -191,6 +194,22 @@ export async function chooseDirectory(
     return { type: "selected", path: value.path };
   }
   throw new TypeError("Desktop returned an invalid directory selection");
+}
+
+export async function saveImage(
+  source: string,
+  binding?: DesktopBinding,
+): Promise<ImageSaveResult> {
+  const activeBinding = binding ?? (await defaultBinding());
+  const value: unknown = await activeBinding.call(saveImageMethod, source);
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, ["type"]) ||
+    (value.type !== "saved" && value.type !== "canceled")
+  ) {
+    throw new TypeError("Desktop returned an invalid image save result");
+  }
+  return { type: value.type };
 }
 
 export async function openSessionArtifact(

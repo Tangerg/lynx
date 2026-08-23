@@ -312,6 +312,11 @@ optimistic compensation 和迟到 settlement；裸 gateway 不能绕过它。
 - follow-to-bottom 有唯一 raw lock；用户 wheel-up 后任何 delta/resize/materialization 都不能抢回 scrollTop；
 - remote text/HTML 一律视为不可信，Markdown allowlist 与 link/image policy 在单一 renderer boundary 实现。
 
+Content renderer 是 Desktop presentation component，不是协议 adapter：它只消费 Lyra `ContentBlock`，不能重定义 message、turn、tool 或
+conversation identity。Markdown AST 负责 semantic material，raw HTML 先 allowlist sanitation；KaTeX、Shiki 与 Mermaid 都是可失败的
+lazy enhancement，失败必须保留 plain source。Markdown URL 不得隐式加载 remote media；inline image 必须同时通过 renderer 轻量 gate 与
+NativeHost authoritative decode gate，原生保存是唯一落盘路径。由此参考产品只提供机制对照，不进入 Lyra Protocol 或组件命名。
+
 ## 9. 可观测性
 
 - request/command 从 Desktop 到 Runtime 传播 W3C trace context；

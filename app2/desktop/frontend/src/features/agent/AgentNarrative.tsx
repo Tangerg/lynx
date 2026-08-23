@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type {
-  ContentBlock,
 	FeedbackRating,
   InterruptResponse,
   Item,
@@ -14,6 +13,8 @@ import type {
 import { InterruptSetCard } from "./InterruptSetCard";
 import { ToolDisclosure } from "./ToolDisclosure";
 import type { LiveToolOutput } from "./agentSessionTypes";
+import { MarkdownContent } from "./content/MarkdownContent";
+import { NarrativeContent } from "./content/NarrativeContent";
 
 interface AgentNarrativeProps {
   sessionTitle: string;
@@ -387,7 +388,7 @@ function NarrativeItem({
 		  data-search-match={activeMatch}
 		>
           <ItemMeta label="You" item={item} run={run} />
-		  <Content content={item.content} highlight={searchQuery} />
+		  <NarrativeContent content={item.content} highlight={searchQuery} />
 		  {historyBoundary ? (
 			<SessionHistoryActions
 			  runId={run.id}
@@ -408,7 +409,7 @@ function NarrativeItem({
 		  data-search-match={activeMatch}
         >
           <ItemMeta label={final ? "Answer" : "Lyra"} item={item} run={run} />
-		  <Content content={item.content} highlight={searchQuery} />
+		  <NarrativeContent content={item.content} highlight={searchQuery} />
           {item.status === "running" ? <TypingMark /> : null}
 		  {final && !child && run?.status === "finished" && item.status === "completed" ? (
 			<FeedbackActions
@@ -433,10 +434,12 @@ function NarrativeItem({
             <span>Reasoning</span>
             <small>{item.status === "running" ? "working" : "complete"}</small>
           </summary>
-		  <NarrativeText
-			text={item.redacted ? "Reasoning was redacted." : item.text ?? ""}
-			highlight={searchQuery}
-		  />
+		  <div className="message-content">
+			<MarkdownContent
+			  source={item.redacted ? "Reasoning was redacted." : item.text ?? ""}
+			  highlight={searchQuery}
+			/>
+		  </div>
           {item.status === "running" ? <TypingMark /> : null}
         </details>
       );
@@ -721,49 +724,6 @@ function SessionHistoryActions(props: {
 			{error ? <p role="alert">{error}</p> : null}
 		</div>
 	);
-}
-
-function Content({
-	content = [],
-	highlight,
-}: {
-	content: ContentBlock[] | undefined;
-	highlight: string;
-}) {
-  return (
-    <div className="message-content">
-      {content.map((block, index) =>
-        block.type === "image" && block.mime && block.data ? (
-          <img
-            key={index}
-            src={`data:${block.mime};base64,${block.data}`}
-            alt="Attached visual"
-            loading="lazy"
-          />
-        ) : (
-		  <NarrativeText key={index} text={block.text ?? ""} highlight={highlight} />
-        ),
-      )}
-    </div>
-  );
-}
-
-function NarrativeText({ text, highlight }: { text: string; highlight: string }) {
-  if (text === "") return null;
-  const blocks = text.split(/```/g);
-  return (
-    <>
-      {blocks.map((block, index) =>
-        index % 2 === 1 ? (
-          <pre key={index} className="message-code">
-            <code>{block.replace(/^\w+\n/, "")}</code>
-          </pre>
-        ) : (
-		  <p key={index}><HighlightedText text={block} query={highlight} /></p>
-        ),
-      )}
-    </>
-  );
 }
 
 function HighlightedText(props: { text: string; query: string }) {

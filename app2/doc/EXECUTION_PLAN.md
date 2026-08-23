@@ -32,7 +32,7 @@
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | implemented（真实 PreCompact producer 已由 R10 compaction 纵切补齐，整体待最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | implemented（production 纵切与全 topic/resync 已闭环，最终统一门禁留到 R11） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | implemented（production 纵切已闭环，最终统一门禁留到 R11） |
-| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（R10a remote/tool/lifecycle production 已实现，内容与产品打磨继续） |
+| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（R10a remote/tool/lifecycle 与 R10b content/media production 已实现，shell product 收口继续） |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
 | R12 | 迁移 CLI/其余 consumer（deferred，本轮不实施） | deferred |
 | R13 | 切换与删除旧 app（deferred，本轮不实施） | deferred |
@@ -822,6 +822,13 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - generated client 只放行 loopback HTTP 或 origin-only HTTPS，不修改 Runtime method、params/result、event 或 error shape；这是 transport deployment 能力，不是复制 Codex handshake；
 - Shell 改为 Runtime-owned background job aggregate，`shell/read_shell_output/stop_shell` 共享 process/output/cancel owner，并在 owner boundary 强制 session identity、终态有界回收；下一 root Run 动态注入仍存活 job ID 与当前 in-progress Plan，不把命令文本或过期状态固化进 summary。LSP 为 workspace-confined lazy server manager，支持 config replacement table 与单文件 mutation 前后新诊断差分；三个 network tools 只有凭据/allowlist 明确配置时才进入 deferred manifest；
 - Conversation 完整 journal 继续 immutable；`conversation_compactions` 只保存可回退的 effective-context projection。真实 candidate 调 `PreCompact` 后由 utility/fallback model 总结，并与 user-visible Compaction Item 原子提交；启动时在 Run recovery 后幂等重排关机窗口遗漏的 candidate；SQLite epoch 提升到 16，Lyra wire shape 不变。
+
+### R10b Content / media 实现记录（尚未统一验证）
+
+- Agent Narrative 不再用 delimiter split 冒充 Markdown parser；Lyra-owned renderer boundary 使用 semantic Markdown + GFM、CJK emphasis/strikethrough、basic raw HTML allowlist 与 single URL policy。raw HTML 在 KaTeX materialization 前清洗，link 只允许 absolute HTTP(S)/mailto 或 fragment，Markdown image 不静默发起不可信 remote fetch；
+- fenced code 拥有 language、copy、wrap 与 plain fallback；Shiki 仅在带语言 code 首次出现时动态加载，未知 language 或加载失败不损失 source。table 使用可聚焦 semantic overflow container；KaTeX 保留横向阅读而不挤坏 Narrative；Mermaid 进入视口前不加载，使用 strict renderer、unique identity 与二次 SVG sanitation，失败回退原始 source；
+- Runtime `ContentBlock` 与 Lyra Protocol 完全不变。Renderer 只接受 allowlisted image MIME、strict base64 与 32 MiB 对应的 encoded bound；相邻图片组成 gallery。lightbox 支持 zoom、前后键、Escape、focus containment、40px+ controls 与 reduced-motion；保存只调用既有 `NativeHost.SaveImage`，由 Go host 再次校验并打开 native save dialog，不建立浏览器 download 或任意路径写入；
+- `react-markdown`/unified、KaTeX、Shiki、Mermaid 是 presentation implementation detail，不形成新的 wire、conversation identity 或参考产品兼容层。U17/U18 到 `implemented`；streaming/large material/a11y/visual/WebKit/package 与 dependency audit 留到 R11 统一门禁。
 
 ## 15. R11：Wave A 全量 parity 与切换
 

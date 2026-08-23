@@ -544,3 +544,22 @@ endpoint contract 的认证语义同步从 `localToken` 收敛为标准 `bearer`
 不是引入第二套 remote protocol。
 P01–P03 remote production path 到 implemented；offline/backoff/manual-local UI、secret rotation、TLS/CORS、slow-client 与 packaged app matrix
 仍由 R10c/R11 完成。
+
+## ADR-A2-038：内容渲染是 Lyra `ContentBlock` 的不可信 presentation boundary
+
+**缺陷与反例**：原有 Desktop 用三反引号 split 区分 prose/code，无法表达 nested Markdown、table、math、diagram，也把未经前端约束的
+inline image 直接拼进 DOM。若复制 Codex/其他参考产品的 Thread/Turn renderer 或直接引入其成套 streaming component，会把外部产品身份、
+协议假设与 lifecycle 一并带入 Lyra；若手写 Markdown parser，则会在 presentation 层长期维护一套残缺语法和安全规则。
+
+**决定**：现有 Lyra `Item.Content []ContentBlock` 是唯一输入合同，不增加 renderer-specific wire。Desktop 建立自有 content components：
+semantic Markdown/GFM/CJK parse 后，raw HTML 经 basic allowlist，URL 由单一 policy 裁决；KaTeX 在清洗后 materialize。code/table/math/diagram
+分别拥有最小 presentation owner，Shiki 与 Mermaid 按需 dynamic import；Mermaid 使用 strict mode、per-instance identity 和二次 SVG sanitation，
+所有 enhancement 失败都回退 source。Markdown image 不自动加载 remote body，媒体只从经过 MIME/base64/size gate 的 image ContentBlock 进入 gallery。
+
+图片落盘仍由既有 `NativeHost.SaveImage` authoritative validation 与 native dialog 完成；renderer 不接收路径、不实现 browser download。
+lightbox 的 zoom/navigation/focus/reduced-motion 属于 transient local state，不写 Query cache、Session 或协议。参考 Codex/Streamdown 的只有 lazy
+enhancement、安全分层与交互机制，不复制协议、component family 或 naming。
+
+**后果**：Lyra Protocol、89 operations、topics/events、SQLite epoch 与 generated contract shape 零变化；新增前端 parser/render dependencies
+只属于 Desktop bundle。U17/U18 到 `implemented`，CSP/bundle budget、streaming incomplete syntax、large payload、keyboard/screen reader、Retina/
+WebKit 与 packaged native save 的证据在 R11 统一产出。

@@ -213,7 +213,8 @@ Wails 只拥有 native shell 和 Runtime bootstrap/supervision，不再叠加第
   Runtime restart 通过 typed query/snapshot 冷恢复，再建立 `runs.subscribe` 和 `runtime.subscribe`。
 
 NativeHost 是独立小合同：窗口/几何、选择绝对工作目录、保存经校验的 inline image。用户取消使用显式
-`canceled` result，不以空字符串或 `false` 冒充成功。
+`canceled` result，不以空字符串或 `false` 冒充成功。图片保存只接受 allowlisted MIME 的 bounded base64 data URL；renderer 不传目标路径，
+NativeHost authoritative decode 后才打开系统 save dialog。该 native concern 不扩张 Lyra Runtime Protocol。
 
 ## 14. Operational probes
 
