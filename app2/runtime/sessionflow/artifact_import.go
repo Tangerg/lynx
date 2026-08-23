@@ -663,6 +663,10 @@ func importRun(portable protocol.ArtifactRun) (rundomain.Run, []byte, error) {
 	if portable.ProtocolProfile != nil {
 		facts.Profile = *portable.ProtocolProfile
 	}
+	facts.TerminalError, err = importArtifactProblem(portable.Outcome.Error)
+	if err != nil {
+		return rundomain.Run{}, nil, invalidArtifact("runs.outcome.error", "%v", err)
+	}
 	body, err := json.Marshal(facts)
 	if err != nil {
 		return rundomain.Run{}, nil, err

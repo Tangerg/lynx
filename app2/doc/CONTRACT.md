@@ -121,7 +121,9 @@ JSON-RPC error；HTTP status 只表达 HTTP admission/transport 是否成立。
 - client disconnect 只 detach subscriber，不隐式 cancel durable Run；
 - cancel 必须是显式 command；
 - 慢 consumer 受到有界队列和写 deadline 保护，不能阻塞其他连接或 Runtime shutdown；
-- terminal state 必须能从 durable read 重建，不能只存在于瞬时 stream。
+- terminal state 必须能从 durable read 重建，不能只存在于瞬时 stream；`timedOut`、`failed`、`lost` 的 exact
+  `ProblemData`（含 provider 分类与 retry hint）与 Run facts 同批持久化，`runs.get/list`、snapshot、export/import 和
+  `segment.finished` 必须投影同一个 terminal problem，不能在冷读时降级成 `internal_error`。
 
 若后续引入优先级调度，必须先有测量数据证明当前 bounds 不足；Codex 的 priority/backpressure 做法是候选机制，
 不是复制目标。

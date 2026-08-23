@@ -744,6 +744,8 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 			problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
 		}
 	}
+	problem = terminalProblem(outcome, problem, detail)
+	facts.TerminalError = cloneProblem(problem)
 	if err := record.Run.Finish(segmentID, outcome, detail, now); err != nil {
 		return
 	}
@@ -1641,9 +1643,15 @@ type runFacts struct {
 	Limits        *protocol.RunLimits         `json:"limits,omitempty"`
 	Profile       protocol.RunProtocolProfile `json:"profile"`
 	EventOrdinal  int                         `json:"eventOrdinal"`
+	TerminalError *protocol.ProblemData       `json:"terminalError,omitempty"`
 }
 
 func makeRecord(value rundomain.Run, facts runFacts) (rundomain.Record, error) {
+	if value.Status() == rundomain.Finished {
+		facts.TerminalError = terminalProblem(value.Outcome(), facts.TerminalError, value.Detail())
+	} else if facts.TerminalError != nil {
+		return rundomain.Record{}, errors.New("runflow: open Run carries a terminal error")
+	}
 	body, err := json.Marshal(facts)
 	if err != nil {
 		return rundomain.Record{}, fmt.Errorf("runflow: encode run facts: %w", err)
@@ -1673,13 +1681,10 @@ func presentRecord(record rundomain.Record) (*protocol.RunRef, error) {
 	}
 	if value.Status() == rundomain.Finished {
 		summary.Outcome = &protocol.RunOutcome{Type: protocol.RunOutcomeType(value.Outcome())}
-		if value.Outcome() == rundomain.Failed || value.Outcome() == rundomain.Lost {
-			problemType := protocol.ProblemInternalError
-			if value.Outcome() == rundomain.Lost {
-				problemType = protocol.ProblemRunLost
-			}
-			summary.Outcome.Error = &protocol.ProblemData{Type: problemType, Detail: value.Detail()}
-		} else {
+		switch value.Outcome() {
+		case rundomain.TimedOut, rundomain.Failed, rundomain.Lost:
+			summary.Outcome.Error = terminalProblem(value.Outcome(), facts.TerminalError, value.Detail())
+		case rundomain.MaxSteps, rundomain.MaxBudget, rundomain.Canceled:
 			summary.Outcome.Detail = value.Detail()
 		}
 	}
@@ -1695,12 +1700,45 @@ func presentRecord(record rundomain.Record) (*protocol.RunRef, error) {
 
 func segmentOutcome(outcome rundomain.Outcome, problem *protocol.ProblemData, detail string) *protocol.SegmentOutcome {
 	result := &protocol.SegmentOutcome{Type: protocol.SegmentOutcomeType(outcome)}
-	if outcome == rundomain.Failed || outcome == rundomain.Lost {
-		result.Error = problem
-	} else {
+	switch outcome {
+	case rundomain.TimedOut, rundomain.Failed, rundomain.Lost:
+		result.Error = terminalProblem(outcome, problem, detail)
+	case rundomain.MaxSteps, rundomain.MaxBudget, rundomain.Canceled:
 		result.Detail = detail
 	}
 	return result
+}
+
+func terminalProblem(outcome rundomain.Outcome, problem *protocol.ProblemData, detail string) *protocol.ProblemData {
+	if problem != nil {
+		return cloneProblem(problem)
+	}
+	problemType := ""
+	switch outcome {
+	case rundomain.TimedOut:
+		problemType = protocol.ProblemTimeout
+	case rundomain.Failed:
+		problemType = protocol.ProblemInternalError
+	case rundomain.Lost:
+		problemType = protocol.ProblemRunLost
+	default:
+		return nil
+	}
+	return &protocol.ProblemData{Type: problemType, Detail: detail}
+}
+
+func cloneProblem(problem *protocol.ProblemData) *protocol.ProblemData {
+	if problem == nil {
+		return nil
+	}
+	cloned := *problem
+	cloned.RequiredCapabilities = slices.Clone(problem.RequiredCapabilities)
+	cloned.Errors = slices.Clone(problem.Errors)
+	if problem.ActiveRun != nil {
+		active := *problem.ActiveRun
+		cloned.ActiveRun = &active
+	}
+	return &cloned
 }
 
 func itemRecord(sessionID string, item protocol.Item, ordinal int) (transcript.Record, error) {

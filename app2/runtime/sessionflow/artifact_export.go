@@ -149,6 +149,10 @@ func exportRun(record rundomain.Record, messageMark int) (protocol.ArtifactRun, 
 		value := facts.Profile
 		profile = &value
 	}
+	outcome, err := artifactOutcome(view.Outcome)
+	if err != nil {
+		return protocol.ArtifactRun{}, err
+	}
 	return protocol.ArtifactRun{
 		ID:              view.ID,
 		SessionID:       view.SessionID,
@@ -161,7 +165,7 @@ func exportRun(record rundomain.Record, messageMark int) (protocol.ArtifactRun, 
 		Metrics:         metrics,
 		ContextTokens:   facts.ContextTokens,
 		ProtocolProfile: profile,
-		Outcome:         artifactOutcome(record.Run),
+		Outcome:         outcome,
 		CreatedAt:       view.CreatedAt,
 		FinishedAt:      view.FinishedAt,
 		UpdatedAt:       record.Run.UpdatedAt(),
@@ -212,46 +216,25 @@ func conversationMarks(material Material) (map[string]int, error) {
 	return marks, nil
 }
 
-func artifactOutcome(value rundomain.Run) protocol.ArtifactOutcome {
-	switch value.Outcome() {
-	case rundomain.Completed:
-		return protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted}
-	case rundomain.TimedOut:
-		return protocol.ArtifactOutcome{
-			Type: protocol.ArtifactOutcomeTimedOut,
-			Error: &protocol.ArtifactProblem{
-				Type: protocol.ArtifactProblemTimeout, Detail: value.Detail(),
-			},
-		}
-	case rundomain.Failed:
-		return protocol.ArtifactOutcome{
-			Type: protocol.ArtifactOutcomeFailed,
-			Error: &protocol.ArtifactProblem{
-				Type: protocol.ArtifactProblemInternalError, Detail: value.Detail(),
-			},
-		}
-	case rundomain.MaxSteps:
-		return protocol.ArtifactOutcome{
-			Type: protocol.ArtifactOutcomeMaxSteps, Detail: value.Detail(),
-		}
-	case rundomain.MaxBudget:
-		return protocol.ArtifactOutcome{
-			Type: protocol.ArtifactOutcomeMaxBudget, Detail: value.Detail(),
-		}
-	case rundomain.Canceled:
-		return protocol.ArtifactOutcome{
-			Type: protocol.ArtifactOutcomeCanceled, Detail: value.Detail(),
-		}
-	case rundomain.Lost:
-		return protocol.ArtifactOutcome{
-			Type: protocol.ArtifactOutcomeLost,
-			Error: &protocol.ArtifactProblem{
-				Type: protocol.ArtifactProblemRunLost, Detail: value.Detail(),
-			},
-		}
-	default:
-		return protocol.ArtifactOutcome{}
+func artifactOutcome(value *protocol.RunOutcome) (protocol.ArtifactOutcome, error) {
+	if value == nil {
+		return protocol.ArtifactOutcome{}, fmt.Errorf("sessionflow: terminal Run has no outcome")
 	}
+	result := protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeType(value.Type)}
+	switch value.Type {
+	case protocol.OutcomeTimedOut, protocol.OutcomeFailed, protocol.OutcomeLost:
+		problem, err := exportArtifactProblem(value.Error)
+		if err != nil {
+			return protocol.ArtifactOutcome{}, err
+		}
+		result.Error = problem
+	case protocol.OutcomeMaxSteps, protocol.OutcomeMaxBudget, protocol.OutcomeCanceled:
+		result.Detail = value.Detail
+	case protocol.OutcomeCompleted:
+	default:
+		return protocol.ArtifactOutcome{}, fmt.Errorf("sessionflow: terminal Run has unknown outcome %q", value.Type)
+	}
+	return result, nil
 }
 
 func convertJSON(source, target any) error {

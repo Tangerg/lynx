@@ -145,6 +145,67 @@ func TestPublicRunLifecycleNormalQuestionApprovalAndDelegation(t *testing.T) {
 		}
 	})
 
+	t.Run("provider failure", func(t *testing.T) {
+		session := createRunSession(t, runtime.baseURL, namespace, "provider-failure")
+		ack, events := rpcRunStream[*protocol.StartRunResponse](
+			t, runtime.baseURL, "runs.start", protocol.StartRunRequest{
+				SessionID: session.ID,
+				Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "SCENARIO_PROVIDER_FAILURE"}},
+				Provider:  "openai-compatible", Model: "test-model",
+			}, meta, "provider-failure-run", namespace,
+		)
+		if !streamFailedWith(events, ack.RunID, protocol.ProblemProviderUnavailable) {
+			t.Fatalf("provider failure stream = %+v", events)
+		}
+		run := rpcCallWithMeta[*protocol.RunRef](
+			t, runtime.baseURL, "runs.get", protocol.GetRunRequest{RunID: ack.RunID}, meta,
+		)
+		if run.Status != protocol.RunStatusFinished || run.Outcome == nil ||
+			run.Outcome.Type != protocol.OutcomeFailed || run.Outcome.Error == nil ||
+			run.Outcome.Error.Type != protocol.ProblemProviderUnavailable {
+			t.Fatalf("provider failure Run status = %q, outcome = %+v, error = %+v", run.Status, run.Outcome, run.Outcome.Error)
+		}
+		exported := rpcCall[*protocol.ExportSessionResponse](
+			t, runtime.baseURL, "sessions.export", protocol.ExportSessionRequest{
+				SessionID: session.ID, Format: protocol.ExportFormatJSON,
+			}, "", "",
+		)
+		if exported.Artifact == nil || len(exported.Artifact.Runs) != 1 ||
+			exported.Artifact.Runs[0].Outcome.Error == nil ||
+			exported.Artifact.Runs[0].Outcome.Error.Type != protocol.ArtifactProblemProviderUnavailable {
+			t.Fatalf("provider failure artifact = %+v", exported.Artifact)
+		}
+		rpcCall[struct{}](
+			t, runtime.baseURL, "sessions.delete", protocol.DeleteSessionRequest{SessionID: session.ID},
+			"provider-failure-delete", namespace,
+		)
+		rpcCall[*protocol.ImportSessionResponse](
+			t, runtime.baseURL, "sessions.import", protocol.ImportSessionRequest{Artifact: *exported.Artifact},
+			"provider-failure-import", namespace,
+		)
+		restored := rpcCallWithMeta[*protocol.RunRef](
+			t, runtime.baseURL, "runs.get", protocol.GetRunRequest{RunID: ack.RunID}, meta,
+		)
+		if restored.Outcome == nil || restored.Outcome.Error == nil ||
+			restored.Outcome.Error.Type != protocol.ProblemProviderUnavailable {
+			t.Fatalf("restored provider failure Run = %+v", restored.Outcome)
+		}
+	})
+
+	t.Run("MCP failure", func(t *testing.T) {
+		result := rpcCallWithMeta[*protocol.MCPTestResult](
+			t, runtime.baseURL, "mcp.servers.test", protocol.MCPServerCandidate{
+				Name: "unreachable", Enabled: true, TimeoutSeconds: 1,
+				Connection: protocol.MCPConnectionInput{
+					Type: protocol.MCPTransportStreamableHTTP, URL: "http://127.0.0.1:1",
+				},
+			}, meta,
+		)
+		if result.OK || result.Error == nil || result.Error.Type != protocol.ProblemMCPDialFailed {
+			t.Fatalf("MCP failure result = %+v", result)
+		}
+	})
+
 	if model.calls.Load() == 0 {
 		t.Fatal("model server received no calls")
 	}
@@ -347,6 +408,7 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 			ClientCapabilities: &protocol.ClientCapabilities{
 				Features: map[string]protocol.FeaturePreference{
 					protocol.FeatureSubagents: {Enabled: true},
+					protocol.FeatureMCP:       {Enabled: true},
 				},
 				InterruptTypes: []protocol.InterruptType{
 					protocol.InterruptApproval, protocol.InterruptQuestion,
@@ -578,6 +640,17 @@ func streamSettledWith(events []protocol.RunEvent, runID string, outcome protoco
 	return false
 }
 
+func streamFailedWith(events []protocol.RunEvent, runID string, problemType string) bool {
+	for _, event := range events {
+		if event.RunID == runID && event.Event.Type == protocol.StreamSegmentFinished &&
+			event.Event.Outcome != nil && event.Event.Outcome.Type == protocol.SegmentFailed &&
+			event.Event.Outcome.Error != nil && event.Event.Outcome.Error.Type == problemType {
+			return true
+		}
+	}
+	return false
+}
+
 func assertFinishedRun(t *testing.T, baseURL string, runID string, meta protocol.RequestMeta) {
 	t.Helper()
 	run := rpcCallWithMeta[*protocol.RunRef](
@@ -657,6 +730,8 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 				writeScenarioToolStream(response, "call-delegate", "delegate_task", `{"summary":"Independent child","instructions":"SCENARIO_CHILD"}`)
 			case strings.Contains(material, "SCENARIO_DELEGATE"):
 				writeScenarioTextStream(response, "delegation complete")
+			case strings.Contains(material, "SCENARIO_PROVIDER_FAILURE"):
+				http.Error(response, "provider temporarily unavailable", http.StatusServiceUnavailable)
 			default:
 				writeScenarioTextStream(response, "normal complete")
 			}

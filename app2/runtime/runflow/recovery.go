@@ -267,6 +267,7 @@ func (service *Service) projectLostTree(
 			return recoveryTreeProjection{}, err
 		}
 		problem := &protocol.ProblemData{Type: protocol.ProblemRunLost, Detail: lostRunDetail}
+		facts.TerminalError = cloneProblem(problem)
 		finished, err := service.event(record.Run.ID(), segmentID, &facts, protocol.StreamEvent{
 			Type:    protocol.StreamSegmentFinished,
 			Outcome: segmentOutcome(rundomain.Lost, problem, ""), Metrics: &facts.Metrics,

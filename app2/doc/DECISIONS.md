@@ -669,3 +669,20 @@ Run reattach 证据；完整 race/fault 总门禁通过前相关 operations 仍�
 **后果**：没有删除用户能力，也不改变 Runtime 89-method protocol；只是删除重复的模型调用语法，使账本、approval、
 Hook、progressive discovery 与执行表面重新一致。新增内置 Tool 必须先更新 ADR/ledger 与 exact inventory test，不能因
 底层库已经提供就自动暴露。
+
+## ADR-A2-045：terminal problem 是 durable Run fact，不由冷读猜测
+
+**缺陷与反例**：R11 provider fault 黑盒发现，同一个失败的实时 `segment.finished` 正确携带
+`provider_unavailable`，但 `runs.get` 只根据 domain outcome=`failed` 猜成 `internal_error`；Session snapshot 与
+JSON artifact 也经过另一份猜测逻辑。transport reconnect、restart 或 export/import 后，用户因此会看到与实时流不同的
+错误分类。盘点同时发现 `timedOut` 冷读和 Segment 投影把 detail 放在协议禁止的位置，而没有 required Error。
+
+**决定**：Run domain 继续只拥有 lifecycle outcome，不 import protocol；runflow 的 durable facts 与 metrics/profile 同批
+保存 exact terminal `ProblemData`。`timedOut`、`failed`、`lost` 都通过一个 terminal projection 产生 Error，分别以
+`timeout`、已分类 failure、`run_lost` 为 fallback；completed 不携带 detail，maxSteps/maxBudget/canceled 才携带 optional
+detail。Session material presenter 与 artifact exporter 读取同一 fact，artifact import 把 portable problem 恢复回该 fact，
+不建立第二套错误表或从 provider 文案反推类型。
+
+**后果**：Lyra method、union、problem vocabulary、protocol version、SQLite table 与 artifact v2 shape 均不变化；这是对
+既有合同的持久化落实。R11 用 provider 503 的 public HTTP/SSE→`runs.get`→export/delete/import→`runs.get` round-trip、
+MCP dial failure，以及 timedOut/failed/lost wire-valid unit matrix 锁定实时、冷读与迁移语义一致。

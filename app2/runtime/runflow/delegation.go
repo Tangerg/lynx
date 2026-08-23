@@ -433,6 +433,8 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 	if output.ContextTokens > 0 {
 		childFacts.ContextTokens = output.ContextTokens
 	}
+	problem = terminalProblem(outcome, problem, output.Detail)
+	childFacts.TerminalError = cloneProblem(problem)
 	projection, err := service.projectExecution(ctx, child, output.SegmentID, agentexec.Output{
 		Text: output.Reply, Usage: output.Usage, ModelCalls: output.ModelCalls,
 		ContextTokens: output.ContextTokens, Models: output.Models, Tools: output.Tools,

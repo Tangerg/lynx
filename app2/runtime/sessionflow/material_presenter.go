@@ -14,6 +14,7 @@ type materialRunFacts struct {
 	Limits        *protocol.RunLimits         `json:"limits,omitempty"`
 	Profile       protocol.RunProtocolProfile `json:"profile"`
 	EventOrdinal  int                         `json:"eventOrdinal"`
+	TerminalError *protocol.ProblemData       `json:"terminalError,omitempty"`
 }
 
 func presentMaterialRun(record rundomain.Record) (*protocol.RunRef, error) {
@@ -36,12 +37,10 @@ func presentMaterialRun(record rundomain.Record) (*protocol.RunRef, error) {
 	}
 	if value.Status() == rundomain.Finished {
 		summary.Outcome = &protocol.RunOutcome{Type: protocol.RunOutcomeType(value.Outcome())}
-		if value.Outcome() == rundomain.Failed {
-			summary.Outcome.Error = &protocol.ProblemData{
-				Type:   protocol.ProblemInternalError,
-				Detail: value.Detail(),
-			}
-		} else {
+		switch value.Outcome() {
+		case rundomain.TimedOut, rundomain.Failed, rundomain.Lost:
+			summary.Outcome.Error = materialTerminalProblem(value, facts.TerminalError)
+		case rundomain.MaxSteps, rundomain.MaxBudget, rundomain.Canceled:
 			summary.Outcome.Detail = value.Detail()
 		}
 	}
@@ -57,6 +56,21 @@ func presentMaterialRun(record rundomain.Record) (*protocol.RunRef, error) {
 		result.ProtocolProfile = facts.Profile
 	}
 	return result, nil
+}
+
+func materialTerminalProblem(value rundomain.Run, stored *protocol.ProblemData) *protocol.ProblemData {
+	if stored != nil {
+		cloned := *stored
+		return &cloned
+	}
+	problemType := protocol.ProblemInternalError
+	switch value.Outcome() {
+	case rundomain.TimedOut:
+		problemType = protocol.ProblemTimeout
+	case rundomain.Lost:
+		problemType = protocol.ProblemRunLost
+	}
+	return &protocol.ProblemData{Type: problemType, Detail: value.Detail()}
 }
 
 func decodeMaterialFacts(body []byte) (materialRunFacts, error) {
