@@ -137,12 +137,18 @@ function questionResponse(
     if (field.type === "text") {
       const answer = draft.values[index]?.[0]?.trim() ?? "";
       if (answer === "") {
-        throw new InterruptResponseValidationError("textAnswerRequired", field.prompt);
+        throw new InterruptResponseValidationError(
+          "textAnswerRequired",
+          field.prompt,
+        );
       }
       return [answer];
     }
     if (field.type !== "choice") {
-      throw new InterruptResponseValidationError("unsupportedQuestionField", field.type);
+      throw new InterruptResponseValidationError(
+        "unsupportedQuestionField",
+        field.type,
+      );
     }
     const selected = (draft.values[index] ?? [])
       .map((value) => value.trim())
@@ -153,10 +159,16 @@ function questionResponse(
         ? selected
         : [...selected, custom];
     if (values.length === 0) {
-      throw new InterruptResponseValidationError("choiceRequired", field.prompt);
+      throw new InterruptResponseValidationError(
+        "choiceRequired",
+        field.prompt,
+      );
     }
     if (!field.multiple && values.length !== 1) {
-      throw new InterruptResponseValidationError("singleChoiceRequired", field.prompt);
+      throw new InterruptResponseValidationError(
+        "singleChoiceRequired",
+        field.prompt,
+      );
     }
     return values;
   });

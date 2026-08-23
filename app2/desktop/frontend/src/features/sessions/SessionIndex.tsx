@@ -33,8 +33,8 @@ interface SessionIndexProps {
     patch: { title?: string; favorite?: boolean },
   ) => Promise<Session>;
   onRemove: (session: Session) => Promise<unknown>;
-	onFork: (session: Session) => Promise<unknown>;
-	onExport: (session: Session, format: "json" | "md") => Promise<unknown>;
+  onFork: (session: Session) => Promise<unknown>;
+  onExport: (session: Session, format: "json" | "md") => Promise<unknown>;
   onRetry: () => void;
   onLoadMore: () => void;
   searchInputRef?: Ref<HTMLInputElement>;
@@ -100,10 +100,9 @@ export function SessionIndex(props: SessionIndexProps) {
         ) : null}
       </label>
       <span className="sr-only" aria-live="polite">
-        {t(
-          visible.length === 1 ? "session.shownOne" : "session.shownMany",
-          { count: visible.length },
-        )}
+        {t(visible.length === 1 ? "session.shownOne" : "session.shownMany", {
+          count: visible.length,
+        })}
       </span>
       {props.error ? (
         <p className="session-refresh-warning" role="status">
@@ -139,8 +138,8 @@ export function SessionIndex(props: SessionIndexProps) {
                   onSelect={props.onSelect}
                   onUpdate={props.onUpdate}
                   onRemove={props.onRemove}
-				  onFork={props.onFork}
-				  onExport={props.onExport}
+                  onFork={props.onFork}
+                  onExport={props.onExport}
                 />
               ))}
             </section>
@@ -170,8 +169,8 @@ function SessionRow(props: {
   onSelect: (sessionId: string) => void;
   onUpdate: SessionIndexProps["onUpdate"];
   onRemove: SessionIndexProps["onRemove"];
-	onFork: SessionIndexProps["onFork"];
-	onExport: SessionIndexProps["onExport"];
+  onFork: SessionIndexProps["onFork"];
+  onExport: SessionIndexProps["onExport"];
 }) {
   const { formatDateTime, t } = useLocalization();
   const actionMenu = useActionMenu<
@@ -222,7 +221,9 @@ function SessionRow(props: {
   const toggleFavorite = async () => {
     setError(undefined);
     try {
-      await props.onUpdate(props.session, { favorite: !props.session.favorite });
+      await props.onUpdate(props.session, {
+        favorite: !props.session.favorite,
+      });
       actionMenu.close({ restoreFocus: true });
     } catch (failure) {
       setError(failure);
@@ -240,30 +241,27 @@ function SessionRow(props: {
       setError(failure);
     }
   };
-	const fork = async () => {
-		setError(undefined);
-		try {
-			await props.onFork(props.session);
-			actionMenu.close();
-		} catch (failure) {
-			setError(failure);
-		}
-	};
-	const exportAs = async (format: "json" | "md") => {
-		setError(undefined);
-		try {
-			await props.onExport(props.session, format);
-			actionMenu.close({ restoreFocus: true });
-		} catch (failure) {
-			setError(failure);
-		}
-	};
+  const fork = async () => {
+    setError(undefined);
+    try {
+      await props.onFork(props.session);
+      actionMenu.close();
+    } catch (failure) {
+      setError(failure);
+    }
+  };
+  const exportAs = async (format: "json" | "md") => {
+    setError(undefined);
+    try {
+      await props.onExport(props.session, format);
+      actionMenu.close({ restoreFocus: true });
+    } catch (failure) {
+      setError(failure);
+    }
+  };
 
   return (
-    <article
-      className="session-row"
-      data-selected={props.selected}
-    >
+    <article className="session-row" data-selected={props.selected}>
       {renaming ? (
         <form
           className="session-rename-form"
@@ -390,15 +388,30 @@ function SessionRow(props: {
                 ? t("session.removeFavorite")
                 : t("session.favorite")}
             </button>
-			<button type="button" role="menuitem" disabled={props.busy} onClick={() => void fork()}>
-				{t("session.fork")}
-			</button>
-			<button type="button" role="menuitem" disabled={props.busy} onClick={() => void exportAs("json")}>
-				{t("session.exportJSON")}
-			</button>
-			<button type="button" role="menuitem" disabled={props.busy} onClick={() => void exportAs("md")}>
-				{t("session.exportMarkdown")}
-			</button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={props.busy}
+              onClick={() => void fork()}
+            >
+              {t("session.fork")}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={props.busy}
+              onClick={() => void exportAs("json")}
+            >
+              {t("session.exportJSON")}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={props.busy}
+              onClick={() => void exportAs("md")}
+            >
+              {t("session.exportMarkdown")}
+            </button>
             <button
               className={confirmDelete ? "confirm-delete" : undefined}
               type="button"
@@ -406,9 +419,7 @@ function SessionRow(props: {
               disabled={props.busy}
               onClick={() => void remove()}
             >
-              {confirmDelete
-                ? t("session.confirmDelete")
-                : t("session.delete")}
+              {confirmDelete ? t("session.confirmDelete") : t("session.delete")}
             </button>
             {error ? (
               <p role="alert">{messageOf(error, t("session.changeFailed"))}</p>
@@ -465,7 +476,8 @@ function navigateSessions(
     (session) => session.id === control.dataset.sessionId,
   );
   let next = current;
-  if (event.key === "ArrowDown") next = Math.min(current + 1, sessions.length - 1);
+  if (event.key === "ArrowDown")
+    next = Math.min(current + 1, sessions.length - 1);
   else if (event.key === "ArrowUp") next = Math.max(current - 1, 0);
   else if (event.key === "Home") next = 0;
   else if (event.key === "End") next = sessions.length - 1;

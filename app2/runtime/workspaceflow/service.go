@@ -23,7 +23,7 @@ import (
 const (
 	defaultReadBytes = 1 << 20
 	maxReadBytes     = 8 << 20
-	maxSearchFile   = 2 << 20
+	maxSearchFile    = 2 << 20
 )
 
 type Resolver interface {

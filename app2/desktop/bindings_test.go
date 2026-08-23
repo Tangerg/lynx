@@ -14,8 +14,29 @@ func TestWailsServicesExposeOnlyReviewedMethods(t *testing.T) {
 		typeOf reflect.Type
 		want   []string
 	}{
-		{name: "DesktopHost", typeOf: reflect.TypeFor[*DesktopHost](), want: []string{"Bootstrap"}},
-		{name: "NativeHost", typeOf: reflect.TypeFor[*NativeHost](), want: []string{"ChooseDirectory", "SaveImage", "WindowChrome"}},
+		{
+			name:   "DesktopHost",
+			typeOf: reflect.TypeFor[*DesktopHost](),
+			want: []string{
+				"Bootstrap",
+				"ConnectRemoteRuntime",
+				"ForgetRemoteRuntime",
+				"RemoteRuntime",
+				"UseLocalRuntime",
+				"UseRemoteRuntime",
+			},
+		},
+		{
+			name:   "NativeHost",
+			typeOf: reflect.TypeFor[*NativeHost](),
+			want: []string{
+				"ChooseDirectory",
+				"OpenSessionArtifact",
+				"SaveImage",
+				"SaveSessionExport",
+				"WindowChrome",
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

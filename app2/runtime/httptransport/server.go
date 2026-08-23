@@ -38,7 +38,7 @@ type Dispatcher interface {
 type EndpointAuthentication string
 
 const (
-	AuthenticationNone       EndpointAuthentication = "none"
+	AuthenticationNone   EndpointAuthentication = "none"
 	AuthenticationBearer EndpointAuthentication = "bearer"
 )
 
@@ -206,7 +206,9 @@ func (server *Server) ServeTLS(listener net.Listener, certificatePath, privateKe
 	server.served = true
 	server.serveMu.Unlock()
 	err := server.httpServer.ServeTLS(listener, certificatePath, privateKeyPath)
-	if errors.Is(err, http.ErrServerClosed) { return nil }
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
 	return err
 }
 

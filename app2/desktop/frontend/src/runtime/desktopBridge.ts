@@ -42,26 +42,22 @@ const useRemoteRuntimeMethod = "main.DesktopHost.UseRemoteRuntime";
 const forgetRemoteRuntimeMethod = "main.DesktopHost.ForgetRemoteRuntime";
 
 export type DirectorySelection =
-  | { type: "selected"; path: string }
-  | { type: "canceled" };
+  { type: "selected"; path: string } | { type: "canceled" };
 
 export type SessionArtifactSelection =
-  | { type: "selected"; contents: string }
-  | { type: "canceled" };
+  { type: "selected"; contents: string } | { type: "canceled" };
 
-export type SessionExportSaveResult =
-  | { type: "saved" }
-  | { type: "canceled" };
+export type SessionExportSaveResult = { type: "saved" } | { type: "canceled" };
 
 export type ImageSaveResult = { type: "saved" } | { type: "canceled" };
 
 export interface RemoteRuntimeState {
-	configured: boolean;
-	active: boolean;
-	connected: boolean;
-	endpoint?: string;
-	serverName?: string;
-	detail?: string;
+  configured: boolean;
+  active: boolean;
+  connected: boolean;
+  endpoint?: string;
+  serverName?: string;
+  detail?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -103,17 +99,19 @@ function parseConnection(value: unknown): RuntimeConnection {
     throw new DesktopBridgeError("invalidRuntimeBootstrap");
   }
   const endpoint = new URL(value.endpoint);
-  const local = endpoint.protocol === "http:" && ["127.0.0.1", "[::1]"].includes(endpoint.hostname);
+  const local =
+    endpoint.protocol === "http:" &&
+    ["127.0.0.1", "[::1]"].includes(endpoint.hostname);
   const remote = endpoint.protocol === "https:" && endpoint.hostname !== "";
   if (
-	(!local && !remote) ||
+    (!local && !remote) ||
     endpoint.pathname !== "/" ||
     endpoint.search !== "" ||
     endpoint.hash !== "" ||
     endpoint.username !== "" ||
     endpoint.password !== ""
   ) {
-	throw new DesktopBridgeError("unsafeRuntimeEndpoint");
+    throw new DesktopBridgeError("unsafeRuntimeEndpoint");
   }
   return {
     endpoint: endpoint.origin,
@@ -147,90 +145,97 @@ export async function loadDesktopBootstrap(
 }
 
 export async function remoteRuntimeState(binding?: DesktopBinding) {
-	const activeBinding = binding ?? (await defaultBinding());
-	return parseRemoteRuntimeState(await activeBinding.call(remoteRuntimeMethod));
+  const activeBinding = binding ?? (await defaultBinding());
+  return parseRemoteRuntimeState(await activeBinding.call(remoteRuntimeMethod));
 }
 
 export async function connectRemoteRuntime(
-	endpoint: string,
-	token: string,
-	binding?: DesktopBinding,
+  endpoint: string,
+  token: string,
+  binding?: DesktopBinding,
 ) {
-	const activeBinding = binding ?? (await defaultBinding());
-	return parseRemoteRuntimeState(
-		await activeBinding.call(connectRemoteRuntimeMethod, endpoint, token),
-	);
+  const activeBinding = binding ?? (await defaultBinding());
+  return parseRemoteRuntimeState(
+    await activeBinding.call(connectRemoteRuntimeMethod, endpoint, token),
+  );
 }
 
 export async function useLocalRuntime(binding?: DesktopBinding) {
-	const activeBinding = binding ?? (await defaultBinding());
-	return parseRemoteRuntimeState(await activeBinding.call(useLocalRuntimeMethod));
+  const activeBinding = binding ?? (await defaultBinding());
+  return parseRemoteRuntimeState(
+    await activeBinding.call(useLocalRuntimeMethod),
+  );
 }
 
 export async function useRemoteRuntime(binding?: DesktopBinding) {
-	const activeBinding = binding ?? (await defaultBinding());
-	return parseRemoteRuntimeState(await activeBinding.call(useRemoteRuntimeMethod));
+  const activeBinding = binding ?? (await defaultBinding());
+  return parseRemoteRuntimeState(
+    await activeBinding.call(useRemoteRuntimeMethod),
+  );
 }
 
 export async function forgetRemoteRuntime(binding?: DesktopBinding) {
-	const activeBinding = binding ?? (await defaultBinding());
-	return parseRemoteRuntimeState(await activeBinding.call(forgetRemoteRuntimeMethod));
+  const activeBinding = binding ?? (await defaultBinding());
+  return parseRemoteRuntimeState(
+    await activeBinding.call(forgetRemoteRuntimeMethod),
+  );
 }
 
 function parseRemoteRuntimeState(value: unknown): RemoteRuntimeState {
-	const allowedKeys = new Set([
-		"configured",
-		"active",
-		"connected",
-		"endpoint",
-		"serverName",
-		"detail",
-	]);
-	if (
-		!isRecord(value) ||
-		!["configured", "active", "connected"].every((key) => key in value) ||
-		!Object.keys(value).every((key) => allowedKeys.has(key)) ||
-		typeof value.configured !== "boolean" ||
-		typeof value.active !== "boolean" ||
-		typeof value.connected !== "boolean" ||
-		(value.endpoint !== undefined && typeof value.endpoint !== "string") ||
-		(value.serverName !== undefined && typeof value.serverName !== "string") ||
-		(value.detail !== undefined && typeof value.detail !== "string")
-	) {
-		throw new DesktopBridgeError("invalidRemoteRuntimeState");
-	}
-	if (
-		(value.active && !value.configured) ||
-		(value.connected && !value.active) ||
-		value.configured !== (value.endpoint !== undefined) ||
-		value.configured !== (value.serverName !== undefined) ||
-		(value.endpoint !== undefined && !isSafeRemoteOrigin(value.endpoint)) ||
-		(value.serverName !== undefined &&
-			(value.serverName.trim() !== value.serverName || value.serverName === "")) ||
-		(value.detail !== undefined &&
-			(value.detail.trim() !== value.detail || value.detail.length > 4_096))
-	) {
-		throw new DesktopBridgeError("inconsistentRemoteRuntimeState");
-	}
-	return value as unknown as RemoteRuntimeState;
+  const allowedKeys = new Set([
+    "configured",
+    "active",
+    "connected",
+    "endpoint",
+    "serverName",
+    "detail",
+  ]);
+  if (
+    !isRecord(value) ||
+    !["configured", "active", "connected"].every((key) => key in value) ||
+    !Object.keys(value).every((key) => allowedKeys.has(key)) ||
+    typeof value.configured !== "boolean" ||
+    typeof value.active !== "boolean" ||
+    typeof value.connected !== "boolean" ||
+    (value.endpoint !== undefined && typeof value.endpoint !== "string") ||
+    (value.serverName !== undefined && typeof value.serverName !== "string") ||
+    (value.detail !== undefined && typeof value.detail !== "string")
+  ) {
+    throw new DesktopBridgeError("invalidRemoteRuntimeState");
+  }
+  if (
+    (value.active && !value.configured) ||
+    (value.connected && !value.active) ||
+    value.configured !== (value.endpoint !== undefined) ||
+    value.configured !== (value.serverName !== undefined) ||
+    (value.endpoint !== undefined && !isSafeRemoteOrigin(value.endpoint)) ||
+    (value.serverName !== undefined &&
+      (value.serverName.trim() !== value.serverName ||
+        value.serverName === "")) ||
+    (value.detail !== undefined &&
+      (value.detail.trim() !== value.detail || value.detail.length > 4_096))
+  ) {
+    throw new DesktopBridgeError("inconsistentRemoteRuntimeState");
+  }
+  return value as unknown as RemoteRuntimeState;
 }
 
 function isSafeRemoteOrigin(value: string) {
-	try {
-		const endpoint = new URL(value);
-		return (
-			endpoint.protocol === "https:" &&
-			value.trim() === value &&
-			endpoint.hostname !== "" &&
-			endpoint.pathname === "/" &&
-			endpoint.search === "" &&
-			endpoint.hash === "" &&
-			endpoint.username === "" &&
-			endpoint.password === ""
-		);
-	} catch {
-		return false;
-	}
+  try {
+    const endpoint = new URL(value);
+    return (
+      endpoint.protocol === "https:" &&
+      value.trim() === value &&
+      endpoint.hostname !== "" &&
+      endpoint.pathname === "/" &&
+      endpoint.search === "" &&
+      endpoint.hash === "" &&
+      endpoint.username === "" &&
+      endpoint.password === ""
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function chooseDirectory(

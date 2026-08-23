@@ -9,16 +9,25 @@ export const japaneseMessages = {
   "app.useLocalRuntime": "ローカルの Runtime を使用します",
   "app.switchingRuntime": "切り替え中…",
   "app.unknownStartupError": "不明なエラーにより起動が中断されました。",
-  "runtimeError.invalidRuntimeBootstrap": "デスクトップは無効なRuntimeブートストラップを返しました。",
-  "runtimeError.unsafeRuntimeEndpoint": "デスクトップが安全でない Runtime エンドポイントを返しました。",
+  "runtimeError.invalidRuntimeBootstrap":
+    "デスクトップは無効なRuntimeブートストラップを返しました。",
+  "runtimeError.unsafeRuntimeEndpoint":
+    "デスクトップが安全でない Runtime エンドポイントを返しました。",
   "runtimeError.hostUnavailable": "Lyra Desktop ホストが利用できません。",
-  "runtimeError.invalidBootstrapEnvelope": "デスクトップは無効なブートストラップ エンベロープを返しました。",
-  "runtimeError.invalidRemoteRuntimeState": "デスクトップは無効なリモート Runtime 状態を返しました。",
-  "runtimeError.inconsistentRemoteRuntimeState": "デスクトップは、一貫性のないリモート Runtime 状態を返しました。",
-  "runtimeError.invalidDirectorySelection": "デスクトップは無効なディレクトリ選択を返しました。",
-  "runtimeError.invalidImageSaveResult": "デスクトップは無効な画像保存結果を返しました。",
-  "runtimeError.invalidSessionArtifactSelection": "デスクトップは無効なセッション アーティファクトの選択を返しました。",
-  "runtimeError.invalidSessionExportResult": "デスクトップは無効なセッション エクスポート結果を返しました。",
+  "runtimeError.invalidBootstrapEnvelope":
+    "デスクトップは無効なブートストラップ エンベロープを返しました。",
+  "runtimeError.invalidRemoteRuntimeState":
+    "デスクトップは無効なリモート Runtime 状態を返しました。",
+  "runtimeError.inconsistentRemoteRuntimeState":
+    "デスクトップは、一貫性のないリモート Runtime 状態を返しました。",
+  "runtimeError.invalidDirectorySelection":
+    "デスクトップは無効なディレクトリ選択を返しました。",
+  "runtimeError.invalidImageSaveResult":
+    "デスクトップは無効な画像保存結果を返しました。",
+  "runtimeError.invalidSessionArtifactSelection":
+    "デスクトップは無効なセッション アーティファクトの選択を返しました。",
+  "runtimeError.invalidSessionExportResult":
+    "デスクトップは無効なセッション エクスポート結果を返しました。",
   "runtimeError.identityChanged": "Runtime 検出中に ID が変更されました。",
   "approval.title": "承認",
   "approval.toolExecution": "ツールの実行",
@@ -30,46 +39,58 @@ export const japaneseMessages = {
   "approval.argumentsFor": "{tool} の引数",
   "approval.reason": "理由",
   "approval.optional": "オプション",
-  "approval.denialReasonPlaceholder": "これが拒否された理由をLyraに伝えてください",
+  "approval.denialReasonPlaceholder":
+    "これが拒否された理由をLyraに伝えてください",
   "approval.contextPlaceholder": "この決定のコンテキストを追加",
   "approval.rememberDecision": "決定を忘れないでください",
   "approval.rememberOnce": "今回だけ",
   "approval.rememberSession": "このセッション",
   "approval.rememberProject": "このプロジェクト",
   "approval.rememberGlobal": "どこでも",
-  "approval.decisionRequired": "すべての承認リクエストに対して [承認] または [拒否] を選択します。",
-  "approval.argumentsInvalidJSON": "編集されたツール引数は有効なJSONである必要があります。",
-  "approval.argumentsNotObject": "編集されたツール引数は JSON オブジェクトである必要があります。",
+  "approval.decisionRequired":
+    "すべての承認リクエストに対して [承認] または [拒否] を選択します。",
+  "approval.argumentsInvalidJSON":
+    "編集されたツール引数は有効なJSONである必要があります。",
+  "approval.argumentsNotObject":
+    "編集されたツール引数は JSON オブジェクトである必要があります。",
   "question.title": "質問",
   "question.inputForLyra": "Lyra の入力",
   "question.fieldsMissing": "Runtime には質問フィールドがありませんでした。",
   "question.answerPlaceholder": "答えを入力してください",
-  "question.unsupportedField": "サポートされていない質問フィールドの種類: {type}",
+  "question.unsupportedField":
+    "サポートされていない質問フィールドの種類: {type}",
   "question.customAnswer": "カスタム回答",
   "question.customAnswerPlaceholder": "別の回答を書いてください",
   "question.incomplete": "Runtime では完全な質問が提供されていません。",
   "question.answerBeforeContinue": "続行する前に「{prompt}」と答えてください。",
-  "question.chooseBeforeContinue": "続行する前に、「{prompt}」の回答を選択してください。",
+  "question.chooseBeforeContinue":
+    "続行する前に、「{prompt}」の回答を選択してください。",
   "question.chooseOne": "「{prompt}」に対する答えを 1 つ選択してください。",
   "interrupt.actionRequired": "アクションが必要です",
   "interrupt.waitingForYou": "Lyra があなたを待っています",
   "interrupt.requestCountOne": "{count} リクエスト",
   "interrupt.requestCountMany": "{count} リクエスト",
-  "interrupt.intro": "以下のすべてのリクエストを確認してください。この実行が続行される前に、完全なセットが一緒にコミットされます。",
-  "interrupt.atomicNote": "回答は、この待機中の実行にアトミックに適用されます。",
+  "interrupt.intro":
+    "以下のすべてのリクエストを確認してください。この実行が続行される前に、完全なセットが一緒にコミットされます。",
+  "interrupt.atomicNote":
+    "回答は、この待機中の実行にアトミックに適用されます。",
   "interrupt.continuing": "続き…",
   "interrupt.submitAll": "すべて送信して続行",
-  "interrupt.unsupported": "この Runtime はサポートされていないインタラクションを要求しました。",
+  "interrupt.unsupported":
+    "この Runtime はサポートされていないインタラクションを要求しました。",
   "interrupt.resumeFailed": "実行を再開できませんでした。",
-  "composer.removeAttachmentFirst": "別の添付ファイルを追加する前に添付ファイルを削除してください。",
-  "composer.attachmentLimit": "一度に送信できる添付ファイルは {count} のみです。",
+  "composer.removeAttachmentFirst":
+    "別の添付ファイルを追加する前に添付ファイルを削除してください。",
+  "composer.attachmentLimit":
+    "一度に送信できる添付ファイルは {count} のみです。",
   "composer.attachments": "添付ファイル",
   "composer.image": "画像",
   "composer.file": "ファイル",
   "composer.removeAttachment": "{name} を削除",
   "composer.messageLyra": "メッセージ Lyra",
   "composer.waitingPlaceholder": "この実行はあなたの応答を待っています…",
-  "composer.runningPlaceholder": "Lyra が機能する間にガイダンスを追加してください…",
+  "composer.runningPlaceholder":
+    "Lyra が機能する間にガイダンスを追加してください…",
   "composer.readyPlaceholder": "達成したいことについて説明してください…",
   "composer.attach": "添付",
   "composer.keyboardHint": "Enter で送信 · Shift+Enter で改行",
@@ -77,8 +98,10 @@ export const japaneseMessages = {
   "composer.sending": "送信中…",
   "composer.steer": "ステアリング",
   "composer.send": "送信",
-  "composer.imagesUnsupported": "選択されたモデルは画像を受け入れません。それらを削除するか、マルチモーダル モデルを選択してください。",
-  "composer.chooseImageModel": "画像を添付する前に、画像入力のあるモデルを選択してください。",
+  "composer.imagesUnsupported":
+    "選択されたモデルは画像を受け入れません。それらを削除するか、マルチモーダル モデルを選択してください。",
+  "composer.chooseImageModel":
+    "画像を添付する前に、画像入力のあるモデルを選択してください。",
   "composer.imageTooLarge": "{name} は 10 MB を超えています。",
   "composer.fileTooLarge": "{name} は 1 MB を超えています。",
   "composer.attachmentReadFailed": "添付ファイルを読み取れませんでした。",
@@ -97,11 +120,14 @@ export const japaneseMessages = {
   "narrative.loadOlder": "古いものをロードする",
   "narrative.jumpToLatest": "最新へ移動",
   "narrative.latestActivityBelow": "最新のアクティビティは下にあります",
-  "narrative.streamPaused": "ライブ更新が一時停止されました: {detail}。耐久性のある素材が再ロードされています。",
+  "narrative.streamPaused":
+    "ライブ更新が一時停止されました: {detail}。耐久性のある素材が再ロードされています。",
   "narrative.ready": "準備完了",
   "narrative.untitledSession": "無題のセッション",
-  "narrative.welcome": "以下の作品について説明してください。 Lyra は、このワークスペースに関連付けられた会話、実行事実、および回復状態を保持します。",
-  "narrative.orphanDelegation": "このスナップショットでは親委任を使用できません。",
+  "narrative.welcome":
+    "以下の作品について説明してください。 Lyra は、このワークスペースに関連付けられた会話、実行事実、および回復状態を保持します。",
+  "narrative.orphanDelegation":
+    "このスナップショットでは親委任を使用できません。",
   "narrative.you": "あなた",
   "narrative.answer": "回答",
   "narrative.lyra": "Lyra",
@@ -112,7 +138,8 @@ export const japaneseMessages = {
   "narrative.inputNeeded": "入力が必要です",
   "narrative.contextCompacted": "コンテキストが圧縮されました",
   "narrative.messagesCondensed": "{count} メッセージが凝縮されました",
-  "narrative.delegationCycle": "委任された実行リネージには、{id} のサイクルが含まれています。",
+  "narrative.delegationCycle":
+    "委任された実行リネージには、{id} のサイクルが含まれています。",
   "narrative.delegatedRunLabel": "委任された実行 {id}",
   "narrative.delegatedRun": "委任実行",
   "narrative.canceling": "キャンセル中…",
@@ -128,14 +155,18 @@ export const japaneseMessages = {
   "narrative.needsWork": "作業が必要です",
   "narrative.delegated": "委任されました",
   "narrative.historyActionFailed": "セッション履歴アクションが失敗しました。",
-  "narrative.streamClosedEarly": "Runtime はセグメントが終了する前にライブ ストリームを終了しました。",
+  "narrative.streamClosedEarly":
+    "Runtime はセグメントが終了する前にライブ ストリームを終了しました。",
   "narrative.streamInterrupted": "Runtime ストリームが中断されました。",
   "narrative.waitingForResponse": "この実行は続行する前に応答を待っています。",
-  "narrative.activeSegmentMissing": "アクティブな実行には現在のセグメントがありません。",
+  "narrative.activeSegmentMissing":
+    "アクティブな実行には現在のセグメントがありません。",
   "narrative.actionFailed": "実行アクションを完了できませんでした。",
   "narrative.noSessionMounted": "セッションがマウントされていません。",
-  "narrative.interruptSessionMismatch": "この割り込みは別のセッションに属しています。",
-  "narrative.interruptResponsesIncomplete": "応答は完全な割り込みセットをカバーする必要があります。",
+  "narrative.interruptSessionMismatch":
+    "この割り込みは別のセッションに属しています。",
+  "narrative.interruptResponsesIncomplete":
+    "応答は完全な割り込みセットをカバーする必要があります。",
   "narrative.actionInProgress": "別の実行アクションがすでに進行中です。",
   "narrative.olderHistoryFailed": "古い履歴をロードできませんでした。",
   "narrative.forkHere": "ここで分岐します",
@@ -230,10 +261,12 @@ export const japaneseMessages = {
   "tool.truncated": "切り詰め",
   "tool.result": "結果",
   "tool.lineRange": "行 {start}–{end}",
-  "model.chooseStored": "このセッションに保存されているモデルを選択してください",
+  "model.chooseStored":
+    "このセッションに保存されているモデルを選択してください",
   "model.choose": "モデルを選択してください",
   "model.sessionModel": "セッションモデル",
-  "model.explicitPair": "明示的なプロバイダーとモデルのペアとして保存されます。",
+  "model.explicitPair":
+    "明示的なプロバイダーとモデルのペアとして保存されます。",
   "model.closePicker": "モデル ピッカーを閉じる",
   "model.loadingProviders": "構成されたプロバイダーを読み込み中…",
   "model.noProvider": "プロバイダーが構成されていません。まず設定を開きます。",
@@ -255,7 +288,8 @@ export const japaneseMessages = {
   "activity.terminal": "ターミナル",
   "activity.summary": "概要",
   "activity.noTimeline": "実行タイムラインはまだありません",
-  "activity.noTimelineDetail": "Lyra が作業を開始した後、ライフサイクルの実行とツールのファクトがここに表示されます。",
+  "activity.noTimelineDetail":
+    "Lyra が作業を開始した後、ライフサイクルの実行とツールのファクトがここに表示されます。",
   "activity.latestRunTree": "最新の実行ツリー",
   "activity.earlierRunTree": "以前の実行ツリー",
   "activity.runCountOne": "実行 {count}",
@@ -271,7 +305,8 @@ export const japaneseMessages = {
   "activity.canceling": "キャンセル中…",
   "activity.cancel": "キャンセル",
   "activity.noCommands": "まだコマンドはありません",
-  "activity.noCommandsDetail": "シェル ツール呼び出しは、読み取り専用の実行ログとしてここに表示されます。",
+  "activity.noCommandsDetail":
+    "シェル ツール呼び出しは、読み取り専用の実行ログとしてここに表示されます。",
   "activity.commandCountOne": "{count} コマンド",
   "activity.commandCountMany": "{count} 件のコマンド",
   "activity.followingOutput": "出力を追跡中",
@@ -280,14 +315,18 @@ export const japaneseMessages = {
   "activity.running": "実行中",
   "activity.commandNumber": "コマンド {number}",
   "activity.killed": "殺害されました",
-  "activity.liveOutputTruncated": "以前のライブ出力は、このプレビューの制限を維持するために削除されました。",
+  "activity.liveOutputTruncated":
+    "以前のライブ出力は、このプレビューの制限を維持するために削除されました。",
   "activity.waitingCommandOutput": "コマンド出力を待っています…",
-  "activity.noCapturedOutput": "コマンドはキャプチャされた出力を生成しませんでした。",
+  "activity.noCapturedOutput":
+    "コマンドはキャプチャされた出力を生成しませんでした。",
   "activity.noSummary": "実行概要はまだありません",
-  "activity.noSummaryDetail": "最新のルート実行とその委任ツリーがここに要約されます。",
+  "activity.noSummaryDetail":
+    "最新のルート実行とその委任ツリーがここに要約されます。",
   "activity.copied": "コピーしました",
   "activity.copySummary": "サマリーをコピー",
-  "activity.clipboardUnavailable": "システム クリップボードが利用できません。何もコピーされませんでした。",
+  "activity.clipboardUnavailable":
+    "システム クリップボードが利用できません。何もコピーされませんでした。",
   "activity.changedFiles": "ファイルが変更されました",
   "activity.noChangedFiles": "ファイルの変更は記録されませんでした。",
   "activity.readFiles": "読み取ったファイル",
@@ -327,7 +366,8 @@ export const japaneseMessages = {
   "session.clearSearch": "セッション検索をクリア",
   "session.shownOne": "{count} セッションが表示されました",
   "session.shownMany": "{count} セッションが表示されました",
-  "session.refreshFailed": "保存されたセッションを表示しています。更新に失敗しました: {detail}",
+  "session.refreshFailed":
+    "保存されたセッションを表示しています。更新に失敗しました: {detail}",
   "session.noMatch": "「{query}」に一致するセッションはありません。",
   "session.groupedLabel": "ワークスペース別のセッション",
   "session.loadingOlder": "読み込み中…",
@@ -362,10 +402,13 @@ export const japaneseMessages = {
   "session.createFailed": "セッションを作成できませんでした。",
   "goal.editObjective": "自律目標を編集",
   "goal.newObjective": "新しい自律目標",
-  "goal.runtimeOwnership": "Runtime は、実行、アカウンティング、およびリカバリを所有します。",
+  "goal.runtimeOwnership":
+    "Runtime は、実行、アカウンティング、およびリカバリを所有します。",
   "goal.objective": "目標目標",
-  "goal.objectivePlaceholder": "Lyra が達成に向けて努力し続ける必要がある結果について説明してください…",
-  "goal.externalChange": "編集中に Runtime 目標が変更されました。下書きは保存されます。保存すると明示的に置き換えられます。",
+  "goal.objectivePlaceholder":
+    "Lyra が達成に向けて努力し続ける必要がある結果について説明してください…",
+  "goal.externalChange":
+    "編集中に Runtime 目標が変更されました。下書きは保存されます。保存すると明示的に置き換えられます。",
   "goal.optionalBudget": "オプションの予算",
   "goal.runs": "実行",
   "goal.steps": "ステップ",
@@ -381,7 +424,8 @@ export const japaneseMessages = {
   "goal.loading": "読み込み中",
   "goal.reading": "セッション スナップショットから現在の目標を読み取り中…",
   "goal.notStarted": "未開始",
-  "goal.empty": "目標コンポーザーを使用して、このセッションに永続的な目標を与えます。",
+  "goal.empty":
+    "目標コンポーザーを使用して、このセッションに永続的な目標を与えます。",
   "goal.budgetUsage": "目標予算の使用状況",
   "goal.cost": "コスト",
   "goal.pause": "一時停止",
@@ -412,7 +456,8 @@ export const japaneseMessages = {
   "plan.loading": "計画を読み込んでいます…",
   "plan.currentUnavailable": "現在のプランは利用できません",
   "plan.loadingCurrent": "現在のプランを読み込み中",
-  "plan.progress": "計画の進捗状況: {total} ステップ中 {completed} ステップが完了しました。 {summary}",
+  "plan.progress":
+    "計画の進捗状況: {total} ステップ中 {completed} ステップが完了しました。 {summary}",
   "plan.title": "プラン",
   "plan.current": "現在の計画",
   "plan.revision": "rev {revision}",
@@ -424,11 +469,15 @@ export const japaneseMessages = {
   "plan.status.completed": "完了",
   "plan.status.inProgress": "進行中",
   "plan.status.pending": "保留中",
-  "shell.invalidArtifact": "選択されたファイルは有効な Lyra セッション アーティファクトではありません。",
-  "shell.missingJSONExport": "Runtime は JSON セッション アーティファクトを返しませんでした。",
-  "shell.missingMarkdownExport": "Runtime は Markdown セッションのエクスポートを返しませんでした。",
+  "shell.invalidArtifact":
+    "選択されたファイルは有効な Lyra セッション アーティファクトではありません。",
+  "shell.missingJSONExport":
+    "Runtime は JSON セッション アーティファクトを返しませんでした。",
+  "shell.missingMarkdownExport":
+    "Runtime は Markdown セッションのエクスポートを返しませんでした。",
   "shell.historyBusy": "別のセッション履歴アクションがまだ実行中です。",
-  "shell.selectForFeedback": "フィードバックを送信する前にセッションを選択してください。",
+  "shell.selectForFeedback":
+    "フィードバックを送信する前にセッションを選択してください。",
   "shell.workIndex": "作業インデックス",
   "shell.openSettings": "設定を開く",
   "shell.settings": "設定",
@@ -441,11 +490,13 @@ export const japaneseMessages = {
   "shell.contextDock": "コンテキスト ドック",
   "shell.session": "セッション",
   "shell.emptyTitle": "クリーンなセッションから始めてください。",
-  "shell.emptyDetail": "セッションは、会話、計画、目標、および回復の事実を 1 つの正確なワークスペース ID にバインドします。",
+  "shell.emptyDetail":
+    "セッションは、会話、計画、目標、および回復の事実を 1 つの正確なワークスペース ID にバインドします。",
   "shell.creating": "作成中…",
   "shell.newSession": "新規セッション",
   "shell.mountingSession": "マウント セッション",
-  "shell.loadingSnapshot": "新しい作業を受け入れる前に、一貫した Runtime スナップショットを 1 つロードしています…",
+  "shell.loadingSnapshot":
+    "新しい作業を受け入れる前に、一貫した Runtime スナップショットを 1 つロードしています…",
   "shell.liveUpdates": "ライブアップデート",
   "shell.reconnecting": "再接続中",
   "shell.connecting": "接続中",
@@ -465,7 +516,8 @@ export const japaneseMessages = {
   "workspace.title": "ワークスペース",
   "workspace.session": "セッション",
   "workspace.unavailable": "ワークスペースが利用できません",
-  "workspace.unavailableDetail": "ファイルを参照する前に、このセッションを利用可能なディレクトリに再接続してください。",
+  "workspace.unavailableDetail":
+    "ファイルを参照する前に、このセッションを利用可能なディレクトリに再接続してください。",
   "workspace.context": "ワークスペースコンテキスト",
   "workspace.views": "ワークスペース ビュー",
   "workspace.files": "ファイル",
@@ -494,7 +546,8 @@ export const japaneseMessages = {
   "workspace.nextLines": "次の行",
   "workspace.emptyFile": "空のファイル",
   "workspace.linePosition": "{start}–{end} / {total}",
-  "workspace.boundedWindow": "このビューは正確なライン ウィンドウに制限されています。",
+  "workspace.boundedWindow":
+    "このビューは正確なライン ウィンドウに制限されています。",
   "workspace.requestFailed": "ワークスペースリクエストは失敗しました。",
   "resource.workspace": "ワークスペース リソース",
   "resource.types": "リソースの種類",
@@ -510,12 +563,15 @@ export const japaneseMessages = {
   "resource.discoveringRecipes": "レシピを発見中…",
   "resource.recipesFailed": "レシピが見つかりませんでした",
   "resource.noRecipes": "利用可能なレシピはありません",
-  "resource.noRecipesDetail": ".lyra/recipes にスラッシュ呼び出し可能な Markdown レシピを追加します。",
+  "resource.noRecipesDetail":
+    ".lyra/recipes にスラッシュ呼び出し可能な Markdown レシピを追加します。",
   "resource.viewPrompt": "プロンプトを表示",
   "resource.resolvingAgentDocs": "エージェントのドキュメントを解決中…",
-  "resource.agentDocsFailed": "エージェントのドキュメントを解決できませんでした",
+  "resource.agentDocsFailed":
+    "エージェントのドキュメントを解決できませんでした",
   "resource.noAgentDocs": "エージェントのドキュメントは適用されません",
-  "resource.noAgentDocsDetail": "AGENTS.md をホーム、プロジェクト ルート、または選択したワークスペースの下に追加します。",
+  "resource.noAgentDocsDetail":
+    "AGENTS.md をホーム、プロジェクト ルート、または選択したワークスペースの下に追加します。",
   "codebase.readingIndex": "セマンティック インデックスの読み取り",
   "codebase.indexUnavailable": "セマンティック インデックスは使用できません",
   "codebase.searchLabel": "セマンティック コードベース検索",
@@ -529,20 +585,25 @@ export const japaneseMessages = {
   "codebase.indexing": "インデックス作成中…",
   "codebase.reindex": "インデックスの再作成",
   "codebase.building": "セマンティック インデックスの構築",
-  "codebase.buildingDetail": "ソースの検出、チャンク化、埋め込みは Runtime で実行されます。このビューは、耐久性インデックスが安定すると更新されます。",
+  "codebase.buildingDetail":
+    "ソースの検出、チャンク化、埋め込みは Runtime で実行されます。このビューは、耐久性インデックスが安定すると更新されます。",
   "codebase.lastBuildFailed": "最後のインデックス構築が完了しませんでした",
-  "codebase.lastBuildFailedDetail": "埋め込みプロバイダーの構成を確認し、インデックスを再構築してください。以前の検索可能なインデックスが部分的に置き換えられることはありません。",
+  "codebase.lastBuildFailedDetail":
+    "埋め込みプロバイダーの構成を確認し、インデックスを再構築してください。以前の検索可能なインデックスが部分的に置き換えられることはありません。",
   "codebase.starting": "開始中…",
   "codebase.buildAgain": "再度ビルドする",
   "codebase.semanticTitle": "テキストだけでなく意味からも検索",
-  "codebase.semanticDetail": "ワークスペース スコープのセマンティック インデックスを構築して、現在のセッション ワークスペース全体で関連するコード パッセージを検索します。",
+  "codebase.semanticDetail":
+    "ワークスペース スコープのセマンティック インデックスを構築して、現在のセッション ワークスペース全体で関連するコード パッセージを検索します。",
   "codebase.buildIndex": "インデックスの構築",
   "codebase.readySearch": "検索の準備ができました",
-  "codebase.readySearchDetail": "責任、行動、または概念を平易な言葉で説明します。",
+  "codebase.readySearchDetail":
+    "責任、行動、または概念を平易な言葉で説明します。",
   "codebase.searchingPassages": "コードパッセージの検索",
   "codebase.searchFailed": "セマンティック検索が失敗しました",
   "codebase.noPassage": "関連する文章が見つかりませんでした",
-  "codebase.noPassageDetail": "より広範な説明を試すか、ソース ファイルを変更した後に再構築してください。",
+  "codebase.noPassageDetail":
+    "より広範な説明を試すか、ソース ファイルを変更した後に再構築してください。",
   "codebase.results": "セマンティック検索結果",
   "codebase.lineRangeScore": "L{start}–{end} · {score}%",
   "codebase.status.building": "建物インデックス",
@@ -554,15 +615,20 @@ export const japaneseMessages = {
   "review.branchUnavailable": "ブランチ比較は使用できません",
   "review.loadFailed": "ワークスペース レビューを読み込めませんでした",
   "review.boundary": "レビュー境界に達しました",
-  "review.boundaryDetail": "最初に変更されたファイルは 100,000 行の境界を超えています。ファイルから開いて、境界のあるウィンドウを検査します。",
+  "review.boundaryDetail":
+    "最初に変更されたファイルは 100,000 行の境界を超えています。ファイルから開いて、境界のあるウィンドウを検査します。",
   "review.materialUnavailable": "差分マテリアルは利用できません",
-  "review.materialUnavailableDetail": "Git は変更されたファイル ID を報告しましたが、レビュー可能なパッチは生成されませんでした。",
+  "review.materialUnavailableDetail":
+    "Git は変更されたファイル ID を報告しましたが、レビュー可能なパッチは生成されませんでした。",
   "review.noBranchChanges": "ブランチの変更はありません",
   "review.clean": "ワークスペースはきれいです",
-  "review.noBranchChangesDetail": "ワークスペースはデフォルトのブランチのマージベースと一致します。",
-  "review.cleanDetail": "追跡されたファイルと追跡されていないファイルは現在の HEAD と一致します。",
+  "review.noBranchChangesDetail":
+    "ワークスペースはデフォルトのブランチのマージベースと一致します。",
+  "review.cleanDetail":
+    "追跡されたファイルと追跡されていないファイルは現在の HEAD と一致します。",
   "review.label": "ワークスペースのレビュー",
-  "review.truncated": "レビューは 100,000 行の境界で停止しました。表示されているすべてのファイルが完成しました。",
+  "review.truncated":
+    "レビューは 100,000 行の境界で停止しました。表示されているすべてのファイルが完成しました。",
   "review.baseline": "ベースラインを確認する",
   "review.worktree": "ワークツリー",
   "review.branch": "ブランチ",
@@ -575,8 +641,10 @@ export const japaneseMessages = {
   "review.openFile": "ファイルを開く",
   "review.binary": "バイナリ",
   "review.countsUnavailable": "カウントが利用できません",
-  "review.binaryNoDiff": "バイナリ マテリアルにはライン指向の差分がありません。",
-  "review.noTextRows": "Git は、この変更に対してテキスト行を生成しませんでした。",
+  "review.binaryNoDiff":
+    "バイナリ マテリアルにはライン指向の差分がありません。",
+  "review.noTextRows":
+    "Git は、この変更に対してテキスト行を生成しませんでした。",
   "review.changedLines": "変更された行",
   "review.changedLinesSplit": "分割レイアウトの行を変更しました",
   "review.tryAgain": "もう一度試してください",
@@ -584,13 +652,16 @@ export const japaneseMessages = {
   "review.partial": "部分的",
   "review.requestFailed": "レビューリクエストは失敗しました。",
   "knowledge.unavailable": "知識がありません",
-  "knowledge.unavailableDetail": "この Runtime は、Lyra ナレッジ機能を宣伝しません。",
+  "knowledge.unavailableDetail":
+    "この Runtime は、Lyra ナレッジ機能を宣伝しません。",
   "knowledge.loading": "知識を読み込み中…",
   "knowledge.loadFailed": "ナレッジをロードできませんでした",
   "knowledge.noScopes": "利用可能なナレッジ スコープがありません",
-  "knowledge.noScopesDetail": "Lyra は、このワークスペースの書き込み可能な LYRA.md スコープを解決できませんでした。",
+  "knowledge.noScopesDetail":
+    "Lyra は、このワークスペースの書き込み可能な LYRA.md スコープを解決できませんでした。",
   "knowledge.documents": "ナレッジ ドキュメント",
-  "knowledge.externalChange": "このナレッジ ドキュメントは外部的に変更されました。下書きは最新のリビジョンに対して保存されます。再度保存する前に確認してください。",
+  "knowledge.externalChange":
+    "このナレッジ ドキュメントは外部的に変更されました。下書きは最新のリビジョンに対して保存されます。再度保存する前に確認してください。",
   "knowledge.notCreated": "未作成",
   "knowledge.editorLabel": "{scope} 知識",
   "knowledge.unsaved": "未保存の変更",
@@ -607,9 +678,11 @@ export const japaneseMessages = {
   "diagnostic.loading": "診断ツールを読み込み中…",
   "diagnostic.loadFailed": "診断ツールをロードできませんでした",
   "diagnostic.empty": "利用可能な直接ツールはありません",
-  "diagnostic.emptyDetail": "この Runtime は、エージェントの実行外で安全に呼び出すことができる機能を公開しません。",
+  "diagnostic.emptyDetail":
+    "この Runtime は、エージェントの実行外で安全に呼び出すことができる機能を公開しません。",
   "diagnostic.title": "直接診断",
-  "diagnostic.detail": "これらの読み取り専用ツールは、セッション、モデル ループ、承認フローなしで現在のワークスペースに対して実行されます。エージェント専用ツールは、その権限を所有する Run 内に残ります。",
+  "diagnostic.detail":
+    "これらの読み取り専用ツールは、セッション、モデル ループ、承認フローなしで現在のワークスペースに対して実行されます。エージェント専用ツールは、その権限を所有する Run 内に残ります。",
   "diagnostic.safe": "安全",
   "diagnostic.schema": "JSON スキーマ",
   "diagnostic.arguments": "引数",
@@ -617,10 +690,12 @@ export const japaneseMessages = {
   "diagnostic.running": "実行中…",
   "diagnostic.run": "診断を実行",
   "diagnostic.result": "結果",
-  "diagnostic.invalidArguments": "Arguments は 1 つの JSON オブジェクトである必要があります。",
+  "diagnostic.invalidArguments":
+    "Arguments は 1 つの JSON オブジェクトである必要があります。",
   "diagnostic.requestFailed": "リクエストを完了できませんでした。",
   "skills.unavailable": "スキルが利用できません",
-  "skills.unavailableDetail": "この Runtime は、Lyra スキル機能を宣伝しません。",
+  "skills.unavailableDetail":
+    "この Runtime は、Lyra スキル機能を宣伝しません。",
   "skills.workspace": "スキル ワークスペース",
   "skills.views": "スキルビュー",
   "skills.available": "利用可能",
@@ -630,11 +705,13 @@ export const japaneseMessages = {
   "skills.discovering": "スキルを発見中…",
   "skills.discoveryFailed": "スキルが見つかりませんでした",
   "skills.empty": "利用可能なスキルはありません",
-  "skills.emptyDetail": "有効な SKILL.md を .lyra/skills に追加するか、保留中のプロポーザルを承認します。",
+  "skills.emptyDetail":
+    "有効な SKILL.md を .lyra/skills に追加するか、保留中のプロポーザルを承認します。",
   "skills.loadingProposals": "提案を読み込んでいます…",
   "skills.proposalsFailed": "プロポーザルを読み込めませんでした",
   "skills.noProposals": "保留中の提案はありません",
-  "skills.noProposalsDetail": "エージェントが作成したスキルは、プロポーザルがここに表示され、正確なリビジョンが承認されるまで非アクティブのままです。",
+  "skills.noProposalsDetail":
+    "エージェントが作成したスキルは、プロポーザルがここに表示され、正確なリビジョンが承認されるまで非アクティブのままです。",
   "skills.revision": "リビジョン",
   "skills.origin": "原点",
   "skills.unknown": "不明",
@@ -648,7 +725,8 @@ export const japaneseMessages = {
   "skills.loadingLibrary": "ユーザー ライブラリをロード中…",
   "skills.libraryFailed": "スキル ライブラリをロードできませんでした",
   "skills.libraryEmpty": "ユーザー ライブラリが空です",
-  "skills.libraryEmptyDetail": "承認されたユーザースコープのスキルと外部で作成された ~/.lyra/skills バンドルがここに表示されます。",
+  "skills.libraryEmptyDetail":
+    "承認されたユーザースコープのスキルと外部で作成された ~/.lyra/skills バンドルがここに表示されます。",
   "skills.active": "有効",
   "skills.noActive": "アクティブなユーザー スキルがありません。",
   "skills.archive": "アーカイブ",
@@ -658,7 +736,8 @@ export const japaneseMessages = {
   "skills.actionPending": "{action}…",
   "skills.runtimeFailure": "予期しないRuntime障害が発生しました",
   "memory.unavailable": "エージェントのメモリが使用できません",
-  "memory.unavailableDetail": "この Runtime は、Lyra エージェント メモリ機能をアドバタイズしません。",
+  "memory.unavailableDetail":
+    "この Runtime は、Lyra エージェント メモリ機能をアドバタイズしません。",
   "memory.scope": "メモリスコープ",
   "memory.project": "プロジェクト",
   "memory.user": "ユーザー",
@@ -667,7 +746,8 @@ export const japaneseMessages = {
   "memory.loadFailed": "エージェント メモリをロードできませんでした",
   "memory.emptyProject": "プロジェクト メモリがまだありません",
   "memory.emptyUser": "ユーザー メモリがまだありません",
-  "memory.emptyDetail": "永続的な事実を追加するか、完了した作業から抽出した提案 Lyra を確認します。",
+  "memory.emptyDetail":
+    "永続的な事実を追加するか、完了した作業から抽出した提案 Lyra を確認します。",
   "memory.pendingReview": "レビュー待ち",
   "memory.active": "アクティブメモリ",
   "memory.add": "メモリを追加",
@@ -680,7 +760,8 @@ export const japaneseMessages = {
   "memory.reviewing": "レビュー中…",
   "memory.approve": "承認",
   "memory.editLabel": "メモリを編集",
-  "memory.externalChange": "この記憶は別の場所に変わりました。編集する前に、キャンセルして再度開きます。",
+  "memory.externalChange":
+    "この記憶は別の場所に変わりました。編集する前に、キャンセルして再度開きます。",
   "memory.unpin": "ピン留めを解除",
   "memory.pin": "ピン留め",
   "memory.edit": "編集",
@@ -695,49 +776,64 @@ export const japaneseMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "設定",
   "settings.sections": "設定セクション",
-  "settings.authorityNote": "外観はローカルのままです。 Runtime 状態は、すべての突然変異の後も権限を持ち続けます。",
+  "settings.authorityNote":
+    "外観はローカルのままです。 Runtime 状態は、すべての突然変異の後も権限を持ち続けます。",
   "settings.desktopSettings": "デスクトップ設定",
   "settings.close": "設定を閉じる",
   "settings.page.appearance.title": "外観",
-  "settings.page.appearance.description": "アプリケーションのセマンティクスを変更せずに、耐久性のあるテーマとアクセントを選択します。",
+  "settings.page.appearance.description":
+    "アプリケーションのセマンティクスを変更せずに、耐久性のあるテーマとアクセントを選択します。",
   "settings.page.runtime.title": "Runtime 接続",
-  "settings.page.runtime.description": "監視対象ローカル Runtime と 1 つの検証済みリモート デプロイメントを切り替えます。",
+  "settings.page.runtime.description":
+    "監視対象ローカル Runtime と 1 つの検証済みリモート デプロイメントを切り替えます。",
   "settings.page.providers.title": "モデルとプロバイダー",
-  "settings.page.providers.description": "モデル プロバイダーに接続し、オプションの Runtime 全体のモデル ロールを割り当てます。",
+  "settings.page.providers.description":
+    "モデル プロバイダーに接続し、オプションの Runtime 全体のモデル ロールを割り当てます。",
   "settings.page.mcp.title": "MCP サーバー",
-  "settings.page.mcp.description": "外部ツールの接続、承認、およびツールレベルの信頼を明示的に所有します。",
+  "settings.page.mcp.description":
+    "外部ツールの接続、承認、およびツールレベルの信頼を明示的に所有します。",
   "settings.page.approvals.title": "承認ポリシー",
-  "settings.page.approvals.description": "ライブエフェクトのスタンスを選択し、このセッションに表示される記憶された決定を管理します。",
+  "settings.page.approvals.description":
+    "ライブエフェクトのスタンスを選択し、このセッションに表示される記憶された決定を管理します。",
   "settings.page.schedules.title": "スケジュール",
-  "settings.page.schedules.description": "耐久性のあるリズム、明示的なワークスペースの意図、および回復可能な起動を備えた定期的な実行を作成します。",
+  "settings.page.schedules.description":
+    "耐久性のあるリズム、明示的なワークスペースの意図、および回復可能な起動を備えた定期的な実行を作成します。",
   "settings.page.hooks.title": "ライフサイクルフック",
-  "settings.page.hooks.description": "どのプロジェクト フックを実行するかを決定する前に、ユーザーとプロジェクトの自動化を確認してください。",
+  "settings.page.hooks.description":
+    "どのプロジェクト フックを実行するかを決定する前に、ユーザーとプロジェクトの自動化を確認してください。",
   "settings.page.usage.title": "使用量",
-  "settings.page.usage.description": "権限のある端末を検査する Runtime が知らない価格を作成せずに使用状況を実行します。",
+  "settings.page.usage.description":
+    "権限のある端末を検査する Runtime が知らない価格を作成せずに使用状況を実行します。",
   "settings.appearance.theme": "色のテーマ",
-  "settings.appearance.themeDetail": "静的な Lyra パレットを選択するか、オペレーティング システムに従います。",
+  "settings.appearance.themeDetail":
+    "静的な Lyra パレットを選択するか、オペレーティング システムに従います。",
   "settings.appearance.theme.system.name": "システムに従ってください",
-  "settings.appearance.theme.system.detail": "オペレーティング システムに切り替えてください。",
+  "settings.appearance.theme.system.detail":
+    "オペレーティング システムに切り替えてください。",
   "settings.appearance.theme.linen.name": "リネン",
   "settings.appearance.theme.linen.detail": "日中は暖かく静かな表面。",
   "settings.appearance.theme.graphite.name": "グラファイト",
-  "settings.appearance.theme.graphite.detail": "集中した作業に適した、眩しさを抑えた暗い表面。",
+  "settings.appearance.theme.graphite.detail":
+    "集中した作業に適した、眩しさを抑えた暗い表面。",
   "settings.appearance.accent": "アクセント",
-  "settings.appearance.accentDetail": "フォーカス、進行状況、リンク、主なアクションを表す 1 つの機能色。",
+  "settings.appearance.accentDetail":
+    "フォーカス、進行状況、リンク、主なアクションを表す 1 つの機能色。",
   "settings.appearance.accentColor": "アクセントカラー",
   "settings.appearance.accent.ember": "エンバー",
   "settings.appearance.accent.ocean": "海",
   "settings.appearance.accent.forest": "フォレスト",
   "settings.appearance.accent.violet": "バイオレット",
   "settings.appearance.language": "言語",
-  "settings.appearance.languageDetail": "このデバイスの Lyra Desktop で使用する言語を選択します。",
+  "settings.appearance.languageDetail":
+    "このデバイスの Lyra Desktop で使用する言語を選択します。",
   "settings.runtime.tryAgain": "もう一度試してください",
   "settings.runtime.loading": "Runtime 接続を読み込み中…",
   "settings.runtime.status.remoteActive": "リモートがアクティブです",
   "settings.runtime.status.remoteUnavailable": "リモートが使用できません",
   "settings.runtime.status.localActive": "ローカルアクティブ",
   "settings.runtime.active": "アクティブ Runtime",
-  "settings.runtime.activeDetail": "デスクトップは、Lyra Protocolを変更せずにデプロイメントターゲットを変更します。",
+  "settings.runtime.activeDetail":
+    "デスクトップは、Lyra Protocolを変更せずにデプロイメントターゲットを変更します。",
   "settings.runtime.target": "ターゲット",
   "settings.runtime.remote": "リモート Runtime",
   "settings.runtime.local": "ローカル Runtime",
@@ -745,41 +841,51 @@ export const japaneseMessages = {
   "settings.runtime.privateLoopback": "プライベート ループバック",
   "settings.runtime.useLocal": "ローカル Runtime を使用します",
   "settings.runtime.useSavedRemote": "保存されたリモートを使用する",
-  "settings.runtime.remoteDetail": "HTTPS オリジンとベアラー シークレットは、プロファイルがアクティブになる前に検証されます。",
+  "settings.runtime.remoteDetail":
+    "HTTPS オリジンとベアラー シークレットは、プロファイルがアクティブになる前に検証されます。",
   "settings.runtime.httpsOrigin": "HTTPS 原点",
   "settings.runtime.bearerSecret": "ベアラーシークレット",
   "settings.runtime.replacementSecret": "置換シークレットを入力してください",
   "settings.runtime.keyringSecret": "システム キーリングに保存されます",
-  "settings.runtime.secretNote": "シークレットが永続化プロファイルに入ることはありません。",
+  "settings.runtime.secretNote":
+    "シークレットが永続化プロファイルに入ることはありません。",
   "settings.runtime.connecting": "接続中…",
   "settings.runtime.replace": "接続を置き換えます",
   "settings.runtime.connect": "リモート接続",
   "settings.runtime.forgetTitle": "リモート プロファイルを忘れる",
-  "settings.runtime.forgetDetail": "保存されたエンドポイント ID とベアラー シークレットをこのデバイスから削除します。",
+  "settings.runtime.forgetDetail":
+    "保存されたエンドポイント ID とベアラー シークレットをこのデバイスから削除します。",
   "settings.runtime.irreversible": "これは元に戻すことができません。",
   "settings.runtime.keep": "プロフィールを保持する",
   "settings.runtime.forgetRemote": "リモートを忘れてください",
   "settings.runtime.forget": "忘れてください…",
   "settings.runtime.failed": "Runtime 接続に失敗しました。",
   "settings.approval.effectStance": "エフェクトスタンス",
-  "settings.approval.effectStanceDetail": "Runtime は、すでに進行中の実行を含むすべてのツール効果でこの設定を読み取ります。",
+  "settings.approval.effectStanceDetail":
+    "Runtime は、すでに進行中の実行を含むすべてのツール効果でこの設定を読み取ります。",
   "settings.approval.loadingMode": "承認モードを読み込んでいます…",
   "settings.approval.tryAgain": "もう一度試してください",
   "settings.approval.mode.safe.name": "安全",
-  "settings.approval.mode.safe.description": "ワークスペースの書き込み、コマンドの実行、およびネットワーク アクセスを確認します。",
+  "settings.approval.mode.safe.description":
+    "ワークスペースの書き込み、コマンドの実行、およびネットワーク アクセスを確認します。",
   "settings.approval.mode.safe.badge": "最も多いレビュー",
   "settings.approval.mode.balanced.name": "バランス",
-  "settings.approval.mode.balanced.description": "コマンドの実行を確認します。通常の書き込みとネットワーク ツールを許可します。",
+  "settings.approval.mode.balanced.description":
+    "コマンドの実行を確認します。通常の書き込みとネットワーク ツールを許可します。",
   "settings.approval.mode.balanced.badge": "デフォルト",
   "settings.approval.mode.yolo.name": "ヨロ",
-  "settings.approval.mode.yolo.description": "プロンプトなしで通常の効果を許可します。壊滅的なコマンドは依然として検討が必要です。",
+  "settings.approval.mode.yolo.description":
+    "プロンプトなしで通常の効果を許可します。壊滅的なコマンドは依然として検討が必要です。",
   "settings.approval.mode.yolo.badge": "最低レビュー",
   "settings.approval.remembered": "記憶に残る決定",
-  "settings.approval.rememberedDetail": "セッション ルールはプロジェクト ルールより優先され、次にグローバル ルールが優先されます。平等な対立は否定します。",
+  "settings.approval.rememberedDetail":
+    "セッション ルールはプロジェクト ルールより優先され、次にグローバル ルールが優先されます。平等な対立は否定します。",
   "settings.approval.visibleCount": "{count} 表示可能",
-  "settings.approval.selectSession": "作業インデックス内のセッションを選択して、その表示ルールを検査します。",
+  "settings.approval.selectSession":
+    "作業インデックス内のセッションを選択して、その表示ルールを検査します。",
   "settings.approval.loadingRules": "記憶された決定をロード中…",
-  "settings.approval.empty": "このセッションでは記憶された決定は表示されません。",
+  "settings.approval.empty":
+    "このセッションでは記憶された決定は表示されません。",
   "settings.approval.everyInvocation": "すべての呼び出し",
   "settings.approval.forgetQuestion": "この決定を忘れますか?",
   "settings.approval.cancel": "キャンセル",
@@ -793,7 +899,8 @@ export const japaneseMessages = {
   "settings.approval.decision.deny": "拒否",
   "settings.approval.requestFailed": "Runtime リクエストは失敗しました。",
   "settings.usage.runtime": "Runtime の使用法",
-  "settings.usage.runtimeDetail": "Finished 正確なプロバイダーとモデル ID によってグループ化されたファクトを実行します。",
+  "settings.usage.runtimeDetail":
+    "Finished 正確なプロバイダーとモデル ID によってグループ化されたファクトを実行します。",
   "settings.usage.period": "利用期間",
   "settings.usage.sevenDays": "7 日",
   "settings.usage.thirtyDays": "30 日",
@@ -805,12 +912,15 @@ export const japaneseMessages = {
   "settings.usage.runs": "実行",
   "settings.usage.sessions": "セッション",
   "settings.usage.models": "モデル",
-  "settings.usage.costNote": "コストは、貢献するすべての実行に既知の価格設定がある場合にのみ表示されます。",
+  "settings.usage.costNote":
+    "コストは、貢献するすべての実行に既知の価格設定がある場合にのみ表示されます。",
   "settings.usage.providers": "プロバイダー",
   "settings.usage.days": "日",
   "settings.usage.selectedSession": "選択されたセッション",
-  "settings.usage.selectedSessionDetail": "すべて完了しました マウントされたセッションが現在所有している実行。",
-  "settings.usage.selectSession": "セッションを選択して、その使用状況を検査します。",
+  "settings.usage.selectedSessionDetail":
+    "すべて完了しました マウントされたセッションが現在所有している実行。",
+  "settings.usage.selectSession":
+    "セッションを選択して、その使用状況を検査します。",
   "settings.usage.loadingSession": "セッション使用量を読み込み中…",
   "settings.usage.runCountOne": "実行 {count}",
   "settings.usage.runCountMany": "{count} 実行",
@@ -830,14 +940,17 @@ export const japaneseMessages = {
   "settings.common.loading": "読み込み中…",
   "settings.common.discard": "破棄",
   "settings.provider.roles": "モデルの役割",
-  "settings.provider.rolesDetail": "メンテナンスとセマンティック インデックス作成のためのオプションの Runtime 幅のモデル。",
+  "settings.provider.rolesDetail":
+    "メンテナンスとセマンティック インデックス作成のためのオプションの Runtime 幅のモデル。",
   "settings.provider.connections": "プロバイダー接続",
-  "settings.provider.connectionsDetail": "シークレットは書き込み専用です。環境の資格情報は読み取り専用のままです。",
+  "settings.provider.connectionsDetail":
+    "シークレットは書き込み専用です。環境の資格情報は読み取り専用のままです。",
   "settings.provider.filter": "フィルタープロバイダー",
   "settings.provider.filterPlaceholder": "フィルタープロバイダー…",
   "settings.provider.loading": "プロバイダーを読み込み中…",
   "settings.provider.tryAgain": "もう一度試してください",
-  "settings.provider.noMatch": "このフィルターに一致するプロバイダーはありません。",
+  "settings.provider.noMatch":
+    "このフィルターに一致するプロバイダーはありません。",
   "settings.provider.connectionSucceeded": "接続に成功しました。",
   "settings.provider.connectionFailed": "接続に失敗しました。",
   "settings.provider.configured": "設定済み",
@@ -855,11 +968,14 @@ export const japaneseMessages = {
   "settings.provider.saveBeforeTest": "テスト前にドラフトの変更を保存する",
   "settings.provider.testing": "テスト中…",
   "settings.provider.test": "テスト",
-  "settings.provider.baseURLRequired": "保存されたキーが存在する場合、ベース URL が必要です。",
+  "settings.provider.baseURLRequired":
+    "保存されたキーが存在する場合、ベース URL が必要です。",
   "settings.provider.utilityModel": "補助モデル",
   "settings.provider.embeddingModel": "埋め込みモデル",
-  "settings.provider.utilityDetail": "バックグラウンドのキュレーションとメンテナンス。",
-  "settings.provider.embeddingDetail": "セマンティック コードベースのインデックス作成。",
+  "settings.provider.utilityDetail":
+    "バックグラウンドのキュレーションとメンテナンス。",
+  "settings.provider.embeddingDetail":
+    "セマンティック コードベースのインデックス作成。",
   "settings.provider.assigned": "割り当て済み",
   "settings.provider.loadingRole": "役割を読み込み中…",
   "settings.provider.provider": "プロバイダー",
@@ -897,9 +1013,11 @@ export const japaneseMessages = {
   "settings.mcp.environmentJSON": "環境 JSON",
   "settings.mcp.removeEnvironment": "保存済みの環境変数を削除",
   "settings.mcp.addServer": "サーバーを追加",
-  "settings.mcp.addServerDetail": "完全な候補を永続化せずにプローブし、準備ができたら追加します。",
+  "settings.mcp.addServerDetail":
+    "完全な候補を永続化せずにプローブし、準備ができたら追加します。",
   "settings.mcp.configuredServers": "構成されたサーバー",
-  "settings.mcp.configuredServersDetail": "ライブ ステータスは Runtime から取得されます。再接続は成功を推測することはありません。",
+  "settings.mcp.configuredServersDetail":
+    "ライブ ステータスは Runtime から取得されます。再接続は成功を推測することはありません。",
   "settings.mcp.loadingServers": "MCP サーバーをロード中…",
   "settings.mcp.empty": "MCP サーバーはまだ構成されていません。",
   "settings.mcp.candidateConnected": "候補者は正常に接続しました。",
@@ -914,16 +1032,19 @@ export const japaneseMessages = {
   "settings.mcp.authorize": "承認",
   "settings.mcp.deletePermanently": "完全に削除しますか?",
   "settings.mcp.deleteServer": "サーバーを削除",
-  "settings.mcp.saveBeforeReconnect": "再接続する前に下書きの変更を保存してください",
+  "settings.mcp.saveBeforeReconnect":
+    "再接続する前に下書きの変更を保存してください",
   "settings.mcp.reconnecting": "再接続中…",
   "settings.mcp.reconnect": "再接続",
   "settings.mcp.loadingTools": "ツールを読み込み中…",
   "settings.mcp.toolPolicies": "ツール ポリシー",
   "settings.mcp.toolTrust": "ツールの信頼",
-  "settings.mcp.toolTrustDetail": "無効化されたツールは非表示のままになります。自動承認ツールは、承認プロンプトなしで実行される場合があります。",
+  "settings.mcp.toolTrustDetail":
+    "無効化されたツールは非表示のままになります。自動承認ツールは、承認プロンプトなしで実行される場合があります。",
   "settings.mcp.toolCountOne": "{count} ツール",
   "settings.mcp.toolCountMany": "{count} 個のツール",
-  "settings.mcp.toolsRefreshFailed": "ライブ ツールを更新できませんでした。保存されたポリシーは引き続き編集可能です。",
+  "settings.mcp.toolsRefreshFailed":
+    "ライブ ツールを更新できませんでした。保存されたポリシーは引き続き編集可能です。",
   "settings.mcp.askWhenNeeded": "必要に応じて質問してください",
   "settings.mcp.disabled": "無効",
   "settings.mcp.autoApprove": "自動承認",
@@ -935,25 +1056,36 @@ export const japaneseMessages = {
   "settings.mcp.status.connected": "接続されました",
   "settings.mcp.status.failed": "接続に失敗しました",
   "settings.mcp.status.needsAuth": "承認が必要です",
-  "settings.mcp.problem.authorizationRequired": "このサーバーには対話型の認証が必要です。",
+  "settings.mcp.problem.authorizationRequired":
+    "このサーバーには対話型の認証が必要です。",
   "settings.mcp.problem.authorizationFailed": "認証が完了しませんでした。",
-  "settings.mcp.problem.dialFailed": "Runtime はこのサーバーに接続できませんでした。",
-  "settings.mcp.problem.timeout": "サーバーはタイムアウト前に応答しませんでした。",
+  "settings.mcp.problem.dialFailed":
+    "Runtime はこのサーバーに接続できませんでした。",
+  "settings.mcp.problem.timeout":
+    "サーバーはタイムアウト前に応答しませんでした。",
   "settings.mcp.problem.failed": "MCP 操作は成功しませんでした。",
-  "settings.mcp.validation.stableNameRequired": "安定したサーバー名が必要です。",
+  "settings.mcp.validation.stableNameRequired":
+    "安定したサーバー名が必要です。",
   "settings.mcp.validation.endpointRequired": "エンドポイント URL が必要です。",
   "settings.mcp.validation.commandRequired": "stdio コマンドが必要です。",
-  "settings.mcp.validation.timeoutInvalid": "Timeout は 0 ～ 3600 秒の整数である必要があります。",
-  "settings.mcp.validation.secretInvalidJSON": "{field} は有効な JSON である必要があります。",
-  "settings.mcp.validation.secretNotObject": "{field} は JSON オブジェクトである必要があります。",
-  "settings.mcp.validation.secretInvalidEntries": "{field} には、文字列値を持つ空ではない名前が含まれている必要があります。",
+  "settings.mcp.validation.timeoutInvalid":
+    "Timeout は 0 ～ 3600 秒の整数である必要があります。",
+  "settings.mcp.validation.secretInvalidJSON":
+    "{field} は有効な JSON である必要があります。",
+  "settings.mcp.validation.secretNotObject":
+    "{field} は JSON オブジェクトである必要があります。",
+  "settings.mcp.validation.secretInvalidEntries":
+    "{field} には、文字列値を持つ空ではない名前が含まれている必要があります。",
   "settings.mcp.headers": "ヘッダー",
   "settings.mcp.environment": "環境",
   "settings.hook.effective": "効果的なフック",
-  "settings.hook.effectiveDetail": "フックは、正確なセッション ワークスペースに対して解決されます。",
-  "settings.hook.selectSession": "作業インデックス内のセッションを選択して、そのグローバル フックとプロジェクト フックを確認します。",
+  "settings.hook.effectiveDetail":
+    "フックは、正確なセッション ワークスペースに対して解決されます。",
+  "settings.hook.selectSession":
+    "作業インデックス内のセッションを選択して、そのグローバル フックとプロジェクト フックを確認します。",
   "settings.hook.projectTrust": "プロジェクトの信頼",
-  "settings.hook.projectTrustDetail": "グローバル フックはあなたのものであり、アクティブなままです。クローン化されたプロジェクト フックは、この正確なプロジェクト ルートが信頼されるまで不活性のままです。",
+  "settings.hook.projectTrustDetail":
+    "グローバル フックはあなたのものであり、アクティブなままです。クローン化されたプロジェクト フックは、この正確なプロジェクト ルートが信頼されるまで不活性のままです。",
   "settings.hook.resolving": "ライフサイクルフックを解決しています…",
   "settings.hook.trusted": "信頼できる",
   "settings.hook.notTrusted": "信頼されていません",
@@ -967,39 +1099,49 @@ export const japaneseMessages = {
   "settings.hook.trustProject": "信頼プロジェクト",
   "settings.hook.reviewAndTrust": "レビューと信頼",
   "settings.hook.cascade": "効果的なカスケード",
-  "settings.hook.cascadeDetail": "コマンドは監査用にそのまま表示されます。注入アクションは、プロセスを生成せずに、制限されたコンテキストを追加します。",
+  "settings.hook.cascadeDetail":
+    "コマンドは監査用にそのまま表示されます。注入アクションは、プロセスを生成せずに、制限されたコンテキストを追加します。",
   "settings.hook.countOne": "{count} フック",
   "settings.hook.countMany": "{count} フック",
   "settings.hook.loading": "フック定義をロード中…",
-  "settings.hook.empty": "このワークスペースにはグローバル フックやプロジェクト フックが適用されません。",
+  "settings.hook.empty":
+    "このワークスペースにはグローバル フックやプロジェクト フックが適用されません。",
   "settings.hook.command": "コマンド",
   "settings.hook.inject": "注入",
   "settings.hook.active": "有効",
   "settings.hook.inert": "不活性",
   "settings.hook.timeout": "· {count} ミリ秒",
-  "settings.hook.missingProjectRoot": "Runtime はプロジェクト ルートを報告しませんでした。",
+  "settings.hook.missingProjectRoot":
+    "Runtime はプロジェクト ルートを報告しませんでした。",
   "settings.schedule.everyHour": "1時間ごと",
   "settings.schedule.weekdaysAt": "平日 · 09:00",
   "settings.schedule.dailyAt": "毎日 · 09:00",
   "settings.schedule.mondayAt": "月曜日 · 09:00",
   "settings.schedule.recurringWork": "定期的な作業",
-  "settings.schedule.recurringWorkDetail": "予定されている出来事は起動前に永続化されるため、再起動回復により 1 つの安定したセッション ID と実行 ID が維持されます。",
+  "settings.schedule.recurringWorkDetail":
+    "予定されている出来事は起動前に永続化されるため、再起動回復により 1 つの安定したセッション ID と実行 ID が維持されます。",
   "settings.schedule.loadedCount": "{count} がロードされました",
   "settings.schedule.loading": "スケジュールを読み込み中…",
-  "settings.schedule.empty": "まだスケジュールはありません。繰り返しの作業が意図的である場合は、上記の 1 つを作成します。",
+  "settings.schedule.empty":
+    "まだスケジュールはありません。繰り返しの作業が意図的である場合は、上記の 1 つを作成します。",
   "settings.schedule.loadMore": "スケジュールをさらに読み込む",
   "settings.schedule.new": "新しいスケジュール",
-  "settings.schedule.newDetail": "自己完結型の命令を作成します。発生するたびにクリーンなセッションが開きます。",
-  "settings.schedule.timezoneNote": "Times では、Runtime ホストのタイムゾーンが使用されます。",
+  "settings.schedule.newDetail":
+    "自己完結型の命令を作成します。発生するたびにクリーンなセッションが開きます。",
+  "settings.schedule.timezoneNote":
+    "Times では、Runtime ホストのタイムゾーンが使用されます。",
   "settings.schedule.creating": "作成中…",
   "settings.schedule.create": "スケジュールの作成",
-  "settings.schedule.providerModelPair": "プロバイダーとモデルを一緒に設定するか、両方を空のままにする必要があります。",
+  "settings.schedule.providerModelPair":
+    "プロバイダーとモデルを一緒に設定するか、両方を空のままにする必要があります。",
   "settings.schedule.enabled": "有効",
   "settings.schedule.paused": "一時停止しました",
-  "settings.schedule.saveBeforeRun": "実行前に下書き編集を保存または破棄してください",
+  "settings.schedule.saveBeforeRun":
+    "実行前に下書き編集を保存または破棄してください",
   "settings.schedule.starting": "開始中…",
   "settings.schedule.runNow": "今すぐ実行",
-  "settings.schedule.saveBeforeToggle": "最初に下書き編集を保存または破棄してください",
+  "settings.schedule.saveBeforeToggle":
+    "最初に下書き編集を保存または破棄してください",
   "settings.schedule.pause": "一時停止",
   "settings.schedule.enable": "有効にする",
   "settings.schedule.next": "次へ",
@@ -1011,15 +1153,19 @@ export const japaneseMessages = {
   "settings.schedule.defaultTitle": "スケジュールされたタスク",
   "settings.schedule.cron": "5 フィールド cron",
   "settings.schedule.instructions": "手順",
-  "settings.schedule.instructionsPlaceholder": "すべての実行の手順を完了してください…",
+  "settings.schedule.instructionsPlaceholder":
+    "すべての実行の手順を完了してください…",
   "settings.schedule.workspace": "ワークスペース",
-  "settings.schedule.emptyUsesDefault": "Empty は Runtime のデフォルトを使用します",
+  "settings.schedule.emptyUsesDefault":
+    "Empty は Runtime のデフォルトを使用します",
   "settings.schedule.runtimeDefault": "Runtime デフォルト",
   "settings.schedule.optionalPair": "オプションのペア",
   "settings.page.keyboard.title": "キーボードショートカット",
-  "settings.page.keyboard.description": "別のコマンドシステムを増やさず、アプリの明確で有限なショートカットを確認します。",
+  "settings.page.keyboard.description":
+    "別のコマンドシステムを増やさず、アプリの明確で有限なショートカットを確認します。",
   "settings.shortcuts.heading": "登録済みショートカット",
-  "settings.shortcuts.detail": "グローバル操作と範囲付き操作は、競合を検査した一つのカタログを共有します。",
+  "settings.shortcuts.detail":
+    "グローバル操作と範囲付き操作は、競合を検査した一つのカタログを共有します。",
   "settings.shortcuts.filter": "操作またはキーを絞り込み…",
   "settings.shortcuts.filterAria": "キーボードショートカットを絞り込む",
   "settings.shortcuts.clear": "ショートカットの絞り込みを解除",

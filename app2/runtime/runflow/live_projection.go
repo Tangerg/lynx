@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -35,13 +35,13 @@ type RunItemEventWrite struct {
 }
 
 type liveProjector struct {
-	service   *Service
-	runID     string
-	segmentID string
-	input     chan liveObservation
-	done      chan struct{}
+	service      *Service
+	runID        string
+	segmentID    string
+	input        chan liveObservation
+	done         chan struct{}
 	modelStarted map[string]bool
-	progress  map[string]*liveRunProgress
+	progress     map[string]*liveRunProgress
 }
 
 type liveRunProgress struct {
@@ -50,8 +50,8 @@ type liveRunProgress struct {
 }
 
 type liveObservation struct {
-	delta    *agentexec.ModelDelta
-	progress *agentexec.ModelProgress
+	delta       *agentexec.ModelDelta
+	progress    *agentexec.ModelProgress
 	toolStarted *agentexec.ToolObservation
 	toolSettled *agentexec.ToolObservation
 }
@@ -68,7 +68,7 @@ func newLiveProjector(service *Service, record rundomain.Record, segmentID strin
 	projector := &liveProjector{
 		service: service, runID: record.Run.ID(), segmentID: segmentID,
 		input: make(chan liveObservation, liveProjectionCapacity),
-		done: make(chan struct{}), modelStarted: make(map[string]bool),
+		done:  make(chan struct{}), modelStarted: make(map[string]bool),
 		progress: map[string]*liveRunProgress{
 			record.Run.ID(): {usage: usage, steps: steps},
 		},

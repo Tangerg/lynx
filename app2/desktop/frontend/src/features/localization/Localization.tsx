@@ -30,9 +30,8 @@ export const translateEnglish: Translate = (key, values) =>
   interpolate(englishMessages[key], values);
 
 const englishLocalization = createLocalization("en");
-const LocalizationContext = createContext<LocalizationContextValue>(
-  englishLocalization,
-);
+const LocalizationContext =
+  createContext<LocalizationContextValue>(englishLocalization);
 
 export function LocalizationProvider({ children }: { children: ReactNode }) {
   const { locale } = useShellPreferences();
@@ -70,7 +69,9 @@ function createLocalization(locale: Locale): LocalizationContextValue {
 
 function interpolate(template: string, values?: MessageValues) {
   if (values === undefined) return template;
-  return template.replaceAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name) =>
-    Object.hasOwn(values, name) ? String(values[name]) : placeholder,
+  return template.replaceAll(
+    /\{([A-Za-z][A-Za-z0-9_]*)\}/g,
+    (placeholder, name) =>
+      Object.hasOwn(values, name) ? String(values[name]) : placeholder,
   );
 }

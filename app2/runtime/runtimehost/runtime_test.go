@@ -22,6 +22,8 @@ import (
 func TestRuntimePublishesUsableIdentityAndReleasesGeneration(t *testing.T) {
 	dataRoot := privateDirectory(t, "data")
 	spawnRoot := privateDirectory(t, "spawn")
+	workspaceRoot := privateDirectory(t, "workspace")
+	userHome := privateDirectory(t, "home")
 	descriptorPath := filepath.Join(spawnRoot, "ready.json")
 	tokenPath := filepath.Join(spawnRoot, "token")
 	nonce, err := localruntime.NewNonce()
@@ -34,8 +36,8 @@ func TestRuntimePublishesUsableIdentityAndReleasesGeneration(t *testing.T) {
 		TokenPath:        tokenPath,
 		DescriptorPath:   descriptorPath,
 		BootstrapNonce:   nonce,
-		DefaultWorkspace: "/workspace",
-		UserHome:         "/home/test",
+		DefaultWorkspace: workspaceRoot,
+		UserHome:         userHome,
 		ServerName:       "lyra-runtime",
 		ServerVersion:    "test",
 		CORSOrigins:      httptransport.DefaultCORSOrigins(),

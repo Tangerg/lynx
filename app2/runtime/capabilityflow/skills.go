@@ -225,11 +225,11 @@ func (service *Service) ProposeSkill(
 		return nil, err
 	}
 	proposal := protocol.SkillProposal{
-		Name: strings.TrimSpace(draft.Name),
-		Description: strings.TrimSpace(draft.Description),
-		Instructions: strings.TrimSpace(draft.Instructions),
-		Scope: draft.Scope,
-		Origin: draft.Origin,
+		Name:          strings.TrimSpace(draft.Name),
+		Description:   strings.TrimSpace(draft.Description),
+		Instructions:  strings.TrimSpace(draft.Instructions),
+		Scope:         draft.Scope,
+		Origin:        draft.Origin,
 		SourceSession: strings.TrimSpace(draft.SourceSession),
 	}
 	document, err := validateSkillProposal(proposal)

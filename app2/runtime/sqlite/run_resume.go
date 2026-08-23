@@ -78,7 +78,9 @@ func (database *Database) CommitResume(ctx context.Context, write runflow.Resume
 		}
 	}
 	if write.OpeningMessage != nil {
-		if err := insertConversationMessage(ctx, transaction, *write.OpeningMessage); err != nil { return err }
+		if err := insertConversationMessage(ctx, transaction, *write.OpeningMessage); err != nil {
+			return err
+		}
 	}
 	if err := insertRunEvents(ctx, transaction, write.Events); err != nil {
 		return err

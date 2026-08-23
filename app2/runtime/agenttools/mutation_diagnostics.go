@@ -12,8 +12,8 @@ import (
 
 type mutationDiagnosticsTool struct {
 	toolcontract.Tool
-	paths mutationPaths
-	executor *workspacefs.ConfinedExecutor
+	paths     mutationPaths
+	executor  *workspacefs.ConfinedExecutor
 	codeIntel *codeintel.Service
 }
 

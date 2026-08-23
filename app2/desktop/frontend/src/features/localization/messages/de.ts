@@ -8,18 +8,29 @@ export const germanMessages = {
   "app.tryAgain": "Versuchen Sie es erneut",
   "app.useLocalRuntime": "Lokales Runtime verwenden",
   "app.switchingRuntime": "Umschalten…",
-  "app.unknownStartupError": "Ein unbekannter Fehler hat den Start unterbrochen.",
-  "runtimeError.invalidRuntimeBootstrap": "Desktop hat einen ungültigen Runtime Bootstrap zurückgegeben.",
-  "runtimeError.unsafeRuntimeEndpoint": "Desktop hat einen unsicheren Runtime Endpunkt zurückgegeben.",
+  "app.unknownStartupError":
+    "Ein unbekannter Fehler hat den Start unterbrochen.",
+  "runtimeError.invalidRuntimeBootstrap":
+    "Desktop hat einen ungültigen Runtime Bootstrap zurückgegeben.",
+  "runtimeError.unsafeRuntimeEndpoint":
+    "Desktop hat einen unsicheren Runtime Endpunkt zurückgegeben.",
   "runtimeError.hostUnavailable": "Lyra Desktop Host ist nicht verfügbar.",
-  "runtimeError.invalidBootstrapEnvelope": "Desktop hat einen ungültigen Bootstrap-Umschlag zurückgegeben.",
-  "runtimeError.invalidRemoteRuntimeState": "Desktop hat einen ungültigen Remote-Status Runtime zurückgegeben.",
-  "runtimeError.inconsistentRemoteRuntimeState": "Desktop hat einen inkonsistenten Remote-Status Runtime zurückgegeben.",
-  "runtimeError.invalidDirectorySelection": "Desktop hat eine ungültige Verzeichnisauswahl zurückgegeben.",
-  "runtimeError.invalidImageSaveResult": "Desktop hat ein ungültiges Bildspeicherergebnis zurückgegeben.",
-  "runtimeError.invalidSessionArtifactSelection": "Desktop hat eine ungültige Sitzungsartefaktauswahl zurückgegeben.",
-  "runtimeError.invalidSessionExportResult": "Desktop hat ein ungültiges Sitzungsexportergebnis zurückgegeben.",
-  "runtimeError.identityChanged": "Runtime Identität wurde während der Erkennung geändert.",
+  "runtimeError.invalidBootstrapEnvelope":
+    "Desktop hat einen ungültigen Bootstrap-Umschlag zurückgegeben.",
+  "runtimeError.invalidRemoteRuntimeState":
+    "Desktop hat einen ungültigen Remote-Status Runtime zurückgegeben.",
+  "runtimeError.inconsistentRemoteRuntimeState":
+    "Desktop hat einen inkonsistenten Remote-Status Runtime zurückgegeben.",
+  "runtimeError.invalidDirectorySelection":
+    "Desktop hat eine ungültige Verzeichnisauswahl zurückgegeben.",
+  "runtimeError.invalidImageSaveResult":
+    "Desktop hat ein ungültiges Bildspeicherergebnis zurückgegeben.",
+  "runtimeError.invalidSessionArtifactSelection":
+    "Desktop hat eine ungültige Sitzungsartefaktauswahl zurückgegeben.",
+  "runtimeError.invalidSessionExportResult":
+    "Desktop hat ein ungültiges Sitzungsexportergebnis zurückgegeben.",
+  "runtimeError.identityChanged":
+    "Runtime Identität wurde während der Erkennung geändert.",
   "approval.title": "Freigabe",
   "approval.toolExecution": "Werkzeugausführung",
   "approval.risk": "{risk} Risiko",
@@ -30,55 +41,71 @@ export const germanMessages = {
   "approval.argumentsFor": "Argumente für {tool}",
   "approval.reason": "Grund",
   "approval.optional": "optional",
-  "approval.denialReasonPlaceholder": "Sagen Sie Lyra, warum dies abgelehnt wurde",
+  "approval.denialReasonPlaceholder":
+    "Sagen Sie Lyra, warum dies abgelehnt wurde",
   "approval.contextPlaceholder": "Kontext für diese Entscheidung hinzufügen",
   "approval.rememberDecision": "Entscheidung merken",
   "approval.rememberOnce": "Nur dieses Mal",
   "approval.rememberSession": "Diese Sitzung",
   "approval.rememberProject": "Dieses Projekt",
   "approval.rememberGlobal": "Überall",
-  "approval.decisionRequired": "Wählen Sie für jede Genehmigungsanfrage „Genehmigen“ oder „Ablehnen“.",
-  "approval.argumentsInvalidJSON": "Bearbeitete Tool-Argumente müssen gültig sein JSON.",
-  "approval.argumentsNotObject": "Bearbeitete Toolargumente müssen ein JSON-Objekt sein.",
+  "approval.decisionRequired":
+    "Wählen Sie für jede Genehmigungsanfrage „Genehmigen“ oder „Ablehnen“.",
+  "approval.argumentsInvalidJSON":
+    "Bearbeitete Tool-Argumente müssen gültig sein JSON.",
+  "approval.argumentsNotObject":
+    "Bearbeitete Toolargumente müssen ein JSON-Objekt sein.",
   "question.title": "Frage",
   "question.inputForLyra": "Eingabe für Lyra",
-  "question.fieldsMissing": "Der Runtime hat die Fragefelder nicht bereitgestellt.",
+  "question.fieldsMissing":
+    "Der Runtime hat die Fragefelder nicht bereitgestellt.",
   "question.answerPlaceholder": "Geben Sie Ihre Antwort ein",
   "question.unsupportedField": "Nicht unterstützter Fragefeldtyp: {type}",
   "question.customAnswer": "Benutzerdefinierte Antwort",
   "question.customAnswerPlaceholder": "Schreiben Sie eine weitere Antwort",
   "question.incomplete": "Der Runtime stellte keine vollständige Frage bereit.",
-  "question.answerBeforeContinue": "Antworten Sie mit „{prompt}“, bevor Sie fortfahren.",
-  "question.chooseBeforeContinue": "Wählen Sie eine Antwort für „{prompt}“, bevor Sie fortfahren.",
+  "question.answerBeforeContinue":
+    "Antworten Sie mit „{prompt}“, bevor Sie fortfahren.",
+  "question.chooseBeforeContinue":
+    "Wählen Sie eine Antwort für „{prompt}“, bevor Sie fortfahren.",
   "question.chooseOne": "Wählen Sie eine Antwort für „{prompt}“.",
   "interrupt.actionRequired": "Aktion erforderlich",
   "interrupt.waitingForYou": "Lyra wartet auf Sie",
   "interrupt.requestCountOne": "{count} Anfrage",
   "interrupt.requestCountMany": "{count} Anfragen",
-  "interrupt.intro": "Sehen Sie sich unten jede Anfrage an. Der komplette Satz wird gemeinsam festgeschrieben, bevor dieser Lauf fortgesetzt wird.",
-  "interrupt.atomicNote": "Antworten werden atomar auf diesen Wartelauf angewendet.",
+  "interrupt.intro":
+    "Sehen Sie sich unten jede Anfrage an. Der komplette Satz wird gemeinsam festgeschrieben, bevor dieser Lauf fortgesetzt wird.",
+  "interrupt.atomicNote":
+    "Antworten werden atomar auf diesen Wartelauf angewendet.",
   "interrupt.continuing": "Fortsetzung…",
   "interrupt.submitAll": "Alles senden und fortfahren",
-  "interrupt.unsupported": "Dieser Runtime hat eine nicht unterstützte Interaktion angefordert.",
+  "interrupt.unsupported":
+    "Dieser Runtime hat eine nicht unterstützte Interaktion angefordert.",
   "interrupt.resumeFailed": "Der Lauf konnte nicht fortgesetzt werden.",
-  "composer.removeAttachmentFirst": "Entfernen Sie einen Anhang, bevor Sie einen anderen hinzufügen.",
-  "composer.attachmentLimit": "Es können nur {count} Anhänge gleichzeitig gesendet werden.",
+  "composer.removeAttachmentFirst":
+    "Entfernen Sie einen Anhang, bevor Sie einen anderen hinzufügen.",
+  "composer.attachmentLimit":
+    "Es können nur {count} Anhänge gleichzeitig gesendet werden.",
   "composer.attachments": "Attachments",
   "composer.image": "Bild",
   "composer.file": "Datei",
   "composer.removeAttachment": "Entfernen {name}",
   "composer.messageLyra": "Nachricht Lyra",
   "composer.waitingPlaceholder": "Dieser Lauf wartet auf Ihre Antwort…",
-  "composer.runningPlaceholder": "Anleitung hinzufügen, während Lyra funktioniert…",
+  "composer.runningPlaceholder":
+    "Anleitung hinzufügen, während Lyra funktioniert…",
   "composer.readyPlaceholder": "Beschreiben Sie, was Sie erreichen möchten ...",
   "composer.attach": "Attach",
-  "composer.keyboardHint": "Eingabetaste zum Senden · Umschalt+Eingabetaste für Zeilenumbruch",
+  "composer.keyboardHint":
+    "Eingabetaste zum Senden · Umschalt+Eingabetaste für Zeilenumbruch",
   "composer.stop": "Stopp",
   "composer.sending": "Senden…",
   "composer.steer": "Steer",
   "composer.send": "Senden",
-  "composer.imagesUnsupported": "Das ausgewählte Modell akzeptiert keine Bilder. Entfernen Sie sie oder wählen Sie ein multimodales Modell.",
-  "composer.chooseImageModel": "Wählen Sie ein Modell mit Bildeingabe, bevor Sie Bilder anhängen.",
+  "composer.imagesUnsupported":
+    "Das ausgewählte Modell akzeptiert keine Bilder. Entfernen Sie sie oder wählen Sie ein multimodales Modell.",
+  "composer.chooseImageModel":
+    "Wählen Sie ein Modell mit Bildeingabe, bevor Sie Bilder anhängen.",
   "composer.imageTooLarge": "{name} ist größer als 10 MB.",
   "composer.fileTooLarge": "{name} ist größer als 1 MB.",
   "composer.attachmentReadFailed": "Der Anhang konnte nicht gelesen werden.",
@@ -97,11 +124,14 @@ export const germanMessages = {
   "narrative.loadOlder": "Älter laden",
   "narrative.jumpToLatest": "Zum neuesten Eintrag",
   "narrative.latestActivityBelow": "Die neueste Aktivität ist weiter unten",
-  "narrative.streamPaused": "Live-Updates angehalten: {detail}. Langlebiges Material wird umgeladen.",
+  "narrative.streamPaused":
+    "Live-Updates angehalten: {detail}. Langlebiges Material wird umgeladen.",
   "narrative.ready": "Bereit",
   "narrative.untitledSession": "Unbenannte Sitzung",
-  "narrative.welcome": "Beschreiben Sie die Arbeit unten. Lyra behält die Konversation, Ausführungsfakten und den Wiederherstellungsstatus bei, die diesem Arbeitsbereich zugeordnet sind.",
-  "narrative.orphanDelegation": "Die übergeordnete Delegation ist in diesem Snapshot nicht verfügbar.",
+  "narrative.welcome":
+    "Beschreiben Sie die Arbeit unten. Lyra behält die Konversation, Ausführungsfakten und den Wiederherstellungsstatus bei, die diesem Arbeitsbereich zugeordnet sind.",
+  "narrative.orphanDelegation":
+    "Die übergeordnete Delegation ist in diesem Snapshot nicht verfügbar.",
   "narrative.you": "Du",
   "narrative.answer": "Beantworten",
   "narrative.lyra": "Lyra",
@@ -112,13 +142,15 @@ export const germanMessages = {
   "narrative.inputNeeded": "Eingabe erforderlich",
   "narrative.contextCompacted": "Kontext verdichtet",
   "narrative.messagesCondensed": "{count} Nachrichten komprimiert",
-  "narrative.delegationCycle": "Delegated run lineage enthält einen Zyklus bei {id}.",
+  "narrative.delegationCycle":
+    "Delegated run lineage enthält einen Zyklus bei {id}.",
   "narrative.delegatedRunLabel": "Delegierter Lauf {id}",
   "narrative.delegatedRun": "Delegierter Lauf",
   "narrative.canceling": "Absage…",
   "narrative.cancel": "Abbrechen",
   "narrative.waitingDelegatedMaterial": "Warten auf delegiertes Material…",
-  "narrative.noDelegatedMaterial": "Es wurde kein delegiertes Material aufgezeichnet.",
+  "narrative.noDelegatedMaterial":
+    "Es wurde kein delegiertes Material aufgezeichnet.",
   "narrative.defaultModel": "Standardmodell",
   "narrative.feedbackSaveFailed": "Feedback konnte nicht gespeichert werden.",
   "narrative.rateAnswer": "Bewerten Sie diese Antwort",
@@ -128,16 +160,24 @@ export const germanMessages = {
   "narrative.needsWork": "Benötigt Arbeit",
   "narrative.delegated": "Delegiert",
   "narrative.historyActionFailed": "Sitzungsverlaufsaktion fehlgeschlagen.",
-  "narrative.streamClosedEarly": "Runtime hat den Livestream geschlossen, bevor das Segment beendet war.",
+  "narrative.streamClosedEarly":
+    "Runtime hat den Livestream geschlossen, bevor das Segment beendet war.",
   "narrative.streamInterrupted": "Runtime Stream unterbrochen.",
-  "narrative.waitingForResponse": "Dieser Lauf wartet auf eine Antwort, bevor er fortgesetzt werden kann.",
-  "narrative.activeSegmentMissing": "Der aktive Lauf hat kein aktuelles Segment.",
-  "narrative.actionFailed": "Die Ausführungsaktion konnte nicht abgeschlossen werden.",
+  "narrative.waitingForResponse":
+    "Dieser Lauf wartet auf eine Antwort, bevor er fortgesetzt werden kann.",
+  "narrative.activeSegmentMissing":
+    "Der aktive Lauf hat kein aktuelles Segment.",
+  "narrative.actionFailed":
+    "Die Ausführungsaktion konnte nicht abgeschlossen werden.",
   "narrative.noSessionMounted": "Es ist keine Sitzung gemountet.",
-  "narrative.interruptSessionMismatch": "Dieser Interrupt gehört zu einer anderen Sitzung.",
-  "narrative.interruptResponsesIncomplete": "Antworten müssen den gesamten Interrupt-Satz abdecken.",
-  "narrative.actionInProgress": "Eine weitere Ausführungsaktion wird bereits ausgeführt.",
-  "narrative.olderHistoryFailed": "Älterer Verlauf konnte nicht geladen werden.",
+  "narrative.interruptSessionMismatch":
+    "Dieser Interrupt gehört zu einer anderen Sitzung.",
+  "narrative.interruptResponsesIncomplete":
+    "Antworten müssen den gesamten Interrupt-Satz abdecken.",
+  "narrative.actionInProgress":
+    "Eine weitere Ausführungsaktion wird bereits ausgeführt.",
+  "narrative.olderHistoryFailed":
+    "Älterer Verlauf konnte nicht geladen werden.",
   "narrative.forkHere": "Fork hier",
   "narrative.rewind": "Zurückspulen…",
   "narrative.rewindHistory": "Geschichte nach dieser Runde",
@@ -230,13 +270,15 @@ export const germanMessages = {
   "tool.truncated": "gekürzt",
   "tool.result": "Ergebnis",
   "tool.lineRange": "lines {start}–{end}",
-  "model.chooseStored": "Wählen Sie das in dieser Sitzung gespeicherte Modell aus",
+  "model.chooseStored":
+    "Wählen Sie das in dieser Sitzung gespeicherte Modell aus",
   "model.choose": "Modell auswählen",
   "model.sessionModel": "Sitzungsmodell",
   "model.explicitPair": "Gespeichert als explizites Anbieter- und Modellpaar.",
   "model.closePicker": "Modellauswahl schließen",
   "model.loadingProviders": "Konfigurierte Anbieter werden geladen…",
-  "model.noProvider": "Es ist kein Anbieter konfiguriert. Öffnen Sie zunächst die Einstellungen.",
+  "model.noProvider":
+    "Es ist kein Anbieter konfiguriert. Öffnen Sie zunächst die Einstellungen.",
   "model.configuredProviders": "Konfigurierte Anbieter",
   "model.loadingModels": "Modelle werden geladen…",
   "model.noModels": "Dieser Anbieter hat keine Modelle zurückgegeben.",
@@ -255,7 +297,8 @@ export const germanMessages = {
   "activity.terminal": "Terminal",
   "activity.summary": "Zusammenfassung",
   "activity.noTimeline": "Noch keine Ausführungszeitleiste",
-  "activity.noTimelineDetail": "Run-Lebenszyklus- und Tool-Fakten werden hier angezeigt, nachdem Lyra mit der Arbeit begonnen hat.",
+  "activity.noTimelineDetail":
+    "Run-Lebenszyklus- und Tool-Fakten werden hier angezeigt, nachdem Lyra mit der Arbeit begonnen hat.",
   "activity.latestRunTree": "Neuester Ausführungsbaum",
   "activity.earlierRunTree": "Früherer Ausführungsbaum",
   "activity.runCountOne": "{count} ausgeführt",
@@ -271,7 +314,8 @@ export const germanMessages = {
   "activity.canceling": "Absage…",
   "activity.cancel": "Abbrechen",
   "activity.noCommands": "Noch keine Befehle",
-  "activity.noCommandsDetail": "Shell-Tool-Aufrufe werden hier als schreibgeschütztes Ausführungsprotokoll angezeigt.",
+  "activity.noCommandsDetail":
+    "Shell-Tool-Aufrufe werden hier als schreibgeschütztes Ausführungsprotokoll angezeigt.",
   "activity.commandCountOne": "{count} Befehl",
   "activity.commandCountMany": "{count} Befehle",
   "activity.followingOutput": "Ausgabe wird verfolgt",
@@ -280,14 +324,17 @@ export const germanMessages = {
   "activity.running": "running",
   "activity.commandNumber": "Befehl {number}",
   "activity.killed": "getötet",
-  "activity.liveOutputTruncated": "Die frühere Live-Ausgabe wurde gelöscht, um diese Vorschau einzuschränken.",
+  "activity.liveOutputTruncated":
+    "Die frühere Live-Ausgabe wurde gelöscht, um diese Vorschau einzuschränken.",
   "activity.waitingCommandOutput": "Warten auf Befehlsausgabe…",
   "activity.noCapturedOutput": "Befehl hat keine erfasste Ausgabe erzeugt.",
   "activity.noSummary": "Noch keine Laufzusammenfassung",
-  "activity.noSummaryDetail": "Der letzte Root-Lauf und sein delegierter Baum werden hier zusammengefasst.",
+  "activity.noSummaryDetail":
+    "Der letzte Root-Lauf und sein delegierter Baum werden hier zusammengefasst.",
   "activity.copied": "Kopiert",
   "activity.copySummary": "Zusammenfassung kopieren",
-  "activity.clipboardUnavailable": "Die Systemzwischenablage ist nicht verfügbar. Es wurde nichts kopiert.",
+  "activity.clipboardUnavailable":
+    "Die Systemzwischenablage ist nicht verfügbar. Es wurde nichts kopiert.",
   "activity.changedFiles": "Geänderte Dateien",
   "activity.noChangedFiles": "Es wurden keine Dateiänderungen aufgezeichnet.",
   "activity.readFiles": "Gelesene Dateien",
@@ -322,12 +369,14 @@ export const germanMessages = {
   "activity.exportOmitted": "… {count} mehr",
   "session.loading": "Sitzungen werden geladen…",
   "session.retry": "Erneut versuchen",
-  "session.empty": "Noch keine Sitzungen. Beginnen Sie damit, wenn Sie dazu bereit sind.",
+  "session.empty":
+    "Noch keine Sitzungen. Beginnen Sie damit, wenn Sie dazu bereit sind.",
   "session.search": "Suchsitzungen",
   "session.clearSearch": "Sitzungssuche löschen",
   "session.shownOne": "{count} Sitzung angezeigt",
   "session.shownMany": "{count} Sitzungen angezeigt",
-  "session.refreshFailed": "Gespeicherte Sitzungen werden angezeigt. Aktualisierung fehlgeschlagen: {detail}",
+  "session.refreshFailed":
+    "Gespeicherte Sitzungen werden angezeigt. Aktualisierung fehlgeschlagen: {detail}",
   "session.noMatch": "Keine Sitzungen stimmen mit „{query}“ überein.",
   "session.groupedLabel": "Sitzungen nach Arbeitsbereich",
   "session.loadingOlder": "Laden…",
@@ -362,10 +411,13 @@ export const germanMessages = {
   "session.createFailed": "Die Sitzung konnte nicht erstellt werden.",
   "goal.editObjective": "Autonomes Ziel bearbeiten",
   "goal.newObjective": "Neues autonomes Ziel",
-  "goal.runtimeOwnership": "Der Runtime ist für die Ausführung, Buchhaltung und Wiederherstellung verantwortlich.",
+  "goal.runtimeOwnership":
+    "Der Runtime ist für die Ausführung, Buchhaltung und Wiederherstellung verantwortlich.",
   "goal.objective": "Ziel Ziel",
-  "goal.objectivePlaceholder": "Beschreiben Sie das Ergebnis, auf das Lyra weiter hinarbeiten sollte ...",
-  "goal.externalChange": "Das Ziel Runtime hat sich während der Bearbeitung geändert. Ihr Entwurf bleibt erhalten; Durch das Speichern wird es explizit ersetzt.",
+  "goal.objectivePlaceholder":
+    "Beschreiben Sie das Ergebnis, auf das Lyra weiter hinarbeiten sollte ...",
+  "goal.externalChange":
+    "Das Ziel Runtime hat sich während der Bearbeitung geändert. Ihr Entwurf bleibt erhalten; Durch das Speichern wird es explizit ersetzt.",
   "goal.optionalBudget": "Optionales Budget",
   "goal.runs": "Runs",
   "goal.steps": "Schritte",
@@ -381,7 +433,8 @@ export const germanMessages = {
   "goal.loading": "Wird geladen",
   "goal.reading": "Das aktuelle Ziel wird aus dem Sitzungs-Snapshot gelesen …",
   "goal.notStarted": "Nicht gestartet",
-  "goal.empty": "Verwenden Sie den Zielkomponisten, um dieser Sitzung ein dauerhaftes Ziel zu geben.",
+  "goal.empty":
+    "Verwenden Sie den Zielkomponisten, um dieser Sitzung ein dauerhaftes Ziel zu geben.",
   "goal.budgetUsage": "Zielbudgetnutzung",
   "goal.cost": "Kosten",
   "goal.pause": "Pause",
@@ -412,7 +465,8 @@ export const germanMessages = {
   "plan.loading": "Plan wird geladen…",
   "plan.currentUnavailable": "Der aktuelle Plan ist nicht verfügbar",
   "plan.loadingCurrent": "Laden des aktuellen Plans",
-  "plan.progress": "Planfortschritt: {completed} von {total} Schritten abgeschlossen. {summary}",
+  "plan.progress":
+    "Planfortschritt: {completed} von {total} Schritten abgeschlossen. {summary}",
   "plan.title": "Plan",
   "plan.current": "Aktueller Plan",
   "plan.revision": "rev {revision}",
@@ -424,11 +478,16 @@ export const germanMessages = {
   "plan.status.completed": "Abgeschlossen",
   "plan.status.inProgress": "In Bearbeitung",
   "plan.status.pending": "Ausstehend",
-  "shell.invalidArtifact": "Die ausgewählte Datei ist kein gültiges Lyra Sitzungsartefakt.",
-  "shell.missingJSONExport": "Runtime hat kein JSON Sitzungsartefakt zurückgegeben.",
-  "shell.missingMarkdownExport": "Runtime hat keinen Markdown-Sitzungsexport zurückgegeben.",
-  "shell.historyBusy": "Eine andere Sitzungsverlaufsaktion wird noch ausgeführt.",
-  "shell.selectForFeedback": "Wählen Sie eine Sitzung aus, bevor Sie Feedback senden.",
+  "shell.invalidArtifact":
+    "Die ausgewählte Datei ist kein gültiges Lyra Sitzungsartefakt.",
+  "shell.missingJSONExport":
+    "Runtime hat kein JSON Sitzungsartefakt zurückgegeben.",
+  "shell.missingMarkdownExport":
+    "Runtime hat keinen Markdown-Sitzungsexport zurückgegeben.",
+  "shell.historyBusy":
+    "Eine andere Sitzungsverlaufsaktion wird noch ausgeführt.",
+  "shell.selectForFeedback":
+    "Wählen Sie eine Sitzung aus, bevor Sie Feedback senden.",
   "shell.workIndex": "Arbeitsindex",
   "shell.openSettings": "Einstellungen öffnen",
   "shell.settings": "Einstellungen",
@@ -441,11 +500,13 @@ export const germanMessages = {
   "shell.contextDock": "Context Dock",
   "shell.session": "Sitzung",
   "shell.emptyTitle": "Beginnen Sie mit einer sauberen Sitzung.",
-  "shell.emptyDetail": "Eine Sitzung bindet Gesprächs-, Plan-, Ziel- und Wiederherstellungsdaten an eine exakte Arbeitsbereichsidentität.",
+  "shell.emptyDetail":
+    "Eine Sitzung bindet Gesprächs-, Plan-, Ziel- und Wiederherstellungsdaten an eine exakte Arbeitsbereichsidentität.",
   "shell.creating": "Wird erstellt…",
   "shell.newSession": "Neue Sitzung",
   "shell.mountingSession": "Montagesitzung",
-  "shell.loadingSnapshot": "Laden eines zusammenhängenden Runtime-Snapshots vor der Annahme neuer Arbeiten…",
+  "shell.loadingSnapshot":
+    "Laden eines zusammenhängenden Runtime-Snapshots vor der Annahme neuer Arbeiten…",
   "shell.liveUpdates": "Live-Updates",
   "shell.reconnecting": "Wiederverbinden",
   "shell.connecting": "Verbinden",
@@ -460,12 +521,14 @@ export const germanMessages = {
   "shell.streamingMethods": "Streaming-Methoden",
   "shell.instance": "Instanz",
   "shell.restoredImage": "restored-image-{number}",
-  "shell.unknownRuntimeError": "Ein unbekannter Runtime-Fehler ist aufgetreten.",
+  "shell.unknownRuntimeError":
+    "Ein unbekannter Runtime-Fehler ist aufgetreten.",
   "workspace.dockSections": "Context Dock-Abschnitte",
   "workspace.title": "Workspace",
   "workspace.session": "Sitzung",
   "workspace.unavailable": "Arbeitsbereich nicht verfügbar",
-  "workspace.unavailableDetail": "Verbinden Sie diese Sitzung erneut mit einem verfügbaren Verzeichnis, bevor Sie Dateien durchsuchen.",
+  "workspace.unavailableDetail":
+    "Verbinden Sie diese Sitzung erneut mit einem verfügbaren Verzeichnis, bevor Sie Dateien durchsuchen.",
   "workspace.context": "Workspace-Kontext",
   "workspace.views": "Workspace-Ansichten",
   "workspace.files": "Dateien",
@@ -494,8 +557,10 @@ export const germanMessages = {
   "workspace.nextLines": "Nächste Zeilen",
   "workspace.emptyFile": "Leere Datei",
   "workspace.linePosition": "{start}–{end} / {total}",
-  "workspace.boundedWindow": "Diese Ansicht ist auf ein exaktes Linienfenster beschränkt.",
-  "workspace.requestFailed": "Die Arbeitsbereichsanforderung ist fehlgeschlagen.",
+  "workspace.boundedWindow":
+    "Diese Ansicht ist auf ein exaktes Linienfenster beschränkt.",
+  "workspace.requestFailed":
+    "Die Arbeitsbereichsanforderung ist fehlgeschlagen.",
   "resource.workspace": "Workspace-Ressourcen",
   "resource.types": "Ressourcentypen",
   "resource.skills": "Skills",
@@ -510,12 +575,14 @@ export const germanMessages = {
   "resource.discoveringRecipes": "Rezepte entdecken…",
   "resource.recipesFailed": "Rezepte konnten nicht gefunden werden",
   "resource.noRecipes": "Keine Rezepte verfügbar",
-  "resource.noRecipesDetail": "Fügen Sie unter .lyra/recipes ein durch Schrägstrich aufrufbares Markdown-Rezept hinzu.",
+  "resource.noRecipesDetail":
+    "Fügen Sie unter .lyra/recipes ein durch Schrägstrich aufrufbares Markdown-Rezept hinzu.",
   "resource.viewPrompt": "Eingabeaufforderung anzeigen",
   "resource.resolvingAgentDocs": "Resolving Agent-Dokumente…",
   "resource.agentDocsFailed": "Agentendokumente konnten nicht aufgelöst werden",
   "resource.noAgentDocs": "Es gelten keine Agentendokumente",
-  "resource.noAgentDocsDetail": "Fügen Sie AGENTS.md zu Hause, im Projektstamm oder unterhalb des ausgewählten Arbeitsbereichs hinzu.",
+  "resource.noAgentDocsDetail":
+    "Fügen Sie AGENTS.md zu Hause, im Projektstamm oder unterhalb des ausgewählten Arbeitsbereichs hinzu.",
   "codebase.readingIndex": "Lesen des semantischen Index",
   "codebase.indexUnavailable": "Semantischer Index ist nicht verfügbar",
   "codebase.searchLabel": "Semantische Codebasissuche",
@@ -529,20 +596,26 @@ export const germanMessages = {
   "codebase.indexing": "Indizierung…",
   "codebase.reindex": "Reindex",
   "codebase.building": "Erstellung des semantischen Index",
-  "codebase.buildingDetail": "Quellenerkennung, Chunking und Einbettungen werden im Runtime ausgeführt. Diese Ansicht wird aktualisiert, wenn sich der dauerhafte Index stabilisiert.",
-  "codebase.lastBuildFailed": "Die letzte Indexerstellung wurde nicht abgeschlossen",
-  "codebase.lastBuildFailedDetail": "Überprüfen Sie die Konfiguration des Einbettungsanbieters und erstellen Sie dann den Index neu. Der bisherige durchsuchbare Index wird nie teilweise ersetzt.",
+  "codebase.buildingDetail":
+    "Quellenerkennung, Chunking und Einbettungen werden im Runtime ausgeführt. Diese Ansicht wird aktualisiert, wenn sich der dauerhafte Index stabilisiert.",
+  "codebase.lastBuildFailed":
+    "Die letzte Indexerstellung wurde nicht abgeschlossen",
+  "codebase.lastBuildFailedDetail":
+    "Überprüfen Sie die Konfiguration des Einbettungsanbieters und erstellen Sie dann den Index neu. Der bisherige durchsuchbare Index wird nie teilweise ersetzt.",
   "codebase.starting": "Startet…",
   "codebase.buildAgain": "Neu erstellen",
   "codebase.semanticTitle": "Suchen Sie nach Bedeutung, nicht nur nach Text",
-  "codebase.semanticDetail": "Erstellen Sie einen arbeitsbereichsweiten semantischen Index, um relevante Codepassagen im aktuellen Sitzungsarbeitsbereich zu finden.",
+  "codebase.semanticDetail":
+    "Erstellen Sie einen arbeitsbereichsweiten semantischen Index, um relevante Codepassagen im aktuellen Sitzungsarbeitsbereich zu finden.",
   "codebase.buildIndex": "Index erstellen",
   "codebase.readySearch": "Bereit zur Suche",
-  "codebase.readySearchDetail": "Beschreiben Sie eine Verantwortung, ein Verhalten oder ein Konzept in einfacher Sprache.",
+  "codebase.readySearchDetail":
+    "Beschreiben Sie eine Verantwortung, ein Verhalten oder ein Konzept in einfacher Sprache.",
   "codebase.searchingPassages": "Suche nach Codepassagen",
   "codebase.searchFailed": "Semantische Suche fehlgeschlagen",
   "codebase.noPassage": "Keine relevante Passage gefunden",
-  "codebase.noPassageDetail": "Versuchen Sie es mit einer umfassenderen Beschreibung oder erstellen Sie es neu, nachdem Sie die Quelldateien geändert haben.",
+  "codebase.noPassageDetail":
+    "Versuchen Sie es mit einer umfassenderen Beschreibung oder erstellen Sie es neu, nachdem Sie die Quelldateien geändert haben.",
   "codebase.results": "Semantische Suchergebnisse",
   "codebase.lineRangeScore": "L{start}–{end} · {score}%",
   "codebase.status.building": "Gebäudeindex",
@@ -554,15 +627,20 @@ export const germanMessages = {
   "review.branchUnavailable": "Zweigvergleich ist nicht verfügbar",
   "review.loadFailed": "Workspace-Rezension konnte nicht geladen werden",
   "review.boundary": "Überprüfungsgrenze erreicht",
-  "review.boundaryDetail": "Die erste geänderte Datei überschreitet die Grenze von 100.000 Zeilen. Öffnen Sie es über „Dateien“, um begrenzte Fenster zu überprüfen.",
+  "review.boundaryDetail":
+    "Die erste geänderte Datei überschreitet die Grenze von 100.000 Zeilen. Öffnen Sie es über „Dateien“, um begrenzte Fenster zu überprüfen.",
   "review.materialUnavailable": "Diff-Material ist nicht verfügbar",
-  "review.materialUnavailableDetail": "Git hat geänderte Dateiidentitäten gemeldet, aber keinen überprüfbaren Patch erstellt.",
+  "review.materialUnavailableDetail":
+    "Git hat geänderte Dateiidentitäten gemeldet, aber keinen überprüfbaren Patch erstellt.",
   "review.noBranchChanges": "Keine Zweigänderungen",
   "review.clean": "Arbeitsbereich ist sauber",
-  "review.noBranchChangesDetail": "Der Arbeitsbereich entspricht der Zusammenführungsbasis des Standardzweigs.",
-  "review.cleanDetail": "Verfolgte und nicht verfolgte Dateien stimmen mit dem aktuellen HEAD überein.",
+  "review.noBranchChangesDetail":
+    "Der Arbeitsbereich entspricht der Zusammenführungsbasis des Standardzweigs.",
+  "review.cleanDetail":
+    "Verfolgte und nicht verfolgte Dateien stimmen mit dem aktuellen HEAD überein.",
   "review.label": "Workspace-Überprüfung",
-  "review.truncated": "Die Überprüfung wurde an der 100.000-Zeilen-Grenze gestoppt; Jede sichtbare Datei ist vollständig.",
+  "review.truncated":
+    "Die Überprüfung wurde an der 100.000-Zeilen-Grenze gestoppt; Jede sichtbare Datei ist vollständig.",
   "review.baseline": "Grundlinie überprüfen",
   "review.worktree": "Arbeitsbaum",
   "review.branch": "Branch",
@@ -575,7 +653,8 @@ export const germanMessages = {
   "review.openFile": "Datei öffnen",
   "review.binary": "binär",
   "review.countsUnavailable": "counts nicht verfügbar",
-  "review.binaryNoDiff": "Binäres Material hat keinen zeilenorientierten Unterschied.",
+  "review.binaryNoDiff":
+    "Binäres Material hat keinen zeilenorientierten Unterschied.",
   "review.noTextRows": "Git hat für diese Änderung keine Textzeilen erstellt.",
   "review.changedLines": "Geänderte Zeilen",
   "review.changedLinesSplit": "Geänderte Zeilen im geteilten Layout",
@@ -584,13 +663,16 @@ export const germanMessages = {
   "review.partial": "partiell",
   "review.requestFailed": "Die Überprüfungsanfrage ist fehlgeschlagen.",
   "knowledge.unavailable": "Wissen nicht verfügbar",
-  "knowledge.unavailableDetail": "Dieser Runtime bewirbt nicht die Knowledge-Funktion Lyra.",
+  "knowledge.unavailableDetail":
+    "Dieser Runtime bewirbt nicht die Knowledge-Funktion Lyra.",
   "knowledge.loading": "Wissen wird geladen…",
   "knowledge.loadFailed": "Knowledge konnte nicht geladen werden",
   "knowledge.noScopes": "Keine Wissensbereiche verfügbar",
-  "knowledge.noScopesDetail": "Lyra konnte einen beschreibbaren LYRA.md Bereich für diesen Arbeitsbereich nicht auflösen.",
+  "knowledge.noScopesDetail":
+    "Lyra konnte einen beschreibbaren LYRA.md Bereich für diesen Arbeitsbereich nicht auflösen.",
   "knowledge.documents": "Wissensdokumente",
-  "knowledge.externalChange": "Dieses Knowledge-Dokument wurde extern geändert. Ihr Entwurf bleibt gegenüber der letzten Überarbeitung erhalten; Überprüfen Sie es, bevor Sie es erneut speichern.",
+  "knowledge.externalChange":
+    "Dieses Knowledge-Dokument wurde extern geändert. Ihr Entwurf bleibt gegenüber der letzten Überarbeitung erhalten; Überprüfen Sie es, bevor Sie es erneut speichern.",
   "knowledge.notCreated": "Nicht erstellt",
   "knowledge.editorLabel": "{scope} Wissen",
   "knowledge.unsaved": "Nicht gespeicherte Änderungen",
@@ -607,9 +689,11 @@ export const germanMessages = {
   "diagnostic.loading": "Diagnosetools werden geladen…",
   "diagnostic.loadFailed": "Diagnosetools konnten nicht geladen werden",
   "diagnostic.empty": "Keine direkten Tools verfügbar",
-  "diagnostic.emptyDetail": "Dieser Runtime stellt keine Funktion bereit, die außerhalb einer Agentenausführung sicher aufgerufen werden kann.",
+  "diagnostic.emptyDetail":
+    "Dieser Runtime stellt keine Funktion bereit, die außerhalb einer Agentenausführung sicher aufgerufen werden kann.",
   "diagnostic.title": "Direkte Diagnose",
-  "diagnostic.detail": "Diese schreibgeschützten Tools werden im aktuellen Arbeitsbereich ohne Sitzung, Modellschleife oder Genehmigungsfluss ausgeführt. Nur-Agent-Tools bleiben innerhalb des Runs, der ihre Autorität besitzt.",
+  "diagnostic.detail":
+    "Diese schreibgeschützten Tools werden im aktuellen Arbeitsbereich ohne Sitzung, Modellschleife oder Genehmigungsfluss ausgeführt. Nur-Agent-Tools bleiben innerhalb des Runs, der ihre Autorität besitzt.",
   "diagnostic.safe": "sicher",
   "diagnostic.schema": "JSON Schema",
   "diagnostic.arguments": "Argumente",
@@ -620,7 +704,8 @@ export const germanMessages = {
   "diagnostic.invalidArguments": "Argumente müssen ein JSON-Objekt sein.",
   "diagnostic.requestFailed": "Die Anfrage konnte nicht abgeschlossen werden.",
   "skills.unavailable": "Fähigkeiten nicht verfügbar",
-  "skills.unavailableDetail": "Dieser Runtime bewirbt nicht die Kompetenzfähigkeit Lyra.",
+  "skills.unavailableDetail":
+    "Dieser Runtime bewirbt nicht die Kompetenzfähigkeit Lyra.",
   "skills.workspace": "Skills-Arbeitsbereich",
   "skills.views": "Skill-Ansichten",
   "skills.available": "Verfügbar",
@@ -630,11 +715,13 @@ export const germanMessages = {
   "skills.discovering": "Fähigkeiten entdecken…",
   "skills.discoveryFailed": "Skills konnten nicht entdeckt werden",
   "skills.empty": "Keine Fähigkeiten verfügbar",
-  "skills.emptyDetail": "Fügen Sie unter .lyra/skills ein gültiges SKILL.md hinzu oder genehmigen Sie einen ausstehenden Vorschlag.",
+  "skills.emptyDetail":
+    "Fügen Sie unter .lyra/skills ein gültiges SKILL.md hinzu oder genehmigen Sie einen ausstehenden Vorschlag.",
   "skills.loadingProposals": "Vorschläge werden geladen…",
   "skills.proposalsFailed": "Vorschläge konnten nicht geladen werden",
   "skills.noProposals": "Keine ausstehenden Vorschläge",
-  "skills.noProposalsDetail": "Von Agenten erstellte Fähigkeiten bleiben inaktiv, bis hier ein Vorschlag angezeigt wird und Sie dessen genaue Überarbeitung genehmigen.",
+  "skills.noProposalsDetail":
+    "Von Agenten erstellte Fähigkeiten bleiben inaktiv, bis hier ein Vorschlag angezeigt wird und Sie dessen genaue Überarbeitung genehmigen.",
   "skills.revision": "revision",
   "skills.origin": "Origin",
   "skills.unknown": "unbekannt",
@@ -648,7 +735,8 @@ export const germanMessages = {
   "skills.loadingLibrary": "Benutzerbibliothek wird geladen…",
   "skills.libraryFailed": "Skill-Bibliothek konnte nicht geladen werden",
   "skills.libraryEmpty": "Benutzerbibliothek ist leer",
-  "skills.libraryEmptyDetail": "Genehmigte benutzerbezogene Fertigkeiten und extern erstellte ~/.lyra/skills-Pakete werden hier angezeigt.",
+  "skills.libraryEmptyDetail":
+    "Genehmigte benutzerbezogene Fertigkeiten und extern erstellte ~/.lyra/skills-Pakete werden hier angezeigt.",
   "skills.active": "Aktiv",
   "skills.noActive": "Keine aktiven Benutzerfähigkeiten.",
   "skills.archive": "Archivieren",
@@ -658,7 +746,8 @@ export const germanMessages = {
   "skills.actionPending": "{action}…",
   "skills.runtimeFailure": "Unerwarteter Runtime Fehler",
   "memory.unavailable": "Agent-Speicher nicht verfügbar",
-  "memory.unavailableDetail": "Dieser Runtime kündigt nicht die Agent-Speicherfunktion Lyra an.",
+  "memory.unavailableDetail":
+    "Dieser Runtime kündigt nicht die Agent-Speicherfunktion Lyra an.",
   "memory.scope": "Speicherbereich",
   "memory.project": "Projekt",
   "memory.user": "Benutzer",
@@ -667,12 +756,14 @@ export const germanMessages = {
   "memory.loadFailed": "Agent-Speicher konnte nicht geladen werden",
   "memory.emptyProject": "Noch kein Projektspeicher",
   "memory.emptyUser": "Noch kein Benutzerspeicher",
-  "memory.emptyDetail": "Fügen Sie eine dauerhafte Tatsache hinzu oder überprüfen Sie Vorschläge. Lyra destilliert aus der abgeschlossenen Arbeit.",
+  "memory.emptyDetail":
+    "Fügen Sie eine dauerhafte Tatsache hinzu oder überprüfen Sie Vorschläge. Lyra destilliert aus der abgeschlossenen Arbeit.",
   "memory.pendingReview": "Wartet auf Prüfung",
   "memory.active": "Aktiver Speicher",
   "memory.add": "Eintrag hinzufügen",
   "memory.addLabel": "Speicher {scope} hinzufügen",
-  "memory.placeholder": "Eine dauerhafte Präferenz, Konvention, Entscheidung oder ein Fallstrick …",
+  "memory.placeholder":
+    "Eine dauerhafte Präferenz, Konvention, Entscheidung oder ein Fallstrick …",
   "memory.saving": "Speichern…",
   "memory.save": "Speichern",
   "memory.cancel": "Abbrechen",
@@ -680,7 +771,8 @@ export const germanMessages = {
   "memory.reviewing": "Rezension…",
   "memory.approve": "Genehmigen",
   "memory.editLabel": "Eintrag bearbeiten",
-  "memory.externalChange": "Diese Erinnerung hat sich an anderer Stelle geändert. Brechen Sie den Vorgang ab und öffnen Sie ihn erneut, bevor Sie ihn bearbeiten.",
+  "memory.externalChange":
+    "Diese Erinnerung hat sich an anderer Stelle geändert. Brechen Sie den Vorgang ab und öffnen Sie ihn erneut, bevor Sie ihn bearbeiten.",
   "memory.unpin": "Unpin",
   "memory.pin": "Anpinnen",
   "memory.edit": "Bearbeiten",
@@ -695,49 +787,65 @@ export const germanMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "Einstellungen",
   "settings.sections": "Settings-Abschnitte",
-  "settings.authorityNote": "Das Erscheinungsbild bleibt lokal. Der Status Runtime bleibt nach jeder Mutation die Autorität.",
+  "settings.authorityNote":
+    "Das Erscheinungsbild bleibt lokal. Der Status Runtime bleibt nach jeder Mutation die Autorität.",
   "settings.desktopSettings": "Desktop-Einstellungen",
   "settings.close": "Einstellungen schließen",
   "settings.page.appearance.title": "Darstellung",
-  "settings.page.appearance.description": "Wählen Sie ein dauerhaftes Thema und einen Akzent, ohne die Anwendungssemantik zu ändern.",
+  "settings.page.appearance.description":
+    "Wählen Sie ein dauerhaftes Thema und einen Akzent, ohne die Anwendungssemantik zu ändern.",
   "settings.page.runtime.title": "Runtime Verbindung",
-  "settings.page.runtime.description": "Wechseln Sie zwischen der überwachten lokalen Runtime und einer verifizierten Remote-Bereitstellung.",
+  "settings.page.runtime.description":
+    "Wechseln Sie zwischen der überwachten lokalen Runtime und einer verifizierten Remote-Bereitstellung.",
   "settings.page.providers.title": "Modelle und Anbieter",
-  "settings.page.providers.description": "Modellanbieter verbinden und optionale Runtimeweite Modellrollen zuweisen.",
+  "settings.page.providers.description":
+    "Modellanbieter verbinden und optionale Runtimeweite Modellrollen zuweisen.",
   "settings.page.mcp.title": "MCP-Server",
-  "settings.page.mcp.description": "Eigene externe Tool-Verbindungen, Autorisierung und explizite Vertrauenswürdigkeit auf Tool-Ebene.",
+  "settings.page.mcp.description":
+    "Eigene externe Tool-Verbindungen, Autorisierung und explizite Vertrauenswürdigkeit auf Tool-Ebene.",
   "settings.page.approvals.title": "Genehmigungsrichtlinie",
-  "settings.page.approvals.description": "Wählen Sie die Live-Effekt-Haltung und verwalten Sie gespeicherte Entscheidungen, die für diese Sitzung sichtbar sind.",
+  "settings.page.approvals.description":
+    "Wählen Sie die Live-Effekt-Haltung und verwalten Sie gespeicherte Entscheidungen, die für diese Sitzung sichtbar sind.",
   "settings.page.schedules.title": "Zeitpläne",
-  "settings.page.schedules.description": "Erstellen Sie wiederkehrende Läufe mit dauerhafter Trittfrequenz, expliziter Arbeitsbereichsabsicht und wiederherstellbarer Auslösung.",
+  "settings.page.schedules.description":
+    "Erstellen Sie wiederkehrende Läufe mit dauerhafter Trittfrequenz, expliziter Arbeitsbereichsabsicht und wiederherstellbarer Auslösung.",
   "settings.page.hooks.title": "Lifecycle-Hooks",
-  "settings.page.hooks.description": "Überprüfen Sie die Benutzer- und Projektautomatisierung, bevor Sie entscheiden, welche Projekt-Hooks ausgeführt werden dürfen.",
+  "settings.page.hooks.description":
+    "Überprüfen Sie die Benutzer- und Projektautomatisierung, bevor Sie entscheiden, welche Projekt-Hooks ausgeführt werden dürfen.",
   "settings.page.usage.title": "Verbrauch",
-  "settings.page.usage.description": "Inspizieren Sie das maßgebliche Terminal. Führen Sie die Nutzung aus, ohne Preise zu erfinden, die Runtime nicht kennt.",
+  "settings.page.usage.description":
+    "Inspizieren Sie das maßgebliche Terminal. Führen Sie die Nutzung aus, ohne Preise zu erfinden, die Runtime nicht kennt.",
   "settings.appearance.theme": "Farbthema",
-  "settings.appearance.themeDetail": "Wählen Sie eine statische Lyra Palette oder folgen Sie dem Betriebssystem.",
+  "settings.appearance.themeDetail":
+    "Wählen Sie eine statische Lyra Palette oder folgen Sie dem Betriebssystem.",
   "settings.appearance.theme.system.name": "System folgen",
-  "settings.appearance.theme.system.detail": "Wechseln Sie mit Ihrem Betriebssystem.",
+  "settings.appearance.theme.system.detail":
+    "Wechseln Sie mit Ihrem Betriebssystem.",
   "settings.appearance.theme.linen.name": "Leinen",
-  "settings.appearance.theme.linen.detail": "Warme, ruhige Oberflächen für Tageslicht.",
+  "settings.appearance.theme.linen.detail":
+    "Warme, ruhige Oberflächen für Tageslicht.",
   "settings.appearance.theme.graphite.name": "Graphit",
-  "settings.appearance.theme.graphite.detail": "Glanzarme dunkle Oberflächen für konzentriertes Arbeiten.",
+  "settings.appearance.theme.graphite.detail":
+    "Glanzarme dunkle Oberflächen für konzentriertes Arbeiten.",
   "settings.appearance.accent": "Akzentfarbe",
-  "settings.appearance.accentDetail": "Eine funktionale Farbe für Fokus, Fortschritt, Links und primäre Aktionen.",
+  "settings.appearance.accentDetail":
+    "Eine funktionale Farbe für Fokus, Fortschritt, Links und primäre Aktionen.",
   "settings.appearance.accentColor": "Akzentfarbe",
   "settings.appearance.accent.ember": "Ember",
   "settings.appearance.accent.ocean": "Ozean",
   "settings.appearance.accent.forest": "Wald",
   "settings.appearance.accent.violet": "Violett",
   "settings.appearance.language": "Sprache",
-  "settings.appearance.languageDetail": "Wählen Sie die Sprache aus, die Lyra Desktop auf diesem Gerät verwendet.",
+  "settings.appearance.languageDetail":
+    "Wählen Sie die Sprache aus, die Lyra Desktop auf diesem Gerät verwendet.",
   "settings.runtime.tryAgain": "Versuchen Sie es erneut",
   "settings.runtime.loading": "Lade Runtime Verbindung…",
   "settings.runtime.status.remoteActive": "Remote aktiv",
   "settings.runtime.status.remoteUnavailable": "Remote nicht verfügbar",
   "settings.runtime.status.localActive": "Lokal aktiv",
   "settings.runtime.active": "Aktiv Runtime",
-  "settings.runtime.activeDetail": "Desktop ändert Bereitstellungsziele, ohne Lyra Protocol zu ändern.",
+  "settings.runtime.activeDetail":
+    "Desktop ändert Bereitstellungsziele, ohne Lyra Protocol zu ändern.",
   "settings.runtime.target": "Ziel",
   "settings.runtime.remote": "Remote Runtime",
   "settings.runtime.local": "Lokal Runtime",
@@ -745,41 +853,51 @@ export const germanMessages = {
   "settings.runtime.privateLoopback": "Privater Loopback",
   "settings.runtime.useLocal": "Lokales Runtime verwenden",
   "settings.runtime.useSavedRemote": "Gespeicherte Fernbedienung verwenden",
-  "settings.runtime.remoteDetail": "HTTPS Ursprung und Trägergeheimnis werden überprüft, bevor das Profil aktiv wird.",
+  "settings.runtime.remoteDetail":
+    "HTTPS Ursprung und Trägergeheimnis werden überprüft, bevor das Profil aktiv wird.",
   "settings.runtime.httpsOrigin": "HTTPS Herkunft",
   "settings.runtime.bearerSecret": "Trägergeheimnis",
   "settings.runtime.replacementSecret": "Geben Sie ein Ersatzgeheimnis ein",
   "settings.runtime.keyringSecret": "Im Systemschlüsselbund gespeichert",
-  "settings.runtime.secretNote": "Geheimnisse gelangen nie in das persistente Profil.",
+  "settings.runtime.secretNote":
+    "Geheimnisse gelangen nie in das persistente Profil.",
   "settings.runtime.connecting": "Verbinden…",
   "settings.runtime.replace": "Verbindung ersetzen",
   "settings.runtime.connect": "Remote verbinden",
   "settings.runtime.forgetTitle": "Remote-Profil vergessen",
-  "settings.runtime.forgetDetail": "Entfernen Sie die gespeicherte Endpunktidentität und das Trägergeheimnis von diesem Gerät.",
+  "settings.runtime.forgetDetail":
+    "Entfernen Sie die gespeicherte Endpunktidentität und das Trägergeheimnis von diesem Gerät.",
   "settings.runtime.irreversible": "Dies kann nicht rückgängig gemacht werden.",
   "settings.runtime.keep": "Profil behalten",
   "settings.runtime.forgetRemote": "Fernbedienung vergessen",
   "settings.runtime.forget": "Vergiss…",
   "settings.runtime.failed": "Runtime Verbindung fehlgeschlagen.",
   "settings.approval.effectStance": "Effekthaltung",
-  "settings.approval.effectStanceDetail": "Der Runtime liest diese Einstellung bei jedem Werkzeugeffekt, einschließlich bereits laufender Läufe.",
+  "settings.approval.effectStanceDetail":
+    "Der Runtime liest diese Einstellung bei jedem Werkzeugeffekt, einschließlich bereits laufender Läufe.",
   "settings.approval.loadingMode": "Genehmigungsmodus wird geladen…",
   "settings.approval.tryAgain": "Versuchen Sie es erneut",
   "settings.approval.mode.safe.name": "Sicher",
-  "settings.approval.mode.safe.description": "Bestätigen Sie Arbeitsbereichsschreibvorgänge, Befehlsausführung und Netzwerkzugriff.",
+  "settings.approval.mode.safe.description":
+    "Bestätigen Sie Arbeitsbereichsschreibvorgänge, Befehlsausführung und Netzwerkzugriff.",
   "settings.approval.mode.safe.badge": "Meiste Rezension",
   "settings.approval.mode.balanced.name": "Ausgewogen",
-  "settings.approval.mode.balanced.description": "Befehlsausführung bestätigen; Erlauben Sie normale Schreibvorgänge und Netzwerktools.",
+  "settings.approval.mode.balanced.description":
+    "Befehlsausführung bestätigen; Erlauben Sie normale Schreibvorgänge und Netzwerktools.",
   "settings.approval.mode.balanced.badge": "Standard",
   "settings.approval.mode.yolo.name": "Yolo",
-  "settings.approval.mode.yolo.description": "Gewöhnliche Effekte ohne Eingabeaufforderungen zulassen. Katastrophale Befehle müssen noch überprüft werden.",
+  "settings.approval.mode.yolo.description":
+    "Gewöhnliche Effekte ohne Eingabeaufforderungen zulassen. Katastrophale Befehle müssen noch überprüft werden.",
   "settings.approval.mode.yolo.badge": "Geringste Bewertung",
   "settings.approval.remembered": "Erinnerte Entscheidungen",
-  "settings.approval.rememberedDetail": "Sitzungsregeln haben Vorrang vor Projektregeln und dann vor globalen Regeln. Gleiche Konflikte leugnen.",
+  "settings.approval.rememberedDetail":
+    "Sitzungsregeln haben Vorrang vor Projektregeln und dann vor globalen Regeln. Gleiche Konflikte leugnen.",
   "settings.approval.visibleCount": "{count} sichtbar",
-  "settings.approval.selectSession": "Wählen Sie eine Sitzung im Arbeitsindex aus, um ihre sichtbaren Regeln zu überprüfen.",
+  "settings.approval.selectSession":
+    "Wählen Sie eine Sitzung im Arbeitsindex aus, um ihre sichtbaren Regeln zu überprüfen.",
   "settings.approval.loadingRules": "Erinnerte Entscheidungen werden geladen…",
-  "settings.approval.empty": "Für diese Sitzung sind keine gespeicherten Entscheidungen sichtbar.",
+  "settings.approval.empty":
+    "Für diese Sitzung sind keine gespeicherten Entscheidungen sichtbar.",
   "settings.approval.everyInvocation": "Jeder Aufruf",
   "settings.approval.forgetQuestion": "Diese Entscheidung vergessen?",
   "settings.approval.cancel": "Abbrechen",
@@ -793,7 +911,8 @@ export const germanMessages = {
   "settings.approval.decision.deny": "ablehnen",
   "settings.approval.requestFailed": "Die Runtime-Anfrage ist fehlgeschlagen.",
   "settings.usage.runtime": "Runtime Nutzung",
-  "settings.usage.runtimeDetail": "Fakten zum abgeschlossenen Lauf, gruppiert nach ihrer genauen Anbieter- und Modellidentität.",
+  "settings.usage.runtimeDetail":
+    "Fakten zum abgeschlossenen Lauf, gruppiert nach ihrer genauen Anbieter- und Modellidentität.",
   "settings.usage.period": "Nutzungszeitraum",
   "settings.usage.sevenDays": "7 Tage",
   "settings.usage.thirtyDays": "30 Tage",
@@ -805,12 +924,15 @@ export const germanMessages = {
   "settings.usage.runs": "Runs",
   "settings.usage.sessions": "Sessions",
   "settings.usage.models": "Modelle",
-  "settings.usage.costNote": "Kosten werden nur angezeigt, wenn jeder beitragende Lauf über bekannte Preise verfügt.",
+  "settings.usage.costNote":
+    "Kosten werden nur angezeigt, wenn jeder beitragende Lauf über bekannte Preise verfügt.",
   "settings.usage.providers": "Anbieter",
   "settings.usage.days": "Tage",
   "settings.usage.selectedSession": "Ausgewählte Sitzung",
-  "settings.usage.selectedSessionDetail": "Alle abgeschlossenen Läufe, die derzeit der gemounteten Sitzung gehören.",
-  "settings.usage.selectSession": "Wählen Sie eine Sitzung aus, um deren Nutzung zu überprüfen.",
+  "settings.usage.selectedSessionDetail":
+    "Alle abgeschlossenen Läufe, die derzeit der gemounteten Sitzung gehören.",
+  "settings.usage.selectSession":
+    "Wählen Sie eine Sitzung aus, um deren Nutzung zu überprüfen.",
   "settings.usage.loadingSession": "Sitzungsnutzung wird geladen…",
   "settings.usage.runCountOne": "{count} ausgeführt",
   "settings.usage.runCountMany": "{count} Läufe",
@@ -830,9 +952,11 @@ export const germanMessages = {
   "settings.common.loading": "Laden…",
   "settings.common.discard": "Verwerfen",
   "settings.provider.roles": "Modellrollen",
-  "settings.provider.rolesDetail": "Optionale Runtime-weite Modelle für Wartung und semantische Indizierung.",
+  "settings.provider.rolesDetail":
+    "Optionale Runtime-weite Modelle für Wartung und semantische Indizierung.",
   "settings.provider.connections": "Provider-Verbindungen",
-  "settings.provider.connectionsDetail": "Geheimnisse sind schreibgeschützt. Umgebungsanmeldeinformationen bleiben schreibgeschützt.",
+  "settings.provider.connectionsDetail":
+    "Geheimnisse sind schreibgeschützt. Umgebungsanmeldeinformationen bleiben schreibgeschützt.",
   "settings.provider.filter": "Filteranbieter",
   "settings.provider.filterPlaceholder": "Filteranbieter…",
   "settings.provider.loading": "Anbieter werden geladen…",
@@ -846,16 +970,19 @@ export const germanMessages = {
   "settings.provider.optionalOverride": "Optionale Überschreibung",
   "settings.provider.useDefault": "Anbieterstandard verwenden",
   "settings.provider.apiKey": "API-Schlüssel",
-  "settings.provider.environmentReadOnly": "Aus der Umgebung · schreibgeschützt",
+  "settings.provider.environmentReadOnly":
+    "Aus der Umgebung · schreibgeschützt",
   "settings.provider.notSet": "Nicht festgelegt",
   "settings.provider.keyRemoved": "Der gespeicherte Schlüssel wird entfernt",
   "settings.provider.replacementKey": "Geben Sie einen Ersatzschlüssel ein",
   "settings.provider.keepKey": "Gespeicherten Schlüssel behalten",
   "settings.provider.removeKey": "Gespeicherten Schlüssel entfernen",
-  "settings.provider.saveBeforeTest": "Entwurfsänderungen vor dem Testen speichern",
+  "settings.provider.saveBeforeTest":
+    "Entwurfsänderungen vor dem Testen speichern",
   "settings.provider.testing": "Test läuft…",
   "settings.provider.test": "Testen",
-  "settings.provider.baseURLRequired": "Eine Basis-URL ist erforderlich, solange ein gespeicherter Schlüssel vorhanden ist.",
+  "settings.provider.baseURLRequired":
+    "Eine Basis-URL ist erforderlich, solange ein gespeicherter Schlüssel vorhanden ist.",
   "settings.provider.utilityModel": "Hilfsmodell",
   "settings.provider.embeddingModel": "Embedding-Modell",
   "settings.provider.utilityDetail": "Hintergrundkuratierung und -pflege.",
@@ -874,7 +1001,8 @@ export const germanMessages = {
   "settings.mcp.streamableHTTP": "Streamable HTTP",
   "settings.mcp.localStdio": "Lokaler Standard",
   "settings.mcp.timeout": "Timeout",
-  "settings.mcp.timeoutDetail": "seconds · 0 verwendet den Standardwert Runtime",
+  "settings.mcp.timeoutDetail":
+    "seconds · 0 verwendet den Standardwert Runtime",
   "settings.mcp.lifecycle": "Lebenszyklus",
   "settings.mcp.connectAutomatically": "Automatisch verbinden",
   "settings.mcp.keepDisabled": "Deaktiviert bleiben",
@@ -897,9 +1025,11 @@ export const germanMessages = {
   "settings.mcp.environmentJSON": "Umgebung JSON",
   "settings.mcp.removeEnvironment": "Gespeicherte Umgebung entfernen",
   "settings.mcp.addServer": "Server hinzufügen",
-  "settings.mcp.addServerDetail": "Prüfen Sie einen vollständigen Kandidaten, ohne ihn beizubehalten, und fügen Sie ihn dann hinzu, wenn Sie bereit sind.",
+  "settings.mcp.addServerDetail":
+    "Prüfen Sie einen vollständigen Kandidaten, ohne ihn beizubehalten, und fügen Sie ihn dann hinzu, wenn Sie bereit sind.",
   "settings.mcp.configuredServers": "Konfigurierte Server",
-  "settings.mcp.configuredServersDetail": "Live-Status kommt von Runtime; reconnect schätzt den Erfolg nie ein.",
+  "settings.mcp.configuredServersDetail":
+    "Live-Status kommt von Runtime; reconnect schätzt den Erfolg nie ein.",
   "settings.mcp.loadingServers": "Laden MCP Server…",
   "settings.mcp.empty": "Es sind noch keine MCP Server konfiguriert.",
   "settings.mcp.candidateConnected": "Kandidat erfolgreich verbunden.",
@@ -908,22 +1038,27 @@ export const germanMessages = {
   "settings.mcp.adding": "Wird hinzugefügt…",
   "settings.mcp.authorizationCompleted": "Autorisierung abgeschlossen.",
   "settings.mcp.authorizationCanceled": "Autorisierung wurde abgebrochen.",
-  "settings.mcp.interactiveAuthorization": "Interaktive Autorisierung erforderlich",
-  "settings.mcp.saveBeforeAuthorize": "Änderungen vor der Autorisierung speichern",
+  "settings.mcp.interactiveAuthorization":
+    "Interaktive Autorisierung erforderlich",
+  "settings.mcp.saveBeforeAuthorize":
+    "Änderungen vor der Autorisierung speichern",
   "settings.mcp.waitingAuthorization": "Warten auf Autorisierung…",
   "settings.mcp.authorize": "Autorisieren",
   "settings.mcp.deletePermanently": "Endgültig löschen?",
   "settings.mcp.deleteServer": "Server löschen",
-  "settings.mcp.saveBeforeReconnect": "Entwurfsänderungen speichern, bevor die Verbindung wiederhergestellt wird",
+  "settings.mcp.saveBeforeReconnect":
+    "Entwurfsänderungen speichern, bevor die Verbindung wiederhergestellt wird",
   "settings.mcp.reconnecting": "Verbindung wird wiederhergestellt…",
   "settings.mcp.reconnect": "Neu verbinden",
   "settings.mcp.loadingTools": "Werkzeuge werden geladen…",
   "settings.mcp.toolPolicies": "Tool-Richtlinien",
   "settings.mcp.toolTrust": "Tool-Vertrauen",
-  "settings.mcp.toolTrustDetail": "Deaktivierte Tools bleiben verborgen. Automatisch genehmigte Tools werden möglicherweise ohne eine Genehmigungsaufforderung ausgeführt.",
+  "settings.mcp.toolTrustDetail":
+    "Deaktivierte Tools bleiben verborgen. Automatisch genehmigte Tools werden möglicherweise ohne eine Genehmigungsaufforderung ausgeführt.",
   "settings.mcp.toolCountOne": "{count} Werkzeug",
   "settings.mcp.toolCountMany": "{count} Tools",
-  "settings.mcp.toolsRefreshFailed": "Live-Tools konnten nicht aktualisiert werden. Gespeicherte Richtlinien können weiterhin bearbeitet werden.",
+  "settings.mcp.toolsRefreshFailed":
+    "Live-Tools konnten nicht aktualisiert werden. Gespeicherte Richtlinien können weiterhin bearbeitet werden.",
   "settings.mcp.askWhenNeeded": "Fragen Sie bei Bedarf",
   "settings.mcp.disabled": "Deaktiviert",
   "settings.mcp.autoApprove": "Automatisch genehmigen",
@@ -935,25 +1070,38 @@ export const germanMessages = {
   "settings.mcp.status.connected": "Verbunden",
   "settings.mcp.status.failed": "Verbindung fehlgeschlagen",
   "settings.mcp.status.needsAuth": "Autorisierung erforderlich",
-  "settings.mcp.problem.authorizationRequired": "Dieser Server erfordert eine interaktive Autorisierung.",
-  "settings.mcp.problem.authorizationFailed": "Die Autorisierung wurde nicht abgeschlossen.",
-  "settings.mcp.problem.dialFailed": "Runtime konnte keine Verbindung zu diesem Server herstellen.",
-  "settings.mcp.problem.timeout": "Der Server hat vor dem Timeout nicht geantwortet.",
+  "settings.mcp.problem.authorizationRequired":
+    "Dieser Server erfordert eine interaktive Autorisierung.",
+  "settings.mcp.problem.authorizationFailed":
+    "Die Autorisierung wurde nicht abgeschlossen.",
+  "settings.mcp.problem.dialFailed":
+    "Runtime konnte keine Verbindung zu diesem Server herstellen.",
+  "settings.mcp.problem.timeout":
+    "Der Server hat vor dem Timeout nicht geantwortet.",
   "settings.mcp.problem.failed": "Der Vorgang MCP war nicht erfolgreich.",
-  "settings.mcp.validation.stableNameRequired": "Ein stabiler Servername ist erforderlich.",
-  "settings.mcp.validation.endpointRequired": "Eine Endpunkt-URL ist erforderlich.",
-  "settings.mcp.validation.commandRequired": "Ein stdio-Befehl ist erforderlich.",
-  "settings.mcp.validation.timeoutInvalid": "Timeout muss eine ganze Zahl von 0 bis 3600 Sekunden sein.",
+  "settings.mcp.validation.stableNameRequired":
+    "Ein stabiler Servername ist erforderlich.",
+  "settings.mcp.validation.endpointRequired":
+    "Eine Endpunkt-URL ist erforderlich.",
+  "settings.mcp.validation.commandRequired":
+    "Ein stdio-Befehl ist erforderlich.",
+  "settings.mcp.validation.timeoutInvalid":
+    "Timeout muss eine ganze Zahl von 0 bis 3600 Sekunden sein.",
   "settings.mcp.validation.secretInvalidJSON": "{field} muss gültig sein JSON.",
-  "settings.mcp.validation.secretNotObject": "{field} muss ein JSON-Objekt sein.",
-  "settings.mcp.validation.secretInvalidEntries": "{field} muss nicht leere Namen mit Zeichenfolgenwerten enthalten.",
+  "settings.mcp.validation.secretNotObject":
+    "{field} muss ein JSON-Objekt sein.",
+  "settings.mcp.validation.secretInvalidEntries":
+    "{field} muss nicht leere Namen mit Zeichenfolgenwerten enthalten.",
   "settings.mcp.headers": "Header",
   "settings.mcp.environment": "Umgebung",
   "settings.hook.effective": "Effektive Haken",
-  "settings.hook.effectiveDetail": "Hooks werden für einen exakten Sitzungsarbeitsbereich aufgelöst.",
-  "settings.hook.selectSession": "Wählen Sie eine Sitzung im Arbeitsindex aus, um ihre globalen und Projekt-Hooks zu überprüfen.",
+  "settings.hook.effectiveDetail":
+    "Hooks werden für einen exakten Sitzungsarbeitsbereich aufgelöst.",
+  "settings.hook.selectSession":
+    "Wählen Sie eine Sitzung im Arbeitsindex aus, um ihre globalen und Projekt-Hooks zu überprüfen.",
   "settings.hook.projectTrust": "Projektvertrauen",
-  "settings.hook.projectTrustDetail": "Globale Hooks gehören Ihnen und bleiben aktiv. Geklonte Projekt-Hooks bleiben inaktiv, bis genau diesem Projektstamm vertraut wird.",
+  "settings.hook.projectTrustDetail":
+    "Globale Hooks gehören Ihnen und bleiben aktiv. Geklonte Projekt-Hooks bleiben inaktiv, bis genau diesem Projektstamm vertraut wird.",
   "settings.hook.resolving": "Lebenszyklus-Hooks werden aufgelöst…",
   "settings.hook.trusted": "Vertrauenswürdig",
   "settings.hook.notTrusted": "Nicht vertrauenswürdig",
@@ -962,64 +1110,79 @@ export const germanMessages = {
   "settings.hook.noProjectRoot": "Kein Projektstamm",
   "settings.hook.revoking": "Widerrufen…",
   "settings.hook.revoke": "Vertrauen widerrufen",
-  "settings.hook.reviewed": "Ich habe die folgenden Befehle und Injektionen überprüft.",
+  "settings.hook.reviewed":
+    "Ich habe die folgenden Befehle und Injektionen überprüft.",
   "settings.hook.trusting": "Vertrauen…",
   "settings.hook.trustProject": "Trust-Projekt",
   "settings.hook.reviewAndTrust": "Bewertung und Vertrauen",
   "settings.hook.cascade": "Effektive Kaskade",
-  "settings.hook.cascadeDetail": "Befehle werden zur Prüfung wörtlich angezeigt. Inject-Aktionen fügen einen begrenzten Kontext hinzu, ohne einen Prozess zu erzeugen.",
+  "settings.hook.cascadeDetail":
+    "Befehle werden zur Prüfung wörtlich angezeigt. Inject-Aktionen fügen einen begrenzten Kontext hinzu, ohne einen Prozess zu erzeugen.",
   "settings.hook.countOne": "{count} Haken",
   "settings.hook.countMany": "{count} Haken",
   "settings.hook.loading": "Hook-Definitionen werden geladen…",
-  "settings.hook.empty": "Für diesen Arbeitsbereich gelten keine globalen oder Projekt-Hooks.",
+  "settings.hook.empty":
+    "Für diesen Arbeitsbereich gelten keine globalen oder Projekt-Hooks.",
   "settings.hook.command": "Befehl",
   "settings.hook.inject": "Inject",
   "settings.hook.active": "Aktiv",
   "settings.hook.inert": "Inert",
   "settings.hook.timeout": "· {count} ms",
-  "settings.hook.missingProjectRoot": "Der Runtime hat keinen Projektstamm gemeldet.",
+  "settings.hook.missingProjectRoot":
+    "Der Runtime hat keinen Projektstamm gemeldet.",
   "settings.schedule.everyHour": "Jede Stunde",
   "settings.schedule.weekdaysAt": "Wochentage · 09:00",
   "settings.schedule.dailyAt": "Täglich · 09:00",
   "settings.schedule.mondayAt": "Montag · 09:00",
   "settings.schedule.recurringWork": "Wiederkehrende Arbeit",
-  "settings.schedule.recurringWorkDetail": "Ein fälliges Vorkommen wird vor dem Start beibehalten, sodass bei der Neustartwiederherstellung eine stabile Sitzungs- und Ausführungsidentität erhalten bleibt.",
+  "settings.schedule.recurringWorkDetail":
+    "Ein fälliges Vorkommen wird vor dem Start beibehalten, sodass bei der Neustartwiederherstellung eine stabile Sitzungs- und Ausführungsidentität erhalten bleibt.",
   "settings.schedule.loadedCount": "{count} geladen",
   "settings.schedule.loading": "Laden von Zeitplänen…",
-  "settings.schedule.empty": "Noch keine Termine. Erstellen Sie oben eine, wenn wiederkehrende Arbeiten geplant sind.",
+  "settings.schedule.empty":
+    "Noch keine Termine. Erstellen Sie oben eine, wenn wiederkehrende Arbeiten geplant sind.",
   "settings.schedule.loadMore": "Weitere Zeitpläne laden",
   "settings.schedule.new": "Neuer Zeitplan",
-  "settings.schedule.newDetail": "In sich geschlossene Anweisungen schreiben; Jedes Vorkommen öffnet eine saubere Sitzung.",
-  "settings.schedule.timezoneNote": "Times verwenden die Host-Zeitzone Runtime.",
+  "settings.schedule.newDetail":
+    "In sich geschlossene Anweisungen schreiben; Jedes Vorkommen öffnet eine saubere Sitzung.",
+  "settings.schedule.timezoneNote":
+    "Times verwenden die Host-Zeitzone Runtime.",
   "settings.schedule.creating": "Wird erstellt…",
   "settings.schedule.create": "Zeitplan erstellen",
-  "settings.schedule.providerModelPair": "Provider und Modell müssen zusammen festgelegt werden oder beide leer bleiben.",
+  "settings.schedule.providerModelPair":
+    "Provider und Modell müssen zusammen festgelegt werden oder beide leer bleiben.",
   "settings.schedule.enabled": "Aktiviert",
   "settings.schedule.paused": "Pausiert",
-  "settings.schedule.saveBeforeRun": "Entwurfsänderungen vor dem Auslösen speichern oder verwerfen",
+  "settings.schedule.saveBeforeRun":
+    "Entwurfsänderungen vor dem Auslösen speichern oder verwerfen",
   "settings.schedule.starting": "Startet…",
   "settings.schedule.runNow": "Jetzt ausführen",
-  "settings.schedule.saveBeforeToggle": "Speichern oder verwerfen Sie zunächst die Entwurfsänderungen",
+  "settings.schedule.saveBeforeToggle":
+    "Speichern oder verwerfen Sie zunächst die Entwurfsänderungen",
   "settings.schedule.pause": "Pause",
   "settings.schedule.enable": "Enable",
   "settings.schedule.next": "Weiter",
   "settings.schedule.lastAdmitted": "Zuletzt aufgenommen",
   "settings.schedule.never": "Niemals",
   "settings.schedule.revision": "Revision",
-  "settings.schedule.deleteQuestion": "Diesen wiederkehrenden Zeitplan löschen?",
+  "settings.schedule.deleteQuestion":
+    "Diesen wiederkehrenden Zeitplan löschen?",
   "settings.schedule.title": "Titel",
   "settings.schedule.defaultTitle": "Geplante Aufgabe",
   "settings.schedule.cron": "Fünf-Felder-Cron",
   "settings.schedule.instructions": "Anleitung",
-  "settings.schedule.instructionsPlaceholder": "Komplette Anweisungen für jeden Lauf…",
+  "settings.schedule.instructionsPlaceholder":
+    "Komplette Anweisungen für jeden Lauf…",
   "settings.schedule.workspace": "Workspace",
   "settings.schedule.emptyUsesDefault": "Empty verwendet standardmäßig Runtime",
   "settings.schedule.runtimeDefault": "Runtime Standard",
   "settings.schedule.optionalPair": "Optionales Paar",
   "settings.page.keyboard.title": "Tastenkürzel",
-  "settings.page.keyboard.description": "Zeigt die eindeutigen, begrenzten App-Kürzel ohne ein zweites Befehlssystem.",
+  "settings.page.keyboard.description":
+    "Zeigt die eindeutigen, begrenzten App-Kürzel ohne ein zweites Befehlssystem.",
   "settings.shortcuts.heading": "Registrierte Tastenkürzel",
-  "settings.shortcuts.detail": "Globale und bereichsgebundene Aktionen verwenden einen gemeinsamen, konfliktgeprüften Katalog.",
+  "settings.shortcuts.detail":
+    "Globale und bereichsgebundene Aktionen verwenden einen gemeinsamen, konfliktgeprüften Katalog.",
   "settings.shortcuts.filter": "Aktionen oder Tasten filtern…",
   "settings.shortcuts.filterAria": "Tastenkürzel filtern",
   "settings.shortcuts.clear": "Tastenkürzelfilter leeren",

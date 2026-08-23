@@ -10,7 +10,7 @@ import (
 func TestNativeHostUsesExplicitCancellationAndValidatesPaths(t *testing.T) {
 	t.Parallel()
 
-	host, err := newNativeHost(fakeWindow{}, fakePicker{}, &fakeSaver{})
+	host, err := newNativeHost(fakeWindow{}, fakePicker{}, &fakeSaver{}, fakeDocuments{})
 	if err != nil {
 		t.Fatalf("newNativeHost() error = %v", err)
 	}
@@ -24,7 +24,7 @@ func TestNativeHostValidatesInlineImageBeforeNativeSave(t *testing.T) {
 	t.Parallel()
 
 	saver := &fakeSaver{}
-	host, err := newNativeHost(fakeWindow{}, fakePicker{}, saver)
+	host, err := newNativeHost(fakeWindow{}, fakePicker{}, saver, fakeDocuments{})
 	if err != nil {
 		t.Fatalf("newNativeHost() error = %v", err)
 	}
@@ -61,3 +61,8 @@ func (saver *fakeSaver) SaveImage(_ string, contents []byte) (bool, error) {
 	saver.contents = bytes.Clone(contents)
 	return true, nil
 }
+
+type fakeDocuments struct{}
+
+func (fakeDocuments) OpenArtifact(int64) ([]byte, bool, error) { return nil, false, nil }
+func (fakeDocuments) SaveExport(string, []byte) (bool, error)  { return false, nil }

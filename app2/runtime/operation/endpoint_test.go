@@ -18,7 +18,7 @@ func TestEndpointInvokesTypedDiscovery(t *testing.T) {
 		t.Fatalf("operation.New() error = %v", err)
 	}
 
-	response, err := operation.Call[struct{}, protocol.DiscoverResponse](
+	response, err := operation.Call[struct{}, *protocol.DiscoverResponse](
 		t.Context(), endpoint, "runtime.discover", struct{}{},
 		operation.Options{RequestMeta: protocol.RequestMeta{ProtocolVersion: protocol.ProtocolVersion}},
 	)
@@ -39,7 +39,7 @@ func TestEndpointRejectsOnlyProvidedMismatchedVersion(t *testing.T) {
 	}
 
 	for _, version := range []string{"2026-07-19", "future"} {
-		_, err := operation.Call[struct{}, protocol.DiscoverResponse](
+		_, err := operation.Call[struct{}, *protocol.DiscoverResponse](
 			t.Context(), endpoint, "runtime.discover", struct{}{},
 			operation.Options{RequestMeta: protocol.RequestMeta{ProtocolVersion: version}},
 		)
@@ -48,22 +48,22 @@ func TestEndpointRejectsOnlyProvidedMismatchedVersion(t *testing.T) {
 		}
 	}
 
-	if _, err := operation.Call[struct{}, protocol.DiscoverResponse](
+	if _, err := operation.Call[struct{}, *protocol.DiscoverResponse](
 		t.Context(), endpoint, "runtime.discover", struct{}{}, operation.Options{},
 	); err != nil {
 		t.Fatalf("Call() without metadata error = %v", err)
 	}
 }
 
-func TestContractOwnsOnlyImplementedOperation(t *testing.T) {
+func TestContractOwnsRuntimeDiscoverMetadata(t *testing.T) {
 	t.Parallel()
 
-	metas := operation.Contract().Metas()
-	if len(metas) != 1 || metas[0].Name != "runtime.discover" {
-		t.Fatalf("contract methods = %+v", metas)
+	meta, ok := operation.Contract().Lookup("runtime.discover")
+	if !ok {
+		t.Fatal("runtime.discover is not registered")
 	}
-	if metas[0].Operation != operation.Query || metas[0].Kind != operation.Unary {
-		t.Fatalf("runtime.discover metadata = %+v", metas[0])
+	if meta.Operation != operation.OperationQuery || meta.Kind != operation.KindUnary {
+		t.Fatalf("runtime.discover metadata = %+v", meta)
 	}
 }
 

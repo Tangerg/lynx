@@ -93,20 +93,20 @@ func decodeOAuthSession(payload []byte) (*oauth2.Config, *oauth2.Token, error) {
 		return nil, nil, err
 	}
 	return &oauth2.Config{
-		ClientID: value.Config.ClientID,
+		ClientID:     value.Config.ClientID,
 		ClientSecret: value.Config.ClientSecret,
 		Endpoint: oauth2.Endpoint{
-			AuthURL: value.Config.AuthURL,
-			TokenURL: value.Config.TokenURL,
+			AuthURL:   value.Config.AuthURL,
+			TokenURL:  value.Config.TokenURL,
 			AuthStyle: value.Config.AuthStyle,
 		},
 		RedirectURL: value.Config.RedirectURL,
-		Scopes: slices.Clone(value.Config.Scopes),
+		Scopes:      slices.Clone(value.Config.Scopes),
 	}, &oauth2.Token{
-		AccessToken: value.Token.AccessToken,
-		TokenType: value.Token.TokenType,
+		AccessToken:  value.Token.AccessToken,
+		TokenType:    value.Token.TokenType,
 		RefreshToken: value.Token.RefreshToken,
-		Expiry: value.Token.Expiry,
+		Expiry:       value.Token.Expiry,
 	}, nil
 }
 
@@ -116,8 +116,8 @@ func (value oauthSession) validate() error {
 	}
 	for label, raw := range map[string]string{
 		"authorization": value.Config.AuthURL,
-		"token": value.Config.TokenURL,
-		"redirect": value.Config.RedirectURL,
+		"token":         value.Config.TokenURL,
+		"redirect":      value.Config.RedirectURL,
 	} {
 		parsed, err := url.Parse(raw)
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
@@ -310,9 +310,9 @@ func newOAuthFlow(
 	}
 	flow := &oauthFlow{
 		redirectURL: "http://" + listener.Addr().String() + oauthCallbackPath,
-		result: make(chan oauthCallback, 1),
-		serveDone: make(chan error, 1),
-		openURL: openURL,
+		result:      make(chan oauthCallback, 1),
+		serveDone:   make(chan error, 1),
+		openURL:     openURL,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(oauthCallbackPath, flow.handle)
@@ -420,17 +420,17 @@ func newInteractiveOAuthHandler(
 	config := &auth.AuthorizationCodeHandlerConfig{
 		DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{
 			Metadata: &oauthex.ClientRegistrationMetadata{
-				RedirectURIs: []string{flow.redirectURL},
-				ClientName: "Lyra",
-				GrantTypes: []string{"authorization_code", "refresh_token"},
-				ResponseTypes: []string{"code"},
+				RedirectURIs:            []string{flow.redirectURL},
+				ClientName:              "Lyra",
+				GrantTypes:              []string{"authorization_code", "refresh_token"},
+				ResponseTypes:           []string{"code"},
 				TokenEndpointAuthMethod: "none",
 			},
 		},
-		RedirectURL: flow.redirectURL,
+		RedirectURL:              flow.redirectURL,
 		AuthorizationCodeFetcher: flow.fetch,
-		RequestRefreshToken: true,
-		Client: oauthHTTPClient(),
+		RequestRefreshToken:      true,
+		Client:                   oauthHTTPClient(),
 	}
 	config.NewTokenSource = func(
 		ctx context.Context,
@@ -592,7 +592,7 @@ func (service *Service) commitAuthorization(
 			live.cancel = nil
 			live.tools = nil
 			live.status = protocol.MCPServerState{
-				Type: protocol.MCPServerNeedsAuth,
+				Type:  protocol.MCPServerNeedsAuth,
 				Error: &protocol.ProblemData{Type: protocol.ProblemMCPAuthorizationFailed},
 			}
 		}

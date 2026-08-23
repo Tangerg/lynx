@@ -143,7 +143,7 @@ func (models runtimeMemoryMaintenance) client(
 	if role.Provider != "" || role.Model != "" {
 		selection = agentmemory.ModelSelection{
 			Provider: role.Provider,
-			Model: role.Model,
+			Model:    role.Model,
 		}
 	}
 	if err := selection.Validate(); err != nil {

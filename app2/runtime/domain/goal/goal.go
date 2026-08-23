@@ -11,10 +11,10 @@ import (
 )
 
 var (
-	ErrInvalid          = errors.New("goal: invalid state")
+	ErrInvalid           = errors.New("goal: invalid state")
 	ErrInvalidTransition = errors.New("goal: invalid transition")
-	ErrVersionConflict  = errors.New("goal: version conflict")
-	ErrNotFound         = errors.New("goal: not found")
+	ErrVersionConflict   = errors.New("goal: version conflict")
+	ErrNotFound          = errors.New("goal: not found")
 )
 
 type Status string
@@ -79,9 +79,9 @@ type Goal struct {
 
 type Create struct {
 	SessionID, IncarnationID, Objective string
-	Provider, Model                    string
-	Budget                             Budget
-	Now                                time.Time
+	Provider, Model                     string
+	Budget                              Budget
+	Now                                 time.Time
 }
 
 func New(command Create) (Goal, error) {
@@ -91,7 +91,9 @@ func New(command Create) (Goal, error) {
 		status: Active, budget: command.Budget, revision: 1,
 		createdAt: command.Now.UTC(), updatedAt: command.Now.UTC(),
 	}
-	if err := value.Validate(); err != nil { return Goal{}, err }
+	if err := value.Validate(); err != nil {
+		return Goal{}, err
+	}
 	return value, nil
 }
 
@@ -113,7 +115,9 @@ func Rehydrate(snapshot Restore) (Goal, error) {
 		status: snapshot.Status, reason: snapshot.Reason, budget: snapshot.Budget, used: snapshot.Used,
 		revision: snapshot.Revision, createdAt: snapshot.CreatedAt.UTC(), updatedAt: snapshot.UpdatedAt.UTC(),
 	}
-	if err := value.Validate(); err != nil { return Goal{}, err }
+	if err := value.Validate(); err != nil {
+		return Goal{}, err
+	}
 	return value, nil
 }
 
@@ -121,16 +125,24 @@ func (value Goal) Validate() error {
 	if value.sessionID == "" || value.incarnationID == "" || value.objective == "" || value.revision == 0 || value.createdAt.IsZero() || value.updatedAt.IsZero() {
 		return fmt.Errorf("%w: identity, objective, revision and timestamps are required", ErrInvalid)
 	}
-	if (value.provider == "") != (value.model == "") { return fmt.Errorf("%w: provider and model must be selected together", ErrInvalid) }
-	if err := value.budget.Validate(); err != nil { return err }
+	if (value.provider == "") != (value.model == "") {
+		return fmt.Errorf("%w: provider and model must be selected together", ErrInvalid)
+	}
+	if err := value.budget.Validate(); err != nil {
+		return err
+	}
 	if value.used.Runs < 0 || value.used.Steps < 0 || value.used.CostUSD < 0 || math.IsNaN(value.used.CostUSD) || math.IsInf(value.used.CostUSD, 0) {
 		return fmt.Errorf("%w: usage must be finite and non-negative", ErrInvalid)
 	}
 	switch value.status {
 	case Active, Completing:
-		if value.reason.Code != ReasonNone || value.reason.Detail != "" { return fmt.Errorf("%w: active lifecycle carries a stop reason", ErrInvalid) }
+		if value.reason.Code != ReasonNone || value.reason.Detail != "" {
+			return fmt.Errorf("%w: active lifecycle carries a stop reason", ErrInvalid)
+		}
 	case Paused, Blocked:
-		if !value.reason.Code.valid() { return fmt.Errorf("%w: stopped lifecycle requires a known reason", ErrInvalid) }
+		if !value.reason.Code.valid() {
+			return fmt.Errorf("%w: stopped lifecycle requires a known reason", ErrInvalid)
+		}
 	default:
 		return fmt.Errorf("%w: unknown status %q", ErrInvalid, value.status)
 	}
@@ -149,14 +161,18 @@ func (code ReasonCode) valid() bool {
 }
 
 func (value *Goal) ClaimRun(runID string, now time.Time) error {
-	if value.status != Active || value.activeRunID != "" || strings.TrimSpace(runID) == "" { return ErrInvalidTransition }
+	if value.status != Active || value.activeRunID != "" || strings.TrimSpace(runID) == "" {
+		return ErrInvalidTransition
+	}
 	value.activeRunID = runID
 	value.updatedAt = now.UTC()
 	return value.Validate()
 }
 
 func (value *Goal) AwaitInput(runID string, now time.Time) error {
-	if value.status != Active || value.activeRunID != runID { return ErrInvalidTransition }
+	if value.status != Active || value.activeRunID != runID {
+		return ErrInvalidTransition
+	}
 	value.status = Blocked
 	value.reason = Reason{Code: ReasonAwaitingInput}
 	value.updatedAt = now.UTC()
@@ -176,8 +192,12 @@ func (value *Goal) ContinueRun(runID string, now time.Time) error {
 }
 
 func (value *Goal) Pause(code ReasonCode, detail string, now time.Time) error {
-	if value.status != Active && (value.status != Blocked || value.reason.Code != ReasonAwaitingInput) { return ErrInvalidTransition }
-	if code == ReasonNone || !code.valid() { return ErrInvalidTransition }
+	if value.status != Active && (value.status != Blocked || value.reason.Code != ReasonAwaitingInput) {
+		return ErrInvalidTransition
+	}
+	if code == ReasonNone || !code.valid() {
+		return ErrInvalidTransition
+	}
 	value.status = Paused
 	value.reason = Reason{Code: code, Detail: strings.TrimSpace(detail)}
 	value.updatedAt = now.UTC()
@@ -185,8 +205,12 @@ func (value *Goal) Pause(code ReasonCode, detail string, now time.Time) error {
 }
 
 func (value *Goal) Resume(now time.Time) error {
-	if (value.status != Paused && value.status != Blocked) || value.activeRunID != "" { return ErrInvalidTransition }
-	if _, exceeded := value.exceeded(); exceeded { return ErrInvalidTransition }
+	if (value.status != Paused && value.status != Blocked) || value.activeRunID != "" {
+		return ErrInvalidTransition
+	}
+	if _, exceeded := value.exceeded(); exceeded {
+		return ErrInvalidTransition
+	}
 	value.status = Active
 	value.reason = Reason{}
 	value.updatedAt = now.UTC()
@@ -194,7 +218,9 @@ func (value *Goal) Resume(now time.Time) error {
 }
 
 func (value *Goal) ReplaceObjective(objective, incarnationID string, now time.Time) error {
-	if value.status == Completing || strings.TrimSpace(objective) == "" || strings.TrimSpace(incarnationID) == "" { return ErrInvalidTransition }
+	if value.status == Completing || strings.TrimSpace(objective) == "" || strings.TrimSpace(incarnationID) == "" {
+		return ErrInvalidTransition
+	}
 	value.objective = strings.TrimSpace(objective)
 	value.incarnationID = strings.TrimSpace(incarnationID)
 	value.activeRunID = ""
@@ -203,14 +229,20 @@ func (value *Goal) ReplaceObjective(objective, incarnationID string, now time.Ti
 }
 
 func (value *Goal) Report(incarnationID string, completed bool, reason string, now time.Time) error {
-	if value.status != Active || value.incarnationID != incarnationID { return ErrInvalidTransition }
+	if value.status != Active || value.incarnationID != incarnationID {
+		return ErrInvalidTransition
+	}
 	if completed {
-		if strings.TrimSpace(reason) != "" { return ErrInvalidTransition }
+		if strings.TrimSpace(reason) != "" {
+			return ErrInvalidTransition
+		}
 		value.status = Completing
 		value.reason = Reason{}
 	} else {
 		reason = strings.TrimSpace(reason)
-		if reason == "" { return ErrInvalidTransition }
+		if reason == "" {
+			return ErrInvalidTransition
+		}
 		value.status = Blocked
 		value.reason = Reason{Code: ReasonBlockedByModel, Detail: reason}
 	}
@@ -252,8 +284,12 @@ func (value *Goal) SettleRun(settlement RunSettlement) (bool, error) {
 		}
 		return false, value.Validate()
 	}
-	if value.status == Completing { return true, value.Validate() }
-	if value.status == Blocked && value.reason.Code == ReasonBlockedByModel { return false, value.Validate() }
+	if value.status == Completing {
+		return true, value.Validate()
+	}
+	if value.status == Blocked && value.reason.Code == ReasonBlockedByModel {
+		return false, value.Validate()
+	}
 	if code, exceeded := value.exceeded(); exceeded {
 		value.status = Blocked
 		value.reason = Reason{Code: code}
@@ -293,18 +329,21 @@ func (value Goal) exceeded() (ReasonCode, bool) {
 	}
 }
 
-func (value Goal) WithRevision(revision uint64) (Goal, error) { value.revision = revision; return value, value.Validate() }
+func (value Goal) WithRevision(revision uint64) (Goal, error) {
+	value.revision = revision
+	return value, value.Validate()
+}
 
-func (value Goal) SessionID() string      { return value.sessionID }
-func (value Goal) IncarnationID() string  { return value.incarnationID }
-func (value Goal) Objective() string      { return value.objective }
-func (value Goal) Provider() string       { return value.provider }
-func (value Goal) Model() string          { return value.model }
-func (value Goal) ActiveRunID() string    { return value.activeRunID }
-func (value Goal) Status() Status         { return value.status }
-func (value Goal) Reason() Reason         { return value.reason }
-func (value Goal) Budget() Budget         { return value.budget }
-func (value Goal) Used() Usage            { return value.used }
-func (value Goal) Revision() uint64        { return value.revision }
-func (value Goal) CreatedAt() time.Time    { return value.createdAt }
-func (value Goal) UpdatedAt() time.Time    { return value.updatedAt }
+func (value Goal) SessionID() string     { return value.sessionID }
+func (value Goal) IncarnationID() string { return value.incarnationID }
+func (value Goal) Objective() string     { return value.objective }
+func (value Goal) Provider() string      { return value.provider }
+func (value Goal) Model() string         { return value.model }
+func (value Goal) ActiveRunID() string   { return value.activeRunID }
+func (value Goal) Status() Status        { return value.status }
+func (value Goal) Reason() Reason        { return value.reason }
+func (value Goal) Budget() Budget        { return value.budget }
+func (value Goal) Used() Usage           { return value.used }
+func (value Goal) Revision() uint64      { return value.revision }
+func (value Goal) CreatedAt() time.Time  { return value.createdAt }
+func (value Goal) UpdatedAt() time.Time  { return value.updatedAt }

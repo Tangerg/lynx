@@ -28,10 +28,10 @@ import (
 )
 
 const (
-	defaultTimeout     = 15 * time.Second
-	maximumPatchRetries = 8
-	maximumRemoteTools = 2_048
-	maximumRemoteSchemaBytes = 1 << 20
+	defaultTimeout                = 15 * time.Second
+	maximumPatchRetries           = 8
+	maximumRemoteTools            = 2_048
+	maximumRemoteSchemaBytes      = 1 << 20
 	maximumRemoteDescriptionBytes = 64 << 10
 )
 
@@ -96,10 +96,10 @@ func New(config Config) (*Service, error) {
 	service := &Service{
 		store: config.Store, ids: config.IDs, events: config.Events,
 		lifetime: config.Lifetime,
-		openURL: openSystemBrowser,
-		lanes: identitylane.New(),
-		logger: logger,
-		live: make(map[string]*liveServer),
+		openURL:  openSystemBrowser,
+		lanes:    identitylane.New(),
+		logger:   logger,
+		live:     make(map[string]*liveServer),
 	}
 	now := service.now()
 	startupContext := context.WithoutCancel(config.Lifetime)
@@ -661,7 +661,7 @@ func (service *Service) present(configuration mcpserver.Configuration) protocol.
 	secrets := configuration.Secrets()
 	connection := protocol.MCPConnection{
 		Type: protocol.MCPTransport(configuration.Transport()),
-		URL: configuration.URL(), Command: configuration.Command(),
+		URL:  configuration.URL(), Command: configuration.Command(),
 		Args: configuration.Args(), Dir: configuration.Dir(),
 	}
 	if secrets.Authorization != "" || len(secrets.OAuthSession) > 0 {
@@ -691,7 +691,7 @@ func (service *Service) present(configuration mcpserver.Configuration) protocol.
 	return protocol.MCPServer{
 		Name: configuration.Name(), Description: configuration.Description(),
 		Connection: connection, TimeoutSeconds: configuration.TimeoutSeconds(),
-		DisabledTools: configuration.DisabledTools(),
+		DisabledTools:    configuration.DisabledTools(),
 		AutoApproveTools: configuration.AutoApproveTools(), Status: status,
 	}
 }
@@ -705,7 +705,7 @@ func candidatePatch(candidate protocol.MCPServerCandidate) (mcpserver.Patch, err
 	return mcpserver.Patch{
 		Enabled: &enabled, Description: &candidate.Description,
 		Connection: &connection, TimeoutSeconds: &candidate.TimeoutSeconds,
-		DisabledTools: &candidate.DisabledTools,
+		DisabledTools:    &candidate.DisabledTools,
 		AutoApproveTools: &candidate.AutoApproveTools,
 	}, nil
 }
@@ -713,8 +713,8 @@ func candidatePatch(candidate protocol.MCPServerCandidate) (mcpserver.Patch, err
 func updatePatch(request protocol.UpdateMCPServerRequest) (mcpserver.Patch, bool, error) {
 	patch := mcpserver.Patch{
 		Enabled: request.Enabled, Description: request.Description,
-		TimeoutSeconds: request.TimeoutSeconds,
-		DisabledTools: request.DisabledTools,
+		TimeoutSeconds:   request.TimeoutSeconds,
+		DisabledTools:    request.DisabledTools,
 		AutoApproveTools: request.AutoApproveTools,
 	}
 	if request.Connection != nil {

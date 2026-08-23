@@ -79,10 +79,7 @@ export function SkillsWorkspace(props: SkillsWorkspaceProps) {
   ]);
 
   const runAction = useCallback(
-    async (
-      key: string,
-      operation: (signal: AbortSignal) => Promise<void>,
-    ) => {
+    async (key: string, operation: (signal: AbortSignal) => Promise<void>) => {
       actionController.current?.abort();
       const controller = new AbortController();
       actionController.current = controller;
@@ -215,7 +212,9 @@ function SkillViewButton(props: {
       onClick={props.onSelect}
     >
       <span>{props.label}</span>
-      {props.count === undefined ? null : <small>{formatNumber(props.count)}</small>}
+      {props.count === undefined ? null : (
+        <small>{formatNumber(props.count)}</small>
+      )}
     </button>
   );
 }
@@ -240,10 +239,7 @@ function AvailableSkills(props: {
   }
   if (!props.values || props.values.length === 0) {
     return (
-      <SkillsState
-        title={t("skills.empty")}
-        detail={t("skills.emptyDetail")}
-      />
+      <SkillsState title={t("skills.empty")} detail={t("skills.emptyDetail")} />
     );
   }
   return (
@@ -271,7 +267,8 @@ function SkillProposals(props: {
   onReject(proposal: SkillProposal): Promise<void>;
 }) {
   const { t } = useLocalization();
-  if (props.pending) return <SkillsState title={t("skills.loadingProposals")} />;
+  if (props.pending)
+    return <SkillsState title={t("skills.loadingProposals")} />;
   if (props.error) {
     return (
       <SkillsState
@@ -318,7 +315,9 @@ function SkillProposals(props: {
               </div>
               <div>
                 <dt>{t("skills.session")}</dt>
-                <dd title={proposal.sourceSession}>{proposal.sourceSession || "—"}</dd>
+                <dd title={proposal.sourceSession}>
+                  {proposal.sourceSession || "—"}
+                </dd>
               </div>
               <div>
                 <dt>{t("skills.revisionFact")}</dt>
@@ -390,7 +389,9 @@ function ManagedSkillLibrary(props: {
     );
   }
   const active = props.values.filter((skill) => skill.lifecycle === "active");
-  const archived = props.values.filter((skill) => skill.lifecycle === "archived");
+  const archived = props.values.filter(
+    (skill) => skill.lifecycle === "archived",
+  );
   return (
     <div className="managed-skill-library">
       <ManagedSkillSection
@@ -473,7 +474,11 @@ function SkillsState(props: {
       <h4>{props.title}</h4>
       {props.detail ? <p>{props.detail}</p> : null}
       {props.action && props.onAction ? (
-        <button className="secondary-action" type="button" onClick={props.onAction}>
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={props.onAction}
+        >
           {props.action}
         </button>
       ) : null}

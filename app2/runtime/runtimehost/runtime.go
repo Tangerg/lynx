@@ -17,8 +17,8 @@ import (
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	"github.com/Tangerg/lynx/app2/runtime/agenttools"
-	"github.com/Tangerg/lynx/app2/runtime/approvalflow"
 	"github.com/Tangerg/lynx/app2/runtime/application"
+	"github.com/Tangerg/lynx/app2/runtime/approvalflow"
 	"github.com/Tangerg/lynx/app2/runtime/capabilityflow"
 	"github.com/Tangerg/lynx/app2/runtime/checkpoint"
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
@@ -34,13 +34,13 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/identity"
 	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
 	"github.com/Tangerg/lynx/app2/runtime/localruntime"
-	"github.com/Tangerg/lynx/app2/runtime/memoryflow"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
-	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
+	"github.com/Tangerg/lynx/app2/runtime/memoryflow"
 	"github.com/Tangerg/lynx/app2/runtime/operation"
+	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
 	"github.com/Tangerg/lynx/app2/runtime/planflow"
-	"github.com/Tangerg/lynx/app2/runtime/providerflow"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
+	"github.com/Tangerg/lynx/app2/runtime/providerflow"
 	"github.com/Tangerg/lynx/app2/runtime/runflow"
 	"github.com/Tangerg/lynx/app2/runtime/runtimeevents"
 	"github.com/Tangerg/lynx/app2/runtime/scheduleflow"
@@ -50,45 +50,45 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/streamhub"
 	"github.com/Tangerg/lynx/app2/runtime/toolflow"
 	"github.com/Tangerg/lynx/app2/runtime/transcriptflow"
-	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
 	"github.com/Tangerg/lynx/app2/runtime/workspaceflow"
+	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
 )
 
 type Config struct {
-	Listen           string
-	DatabasePath     string
-	TokenPath        string
-	DescriptorPath   string
-	BootstrapNonce   string
-	DefaultWorkspace string
-	UserHome         string
-	ServerName       string
-	ServerVersion    string
-	CORSOrigins      []string
-	Online           agenttools.OnlineConfig
-	LSPServers       []codeintel.ServerSpec
-	Remote           bool
+	Listen             string
+	DatabasePath       string
+	TokenPath          string
+	DescriptorPath     string
+	BootstrapNonce     string
+	DefaultWorkspace   string
+	UserHome           string
+	ServerName         string
+	ServerVersion      string
+	CORSOrigins        []string
+	Online             agenttools.OnlineConfig
+	LSPServers         []codeintel.ServerSpec
+	Remote             bool
 	TLSCertificatePath string
-	TLSPrivateKeyPath string
-	Logger           *slog.Logger
+	TLSPrivateKeyPath  string
+	Logger             *slog.Logger
 }
 
 type Runtime struct {
-	database       *sqlite.Database
-	application    *application.Runtime
-	endpoint       *operation.Endpoint
-	server         *httptransport.Server
-	listener       net.Listener
-	descriptor     localruntime.Descriptor
-	descriptorPath string
-	tokenPath      string
+	database           *sqlite.Database
+	application        *application.Runtime
+	endpoint           *operation.Endpoint
+	server             *httptransport.Server
+	listener           net.Listener
+	descriptor         localruntime.Descriptor
+	descriptorPath     string
+	tokenPath          string
 	tlsCertificatePath string
-	tlsPrivateKeyPath string
-	shells         *shellflow.Service
-	languageServers *codeintel.Service
-	compactions    *compactionflow.Service
-	ephemeral      bool
-	cancelLife     context.CancelFunc
+	tlsPrivateKeyPath  string
+	shells             *shellflow.Service
+	languageServers    *codeintel.Service
+	compactions        *compactionflow.Service
+	ephemeral          bool
+	cancelLife         context.CancelFunc
 
 	runMu     sync.Mutex
 	ran       bool
@@ -114,7 +114,9 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	var cancelLife context.CancelFunc
 	defer func() {
 		if err != nil {
-			if cancelLife != nil { cancelLife() }
+			if cancelLife != nil {
+				cancelLife()
+			}
 			err = errors.Join(err, guard.Close())
 		}
 	}()
@@ -124,7 +126,9 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		if err != nil {
 			return nil, fmt.Errorf("runtimehost: open local token: %w", err)
 		}
-		if config.DescriptorPath != "" { guard.Add(func() error { return removeOwned(config.TokenPath) }) }
+		if config.DescriptorPath != "" {
+			guard.Add(func() error { return removeOwned(config.TokenPath) })
+		}
 	}
 	instanceID, err := newInstanceID()
 	if err != nil {
@@ -133,10 +137,14 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	lifetime, cancel := context.WithCancel(context.Background())
 	cancelLife = cancel
 	shells, err := shellflow.New(lifetime)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	guard.AddClose(shells.Close)
 	languageServers, err := codeintel.New(lifetime, config.LSPServers)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	guard.Add(languageServers.Close)
 	enabledFeatures := make(map[string]bool, len(protocol.Features()))
 	for _, feature := range protocol.Features() {
@@ -148,8 +156,8 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 			DefaultWorkspace: protocol.WorkspaceRef{Path: config.DefaultWorkspace}, Home: config.UserHome,
 		},
 		IdempotencyNamespace: database.Metadata().IdempotencyNamespace,
-		EnabledFeatures: enabledFeatures,
-		RunEvents: protocol.RunEventTypes(), RuntimeTopics: protocol.RuntimeTopics(),
+		EnabledFeatures:      enabledFeatures,
+		RunEvents:            protocol.RunEventTypes(), RuntimeTopics: protocol.RuntimeTopics(),
 		StreamingMethods: operation.Contract().StreamMethods(),
 	})
 	if err != nil {
@@ -189,8 +197,8 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	events, err := runtimeevents.New(runtimeevents.Config{
 		UserSkillsDirectory: filepath.Join(config.UserHome, ".lyra", "skills"),
-		KnowledgeFiles: capabilities,
-		HookFiles: hooks,
+		KnowledgeFiles:      capabilities,
+		HookFiles:           hooks,
 	})
 	if err != nil {
 		return nil, err
@@ -206,7 +214,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Store: database, Resolver: workspaceResolver, IDs: identity.Generator{},
 		Events: events, Embeddings: runtimeMemoryEmbedding{providers: providers},
 		Maintenance: runtimeMemoryMaintenance{providers: providers},
-		Lifetime: lifetime, Logger: config.Logger,
+		Lifetime:    lifetime, Logger: config.Logger,
 	})
 	if err != nil {
 		return nil, err
@@ -214,9 +222,13 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	guard.AddClose(memory.Close)
 	goalSignals := goalflow.NewSignals()
 	goals, err := goalflow.New(database, identity.Generator{}, goalSignals, events)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	plans, err := planflow.New(database, events)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	mcp, err := mcpflow.New(mcpflow.Config{
 		Store: database, IDs: identity.Generator{}, Events: events,
 		Lifetime: lifetime, Logger: config.Logger,
@@ -239,7 +251,9 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Store: database, Models: runtimeCompactionModels{providers: providers}, Hooks: hooks,
 		IDs: identity.Generator{}, Events: events, Lifetime: lifetime, Logger: config.Logger,
 	})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	guard.AddClose(compactions.Close)
 	agentToolCatalog, err := agenttools.New(agenttools.Config{
 		Policy: approvals, MCP: mcp, Results: database,
@@ -255,7 +269,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Clients: providers, Tools: agentToolCatalog,
 		Documents: runtimeAgentDocuments{capabilities: capabilities},
 		Knowledge: runtimeKnowledgeDocuments{capabilities: capabilities},
-		Memory: runtimeMemory{service: memory}, Hooks: hooks,
+		Memory:    runtimeMemory{service: memory}, Hooks: hooks,
 		RuntimeContext: runtimeLiveContext{shells: shells, plans: plans},
 	})
 	if err != nil {
@@ -279,7 +293,9 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	memory.Recover()
 	goalDriver, err := goalflow.NewDriver(goalflow.DriverConfig{Goals: goals, Runs: runs, Signals: goalSignals, Lifetime: lifetime})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	guard.AddClose(goalDriver.Close)
 	if err := goalDriver.Recover(ctx); err != nil {
 		return nil, fmt.Errorf("runtimehost: recover autonomous goals: %w", err)
@@ -299,7 +315,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
-	guard.AddClose(scheduleDispatcher.Close)
+	guard.Add(scheduleDispatcher.Close)
 	interrupts, err := interruptflow.New(database)
 	if err != nil {
 		return nil, err
@@ -313,12 +329,18 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		lifetime,
 		config.Logger,
 	)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	guard.AddClose(codebase.Close)
 	tools, err := toolflow.New(workspaceResolver)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	operations, err := operationsflow.New(database, identity.Generator{})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
 		Runs: runs, Workspace: workspace, Schedules: schedules, ScheduleDispatcher: scheduleDispatcher,
@@ -334,8 +356,8 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	server, err := httptransport.New(httptransport.Config{
-		Dispatcher: dispatch.New(endpoint),
-		ServerInfo: protocol.ServerInfo{InstanceID: instanceID, Name: config.ServerName, Version: config.ServerVersion},
+		Dispatcher:  dispatch.New(endpoint),
+		ServerInfo:  protocol.ServerInfo{InstanceID: instanceID, Name: config.ServerName, Version: config.ServerVersion},
 		BearerToken: tokenSource(config.TokenPath), CORSOrigins: config.CORSOrigins,
 		Logger: config.Logger,
 		HealthProbes: []httptransport.HealthProbe{
@@ -369,7 +391,10 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if !config.Remote && !address.IP.IsLoopback() {
 		return nil, errors.New("runtimehost: local mode requires a loopback listener")
 	}
-	scheme := "http"; if config.TLSCertificatePath != "" { scheme = "https" }
+	scheme := "http"
+	if config.TLSCertificatePath != "" {
+		scheme = "https"
+	}
 	descriptor := localruntime.Descriptor{
 		BootstrapVersion: localruntime.BootstrapVersion,
 		Nonce:            config.BootstrapNonce, PID: os.Getpid(), InstanceID: instanceID,
@@ -406,7 +431,10 @@ func (runtime *Runtime) Run(ctx context.Context) error {
 
 	served := make(chan error, 1)
 	go func() {
-		if runtime.tlsCertificatePath != "" { served <- runtime.server.ServeTLS(runtime.listener, runtime.tlsCertificatePath, runtime.tlsPrivateKeyPath); return }
+		if runtime.tlsCertificatePath != "" {
+			served <- runtime.server.ServeTLS(runtime.listener, runtime.tlsCertificatePath, runtime.tlsPrivateKeyPath)
+			return
+		}
 		served <- runtime.server.Serve(runtime.listener)
 	}()
 	if runtime.descriptorPath != "" {
@@ -503,8 +531,14 @@ func validateConfig(config Config) error {
 		if privateKey.Mode().Perm()&0o077 != 0 || privateKey.Mode().Perm()&0o400 == 0 {
 			return errors.New("runtimehost: TLS private key must be owner-readable and inaccessible to group or other users")
 		}
-		if config.DescriptorPath != "" { return errors.New("runtimehost: remote mode forbids a local bootstrap descriptor") }
-		for _, origin := range config.CORSOrigins { if origin == "*" { return errors.New("runtimehost: remote mode forbids wildcard CORS") } }
+		if config.DescriptorPath != "" {
+			return errors.New("runtimehost: remote mode forbids a local bootstrap descriptor")
+		}
+		for _, origin := range config.CORSOrigins {
+			if origin == "*" {
+				return errors.New("runtimehost: remote mode forbids wildcard CORS")
+			}
+		}
 	} else if config.TLSCertificatePath != "" {
 		return errors.New("runtimehost: TLS is available only in explicit remote mode")
 	}
@@ -524,8 +558,10 @@ func validateConfig(config Config) error {
 }
 
 func tokenSource(path string) httptransport.TokenSource {
-	if path == "" { return nil }
-	return fileTokenSource{path:path}
+	if path == "" {
+		return nil
+	}
+	return fileTokenSource{path: path}
 }
 
 func newInstanceID() (string, error) {

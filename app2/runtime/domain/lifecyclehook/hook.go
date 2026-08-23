@@ -160,8 +160,8 @@ type SubagentInput struct {
 	RunID, ParentRunID, Description, Prompt string
 	Status                                  SubagentStatus
 	Result, Error                           string
-	PromptTruncated                          bool
-	ResultTruncated                          bool
+	PromptTruncated                         bool
+	ResultTruncated                         bool
 }
 
 type SubagentStatus string
@@ -190,14 +190,14 @@ func (status SubagentStatus) Valid() bool {
 // trusted hook command. It contains Lyra identities, never Agent Framework
 // process or checkpoint identities.
 type Invocation struct {
-	Event                 Event
-	SessionID, RunID      string
-	Workspace             string
-	Prompt                string
-	PromptTruncated       bool
-	Reason                string
-	Tool                  *ToolInput
-	Subagent              *SubagentInput
+	Event            Event
+	SessionID, RunID string
+	Workspace        string
+	Prompt           string
+	PromptTruncated  bool
+	Reason           string
+	Tool             *ToolInput
+	Subagent         *SubagentInput
 }
 
 func (invocation Invocation) Validate() error {

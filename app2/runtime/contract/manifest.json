@@ -174,7 +174,11 @@
       "params": "FeedbackRequest",
       "result": "EmptyObject",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "session_not_found",
+        "run_not_found",
+        "item_not_found"
+      ],
       "materializes": []
     },
     {
@@ -854,7 +858,8 @@
       "result": "ExportSessionResponse",
       "resultNullable": false,
       "errors": [
-        "session_not_found"
+        "session_not_found",
+        "session_busy"
       ],
       "materializes": []
     },
@@ -896,7 +901,10 @@
       "params": "ImportSessionRequest",
       "result": "ImportSessionResponse",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "revision_conflict",
+        "workspace_unavailable"
+      ],
       "materializes": []
     },
     {
@@ -924,7 +932,8 @@
         "session_not_found",
         "run_not_found",
         "session_busy",
-        "checkpoint_unavailable"
+        "checkpoint_unavailable",
+        "revision_conflict"
       ],
       "materializes": []
     },

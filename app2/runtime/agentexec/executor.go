@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"slices"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -93,22 +93,22 @@ type ToolScope struct {
 }
 
 type Executor struct {
-	clients   ClientResolver
-	tools     ToolCatalog
-	documents AgentDocumentSource
-	knowledge KnowledgeDocumentSource
-	memory    MemorySource
-	hooks     LifecycleHooks
+	clients        ClientResolver
+	tools          ToolCatalog
+	documents      AgentDocumentSource
+	knowledge      KnowledgeDocumentSource
+	memory         MemorySource
+	hooks          LifecycleHooks
 	runtimeContext RuntimeContextSource
 }
 
 type Config struct {
-	Clients   ClientResolver
-	Tools     ToolCatalog
-	Documents AgentDocumentSource
-	Knowledge KnowledgeDocumentSource
-	Memory    MemorySource
-	Hooks     LifecycleHooks
+	Clients        ClientResolver
+	Tools          ToolCatalog
+	Documents      AgentDocumentSource
+	Knowledge      KnowledgeDocumentSource
+	Memory         MemorySource
+	Hooks          LifecycleHooks
 	RuntimeContext RuntimeContextSource
 }
 
@@ -142,30 +142,30 @@ type Input struct {
 }
 
 type ResumeInput struct {
-	Provider, Model, Workspace string
+	Provider, Model, Workspace  string
 	SessionID, RunID, SegmentID string
-	IsRootRun                  bool
-	Subagents                  bool
-	Delegation                 DelegationCoordinator
-	MaxSteps                   int
-	Checkpoint                 json.RawMessage
-	Response                   json.RawMessage
-	TreeMembers                []TreeResumeMember
-	TreeResponses              []TreeResumeResponse
-	ContinueTree               bool
-	AdditionalInput            []protocol.ContentBlock
-	Steers                     <-chan Steer
-	Cancels                    <-chan Cancel
-	Live                       LiveObservationSink
+	IsRootRun                   bool
+	Subagents                   bool
+	Delegation                  DelegationCoordinator
+	MaxSteps                    int
+	Checkpoint                  json.RawMessage
+	Response                    json.RawMessage
+	TreeMembers                 []TreeResumeMember
+	TreeResponses               []TreeResumeResponse
+	ContinueTree                bool
+	AdditionalInput             []protocol.ContentBlock
+	Steers                      <-chan Steer
+	Cancels                     <-chan Cancel
+	Live                        LiveObservationSink
 }
 
 // TreeResumeMember rebinds one non-terminal Framework member to the exact
 // product Run generation opened by runs.resume. MemberID is opaque outside the
 // adapter; the root leaves it empty because the checkpoint owns that identity.
 type TreeResumeMember struct {
-	MemberID                                  string
+	MemberID                                 string
 	RunID, SegmentID, ParentRunID, RootRunID string
-	Depth                                     uint32
+	Depth                                    uint32
 }
 
 // TreeResumeResponse is one already-validated answer addressed by source Run.
@@ -188,16 +188,16 @@ type Steer struct {
 var steerSequence atomic.Uint64
 
 type Output struct {
-	Text       string
-	Status     ExecutionStatus
-	Detail     string
-	Usage      protocol.Usage
-	ModelCalls int
+	Text          string
+	Status        ExecutionStatus
+	Detail        string
+	Usage         protocol.Usage
+	ModelCalls    int
 	ContextTokens int64
-	Models     []ModelObservation
-	Tools      []ToolObservation
-	Waiting    *Waiting
-	Children   []ChildOutput
+	Models        []ModelObservation
+	Tools         []ToolObservation
+	Waiting       *Waiting
+	Children      []ChildOutput
 }
 
 type ExecutionStatus string
@@ -258,9 +258,9 @@ var ErrWaitingTreeCancelUnavailable = errors.New("agentexec: waiting tree cancel
 
 // WaitingTreeMember binds one durable open Run to its opaque Framework member.
 type WaitingTreeMember struct {
-	MemberID                         string
-	RunID, ParentRunID, RootRunID   string
-	Depth                            uint32
+	MemberID                      string
+	RunID, ParentRunID, RootRunID string
+	Depth                         uint32
 }
 
 // WaitingTreeCancelInput describes one side-effect-free checkpoint transform.
@@ -315,14 +315,14 @@ type WaitingRun struct {
 // adapters and the executor boundary. It is never exposed directly on Lyra's
 // wire; runflow projects it into the canonical Item/Interrupt union.
 type ToolInputPrompt struct {
-	Kind         string                 `json:"kind"`
-	ItemID       string                 `json:"itemId"`
-	Tool         *ToolInputInvocation   `json:"tool,omitempty"`
-	SafetyClass  protocol.SafetyClass   `json:"safetyClass,omitempty"`
-	Risk         protocol.ApprovalRisk  `json:"risk,omitempty"`
-	Reason       string                 `json:"reason,omitempty"`
-	Rememberable bool                   `json:"rememberable,omitempty"`
-	Question     *protocol.Question     `json:"question,omitempty"`
+	Kind         string                `json:"kind"`
+	ItemID       string                `json:"itemId"`
+	Tool         *ToolInputInvocation  `json:"tool,omitempty"`
+	SafetyClass  protocol.SafetyClass  `json:"safetyClass,omitempty"`
+	Risk         protocol.ApprovalRisk `json:"risk,omitempty"`
+	Reason       string                `json:"reason,omitempty"`
+	Rememberable bool                  `json:"rememberable,omitempty"`
+	Question     *protocol.Question    `json:"question,omitempty"`
 }
 
 type ToolInputInvocation struct {
@@ -423,7 +423,7 @@ func (executor *Executor) applyPromptHooks(
 	invocations := make([]lifecyclehook.Invocation, 0, 2)
 	if input.SessionStart {
 		invocations = append(invocations, lifecyclehook.Invocation{
-			Event: lifecyclehook.SessionStart,
+			Event:     lifecyclehook.SessionStart,
 			SessionID: input.SessionID, RunID: input.RunID,
 			Workspace: input.Workspace,
 		})
@@ -434,7 +434,7 @@ func (executor *Executor) applyPromptHooks(
 			lifecyclehook.MaxPromptBytes,
 		)
 		invocations = append(invocations, lifecyclehook.Invocation{
-			Event: lifecyclehook.UserPromptSubmit,
+			Event:     lifecyclehook.UserPromptSubmit,
 			SessionID: input.SessionID, RunID: input.RunID,
 			Workspace: input.Workspace, Prompt: prompt, PromptTruncated: truncated,
 		})
@@ -542,7 +542,10 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 	accepted := false
 	if len(input.AdditionalInput) > 0 {
 		steer, steerErr := newSteerSignal(input.RunID, input.AdditionalInput)
-		if steerErr != nil { _ = stopProcess(engine, process); return Output{}, steerErr }
+		if steerErr != nil {
+			_ = stopProcess(engine, process)
+			return Output{}, steerErr
+		}
 		accepted, err = process.DeliverSignals(ctx, signal, steer)
 	} else {
 		accepted, err = process.DeliverSignal(ctx, signal)
@@ -777,10 +780,10 @@ func (executor *Executor) resumeTree(ctx context.Context, input ResumeInput) (Ou
 
 type deploymentRequest struct {
 	provider, model, sessionID, runID, segmentID, workspace string
-	rootRun, subagents                                  bool
-	maxSteps                                            int
-	delegation                                          DelegationCoordinator
-	live                                                LiveObservationSink
+	rootRun, subagents                                      bool
+	maxSteps                                                int
+	delegation                                              DelegationCoordinator
+	live                                                    LiveObservationSink
 }
 
 type preparedDeployment struct {
@@ -839,7 +842,7 @@ func (executor *Executor) deployment(ctx context.Context, request deploymentRequ
 			engine: agent.EngineConfig{
 				DeploymentResolver: family, ProcessAdmitter: bridge,
 				ProcessStartOutcomeAcknowledger: bridge,
-				DeltaListeners: liveDeltaListeners(observer), TreeLimits: family.limits,
+				DeltaListeners:                  liveDeltaListeners(observer), TreeLimits: family.limits,
 			},
 		}, nil
 	}
@@ -993,7 +996,9 @@ completed:
 	if err != nil {
 		return partial, fmt.Errorf("agentexec: decode output: %w", err)
 	}
-	if decoded.ModelResponse == nil { return partial, errors.New("agentexec: interaction produced no model response") }
+	if decoded.ModelResponse == nil {
+		return partial, errors.New("agentexec: interaction produced no model response")
+	}
 	partial.Text = decoded.ModelResponse.Text()
 	return partial, nil
 }
@@ -1245,14 +1250,18 @@ func materializeConversation(values []Message) ([]chat.Message, error) {
 
 func UserMessage(blocks []protocol.ContentBlock) (chat.Message, error) {
 	parts, err := contentParts(blocks)
-	if err != nil { return chat.Message{}, err }
+	if err != nil {
+		return chat.Message{}, err
+	}
 	message := chat.NewUserMessage(parts...)
 	return message, message.Validate()
 }
 
 func deliverSteer(ctx context.Context, process *agent.Process, runID string, blocks []protocol.ContentBlock) error {
 	signal, err := newSteerSignal(runID, blocks)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	accepted, err := process.DeliverSignal(ctx, signal)
 	if err != nil {
 		return fmt.Errorf("agentexec: deliver steer: %w", err)

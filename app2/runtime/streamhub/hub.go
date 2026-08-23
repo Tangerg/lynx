@@ -59,7 +59,9 @@ func (hub *Hub) PublishRun(rootRunID, rootSegmentID string, event protocol.RunEv
 			delete(hub.runSubs[key], id)
 		}
 	}
-	if terminal || len(hub.runSubs[key]) == 0 { delete(hub.runSubs, key) }
+	if terminal || len(hub.runSubs[key]) == 0 {
+		delete(hub.runSubs, key)
+	}
 	hub.mu.Unlock()
 }
 
@@ -113,7 +115,9 @@ func (hub *Hub) SubscribeRun(
 				for {
 					select {
 					case event := <-subscriber.values:
-						if !yield(event) { return }
+						if !yield(event) {
+							return
+						}
 					default:
 						return
 					}

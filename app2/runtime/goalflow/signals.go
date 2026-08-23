@@ -18,20 +18,29 @@ func NewSignals() *Signals {
 }
 
 func (signals *Signals) Publish(sessionID string) {
-	if signals == nil || sessionID == "" { return }
+	if signals == nil || sessionID == "" {
+		return
+	}
 	signals.mu.Lock()
 	signals.pending[sessionID] = struct{}{}
 	signals.mu.Unlock()
-	select { case signals.wake <- struct{}{}: default: }
+	select {
+	case signals.wake <- struct{}{}:
+	default:
+	}
 }
 
 func (signals *Signals) Wake() <-chan struct{} { return signals.wake }
 
 func (signals *Signals) Drain() []string {
-	if signals == nil { return nil }
+	if signals == nil {
+		return nil
+	}
 	signals.mu.Lock()
 	values := make([]string, 0, len(signals.pending))
-	for sessionID := range signals.pending { values = append(values, sessionID) }
+	for sessionID := range signals.pending {
+		values = append(values, sessionID)
+	}
 	clear(signals.pending)
 	signals.mu.Unlock()
 	slices.Sort(values)

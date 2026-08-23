@@ -20,8 +20,11 @@ func TestArtifactsComeFromTheImplementedContract(t *testing.T) {
 	if err := json.Unmarshal(artifacts["manifest.json"], &manifest); err != nil {
 		t.Fatalf("decode manifest error = %v", err)
 	}
-	if manifest.ProtocolVersion != protocol.ProtocolVersion || len(manifest.Methods) != 1 || manifest.Methods[0].Name != "runtime.discover" {
+	if manifest.ProtocolVersion != protocol.ProtocolVersion || len(manifest.Methods) != 89 {
 		t.Fatalf("manifest = %+v", manifest)
+	}
+	if !hasMethod(manifest.Methods, "runtime.discover") || !hasMethod(manifest.Methods, "sessions.rollback") {
+		t.Fatal("manifest is missing implemented contract methods")
 	}
 	if len(manifest.Endpoints) != 4 {
 		t.Fatalf("endpoint count = %d", len(manifest.Endpoints))
@@ -40,4 +43,13 @@ func TestArtifactsComeFromTheImplementedContract(t *testing.T) {
 	if !bytes.Contains(client, []byte(`async discover`)) || bytes.Contains(client, []byte("2026-08-21")) {
 		t.Fatal("client must be generated from protocolVersion rather than duplicating its literal")
 	}
+}
+
+func hasMethod(methods []contractgen.MethodManifest, name string) bool {
+	for _, method := range methods {
+		if method.Name == name {
+			return true
+		}
+	}
+	return false
 }

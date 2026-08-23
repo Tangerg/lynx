@@ -132,7 +132,7 @@ func newServeCommand(deps dependencies) *cobra.Command {
 		"descriptorPath": "LYRA2_BOOTSTRAP_DESCRIPTOR", "bootstrapNonce": "LYRA2_BOOTSTRAP_NONCE",
 		"workspace": "LYRA2_WORKSPACE", "userHome": "LYRA2_USER_HOME", "serverName": "LYRA2_SERVER_NAME",
 		"corsOrigins": "LYRA2_CORS_ORIGINS",
-		"jinaAPIKey": "LYRA2_JINA_API_KEY", "tavilyAPIKey": "LYRA2_TAVILY_API_KEY",
+		"jinaAPIKey":  "LYRA2_JINA_API_KEY", "tavilyAPIKey": "LYRA2_TAVILY_API_KEY",
 		"httpAllowedHosts": "LYRA2_HTTP_ALLOWED_HOSTS", "httpAllowedMethods": "LYRA2_HTTP_ALLOWED_METHODS",
 		"remote": "LYRA2_REMOTE", "tlsCertificatePath": "LYRA2_TLS_CERTIFICATE", "tlsPrivateKeyPath": "LYRA2_TLS_PRIVATE_KEY",
 	} {
@@ -203,22 +203,22 @@ func resolveConfig(settings *viper.Viper, deps dependencies) (runtimehost.Config
 		CORSOrigins: settings.GetStringSlice("corsOrigins"),
 		Online: agenttools.OnlineConfig{
 			JinaAPIKey: settings.GetString("jinaAPIKey"), TavilyAPIKey: settings.GetString("tavilyAPIKey"),
-			HTTPAllowedHosts: settings.GetStringSlice("httpAllowedHosts"),
+			HTTPAllowedHosts:   settings.GetStringSlice("httpAllowedHosts"),
 			HTTPAllowedMethods: settings.GetStringSlice("httpAllowedMethods"),
 		},
-		LSPServers: lspServers,
-		Remote: settings.GetBool("remote"),
+		LSPServers:         lspServers,
+		Remote:             settings.GetBool("remote"),
 		TLSCertificatePath: cleanOptional(settings.GetString("tlsCertificatePath")),
-		TLSPrivateKeyPath: cleanOptional(settings.GetString("tlsPrivateKeyPath")),
+		TLSPrivateKeyPath:  cleanOptional(settings.GetString("tlsPrivateKeyPath")),
 	}, nil
 }
 
 type lspServerConfig struct {
-	Name string `mapstructure:"name"`
-	Command string `mapstructure:"command"`
-	Args []string `mapstructure:"args"`
-	LanguageID string `mapstructure:"languageId"`
-	Extensions []string `mapstructure:"extensions"`
+	Name        string   `mapstructure:"name"`
+	Command     string   `mapstructure:"command"`
+	Args        []string `mapstructure:"args"`
+	LanguageID  string   `mapstructure:"languageId"`
+	Extensions  []string `mapstructure:"extensions"`
 	RootMarkers []string `mapstructure:"rootMarkers"`
 }
 

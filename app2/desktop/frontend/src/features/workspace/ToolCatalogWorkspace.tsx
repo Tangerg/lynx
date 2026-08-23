@@ -136,7 +136,10 @@ function ToolCard(props: {
         <summary>{t("diagnostic.schema")}</summary>
         <pre>{JSON.stringify(props.tool.parameters ?? {}, null, 2)}</pre>
       </details>
-      <form className="tool-invocation" onSubmit={(event) => void invoke(event)}>
+      <form
+        className="tool-invocation"
+        onSubmit={(event) => void invoke(event)}
+      >
         <label htmlFor={`tool-arguments-${props.tool.name}`}>
           {t("diagnostic.arguments")}
         </label>
@@ -209,7 +212,5 @@ function exampleArguments(name: string) {
 }
 
 function messageOf(error: unknown, fallback: string) {
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return error instanceof Error ? error.message : fallback;
 }

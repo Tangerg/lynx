@@ -9,10 +9,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import {
   getWorkspaceDiff,
   listWorkspaceChanges,
@@ -128,7 +125,11 @@ export function WorkspaceReview(props: WorkspaceReviewProps) {
   if (files.length === 0) {
     return (
       <ReviewState
-        title={props.mode === "base" ? t("review.noBranchChanges") : t("review.clean")}
+        title={
+          props.mode === "base"
+            ? t("review.noBranchChanges")
+            : t("review.clean")
+        }
         detail={
           props.mode === "base"
             ? t("review.noBranchChangesDetail")
@@ -155,7 +156,10 @@ export function WorkspaceReview(props: WorkspaceReviewProps) {
           {t("review.truncated")}
         </p>
       ) : null}
-      <div className="workspace-review" data-navigator-open={props.navigatorOpen}>
+      <div
+        className="workspace-review"
+        data-navigator-open={props.navigatorOpen}
+      >
         {props.navigatorOpen ? (
           <FileNavigator
             files={files}
@@ -262,7 +266,10 @@ function FileNavigator(props: {
 }) {
   const { t } = useLocalization();
   return (
-    <aside className="workspace-change-list" aria-label={t("review.changedFiles")}>
+    <aside
+      className="workspace-change-list"
+      aria-label={t("review.changedFiles")}
+    >
       {props.files.map((file) => (
         <button
           key={file.path}
@@ -316,13 +323,18 @@ function FileReview(props: {
           <StatusMark status={props.file.status} />
           <span>
             <strong>{baseName(props.file.path)}</strong>
-            <small dir="ltr" title={props.file.path}>{renameLabel(props.file)}</small>
+            <small dir="ltr" title={props.file.path}>
+              {renameLabel(props.file)}
+            </small>
           </span>
           <ChangeCount change={props.file} />
           <b aria-hidden="true">{props.collapsed ? "›" : "⌄"}</b>
         </button>
         {props.file.status !== "deleted" ? (
-          <button type="button" onClick={() => props.onOpenFile(props.file.path)}>
+          <button
+            type="button"
+            onClick={() => props.onOpenFile(props.file.path)}
+          >
             {t("review.openFile")}
           </button>
         ) : null}
@@ -434,7 +446,8 @@ function SplitCell(props: {
   row: DiffRow | undefined;
   side: "left" | "right";
 }) {
-  const line = props.side === "left" ? props.row?.leftLine : props.row?.rightLine;
+  const line =
+    props.side === "left" ? props.row?.leftLine : props.row?.rightLine;
   return (
     <span className="split-diff-cell" data-type={props.row?.type ?? "empty"}>
       <i>{line || ""}</i>
@@ -457,7 +470,11 @@ function splitMaterial(rows: DiffRow[]): SplitMaterial[] {
   const flushChanges = () => {
     const length = Math.max(deleted.length, added.length);
     for (let index = 0; index < length; index += 1) {
-      material.push({ type: "code", left: deleted[index], right: added[index] });
+      material.push({
+        type: "code",
+        left: deleted[index],
+        right: added[index],
+      });
     }
     deleted = [];
     added = [];
@@ -518,7 +535,9 @@ function summarizeFiles(
   );
   const partial = source.some(
     (change) =>
-      change.binary || change.added === undefined || change.removed === undefined,
+      change.binary ||
+      change.added === undefined ||
+      change.removed === undefined,
   );
   return `${t("review.summary", {
     files: formatNumber(source.length),

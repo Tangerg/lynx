@@ -7,8 +7,8 @@ import (
 
 var (
 	commandSeparator = regexp.MustCompile(`&&|\|\||[;|&\n]`)
-	forkBomb = regexp.MustCompile(`:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:`)
-	deviceDestroyer = []*regexp.Regexp{
+	forkBomb         = regexp.MustCompile(`:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:`)
+	deviceDestroyer  = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\bmkfs(\.\w+)?\b`),
 		regexp.MustCompile(`(?i)\bwipefs\b`),
 		regexp.MustCompile(`(?i)\bdd\b[^|;&\n]*\bof=/dev/`),

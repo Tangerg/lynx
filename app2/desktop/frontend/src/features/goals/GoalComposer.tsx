@@ -18,8 +18,7 @@ interface ObjectiveDraft {
 }
 
 type ObjectiveDraftAction =
-  | { type: "input"; value: string }
-  | { type: "canonical"; value: string };
+  { type: "input"; value: string } | { type: "canonical"; value: string };
 
 export function GoalComposer({ sessionId, goal, actions }: GoalComposerProps) {
   const { t } = useLocalization();
@@ -128,7 +127,9 @@ export function GoalComposer({ sessionId, goal, actions }: GoalComposerProps) {
           className="primary-action"
           type="submit"
           disabled={
-            actions.pending || objective === "" || (goal !== undefined && !dirty)
+            actions.pending ||
+            objective === "" ||
+            (goal !== undefined && !dirty)
           }
         >
           {actions.pending
@@ -197,8 +198,7 @@ function objectiveDraftReducer(
     return {
       ...state,
       value: action.value,
-      conflicted:
-        state.conflicted && action.value.trim() !== state.canonical,
+      conflicted: state.conflicted && action.value.trim() !== state.canonical,
     };
   }
   const wasClean = state.value.trim() === state.canonical;

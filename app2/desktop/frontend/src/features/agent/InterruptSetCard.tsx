@@ -1,8 +1,4 @@
-import {
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import type {
   Interrupt,
@@ -65,11 +61,7 @@ export function InterruptSetCard(props: InterruptSetCardProps) {
           : { fingerprint, key: crypto.randomUUID() };
       intent.current = resumeIntent;
       setLocalError(undefined);
-      await props.onResume(
-        props.interruptSet,
-        responses,
-        resumeIntent.key,
-      );
+      await props.onResume(props.interruptSet, responses, resumeIntent.key);
       intent.current = undefined;
     } catch (error) {
       setLocalError(messageOf(error, t("interrupt.resumeFailed"), t));
@@ -104,9 +96,7 @@ export function InterruptSetCard(props: InterruptSetCardProps) {
           )}
         </span>
       </header>
-      <p className="interrupt-intro">
-        {t("interrupt.intro")}
-      </p>
+      <p className="interrupt-intro">{t("interrupt.intro")}</p>
       <div className="interrupt-requests">
         {props.interruptSet.interrupts.map((interrupt, index) => (
           <InterruptEditor
@@ -160,15 +150,28 @@ function InterruptEditor(props: InterruptEditorProps) {
 function messageOf(error: unknown, fallback: string, t: Translate) {
   if (error instanceof InterruptResponseValidationError) {
     switch (error.code) {
-      case "unsupportedInteraction": return t("interrupt.unsupported");
-      case "approvalDecisionRequired": return t("approval.decisionRequired");
-      case "questionIncomplete": return t("question.incomplete");
-      case "textAnswerRequired": return t("question.answerBeforeContinue", { prompt: error.detail ?? "" });
-      case "unsupportedQuestionField": return t("question.unsupportedField", { type: error.detail ?? "" });
-      case "choiceRequired": return t("question.chooseBeforeContinue", { prompt: error.detail ?? "" });
-      case "singleChoiceRequired": return t("question.chooseOne", { prompt: error.detail ?? "" });
-      case "argumentsInvalidJSON": return t("approval.argumentsInvalidJSON");
-      case "argumentsNotObject": return t("approval.argumentsNotObject");
+      case "unsupportedInteraction":
+        return t("interrupt.unsupported");
+      case "approvalDecisionRequired":
+        return t("approval.decisionRequired");
+      case "questionIncomplete":
+        return t("question.incomplete");
+      case "textAnswerRequired":
+        return t("question.answerBeforeContinue", {
+          prompt: error.detail ?? "",
+        });
+      case "unsupportedQuestionField":
+        return t("question.unsupportedField", { type: error.detail ?? "" });
+      case "choiceRequired":
+        return t("question.chooseBeforeContinue", {
+          prompt: error.detail ?? "",
+        });
+      case "singleChoiceRequired":
+        return t("question.chooseOne", { prompt: error.detail ?? "" });
+      case "argumentsInvalidJSON":
+        return t("approval.argumentsInvalidJSON");
+      case "argumentsNotObject":
+        return t("approval.argumentsNotObject");
     }
   }
   return error instanceof Error ? error.message : fallback;

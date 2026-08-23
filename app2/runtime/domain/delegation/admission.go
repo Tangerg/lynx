@@ -29,24 +29,24 @@ const (
 // pending value is not a Run and is never projected on the Lyra wire.
 type Admission struct {
 	MemberID, ParentMemberID, ChildKey string
-	RunID, SegmentID                  string
-	SessionID, ParentRunID, RootRunID string
-	SpawnedByItemID                   string
-	Provider, Model                   string
-	Summary, Instructions             string
-	Status                            Status
-	Failure                           string
-	StartedAt, UpdatedAt              time.Time
+	RunID, SegmentID                   string
+	SessionID, ParentRunID, RootRunID  string
+	SpawnedByItemID                    string
+	Provider, Model                    string
+	Summary, Instructions              string
+	Status                             Status
+	Failure                            string
+	StartedAt, UpdatedAt               time.Time
 }
 
 type Reserve struct {
 	MemberID, ParentMemberID, ChildKey string
-	RunID, SegmentID                  string
-	SessionID, ParentRunID, RootRunID string
-	SpawnedByItemID                   string
-	Provider, Model                   string
-	Summary, Instructions             string
-	StartedAt                         time.Time
+	RunID, SegmentID                   string
+	SessionID, ParentRunID, RootRunID  string
+	SpawnedByItemID                    string
+	Provider, Model                    string
+	Summary, Instructions              string
+	StartedAt                          time.Time
 }
 
 func New(command Reserve) (Admission, error) {

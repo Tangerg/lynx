@@ -87,7 +87,5 @@ export function memoryBytes(value: string) {
 }
 
 export function messageOf(error: unknown, fallback: string) {
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return error instanceof Error ? error.message : fallback;
 }

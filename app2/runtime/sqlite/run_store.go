@@ -35,7 +35,9 @@ func (database *Database) CreateRun(
 		}
 	}
 	if openingMessage != nil {
-		if err := insertConversationMessage(ctx, transaction, *openingMessage); err != nil { return err }
+		if err := insertConversationMessage(ctx, transaction, *openingMessage); err != nil {
+			return err
+		}
 	}
 	if err := insertRunEvents(ctx, transaction, events); err != nil {
 		return err
@@ -77,19 +79,29 @@ func (database *Database) CommitRun(ctx context.Context, write runflow.CommitWri
 		}
 	}
 	for _, message := range write.Messages {
-		if err := insertConversationMessage(ctx, transaction, message); err != nil { return err }
+		if err := insertConversationMessage(ctx, transaction, message); err != nil {
+			return err
+		}
 	}
 	for _, result := range write.ToolResults {
-		if err := insertToolResult(ctx, transaction, result); err != nil { return err }
+		if err := insertToolResult(ctx, transaction, result); err != nil {
+			return err
+		}
 	}
 	if err := insertRunEvents(ctx, transaction, write.Events); err != nil {
 		return err
 	}
 	if value.Status() == rundomain.Finished {
-		if _, err := transaction.ExecContext(ctx, `DELETE FROM interrupt_sets WHERE run_id = ?`, value.ID()); err != nil { return fmt.Errorf("sqlite: clear terminal interrupt: %w", err) }
-		if _, err := transaction.ExecContext(ctx, `DELETE FROM executor_checkpoints WHERE run_id = ?`, value.ID()); err != nil { return fmt.Errorf("sqlite: clear terminal checkpoint: %w", err) }
+		if _, err := transaction.ExecContext(ctx, `DELETE FROM interrupt_sets WHERE run_id = ?`, value.ID()); err != nil {
+			return fmt.Errorf("sqlite: clear terminal interrupt: %w", err)
+		}
+		if _, err := transaction.ExecContext(ctx, `DELETE FROM executor_checkpoints WHERE run_id = ?`, value.ID()); err != nil {
+			return fmt.Errorf("sqlite: clear terminal checkpoint: %w", err)
+		}
 		if value.ParentRunID() == "" {
-			if err := capturePlanBoundary(ctx, transaction, value.ID(), value.SessionID()); err != nil { return err }
+			if err := capturePlanBoundary(ctx, transaction, value.ID(), value.SessionID()); err != nil {
+				return err
+			}
 		}
 	}
 	if err := transaction.Commit(); err != nil {
@@ -104,7 +116,9 @@ func capturePlanBoundary(ctx context.Context, transaction *sql.Tx, runID, sessio
 	if errors.Is(err, sql.ErrNoRows) {
 		body, err = emptyPlanBody()
 	}
-	if err != nil { return fmt.Errorf("sqlite: read Plan boundary for run %s: %w", runID, err) }
+	if err != nil {
+		return fmt.Errorf("sqlite: read Plan boundary for run %s: %w", runID, err)
+	}
 	if _, err := transaction.ExecContext(ctx, `INSERT INTO plan_boundaries(run_id,body) VALUES(?,?)`, runID, body); err != nil {
 		return fmt.Errorf("sqlite: capture Plan boundary for run %s: %w", runID, err)
 	}
@@ -384,9 +398,13 @@ func putItem(ctx context.Context, transaction *sql.Tx, item transcript.Record) e
 		WHERE items.session_id=excluded.session_id AND items.run_id=excluded.run_id AND items.ordinal=excluded.ordinal`,
 		item.ID, item.SessionID, item.RunID, item.Ordinal, string(item.Body),
 		string(item.SearchText), encodeTime(item.CreatedAt))
-	if err != nil { return fmt.Errorf("sqlite: put item %s: %w", item.ID, err) }
+	if err != nil {
+		return fmt.Errorf("sqlite: put item %s: %w", item.ID, err)
+	}
 	changed, _ := result.RowsAffected()
-	if changed != 1 { return fmt.Errorf("sqlite: item %s identity conflicts with its owner or ordinal", item.ID) }
+	if changed != 1 {
+		return fmt.Errorf("sqlite: item %s identity conflicts with its owner or ordinal", item.ID)
+	}
 	return nil
 }
 
@@ -552,7 +570,7 @@ func requireRun(ctx context.Context, transaction *sql.Tx, runID string) error {
 
 func scanItem(row rowScanner) (transcript.Record, error) {
 	var (
-		record transcript.Record
+		record  transcript.Record
 		created string
 	)
 	if err := row.Scan(
@@ -576,7 +594,7 @@ func scanItem(row rowScanner) (transcript.Record, error) {
 
 func scanRun(row rowScanner) (rundomain.Record, error) {
 	var (
-		id, sessionID, parentID, rootID, spawnedBy, status, segmentID string
+		id, sessionID, parentID, rootID, spawnedBy, status, segmentID        string
 		providerID, model, outcome, detail, body, created, updated, finished string
 	)
 	if err := row.Scan(

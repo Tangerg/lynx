@@ -16,18 +16,30 @@ const runtimeMocks = vi.hoisted(() => ({
 
 vi.mock("./runtime/desktopBridge", () => ({
   loadDesktopBootstrap: runtimeMocks.bootstrap,
+  useLocalRuntime: vi.fn(),
 }));
 
-vi.mock("./runtime/runtimeQueries", () => ({
-  discoverRuntime: runtimeMocks.discover,
+vi.mock("./runtime/runtimeQueries", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./runtime/runtimeQueries")>();
+  return { ...actual, discoverRuntime: runtimeMocks.discover };
+});
+
+vi.mock("./features/workspace/WorkspaceShell", () => ({
+  WorkspaceShell: ({ connection }: { connection: RuntimeConnection }) => (
+    <dl>
+      <dt>Generation</dt>
+      <dd>{connection.generation}</dd>
+    </dl>
+  ),
 }));
 
 function connection(generation: number): RuntimeConnection {
   return {
     endpoint: `http://127.0.0.1:${32_000 + generation}`,
-    localToken: `token-${generation}`,
+    bearerToken: `token-${generation}`,
     instanceId: `ins_${generation}`,
-    protocolVersion: "2026-08-21",
+    protocolVersion: "2026-08-23",
     idempotencyNamespace: `idp_${generation}`,
     generation,
   };
@@ -35,7 +47,7 @@ function connection(generation: number): RuntimeConnection {
 
 function discovery(generation: number): DiscoverResponse {
   return {
-    protocolVersion: "2026-08-21",
+    protocolVersion: "2026-08-23",
     serverInfo: {
       instanceId: `ins_${generation}`,
       name: "lyra-runtime",

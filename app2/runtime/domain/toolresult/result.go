@@ -12,8 +12,8 @@ var ErrNotFound = errors.New("toolresult: not found")
 
 type Record struct {
 	ID, SessionID, ItemID, ToolName string
-	Preview, Body                  string
-	CreatedAt                      time.Time
+	Preview, Body                   string
+	CreatedAt                       time.Time
 }
 
 func (record Record) Validate() error {

@@ -361,8 +361,9 @@ pre {
   --work-index-width: clamp(232px, 22vw, 264px);
   --context-dock-width: clamp(276px, 25vw, 310px);
   display: grid;
-  grid-template-columns:
-    var(--work-index-width) minmax(0, 1fr) var(--context-dock-width);
+  grid-template-columns: var(--work-index-width) minmax(0, 1fr) var(
+      --context-dock-width
+    );
   width: 100vw;
   height: 100vh;
   background: var(--paper-muted);
@@ -2876,7 +2877,9 @@ pre {
   background: color-mix(in srgb, var(--paper-raised) 55%, transparent);
   box-shadow: inset 0 0 0 1px var(--divider);
   font-size: 20px;
-  transition: background-color 140ms ease-out, transform 140ms ease-out;
+  transition:
+    background-color 140ms ease-out,
+    transform 140ms ease-out;
 }
 
 .icon-action:hover {
@@ -5010,7 +5013,8 @@ pre {
   background: var(--paper-raised);
   box-shadow: var(--shadow-popover);
   transform-origin: bottom left;
-  animation: model-picker-enter var(--dropdown-open-dur) var(--dropdown-ease) both;
+  animation: model-picker-enter var(--dropdown-open-dur) var(--dropdown-ease)
+    both;
 }
 
 [dir="rtl"] .model-picker-popover {
@@ -5168,8 +5172,12 @@ pre {
 }
 
 @keyframes settings-surface-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .settings-nav {
@@ -6407,7 +6415,10 @@ pre {
   background: var(--paper-raised);
   box-shadow: var(--shadow-sm);
   text-align: start;
-  transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .approval-mode-card:hover:not(:disabled) {
@@ -6417,7 +6428,9 @@ pre {
 
 .approval-mode-card[data-selected="true"] {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--divider));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 11%, transparent), var(--shadow-sm);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 11%, transparent),
+    var(--shadow-sm);
 }
 
 .approval-mode-card > span,
@@ -6667,7 +6680,9 @@ pre {
   background: var(--paper-raised);
   box-shadow: var(--shadow-popover);
   transform: translateY(-4px);
-  transition: opacity 120ms ease-out, transform 120ms ease-out,
+  transition:
+    opacity 120ms ease-out,
+    transform 120ms ease-out,
     visibility 120ms linear;
 }
 
@@ -6872,7 +6887,9 @@ pre {
   padding: 0 14px;
   font-size: 11px;
   font-weight: 680;
-  transition: background-color 120ms ease-out, color 120ms ease-out,
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out,
     transform 120ms ease-out;
 }
 

@@ -268,7 +268,7 @@ func (service *Service) projectLostTree(
 		}
 		problem := &protocol.ProblemData{Type: protocol.ProblemRunLost, Detail: lostRunDetail}
 		finished, err := service.event(record.Run.ID(), segmentID, &facts, protocol.StreamEvent{
-			Type: protocol.StreamSegmentFinished,
+			Type:    protocol.StreamSegmentFinished,
 			Outcome: segmentOutcome(rundomain.Lost, problem, ""), Metrics: &facts.Metrics,
 		}, now)
 		if err != nil {

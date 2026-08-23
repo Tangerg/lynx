@@ -19,8 +19,8 @@ import (
 	plandomain "github.com/Tangerg/lynx/app2/runtime/domain/plan"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/transcriptflow"
 )
@@ -149,13 +149,13 @@ func (service *Service) importMaterial(
 			return Material{}, err
 		}
 		material.Items = append(material.Items, transcript.Record{
-			ID:        item.ID,
-			SessionID: artifact.Session.ID,
-			RunID:     item.RunID,
-			Ordinal:   ordinals[item.RunID],
-			Body:      body,
+			ID:         item.ID,
+			SessionID:  artifact.Session.ID,
+			RunID:      item.RunID,
+			Ordinal:    ordinals[item.RunID],
+			Body:       body,
 			SearchText: transcriptflow.SearchableItem(item),
-			CreatedAt: itemOccurrence(item),
+			CreatedAt:  itemOccurrence(item),
 		})
 		ordinals[item.RunID]++
 	}

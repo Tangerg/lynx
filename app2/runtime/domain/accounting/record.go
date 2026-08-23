@@ -18,9 +18,9 @@ type Usage struct {
 }
 
 type RunRecord struct {
-	SessionID string
-	Provider string
-	Model string
-	Usage *Usage
+	SessionID  string
+	Provider   string
+	Model      string
+	Usage      *Usage
 	FinishedAt time.Time
 }

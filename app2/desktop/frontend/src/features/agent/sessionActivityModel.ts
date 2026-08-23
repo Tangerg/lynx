@@ -7,10 +7,7 @@ import type {
 } from "@lyra/runtime-contract";
 
 import type { LiveToolOutput } from "./agentSessionTypes";
-import {
-  translateEnglish,
-  type Translate,
-} from "../localization/Localization";
+import { translateEnglish, type Translate } from "../localization/Localization";
 import {
   isRecord,
   presentTool,
@@ -22,12 +19,7 @@ const maxSummaryEntries = 100;
 
 export interface TimelineEntry {
   id: string;
-  kind:
-    | "runStarted"
-    | "tool"
-    | "interrupt"
-    | "runSettled"
-    | "runWaiting";
+  kind: "runStarted" | "tool" | "interrupt" | "runSettled" | "runWaiting";
   run: RunRef;
   depth: number;
   timestamp?: string;
@@ -268,9 +260,16 @@ export function buildLatestRunSummary(
   if (latest === undefined) return undefined;
   const runIds = new Set(latest.runs.map((run) => run.id));
   const material = items.filter((item) => runIds.has(item.runId));
-  const allChanges = uniqueChanges(material.flatMap((item) => changesFromItem(item, t)));
+  const allChanges = uniqueChanges(
+    material.flatMap((item) => changesFromItem(item, t)),
+  );
   const allReads = uniqueStrings(material.flatMap(readsFromItem));
-  const allCommands = buildTerminalCommands(latest.runs, material, liveOutputs, t);
+  const allCommands = buildTerminalCommands(
+    latest.runs,
+    material,
+    liveOutputs,
+    t,
+  );
   const allApprovals = material.flatMap((item) => approvalFromItem(item, t));
   const allErrors = [
     ...latest.runs.flatMap((run) => errorFromRun(run, t)),
@@ -411,11 +410,7 @@ export function approvalDecisionLabel(
   return decision;
 }
 
-function resolveRoot(
-  run: RunRef,
-  runById: Map<string, RunRef>,
-  t: Translate,
-) {
+function resolveRoot(run: RunRef, runById: Map<string, RunRef>, t: Translate) {
   if (run.parentRunId === undefined) return { root: run };
   const declared = run.rootRunId ? runById.get(run.rootRunId) : undefined;
   if (declared !== undefined && declared.parentRunId === undefined) {
@@ -492,9 +487,11 @@ function latestOf(...values: (string | undefined)[]) {
 }
 
 function compareTimelineEntry(left: TimelineEntry, right: TimelineEntry) {
-  return compareTimestamp(left.timestamp, right.timestamp) ||
+  return (
+    compareTimestamp(left.timestamp, right.timestamp) ||
     timelineRank(left.kind) - timelineRank(right.kind) ||
-    left.id.localeCompare(right.id);
+    left.id.localeCompare(right.id)
+  );
 }
 
 function timelineRank(kind: TimelineEntry["kind"]) {
@@ -509,10 +506,14 @@ function compareOccurred(
   right: Pick<Item, "id" | "createdAt" | "startedAt"> | RunRef,
 ) {
   const leftTime =
-    "startedAt" in left ? left.startedAt ?? left.createdAt : left.createdAt;
+    "startedAt" in left ? (left.startedAt ?? left.createdAt) : left.createdAt;
   const rightTime =
-    "startedAt" in right ? right.startedAt ?? right.createdAt : right.createdAt;
-  return compareTimestamp(leftTime, rightTime) || left.id.localeCompare(right.id);
+    "startedAt" in right
+      ? (right.startedAt ?? right.createdAt)
+      : right.createdAt;
+  return (
+    compareTimestamp(leftTime, rightTime) || left.id.localeCompare(right.id)
+  );
 }
 
 function compareTimestamp(left: string | undefined, right: string | undefined) {
@@ -532,16 +533,19 @@ function changesFromItem(item: Item, t: Translate): SummaryChange[] {
   if (isRecord(item.tool.result) && Array.isArray(item.tool.result.files)) {
     return item.tool.result.files.flatMap((value) => {
       if (!isRecord(value) || typeof value.path !== "string") return [];
-      return [{
-        path: value.path,
-        action: value.deleted === true
-          ? "deleted"
-          : value.created === true
-            ? "created"
-            : typeof value.moved_from === "string"
-              ? "moved"
-              : "modified",
-      } satisfies SummaryChange];
+      return [
+        {
+          path: value.path,
+          action:
+            value.deleted === true
+              ? "deleted"
+              : value.created === true
+                ? "created"
+                : typeof value.moved_from === "string"
+                  ? "moved"
+                  : "modified",
+        } satisfies SummaryChange,
+      ];
     });
   }
   const patch = stringArgument(item.tool.arguments, "patch") ?? "";
@@ -572,23 +576,24 @@ function approvalFromItem(item: Item, t: Translate): SummaryApproval[] {
     item.tool?.arguments ?? {},
     t,
   );
-  return [{
-    tool: presentation.title,
-    ...(presentation.subject ? { subject: presentation.subject } : {}),
-    decision: item.approvalDecision,
-  }];
+  return [
+    {
+      tool: presentation.title,
+      ...(presentation.subject ? { subject: presentation.subject } : {}),
+      decision: item.approvalDecision,
+    },
+  ];
 }
 
 function errorFromItem(item: Item, t: Translate): SummaryError[] {
   if (item.type !== "toolCall" || item.error === undefined) return [];
-  return [{
-    source: presentTool(
-      item.tool?.name ?? "",
-      item.tool?.arguments ?? {},
-      t,
-    ).title,
-    detail: item.error.detail ?? item.error.type,
-  }];
+  return [
+    {
+      source: presentTool(item.tool?.name ?? "", item.tool?.arguments ?? {}, t)
+        .title,
+      detail: item.error.detail ?? item.error.type,
+    },
+  ];
 }
 
 function errorFromRun(run: RunRef, t: Translate): SummaryError[] {
@@ -599,10 +604,13 @@ function errorFromRun(run: RunRef, t: Translate): SummaryError[] {
   ) {
     return [];
   }
-  return [{
-    source: t("activity.runIdentity", { id: shortIdentity(run.id) }),
-    detail: run.outcome.error?.detail ?? run.outcome.detail ?? run.outcome.type,
-  }];
+  return [
+    {
+      source: t("activity.runIdentity", { id: shortIdentity(run.id) }),
+      detail:
+        run.outcome.error?.detail ?? run.outcome.detail ?? run.outcome.type,
+    },
+  ];
 }
 
 function mergeUsage(total: Usage, run: RunRef): Usage {

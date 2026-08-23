@@ -85,9 +85,9 @@ type sessionDocumentTransfer interface {
 
 // NativeHost exposes only capabilities that truly require the desktop shell.
 type NativeHost struct {
-	window nativeWindow
-	picker directoryPicker
-	saver  imageSaver
+	window    nativeWindow
+	picker    directoryPicker
+	saver     imageSaver
 	documents sessionDocumentTransfer
 }
 

@@ -33,13 +33,19 @@ func (database *Database) CommitWait(ctx context.Context, write runflow.WaitWrit
 		return rundomain.ErrInvalidTransition
 	}
 	for _, item := range write.Items {
-		if err := putItem(ctx, transaction, item); err != nil { return err }
+		if err := putItem(ctx, transaction, item); err != nil {
+			return err
+		}
 	}
 	for _, message := range write.Messages {
-		if err := insertConversationMessage(ctx, transaction, message); err != nil { return err }
+		if err := insertConversationMessage(ctx, transaction, message); err != nil {
+			return err
+		}
 	}
 	for _, result := range write.ToolResults {
-		if err := insertToolResult(ctx, transaction, result); err != nil { return err }
+		if err := insertToolResult(ctx, transaction, result); err != nil {
+			return err
+		}
 	}
 	if err := insertRunEvents(ctx, transaction, write.Events); err != nil {
 		return err

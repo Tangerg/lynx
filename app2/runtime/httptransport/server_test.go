@@ -267,10 +267,10 @@ func TestRuntimeHTTPExtractsW3CTraceContextWithoutLoggingSecrets(t *testing.T) {
 	var logs bytes.Buffer
 	observedContext := make(chan trace.SpanContext, 1)
 	server, err := httptransport.New(httptransport.Config{
-		Dispatcher: traceDispatcher{observed: observedContext},
-		ServerInfo: serviceInfo(),
-		LocalToken: "header-secret",
-		Logger:     slog.New(slog.NewJSONHandler(&logs, nil)),
+		Dispatcher:  traceDispatcher{observed: observedContext},
+		ServerInfo:  serviceInfo(),
+		BearerToken: staticToken("header-secret"),
+		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),
 	})
 	if err != nil {
 		t.Fatalf("httptransport.New() error = %v", err)
@@ -329,7 +329,7 @@ func newServer(t *testing.T, token string, origins []string, probes []httptransp
 	server, err := httptransport.New(httptransport.Config{
 		Dispatcher:   dispatch.New(endpoint),
 		ServerInfo:   serviceInfo(),
-		LocalToken:   token,
+		BearerToken:  optionalStaticToken(token),
 		CORSOrigins:  origins,
 		HealthProbes: probes,
 	})
@@ -344,6 +344,19 @@ func serviceInfo() protocol.ServerInfo {
 }
 
 type streamDispatcher struct{ stream dispatch.Stream }
+
+type staticToken string
+
+func (token staticToken) Token(context.Context) (string, error) {
+	return string(token), nil
+}
+
+func optionalStaticToken(value string) httptransport.TokenSource {
+	if value == "" {
+		return nil
+	}
+	return staticToken(value)
+}
 
 func (dispatcher streamDispatcher) Dispatch(_ context.Context, message rpcwire.Message, _ dispatch.Metadata) dispatch.Result {
 	request := message.(*rpcwire.Request)

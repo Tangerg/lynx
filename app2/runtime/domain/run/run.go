@@ -67,18 +67,18 @@ type Page struct {
 }
 
 type EventRecord struct {
-	RootRunID, RootSegmentID string
+	RootRunID, RootSegmentID  string
 	RunID, SegmentID, EventID string
-	Ordinal                    int
-	Body                       []byte
-	CreatedAt                  time.Time
+	Ordinal                   int
+	Body                      []byte
+	CreatedAt                 time.Time
 }
 
 type Start struct {
-	ID, SessionID, SegmentID string
+	ID, SessionID, SegmentID                string
 	ParentRunID, RootRunID, SpawnedByItemID string
-	Provider, Model string
-	Now time.Time
+	Provider, Model                         string
+	Now                                     time.Time
 }
 
 func New(command Start) (Run, error) {
@@ -86,7 +86,7 @@ func New(command Start) (Run, error) {
 		id: command.ID, sessionID: command.SessionID,
 		parentRunID: command.ParentRunID, rootRunID: command.RootRunID,
 		spawnedByItemID: command.SpawnedByItemID,
-		status: Running, activeSegmentID: command.SegmentID,
+		status:          Running, activeSegmentID: command.SegmentID,
 		provider: command.Provider, model: command.Model,
 		createdAt: command.Now.UTC(), updatedAt: command.Now.UTC(),
 	}
@@ -97,13 +97,13 @@ func New(command Start) (Run, error) {
 }
 
 type Restore struct {
-	ID, SessionID string
+	ID, SessionID                           string
 	ParentRunID, RootRunID, SpawnedByItemID string
-	Status Status
-	ActiveSegmentID, Provider, Model string
-	Outcome Outcome
-	Detail string
-	CreatedAt, UpdatedAt, FinishedAt time.Time
+	Status                                  Status
+	ActiveSegmentID, Provider, Model        string
+	Outcome                                 Outcome
+	Detail                                  string
+	CreatedAt, UpdatedAt, FinishedAt        time.Time
 }
 
 func Rehydrate(state Restore) (Run, error) {
@@ -215,12 +215,12 @@ func (value Run) SessionID() string       { return value.sessionID }
 func (value Run) ParentRunID() string     { return value.parentRunID }
 func (value Run) RootRunID() string       { return value.rootRunID }
 func (value Run) SpawnedByItemID() string { return value.spawnedByItemID }
-func (value Run) Status() Status           { return value.status }
-func (value Run) ActiveSegmentID() string  { return value.activeSegmentID }
-func (value Run) Provider() string         { return value.provider }
-func (value Run) Model() string            { return value.model }
-func (value Run) Outcome() Outcome         { return value.outcome }
-func (value Run) Detail() string           { return value.detail }
-func (value Run) CreatedAt() time.Time     { return value.createdAt }
-func (value Run) UpdatedAt() time.Time     { return value.updatedAt }
-func (value Run) FinishedAt() time.Time    { return value.finishedAt }
+func (value Run) Status() Status          { return value.status }
+func (value Run) ActiveSegmentID() string { return value.activeSegmentID }
+func (value Run) Provider() string        { return value.provider }
+func (value Run) Model() string           { return value.model }
+func (value Run) Outcome() Outcome        { return value.outcome }
+func (value Run) Detail() string          { return value.detail }
+func (value Run) CreatedAt() time.Time    { return value.createdAt }
+func (value Run) UpdatedAt() time.Time    { return value.updatedAt }
+func (value Run) FinishedAt() time.Time   { return value.finishedAt }

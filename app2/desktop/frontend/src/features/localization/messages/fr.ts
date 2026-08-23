@@ -9,17 +9,27 @@ export const frenchMessages = {
   "app.useLocalRuntime": "Utiliser local Runtime",
   "app.switchingRuntime": "Commutation…",
   "app.unknownStartupError": "Une erreur inconnue a interrompu le démarrage.",
-  "runtimeError.invalidRuntimeBootstrap": "Desktop a renvoyé un bootstrap Runtime non valide.",
-  "runtimeError.unsafeRuntimeEndpoint": "Desktop a renvoyé un point de terminaison Runtime non sécurisé.",
+  "runtimeError.invalidRuntimeBootstrap":
+    "Desktop a renvoyé un bootstrap Runtime non valide.",
+  "runtimeError.unsafeRuntimeEndpoint":
+    "Desktop a renvoyé un point de terminaison Runtime non sécurisé.",
   "runtimeError.hostUnavailable": "Lyra Desktop n'est pas disponible.",
-  "runtimeError.invalidBootstrapEnvelope": "Desktop a renvoyé une enveloppe d'amorçage non valide.",
-  "runtimeError.invalidRemoteRuntimeState": "Desktop a renvoyé un état Runtime distant non valide.",
-  "runtimeError.inconsistentRemoteRuntimeState": "Desktop a renvoyé un état Runtime distant incohérent.",
-  "runtimeError.invalidDirectorySelection": "Desktop a renvoyé une sélection de répertoire non valide.",
-  "runtimeError.invalidImageSaveResult": "Desktop a renvoyé un résultat d'enregistrement d'image non valide.",
-  "runtimeError.invalidSessionArtifactSelection": "Desktop a renvoyé une sélection d'artefact de session non valide.",
-  "runtimeError.invalidSessionExportResult": "Desktop a renvoyé un résultat d'exportation de session non valide.",
-  "runtimeError.identityChanged": "Runtime a été modifiée lors de la découverte.",
+  "runtimeError.invalidBootstrapEnvelope":
+    "Desktop a renvoyé une enveloppe d'amorçage non valide.",
+  "runtimeError.invalidRemoteRuntimeState":
+    "Desktop a renvoyé un état Runtime distant non valide.",
+  "runtimeError.inconsistentRemoteRuntimeState":
+    "Desktop a renvoyé un état Runtime distant incohérent.",
+  "runtimeError.invalidDirectorySelection":
+    "Desktop a renvoyé une sélection de répertoire non valide.",
+  "runtimeError.invalidImageSaveResult":
+    "Desktop a renvoyé un résultat d'enregistrement d'image non valide.",
+  "runtimeError.invalidSessionArtifactSelection":
+    "Desktop a renvoyé une sélection d'artefact de session non valide.",
+  "runtimeError.invalidSessionExportResult":
+    "Desktop a renvoyé un résultat d'exportation de session non valide.",
+  "runtimeError.identityChanged":
+    "Runtime a été modifiée lors de la découverte.",
   "approval.title": "Approbation",
   "approval.toolExecution": "Exécution de l'outil",
   "approval.risk": "{risk} risque",
@@ -37,54 +47,69 @@ export const frenchMessages = {
   "approval.rememberSession": "Cette séance",
   "approval.rememberProject": "Ce projet",
   "approval.rememberGlobal": "Partout",
-  "approval.decisionRequired": "Choisissez Approuver ou Refuser pour chaque demande d'approbation.",
-  "approval.argumentsInvalidJSON": "Les arguments de l'outil modifiés doivent être valides JSON.",
-  "approval.argumentsNotObject": "Les arguments de l'outil modifiés doivent être un objet JSON.",
+  "approval.decisionRequired":
+    "Choisissez Approuver ou Refuser pour chaque demande d'approbation.",
+  "approval.argumentsInvalidJSON":
+    "Les arguments de l'outil modifiés doivent être valides JSON.",
+  "approval.argumentsNotObject":
+    "Les arguments de l'outil modifiés doivent être un objet JSON.",
   "question.title": "Question",
   "question.inputForLyra": "Entrée pour Lyra",
   "question.fieldsMissing": "Le Runtime n'a pas fourni les champs de question.",
   "question.answerPlaceholder": "Tapez votre réponse",
-  "question.unsupportedField": "Type de champ de question non pris en charge : {type}",
+  "question.unsupportedField":
+    "Type de champ de question non pris en charge : {type}",
   "question.customAnswer": "Réponse personnalisée",
   "question.customAnswerPlaceholder": "Écrivez une autre réponse",
   "question.incomplete": "Le Runtime n'a pas fourni une question complète.",
   "question.answerBeforeContinue": "Répondez « {prompt} » avant de continuer.",
-  "question.chooseBeforeContinue": "Choisissez une réponse pour « {prompt} » avant de continuer.",
+  "question.chooseBeforeContinue":
+    "Choisissez une réponse pour « {prompt} » avant de continuer.",
   "question.chooseOne": "Choisissez une réponse pour « {prompt} ».",
   "interrupt.actionRequired": "Action requise",
   "interrupt.waitingForYou": "Lyra vous attend",
   "interrupt.requestCountOne": "{count} demande",
   "interrupt.requestCountMany": "{count} demandes",
-  "interrupt.intro": "Examinez chaque demande ci-dessous. L'ensemble complet est validé ensemble avant que cette exécution ne continue.",
-  "interrupt.atomicNote": "Les réponses sont appliquées de manière atomique à cette exécution en attente.",
+  "interrupt.intro":
+    "Examinez chaque demande ci-dessous. L'ensemble complet est validé ensemble avant que cette exécution ne continue.",
+  "interrupt.atomicNote":
+    "Les réponses sont appliquées de manière atomique à cette exécution en attente.",
   "interrupt.continuing": "Continuant…",
   "interrupt.submitAll": "Soumettre tout et continuer",
-  "interrupt.unsupported": "Ce Runtime a demandé une interaction non prise en charge.",
+  "interrupt.unsupported":
+    "Ce Runtime a demandé une interaction non prise en charge.",
   "interrupt.resumeFailed": "L'exécution n'a pas pu reprendre.",
-  "composer.removeAttachmentFirst": "Supprimez une pièce jointe avant d'en ajouter une autre.",
-  "composer.attachmentLimit": "Seules les pièces jointes {count} peuvent être envoyées en même temps.",
+  "composer.removeAttachmentFirst":
+    "Supprimez une pièce jointe avant d'en ajouter une autre.",
+  "composer.attachmentLimit":
+    "Seules les pièces jointes {count} peuvent être envoyées en même temps.",
   "composer.attachments": "Pièces jointes",
   "composer.image": "Image",
   "composer.file": "Fichier",
   "composer.removeAttachment": "Supprimer {name}",
   "composer.messageLyra": "Message Lyra",
   "composer.waitingPlaceholder": "Cette exécution attend votre réponse…",
-  "composer.runningPlaceholder": "Ajoutez des conseils pendant que Lyra fonctionne…",
+  "composer.runningPlaceholder":
+    "Ajoutez des conseils pendant que Lyra fonctionne…",
   "composer.readyPlaceholder": "Décrivez ce que vous souhaitez accomplir…",
   "composer.attach": "Joindre",
-  "composer.keyboardHint": "Entrée pour envoyer · Maj+Entrée pour le saut de ligne",
+  "composer.keyboardHint":
+    "Entrée pour envoyer · Maj+Entrée pour le saut de ligne",
   "composer.stop": "Arrêter",
   "composer.sending": "Envoi…",
   "composer.steer": "Direction",
   "composer.send": "Envoyer",
-  "composer.imagesUnsupported": "Le modèle sélectionné n'accepte pas les images. Supprimez-les ou choisissez un modèle multimodal.",
-  "composer.chooseImageModel": "Choisissez un modèle avec saisie d'image avant de joindre des images.",
+  "composer.imagesUnsupported":
+    "Le modèle sélectionné n'accepte pas les images. Supprimez-les ou choisissez un modèle multimodal.",
+  "composer.chooseImageModel":
+    "Choisissez un modèle avec saisie d'image avant de joindre des images.",
   "composer.imageTooLarge": "{name} est supérieur à 10 Mo.",
   "composer.fileTooLarge": "{name} est supérieur à 1 Mo.",
   "composer.attachmentReadFailed": "La pièce jointe n'a pas pu être lue.",
   "recipe.listLabel": "Recettes",
   "recipe.noDescription": "Aucune description fournie.",
-  "narrative.searchLoadedHistory": "Rechercher dans l'historique des conversations chargées",
+  "narrative.searchLoadedHistory":
+    "Rechercher dans l'historique des conversations chargées",
   "narrative.searchPlaceholder": "Rechercher une conversation",
   "narrative.clearSearch": "Effacer la recherche de conversation",
   "narrative.noLoadedMatches": "Aucune correspondance chargée",
@@ -97,11 +122,14 @@ export const frenchMessages = {
   "narrative.loadOlder": "Charger les anciens",
   "narrative.jumpToLatest": "Aller au plus récent",
   "narrative.latestActivityBelow": "L’activité la plus récente est plus bas",
-  "narrative.streamPaused": "Mises à jour en direct suspendues : {detail}. Le matériau durable est rechargé.",
+  "narrative.streamPaused":
+    "Mises à jour en direct suspendues : {detail}. Le matériau durable est rechargé.",
   "narrative.ready": "Prêt",
   "narrative.untitledSession": "Session sans titre",
-  "narrative.welcome": "Décrivez les travaux ci-dessous. Lyra conservera la conversation, les faits d'exécution et l'état de récupération attachés à cet espace de travail.",
-  "narrative.orphanDelegation": "La délégation parent n'est pas disponible dans cet instantané.",
+  "narrative.welcome":
+    "Décrivez les travaux ci-dessous. Lyra conservera la conversation, les faits d'exécution et l'état de récupération attachés à cet espace de travail.",
+  "narrative.orphanDelegation":
+    "La délégation parent n'est pas disponible dans cet instantané.",
   "narrative.you": "Vous",
   "narrative.answer": "Répondre",
   "narrative.lyra": "Lyra",
@@ -112,7 +140,8 @@ export const frenchMessages = {
   "narrative.inputNeeded": "Entrée nécessaire",
   "narrative.contextCompacted": "Contexte compacté",
   "narrative.messagesCondensed": "{count} messages condensés",
-  "narrative.delegationCycle": "La lignée d'exécution déléguée contient un cycle à {id}.",
+  "narrative.delegationCycle":
+    "La lignée d'exécution déléguée contient un cycle à {id}.",
   "narrative.delegatedRunLabel": "Exécution déléguée {id}",
   "narrative.delegatedRun": "Exécution déléguée",
   "narrative.canceling": "Annulation…",
@@ -120,7 +149,8 @@ export const frenchMessages = {
   "narrative.waitingDelegatedMaterial": "En attente du matériel délégué…",
   "narrative.noDelegatedMaterial": "Aucun matériel délégué n'a été enregistré.",
   "narrative.defaultModel": "modèle par défaut",
-  "narrative.feedbackSaveFailed": "Les commentaires n'ont pas pu être enregistrés.",
+  "narrative.feedbackSaveFailed":
+    "Les commentaires n'ont pas pu être enregistrés.",
   "narrative.rateAnswer": "Notez cette réponse",
   "narrative.wasHelpful": "Cela a-t-il été utile ?",
   "narrative.feedbackSaved": "Commentaires enregistrés",
@@ -128,16 +158,23 @@ export const frenchMessages = {
   "narrative.needsWork": "Besoin de travail",
   "narrative.delegated": "Délégué",
   "narrative.historyActionFailed": "L'action d'historique de session a échoué.",
-  "narrative.streamClosedEarly": "Runtime a fermé la diffusion en direct avant la fin du segment.",
+  "narrative.streamClosedEarly":
+    "Runtime a fermé la diffusion en direct avant la fin du segment.",
   "narrative.streamInterrupted": "Runtime flux interrompu.",
-  "narrative.waitingForResponse": "Cette exécution attend une réponse avant de pouvoir continuer.",
-  "narrative.activeSegmentMissing": "L'exécution active n'a aucun segment actuel.",
+  "narrative.waitingForResponse":
+    "Cette exécution attend une réponse avant de pouvoir continuer.",
+  "narrative.activeSegmentMissing":
+    "L'exécution active n'a aucun segment actuel.",
   "narrative.actionFailed": "L'action d'exécution n'a pas pu être terminée.",
   "narrative.noSessionMounted": "Aucune session n'est montée.",
-  "narrative.interruptSessionMismatch": "Cette interruption appartient à une autre session.",
-  "narrative.interruptResponsesIncomplete": "Les réponses doivent couvrir l'ensemble complet des interruptions.",
-  "narrative.actionInProgress": "Une autre action d'exécution est déjà en cours.",
-  "narrative.olderHistoryFailed": "L'historique plus ancien n'a pas pu être chargé.",
+  "narrative.interruptSessionMismatch":
+    "Cette interruption appartient à une autre session.",
+  "narrative.interruptResponsesIncomplete":
+    "Les réponses doivent couvrir l'ensemble complet des interruptions.",
+  "narrative.actionInProgress":
+    "Une autre action d'exécution est déjà en cours.",
+  "narrative.olderHistoryFailed":
+    "L'historique plus ancien n'a pas pu être chargé.",
   "narrative.forkHere": "Fourchette ici",
   "narrative.rewind": "Rewind…",
   "narrative.rewindHistory": "Historique après ce tour",
@@ -233,10 +270,12 @@ export const frenchMessages = {
   "model.chooseStored": "Choisissez le modèle stocké sur cette session",
   "model.choose": "Choisir le modèle",
   "model.sessionModel": "Modèle de session",
-  "model.explicitPair": "Stocké en tant que paire explicite de fournisseur et de modèle.",
+  "model.explicitPair":
+    "Stocké en tant que paire explicite de fournisseur et de modèle.",
   "model.closePicker": "Fermer le sélecteur de modèles",
   "model.loadingProviders": "Chargement des fournisseurs configurés…",
-  "model.noProvider": "Aucun fournisseur n'est configuré. Ouvrez d'abord les paramètres.",
+  "model.noProvider":
+    "Aucun fournisseur n'est configuré. Ouvrez d'abord les paramètres.",
   "model.configuredProviders": "Fournisseurs configurés",
   "model.loadingModels": "Chargement des modèles…",
   "model.noModels": "Ce fournisseur n'a renvoyé aucun modèle.",
@@ -255,7 +294,8 @@ export const frenchMessages = {
   "activity.terminal": "Terminal",
   "activity.summary": "Résumé",
   "activity.noTimeline": "Aucun calendrier d'exécution pour l'instant",
-  "activity.noTimelineDetail": "Les informations sur le cycle de vie de l'exécution et les outils apparaîtront ici après le début du travail de Lyra.",
+  "activity.noTimelineDetail":
+    "Les informations sur le cycle de vie de l'exécution et les outils apparaîtront ici après le début du travail de Lyra.",
   "activity.latestRunTree": "Dernière arborescence d'exécution",
   "activity.earlierRunTree": "Arborescence d'exécution antérieure",
   "activity.runCountOne": "{count} exécution",
@@ -271,7 +311,8 @@ export const frenchMessages = {
   "activity.canceling": "Annulation…",
   "activity.cancel": "Annuler",
   "activity.noCommands": "Aucune commande pour l'instant",
-  "activity.noCommandsDetail": "Les appels de l'outil Shell apparaîtront ici sous la forme d'un journal d'exécution en lecture seule.",
+  "activity.noCommandsDetail":
+    "Les appels de l'outil Shell apparaîtront ici sous la forme d'un journal d'exécution en lecture seule.",
   "activity.commandCountOne": "{count}",
   "activity.commandCountMany": "{count} commandes",
   "activity.followingOutput": "Suivi de la sortie",
@@ -280,16 +321,21 @@ export const frenchMessages = {
   "activity.running": "en cours d'exécution",
   "activity.commandNumber": "Commande {number}",
   "activity.killed": "tué",
-  "activity.liveOutputTruncated": "La sortie en direct précédente a été supprimée pour limiter cet aperçu.",
+  "activity.liveOutputTruncated":
+    "La sortie en direct précédente a été supprimée pour limiter cet aperçu.",
   "activity.waitingCommandOutput": "En attente de la sortie de la commande…",
-  "activity.noCapturedOutput": "La commande n'a produit aucune sortie capturée.",
+  "activity.noCapturedOutput":
+    "La commande n'a produit aucune sortie capturée.",
   "activity.noSummary": "Aucun résumé d'exécution pour l'instant",
-  "activity.noSummaryDetail": "La dernière exécution racine et son arborescence déléguée seront résumées ici.",
+  "activity.noSummaryDetail":
+    "La dernière exécution racine et son arborescence déléguée seront résumées ici.",
   "activity.copied": "Copié",
   "activity.copySummary": "Copier le résumé",
-  "activity.clipboardUnavailable": "Le presse-papiers du système n'est pas disponible. Rien n'a été copié.",
+  "activity.clipboardUnavailable":
+    "Le presse-papiers du système n'est pas disponible. Rien n'a été copié.",
   "activity.changedFiles": "Fichiers modifiés",
-  "activity.noChangedFiles": "Aucune modification de fichier n'a été enregistrée.",
+  "activity.noChangedFiles":
+    "Aucune modification de fichier n'a été enregistrée.",
   "activity.readFiles": "Fichiers lus",
   "activity.noReadFiles": "Aucune lecture de fichier n'a été enregistrée.",
   "activity.commands": "Commandes",
@@ -322,12 +368,14 @@ export const frenchMessages = {
   "activity.exportOmitted": "… {count} plus",
   "session.loading": "Chargement des sessions…",
   "session.retry": "Réessayer",
-  "session.empty": "Aucune session pour l'instant. Commencez-en un lorsque vous êtes prêt.",
+  "session.empty":
+    "Aucune session pour l'instant. Commencez-en un lorsque vous êtes prêt.",
   "session.search": "Sessions de recherche",
   "session.clearSearch": "Effacer la recherche de session",
   "session.shownOne": "{count} session affichée",
   "session.shownMany": "{count} séances affichées",
-  "session.refreshFailed": "Affichage des sessions enregistrées. Échec de l'actualisation : {detail}",
+  "session.refreshFailed":
+    "Affichage des sessions enregistrées. Échec de l'actualisation : {detail}",
   "session.noMatch": "Aucune session ne correspond à « {query} ».",
   "session.groupedLabel": "Sessions par espace de travail",
   "session.loadingOlder": "Chargement…",
@@ -362,10 +410,13 @@ export const frenchMessages = {
   "session.createFailed": "Impossible de créer la session.",
   "goal.editObjective": "Modifier objectif autonome",
   "goal.newObjective": "Nouvel objectif autonome",
-  "goal.runtimeOwnership": "Le Runtime est propriétaire de l'exécution, de la comptabilité et de la récupération.",
+  "goal.runtimeOwnership":
+    "Le Runtime est propriétaire de l'exécution, de la comptabilité et de la récupération.",
   "goal.objective": "Objectif du but",
-  "goal.objectivePlaceholder": "Décrivez le résultat que Lyra devrait continuer à travailler pour…",
-  "goal.externalChange": "L'objectif Runtime a changé pendant votre édition. Votre brouillon est conservé ; la sauvegarde le remplacera explicitement.",
+  "goal.objectivePlaceholder":
+    "Décrivez le résultat que Lyra devrait continuer à travailler pour…",
+  "goal.externalChange":
+    "L'objectif Runtime a changé pendant votre édition. Votre brouillon est conservé ; la sauvegarde le remplacera explicitement.",
   "goal.optionalBudget": "Budget optionnel",
   "goal.runs": "Exécutions",
   "goal.steps": "Étapes",
@@ -379,9 +430,11 @@ export const frenchMessages = {
   "goal.unlimited": "Illimité",
   "goal.unavailable": "Indisponible",
   "goal.loading": "Chargement",
-  "goal.reading": "Lecture de l'objectif actuel à partir de l'instantané de la session…",
+  "goal.reading":
+    "Lecture de l'objectif actuel à partir de l'instantané de la session…",
   "goal.notStarted": "Pas démarré",
-  "goal.empty": "Utilisez le compositeur d'objectifs pour donner à cette session un objectif durable.",
+  "goal.empty":
+    "Utilisez le compositeur d'objectifs pour donner à cette session un objectif durable.",
   "goal.budgetUsage": "Utilisation du budget par objectif",
   "goal.cost": "Coût",
   "goal.pause": "Pause",
@@ -401,7 +454,8 @@ export const frenchMessages = {
   "goal.reason.runtimeRestarted": "Runtime redémarré",
   "goal.reason.runStartFailed": "Une exécution n'a pas pu démarrer",
   "goal.reason.awaitingInput": "En attente de saisie",
-  "goal.reason.terminalOutcomeMissing": "Le résultat de l'exécution n'est pas disponible",
+  "goal.reason.terminalOutcomeMissing":
+    "Le résultat de l'exécution n'est pas disponible",
   "goal.reason.runNotCompleted": "La dernière exécution n'a pas été terminée",
   "goal.reason.runBudgetReached": "Budget d'exécution atteint",
   "goal.reason.costBudgetReached": "Budget de coûts atteint",
@@ -412,7 +466,8 @@ export const frenchMessages = {
   "plan.loading": "Plan de chargement…",
   "plan.currentUnavailable": "Le forfait actuel n'est pas disponible",
   "plan.loadingCurrent": "Chargement du plan actuel",
-  "plan.progress": "Progression du plan : {completed} étapes sur {total} terminées. {summary}",
+  "plan.progress":
+    "Progression du plan : {completed} étapes sur {total} terminées. {summary}",
   "plan.title": "Plan",
   "plan.current": "Forfait actuel",
   "plan.revision": "rév {revision}",
@@ -424,11 +479,16 @@ export const frenchMessages = {
   "plan.status.completed": "Terminé",
   "plan.status.inProgress": "En cours",
   "plan.status.pending": "En attente",
-  "shell.invalidArtifact": "Le fichier sélectionné n'est pas un artefact de session Lyra valide.",
-  "shell.missingJSONExport": "Runtime n'a renvoyé aucun artefact de session JSON.",
-  "shell.missingMarkdownExport": "Runtime n'a renvoyé aucune exportation de session Markdown.",
-  "shell.historyBusy": "Une autre action d'historique de session est toujours en cours d'exécution.",
-  "shell.selectForFeedback": "Sélectionnez une session avant d'envoyer des commentaires.",
+  "shell.invalidArtifact":
+    "Le fichier sélectionné n'est pas un artefact de session Lyra valide.",
+  "shell.missingJSONExport":
+    "Runtime n'a renvoyé aucun artefact de session JSON.",
+  "shell.missingMarkdownExport":
+    "Runtime n'a renvoyé aucune exportation de session Markdown.",
+  "shell.historyBusy":
+    "Une autre action d'historique de session est toujours en cours d'exécution.",
+  "shell.selectForFeedback":
+    "Sélectionnez une session avant d'envoyer des commentaires.",
   "shell.workIndex": "Indice de travail",
   "shell.openSettings": "Ouvrir les paramètres",
   "shell.settings": "Paramètres",
@@ -441,11 +501,13 @@ export const frenchMessages = {
   "shell.contextDock": "Dock contextuel",
   "shell.session": "Session",
   "shell.emptyTitle": "Commencez par une session propre.",
-  "shell.emptyDetail": "Une session lie les faits de conversation, de plan, d'objectif et de récupération à une identité exacte d'espace de travail.",
+  "shell.emptyDetail":
+    "Une session lie les faits de conversation, de plan, d'objectif et de récupération à une identité exacte d'espace de travail.",
   "shell.creating": "Création…",
   "shell.newSession": "Nouvelle session",
   "shell.mountingSession": "Séance de montage",
-  "shell.loadingSnapshot": "Chargement d'un instantané Runtime cohérent avant d'accepter un nouveau travail…",
+  "shell.loadingSnapshot":
+    "Chargement d'un instantané Runtime cohérent avant d'accepter un nouveau travail…",
   "shell.liveUpdates": "Mises à jour en direct",
   "shell.reconnecting": "Reconnexion",
   "shell.connecting": "Connexion",
@@ -465,7 +527,8 @@ export const frenchMessages = {
   "workspace.title": "Espace",
   "workspace.session": "Session",
   "workspace.unavailable": "Espace de travail indisponible",
-  "workspace.unavailableDetail": "Reconnectez cette session à un répertoire disponible avant de parcourir les fichiers.",
+  "workspace.unavailableDetail":
+    "Reconnectez cette session à un répertoire disponible avant de parcourir les fichiers.",
   "workspace.context": "Contexte de l'espace de travail",
   "workspace.views": "Vues de l'espace de travail",
   "workspace.files": "Fichiers",
@@ -494,7 +557,8 @@ export const frenchMessages = {
   "workspace.nextLines": "Lignes suivantes",
   "workspace.emptyFile": "Fichier vide",
   "workspace.linePosition": "{start}–{end} / {total}",
-  "workspace.boundedWindow": "Cette vue est limitée à une fenêtre de ligne exacte.",
+  "workspace.boundedWindow":
+    "Cette vue est limitée à une fenêtre de ligne exacte.",
   "workspace.requestFailed": "La demande d'espace de travail a échoué.",
   "resource.workspace": "Ressources de l'espace de travail",
   "resource.types": "Types de ressources",
@@ -510,12 +574,15 @@ export const frenchMessages = {
   "resource.discoveringRecipes": "Découverte de recettes…",
   "resource.recipesFailed": "Les recettes n'ont pas pu être découvertes",
   "resource.noRecipes": "Aucune recette disponible",
-  "resource.noRecipesDetail": "Ajoutez une recette Markdown invocable par slash sous .lyra/recipes.",
+  "resource.noRecipesDetail":
+    "Ajoutez une recette Markdown invocable par slash sous .lyra/recipes.",
   "resource.viewPrompt": "Afficher l'invite",
   "resource.resolvingAgentDocs": "Documents de l'agent de résolution…",
-  "resource.agentDocsFailed": "Les documents de l'agent n'ont pas pu être résolus",
+  "resource.agentDocsFailed":
+    "Les documents de l'agent n'ont pas pu être résolus",
   "resource.noAgentDocs": "Aucun document d'agent ne s'applique",
-  "resource.noAgentDocsDetail": "Ajoutez AGENTS.md à la maison, à la racine du projet ou sous l'espace de travail sélectionné.",
+  "resource.noAgentDocsDetail":
+    "Ajoutez AGENTS.md à la maison, à la racine du projet ou sous l'espace de travail sélectionné.",
   "codebase.readingIndex": "Lecture de l'index sémantique",
   "codebase.indexUnavailable": "L'index sémantique n'est pas disponible",
   "codebase.searchLabel": "Recherche sémantique dans la base de code",
@@ -529,20 +596,27 @@ export const frenchMessages = {
   "codebase.indexing": "Indexation…",
   "codebase.reindex": "Réindexer",
   "codebase.building": "Construire l'index sémantique",
-  "codebase.buildingDetail": "La découverte, le regroupement et l'intégration de sources s'exécutent dans Runtime. Cette vue est mise à jour lorsque l'index durable se stabilise.",
-  "codebase.lastBuildFailed": "La dernière construction de l'index n'est pas terminée",
-  "codebase.lastBuildFailedDetail": "Vérifiez la configuration du fournisseur d'intégration, puis reconstruisez l'index. L’index consultable précédent n’est jamais partiellement remplacé.",
+  "codebase.buildingDetail":
+    "La découverte, le regroupement et l'intégration de sources s'exécutent dans Runtime. Cette vue est mise à jour lorsque l'index durable se stabilise.",
+  "codebase.lastBuildFailed":
+    "La dernière construction de l'index n'est pas terminée",
+  "codebase.lastBuildFailedDetail":
+    "Vérifiez la configuration du fournisseur d'intégration, puis reconstruisez l'index. L’index consultable précédent n’est jamais partiellement remplacé.",
   "codebase.starting": "Début…",
   "codebase.buildAgain": "Construire à nouveau",
-  "codebase.semanticTitle": "Rechercher par le sens, pas seulement par le texte",
-  "codebase.semanticDetail": "Créez un index sémantique à l'échelle de l'espace de travail pour trouver les passages de code pertinents dans l'espace de travail de session actuel.",
+  "codebase.semanticTitle":
+    "Rechercher par le sens, pas seulement par le texte",
+  "codebase.semanticDetail":
+    "Créez un index sémantique à l'échelle de l'espace de travail pour trouver les passages de code pertinents dans l'espace de travail de session actuel.",
   "codebase.buildIndex": "Indice de construction",
   "codebase.readySearch": "Prêt à rechercher",
-  "codebase.readySearchDetail": "Décrivez une responsabilité, un comportement ou un concept dans un langage simple.",
+  "codebase.readySearchDetail":
+    "Décrivez une responsabilité, un comportement ou un concept dans un langage simple.",
   "codebase.searchingPassages": "Recherche de passages de code",
   "codebase.searchFailed": "La recherche sémantique a échoué",
   "codebase.noPassage": "Aucun passage pertinent trouvé",
-  "codebase.noPassageDetail": "Essayez une description plus large ou reconstruisez après avoir modifié les fichiers sources.",
+  "codebase.noPassageDetail":
+    "Essayez une description plus large ou reconstruisez après avoir modifié les fichiers sources.",
   "codebase.results": "Résultats de la recherche sémantique",
   "codebase.lineRangeScore": "L{start}–{end} · {score}%",
   "codebase.status.building": "Indice du bâtiment",
@@ -551,18 +625,25 @@ export const frenchMessages = {
   "codebase.status.notIndexed": "Non indexée",
   "codebase.runtimeError": "Erreur Runtime inattendue",
   "review.building": "Révision de l'espace de travail du bâtiment",
-  "review.branchUnavailable": "La comparaison des branches n'est pas disponible",
-  "review.loadFailed": "La révision de l'espace de travail n'a pas pu être chargée",
+  "review.branchUnavailable":
+    "La comparaison des branches n'est pas disponible",
+  "review.loadFailed":
+    "La révision de l'espace de travail n'a pas pu être chargée",
   "review.boundary": "Limite de révision atteinte",
-  "review.boundaryDetail": "Le premier fichier modifié dépasse la limite de 100 000 lignes. Ouvrez-le à partir des fichiers pour inspecter les fenêtres délimitées.",
+  "review.boundaryDetail":
+    "Le premier fichier modifié dépasse la limite de 100 000 lignes. Ouvrez-le à partir des fichiers pour inspecter les fenêtres délimitées.",
   "review.materialUnavailable": "Le matériel Diff n'est pas disponible",
-  "review.materialUnavailableDetail": "Git a signalé des identités de fichiers modifiées mais n'a produit aucun correctif révisable.",
+  "review.materialUnavailableDetail":
+    "Git a signalé des identités de fichiers modifiées mais n'a produit aucun correctif révisable.",
   "review.noBranchChanges": "Aucun changement de branche",
   "review.clean": "L'espace de travail est propre",
-  "review.noBranchChangesDetail": "L'espace de travail correspond à la base de fusion de la branche par défaut.",
-  "review.cleanDetail": "Les fichiers suivis et non suivis correspondent au HEAD actuel.",
+  "review.noBranchChangesDetail":
+    "L'espace de travail correspond à la base de fusion de la branche par défaut.",
+  "review.cleanDetail":
+    "Les fichiers suivis et non suivis correspondent au HEAD actuel.",
   "review.label": "Révision de l'espace de travail",
-  "review.truncated": "Révision arrêtée à la limite des 100 000 lignes ; chaque fichier visible est complet.",
+  "review.truncated":
+    "Révision arrêtée à la limite des 100 000 lignes ; chaque fichier visible est complet.",
   "review.baseline": "Réviser la référence",
   "review.worktree": "Arbre",
   "review.branch": "Branche",
@@ -575,8 +656,10 @@ export const frenchMessages = {
   "review.openFile": "Ouvrir le fichier",
   "review.binary": "binaire",
   "review.countsUnavailable": "comptes indisponibles",
-  "review.binaryNoDiff": "Le matériau binaire n'a pas de différence orientée ligne.",
-  "review.noTextRows": "Git n'a produit aucune ligne textuelle pour ce changement.",
+  "review.binaryNoDiff":
+    "Le matériau binaire n'a pas de différence orientée ligne.",
+  "review.noTextRows":
+    "Git n'a produit aucune ligne textuelle pour ce changement.",
   "review.changedLines": "Lignes modifiées",
   "review.changedLinesSplit": "Lignes modifiées dans la mise en page divisée",
   "review.tryAgain": "Réessayez",
@@ -584,13 +667,16 @@ export const frenchMessages = {
   "review.partial": "partiel",
   "review.requestFailed": "La demande de révision a échoué.",
   "knowledge.unavailable": "Connaissances indisponibles",
-  "knowledge.unavailableDetail": "Ce Runtime n'annonce pas la capacité de connaissances Lyra.",
+  "knowledge.unavailableDetail":
+    "Ce Runtime n'annonce pas la capacité de connaissances Lyra.",
   "knowledge.loading": "Chargement des connaissances…",
   "knowledge.loadFailed": "Les connaissances n'ont pas pu être chargées",
   "knowledge.noScopes": "Aucune étendue de connaissances disponible",
-  "knowledge.noScopesDetail": "Lyra n'a pas pu résoudre une étendue LYRA.md inscriptible pour cet espace de travail.",
+  "knowledge.noScopesDetail":
+    "Lyra n'a pas pu résoudre une étendue LYRA.md inscriptible pour cet espace de travail.",
   "knowledge.documents": "Documents de connaissances",
-  "knowledge.externalChange": "Ce document de connaissances a été modifié en externe. Votre brouillon est conservé par rapport à la dernière révision ; vérifiez-le avant de l'enregistrer à nouveau.",
+  "knowledge.externalChange":
+    "Ce document de connaissances a été modifié en externe. Votre brouillon est conservé par rapport à la dernière révision ; vérifiez-le avant de l'enregistrer à nouveau.",
   "knowledge.notCreated": "Non créé",
   "knowledge.editorLabel": "{scope} Connaissance",
   "knowledge.unsaved": "Modifications non enregistrées",
@@ -607,9 +693,11 @@ export const frenchMessages = {
   "diagnostic.loading": "Chargement des outils de diagnostic…",
   "diagnostic.loadFailed": "Les outils de diagnostic n'ont pas pu être chargés",
   "diagnostic.empty": "Aucun outil direct disponible",
-  "diagnostic.emptyDetail": "Ce Runtime n'expose aucune fonctionnalité pouvant être invoquée en toute sécurité en dehors d'une exécution d'agent.",
+  "diagnostic.emptyDetail":
+    "Ce Runtime n'expose aucune fonctionnalité pouvant être invoquée en toute sécurité en dehors d'une exécution d'agent.",
   "diagnostic.title": "Diagnostic direct",
-  "diagnostic.detail": "Ces outils en lecture seule s'exécutent sur l'espace de travail actuel sans session, boucle de modèle ou flux d'approbation. Les outils réservés aux agents restent à l'intérieur du Run qui possède leur autorité.",
+  "diagnostic.detail":
+    "Ces outils en lecture seule s'exécutent sur l'espace de travail actuel sans session, boucle de modèle ou flux d'approbation. Les outils réservés aux agents restent à l'intérieur du Run qui possède leur autorité.",
   "diagnostic.safe": "coffre-fort",
   "diagnostic.schema": "Schéma JSON",
   "diagnostic.arguments": "Arguments",
@@ -617,10 +705,12 @@ export const frenchMessages = {
   "diagnostic.running": "En cours d'exécution…",
   "diagnostic.run": "Lancer le diagnostic",
   "diagnostic.result": "Résultat",
-  "diagnostic.invalidArguments": "Les arguments doivent être un seul objet JSON.",
+  "diagnostic.invalidArguments":
+    "Les arguments doivent être un seul objet JSON.",
   "diagnostic.requestFailed": "La demande n'a pas pu être complétée.",
   "skills.unavailable": "Compétences indisponibles",
-  "skills.unavailableDetail": "Ce Runtime n'annonce pas la capacité de compétences Lyra.",
+  "skills.unavailableDetail":
+    "Ce Runtime n'annonce pas la capacité de compétences Lyra.",
   "skills.workspace": "Espace de travail Compétences",
   "skills.views": "Vues des compétences",
   "skills.available": "Disponible",
@@ -630,11 +720,13 @@ export const frenchMessages = {
   "skills.discovering": "Découvrir des compétences…",
   "skills.discoveryFailed": "Les compétences n'ont pas pu être découvertes",
   "skills.empty": "Aucune compétence disponible",
-  "skills.emptyDetail": "Ajoutez un SKILL.md valide sous .lyra/skills ou approuvez une proposition en attente.",
+  "skills.emptyDetail":
+    "Ajoutez un SKILL.md valide sous .lyra/skills ou approuvez une proposition en attente.",
   "skills.loadingProposals": "Chargement des propositions…",
   "skills.proposalsFailed": "Les propositions n'ont pas pu être chargées",
   "skills.noProposals": "Aucune proposition en attente",
-  "skills.noProposalsDetail": "Les compétences créées par l'agent restent inactives jusqu'à ce qu'une proposition apparaisse ici et que vous approuviez sa révision exacte.",
+  "skills.noProposalsDetail":
+    "Les compétences créées par l'agent restent inactives jusqu'à ce qu'une proposition apparaisse ici et que vous approuviez sa révision exacte.",
   "skills.revision": "révision",
   "skills.origin": "Origine",
   "skills.unknown": "inconnu",
@@ -646,9 +738,11 @@ export const frenchMessages = {
   "skills.approving": "Approbation…",
   "skills.approveRevision": "Approuver la révision exacte",
   "skills.loadingLibrary": "Chargement de la bibliothèque utilisateur…",
-  "skills.libraryFailed": "La bibliothèque de compétences n'a pas pu être chargée",
+  "skills.libraryFailed":
+    "La bibliothèque de compétences n'a pas pu être chargée",
   "skills.libraryEmpty": "La bibliothèque utilisateur est vide",
-  "skills.libraryEmptyDetail": "Les compétences approuvées à l'échelle de l'utilisateur et les ensembles ~/.lyra/skills créés en externe apparaissent ici.",
+  "skills.libraryEmptyDetail":
+    "Les compétences approuvées à l'échelle de l'utilisateur et les ensembles ~/.lyra/skills créés en externe apparaissent ici.",
   "skills.active": "Actives",
   "skills.noActive": "Aucune compétence d'utilisateur active.",
   "skills.archive": "Archiver",
@@ -658,7 +752,8 @@ export const frenchMessages = {
   "skills.actionPending": "{action}…",
   "skills.runtimeFailure": "Échec inattendu de Runtime",
   "memory.unavailable": "Mémoire de l'agent indisponible",
-  "memory.unavailableDetail": "Ce Runtime n'annonce pas la capacité de mémoire de l'agent Lyra.",
+  "memory.unavailableDetail":
+    "Ce Runtime n'annonce pas la capacité de mémoire de l'agent Lyra.",
   "memory.scope": "Étendue de la mémoire",
   "memory.project": "Projet",
   "memory.user": "Utilisateur",
@@ -667,12 +762,14 @@ export const frenchMessages = {
   "memory.loadFailed": "La mémoire de l'agent n'a pas pu être chargée",
   "memory.emptyProject": "Pas encore de mémoire de projet",
   "memory.emptyUser": "Pas encore de mémoire utilisateur",
-  "memory.emptyDetail": "Ajoutez un fait durable ou examinez les propositions Lyra distille le travail terminé.",
+  "memory.emptyDetail":
+    "Ajoutez un fait durable ou examinez les propositions Lyra distille le travail terminé.",
   "memory.pendingReview": "En attente de revue",
   "memory.active": "Mémoire active",
   "memory.add": "Ajouter une entrée",
   "memory.addLabel": "Ajouter {scope} mémoire",
-  "memory.placeholder": "Une préférence, une convention, une décision ou un piège durable…",
+  "memory.placeholder":
+    "Une préférence, une convention, une décision ou un piège durable…",
   "memory.saving": "Enregistrement…",
   "memory.save": "Enregistrer",
   "memory.cancel": "Annuler",
@@ -680,7 +777,8 @@ export const frenchMessages = {
   "memory.reviewing": "Révision…",
   "memory.approve": "Approuver",
   "memory.editLabel": "Modifier l'entrée",
-  "memory.externalChange": "Cette mémoire a changé ailleurs. Annulez-le et rouvrez-le avant de le modifier.",
+  "memory.externalChange":
+    "Cette mémoire a changé ailleurs. Annulez-le et rouvrez-le avant de le modifier.",
   "memory.unpin": "Désépingler",
   "memory.pin": "Épingler",
   "memory.edit": "Modifier",
@@ -695,49 +793,65 @@ export const frenchMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "Paramètres",
   "settings.sections": "Sections Paramètres",
-  "settings.authorityNote": "L'apparence reste locale. L'état Runtime reste l'autorité après chaque mutation.",
+  "settings.authorityNote":
+    "L'apparence reste locale. L'état Runtime reste l'autorité après chaque mutation.",
   "settings.desktopSettings": "Paramètres du bureau",
   "settings.close": "Fermer les paramètres",
   "settings.page.appearance.title": "Apparence",
-  "settings.page.appearance.description": "Choisissez un thème et un accent durables sans modifier la sémantique de l'application.",
+  "settings.page.appearance.description":
+    "Choisissez un thème et un accent durables sans modifier la sémantique de l'application.",
   "settings.page.runtime.title": "Runtime",
-  "settings.page.runtime.description": "Basculez entre le Runtime local supervisé et un déploiement à distance vérifié.",
+  "settings.page.runtime.description":
+    "Basculez entre le Runtime local supervisé et un déploiement à distance vérifié.",
   "settings.page.providers.title": "Modèles et fournisseurs",
-  "settings.page.providers.description": "Connectez les fournisseurs de modèles et attribuez des rôles de modèle facultatifs à l'échelle de Runtime.",
+  "settings.page.providers.description":
+    "Connectez les fournisseurs de modèles et attribuez des rôles de modèle facultatifs à l'échelle de Runtime.",
   "settings.page.mcp.title": "Serveurs MCP",
-  "settings.page.mcp.description": "Posséder explicitement les connexions aux outils externes, l'autorisation et la confiance au niveau de l'outil.",
+  "settings.page.mcp.description":
+    "Posséder explicitement les connexions aux outils externes, l'autorisation et la confiance au niveau de l'outil.",
   "settings.page.approvals.title": "Politique d'approbation",
-  "settings.page.approvals.description": "Choisissez la position d'effet en direct et gérez les décisions mémorisées visibles dans cette session.",
+  "settings.page.approvals.description":
+    "Choisissez la position d'effet en direct et gérez les décisions mémorisées visibles dans cette session.",
   "settings.page.schedules.title": "Planifications",
-  "settings.page.schedules.description": "Créez des exécutions récurrentes avec une cadence durable, une intention d'espace de travail explicite et un déclenchement récupérable.",
+  "settings.page.schedules.description":
+    "Créez des exécutions récurrentes avec une cadence durable, une intention d'espace de travail explicite et un déclenchement récupérable.",
   "settings.page.hooks.title": "Hooks de cycle de vie",
-  "settings.page.hooks.description": "Examinez l'automatisation des utilisateurs et des projets avant de décider quels hooks de projet peuvent s'exécuter.",
+  "settings.page.hooks.description":
+    "Examinez l'automatisation des utilisateurs et des projets avant de décider quels hooks de projet peuvent s'exécuter.",
   "settings.page.usage.title": "Consommation",
-  "settings.page.usage.description": "Inspectez le terminal faisant autorité Exécutez l'utilisation sans inventer de prix que Runtime ne connaît pas.",
+  "settings.page.usage.description":
+    "Inspectez le terminal faisant autorité Exécutez l'utilisation sans inventer de prix que Runtime ne connaît pas.",
   "settings.appearance.theme": "Thème de couleur",
-  "settings.appearance.themeDetail": "Choisissez une palette Lyra statique ou suivez le système d'exploitation.",
+  "settings.appearance.themeDetail":
+    "Choisissez une palette Lyra statique ou suivez le système d'exploitation.",
   "settings.appearance.theme.system.name": "Suivez le système",
-  "settings.appearance.theme.system.detail": "Commutez avec votre système d'exploitation.",
+  "settings.appearance.theme.system.detail":
+    "Commutez avec votre système d'exploitation.",
   "settings.appearance.theme.linen.name": "Linge",
-  "settings.appearance.theme.linen.detail": "Surfaces chaleureuses et silencieuses pour la lumière du jour.",
+  "settings.appearance.theme.linen.detail":
+    "Surfaces chaleureuses et silencieuses pour la lumière du jour.",
   "settings.appearance.theme.graphite.name": "Graphite",
-  "settings.appearance.theme.graphite.detail": "Surfaces sombres à faible éblouissement pour un travail ciblé.",
+  "settings.appearance.theme.graphite.detail":
+    "Surfaces sombres à faible éblouissement pour un travail ciblé.",
   "settings.appearance.accent": "Accent",
-  "settings.appearance.accentDetail": "Une couleur fonctionnelle pour la concentration, la progression, les liens et les actions principales.",
+  "settings.appearance.accentDetail":
+    "Une couleur fonctionnelle pour la concentration, la progression, les liens et les actions principales.",
   "settings.appearance.accentColor": "Couleur d'accentuation",
   "settings.appearance.accent.ember": "Brise",
   "settings.appearance.accent.ocean": "Océan",
   "settings.appearance.accent.forest": "Forêt",
   "settings.appearance.accent.violet": "Violette",
   "settings.appearance.language": "Langue",
-  "settings.appearance.languageDetail": "Choisissez la langue utilisée par Lyra Desktop sur cet appareil.",
+  "settings.appearance.languageDetail":
+    "Choisissez la langue utilisée par Lyra Desktop sur cet appareil.",
   "settings.runtime.tryAgain": "Réessayez",
   "settings.runtime.loading": "Chargement de la connexion Runtime…",
   "settings.runtime.status.remoteActive": "Activé à distance",
   "settings.runtime.status.remoteUnavailable": "Télécommande indisponible",
   "settings.runtime.status.localActive": "Local actif",
   "settings.runtime.active": "Actif Runtime",
-  "settings.runtime.activeDetail": "Desktop modifie les cibles de déploiement sans modifier Lyra Protocol.",
+  "settings.runtime.activeDetail":
+    "Desktop modifie les cibles de déploiement sans modifier Lyra Protocol.",
   "settings.runtime.target": "Cible",
   "settings.runtime.remote": "À distance Runtime",
   "settings.runtime.local": "Local Runtime",
@@ -745,41 +859,51 @@ export const frenchMessages = {
   "settings.runtime.privateLoopback": "Bouclage privé",
   "settings.runtime.useLocal": "Utiliser local Runtime",
   "settings.runtime.useSavedRemote": "Utiliser la télécommande enregistrée",
-  "settings.runtime.remoteDetail": "HTTPS l'origine et le secret du porteur sont vérifiés avant que le profil ne devienne actif.",
+  "settings.runtime.remoteDetail":
+    "HTTPS l'origine et le secret du porteur sont vérifiés avant que le profil ne devienne actif.",
   "settings.runtime.httpsOrigin": "HTTPS origine",
   "settings.runtime.bearerSecret": "Secret du porteur",
   "settings.runtime.replacementSecret": "Entrez un secret de remplacement",
   "settings.runtime.keyringSecret": "Stocké dans le trousseau du système",
-  "settings.runtime.secretNote": "Les secrets n'entrent jamais dans le profil persistant.",
+  "settings.runtime.secretNote":
+    "Les secrets n'entrent jamais dans le profil persistant.",
   "settings.runtime.connecting": "Connexion…",
   "settings.runtime.replace": "Remplacer la connexion",
   "settings.runtime.connect": "Connecter la télécommande",
   "settings.runtime.forgetTitle": "Oublier le profil distant",
-  "settings.runtime.forgetDetail": "Supprimez l’identité du point de terminaison enregistrée et le secret du porteur de cet appareil.",
+  "settings.runtime.forgetDetail":
+    "Supprimez l’identité du point de terminaison enregistrée et le secret du porteur de cet appareil.",
   "settings.runtime.irreversible": "Cela ne peut pas être annulé.",
   "settings.runtime.keep": "Garder le profil",
   "settings.runtime.forgetRemote": "Oubliez la télécommande",
   "settings.runtime.forget": "Oublier…",
   "settings.runtime.failed": "Runtime a échoué.",
   "settings.approval.effectStance": "Position d'effet",
-  "settings.approval.effectStanceDetail": "Le Runtime lit ce paramètre à chaque effet d'outil, y compris les exécutions déjà en cours.",
+  "settings.approval.effectStanceDetail":
+    "Le Runtime lit ce paramètre à chaque effet d'outil, y compris les exécutions déjà en cours.",
   "settings.approval.loadingMode": "Chargement du mode d'approbation…",
   "settings.approval.tryAgain": "Réessayez",
   "settings.approval.mode.safe.name": "Sûr",
-  "settings.approval.mode.safe.description": "Confirmez les écritures dans l'espace de travail, l'exécution des commandes et l'accès au réseau.",
+  "settings.approval.mode.safe.description":
+    "Confirmez les écritures dans l'espace de travail, l'exécution des commandes et l'accès au réseau.",
   "settings.approval.mode.safe.badge": "La plupart des avis",
   "settings.approval.mode.balanced.name": "Équilibré",
-  "settings.approval.mode.balanced.description": "Confirmer l'exécution de la commande ; autoriser les écritures ordinaires et les outils réseau.",
+  "settings.approval.mode.balanced.description":
+    "Confirmer l'exécution de la commande ; autoriser les écritures ordinaires et les outils réseau.",
   "settings.approval.mode.balanced.badge": "Par défaut",
   "settings.approval.mode.yolo.name": "Yolo",
-  "settings.approval.mode.yolo.description": "Autoriser les effets ordinaires sans invite. Les commandes catastrophiques doivent encore être révisées.",
+  "settings.approval.mode.yolo.description":
+    "Autoriser les effets ordinaires sans invite. Les commandes catastrophiques doivent encore être révisées.",
   "settings.approval.mode.yolo.badge": "Moins avis",
   "settings.approval.remembered": "Décisions mémorisées",
-  "settings.approval.rememberedDetail": "Les règles de session sont prioritaires sur les règles du projet, puis sur les règles globales. Les conflits égaux nient.",
+  "settings.approval.rememberedDetail":
+    "Les règles de session sont prioritaires sur les règles du projet, puis sur les règles globales. Les conflits égaux nient.",
   "settings.approval.visibleCount": "{count} visible",
-  "settings.approval.selectSession": "Sélectionnez une session dans l'index de travail pour inspecter ses règles visibles.",
+  "settings.approval.selectSession":
+    "Sélectionnez une session dans l'index de travail pour inspecter ses règles visibles.",
   "settings.approval.loadingRules": "Chargement des décisions mémorisées…",
-  "settings.approval.empty": "Aucune décision mémorisée n'est visible pour cette session.",
+  "settings.approval.empty":
+    "Aucune décision mémorisée n'est visible pour cette session.",
   "settings.approval.everyInvocation": "Chaque invocation",
   "settings.approval.forgetQuestion": "Oublier cette décision ?",
   "settings.approval.cancel": "Annuler",
@@ -793,7 +917,8 @@ export const frenchMessages = {
   "settings.approval.decision.deny": "refuser",
   "settings.approval.requestFailed": "La requête Runtime a échoué.",
   "settings.usage.runtime": "Runtime",
-  "settings.usage.runtimeDetail": "Finished Exécuter des faits regroupés selon leur fournisseur exact et leur identité de modèle.",
+  "settings.usage.runtimeDetail":
+    "Finished Exécuter des faits regroupés selon leur fournisseur exact et leur identité de modèle.",
   "settings.usage.period": "Période d'utilisation",
   "settings.usage.sevenDays": "7 jours",
   "settings.usage.thirtyDays": "30 jours",
@@ -805,12 +930,15 @@ export const frenchMessages = {
   "settings.usage.runs": "Exécutions",
   "settings.usage.sessions": "Séances",
   "settings.usage.models": "Modèles",
-  "settings.usage.costNote": "Le coût est affiché uniquement lorsque chaque exécution contributive a un prix connu.",
+  "settings.usage.costNote":
+    "Le coût est affiché uniquement lorsque chaque exécution contributive a un prix connu.",
   "settings.usage.providers": "Fournisseurs",
   "settings.usage.days": "Jours",
   "settings.usage.selectedSession": "Session sélectionnée",
-  "settings.usage.selectedSessionDetail": "Toutes les exécutions terminées appartenant actuellement à la session montée.",
-  "settings.usage.selectSession": "Sélectionnez une session pour inspecter son utilisation.",
+  "settings.usage.selectedSessionDetail":
+    "Toutes les exécutions terminées appartenant actuellement à la session montée.",
+  "settings.usage.selectSession":
+    "Sélectionnez une session pour inspecter son utilisation.",
   "settings.usage.loadingSession": "Chargement de l'utilisation de la session…",
   "settings.usage.runCountOne": "{count} exécution",
   "settings.usage.runCountMany": "{count} exécutions",
@@ -830,9 +958,11 @@ export const frenchMessages = {
   "settings.common.loading": "Chargement…",
   "settings.common.discard": "Rejeter",
   "settings.provider.roles": "Rôles de modèle",
-  "settings.provider.rolesDetail": "Modèles Runtime en option pour la maintenance et l'indexation sémantique.",
+  "settings.provider.rolesDetail":
+    "Modèles Runtime en option pour la maintenance et l'indexation sémantique.",
   "settings.provider.connections": "Connexions du fournisseur",
-  "settings.provider.connectionsDetail": "Les secrets sont en écriture seule. Les informations d'identification de l'environnement restent en lecture seule.",
+  "settings.provider.connectionsDetail":
+    "Les secrets sont en écriture seule. Les informations d'identification de l'environnement restent en lecture seule.",
   "settings.provider.filter": "Filtres des fournisseurs",
   "settings.provider.filterPlaceholder": "Filtrer les fournisseurs…",
   "settings.provider.loading": "Chargement des fournisseurs…",
@@ -844,22 +974,27 @@ export const frenchMessages = {
   "settings.provider.notConfigured": "Non configuré",
   "settings.provider.baseURL": "URL de base",
   "settings.provider.optionalOverride": "Remplacement facultatif",
-  "settings.provider.useDefault": "Utiliser la valeur par défaut du fournisseur",
+  "settings.provider.useDefault":
+    "Utiliser la valeur par défaut du fournisseur",
   "settings.provider.apiKey": "Clé API",
-  "settings.provider.environmentReadOnly": "Depuis l'environnement · lecture seule",
+  "settings.provider.environmentReadOnly":
+    "Depuis l'environnement · lecture seule",
   "settings.provider.notSet": "Non défini",
   "settings.provider.keyRemoved": "La clé stockée sera supprimée",
   "settings.provider.replacementKey": "Entrez une clé de remplacement",
   "settings.provider.keepKey": "Conserver la clé stockée",
   "settings.provider.removeKey": "Supprimer la clé enregistrée",
-  "settings.provider.saveBeforeTest": "Enregistrer les brouillons de modifications avant de tester",
+  "settings.provider.saveBeforeTest":
+    "Enregistrer les brouillons de modifications avant de tester",
   "settings.provider.testing": "Tests…",
   "settings.provider.test": "Tester",
-  "settings.provider.baseURLRequired": "Une URL de base est requise lorsqu'une clé stockée est présente.",
+  "settings.provider.baseURLRequired":
+    "Une URL de base est requise lorsqu'une clé stockée est présente.",
   "settings.provider.utilityModel": "Modèle utilitaire",
   "settings.provider.embeddingModel": "Modèle d'embedding",
   "settings.provider.utilityDetail": "Curation et maintenance en arrière-plan.",
-  "settings.provider.embeddingDetail": "Indexation sémantique de la base de code.",
+  "settings.provider.embeddingDetail":
+    "Indexation sémantique de la base de code.",
   "settings.provider.assigned": "Attribué",
   "settings.provider.loadingRole": "Chargement du rôle…",
   "settings.provider.provider": "Fournisseur",
@@ -897,9 +1032,11 @@ export const frenchMessages = {
   "settings.mcp.environmentJSON": "Environnement JSON",
   "settings.mcp.removeEnvironment": "Supprimer l’environnement enregistré",
   "settings.mcp.addServer": "Ajouter un serveur",
-  "settings.mcp.addServerDetail": "Sondez un candidat complet sans le conserver, puis ajoutez-le lorsque vous êtes prêt.",
+  "settings.mcp.addServerDetail":
+    "Sondez un candidat complet sans le conserver, puis ajoutez-le lorsque vous êtes prêt.",
   "settings.mcp.configuredServers": "Serveurs configurés",
-  "settings.mcp.configuredServersDetail": "Le statut Live provient de Runtime ; reconnect ne devine jamais le succès.",
+  "settings.mcp.configuredServersDetail":
+    "Le statut Live provient de Runtime ; reconnect ne devine jamais le succès.",
   "settings.mcp.loadingServers": "Chargement des serveurs MCP…",
   "settings.mcp.empty": "Aucun serveur MCP n'est encore configuré.",
   "settings.mcp.candidateConnected": "Candidat connecté avec succès.",
@@ -909,21 +1046,25 @@ export const frenchMessages = {
   "settings.mcp.authorizationCompleted": "Autorisation terminée.",
   "settings.mcp.authorizationCanceled": "L'autorisation a été annulée.",
   "settings.mcp.interactiveAuthorization": "Autorisation interactive requise",
-  "settings.mcp.saveBeforeAuthorize": "Enregistrer les modifications avant d'autoriser",
+  "settings.mcp.saveBeforeAuthorize":
+    "Enregistrer les modifications avant d'autoriser",
   "settings.mcp.waitingAuthorization": "En attente d'autorisation…",
   "settings.mcp.authorize": "Autoriser",
   "settings.mcp.deletePermanently": "Supprimer définitivement ?",
   "settings.mcp.deleteServer": "Supprimer le serveur",
-  "settings.mcp.saveBeforeReconnect": "Enregistrer les brouillons de modifications avant de vous reconnecter",
+  "settings.mcp.saveBeforeReconnect":
+    "Enregistrer les brouillons de modifications avant de vous reconnecter",
   "settings.mcp.reconnecting": "Reconnexion…",
   "settings.mcp.reconnect": "Reconnecter",
   "settings.mcp.loadingTools": "Chargement des outils…",
   "settings.mcp.toolPolicies": "Politiques des outils",
   "settings.mcp.toolTrust": "Confiance dans l'outil",
-  "settings.mcp.toolTrustDetail": "Les outils désactivés restent masqués. Les outils approuvés automatiquement peuvent s’exécuter sans invite d’approbation.",
+  "settings.mcp.toolTrustDetail":
+    "Les outils désactivés restent masqués. Les outils approuvés automatiquement peuvent s’exécuter sans invite d’approbation.",
   "settings.mcp.toolCountOne": "{count}",
   "settings.mcp.toolCountMany": "{count} outils",
-  "settings.mcp.toolsRefreshFailed": "Les outils Live n'ont pas pu être actualisés. Les politiques stockées restent modifiables.",
+  "settings.mcp.toolsRefreshFailed":
+    "Les outils Live n'ont pas pu être actualisés. Les politiques stockées restent modifiables.",
   "settings.mcp.askWhenNeeded": "Demander en cas de besoin",
   "settings.mcp.disabled": "Désactivé",
   "settings.mcp.autoApprove": "Approbation automatique",
@@ -935,25 +1076,36 @@ export const frenchMessages = {
   "settings.mcp.status.connected": "Connecté",
   "settings.mcp.status.failed": "Échec de la connexion",
   "settings.mcp.status.needsAuth": "Autorisation requise",
-  "settings.mcp.problem.authorizationRequired": "Ce serveur nécessite une autorisation interactive.",
-  "settings.mcp.problem.authorizationFailed": "L'autorisation n'a pas été complétée.",
-  "settings.mcp.problem.dialFailed": "Runtime n'a pas pu se connecter à ce serveur.",
-  "settings.mcp.problem.timeout": "Le serveur n'a pas répondu avant l'expiration du délai.",
+  "settings.mcp.problem.authorizationRequired":
+    "Ce serveur nécessite une autorisation interactive.",
+  "settings.mcp.problem.authorizationFailed":
+    "L'autorisation n'a pas été complétée.",
+  "settings.mcp.problem.dialFailed":
+    "Runtime n'a pas pu se connecter à ce serveur.",
+  "settings.mcp.problem.timeout":
+    "Le serveur n'a pas répondu avant l'expiration du délai.",
   "settings.mcp.problem.failed": "L'opération MCP n'a pas réussi.",
-  "settings.mcp.validation.stableNameRequired": "Un nom de serveur stable est requis.",
-  "settings.mcp.validation.endpointRequired": "Une URL de point de terminaison est requise.",
+  "settings.mcp.validation.stableNameRequired":
+    "Un nom de serveur stable est requis.",
+  "settings.mcp.validation.endpointRequired":
+    "Une URL de point de terminaison est requise.",
   "settings.mcp.validation.commandRequired": "Une commande stdio est requise.",
-  "settings.mcp.validation.timeoutInvalid": "Timeout doit être un nombre entier compris entre 0 et 3 600 secondes.",
+  "settings.mcp.validation.timeoutInvalid":
+    "Timeout doit être un nombre entier compris entre 0 et 3 600 secondes.",
   "settings.mcp.validation.secretInvalidJSON": "{field} doit être valide JSON.",
   "settings.mcp.validation.secretNotObject": "{field} doit être un objet JSON.",
-  "settings.mcp.validation.secretInvalidEntries": "{field} doit contenir des noms non vides avec des valeurs de chaîne.",
+  "settings.mcp.validation.secretInvalidEntries":
+    "{field} doit contenir des noms non vides avec des valeurs de chaîne.",
   "settings.mcp.headers": "En-têtes",
   "settings.mcp.environment": "Environnement",
   "settings.hook.effective": "Crochets efficaces",
-  "settings.hook.effectiveDetail": "Les hooks sont résolus par rapport à un espace de travail de session exact.",
-  "settings.hook.selectSession": "Sélectionnez une session dans l'index de travail pour examiner ses hooks globaux et de projet.",
+  "settings.hook.effectiveDetail":
+    "Les hooks sont résolus par rapport à un espace de travail de session exact.",
+  "settings.hook.selectSession":
+    "Sélectionnez une session dans l'index de travail pour examiner ses hooks globaux et de projet.",
   "settings.hook.projectTrust": "Confiance du projet",
-  "settings.hook.projectTrustDetail": "Les hooks globaux vous appartiennent et restent actifs. Les hooks de projet clonés restent inertes jusqu'à ce que cette racine exacte du projet soit approuvée.",
+  "settings.hook.projectTrustDetail":
+    "Les hooks globaux vous appartiennent et restent actifs. Les hooks de projet clonés restent inertes jusqu'à ce que cette racine exacte du projet soit approuvée.",
   "settings.hook.resolving": "Résoudre les hooks du cycle de vie…",
   "settings.hook.trusted": "Confiant",
   "settings.hook.notTrusted": "Non fiable",
@@ -962,44 +1114,55 @@ export const frenchMessages = {
   "settings.hook.noProjectRoot": "Aucune racine du projet",
   "settings.hook.revoking": "Révocation…",
   "settings.hook.revoke": "Révoquer la confiance",
-  "settings.hook.reviewed": "J'ai examiné les commandes et les injections ci-dessous.",
+  "settings.hook.reviewed":
+    "J'ai examiné les commandes et les injections ci-dessous.",
   "settings.hook.trusting": "Faire confiance…",
   "settings.hook.trustProject": "Projet de confiance",
   "settings.hook.reviewAndTrust": "Révision et confiance",
   "settings.hook.cascade": "Cascade efficace",
-  "settings.hook.cascadeDetail": "Les commandes sont affichées textuellement pour l'audit. Les actions d'injection ajoutent un contexte limité sans générer de processus.",
+  "settings.hook.cascadeDetail":
+    "Les commandes sont affichées textuellement pour l'audit. Les actions d'injection ajoutent un contexte limité sans générer de processus.",
   "settings.hook.countOne": "{count} crochet",
   "settings.hook.countMany": "{count} crochets",
   "settings.hook.loading": "Chargement des définitions de hook…",
-  "settings.hook.empty": "Aucun hook global ou de projet ne s'applique à cet espace de travail.",
+  "settings.hook.empty":
+    "Aucun hook global ou de projet ne s'applique à cet espace de travail.",
   "settings.hook.command": "Commande",
   "settings.hook.inject": "Injecter",
   "settings.hook.active": "Actives",
   "settings.hook.inert": "Inerte",
   "settings.hook.timeout": "· {count} ms",
-  "settings.hook.missingProjectRoot": "Le Runtime n'a pas signalé de racine de projet.",
+  "settings.hook.missingProjectRoot":
+    "Le Runtime n'a pas signalé de racine de projet.",
   "settings.schedule.everyHour": "Toutes les heures",
   "settings.schedule.weekdaysAt": "Jours de la semaine · 09h00",
   "settings.schedule.dailyAt": "Tous les jours · 09h00",
   "settings.schedule.mondayAt": "Lundi · 09h00",
   "settings.schedule.recurringWork": "Travail récurrent",
-  "settings.schedule.recurringWorkDetail": "Une occurrence due est conservée avant le lancement, donc le redémarrage de la récupération conserve une identité de session et d'exécution stable.",
+  "settings.schedule.recurringWorkDetail":
+    "Une occurrence due est conservée avant le lancement, donc le redémarrage de la récupération conserve une identité de session et d'exécution stable.",
   "settings.schedule.loadedCount": "{count} chargé",
   "settings.schedule.loading": "Chargement des plannings…",
-  "settings.schedule.empty": "Aucun horaire pour l'instant. Créez-en un ci-dessus lorsque le travail récurrent est intentionnel.",
+  "settings.schedule.empty":
+    "Aucun horaire pour l'instant. Créez-en un ci-dessus lorsque le travail récurrent est intentionnel.",
   "settings.schedule.loadMore": "Charger plus d'horaires",
   "settings.schedule.new": "Nouvelle planification",
-  "settings.schedule.newDetail": "Écrire des instructions autonomes ; chaque occurrence ouvre une session propre.",
-  "settings.schedule.timezoneNote": "Times utilise le fuseau horaire de l'hôte Runtime.",
+  "settings.schedule.newDetail":
+    "Écrire des instructions autonomes ; chaque occurrence ouvre une session propre.",
+  "settings.schedule.timezoneNote":
+    "Times utilise le fuseau horaire de l'hôte Runtime.",
   "settings.schedule.creating": "Création…",
   "settings.schedule.create": "Créer un planning",
-  "settings.schedule.providerModelPair": "Le fournisseur et le modèle doivent être définis ensemble, ou les deux laissés vides.",
+  "settings.schedule.providerModelPair":
+    "Le fournisseur et le modèle doivent être définis ensemble, ou les deux laissés vides.",
   "settings.schedule.enabled": "Activé",
   "settings.schedule.paused": "En pause",
-  "settings.schedule.saveBeforeRun": "Enregistrer ou ignorer les modifications apportées au brouillon avant de déclencher",
+  "settings.schedule.saveBeforeRun":
+    "Enregistrer ou ignorer les modifications apportées au brouillon avant de déclencher",
   "settings.schedule.starting": "Début…",
   "settings.schedule.runNow": "Exécuter maintenant",
-  "settings.schedule.saveBeforeToggle": "Enregistrez ou supprimez d'abord les brouillons de modifications.",
+  "settings.schedule.saveBeforeToggle":
+    "Enregistrez ou supprimez d'abord les brouillons de modifications.",
   "settings.schedule.pause": "Pause",
   "settings.schedule.enable": "Activer",
   "settings.schedule.next": "Suivant",
@@ -1011,15 +1174,18 @@ export const frenchMessages = {
   "settings.schedule.defaultTitle": "Tâche planifiée",
   "settings.schedule.cron": "Cron à cinq champs",
   "settings.schedule.instructions": "Instructions",
-  "settings.schedule.instructionsPlaceholder": "Instructions complètes pour chaque exécution…",
+  "settings.schedule.instructionsPlaceholder":
+    "Instructions complètes pour chaque exécution…",
   "settings.schedule.workspace": "Espace",
   "settings.schedule.emptyUsesDefault": "Empty utilise Runtime par défaut",
   "settings.schedule.runtimeDefault": "Runtime par défaut",
   "settings.schedule.optionalPair": "Paire optionnelle",
   "settings.page.keyboard.title": "Raccourcis clavier",
-  "settings.page.keyboard.description": "Consultez les raccourcis explicites et limités de l’application sans créer un second système de commandes.",
+  "settings.page.keyboard.description":
+    "Consultez les raccourcis explicites et limités de l’application sans créer un second système de commandes.",
   "settings.shortcuts.heading": "Raccourcis enregistrés",
-  "settings.shortcuts.detail": "Les actions globales et contextualisées partagent un catalogue unique sans conflits.",
+  "settings.shortcuts.detail":
+    "Les actions globales et contextualisées partagent un catalogue unique sans conflits.",
   "settings.shortcuts.filter": "Filtrer les actions ou les touches…",
   "settings.shortcuts.filterAria": "Filtrer les raccourcis clavier",
   "settings.shortcuts.clear": "Effacer le filtre des raccourcis",

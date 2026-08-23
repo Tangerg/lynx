@@ -10,9 +10,9 @@ describe("loadDesktopBootstrap", () => {
         return {
           runtime: {
             endpoint: "http://127.0.0.1:32123",
-            localToken: "secret",
+            bearerToken: "secret",
             instanceId: "ins_test",
-            protocolVersion: "2026-08-21",
+            protocolVersion: "2026-08-23",
             idempotencyNamespace: "idp_test",
             generation: 2,
           },
@@ -25,7 +25,7 @@ describe("loadDesktopBootstrap", () => {
   });
 
   it.each([
-    { endpoint: "https://example.test", generation: 1 },
+    { endpoint: "http://example.test", generation: 1 },
     { endpoint: "http://127.0.0.1:32123", generation: 0 },
     { endpoint: "http://127.0.0.1:32123", generation: 1, extension: true },
   ])("rejects an invalid host boundary %#", async (change) => {
@@ -33,9 +33,9 @@ describe("loadDesktopBootstrap", () => {
       call: async () => {
         const runtime: Record<string, unknown> = {
           endpoint: "http://127.0.0.1:32123",
-          localToken: "secret",
+          bearerToken: "secret",
           instanceId: "ins_test",
-          protocolVersion: "2026-08-21",
+          protocolVersion: "2026-08-23",
           idempotencyNamespace: "idp_test",
           generation: 1,
         };

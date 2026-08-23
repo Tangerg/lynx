@@ -6,16 +6,16 @@ import { discoverRuntime } from "./runtimeQueries";
 
 const connection: RuntimeConnection = {
   endpoint: "http://127.0.0.1:32123",
-  localToken: "secret",
+  bearerToken: "secret",
   instanceId: "ins_test",
-  protocolVersion: "2026-08-21",
+  protocolVersion: "2026-08-23",
   idempotencyNamespace: "idp_test",
   generation: 1,
 };
 
 function discovery() {
   return {
-    protocolVersion: "2026-08-21",
+    protocolVersion: "2026-08-23",
     serverInfo: {
       instanceId: "ins_test",
       name: "lyra-runtime",
@@ -63,7 +63,7 @@ describe("discoverRuntime", () => {
         });
         expect(request.params).toMatchObject({
           _meta: {
-            protocolVersion: "2026-08-21",
+            protocolVersion: "2026-08-23",
             clientInfo: { name: "lyra-desktop-app2", version: "0.0.0" },
           },
         });
@@ -98,8 +98,8 @@ describe("discoverRuntime", () => {
       }),
     );
 
-    await expect(discoverRuntime(connection)).rejects.toThrow(
-      "Runtime identity changed during discovery",
-    );
+    await expect(discoverRuntime(connection)).rejects.toMatchObject({
+      code: "identityChanged",
+    });
   });
 });

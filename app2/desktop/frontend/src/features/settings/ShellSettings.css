@@ -210,11 +210,17 @@
   background: #1d1e1b;
 }
 
-.theme-options > button[data-theme-preview="graphite"] .theme-preview i:first-child {
+.theme-options
+  > button[data-theme-preview="graphite"]
+  .theme-preview
+  i:first-child {
   background: #30312c;
 }
 
-.theme-options > button[data-theme-preview="graphite"] .theme-preview i:nth-child(2) {
+.theme-options
+  > button[data-theme-preview="graphite"]
+  .theme-preview
+  i:nth-child(2) {
   background: #252622;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
@@ -413,11 +419,17 @@
     background: #1d1e1b;
   }
 
-  .theme-options > button[data-theme-preview="system"] .theme-preview i:first-child {
+  .theme-options
+    > button[data-theme-preview="system"]
+    .theme-preview
+    i:first-child {
     background: #30312c;
   }
 
-  .theme-options > button[data-theme-preview="system"] .theme-preview i:nth-child(2) {
+  .theme-options
+    > button[data-theme-preview="system"]
+    .theme-preview
+    i:nth-child(2) {
     background: #252622;
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
   }

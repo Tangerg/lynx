@@ -2,6 +2,7 @@ package dispatch_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
@@ -15,12 +16,12 @@ func TestRouterDispatchesTypedRequestAndExtractsMetadata(t *testing.T) {
 	t.Parallel()
 
 	router := newRouter(t)
-	message, err := rpcwire.Decode([]byte(`{
+	message, err := rpcwire.Decode([]byte(fmt.Sprintf(`{
 		"jsonrpc":"2.0",
 		"id":"req_1",
 		"method":"runtime.discover",
-		"params":{"_meta":{"protocolVersion":"2026-08-21"}}
-	}`))
+		"params":{"_meta":{"protocolVersion":%q}}
+	}`, protocol.ProtocolVersion)))
 	if err != nil {
 		t.Fatalf("rpcwire.Decode() error = %v", err)
 	}
@@ -57,25 +58,25 @@ func TestRouterUsesCurrentLyraProblemCodes(t *testing.T) {
 			name:     "method not found",
 			body:     `{"jsonrpc":"2.0","id":"1","method":"missing.operation","params":{}}`,
 			code:     -32601,
-			typeName: protocol.ProblemMethodNotFound,
+			typeName: protocol.ErrMethodNotFound.Error(),
 		},
 		{
 			name:     "invalid params",
 			body:     `{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{"unexpected":true}}`,
 			code:     -32602,
-			typeName: protocol.ProblemInvalidParams,
+			typeName: protocol.ErrInvalidParams.Error(),
 		},
 		{
 			name:     "invalid protocol version",
 			body:     `{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{"_meta":{"protocolVersion":"future"}}}`,
 			code:     -32016,
-			typeName: protocol.ProblemInvalidProtocolVersion,
+			typeName: protocol.ErrInvalidProtocolVersion.Error(),
 		},
 		{
 			name:     "null client capabilities",
 			body:     `{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{"_meta":{"clientCapabilities":null}}}`,
 			code:     -32602,
-			typeName: protocol.ProblemInvalidParams,
+			typeName: protocol.ErrInvalidParams.Error(),
 		},
 	}
 	for _, test := range tests {

@@ -1,15 +1,9 @@
 import type { KeyboardEvent } from "react";
 
-import type {
-  Interrupt,
-  QuestionField,
-} from "@lyra/runtime-contract";
+import type { Interrupt, QuestionField } from "@lyra/runtime-contract";
 
 import { useLocalization } from "../localization/Localization";
-import {
-  createQuestionDraft,
-  type InterruptDraft,
-} from "./interruptResponse";
+import { createQuestionDraft, type InterruptDraft } from "./interruptResponse";
 
 interface QuestionInterruptProps {
   interrupt: Interrupt;
@@ -145,9 +139,7 @@ function ChoiceInput(props: QuestionInputProps) {
                   if (props.field.multiple) {
                     props.onChange(
                       checked
-                        ? props.values.filter(
-                            (value) => value !== option.label,
-                          )
+                        ? props.values.filter((value) => value !== option.label)
                         : [...props.values, option.label],
                       props.custom,
                     );
@@ -158,7 +150,9 @@ function ChoiceInput(props: QuestionInputProps) {
               />
               <span>
                 <strong>{option.label}</strong>
-                {option.description ? <small>{option.description}</small> : null}
+                {option.description ? (
+                  <small>{option.description}</small>
+                ) : null}
                 {option.preview ? <code>{option.preview}</code> : null}
               </span>
             </label>

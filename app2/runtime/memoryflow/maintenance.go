@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	maintenanceRunBatch      = 16
-	maintenanceProjectBatch  = 16
-	minimumTranscriptBytes   = 80
-	maximumTranscriptBytes   = 128 << 10
-	maximumTranscriptBlock   = 8 << 10
-	maximumFoldFactBytes     = 64 << 10
-	minimumFactsBeforeFold   = 8
-	maximumTimeBetweenFolds  = 24 * time.Hour
+	maintenanceRunBatch     = 16
+	maintenanceProjectBatch = 16
+	minimumTranscriptBytes  = 80
+	maximumTranscriptBytes  = 128 << 10
+	maximumTranscriptBlock  = 8 << 10
+	maximumFoldFactBytes    = 64 << 10
+	minimumFactsBeforeFold  = 8
+	maximumTimeBetweenFolds = 24 * time.Hour
 )
 
 type maintenanceStore interface {
@@ -223,7 +223,7 @@ func (service *Service) extractRun(
 	batch, err := (agentmemory.FactBatch{
 		RunID: run.RunID, SessionID: run.SessionID, Project: project,
 		Source: run.Selection, Extractor: extractor,
-		Day: run.FinishedAt.UTC().Format(time.DateOnly),
+		Day:   run.FinishedAt.UTC().Format(time.DateOnly),
 		Facts: facts, CapturedAt: service.now().UTC(),
 	}).Normalize()
 	if err != nil {

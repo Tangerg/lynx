@@ -73,7 +73,7 @@ func registerRuns(registry *Registry) {
 	})
 
 	Query(registry, MethodMeta{
-		Name: "runs.get",
+		Name:   "runs.get",
 		Errors: []string{protocol.ErrRunNotFound.Error(), protocol.ErrCapabilityNotNeg.Error()},
 	}, func(service interface {
 		GetRun(context.Context, protocol.GetRunRequest) (*protocol.RunRef, error)
@@ -84,7 +84,7 @@ func registerRuns(registry *Registry) {
 	Query(registry, MethodMeta{
 		Name: "runs.list",
 		CapabilityRules: []CapabilityRule{{
-			When: []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
+			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureSubagents},
 		}},
 	}, func(service interface {

@@ -62,7 +62,7 @@ func (models runtimeCompactionModels) Summarize(
 	)}
 	if len(contexts) > 0 {
 		requestMessages = append(requestMessages, chat.NewSystemMessage(
-			"Trusted Lyra PreCompact lifecycle context follows. Apply it only to this summary operation.\n\n" +
+			"Trusted Lyra PreCompact lifecycle context follows. Apply it only to this summary operation.\n\n"+
 				agentexec.RenderLifecycleContext(contexts),
 		))
 	}

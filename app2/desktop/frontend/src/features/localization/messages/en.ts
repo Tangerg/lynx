@@ -76,7 +76,8 @@ export const englishMessages = {
   "interrupt.unsupported": "This Runtime requested an unsupported interaction.",
   "interrupt.resumeFailed": "The run could not be resumed.",
 
-  "composer.removeAttachmentFirst": "Remove an attachment before adding another.",
+  "composer.removeAttachmentFirst":
+    "Remove an attachment before adding another.",
   "composer.attachmentLimit": "Only {count} attachments can be sent at once.",
   "composer.attachments": "Attachments",
   "composer.image": "Image",
@@ -94,7 +95,8 @@ export const englishMessages = {
   "composer.send": "Send",
   "composer.imagesUnsupported":
     "The selected model does not accept images. Remove them or choose a multimodal model.",
-  "composer.chooseImageModel": "Choose a model with image input before attaching images.",
+  "composer.chooseImageModel":
+    "Choose a model with image input before attaching images.",
   "composer.imageTooLarge": "{name} is larger than 10 MB.",
   "composer.fileTooLarge": "{name} is larger than 1 MB.",
   "composer.attachmentReadFailed": "The attachment could not be read.",
@@ -133,7 +135,8 @@ export const englishMessages = {
   "narrative.inputNeeded": "Input needed",
   "narrative.contextCompacted": "Context compacted",
   "narrative.messagesCondensed": "{count} messages condensed",
-  "narrative.delegationCycle": "Delegated run lineage contains a cycle at {id}.",
+  "narrative.delegationCycle":
+    "Delegated run lineage contains a cycle at {id}.",
   "narrative.delegatedRunLabel": "Delegated run {id}",
   "narrative.delegatedRun": "Delegated run",
   "narrative.canceling": "Canceling…",
@@ -401,7 +404,8 @@ export const englishMessages = {
 
   "goal.editObjective": "Edit autonomous objective",
   "goal.newObjective": "New autonomous objective",
-  "goal.runtimeOwnership": "The Runtime owns execution, accounting, and recovery.",
+  "goal.runtimeOwnership":
+    "The Runtime owns execution, accounting, and recovery.",
   "goal.objective": "Goal objective",
   "goal.objectivePlaceholder":
     "Describe the outcome Lyra should keep working toward…",
@@ -422,7 +426,8 @@ export const englishMessages = {
   "goal.loading": "Loading",
   "goal.reading": "Reading the current Goal from the session snapshot…",
   "goal.notStarted": "Not started",
-  "goal.empty": "Use the Goal composer to give this session a durable objective.",
+  "goal.empty":
+    "Use the Goal composer to give this session a durable objective.",
   "goal.budgetUsage": "Goal budget usage",
   "goal.cost": "Cost",
   "goal.pause": "Pause",
@@ -468,7 +473,8 @@ export const englishMessages = {
   "plan.status.inProgress": "In progress",
   "plan.status.pending": "Pending",
 
-  "shell.invalidArtifact": "The selected file is not a valid Lyra session artifact.",
+  "shell.invalidArtifact":
+    "The selected file is not a valid Lyra session artifact.",
   "shell.missingJSONExport": "Runtime returned no JSON session artifact.",
   "shell.missingMarkdownExport": "Runtime returned no Markdown session export.",
   "shell.historyBusy": "Another session history action is still running.",
@@ -749,7 +755,8 @@ export const englishMessages = {
   "memory.active": "Active memory",
   "memory.add": "Add memory",
   "memory.addLabel": "Add {scope} memory",
-  "memory.placeholder": "A durable preference, convention, decision, or gotcha…",
+  "memory.placeholder":
+    "A durable preference, convention, decision, or gotcha…",
   "memory.saving": "Saving…",
   "memory.save": "Save",
   "memory.cancel": "Cancel",
@@ -1059,8 +1066,10 @@ export const englishMessages = {
   "settings.mcp.problem.authorizationRequired":
     "This server requires interactive authorization.",
   "settings.mcp.problem.authorizationFailed": "Authorization did not complete.",
-  "settings.mcp.problem.dialFailed": "Runtime could not connect to this server.",
-  "settings.mcp.problem.timeout": "The server did not respond before the timeout.",
+  "settings.mcp.problem.dialFailed":
+    "Runtime could not connect to this server.",
+  "settings.mcp.problem.timeout":
+    "The server did not respond before the timeout.",
   "settings.mcp.problem.failed": "The MCP operation did not succeed.",
   "settings.mcp.validation.stableNameRequired":
     "A stable server name is required.",

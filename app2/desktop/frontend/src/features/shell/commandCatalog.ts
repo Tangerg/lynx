@@ -25,36 +25,30 @@ export interface CommandDescriptor {
 }
 
 export const commandCatalog = [
-  command(
-    "session.new",
-    "command.newSession",
-    "global",
-    { code: "KeyN", mod: true, allowInEditable: true },
-  ),
-  command(
-    "session.search",
-    "command.searchSessions",
-    "global",
-    { code: "KeyK", mod: true, allowInEditable: true },
-  ),
-  command(
-    "narrative.search",
-    "command.searchConversation",
-    "session",
-    { code: "KeyF", mod: true, allowInEditable: true },
-  ),
-  command(
-    "settings.open",
-    "command.openSettings",
-    "global",
-    { code: "Comma", mod: true, allowInEditable: true },
-  ),
-  command(
-    "workspace.close",
-    "command.closeWorkspaceView",
-    "workspace",
-    { code: "Escape", allowInEditable: false },
-  ),
+  command("session.new", "command.newSession", "global", {
+    code: "KeyN",
+    mod: true,
+    allowInEditable: true,
+  }),
+  command("session.search", "command.searchSessions", "global", {
+    code: "KeyK",
+    mod: true,
+    allowInEditable: true,
+  }),
+  command("narrative.search", "command.searchConversation", "session", {
+    code: "KeyF",
+    mod: true,
+    allowInEditable: true,
+  }),
+  command("settings.open", "command.openSettings", "global", {
+    code: "Comma",
+    mod: true,
+    allowInEditable: true,
+  }),
+  command("workspace.close", "command.closeWorkspaceView", "workspace", {
+    code: "Escape",
+    allowInEditable: false,
+  }),
 ] as const satisfies readonly CommandDescriptor[];
 
 assertUniqueCatalog(commandCatalog);
@@ -116,9 +110,11 @@ export function ariaKeyShortcuts(shortcut: CommandShortcut): string {
     shortcut.shift ? "Shift" : undefined,
   ].filter((value): value is string => value !== undefined);
   if (!shortcut.mod) return [...modifiers, key].join("+");
-  return ["Meta", ...modifiers, key].join("+") +
+  return (
+    ["Meta", ...modifiers, key].join("+") +
     " " +
-    ["Control", ...modifiers, key].join("+");
+    ["Control", ...modifiers, key].join("+")
+  );
 }
 
 function command(

@@ -2,26 +2,23 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import type {
-	ContentBlock,
+  ContentBlock,
   DiscoverResponse,
-	FeedbackRating,
-	RestoreType,
+  FeedbackRating,
+  RestoreType,
   RuntimeConnection,
   Session,
-	SessionArtifact,
+  SessionArtifact,
 } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import { presentRuntimeError } from "../localization/presentRuntimeError";
 import { AgentNarrative } from "../agent/AgentNarrative";
 import { SessionModelPicker } from "../agent/SessionModelPicker";
 import {
   Composer,
   emptyComposerDraft,
-	type ComposerAttachment,
+  type ComposerAttachment,
   type ComposerDraft,
 } from "../agent/Composer";
 import { useAgentSessionView } from "../agent/useAgentSessionView";
@@ -37,31 +34,31 @@ import { SessionIndex } from "../sessions/SessionIndex";
 import { compactPath } from "../sessions/sessionPresentation";
 import { useSessionCatalog } from "../sessions/useSessionCatalog";
 import {
-	createFeedback,
-	exportSession,
+  createFeedback,
+  exportSession,
   listModels,
   listRecipes,
   loadSessionSnapshot,
-	rollbackSession,
+  rollbackSession,
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
 import {
-	openSessionArtifact,
-	saveSessionExport,
+  openSessionArtifact,
+  saveSessionExport,
 } from "../../runtime/desktopBridge";
 import {
   useRuntimeInvalidations,
   type RuntimeSyncState,
 } from "../../runtime/useRuntimeInvalidations";
 import {
-	ariaKeyShortcuts,
-	commandByID,
-	shortcutTokens,
-	type CommandDescriptor,
+  ariaKeyShortcuts,
+  commandByID,
+  shortcutTokens,
+  type CommandDescriptor,
 } from "../shell/commandCatalog";
 import {
-	useCommandDispatcher,
-	type CommandBinding,
+  useCommandDispatcher,
+  type CommandBinding,
 } from "../shell/useCommandDispatcher";
 import { useToasts } from "../shell/ToastCenter";
 import { Tooltip } from "../shell/Tooltip";
@@ -82,7 +79,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       props.connection.generation,
       props.connection.idempotencyNamespace,
       props.connection.instanceId,
-		props.connection.bearerToken,
+      props.connection.bearerToken,
       props.connection.protocolVersion,
     ],
   );
@@ -90,20 +87,25 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
   const [composerDrafts, setComposerDrafts] = useState<
     Record<string, ComposerDraft>
   >({});
-	const historyActionInFlight = useRef(false);
+  const historyActionInFlight = useRef(false);
   const [dockExpanded, setDockExpanded] = useState(false);
-	const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const sessionSearchInput = useRef<HTMLInputElement>(null);
-	const [historySearchRequest, setHistorySearchRequest] = useState(0);
-  const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
-  const goalsEnabled = props.discovery.capabilities.features.goals?.enabled === true;
-  const skillsEnabled = props.discovery.capabilities.features.skills?.enabled === true;
+  const [historySearchRequest, setHistorySearchRequest] = useState(0);
+  const planEnabled =
+    props.discovery.capabilities.features.plan?.enabled === true;
+  const goalsEnabled =
+    props.discovery.capabilities.features.goals?.enabled === true;
+  const skillsEnabled =
+    props.discovery.capabilities.features.skills?.enabled === true;
   const knowledgeEnabled =
     props.discovery.capabilities.features.knowledge?.enabled === true;
   const memoryEnabled =
     props.discovery.capabilities.features.agentMemory?.enabled === true;
   const liveUpdatesEnabled =
-    props.discovery.capabilities.streamingMethods.includes("runtime.subscribe") &&
+    props.discovery.capabilities.streamingMethods.includes(
+      "runtime.subscribe",
+    ) &&
     (
       [
         "sessions.changed",
@@ -113,9 +115,9 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "interrupts.changed",
         "models.changed",
         "mcp.changed",
-		"approvals.changed",
-		"schedules.changed",
-		"hooks.changed",
+        "approvals.changed",
+        "schedules.changed",
+        "hooks.changed",
         "files.changed",
         "skills.changed",
         "knowledge.changed",
@@ -159,44 +161,40 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     retry: 2,
   });
   const goalActions = useGoalActions(connection, selectedSession?.id);
-	const durableSelection =
-		selectedSession?.provider && selectedSession.model
-			? { provider: selectedSession.provider, model: selectedSession.model }
-			: undefined;
+  const durableSelection =
+    selectedSession?.provider && selectedSession.model
+      ? { provider: selectedSession.provider, model: selectedSession.model }
+      : undefined;
   const agentView = useAgentSessionView(
     connection,
     selectedSession?.id,
     snapshot.data,
-		durableSelection,
+    durableSelection,
   );
-	const history = useSessionHistory(
-		connection,
-		selectedSession?.id,
-		agentView.items,
-	);
-	const narrativeItems = useMemo(
-		() => [...history.items, ...agentView.items],
-		[agentView.items, history.items],
-	);
-	const narrativeRuns = useMemo(() => {
-		const values = new Map(history.runs.map((run) => [run.id, run]));
-		for (const run of agentView.runs) values.set(run.id, run);
-		return [...values.values()];
-	}, [agentView.runs, history.runs]);
-	const modelProvider =
-		agentView.focusRootRun?.provider ?? selectedSession?.provider;
+  const history = useSessionHistory(
+    connection,
+    selectedSession?.id,
+    agentView.items,
+  );
+  const narrativeItems = useMemo(
+    () => [...history.items, ...agentView.items],
+    [agentView.items, history.items],
+  );
+  const narrativeRuns = useMemo(() => {
+    const values = new Map(history.runs.map((run) => [run.id, run]));
+    for (const run of agentView.runs) values.set(run.id, run);
+    return [...values.values()];
+  }, [agentView.runs, history.runs]);
+  const modelProvider =
+    agentView.focusRootRun?.provider ?? selectedSession?.provider;
   const modelCatalog = useQuery({
     queryKey: runtimeQueryKeys.models(
       connection,
-		  modelProvider ?? "unselected",
+      modelProvider ?? "unselected",
     ),
     queryFn: ({ signal }) =>
-      listModels(
-        connection,
-		    modelProvider ?? "",
-        signal,
-      ),
-		enabled: modelProvider !== undefined,
+      listModels(connection, modelProvider ?? "", signal),
+    enabled: modelProvider !== undefined,
     staleTime: 5 * 60_000,
   });
   const recipes = useQuery({
@@ -214,8 +212,8 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     retry: 2,
   });
   const contextModel = modelCatalog.data?.data.find(
-		(model) =>
-			model.id === (agentView.focusRootRun?.model ?? selectedSession?.model),
+    (model) =>
+      model.id === (agentView.focusRootRun?.model ?? selectedSession?.model),
   );
   const composerDraft = selectedSession
     ? (composerDrafts[selectedSession.id] ?? emptyComposerDraft)
@@ -241,121 +239,121 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     },
     [catalog.create],
   );
-	const importSessionArtifact = useCallback(async () => {
-		const selection = await openSessionArtifact();
-		if (selection.type === "canceled") return undefined;
-		let decoded: unknown;
-		try {
-			decoded = JSON.parse(selection.contents);
-		} catch (error) {
-			throw new Error(t("shell.invalidArtifact"), {
-				cause: error,
-			});
-		}
-		const response = await catalog.importArtifact(decoded as SessionArtifact);
-		setSelectedSessionId(response.session.id);
-		notify({
-			tone: "success",
-			title: t("toast.sessionImported", {
-				title: response.session.title || t("session.untitled"),
-			}),
-		});
-		return response.session;
-	}, [catalog.importArtifact, notify, t]);
-	const saveSession = useCallback(
-		async (source: Session, format: "json" | "md") => {
-			const exported = await exportSession(connection, source.id, format);
-			let contents: string;
-			if (format === "json") {
-				if (exported.artifact === undefined) {
-					throw new Error(t("shell.missingJSONExport"));
-				}
-				contents = JSON.stringify(exported.artifact, null, 2) + "\n";
-			} else {
-				if (!exported.markdown) {
-					throw new Error(t("shell.missingMarkdownExport"));
-				}
-				contents = exported.markdown;
-			}
-			const result = await saveSessionExport(source.id, format, contents);
-			if (result.type === "saved") {
-				notify({
-					tone: "success",
-					title: t("toast.sessionExported", {
-						title: source.title || t("session.untitled"),
-					}),
-				});
-			}
-		},
-		[connection, notify, t],
-	);
-	const forkSessionFrom = useCallback(
-		async (runId: string) => {
-			if (selectedSession === undefined) return;
-			if (historyActionInFlight.current) {
-				throw new Error(t("shell.historyBusy"));
-			}
-			historyActionInFlight.current = true;
-			try {
-				const forked = await catalog.fork({
-					source: selectedSession,
-					fromRunId: runId,
-				});
-				setSelectedSessionId(forked.id);
-			} finally {
-				historyActionInFlight.current = false;
-			}
-		},
-		[catalog.fork, selectedSession, t],
-	);
-	const rollbackSessionTo = useCallback(
-		async (runId: string, restoreType: RestoreType) => {
-			if (selectedSession === undefined) return;
-			if (historyActionInFlight.current) {
-				throw new Error(t("shell.historyBusy"));
-			}
-			historyActionInFlight.current = true;
-			try {
-				const response = await rollbackSession(connection, {
-					sessionId: selectedSession.id,
-					toRunId: runId,
-					restoreType,
-				});
-				const restoredInput = response.droppedRuns.find(
-					(dropped) =>
-						dropped.userInput !== undefined && dropped.userInput.length > 0,
-				)?.userInput;
-				if (restoredInput !== undefined) {
-					setComposerDrafts((current) => ({
-						...current,
-						[selectedSession.id]: composerDraftFromInput(
-							restoredInput,
-							current[selectedSession.id]?.history ?? [],
-							t,
-						),
-					}));
-				}
-				await Promise.all([snapshot.refetch(), catalog.query.refetch()]);
-			} finally {
-				historyActionInFlight.current = false;
-			}
-		},
-		[catalog.query, connection, selectedSession, snapshot, t],
-	);
-	const submitFeedback = useCallback(
-		async (itemId: string, runId: string, rating: FeedbackRating) => {
-			if (selectedSession === undefined) {
-				throw new Error(t("shell.selectForFeedback"));
-			}
-			await createFeedback(connection, {
-				sessionId: selectedSession.id,
-				runId,
-				itemId,
-				rating,
-			});
-		},
-		[connection, selectedSession, t],
-	);
+  const importSessionArtifact = useCallback(async () => {
+    const selection = await openSessionArtifact();
+    if (selection.type === "canceled") return undefined;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(selection.contents);
+    } catch (error) {
+      throw new Error(t("shell.invalidArtifact"), {
+        cause: error,
+      });
+    }
+    const response = await catalog.importArtifact(decoded as SessionArtifact);
+    setSelectedSessionId(response.session.id);
+    notify({
+      tone: "success",
+      title: t("toast.sessionImported", {
+        title: response.session.title || t("session.untitled"),
+      }),
+    });
+    return response.session;
+  }, [catalog.importArtifact, notify, t]);
+  const saveSession = useCallback(
+    async (source: Session, format: "json" | "md") => {
+      const exported = await exportSession(connection, source.id, format);
+      let contents: string;
+      if (format === "json") {
+        if (exported.artifact === undefined) {
+          throw new Error(t("shell.missingJSONExport"));
+        }
+        contents = JSON.stringify(exported.artifact, null, 2) + "\n";
+      } else {
+        if (!exported.markdown) {
+          throw new Error(t("shell.missingMarkdownExport"));
+        }
+        contents = exported.markdown;
+      }
+      const result = await saveSessionExport(source.id, format, contents);
+      if (result.type === "saved") {
+        notify({
+          tone: "success",
+          title: t("toast.sessionExported", {
+            title: source.title || t("session.untitled"),
+          }),
+        });
+      }
+    },
+    [connection, notify, t],
+  );
+  const forkSessionFrom = useCallback(
+    async (runId: string) => {
+      if (selectedSession === undefined) return;
+      if (historyActionInFlight.current) {
+        throw new Error(t("shell.historyBusy"));
+      }
+      historyActionInFlight.current = true;
+      try {
+        const forked = await catalog.fork({
+          source: selectedSession,
+          fromRunId: runId,
+        });
+        setSelectedSessionId(forked.id);
+      } finally {
+        historyActionInFlight.current = false;
+      }
+    },
+    [catalog.fork, selectedSession, t],
+  );
+  const rollbackSessionTo = useCallback(
+    async (runId: string, restoreType: RestoreType) => {
+      if (selectedSession === undefined) return;
+      if (historyActionInFlight.current) {
+        throw new Error(t("shell.historyBusy"));
+      }
+      historyActionInFlight.current = true;
+      try {
+        const response = await rollbackSession(connection, {
+          sessionId: selectedSession.id,
+          toRunId: runId,
+          restoreType,
+        });
+        const restoredInput = response.droppedRuns.find(
+          (dropped) =>
+            dropped.userInput !== undefined && dropped.userInput.length > 0,
+        )?.userInput;
+        if (restoredInput !== undefined) {
+          setComposerDrafts((current) => ({
+            ...current,
+            [selectedSession.id]: composerDraftFromInput(
+              restoredInput,
+              current[selectedSession.id]?.history ?? [],
+              t,
+            ),
+          }));
+        }
+        await Promise.all([snapshot.refetch(), catalog.query.refetch()]);
+      } finally {
+        historyActionInFlight.current = false;
+      }
+    },
+    [catalog.query, connection, selectedSession, snapshot, t],
+  );
+  const submitFeedback = useCallback(
+    async (itemId: string, runId: string, rating: FeedbackRating) => {
+      if (selectedSession === undefined) {
+        throw new Error(t("shell.selectForFeedback"));
+      }
+      await createFeedback(connection, {
+        sessionId: selectedSession.id,
+        runId,
+        itemId,
+        rating,
+      });
+    },
+    [connection, selectedSession, t],
+  );
   const removeSession = useCallback(
     async (session: Session) => {
       const fallback = catalog.sessions.find(
@@ -375,315 +373,332 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     [catalog.remove, catalog.sessions, selectedSession?.id],
   );
 
-	const commandBindings = useMemo<CommandBinding[]>(
-		() => [
-			{
-				descriptor: commandByID("workspace.close"),
-				enabled: dockExpanded,
-				run: () => setDockExpanded(false),
-			},
-			{
-				descriptor: commandByID("session.new"),
-				enabled: !catalog.createPending && !catalog.importPending,
-				run: async () => {
-					await createSession();
-				},
-			},
-			{
-				descriptor: commandByID("session.search"),
-				enabled: catalog.sessions.length > 0,
-				run: () => {
-					sessionSearchInput.current?.focus();
-					sessionSearchInput.current?.select();
-				},
-			},
-			{
-				descriptor: commandByID("narrative.search"),
-				enabled: selectedSession !== undefined && narrativeItems.length > 0,
-				run: () => setHistorySearchRequest((current) => current + 1),
-			},
-			{
-				descriptor: commandByID("settings.open"),
-				enabled: true,
-				run: () => setSettingsOpen(true),
-			},
-		],
-		[
-			catalog.createPending,
-			catalog.importPending,
-			catalog.sessions.length,
-			createSession,
-			dockExpanded,
-			narrativeItems.length,
-			selectedSession,
-		],
-	);
-	const reportCommandError = useCallback(
-		(command: CommandDescriptor, error: unknown) => {
-			const commandLabel = t(command.label);
-			notify({
-				tone: "error",
-				title: t("command.failed", { command: commandLabel }),
-				detail: presentRuntimeError(
-					error,
-					t("shell.unknownRuntimeError"),
-					t,
-				),
-			});
-		},
-		[notify, t],
-	);
-	useCommandDispatcher({
-		active: !settingsOpen,
-		commands: commandBindings,
-		onError: reportCommandError,
-	});
+  const commandBindings = useMemo<CommandBinding[]>(
+    () => [
+      {
+        descriptor: commandByID("workspace.close"),
+        enabled: dockExpanded,
+        run: () => setDockExpanded(false),
+      },
+      {
+        descriptor: commandByID("session.new"),
+        enabled: !catalog.createPending && !catalog.importPending,
+        run: async () => {
+          await createSession();
+        },
+      },
+      {
+        descriptor: commandByID("session.search"),
+        enabled: catalog.sessions.length > 0,
+        run: () => {
+          sessionSearchInput.current?.focus();
+          sessionSearchInput.current?.select();
+        },
+      },
+      {
+        descriptor: commandByID("narrative.search"),
+        enabled: selectedSession !== undefined && narrativeItems.length > 0,
+        run: () => setHistorySearchRequest((current) => current + 1),
+      },
+      {
+        descriptor: commandByID("settings.open"),
+        enabled: true,
+        run: () => setSettingsOpen(true),
+      },
+    ],
+    [
+      catalog.createPending,
+      catalog.importPending,
+      catalog.sessions.length,
+      createSession,
+      dockExpanded,
+      narrativeItems.length,
+      selectedSession,
+    ],
+  );
+  const reportCommandError = useCallback(
+    (command: CommandDescriptor, error: unknown) => {
+      const commandLabel = t(command.label);
+      notify({
+        tone: "error",
+        title: t("command.failed", { command: commandLabel }),
+        detail: presentRuntimeError(error, t("shell.unknownRuntimeError"), t),
+      });
+    },
+    [notify, t],
+  );
+  useCommandDispatcher({
+    active: !settingsOpen,
+    commands: commandBindings,
+    onError: reportCommandError,
+  });
 
-	return (
-		<>
-	<main className="app-shell" aria-hidden={settingsOpen || undefined} inert={settingsOpen}>
-      <aside className="work-index" aria-labelledby="work-index-title">
-        <header className="panel-header window-drag">
-          <div>
-            <span className="eyebrow">Lyra</span>
-            <h1 id="work-index-title">{t("shell.workIndex")}</h1>
-          </div>
-		  <div className="work-index-actions window-no-drag">
-			<Tooltip
-			  label={t("shell.settings")}
-			  shortcut={shortcutTokens(commandByID("settings.open").shortcut)}
-			>
-			  <button
-				data-settings-trigger="true"
-				className="icon-action"
-				type="button"
-				aria-label={t("shell.openSettings")}
-				aria-keyshortcuts={ariaKeyShortcuts(
-				  commandByID("settings.open").shortcut,
-				)}
-				onClick={() => setSettingsOpen(true)}
-			  >
-				⚙
-			  </button>
-			</Tooltip>
-			<NewSessionMenu
-			  pending={catalog.createPending || catalog.importPending}
-			  defaultWorkspace={props.discovery.serverInfo.defaultWorkspace.path}
-			  onCreate={createSession}
-			  onImport={importSessionArtifact}
-			/>
-		  </div>
-        </header>
-        <section
-		  className="workspace-card"
-		  aria-label={t("shell.runtimeDefaultWorkspace")}
-		>
-          <span className="status-dot" aria-hidden="true" />
-          <div>
-            <strong>{t("shell.runtimeDefault")}</strong>
-            <p title={props.discovery.serverInfo.defaultWorkspace.path}>
-              {compactPath(props.discovery.serverInfo.defaultWorkspace.path)}
+  return (
+    <>
+      <main
+        className="app-shell"
+        aria-hidden={settingsOpen || undefined}
+        inert={settingsOpen}
+      >
+        <aside className="work-index" aria-labelledby="work-index-title">
+          <header className="panel-header window-drag">
+            <div>
+              <span className="eyebrow">Lyra</span>
+              <h1 id="work-index-title">{t("shell.workIndex")}</h1>
+            </div>
+            <div className="work-index-actions window-no-drag">
+              <Tooltip
+                label={t("shell.settings")}
+                shortcut={shortcutTokens(commandByID("settings.open").shortcut)}
+              >
+                <button
+                  data-settings-trigger="true"
+                  className="icon-action"
+                  type="button"
+                  aria-label={t("shell.openSettings")}
+                  aria-keyshortcuts={ariaKeyShortcuts(
+                    commandByID("settings.open").shortcut,
+                  )}
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  ⚙
+                </button>
+              </Tooltip>
+              <NewSessionMenu
+                pending={catalog.createPending || catalog.importPending}
+                defaultWorkspace={
+                  props.discovery.serverInfo.defaultWorkspace.path
+                }
+                onCreate={createSession}
+                onImport={importSessionArtifact}
+              />
+            </div>
+          </header>
+          <section
+            className="workspace-card"
+            aria-label={t("shell.runtimeDefaultWorkspace")}
+          >
+            <span className="status-dot" aria-hidden="true" />
+            <div>
+              <strong>{t("shell.runtimeDefault")}</strong>
+              <p title={props.discovery.serverInfo.defaultWorkspace.path}>
+                {compactPath(props.discovery.serverInfo.defaultWorkspace.path)}
+              </p>
+            </div>
+          </section>
+          <SessionIndex
+            sessions={catalog.sessions}
+            selectedId={selectedSession?.id}
+            pending={catalog.query.isPending}
+            error={catalog.query.error}
+            actionPending={
+              catalog.updatePending ||
+              catalog.removePending ||
+              catalog.forkPending
+            }
+            hasMore={catalog.query.hasNextPage}
+            loadingMore={catalog.query.isFetchingNextPage}
+            onSelect={setSelectedSessionId}
+            onUpdate={(session, patch) =>
+              catalog.update({ source: session, patch })
+            }
+            onRemove={removeSession}
+            onFork={async (session) => {
+              const forked = await catalog.fork({ source: session });
+              setSelectedSessionId(forked.id);
+              return forked;
+            }}
+            onExport={saveSession}
+            onRetry={() => void catalog.query.refetch()}
+            onLoadMore={() => void catalog.query.fetchNextPage()}
+            searchInputRef={sessionSearchInput}
+          />
+          {catalog.createError ? (
+            <p className="sidebar-command-error" role="alert">
+              {presentRuntimeError(
+                catalog.createError,
+                t("session.createFailed"),
+                t,
+              )}
             </p>
+          ) : null}
+        </aside>
+
+        <section className="narrative" aria-labelledby="narrative-title">
+          <header className="narrative-header window-drag">
+            <div className="narrative-heading">
+              <span className="eyebrow">{t("shell.agentNarrative")}</span>
+              <h2 id="narrative-title">
+                {selectedSession?.title || t("shell.chooseSession")}
+              </h2>
+            </div>
+            <div className="narrative-tools window-no-drag">
+              {selectedSession && planEnabled ? (
+                <PlanCompact
+                  plan={agentView.plan}
+                  pending={snapshot.isPending}
+                  error={snapshot.isError}
+                />
+              ) : null}
+              <ContextGauge
+                tokens={agentView.contextTokens}
+                contextWindow={contextModel?.contextWindow}
+                model={
+                  contextModel?.displayName ??
+                  agentView.focusRootRun?.model ??
+                  selectedSession?.model
+                }
+              />
+              <ConnectionPill state={syncState} />
+            </div>
+          </header>
+          <div className="narrative-content">
+            {!selectedSession ? (
+              <EmptySession
+                onCreate={() => void createSession().catch(() => undefined)}
+                pending={catalog.createPending}
+              />
+            ) : snapshot.isError ? (
+              <StatePanel
+                title={t("shell.sessionLoadFailed")}
+                detail={presentRuntimeError(
+                  snapshot.error,
+                  t("shell.unknownRuntimeError"),
+                  t,
+                )}
+                action={t("shell.tryAgain")}
+                onAction={() => void snapshot.refetch()}
+              />
+            ) : snapshot.isPending || snapshot.data === undefined ? (
+              <SessionLoading title={selectedSession.title} />
+            ) : (
+              <>
+                <AgentNarrative
+                  key={`narrative:${selectedSession.id}`}
+                  sessionTitle={selectedSession.title}
+                  items={narrativeItems}
+                  runs={narrativeRuns}
+                  liveToolOutputs={agentView.liveToolOutputs}
+                  interrupts={agentView.interrupts}
+                  progress={agentView.progress}
+                  pending={snapshot.isFetching || agentView.actionPending}
+                  interruptPending={agentView.actionPending}
+                  interruptError={agentView.interruptError}
+                  streamError={agentView.streamError}
+                  cancelingRunId={agentView.cancelingRunId}
+                  cancelError={agentView.cancelError}
+                  onResume={agentView.resume}
+                  onCancelRun={agentView.cancel}
+                  onFeedback={submitFeedback}
+                  hasOlderHistory={history.hasOlder}
+                  historyPending={history.loading}
+                  historyError={history.error}
+                  onLoadOlderHistory={history.loadOlder}
+                  onForkFrom={forkSessionFrom}
+                  onRollback={rollbackSessionTo}
+                  searchRequest={historySearchRequest}
+                >
+                  {goalsEnabled ? (
+                    <GoalComposer
+                      key={selectedSession.id}
+                      sessionId={selectedSession.id}
+                      goal={snapshot.data.goal}
+                      actions={goalActions}
+                    />
+                  ) : null}
+                </AgentNarrative>
+                <Composer
+                  key={`composer:${selectedSession.id}`}
+                  sessionId={selectedSession.id}
+                  draft={composerDraft}
+                  activeRun={agentView.activeRootRun}
+                  recipes={recipes.data?.data ?? []}
+                  pending={agentView.actionPending}
+                  error={agentView.actionError}
+                  attachmentPolicy={
+                    contextModel?.capabilities?.multimodal === true
+                      ? "multimodal"
+                      : "text-only"
+                  }
+                  onChange={updateComposerDraft}
+                  onSend={agentView.send}
+                  onStop={agentView.stop}
+                >
+                  <SessionModelPicker
+                    connection={connection}
+                    session={selectedSession}
+                    disabled={
+                      agentView.activeRootRun !== undefined ||
+                      catalog.updatePending
+                    }
+                    onChange={(provider, model) =>
+                      catalog.update({
+                        source: selectedSession,
+                        patch: { provider, model },
+                      })
+                    }
+                  />
+                </Composer>
+              </>
+            )}
           </div>
         </section>
-        <SessionIndex
-          sessions={catalog.sessions}
-          selectedId={selectedSession?.id}
-          pending={catalog.query.isPending}
-          error={catalog.query.error}
-          actionPending={
-			catalog.updatePending || catalog.removePending || catalog.forkPending
-		  }
-          hasMore={catalog.query.hasNextPage}
-          loadingMore={catalog.query.isFetchingNextPage}
-          onSelect={setSelectedSessionId}
-          onUpdate={(session, patch) => catalog.update({ source: session, patch })}
-          onRemove={removeSession}
-		  onFork={async (session) => {
-			const forked = await catalog.fork({ source: session });
-			setSelectedSessionId(forked.id);
-			return forked;
-		  }}
-		  onExport={saveSession}
-          onRetry={() => void catalog.query.refetch()}
-          onLoadMore={() => void catalog.query.fetchNextPage()}
-          searchInputRef={sessionSearchInput}
-        />
-        {catalog.createError ? (
-          <p className="sidebar-command-error" role="alert">
-            {presentRuntimeError(catalog.createError, t("session.createFailed"), t)}
-          </p>
-        ) : null}
-      </aside>
 
-      <section className="narrative" aria-labelledby="narrative-title">
-        <header className="narrative-header window-drag">
-          <div className="narrative-heading">
-            <span className="eyebrow">{t("shell.agentNarrative")}</span>
-            <h2 id="narrative-title">
-              {selectedSession?.title || t("shell.chooseSession")}
-            </h2>
-          </div>
-          <div className="narrative-tools window-no-drag">
-            {selectedSession && planEnabled ? (
-              <PlanCompact
-                plan={agentView.plan}
+        <aside
+          className="context-dock"
+          data-expanded={dockExpanded}
+          aria-labelledby="context-title"
+        >
+          <header className="panel-header window-drag">
+            <div>
+              <span className="eyebrow">{t("shell.contextDock")}</span>
+              <h2 id="context-title">{t("shell.session")}</h2>
+            </div>
+          </header>
+          <ContextDock
+            connection={connection}
+            session={selectedSession}
+            runs={agentView.runs}
+            items={agentView.items}
+            interrupts={agentView.interrupts}
+            liveToolOutputs={agentView.liveToolOutputs}
+            actionPending={agentView.actionPending}
+            cancelingRunId={agentView.cancelingRunId}
+            cancelError={agentView.cancelError}
+            onExpandedChange={setDockExpanded}
+            onCancelRun={agentView.cancel}
+            skillsEnabled={skillsEnabled}
+            knowledgeEnabled={knowledgeEnabled}
+            memoryEnabled={memoryEnabled}
+          >
+            {selectedSession && goalsEnabled ? (
+              <GoalTray
+                key={selectedSession.id}
+                sessionId={selectedSession.id}
+                goal={snapshot.data?.goal}
                 pending={snapshot.isPending}
-                error={snapshot.isError}
+                error={snapshot.error}
+                actions={goalActions}
               />
             ) : null}
-            <ContextGauge
-              tokens={agentView.contextTokens}
-              contextWindow={contextModel?.contextWindow}
-			  model={
-				contextModel?.displayName ??
-				agentView.focusRootRun?.model ??
-				selectedSession?.model
-			  }
-            />
-            <ConnectionPill state={syncState} />
-          </div>
-        </header>
-        <div className="narrative-content">
-          {!selectedSession ? (
-            <EmptySession
-              onCreate={() => void createSession().catch(() => undefined)}
-              pending={catalog.createPending}
-            />
-          ) : snapshot.isError ? (
-            <StatePanel
-              title={t("shell.sessionLoadFailed")}
-              detail={presentRuntimeError(snapshot.error, t("shell.unknownRuntimeError"), t)}
-              action={t("shell.tryAgain")}
-              onAction={() => void snapshot.refetch()}
-            />
-          ) : snapshot.isPending || snapshot.data === undefined ? (
-            <SessionLoading title={selectedSession.title} />
-          ) : (
-            <>
-              <AgentNarrative
-                key={`narrative:${selectedSession.id}`}
-                sessionTitle={selectedSession.title}
-                items={narrativeItems}
-                runs={narrativeRuns}
-                liveToolOutputs={agentView.liveToolOutputs}
-                interrupts={agentView.interrupts}
-                progress={agentView.progress}
-                pending={snapshot.isFetching || agentView.actionPending}
-                interruptPending={agentView.actionPending}
-                interruptError={agentView.interruptError}
-                streamError={agentView.streamError}
-                cancelingRunId={agentView.cancelingRunId}
-                cancelError={agentView.cancelError}
-                onResume={agentView.resume}
-                onCancelRun={agentView.cancel}
-				onFeedback={submitFeedback}
-				hasOlderHistory={history.hasOlder}
-				historyPending={history.loading}
-				historyError={history.error}
-				onLoadOlderHistory={history.loadOlder}
-				onForkFrom={forkSessionFrom}
-				onRollback={rollbackSessionTo}
-                searchRequest={historySearchRequest}
-              >
-                {goalsEnabled ? (
-                  <GoalComposer
-                    key={selectedSession.id}
-                    sessionId={selectedSession.id}
-                    goal={snapshot.data.goal}
-                    actions={goalActions}
-                  />
-                ) : null}
-              </AgentNarrative>
-              <Composer
-                key={`composer:${selectedSession.id}`}
-                sessionId={selectedSession.id}
-                draft={composerDraft}
-                activeRun={agentView.activeRootRun}
-                recipes={recipes.data?.data ?? []}
-                pending={agentView.actionPending}
-                error={agentView.actionError}
-				attachmentPolicy={
-					contextModel?.capabilities?.multimodal === true
-						? "multimodal"
-						: "text-only"
-				}
-                onChange={updateComposerDraft}
-                onSend={agentView.send}
-                onStop={agentView.stop}
-			  >
-				<SessionModelPicker
-					connection={connection}
-					session={selectedSession}
-					disabled={agentView.activeRootRun !== undefined || catalog.updatePending}
-					onChange={(provider, model) =>
-						catalog.update({
-							source: selectedSession,
-							patch: { provider, model },
-						})
-					}
-				/>
-			  </Composer>
-            </>
-          )}
-        </div>
-      </section>
-
-      <aside
-        className="context-dock"
-        data-expanded={dockExpanded}
-        aria-labelledby="context-title"
-      >
-        <header className="panel-header window-drag">
-          <div>
-            <span className="eyebrow">{t("shell.contextDock")}</span>
-            <h2 id="context-title">{t("shell.session")}</h2>
-          </div>
-        </header>
-        <ContextDock
+            <RuntimeFacts connection={connection} discovery={props.discovery} />
+          </ContextDock>
+        </aside>
+      </main>
+      {settingsOpen ? (
+        <SettingsSurface
           connection={connection}
-          session={selectedSession}
-          runs={agentView.runs}
-          items={agentView.items}
-          interrupts={agentView.interrupts}
-          liveToolOutputs={agentView.liveToolOutputs}
-          actionPending={agentView.actionPending}
-          cancelingRunId={agentView.cancelingRunId}
-          cancelError={agentView.cancelError}
-          onExpandedChange={setDockExpanded}
-          onCancelRun={agentView.cancel}
-          skillsEnabled={skillsEnabled}
-          knowledgeEnabled={knowledgeEnabled}
-          memoryEnabled={memoryEnabled}
-        >
-          {selectedSession && goalsEnabled ? (
-            <GoalTray
-              key={selectedSession.id}
-              sessionId={selectedSession.id}
-              goal={snapshot.data?.goal}
-              pending={snapshot.isPending}
-              error={snapshot.error}
-              actions={goalActions}
-            />
-          ) : null}
-          <RuntimeFacts connection={connection} discovery={props.discovery} />
-        </ContextDock>
-      </aside>
-	</main>
-		{settingsOpen ? (
-			<SettingsSurface
-				connection={connection}
-				sessionId={selectedSession?.id}
-				workspace={selectedSession?.workspace.ref}
-				onRuntimeChanged={props.onRuntimeChanged}
-				onClose={() => setSettingsOpen(false)}
-				onOpenSession={(sessionId) => {
-					setSelectedSessionId(sessionId);
-					setSettingsOpen(false);
-				}}
-			/>
-		) : null}
-		</>
+          sessionId={selectedSession?.id}
+          workspace={selectedSession?.workspace.ref}
+          onRuntimeChanged={props.onRuntimeChanged}
+          onClose={() => setSettingsOpen(false)}
+          onOpenSession={(sessionId) => {
+            setSelectedSessionId(sessionId);
+            setSettingsOpen(false);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -691,7 +706,9 @@ function EmptySession(props: { onCreate: () => void; pending: boolean }) {
   const { t } = useLocalization();
   return (
     <section className="narrative-empty">
-      <div className="orb" aria-hidden="true"><span /></div>
+      <div className="orb" aria-hidden="true">
+        <span />
+      </div>
       <h3>{t("shell.emptyTitle")}</h3>
       <p>{t("shell.emptyDetail")}</p>
       <button
@@ -727,7 +744,11 @@ function StatePanel(props: {
     <section className="state-panel" role="alert">
       <h3>{props.title}</h3>
       <p>{props.detail}</p>
-      <button className="secondary-action" type="button" onClick={props.onAction}>
+      <button
+        className="secondary-action"
+        type="button"
+        onClick={props.onAction}
+      >
         {props.action}
       </button>
     </section>
@@ -776,9 +797,7 @@ function ContextGauge(props: {
     <div className="context-gauge" title={props.model} aria-label={label}>
       <span>
         <i
-          style={
-            ratio === undefined ? undefined : { width: `${ratio * 100}%` }
-          }
+          style={ratio === undefined ? undefined : { width: `${ratio * 100}%` }}
         />
       </span>
       <b>
@@ -814,7 +833,10 @@ function RuntimeFacts(props: {
           value={formatNumber(props.connection.generation)}
           numeric
         />
-        <Fact label={t("shell.protocol")} value={props.discovery.protocolVersion} />
+        <Fact
+          label={t("shell.protocol")}
+          value={props.discovery.protocolVersion}
+        />
         <Fact
           label={t("shell.featuresOnline")}
           value={formatNumber(enabledFeatures)}
@@ -822,7 +844,9 @@ function RuntimeFacts(props: {
         />
         <Fact
           label={t("shell.streamingMethods")}
-          value={formatNumber(props.discovery.capabilities.streamingMethods.length)}
+          value={formatNumber(
+            props.discovery.capabilities.streamingMethods.length,
+          )}
           numeric
         />
       </dl>
@@ -851,33 +875,33 @@ function selectSession(
 }
 
 function composerDraftFromInput(
-	input: ContentBlock[],
-	history: string[],
-	t: Translate,
+  input: ContentBlock[],
+  history: string[],
+  t: Translate,
 ): ComposerDraft {
-	const text = input
-		.flatMap((block) =>
-			block.type === "text" && block.text ? [block.text] : [],
-		)
-		.join("\n\n");
-	const attachments: ComposerAttachment[] = [];
-	for (const [index, block] of input.entries()) {
-		if (block.type !== "image" || !block.mime || !block.data) continue;
-		attachments.push({
-			id: crypto.randomUUID(),
-			name: t("shell.restoredImage", { number: index + 1 }),
-			kind: "image",
-			mime: block.mime,
-			data: block.data,
-			bytes: decodedBase64Bytes(block.data),
-		});
-	}
-	return { text, attachments, history };
+  const text = input
+    .flatMap((block) =>
+      block.type === "text" && block.text ? [block.text] : [],
+    )
+    .join("\n\n");
+  const attachments: ComposerAttachment[] = [];
+  for (const [index, block] of input.entries()) {
+    if (block.type !== "image" || !block.mime || !block.data) continue;
+    attachments.push({
+      id: crypto.randomUUID(),
+      name: t("shell.restoredImage", { number: index + 1 }),
+      kind: "image",
+      mime: block.mime,
+      data: block.data,
+      bytes: decodedBase64Bytes(block.data),
+    });
+  }
+  return { text, attachments, history };
 }
 
 function decodedBase64Bytes(value: string): number {
-	const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
-	return Math.max(0, Math.floor((value.length * 3) / 4) - padding);
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((value.length * 3) / 4) - padding);
 }
 
 function shortIdentity(identity: string): string {

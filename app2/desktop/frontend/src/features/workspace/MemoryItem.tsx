@@ -283,9 +283,7 @@ export function ActiveMemory(props: MemoryItemProps) {
                 void remove();
               }}
             >
-              {confirmDelete
-                ? t("memory.confirmDelete")
-                : t("memory.delete")}
+              {confirmDelete ? t("memory.confirmDelete") : t("memory.delete")}
             </button>
           </>
         )}

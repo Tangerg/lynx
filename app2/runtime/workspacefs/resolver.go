@@ -14,9 +14,9 @@ import (
 )
 
 type Resolution struct {
-	Workspace    session.Workspace
-	ProjectRoot  string
-	Available    bool
+	Workspace   session.Workspace
+	ProjectRoot string
+	Available   bool
 }
 
 type Resolver struct{ defaultPath string }

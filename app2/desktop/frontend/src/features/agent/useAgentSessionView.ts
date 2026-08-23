@@ -116,7 +116,7 @@ export function useAgentSessionView(
   connection: RuntimeConnection,
   sessionId: string | undefined,
   snapshot: SessionSnapshot | undefined,
-	selection: { provider: string; model: string } | undefined,
+  selection: { provider: string; model: string } | undefined,
 ): AgentSessionView {
   const { t } = useLocalization();
   const queryClient = useQueryClient();
@@ -286,7 +286,9 @@ export function useAgentSessionView(
             stream = undefined;
             if (lease.controller.signal.aborted || isAbort(error)) break;
             if (currentIdentity.current === lease.identity) {
-              setStreamError(messageOf(error, t("narrative.streamInterrupted")));
+              setStreamError(
+                messageOf(error, t("narrative.streamInterrupted")),
+              );
             }
             invalidateMaterial();
             retry += 1;
@@ -341,7 +343,9 @@ export function useAgentSessionView(
   );
   useEffect(() => {
     const active = new Set(
-      activeSegments.map(({ runId, segmentId }) => segmentKey(runId, segmentId)),
+      activeSegments.map(({ runId, segmentId }) =>
+        segmentKey(runId, segmentId),
+      ),
     );
     for (const segment of activeSegments) {
       ensureLease(segment.runId, segment.segmentId);
@@ -373,8 +377,7 @@ export function useAgentSessionView(
             throw new Error(t("narrative.activeSegmentMissing"));
           }
           command =
-            activeRootRun?.status === "running" &&
-            activeRootRun.activeSegmentId
+            activeRootRun?.status === "running" && activeRootRun.activeSegmentId
               ? {
                   key: idempotencyKey,
                   type: "steer",
@@ -401,7 +404,7 @@ export function useAgentSessionView(
               sessionId,
               input,
               idempotencyKey,
-					selection,
+              selection,
               controller.signal,
             );
           } catch (error) {
@@ -452,58 +455,57 @@ export function useAgentSessionView(
       identity,
       invalidateMaterial,
       runLease,
-		selection?.model,
-		selection?.provider,
+      selection?.model,
+      selection?.provider,
       sessionId,
       t,
     ],
   );
 
-  const cancel = useCallback(async (runId: string) => {
-    const target = visible.runsById[runId];
-    if (
-      target === undefined ||
-      (target.status !== "running" && target.status !== "waiting") ||
-      actionInFlight.current
-    ) {
-      return;
-    }
-    const actionIdentity = identity;
-    const controller = new AbortController();
-    actionInFlight.current = true;
-    pendingAction.current = controller;
-    setActionPending(true);
-    setCancelingRunId(runId);
-    setCancelError(undefined);
-    if (target.parentRunId === undefined) setActionError(undefined);
-    try {
-      const result = await cancelRun(
-        connection,
-        runId,
-        controller.signal,
-      );
-      if (currentIdentity.current !== actionIdentity) return;
-      dispatch({ type: "run", run: result.run });
-      if (result.rootRun !== undefined) {
-        dispatch({ type: "run", run: result.rootRun });
+  const cancel = useCallback(
+    async (runId: string) => {
+      const target = visible.runsById[runId];
+      if (
+        target === undefined ||
+        (target.status !== "running" && target.status !== "waiting") ||
+        actionInFlight.current
+      ) {
+        return;
       }
-      invalidateMaterial();
-    } catch (error) {
-      if (currentIdentity.current === actionIdentity && !isAbort(error)) {
-        const message = messageOf(error, t("narrative.actionFailed"));
-        setCancelError({ runId, message });
-        if (target.parentRunId === undefined) setActionError(message);
+      const actionIdentity = identity;
+      const controller = new AbortController();
+      actionInFlight.current = true;
+      pendingAction.current = controller;
+      setActionPending(true);
+      setCancelingRunId(runId);
+      setCancelError(undefined);
+      if (target.parentRunId === undefined) setActionError(undefined);
+      try {
+        const result = await cancelRun(connection, runId, controller.signal);
+        if (currentIdentity.current !== actionIdentity) return;
+        dispatch({ type: "run", run: result.run });
+        if (result.rootRun !== undefined) {
+          dispatch({ type: "run", run: result.rootRun });
+        }
+        invalidateMaterial();
+      } catch (error) {
+        if (currentIdentity.current === actionIdentity && !isAbort(error)) {
+          const message = messageOf(error, t("narrative.actionFailed"));
+          setCancelError({ runId, message });
+          if (target.parentRunId === undefined) setActionError(message);
+        }
+        throw error;
+      } finally {
+        if (pendingAction.current === controller) {
+          pendingAction.current = undefined;
+          actionInFlight.current = false;
+          setActionPending(false);
+          setCancelingRunId(undefined);
+        }
       }
-      throw error;
-    } finally {
-      if (pendingAction.current === controller) {
-        pendingAction.current = undefined;
-        actionInFlight.current = false;
-        setActionPending(false);
-        setCancelingRunId(undefined);
-      }
-    }
-  }, [connection, identity, invalidateMaterial, t, visible.runsById]);
+    },
+    [connection, identity, invalidateMaterial, t, visible.runsById],
+  );
 
   const stop = useCallback(async () => {
     if (activeRootRun !== undefined) await cancel(activeRootRun.id);
@@ -646,7 +648,9 @@ function hydrateState(
     identity,
     runsById: Object.fromEntries(snapshot.runs.map((run) => [run.id, run])),
     runOrder: snapshot.runs.map((run) => run.id),
-    itemsById: Object.fromEntries(snapshot.items.map((item) => [item.id, item])),
+    itemsById: Object.fromEntries(
+      snapshot.items.map((item) => [item.id, item]),
+    ),
     itemOrder: snapshot.items.map((item) => item.id),
     liveToolOutputsByItemId: {},
     interruptsByRootRunId: Object.fromEntries(
@@ -707,13 +711,19 @@ function hydrateState(
   return next;
 }
 
-function foldRunEvent(state: AgentSessionState, value: RunEvent): AgentSessionState {
+function foldRunEvent(
+  state: AgentSessionState,
+  value: RunEvent,
+): AgentSessionState {
   const event = value.event;
   switch (event.type) {
     case "segment.started":
       return event.run === undefined
         ? state
-        : clearInterruptSet(putRun(state, event.run), rootRunIdentity(event.run));
+        : clearInterruptSet(
+            putRun(state, event.run),
+            rootRunIdentity(event.run),
+          );
     case "segment.progress":
       return event.progress === undefined
         ? state
@@ -833,10 +843,10 @@ function startItem(state: AgentSessionState, item: Item): AgentSessionState {
 }
 
 function putItem(state: AgentSessionState, item: Item): AgentSessionState {
-  const liveToolOutputsByItemId = state.liveToolOutputsByItemId[item.id]
-    && item.status !== "running"
-    ? withoutKey(state.liveToolOutputsByItemId, item.id)
-    : state.liveToolOutputsByItemId;
+  const liveToolOutputsByItemId =
+    state.liveToolOutputsByItemId[item.id] && item.status !== "running"
+      ? withoutKey(state.liveToolOutputsByItemId, item.id)
+      : state.liveToolOutputsByItemId;
   return {
     ...state,
     itemsById: { ...state.itemsById, [item.id]: item },
@@ -870,7 +880,10 @@ function foldItemDelta(
     };
   }
   if (delta.type === "reasoning" && item.type === "reasoning") {
-    return putItem(state, { ...item, text: (item.text ?? "") + (delta.text ?? "") });
+    return putItem(state, {
+      ...item,
+      text: (item.text ?? "") + (delta.text ?? ""),
+    });
   }
   if (
     delta.type !== "content" ||

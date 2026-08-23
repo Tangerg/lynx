@@ -63,7 +63,7 @@ func NewSearchQuery(scope SearchScope, text string, limit int) (SearchQuery, err
 	}
 	return SearchQuery{
 		Scope: SearchScope{WorkspacePath: workspace, SessionID: strings.TrimSpace(scope.SessionID)},
-		Text: text,
+		Text:  text,
 		Limit: limit,
 	}, nil
 }

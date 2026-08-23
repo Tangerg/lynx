@@ -36,15 +36,15 @@ type waitingCancelState struct {
 }
 
 type waitingCancelProjection struct {
-	writes   []WaitingTreeCancelRunWrite
-	items    []transcript.Record
-	messages []conversationdomain.Record
-	events   []protocol.RunEvent
+	writes    []WaitingTreeCancelRunWrite
+	items     []transcript.Record
+	messages  []conversationdomain.Record
+	events    []protocol.RunEvent
 	persisted []rundomain.EventRecord
-	bindings []agentexec.TreeResumeMember
-	byRun    map[string]rundomain.Record
-	root     rundomain.Record
-	stream   treeStream
+	bindings  []agentexec.TreeResumeMember
+	byRun     map[string]rundomain.Record
+	root      rundomain.Record
+	stream    treeStream
 }
 
 func (service *Service) cancelWaitingTreeChild(
@@ -357,7 +357,7 @@ func (service *Service) projectWaitingTreeCancel(
 			return waitingCancelProjection{}, err
 		}
 		if err := appendEvent(state, protocol.StreamEvent{
-			Type: protocol.StreamSegmentFinished,
+			Type:    protocol.StreamSegmentFinished,
 			Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentCanceled, Detail: reason},
 			Metrics: &state.facts.Metrics,
 		}); err != nil {

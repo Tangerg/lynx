@@ -59,7 +59,7 @@ type scheduleToolView struct {
 
 func (catalog *Catalog) scheduleTools() ([]scopedTool, error) {
 	list, err := toolcontract.NewFunc(toolcontract.FuncConfig{
-		Name: "list_schedules",
+		Name:        "list_schedules",
 		Description: "List recurring Lyra Run schedules, their exact ids, instructions, cadence, workspace and next-run state. Pass next_cursor to continue when the result is paged.",
 	}, func(ctx context.Context, request listSchedulesRequest) (string, error) {
 		page, err := catalog.schedules.List(ctx, protocol.PageQuery{Limit: 100, Cursor: request.Cursor})
@@ -77,7 +77,7 @@ func (catalog *Catalog) scheduleTools() ([]scopedTool, error) {
 	}
 
 	create, err := toolcontract.NewFunc(toolcontract.FuncConfig{
-		Name: "create_schedule",
+		Name:        "create_schedule",
 		Description: "Create an enabled recurring Lyra Run schedule. Use only when the user explicitly requests recurring automated work; do not use it for the current request, a one-off action, or an autonomous Goal.",
 	}, func(ctx context.Context, request createScheduleRequest) (string, error) {
 		var workspace *protocol.WorkspaceRef
@@ -98,7 +98,7 @@ func (catalog *Catalog) scheduleTools() ([]scopedTool, error) {
 	}
 
 	deleteTool, err := toolcontract.NewFunc(toolcontract.FuncConfig{
-		Name: "delete_schedule",
+		Name:        "delete_schedule",
 		Description: "Delete one recurring Lyra Run schedule by its exact schedule_id. Use list_schedules first when the identity is uncertain. Deletion does not cancel a Run already admitted from an occurrence.",
 	}, func(ctx context.Context, request deleteScheduleRequest) (string, error) {
 		if err := catalog.schedules.Delete(ctx, protocol.DeleteScheduleRequest{ID: request.ScheduleID}); err != nil {

@@ -13,7 +13,7 @@ import (
 
 var (
 	ErrInvalid          = errors.New("session: invalid aggregate")
-	ErrNotFound        = errors.New("session: not found")
+	ErrNotFound         = errors.New("session: not found")
 	ErrRevisionConflict = errors.New("session: revision conflict")
 )
 
@@ -144,11 +144,11 @@ func Rehydrate(state Restore) (Session, error) {
 
 type Patch struct {
 	ExpectedRevision uint64
-	Title             *string
-	Workspace         *Workspace
-	Selection         *modelselection.Selection
-	Favorite          *bool
-	Now               time.Time
+	Title            *string
+	Workspace        *Workspace
+	Selection        *modelselection.Selection
+	Favorite         *bool
+	Now              time.Time
 }
 
 func (value *Session) Update(patch Patch) error {
@@ -200,6 +200,6 @@ func (value Session) Title() string                       { return value.title }
 func (value Session) Workspace() Workspace                { return value.workspace }
 func (value Session) Selection() modelselection.Selection { return value.selection }
 func (value Session) Favorite() bool                      { return value.favorite }
-func (value Session) Revision() uint64                     { return value.revision }
-func (value Session) CreatedAt() time.Time                 { return value.createdAt }
-func (value Session) UpdatedAt() time.Time                 { return value.updatedAt }
+func (value Session) Revision() uint64                    { return value.revision }
+func (value Session) CreatedAt() time.Time                { return value.createdAt }
+func (value Session) UpdatedAt() time.Time                { return value.updatedAt }

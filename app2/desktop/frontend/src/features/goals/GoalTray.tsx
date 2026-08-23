@@ -2,10 +2,7 @@ import { useState } from "react";
 
 import type { Goal } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import type { GoalActions } from "./useGoalActions";
 
 export function GoalTray(props: {
@@ -39,7 +36,10 @@ export function GoalTray(props: {
 
   if (!goal) {
     return (
-      <section className="goal-tray goal-tray-empty" aria-labelledby="goal-title">
+      <section
+        className="goal-tray goal-tray-empty"
+        aria-labelledby="goal-title"
+      >
         <TrayHeading status={t("goal.notStarted")} />
         <p>{t("goal.empty")}</p>
         {actions.error ? (
@@ -104,7 +104,9 @@ export function GoalTray(props: {
             className="secondary-action"
             type="button"
             disabled={actions.pending}
-            onClick={() => void actions.pause(props.sessionId).catch(() => undefined)}
+            onClick={() =>
+              void actions.pause(props.sessionId).catch(() => undefined)
+            }
           >
             {t("goal.pause")}
           </button>
@@ -114,7 +116,9 @@ export function GoalTray(props: {
             className="primary-action"
             type="button"
             disabled={actions.pending}
-            onClick={() => void actions.resume(props.sessionId).catch(() => undefined)}
+            onClick={() =>
+              void actions.resume(props.sessionId).catch(() => undefined)
+            }
           >
             {t("goal.resume")}
           </button>

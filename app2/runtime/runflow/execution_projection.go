@@ -21,16 +21,16 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
 type executionProjection struct {
-	items  []transcript.Record
+	items    []transcript.Record
 	messages []conversationdomain.Record
-	results []toolresult.Record
-	events []protocol.RunEvent
+	results  []toolresult.Record
+	events   []protocol.RunEvent
 }
 
 type executionProjectionPolicy struct {
@@ -58,7 +58,9 @@ func (service *Service) projectExecution(
 	var conversation []conversationdomain.Record
 	if policy.sessionConversation {
 		conversation, err = service.store.ListConversationMessages(ctx, record.Run.SessionID())
-		if err != nil { return executionProjection{}, err }
+		if err != nil {
+			return executionProjection{}, err
+		}
 	}
 	sequences := observationSequences(output.Models, output.Tools)
 	finalSequence := 0
@@ -134,7 +136,9 @@ func (service *Service) projectExecution(
 			}
 			byID[item.ID] = stored
 			projection.items = append(projection.items, stored)
-			if offload != nil { projection.results = append(projection.results, *offload) }
+			if offload != nil {
+				projection.results = append(projection.results, *offload)
+			}
 			completed, err := service.event(record.Run.ID(), segmentID, facts, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item}, observation.FinishedAt)
 			if err != nil {
 				return executionProjection{}, err
@@ -164,16 +168,26 @@ func (service *Service) projectExecution(
 
 func nextConversationOrdinal(records []conversationdomain.Record) int {
 	next := 0
-	for _, record := range records { if record.Ordinal >= next { next = record.Ordinal + 1 } }
+	for _, record := range records {
+		if record.Ordinal >= next {
+			next = record.Ordinal + 1
+		}
+	}
 	return next
 }
 
 func observationSequences(models []agentexec.ModelObservation, tools []agentexec.ToolObservation) []int {
 	set := make(map[int]struct{}, len(models)+len(tools))
-	for _, value := range models { set[value.Sequence] = struct{}{} }
-	for _, value := range tools { set[value.ModelCallSequence] = struct{}{} }
+	for _, value := range models {
+		set[value.Sequence] = struct{}{}
+	}
+	for _, value := range tools {
+		set[value.ModelCallSequence] = struct{}{}
+	}
 	values := make([]int, 0, len(set))
-	for value := range set { values = append(values, value) }
+	for value := range set {
+		values = append(values, value)
+	}
 	sort.Ints(values)
 	return values
 }
@@ -193,7 +207,9 @@ func modelItems(runID string, observation agentexec.ModelObservation, final bool
 	for _, part := range choice.Message.Parts {
 		switch part.Kind {
 		case chat.PartText:
-			if part.Text != "" { content = append(content, protocol.ContentBlock{Type: protocol.ContentBlockText, Text: part.Text}) }
+			if part.Text != "" {
+				content = append(content, protocol.ContentBlock{Type: protocol.ContentBlockText, Text: part.Text})
+			}
 		case chat.PartMedia:
 			if part.Media == nil || part.Media.Source.Kind != "bytes" || !strings.HasPrefix(part.Media.MIME, "image/") {
 				continue
@@ -201,7 +217,7 @@ func modelItems(runID string, observation agentexec.ModelObservation, final bool
 			content = append(content, protocol.ContentBlock{Type: protocol.ContentBlockImage, Mime: part.Media.MIME, Data: base64.StdEncoding.EncodeToString(part.Media.Source.Bytes)})
 		case chat.PartReasoning:
 			items = append(items, protocol.Item{
-				ID: modelReasoningItemID(runID, effectID, reasoningIndex),
+				ID:    modelReasoningItemID(runID, effectID, reasoningIndex),
 				RunID: runID, Status: protocol.ItemStatusCompleted, CreatedAt: observation.OccurredAt,
 				Type: protocol.ItemTypeReasoning, Text: part.Text, Redacted: part.Text == "" && len(part.Signature) > 0,
 			})
@@ -210,9 +226,11 @@ func modelItems(runID string, observation agentexec.ModelObservation, final bool
 	}
 	if len(content) > 0 {
 		phase := protocol.MessagePhaseCommentary
-		if final { phase = protocol.MessagePhaseFinalAnswer }
+		if final {
+			phase = protocol.MessagePhaseFinalAnswer
+		}
 		items = append(items, protocol.Item{
-			ID: modelMessageItemID(runID, effectID),
+			ID:    modelMessageItemID(runID, effectID),
 			RunID: runID, Status: protocol.ItemStatusCompleted, CreatedAt: observation.OccurredAt,
 			Type: protocol.ItemTypeAgentMessage, Phase: phase, Content: content,
 		})
@@ -230,7 +248,9 @@ func modelReasoningItemID(runID, effectID string, index int) string {
 
 func responseHasToolCalls(response *chat.Response) bool {
 	choice := response.First()
-	if choice == nil || choice.Message == nil { return false }
+	if choice == nil || choice.Message == nil {
+		return false
+	}
 	return slices.ContainsFunc(choice.Message.Parts, func(part chat.Part) bool { return part.Kind == chat.PartToolCall })
 }
 
@@ -253,15 +273,23 @@ func toolItem(stored transcript.Record, existed bool, sessionID, runID string, o
 	item.Tool.Arguments = cloneMap(observation.Arguments)
 	item.FinishedAt = observation.FinishedAt
 	duration := observation.FinishedAt.Sub(observation.StartedAt).Milliseconds()
-	if duration < 0 { return protocol.Item{}, nil, false, errors.New("runflow: tool finish precedes start") }
+	if duration < 0 {
+		return protocol.Item{}, nil, false, errors.New("runflow: tool finish precedes start")
+	}
 	item.DurationMillis = &duration
 	if observation.IsError || observation.Failure != "" {
 		item.Status = protocol.ItemStatusIncomplete
 		detail := observation.Failure
-		if detail == "" { detail = observation.Result }
-		if len(detail) > 4096 { detail = detail[:4096] }
+		if detail == "" {
+			detail = observation.Result
+		}
+		if len(detail) > 4096 {
+			detail = detail[:4096]
+		}
 		problemType := protocol.ProblemToolFailed
-		if strings.Contains(strings.ToLower(detail), "canceled") { problemType = protocol.ProblemToolCanceled }
+		if strings.Contains(strings.ToLower(detail), "canceled") {
+			problemType = protocol.ProblemToolCanceled
+		}
 		item.Error = &protocol.ProblemData{Type: problemType, Detail: detail}
 		item.Tool.Result = nil
 	} else {
@@ -278,13 +306,13 @@ func runningToolItem(runID string, observation agentexec.ToolObservation) protoc
 	return protocol.Item{
 		ID: observation.ItemID, RunID: runID, Status: protocol.ItemStatusRunning,
 		StartedAt: observation.StartedAt, Type: protocol.ItemTypeToolCall,
-		Tool: &protocol.ToolInvocation{Name: observation.Name, Arguments: cloneMap(observation.Arguments)},
+		Tool:        &protocol.ToolInvocation{Name: observation.Name, Arguments: cloneMap(observation.Arguments)},
 		SafetyClass: observation.SafetyClass,
 	}
 }
 
 const (
-	inlineToolResultBytes = 64 << 10
+	inlineToolResultBytes  = 64 << 10
 	previewToolResultBytes = 16 << 10
 )
 
@@ -305,9 +333,13 @@ func toolResultID(itemID string) string {
 }
 
 func utf8Prefix(value string, limit int) string {
-	if len(value) <= limit { return value }
+	if len(value) <= limit {
+		return value
+	}
 	end := limit
-	for end > 0 && !utf8.ValidString(value[:end]) { end-- }
+	for end > 0 && !utf8.ValidString(value[:end]) {
+		end--
+	}
 	return value[:end]
 }
 
@@ -315,8 +347,12 @@ func bestEffortJSON(raw string) any {
 	decoder := json.NewDecoder(bytes.NewBufferString(raw))
 	decoder.UseNumber()
 	var value any
-	if err := decoder.Decode(&value); err != nil { return raw }
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) { return raw }
+	if err := decoder.Decode(&value); err != nil {
+		return raw
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return raw
+	}
 	return value
 }
 
@@ -326,7 +362,9 @@ func stableItemID(runID, source string) string {
 }
 
 func mergeRunUsage(metrics *protocol.RunMetrics, usage protocol.Usage, steps int) {
-	if metrics.Usage == nil { metrics.Usage = &protocol.Usage{} }
+	if metrics.Usage == nil {
+		metrics.Usage = &protocol.Usage{}
+	}
 	hadUsage := modelUsageContributed(metrics.Usage.ModelUsage)
 	metrics.Usage.InputTokens += usage.InputTokens
 	metrics.Usage.OutputTokens += usage.OutputTokens
@@ -334,7 +372,9 @@ func mergeRunUsage(metrics *protocol.RunMetrics, usage protocol.Usage, steps int
 	metrics.Usage.CacheWriteTokens += usage.CacheWriteTokens
 	metrics.Usage.ReasoningTokens += usage.ReasoningTokens
 	mergeUsageCost(&metrics.Usage.CostUSD, usage.CostUSD, hadUsage)
-	if len(usage.ByModel) > 0 && metrics.Usage.ByModel == nil { metrics.Usage.ByModel = make(map[string]protocol.ModelUsage) }
+	if len(usage.ByModel) > 0 && metrics.Usage.ByModel == nil {
+		metrics.Usage.ByModel = make(map[string]protocol.ModelUsage)
+	}
 	for model, value := range usage.ByModel {
 		current := metrics.Usage.ByModel[model]
 		hadModelUsage := modelUsageContributed(current)

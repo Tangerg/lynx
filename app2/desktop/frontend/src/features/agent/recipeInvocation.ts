@@ -16,7 +16,9 @@ export function expandRecipeInvocation(text: string, recipes: Recipe[]) {
     argumentsText === "" ? [] : argumentsText.split(/\s+/);
   return recipe.body
     .replaceAll("$ARGUMENTS", argumentsText)
-    .replace(/\$([1-9])(?!\d)/g, (_placeholder, position: string) =>
-      argumentsByPosition[Number(position) - 1] ?? "",
+    .replace(
+      /\$([1-9])(?!\d)/g,
+      (_placeholder, position: string) =>
+        argumentsByPosition[Number(position) - 1] ?? "",
     );
 }

@@ -1,8 +1,4 @@
-import {
-  useQuery,
-  useQueryClient,
-  type QueryKey,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 
 import type {
@@ -12,10 +8,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import {
   addAgentMemory,
   listAgentMemory,
@@ -153,7 +146,6 @@ function ScopeButton(props: {
   selected: boolean;
   onSelect(): void;
 }) {
-  const { t } = useLocalization();
   return (
     <button
       type="button"
@@ -171,6 +163,7 @@ function AddMemory(props: {
   scope: AgentMemoryScope;
   queryKey: QueryKey;
 }) {
+  const { t } = useLocalization();
   const queryClient = useQueryClient();
   const action = useMemoryAction();
   const [open, setOpen] = useState(false);

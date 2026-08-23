@@ -20,11 +20,10 @@ export function sessionStatus(
 
 export function formatUpdatedAt(
   value: string,
-  format: (
-    value: Date,
-    options?: Intl.DateTimeFormatOptions,
-  ) => string = (date, options) =>
-    new Intl.DateTimeFormat("en", options).format(date),
+  format: (value: Date, options?: Intl.DateTimeFormatOptions) => string = (
+    date,
+    options,
+  ) => new Intl.DateTimeFormat("en", options).format(date),
 ): string {
   const date = new Date(value);
   return Number.isNaN(date.valueOf())
@@ -34,7 +33,4 @@ export function formatUpdatedAt(
         day: "numeric",
       });
 }
-import {
-  translateEnglish,
-  type Translate,
-} from "../localization/Localization";
+import { translateEnglish, type Translate } from "../localization/Localization";

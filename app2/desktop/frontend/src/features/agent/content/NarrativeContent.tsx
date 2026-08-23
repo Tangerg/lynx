@@ -23,7 +23,8 @@ const imageMIMETypes = new Set([
 ]);
 const maxInlineImageBytes = 32 << 20;
 const maxEncodedImageLength = Math.ceil(maxInlineImageBytes / 3) * 4;
-const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const base64Pattern =
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const emptyContent: readonly ContentBlock[] = [];
 
 export function NarrativeContent({

@@ -15,16 +15,24 @@ func (service *Service) WaitSessionStartable(ctx context.Context, sessionID stri
 	const retry = 125 * time.Millisecond
 	for {
 		_, err := service.store.GetOpenRootRun(ctx, sessionID)
-		if errors.Is(err, rundomain.ErrNotFound) { return nil }
-		if err != nil { return err }
+		if errors.Is(err, rundomain.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 		timer := time.NewTimer(retry)
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
-			if !timer.Stop() { <-timer.C }
+			if !timer.Stop() {
+				<-timer.C
+			}
 			return ctx.Err()
 		case <-service.lifetime.Done():
-			if !timer.Stop() { <-timer.C }
+			if !timer.Stop() {
+				<-timer.C
+			}
 			return context.Cause(service.lifetime)
 		}
 	}

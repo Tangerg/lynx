@@ -190,7 +190,7 @@ func (service *Service) resolve(
 	}
 	target := lifecyclehook.Target{
 		ProjectRoot: root,
-		Workspace: resolved.Workspace.Path(),
+		Workspace:   resolved.Workspace.Path(),
 	}
 	if err := target.Validate(); err != nil {
 		return lifecyclehook.Target{}, err
@@ -217,7 +217,7 @@ func present(hook lifecyclehook.Hook, projectTrusted bool) protocol.HookInfo {
 		Event: protocol.HookEvent(hook.Event), Matcher: hook.Matcher,
 		Command: hook.Command, Inject: hook.Inject,
 		TimeoutMillis: hook.TimeoutMillis,
-		Scope: protocol.HookScope(hook.Scope), Source: hook.Source,
+		Scope:         protocol.HookScope(hook.Scope), Source: hook.Source,
 		Active: hook.Scope == lifecyclehook.ScopeGlobal || projectTrusted,
 	}
 }

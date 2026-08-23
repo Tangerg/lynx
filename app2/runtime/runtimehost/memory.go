@@ -63,7 +63,7 @@ func (models runtimeMemoryEmbedding) ResolveMemoryEmbedding(
 }
 
 var (
-	_ agentexec.MemorySource        = runtimeMemory{}
-	_ agenttools.MemoryGateway      = runtimeMemory{}
-	_ memoryflow.EmbeddingModels    = runtimeMemoryEmbedding{}
+	_ agentexec.MemorySource     = runtimeMemory{}
+	_ agenttools.MemoryGateway   = runtimeMemory{}
+	_ memoryflow.EmbeddingModels = runtimeMemoryEmbedding{}
 )

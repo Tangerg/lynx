@@ -6,16 +6,9 @@ import {
   type ReactNode,
 } from "react";
 
-import type {
-  Item,
-  PendingInterruptSet,
-  RunRef,
-} from "@lyra/runtime-contract";
+import type { Item, PendingInterruptSet, RunRef } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type MessageKey,
-} from "../localization/Localization";
+import { useLocalization, type MessageKey } from "../localization/Localization";
 import type { LiveToolOutput, SessionActivityView } from "./agentSessionTypes";
 import {
   approvalDecisionLabel,
@@ -120,7 +113,10 @@ function TimelineView(props: SessionActivityProps) {
                 {shortIdentity(group.root.id)}
               </strong>
             </div>
-            <span className="run-state-chip" data-status={runStatus(group.root)}>
+            <span
+              className="run-state-chip"
+              data-status={runStatus(group.root)}
+            >
               {runStatusLabel(runStatus(group.root), t)}
             </span>
           </header>
@@ -177,7 +173,11 @@ function TimelineRow(props: {
     const approval = entry.interrupt.type === "approval";
     return (
       <li className="timeline-row timeline-interrupt-row" style={style}>
-        <span className="timeline-mark" data-status="waiting" aria-hidden="true">
+        <span
+          className="timeline-mark"
+          data-status="waiting"
+          aria-hidden="true"
+        >
           !
         </span>
         <div className="timeline-row-body">
@@ -248,7 +248,7 @@ function TimelineRow(props: {
           });
   const detail =
     entry.kind === "runSettled"
-      ? entry.run.outcome?.error?.detail ?? entry.run.outcome?.detail
+      ? (entry.run.outcome?.error?.detail ?? entry.run.outcome?.detail)
       : undefined;
   return (
     <li className="timeline-row timeline-run-row" style={style}>
@@ -300,25 +300,20 @@ function TerminalView(props: {
   const { t } = useLocalization();
   const commands = useMemo(
     () =>
-      buildTerminalCommands(
-        props.runs,
-        props.items,
-        props.liveToolOutputs,
-        t,
-      ),
+      buildTerminalCommands(props.runs, props.items, props.liveToolOutputs, t),
     [props.items, props.liveToolOutputs, props.runs, t],
   );
-	const materialVersion = useMemo(
-		() =>
-			commands
-				.map(
-					(command) =>
-						`${command.id}:${command.item.status}:${command.stdout.length}:${command.stderr.length}:${command.liveOutput?.text.length ?? 0}`,
-				)
-				.join("|"),
-		[commands],
-	);
-	const reader = useFollowScroll(materialVersion, 48, commands.length > 0);
+  const materialVersion = useMemo(
+    () =>
+      commands
+        .map(
+          (command) =>
+            `${command.id}:${command.item.status}:${command.stdout.length}:${command.stderr.length}:${command.liveOutput?.text.length ?? 0}`,
+        )
+        .join("|"),
+    [commands],
+  );
+  const reader = useFollowScroll(materialVersion, 48, commands.length > 0);
 
   if (commands.length === 0) {
     return (
@@ -354,16 +349,20 @@ function TerminalView(props: {
               : t("activity.followOutput")}
         </button>
       </header>
-		<div
-			className="terminal-log"
-			ref={reader.viewportRef}
-			onScroll={reader.onScroll}
-		>
-			<div className="terminal-log-material" ref={reader.contentRef}>
+      <div
+        className="terminal-log"
+        ref={reader.viewportRef}
+        onScroll={reader.onScroll}
+      >
+        <div className="terminal-log-material" ref={reader.contentRef}>
           {commands.map((command, index) => (
-            <CommandRecord key={command.id} command={command} index={index + 1} />
+            <CommandRecord
+              key={command.id}
+              command={command}
+              index={index + 1}
+            />
           ))}
-			</div>
+        </div>
       </div>
     </div>
   );
@@ -383,7 +382,9 @@ function CommandRecord({
   return (
     <details className="terminal-command" open={running}>
       <summary>
-        <span className="terminal-prompt" aria-hidden="true">$</span>
+        <span className="terminal-prompt" aria-hidden="true">
+          $
+        </span>
         <code>{command.command}</code>
         <span
           className="terminal-command-state"
@@ -440,15 +441,12 @@ function SummaryView(props: {
   const { t } = useLocalization();
   const summary = useMemo(
     () =>
-      buildLatestRunSummary(
-        props.runs,
-        props.items,
-        props.liveToolOutputs,
-        t,
-      ),
+      buildLatestRunSummary(props.runs, props.items, props.liveToolOutputs, t),
     [props.items, props.liveToolOutputs, props.runs, t],
   );
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
   useEffect(() => setCopyState("idle"), [summary?.root.id]);
 
   if (summary === undefined) {
@@ -575,7 +573,10 @@ function SummaryFacts({ summary }: { summary: SessionRunSummary }) {
         value={runStatusLabel(summary.status, t)}
         status={summary.status}
       />
-      <Fact label={t("activity.runs")} value={formatNumber(summary.runs.length)} />
+      <Fact
+        label={t("activity.runs")}
+        value={formatNumber(summary.runs.length)}
+      />
       <Fact label={t("activity.steps")} value={formatNumber(summary.steps)} />
       <Fact
         label={t("activity.activeTime")}
@@ -583,7 +584,11 @@ function SummaryFacts({ summary }: { summary: SessionRunSummary }) {
       />
       <Fact
         label={t("activity.tokens")}
-        value={totalTokens === undefined ? t("activity.unknown") : formatNumber(totalTokens)}
+        value={
+          totalTokens === undefined
+            ? t("activity.unknown")
+            : formatNumber(totalTokens)
+        }
       />
       <Fact
         label={t("activity.cost")}
@@ -631,7 +636,9 @@ function SummarySection(props: {
 function ActivityEmpty(props: { title: string; detail: string }) {
   return (
     <section className="activity-empty">
-      <span className="activity-empty-mark" aria-hidden="true">◇</span>
+      <span className="activity-empty-mark" aria-hidden="true">
+        ◇
+      </span>
       <h3>{props.title}</h3>
       <p>{props.detail}</p>
     </section>
@@ -642,12 +649,17 @@ function OccurredAt({ value }: { value?: string }) {
   const { formatDateTime } = useLocalization();
   if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) return <time dateTime={value}>{value}</time>;
-  return <time dateTime={value}>{formatDateTime(date, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  })}</time>;
+  if (Number.isNaN(date.valueOf()))
+    return <time dateTime={value}>{value}</time>;
+  return (
+    <time dateTime={value}>
+      {formatDateTime(date, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })}
+    </time>
+  );
 }
 
 function shortIdentity(identity: string) {

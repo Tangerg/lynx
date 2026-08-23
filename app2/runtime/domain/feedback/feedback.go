@@ -116,7 +116,7 @@ func (record Record) ID() string               { return record.id }
 func (record Record) Attribution() Attribution { return record.attribution }
 func (record Record) Rating() Rating           { return record.rating }
 func (record Record) Text() string             { return record.text }
-func (record Record) CreatedAt() time.Time      { return record.createdAt }
+func (record Record) CreatedAt() time.Time     { return record.createdAt }
 
 var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)((?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*)[^\s,;]+`),

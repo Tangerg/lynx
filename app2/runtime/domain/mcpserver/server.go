@@ -86,20 +86,20 @@ type Patch struct {
 // State is the storage adapter representation of one aggregate. It is not a
 // wire DTO: in particular Secrets must never be projected to a client.
 type State struct {
-	Name             string            `json:"name"`
-	Enabled          bool              `json:"enabled"`
-	Description      string            `json:"description,omitempty"`
-	Transport        Transport         `json:"transport"`
-	URL              string            `json:"url,omitempty"`
-	Command          string            `json:"command,omitempty"`
-	Args             []string          `json:"args,omitempty"`
-	Dir              string            `json:"dir,omitempty"`
-	TimeoutSeconds   int               `json:"timeoutSeconds,omitempty"`
-	DisabledTools    []string          `json:"disabledTools,omitempty"`
-	AutoApproveTools []string          `json:"autoApproveTools,omitempty"`
-	Secrets          SecretState       `json:"-"`
-	Revision         uint64            `json:"revision"`
-	UpdatedAt        time.Time         `json:"updatedAt"`
+	Name             string      `json:"name"`
+	Enabled          bool        `json:"enabled"`
+	Description      string      `json:"description,omitempty"`
+	Transport        Transport   `json:"transport"`
+	URL              string      `json:"url,omitempty"`
+	Command          string      `json:"command,omitempty"`
+	Args             []string    `json:"args,omitempty"`
+	Dir              string      `json:"dir,omitempty"`
+	TimeoutSeconds   int         `json:"timeoutSeconds,omitempty"`
+	DisabledTools    []string    `json:"disabledTools,omitempty"`
+	AutoApproveTools []string    `json:"autoApproveTools,omitempty"`
+	Secrets          SecretState `json:"-"`
+	Revision         uint64      `json:"revision"`
+	UpdatedAt        time.Time   `json:"updatedAt"`
 }
 
 // SecretState is stored in SQLite's protected secret column, separate from the
@@ -349,20 +349,22 @@ func (value Configuration) Clone() Configuration {
 	return Configuration{state: value.State()}
 }
 
-func (value Configuration) Name() string               { return value.state.Name }
-func (value Configuration) Enabled() bool              { return value.state.Enabled }
-func (value Configuration) Description() string        { return value.state.Description }
-func (value Configuration) Transport() Transport       { return value.state.Transport }
-func (value Configuration) URL() string                { return value.state.URL }
-func (value Configuration) Command() string            { return value.state.Command }
-func (value Configuration) Args() []string             { return slices.Clone(value.state.Args) }
-func (value Configuration) Dir() string                { return value.state.Dir }
-func (value Configuration) TimeoutSeconds() int        { return value.state.TimeoutSeconds }
-func (value Configuration) DisabledTools() []string    { return slices.Clone(value.state.DisabledTools) }
-func (value Configuration) AutoApproveTools() []string { return slices.Clone(value.state.AutoApproveTools) }
-func (value Configuration) Revision() uint64           { return value.state.Revision }
-func (value Configuration) UpdatedAt() time.Time        { return value.state.UpdatedAt }
-func (value Configuration) Secrets() SecretState        { return cloneSecrets(value.state.Secrets) }
+func (value Configuration) Name() string            { return value.state.Name }
+func (value Configuration) Enabled() bool           { return value.state.Enabled }
+func (value Configuration) Description() string     { return value.state.Description }
+func (value Configuration) Transport() Transport    { return value.state.Transport }
+func (value Configuration) URL() string             { return value.state.URL }
+func (value Configuration) Command() string         { return value.state.Command }
+func (value Configuration) Args() []string          { return slices.Clone(value.state.Args) }
+func (value Configuration) Dir() string             { return value.state.Dir }
+func (value Configuration) TimeoutSeconds() int     { return value.state.TimeoutSeconds }
+func (value Configuration) DisabledTools() []string { return slices.Clone(value.state.DisabledTools) }
+func (value Configuration) AutoApproveTools() []string {
+	return slices.Clone(value.state.AutoApproveTools)
+}
+func (value Configuration) Revision() uint64     { return value.state.Revision }
+func (value Configuration) UpdatedAt() time.Time { return value.state.UpdatedAt }
+func (value Configuration) Secrets() SecretState { return cloneSecrets(value.state.Secrets) }
 
 func (value Configuration) HTTPOrigin() (string, error) {
 	if value.state.Transport != TransportStreamableHTTP {

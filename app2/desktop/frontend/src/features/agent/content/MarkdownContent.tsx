@@ -37,12 +37,7 @@ const rawHTMLSchema = {
     ...defaultSchema.attributes,
     code: [
       ...(defaultSchema.attributes?.code ?? []),
-      [
-        "className",
-        /^language-[\w#+.-]+$/,
-        "math-inline",
-        "math-display",
-      ],
+      ["className", /^language-[\w#+.-]+$/, "math-inline", "math-display"],
     ],
     li: [
       ...(defaultSchema.attributes?.li ?? []),
@@ -55,7 +50,7 @@ const rawHTMLSchema = {
   },
 };
 
-type KatexPlugin = typeof import("rehype-katex")["default"];
+type KatexPlugin = (typeof import("rehype-katex"))["default"];
 let katexEnhancement: Promise<KatexPlugin | undefined> | undefined;
 
 export function MarkdownContent(props: MarkdownContentProps) {
@@ -140,7 +135,8 @@ class MarkdownBoundary extends Component<
 function componentsWithHighlight(highlight: string, t: Translate): Components {
   return {
     a({ node: _node, href, children, ...props }) {
-      const external = href?.startsWith("http://") || href?.startsWith("https://");
+      const external =
+        href?.startsWith("http://") || href?.startsWith("https://");
       return (
         <a
           {...props}
@@ -153,11 +149,17 @@ function componentsWithHighlight(highlight: string, t: Translate): Components {
       );
     },
     blockquote({ node: _node, children, ...props }) {
-      return <blockquote {...props}>{highlightNodes(children, highlight)}</blockquote>;
+      return (
+        <blockquote {...props}>
+          {highlightNodes(children, highlight)}
+        </blockquote>
+      );
     },
     code({ node: _node, className, children, ...props }) {
       const source = String(children);
-      const language = /(?:^|\s)language-([\w#+.-]+)/.exec(className ?? "")?.[1];
+      const language = /(?:^|\s)language-([\w#+.-]+)/.exec(
+        className ?? "",
+      )?.[1];
       const block = language !== undefined || source.endsWith("\n");
       if (!block) {
         return (
@@ -188,7 +190,12 @@ function componentsWithHighlight(highlight: string, t: Translate): Components {
     img({ node: _node, src, alt }) {
       if (!src) return null;
       return (
-        <a className="markdown-image-link" href={src} target="_blank" rel="noreferrer noopener">
+        <a
+          className="markdown-image-link"
+          href={src}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
           {alt || t("markdown.openLinkedImage")}
         </a>
       );
@@ -269,7 +276,11 @@ function highlightedText(text: string, query: string) {
 
 function safeMarkdownURL(value: string, key: string) {
   const url = value.trim();
-  if (url === "" || /[\u0000-\u001F\u007F]/.test(url)) return "";
+  const hasControlCharacter = Array.from(url).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+  if (url === "" || hasControlCharacter) return "";
   if (key === "src") {
     try {
       const parsed = new URL(url);

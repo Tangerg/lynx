@@ -37,10 +37,10 @@ type ExecutableTool struct {
 
 type ModelObservation struct {
 	RunID, SegmentID string
-	EffectID   string
-	Sequence   int
-	OccurredAt time.Time
-	Response   *chat.Response
+	EffectID         string
+	Sequence         int
+	OccurredAt       time.Time
+	Response         *chat.Response
 }
 
 // ModelDeltaKind is the provider-neutral live material that Lyra can project
@@ -57,12 +57,12 @@ const (
 // reasoning deltas.
 type ModelDelta struct {
 	RunID, SegmentID string
-	EffectID       string
-	EffectSequence uint64
-	OccurredAt     time.Time
-	Kind           ModelDeltaKind
-	Index          int
-	Text           string
+	EffectID         string
+	EffectSequence   uint64
+	OccurredAt       time.Time
+	Kind             ModelDeltaKind
+	Index            int
+	Text             string
 }
 
 // LiveObservationSink must return in bounded time. Delivery is observational:
@@ -79,26 +79,26 @@ type LiveObservationSink interface {
 // call; the Run owner combines it with the durable run-cumulative baseline.
 type ModelProgress struct {
 	RunID, SegmentID string
-	Sequence      int
-	OccurredAt    time.Time
-	Usage         protocol.Usage
-	ContextTokens int64
-	Model         string
+	Sequence         int
+	OccurredAt       time.Time
+	Usage            protocol.Usage
+	ContextTokens    int64
+	Model            string
 }
 
 type ToolObservation struct {
 	RunID, SegmentID          string
-	ItemID, CallID, Name       string
-	Arguments                  map[string]any
-	SafetyClass                protocol.SafetyClass
-	CommittedPlan              *protocol.Plan
-	ModelCallSequence          int
-	ToolCallIndex              int
-	StartedAt, FinishedAt      time.Time
-	Result                     string
-	IsError, Waiting, Unknown  bool
-	Failure                    string
-	IntrinsicInput             bool
+	ItemID, CallID, Name      string
+	Arguments                 map[string]any
+	SafetyClass               protocol.SafetyClass
+	CommittedPlan             *protocol.Plan
+	ModelCallSequence         int
+	ToolCallIndex             int
+	StartedAt, FinishedAt     time.Time
+	Result                    string
+	IsError, Waiting, Unknown bool
+	Failure                   string
+	IntrinsicInput            bool
 }
 
 // ToolItemID derives the stable transcript identity for one provider ToolCall.
@@ -110,19 +110,19 @@ func ToolItemID(runID, callID string) string {
 }
 
 type executionObserver struct {
-	mu             sync.Mutex
-	runID          string
-	segmentID      string
-	defaultModel   string
-	safetyByName   map[string]protocol.SafetyClass
-	intrinsicInput map[string]bool
-	models         []ModelObservation
-	tools          map[observationIdentity]ToolObservation
-	plans          map[observationIdentity]protocol.Plan
+	mu                 sync.Mutex
+	runID              string
+	segmentID          string
+	defaultModel       string
+	safetyByName       map[string]protocol.SafetyClass
+	intrinsicInput     map[string]bool
+	models             []ModelObservation
+	tools              map[observationIdentity]ToolObservation
+	plans              map[observationIdentity]protocol.Plan
 	effectiveArguments map[observationIdentity]map[string]any
-	live           LiveObservationSink
-	streams        map[string]*modelStream
-	delegation     *delegationBridge
+	live               LiveObservationSink
+	streams            map[string]*modelStream
+	delegation         *delegationBridge
 }
 
 type modelStream struct {
@@ -138,7 +138,7 @@ func newExecutionObserver(runID, segmentID, model string, live LiveObservationSi
 	return &executionObserver{
 		runID: runID, segmentID: segmentID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
 		intrinsicInput: make(map[string]bool),
-		tools: make(map[observationIdentity]ToolObservation), plans: make(map[observationIdentity]protocol.Plan),
+		tools:          make(map[observationIdentity]ToolObservation), plans: make(map[observationIdentity]protocol.Plan),
 		effectiveArguments: make(map[observationIdentity]map[string]any), live: live,
 		streams: make(map[string]*modelStream), delegation: delegation,
 	}
@@ -262,7 +262,7 @@ func (observer *executionObserver) OnToolStarted(_ context.Context, invocation i
 		RunID: scope.runID, SegmentID: scope.segmentID,
 		ItemID: ToolItemID(scope.runID, call.ID), CallID: call.ID, Name: call.Name,
 		Arguments: arguments, SafetyClass: observer.safetyByName[call.Name],
-		IntrinsicInput: observer.intrinsicInput[call.Name],
+		IntrinsicInput:    observer.intrinsicInput[call.Name],
 		ModelCallSequence: int(invocation.ModelCallSequence()), ToolCallIndex: int(invocation.ToolCallIndex()),
 		StartedAt: time.Now().UTC(),
 	}
@@ -287,7 +287,7 @@ func (observer *executionObserver) OnToolSettled(_ context.Context, invocation i
 			RunID: scope.runID, SegmentID: scope.segmentID,
 			ItemID: ToolItemID(scope.runID, call.ID), CallID: call.ID, Name: call.Name,
 			Arguments: decodeArguments(call.Arguments), SafetyClass: observer.safetyByName[call.Name],
-			IntrinsicInput: observer.intrinsicInput[call.Name],
+			IntrinsicInput:    observer.intrinsicInput[call.Name],
 			ModelCallSequence: int(invocation.ModelCallSequence()), ToolCallIndex: int(invocation.ToolCallIndex()),
 			StartedAt: time.Now().UTC(),
 		}
@@ -386,7 +386,9 @@ func (observer *executionObserver) scopeProcess(processID agent.ProcessID) (proc
 	return processBinding{runID: observer.runID, segmentID: observer.segmentID, rootRunID: observer.runID}, true
 }
 
-func (identity observationIdentity) String() string { return identity.runID + "\x00" + identity.sourceID }
+func (identity observationIdentity) String() string {
+	return identity.runID + "\x00" + identity.sourceID
+}
 
 func cloneToolObservation(value ToolObservation) ToolObservation {
 	value.Arguments = cloneObject(value.Arguments)

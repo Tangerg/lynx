@@ -10,8 +10,8 @@ import (
 	goaldomain "github.com/Tangerg/lynx/app2/runtime/domain/goal"
 	plandomain "github.com/Tangerg/lynx/app2/runtime/domain/plan"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/sessionflow"
 )

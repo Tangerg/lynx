@@ -11,12 +11,7 @@ export const maxExpandedDirectories = 100;
 export type DockPane = "workspace" | "session";
 export type WorkspaceView = "files" | "review" | "codebase" | "resources";
 export type ResourceView =
-  | "skills"
-  | "recipes"
-  | "agentDocs"
-  | "knowledge"
-  | "memory"
-  | "tools";
+  "skills" | "recipes" | "agentDocs" | "knowledge" | "memory" | "tools";
 export type SkillView = "available" | "proposals" | "library";
 export type ReviewMode = "worktree" | "base";
 export type DiffLayout = "unified" | "split";

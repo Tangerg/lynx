@@ -32,7 +32,7 @@ type RunRequest struct {
 	OccurrenceID         string
 	SessionID            string
 	RunID                string
-	FiredAt               time.Time
+	FiredAt              time.Time
 	AllowMissingSchedule bool
 }
 

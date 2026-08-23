@@ -8,20 +8,20 @@ import {
   type CodebaseStatus,
   type ContentBlock,
   type CreateSessionRequest,
-	type CreateScheduleRequest,
+  type CreateScheduleRequest,
   type Diff,
   type EmptyObject,
   type FileContent,
   type FileEntry,
-	type FeedbackRequest,
-	type ExportSessionResponse,
-	type ForkSessionRequest,
+  type FeedbackRequest,
+  type ExportSessionResponse,
+  type ForkSessionRequest,
   type AgentDoc,
-	type ApprovalModeResult,
-	type ApprovalRule,
+  type ApprovalModeResult,
+  type ApprovalRule,
   type Goal,
   type GoalBudget,
-	type HooksListResult,
+  type HooksListResult,
   type GrepResult,
   type InterruptResponse,
   type AgentMemoryItem,
@@ -30,8 +30,8 @@ import {
   type AgentMemoryScope,
   type KnowledgeEntry,
   type KnowledgeScope,
-	type ListItemsRequest,
-	type ListItemsResponse,
+  type ListItemsRequest,
+  type ListItemsResponse,
   type ManagedSkill,
   type MCPAuthorizationAttempt,
   type MCPServer,
@@ -39,39 +39,39 @@ import {
   type MCPTestResult,
   type MCPTool,
   type Model,
-	type EmbeddingRole,
-	  type Page,
-	type Provider,
-	type ProviderTestResult,
+  type EmbeddingRole,
+  type Page,
+  type Provider,
+  type ProviderTestResult,
   type RequestMeta,
   type Recipe,
   type ResumeRunRequest,
   type ResumeRunResponse,
   type RuntimeEvent,
   type RuntimeConnection,
-	type RuntimeTopic,
+  type RuntimeTopic,
   type OpenRuntimeStream,
   type RunEvent,
-	type RollbackSessionRequest,
-	type RollbackSessionResponse,
-	type RunScheduleNowResponse,
-	type Schedule,
+  type RollbackSessionRequest,
+  type RollbackSessionResponse,
+  type RunScheduleNowResponse,
+  type Schedule,
   type Session,
-	type SessionArtifact,
+  type SessionArtifact,
   type SessionSnapshot,
   type Skill,
   type SkillProposal,
   type SkillProposalRef,
   type StartRunResponse,
   type ToolSpec,
-	type UtilityRole,
-	type Usage,
-	type UsageSummary,
-	type UsageSummaryRequest,
-	type UpdateProviderRequest,
+  type UtilityRole,
+  type Usage,
+  type UsageSummary,
+  type UsageSummaryRequest,
+  type UpdateProviderRequest,
   type UpdateMCPServerRequest,
   type UpdateSessionRequest,
-	type UpdateScheduleRequest,
+  type UpdateScheduleRequest,
   type WorkspaceRef,
   type WorkspaceFileChange,
 } from "@lyra/runtime-contract";
@@ -100,36 +100,42 @@ const clientMeta: RequestMeta = {
 
 export const runtimeQueryKeys = {
   scope(connection: RuntimeConnection) {
-    return [
-      "runtime",
-      connection.instanceId,
-      connection.generation,
-    ] as const;
+    return ["runtime", connection.instanceId, connection.generation] as const;
   },
   sessions(connection: RuntimeConnection) {
     return [...this.scope(connection), "sessions"] as const;
   },
-	usageSummary(connection: RuntimeConnection, sinceDays: number) {
-		return [...this.scope(connection), "usage", "summary", sinceDays] as const;
-	},
-	sessionUsage(connection: RuntimeConnection, sessionId: string) {
-		return [...this.scope(connection), "usage", "session", sessionId] as const;
-	},
-	sessionHistory(connection: RuntimeConnection, sessionId: string) {
-		return [...this.scope(connection), "session", sessionId, "history"] as const;
-	},
+  usageSummary(connection: RuntimeConnection, sinceDays: number) {
+    return [...this.scope(connection), "usage", "summary", sinceDays] as const;
+  },
+  sessionUsage(connection: RuntimeConnection, sessionId: string) {
+    return [...this.scope(connection), "usage", "session", sessionId] as const;
+  },
+  sessionHistory(connection: RuntimeConnection, sessionId: string) {
+    return [
+      ...this.scope(connection),
+      "session",
+      sessionId,
+      "history",
+    ] as const;
+  },
   snapshot(connection: RuntimeConnection, sessionId: string) {
-    return [...this.scope(connection), "session", sessionId, "snapshot"] as const;
+    return [
+      ...this.scope(connection),
+      "session",
+      sessionId,
+      "snapshot",
+    ] as const;
   },
   models(connection: RuntimeConnection, provider: string) {
     return [...this.scope(connection), "models", provider] as const;
   },
-	providers(connection: RuntimeConnection) {
-		return [...this.scope(connection), "providers"] as const;
-	},
-	modelRole(connection: RuntimeConnection, role: "utility" | "embedding") {
-		return [...this.scope(connection), "model-role", role] as const;
-	},
+  providers(connection: RuntimeConnection) {
+    return [...this.scope(connection), "providers"] as const;
+  },
+  modelRole(connection: RuntimeConnection, role: "utility" | "embedding") {
+    return [...this.scope(connection), "model-role", role] as const;
+  },
   mcp(connection: RuntimeConnection) {
     return [...this.scope(connection), "mcp"] as const;
   },
@@ -139,24 +145,24 @@ export const runtimeQueryKeys = {
   mcpTools(connection: RuntimeConnection, server: string) {
     return [...this.mcp(connection), "tools", server] as const;
   },
-	approvals(connection: RuntimeConnection) {
-		return [...this.scope(connection), "approvals"] as const;
-	},
-	approvalMode(connection: RuntimeConnection) {
-		return [...this.approvals(connection), "mode"] as const;
-	},
-	approvalRules(connection: RuntimeConnection, sessionId: string) {
-		return [...this.approvals(connection), "rules", sessionId] as const;
-	},
-	hooks(connection: RuntimeConnection) {
-		return [...this.scope(connection), "hooks"] as const;
-	},
-	workspaceHooks(connection: RuntimeConnection, workspacePath: string) {
-		return [...this.hooks(connection), workspacePath] as const;
-	},
-	schedules(connection: RuntimeConnection) {
-		return [...this.scope(connection), "schedules"] as const;
-	},
+  approvals(connection: RuntimeConnection) {
+    return [...this.scope(connection), "approvals"] as const;
+  },
+  approvalMode(connection: RuntimeConnection) {
+    return [...this.approvals(connection), "mode"] as const;
+  },
+  approvalRules(connection: RuntimeConnection, sessionId: string) {
+    return [...this.approvals(connection), "rules", sessionId] as const;
+  },
+  hooks(connection: RuntimeConnection) {
+    return [...this.scope(connection), "hooks"] as const;
+  },
+  workspaceHooks(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.hooks(connection), workspacePath] as const;
+  },
+  schedules(connection: RuntimeConnection) {
+    return [...this.scope(connection), "schedules"] as const;
+  },
   workspace(connection: RuntimeConnection, path: string) {
     return [...this.scope(connection), "workspace", path] as const;
   },
@@ -202,7 +208,10 @@ export const runtimeQueryKeys = {
     return [...this.workspace(connection, workspacePath), "recipes"] as const;
   },
   workspaceAgentDocs(connection: RuntimeConnection, workspacePath: string) {
-    return [...this.workspace(connection, workspacePath), "agent-docs"] as const;
+    return [
+      ...this.workspace(connection, workspacePath),
+      "agent-docs",
+    ] as const;
   },
   workspaceDiff(
     connection: RuntimeConnection,
@@ -304,139 +313,167 @@ export async function listSessions(
 }
 
 export function forkSession(
-	connection: RuntimeConnection,
-	request: ForkSessionRequest,
+  connection: RuntimeConnection,
+  request: ForkSessionRequest,
 ): Promise<Session> {
-	return client(connection).call("sessions.fork", request, { meta: clientMeta });
+  return client(connection).call("sessions.fork", request, {
+    meta: clientMeta,
+  });
 }
 
 export function rollbackSession(
-	connection: RuntimeConnection,
-	request: RollbackSessionRequest,
+  connection: RuntimeConnection,
+  request: RollbackSessionRequest,
 ): Promise<RollbackSessionResponse> {
-	return client(connection).call("sessions.rollback", request, { meta: clientMeta });
+  return client(connection).call("sessions.rollback", request, {
+    meta: clientMeta,
+  });
 }
 
 export function exportSession(
-	connection: RuntimeConnection,
-	sessionId: string,
-	format: "json" | "md",
+  connection: RuntimeConnection,
+  sessionId: string,
+  format: "json" | "md",
 ): Promise<ExportSessionResponse> {
-	return client(connection).call(
-		"sessions.export",
-		{ sessionId, format },
-		{ meta: clientMeta },
-	);
+  return client(connection).call(
+    "sessions.export",
+    { sessionId, format },
+    { meta: clientMeta },
+  );
 }
 
-export function importSession(
-	connection: RuntimeConnection,
-	artifact: SessionArtifact,
+export async function importSession(
+  connection: RuntimeConnection,
+  artifact: SessionArtifact,
 ): Promise<{ session: Session }> {
-	return client(connection).call(
-		"sessions.import",
-		{ artifact },
-		{ meta: clientMeta },
-	);
+  const response = await client(connection).call(
+    "sessions.import",
+    { artifact },
+    { meta: clientMeta },
+  );
+  if (response.session === null) {
+    throw new TypeError("Runtime returned an empty imported session");
+  }
+  return { session: response.session };
 }
 
 export function loadSessionUsage(
-	connection: RuntimeConnection,
-	sessionId: string,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  sessionId: string,
+  signal?: AbortSignal,
 ): Promise<Usage> {
-	return client(connection).call(
-		"usage.session",
-		{ sessionId },
-		{ meta: clientMeta, signal },
-	);
+  return client(connection).call(
+    "usage.session",
+    { sessionId },
+    { meta: clientMeta, signal },
+  );
 }
 
 export function listItems(
-	connection: RuntimeConnection,
-	request: ListItemsRequest,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  request: ListItemsRequest,
+  signal?: AbortSignal,
 ): Promise<ListItemsResponse> {
-	return client(connection).call("items.list", request, { meta: clientMeta, signal });
+  return client(connection).call("items.list", request, {
+    meta: clientMeta,
+    signal,
+  });
 }
 
 export function loadUsageSummary(
-	connection: RuntimeConnection,
-	request: UsageSummaryRequest,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  request: UsageSummaryRequest,
+  signal?: AbortSignal,
 ): Promise<UsageSummary> {
-	return client(connection).call(
-		"usage.summary",
-		request,
-		{ meta: clientMeta, signal },
-	);
+  return client(connection).call("usage.summary", request, {
+    meta: clientMeta,
+    signal,
+  });
 }
 
 export async function createFeedback(
-	connection: RuntimeConnection,
-	request: FeedbackRequest,
+  connection: RuntimeConnection,
+  request: FeedbackRequest,
 ): Promise<void> {
-	await client(connection).call("feedback.create", request, { meta: clientMeta });
+  await client(connection).call("feedback.create", request, {
+    meta: clientMeta,
+  });
 }
 
 export function listSchedules(
-	connection: RuntimeConnection,
-	cursor?: string,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  cursor?: string,
+  signal?: AbortSignal,
 ): Promise<Page<Schedule>> {
-	return client(connection).call(
-		"schedules.list",
-		{ limit: 100, ...(cursor === undefined ? {} : { cursor }) },
-		{ meta: clientMeta, signal },
-	);
+  return client(connection).call(
+    "schedules.list",
+    { limit: 100, ...(cursor === undefined ? {} : { cursor }) },
+    { meta: clientMeta, signal },
+  );
 }
 
 export function createSchedule(
-	connection: RuntimeConnection,
-	request: CreateScheduleRequest,
+  connection: RuntimeConnection,
+  request: CreateScheduleRequest,
 ): Promise<Schedule> {
-	return client(connection).call("schedules.create", request, { meta: clientMeta });
+  return client(connection).call("schedules.create", request, {
+    meta: clientMeta,
+  });
 }
 
 export function updateSchedule(
-	connection: RuntimeConnection,
-	request: UpdateScheduleRequest,
+  connection: RuntimeConnection,
+  request: UpdateScheduleRequest,
 ): Promise<Schedule> {
-	return client(connection).call("schedules.update", request, { meta: clientMeta });
+  return client(connection).call("schedules.update", request, {
+    meta: clientMeta,
+  });
 }
 
 export function deleteSchedule(
-	connection: RuntimeConnection,
-	id: string,
+  connection: RuntimeConnection,
+  id: string,
 ): Promise<EmptyObject> {
-	return client(connection).call("schedules.delete", { id }, { meta: clientMeta });
+  return client(connection).call(
+    "schedules.delete",
+    { id },
+    { meta: clientMeta },
+  );
 }
 
 export function runScheduleNow(
-	connection: RuntimeConnection,
-	id: string,
+  connection: RuntimeConnection,
+  id: string,
 ): Promise<RunScheduleNowResponse> {
-	return client(connection).call("schedules.runNow", { id }, { meta: clientMeta });
+  return client(connection).call(
+    "schedules.runNow",
+    { id },
+    { meta: clientMeta },
+  );
 }
 
 export function listHooks(
-	connection: RuntimeConnection,
-	workspace: WorkspaceRef,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
 ): Promise<HooksListResult> {
-	return client(connection).call("hooks.list", { workspace }, { meta: clientMeta, signal });
+  return client(connection).call(
+    "hooks.list",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
 }
 
 export function setHookTrust(
-	connection: RuntimeConnection,
-	projectRoot: string,
-	trusted: boolean,
+  connection: RuntimeConnection,
+  projectRoot: string,
+  trusted: boolean,
 ): Promise<EmptyObject> {
-	return client(connection).call(
-		"hooks.setTrust",
-		{ projectRoot, trusted },
-		{ meta: clientMeta },
-	);
+  return client(connection).call(
+    "hooks.setTrust",
+    { projectRoot, trusted },
+    { meta: clientMeta },
+  );
 }
 
 export function loadSessionSnapshot(
@@ -464,85 +501,115 @@ export function listModels(
 }
 
 export function listProviders(
-	connection: RuntimeConnection,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  signal?: AbortSignal,
 ): Promise<Page<Provider>> {
-	return client(connection).call("providers.list", {}, { meta: clientMeta, signal });
+  return client(connection).call(
+    "providers.list",
+    {},
+    { meta: clientMeta, signal },
+  );
 }
 
 export function updateProvider(
-	connection: RuntimeConnection,
-	request: UpdateProviderRequest,
+  connection: RuntimeConnection,
+  request: UpdateProviderRequest,
 ): Promise<Provider> {
-	return client(connection).call("providers.update", request, { meta: clientMeta });
+  return client(connection).call("providers.update", request, {
+    meta: clientMeta,
+  });
 }
 
 export function testProvider(
-	connection: RuntimeConnection,
-	provider: string,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  provider: string,
+  signal?: AbortSignal,
 ): Promise<ProviderTestResult> {
-	return client(connection).call(
-		"providers.test",
-		{ provider },
-		{ meta: clientMeta, signal },
-	);
+  return client(connection).call(
+    "providers.test",
+    { provider },
+    { meta: clientMeta, signal },
+  );
 }
 
 export function getUtilityRole(
-	connection: RuntimeConnection,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  signal?: AbortSignal,
 ): Promise<UtilityRole> {
-	return client(connection).call("models.getUtilityRole", {}, { meta: clientMeta, signal });
+  return client(connection).call(
+    "models.getUtilityRole",
+    {},
+    { meta: clientMeta, signal },
+  );
 }
 
 export function setUtilityRole(
-	connection: RuntimeConnection,
-	role: UtilityRole,
+  connection: RuntimeConnection,
+  role: UtilityRole,
 ): Promise<UtilityRole> {
-	return client(connection).call("models.setUtilityRole", role, { meta: clientMeta });
+  return client(connection).call("models.setUtilityRole", role, {
+    meta: clientMeta,
+  });
 }
 
 export function getEmbeddingRole(
-	connection: RuntimeConnection,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  signal?: AbortSignal,
 ): Promise<EmbeddingRole> {
-	return client(connection).call("models.getEmbeddingRole", {}, { meta: clientMeta, signal });
+  return client(connection).call(
+    "models.getEmbeddingRole",
+    {},
+    { meta: clientMeta, signal },
+  );
 }
 
 export function setEmbeddingRole(
-	connection: RuntimeConnection,
-	role: EmbeddingRole,
+  connection: RuntimeConnection,
+  role: EmbeddingRole,
 ): Promise<EmbeddingRole> {
-	return client(connection).call("models.setEmbeddingRole", role, { meta: clientMeta });
+  return client(connection).call("models.setEmbeddingRole", role, {
+    meta: clientMeta,
+  });
 }
 
 export function listMCPServers(
   connection: RuntimeConnection,
   signal?: AbortSignal,
 ): Promise<Page<MCPServer>> {
-  return client(connection).call("mcp.servers.list", {}, { meta: clientMeta, signal });
+  return client(connection).call(
+    "mcp.servers.list",
+    {},
+    { meta: clientMeta, signal },
+  );
 }
 
 export function createMCPServer(
   connection: RuntimeConnection,
   candidate: MCPServerCandidate,
 ): Promise<MCPServer> {
-  return client(connection).call("mcp.servers.create", candidate, { meta: clientMeta });
+  return client(connection).call("mcp.servers.create", candidate, {
+    meta: clientMeta,
+  });
 }
 
 export function updateMCPServer(
   connection: RuntimeConnection,
   request: UpdateMCPServerRequest,
 ): Promise<MCPServer> {
-  return client(connection).call("mcp.servers.update", request, { meta: clientMeta });
+  return client(connection).call("mcp.servers.update", request, {
+    meta: clientMeta,
+  });
 }
 
 export function deleteMCPServer(
   connection: RuntimeConnection,
   server: string,
 ): Promise<EmptyObject> {
-  return client(connection).call("mcp.servers.delete", { server }, { meta: clientMeta });
+  return client(connection).call(
+    "mcp.servers.delete",
+    { server },
+    { meta: clientMeta },
+  );
 }
 
 export function testMCPServer(
@@ -550,14 +617,21 @@ export function testMCPServer(
   candidate: MCPServerCandidate,
   signal?: AbortSignal,
 ): Promise<MCPTestResult> {
-  return client(connection).call("mcp.servers.test", candidate, { meta: clientMeta, signal });
+  return client(connection).call("mcp.servers.test", candidate, {
+    meta: clientMeta,
+    signal,
+  });
 }
 
 export function reconnectMCPServer(
   connection: RuntimeConnection,
   server: string,
 ): Promise<EmptyObject> {
-  return client(connection).call("mcp.servers.reconnect", { server }, { meta: clientMeta });
+  return client(connection).call(
+    "mcp.servers.reconnect",
+    { server },
+    { meta: clientMeta },
+  );
 }
 
 export function listMCPTools(
@@ -565,7 +639,11 @@ export function listMCPTools(
   server: string,
   signal?: AbortSignal,
 ): Promise<Page<MCPTool>> {
-  return client(connection).call("mcp.tools.list", { server }, { meta: clientMeta, signal });
+  return client(connection).call(
+    "mcp.tools.list",
+    { server },
+    { meta: clientMeta, signal },
+  );
 }
 
 export function createMCPAuthorizationAttempt(
@@ -606,36 +684,48 @@ export async function authorizeMCPServer(
 }
 
 export function getApprovalMode(
-	connection: RuntimeConnection,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  signal?: AbortSignal,
 ): Promise<ApprovalModeResult> {
-	return client(connection).call("approval.getMode", {}, { meta: clientMeta, signal });
+  return client(connection).call(
+    "approval.getMode",
+    {},
+    { meta: clientMeta, signal },
+  );
 }
 
 export function setApprovalMode(
-	connection: RuntimeConnection,
-	mode: "safe" | "balanced" | "yolo",
+  connection: RuntimeConnection,
+  mode: "safe" | "balanced" | "yolo",
 ): Promise<ApprovalModeResult> {
-	return client(connection).call("approval.setMode", { mode }, { meta: clientMeta });
+  return client(connection).call(
+    "approval.setMode",
+    { mode },
+    { meta: clientMeta },
+  );
 }
 
 export function listApprovalRules(
-	connection: RuntimeConnection,
-	sessionId: string,
-	signal?: AbortSignal,
+  connection: RuntimeConnection,
+  sessionId: string,
+  signal?: AbortSignal,
 ): Promise<{ rules: ApprovalRule[] }> {
-	return client(connection).call(
-		"approval.listRules",
-		{ sessionId },
-		{ meta: clientMeta, signal },
-	);
+  return client(connection).call(
+    "approval.listRules",
+    { sessionId },
+    { meta: clientMeta, signal },
+  );
 }
 
 export async function forgetApprovalRule(
-	connection: RuntimeConnection,
-	id: string,
+  connection: RuntimeConnection,
+  id: string,
 ): Promise<void> {
-	await client(connection).call("approval.forgetRule", { id }, { meta: clientMeta });
+  await client(connection).call(
+    "approval.forgetRule",
+    { id },
+    { meta: clientMeta },
+  );
 }
 
 export function listWorkspaceFiles(
@@ -768,11 +858,10 @@ export function updateKnowledge(
   },
   signal?: AbortSignal,
 ): Promise<KnowledgeEntry> {
-  return client(connection).call(
-    "knowledge.update",
-    request,
-    { meta: clientMeta, signal },
-  );
+  return client(connection).call("knowledge.update", request, {
+    meta: clientMeta,
+    signal,
+  });
 }
 
 export function listAgentMemory(
@@ -797,9 +886,7 @@ export function addAgentMemory(
 ): Promise<AgentMemoryItem> {
   return client(connection).call(
     "agentMemory.add",
-    scope === "project"
-      ? { scope, workspace, content }
-      : { scope, content },
+    scope === "project" ? { scope, workspace, content } : { scope, content },
     { meta: clientMeta, signal },
   );
 }
@@ -822,11 +909,10 @@ export function updateAgentMemory(
   request: { id: string; content?: string; pinned?: boolean },
   signal?: AbortSignal,
 ): Promise<AgentMemoryItem> {
-  return client(connection).call(
-    "agentMemory.update",
-    request,
-    { meta: clientMeta, signal },
-  );
+  return client(connection).call("agentMemory.update", request, {
+    meta: clientMeta,
+    signal,
+  });
 }
 
 export async function deleteAgentMemory(
@@ -893,11 +979,10 @@ export async function approveSkillProposal(
   proposal: SkillProposalRef,
   signal?: AbortSignal,
 ): Promise<void> {
-  await client(connection).call(
-    "skills.proposals.approve",
-    proposal,
-    { meta: clientMeta, signal },
-  );
+  await client(connection).call("skills.proposals.approve", proposal, {
+    meta: clientMeta,
+    signal,
+  });
 }
 
 export async function rejectSkillProposal(
@@ -905,11 +990,10 @@ export async function rejectSkillProposal(
   proposal: SkillProposalRef,
   signal?: AbortSignal,
 ): Promise<void> {
-  await client(connection).call(
-    "skills.proposals.reject",
-    proposal,
-    { meta: clientMeta, signal },
-  );
+  await client(connection).call("skills.proposals.reject", proposal, {
+    meta: clientMeta,
+    signal,
+  });
 }
 
 export function listWorkspaceChanges(
@@ -984,7 +1068,7 @@ export function startRun(
 ): Promise<OpenRuntimeStream<StartRunResponse, RunEvent>> {
   return client(connection).stream(
     "runs.start",
-		{ sessionId, input, ...(selection === undefined ? {} : selection) },
+    { sessionId, input, ...(selection === undefined ? {} : selection) },
     { meta: clientMeta, idempotencyKey, signal },
   );
 }
@@ -997,11 +1081,11 @@ export function resumeRun(
   signal?: AbortSignal,
 ): Promise<OpenRuntimeStream<ResumeRunResponse, RunEvent>> {
   const request: ResumeRunRequest = { runId, responses };
-  return client(connection).stream(
-    "runs.resume",
-    request,
-    { meta: clientMeta, idempotencyKey, signal },
-  );
+  return client(connection).stream("runs.resume", request, {
+    meta: clientMeta,
+    idempotencyKey,
+    signal,
+  });
 }
 
 export function subscribeRun(
@@ -1049,11 +1133,9 @@ export function createSession(
   connection: RuntimeConnection,
   request: CreateSessionRequest = {},
 ): Promise<Session> {
-  return client(connection).call(
-    "sessions.create",
-    request,
-    { meta: clientMeta },
-  );
+  return client(connection).call("sessions.create", request, {
+    meta: clientMeta,
+  });
 }
 
 export function updateSession(
@@ -1135,21 +1217,21 @@ export async function clearGoal(
 }
 
 const runtimeInvalidationTopics = [
-	"sessions.changed",
-	"runs.changed",
-	"plan.changed",
-	"goals.changed",
-	"interrupts.changed",
-	"models.changed",
-	"mcp.changed",
-	"approvals.changed",
-	"schedules.changed",
-	"files.changed",
-	"skills.changed",
-	"knowledge.changed",
-	"hooks.changed",
-	"agentMemory.changed",
-	"codebase.changed",
+  "sessions.changed",
+  "runs.changed",
+  "plan.changed",
+  "goals.changed",
+  "interrupts.changed",
+  "models.changed",
+  "mcp.changed",
+  "approvals.changed",
+  "schedules.changed",
+  "files.changed",
+  "skills.changed",
+  "knowledge.changed",
+  "hooks.changed",
+  "agentMemory.changed",
+  "codebase.changed",
 ] satisfies RuntimeTopic[];
 
 export async function consumeRuntimeInvalidations(
@@ -1162,7 +1244,7 @@ export async function consumeRuntimeInvalidations(
   const stream = await client(connection).stream(
     "runtime.subscribe",
     {
-		topics: runtimeInvalidationTopics,
+      topics: runtimeInvalidationTopics,
       ...(watch === undefined
         ? {}
         : { watches: [{ watchId: watch.id, workspace: watch.workspace }] }),
@@ -1170,22 +1252,25 @@ export async function consumeRuntimeInvalidations(
     { meta: clientMeta, signal },
   );
   onOpen();
-	let sequence = 0;
-	for await (const frame of stream) {
-		if (frame.event.sequence !== sequence + 1) {
-			onEvent({
-				type: "resync",
-				sequence: frame.event.sequence,
-				topics: [...runtimeInvalidationTopics],
-				...(watch === undefined ? {} : { watchIds: [watch.id] }),
-			});
-		}
-		sequence = frame.event.sequence;
-		onEvent(frame.event);
-	}
+  let sequence = 0;
+  for await (const frame of stream) {
+    if (frame.event.sequence !== sequence + 1) {
+      onEvent({
+        type: "resync",
+        sequence: frame.event.sequence,
+        topics: [...runtimeInvalidationTopics],
+        ...(watch === undefined ? {} : { watchIds: [watch.id] }),
+      });
+    }
+    sequence = frame.event.sequence;
+    onEvent(frame.event);
+  }
 }
 
-function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+function abortableDelay(
+  milliseconds: number,
+  signal: AbortSignal,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       reject(signal.reason);

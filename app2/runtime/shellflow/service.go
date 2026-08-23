@@ -40,21 +40,21 @@ type Service struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu      sync.Mutex
-	jobs    map[string]*job
-	nextID  uint64
-	closed  bool
-	tasks   sync.WaitGroup
-	once    sync.Once
+	mu     sync.Mutex
+	jobs   map[string]*job
+	nextID uint64
+	closed bool
+	tasks  sync.WaitGroup
+	once   sync.Once
 }
 
 type job struct {
-	id      string
+	id        string
 	sessionID string
-	cancel  context.CancelFunc
-	cmd     *exec.Cmd
-	done    chan struct{}
-	started time.Time
+	cancel    context.CancelFunc
+	cmd       *exec.Cmd
+	done      chan struct{}
+	started   time.Time
 
 	mu       sync.Mutex
 	buffer   []byte

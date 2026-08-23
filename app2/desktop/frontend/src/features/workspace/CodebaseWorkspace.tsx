@@ -8,10 +8,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import {
   getCodebaseStatus,
   reindexCodebase,
@@ -73,12 +70,7 @@ export function CodebaseWorkspace(props: CodebaseWorkspaceProps) {
       props.query,
     ),
     queryFn: ({ signal }) =>
-      searchCodebase(
-        props.connection,
-        props.workspace,
-        props.query,
-        signal,
-      ),
+      searchCodebase(props.connection, props.workspace, props.query, signal),
     enabled: status.data?.state === "ready" && props.query !== "",
     retry: 1,
   });
@@ -221,7 +213,11 @@ function IndexLifecycleState(props: {
       <CodebaseState
         title={t("codebase.lastBuildFailed")}
         detail={t("codebase.lastBuildFailedDetail")}
-        action={props.mutationPending ? t("codebase.starting") : t("codebase.buildAgain")}
+        action={
+          props.mutationPending
+            ? t("codebase.starting")
+            : t("codebase.buildAgain")
+        }
         disabled={props.mutationPending}
         onAction={props.onReindex}
       />
@@ -231,7 +227,11 @@ function IndexLifecycleState(props: {
     <CodebaseState
       title={t("codebase.semanticTitle")}
       detail={t("codebase.semanticDetail")}
-      action={props.mutationPending ? t("codebase.starting") : t("codebase.buildIndex")}
+      action={
+        props.mutationPending
+          ? t("codebase.starting")
+          : t("codebase.buildIndex")
+      }
       disabled={props.mutationPending}
       onAction={props.onReindex}
     />
@@ -311,7 +311,11 @@ function CodebaseState(props: {
       <strong>{props.title}</strong>
       {props.detail ? <p>{props.detail}</p> : null}
       {props.action && props.onAction ? (
-        <button type="button" disabled={props.disabled} onClick={props.onAction}>
+        <button
+          type="button"
+          disabled={props.disabled}
+          onClick={props.onAction}
+        >
           {props.action}
         </button>
       ) : null}
@@ -334,10 +338,7 @@ function statusLabel(state: CodebaseStatus["state"], t: Translate) {
 
 function formatIndexedAt(
   value: string,
-  formatDateTime: (
-    value: Date,
-    options?: Intl.DateTimeFormatOptions,
-  ) => string,
+  formatDateTime: (value: Date, options?: Intl.DateTimeFormatOptions) => string,
 ) {
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp)

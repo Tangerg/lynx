@@ -334,21 +334,37 @@ func scanScheduleOccurrence(scan func(...any) error) (schedule.Occurrence, error
 	state.Schedule.Enabled = enabled == 1
 	var err error
 	state.Schedule.LastRunAt, err = decodeScheduleTime(scheduleLastRunAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	state.Schedule.NextRunAt, err = decodeScheduleTime(scheduleNextRunAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	state.Schedule.CreatedAt, err = decodeTime(scheduleCreatedAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	state.Schedule.UpdatedAt, err = decodeTime(scheduleUpdatedAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	state.DueAt, err = decodeTime(dueAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	state.FiredAt, err = decodeTime(firedAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	state.NextRunAt, err = decodeTime(nextRunAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	state.AcceptedAt, err = decodeScheduleTime(acceptedAt)
-	if err != nil { return schedule.Occurrence{}, err }
+	if err != nil {
+		return schedule.Occurrence{}, err
+	}
 	return schedule.RehydrateOccurrence(state)
 }
 

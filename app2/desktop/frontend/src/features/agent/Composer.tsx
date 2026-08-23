@@ -9,20 +9,14 @@ import {
   type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
-	type ReactNode,
+  type ReactNode,
 } from "react";
 
 import type { ContentBlock, Recipe, RunRef } from "@lyra/runtime-contract";
 
-import {
-	useLocalization,
-	type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import { RecipeSuggestions } from "./RecipeSuggestions";
-import {
-  expandRecipeInvocation,
-  slashRecipeQuery,
-} from "./recipeInvocation";
+import { expandRecipeInvocation, slashRecipeQuery } from "./recipeInvocation";
 
 const maxAttachments = 6;
 const maxImageBytes = 10 * 1024 * 1024;
@@ -50,8 +44,8 @@ interface ComposerProps {
   recipes: Recipe[];
   pending: boolean;
   error?: string;
-	attachmentPolicy: "text-only" | "multimodal";
-	children?: ReactNode;
+  attachmentPolicy: "text-only" | "multimodal";
+  children?: ReactNode;
   onChange(update: (draft: ComposerDraft) => ComposerDraft): void;
   onSend(input: ContentBlock[], idempotencyKey: string): Promise<void>;
   onStop(): Promise<void>;
@@ -99,11 +93,11 @@ export function Composer(props: ComposerProps) {
     ...props.draft,
     text: expandRecipeInvocation(props.draft.text, props.recipes),
   });
-	const imageBlocked =
-		props.attachmentPolicy === "text-only" &&
-		props.draft.attachments.some((attachment) => attachment.kind === "image");
+  const imageBlocked =
+    props.attachmentPolicy === "text-only" &&
+    props.draft.attachments.some((attachment) => attachment.kind === "image");
   const canSend =
-		sendInput.length > 0 && !props.pending && !waiting && !imageBlocked;
+    sendInput.length > 0 && !props.pending && !waiting && !imageBlocked;
 
   useEffect(() => setRecipeIndex(0), [recipeQuery, recipeSuggestions.length]);
 
@@ -118,7 +112,7 @@ export function Composer(props: ComposerProps) {
   }, [props.draft.text, resizeComposer]);
   useEffect(() => {
     const element = textarea.current;
-    const container = element?.parentElement;
+    const container = element?.parentElement ?? null;
     if (
       element === null ||
       element === undefined ||
@@ -150,7 +144,8 @@ export function Composer(props: ComposerProps) {
     try {
       await props.onSend(sendInput, sendIntent.key);
       props.onChange((current) => {
-        const unchanged = JSON.stringify(inputBlocks(current)) === rawFingerprint;
+        const unchanged =
+          JSON.stringify(inputBlocks(current)) === rawFingerprint;
         const history =
           submittedText === ""
             ? current.history
@@ -173,7 +168,8 @@ export function Composer(props: ComposerProps) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)
+      return;
     if (recipesOpen) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -236,14 +232,14 @@ export function Composer(props: ComposerProps) {
     setAttachmentError(undefined);
     try {
       const remaining = maxAttachments - props.draft.attachments.length;
-		if (remaining <= 0) {
-			throw new Error(t("composer.removeAttachmentFirst"));
-		}
-			const additions = await Promise.all(
-				files
-					.slice(0, remaining)
-					.map((file) => readAttachment(file, props.attachmentPolicy, t)),
-			);
+      if (remaining <= 0) {
+        throw new Error(t("composer.removeAttachmentFirst"));
+      }
+      const additions = await Promise.all(
+        files
+          .slice(0, remaining)
+          .map((file) => readAttachment(file, props.attachmentPolicy, t)),
+      );
       props.onChange((current) => ({
         ...current,
         attachments: [...current.attachments, ...additions].slice(
@@ -253,8 +249,8 @@ export function Composer(props: ComposerProps) {
       }));
       if (files.length > remaining) {
         setAttachmentError(
-			t("composer.attachmentLimit", { count: maxAttachments }),
-		);
+          t("composer.attachmentLimit", { count: maxAttachments }),
+        );
       }
     } catch (error) {
       setAttachmentError(messageOf(error, t("composer.attachmentReadFailed")));
@@ -286,22 +282,22 @@ export function Composer(props: ComposerProps) {
       ) : null}
       {props.draft.attachments.length > 0 ? (
         <div
-		  className="composer-attachments"
-		  aria-label={t("composer.attachments")}
-		>
+          className="composer-attachments"
+          aria-label={t("composer.attachments")}
+        >
           {props.draft.attachments.map((attachment) => (
             <span key={attachment.id}>
               <b>
-				{attachment.kind === "image"
-				  ? t("composer.image")
-				  : t("composer.file")}
-			  </b>
+                {attachment.kind === "image"
+                  ? t("composer.image")
+                  : t("composer.file")}
+              </b>
               <span>{attachment.name}</span>
               <button
                 type="button"
                 aria-label={t("composer.removeAttachment", {
-				  name: attachment.name,
-				})}
+                  name: attachment.name,
+                })}
                 onClick={() =>
                   props.onChange((current) => ({
                     ...current,
@@ -359,7 +355,7 @@ export function Composer(props: ComposerProps) {
             className="sr-only"
             type="file"
             multiple
-			accept={`${props.attachmentPolicy === "multimodal" ? "image/*," : ""}.txt,.md,.go,.ts,.tsx,.js,.jsx,.json,.yaml,.yml,.toml,.css,.html,.sh,.py,.rs`}
+            accept={`${props.attachmentPolicy === "multimodal" ? "image/*," : ""}.txt,.md,.go,.ts,.tsx,.js,.jsx,.json,.yaml,.yml,.toml,.css,.html,.sh,.py,.rs`}
             onChange={chooseFiles}
           />
           <button
@@ -371,7 +367,7 @@ export function Composer(props: ComposerProps) {
             <span aria-hidden="true">＋</span>
             {t("composer.attach")}
           </button>
-			{props.children}
+          {props.children}
           <span className="composer-hint">{t("composer.keyboardHint")}</span>
         </div>
         <div className="composer-actions">
@@ -388,24 +384,28 @@ export function Composer(props: ComposerProps) {
           ) : null}
           <button className="send-action" type="submit" disabled={!canSend}>
             {props.pending
-			  ? t("composer.sending")
-			  : running
-				? t("composer.steer")
-				: t("composer.send")}
+              ? t("composer.sending")
+              : running
+                ? t("composer.steer")
+                : t("composer.send")}
             <span aria-hidden="true">↑</span>
           </button>
         </div>
       </footer>
       {attachmentError ? (
-        <p className="composer-error" role="alert">{attachmentError}</p>
+        <p className="composer-error" role="alert">
+          {attachmentError}
+        </p>
       ) : null}
-		{imageBlocked ? (
-			<p className="composer-error" role="alert">
-				{t("composer.imagesUnsupported")}
-			</p>
-		) : null}
+      {imageBlocked ? (
+        <p className="composer-error" role="alert">
+          {t("composer.imagesUnsupported")}
+        </p>
+      ) : null}
       {props.error ? (
-        <p className="composer-error" role="alert">{props.error}</p>
+        <p className="composer-error" role="alert">
+          {props.error}
+        </p>
       ) : null}
     </form>
   );
@@ -417,7 +417,11 @@ function inputBlocks(draft: ComposerDraft): ContentBlock[] {
   if (text !== "") blocks.push({ type: "text", text });
   for (const attachment of draft.attachments) {
     if (attachment.kind === "image") {
-      blocks.push({ type: "image", mime: attachment.mime, data: attachment.data });
+      blocks.push({
+        type: "image",
+        mime: attachment.mime,
+        data: attachment.data,
+      });
     } else {
       blocks.push({
         type: "text",
@@ -429,14 +433,14 @@ function inputBlocks(draft: ComposerDraft): ContentBlock[] {
 }
 
 async function readAttachment(
-	file: File,
-	policy: "text-only" | "multimodal",
-	t: Translate,
+  file: File,
+  policy: "text-only" | "multimodal",
+  t: Translate,
 ): Promise<ComposerAttachment> {
   if (file.type.startsWith("image/")) {
-		if (policy !== "multimodal") {
-			throw new Error(t("composer.chooseImageModel"));
-		}
+    if (policy !== "multimodal") {
+      throw new Error(t("composer.chooseImageModel"));
+    }
     if (file.size > maxImageBytes) {
       throw new Error(t("composer.imageTooLarge", { name: file.name }));
     }

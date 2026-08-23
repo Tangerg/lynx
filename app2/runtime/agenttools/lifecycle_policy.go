@@ -24,13 +24,13 @@ const lifecycleApprovalStateKind = "lyra.lifecycle.approval/v1"
 
 type lifecyclePolicyTool struct {
 	toolcontract.Tool
-	hooks            LifecycleHooks
-	policy           ApprovalPolicy
-	scope            agentexec.ToolScope
-	safety           protocol.SafetyClass
-	paths            mutationPaths
-	autoApproved     bool
-	intrinsicInput   bool
+	hooks          LifecycleHooks
+	policy         ApprovalPolicy
+	scope          agentexec.ToolScope
+	safety         protocol.SafetyClass
+	paths          mutationPaths
+	autoApproved   bool
+	intrinsicInput bool
 }
 
 func (tool *lifecyclePolicyTool) Unwrap() toolcontract.Tool { return tool.Tool }
@@ -161,7 +161,7 @@ func (tool *lifecyclePolicyTool) resumeApproval(
 			return "", errors.New("agenttools: lifecycle approval cannot be remembered")
 		}
 		remember := approvalpolicy.Remember{
-			Scope: rememberScope(response.Remember.Scope),
+			Scope:     rememberScope(response.Remember.Scope),
 			SessionID: tool.scope.SessionID, ProjectDir: tool.scope.Workspace,
 			Tool: invocation.ToolCall().Name, Subject: state.Subject,
 			Decision: approvalDecision(response.Decision),
@@ -237,7 +237,7 @@ func (tool *lifecyclePolicyTool) before(
 		)
 	}
 	return tool.hooks.Evaluate(ctx, lifecyclehook.Invocation{
-		Event: lifecyclehook.PreToolUse,
+		Event:     lifecyclehook.PreToolUse,
 		SessionID: tool.scope.SessionID, RunID: tool.scope.RunID,
 		Workspace: tool.scope.Workspace,
 		Tool: &lifecyclehook.ToolInput{
@@ -274,9 +274,9 @@ func (tool *lifecyclePolicyTool) requireApproval(
 		return err
 	}
 	state, err := json.Marshal(lifecycleApprovalState{
-		Kind: lifecycleApprovalStateKind,
-		Arguments: arguments,
-		Subject: subject,
+		Kind:         lifecycleApprovalStateKind,
+		Arguments:    arguments,
+		Subject:      subject,
 		Rememberable: rememberable,
 	})
 	if err != nil {
@@ -308,7 +308,7 @@ func (tool *lifecyclePolicyTool) callAndEnrich(
 		errorText, _ = boundedLifecycleText(callErr.Error(), lifecyclehook.MaxReasonBytes)
 	}
 	post := tool.hooks.EvaluateBestEffort(ctx, lifecyclehook.Invocation{
-		Event: lifecyclehook.PostToolUse,
+		Event:     lifecyclehook.PostToolUse,
 		SessionID: tool.scope.SessionID, RunID: tool.scope.RunID,
 		Workspace: tool.scope.Workspace,
 		Tool: &lifecyclehook.ToolInput{

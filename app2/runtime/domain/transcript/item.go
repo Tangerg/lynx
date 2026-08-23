@@ -20,8 +20,8 @@ const (
 )
 
 type Scope struct {
-	SessionID         string
-	RunID             string
+	SessionID          string
+	RunID              string
 	IncludeDescendants bool
 }
 

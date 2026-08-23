@@ -252,7 +252,7 @@ export class LyraClient {
 	const remote = endpoint.protocol === "https:" && endpoint.hostname !== "";
 	if ((!local && !remote) || endpoint.username !== "" || endpoint.password !== "") {
 	  throw new TypeError("Runtime endpoint must be loopback HTTP or authenticated HTTPS");
-	}
+    }
 	if (endpoint.pathname !== "/" || endpoint.search !== "" || endpoint.hash !== "") {
 	  throw new TypeError("Runtime endpoint must be an origin-only URL");
     }

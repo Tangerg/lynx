@@ -147,10 +147,10 @@ func New(config Config) (*Bus, error) {
 		directory = filepath.Clean(physical)
 	}
 	return &Bus{
-		subscribers: make(map[uint64]*subscriber),
+		subscribers:         make(map[uint64]*subscriber),
 		userSkillsDirectory: directory,
-		knowledgeFiles: config.KnowledgeFiles,
-		hookFiles: config.HookFiles,
+		knowledgeFiles:      config.KnowledgeFiles,
+		hookFiles:           config.HookFiles,
 	}, nil
 }
 

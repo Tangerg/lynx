@@ -32,8 +32,16 @@ interface LocaleDefinition {
 
 export const localeDefinitions = {
   en: { nativeName: "English", direction: "ltr", messages: englishMessages },
-  "zh-CN": { nativeName: "简体中文", direction: "ltr", messages: simplifiedChineseMessages },
-  "zh-TW": { nativeName: "繁體中文", direction: "ltr", messages: traditionalChineseMessages },
+  "zh-CN": {
+    nativeName: "简体中文",
+    direction: "ltr",
+    messages: simplifiedChineseMessages,
+  },
+  "zh-TW": {
+    nativeName: "繁體中文",
+    direction: "ltr",
+    messages: traditionalChineseMessages,
+  },
   ja: { nativeName: "日本語", direction: "ltr", messages: japaneseMessages },
   ko: { nativeName: "한국어", direction: "ltr", messages: koreanMessages },
   es: { nativeName: "Español", direction: "ltr", messages: spanishMessages },
@@ -49,17 +57,28 @@ export const localeOptions = localeIDs.map((id) => ({
 }));
 
 export function isLocale(value: unknown): value is Locale {
-  return typeof value === "string" && localeIDs.some((locale) => locale === value);
+  return (
+    typeof value === "string" && localeIDs.some((locale) => locale === value)
+  );
 }
 
 export function detectLocale(languages: readonly string[]): Locale {
   for (const language of languages) {
     const normalized = language.toLowerCase();
-    if (normalized === "zh-tw" || normalized === "zh-hk" || normalized === "zh-mo" || normalized.startsWith("zh-hant")) {
+    if (
+      normalized === "zh-tw" ||
+      normalized === "zh-hk" ||
+      normalized === "zh-mo" ||
+      normalized.startsWith("zh-hant")
+    ) {
       return "zh-TW";
     }
     if (normalized === "zh" || normalized.startsWith("zh-")) return "zh-CN";
-    const direct = localeIDs.find((locale) => normalized === locale.toLowerCase() || normalized.startsWith(`${locale.toLowerCase()}-`));
+    const direct = localeIDs.find(
+      (locale) =>
+        normalized === locale.toLowerCase() ||
+        normalized.startsWith(`${locale.toLowerCase()}-`),
+    );
     if (direct !== undefined) return direct;
   }
   return "en";

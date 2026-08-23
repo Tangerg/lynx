@@ -10,10 +10,10 @@ import (
 // These limits are part of the app2 composition, not knobs. Publishing fixed
 // bounds lets a client choose a recovery strategy before it loses a frame.
 const (
-	DefaultReplayEvents  = 2048
-	DefaultReplayBytes   = 16 << 20
+	DefaultReplayEvents   = 2048
+	DefaultReplayBytes    = 16 << 20
 	DefaultIdempotencyTTL = 86_400
-	DefaultMCPAttemptTTL = 600
+	DefaultMCPAttemptTTL  = 600
 )
 
 // Validator is the small delivery-boundary protocol shared by generated wire

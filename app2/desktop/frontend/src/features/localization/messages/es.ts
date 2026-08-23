@@ -9,17 +9,27 @@ export const spanishMessages = {
   "app.useLocalRuntime": "Usar Runtime local",
   "app.switchingRuntime": "Cambiando…",
   "app.unknownStartupError": "Un error desconocido interrumpió el inicio.",
-  "runtimeError.invalidRuntimeBootstrap": "Desktop devolvió un arranque Runtime no válido.",
-  "runtimeError.unsafeRuntimeEndpoint": "Desktop devolvió un punto final Runtime inseguro.",
+  "runtimeError.invalidRuntimeBootstrap":
+    "Desktop devolvió un arranque Runtime no válido.",
+  "runtimeError.unsafeRuntimeEndpoint":
+    "Desktop devolvió un punto final Runtime inseguro.",
   "runtimeError.hostUnavailable": "Lyra Desktop el host no está disponible.",
-  "runtimeError.invalidBootstrapEnvelope": "Desktop devolvió un sobre de arranque no válido.",
-  "runtimeError.invalidRemoteRuntimeState": "Desktop devolvió un estado remoto Runtime no válido.",
-  "runtimeError.inconsistentRemoteRuntimeState": "Desktop devolvió un estado remoto Runtime incoherente.",
-  "runtimeError.invalidDirectorySelection": "Desktop devolvió una selección de directorio no válida.",
-  "runtimeError.invalidImageSaveResult": "Desktop devolvió un resultado de guardado de imagen no válido.",
-  "runtimeError.invalidSessionArtifactSelection": "Desktop devolvió una selección de artefacto de sesión no válida.",
-  "runtimeError.invalidSessionExportResult": "Desktop devolvió un resultado de exportación de sesión no válido.",
-  "runtimeError.identityChanged": "Runtime la identidad cambió durante el descubrimiento.",
+  "runtimeError.invalidBootstrapEnvelope":
+    "Desktop devolvió un sobre de arranque no válido.",
+  "runtimeError.invalidRemoteRuntimeState":
+    "Desktop devolvió un estado remoto Runtime no válido.",
+  "runtimeError.inconsistentRemoteRuntimeState":
+    "Desktop devolvió un estado remoto Runtime incoherente.",
+  "runtimeError.invalidDirectorySelection":
+    "Desktop devolvió una selección de directorio no válida.",
+  "runtimeError.invalidImageSaveResult":
+    "Desktop devolvió un resultado de guardado de imagen no válido.",
+  "runtimeError.invalidSessionArtifactSelection":
+    "Desktop devolvió una selección de artefacto de sesión no válida.",
+  "runtimeError.invalidSessionExportResult":
+    "Desktop devolvió un resultado de exportación de sesión no válido.",
+  "runtimeError.identityChanged":
+    "Runtime la identidad cambió durante el descubrimiento.",
   "approval.title": "Aprobación",
   "approval.toolExecution": "Ejecución de herramienta",
   "approval.risk": "{risk} riesgo",
@@ -37,48 +47,62 @@ export const spanishMessages = {
   "approval.rememberSession": "Esta sesión",
   "approval.rememberProject": "Este proyecto",
   "approval.rememberGlobal": "En todas partes",
-  "approval.decisionRequired": "Elija Aprobar o Denegar para cada solicitud de aprobación.",
-  "approval.argumentsInvalidJSON": "Los argumentos de la herramienta editados deben ser válidos JSON.",
-  "approval.argumentsNotObject": "Los argumentos de la herramienta editados deben ser un objeto JSON.",
+  "approval.decisionRequired":
+    "Elija Aprobar o Denegar para cada solicitud de aprobación.",
+  "approval.argumentsInvalidJSON":
+    "Los argumentos de la herramienta editados deben ser válidos JSON.",
+  "approval.argumentsNotObject":
+    "Los argumentos de la herramienta editados deben ser un objeto JSON.",
   "question.title": "Pregunta",
   "question.inputForLyra": "Entrada para Lyra",
-  "question.fieldsMissing": "El Runtime no proporcionó los campos de preguntas.",
+  "question.fieldsMissing":
+    "El Runtime no proporcionó los campos de preguntas.",
   "question.answerPlaceholder": "Escribe tu respuesta",
   "question.unsupportedField": "Tipo de campo de pregunta no admitido: {type}",
   "question.customAnswer": "Respuesta personalizada",
   "question.customAnswerPlaceholder": "Escribe otra respuesta",
   "question.incomplete": "El Runtime no proporcionó una pregunta completa.",
   "question.answerBeforeContinue": "Responda “{prompt}” antes de continuar.",
-  "question.chooseBeforeContinue": "Elija una respuesta para “{prompt}” antes de continuar.",
-  "question.chooseOne": "Elija una respuesta para \"{prompt}\".",
+  "question.chooseBeforeContinue":
+    "Elija una respuesta para “{prompt}” antes de continuar.",
+  "question.chooseOne": 'Elija una respuesta para "{prompt}".',
   "interrupt.actionRequired": "Acción requerida",
   "interrupt.waitingForYou": "Lyra te está esperando",
   "interrupt.requestCountOne": "{count} solicitud",
   "interrupt.requestCountMany": "{count} solicitudes",
-  "interrupt.intro": "Revise cada solicitud a continuación. El conjunto completo se compromete en conjunto antes de que continúe esta ejecución.",
-  "interrupt.atomicNote": "Las respuestas se aplican atómicamente a esta ejecución de espera.",
+  "interrupt.intro":
+    "Revise cada solicitud a continuación. El conjunto completo se compromete en conjunto antes de que continúe esta ejecución.",
+  "interrupt.atomicNote":
+    "Las respuestas se aplican atómicamente a esta ejecución de espera.",
   "interrupt.continuing": "Continuando…",
   "interrupt.submitAll": "Enviar todo y continuar",
   "interrupt.unsupported": "Este Runtime solicitó una interacción no admitida.",
   "interrupt.resumeFailed": "No se pudo reanudar la ejecución.",
-  "composer.removeAttachmentFirst": "Eliminar un archivo adjunto antes de agregar otro.",
-  "composer.attachmentLimit": "Solo se pueden enviar {count} archivos adjuntos a la vez.",
+  "composer.removeAttachmentFirst":
+    "Eliminar un archivo adjunto antes de agregar otro.",
+  "composer.attachmentLimit":
+    "Solo se pueden enviar {count} archivos adjuntos a la vez.",
   "composer.attachments": "Adjuntos",
   "composer.image": "Imagen",
   "composer.file": "Archivo",
   "composer.removeAttachment": "Eliminar {name}",
   "composer.messageLyra": "Mensaje Lyra",
-  "composer.waitingPlaceholder": "Esta ejecución está esperando su respuesta...",
-  "composer.runningPlaceholder": "Agregue orientación mientras Lyra funciona...",
+  "composer.waitingPlaceholder":
+    "Esta ejecución está esperando su respuesta...",
+  "composer.runningPlaceholder":
+    "Agregue orientación mientras Lyra funciona...",
   "composer.readyPlaceholder": "Describe lo que quieres lograr...",
   "composer.attach": "Adjuntar",
-  "composer.keyboardHint": "Intro para enviar · Mayús+Intro para salto de línea",
+  "composer.keyboardHint":
+    "Intro para enviar · Mayús+Intro para salto de línea",
   "composer.stop": "Detener",
   "composer.sending": "Enviando…",
   "composer.steer": "Dirección",
   "composer.send": "Enviar",
-  "composer.imagesUnsupported": "El modelo seleccionado no acepta imágenes. Elimínelos o elija un modelo multimodal.",
-  "composer.chooseImageModel": "Elija un modelo con entrada de imagen antes de adjuntar imágenes.",
+  "composer.imagesUnsupported":
+    "El modelo seleccionado no acepta imágenes. Elimínelos o elija un modelo multimodal.",
+  "composer.chooseImageModel":
+    "Elija un modelo con entrada de imagen antes de adjuntar imágenes.",
   "composer.imageTooLarge": "{name} tiene más de 10 MB.",
   "composer.fileTooLarge": "{name} tiene más de 1 MB.",
   "composer.attachmentReadFailed": "No se pudo leer el archivo adjunto.",
@@ -97,11 +121,14 @@ export const spanishMessages = {
   "narrative.loadOlder": "Cargar más antiguo",
   "narrative.jumpToLatest": "Ir a lo más reciente",
   "narrative.latestActivityBelow": "La actividad más reciente está abajo",
-  "narrative.streamPaused": "Actualizaciones en vivo pausadas: {detail}. Se está recargando material duradero.",
+  "narrative.streamPaused":
+    "Actualizaciones en vivo pausadas: {detail}. Se está recargando material duradero.",
   "narrative.ready": "Listo",
   "narrative.untitledSession": "Sesión sin título",
-  "narrative.welcome": "Describe el trabajo a continuación. Lyra mantendrá la conversación, los hechos de ejecución y el estado de recuperación adjuntos a este espacio de trabajo.",
-  "narrative.orphanDelegation": "La delegación principal no está disponible en esta instantánea.",
+  "narrative.welcome":
+    "Describe el trabajo a continuación. Lyra mantendrá la conversación, los hechos de ejecución y el estado de recuperación adjuntos a este espacio de trabajo.",
+  "narrative.orphanDelegation":
+    "La delegación principal no está disponible en esta instantánea.",
   "narrative.you": "Tú",
   "narrative.answer": "Responder",
   "narrative.lyra": "Lyra",
@@ -112,7 +139,8 @@ export const spanishMessages = {
   "narrative.inputNeeded": "Se necesita entrada",
   "narrative.contextCompacted": "Contexto compactado",
   "narrative.messagesCondensed": "{count} mensajes condensados",
-  "narrative.delegationCycle": "El linaje de ejecución delegado contiene un ciclo en {id}.",
+  "narrative.delegationCycle":
+    "El linaje de ejecución delegado contiene un ciclo en {id}.",
   "narrative.delegatedRunLabel": "Ejecución delegada {id}",
   "narrative.delegatedRun": "Ejecución delegada",
   "narrative.canceling": "Cancelando…",
@@ -127,15 +155,21 @@ export const spanishMessages = {
   "narrative.helpful": "Útil",
   "narrative.needsWork": "Necesita trabajo",
   "narrative.delegated": "Delegada",
-  "narrative.historyActionFailed": "Error en la acción del historial de sesiones.",
-  "narrative.streamClosedEarly": "Runtime cerró la transmisión en vivo antes de que terminara el segmento.",
+  "narrative.historyActionFailed":
+    "Error en la acción del historial de sesiones.",
+  "narrative.streamClosedEarly":
+    "Runtime cerró la transmisión en vivo antes de que terminara el segmento.",
   "narrative.streamInterrupted": "Runtime transmisión interrumpida.",
-  "narrative.waitingForResponse": "Esta ejecución está esperando una respuesta antes de poder continuar.",
-  "narrative.activeSegmentMissing": "La ejecución activa no tiene ningún segmento actual.",
+  "narrative.waitingForResponse":
+    "Esta ejecución está esperando una respuesta antes de poder continuar.",
+  "narrative.activeSegmentMissing":
+    "La ejecución activa no tiene ningún segmento actual.",
   "narrative.actionFailed": "No se pudo completar la acción de ejecución.",
   "narrative.noSessionMounted": "No se ha montado ninguna sesión.",
-  "narrative.interruptSessionMismatch": "Esta interrupción pertenece a una sesión diferente.",
-  "narrative.interruptResponsesIncomplete": "Las respuestas deben cubrir el conjunto completo de interrupciones.",
+  "narrative.interruptSessionMismatch":
+    "Esta interrupción pertenece a una sesión diferente.",
+  "narrative.interruptResponsesIncomplete":
+    "Las respuestas deben cubrir el conjunto completo de interrupciones.",
   "narrative.actionInProgress": "Ya hay otra acción de ejecución en curso.",
   "narrative.olderHistoryFailed": "No se pudo cargar el historial anterior.",
   "narrative.forkHere": "Bifurcación aquí",
@@ -233,10 +267,12 @@ export const spanishMessages = {
   "model.chooseStored": "Elija el modelo almacenado en esta sesión",
   "model.choose": "Elegir modelo",
   "model.sessionModel": "Modelo de sesión",
-  "model.explicitPair": "Almacenado como un par explícito de proveedor y modelo.",
+  "model.explicitPair":
+    "Almacenado como un par explícito de proveedor y modelo.",
   "model.closePicker": "Cerrar selector de modelo",
   "model.loadingProviders": "Cargando proveedores configurados…",
-  "model.noProvider": "No hay ningún proveedor configurado. Abra Configuración primero.",
+  "model.noProvider":
+    "No hay ningún proveedor configurado. Abra Configuración primero.",
   "model.configuredProviders": "Proveedores configurados",
   "model.loadingModels": "Cargando modelos…",
   "model.noModels": "Este proveedor no devolvió ningún modelo.",
@@ -255,7 +291,8 @@ export const spanishMessages = {
   "activity.terminal": "Terminal",
   "activity.summary": "Resumen",
   "activity.noTimeline": "Aún no hay cronograma de ejecución",
-  "activity.noTimelineDetail": "El ciclo de vida de ejecución y los datos de la herramienta aparecerán aquí después de que Lyra comience a funcionar.",
+  "activity.noTimelineDetail":
+    "El ciclo de vida de ejecución y los datos de la herramienta aparecerán aquí después de que Lyra comience a funcionar.",
   "activity.latestRunTree": "Último árbol de ejecución",
   "activity.earlierRunTree": "Árbol de ejecución anterior",
   "activity.runCountOne": "{count} ejecución",
@@ -271,7 +308,8 @@ export const spanishMessages = {
   "activity.canceling": "Cancelando…",
   "activity.cancel": "Cancelar",
   "activity.noCommands": "Sin comandos aún",
-  "activity.noCommandsDetail": "Las llamadas a la herramienta Shell aparecerán aquí como un registro de ejecución de solo lectura.",
+  "activity.noCommandsDetail":
+    "Las llamadas a la herramienta Shell aparecerán aquí como un registro de ejecución de solo lectura.",
   "activity.commandCountOne": "{count} comando",
   "activity.commandCountMany": "{count} comandos",
   "activity.followingOutput": "Siguiendo la salida",
@@ -280,14 +318,18 @@ export const spanishMessages = {
   "activity.running": "corriendo",
   "activity.commandNumber": "Comando {number}",
   "activity.killed": "asesinado",
-  "activity.liveOutputTruncated": "La salida en vivo anterior se eliminó para mantener esta vista previa limitada.",
+  "activity.liveOutputTruncated":
+    "La salida en vivo anterior se eliminó para mantener esta vista previa limitada.",
   "activity.waitingCommandOutput": "Esperando la salida del comando...",
-  "activity.noCapturedOutput": "El comando no produjo ningún resultado capturado.",
+  "activity.noCapturedOutput":
+    "El comando no produjo ningún resultado capturado.",
   "activity.noSummary": "Aún no hay resumen de ejecución",
-  "activity.noSummaryDetail": "La última ejecución raíz y su árbol delegado se resumirán aquí.",
+  "activity.noSummaryDetail":
+    "La última ejecución raíz y su árbol delegado se resumirán aquí.",
   "activity.copied": "Copiado",
   "activity.copySummary": "Copiar resumen",
-  "activity.clipboardUnavailable": "El portapapeles del sistema no está disponible. No se copió nada.",
+  "activity.clipboardUnavailable":
+    "El portapapeles del sistema no está disponible. No se copió nada.",
   "activity.changedFiles": "Archivos modificados",
   "activity.noChangedFiles": "No se registraron cambios en el archivo.",
   "activity.readFiles": "Archivos leídos",
@@ -308,7 +350,8 @@ export const spanishMessages = {
   "activity.omitted": "Y {count} más acotados desde esta vista.",
   "activity.commandUnavailable": "Comando no disponible",
   "activity.lineageCycle": "El linaje de ejecución contiene un ciclo en {id}.",
-  "activity.parentUnavailable": "La ejecución principal {id} no está disponible.",
+  "activity.parentUnavailable":
+    "La ejecución principal {id} no está disponible.",
   "activity.unknownPath": "Ruta desconocida",
   "activity.change.created": "creado",
   "activity.change.deleted": "eliminado",
@@ -327,8 +370,9 @@ export const spanishMessages = {
   "session.clearSearch": "Borrar búsqueda de sesión",
   "session.shownOne": "{count} sesión mostrada",
   "session.shownMany": "{count} sesiones mostradas",
-  "session.refreshFailed": "Mostrando sesiones guardadas. Error de actualización: {detail}",
-  "session.noMatch": "Ninguna sesión coincide con \"{query}\".",
+  "session.refreshFailed":
+    "Mostrando sesiones guardadas. Error de actualización: {detail}",
+  "session.noMatch": 'Ninguna sesión coincide con "{query}".',
   "session.groupedLabel": "Sesiones por espacio de trabajo",
   "session.loadingOlder": "Cargando…",
   "session.loadOlder": "Cargar sesiones anteriores",
@@ -362,10 +406,13 @@ export const spanishMessages = {
   "session.createFailed": "No se pudo crear la sesión.",
   "goal.editObjective": "Editar objetivo autónomo",
   "goal.newObjective": "Nuevo objetivo autónomo",
-  "goal.runtimeOwnership": "El Runtime es propietario de la ejecución, contabilidad y recuperación.",
+  "goal.runtimeOwnership":
+    "El Runtime es propietario de la ejecución, contabilidad y recuperación.",
   "goal.objective": "Objetivo meta",
-  "goal.objectivePlaceholder": "Describe el resultado Lyra debería seguir trabajando para...",
-  "goal.externalChange": "El objetivo Runtime cambió mientras estabas editando. Su borrador se conserva; guardarlo lo reemplazará explícitamente.",
+  "goal.objectivePlaceholder":
+    "Describe el resultado Lyra debería seguir trabajando para...",
+  "goal.externalChange":
+    "El objetivo Runtime cambió mientras estabas editando. Su borrador se conserva; guardarlo lo reemplazará explícitamente.",
   "goal.optionalBudget": "Presupuesto opcional",
   "goal.runs": "Ejecuciones",
   "goal.steps": "Pasos",
@@ -379,9 +426,11 @@ export const spanishMessages = {
   "goal.unlimited": "Ilimitado",
   "goal.unavailable": "Inaccesible",
   "goal.loading": "Cargando",
-  "goal.reading": "Leyendo el objetivo actual de la instantánea de la sesión...",
+  "goal.reading":
+    "Leyendo el objetivo actual de la instantánea de la sesión...",
   "goal.notStarted": "No iniciado",
-  "goal.empty": "Utilice el compositor de objetivos para darle a esta sesión un objetivo duradero.",
+  "goal.empty":
+    "Utilice el compositor de objetivos para darle a esta sesión un objetivo duradero.",
   "goal.budgetUsage": "Uso del presupuesto objetivo",
   "goal.cost": "Costo",
   "goal.pause": "Pausa",
@@ -401,7 +450,8 @@ export const spanishMessages = {
   "goal.reason.runtimeRestarted": "Runtime reiniciado",
   "goal.reason.runStartFailed": "No se pudo iniciar una ejecución",
   "goal.reason.awaitingInput": "Esperando información",
-  "goal.reason.terminalOutcomeMissing": "El resultado de la ejecución no está disponible",
+  "goal.reason.terminalOutcomeMissing":
+    "El resultado de la ejecución no está disponible",
   "goal.reason.runNotCompleted": "La última ejecución no se completó",
   "goal.reason.runBudgetReached": "Se alcanzó el presupuesto de ejecución",
   "goal.reason.costBudgetReached": "Presupuesto de costos alcanzado",
@@ -412,7 +462,8 @@ export const spanishMessages = {
   "plan.loading": "Cargando plan…",
   "plan.currentUnavailable": "El plan actual no está disponible",
   "plan.loadingCurrent": "Cargando plan actual",
-  "plan.progress": "Progreso del plan: {completed} de {total} pasos completos. {summary}",
+  "plan.progress":
+    "Progreso del plan: {completed} de {total} pasos completos. {summary}",
   "plan.title": "Plan",
   "plan.current": "Plan actual",
   "plan.revision": "rev {revision}",
@@ -424,11 +475,16 @@ export const spanishMessages = {
   "plan.status.completed": "Completado",
   "plan.status.inProgress": "En progreso",
   "plan.status.pending": "Pendiente",
-  "shell.invalidArtifact": "El archivo seleccionado no es un artefacto de sesión Lyra válido.",
-  "shell.missingJSONExport": "Runtime no devolvió ningún artefacto de sesión JSON.",
-  "shell.missingMarkdownExport": "Runtime no devolvió ninguna exportación de sesión de Markdown.",
-  "shell.historyBusy": "Aún se está ejecutando otra acción del historial de sesión.",
-  "shell.selectForFeedback": "Seleccione una sesión antes de enviar comentarios.",
+  "shell.invalidArtifact":
+    "El archivo seleccionado no es un artefacto de sesión Lyra válido.",
+  "shell.missingJSONExport":
+    "Runtime no devolvió ningún artefacto de sesión JSON.",
+  "shell.missingMarkdownExport":
+    "Runtime no devolvió ninguna exportación de sesión de Markdown.",
+  "shell.historyBusy":
+    "Aún se está ejecutando otra acción del historial de sesión.",
+  "shell.selectForFeedback":
+    "Seleccione una sesión antes de enviar comentarios.",
   "shell.workIndex": "Índice de trabajo",
   "shell.openSettings": "Abrir configuración",
   "shell.settings": "Ajustes",
@@ -441,11 +497,13 @@ export const spanishMessages = {
   "shell.contextDock": "Muelle de contexto",
   "shell.session": "Sesión",
   "shell.emptyTitle": "Comience con una sesión limpia.",
-  "shell.emptyDetail": "Una sesión vincula los datos de conversación, plan, objetivo y recuperación a una identidad de espacio de trabajo exacta.",
+  "shell.emptyDetail":
+    "Una sesión vincula los datos de conversación, plan, objetivo y recuperación a una identidad de espacio de trabajo exacta.",
   "shell.creating": "Creando…",
   "shell.newSession": "Nueva sesión",
   "shell.mountingSession": "Sesión de montaje",
-  "shell.loadingSnapshot": "Cargando una instantánea Runtime coherente antes de aceptar un nuevo trabajo...",
+  "shell.loadingSnapshot":
+    "Cargando una instantánea Runtime coherente antes de aceptar un nuevo trabajo...",
   "shell.liveUpdates": "Actualizaciones en vivo",
   "shell.reconnecting": "Reconectando",
   "shell.connecting": "Conectando",
@@ -465,7 +523,8 @@ export const spanishMessages = {
   "workspace.title": "Espacio",
   "workspace.session": "Sesión",
   "workspace.unavailable": "Espacio de trabajo no disponible",
-  "workspace.unavailableDetail": "Vuelva a conectar esta sesión a un directorio disponible antes de explorar archivos.",
+  "workspace.unavailableDetail":
+    "Vuelva a conectar esta sesión a un directorio disponible antes de explorar archivos.",
   "workspace.context": "Contexto del espacio de trabajo",
   "workspace.views": "Vistas del espacio de trabajo",
   "workspace.files": "Archivos",
@@ -494,7 +553,8 @@ export const spanishMessages = {
   "workspace.nextLines": "Siguientes líneas",
   "workspace.emptyFile": "Archivo vacío",
   "workspace.linePosition": "{start}–{end} / {total}",
-  "workspace.boundedWindow": "Esta vista está limitada a una ventana de línea exacta.",
+  "workspace.boundedWindow":
+    "Esta vista está limitada a una ventana de línea exacta.",
   "workspace.requestFailed": "La solicitud del espacio de trabajo falló.",
   "resource.workspace": "Recursos del espacio de trabajo",
   "resource.types": "Tipos de recursos",
@@ -510,12 +570,15 @@ export const spanishMessages = {
   "resource.discoveringRecipes": "Descubriendo Recetas…",
   "resource.recipesFailed": "No se pudieron descubrir recetas",
   "resource.noRecipes": "No hay recetas disponibles",
-  "resource.noRecipesDetail": "Agregue una receta de Markdown que se pueda invocar mediante barra diagonal en .lyra/recipes.",
+  "resource.noRecipesDetail":
+    "Agregue una receta de Markdown que se pueda invocar mediante barra diagonal en .lyra/recipes.",
   "resource.viewPrompt": "Ver mensaje",
   "resource.resolvingAgentDocs": "Documentos del agente de resolución...",
-  "resource.agentDocsFailed": "No se pudieron resolver los documentos del agente",
+  "resource.agentDocsFailed":
+    "No se pudieron resolver los documentos del agente",
   "resource.noAgentDocs": "No se aplican documentos de agente",
-  "resource.noAgentDocsDetail": "Agregue AGENTS.md en el inicio, en la raíz del proyecto o debajo del espacio de trabajo seleccionado.",
+  "resource.noAgentDocsDetail":
+    "Agregue AGENTS.md en el inicio, en la raíz del proyecto o debajo del espacio de trabajo seleccionado.",
   "codebase.readingIndex": "Lectura del índice semántico",
   "codebase.indexUnavailable": "El índice semántico no está disponible",
   "codebase.searchLabel": "Búsqueda de base de código semántica",
@@ -529,20 +592,25 @@ export const spanishMessages = {
   "codebase.indexing": "Indexando…",
   "codebase.reindex": "Reindexar",
   "codebase.building": "Construyendo el índice semántico",
-  "codebase.buildingDetail": "El descubrimiento de fuentes, la fragmentación y las incrustaciones se ejecutan en Runtime. Esta vista se actualiza cuando el índice duradero se estabiliza.",
+  "codebase.buildingDetail":
+    "El descubrimiento de fuentes, la fragmentación y las incrustaciones se ejecutan en Runtime. Esta vista se actualiza cuando el índice duradero se estabiliza.",
   "codebase.lastBuildFailed": "La última creación del índice no finalizó",
-  "codebase.lastBuildFailedDetail": "Verifique la configuración del proveedor de incrustación y luego reconstruya el índice. El índice de búsqueda anterior nunca se reemplaza parcialmente.",
+  "codebase.lastBuildFailedDetail":
+    "Verifique la configuración del proveedor de incrustación y luego reconstruya el índice. El índice de búsqueda anterior nunca se reemplaza parcialmente.",
   "codebase.starting": "Empezando…",
   "codebase.buildAgain": "Construir de nuevo",
   "codebase.semanticTitle": "Buscar por significado, no solo por texto",
-  "codebase.semanticDetail": "Cree un índice semántico con ámbito de espacio de trabajo para encontrar pasajes de código relevantes en el espacio de trabajo de sesión actual.",
+  "codebase.semanticDetail":
+    "Cree un índice semántico con ámbito de espacio de trabajo para encontrar pasajes de código relevantes en el espacio de trabajo de sesión actual.",
   "codebase.buildIndex": "Índice de compilación",
   "codebase.readySearch": "Listo para buscar",
-  "codebase.readySearchDetail": "Describe una responsabilidad, comportamiento o concepto en lenguaje sencillo.",
+  "codebase.readySearchDetail":
+    "Describe una responsabilidad, comportamiento o concepto en lenguaje sencillo.",
   "codebase.searchingPassages": "Buscando pasajes de código",
   "codebase.searchFailed": "Error en la búsqueda semántica",
   "codebase.noPassage": "No se encontró ningún pasaje relevante",
-  "codebase.noPassageDetail": "Pruebe con una descripción más amplia o reconstruya después de cambiar los archivos fuente.",
+  "codebase.noPassageDetail":
+    "Pruebe con una descripción más amplia o reconstruya después de cambiar los archivos fuente.",
   "codebase.results": "Resultados de búsqueda semántica",
   "codebase.lineRangeScore": "L{start}–{end} · {score}%",
   "codebase.status.building": "Índice de construcción",
@@ -554,15 +622,20 @@ export const spanishMessages = {
   "review.branchUnavailable": "La comparación de sucursales no está disponible",
   "review.loadFailed": "No se pudo cargar la revisión del espacio de trabajo",
   "review.boundary": "Límite de revisión alcanzado",
-  "review.boundaryDetail": "El primer archivo modificado excede el límite de 100.000 filas. Ábrelo desde Archivos para inspeccionar las ventanas delimitadas.",
+  "review.boundaryDetail":
+    "El primer archivo modificado excede el límite de 100.000 filas. Ábrelo desde Archivos para inspeccionar las ventanas delimitadas.",
   "review.materialUnavailable": "El material diferencial no está disponible",
-  "review.materialUnavailableDetail": "Git informó cambios en las identidades de los archivos, pero no produjo ningún parche revisable.",
+  "review.materialUnavailableDetail":
+    "Git informó cambios en las identidades de los archivos, pero no produjo ningún parche revisable.",
   "review.noBranchChanges": "No hay cambios de sucursal",
   "review.clean": "El espacio de trabajo está limpio",
-  "review.noBranchChangesDetail": "El espacio de trabajo coincide con la base de combinación de la rama predeterminada.",
-  "review.cleanDetail": "Los archivos con y sin seguimiento coinciden con el HEAD actual.",
+  "review.noBranchChangesDetail":
+    "El espacio de trabajo coincide con la base de combinación de la rama predeterminada.",
+  "review.cleanDetail":
+    "Los archivos con y sin seguimiento coinciden con el HEAD actual.",
   "review.label": "Revisión del espacio de trabajo",
-  "review.truncated": "La revisión se detuvo en el límite de 100 000 filas; cada archivo visible está completo.",
+  "review.truncated":
+    "La revisión se detuvo en el límite de 100 000 filas; cada archivo visible está completo.",
   "review.baseline": "Revisar línea base",
   "review.worktree": "Árbol",
   "review.branch": "Rama",
@@ -575,7 +648,8 @@ export const spanishMessages = {
   "review.openFile": "Abrir archivo",
   "review.binary": "binario",
   "review.countsUnavailable": "cuentas no disponibles",
-  "review.binaryNoDiff": "El material binario no tiene diferencias orientadas a líneas.",
+  "review.binaryNoDiff":
+    "El material binario no tiene diferencias orientadas a líneas.",
   "review.noTextRows": "Git no produjo filas de texto para este cambio.",
   "review.changedLines": "Líneas modificadas",
   "review.changedLinesSplit": "Líneas modificadas en diseño dividido",
@@ -584,13 +658,16 @@ export const spanishMessages = {
   "review.partial": "parcial",
   "review.requestFailed": "La solicitud de revisión falló.",
   "knowledge.unavailable": "Conocimiento no disponible",
-  "knowledge.unavailableDetail": "Este Runtime no anuncia la capacidad de conocimiento Lyra.",
+  "knowledge.unavailableDetail":
+    "Este Runtime no anuncia la capacidad de conocimiento Lyra.",
   "knowledge.loading": "Cargando conocimiento…",
   "knowledge.loadFailed": "No se pudo cargar el conocimiento",
   "knowledge.noScopes": "No hay alcances de conocimiento disponibles",
-  "knowledge.noScopesDetail": "Lyra no pudo resolver un alcance de escritura LYRA.md para este espacio de trabajo.",
+  "knowledge.noScopesDetail":
+    "Lyra no pudo resolver un alcance de escritura LYRA.md para este espacio de trabajo.",
   "knowledge.documents": "Documentos de conocimiento",
-  "knowledge.externalChange": "Este documento de conocimiento cambió externamente. Su borrador se conserva con la última revisión; revíselo antes de guardarlo nuevamente.",
+  "knowledge.externalChange":
+    "Este documento de conocimiento cambió externamente. Su borrador se conserva con la última revisión; revíselo antes de guardarlo nuevamente.",
   "knowledge.notCreated": "No creado",
   "knowledge.editorLabel": "{scope} Conocimiento",
   "knowledge.unsaved": "Cambios no guardados",
@@ -605,11 +682,14 @@ export const spanishMessages = {
   "knowledge.scope.workspace": "Conocimiento del espacio de trabajo",
   "knowledge.operationFailed": "Error en la operación de conocimiento.",
   "diagnostic.loading": "Cargando herramientas de diagnóstico…",
-  "diagnostic.loadFailed": "No se pudieron cargar las herramientas de diagnóstico",
+  "diagnostic.loadFailed":
+    "No se pudieron cargar las herramientas de diagnóstico",
   "diagnostic.empty": "No hay herramientas directas disponibles",
-  "diagnostic.emptyDetail": "Este Runtime no expone ninguna capacidad que sea segura de invocar fuera de una ejecución del agente.",
+  "diagnostic.emptyDetail":
+    "Este Runtime no expone ninguna capacidad que sea segura de invocar fuera de una ejecución del agente.",
   "diagnostic.title": "Diagnóstico directo",
-  "diagnostic.detail": "Estas herramientas de solo lectura se ejecutan en el espacio de trabajo actual sin una sesión, un bucle de modelo o un flujo de aprobación. Las herramientas exclusivas para agentes permanecen dentro de la ejecución que posee su autoridad.",
+  "diagnostic.detail":
+    "Estas herramientas de solo lectura se ejecutan en el espacio de trabajo actual sin una sesión, un bucle de modelo o un flujo de aprobación. Las herramientas exclusivas para agentes permanecen dentro de la ejecución que posee su autoridad.",
   "diagnostic.safe": "seguro",
   "diagnostic.schema": "JSON Esquema",
   "diagnostic.arguments": "Argumentos",
@@ -620,7 +700,8 @@ export const spanishMessages = {
   "diagnostic.invalidArguments": "Los argumentos deben ser un objeto JSON.",
   "diagnostic.requestFailed": "No se pudo completar la solicitud.",
   "skills.unavailable": "Habilidades no disponibles",
-  "skills.unavailableDetail": "Este Runtime no anuncia la capacidad de habilidades Lyra.",
+  "skills.unavailableDetail":
+    "Este Runtime no anuncia la capacidad de habilidades Lyra.",
   "skills.workspace": "Espacio de trabajo de habilidades",
   "skills.views": "Vistas de habilidades",
   "skills.available": "Disponible",
@@ -630,11 +711,13 @@ export const spanishMessages = {
   "skills.discovering": "Descubriendo habilidades...",
   "skills.discoveryFailed": "No se pudieron descubrir las habilidades",
   "skills.empty": "No hay habilidades disponibles",
-  "skills.emptyDetail": "Agregue un SKILL.md válido en .lyra/skills o apruebe una propuesta pendiente.",
+  "skills.emptyDetail":
+    "Agregue un SKILL.md válido en .lyra/skills o apruebe una propuesta pendiente.",
   "skills.loadingProposals": "Cargando propuestas…",
   "skills.proposalsFailed": "No se pudieron cargar las propuestas",
   "skills.noProposals": "No hay propuestas pendientes",
-  "skills.noProposalsDetail": "Las habilidades creadas por el agente permanecen inactivas hasta que aparezca una propuesta aquí y usted apruebe su revisión exacta.",
+  "skills.noProposalsDetail":
+    "Las habilidades creadas por el agente permanecen inactivas hasta que aparezca una propuesta aquí y usted apruebe su revisión exacta.",
   "skills.revision": "revisión",
   "skills.origin": "Origen",
   "skills.unknown": "desconocido",
@@ -648,7 +731,8 @@ export const spanishMessages = {
   "skills.loadingLibrary": "Cargando biblioteca de usuario…",
   "skills.libraryFailed": "No se pudo cargar la biblioteca de habilidades",
   "skills.libraryEmpty": "La biblioteca de usuario está vacía",
-  "skills.libraryEmptyDetail": "Aquí aparecen las habilidades aprobadas para el usuario y los paquetes ~/.lyra/skills creados externamente.",
+  "skills.libraryEmptyDetail":
+    "Aquí aparecen las habilidades aprobadas para el usuario y los paquetes ~/.lyra/skills creados externamente.",
   "skills.active": "Activas",
   "skills.noActive": "No hay habilidades de usuario activas.",
   "skills.archive": "Archivar",
@@ -658,7 +742,8 @@ export const spanishMessages = {
   "skills.actionPending": "{action}…",
   "skills.runtimeFailure": "Fallo Runtime inesperado",
   "memory.unavailable": "Memoria del agente no disponible",
-  "memory.unavailableDetail": "Este Runtime no anuncia la capacidad de memoria del agente Lyra.",
+  "memory.unavailableDetail":
+    "Este Runtime no anuncia la capacidad de memoria del agente Lyra.",
   "memory.scope": "Alcance de la memoria",
   "memory.project": "Proyecto",
   "memory.user": "Usuario",
@@ -667,12 +752,14 @@ export const spanishMessages = {
   "memory.loadFailed": "No se pudo cargar la memoria del agente",
   "memory.emptyProject": "Aún no hay memoria de proyecto",
   "memory.emptyUser": "Aún no hay memoria de usuario",
-  "memory.emptyDetail": "Agregue un hecho duradero o revise las propuestas Lyra destilados del trabajo completado.",
+  "memory.emptyDetail":
+    "Agregue un hecho duradero o revise las propuestas Lyra destilados del trabajo completado.",
   "memory.pendingReview": "Pendiente de revisión",
   "memory.active": "Memoria activa",
   "memory.add": "Añadir entrada",
   "memory.addLabel": "Agregar {scope} memoria",
-  "memory.placeholder": "Una preferencia, convención, decisión o trampa duradera...",
+  "memory.placeholder":
+    "Una preferencia, convención, decisión o trampa duradera...",
   "memory.saving": "Guardando…",
   "memory.save": "Guardar",
   "memory.cancel": "Cancelar",
@@ -680,7 +767,8 @@ export const spanishMessages = {
   "memory.reviewing": "Revisando…",
   "memory.approve": "Aprobar",
   "memory.editLabel": "Editar entrada",
-  "memory.externalChange": "Este recuerdo cambió en otra parte. Cancélelo y vuelva a abrirlo antes de editarlo.",
+  "memory.externalChange":
+    "Este recuerdo cambió en otra parte. Cancélelo y vuelva a abrirlo antes de editarlo.",
   "memory.unpin": "Dejar de fijar",
   "memory.pin": "Fijar",
   "memory.edit": "Editar",
@@ -695,49 +783,64 @@ export const spanishMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "Ajustes",
   "settings.sections": "Secciones de configuración",
-  "settings.authorityNote": "La apariencia se mantiene local. El estado Runtime sigue siendo la autoridad después de cada mutación.",
+  "settings.authorityNote":
+    "La apariencia se mantiene local. El estado Runtime sigue siendo la autoridad después de cada mutación.",
   "settings.desktopSettings": "Configuración de escritorio",
   "settings.close": "Cerrar configuración",
   "settings.page.appearance.title": "Apariencia",
-  "settings.page.appearance.description": "Elija un tema duradero y un acento sin cambiar la semántica de la aplicación.",
+  "settings.page.appearance.description":
+    "Elija un tema duradero y un acento sin cambiar la semántica de la aplicación.",
   "settings.page.runtime.title": "Runtime conexión",
-  "settings.page.runtime.description": "Cambie entre la implementación local supervisada Runtime y una implementación remota verificada.",
+  "settings.page.runtime.description":
+    "Cambie entre la implementación local supervisada Runtime y una implementación remota verificada.",
   "settings.page.providers.title": "Modelos y proveedores",
-  "settings.page.providers.description": "Conecte proveedores de modelos y asigne roles de modelo opcionales Runtime en todo el país.",
+  "settings.page.providers.description":
+    "Conecte proveedores de modelos y asigne roles de modelo opcionales Runtime en todo el país.",
   "settings.page.mcp.title": "Servidores MCP",
-  "settings.page.mcp.description": "Conexiones propias de herramientas externas, autorización y confianza a nivel de herramientas explícitamente.",
+  "settings.page.mcp.description":
+    "Conexiones propias de herramientas externas, autorización y confianza a nivel de herramientas explícitamente.",
   "settings.page.approvals.title": "Política de aprobación",
-  "settings.page.approvals.description": "Elija la postura del efecto en vivo y administre las decisiones recordadas visibles para esta sesión.",
+  "settings.page.approvals.description":
+    "Elija la postura del efecto en vivo y administre las decisiones recordadas visibles para esta sesión.",
   "settings.page.schedules.title": "Programaciones",
-  "settings.page.schedules.description": "Cree ejecuciones recurrentes con cadencia duradera, intención explícita del espacio de trabajo y activación recuperable.",
+  "settings.page.schedules.description":
+    "Cree ejecuciones recurrentes con cadencia duradera, intención explícita del espacio de trabajo y activación recuperable.",
   "settings.page.hooks.title": "Ganchos de ciclo de vida",
-  "settings.page.hooks.description": "Revise la automatización del proyecto y del usuario antes de decidir qué ganchos del proyecto se pueden ejecutar.",
+  "settings.page.hooks.description":
+    "Revise la automatización del proyecto y del usuario antes de decidir qué ganchos del proyecto se pueden ejecutar.",
   "settings.page.usage.title": "Uso",
-  "settings.page.usage.description": "Inspeccionar terminal autorizado Ejecutar el uso sin inventar precios que el Runtime no conoce.",
+  "settings.page.usage.description":
+    "Inspeccionar terminal autorizado Ejecutar el uso sin inventar precios que el Runtime no conoce.",
   "settings.appearance.theme": "Tema de color",
-  "settings.appearance.themeDetail": "Elija una paleta Lyra estática o siga el sistema operativo.",
+  "settings.appearance.themeDetail":
+    "Elija una paleta Lyra estática o siga el sistema operativo.",
   "settings.appearance.theme.system.name": "Seguir sistema",
   "settings.appearance.theme.system.detail": "Cambie con su sistema operativo.",
   "settings.appearance.theme.linen.name": "Lino",
-  "settings.appearance.theme.linen.detail": "Superficies cálidas y tranquilas para la luz del día.",
+  "settings.appearance.theme.linen.detail":
+    "Superficies cálidas y tranquilas para la luz del día.",
   "settings.appearance.theme.graphite.name": "Grafito",
-  "settings.appearance.theme.graphite.detail": "Superficies oscuras con bajo brillo para un trabajo concentrado.",
+  "settings.appearance.theme.graphite.detail":
+    "Superficies oscuras con bajo brillo para un trabajo concentrado.",
   "settings.appearance.accent": "Acento",
-  "settings.appearance.accentDetail": "Un color funcional para enfoque, progreso, enlaces y acciones principales.",
+  "settings.appearance.accentDetail":
+    "Un color funcional para enfoque, progreso, enlaces y acciones principales.",
   "settings.appearance.accentColor": "Color de acento",
   "settings.appearance.accent.ember": "Ember",
   "settings.appearance.accent.ocean": "Océano",
   "settings.appearance.accent.forest": "Bosque",
   "settings.appearance.accent.violet": "Violeta",
   "settings.appearance.language": "Idioma",
-  "settings.appearance.languageDetail": "Elige el idioma que Lyra Desktop usará en este dispositivo.",
+  "settings.appearance.languageDetail":
+    "Elige el idioma que Lyra Desktop usará en este dispositivo.",
   "settings.runtime.tryAgain": "Inténtalo de nuevo",
   "settings.runtime.loading": "Cargando conexión Runtime…",
   "settings.runtime.status.remoteActive": "Remoto activo",
   "settings.runtime.status.remoteUnavailable": "Remoto no disponible",
   "settings.runtime.status.localActive": "Local activo",
   "settings.runtime.active": "Activo Runtime",
-  "settings.runtime.activeDetail": "Desktop cambia los objetivos de implementación sin cambiar Lyra Protocol.",
+  "settings.runtime.activeDetail":
+    "Desktop cambia los objetivos de implementación sin cambiar Lyra Protocol.",
   "settings.runtime.target": "Objetivo",
   "settings.runtime.remote": "Remoto Runtime",
   "settings.runtime.local": "Local Runtime",
@@ -745,41 +848,51 @@ export const spanishMessages = {
   "settings.runtime.privateLoopback": "Bucle invertido privado",
   "settings.runtime.useLocal": "Usar local Runtime",
   "settings.runtime.useSavedRemote": "Usar control remoto guardado",
-  "settings.runtime.remoteDetail": "HTTPS el origen y el secreto del portador se verifican antes de que el perfil se active.",
+  "settings.runtime.remoteDetail":
+    "HTTPS el origen y el secreto del portador se verifican antes de que el perfil se active.",
   "settings.runtime.httpsOrigin": "HTTPS origen",
   "settings.runtime.bearerSecret": "Secreto del portador",
   "settings.runtime.replacementSecret": "Ingrese un secreto de reemplazo",
   "settings.runtime.keyringSecret": "Almacenado en el llavero del sistema",
-  "settings.runtime.secretNote": "Los secretos nunca ingresan al perfil persistente.",
+  "settings.runtime.secretNote":
+    "Los secretos nunca ingresan al perfil persistente.",
   "settings.runtime.connecting": "Conectando…",
   "settings.runtime.replace": "Reemplazar conexión",
   "settings.runtime.connect": "Conectar control remoto",
   "settings.runtime.forgetTitle": "Olvidar perfil remoto",
-  "settings.runtime.forgetDetail": "Elimine la identidad del punto final guardado y el secreto del portador de este dispositivo.",
+  "settings.runtime.forgetDetail":
+    "Elimine la identidad del punto final guardado y el secreto del portador de este dispositivo.",
   "settings.runtime.irreversible": "Esto no se puede deshacer.",
   "settings.runtime.keep": "Mantener perfil",
   "settings.runtime.forgetRemote": "Olvídate del control remoto",
   "settings.runtime.forget": "Olvídate…",
   "settings.runtime.failed": "Runtime error de conexión.",
   "settings.approval.effectStance": "Postura de efecto",
-  "settings.approval.effectStanceDetail": "El Runtime lee esta configuración en cada efecto de herramienta, incluidas las ejecuciones que ya están en progreso.",
+  "settings.approval.effectStanceDetail":
+    "El Runtime lee esta configuración en cada efecto de herramienta, incluidas las ejecuciones que ya están en progreso.",
   "settings.approval.loadingMode": "Cargando modo de aprobación…",
   "settings.approval.tryAgain": "Inténtalo de nuevo",
   "settings.approval.mode.safe.name": "Seguro",
-  "settings.approval.mode.safe.description": "Confirmar escrituras en el espacio de trabajo, ejecución de comandos y acceso a la red.",
+  "settings.approval.mode.safe.description":
+    "Confirmar escrituras en el espacio de trabajo, ejecución de comandos y acceso a la red.",
   "settings.approval.mode.safe.badge": "Más reseña",
   "settings.approval.mode.balanced.name": "Equilibrado",
-  "settings.approval.mode.balanced.description": "Confirmar ejecución del comando; Permitir escrituras ordinarias y herramientas de red.",
+  "settings.approval.mode.balanced.description":
+    "Confirmar ejecución del comando; Permitir escrituras ordinarias y herramientas de red.",
   "settings.approval.mode.balanced.badge": "Predeterminado",
   "settings.approval.mode.yolo.name": "Yolo",
-  "settings.approval.mode.yolo.description": "Permitir efectos ordinarios sin indicaciones. Los comandos catastróficos aún requieren revisión.",
+  "settings.approval.mode.yolo.description":
+    "Permitir efectos ordinarios sin indicaciones. Los comandos catastróficos aún requieren revisión.",
   "settings.approval.mode.yolo.badge": "Menos revisión",
   "settings.approval.remembered": "Decisiones recordadas",
-  "settings.approval.rememberedDetail": "Las reglas de sesión tienen prioridad sobre las reglas del proyecto y luego sobre las reglas globales. Se niegan los conflictos iguales.",
+  "settings.approval.rememberedDetail":
+    "Las reglas de sesión tienen prioridad sobre las reglas del proyecto y luego sobre las reglas globales. Se niegan los conflictos iguales.",
   "settings.approval.visibleCount": "{count} visible",
-  "settings.approval.selectSession": "Seleccione una sesión en el índice de trabajo para inspeccionar sus reglas visibles.",
+  "settings.approval.selectSession":
+    "Seleccione una sesión en el índice de trabajo para inspeccionar sus reglas visibles.",
   "settings.approval.loadingRules": "Cargando decisiones recordadas...",
-  "settings.approval.empty": "No hay decisiones recordadas visibles en esta sesión.",
+  "settings.approval.empty":
+    "No hay decisiones recordadas visibles en esta sesión.",
   "settings.approval.everyInvocation": "Cada invocación",
   "settings.approval.forgetQuestion": "¿Olvidaste esta decisión?",
   "settings.approval.cancel": "Cancelar",
@@ -793,7 +906,8 @@ export const spanishMessages = {
   "settings.approval.decision.deny": "denegar",
   "settings.approval.requestFailed": "La solicitud Runtime falló.",
   "settings.usage.runtime": "Runtime uso",
-  "settings.usage.runtimeDetail": "Finished Ejecutar datos agrupados por su proveedor exacto y su identidad de modelo.",
+  "settings.usage.runtimeDetail":
+    "Finished Ejecutar datos agrupados por su proveedor exacto y su identidad de modelo.",
   "settings.usage.period": "Período de uso",
   "settings.usage.sevenDays": "7 días",
   "settings.usage.thirtyDays": "30 días",
@@ -805,12 +919,15 @@ export const spanishMessages = {
   "settings.usage.runs": "Ejecuciones",
   "settings.usage.sessions": "Sesiones",
   "settings.usage.models": "Modelos",
-  "settings.usage.costNote": "El costo se muestra solo cuando cada ejecución contribuyente tiene un precio conocido.",
+  "settings.usage.costNote":
+    "El costo se muestra solo cuando cada ejecución contribuyente tiene un precio conocido.",
   "settings.usage.providers": "Proveedores",
   "settings.usage.days": "Días",
   "settings.usage.selectedSession": "Sesión seleccionada",
-  "settings.usage.selectedSessionDetail": "Todas las ejecuciones finalizadas que actualmente pertenecen a la sesión montada.",
-  "settings.usage.selectSession": "Seleccione una sesión para inspeccionar su uso.",
+  "settings.usage.selectedSessionDetail":
+    "Todas las ejecuciones finalizadas que actualmente pertenecen a la sesión montada.",
+  "settings.usage.selectSession":
+    "Seleccione una sesión para inspeccionar su uso.",
   "settings.usage.loadingSession": "Cargando uso de la sesión…",
   "settings.usage.runCountOne": "{count} ejecución",
   "settings.usage.runCountMany": "{count} ejecuciones",
@@ -830,15 +947,18 @@ export const spanishMessages = {
   "settings.common.loading": "Cargando…",
   "settings.common.discard": "Descartar",
   "settings.provider.roles": "Roles de modelo",
-  "settings.provider.rolesDetail": "Opcional Runtimemodelos de ancho para mantenimiento e indexación semántica.",
+  "settings.provider.rolesDetail":
+    "Opcional Runtimemodelos de ancho para mantenimiento e indexación semántica.",
   "settings.provider.connections": "Conexiones de proveedores",
-  "settings.provider.connectionsDetail": "Los secretos son de sólo escritura. Las credenciales del entorno siguen siendo de solo lectura.",
+  "settings.provider.connectionsDetail":
+    "Los secretos son de sólo escritura. Las credenciales del entorno siguen siendo de solo lectura.",
   "settings.provider.filter": "Proveedores de filtros",
   "settings.provider.filterPlaceholder": "Proveedores de filtros…",
   "settings.provider.loading": "Cargando proveedores…",
   "settings.provider.tryAgain": "Inténtalo de nuevo",
   "settings.provider.noMatch": "Ningún proveedor coincide con este filtro.",
-  "settings.provider.connectionSucceeded": "La conexión se realizó correctamente.",
+  "settings.provider.connectionSucceeded":
+    "La conexión se realizó correctamente.",
   "settings.provider.connectionFailed": "Error de conexión.",
   "settings.provider.configured": "Configurado",
   "settings.provider.notConfigured": "No configurado",
@@ -852,20 +972,25 @@ export const spanishMessages = {
   "settings.provider.replacementKey": "Ingrese una clave de reemplazo",
   "settings.provider.keepKey": "Mantener clave almacenada",
   "settings.provider.removeKey": "Quitar clave guardada",
-  "settings.provider.saveBeforeTest": "Guardar borrador de cambios antes de realizar la prueba",
+  "settings.provider.saveBeforeTest":
+    "Guardar borrador de cambios antes de realizar la prueba",
   "settings.provider.testing": "Probando…",
   "settings.provider.test": "Probar",
-  "settings.provider.baseURLRequired": "Se requiere una URL base mientras esté presente una clave almacenada.",
+  "settings.provider.baseURLRequired":
+    "Se requiere una URL base mientras esté presente una clave almacenada.",
   "settings.provider.utilityModel": "Modelo auxiliar",
   "settings.provider.embeddingModel": "Modelo de embeddings",
-  "settings.provider.utilityDetail": "Conservación y mantenimiento de antecedentes.",
-  "settings.provider.embeddingDetail": "Indización de base de código semántico.",
+  "settings.provider.utilityDetail":
+    "Conservación y mantenimiento de antecedentes.",
+  "settings.provider.embeddingDetail":
+    "Indización de base de código semántico.",
   "settings.provider.assigned": "Asignado",
   "settings.provider.loadingRole": "Cargando rol…",
   "settings.provider.provider": "Proveedor",
   "settings.provider.notAssigned": "No asignado",
   "settings.provider.model": "Modelo",
-  "settings.provider.deploymentOrModel": "Identificación de implementación o modelo",
+  "settings.provider.deploymentOrModel":
+    "Identificación de implementación o modelo",
   "settings.provider.modelID": "Identificación del modelo",
   "settings.provider.clearRole": "Borrar rol",
   "settings.provider.saveRole": "Guardar rol",
@@ -897,9 +1022,11 @@ export const spanishMessages = {
   "settings.mcp.environmentJSON": "Entorno JSON",
   "settings.mcp.removeEnvironment": "Eliminar el entorno guardado",
   "settings.mcp.addServer": "Añadir servidor",
-  "settings.mcp.addServerDetail": "Explore un candidato completo sin persistirlo y luego agréguelo cuando esté listo.",
+  "settings.mcp.addServerDetail":
+    "Explore un candidato completo sin persistirlo y luego agréguelo cuando esté listo.",
   "settings.mcp.configuredServers": "Servidores configurados",
-  "settings.mcp.configuredServersDetail": "El estado activo proviene de Runtime; reconectarse nunca adivina el éxito.",
+  "settings.mcp.configuredServersDetail":
+    "El estado activo proviene de Runtime; reconectarse nunca adivina el éxito.",
   "settings.mcp.loadingServers": "Cargando servidores MCP…",
   "settings.mcp.empty": "No hay servidores MCP configurados todavía.",
   "settings.mcp.candidateConnected": "El candidato se conectó exitosamente.",
@@ -908,22 +1035,26 @@ export const spanishMessages = {
   "settings.mcp.adding": "Agregando…",
   "settings.mcp.authorizationCompleted": "Autorización completada.",
   "settings.mcp.authorizationCanceled": "Se canceló la autorización.",
-  "settings.mcp.interactiveAuthorization": "Se requiere autorización interactiva",
+  "settings.mcp.interactiveAuthorization":
+    "Se requiere autorización interactiva",
   "settings.mcp.saveBeforeAuthorize": "Guardar cambios antes de autorizar",
   "settings.mcp.waitingAuthorization": "Esperando autorización…",
   "settings.mcp.authorize": "Autorizar",
   "settings.mcp.deletePermanently": "¿Eliminar permanentemente?",
   "settings.mcp.deleteServer": "Eliminar servidor",
-  "settings.mcp.saveBeforeReconnect": "Guardar borrador de cambios antes de volver a conectarse",
+  "settings.mcp.saveBeforeReconnect":
+    "Guardar borrador de cambios antes de volver a conectarse",
   "settings.mcp.reconnecting": "Reconectando…",
   "settings.mcp.reconnect": "Reconectar",
   "settings.mcp.loadingTools": "Cargando herramientas…",
   "settings.mcp.toolPolicies": "Políticas de herramientas",
   "settings.mcp.toolTrust": "Confianza en la herramienta",
-  "settings.mcp.toolTrustDetail": "Las herramientas deshabilitadas permanecen ocultas. Las herramientas aprobadas automáticamente pueden ejecutarse sin un mensaje de aprobación.",
+  "settings.mcp.toolTrustDetail":
+    "Las herramientas deshabilitadas permanecen ocultas. Las herramientas aprobadas automáticamente pueden ejecutarse sin un mensaje de aprobación.",
   "settings.mcp.toolCountOne": "{count} herramienta",
   "settings.mcp.toolCountMany": "{count} herramientas",
-  "settings.mcp.toolsRefreshFailed": "Las herramientas en vivo no se pudieron actualizar. Las políticas almacenadas siguen siendo editables.",
+  "settings.mcp.toolsRefreshFailed":
+    "Las herramientas en vivo no se pudieron actualizar. Las políticas almacenadas siguen siendo editables.",
   "settings.mcp.askWhenNeeded": "Preguntar cuando sea necesario",
   "settings.mcp.disabled": "Deshabilitado",
   "settings.mcp.autoApprove": "Aprobar automáticamente",
@@ -935,25 +1066,36 @@ export const spanishMessages = {
   "settings.mcp.status.connected": "Conectado",
   "settings.mcp.status.failed": "Error de conexión",
   "settings.mcp.status.needsAuth": "Se requiere autorización",
-  "settings.mcp.problem.authorizationRequired": "Este servidor requiere autorización interactiva.",
+  "settings.mcp.problem.authorizationRequired":
+    "Este servidor requiere autorización interactiva.",
   "settings.mcp.problem.authorizationFailed": "La autorización no se completó.",
-  "settings.mcp.problem.dialFailed": "Runtime no pudo conectarse a este servidor.",
-  "settings.mcp.problem.timeout": "El servidor no respondió antes del tiempo de espera.",
-  "settings.mcp.problem.failed": "La operación MCP no se realizó correctamente.",
-  "settings.mcp.validation.stableNameRequired": "Se requiere un nombre de servidor estable.",
-  "settings.mcp.validation.endpointRequired": "Se requiere una URL de punto final.",
+  "settings.mcp.problem.dialFailed":
+    "Runtime no pudo conectarse a este servidor.",
+  "settings.mcp.problem.timeout":
+    "El servidor no respondió antes del tiempo de espera.",
+  "settings.mcp.problem.failed":
+    "La operación MCP no se realizó correctamente.",
+  "settings.mcp.validation.stableNameRequired":
+    "Se requiere un nombre de servidor estable.",
+  "settings.mcp.validation.endpointRequired":
+    "Se requiere una URL de punto final.",
   "settings.mcp.validation.commandRequired": "Se requiere un comando stdio.",
-  "settings.mcp.validation.timeoutInvalid": "El tiempo de espera debe ser un número entero de 0 a 3600 segundos.",
+  "settings.mcp.validation.timeoutInvalid":
+    "El tiempo de espera debe ser un número entero de 0 a 3600 segundos.",
   "settings.mcp.validation.secretInvalidJSON": "{field} debe ser válido JSON.",
   "settings.mcp.validation.secretNotObject": "{field} debe ser un objeto JSON.",
-  "settings.mcp.validation.secretInvalidEntries": "{field} debe contener nombres no vacíos con valores de cadena.",
+  "settings.mcp.validation.secretInvalidEntries":
+    "{field} debe contener nombres no vacíos con valores de cadena.",
   "settings.mcp.headers": "Encabezados",
   "settings.mcp.environment": "Medio ambiente",
   "settings.hook.effective": "Ganchos efectivos",
-  "settings.hook.effectiveDetail": "Los ganchos se resuelven en un espacio de trabajo de sesión exacto.",
-  "settings.hook.selectSession": "Seleccione una sesión en el índice de trabajo para revisar sus enlaces globales y de proyecto.",
+  "settings.hook.effectiveDetail":
+    "Los ganchos se resuelven en un espacio de trabajo de sesión exacto.",
+  "settings.hook.selectSession":
+    "Seleccione una sesión en el índice de trabajo para revisar sus enlaces globales y de proyecto.",
   "settings.hook.projectTrust": "Proyecto de confianza",
-  "settings.hook.projectTrustDetail": "Los ganchos globales te pertenecen y permanecen activos. Los enlaces de proyectos clonados permanecen inertes hasta que se confíe en esta raíz exacta del proyecto.",
+  "settings.hook.projectTrustDetail":
+    "Los ganchos globales te pertenecen y permanecen activos. Los enlaces de proyectos clonados permanecen inertes hasta que se confíe en esta raíz exacta del proyecto.",
   "settings.hook.resolving": "Resolviendo ganchos del ciclo de vida...",
   "settings.hook.trusted": "Confiable",
   "settings.hook.notTrusted": "No es de confianza",
@@ -967,39 +1109,49 @@ export const spanishMessages = {
   "settings.hook.trustProject": "Proyecto fiduciario",
   "settings.hook.reviewAndTrust": "Revisión y confianza",
   "settings.hook.cascade": "Cascada efectiva",
-  "settings.hook.cascadeDetail": "Los comandos se muestran palabra por palabra para su auditoría. Las acciones de inyección agregan contexto limitado sin generar un proceso.",
+  "settings.hook.cascadeDetail":
+    "Los comandos se muestran palabra por palabra para su auditoría. Las acciones de inyección agregan contexto limitado sin generar un proceso.",
   "settings.hook.countOne": "{count} gancho",
   "settings.hook.countMany": "{count} ganchos",
   "settings.hook.loading": "Cargando definiciones de ganchos…",
-  "settings.hook.empty": "No se aplican enlaces globales o de proyecto a este espacio de trabajo.",
+  "settings.hook.empty":
+    "No se aplican enlaces globales o de proyecto a este espacio de trabajo.",
   "settings.hook.command": "Comando",
   "settings.hook.inject": "Inyectar",
   "settings.hook.active": "Activas",
   "settings.hook.inert": "Inerte",
   "settings.hook.timeout": "· {count} ms",
-  "settings.hook.missingProjectRoot": "El Runtime no informó una raíz del proyecto.",
+  "settings.hook.missingProjectRoot":
+    "El Runtime no informó una raíz del proyecto.",
   "settings.schedule.everyHour": "Cada hora",
   "settings.schedule.weekdaysAt": "Días laborables · 09:00",
   "settings.schedule.dailyAt": "Diario · 09:00",
   "settings.schedule.mondayAt": "Lunes · 09:00",
   "settings.schedule.recurringWork": "Trabajo recurrente",
-  "settings.schedule.recurringWorkDetail": "Una ocurrencia debida persiste antes del inicio, por lo que reiniciar la recuperación mantiene una identidad de sesión y ejecución estable.",
+  "settings.schedule.recurringWorkDetail":
+    "Una ocurrencia debida persiste antes del inicio, por lo que reiniciar la recuperación mantiene una identidad de sesión y ejecución estable.",
   "settings.schedule.loadedCount": "{count} cargado",
   "settings.schedule.loading": "Cargando horarios…",
-  "settings.schedule.empty": "Aún no hay horarios. Cree uno arriba cuando el trabajo recurrente sea intencional.",
+  "settings.schedule.empty":
+    "Aún no hay horarios. Cree uno arriba cuando el trabajo recurrente sea intencional.",
   "settings.schedule.loadMore": "Cargar más horarios",
   "settings.schedule.new": "Nueva programación",
-  "settings.schedule.newDetail": "Escribir instrucciones independientes; cada ocurrencia abre una sesión limpia.",
-  "settings.schedule.timezoneNote": "Times usa la zona horaria del host Runtime.",
+  "settings.schedule.newDetail":
+    "Escribir instrucciones independientes; cada ocurrencia abre una sesión limpia.",
+  "settings.schedule.timezoneNote":
+    "Times usa la zona horaria del host Runtime.",
   "settings.schedule.creating": "Creando…",
   "settings.schedule.create": "Crear horario",
-  "settings.schedule.providerModelPair": "El proveedor y el modelo deben configurarse juntos o ambos deben dejarse vacíos.",
+  "settings.schedule.providerModelPair":
+    "El proveedor y el modelo deben configurarse juntos o ambos deben dejarse vacíos.",
   "settings.schedule.enabled": "Activada",
   "settings.schedule.paused": "En pausa",
-  "settings.schedule.saveBeforeRun": "Guardar o descartar borradores de edición antes de disparar",
+  "settings.schedule.saveBeforeRun":
+    "Guardar o descartar borradores de edición antes de disparar",
   "settings.schedule.starting": "Empezando…",
   "settings.schedule.runNow": "Ejecutar ahora",
-  "settings.schedule.saveBeforeToggle": "Guardar o descartar los borradores de edición primero",
+  "settings.schedule.saveBeforeToggle":
+    "Guardar o descartar los borradores de edición primero",
   "settings.schedule.pause": "Pausa",
   "settings.schedule.enable": "Habilitar",
   "settings.schedule.next": "Siguiente",
@@ -1011,15 +1163,18 @@ export const spanishMessages = {
   "settings.schedule.defaultTitle": "Tarea programada",
   "settings.schedule.cron": "cron de cinco campos",
   "settings.schedule.instructions": "Instrucciones",
-  "settings.schedule.instructionsPlaceholder": "Instrucciones completas para cada ejecución...",
+  "settings.schedule.instructionsPlaceholder":
+    "Instrucciones completas para cada ejecución...",
   "settings.schedule.workspace": "Espacio",
   "settings.schedule.emptyUsesDefault": "Usos vacíos Runtime predeterminado",
   "settings.schedule.runtimeDefault": "Runtime predeterminado",
   "settings.schedule.optionalPair": "Par opcional",
   "settings.page.keyboard.title": "Atajos de teclado",
-  "settings.page.keyboard.description": "Consulta los atajos explícitos y limitados de la aplicación sin crear un segundo sistema de comandos.",
+  "settings.page.keyboard.description":
+    "Consulta los atajos explícitos y limitados de la aplicación sin crear un segundo sistema de comandos.",
   "settings.shortcuts.heading": "Atajos registrados",
-  "settings.shortcuts.detail": "Las acciones globales y con ámbito comparten un único catálogo sin conflictos.",
+  "settings.shortcuts.detail":
+    "Las acciones globales y con ámbito comparten un único catálogo sin conflictos.",
   "settings.shortcuts.filter": "Filtrar acciones o teclas…",
   "settings.shortcuts.filterAria": "Filtrar atajos de teclado",
   "settings.shortcuts.clear": "Borrar filtro de atajos",

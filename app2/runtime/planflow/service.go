@@ -21,7 +21,7 @@ type Store interface {
 	IsPlanMode(context.Context, string) (bool, error)
 }
 
-type Publisher interface { Publish(protocol.RuntimeEvent) }
+type Publisher interface{ Publish(protocol.RuntimeEvent) }
 
 type Service struct {
 	store  Store
@@ -30,27 +30,43 @@ type Service struct {
 }
 
 func New(store Store, events Publisher) (*Service, error) {
-	if store == nil || events == nil { return nil, errors.New("planflow: store and event publisher are required") }
+	if store == nil || events == nil {
+		return nil, errors.New("planflow: store and event publisher are required")
+	}
 	return &Service{store: store, events: events, now: time.Now}, nil
 }
 
 func (service *Service) Get(ctx context.Context, request protocol.GetPlanRequest) (*protocol.Plan, error) {
 	value, err := service.store.LoadPlan(ctx, request.SessionID)
-	if errors.Is(err, plandomain.ErrNotFound) { return nil, protocol.ErrSessionNotFound }
-	if err != nil { return nil, err }
+	if errors.Is(err, plandomain.ErrNotFound) {
+		return nil, protocol.ErrSessionNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
 	return Present(value), nil
 }
 
 func (service *Service) Replace(ctx context.Context, sessionID string, steps []protocol.PlanStep) (*protocol.Plan, error) {
 	current, err := service.store.LoadPlan(ctx, sessionID)
-	if errors.Is(err, plandomain.ErrNotFound) { return nil, protocol.ErrSessionNotFound }
-	if err != nil { return nil, err }
+	if errors.Is(err, plandomain.ErrNotFound) {
+		return nil, protocol.ErrSessionNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
 	domainSteps := make([]plandomain.Step, len(steps))
-	for index, step := range steps { domainSteps[index] = plandomain.Step{Description: step.Description, Status: plandomain.Status(step.Status)} }
+	for index, step := range steps {
+		domainSteps[index] = plandomain.Step{Description: step.Description, Status: plandomain.Status(step.Status)}
+	}
 	next, err := current.Replace(domainSteps, service.now())
-	if err != nil { return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err) }
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	}
 	if err := service.store.SavePlan(ctx, next, current.Revision()); err != nil {
-		if errors.Is(err, plandomain.ErrVersionConflict) { return nil, protocol.ErrRevisionConflict }
+		if errors.Is(err, plandomain.ErrVersionConflict) {
+			return nil, protocol.ErrRevisionConflict
+		}
 		return nil, err
 	}
 	service.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{sessionID}})
@@ -59,7 +75,9 @@ func (service *Service) Replace(ctx context.Context, sessionID string, steps []p
 
 func (service *Service) EnterMode(ctx context.Context, sessionID string) (bool, error) {
 	if _, err := service.store.LoadPlan(ctx, sessionID); err != nil {
-		if errors.Is(err, plandomain.ErrNotFound) { return false, protocol.ErrSessionNotFound }
+		if errors.Is(err, plandomain.ErrNotFound) {
+			return false, protocol.ErrSessionNotFound
+		}
 		return false, err
 	}
 	return service.store.EnterPlanMode(ctx, sessionID, service.now())

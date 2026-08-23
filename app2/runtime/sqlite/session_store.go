@@ -89,7 +89,7 @@ func (database *Database) ListSessionProjections(ctx context.Context, limit int,
 		last := projections[limit-1].Session
 		page.Projections = projections[:limit]
 		page.Next = &session.Cursor{
-			Favorite: last.Favorite(),
+			Favorite:  last.Favorite(),
 			UpdatedAt: last.UpdatedAt(),
 			ID:        last.ID().String(),
 		}
@@ -192,8 +192,8 @@ func scanSessionProjection(row rowScanner) (session.Projection, error) {
 
 type storedSession struct {
 	id, title, workspacePath, provider, model, created, updated string
-	favorite bool
-	revision uint64
+	favorite                                                    bool
+	revision                                                    uint64
 }
 
 func (stored *storedSession) destinations() []any {
@@ -228,12 +228,12 @@ func (stored storedSession) restore() (session.Session, error) {
 		return session.Session{}, fmt.Errorf("sqlite: restore session model selection: %w", err)
 	}
 	value, err := session.Rehydrate(session.Restore{
-		ID: session.ID(stored.id),
-		Title: stored.title,
+		ID:        session.ID(stored.id),
+		Title:     stored.title,
 		Workspace: workspace,
 		Selection: selection,
-		Favorite: stored.favorite,
-		Revision: stored.revision,
+		Favorite:  stored.favorite,
+		Revision:  stored.revision,
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	})

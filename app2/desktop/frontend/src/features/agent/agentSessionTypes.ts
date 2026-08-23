@@ -4,7 +4,4 @@ export interface LiveToolOutput {
 }
 
 export type SessionActivityView =
-  | "overview"
-  | "timeline"
-  | "terminal"
-  | "summary";
+  "overview" | "timeline" | "terminal" | "summary";

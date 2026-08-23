@@ -24,9 +24,9 @@ type Index struct {
 	Workspace   string
 	State       State
 	OperationID string
-	ModelID    string
-	FileCount  int
-	ChunkCount int
-	Truncated  bool
-	IndexedAt  *time.Time
+	ModelID     string
+	FileCount   int
+	ChunkCount  int
+	Truncated   bool
+	IndexedAt   *time.Time
 }

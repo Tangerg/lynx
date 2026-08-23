@@ -9,11 +9,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 	"github.com/Tangerg/lynx/app2/runtime/domain/provider"
 	"github.com/Tangerg/lynx/app2/runtime/llmadapter"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
+	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/embedding"
 	catalog "github.com/Tangerg/lynx/models/catalog"
@@ -114,13 +114,13 @@ func (service *Service) Test(ctx context.Context, id string) (*protocol.Provider
 	}
 	if !configured {
 		return &protocol.ProviderTestResult{Error: &protocol.ProblemData{
-			Type: protocol.ProblemProviderNotConfigured,
+			Type:   protocol.ProblemProviderNotConfigured,
 			Detail: "Configure the provider before testing it.",
 		}}, nil
 	}
 	if err := probe(ctx, providerID, entry); err != nil {
 		return &protocol.ProviderTestResult{Error: &protocol.ProblemData{
-			Type: protocol.ProblemProviderTestFailed,
+			Type:   protocol.ProblemProviderTestFailed,
 			Detail: probeDetail(err, entry.apiKey),
 		}}, nil
 	}
@@ -406,8 +406,8 @@ func presentModel(providerID string, entry catalog.Model) protocol.Model {
 	capabilities := &protocol.ModelCapabilities{
 		Reasoning: entry.Reasoning.Supported, ReasoningLevels: slices.Clone(entry.Reasoning.Levels),
 		ReasoningDefaultLevel: entry.Reasoning.DefaultLevel,
-		Multimodal: entry.Modalities.AcceptsInput(catalog.ModalityImage),
-		InputModalities: modalities(entry.Modalities.Input), OutputModalities: modalities(entry.Modalities.Output),
+		Multimodal:            entry.Modalities.AcceptsInput(catalog.ModalityImage),
+		InputModalities:       modalities(entry.Modalities.Input), OutputModalities: modalities(entry.Modalities.Output),
 		ToolUse: entry.ToolCall, StructuredOutput: entry.StructuredOutput,
 	}
 	model := protocol.Model{
@@ -423,7 +423,7 @@ func presentModel(providerID string, entry catalog.Model) protocol.Model {
 		pricing := entry.Pricing[0]
 		model.Pricing = &protocol.ModelPricing{
 			InputUSDPerMillionTokens: pricing.InputPer1M, OutputUSDPerMillionTokens: pricing.OutputPer1M,
-			CacheReadUSDPerMillionTokens: pricing.CacheReadPer1M,
+			CacheReadUSDPerMillionTokens:  pricing.CacheReadPer1M,
 			CacheWriteUSDPerMillionTokens: pricing.CacheWritePer1M,
 		}
 	}
@@ -484,7 +484,7 @@ func probe(ctx context.Context, providerID llmadapter.Provider, entry effectiveP
 	maxTokens := int64(1)
 	_, err = client.Call(ctx, &chat.Request{
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("ping"))},
-		Options: chat.Options{MaxTokens: &maxTokens},
+		Options:  chat.Options{MaxTokens: &maxTokens},
 	})
 	return err
 }

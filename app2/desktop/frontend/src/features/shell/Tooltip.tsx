@@ -14,10 +14,9 @@ export function Tooltip(props: {
   const describedBy = [props.children.props["aria-describedby"], id]
     .filter((value): value is string => Boolean(value))
     .join(" ");
-  const trigger = cloneElement(
-    props.children,
-    { "aria-describedby": describedBy },
-  );
+  const trigger = cloneElement(props.children, {
+    "aria-describedby": describedBy,
+  });
   return (
     <span className="tooltip-anchor">
       {trigger}

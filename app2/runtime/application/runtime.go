@@ -9,20 +9,20 @@ import (
 	"iter"
 	"sync"
 
-	"github.com/Tangerg/lynx/app2/runtime/boundarymeta"
 	"github.com/Tangerg/lynx/app2/runtime/approvalflow"
+	"github.com/Tangerg/lynx/app2/runtime/boundarymeta"
 	"github.com/Tangerg/lynx/app2/runtime/capabilityflow"
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
 	"github.com/Tangerg/lynx/app2/runtime/hookflow"
 	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
-	"github.com/Tangerg/lynx/app2/runtime/memoryflow"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
+	"github.com/Tangerg/lynx/app2/runtime/memoryflow"
 	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
 	"github.com/Tangerg/lynx/app2/runtime/planflow"
-	"github.com/Tangerg/lynx/app2/runtime/providerflow"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
+	"github.com/Tangerg/lynx/app2/runtime/providerflow"
 	"github.com/Tangerg/lynx/app2/runtime/runflow"
 	"github.com/Tangerg/lynx/app2/runtime/runtimeevents"
 	"github.com/Tangerg/lynx/app2/runtime/scheduleflow"
@@ -32,50 +32,50 @@ import (
 )
 
 type Runtime struct {
-	discovery *discovery.Service
-	sessions  *sessionflow.Service
-	providers *providerflow.Service
-	runs      *runflow.Service
-	workspace *workspaceflow.Service
-	schedules *scheduleflow.Service
+	discovery          *discovery.Service
+	sessions           *sessionflow.Service
+	providers          *providerflow.Service
+	runs               *runflow.Service
+	workspace          *workspaceflow.Service
+	schedules          *scheduleflow.Service
 	scheduleDispatcher *scheduleflow.Dispatcher
-	approvals *approvalflow.Service
-	interrupts *interruptflow.Service
-	plans     *planflow.Service
-	goals     *goalflow.Service
-	goalDriver *goalflow.Driver
-	mcp       *mcpflow.Service
-	capability *capabilityflow.Service
-	hooks *hookflow.Service
-	memory *memoryflow.Service
-	codebase *codebaseflow.Service
-	tools *toolflow.Service
-	operations *operationsflow.Service
-	events    *runtimeevents.Bus
-	closeOnce sync.Once
+	approvals          *approvalflow.Service
+	interrupts         *interruptflow.Service
+	plans              *planflow.Service
+	goals              *goalflow.Service
+	goalDriver         *goalflow.Driver
+	mcp                *mcpflow.Service
+	capability         *capabilityflow.Service
+	hooks              *hookflow.Service
+	memory             *memoryflow.Service
+	codebase           *codebaseflow.Service
+	tools              *toolflow.Service
+	operations         *operationsflow.Service
+	events             *runtimeevents.Bus
+	closeOnce          sync.Once
 }
 
 type Config struct {
-	Discovery *discovery.Service
-	Sessions  *sessionflow.Service
-	Providers *providerflow.Service
-	Runs      *runflow.Service
-	Workspace *workspaceflow.Service
-	Schedules *scheduleflow.Service
+	Discovery          *discovery.Service
+	Sessions           *sessionflow.Service
+	Providers          *providerflow.Service
+	Runs               *runflow.Service
+	Workspace          *workspaceflow.Service
+	Schedules          *scheduleflow.Service
 	ScheduleDispatcher *scheduleflow.Dispatcher
-	Approvals *approvalflow.Service
-	Events *runtimeevents.Bus
-	Interrupts *interruptflow.Service
-	Plans *planflow.Service
-	Goals *goalflow.Service
-	GoalDriver *goalflow.Driver
-	MCP *mcpflow.Service
-	Capability *capabilityflow.Service
-	Hooks *hookflow.Service
-	Memory *memoryflow.Service
-	Codebase *codebaseflow.Service
-	Tools *toolflow.Service
-	Operations *operationsflow.Service
+	Approvals          *approvalflow.Service
+	Events             *runtimeevents.Bus
+	Interrupts         *interruptflow.Service
+	Plans              *planflow.Service
+	Goals              *goalflow.Service
+	GoalDriver         *goalflow.Driver
+	MCP                *mcpflow.Service
+	Capability         *capabilityflow.Service
+	Hooks              *hookflow.Service
+	Memory             *memoryflow.Service
+	Codebase           *codebaseflow.Service
+	Tools              *toolflow.Service
+	Operations         *operationsflow.Service
 }
 
 func New(config Config) (*Runtime, error) {
@@ -121,7 +121,9 @@ func (runtime *Runtime) UpdateSession(ctx context.Context, request protocol.Upda
 
 func (runtime *Runtime) DeleteSession(ctx context.Context, sessionID string) error {
 	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, sessionID)
-	if suppressErr != nil { return suppressErr }
+	if suppressErr != nil {
+		return suppressErr
+	}
 	err := runtime.sessions.Delete(ctx, sessionID)
 	runtime.goalDriver.ReleaseSession(sessionID, err == nil && hadGoal)
 	if err == nil {
@@ -139,15 +141,21 @@ func (runtime *Runtime) ForkSession(ctx context.Context, request protocol.ForkSe
 	result, err := runtime.sessions.Fork(ctx, request)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{result.Session.ID}})
-		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{result.Session.ID}}) }
+		if result.PlanChanged {
+			runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{result.Session.ID}})
+		}
 	}
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return result.Session, nil
 }
 
 func (runtime *Runtime) RollbackSession(ctx context.Context, request protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, request.SessionID)
-	if suppressErr != nil { return nil, suppressErr }
+	if suppressErr != nil {
+		return nil, suppressErr
+	}
 	result, err := runtime.sessions.Rollback(ctx, request)
 	runtime.goalDriver.ReleaseSession(
 		request.SessionID,
@@ -155,9 +163,13 @@ func (runtime *Runtime) RollbackSession(ctx context.Context, request protocol.Ro
 	)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{request.SessionID}})
-		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{request.SessionID}}) }
+		if result.PlanChanged {
+			runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{request.SessionID}})
+		}
 	}
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return result.Response, nil
 }
 
@@ -169,9 +181,13 @@ func (runtime *Runtime) ImportSession(ctx context.Context, request protocol.Impo
 	result, err := runtime.sessions.Import(ctx, request)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{result.Response.Session.ID}})
-		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{result.Response.Session.ID}}) }
+		if result.PlanChanged {
+			runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{result.Response.Session.ID}})
+		}
 	}
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return result.Response, nil
 }
 
@@ -365,17 +381,27 @@ func (runtime *Runtime) StartGoal(ctx context.Context, request protocol.StartGoa
 
 func (runtime *Runtime) UpdateGoal(ctx context.Context, request protocol.UpdateGoalRequest) (*protocol.Goal, error) {
 	previous, _, err := runtime.goals.Current(ctx, request.SessionID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	value, err := runtime.goals.Update(ctx, request)
-	if err == nil { runtime.goalDriver.CancelDetached(previous.ActiveRunID()) }
+	if err == nil {
+		runtime.goalDriver.CancelDetached(previous.ActiveRunID())
+	}
 	return value, err
 }
 
 func (runtime *Runtime) ClearGoal(ctx context.Context, request protocol.GoalRequest) error {
 	value, found, err := runtime.goals.Current(ctx, request.SessionID)
-	if err != nil { return err }
-	if err := runtime.goals.Clear(ctx, request); err != nil { return err }
-	if found { runtime.goalDriver.CancelDetached(value.ActiveRunID()) }
+	if err != nil {
+		return err
+	}
+	if err := runtime.goals.Clear(ctx, request); err != nil {
+		return err
+	}
+	if found {
+		runtime.goalDriver.CancelDetached(value.ActiveRunID())
+	}
 	return nil
 }
 
@@ -427,37 +453,117 @@ func (runtime *Runtime) GetMCPAuthorizationAttempt(ctx context.Context, id strin
 	return runtime.mcp.GetAuthorizationAttempt(ctx, id)
 }
 
-func (runtime *Runtime) ListDiscoveredSkills(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) { return runtime.capability.DiscoveredSkills(ctx, request) }
-func (runtime *Runtime) ListManagedSkills(ctx context.Context) (*protocol.Page[protocol.ManagedSkill], error) { return runtime.capability.ManagedSkills(ctx) }
-func (runtime *Runtime) ArchiveSkill(ctx context.Context, request protocol.SkillNameRequest) error { err:=runtime.capability.SetSkillLifecycle(ctx,request,protocol.SkillLifecycleArchived); if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeSkillsChanged,Names:[]string{request.Name}})}; return err }
-func (runtime *Runtime) RestoreSkill(ctx context.Context, request protocol.SkillNameRequest) error { err:=runtime.capability.SetSkillLifecycle(ctx,request,protocol.SkillLifecycleActive); if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeSkillsChanged,Names:[]string{request.Name}})}; return err }
-func (runtime *Runtime) ListSkillProposals(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) { return runtime.capability.SkillProposals(ctx,request) }
-func (runtime *Runtime) ApproveSkillProposal(ctx context.Context, request protocol.SkillProposalRef) error { err:=runtime.capability.ApproveProposal(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeSkillsChanged,Names:[]string{request.Name}})};return err }
-func (runtime *Runtime) RejectSkillProposal(ctx context.Context, request protocol.SkillProposalRef) error { err:=runtime.capability.RejectProposal(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeSkillsChanged,Names:[]string{request.Name}})};return err }
-func (runtime *Runtime) ListRecipes(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) { return runtime.capability.Recipes(ctx,request) }
-func (runtime *Runtime) ListAgentDocs(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) { return runtime.capability.AgentDocs(ctx,request) }
-func (runtime *Runtime) ListHooks(ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) { return runtime.hooks.List(ctx,request) }
-func (runtime *Runtime) SetHookTrust(ctx context.Context, request protocol.SetHookTrustRequest) error { changed,err:=runtime.hooks.SetTrust(ctx,request);if err==nil&&changed{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeHooksChanged})};return err }
-func (runtime *Runtime) ListKnowledge(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) { return runtime.capability.ListKnowledge(ctx,request) }
-func (runtime *Runtime) GetKnowledge(ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) { return runtime.capability.GetKnowledge(ctx,request) }
-func (runtime *Runtime) UpdateKnowledge(ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) { value,err:=runtime.capability.UpdateKnowledge(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeKnowledgeChanged})};return value,err }
-func (runtime *Runtime) ListAgentMemory(ctx context.Context, request protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) { return runtime.memory.List(ctx,request) }
-func (runtime *Runtime) ReviewAgentMemory(ctx context.Context, request protocol.AgentMemoryReviewRequest) error { return runtime.memory.Review(ctx,request) }
-func (runtime *Runtime) UpdateAgentMemory(ctx context.Context, request protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) { return runtime.memory.Update(ctx,request) }
-func (runtime *Runtime) DeleteAgentMemory(ctx context.Context, request protocol.AgentMemoryItemRequest) error { return runtime.memory.Delete(ctx,request.ID) }
-func (runtime *Runtime) AddAgentMemory(ctx context.Context, request protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) { return runtime.memory.Add(ctx,request) }
+func (runtime *Runtime) ListDiscoveredSkills(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
+	return runtime.capability.DiscoveredSkills(ctx, request)
+}
+func (runtime *Runtime) ListManagedSkills(ctx context.Context) (*protocol.Page[protocol.ManagedSkill], error) {
+	return runtime.capability.ManagedSkills(ctx)
+}
+func (runtime *Runtime) ArchiveSkill(ctx context.Context, request protocol.SkillNameRequest) error {
+	err := runtime.capability.SetSkillLifecycle(ctx, request, protocol.SkillLifecycleArchived)
+	if err == nil {
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged, Names: []string{request.Name}})
+	}
+	return err
+}
+func (runtime *Runtime) RestoreSkill(ctx context.Context, request protocol.SkillNameRequest) error {
+	err := runtime.capability.SetSkillLifecycle(ctx, request, protocol.SkillLifecycleActive)
+	if err == nil {
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged, Names: []string{request.Name}})
+	}
+	return err
+}
+func (runtime *Runtime) ListSkillProposals(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
+	return runtime.capability.SkillProposals(ctx, request)
+}
+func (runtime *Runtime) ApproveSkillProposal(ctx context.Context, request protocol.SkillProposalRef) error {
+	err := runtime.capability.ApproveProposal(ctx, request)
+	if err == nil {
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged, Names: []string{request.Name}})
+	}
+	return err
+}
+func (runtime *Runtime) RejectSkillProposal(ctx context.Context, request protocol.SkillProposalRef) error {
+	err := runtime.capability.RejectProposal(ctx, request)
+	if err == nil {
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged, Names: []string{request.Name}})
+	}
+	return err
+}
+func (runtime *Runtime) ListRecipes(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
+	return runtime.capability.Recipes(ctx, request)
+}
+func (runtime *Runtime) ListAgentDocs(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {
+	return runtime.capability.AgentDocs(ctx, request)
+}
+func (runtime *Runtime) ListHooks(ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
+	return runtime.hooks.List(ctx, request)
+}
+func (runtime *Runtime) SetHookTrust(ctx context.Context, request protocol.SetHookTrustRequest) error {
+	changed, err := runtime.hooks.SetTrust(ctx, request)
+	if err == nil && changed {
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeHooksChanged})
+	}
+	return err
+}
+func (runtime *Runtime) ListKnowledge(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
+	return runtime.capability.ListKnowledge(ctx, request)
+}
+func (runtime *Runtime) GetKnowledge(ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
+	return runtime.capability.GetKnowledge(ctx, request)
+}
+func (runtime *Runtime) UpdateKnowledge(ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
+	value, err := runtime.capability.UpdateKnowledge(ctx, request)
+	if err == nil {
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeKnowledgeChanged})
+	}
+	return value, err
+}
+func (runtime *Runtime) ListAgentMemory(ctx context.Context, request protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
+	return runtime.memory.List(ctx, request)
+}
+func (runtime *Runtime) ReviewAgentMemory(ctx context.Context, request protocol.AgentMemoryReviewRequest) error {
+	return runtime.memory.Review(ctx, request)
+}
+func (runtime *Runtime) UpdateAgentMemory(ctx context.Context, request protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
+	return runtime.memory.Update(ctx, request)
+}
+func (runtime *Runtime) DeleteAgentMemory(ctx context.Context, request protocol.AgentMemoryItemRequest) error {
+	return runtime.memory.Delete(ctx, request.ID)
+}
+func (runtime *Runtime) AddAgentMemory(ctx context.Context, request protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
+	return runtime.memory.Add(ctx, request)
+}
 
-func (runtime *Runtime) CodebaseSearch(ctx context.Context, request protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) { return runtime.codebase.Search(ctx,request) }
-func (runtime *Runtime) CodebaseStatus(ctx context.Context, request protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) { return runtime.codebase.Status(ctx,request) }
-func (runtime *Runtime) CodebaseReindex(ctx context.Context, request protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) { return runtime.codebase.Reindex(ctx,request) }
-func (runtime *Runtime) ListTools(ctx context.Context) (*protocol.Page[protocol.ToolSpec], error) { return runtime.tools.List(ctx) }
-func (runtime *Runtime) InvokeTool(ctx context.Context, request protocol.InvokeToolRequest) (any,error) { return runtime.tools.Invoke(ctx,request) }
-func (runtime *Runtime) SessionUsage(ctx context.Context, sessionID string) (*protocol.Usage,error) { return runtime.operations.SessionUsage(ctx,sessionID) }
-func (runtime *Runtime) UsageSummary(ctx context.Context, request protocol.UsageSummaryRequest) (*protocol.UsageSummary,error) { return runtime.operations.UsageSummary(ctx,request) }
-func (runtime *Runtime) CreateFeedback(ctx context.Context, request protocol.FeedbackRequest) error { return runtime.operations.Feedback(ctx,request) }
+func (runtime *Runtime) CodebaseSearch(ctx context.Context, request protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
+	return runtime.codebase.Search(ctx, request)
+}
+func (runtime *Runtime) CodebaseStatus(ctx context.Context, request protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
+	return runtime.codebase.Status(ctx, request)
+}
+func (runtime *Runtime) CodebaseReindex(ctx context.Context, request protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
+	return runtime.codebase.Reindex(ctx, request)
+}
+func (runtime *Runtime) ListTools(ctx context.Context) (*protocol.Page[protocol.ToolSpec], error) {
+	return runtime.tools.List(ctx)
+}
+func (runtime *Runtime) InvokeTool(ctx context.Context, request protocol.InvokeToolRequest) (any, error) {
+	return runtime.tools.Invoke(ctx, request)
+}
+func (runtime *Runtime) SessionUsage(ctx context.Context, sessionID string) (*protocol.Usage, error) {
+	return runtime.operations.SessionUsage(ctx, sessionID)
+}
+func (runtime *Runtime) UsageSummary(ctx context.Context, request protocol.UsageSummaryRequest) (*protocol.UsageSummary, error) {
+	return runtime.operations.UsageSummary(ctx, request)
+}
+func (runtime *Runtime) CreateFeedback(ctx context.Context, request protocol.FeedbackRequest) error {
+	return runtime.operations.Feedback(ctx, request)
+}
 
 func (runtime *Runtime) Close() {
-	if runtime == nil { return }
+	if runtime == nil {
+		return
+	}
 	runtime.closeOnce.Do(func() {
 		runtime.scheduleDispatcher.Close()
 		runtime.goalDriver.Close()

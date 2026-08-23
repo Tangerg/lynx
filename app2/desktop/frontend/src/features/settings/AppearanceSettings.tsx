@@ -13,15 +13,26 @@ export function AppearanceSettings() {
   const { t } = useLocalization();
   return (
     <div className="appearance-settings">
-      <section className="settings-section" aria-labelledby="appearance-theme-title">
+      <section
+        className="settings-section"
+        aria-labelledby="appearance-theme-title"
+      >
         <header>
           <div>
-            <h2 id="appearance-theme-title">{t("settings.appearance.theme")}</h2>
+            <h2 id="appearance-theme-title">
+              {t("settings.appearance.theme")}
+            </h2>
             <p>{t("settings.appearance.themeDetail")}</p>
           </div>
-          <span className="appearance-scheme">{t(themeName(preferences.resolvedTheme))}</span>
+          <span className="appearance-scheme">
+            {t(themeName(preferences.resolvedTheme))}
+          </span>
         </header>
-        <div className="theme-options" role="radiogroup" aria-label={t("settings.appearance.theme")}>
+        <div
+          className="theme-options"
+          role="radiogroup"
+          aria-label={t("settings.appearance.theme")}
+        >
           {themes.map((theme) => (
             <button
               key={theme.id}
@@ -42,14 +53,23 @@ export function AppearanceSettings() {
           ))}
         </div>
       </section>
-      <section className="settings-section" aria-labelledby="appearance-accent-title">
+      <section
+        className="settings-section"
+        aria-labelledby="appearance-accent-title"
+      >
         <header>
           <div>
-            <h2 id="appearance-accent-title">{t("settings.appearance.accent")}</h2>
+            <h2 id="appearance-accent-title">
+              {t("settings.appearance.accent")}
+            </h2>
             <p>{t("settings.appearance.accentDetail")}</p>
           </div>
         </header>
-        <div className="accent-options" role="radiogroup" aria-label={t("settings.appearance.accentColor")}>
+        <div
+          className="accent-options"
+          role="radiogroup"
+          aria-label={t("settings.appearance.accentColor")}
+        >
           {accents.map((accent) => (
             <button
               key={accent.id}
@@ -65,10 +85,15 @@ export function AppearanceSettings() {
           ))}
         </div>
       </section>
-      <section className="settings-section" aria-labelledby="appearance-language-title">
+      <section
+        className="settings-section"
+        aria-labelledby="appearance-language-title"
+      >
         <header>
           <div>
-            <h2 id="appearance-language-title">{t("settings.appearance.language")}</h2>
+            <h2 id="appearance-language-title">
+              {t("settings.appearance.language")}
+            </h2>
             <p>{t("settings.appearance.languageDetail")}</p>
           </div>
         </header>
@@ -96,25 +121,35 @@ export function AppearanceSettings() {
 
 function themeName(theme: ThemePreference) {
   switch (theme) {
-    case "system": return "settings.appearance.theme.system.name" as const;
-    case "linen": return "settings.appearance.theme.linen.name" as const;
-    case "graphite": return "settings.appearance.theme.graphite.name" as const;
+    case "system":
+      return "settings.appearance.theme.system.name" as const;
+    case "linen":
+      return "settings.appearance.theme.linen.name" as const;
+    case "graphite":
+      return "settings.appearance.theme.graphite.name" as const;
   }
 }
 
 function themeDetail(theme: ThemePreference) {
   switch (theme) {
-    case "system": return "settings.appearance.theme.system.detail" as const;
-    case "linen": return "settings.appearance.theme.linen.detail" as const;
-    case "graphite": return "settings.appearance.theme.graphite.detail" as const;
+    case "system":
+      return "settings.appearance.theme.system.detail" as const;
+    case "linen":
+      return "settings.appearance.theme.linen.detail" as const;
+    case "graphite":
+      return "settings.appearance.theme.graphite.detail" as const;
   }
 }
 
 function accentName(accent: AccentPreference) {
   switch (accent) {
-    case "ember": return "settings.appearance.accent.ember" as const;
-    case "ocean": return "settings.appearance.accent.ocean" as const;
-    case "forest": return "settings.appearance.accent.forest" as const;
-    case "violet": return "settings.appearance.accent.violet" as const;
+    case "ember":
+      return "settings.appearance.accent.ember" as const;
+    case "ocean":
+      return "settings.appearance.accent.ocean" as const;
+    case "forest":
+      return "settings.appearance.accent.forest" as const;
+    case "violet":
+      return "settings.appearance.accent.violet" as const;
   }
 }

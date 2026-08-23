@@ -18,7 +18,7 @@ interface NewSessionMenuProps {
   pending: boolean;
   defaultWorkspace: string;
   onCreate: (request?: CreateSessionRequest) => Promise<Session>;
-	onImport: () => Promise<Session | undefined>;
+  onImport: () => Promise<Session | undefined>;
 }
 
 export function NewSessionMenu(props: NewSessionMenuProps) {
@@ -48,15 +48,15 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
       setError(failure);
     }
   };
-	const importArtifact = async () => {
-		setError(undefined);
-		try {
-			const imported = await props.onImport();
-			if (imported !== undefined) menu.close();
-		} catch (failure) {
-			setError(failure);
-		}
-	};
+  const importArtifact = async () => {
+    setError(undefined);
+    try {
+      const imported = await props.onImport();
+      if (imported !== undefined) menu.close();
+    } catch (failure) {
+      setError(failure);
+    }
+  };
 
   return (
     <div className="new-session-menu window-no-drag" ref={menu.rootRef}>
@@ -84,62 +84,64 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
           <span aria-hidden="true">＋</span>
         </button>
       </Tooltip>
-        <section
-          ref={menu.menuRef}
-          className={`new-session-popover t-dropdown${open ? " is-open" : closing ? " is-closing" : ""}`}
-          data-origin="top-end"
-          id={menuId}
-          role="menu"
-          aria-label={t("session.new")}
-          aria-hidden={!open}
-          inert={!open}
+      <section
+        ref={menu.menuRef}
+        className={`new-session-popover t-dropdown${open ? " is-open" : closing ? " is-closing" : ""}`}
+        data-origin="top-end"
+        id={menuId}
+        role="menu"
+        aria-label={t("session.new")}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        <header role="presentation">
+          <strong>{t("session.start")}</strong>
+          <span>{t("session.shortcut")}</span>
+        </header>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={props.pending}
+          onClick={() => void create()}
         >
-          <header role="presentation">
-            <strong>{t("session.start")}</strong>
-            <span>{t("session.shortcut")}</span>
-          </header>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={props.pending}
-            onClick={() => void create()}
-          >
-            <span aria-hidden="true">↗</span>
-            <span>
-              <strong>{t("session.defaultWorkspace")}</strong>
-              <small title={props.defaultWorkspace}>
-                {compactPath(props.defaultWorkspace)}
-              </small>
-            </span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={props.pending}
-            onClick={() => void choose()}
-          >
-            <span aria-hidden="true">⌁</span>
-            <span>
-              <strong>{t("session.chooseFolder")}</strong>
-              <small>{t("session.chooseFolderDetail")}</small>
-            </span>
-          </button>
-		  <button
-			type="button"
-			role="menuitem"
-			disabled={props.pending}
-			onClick={() => void importArtifact()}
-		  >
-			<span aria-hidden="true">⇣</span>
-			<span>
-			  <strong>{t("session.import")}</strong>
-			  <small>{t("session.importDetail")}</small>
-			</span>
-		  </button>
-          {error ? (
-            <p role="alert">{presentRuntimeError(error, t("session.createFailed"), t)}</p>
-          ) : null}
-        </section>
+          <span aria-hidden="true">↗</span>
+          <span>
+            <strong>{t("session.defaultWorkspace")}</strong>
+            <small title={props.defaultWorkspace}>
+              {compactPath(props.defaultWorkspace)}
+            </small>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={props.pending}
+          onClick={() => void choose()}
+        >
+          <span aria-hidden="true">⌁</span>
+          <span>
+            <strong>{t("session.chooseFolder")}</strong>
+            <small>{t("session.chooseFolderDetail")}</small>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={props.pending}
+          onClick={() => void importArtifact()}
+        >
+          <span aria-hidden="true">⇣</span>
+          <span>
+            <strong>{t("session.import")}</strong>
+            <small>{t("session.importDetail")}</small>
+          </span>
+        </button>
+        {error ? (
+          <p role="alert">
+            {presentRuntimeError(error, t("session.createFailed"), t)}
+          </p>
+        ) : null}
+      </section>
     </div>
   );
 }

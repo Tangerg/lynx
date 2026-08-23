@@ -19,15 +19,15 @@ import (
 )
 
 const (
-	maxIndexFiles       = 5_000
-	maxIndexBytes int64 = 64 << 20
-	maxIndexChunks      = 20_000
-	maxSourceFileBytes  = 512 << 10
-	maxSourcePathBytes  = 16 << 10
-	maxSourceListBytes  = 8 << 20
-	maxChunkLines       = 80
-	chunkOverlapLines   = 16
-	maxChunkBytes       = 32 << 10
+	maxIndexFiles            = 5_000
+	maxIndexBytes      int64 = 64 << 20
+	maxIndexChunks           = 20_000
+	maxSourceFileBytes       = 512 << 10
+	maxSourcePathBytes       = 16 << 10
+	maxSourceListBytes       = 8 << 20
+	maxChunkLines            = 80
+	chunkOverlapLines        = 16
+	maxChunkBytes            = 32 << 10
 )
 
 var errSourceLimit = errors.New("codebaseflow: source file limit reached")

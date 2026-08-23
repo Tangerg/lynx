@@ -5,10 +5,7 @@ import { useState } from "react";
 import { useLocalization } from "./features/localization/Localization";
 import { presentRuntimeError } from "./features/localization/presentRuntimeError";
 import { WorkspaceShell } from "./features/workspace/WorkspaceShell";
-import {
-  loadDesktopBootstrap,
-  useLocalRuntime,
-} from "./runtime/desktopBridge";
+import { loadDesktopBootstrap, useLocalRuntime } from "./runtime/desktopBridge";
 import { discoverRuntime, runtimeQueryKeys } from "./runtime/runtimeQueries";
 import "./styles.css";
 
@@ -46,7 +43,11 @@ export function App() {
     return (
       <Failure
         title={t("app.runtimeUnavailable")}
-        detail={presentRuntimeError(bootstrap.error, t("app.unknownStartupError"), t)}
+        detail={presentRuntimeError(
+          bootstrap.error,
+          t("app.unknownStartupError"),
+          t,
+        )}
         retry={bootstrap.refetch}
         recovery={{
           label: t("app.useLocalRuntime"),
@@ -62,7 +63,11 @@ export function App() {
     return (
       <Failure
         title={t("app.runtimeHandshakeFailed")}
-        detail={presentRuntimeError(discovery.error, t("app.unknownStartupError"), t)}
+        detail={presentRuntimeError(
+          discovery.error,
+          t("app.unknownStartupError"),
+          t,
+        )}
         retry={discovery.refetch}
         recovery={{
           label: t("app.useLocalRuntime"),

@@ -95,7 +95,7 @@ func NewUserItem(
 	item := Item{
 		ID: id, Scope: scope, Project: project, Content: content,
 		Digest: Digest(content), Origin: OriginUser, Status: StatusActive,
-		Day: now.Format(time.DateOnly),
+		Day:      now.Format(time.DateOnly),
 		Revision: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := item.Validate(); err != nil {

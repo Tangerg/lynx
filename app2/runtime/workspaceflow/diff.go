@@ -76,24 +76,24 @@ func parsePatch(patch string, limit int) ([]protocol.FileDiff, bool) {
 			})
 		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
 			current.Rows = append(current.Rows, protocol.DiffRow{
-				Type: protocol.DiffRowAdded,
+				Type:      protocol.DiffRowAdded,
 				RightLine: right,
-				Code: line[1:],
+				Code:      line[1:],
 			})
 			right++
 		case strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---"):
 			current.Rows = append(current.Rows, protocol.DiffRow{
-				Type: protocol.DiffRowDeleted,
+				Type:     protocol.DiffRowDeleted,
 				LeftLine: left,
-				Code: line[1:],
+				Code:     line[1:],
 			})
 			left++
 		case strings.HasPrefix(line, " "):
 			current.Rows = append(current.Rows, protocol.DiffRow{
-				Type: protocol.DiffRowContext,
-				LeftLine: left,
+				Type:      protocol.DiffRowContext,
+				LeftLine:  left,
 				RightLine: right,
-				Code: line[1:],
+				Code:      line[1:],
 			})
 			left++
 			right++
@@ -149,7 +149,7 @@ func diffHeaderPath(value string) string {
 
 func cutQuotedPath(value string) (string, string, bool) {
 	for index := 1; index < len(value); index++ {
-		if value[index] != '\"' {
+		if value[index] != '"' {
 			continue
 		}
 		backslashes := 0

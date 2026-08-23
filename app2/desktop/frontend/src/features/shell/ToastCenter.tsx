@@ -40,9 +40,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
   const notify = useCallback((notice: ToastNotice) => {
     const toast = { ...notice, id: ++nextID.current };
-    setToasts((current) =>
-      [...current, toast].slice(-maximumVisibleToasts),
-    );
+    setToasts((current) => [...current, toast].slice(-maximumVisibleToasts));
     return toast.id;
   }, []);
   const value = useMemo(() => ({ notify, dismiss }), [dismiss, notify]);
@@ -69,25 +67,15 @@ function ToastViewport(props: {
 }) {
   const { t } = useLocalization();
   return (
-    <section
-      className="toast-viewport"
-      aria-label={t("toast.region")}
-    >
+    <section className="toast-viewport" aria-label={t("toast.region")}>
       {props.toasts.map((toast) => (
-        <ToastItem
-          key={toast.id}
-          toast={toast}
-          dismiss={props.dismiss}
-        />
+        <ToastItem key={toast.id} toast={toast} dismiss={props.dismiss} />
       ))}
     </section>
   );
 }
 
-function ToastItem(props: {
-  toast: ToastRecord;
-  dismiss(id: number): void;
-}) {
+function ToastItem(props: { toast: ToastRecord; dismiss(id: number): void }) {
   const { t } = useLocalization();
   const [paused, setPaused] = useState(false);
   useEffect(() => {
@@ -109,7 +97,8 @@ function ToastItem(props: {
       onPointerLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false);
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setPaused(false);
       }}
     >
       <span aria-hidden="true">

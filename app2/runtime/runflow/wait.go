@@ -12,20 +12,20 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
 type WaitWrite struct {
-	Run         rundomain.Record
+	Run               rundomain.Record
 	ExpectedSegmentID string
-	Items       []transcript.Record
-	Messages    []conversationdomain.Record
-	ToolResults []toolresult.Record
-	Interrupts  protocol.PendingInterruptSet
-	Checkpoint  []byte
-	Events      []rundomain.EventRecord
+	Items             []transcript.Record
+	Messages          []conversationdomain.Record
+	ToolResults       []toolresult.Record
+	Interrupts        protocol.PendingInterruptSet
+	Checkpoint        []byte
+	Events            []rundomain.EventRecord
 }
 
 // TreeWaitRunWrite is one source-owned member of an atomic Run-tree pause.
@@ -330,11 +330,13 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 	events := slices.Clone(projection.events)
 	if !existed {
 		started, eventErr := service.event(record.Run.ID(), segmentID, &facts, protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &item}, now)
-		if eventErr != nil { return eventErr }
+		if eventErr != nil {
+			return eventErr
+		}
 		events = append(events, started)
 	}
 	event, err := service.event(record.Run.ID(), segmentID, &facts, protocol.StreamEvent{
-		Type: protocol.StreamSegmentFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentInterrupt, Interrupts: set.Interrupts},
 		Metrics: &facts.Metrics,
 	}, now)

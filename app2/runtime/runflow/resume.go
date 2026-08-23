@@ -39,11 +39,11 @@ type TreeResumeRunWrite struct {
 }
 
 type TreeResumeWrite struct {
-	Runs                []TreeResumeRunWrite
-	ExpectedInterrupts  protocol.PendingInterruptSet
-	UpdatedItems        []transcript.Record
-	OpeningItem         *transcript.Record
-	OpeningMessage      *conversationdomain.Record
+	Runs               []TreeResumeRunWrite
+	ExpectedInterrupts protocol.PendingInterruptSet
+	UpdatedItems       []transcript.Record
+	OpeningItem        *transcript.Record
+	OpeningMessage     *conversationdomain.Record
 }
 
 type ResumeCommand struct {
@@ -143,11 +143,17 @@ func (service *Service) ResumeWith(ctx context.Context, command ResumeCommand) (
 		opening = &stored
 		userItemID = &id
 		message, messageErr := agentexec.UserMessage(request.Input)
-		if messageErr != nil { return nil, nil, messageErr }
+		if messageErr != nil {
+			return nil, nil, messageErr
+		}
 		body, messageErr := json.Marshal(message)
-		if messageErr != nil { return nil, nil, messageErr }
+		if messageErr != nil {
+			return nil, nil, messageErr
+		}
 		messages, messageErr := service.store.ListConversationMessages(ctx, record.Run.SessionID())
-		if messageErr != nil { return nil, nil, messageErr }
+		if messageErr != nil {
+			return nil, nil, messageErr
+		}
 		value := conversationdomain.Record{SessionID: record.Run.SessionID(), RunID: request.RunID, Ordinal: nextConversationOrdinal(messages), Body: body}
 		openingMessage = &value
 	}
@@ -404,13 +410,15 @@ func frameworkInterruptResponse(
 	switch interrupt.Type {
 	case protocol.InterruptApproval:
 		return json.Marshal(struct {
-			Decision protocol.ApprovalDecision `json:"decision"`
-			Remember *protocol.RememberScope `json:"remember,omitempty"`
-			EditedArgs map[string]any `json:"editedArgs,omitempty"`
-			Reason string `json:"reason,omitempty"`
+			Decision   protocol.ApprovalDecision `json:"decision"`
+			Remember   *protocol.RememberScope   `json:"remember,omitempty"`
+			EditedArgs map[string]any            `json:"editedArgs,omitempty"`
+			Reason     string                    `json:"reason,omitempty"`
 		}{Decision: response.Decision, Remember: response.Remember, EditedArgs: response.EditedArgs, Reason: response.Reason})
 	case protocol.InterruptQuestion:
-		return json.Marshal(struct { Answers [][]string `json:"answers"` }{Answers: response.Answers})
+		return json.Marshal(struct {
+			Answers [][]string `json:"answers"`
+		}{Answers: response.Answers})
 	default:
 		return nil, fmt.Errorf("runflow: unsupported framework interrupt %q", interrupt.Type)
 	}

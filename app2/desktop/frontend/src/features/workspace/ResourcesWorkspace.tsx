@@ -161,7 +161,9 @@ function ResourceButton(props: {
       onClick={props.onSelect}
     >
       <span>{props.label}</span>
-      {props.count === undefined ? null : <small>{formatNumber(props.count)}</small>}
+      {props.count === undefined ? null : (
+        <small>{formatNumber(props.count)}</small>
+      )}
     </button>
   );
 }
@@ -197,11 +199,16 @@ function RecipeCatalog(props: {
   return (
     <div className="resource-card-list">
       {props.values.map((recipe) => (
-        <article className="resource-card" key={`${recipe.scope}:${recipe.name}`}>
+        <article
+          className="resource-card"
+          key={`${recipe.scope}:${recipe.name}`}
+        >
           <header>
             <div>
               <h4>/{recipe.name}</h4>
-              {recipe.argumentHint ? <small>{recipe.argumentHint}</small> : null}
+              {recipe.argumentHint ? (
+                <small>{recipe.argumentHint}</small>
+              ) : null}
             </div>
             <ResourceTag>{recipe.scope}</ResourceTag>
           </header>
@@ -270,7 +277,5 @@ function compactPath(path: string) {
 }
 
 function messageOf(error: unknown, fallback: string) {
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return error instanceof Error ? error.message : fallback;
 }

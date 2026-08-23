@@ -9,11 +9,7 @@ import {
 } from "react";
 
 import "./theme.css";
-import {
-  detectLocale,
-  isLocale,
-  type Locale,
-} from "../localization/locales";
+import { detectLocale, isLocale, type Locale } from "../localization/locales";
 
 export const themes = [
   { id: "system" },
@@ -45,11 +41,15 @@ interface ShellPreferenceContext extends ShellPreferenceState {
 }
 
 const storageKey = "lyra.app2.shell.v2";
-const ShellPreferencesContext = createContext<ShellPreferenceContext | undefined>(
-  undefined,
-);
+const ShellPreferencesContext = createContext<
+  ShellPreferenceContext | undefined
+>(undefined);
 
-export function ShellPreferencesProvider({ children }: { children: ReactNode }) {
+export function ShellPreferencesProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [preferences, setPreferences] = useState(readPreferences);
   const [systemDark, setSystemDark] = useState(systemPrefersDark);
   const resolvedTheme =

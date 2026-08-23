@@ -63,7 +63,7 @@ func (Executor) Execute(
 	exitCode := processExitCode(runErr)
 	result := hookflow.CommandResult{
 		Stderr: stderr.String(), ExitCode: exitCode,
-		Err: errors.Join(runErr, cleanupErr),
+		Err:      errors.Join(runErr, cleanupErr),
 		TimedOut: errors.Is(commandContext.Err(), context.DeadlineExceeded),
 	}
 	if stdout.overflow {
@@ -102,15 +102,15 @@ type toolWire struct {
 }
 
 type subagentWire struct {
-	RunID           string `json:"runId"`
-	ParentRunID     string `json:"parentRunId"`
-	Description     string `json:"description,omitempty"`
-	Prompt          string `json:"prompt,omitempty"`
-	PromptTruncated bool   `json:"promptTruncated,omitempty"`
+	RunID           string                       `json:"runId"`
+	ParentRunID     string                       `json:"parentRunId"`
+	Description     string                       `json:"description,omitempty"`
+	Prompt          string                       `json:"prompt,omitempty"`
+	PromptTruncated bool                         `json:"promptTruncated,omitempty"`
 	Status          lifecyclehook.SubagentStatus `json:"status,omitempty"`
-	Result          string `json:"result,omitempty"`
-	Error           string `json:"error,omitempty"`
-	ResultTruncated bool   `json:"resultTruncated,omitempty"`
+	Result          string                       `json:"result,omitempty"`
+	Error           string                       `json:"error,omitempty"`
+	ResultTruncated bool                         `json:"resultTruncated,omitempty"`
 }
 
 func presentInput(value lifecyclehook.Invocation) inputWire {
@@ -135,7 +135,7 @@ func presentInput(value lifecyclehook.Invocation) inputWire {
 			RunID: value.Subagent.RunID, ParentRunID: value.Subagent.ParentRunID,
 			Description: value.Subagent.Description, Prompt: value.Subagent.Prompt,
 			PromptTruncated: value.Subagent.PromptTruncated,
-			Status: value.Subagent.Status, Result: value.Subagent.Result,
+			Status:          value.Subagent.Status, Result: value.Subagent.Result,
 			Error: value.Subagent.Error, ResultTruncated: value.Subagent.ResultTruncated,
 		}
 	}
@@ -247,5 +247,5 @@ func (buffer *boundedBuffer) Write(value []byte) (int, error) {
 	return written, nil
 }
 
-func (buffer *boundedBuffer) Bytes() []byte { return buffer.buffer.Bytes() }
+func (buffer *boundedBuffer) Bytes() []byte  { return buffer.buffer.Bytes() }
 func (buffer *boundedBuffer) String() string { return buffer.buffer.String() }

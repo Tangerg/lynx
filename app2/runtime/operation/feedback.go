@@ -10,7 +10,6 @@ func registerFeedback(registry *Registry) {
 	CommandAck(registry, MethodMeta{
 		Name: "feedback.create",
 		Errors: []string{
-			protocol.ErrInvalidParams.Error(),
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrItemNotFound.Error(),

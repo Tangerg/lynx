@@ -9,16 +9,25 @@ export const koreanMessages = {
   "app.useLocalRuntime": "로컬 Runtime 사용",
   "app.switchingRuntime": "전환 중…",
   "app.unknownStartupError": "알 수 없는 오류로 인해 시작이 중단되었습니다.",
-  "runtimeError.invalidRuntimeBootstrap": "Desktop이 잘못된 Runtime 부트스트랩을 반환했습니다.",
-  "runtimeError.unsafeRuntimeEndpoint": "Desktop이 안전하지 않은 Runtime 엔드포인트를 반환했습니다.",
+  "runtimeError.invalidRuntimeBootstrap":
+    "Desktop이 잘못된 Runtime 부트스트랩을 반환했습니다.",
+  "runtimeError.unsafeRuntimeEndpoint":
+    "Desktop이 안전하지 않은 Runtime 엔드포인트를 반환했습니다.",
   "runtimeError.hostUnavailable": "Lyra Desktop 호스트를 사용할 수 없습니다.",
-  "runtimeError.invalidBootstrapEnvelope": "Desktop이 잘못된 부트스트랩 봉투를 반환했습니다.",
-  "runtimeError.invalidRemoteRuntimeState": "Desktop이 잘못된 원격 Runtime 상태를 반환했습니다.",
-  "runtimeError.inconsistentRemoteRuntimeState": "Desktop이 일관되지 않은 원격 Runtime 상태를 반환했습니다.",
-  "runtimeError.invalidDirectorySelection": "Desktop이 잘못된 디렉터리 선택을 반환했습니다.",
-  "runtimeError.invalidImageSaveResult": "Desktop에서 잘못된 이미지 저장 결과를 반환했습니다.",
-  "runtimeError.invalidSessionArtifactSelection": "Desktop이 잘못된 세션 아티팩트 선택을 반환했습니다.",
-  "runtimeError.invalidSessionExportResult": "Desktop이 잘못된 세션 내보내기 결과를 반환했습니다.",
+  "runtimeError.invalidBootstrapEnvelope":
+    "Desktop이 잘못된 부트스트랩 봉투를 반환했습니다.",
+  "runtimeError.invalidRemoteRuntimeState":
+    "Desktop이 잘못된 원격 Runtime 상태를 반환했습니다.",
+  "runtimeError.inconsistentRemoteRuntimeState":
+    "Desktop이 일관되지 않은 원격 Runtime 상태를 반환했습니다.",
+  "runtimeError.invalidDirectorySelection":
+    "Desktop이 잘못된 디렉터리 선택을 반환했습니다.",
+  "runtimeError.invalidImageSaveResult":
+    "Desktop에서 잘못된 이미지 저장 결과를 반환했습니다.",
+  "runtimeError.invalidSessionArtifactSelection":
+    "Desktop이 잘못된 세션 아티팩트 선택을 반환했습니다.",
+  "runtimeError.invalidSessionExportResult":
+    "Desktop이 잘못된 세션 내보내기 결과를 반환했습니다.",
   "runtimeError.identityChanged": "Runtime 검색 중에 ID가 변경되었습니다.",
   "approval.title": "승인",
   "approval.toolExecution": "도구 실행",
@@ -30,15 +39,18 @@ export const koreanMessages = {
   "approval.argumentsFor": "{tool}에 대한 인수",
   "approval.reason": "이유",
   "approval.optional": "선택 사항",
-  "approval.denialReasonPlaceholder": "이것이 거부된 이유를 Lyra에게 알려주십시오.",
+  "approval.denialReasonPlaceholder":
+    "이것이 거부된 이유를 Lyra에게 알려주십시오.",
   "approval.contextPlaceholder": "이 결정에 대한 맥락을 추가하세요.",
   "approval.rememberDecision": "결정을 기억하세요",
   "approval.rememberOnce": "이번에만",
   "approval.rememberSession": "이 세션",
   "approval.rememberProject": "이 프로젝트",
   "approval.rememberGlobal": "모든 곳",
-  "approval.decisionRequired": "모든 승인 요청에 대해 승인 또는 거부를 선택하세요.",
-  "approval.argumentsInvalidJSON": "편집된 도구 인수는 유효한 JSON이어야 합니다.",
+  "approval.decisionRequired":
+    "모든 승인 요청에 대해 승인 또는 거부를 선택하세요.",
+  "approval.argumentsInvalidJSON":
+    "편집된 도구 인수는 유효한 JSON이어야 합니다.",
   "approval.argumentsNotObject": "편집된 도구 인수는 JSON 개체여야 합니다.",
   "question.title": "질문",
   "question.inputForLyra": "Lyra에 대한 입력",
@@ -48,20 +60,24 @@ export const koreanMessages = {
   "question.customAnswer": "맞춤 답변",
   "question.customAnswerPlaceholder": "다른 답변 작성",
   "question.incomplete": "Runtime에서 완전한 질문을 제공하지 않았습니다.",
-  "question.answerBeforeContinue": "계속하기 전에 \"{prompt}\"이라고 대답하세요.",
-  "question.chooseBeforeContinue": "계속하기 전에 “{prompt}”에 대한 답변을 선택하세요.",
+  "question.answerBeforeContinue": '계속하기 전에 "{prompt}"이라고 대답하세요.',
+  "question.chooseBeforeContinue":
+    "계속하기 전에 “{prompt}”에 대한 답변을 선택하세요.",
   "question.chooseOne": "“{prompt}”에 대한 답을 하나 선택하세요.",
   "interrupt.actionRequired": "조치 필요",
   "interrupt.waitingForYou": "Lyra이 당신을 기다리고 있습니다",
   "interrupt.requestCountOne": "{count} 요청",
   "interrupt.requestCountMany": "{count} 요청",
-  "interrupt.intro": "아래의 모든 요청을 검토하세요. 이 실행이 계속되기 전에 전체 세트가 함께 커밋됩니다.",
+  "interrupt.intro":
+    "아래의 모든 요청을 검토하세요. 이 실행이 계속되기 전에 전체 세트가 함께 커밋됩니다.",
   "interrupt.atomicNote": "답변은 이 대기 실행에 원자적으로 적용됩니다.",
   "interrupt.continuing": "계속…",
   "interrupt.submitAll": "모두 제출하고 계속",
-  "interrupt.unsupported": "이 Runtime은 지원되지 않는 상호작용을 요청했습니다.",
+  "interrupt.unsupported":
+    "이 Runtime은 지원되지 않는 상호작용을 요청했습니다.",
   "interrupt.resumeFailed": "실행을 재개할 수 없습니다.",
-  "composer.removeAttachmentFirst": "다른 첨부 파일을 추가하기 전에 첨부 파일을 제거하세요.",
+  "composer.removeAttachmentFirst":
+    "다른 첨부 파일을 추가하기 전에 첨부 파일을 제거하세요.",
   "composer.attachmentLimit": "한 번에 {count} 첨부 파일만 보낼 수 있습니다.",
   "composer.attachments": "첨부 파일",
   "composer.image": "이미지",
@@ -72,13 +88,16 @@ export const koreanMessages = {
   "composer.runningPlaceholder": "Lyra이 작동하는 동안 지침을 추가하세요…",
   "composer.readyPlaceholder": "성취하고 싶은 것이 무엇인지 설명하세요…",
   "composer.attach": "첨부",
-  "composer.keyboardHint": "보내려면 Enter를 누르세요. 줄바꿈을 하려면 Shift+Enter를 누르세요.",
+  "composer.keyboardHint":
+    "보내려면 Enter를 누르세요. 줄바꿈을 하려면 Shift+Enter를 누르세요.",
   "composer.stop": "중지",
   "composer.sending": "보내는 중…",
   "composer.steer": "조종",
   "composer.send": "전송",
-  "composer.imagesUnsupported": "선택한 모델은 이미지를 허용하지 않습니다. 이를 제거하거나 다중 모드 모델을 선택하십시오.",
-  "composer.chooseImageModel": "이미지를 첨부하기 전, 이미지 입력이 가능한 모델을 선택하세요.",
+  "composer.imagesUnsupported":
+    "선택한 모델은 이미지를 허용하지 않습니다. 이를 제거하거나 다중 모드 모델을 선택하십시오.",
+  "composer.chooseImageModel":
+    "이미지를 첨부하기 전, 이미지 입력이 가능한 모델을 선택하세요.",
   "composer.imageTooLarge": "{name}은 10MB보다 큽니다.",
   "composer.fileTooLarge": "{name}은(는) 1MB보다 큽니다.",
   "composer.attachmentReadFailed": "첨부파일을 읽을 수 없습니다.",
@@ -97,11 +116,14 @@ export const koreanMessages = {
   "narrative.loadOlder": "이전 항목 로드",
   "narrative.jumpToLatest": "최신으로 이동",
   "narrative.latestActivityBelow": "최신 활동이 아래에 있습니다",
-  "narrative.streamPaused": "라이브 업데이트가 일시 중지되었습니다: {detail}. 내구성 있는 재료가 다시 로드됩니다.",
+  "narrative.streamPaused":
+    "라이브 업데이트가 일시 중지되었습니다: {detail}. 내구성 있는 재료가 다시 로드됩니다.",
   "narrative.ready": "준비됨",
   "narrative.untitledSession": "제목 없는 세션",
-  "narrative.welcome": "아래 작품에 대해 설명해주세요. Lyra은 이 작업공간에 연결된 대화, 실행 사실 및 복구 상태를 유지합니다.",
-  "narrative.orphanDelegation": "이 스냅샷에서는 상위 위임을 사용할 수 없습니다.",
+  "narrative.welcome":
+    "아래 작품에 대해 설명해주세요. Lyra은 이 작업공간에 연결된 대화, 실행 사실 및 복구 상태를 유지합니다.",
+  "narrative.orphanDelegation":
+    "이 스냅샷에서는 상위 위임을 사용할 수 없습니다.",
   "narrative.you": "나",
   "narrative.answer": "답변",
   "narrative.lyra": "Lyra",
@@ -112,7 +134,8 @@ export const koreanMessages = {
   "narrative.inputNeeded": "입력 필요",
   "narrative.contextCompacted": "컨텍스트 압축됨",
   "narrative.messagesCondensed": "{count} 메시지가 압축되었습니다.",
-  "narrative.delegationCycle": "위임된 실행 계보에는 {id}의 주기가 포함되어 있습니다.",
+  "narrative.delegationCycle":
+    "위임된 실행 계보에는 {id}의 주기가 포함되어 있습니다.",
   "narrative.delegatedRunLabel": "위임된 실행 {id}",
   "narrative.delegatedRun": "위임 실행",
   "narrative.canceling": "취소 중…",
@@ -128,14 +151,17 @@ export const koreanMessages = {
   "narrative.needsWork": "작업 필요",
   "narrative.delegated": "위임됨",
   "narrative.historyActionFailed": "세션 기록 작업이 실패했습니다.",
-  "narrative.streamClosedEarly": "Runtime은 세그먼트가 완료되기 전에 라이브 스트림을 종료했습니다.",
+  "narrative.streamClosedEarly":
+    "Runtime은 세그먼트가 완료되기 전에 라이브 스트림을 종료했습니다.",
   "narrative.streamInterrupted": "Runtime 스트림이 중단되었습니다.",
-  "narrative.waitingForResponse": "이 실행을 계속하려면 응답을 기다리고 있습니다.",
+  "narrative.waitingForResponse":
+    "이 실행을 계속하려면 응답을 기다리고 있습니다.",
   "narrative.activeSegmentMissing": "활성 실행에 현재 세그먼트가 없습니다.",
   "narrative.actionFailed": "실행 작업을 완료할 수 없습니다.",
   "narrative.noSessionMounted": "세션이 마운트되지 않았습니다.",
   "narrative.interruptSessionMismatch": "이 인터럽트는 다른 세션에 속합니다.",
-  "narrative.interruptResponsesIncomplete": "응답은 전체 인터럽트 세트를 다루어야 합니다.",
+  "narrative.interruptResponsesIncomplete":
+    "응답은 전체 인터럽트 세트를 다루어야 합니다.",
   "narrative.actionInProgress": "다른 실행 작업이 이미 진행 중입니다.",
   "narrative.olderHistoryFailed": "이전 기록을 로드할 수 없습니다.",
   "narrative.forkHere": "여기서 포크하세요",
@@ -255,7 +281,8 @@ export const koreanMessages = {
   "activity.terminal": "터미널",
   "activity.summary": "요약",
   "activity.noTimeline": "아직 실행 타임라인이 없습니다.",
-  "activity.noTimelineDetail": "실행 수명 주기 및 도구 정보는 Lyra 작업이 시작된 후 여기에 표시됩니다.",
+  "activity.noTimelineDetail":
+    "실행 수명 주기 및 도구 정보는 Lyra 작업이 시작된 후 여기에 표시됩니다.",
   "activity.latestRunTree": "최신 실행 트리",
   "activity.earlierRunTree": "이전 실행 트리",
   "activity.runCountOne": "실행 {count}",
@@ -271,7 +298,8 @@ export const koreanMessages = {
   "activity.canceling": "취소 중…",
   "activity.cancel": "취소",
   "activity.noCommands": "아직 명령 없음",
-  "activity.noCommandsDetail": "셸 도구 호출은 여기에 읽기 전용 실행 로그로 표시됩니다.",
+  "activity.noCommandsDetail":
+    "셸 도구 호출은 여기에 읽기 전용 실행 로그로 표시됩니다.",
   "activity.commandCountOne": "{count} 명령",
   "activity.commandCountMany": "명령 {count}개",
   "activity.followingOutput": "출력 따라가는 중",
@@ -280,14 +308,17 @@ export const koreanMessages = {
   "activity.running": "실행 중",
   "activity.commandNumber": "명령 {number}",
   "activity.killed": "죽음",
-  "activity.liveOutputTruncated": "이 미리보기를 제한하기 위해 이전 라이브 출력이 삭제되었습니다.",
+  "activity.liveOutputTruncated":
+    "이 미리보기를 제한하기 위해 이전 라이브 출력이 삭제되었습니다.",
   "activity.waitingCommandOutput": "명령 출력을 기다리는 중…",
   "activity.noCapturedOutput": "명령으로 캡처된 출력이 생성되지 않았습니다.",
   "activity.noSummary": "아직 실행 요약이 없습니다.",
-  "activity.noSummaryDetail": "최신 루트 실행 및 위임된 트리가 여기에 요약됩니다.",
+  "activity.noSummaryDetail":
+    "최신 루트 실행 및 위임된 트리가 여기에 요약됩니다.",
   "activity.copied": "복사됨",
   "activity.copySummary": "요약 복사",
-  "activity.clipboardUnavailable": "시스템 클립보드를 사용할 수 없습니다. 아무것도 복사되지 않았습니다.",
+  "activity.clipboardUnavailable":
+    "시스템 클립보드를 사용할 수 없습니다. 아무것도 복사되지 않았습니다.",
   "activity.changedFiles": "변경된 파일",
   "activity.noChangedFiles": "파일 변경 사항이 기록되지 않았습니다.",
   "activity.readFiles": "읽은 파일",
@@ -327,8 +358,9 @@ export const koreanMessages = {
   "session.clearSearch": "세션 검색 지우기",
   "session.shownOne": "{count} 세션 표시됨",
   "session.shownMany": "{count} 세션 표시됨",
-  "session.refreshFailed": "저장된 세션을 표시하는 중입니다. 새로 고침 실패: {detail}",
-  "session.noMatch": "\"{query}\"과 일치하는 세션이 없습니다.",
+  "session.refreshFailed":
+    "저장된 세션을 표시하는 중입니다. 새로 고침 실패: {detail}",
+  "session.noMatch": '"{query}"과 일치하는 세션이 없습니다.',
   "session.groupedLabel": "작업공간별 세션",
   "session.loadingOlder": "로드 중…",
   "session.loadOlder": "이전 세션 로드",
@@ -364,8 +396,10 @@ export const koreanMessages = {
   "goal.newObjective": "새로운 자율 목표",
   "goal.runtimeOwnership": "Runtime은 실행, 회계 및 복구를 소유합니다.",
   "goal.objective": "목표 목표",
-  "goal.objectivePlaceholder": "결과 Lyra이 계속해서 노력해야 할 결과를 설명하세요…",
-  "goal.externalChange": "편집하는 동안 Runtime 목표가 변경되었습니다. 귀하의 초안은 보존됩니다. 저장하면 명시적으로 대체됩니다.",
+  "goal.objectivePlaceholder":
+    "결과 Lyra이 계속해서 노력해야 할 결과를 설명하세요…",
+  "goal.externalChange":
+    "편집하는 동안 Runtime 목표가 변경되었습니다. 귀하의 초안은 보존됩니다. 저장하면 명시적으로 대체됩니다.",
   "goal.optionalBudget": "선택적 예산",
   "goal.runs": "실행",
   "goal.steps": "단계",
@@ -412,7 +446,8 @@ export const koreanMessages = {
   "plan.loading": "계획 로드 중…",
   "plan.currentUnavailable": "현재 계획을 사용할 수 없습니다.",
   "plan.loadingCurrent": "현재 계획 로드 중",
-  "plan.progress": "계획 진행 상황: {completed}/{total} 단계가 완료되었습니다. {summary}",
+  "plan.progress":
+    "계획 진행 상황: {completed}/{total} 단계가 완료되었습니다. {summary}",
   "plan.title": "플랜",
   "plan.current": "현재 계획",
   "plan.revision": "rev {revision}",
@@ -424,9 +459,12 @@ export const koreanMessages = {
   "plan.status.completed": "완료됨",
   "plan.status.inProgress": "진행 중",
   "plan.status.pending": "보류 중",
-  "shell.invalidArtifact": "선택한 파일은 유효한 Lyra 세션 아티팩트가 아닙니다.",
-  "shell.missingJSONExport": "Runtime이 JSON 세션 아티팩트를 반환하지 않았습니다.",
-  "shell.missingMarkdownExport": "Runtime이 Markdown 세션 내보내기를 반환하지 않았습니다.",
+  "shell.invalidArtifact":
+    "선택한 파일은 유효한 Lyra 세션 아티팩트가 아닙니다.",
+  "shell.missingJSONExport":
+    "Runtime이 JSON 세션 아티팩트를 반환하지 않았습니다.",
+  "shell.missingMarkdownExport":
+    "Runtime이 Markdown 세션 내보내기를 반환하지 않았습니다.",
   "shell.historyBusy": "다른 세션 기록 작업이 아직 실행 중입니다.",
   "shell.selectForFeedback": "피드백을 보내기 전에 세션을 선택하세요.",
   "shell.workIndex": "작업 색인",
@@ -441,11 +479,13 @@ export const koreanMessages = {
   "shell.contextDock": "컨텍스트 도크",
   "shell.session": "세션",
   "shell.emptyTitle": "깨끗한 세션으로 시작하세요.",
-  "shell.emptyDetail": "A 세션은 대화, 계획, 목표 및 복구 사실을 하나의 정확한 작업 공간 ID에 연결합니다.",
+  "shell.emptyDetail":
+    "A 세션은 대화, 계획, 목표 및 복구 사실을 하나의 정확한 작업 공간 ID에 연결합니다.",
   "shell.creating": "만드는 중…",
   "shell.newSession": "새 세션",
   "shell.mountingSession": "마운팅 세션",
-  "shell.loadingSnapshot": "새 작업을 수락하기 전에 일관된 Runtime 스냅샷 하나를 로드하는 중…",
+  "shell.loadingSnapshot":
+    "새 작업을 수락하기 전에 일관된 Runtime 스냅샷 하나를 로드하는 중…",
   "shell.liveUpdates": "실시간 업데이트",
   "shell.reconnecting": "다시 연결하는 중",
   "shell.connecting": "연결 중",
@@ -465,7 +505,8 @@ export const koreanMessages = {
   "workspace.title": "작업 영역",
   "workspace.session": "세션",
   "workspace.unavailable": "작업공간을 사용할 수 없음",
-  "workspace.unavailableDetail": "파일을 탐색하기 전에 사용 가능한 디렉터리에 이 세션을 다시 연결하세요.",
+  "workspace.unavailableDetail":
+    "파일을 탐색하기 전에 사용 가능한 디렉터리에 이 세션을 다시 연결하세요.",
   "workspace.context": "작업 공간 컨텍스트",
   "workspace.views": "작업 공간 보기",
   "workspace.files": "파일",
@@ -510,12 +551,14 @@ export const koreanMessages = {
   "resource.discoveringRecipes": "레시피를 찾는 중…",
   "resource.recipesFailed": "레시피를 찾을 수 없습니다.",
   "resource.noRecipes": "사용 가능한 레시피가 없습니다.",
-  "resource.noRecipesDetail": ".lyra/recipes 아래에 슬래시 호출 가능 마크다운 레시피를 추가하세요.",
+  "resource.noRecipesDetail":
+    ".lyra/recipes 아래에 슬래시 호출 가능 마크다운 레시피를 추가하세요.",
   "resource.viewPrompt": "프롬프트 보기",
   "resource.resolvingAgentDocs": "에이전트 문서 해결 중…",
   "resource.agentDocsFailed": "에이전트 문서를 확인할 수 없습니다.",
   "resource.noAgentDocs": "대리인 문서가 적용되지 않습니다.",
-  "resource.noAgentDocsDetail": "집, 프로젝트 루트 또는 선택한 작업공간 아래에 AGENTS.md을 추가하세요.",
+  "resource.noAgentDocsDetail":
+    "집, 프로젝트 루트 또는 선택한 작업공간 아래에 AGENTS.md을 추가하세요.",
   "codebase.readingIndex": "의미 색인 읽기",
   "codebase.indexUnavailable": "의미 색인을 사용할 수 없습니다.",
   "codebase.searchLabel": "의미론적 코드베이스 검색",
@@ -529,20 +572,25 @@ export const koreanMessages = {
   "codebase.indexing": "색인 중…",
   "codebase.reindex": "재색인",
   "codebase.building": "의미 색인 구축",
-  "codebase.buildingDetail": "소스 검색, 청크 및 임베딩은 Runtime에서 실행됩니다. 이 보기는 내구성 지수가 안정되면 업데이트됩니다.",
+  "codebase.buildingDetail":
+    "소스 검색, 청크 및 임베딩은 Runtime에서 실행됩니다. 이 보기는 내구성 지수가 안정되면 업데이트됩니다.",
   "codebase.lastBuildFailed": "마지막 인덱스 빌드가 완료되지 않았습니다.",
-  "codebase.lastBuildFailedDetail": "임베딩 공급자 구성을 확인한 후 인덱스를 다시 작성하세요. 이전 검색 가능 인덱스는 부분적으로 대체되지 않습니다.",
+  "codebase.lastBuildFailedDetail":
+    "임베딩 공급자 구성을 확인한 후 인덱스를 다시 작성하세요. 이전 검색 가능 인덱스는 부분적으로 대체되지 않습니다.",
   "codebase.starting": "시작하는 중…",
   "codebase.buildAgain": "다시 빌드",
   "codebase.semanticTitle": "텍스트뿐만 아니라 의미로 검색",
-  "codebase.semanticDetail": "현재 세션 작업공간 전체에서 관련 코드 구절을 찾기 위해 작업공간 범위 의미 색인을 구축합니다.",
+  "codebase.semanticDetail":
+    "현재 세션 작업공간 전체에서 관련 코드 구절을 찾기 위해 작업공간 범위 의미 색인을 구축합니다.",
   "codebase.buildIndex": "빌드 인덱스",
   "codebase.readySearch": "검색 준비 완료",
-  "codebase.readySearchDetail": "책임, 행동 또는 개념을 일반 언어로 설명합니다.",
+  "codebase.readySearchDetail":
+    "책임, 행동 또는 개념을 일반 언어로 설명합니다.",
   "codebase.searchingPassages": "코드 구절 검색 중",
   "codebase.searchFailed": "의미 검색 실패",
   "codebase.noPassage": "관련 구절을 찾을 수 없습니다.",
-  "codebase.noPassageDetail": "더 넓은 설명을 시도하거나 소스 파일을 변경한 후 다시 빌드하세요.",
+  "codebase.noPassageDetail":
+    "더 넓은 설명을 시도하거나 소스 파일을 변경한 후 다시 빌드하세요.",
   "codebase.results": "의미 검색 결과",
   "codebase.lineRangeScore": "L{start}–{end} · {score}%",
   "codebase.status.building": "건물 색인",
@@ -554,15 +602,20 @@ export const koreanMessages = {
   "review.branchUnavailable": "분기 비교를 사용할 수 없습니다.",
   "review.loadFailed": "작업공간 검토를 로드할 수 없습니다.",
   "review.boundary": "검토 경계에 도달함",
-  "review.boundaryDetail": "첫 번째 변경된 파일이 100,000행 경계를 초과했습니다. 제한된 창을 검사하려면 파일에서 엽니다.",
+  "review.boundaryDetail":
+    "첫 번째 변경된 파일이 100,000행 경계를 초과했습니다. 제한된 창을 검사하려면 파일에서 엽니다.",
   "review.materialUnavailable": "Diff 자료를 사용할 수 없습니다.",
-  "review.materialUnavailableDetail": "Git에서 변경된 파일 ID를 보고했지만 검토 가능한 패치가 생성되지 않았습니다.",
+  "review.materialUnavailableDetail":
+    "Git에서 변경된 파일 ID를 보고했지만 검토 가능한 패치가 생성되지 않았습니다.",
   "review.noBranchChanges": "분기 변경 없음",
   "review.clean": "작업 공간이 깨끗합니다.",
-  "review.noBranchChangesDetail": "작업공간은 기본 분기의 병합 기반과 일치합니다.",
-  "review.cleanDetail": "추적된 파일과 추적되지 않은 파일이 현재 HEAD와 일치합니다.",
+  "review.noBranchChangesDetail":
+    "작업공간은 기본 분기의 병합 기반과 일치합니다.",
+  "review.cleanDetail":
+    "추적된 파일과 추적되지 않은 파일이 현재 HEAD와 일치합니다.",
   "review.label": "작업 공간 검토",
-  "review.truncated": "100,000행 경계에서 검토가 중지되었습니다. 보이는 모든 파일이 완료되었습니다.",
+  "review.truncated":
+    "100,000행 경계에서 검토가 중지되었습니다. 보이는 모든 파일이 완료되었습니다.",
   "review.baseline": "기준 검토",
   "review.worktree": "워크트리",
   "review.branch": "브랜치",
@@ -576,7 +629,8 @@ export const koreanMessages = {
   "review.binary": "바이너리",
   "review.countsUnavailable": "개수를 사용할 수 없습니다.",
   "review.binaryNoDiff": "바이너리 재질에는 라인 지향 차이가 없습니다.",
-  "review.noTextRows": "Git에서는 이 변경 사항에 대한 텍스트 행을 생성하지 않았습니다.",
+  "review.noTextRows":
+    "Git에서는 이 변경 사항에 대한 텍스트 행을 생성하지 않았습니다.",
   "review.changedLines": "변경된 줄",
   "review.changedLinesSplit": "분할 레이아웃에서 변경된 줄",
   "review.tryAgain": "다시 시도하세요",
@@ -584,13 +638,16 @@ export const koreanMessages = {
   "review.partial": "부분",
   "review.requestFailed": "검토 요청이 실패했습니다.",
   "knowledge.unavailable": "지식을 알 수 없음",
-  "knowledge.unavailableDetail": "이 Runtime은 Lyra 지식 기능을 광고하지 않습니다.",
+  "knowledge.unavailableDetail":
+    "이 Runtime은 Lyra 지식 기능을 광고하지 않습니다.",
   "knowledge.loading": "지식 로드 중…",
   "knowledge.loadFailed": "지식을 로드할 수 없습니다.",
   "knowledge.noScopes": "사용 가능한 지식 범위가 없습니다.",
-  "knowledge.noScopesDetail": "Lyra은 이 작업공간에 대한 쓰기 가능한 LYRA.md 범위를 확인할 수 없습니다.",
+  "knowledge.noScopesDetail":
+    "Lyra은 이 작업공간에 대한 쓰기 가능한 LYRA.md 범위를 확인할 수 없습니다.",
   "knowledge.documents": "기술 문서",
-  "knowledge.externalChange": "이 지식 문서는 외부적으로 변경되었습니다. 귀하의 초안은 최신 개정판에 대해 보존됩니다. 다시 저장하기 전에 검토하세요.",
+  "knowledge.externalChange":
+    "이 지식 문서는 외부적으로 변경되었습니다. 귀하의 초안은 최신 개정판에 대해 보존됩니다. 다시 저장하기 전에 검토하세요.",
   "knowledge.notCreated": "생성되지 않음",
   "knowledge.editorLabel": "{scope} 지식",
   "knowledge.unsaved": "저장되지 않은 변경사항",
@@ -607,9 +664,11 @@ export const koreanMessages = {
   "diagnostic.loading": "진단 도구 로드 중…",
   "diagnostic.loadFailed": "진단 도구를 로드할 수 없습니다.",
   "diagnostic.empty": "직접 도구를 사용할 수 없음",
-  "diagnostic.emptyDetail": "이 Runtime은 에이전트 실행 외부에서 호출해도 안전한 기능을 노출하지 않습니다.",
+  "diagnostic.emptyDetail":
+    "이 Runtime은 에이전트 실행 외부에서 호출해도 안전한 기능을 노출하지 않습니다.",
   "diagnostic.title": "직접 진단",
-  "diagnostic.detail": "이러한 읽기 전용 도구는 세션, 모델 루프 또는 승인 흐름 없이 현재 작업공간에 대해 실행됩니다. 에이전트 전용 도구는 해당 권한을 소유한 Run 내부에 남아 있습니다.",
+  "diagnostic.detail":
+    "이러한 읽기 전용 도구는 세션, 모델 루프 또는 승인 흐름 없이 현재 작업공간에 대해 실행됩니다. 에이전트 전용 도구는 해당 권한을 소유한 Run 내부에 남아 있습니다.",
   "diagnostic.safe": "안전",
   "diagnostic.schema": "JSON 스키마",
   "diagnostic.arguments": "인수",
@@ -620,7 +679,8 @@ export const koreanMessages = {
   "diagnostic.invalidArguments": "인수는 하나의 JSON 개체여야 합니다.",
   "diagnostic.requestFailed": "요청을 완료할 수 없습니다.",
   "skills.unavailable": "사용할 수 없는 스킬",
-  "skills.unavailableDetail": "이 Runtime은 Lyra 기술 기능을 광고하지 않습니다.",
+  "skills.unavailableDetail":
+    "이 Runtime은 Lyra 기술 기능을 광고하지 않습니다.",
   "skills.workspace": "기술 작업 영역",
   "skills.views": "스킬 보기",
   "skills.available": "사용 가능",
@@ -630,11 +690,13 @@ export const koreanMessages = {
   "skills.discovering": "기술 발견 중…",
   "skills.discoveryFailed": "스킬을 발견할 수 없습니다.",
   "skills.empty": "사용 가능한 기술 없음",
-  "skills.emptyDetail": ".lyra/skills 아래에 유효한 SKILL.md을 추가하거나 보류 중인 제안을 승인하세요.",
+  "skills.emptyDetail":
+    ".lyra/skills 아래에 유효한 SKILL.md을 추가하거나 보류 중인 제안을 승인하세요.",
   "skills.loadingProposals": "제안서 로드 중…",
   "skills.proposalsFailed": "제안서를 로드할 수 없습니다.",
   "skills.noProposals": "대기 중인 제안 없음",
-  "skills.noProposalsDetail": "에이전트 작성 스킬은 제안이 여기에 나타나고 정확한 수정본을 승인할 때까지 비활성 상태로 유지됩니다.",
+  "skills.noProposalsDetail":
+    "에이전트 작성 스킬은 제안이 여기에 나타나고 정확한 수정본을 승인할 때까지 비활성 상태로 유지됩니다.",
   "skills.revision": "개정",
   "skills.origin": "원산지",
   "skills.unknown": "알 수 없음",
@@ -648,7 +710,8 @@ export const koreanMessages = {
   "skills.loadingLibrary": "사용자 라이브러리 로드 중…",
   "skills.libraryFailed": "스킬 라이브러리를 로드할 수 없습니다.",
   "skills.libraryEmpty": "사용자 라이브러리가 비어 있습니다.",
-  "skills.libraryEmptyDetail": "승인된 사용자 범위 스킬 및 외부에서 작성된 ~/.lyra/skills 번들이 여기에 표시됩니다.",
+  "skills.libraryEmptyDetail":
+    "승인된 사용자 범위 스킬 및 외부에서 작성된 ~/.lyra/skills 번들이 여기에 표시됩니다.",
   "skills.active": "활성",
   "skills.noActive": "활성 사용자 스킬이 없습니다.",
   "skills.archive": "보관",
@@ -658,7 +721,8 @@ export const koreanMessages = {
   "skills.actionPending": "{action}…",
   "skills.runtimeFailure": "예기치 않은 Runtime 실패",
   "memory.unavailable": "에이전트 메모리를 사용할 수 없습니다.",
-  "memory.unavailableDetail": "이 Runtime은 Lyra 에이전트 메모리 기능을 광고하지 않습니다.",
+  "memory.unavailableDetail":
+    "이 Runtime은 Lyra 에이전트 메모리 기능을 광고하지 않습니다.",
   "memory.scope": "메모리 범위",
   "memory.project": "프로젝트",
   "memory.user": "사용자",
@@ -667,7 +731,8 @@ export const koreanMessages = {
   "memory.loadFailed": "에이전트 메모리를 로드할 수 없습니다.",
   "memory.emptyProject": "아직 프로젝트 메모리가 없습니다.",
   "memory.emptyUser": "아직 사용자 메모리가 없습니다.",
-  "memory.emptyDetail": "영속적 사실을 추가하거나 제안서를 검토하여 Lyra 완료된 작업에서 추출합니다.",
+  "memory.emptyDetail":
+    "영속적 사실을 추가하거나 제안서를 검토하여 Lyra 완료된 작업에서 추출합니다.",
   "memory.pendingReview": "검토 대기",
   "memory.active": "활성 메모리",
   "memory.add": "메모리 추가",
@@ -680,7 +745,8 @@ export const koreanMessages = {
   "memory.reviewing": "검토 중…",
   "memory.approve": "승인",
   "memory.editLabel": "메모리 편집",
-  "memory.externalChange": "이 메모리는 다른 곳에서 변경되었습니다. 편집하기 전에 취소하고 다시 열어보세요.",
+  "memory.externalChange":
+    "이 메모리는 다른 곳에서 변경되었습니다. 편집하기 전에 취소하고 다시 열어보세요.",
   "memory.unpin": "고정 해제",
   "memory.pin": "고정",
   "memory.edit": "편집",
@@ -695,49 +761,63 @@ export const koreanMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "설정",
   "settings.sections": "설정 섹션",
-  "settings.authorityNote": "외관은 지역적으로 유지됩니다. Runtime 상태는 모든 변경 후에도 권한을 유지합니다.",
+  "settings.authorityNote":
+    "외관은 지역적으로 유지됩니다. Runtime 상태는 모든 변경 후에도 권한을 유지합니다.",
   "settings.desktopSettings": "데스크톱 설정",
   "settings.close": "설정 닫기",
   "settings.page.appearance.title": "외관",
-  "settings.page.appearance.description": "애플리케이션 의미를 변경하지 않고 지속 가능한 테마와 강조를 선택하세요.",
+  "settings.page.appearance.description":
+    "애플리케이션 의미를 변경하지 않고 지속 가능한 테마와 강조를 선택하세요.",
   "settings.page.runtime.title": "Runtime 연결",
-  "settings.page.runtime.description": "감독되는 로컬 Runtime과 검증된 원격 배포 간에 전환합니다.",
+  "settings.page.runtime.description":
+    "감독되는 로컬 Runtime과 검증된 원격 배포 간에 전환합니다.",
   "settings.page.providers.title": "모델 및 제공업체",
-  "settings.page.providers.description": "모델 공급자를 연결하고 선택적 Runtime 전체 모델 역할을 할당합니다.",
+  "settings.page.providers.description":
+    "모델 공급자를 연결하고 선택적 Runtime 전체 모델 역할을 할당합니다.",
   "settings.page.mcp.title": "MCP 서버",
-  "settings.page.mcp.description": "외부 도구 연결, 승인 및 도구 수준 신뢰를 명시적으로 소유합니다.",
+  "settings.page.mcp.description":
+    "외부 도구 연결, 승인 및 도구 수준 신뢰를 명시적으로 소유합니다.",
   "settings.page.approvals.title": "승인 정책",
-  "settings.page.approvals.description": "실시간 효과 자세를 선택하고 이 세션에 표시되는 기억된 결정을 관리합니다.",
+  "settings.page.approvals.description":
+    "실시간 효과 자세를 선택하고 이 세션에 표시되는 기억된 결정을 관리합니다.",
   "settings.page.schedules.title": "일정",
-  "settings.page.schedules.description": "내구성 있는 케이던스, 명시적인 작업 공간 의도 및 복구 가능한 실행을 통해 반복 실행을 생성합니다.",
+  "settings.page.schedules.description":
+    "내구성 있는 케이던스, 명시적인 작업 공간 의도 및 복구 가능한 실행을 통해 반복 실행을 생성합니다.",
   "settings.page.hooks.title": "수명주기 후크",
-  "settings.page.hooks.description": "실행할 수 있는 프로젝트 후크를 결정하기 전에 사용자 및 프로젝트 자동화를 검토하세요.",
+  "settings.page.hooks.description":
+    "실행할 수 있는 프로젝트 후크를 결정하기 전에 사용자 및 프로젝트 자동화를 검토하세요.",
   "settings.page.usage.title": "사용량",
-  "settings.page.usage.description": "권위 있는 터미널을 검사하고 Runtime이 알지 못하는 가격을 발명하지 않고 사용량을 실행합니다.",
+  "settings.page.usage.description":
+    "권위 있는 터미널을 검사하고 Runtime이 알지 못하는 가격을 발명하지 않고 사용량을 실행합니다.",
   "settings.appearance.theme": "색상 테마",
-  "settings.appearance.themeDetail": "정적 Lyra 팔레트를 선택하거나 운영 체제를 따릅니다.",
+  "settings.appearance.themeDetail":
+    "정적 Lyra 팔레트를 선택하거나 운영 체제를 따릅니다.",
   "settings.appearance.theme.system.name": "팔로우 시스템",
   "settings.appearance.theme.system.detail": "운영 체제로 전환하세요.",
   "settings.appearance.theme.linen.name": "리넨",
   "settings.appearance.theme.linen.detail": "일광을 위한 따뜻하고 조용한 표면.",
   "settings.appearance.theme.graphite.name": "그래파이트",
-  "settings.appearance.theme.graphite.detail": "집중 작업을 위한 눈부심이 적은 어두운 표면.",
+  "settings.appearance.theme.graphite.detail":
+    "집중 작업을 위한 눈부심이 적은 어두운 표면.",
   "settings.appearance.accent": "강조색",
-  "settings.appearance.accentDetail": "초점, 진행, 링크 및 기본 작업을 위한 하나의 기능 색상입니다.",
+  "settings.appearance.accentDetail":
+    "초점, 진행, 링크 및 기본 작업을 위한 하나의 기능 색상입니다.",
   "settings.appearance.accentColor": "악센트 색상",
   "settings.appearance.accent.ember": "엠버",
   "settings.appearance.accent.ocean": "바다",
   "settings.appearance.accent.forest": "숲",
   "settings.appearance.accent.violet": "바이올렛",
   "settings.appearance.language": "언어",
-  "settings.appearance.languageDetail": "이 기기의 Lyra Desktop에서 사용할 언어를 선택하세요.",
+  "settings.appearance.languageDetail":
+    "이 기기의 Lyra Desktop에서 사용할 언어를 선택하세요.",
   "settings.runtime.tryAgain": "다시 시도하세요",
   "settings.runtime.loading": "Runtime 연결 로드 중…",
   "settings.runtime.status.remoteActive": "원격 활성",
   "settings.runtime.status.remoteUnavailable": "원격 사용 불가",
   "settings.runtime.status.localActive": "로컬 활성",
   "settings.runtime.active": "활성 Runtime",
-  "settings.runtime.activeDetail": "Desktop은 Lyra Protocol을 변경하지 않고 배포 대상을 변경합니다.",
+  "settings.runtime.activeDetail":
+    "Desktop은 Lyra Protocol을 변경하지 않고 배포 대상을 변경합니다.",
   "settings.runtime.target": "대상",
   "settings.runtime.remote": "원격 Runtime",
   "settings.runtime.local": "로컬 Runtime",
@@ -745,7 +825,8 @@ export const koreanMessages = {
   "settings.runtime.privateLoopback": "프라이빗 루프백",
   "settings.runtime.useLocal": "로컬 Runtime 사용",
   "settings.runtime.useSavedRemote": "저장된 원격 사용",
-  "settings.runtime.remoteDetail": "HTTPS 원본 및 전달자 비밀은 프로필이 활성화되기 전에 확인됩니다.",
+  "settings.runtime.remoteDetail":
+    "HTTPS 원본 및 전달자 비밀은 프로필이 활성화되기 전에 확인됩니다.",
   "settings.runtime.httpsOrigin": "HTTPS 출처",
   "settings.runtime.bearerSecret": "베어러 비밀",
   "settings.runtime.replacementSecret": "대체 비밀번호를 입력하세요.",
@@ -755,29 +836,36 @@ export const koreanMessages = {
   "settings.runtime.replace": "연결 교체",
   "settings.runtime.connect": "원격 연결",
   "settings.runtime.forgetTitle": "원격 프로필 잊어버리기",
-  "settings.runtime.forgetDetail": "이 장치에서 저장된 엔드포인트 ID와 전달자 비밀을 제거합니다.",
+  "settings.runtime.forgetDetail":
+    "이 장치에서 저장된 엔드포인트 ID와 전달자 비밀을 제거합니다.",
   "settings.runtime.irreversible": "이 작업은 취소할 수 없습니다.",
   "settings.runtime.keep": "프로필 유지",
   "settings.runtime.forgetRemote": "원격 삭제",
   "settings.runtime.forget": "잊어…",
   "settings.runtime.failed": "Runtime 연결에 실패했습니다.",
   "settings.approval.effectStance": "효과 자세",
-  "settings.approval.effectStanceDetail": "Runtime은 이미 진행 중인 실행을 포함하여 모든 도구 효과에서 이 설정을 읽습니다.",
+  "settings.approval.effectStanceDetail":
+    "Runtime은 이미 진행 중인 실행을 포함하여 모든 도구 효과에서 이 설정을 읽습니다.",
   "settings.approval.loadingMode": "승인 모드 로드 중…",
   "settings.approval.tryAgain": "다시 시도하세요",
   "settings.approval.mode.safe.name": "안전",
-  "settings.approval.mode.safe.description": "작업공간 쓰기, 명령 실행 및 네트워크 액세스를 확인합니다.",
+  "settings.approval.mode.safe.description":
+    "작업공간 쓰기, 명령 실행 및 네트워크 액세스를 확인합니다.",
   "settings.approval.mode.safe.badge": "최다 리뷰",
   "settings.approval.mode.balanced.name": "균형",
-  "settings.approval.mode.balanced.description": "명령 실행을 확인합니다. 일반적인 쓰기 및 네트워크 도구를 허용합니다.",
+  "settings.approval.mode.balanced.description":
+    "명령 실행을 확인합니다. 일반적인 쓰기 및 네트워크 도구를 허용합니다.",
   "settings.approval.mode.balanced.badge": "기본",
   "settings.approval.mode.yolo.name": "욜로",
-  "settings.approval.mode.yolo.description": "메시지 없이 일반 효과를 허용합니다. 치명적인 명령은 여전히 ​​검토가 필요합니다.",
+  "settings.approval.mode.yolo.description":
+    "메시지 없이 일반 효과를 허용합니다. 치명적인 명령은 여전히 ​​검토가 필요합니다.",
   "settings.approval.mode.yolo.badge": "최소 검토",
   "settings.approval.remembered": "기억된 결정",
-  "settings.approval.rememberedDetail": "세션 규칙은 프로젝트 규칙보다 우선순위가 높으며 그 다음은 전역 규칙입니다. 동등한 갈등은 거부됩니다.",
+  "settings.approval.rememberedDetail":
+    "세션 규칙은 프로젝트 규칙보다 우선순위가 높으며 그 다음은 전역 규칙입니다. 동등한 갈등은 거부됩니다.",
   "settings.approval.visibleCount": "{count} 표시",
-  "settings.approval.selectSession": "작업 색인에서 세션을 선택하여 표시되는 규칙을 검사하세요.",
+  "settings.approval.selectSession":
+    "작업 색인에서 세션을 선택하여 표시되는 규칙을 검사하세요.",
   "settings.approval.loadingRules": "기억된 결정 로드 중…",
   "settings.approval.empty": "이 세션에는 기억된 결정이 표시되지 않습니다.",
   "settings.approval.everyInvocation": "모든 호출",
@@ -793,7 +881,8 @@ export const koreanMessages = {
   "settings.approval.decision.deny": "거부",
   "settings.approval.requestFailed": "Runtime 요청이 실패했습니다.",
   "settings.usage.runtime": "Runtime 사용법",
-  "settings.usage.runtimeDetail": "Finished 실행 사실은 정확한 공급자 및 모델 ID별로 그룹화됩니다.",
+  "settings.usage.runtimeDetail":
+    "Finished 실행 사실은 정확한 공급자 및 모델 ID별로 그룹화됩니다.",
   "settings.usage.period": "사용 기간",
   "settings.usage.sevenDays": "7일",
   "settings.usage.thirtyDays": "30일",
@@ -805,11 +894,13 @@ export const koreanMessages = {
   "settings.usage.runs": "실행",
   "settings.usage.sessions": "세션",
   "settings.usage.models": "모델",
-  "settings.usage.costNote": "비용은 기여한 모든 실행에 가격이 알려진 경우에만 표시됩니다.",
+  "settings.usage.costNote":
+    "비용은 기여한 모든 실행에 가격이 알려진 경우에만 표시됩니다.",
   "settings.usage.providers": "공급자",
   "settings.usage.days": "일",
   "settings.usage.selectedSession": "선택한 세션",
-  "settings.usage.selectedSessionDetail": "마운트된 세션이 현재 소유하고 있는 완료된 모든 실행입니다.",
+  "settings.usage.selectedSessionDetail":
+    "마운트된 세션이 현재 소유하고 있는 완료된 모든 실행입니다.",
   "settings.usage.selectSession": "사용을 검사하려면 세션을 선택하세요.",
   "settings.usage.loadingSession": "세션 사용량 로드 중…",
   "settings.usage.runCountOne": "실행 {count}",
@@ -830,9 +921,11 @@ export const koreanMessages = {
   "settings.common.loading": "로드 중…",
   "settings.common.discard": "삭제",
   "settings.provider.roles": "모델 역할",
-  "settings.provider.rolesDetail": "유지 관리 및 의미론적 인덱싱을 위한 선택적 Runtime 전체 모델.",
+  "settings.provider.rolesDetail":
+    "유지 관리 및 의미론적 인덱싱을 위한 선택적 Runtime 전체 모델.",
   "settings.provider.connections": "공급자 연결",
-  "settings.provider.connectionsDetail": "비밀번호는 쓰기 전용입니다. 환경 자격 증명은 읽기 전용으로 유지됩니다.",
+  "settings.provider.connectionsDetail":
+    "비밀번호는 쓰기 전용입니다. 환경 자격 증명은 읽기 전용으로 유지됩니다.",
   "settings.provider.filter": "필터 제공자",
   "settings.provider.filterPlaceholder": "필터 제공자…",
   "settings.provider.loading": "공급자 로드 중…",
@@ -855,7 +948,8 @@ export const koreanMessages = {
   "settings.provider.saveBeforeTest": "테스트 전 변경 사항 초안 저장",
   "settings.provider.testing": "테스트 중…",
   "settings.provider.test": "테스트",
-  "settings.provider.baseURLRequired": "저장된 키가 있는 경우 기본 URL이 필요합니다.",
+  "settings.provider.baseURLRequired":
+    "저장된 키가 있는 경우 기본 URL이 필요합니다.",
   "settings.provider.utilityModel": "보조 모델",
   "settings.provider.embeddingModel": "임베딩 모델",
   "settings.provider.utilityDetail": "배경 큐레이션 및 유지 관리.",
@@ -897,9 +991,11 @@ export const koreanMessages = {
   "settings.mcp.environmentJSON": "환경 JSON",
   "settings.mcp.removeEnvironment": "저장된 환경 변수 제거",
   "settings.mcp.addServer": "서버 추가",
-  "settings.mcp.addServerDetail": "완전한 후보를 유지하지 않고 조사한 다음 준비되면 추가하세요.",
+  "settings.mcp.addServerDetail":
+    "완전한 후보를 유지하지 않고 조사한 다음 준비되면 추가하세요.",
   "settings.mcp.configuredServers": "구성된 서버",
-  "settings.mcp.configuredServersDetail": "실시간 상태는 Runtime에서 가져옵니다. reconnect는 결코 성공을 추측하지 않습니다.",
+  "settings.mcp.configuredServersDetail":
+    "실시간 상태는 Runtime에서 가져옵니다. reconnect는 결코 성공을 추측하지 않습니다.",
   "settings.mcp.loadingServers": "MCP 서버 로드 중…",
   "settings.mcp.empty": "아니요 MCP 서버가 아직 구성되지 않았습니다.",
   "settings.mcp.candidateConnected": "후보자가 성공적으로 연결되었습니다.",
@@ -914,16 +1010,19 @@ export const koreanMessages = {
   "settings.mcp.authorize": "승인",
   "settings.mcp.deletePermanently": "영구적으로 삭제하시겠습니까?",
   "settings.mcp.deleteServer": "서버 삭제",
-  "settings.mcp.saveBeforeReconnect": "다시 연결하기 전에 변경 사항 초안을 저장하세요.",
+  "settings.mcp.saveBeforeReconnect":
+    "다시 연결하기 전에 변경 사항 초안을 저장하세요.",
   "settings.mcp.reconnecting": "다시 연결하는 중…",
   "settings.mcp.reconnect": "재연결",
   "settings.mcp.loadingTools": "도구 로딩 중…",
   "settings.mcp.toolPolicies": "도구 정책",
   "settings.mcp.toolTrust": "도구 신뢰",
-  "settings.mcp.toolTrustDetail": "비활성화된 도구는 숨겨진 상태로 유지됩니다. 자동 승인 도구는 승인 프롬프트 없이 실행될 수 있습니다.",
+  "settings.mcp.toolTrustDetail":
+    "비활성화된 도구는 숨겨진 상태로 유지됩니다. 자동 승인 도구는 승인 프롬프트 없이 실행될 수 있습니다.",
   "settings.mcp.toolCountOne": "{count} 도구",
   "settings.mcp.toolCountMany": "도구 {count}개",
-  "settings.mcp.toolsRefreshFailed": "라이브 도구를 새로 고칠 수 없습니다. 저장된 정책은 편집 가능한 상태로 유지됩니다.",
+  "settings.mcp.toolsRefreshFailed":
+    "라이브 도구를 새로 고칠 수 없습니다. 저장된 정책은 편집 가능한 상태로 유지됩니다.",
   "settings.mcp.askWhenNeeded": "필요할 때 물어보세요",
   "settings.mcp.disabled": "비활성화됨",
   "settings.mcp.autoApprove": "자동 승인",
@@ -935,25 +1034,33 @@ export const koreanMessages = {
   "settings.mcp.status.connected": "연결됨",
   "settings.mcp.status.failed": "연결 실패",
   "settings.mcp.status.needsAuth": "승인 필요",
-  "settings.mcp.problem.authorizationRequired": "이 서버에는 대화형 인증이 필요합니다.",
+  "settings.mcp.problem.authorizationRequired":
+    "이 서버에는 대화형 인증이 필요합니다.",
   "settings.mcp.problem.authorizationFailed": "인증이 완료되지 않았습니다.",
   "settings.mcp.problem.dialFailed": "Runtime이 서버에 연결할 수 없습니다.",
   "settings.mcp.problem.timeout": "시간 초과 전에 서버가 응답하지 않았습니다.",
   "settings.mcp.problem.failed": "MCP 작업이 성공하지 못했습니다.",
-  "settings.mcp.validation.stableNameRequired": "안정적인 서버 이름이 필요합니다.",
+  "settings.mcp.validation.stableNameRequired":
+    "안정적인 서버 이름이 필요합니다.",
   "settings.mcp.validation.endpointRequired": "엔드포인트 URL이 필요합니다.",
   "settings.mcp.validation.commandRequired": "stdio 명령이 필요합니다.",
-  "settings.mcp.validation.timeoutInvalid": "시간 초과는 0~3600초 사이의 정수여야 합니다.",
-  "settings.mcp.validation.secretInvalidJSON": "{field}은 JSON 유효해야 합니다.",
+  "settings.mcp.validation.timeoutInvalid":
+    "시간 초과는 0~3600초 사이의 정수여야 합니다.",
+  "settings.mcp.validation.secretInvalidJSON":
+    "{field}은 JSON 유효해야 합니다.",
   "settings.mcp.validation.secretNotObject": "{field}은 JSON 개체여야 합니다.",
-  "settings.mcp.validation.secretInvalidEntries": "{field}에는 문자열 값이 포함된 비어 있지 않은 이름이 포함되어야 합니다.",
+  "settings.mcp.validation.secretInvalidEntries":
+    "{field}에는 문자열 값이 포함된 비어 있지 않은 이름이 포함되어야 합니다.",
   "settings.mcp.headers": "헤더",
   "settings.mcp.environment": "환경",
   "settings.hook.effective": "효과적인 후크",
-  "settings.hook.effectiveDetail": "후크는 정확한 세션 작업 공간에 대해 해결됩니다.",
-  "settings.hook.selectSession": "작업 색인에서 세션을 선택하여 전역 및 프로젝트 후크를 검토하세요.",
+  "settings.hook.effectiveDetail":
+    "후크는 정확한 세션 작업 공간에 대해 해결됩니다.",
+  "settings.hook.selectSession":
+    "작업 색인에서 세션을 선택하여 전역 및 프로젝트 후크를 검토하세요.",
   "settings.hook.projectTrust": "프로젝트 신뢰",
-  "settings.hook.projectTrustDetail": "글로벌 후크는 귀하의 것이며 활성 상태를 유지합니다. 복제된 프로젝트 후크는 정확한 프로젝트 루트가 신뢰될 때까지 비활성 상태로 유지됩니다.",
+  "settings.hook.projectTrustDetail":
+    "글로벌 후크는 귀하의 것이며 활성 상태를 유지합니다. 복제된 프로젝트 후크는 정확한 프로젝트 루트가 신뢰될 때까지 비활성 상태로 유지됩니다.",
   "settings.hook.resolving": "수명 주기 후크 해결 중…",
   "settings.hook.trusted": "신뢰할 수 있음",
   "settings.hook.notTrusted": "신뢰할 수 없음",
@@ -967,39 +1074,49 @@ export const koreanMessages = {
   "settings.hook.trustProject": "신뢰 프로젝트",
   "settings.hook.reviewAndTrust": "검토 및 신뢰",
   "settings.hook.cascade": "효과적인 캐스케이드",
-  "settings.hook.cascadeDetail": "명령은 감사를 위해 그대로 표시됩니다. 주입 작업은 프로세스를 생성하지 않고 제한된 컨텍스트를 추가합니다.",
+  "settings.hook.cascadeDetail":
+    "명령은 감사를 위해 그대로 표시됩니다. 주입 작업은 프로세스를 생성하지 않고 제한된 컨텍스트를 추가합니다.",
   "settings.hook.countOne": "{count} 후크",
   "settings.hook.countMany": "{count} 후크",
   "settings.hook.loading": "후크 정의 로드 중…",
-  "settings.hook.empty": "이 작업공간에는 전역 또는 프로젝트 후크가 적용되지 않습니다.",
+  "settings.hook.empty":
+    "이 작업공간에는 전역 또는 프로젝트 후크가 적용되지 않습니다.",
   "settings.hook.command": "명령",
   "settings.hook.inject": "주입",
   "settings.hook.active": "활성",
   "settings.hook.inert": "비활성",
   "settings.hook.timeout": "· {count} ms",
-  "settings.hook.missingProjectRoot": "Runtime은(는) 프로젝트 루트를 보고하지 않았습니다.",
+  "settings.hook.missingProjectRoot":
+    "Runtime은(는) 프로젝트 루트를 보고하지 않았습니다.",
   "settings.schedule.everyHour": "매시간",
   "settings.schedule.weekdaysAt": "평일 · 09:00",
   "settings.schedule.dailyAt": "매일 · 09:00",
   "settings.schedule.mondayAt": "월요일 · 09:00",
   "settings.schedule.recurringWork": "반복 작업",
-  "settings.schedule.recurringWorkDetail": "실행 전에도 발생이 지속되므로 다시 시작 복구를 통해 하나의 안정적인 세션 및 실행 ID가 유지됩니다.",
+  "settings.schedule.recurringWorkDetail":
+    "실행 전에도 발생이 지속되므로 다시 시작 복구를 통해 하나의 안정적인 세션 및 실행 ID가 유지됩니다.",
   "settings.schedule.loadedCount": "{count} 로드됨",
   "settings.schedule.loading": "일정 로드 중…",
-  "settings.schedule.empty": "아직 일정이 없습니다. 반복 작업을 의도적으로 수행하려는 경우 위에 하나를 만듭니다.",
+  "settings.schedule.empty":
+    "아직 일정이 없습니다. 반복 작업을 의도적으로 수행하려는 경우 위에 하나를 만듭니다.",
   "settings.schedule.loadMore": "더 많은 일정 로드",
   "settings.schedule.new": "새 일정",
-  "settings.schedule.newDetail": "자체 포함된 지침을 작성합니다. 모든 발생은 깨끗한 세션을 엽니다.",
-  "settings.schedule.timezoneNote": "시간은 Runtime 호스트 시간대를 사용합니다.",
+  "settings.schedule.newDetail":
+    "자체 포함된 지침을 작성합니다. 모든 발생은 깨끗한 세션을 엽니다.",
+  "settings.schedule.timezoneNote":
+    "시간은 Runtime 호스트 시간대를 사용합니다.",
   "settings.schedule.creating": "만드는 중…",
   "settings.schedule.create": "일정 생성",
-  "settings.schedule.providerModelPair": "공급자와 모델은 함께 설정하거나 둘 다 비워 두어야 합니다.",
+  "settings.schedule.providerModelPair":
+    "공급자와 모델은 함께 설정하거나 둘 다 비워 두어야 합니다.",
   "settings.schedule.enabled": "사용",
   "settings.schedule.paused": "일시중지됨",
-  "settings.schedule.saveBeforeRun": "실행하기 전에 초안 편집 내용을 저장하거나 삭제합니다.",
+  "settings.schedule.saveBeforeRun":
+    "실행하기 전에 초안 편집 내용을 저장하거나 삭제합니다.",
   "settings.schedule.starting": "시작하는 중…",
   "settings.schedule.runNow": "지금 실행",
-  "settings.schedule.saveBeforeToggle": "먼저 초안 편집 내용을 저장하거나 삭제합니다.",
+  "settings.schedule.saveBeforeToggle":
+    "먼저 초안 편집 내용을 저장하거나 삭제합니다.",
   "settings.schedule.pause": "일시 중지",
   "settings.schedule.enable": "활성화",
   "settings.schedule.next": "다음",
@@ -1011,15 +1128,18 @@ export const koreanMessages = {
   "settings.schedule.defaultTitle": "예약된 작업",
   "settings.schedule.cron": "5개 필드 크론",
   "settings.schedule.instructions": "지침",
-  "settings.schedule.instructionsPlaceholder": "모든 달리기에 대한 완전한 지침…",
+  "settings.schedule.instructionsPlaceholder":
+    "모든 달리기에 대한 완전한 지침…",
   "settings.schedule.workspace": "작업 영역",
   "settings.schedule.emptyUsesDefault": "Empty는 Runtime 기본값을 사용합니다.",
   "settings.schedule.runtimeDefault": "Runtime 기본값",
   "settings.schedule.optionalPair": "선택적 쌍",
   "settings.page.keyboard.title": "키보드 단축키",
-  "settings.page.keyboard.description": "별도의 명령 시스템을 만들지 않고 앱의 명확하고 유한한 단축키를 확인합니다.",
+  "settings.page.keyboard.description":
+    "별도의 명령 시스템을 만들지 않고 앱의 명확하고 유한한 단축키를 확인합니다.",
   "settings.shortcuts.heading": "등록된 단축키",
-  "settings.shortcuts.detail": "전역 작업과 범위 지정 작업은 충돌을 검사한 하나의 목록을 공유합니다.",
+  "settings.shortcuts.detail":
+    "전역 작업과 범위 지정 작업은 충돌을 검사한 하나의 목록을 공유합니다.",
   "settings.shortcuts.filter": "작업 또는 키 필터링…",
   "settings.shortcuts.filterAria": "키보드 단축키 필터링",
   "settings.shortcuts.clear": "단축키 필터 지우기",

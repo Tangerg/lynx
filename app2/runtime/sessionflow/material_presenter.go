@@ -47,7 +47,7 @@ func presentMaterialRun(record rundomain.Record) (*protocol.RunRef, error) {
 	}
 
 	result := &protocol.RunRef{
-		RunSummary:     summary,
+		RunSummary:      summary,
 		ActiveSegmentID: value.ActiveSegmentID(),
 		Metrics:         facts.Metrics,
 		ContextTokens:   facts.ContextTokens,

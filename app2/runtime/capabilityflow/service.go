@@ -26,16 +26,18 @@ type Store interface {
 	DeleteSkillProposalRecord(context.Context, string, string, string) error
 }
 
-type Resolver interface { Resolve(context.Context, string) (workspacefs.Resolution, error) }
-type IDs interface { New(string) (string, error) }
+type Resolver interface {
+	Resolve(context.Context, string) (workspacefs.Resolution, error)
+}
+type IDs interface{ New(string) (string, error) }
 
 type Service struct {
-	store       Store
-	resolver    Resolver
-	ids         IDs
-	home        string
-	userRoot    string
-	serial      *identitylane.Coordinator
+	store    Store
+	resolver Resolver
+	ids      IDs
+	home     string
+	userRoot string
+	serial   *identitylane.Coordinator
 }
 
 func New(store Store, resolver Resolver, ids IDs, home string) (*Service, error) {
@@ -47,13 +49,23 @@ func New(store Store, resolver Resolver, ids IDs, home string) (*Service, error)
 		return nil, fmt.Errorf("capabilityflow: prepare user skills: %w", err)
 	}
 	return &Service{
-		store:       store,
-		resolver:    resolver,
-		ids:         ids,
-		home:        home,
-		userRoot:    filepath.Join(home, ".lyra"),
-		serial:      identitylane.New(),
+		store:    store,
+		resolver: resolver,
+		ids:      ids,
+		home:     home,
+		userRoot: filepath.Join(home, ".lyra"),
+		serial:   identitylane.New(),
 	}, nil
 }
 
-func (service *Service) resolve(ctx context.Context,workspace *protocol.WorkspaceRef)(workspacefs.Resolution,error){requested:="";if workspace!=nil{requested=workspace.Path};resolved,err:=service.resolver.Resolve(ctx,requested);if err!=nil||!resolved.Available{return workspacefs.Resolution{},protocol.ErrWorkspaceUnavailable};return resolved,nil}
+func (service *Service) resolve(ctx context.Context, workspace *protocol.WorkspaceRef) (workspacefs.Resolution, error) {
+	requested := ""
+	if workspace != nil {
+		requested = workspace.Path
+	}
+	resolved, err := service.resolver.Resolve(ctx, requested)
+	if err != nil || !resolved.Available {
+		return workspacefs.Resolution{}, protocol.ErrWorkspaceUnavailable
+	}
+	return resolved, nil
+}

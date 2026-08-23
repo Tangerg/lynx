@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-} from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { useLocalization } from "../../localization/Localization";
@@ -176,7 +171,9 @@ function ImageLightbox({
             >
               −
             </button>
-            <output aria-label={t("image.zoom")}>{Math.round(zoom * 100)}%</output>
+            <output aria-label={t("image.zoom")}>
+              {Math.round(zoom * 100)}%
+            </output>
             <button
               type="button"
               aria-label={t("image.zoomIn")}

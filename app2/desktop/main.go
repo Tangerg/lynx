@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Tangerg/lynx/app2/desktop/supervisor"
 	"github.com/Tangerg/lynx/app2/desktop/remote"
+	"github.com/Tangerg/lynx/app2/desktop/supervisor"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -49,10 +49,12 @@ func runDesktop() (err error) {
 	if _, err := runtimeSupervisor.Start(context.Background()); err != nil {
 		return fmt.Errorf("desktop: start local Runtime: %w", err)
 	}
-	remoteManager,err:=remote.Open(filepath.Join(config.DataHome,"desktop-remote.json"))
-	if err!=nil{return err}
+	remoteManager, err := remote.Open(filepath.Join(config.DataHome, "desktop-remote.json"))
+	if err != nil {
+		return err
+	}
 	defer remoteManager.Close()
-	desktopHost, err := newDesktopHost(runtimeSupervisor,remoteManager)
+	desktopHost, err := newDesktopHost(runtimeSupervisor, remoteManager)
 	if err != nil {
 		return err
 	}

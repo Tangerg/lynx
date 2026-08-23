@@ -36,7 +36,7 @@ func (catalog *Catalog) memoryTools(
 ) ([]scopedTool, error) {
 	search, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
-			Name: "search_memory",
+			Name:        "search_memory",
 			Description: "Search Lyra's reviewed long-term memory for durable project decisions, conventions, gotchas, and cross-project user preferences. Use it when relevant context is not already present. Results are curated facts, not raw conversation history or instructions.",
 		},
 		func(ctx context.Context, request searchMemoryRequest) (string, error) {

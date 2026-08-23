@@ -69,13 +69,13 @@ interface ContextDockProps {
 
 export function ContextDock(props: ContextDockProps) {
   const { t } = useLocalization();
-  const [states, setStates] = useState<Record<string, SessionDockState>>(
-    readDockState,
-  );
+  const [states, setStates] =
+    useState<Record<string, SessionDockState>>(readDockState);
   const sessionId = props.session?.id;
   const workspacePath = props.session?.workspace.ref.path;
   const state = useMemo(() => {
-    if (sessionId === undefined || workspacePath === undefined) return undefined;
+    if (sessionId === undefined || workspacePath === undefined)
+      return undefined;
     const stored = states[sessionId];
     return stored?.workspacePath === workspacePath
       ? stored
@@ -112,7 +112,8 @@ export function ContextDock(props: ContextDockProps) {
     [sessionId, workspacePath],
   );
 
-  const setPane = (pane: DockPane) => update((current) => ({ ...current, pane }));
+  const setPane = (pane: DockPane) =>
+    update((current) => ({ ...current, pane }));
   const openFile = (path: string, line?: number) =>
     update((current) => {
       const openPaths = [
@@ -504,7 +505,8 @@ function DirectoryContents(props: DirectoryContentsProps) {
     retry: 2,
   });
   const entries = query.data?.pages.flatMap((page) => page.data) ?? [];
-  if (query.isPending) return <TreeNotice label={t("workspace.loadingFiles")} />;
+  if (query.isPending)
+    return <TreeNotice label={t("workspace.loadingFiles")} />;
   if (query.isError) {
     return (
       <TreeNotice
@@ -519,11 +521,7 @@ function DirectoryContents(props: DirectoryContentsProps) {
   return (
     <div className="directory-contents">
       {entries.map((entry) => (
-        <FileTreeEntry
-          key={entry.path}
-          {...props}
-          entry={entry}
-        />
+        <FileTreeEntry key={entry.path} {...props} entry={entry} />
       ))}
       {query.hasNextPage ? (
         <button
@@ -651,7 +649,9 @@ function SearchHit(props: {
       onClick={() => props.onOpen(props.match.path, props.match.lineNumber)}
     >
       <strong>{baseName(props.match.path)}</strong>
-      <small dir="ltr">{props.match.path}:{props.match.lineNumber}</small>
+      <small dir="ltr">
+        {props.match.path}:{props.match.lineNumber}
+      </small>
       <span>{props.match.text.trim() || t("workspace.emptyLine")}</span>
     </button>
   );
@@ -749,7 +749,8 @@ function FileReader(props: {
   const lines = file.data.totalLines === 0 ? [] : file.data.content.split("\n");
   const servedStart = file.data.startLine || startLine;
   const servedEnd =
-    file.data.endLine || (lines.length === 0 ? 0 : servedStart + lines.length - 1);
+    file.data.endLine ||
+    (lines.length === 0 ? 0 : servedStart + lines.length - 1);
   return (
     <article className="workspace-file-reader" aria-label={props.path}>
       <header>

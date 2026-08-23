@@ -18,7 +18,7 @@ import (
 
 type processBinding struct {
 	runID, segmentID, parentRunID, rootRunID string
-	depth                                   uint32
+	depth                                    uint32
 }
 
 type delegateIdentity struct {
@@ -59,9 +59,9 @@ func newDelegationBridge(rootRunID, rootSegmentID string, coordinator Delegation
 	}
 	return &delegationBridge{
 		coordinator: coordinator,
-		root: processBinding{runID: rootRunID, segmentID: rootSegmentID, rootRunID: rootRunID},
-		targets: make(map[agent.DeploymentRef]agent.DeploymentRef),
-		bindings: make(map[agent.ProcessID]processBinding), intents: make(map[delegateIdentity]delegateIntent),
+		root:        processBinding{runID: rootRunID, segmentID: rootSegmentID, rootRunID: rootRunID},
+		targets:     make(map[agent.DeploymentRef]agent.DeploymentRef),
+		bindings:    make(map[agent.ProcessID]processBinding), intents: make(map[delegateIdentity]delegateIntent),
 		conflicts: make(map[delegateIdentity]bool), pending: make(map[agent.ProcessID]pendingDelegate),
 	}, nil
 }

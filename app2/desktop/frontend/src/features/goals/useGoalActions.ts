@@ -70,8 +70,7 @@ export function useGoalActions(
     onSuccess: (_result, sessionId) => {
       queryClient.setQueryData<SessionSnapshot>(
         runtimeQueryKeys.snapshot(connection, sessionId),
-        (snapshot) =>
-          snapshot ? { ...snapshot, goal: undefined } : snapshot,
+        (snapshot) => (snapshot ? { ...snapshot, goal: undefined } : snapshot),
       );
       refresh(sessionId);
     },
@@ -88,13 +87,21 @@ export function useGoalActions(
       pending: update.isPending,
       error: update.error,
     },
-    { sessionId: pause.variables, pending: pause.isPending, error: pause.error },
+    {
+      sessionId: pause.variables,
+      pending: pause.isPending,
+      error: pause.error,
+    },
     {
       sessionId: resume.variables,
       pending: resume.isPending,
       error: resume.error,
     },
-    { sessionId: clear.variables, pending: clear.isPending, error: clear.error },
+    {
+      sessionId: clear.variables,
+      pending: clear.isPending,
+      error: clear.error,
+    },
   ].filter((state) => state.sessionId === selectedSessionId);
   return {
     start: start.mutateAsync,

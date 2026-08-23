@@ -59,10 +59,14 @@ export function useActionMenu<
       if (!menuRef.current?.contains(event.target as Node)) return;
       const items = menuItems(menuRef.current);
       if (items.length === 0) return;
-      const current = Math.max(0, items.indexOf(document.activeElement as HTMLElement));
+      const current = Math.max(
+        0,
+        items.indexOf(document.activeElement as HTMLElement),
+      );
       let next: number | undefined;
       if (event.key === "ArrowDown") next = (current + 1) % items.length;
-      else if (event.key === "ArrowUp") next = (current - 1 + items.length) % items.length;
+      else if (event.key === "ArrowUp")
+        next = (current - 1 + items.length) % items.length;
       else if (event.key === "Home") next = 0;
       else if (event.key === "End") next = items.length - 1;
       if (next === undefined) return;
@@ -96,5 +100,7 @@ function menuItems(menu: HTMLElement | null): HTMLElement[] {
     ...(menu?.querySelectorAll<HTMLElement>(
       '[role="menuitem"]:not([disabled])',
     ) ?? []),
-  ].filter((item) => !item.hidden && item.getAttribute("aria-hidden") !== "true");
+  ].filter(
+    (item) => !item.hidden && item.getAttribute("aria-hidden") !== "true",
+  );
 }

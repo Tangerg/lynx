@@ -41,13 +41,13 @@ func (tool *routedTool) Call(ctx context.Context, arguments string) (string, err
 }
 
 type runToolRouter struct {
-	mu        sync.Mutex
-	catalog   ToolCatalog
-	bridge    *delegationBridge
-	base      ToolScope
-	observer  *executionObserver
-	manifest  map[string]toolBindingContract
-	byRunID   map[string]*toolResolution
+	mu       sync.Mutex
+	catalog  ToolCatalog
+	bridge   *delegationBridge
+	base     ToolScope
+	observer *executionObserver
+	manifest map[string]toolBindingContract
+	byRunID  map[string]*toolResolution
 }
 
 type toolResolution struct {
@@ -84,7 +84,7 @@ func newRunToolRouter(
 	return &runToolRouter{
 		catalog: catalog, bridge: bridge, base: base, observer: observer,
 		manifest: manifest,
-		byRunID: make(map[string]*toolResolution),
+		byRunID:  make(map[string]*toolResolution),
 	}, nil
 }
 

@@ -53,33 +53,33 @@ export function useRuntimeInvalidations(
         void queryClient.invalidateQueries({
           queryKey: [...runtimeQueryKeys.scope(connection), "models"],
         });
-		void queryClient.invalidateQueries({
-			queryKey: runtimeQueryKeys.providers(connection),
-		});
-		void queryClient.invalidateQueries({
-			queryKey: [...runtimeQueryKeys.scope(connection), "model-role"],
-		});
+        void queryClient.invalidateQueries({
+          queryKey: runtimeQueryKeys.providers(connection),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: [...runtimeQueryKeys.scope(connection), "model-role"],
+        });
       }
       if (topics.includes("mcp.changed")) {
         void queryClient.invalidateQueries({
           queryKey: runtimeQueryKeys.mcp(connection),
         });
       }
-		if (topics.includes("approvals.changed")) {
-			void queryClient.invalidateQueries({
-				queryKey: runtimeQueryKeys.approvals(connection),
-			});
-		}
-		if (topics.includes("schedules.changed")) {
-			void queryClient.invalidateQueries({
-				queryKey: runtimeQueryKeys.schedules(connection),
-			});
-		}
-		if (topics.includes("hooks.changed")) {
-			void queryClient.invalidateQueries({
-				queryKey: runtimeQueryKeys.hooks(connection),
-			});
-		}
+      if (topics.includes("approvals.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: runtimeQueryKeys.approvals(connection),
+        });
+      }
+      if (topics.includes("schedules.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: runtimeQueryKeys.schedules(connection),
+        });
+      }
+      if (topics.includes("hooks.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: runtimeQueryKeys.hooks(connection),
+        });
+      }
       if (topics.includes("files.changed")) {
         const workspace = event.workspace ?? activeWatch?.workspace;
         if (workspace !== undefined) {
@@ -125,9 +125,9 @@ export function useRuntimeInvalidations(
             void queryClient.invalidateQueries({
               queryKey: runtimeQueryKeys.snapshot(connection, sessionId),
             });
-			void queryClient.invalidateQueries({
-			  queryKey: runtimeQueryKeys.sessionHistory(connection, sessionId),
-			});
+            void queryClient.invalidateQueries({
+              queryKey: runtimeQueryKeys.sessionHistory(connection, sessionId),
+            });
           }
         }
       }
@@ -163,13 +163,7 @@ export function useRuntimeInvalidations(
 
     void run();
     return () => controller.abort();
-  }, [
-    connection,
-    enabled,
-    queryClient,
-    watchId,
-    watchWorkspacePath,
-  ]);
+  }, [connection, enabled, queryClient, watchId, watchWorkspacePath]);
 
   return state;
 }

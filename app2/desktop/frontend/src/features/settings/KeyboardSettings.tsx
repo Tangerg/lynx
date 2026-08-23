@@ -97,8 +97,11 @@ export function KeyboardSettings() {
 
 function scopeLabel(scope: CommandScope) {
   switch (scope) {
-    case "global": return "settings.shortcuts.scope.global" as const;
-    case "session": return "settings.shortcuts.scope.session" as const;
-    case "workspace": return "settings.shortcuts.scope.workspace" as const;
+    case "global":
+      return "settings.shortcuts.scope.global" as const;
+    case "session":
+      return "settings.shortcuts.scope.session" as const;
+    case "workspace":
+      return "settings.shortcuts.scope.workspace" as const;
   }
 }

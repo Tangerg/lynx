@@ -138,7 +138,11 @@ export function RuntimeSettings({
             </div>
             <div>
               <dt>{t("settings.runtime.endpoint")}</dt>
-              <dd>{state.active ? state.endpoint : t("settings.runtime.privateLoopback")}</dd>
+              <dd>
+                {state.active
+                  ? state.endpoint
+                  : t("settings.runtime.privateLoopback")}
+              </dd>
             </div>
           </dl>
           <div className="runtime-connection-actions">
@@ -166,7 +170,10 @@ export function RuntimeSettings({
         </div>
       </section>
 
-      <section className="settings-section" aria-labelledby="runtime-remote-title">
+      <section
+        className="settings-section"
+        aria-labelledby="runtime-remote-title"
+      >
         <header>
           <div>
             <h2 id="runtime-remote-title">{t("settings.runtime.remote")}</h2>
@@ -236,7 +243,9 @@ export function RuntimeSettings({
         >
           <header>
             <div>
-              <h2 id="runtime-forget-title">{t("settings.runtime.forgetTitle")}</h2>
+              <h2 id="runtime-forget-title">
+                {t("settings.runtime.forgetTitle")}
+              </h2>
               <p>{t("settings.runtime.forgetDetail")}</p>
             </div>
           </header>

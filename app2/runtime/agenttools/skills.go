@@ -32,7 +32,7 @@ type SkillGateway interface {
 type proposeSkillRequest struct {
 	Name         string              `json:"name" jsonschema:"required,minLength=1,maxLength=64,pattern=^[a-z0-9]+(-[a-z0-9]+)*$" jsonschema_description:"Stable lowercase hyphenated Skill name, such as review-go-api."`
 	Description  string              `json:"description" jsonschema:"required,minLength=1,maxLength=1024" jsonschema_description:"What reusable workflow this Skill provides and when to use it."`
-	Instructions string `json:"instructions" jsonschema:"required,minLength=1" jsonschema_description:"Complete self-contained future instructions. Exclude transient progress, one-off context, and secrets."`
+	Instructions string              `json:"instructions" jsonschema:"required,minLength=1" jsonschema_description:"Complete self-contained future instructions. Exclude transient progress, one-off context, and secrets."`
 	Scope        protocol.SkillScope `json:"scope" jsonschema:"required,enum=project,enum=user" jsonschema_description:"project makes it available only in this workspace; user makes it available across this user's workspaces."`
 }
 
@@ -66,7 +66,7 @@ func (catalog *Catalog) skillTools(
 	}
 	propose, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
-			Name: "propose_skill",
+			Name:        "propose_skill",
 			Description: `Propose a reusable Lyra Skill for human review. Call only when the user explicitly asks to save, preserve, or create a reusable workflow. Do not call for one-off facts, ordinary progress, transient fixes, or secrets. This creates a pending proposal; it never activates or executes the Skill.`,
 		},
 		func(ctx context.Context, request proposeSkillRequest) (proposeSkillResult, error) {

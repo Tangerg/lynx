@@ -15,15 +15,14 @@ import (
 
 func TestSupervisorRestartsKilledRuntimeAndReleasesEveryGeneration(t *testing.T) {
 	runtimeBinary := buildRuntime(t)
-	dataHome := filepath.Join(t.TempDir(), "data")
-	if err := os.Mkdir(dataHome, 0o700); err != nil {
-		t.Fatalf("Mkdir(data) error = %v", err)
-	}
+	dataHome := privateDirectory(t, "data")
+	workspace := privateDirectory(t, "workspace")
+	userHome := privateDirectory(t, "home")
 	supervisor, err := New(Config{
 		RuntimeBinary:     runtimeBinary,
 		DataHome:          dataHome,
-		DefaultWorkspace:  "/workspace",
-		UserHome:          "/home/test",
+		DefaultWorkspace:  workspace,
+		UserHome:          userHome,
 		CORSOrigins:       httptransport.DefaultCORSOrigins(),
 		StartupTimeout:    5 * time.Second,
 		ProbeTimeout:      time.Second,
@@ -38,7 +37,7 @@ func TestSupervisorRestartsKilledRuntimeAndReleasesEveryGeneration(t *testing.T)
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	if first.Endpoint == "" || first.LocalToken == "" || first.InstanceID == "" || first.Generation != 1 {
+	if first.Endpoint == "" || first.BearerToken == "" || first.InstanceID == "" || first.Generation != 1 {
 		t.Fatalf("first connection = %+v", first.redacted())
 	}
 	firstRoot := supervisor.generationRoot()
@@ -76,7 +75,7 @@ func TestSupervisorRestartsKilledRuntimeAndReleasesEveryGeneration(t *testing.T)
 func TestSupervisorFailsClosedWhenChildCannotPublish(t *testing.T) {
 	supervisor, err := New(Config{
 		RuntimeBinary:    "/usr/bin/false",
-		DataHome:         privateDataHome(t),
+		DataHome:         privateDirectory(t, "data"),
 		DefaultWorkspace: "/workspace", UserHome: "/home/test",
 		StartupTimeout: time.Second, ProbeTimeout: 100 * time.Millisecond,
 		ShutdownTimeout: time.Second, MaxStartupAttempts: 2,
@@ -130,9 +129,9 @@ func awaitSuccessor(t *testing.T, supervisor *Supervisor, predecessor string) Co
 	}
 }
 
-func privateDataHome(t *testing.T) string {
+func privateDirectory(t *testing.T, name string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "data")
+	path := filepath.Join(t.TempDir(), name)
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
 	}

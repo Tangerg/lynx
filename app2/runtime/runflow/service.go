@@ -22,8 +22,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/streamhub"
 	"github.com/Tangerg/lynx/app2/runtime/transcriptflow"
@@ -95,26 +95,28 @@ func (failure *ActiveRunError) Error() string {
 	return fmt.Sprintf("%s: run %s is %s", protocol.ErrSessionHasActiveRun, failure.Run.ID, failure.Run.Status)
 }
 
-func (failure *ActiveRunError) Is(target error) bool { return target == protocol.ErrSessionHasActiveRun }
+func (failure *ActiveRunError) Is(target error) bool {
+	return target == protocol.ErrSessionHasActiveRun
+}
 
 func (failure *ActiveRunError) Enrich(problem *protocol.ProblemData) {
 	problem.ActiveRun = &protocol.ActiveRunRef{RunID: failure.Run.ID, Status: failure.Run.Status}
 }
 
 type Service struct {
-	store     Store
-	ids       IDs
-	executor  Executor
-	models    ModelSelection
+	store       Store
+	ids         IDs
+	executor    Executor
+	models      ModelSelection
 	checkpoints Checkpoints
-	hub       *streamhub.Hub
-	events    Publisher
-	memory    MemoryMaintenance
-	compaction CompactionMaintenance
-	hooks     LifecycleHooks
-	now       func() time.Time
-	lifetime  context.Context
-	cancel    context.CancelFunc
+	hub         *streamhub.Hub
+	events      Publisher
+	memory      MemoryMaintenance
+	compaction  CompactionMaintenance
+	hooks       LifecycleHooks
+	now         func() time.Time
+	lifetime    context.Context
+	cancel      context.CancelFunc
 
 	mu      sync.Mutex
 	active  map[string]activeExecution
@@ -124,24 +126,24 @@ type Service struct {
 }
 
 type activeExecution struct {
-	cancel context.CancelFunc
-	steers chan agentexec.Steer
+	cancel  context.CancelFunc
+	steers  chan agentexec.Steer
 	cancels chan agentexec.Cancel
 }
 
 type Config struct {
-	Store Store
-	IDs IDs
-	Executor Executor
-	Models ModelSelection
+	Store       Store
+	IDs         IDs
+	Executor    Executor
+	Models      ModelSelection
 	Checkpoints Checkpoints
-	Hub *streamhub.Hub
-	Events Publisher
-	Memory MemoryMaintenance
-	Compaction CompactionMaintenance
-	Hooks LifecycleHooks
-	Lifetime context.Context
-	Clock func() time.Time
+	Hub         *streamhub.Hub
+	Events      Publisher
+	Memory      MemoryMaintenance
+	Compaction  CompactionMaintenance
+	Hooks       LifecycleHooks
+	Lifetime    context.Context
+	Clock       func() time.Time
 }
 
 func New(config Config) (*Service, error) {
@@ -299,7 +301,9 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 	opened, events, err := service.startRoot(ctx, rootStart{
 		request: command.Request, profile: profile(command.Meta.ClientCapabilities), visibleInput: true,
 	})
-	if err != nil { return nil, nil, err }
+	if err != nil {
+		return nil, nil, err
+	}
 	return &protocol.StartRunResponse{RunID: opened.runID, SegmentID: opened.segmentID, UserItemID: opened.userItemID}, events, nil
 }
 
@@ -323,8 +327,8 @@ func (service *Service) StartScheduled(ctx context.Context, command ScheduledSta
 	opened, _, err := service.startRoot(ctx, rootStart{
 		request: protocol.StartRunRequest{
 			SessionID: command.SessionID,
-			Input: []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: command.Instruction}},
-			Provider: command.Selection.Provider(), Model: command.Selection.Model(),
+			Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: command.Instruction}},
+			Provider:  command.Selection.Provider(), Model: command.Selection.Model(),
 		},
 		profile: protocol.RunProtocolProfile{
 			RequiredFeatures: []protocol.RunProtocolFeature{}, InterruptTypes: protocol.InterruptTypes(),
@@ -349,17 +353,19 @@ func (service *Service) StartAutonomous(ctx context.Context, command AutonomousS
 	opened, events, err := service.startRoot(ctx, rootStart{
 		request: protocol.StartRunRequest{
 			SessionID: command.SessionID,
-			Input: []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: command.Instruction}},
-			Provider: command.Provider, Model: command.Model,
+			Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: command.Instruction}},
+			Provider:  command.Provider, Model: command.Model,
 			MaxSteps: command.MaxSteps, MaxBudgetUSD: command.MaxBudgetUSD,
 		},
 		profile: protocol.RunProtocolProfile{
 			RequiredFeatures: []protocol.RunProtocolFeature{},
-			InterruptTypes: protocol.InterruptTypes(),
+			InterruptTypes:   protocol.InterruptTypes(),
 		},
 		claim: command.Claim,
 	})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return &AutonomousRun{RunID: opened.runID, SegmentID: opened.segmentID, Events: events}, nil
 }
 
@@ -410,7 +416,9 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 	itemID := ""
 	if command.visibleInput {
 		itemID, err = service.ids.New("itm_")
-		if err != nil { return nil, nil, err }
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	now := command.startedAt.UTC()
 	if now.IsZero() {
@@ -427,7 +435,9 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 		Metrics: protocol.RunMetrics{}, Limits: runLimits(request),
 		Profile: command.profile, EventOrdinal: 1,
 	}
-	if command.visibleInput { facts.EventOrdinal = 2 }
+	if command.visibleInput {
+		facts.EventOrdinal = 2
+	}
 	record, err := makeRecord(aggregate, facts)
 	if err != nil {
 		return nil, nil, err
@@ -440,18 +450,20 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 			CreatedAt: now, Type: protocol.ItemTypeUserMessage, Content: request.Input,
 		}
 		stored, err := itemRecord(request.SessionID, item, 0)
-		if err != nil { return nil, nil, err }
+		if err != nil {
+			return nil, nil, err
+		}
 		userItem, opening = &item, &stored
 	}
 	presented, err := presentRecord(record)
 	if err != nil {
 		return nil, nil, err
 	}
-	stream, err := newTreeStream(runID, segmentID)
+	tree, err := newTreeStream(runID, segmentID)
 	if err != nil {
 		return nil, nil, err
 	}
-	events, persisted, err := service.startEvents(runID, segmentID, stream, *presented, userItem, now)
+	events, persisted, err := service.startEvents(runID, segmentID, tree, *presented, userItem, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -464,11 +476,15 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 		}
 	}
 	userMessage, err := agentexec.UserMessage(request.Input)
-	if err != nil { return nil, nil, err }
+	if err != nil {
+		return nil, nil, err
+	}
 	sessionStart := len(conversation) == 0
 	conversation = append(conversation, userMessage)
 	messageBody, err := json.Marshal(userMessage)
-	if err != nil { return nil, nil, err }
+	if err != nil {
+		return nil, nil, err
+	}
 	openingMessage := conversationdomain.Record{SessionID: request.SessionID, RunID: runID, Ordinal: nextMessageOrdinal, Body: messageBody}
 	created := true
 	if command.scheduled != nil {
@@ -559,7 +575,7 @@ func (service *Service) launchExecution(
 			SessionID: record.Run.SessionID(), RunID: runID, SegmentID: segmentID,
 			IsRootRun: record.Run.ParentRunID() == "", SessionStart: sessionStart,
 			UserPromptSubmit: userPromptSubmit,
-			Subagents: runUsesSubagents(record.Body), Delegation: service,
+			Subagents:        runUsesSubagents(record.Body), Delegation: service,
 			Conversation: conversation, Steers: steers, Cancels: cancels,
 			MaxSteps: runMaxSteps(record.Body), Live: live,
 		})
@@ -599,10 +615,16 @@ func (service *Service) conversation(ctx context.Context, sessionID string) ([]a
 	nextOrdinal := 0
 	for _, record := range records {
 		var message agentexec.Message
-		if err := json.Unmarshal(record.Body, &message); err != nil { return nil, 0, fmt.Errorf("runflow: decode conversation message: %w", err) }
-		if err := message.Validate(); err != nil { return nil, 0, err }
+		if err := json.Unmarshal(record.Body, &message); err != nil {
+			return nil, 0, fmt.Errorf("runflow: decode conversation message: %w", err)
+		}
+		if err := message.Validate(); err != nil {
+			return nil, 0, err
+		}
 		messages = append(messages, message)
-		if record.Ordinal >= nextOrdinal { nextOrdinal = record.Ordinal + 1 }
+		if record.Ordinal >= nextOrdinal {
+			nextOrdinal = record.Ordinal + 1
+		}
 	}
 	return messages, nextOrdinal, nil
 }
@@ -722,7 +744,7 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 		return
 	}
 	finished, err := service.event(runID, segmentID, &facts, protocol.StreamEvent{
-		Type: protocol.StreamSegmentFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: segmentOutcome(outcome, problem, detail),
 		Metrics: &facts.Metrics,
 	}, now)
@@ -1069,7 +1091,7 @@ func (service *Service) cancelSingleWaiting(
 		return nil, err
 	}
 	finished, err := service.event(current.Run.ID(), segmentID, &facts, protocol.StreamEvent{
-		Type: protocol.StreamSegmentFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentCanceled, Detail: reason},
 		Metrics: &facts.Metrics,
 	}, now)
@@ -1108,7 +1130,7 @@ func (service *Service) cancelSingleWaiting(
 }
 
 func clientNegotiatedSubagents(capabilities *protocol.ClientCapabilities) bool {
-	return capabilities != nil && capabilities.Features[protocol.FeatureSubagents]
+	return capabilities != nil && capabilities.Features[protocol.FeatureSubagents].Enabled
 }
 
 func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequest) error {
@@ -1155,32 +1177,71 @@ func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequ
 			return err
 		}
 		itemID, err := service.ids.New("itm_")
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		now := service.now().UTC()
 		item := protocol.Item{ID: itemID, RunID: request.RunID, Status: protocol.ItemStatusCompleted, CreatedAt: now, Type: protocol.ItemTypeUserMessage, Content: slices.Clone(request.Input)}
 		items, err := service.store.ListItems(ctx, "", request.RunID)
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		storedItem, err := itemRecord(record.Run.SessionID(), item, nextOrdinal(items, request.RunID))
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		message, err := agentexec.UserMessage(request.Input)
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		body, err := json.Marshal(message)
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		messages, err := service.store.ListConversationMessages(ctx, record.Run.SessionID())
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		storedMessage := conversationdomain.Record{SessionID: record.Run.SessionID(), RunID: request.RunID, Ordinal: nextConversationOrdinal(messages), Body: body}
 		facts, err := decodeFacts(record.Body)
-		if err != nil { active.cancel(); return err }
-		if err := record.Run.Touch(request.ExpectedSegmentID, now); err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
+		if err := record.Run.Touch(request.ExpectedSegmentID, now); err != nil {
+			active.cancel()
+			return err
+		}
 		event, err := service.event(request.RunID, request.ExpectedSegmentID, &facts, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item}, now)
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		record, err = makeRecord(record.Run, facts)
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		stream, err := newTreeStream(request.RunID, request.ExpectedSegmentID)
-		if err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
 		persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal, stream)
-		if err != nil { active.cancel(); return err }
-		if err := service.store.CommitSteer(ctx, SteerWrite{Run: record, ExpectedSegmentID: request.ExpectedSegmentID, Item: storedItem, Message: storedMessage, Event: persisted[0]}); err != nil { active.cancel(); return err }
+		if err != nil {
+			active.cancel()
+			return err
+		}
+		if err := service.store.CommitSteer(ctx, SteerWrite{Run: record, ExpectedSegmentID: request.ExpectedSegmentID, Item: storedItem, Message: storedMessage, Event: persisted[0]}); err != nil {
+			active.cancel()
+			return err
+		}
 		service.publishRunChange(record.Run)
 		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
 		return nil
@@ -1267,7 +1328,7 @@ func (service *Service) observeTerminalHooks(
 			errorText = boundedHookText(value.Detail(), lifecyclehook.MaxReasonBytes)
 		}
 		service.hooks.Observe(ctx, lifecyclehook.Invocation{
-			Event: lifecyclehook.SubagentStop,
+			Event:     lifecyclehook.SubagentStop,
 			SessionID: value.SessionID(), RunID: value.ID(),
 			Workspace: storedSession.Workspace().Path(),
 			Subagent: &lifecyclehook.SubagentInput{
@@ -1279,7 +1340,7 @@ func (service *Service) observeTerminalHooks(
 		})
 	}
 	service.hooks.Observe(ctx, lifecyclehook.Invocation{
-		Event: lifecyclehook.Stop,
+		Event:     lifecyclehook.Stop,
 		SessionID: value.SessionID(), RunID: value.ID(),
 		Workspace: storedSession.Workspace().Path(), Reason: reason,
 	})
@@ -1291,7 +1352,7 @@ func (service *Service) observeWaitingHook(ctx context.Context, value rundomain.
 		return
 	}
 	service.hooks.Observe(ctx, lifecyclehook.Invocation{
-		Event: lifecyclehook.Notification,
+		Event:     lifecyclehook.Notification,
 		SessionID: value.SessionID(), RunID: value.ID(),
 		Workspace: storedSession.Workspace().Path(), Reason: "waiting for user input",
 	})
@@ -1490,7 +1551,9 @@ func (service *Service) startEvents(
 	}
 	if item != nil {
 		secondID, err := service.ids.New("evt_")
-		if err != nil { return nil, nil, err }
+		if err != nil {
+			return nil, nil, err
+		}
 		events = append(events, protocol.RunEvent{
 			RunID: runID, SegmentID: segmentID, EventID: secondID, Timestamp: now,
 			Event: protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item},
@@ -1543,11 +1606,11 @@ func persistEvents(
 }
 
 type runFacts struct {
-	Metrics protocol.RunMetrics `json:"metrics"`
-	ContextTokens int64 `json:"contextTokens,omitempty"`
-	Limits *protocol.RunLimits `json:"limits,omitempty"`
-	Profile protocol.RunProtocolProfile `json:"profile"`
-	EventOrdinal int `json:"eventOrdinal"`
+	Metrics       protocol.RunMetrics         `json:"metrics"`
+	ContextTokens int64                       `json:"contextTokens,omitempty"`
+	Limits        *protocol.RunLimits         `json:"limits,omitempty"`
+	Profile       protocol.RunProtocolProfile `json:"profile"`
+	EventOrdinal  int                         `json:"eventOrdinal"`
 }
 
 func makeRecord(value rundomain.Run, facts runFacts) (rundomain.Record, error) {
@@ -1582,7 +1645,9 @@ func presentRecord(record rundomain.Record) (*protocol.RunRef, error) {
 		summary.Outcome = &protocol.RunOutcome{Type: protocol.RunOutcomeType(value.Outcome())}
 		if value.Outcome() == rundomain.Failed || value.Outcome() == rundomain.Lost {
 			problemType := protocol.ProblemInternalError
-			if value.Outcome() == rundomain.Lost { problemType = protocol.ProblemRunLost }
+			if value.Outcome() == rundomain.Lost {
+				problemType = protocol.ProblemRunLost
+			}
 			summary.Outcome.Error = &protocol.ProblemData{Type: problemType, Detail: value.Detail()}
 		} else {
 			summary.Outcome.Detail = value.Detail()
@@ -1624,7 +1689,7 @@ func itemRecord(sessionID string, item protocol.Item, ordinal int) (transcript.R
 		ID: item.ID, SessionID: sessionID, RunID: item.RunID,
 		Ordinal: ordinal, Body: body,
 		SearchText: transcriptflow.SearchableItem(item),
-		CreatedAt: createdAt,
+		CreatedAt:  createdAt,
 	}, nil
 }
 

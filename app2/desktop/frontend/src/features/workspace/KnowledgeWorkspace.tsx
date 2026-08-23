@@ -8,10 +8,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import {
   listKnowledge,
   runtimeQueryKeys,
@@ -106,7 +103,9 @@ function KnowledgeEditor(props: {
   const queryClient = useQueryClient();
   const controller = useRef<AbortController | undefined>(undefined);
   const saving = useRef(false);
-  const [draft, setDraft] = useState<KnowledgeDraft>(() => openDraft(props.entry));
+  const [draft, setDraft] = useState<KnowledgeDraft>(() =>
+    openDraft(props.entry),
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const dirty = draft.value !== draft.baseline;
@@ -148,15 +147,17 @@ function KnowledgeEditor(props: {
       );
       if (request.signal.aborted) return;
       setDraft(openDraft(saved));
-      queryClient.setQueryData<Page<KnowledgeEntry>>(props.queryKey, (current) =>
-        current === undefined
-          ? current
-          : {
-              ...current,
-              data: current.data.map((entry) =>
-                entry.scope === saved.scope ? saved : entry,
-              ),
-            },
+      queryClient.setQueryData<Page<KnowledgeEntry>>(
+        props.queryKey,
+        (current) =>
+          current === undefined
+            ? current
+            : {
+                ...current,
+                data: current.data.map((entry) =>
+                  entry.scope === saved.scope ? saved : entry,
+                ),
+              },
       );
       await queryClient.invalidateQueries({
         queryKey: runtimeQueryKeys.knowledge(props.connection),
@@ -178,8 +179,7 @@ function KnowledgeEditor(props: {
               ...openDraft(latest),
               value: current.value,
             }));
-            message =
-              t("knowledge.externalChange");
+            message = t("knowledge.externalChange");
           }
         }
       } catch {
@@ -220,13 +220,14 @@ function KnowledgeEditor(props: {
         })}
         onChange={(event) => {
           setError(undefined);
-          setDraft((current) => ({ ...current, value: event.currentTarget.value }));
+          setDraft((current) => ({
+            ...current,
+            value: event.currentTarget.value,
+          }));
         }}
       />
       <footer>
-        <span>
-          {dirty ? t("knowledge.unsaved") : t("knowledge.saved")}
-        </span>
+        <span>{dirty ? t("knowledge.unsaved") : t("knowledge.saved")}</span>
         <button
           type="button"
           disabled={!dirty || pending}
@@ -245,7 +246,11 @@ function KnowledgeEditor(props: {
           {pending ? t("knowledge.saving") : t("knowledge.save")}
         </button>
       </footer>
-      {error ? <p className="knowledge-error" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="knowledge-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </article>
   );
 }
@@ -273,10 +278,7 @@ function knowledgeScope(scope: string, t: Translate) {
 
 function formatKnowledgeTime(
   value: string,
-  formatDateTime: (
-    value: Date,
-    options?: Intl.DateTimeFormatOptions,
-  ) => string,
+  formatDateTime: (value: Date, options?: Intl.DateTimeFormatOptions) => string,
 ) {
   const date = new Date(value);
   return Number.isNaN(date.valueOf())

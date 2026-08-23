@@ -45,19 +45,19 @@ type Checkpoints interface {
 }
 
 type Service struct {
-	store      Store
-	ids        IDGenerator
-	workspaces WorkspaceResolver
+	store       Store
+	ids         IDGenerator
+	workspaces  WorkspaceResolver
 	checkpoints Checkpoints
-	now        func() time.Time
+	now         func() time.Time
 }
 
 type Config struct {
-	Store Store
-	IDs IDGenerator
-	Workspaces WorkspaceResolver
+	Store       Store
+	IDs         IDGenerator
+	Workspaces  WorkspaceResolver
 	Checkpoints Checkpoints
-	Clock func() time.Time
+	Clock       func() time.Time
 }
 
 func New(config Config) (*Service, error) {
@@ -201,7 +201,7 @@ func (service *Service) ResolveWorkspace(ctx context.Context, requested string) 
 		availability = protocol.WorkspaceAvailable
 	}
 	return &protocol.WorkspaceInfo{
-		Ref: protocol.WorkspaceRef{Path: resolved.Workspace.Path()},
+		Ref:         protocol.WorkspaceRef{Path: resolved.Workspace.Path()},
 		ProjectRoot: resolved.ProjectRoot, Availability: availability,
 	}, nil
 }
@@ -274,7 +274,7 @@ func present(value session.Session, resolved workspacefs.Resolution, status sess
 		ID: value.ID().String(), Title: value.Title(), Status: protocol.SessionStatus(status),
 		Provider: value.Selection().Provider(), Model: value.Selection().Model(),
 		Workspace: protocol.WorkspaceInfo{
-			Ref: protocol.WorkspaceRef{Path: resolved.Workspace.Path()},
+			Ref:         protocol.WorkspaceRef{Path: resolved.Workspace.Path()},
 			ProjectRoot: resolved.ProjectRoot, Availability: availability,
 		},
 		CreatedAt: value.CreatedAt(), UpdatedAt: value.UpdatedAt(),

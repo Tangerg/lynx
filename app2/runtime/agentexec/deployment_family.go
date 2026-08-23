@@ -22,10 +22,10 @@ const (
 )
 
 type deploymentFamily struct {
-	root     agent.Deployment
-	values   map[agent.DeploymentRef]agent.Deployment
-	targets  map[agent.DeploymentRef]agent.DeploymentRef
-	limits   agent.TreeLimits
+	root    agent.Deployment
+	values  map[agent.DeploymentRef]agent.Deployment
+	targets map[agent.DeploymentRef]agent.DeploymentRef
+	limits  agent.TreeLimits
 }
 
 func (family *deploymentFamily) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
@@ -40,14 +40,14 @@ func (family *deploymentFamily) Resolve(reference agent.DeploymentRef) (agent.De
 }
 
 type familyConfig struct {
-	client             *chatclient.Client
-	provider, model    string
-	workspace          string
-	maxModelCalls      uint32
-	rootTools          []ExecutableTool
-	childManifest      []ExecutableTool
-	toolRouter         *runToolRouter
-	observer           *executionObserver
+	client          *chatclient.Client
+	provider, model string
+	workspace       string
+	maxModelCalls   uint32
+	rootTools       []ExecutableTool
+	childManifest   []ExecutableTool
+	toolRouter      *runToolRouter
+	observer        *executionObserver
 }
 
 func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
@@ -76,9 +76,9 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 				return nil, budgetErr
 			}
 			delegate, delegateErr := interaction.NewDelegate(interaction.DelegateConfig{
-				Name: DelegateToolName,
+				Name:        DelegateToolName,
 				Description: "Delegate an independent, well-scoped task when parallel or isolated work is useful.",
-				Deployment: next, Budget: budget, Capabilities: capabilities,
+				Deployment:  next, Budget: budget, Capabilities: capabilities,
 			})
 			if delegateErr != nil {
 				return nil, fmt.Errorf("agentexec: bind nested Delegate at depth %d: %w", depth, delegateErr)
@@ -86,16 +86,16 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 			delegates = append(delegates, delegate)
 		}
 		inner, defineErr := interaction.NewDefinition(interaction.DefinitionConfig{
-			Name: fmt.Sprintf("lyra.interaction.delegated.depth_%d", depth),
+			Name:        fmt.Sprintf("lyra.interaction.delegated.depth_%d", depth),
 			Description: "Complete one delegated task using only the authority assigned to this worker.",
-			Version: "2.0.0", MaxModelCalls: config.maxModelCalls, Delegates: delegates,
+			Version:     "2.0.0", MaxModelCalls: config.maxModelCalls, Delegates: delegates,
 		})
 		if defineErr != nil {
 			return nil, fmt.Errorf("agentexec: define delegated Interaction at depth %d: %w", depth, defineErr)
 		}
 		dispatcher, dispatchErr := interaction.NewDispatcher(inner, interaction.DispatcherConfig{
 			Client: config.client, Tools: cloneTools(childVisible),
-			DeferredTools: cloneTools(childDeferred),
+			DeferredTools:        cloneTools(childDeferred),
 			StreamModelResponses: true, Observer: config.observer,
 		})
 		if dispatchErr != nil {
@@ -130,9 +130,9 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 		return nil, err
 	}
 	rootDelegate, err := interaction.NewDelegate(interaction.DelegateConfig{
-		Name: DelegateToolName,
+		Name:        DelegateToolName,
 		Description: "Delegate an independent, well-scoped task when parallel or isolated work is useful.",
-		Deployment: children[1], Budget: rootBudget, Capabilities: capabilities,
+		Deployment:  children[1], Budget: rootBudget, Capabilities: capabilities,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: bind root Delegate: %w", err)

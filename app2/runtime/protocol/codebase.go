@@ -44,14 +44,14 @@ const (
 // the index caps (partial index). Failed rebuilds are represented by StateError;
 // implementation diagnostics stay in runtime observability rather than the API.
 type CodebaseStatus struct {
-	State       CodebaseState `json:"state"`
-	ModelID     string        `json:"modelId,omitempty"`
-	FileCount   int           `json:"fileCount"`
-	ChunkCount  int           `json:"chunkCount"`
-	IndexedAt   string        `json:"indexedAt,omitempty"`
-	Truncated   bool          `json:"truncated,omitempty"`
+	State      CodebaseState `json:"state"`
+	ModelID    string        `json:"modelId,omitempty"`
+	FileCount  int           `json:"fileCount"`
+	ChunkCount int           `json:"chunkCount"`
+	IndexedAt  string        `json:"indexedAt,omitempty"`
+	Truncated  bool          `json:"truncated,omitempty"`
 	// OperationID is present only while State is indexing.
-	OperationID string        `json:"operationId,omitempty"`
+	OperationID string `json:"operationId,omitempty"`
 }
 
 type CodebaseReindexResponse struct {

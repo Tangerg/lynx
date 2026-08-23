@@ -11,8 +11,8 @@ import (
 	plandomain "github.com/Tangerg/lynx/app2/runtime/domain/plan"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -227,13 +227,13 @@ func forkItems(
 			return nil, err
 		}
 		result = append(result, transcript.Record{
-			ID:        newID,
-			SessionID: sessionID,
-			RunID:     item.RunID,
-			Ordinal:   record.Ordinal,
-			Body:      body,
+			ID:         newID,
+			SessionID:  sessionID,
+			RunID:      item.RunID,
+			Ordinal:    record.Ordinal,
+			Body:       body,
 			SearchText: record.SearchText,
-			CreatedAt: record.CreatedAt,
+			CreatedAt:  record.CreatedAt,
 		})
 	}
 	return result, nil

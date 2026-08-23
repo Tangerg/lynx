@@ -30,7 +30,7 @@ type Result struct {
 // Endpoint owns operation admission and stream lifetime. Business state stays
 // on the target application facade; framing stays in dispatch/transport.
 type Endpoint struct {
-	target       any
+	target      any
 	invocations *invocationGroup
 	ready       atomic.Bool
 }

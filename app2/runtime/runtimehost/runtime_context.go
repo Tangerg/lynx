@@ -17,7 +17,7 @@ type livePlanReader interface {
 
 type runtimeLiveContext struct {
 	shells *shellflow.Service
-	plans livePlanReader
+	plans  livePlanReader
 }
 
 func (source runtimeLiveContext) Context(ctx context.Context, sessionID, _ string) (string, error) {

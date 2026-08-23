@@ -29,8 +29,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/approvalpolicy"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/domain/mcpserver"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/shellflow"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
@@ -83,42 +83,42 @@ type LifecycleHooks interface {
 }
 
 type Catalog struct {
-	policy       ApprovalPolicy
-	mcp          MCPGateway
-	results      ToolResultReader
-	goals        GoalGateway
-	plans        PlanGateway
-	schedules    ScheduleGateway
-	skillGateway SkillGateway
-	memory       MemoryGateway
+	policy        ApprovalPolicy
+	mcp           MCPGateway
+	results       ToolResultReader
+	goals         GoalGateway
+	plans         PlanGateway
+	schedules     ScheduleGateway
+	skillGateway  SkillGateway
+	memory        MemoryGateway
 	conversations ConversationGateway
-	hooks        LifecycleHooks
-	shells       *shellflow.Service
-	online       []scopedTool
-	codeIntel    *codeintel.Service
+	hooks         LifecycleHooks
+	shells        *shellflow.Service
+	online        []scopedTool
+	codeIntel     *codeintel.Service
 }
 
 type OnlineConfig struct {
-	JinaAPIKey      string
-	TavilyAPIKey    string
-	HTTPAllowedHosts []string
+	JinaAPIKey         string
+	TavilyAPIKey       string
+	HTTPAllowedHosts   []string
 	HTTPAllowedMethods []string
 }
 
 type Config struct {
-	Policy  ApprovalPolicy
-	MCP     MCPGateway
-	Results ToolResultReader
-	Goals   GoalGateway
-	Plans   PlanGateway
-	Schedules ScheduleGateway
-	Skills  SkillGateway
-	Memory  MemoryGateway
+	Policy        ApprovalPolicy
+	MCP           MCPGateway
+	Results       ToolResultReader
+	Goals         GoalGateway
+	Plans         PlanGateway
+	Schedules     ScheduleGateway
+	Skills        SkillGateway
+	Memory        MemoryGateway
 	Conversations ConversationGateway
-	Hooks   LifecycleHooks
-	Shells  *shellflow.Service
-	Online  OnlineConfig
-	CodeIntel *codeintel.Service
+	Hooks         LifecycleHooks
+	Shells        *shellflow.Service
+	Online        OnlineConfig
+	CodeIntel     *codeintel.Service
 }
 
 func New(config Config) (*Catalog, error) {
@@ -127,12 +127,14 @@ func New(config Config) (*Catalog, error) {
 		return nil, errors.New("agenttools: policy, domain gateways, and lifecycle hooks are required")
 	}
 	online, err := buildOnlineTools(config.Online)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return &Catalog{
 		policy: config.Policy, mcp: config.MCP, results: config.Results,
 		goals: config.Goals, plans: config.Plans, schedules: config.Schedules,
 		skillGateway: config.Skills,
-		memory: config.Memory, conversations: config.Conversations, hooks: config.Hooks,
+		memory:       config.Memory, conversations: config.Conversations, hooks: config.Hooks,
 		shells: config.Shells, online: online, codeIntel: config.CodeIntel,
 	}, nil
 }
@@ -154,12 +156,16 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		{tool: fs.NewWriteTool(executor), safety: protocol.SafetyClassWrite},
 	}
 	shellTools, err := newShellTools(catalog.shells, scope.SessionID, scope.Workspace)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	for _, executable := range shellTools {
 		values = append(values, scopedTool{tool: executable, safety: protocol.SafetyClassExec})
 	}
 	lspTool, err := newLSPTool(catalog.codeIntel, executor)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	values = append(values, scopedTool{tool: lspTool, safety: protocol.SafetyClassSafe, deferred: true})
 	values = append(values, catalog.online...)
 
@@ -185,18 +191,26 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 	values = append(values, scopedTool{tool: question, safety: protocol.SafetyClassSafe, intrinsicInput: true})
 	if catalog.results != nil {
 		reader, err := newToolResultReader(catalog.results, scope.SessionID)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		values = append(values, scopedTool{tool: reader, safety: protocol.SafetyClassSafe})
 	}
 	if scope.IsRootRun {
 		goalTools, err := catalog.goalTools(ctx, scope)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		values = append(values, goalTools...)
 		planTools, err := catalog.planTools(scope)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		values = append(values, planTools...)
 		scheduleTools, err := catalog.scheduleTools()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		values = append(values, scheduleTools...)
 	}
 	if catalog.mcp != nil {
@@ -249,26 +263,38 @@ func buildOnlineTools(config OnlineConfig) ([]scopedTool, error) {
 	result := make([]scopedTool, 0, 3)
 	if config.JinaAPIKey != "" {
 		client, err := jina.NewClient(jina.Config{APIKey: config.JinaAPIKey})
-		if err != nil { return nil, fmt.Errorf("agenttools: configure Jina: %w", err) }
+		if err != nil {
+			return nil, fmt.Errorf("agenttools: configure Jina: %w", err)
+		}
 		tool, err := webfetch.NewTool(client)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, scopedTool{tool: tool, safety: protocol.SafetyClassNetwork, deferred: true})
 	}
 	if config.TavilyAPIKey != "" {
 		client, err := tavily.NewClient(tavily.Config{APIKey: config.TavilyAPIKey})
-		if err != nil { return nil, fmt.Errorf("agenttools: configure Tavily: %w", err) }
+		if err != nil {
+			return nil, fmt.Errorf("agenttools: configure Tavily: %w", err)
+		}
 		tool, err := websearch.NewTool(client)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, scopedTool{tool: tool, safety: protocol.SafetyClassNetwork, deferred: true})
 	}
 	if len(config.HTTPAllowedHosts) > 0 {
 		client, err := httpreq.NewClient(httpreq.Config{
-			AllowedHosts: slices.Clone(config.HTTPAllowedHosts),
+			AllowedHosts:   slices.Clone(config.HTTPAllowedHosts),
 			AllowedMethods: slices.Clone(config.HTTPAllowedMethods),
 		})
-		if err != nil { return nil, fmt.Errorf("agenttools: configure HTTP request tool: %w", err) }
+		if err != nil {
+			return nil, fmt.Errorf("agenttools: configure HTTP request tool: %w", err)
+		}
 		tool, err := httpreq.NewTool(client)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, scopedTool{tool: tool, safety: protocol.SafetyClassNetwork, deferred: true})
 	}
 	return slices.Clip(result), nil
@@ -437,7 +463,9 @@ func newAskUser(runID string) (toolcontract.Tool, error) {
 		if err != nil {
 			return "", err
 		}
-		state, _ := json.Marshal(struct{ CallID string `json:"callId"` }{CallID: invocation.ToolCall().ID})
+		state, _ := json.Marshal(struct {
+			CallID string `json:"callId"`
+		}{CallID: invocation.ToolCall().ID})
 		return "", interaction.RequireToolInput(prompt, questionResponseSchema, state)
 	})
 }
@@ -447,28 +475,38 @@ func itemID(runID, callID string) string {
 }
 
 type readToolResultRequest struct {
-	ResultID   string `json:"result_id" jsonschema:"minLength=1"`
-	OffsetBytes int   `json:"offset_bytes,omitempty" jsonschema:"minimum=0"`
-	LimitBytes  int   `json:"limit_bytes,omitempty" jsonschema:"minimum=1,maximum=20000"`
+	ResultID    string `json:"result_id" jsonschema:"minLength=1"`
+	OffsetBytes int    `json:"offset_bytes,omitempty" jsonschema:"minimum=0"`
+	LimitBytes  int    `json:"limit_bytes,omitempty" jsonschema:"minimum=1,maximum=20000"`
 }
 
 func newToolResultReader(reader ToolResultReader, sessionID string) (toolcontract.Tool, error) {
 	return toolcontract.NewFunc(toolcontract.FuncConfig{
-		Name: "read_tool_result",
+		Name:        "read_tool_result",
 		Description: "Read a byte window from a large Tool result previously replaced by a bounded preview. Use result_id from that preview; offset_bytes defaults to 0 and limit_bytes defaults to 20000.",
 	}, func(ctx context.Context, request readToolResultRequest) (string, error) {
 		record, err := reader.ReadToolResult(ctx, sessionID, request.ResultID)
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		limit := request.LimitBytes
-		if limit == 0 { limit = 20_000 }
+		if limit == 0 {
+			limit = 20_000
+		}
 		if request.OffsetBytes < 0 || limit < 1 || limit > 20_000 {
 			return "", errors.New("read_tool_result: invalid byte window")
 		}
-		if request.OffsetBytes >= len(record.Body) { return "", nil }
+		if request.OffsetBytes >= len(record.Body) {
+			return "", nil
+		}
 		start := request.OffsetBytes
-		for start < len(record.Body) && !utf8.RuneStart(record.Body[start]) { start++ }
+		for start < len(record.Body) && !utf8.RuneStart(record.Body[start]) {
+			start++
+		}
 		end := min(len(record.Body), start+limit)
-		for end > start && !utf8.ValidString(record.Body[start:end]) { end-- }
+		for end > start && !utf8.ValidString(record.Body[start:end]) {
+			end--
+		}
 		window := record.Body[start:end]
 		if end < len(record.Body) {
 			window += fmt.Sprintf("\n\n[… continue with read_tool_result: {\"result_id\":%q,\"offset_bytes\":%d,\"limit_bytes\":%d}]", record.ID, end, limit)

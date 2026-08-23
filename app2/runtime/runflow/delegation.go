@@ -12,8 +12,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
-	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -51,16 +51,16 @@ type DelegateAbortWrite struct {
 // its result. Both Run journals advance together so lineage can never expose a
 // terminal child behind a still-running Delegate item, or the reverse.
 type DelegateCompletionWrite struct {
-	Child                  rundomain.Record
-	ExpectedChildSegmentID string
-	ChildItems             []transcript.Record
-	ChildToolResults       []toolresult.Record
-	ChildEvents            []rundomain.EventRecord
-	Parent                 rundomain.Record
+	Child                   rundomain.Record
+	ExpectedChildSegmentID  string
+	ChildItems              []transcript.Record
+	ChildToolResults        []toolresult.Record
+	ChildEvents             []rundomain.EventRecord
+	Parent                  rundomain.Record
 	ExpectedParentSegmentID string
-	ParentItem             transcript.Record
-	ParentEvent            rundomain.EventRecord
-	ParentMessages         []conversationdomain.Record
+	ParentItem              transcript.Record
+	ParentEvent             rundomain.EventRecord
+	ParentMessages          []conversationdomain.Record
 }
 
 type DelegationStore interface {
@@ -216,7 +216,7 @@ func (service *Service) commitDelegateStarted(
 		ID: admission.RunID, SessionID: admission.SessionID, SegmentID: admission.SegmentID,
 		ParentRunID: admission.ParentRunID, RootRunID: admission.RootRunID,
 		SpawnedByItemID: admission.SpawnedByItemID,
-		Provider: admission.Provider, Model: admission.Model, Now: admission.StartedAt,
+		Provider:        admission.Provider, Model: admission.Model, Now: admission.StartedAt,
 	})
 	if err != nil {
 		return agentexec.DelegateBinding{}, err
@@ -272,13 +272,13 @@ func (service *Service) observeSubagentStarted(
 		lifecyclehook.MaxPromptBytes,
 	)
 	service.hooks.Observe(ctx, lifecyclehook.Invocation{
-		Event: lifecyclehook.SubagentStart,
+		Event:     lifecyclehook.SubagentStart,
 		SessionID: child.SessionID(), RunID: child.ID(),
 		Workspace: storedSession.Workspace().Path(),
 		Subagent: &lifecyclehook.SubagentInput{
 			RunID: child.ID(), ParentRunID: child.ParentRunID(),
 			Description: boundedHookText(admission.Summary, lifecyclehook.MaxReasonBytes),
-			Prompt: prompt, PromptTruncated: promptTruncated,
+			Prompt:      prompt, PromptTruncated: promptTruncated,
 		},
 	})
 }
@@ -445,7 +445,7 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 		return err
 	}
 	childFinished, err := service.event(child.Run.ID(), output.SegmentID, &childFacts, protocol.StreamEvent{
-		Type: protocol.StreamSegmentFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: segmentOutcome(outcome, problem, output.Detail), Metrics: &childFacts.Metrics,
 	}, finishedAt)
 	if err != nil {

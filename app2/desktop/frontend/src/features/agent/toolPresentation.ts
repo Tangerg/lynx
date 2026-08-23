@@ -1,9 +1,6 @@
 import type { Item } from "@lyra/runtime-contract";
 
-import {
-  translateEnglish,
-  type Translate,
-} from "../localization/Localization";
+import { translateEnglish, type Translate } from "../localization/Localization";
 
 export interface ToolPresentation {
   title: string;
@@ -57,29 +54,29 @@ export function presentTool(
         "exec",
         ">_",
       );
-	case "read_shell_output":
-	  return tool(
-		t("tool.readCommandOutput"),
-		stringArgument(argumentsValue, "shell_id"),
-		"exec",
-		">_",
-	  );
-	case "stop_shell":
-	  return tool(
-		t("tool.stopCommand"),
-		stringArgument(argumentsValue, "shell_id"),
-		"exec",
-		"■",
-	  );
-	case "lsp": {
-	  const operation = stringArgument(argumentsValue, "operation");
-	  return tool(
-		operation ? humanize(operation) : t("tool.queryLanguageServer"),
-		path ?? stringArgument(argumentsValue, "query"),
-		"read",
-		"⌘",
-	  );
-	}
+    case "read_shell_output":
+      return tool(
+        t("tool.readCommandOutput"),
+        stringArgument(argumentsValue, "shell_id"),
+        "exec",
+        ">_",
+      );
+    case "stop_shell":
+      return tool(
+        t("tool.stopCommand"),
+        stringArgument(argumentsValue, "shell_id"),
+        "exec",
+        "■",
+      );
+    case "lsp": {
+      const operation = stringArgument(argumentsValue, "operation");
+      return tool(
+        operation ? humanize(operation) : t("tool.queryLanguageServer"),
+        path ?? stringArgument(argumentsValue, "query"),
+        "read",
+        "⌘",
+      );
+    }
     case "web_search":
       return tool(
         t("tool.searchWeb"),
@@ -172,10 +169,7 @@ export function presentTool(
   }
 }
 
-export function toolStatusLabel(
-  item: Item,
-  t: Translate = translateEnglish,
-) {
+export function toolStatusLabel(item: Item, t: Translate = translateEnglish) {
   if (item.status === "running") return t("tool.status.running");
   if (item.status === "completed") return t("tool.status.complete");
   return item.error?.type === "tool_canceled"
@@ -198,10 +192,7 @@ export function formatToolValue(value: unknown) {
   return JSON.stringify(value, null, 2) ?? String(value);
 }
 
-export function stringArgument(
-  value: Record<string, unknown>,
-  key: string,
-) {
+export function stringArgument(value: Record<string, unknown>, key: string) {
   const candidate = value[key];
   return typeof candidate === "string" && candidate !== ""
     ? candidate
@@ -247,11 +238,7 @@ function patchSubject(value: Record<string, unknown>, t: Translate) {
   return t("tool.workspaceChanges");
 }
 
-function listCount(
-  value: Record<string, unknown>,
-  key: string,
-  t: Translate,
-) {
+function listCount(value: Record<string, unknown>, key: string, t: Translate) {
   const list = value[key];
   return Array.isArray(list)
     ? t("tool.stepCount", { count: list.length })

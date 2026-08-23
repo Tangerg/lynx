@@ -24,14 +24,20 @@ func (database *Database) ListInterruptSets(ctx context.Context, sessionID, root
 	}
 	query += ` ORDER BY i.created_at, i.run_id`
 	rows, err := database.database.QueryContext(ctx, query, arguments...)
-	if err != nil { return nil, fmt.Errorf("sqlite: list interrupt sets: %w", err) }
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list interrupt sets: %w", err)
+	}
 	defer rows.Close()
 	values := make([]protocol.PendingInterruptSet, 0)
 	for rows.Next() {
 		var body string
-		if err := rows.Scan(&body); err != nil { return nil, err }
+		if err := rows.Scan(&body); err != nil {
+			return nil, err
+		}
 		var value protocol.PendingInterruptSet
-		if err := json.Unmarshal([]byte(body), &value); err != nil { return nil, fmt.Errorf("sqlite: decode interrupt set: %w", err) }
+		if err := json.Unmarshal([]byte(body), &value); err != nil {
+			return nil, fmt.Errorf("sqlite: decode interrupt set: %w", err)
+		}
 		values = append(values, value)
 	}
 	return values, rows.Err()
@@ -39,7 +45,9 @@ func (database *Database) ListInterruptSets(ctx context.Context, sessionID, root
 
 func (database *Database) PutInterruptSet(ctx context.Context, runID, sessionID string, value protocol.PendingInterruptSet) error {
 	body, err := json.Marshal(value)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	now := encodeTime(time.Now())
 	_, err = database.database.ExecContext(ctx, `INSERT INTO interrupt_sets(run_id,session_id,body,created_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(run_id) DO UPDATE SET body=excluded.body,updated_at=excluded.updated_at`, runID, sessionID, string(body), now, now)
 	return err
@@ -48,10 +56,16 @@ func (database *Database) PutInterruptSet(ctx context.Context, runID, sessionID 
 func (database *Database) GetInterruptSet(ctx context.Context, runID string) (protocol.PendingInterruptSet, error) {
 	var body string
 	err := database.database.QueryRowContext(ctx, `SELECT body FROM interrupt_sets WHERE run_id=?`, runID).Scan(&body)
-	if errors.Is(err, sql.ErrNoRows) { return protocol.PendingInterruptSet{}, runflow.ErrInterruptSetNotFound }
-	if err != nil { return protocol.PendingInterruptSet{}, fmt.Errorf("sqlite: get interrupt set: %w", err) }
+	if errors.Is(err, sql.ErrNoRows) {
+		return protocol.PendingInterruptSet{}, runflow.ErrInterruptSetNotFound
+	}
+	if err != nil {
+		return protocol.PendingInterruptSet{}, fmt.Errorf("sqlite: get interrupt set: %w", err)
+	}
 	var value protocol.PendingInterruptSet
-	if err := json.Unmarshal([]byte(body), &value); err != nil { return protocol.PendingInterruptSet{}, fmt.Errorf("sqlite: decode interrupt set: %w", err) }
+	if err := json.Unmarshal([]byte(body), &value); err != nil {
+		return protocol.PendingInterruptSet{}, fmt.Errorf("sqlite: decode interrupt set: %w", err)
+	}
 	return value, nil
 }
 

@@ -54,7 +54,7 @@ func newToolDiscovery(deferred []agentexec.ExecutableTool) (toolcontract.Tool, e
 			return nil, fmt.Errorf("agenttools: duplicate deferred tool %q", definition.Name)
 		}
 		item := toolDiscoveryItem{
-			Name: definition.Name,
+			Name:        definition.Name,
 			Description: boundedDescription(definition.Description),
 		}
 		byName[item.Name] = item
@@ -71,7 +71,7 @@ func newToolDiscovery(deferred []agentexec.ExecutableTool) (toolcontract.Tool, e
 
 	return toolcontract.NewFunc(
 		toolcontract.FuncConfig{
-			Name: "search_tools",
+			Name:        "search_tools",
 			Description: "Discover optional tools without loading every schema into context. Search by capability keywords, then call again with exact names in select. Selected tools become available from the next model call onward; this never grants new authority.",
 		},
 		func(ctx context.Context, request searchToolsRequest) (searchToolsResponse, error) {

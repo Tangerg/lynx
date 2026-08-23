@@ -80,11 +80,11 @@ func (service *Service) Rollback(
 		return nil, err
 	}
 	updated, err := service.store.RollbackSessionHistory(ctx, RollbackWrite{
-		SessionID:           session.ID(request.SessionID),
-		DropRootRunIDs:      dropRootIDs,
-		Plan:                replacement,
+		SessionID:            session.ID(request.SessionID),
+		DropRootRunIDs:       dropRootIDs,
+		Plan:                 replacement,
 		ExpectedPlanRevision: material.Plan.Revision(),
-		Now:                 now,
+		Now:                  now,
 	})
 	if errors.Is(err, plandomain.ErrVersionConflict) {
 		return nil, protocol.ErrRevisionConflict

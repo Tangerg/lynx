@@ -248,10 +248,10 @@ func scanMCPServer(scanner mcpServerScanner) (mcpserver.Configuration, error) {
 		Name: name, Enabled: stored.Enabled, Description: stored.Description,
 		Transport: stored.Transport, URL: stored.URL, Command: stored.Command,
 		Args: slices.Clone(stored.Args), Dir: stored.Dir,
-		TimeoutSeconds: stored.TimeoutSeconds,
-		DisabledTools: slices.Clone(stored.DisabledTools),
+		TimeoutSeconds:   stored.TimeoutSeconds,
+		DisabledTools:    slices.Clone(stored.DisabledTools),
 		AutoApproveTools: slices.Clone(stored.AutoApproveTools),
-		Secrets: secrets, Revision: revision, UpdatedAt: updated,
+		Secrets:          secrets, Revision: revision, UpdatedAt: updated,
 	})
 	if err != nil {
 		return mcpserver.Configuration{}, fmt.Errorf("sqlite: restore MCP server %q: %w", name, err)

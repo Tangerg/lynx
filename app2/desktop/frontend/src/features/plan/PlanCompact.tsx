@@ -1,9 +1,6 @@
 import type { Plan, PlanStep } from "@lyra/runtime-contract";
 
-import {
-  useLocalization,
-  type Translate,
-} from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 
 export function PlanCompact(props: {
   plan: Plan | undefined;
@@ -32,12 +29,12 @@ export function PlanCompact(props: {
         props.error
           ? t("plan.currentUnavailable")
           : props.pending
-          ? t("plan.loadingCurrent")
-          : t("plan.progress", {
-              completed,
-              total: steps.length,
-              summary,
-            })
+            ? t("plan.loadingCurrent")
+            : t("plan.progress", {
+                completed,
+                total: steps.length,
+                summary,
+              })
       }
       aria-describedby="plan-details"
     >
@@ -54,7 +51,10 @@ export function PlanCompact(props: {
       </svg>
       <span className="plan-copy">
         <span>
-          {t("plan.title")} <b className="tabular">{completed}/{steps.length}</b>
+          {t("plan.title")}{" "}
+          <b className="tabular">
+            {completed}/{steps.length}
+          </b>
         </span>
         <small>{summary}</small>
       </span>

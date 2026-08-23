@@ -16,7 +16,7 @@ interface ToolDisclosureProps {
   item: Item;
   run?: RunSummary;
   liveOutput?: LiveToolOutput;
-	searchMatch?: boolean;
+  searchMatch?: boolean;
   children?: ReactNode;
 }
 
@@ -24,7 +24,7 @@ export function ToolDisclosure({
   item,
   run,
   liveOutput,
-	searchMatch,
+  searchMatch,
   children,
 }: ToolDisclosureProps) {
   const { t } = useLocalization();
@@ -36,12 +36,16 @@ export function ToolDisclosure({
       className="narrative-item tool-turn"
       data-child={child}
       data-status={item.status}
-	  data-item-id={item.id}
-	  data-search-match={searchMatch === true}
-      defaultOpen={item.status === "running"}
+      data-item-id={item.id}
+      data-search-match={searchMatch === true}
+      open={item.status === "running"}
     >
       <summary>
-        <span className="tool-mark" data-kind={presentation.kind} aria-hidden="true">
+        <span
+          className="tool-mark"
+          data-kind={presentation.kind}
+          aria-hidden="true"
+        >
           {presentation.glyph}
         </span>
         <span className="tool-heading">
@@ -69,7 +73,9 @@ export function ToolDisclosure({
         {liveOutput ? <LiveToolResult output={liveOutput} /> : null}
         <ToolResult name={tool?.name ?? ""} result={tool?.result} />
         {item.error?.detail ? (
-          <p className="tool-error" role="alert">{item.error.detail}</p>
+          <p className="tool-error" role="alert">
+            {item.error.detail}
+          </p>
         ) : null}
         <details className="tool-arguments">
           <summary>{t("tool.arguments")}</summary>
@@ -110,7 +116,9 @@ function ToolResult({ name, result }: { name: string; result: unknown }) {
               {t("tool.exitCode", { code: result.exit_code })}
             </span>
           ) : null}
-          {typeof result.duration === "string" ? <span>{result.duration}</span> : null}
+          {typeof result.duration === "string" ? (
+            <span>{result.duration}</span>
+          ) : null}
         </header>
         {typeof result.stdout === "string" && result.stdout !== "" ? (
           <pre>{result.stdout}</pre>
@@ -121,13 +129,19 @@ function ToolResult({ name, result }: { name: string; result: unknown }) {
       </section>
     );
   }
-  if (name === "read" && isRecord(result) && typeof result.content === "string") {
+  if (
+    name === "read" &&
+    isRecord(result) &&
+    typeof result.content === "string"
+  ) {
     return (
       <section className="tool-result file-result">
         <header>
           <strong>{t("tool.fileContent")}</strong>
           {lineRange(result, t) ? <span>{lineRange(result, t)}</span> : null}
-          {result.truncated === true ? <span>{t("tool.truncated")}</span> : null}
+          {result.truncated === true ? (
+            <span>{t("tool.truncated")}</span>
+          ) : null}
         </header>
         <pre>{result.content}</pre>
       </section>
@@ -135,7 +149,9 @@ function ToolResult({ name, result }: { name: string; result: unknown }) {
   }
   return (
     <section className="tool-result">
-      <header><strong>{t("tool.result")}</strong></header>
+      <header>
+        <strong>{t("tool.result")}</strong>
+      </header>
       <pre>{formatToolValue(result)}</pre>
     </section>
   );

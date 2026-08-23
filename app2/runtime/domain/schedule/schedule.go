@@ -324,27 +324,27 @@ func (value Occurrence) ClaimedSchedule() (Schedule, error) {
 	return Rehydrate(next)
 }
 
-func (value Schedule) State() State                         { return value.state }
-func (value Schedule) ID() string                           { return value.state.ID }
-func (value Schedule) Title() string                        { return value.state.Title }
-func (value Schedule) Instructions() string                 { return value.state.Instructions }
-func (value Schedule) Workspace() string                    { return value.state.Workspace }
-func (value Schedule) Selection() modelselection.Selection  { return value.selection }
-func (value Schedule) Cron() string                         { return value.state.Cron }
-func (value Schedule) Enabled() bool                        { return value.state.Enabled }
-func (value Schedule) LastRunAt() time.Time                 { return value.state.LastRunAt }
-func (value Schedule) NextRunAt() time.Time                 { return value.state.NextRunAt }
-func (value Schedule) Revision() uint64                     { return value.state.Revision }
-func (value Schedule) CreatedAt() time.Time                 { return value.state.CreatedAt }
-func (value Schedule) UpdatedAt() time.Time                 { return value.state.UpdatedAt }
-func (value Occurrence) State() OccurrenceState             { return value.state }
-func (value Occurrence) ID() string                         { return value.state.ID }
-func (value Occurrence) Schedule() Schedule                 { return value.schedule }
-func (value Occurrence) DueAt() time.Time                   { return value.state.DueAt }
-func (value Occurrence) FiredAt() time.Time                 { return value.state.FiredAt }
-func (value Occurrence) NextRunAt() time.Time               { return value.state.NextRunAt }
-func (value Occurrence) SessionID() string                  { return value.state.SessionID }
-func (value Occurrence) RunID() string                      { return value.state.RunID }
+func (value Schedule) State() State                        { return value.state }
+func (value Schedule) ID() string                          { return value.state.ID }
+func (value Schedule) Title() string                       { return value.state.Title }
+func (value Schedule) Instructions() string                { return value.state.Instructions }
+func (value Schedule) Workspace() string                   { return value.state.Workspace }
+func (value Schedule) Selection() modelselection.Selection { return value.selection }
+func (value Schedule) Cron() string                        { return value.state.Cron }
+func (value Schedule) Enabled() bool                       { return value.state.Enabled }
+func (value Schedule) LastRunAt() time.Time                { return value.state.LastRunAt }
+func (value Schedule) NextRunAt() time.Time                { return value.state.NextRunAt }
+func (value Schedule) Revision() uint64                    { return value.state.Revision }
+func (value Schedule) CreatedAt() time.Time                { return value.state.CreatedAt }
+func (value Schedule) UpdatedAt() time.Time                { return value.state.UpdatedAt }
+func (value Occurrence) State() OccurrenceState            { return value.state }
+func (value Occurrence) ID() string                        { return value.state.ID }
+func (value Occurrence) Schedule() Schedule                { return value.schedule }
+func (value Occurrence) DueAt() time.Time                  { return value.state.DueAt }
+func (value Occurrence) FiredAt() time.Time                { return value.state.FiredAt }
+func (value Occurrence) NextRunAt() time.Time              { return value.state.NextRunAt }
+func (value Occurrence) SessionID() string                 { return value.state.SessionID }
+func (value Occurrence) RunID() string                     { return value.state.RunID }
 
 func normalizeTitle(value string) string {
 	value = strings.TrimSpace(value)

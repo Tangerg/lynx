@@ -35,10 +35,7 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
           <h4>{tool?.name ?? t("approval.toolExecution")}</h4>
         </div>
         {props.interrupt.payload?.risk ? (
-          <span
-            className="risk-badge"
-            data-risk={props.interrupt.payload.risk}
-          >
+          <span className="risk-badge" data-risk={props.interrupt.payload.risk}>
             {t("approval.risk", { risk: props.interrupt.payload.risk })}
           </span>
         ) : null}
