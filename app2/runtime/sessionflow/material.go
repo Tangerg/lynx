@@ -4,6 +4,7 @@ import (
 	"time"
 
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
+	goaldomain "github.com/Tangerg/lynx/app2/runtime/domain/goal"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
@@ -18,7 +19,7 @@ type Material struct {
 	Messages []conversationdomain.Record
 	Interrupts []protocol.PendingInterruptSet
 	Plan protocol.Plan
-	Goal *protocol.Goal
+	Goal *goaldomain.Goal
 	ToolResults []toolresult.Record
 }
 

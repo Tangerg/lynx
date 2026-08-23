@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/capabilityflow"
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
+	"github.com/Tangerg/lynx/app2/runtime/goalflow"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
 	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
 	"github.com/Tangerg/lynx/app2/runtime/providerflow"
@@ -34,6 +35,8 @@ type Runtime struct {
 	workspace *workspaceflow.Service
 	settings  *settingsflow.Service
 	state     *stateflow.Service
+	goals     *goalflow.Service
+	goalDriver *goalflow.Driver
 	mcp       *mcpflow.Service
 	capability *capabilityflow.Service
 	codebase *codebaseflow.Service
@@ -52,6 +55,8 @@ type Config struct {
 	Settings *settingsflow.Service
 	Events *runtimeevents.Bus
 	State *stateflow.Service
+	Goals *goalflow.Service
+	GoalDriver *goalflow.Driver
 	MCP *mcpflow.Service
 	Capability *capabilityflow.Service
 	Codebase *codebaseflow.Service
@@ -60,13 +65,13 @@ type Config struct {
 }
 
 func New(config Config) (*Runtime, error) {
-	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.State == nil || config.MCP == nil || config.Capability == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
+	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.State == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
 		return nil, errors.New("application: all required capability services must be supplied")
 	}
 	return &Runtime{
 		discovery: config.Discovery, sessions: config.Sessions,
 		providers: config.Providers, runs: config.Runs, workspace: config.Workspace,
-		settings: config.Settings, state: config.State, mcp: config.MCP, capability: config.Capability,
+		settings: config.Settings, state: config.State, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability,
 		codebase: config.Codebase, tools: config.Tools, operations: config.Operations, events: config.Events,
 	}, nil
 }
@@ -100,7 +105,10 @@ func (runtime *Runtime) UpdateSession(ctx context.Context, request protocol.Upda
 }
 
 func (runtime *Runtime) DeleteSession(ctx context.Context, sessionID string) error {
+	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, sessionID)
+	if suppressErr != nil { return suppressErr }
 	err := runtime.sessions.Delete(ctx, sessionID)
+	runtime.goalDriver.ReleaseSession(sessionID, err == nil && hadGoal)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{sessionID}})
 	}
@@ -120,7 +128,10 @@ func (runtime *Runtime) ForkSession(ctx context.Context, request protocol.ForkSe
 }
 
 func (runtime *Runtime) RollbackSession(ctx context.Context, request protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
+	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, request.SessionID)
+	if suppressErr != nil { return nil, suppressErr }
 	value, err := runtime.sessions.Rollback(ctx, request)
+	runtime.goalDriver.ReleaseSession(request.SessionID, err == nil && hadGoal && request.RestoreType != protocol.RestoreFiles)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{request.SessionID}})
 	}
@@ -132,7 +143,11 @@ func (runtime *Runtime) ExportSession(ctx context.Context, request protocol.Expo
 }
 
 func (runtime *Runtime) ImportSession(ctx context.Context, request protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
+	sessionID := request.Artifact.Session.ID
+	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, sessionID)
+	if suppressErr != nil { return nil, suppressErr }
 	value, err := runtime.sessions.Import(ctx, request)
+	runtime.goalDriver.ReleaseSession(sessionID, err == nil && hadGoal)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{value.Session.ID}})
 	}
@@ -210,7 +225,12 @@ func (runtime *Runtime) ResumeRun(ctx context.Context, request protocol.ResumeRu
 	iter.Seq[protocol.RunEvent],
 	error,
 ) {
-	return runtime.runs.Resume(ctx, request)
+	return runtime.runs.ResumeWith(ctx, runflow.ResumeCommand{
+		Request: request,
+		BeforeLaunch: func(callbackCtx context.Context, runID string) error {
+			return runtime.goalDriver.ObserveResumed(callbackCtx, runID)
+		},
+	})
 }
 
 func (runtime *Runtime) SteerRun(ctx context.Context, request protocol.SteerRunRequest) error {
@@ -342,47 +362,35 @@ func (runtime *Runtime) RunScheduleNow(ctx context.Context, request protocol.Run
 }
 
 func (runtime *Runtime) StartGoal(ctx context.Context, request protocol.StartGoalRequest) (*protocol.Goal, error) {
-	value, err := runtime.state.StartGoal(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeGoalsChanged, SessionIDs: []string{request.SessionID}})
-	}
-	return value, err
+	return runtime.goals.Start(ctx, request)
 }
 
 func (runtime *Runtime) UpdateGoal(ctx context.Context, request protocol.UpdateGoalRequest) (*protocol.Goal, error) {
-	value, err := runtime.state.UpdateGoal(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeGoalsChanged, SessionIDs: []string{request.SessionID}})
-	}
+	previous, _, err := runtime.goals.Current(ctx, request.SessionID)
+	if err != nil { return nil, err }
+	value, err := runtime.goals.Update(ctx, request)
+	if err == nil { runtime.goalDriver.CancelDetached(previous.ActiveRunID()) }
 	return value, err
 }
 
 func (runtime *Runtime) ClearGoal(ctx context.Context, request protocol.GoalRequest) error {
-	err := runtime.state.ClearGoal(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeGoalsChanged, SessionIDs: []string{request.SessionID}})
-	}
-	return err
+	value, found, err := runtime.goals.Current(ctx, request.SessionID)
+	if err != nil { return err }
+	if err := runtime.goals.Clear(ctx, request); err != nil { return err }
+	if found { runtime.goalDriver.CancelDetached(value.ActiveRunID()) }
+	return nil
 }
 
 func (runtime *Runtime) GetGoal(ctx context.Context, request protocol.GoalRequest) (*protocol.Goal, error) {
-	return runtime.state.GetGoal(ctx, request)
+	return runtime.goals.Get(ctx, request)
 }
 
 func (runtime *Runtime) StopGoal(ctx context.Context, request protocol.GoalRequest) (*protocol.Goal, error) {
-	value, err := runtime.state.StopGoal(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeGoalsChanged, SessionIDs: []string{request.SessionID}})
-	}
-	return value, err
+	return runtime.goals.Stop(ctx, request)
 }
 
 func (runtime *Runtime) ResumeGoal(ctx context.Context, request protocol.GoalRequest) (*protocol.Goal, error) {
-	value, err := runtime.state.ResumeGoal(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeGoalsChanged, SessionIDs: []string{request.SessionID}})
-	}
-	return value, err
+	return runtime.goals.Resume(ctx, request)
 }
 
 func (runtime *Runtime) ListMCPServers(ctx context.Context) (*protocol.Page[protocol.MCPServer], error) {
@@ -464,6 +472,7 @@ func (runtime *Runtime) Close() {
 	if runtime == nil { return }
 	runtime.closeOnce.Do(func() {
 		runtime.settings.Close()
+		runtime.goalDriver.Close()
 		runtime.runs.Close()
 		runtime.mcp.Close()
 		runtime.codebase.Close()

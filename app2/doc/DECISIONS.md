@@ -246,3 +246,27 @@ host packages 不 import Cobra/Viper。
 
 **后果**：本 ADR 在当前目标范围内取代 ADR-A2-021 的 Wave B/Wave C 连续执行要求；它不引入旧实现兼容层，
 也不把未运行最终门禁的能力标为 `verified`。后续切换必须由新的明确目标重新授权。
+
+## ADR-A2-025：Goal 使用 Lyra 原生资源与 exact Run ownership
+
+**决定**：自主循环继续使用 Lyra 已发布的 `goals.*`、Goal DTO、Run/Segment、Conversation/Transcript 与
+`goals.changed` 合同。服务端把 Goal 重写为私有聚合 + CAS repository + 单一 Driver：Goal 的
+`activeRunId` 是唯一 durable continuation owner，Run 不保存第二份 Goal provenance；fresh autonomous control
+只写入 provider-neutral Conversation journal，不创建伪造的 user Transcript Item。
+
+Driver 在 Agent execution 启动前以 exact `sessionId + incarnationId + revision + runId` 认领 Run。模型侧始终可读
+`create_goal/get_goal`，只有当前 Goal exact owned Run 才获得 `report_goal_outcome`。`completed` 先进入
+`completing` settlement window，待该 Run 终态与 usage 原子折叠后才删除 Goal；`blocked` 必须给出具体原因。
+人工输入 interrupt 仍由 Lyra Run/Interrupt 合同恢复，Goal 只恢复同一个 owned Run，不发明新的 continuation
+协议。
+
+Runtime restart 不自动继续 predecessor Goal。runflow 先把不可重放的 running effect 收敛为 `lost`，goalflow 再按
+durable Run 真相结算；没有 owned Run 的 active Goal 显式变为 `paused/runtimeRestarted`。所有 API、tool、driver、
+recovery mutation 都从 Goal owner 发布 `goals.changed`，application facade 不重复发布。
+
+**原因**：Codex 的机制研究证明了 durable ownership、可恢复 loop 与 outcome handshake 的价值，但 Lyra 已有更适合
+当前产品的 Goal/Run/Interrupt/HTTP 合同。复制 Codex 的 Thread/Turn、工具参数或 transport 会制造第二套协议；只吸收
+并发与恢复原则，既能治本，也保留现有 Lyra Protocol 的成熟资产。
+
+**后果**：Goal status 闭合为 `active | paused | blocked | completing`；停止原因是闭合 code；Goal body 的 SQLite
+表示是 adapter-owned DTO，不序列化领域对象或协议 DTO。该能力在最终统一门禁前只标记 `implemented`。

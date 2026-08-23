@@ -94,11 +94,15 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS goals (
 			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-			incarnation INTEGER NOT NULL CHECK (incarnation > 0),
-			status TEXT NOT NULL,
+			incarnation_id TEXT NOT NULL,
+			revision INTEGER NOT NULL CHECK (revision > 0),
+			status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'blocked', 'completing')),
+			active_run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
 			body TEXT NOT NULL CHECK (json_valid(body)),
 			updated_at TEXT NOT NULL
 		) STRICT`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS one_goal_per_owned_run
+			ON goals(active_run_id) WHERE active_run_id IS NOT NULL`,
 		`CREATE TABLE IF NOT EXISTS run_events (
 			run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
 			segment_id TEXT NOT NULL,

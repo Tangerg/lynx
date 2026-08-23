@@ -127,6 +127,35 @@ type StartCommand struct {
 	Meta    protocol.RequestMeta
 }
 
+// AutonomousStart is the private application command used by Goal orchestration.
+// It deliberately is not a Lyra wire request: autonomous instructions belong to
+// the exact conversation journal without pretending to be user-authored Items.
+type AutonomousStart struct {
+	SessionID    string
+	Instruction  string
+	Provider     string
+	Model        string
+	MaxSteps     int
+	MaxBudgetUSD float64
+	Claim        func(context.Context, string) error
+}
+
+type AutonomousRun struct {
+	RunID, SegmentID string
+	Events           iter.Seq[protocol.RunEvent]
+}
+
+type rootStart struct {
+	request      protocol.StartRunRequest
+	profile      protocol.RunProtocolProfile
+	visibleInput bool
+	claim        func(context.Context, string) error
+}
+
+type openedRoot struct {
+	runID, segmentID, userItemID string
+}
+
 // CommitWrite is the single terminal/update transaction for an admitted Run.
 // ExpectedStatus and ExpectedSegmentID are the generation token: every caller
 // must prove which durable lifecycle version it is replacing.
@@ -145,7 +174,36 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 	iter.Seq[protocol.RunEvent],
 	error,
 ) {
-	request := command.Request
+	opened, events, err := service.startRoot(ctx, rootStart{
+		request: command.Request, profile: profile(command.Meta.ClientCapabilities), visibleInput: true,
+	})
+	if err != nil { return nil, nil, err }
+	return &protocol.StartRunResponse{RunID: opened.runID, SegmentID: opened.segmentID, UserItemID: opened.userItemID}, events, nil
+}
+
+func (service *Service) StartAutonomous(ctx context.Context, command AutonomousStart) (*AutonomousRun, error) {
+	if strings.TrimSpace(command.Instruction) == "" || command.Claim == nil {
+		return nil, errors.New("runflow: autonomous instruction and ownership claim are required")
+	}
+	opened, events, err := service.startRoot(ctx, rootStart{
+		request: protocol.StartRunRequest{
+			SessionID: command.SessionID,
+			Input: []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: command.Instruction}},
+			Provider: command.Provider, Model: command.Model,
+			MaxSteps: command.MaxSteps, MaxBudgetUSD: command.MaxBudgetUSD,
+		},
+		profile: protocol.RunProtocolProfile{
+			RequiredFeatures: []protocol.RunProtocolFeature{},
+			InterruptTypes: protocol.InterruptTypes(),
+		},
+		claim: command.Claim,
+	})
+	if err != nil { return nil, err }
+	return &AutonomousRun{RunID: opened.runID, SegmentID: opened.segmentID, Events: events}, nil
+}
+
+func (service *Service) startRoot(ctx context.Context, command rootStart) (*openedRoot, iter.Seq[protocol.RunEvent], error) {
+	request := command.request
 	storedSession, err := service.store.GetSession(ctx, session.ID(request.SessionID))
 	if err != nil {
 		if errors.Is(err, session.ErrNotFound) {
@@ -174,9 +232,10 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 	if err != nil {
 		return nil, nil, err
 	}
-	itemID, err := service.ids.New("itm_")
-	if err != nil {
-		return nil, nil, err
+	itemID := ""
+	if command.visibleInput {
+		itemID, err = service.ids.New("itm_")
+		if err != nil { return nil, nil, err }
 	}
 	now := service.now().UTC()
 	aggregate, err := rundomain.New(rundomain.Start{
@@ -188,19 +247,23 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 	}
 	facts := runFacts{
 		Metrics: protocol.RunMetrics{}, Limits: runLimits(request),
-		Profile: profile(command.Meta.ClientCapabilities), EventOrdinal: 2,
+		Profile: command.profile, EventOrdinal: 1,
 	}
+	if command.visibleInput { facts.EventOrdinal = 2 }
 	record, err := makeRecord(aggregate, facts)
 	if err != nil {
 		return nil, nil, err
 	}
-	userItem := protocol.Item{
-		ID: itemID, RunID: runID, Status: protocol.ItemStatusCompleted,
-		CreatedAt: now, Type: protocol.ItemTypeUserMessage, Content: request.Input,
-	}
-	opening, err := itemRecord(request.SessionID, userItem, 0)
-	if err != nil {
-		return nil, nil, err
+	var userItem *protocol.Item
+	var opening *transcript.Record
+	if command.visibleInput {
+		item := protocol.Item{
+			ID: itemID, RunID: runID, Status: protocol.ItemStatusCompleted,
+			CreatedAt: now, Type: protocol.ItemTypeUserMessage, Content: request.Input,
+		}
+		stored, err := itemRecord(request.SessionID, item, 0)
+		if err != nil { return nil, nil, err }
+		userItem, opening = &item, &stored
 	}
 	presented, err := presentRecord(record)
 	if err != nil {
@@ -220,7 +283,7 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 	messageBody, err := json.Marshal(userMessage)
 	if err != nil { return nil, nil, err }
 	openingMessage := conversationdomain.Record{SessionID: request.SessionID, RunID: runID, Ordinal: nextMessageOrdinal, Body: messageBody}
-	if err := service.store.CreateRun(ctx, record, &opening, &openingMessage, persisted); err != nil {
+	if err := service.store.CreateRun(ctx, record, opening, &openingMessage, persisted); err != nil {
 		if existing, lookupErr := service.store.GetOpenRootRun(ctx, request.SessionID); lookupErr == nil {
 			active, presentErr := presentRecord(existing)
 			if presentErr == nil {
@@ -229,11 +292,21 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 		}
 		return nil, nil, err
 	}
+	if command.claim != nil {
+		if err := command.claim(ctx, runID); err != nil {
+			service.settleUnlaunched(runID)
+			return nil, nil, fmt.Errorf("runflow: claim autonomous run %s: %w", runID, err)
+		}
+		if err := ctx.Err(); err != nil {
+			service.settleUnlaunched(runID)
+			return nil, nil, fmt.Errorf("runflow: autonomous run canceled before launch: %w", err)
+		}
+	}
 	stream := service.hub.SubscribeRun(ctx, runID, segmentID, events)
 	if !service.launchExecution(runID, segmentID, storedSession.Workspace().Path(), conversation) {
 		service.settleUnlaunched(runID)
 	}
-	return &protocol.StartRunResponse{RunID: runID, SegmentID: segmentID, UserItemID: itemID}, stream, nil
+	return &openedRoot{runID: runID, segmentID: segmentID, userItemID: itemID}, stream, nil
 }
 
 func (service *Service) launchExecution(runID, segmentID, workspace string, conversation []agentexec.Message) bool {
@@ -256,7 +329,7 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 			cancel()
 		}()
 		record, err := service.store.GetRun(ctx, runID)
-		if err != nil {
+		if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != segmentID {
 			return
 		}
 		output, executeErr := service.executor.Execute(ctx, agentexec.Input{
@@ -658,22 +731,24 @@ func (service *Service) replay(ctx context.Context, runID, segmentID, after stri
 func (service *Service) startEvents(
 	runID, segmentID string,
 	run protocol.RunRef,
-	item protocol.Item,
+	item *protocol.Item,
 	now time.Time,
 ) ([]protocol.RunEvent, []rundomain.EventRecord, error) {
 	firstID, err := service.ids.New("evt_")
 	if err != nil {
 		return nil, nil, err
 	}
-	secondID, err := service.ids.New("evt_")
-	if err != nil {
-		return nil, nil, err
-	}
 	events := []protocol.RunEvent{
 		{RunID: runID, SegmentID: segmentID, EventID: firstID, Timestamp: now,
 			Event: protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &run}},
-		{RunID: runID, SegmentID: segmentID, EventID: secondID, Timestamp: now,
-			Event: protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item}},
+	}
+	if item != nil {
+		secondID, err := service.ids.New("evt_")
+		if err != nil { return nil, nil, err }
+		events = append(events, protocol.RunEvent{
+			RunID: runID, SegmentID: segmentID, EventID: secondID, Timestamp: now,
+			Event: protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item},
+		})
 	}
 	persisted, err := persistEvents(events, 1)
 	return events, persisted, err

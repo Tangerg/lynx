@@ -45,18 +45,26 @@ type ToolResultReader interface {
 	ReadToolResult(context.Context, string, string) (toolresult.Record, error)
 }
 
+type GoalGateway interface {
+	Start(context.Context, protocol.StartGoalRequest) (*protocol.Goal, error)
+	Get(context.Context, protocol.GoalRequest) (*protocol.Goal, error)
+	IsOwnedRun(context.Context, string, string) (bool, error)
+	Report(context.Context, string, string, string, string) (string, error)
+}
+
 type Catalog struct {
 	policy   ApprovalPolicy
 	mcp      MCPGateway
 	results  ToolResultReader
+	goals    GoalGateway
 	userHome string
 }
 
-func New(policy ApprovalPolicy, mcp MCPGateway, results ToolResultReader, userHome string) (*Catalog, error) {
-	if policy == nil || !filepath.IsAbs(userHome) {
-		return nil, errors.New("agenttools: approval policy and absolute user home are required")
+func New(policy ApprovalPolicy, mcp MCPGateway, results ToolResultReader, goals GoalGateway, userHome string) (*Catalog, error) {
+	if policy == nil || goals == nil || !filepath.IsAbs(userHome) {
+		return nil, errors.New("agenttools: approval policy, goal gateway and absolute user home are required")
 	}
-	return &Catalog{policy: policy, mcp: mcp, results: results, userHome: filepath.Clean(userHome)}, nil
+	return &Catalog{policy: policy, mcp: mcp, results: results, goals: goals, userHome: filepath.Clean(userHome)}, nil
 }
 
 func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) ([]agentexec.ExecutableTool, error) {
@@ -102,6 +110,9 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		if err != nil { return nil, err }
 		values = append(values, scopedTool{tool: reader, safety: protocol.SafetyClassSafe})
 	}
+	goalTools, err := catalog.goalTools(ctx, scope)
+	if err != nil { return nil, err }
+	values = append(values, goalTools...)
 	if catalog.mcp != nil {
 		remote, err := catalog.remoteTools(ctx)
 		if err != nil {

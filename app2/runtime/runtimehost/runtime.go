@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/dispatch"
+	"github.com/Tangerg/lynx/app2/runtime/goalflow"
 	"github.com/Tangerg/lynx/app2/runtime/httptransport"
 	"github.com/Tangerg/lynx/app2/runtime/identity"
 	"github.com/Tangerg/lynx/app2/runtime/localruntime"
@@ -144,12 +145,17 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	events := runtimeevents.New()
+	guard.AddClose(events.Close)
+	goalSignals := goalflow.NewSignals()
+	goals, err := goalflow.New(database, identity.Generator{}, goalSignals, events)
+	if err != nil { return nil, err }
 	mcp, err := mcpflow.New(database, identity.Generator{}, lifetime)
 	if err != nil {
 		return nil, err
 	}
 	guard.AddClose(mcp.Close)
-	agentToolCatalog, err := agenttools.New(database, mcp, database, config.UserHome)
+	agentToolCatalog, err := agenttools.New(database, mcp, database, goals, config.UserHome)
 	if err != nil {
 		return nil, err
 	}
@@ -169,12 +175,16 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err := runs.Recover(ctx); err != nil {
 		return nil, fmt.Errorf("runtimehost: recover predecessor runs: %w", err)
 	}
+	goalDriver, err := goalflow.NewDriver(goalflow.DriverConfig{Goals: goals, Runs: runs, Signals: goalSignals, Lifetime: lifetime})
+	if err != nil { return nil, err }
+	guard.AddClose(goalDriver.Close)
+	if err := goalDriver.Recover(ctx); err != nil {
+		return nil, fmt.Errorf("runtimehost: recover autonomous goals: %w", err)
+	}
 	workspace, err := workspaceflow.New(workspaceResolver)
 	if err != nil {
 		return nil, err
 	}
-	events := runtimeevents.New()
-	guard.AddClose(events.Close)
 	settings, err := settingsflow.New(database, identity.Generator{}, settingsflow.NewLauncher(sessions, runs))
 	if err != nil {
 		return nil, err
@@ -197,7 +207,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil { return nil, err }
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
-		Runs: runs, Workspace: workspace, Settings: settings, State: state, MCP: mcp,
+		Runs: runs, Workspace: workspace, Settings: settings, State: state, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
 		Capability: capabilities, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
 	})
 	if err != nil {
@@ -206,6 +216,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err := settings.Start(lifetime); err != nil {
 		return nil, err
 	}
+	goalDriver.Start()
 	endpoint, err := operation.New(app, lifetime)
 	if err != nil {
 		return nil, err

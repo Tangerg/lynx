@@ -49,7 +49,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | specified | global/project sources、project trust、event/matcher/timeout、untrusted hook 不执行 |
 | O13 | `approval.getMode`, `approval.setMode`, `approval.listRules`, `approval.forgetRule` | 4 | interaction policy | R4/R8 | specified | safe/balanced/yolo、rule scope/identity、explicit forget、Run decision transcript 独立 |
 | O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | operations/schedule | R8 | specified | cron validation、revision、workspace/model、next run、runNow 返回可导航 Run/Session |
-| O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | specified | one incarnation、quiesce/CAS、paused/active/completing、Session cascade、autonomous control 不进 Transcript |
+| O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | implemented | one incarnation、quiesce/CAS、paused/active/blocked/completing、Session cascade、autonomous control 不进 Transcript；待最终统一门禁 |
 | O16 | `codebase.search`, `codebase.status`, `codebase.reindex` | 3 | workspace index | R6 | specified | none/indexing/ready/error、operation identity、embedding role、bounded hits/reindex cancellation |
 | O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | specified | masked key/source、explicit secret change、base URL validation、test 业务判决、不泄漏原文 |
 | O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | specified | provider/model 显式配对、capability/pricing/context、role validation、catalog invalidation |
@@ -80,7 +80,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `sessions.changed` | session transaction | Work Index | R2 | specified | create/update/delete/archive/status attention 收敛 |
 | `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
 | `plan.changed` | plan transaction | Plan pill/tooltip | R5 | specified | revision/snapshot/event convergent |
-| `goals.changed` | goal transaction | Goal tray | R5 | specified | incarnation/lifecycle exact，不显示旧 goal |
+| `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布；待最终统一门禁 |
 | `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | specified | answer settlement 后 exact pending 消失 |
 | `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
 | `hooks.changed` | hook/trust owner | Hooks settings | R7 | specified | trust/source change 收敛 |
@@ -144,7 +144,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | 网络（3） | `web_search`, `web_fetch`, `http_request` | R4 | specified | URL/status/header/body、安全 link、result normalization、bounded preview |
 | Skill（4） | `list_skills`, `load_skill`, `read_skill_resource`, `propose_skill` | R7 | specified | scope/name/resource/proposal，正文滚动，不与 Skill 管理 UI 混 owner |
 | Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | specified | 工具行不重复 Plan/HITL 真身，closed approve/reject question |
-| Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | specified | 工具行不重复 standing Goal，incarnation/outcome exact |
+| Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |
 | Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |
 | 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | specified | prose/bounded result、完整正文按需读取、history search scope |
 | 委派与提问（2） | `delegate_task`, `ask_user` | R4 | specified | child Run disclosure、Question 为唯一交互真身、model/protocol field mapping |

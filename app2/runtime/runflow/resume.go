@@ -32,11 +32,25 @@ type ResumeWrite struct {
 	Events             []rundomain.EventRecord
 }
 
+type ResumeCommand struct {
+	Request      protocol.ResumeRunRequest
+	BeforeLaunch func(context.Context, string) error
+}
+
 func (service *Service) Resume(ctx context.Context, request protocol.ResumeRunRequest) (
 	*protocol.ResumeRunResponse,
 	iter.Seq[protocol.RunEvent],
 	error,
 ) {
+	return service.ResumeWith(ctx, ResumeCommand{Request: request})
+}
+
+func (service *Service) ResumeWith(ctx context.Context, command ResumeCommand) (
+	*protocol.ResumeRunResponse,
+	iter.Seq[protocol.RunEvent],
+	error,
+) {
+	request := command.Request
 	lock := service.runLock(request.RunID)
 	lock.Lock()
 	defer lock.Unlock()
@@ -141,6 +155,12 @@ func (service *Service) Resume(ctx context.Context, request protocol.ResumeRunRe
 			return nil, nil, protocol.ErrInterruptNotOpen
 		}
 		return nil, nil, err
+	}
+	if command.BeforeLaunch != nil {
+		if err := command.BeforeLaunch(ctx, request.RunID); err != nil {
+			service.settleUnlaunched(request.RunID)
+			return nil, nil, fmt.Errorf("runflow: prepare resumed Run ownership: %w", err)
+		}
 	}
 	storedSession, err := service.store.GetSession(ctx, session.ID(record.Run.SessionID()))
 	if err != nil {

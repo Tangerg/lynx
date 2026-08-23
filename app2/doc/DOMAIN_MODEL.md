@@ -227,9 +227,13 @@ ToolCall {
 ```text
 Goal {
   sessionId
-  incarnation
+  incarnationId
   objective
-  status = active | paused | completing | complete | failed
+  status = active | paused | blocked | completing
+  activeRunId?
+  reason?
+  budget { maxRuns?, maxCostUsd?, maxSteps? }
+  used { runs, costUsd, steps }
   revision
   createdAt
   updatedAt
@@ -239,8 +243,10 @@ Goal {
 - update objective 先静止 exact owned drive，再以 fresh incarnation 条件提交；
 - pause/resume/clear 只能作用于 exact incarnation；
 - Goal 不得晚于 Session 存活；
+- `activeRunId` 是唯一 durable continuation owner；Run 不保存第二份 Goal provenance；
+- `blocked` 必须携带闭合 reason code，`active/completing` 不携带 stop reason；
 - capability、provider/model 等执行事实由开始时冻结，后继自动 Run 不悄悄换语义；
-- `completing` 到 `complete` 是可观察结算，不把 agent 自我声明直接当最终事实。
+- `completing` 是可观察结算窗；final owned Run 成功结算后删除 Goal，不再制造第二个 `complete` 状态。
 
 Plan 是一等资源，不是通用 state registry 的一个 key：
 

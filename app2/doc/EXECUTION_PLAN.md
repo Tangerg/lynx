@@ -27,7 +27,7 @@
 | R2 | Workspace + Session 首个完整纵切、snapshot hydration、Work Index、基础 shell | in progress |
 | R3 | root Run + Item stream + Composer + Agent Narrative + durable cold restore | pending |
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | pending |
-| R5 | Plan + Goal 完整生命周期与 UI | pending |
+| R5 | Plan + Goal 完整生命周期与 UI | in progress（Goal Runtime 已实现，Plan/Desktop 待实现） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | pending |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | pending |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
@@ -226,6 +226,15 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - Goal 不晚于 Session，old incarnation command 被拒绝；
 - Plan 一个 in-progress、无 generic state registry；
 - O05/O15、plan/goals topics、plan event、U10/U11 和 Plan/Goal tools verified。
+
+### 当前实现记录（尚未统一验证）
+
+- Goal 已从 `stateflow` DTO CRUD 拆为私有聚合、CAS store、`goalflow.Service` 与单 owner Driver；
+- fresh autonomous control 仅进入 exact Conversation journal，不伪装成用户 Transcript Item；
+- Goal Run 在执行启动前认领 exact `incarnationId + revision + runId`，旧 incarnation 无权提交 outcome；
+- restart 先由 runflow 把 predecessor execution 收敛为 `lost`，再把仍 active 的 Goal 显式暂停，绝不暗中续跑；
+- `create_goal`、`get_goal` 常驻，`report_goal_outcome` 只对 exact owned Run 可见；
+- 本记录只升到 implemented；最终 R11 统一门禁通过后才可标记 verified。
 
 ## 10. R6：Workspace 与 Context Dock
 

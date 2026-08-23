@@ -54,60 +54,6 @@ func (database *Database) PutPlan(ctx context.Context, value protocol.Plan, expe
 	return nil
 }
 
-func (database *Database) GetGoal(ctx context.Context, sessionID string) (protocol.Goal, uint64, error) {
-	var body string
-	var incarnation uint64
-	err := database.database.QueryRowContext(ctx, `SELECT body, incarnation FROM goals WHERE session_id = ?`, sessionID).Scan(&body, &incarnation)
-	if errors.Is(err, sql.ErrNoRows) {
-		return protocol.Goal{}, 0, state.ErrNotFound
-	}
-	if err != nil {
-		return protocol.Goal{}, 0, fmt.Errorf("sqlite: get goal: %w", err)
-	}
-	var value protocol.Goal
-	if err := json.Unmarshal([]byte(body), &value); err != nil {
-		return protocol.Goal{}, 0, fmt.Errorf("sqlite: decode goal: %w", err)
-	}
-	return value, incarnation, nil
-}
-
-func (database *Database) PutGoal(ctx context.Context, value protocol.Goal, incarnation uint64, expected *uint64) error {
-	body, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	if expected == nil {
-		_, err = database.database.ExecContext(ctx, `INSERT INTO goals (session_id, incarnation, status, body, updated_at) VALUES (?, ?, ?, ?, ?)`,
-			value.SessionID, incarnation, value.Status, string(body), encodeTime(value.UpdatedAt))
-	} else {
-		var result sql.Result
-		result, err = database.database.ExecContext(ctx, `UPDATE goals SET incarnation = ?, status = ?, body = ?, updated_at = ? WHERE session_id = ? AND incarnation = ?`,
-			incarnation, value.Status, string(body), encodeTime(value.UpdatedAt), value.SessionID, *expected)
-		if err == nil {
-			changed, _ := result.RowsAffected()
-			if changed == 0 {
-				return state.ErrConflict
-			}
-		}
-	}
-	if err != nil {
-		return fmt.Errorf("sqlite: put goal: %w", err)
-	}
-	return nil
-}
-
-func (database *Database) DeleteGoal(ctx context.Context, sessionID string) error {
-	result, err := database.database.ExecContext(ctx, `DELETE FROM goals WHERE session_id = ?`, sessionID)
-	if err != nil {
-		return fmt.Errorf("sqlite: delete goal: %w", err)
-	}
-	changed, _ := result.RowsAffected()
-	if changed == 0 {
-		return state.ErrNotFound
-	}
-	return nil
-}
-
 func (database *Database) ListInterruptSets(ctx context.Context, sessionID, rootRunID string) ([]protocol.PendingInterruptSet, error) {
 	query := `SELECT i.body FROM interrupt_sets i`
 	arguments := make([]any, 0, 2)

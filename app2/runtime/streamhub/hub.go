@@ -41,15 +41,21 @@ func New() *Hub { return &Hub{runSubs: make(map[runKey]map[uint64]*runSubscriber
 // replay using its last event id.
 func (hub *Hub) PublishRun(event protocol.RunEvent) {
 	key := runKey{runID: event.RunID, segmentID: event.SegmentID}
+	terminal := event.Event.Type == protocol.StreamSegmentFinished
 	hub.mu.Lock()
 	for id, subscriber := range hub.runSubs[key] {
 		select {
 		case subscriber.values <- event:
+			if terminal {
+				subscriber.close()
+				delete(hub.runSubs[key], id)
+			}
 		default:
 			subscriber.close()
 			delete(hub.runSubs[key], id)
 		}
 	}
+	if terminal || len(hub.runSubs[key]) == 0 { delete(hub.runSubs, key) }
 	hub.mu.Unlock()
 }
 
@@ -97,7 +103,17 @@ func (hub *Hub) SubscribeRun(
 					return
 				}
 			case <-subscriber.done:
-				return
+				// PublishRun closes a terminal subscription only after enqueueing
+				// segment.finished. Drain the already ordered queue before exit so
+				// selecting done cannot lose the final authoritative frame.
+				for {
+					select {
+					case event := <-subscriber.values:
+						if !yield(event) { return }
+					default:
+						return
+					}
+				}
 			case <-ctx.Done():
 				return
 			}
