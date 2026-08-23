@@ -276,6 +276,12 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - Narrative 内只有一个整组 HITL action surface：approval 支持 approve/deny、one-shot edited JSON args、reason 与
   rememberable scope；question 按字段顺序支持 text、single/multi choice 和 custom answer，IME composition 不触发误提交；
 - 当前 Lyra Protocol 没有 skip response，因此 Desktop 不发明无法被 Runtime 原子校验或持久化的 Skip 语义；
+- **Tool live lifecycle**：agentexec 的 bounded live observation boundary 同时承载 model 与 Tool semantic facts；
+  普通 ToolCall 的 running Item 与 `item.started` 原子提交，settlement 把 terminal Item、可选 offloaded result、
+  `item.completed` 和 committed Plan projection 归入同一 transaction。Segment settled Output 仍是 drop/failure fallback；
+- **Stable Item union**：`ask_user` / `exit_plan_mode` 等 intrinsic-input capability 不发布 provisional ToolCall，等 typed
+  input request 存在后直接建立 Question，因此同一 Item identity 永不从 ToolCall 变型为 Question；approval gate 则复用
+  已 durable 的 running ToolCall，并在 wait transaction 中只更新内容、不重复 `item.started`；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

@@ -56,7 +56,6 @@ func (service *Service) projectExecution(ctx context.Context, record rundomain.R
 		}
 	}
 	projection := executionProjection{}
-	offloadedPreviews := make(map[string]string)
 	for _, sequence := range sequences {
 		for _, model := range output.Models {
 			if model.Sequence != sequence {
@@ -128,7 +127,7 @@ func (service *Service) projectExecution(ctx context.Context, record rundomain.R
 			}
 			byID[item.ID] = stored
 			projection.items = append(projection.items, stored)
-			if offload != nil { projection.results = append(projection.results, *offload); offloadedPreviews[item.ID] = offload.Preview }
+			if offload != nil { projection.results = append(projection.results, *offload) }
 			completed, err := service.event(record.Run.ID(), segmentID, facts, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item}, observation.FinishedAt)
 			if err != nil {
 				return executionProjection{}, err
@@ -150,7 +149,10 @@ func (service *Service) projectExecution(ctx context.Context, record rundomain.R
 		for _, observation := range output.Tools {
 			if observation.ModelCallSequence != sequence || observation.Waiting || observation.Failure != "" { continue }
 			result := observation.Result
-			if preview, offloaded := offloadedPreviews[observation.ItemID]; offloaded { result = preview }
+			if len(result) > inlineToolResultBytes {
+				_, offload := projectToolResult(record.Run.SessionID(), observation.ItemID, observation.Name, result, observation.FinishedAt)
+				if offload != nil { result = offload.Preview }
+			}
 			results = append(results, chat.ToolResult{ID: observation.CallID, Name: observation.Name, Result: result, IsError: observation.IsError})
 		}
 		if len(results) > 0 {
@@ -246,12 +248,7 @@ func toolItem(stored transcript.Record, existed bool, sessionID, runID string, o
 			return protocol.Item{}, nil, true, nil
 		}
 	} else {
-		item = protocol.Item{
-			ID: observation.ItemID, RunID: runID, Status: protocol.ItemStatusRunning,
-			StartedAt: observation.StartedAt, Type: protocol.ItemTypeToolCall,
-			Tool: &protocol.ToolInvocation{Name: observation.Name, Arguments: cloneMap(observation.Arguments)},
-			SafetyClass: observation.SafetyClass,
-		}
+		item = runningToolItem(runID, observation)
 	}
 	if item.Tool == nil {
 		return protocol.Item{}, nil, false, errors.New("runflow: observed ToolCall item has no invocation")
@@ -279,6 +276,15 @@ func toolItem(stored transcript.Record, existed bool, sessionID, runID string, o
 		return item, offload, false, nil
 	}
 	return item, nil, false, nil
+}
+
+func runningToolItem(runID string, observation agentexec.ToolObservation) protocol.Item {
+	return protocol.Item{
+		ID: observation.ItemID, RunID: runID, Status: protocol.ItemStatusRunning,
+		StartedAt: observation.StartedAt, Type: protocol.ItemTypeToolCall,
+		Tool: &protocol.ToolInvocation{Name: observation.Name, Arguments: cloneMap(observation.Arguments)},
+		SafetyClass: observation.SafetyClass,
+	}
 }
 
 const (

@@ -161,7 +161,9 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 			return nil, fmt.Errorf("agenttools: duplicate model-visible tool name %q", name)
 		}
 		modelNames[name] = struct{}{}
-		result = append(result, agentexec.ExecutableTool{Tool: tool, SafetyClass: value.safety})
+		result = append(result, agentexec.ExecutableTool{
+			Tool: tool, SafetyClass: value.safety, IntrinsicInput: value.intrinsicInput,
+		})
 	}
 	return result, nil
 }

@@ -65,7 +65,7 @@ type Input struct {
 	Conversation               []Message
 	MaxSteps                   int
 	Steers                     <-chan Steer
-	ModelDeltas                ModelDeltaSink
+	Live                       LiveObservationSink
 }
 
 type ResumeInput struct {
@@ -77,7 +77,7 @@ type ResumeInput struct {
 	Response                   json.RawMessage
 	AdditionalInput            []protocol.ContentBlock
 	Steers                     <-chan Steer
-	ModelDeltas                ModelDeltaSink
+	Live                       LiveObservationSink
 }
 
 type Message = chat.Message
@@ -128,7 +128,7 @@ type ToolInputInvocation struct {
 }
 
 func (executor *Executor) Execute(ctx context.Context, input Input) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.ModelDeltas)
+	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.Live)
 	if err != nil {
 		return Output{}, err
 	}
@@ -155,7 +155,7 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 }
 
 func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.ModelDeltas)
+	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.Live)
 	if err != nil {
 		return Output{}, err
 	}
@@ -208,7 +208,7 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 	return awaitProcess(ctx, engine, process, observer, input.RunID, input.Steers)
 }
 
-func (executor *Executor) deployment(ctx context.Context, provider, model, sessionID, runID, workspace string, rootRun bool, maxSteps int, live ModelDeltaSink) (agent.Deployment, *executionObserver, error) {
+func (executor *Executor) deployment(ctx context.Context, provider, model, sessionID, runID, workspace string, rootRun bool, maxSteps int, live LiveObservationSink) (agent.Deployment, *executionObserver, error) {
 	client, err := executor.clients.ResolveClient(ctx, provider, model)
 	if err != nil {
 		return agent.Deployment{}, nil, err

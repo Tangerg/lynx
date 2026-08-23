@@ -98,9 +98,9 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `segment.started` | authoritative/replayable | Run/Segment lifecycle | R3 | implemented | committed admission/resume/replay 使用同一 Run/Segment identity；待统一门禁 |
 | `segment.progress` | ephemeral/non-replay | usage/context/live progress | R3 | implemented | settled model call 发布 cumulative usage/step/context preview；terminal Run facts 收敛，drop 不改结果 |
 | `segment.finished` | authoritative/replayable | outcome/segment terminal | R3 | implemented | terminal outcome/metrics durable commit 后发布；待故障矩阵统一门禁 |
-| `item.started` | authoritative/replayable | placeholder/source owner | R3 | implemented | model anchor 以 Effect identity 派生稳定 key 并先 durable commit；Tool/HITL 随 R4 完成 |
+| `item.started` | authoritative/replayable | placeholder/source owner | R3/R4 | implemented | model anchor 以 Effect identity 派生稳定 key；ToolCall running Item 与 event 同事务，intrinsic-input 直接投影 Question；待统一门禁 |
 | `item.delta` | ephemeral/non-replay | message/reasoning/tool streaming | R3 | implemented | message/reasoning append bounded live-only，SSE 无 id；Tool streaming 随 R4 完成 |
-| `item.completed` | authoritative/replayable | durable content/material | R3/R4 | implemented | model completion 替换同 key provisional 并写 Transcript；Tool/HITL 随 R4 完成 |
+| `item.completed` | authoritative/replayable | durable content/material | R3/R4 | implemented | model completion 替换同 key provisional；Tool terminal Item、offloaded result 与 event 原子提交，settled Output 补漏；待统一门禁 |
 | `plan.updated` | authoritative/replayable | Plan resource projection | R5 | implemented | 成功 `set_plan` 的 committed result 投影，revision/order/status 与 `plan.get` 同源；待最终统一门禁 |
 
 app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化必须满足 ADR-A2-022 的协议门槛。

@@ -200,7 +200,7 @@ func (service *Service) launchResumeExecution(record rundomain.Record, segmentID
 			SessionID: record.Run.SessionID(), RunID: record.Run.ID(), IsRootRun: record.Run.ParentRunID() == "", MaxSteps: runMaxSteps(record.Body),
 			Checkpoint: checkpoint, Response: response, Steers: steers,
 			AdditionalInput: slices.Clone(additionalInput),
-			ModelDeltas: live,
+			Live: live,
 		})
 		live.Close()
 		service.finishExecution(record.Run.ID(), segmentID, workspace, output, executeErr)

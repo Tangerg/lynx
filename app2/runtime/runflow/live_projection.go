@@ -2,10 +2,13 @@ package runflow
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
+	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
+	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -20,13 +23,24 @@ type RunEventWrite struct {
 	Event             rundomain.EventRecord
 }
 
+// RunItemEventWrite atomically advances an active Run's replay journal and its
+// one durable ToolCall projection. A large result, when present, is owned by the
+// same commit so an Item can never point at material that was not stored.
+type RunItemEventWrite struct {
+	Run               rundomain.Record
+	ExpectedSegmentID string
+	Item              transcript.Record
+	ToolResult        *toolresult.Record
+	Events            []rundomain.EventRecord
+}
+
 type liveProjector struct {
 	service   *Service
 	runID     string
 	segmentID string
 	input     chan liveObservation
 	done      chan struct{}
-	started   map[string]bool
+	modelStarted map[string]bool
 	usage     protocol.Usage
 	steps     int
 }
@@ -34,6 +48,8 @@ type liveProjector struct {
 type liveObservation struct {
 	delta    *agentexec.ModelDelta
 	progress *agentexec.ModelProgress
+	toolStarted *agentexec.ToolObservation
+	toolSettled *agentexec.ToolObservation
 }
 
 func newLiveProjector(service *Service, record rundomain.Record, segmentID string) *liveProjector {
@@ -48,7 +64,7 @@ func newLiveProjector(service *Service, record rundomain.Record, segmentID strin
 	projector := &liveProjector{
 		service: service, runID: record.Run.ID(), segmentID: segmentID,
 		input: make(chan liveObservation, liveProjectionCapacity),
-		done: make(chan struct{}), started: make(map[string]bool), usage: usage, steps: steps,
+		done: make(chan struct{}), modelStarted: make(map[string]bool), usage: usage, steps: steps,
 	}
 	go projector.run()
 	return projector
@@ -70,6 +86,20 @@ func (projector *liveProjector) OfferModelProgress(progress agentexec.ModelProgr
 	}
 }
 
+func (projector *liveProjector) OfferToolStarted(observation agentexec.ToolObservation) {
+	select {
+	case projector.input <- liveObservation{toolStarted: &observation}:
+	default:
+	}
+}
+
+func (projector *liveProjector) OfferToolSettled(observation agentexec.ToolObservation) {
+	select {
+	case projector.input <- liveObservation{toolSettled: &observation}:
+	default:
+	}
+}
+
 func (projector *liveProjector) Close() {
 	close(projector.input)
 	<-projector.done
@@ -84,6 +114,12 @@ func (projector *liveProjector) run() {
 		if observation.progress != nil {
 			projector.projectProgress(*observation.progress)
 		}
+		if observation.toolStarted != nil {
+			projector.projectTool(*observation.toolStarted, false)
+		}
+		if observation.toolSettled != nil {
+			projector.projectTool(*observation.toolSettled, true)
+		}
 	}
 }
 
@@ -95,12 +131,12 @@ func (projector *liveProjector) projectDelta(delta agentexec.ModelDelta) {
 	if !ok {
 		return
 	}
-	if !projector.started[item.ID] {
+	if !projector.modelStarted[item.ID] {
 		started, committed := projector.commitAnchor(item)
 		if !committed {
 			return
 		}
-		projector.started[item.ID] = true
+		projector.modelStarted[item.ID] = true
 		projector.service.hub.PublishRun(started)
 	}
 	eventID, err := projector.service.ids.New("evt_")
@@ -116,6 +152,137 @@ func (projector *liveProjector) projectDelta(delta agentexec.ModelDelta) {
 		EventID: eventID, Timestamp: occurredAt,
 		Event: protocol.StreamEvent{Type: protocol.StreamItemDelta, ItemID: item.ID, Delta: &itemDelta},
 	})
+}
+
+func (projector *liveProjector) projectTool(observation agentexec.ToolObservation, settled bool) {
+	if observation.IntrinsicInput || observation.ItemID == "" || observation.Name == "" || observation.StartedAt.IsZero() {
+		return
+	}
+	if settled && (observation.Waiting || observation.FinishedAt.IsZero()) {
+		return
+	}
+	lock := projector.service.runLock(projector.runID)
+	lock.Lock()
+	defer lock.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	record, err := projector.service.store.GetRun(ctx, projector.runID)
+	if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != projector.segmentID {
+		return
+	}
+	existing, err := projector.service.store.ListItems(ctx, "", projector.runID)
+	if err != nil {
+		return
+	}
+	stored, existed := transcriptRecord(existing, observation.ItemID)
+	if existed && !settled {
+		return
+	}
+	facts, err := decodeFacts(record.Body)
+	if err != nil {
+		return
+	}
+	events := make([]protocol.RunEvent, 0, 3)
+	if !existed {
+		running := runningToolItem(projector.runID, observation)
+		stored, err = itemRecord(
+			record.Run.SessionID(),
+			running,
+			nextOrdinal(existing, projector.runID),
+		)
+		if err != nil {
+			return
+		}
+		started, eventErr := projector.service.event(
+			projector.runID,
+			projector.segmentID,
+			&facts,
+			protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &running},
+			observation.StartedAt,
+		)
+		if eventErr != nil {
+			return
+		}
+		events = append(events, started)
+	}
+	var offload *toolresult.Record
+	if settled {
+		item, result, skip, itemErr := toolItem(
+			stored,
+			existed,
+			record.Run.SessionID(),
+			projector.runID,
+			observation,
+		)
+		if itemErr != nil || skip {
+			return
+		}
+		stored.Body, err = json.Marshal(item)
+		if err != nil {
+			return
+		}
+		offload = result
+		completed, eventErr := projector.service.event(
+			projector.runID,
+			projector.segmentID,
+			&facts,
+			protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item},
+			observation.FinishedAt,
+		)
+		if eventErr != nil {
+			return
+		}
+		events = append(events, completed)
+		if observation.CommittedPlan != nil {
+			plan := *observation.CommittedPlan
+			if plan.SessionID != record.Run.SessionID() {
+				return
+			}
+			updated, eventErr := projector.service.event(
+				projector.runID,
+				projector.segmentID,
+				&facts,
+				protocol.StreamEvent{Type: protocol.StreamPlanUpdated, Plan: &plan},
+				observation.FinishedAt,
+			)
+			if eventErr != nil {
+				return
+			}
+			events = append(events, updated)
+		}
+	}
+	if len(events) == 0 {
+		return
+	}
+	if err := record.Run.Touch(projector.segmentID, projector.service.now().UTC()); err != nil {
+		return
+	}
+	record, err = makeRecord(record.Run, facts)
+	if err != nil {
+		return
+	}
+	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1)
+	if err != nil {
+		return
+	}
+	if err := projector.service.store.CommitRunItemEvents(ctx, RunItemEventWrite{
+		Run: record, ExpectedSegmentID: projector.segmentID, Item: stored,
+		ToolResult: offload, Events: persisted,
+	}); err != nil {
+		return
+	}
+	for _, event := range events {
+		projector.service.hub.PublishRun(event)
+	}
+}
+
+func transcriptRecord(records []transcript.Record, itemID string) (transcript.Record, bool) {
+	for _, record := range records {
+		if record.ID == itemID {
+			return record, true
+		}
+	}
+	return transcript.Record{}, false
 }
 
 func (projector *liveProjector) projectProgress(progress agentexec.ModelProgress) {
@@ -208,7 +375,7 @@ func (projector *liveProjector) commitAnchor(item protocol.Item) (protocol.RunEv
 	return event, true
 }
 
-var _ agentexec.ModelDeltaSink = (*liveProjector)(nil)
+var _ agentexec.LiveObservationSink = (*liveProjector)(nil)
 
 func cloneLiveUsage(value protocol.Usage) protocol.Usage {
 	clone := value

@@ -25,6 +25,10 @@ import (
 type ExecutableTool struct {
 	Tool        tool.Tool
 	SafetyClass protocol.SafetyClass
+	// IntrinsicInput marks a capability whose visible identity is a Question,
+	// not a provisional ToolCall. It is projected only after its typed input
+	// request exists, avoiding a wire-level Item type mutation.
+	IntrinsicInput bool
 }
 
 type ModelObservation struct {
@@ -55,11 +59,14 @@ type ModelDelta struct {
 	Text           string
 }
 
-// ModelDeltaSink must return in bounded time. Delivery is observational: a
-// dropped delta never changes the settled executor Output.
-type ModelDeltaSink interface {
+// LiveObservationSink must return in bounded time. Delivery is observational:
+// a dropped update never changes the settled executor Output, which remains
+// the authoritative fallback at the segment boundary.
+type LiveObservationSink interface {
 	OfferModelDelta(ModelDelta)
 	OfferModelProgress(ModelProgress)
+	OfferToolStarted(ToolObservation)
+	OfferToolSettled(ToolObservation)
 }
 
 // ModelProgress is emitted after one complete model call. Usage belongs to that
@@ -83,6 +90,7 @@ type ToolObservation struct {
 	Result                     string
 	IsError, Waiting, Unknown  bool
 	Failure                    string
+	IntrinsicInput             bool
 }
 
 // ToolItemID derives the stable transcript identity for one provider ToolCall.
@@ -98,10 +106,11 @@ type executionObserver struct {
 	runID          string
 	defaultModel   string
 	safetyByName   map[string]protocol.SafetyClass
+	intrinsicInput map[string]bool
 	models         []ModelObservation
 	tools          map[string]ToolObservation
 	plans          map[string]protocol.Plan
-	live           ModelDeltaSink
+	live           LiveObservationSink
 	streams        map[string]*modelStream
 }
 
@@ -110,9 +119,10 @@ type modelStream struct {
 	startedAt   time.Time
 }
 
-func newExecutionObserver(runID, model string, live ModelDeltaSink) *executionObserver {
+func newExecutionObserver(runID, model string, live LiveObservationSink) *executionObserver {
 	return &executionObserver{
 		runID: runID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
+		intrinsicInput: make(map[string]bool),
 		tools: make(map[string]ToolObservation), plans: make(map[string]protocol.Plan), live: live,
 		streams: make(map[string]*modelStream),
 	}
@@ -120,7 +130,9 @@ func newExecutionObserver(runID, model string, live ModelDeltaSink) *executionOb
 
 func (observer *executionObserver) bindTools(executables []ExecutableTool) {
 	for _, executable := range executables {
-		observer.safetyByName[executable.Tool.Definition().Name] = executable.SafetyClass
+		name := executable.Tool.Definition().Name
+		observer.safetyByName[name] = executable.SafetyClass
+		observer.intrinsicInput[name] = executable.IntrinsicInput
 	}
 }
 
@@ -187,13 +199,18 @@ func (observer *executionObserver) OnToolStarted(_ context.Context, invocation i
 	call := invocation.ToolCall()
 	arguments := decodeArguments(call.Arguments)
 	observer.mu.Lock()
-	observer.tools[call.ID] = ToolObservation{
+	value := ToolObservation{
 		ItemID: ToolItemID(observer.runID, call.ID), CallID: call.ID, Name: call.Name,
 		Arguments: arguments, SafetyClass: observer.safetyByName[call.Name],
+		IntrinsicInput: observer.intrinsicInput[call.Name],
 		ModelCallSequence: int(invocation.ModelCallSequence()), ToolCallIndex: int(invocation.ToolCallIndex()),
 		StartedAt: time.Now().UTC(),
 	}
+	observer.tools[call.ID] = value
 	observer.mu.Unlock()
+	if observer.live != nil {
+		observer.live.OfferToolStarted(cloneToolObservation(value))
+	}
 }
 
 func (observer *executionObserver) OnToolSettled(_ context.Context, invocation interaction.ToolInvocation, settlement interaction.ToolSettlement) {
@@ -204,6 +221,7 @@ func (observer *executionObserver) OnToolSettled(_ context.Context, invocation i
 		value = ToolObservation{
 			ItemID: ToolItemID(observer.runID, call.ID), CallID: call.ID, Name: call.Name,
 			Arguments: decodeArguments(call.Arguments), SafetyClass: observer.safetyByName[call.Name],
+			IntrinsicInput: observer.intrinsicInput[call.Name],
 			ModelCallSequence: int(invocation.ModelCallSequence()), ToolCallIndex: int(invocation.ToolCallIndex()),
 			StartedAt: time.Now().UTC(),
 		}
@@ -218,8 +236,15 @@ func (observer *executionObserver) OnToolSettled(_ context.Context, invocation i
 	if !value.Waiting {
 		value.FinishedAt = time.Now().UTC()
 	}
+	if plan, found := observer.plans[call.ID]; found {
+		clone := clonePlan(plan)
+		value.CommittedPlan = &clone
+	}
 	observer.tools[call.ID] = value
 	observer.mu.Unlock()
+	if observer.live != nil {
+		observer.live.OfferToolSettled(cloneToolObservation(value))
+	}
 }
 
 func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObservation, protocol.Usage, int64) {
@@ -244,7 +269,7 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 	sort.SliceStable(models, func(left, right int) bool { return models[left].Sequence < models[right].Sequence })
 	tools := make([]ToolObservation, 0, len(observer.tools))
 	for _, value := range observer.tools {
-		value.Arguments = cloneObject(value.Arguments)
+		value = cloneToolObservation(value)
 		if plan, found := observer.plans[value.CallID]; found {
 			clone := clonePlan(plan)
 			value.CommittedPlan = &clone
@@ -261,6 +286,15 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 		usage.ByModel = nil
 	}
 	return models, tools, usage, contextTokens
+}
+
+func cloneToolObservation(value ToolObservation) ToolObservation {
+	value.Arguments = cloneObject(value.Arguments)
+	if value.CommittedPlan != nil {
+		clone := clonePlan(*value.CommittedPlan)
+		value.CommittedPlan = &clone
+	}
+	return value
 }
 
 func streamProjection(response *chat.Response) (content, reasoning []string) {

@@ -34,6 +34,7 @@ type Store interface {
 	CreateRun(context.Context, rundomain.Record, *transcript.Record, *conversationdomain.Record, []rundomain.EventRecord) error
 	CommitRun(context.Context, CommitWrite) error
 	CommitRunEvent(context.Context, RunEventWrite) error
+	CommitRunItemEvents(context.Context, RunItemEventWrite) error
 	ListItems(context.Context, string, string) ([]transcript.Record, error)
 	PageItems(context.Context, transcript.Query) (transcript.Page, error)
 	ListConversationMessages(context.Context, string) ([]conversationdomain.Record, error)
@@ -346,7 +347,7 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 		output, executeErr := service.executor.Execute(ctx, agentexec.Input{
 			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
 			SessionID: record.Run.SessionID(), RunID: runID, IsRootRun: record.Run.ParentRunID() == "", Conversation: conversation, Steers: steers,
-			MaxSteps: runMaxSteps(record.Body), ModelDeltas: live,
+			MaxSteps: runMaxSteps(record.Body), Live: live,
 		})
 		live.Close()
 		service.finishExecution(runID, segmentID, workspace, output, executeErr)

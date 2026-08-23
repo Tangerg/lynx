@@ -48,9 +48,24 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 		return err
 	}
 	allItems := append(slices.Clone(existing), projection.items...)
-	storedItem, err := itemRecord(record.Run.SessionID(), item, nextOrdinal(allItems, record.Run.ID()))
-	if err != nil {
-		return err
+	storedItem, existed := transcriptRecord(existing, item.ID)
+	if existed {
+		var current protocol.Item
+		if err := json.Unmarshal(storedItem.Body, &current); err != nil {
+			return err
+		}
+		if current.Status != protocol.ItemStatusRunning || current.Type != item.Type {
+			return errors.New("runflow: waiting Item conflicts with its live projection")
+		}
+		storedItem.Body, err = json.Marshal(item)
+		if err != nil {
+			return err
+		}
+	} else {
+		storedItem, err = itemRecord(record.Run.SessionID(), item, nextOrdinal(allItems, record.Run.ID()))
+		if err != nil {
+			return err
+		}
 	}
 	set := protocol.PendingInterruptSet{
 		RootRunID: record.Run.ID(), SessionID: record.Run.SessionID(),
@@ -59,8 +74,12 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 	if err := record.Run.Wait(segmentID, now); err != nil {
 		return err
 	}
-	started, err := service.event(record.Run.ID(), segmentID, &facts, protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &item}, now)
-	if err != nil { return err }
+	events := slices.Clone(projection.events)
+	if !existed {
+		started, eventErr := service.event(record.Run.ID(), segmentID, &facts, protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &item}, now)
+		if eventErr != nil { return eventErr }
+		events = append(events, started)
+	}
 	event, err := service.event(record.Run.ID(), segmentID, &facts, protocol.StreamEvent{
 		Type: protocol.StreamSegmentFinished,
 		Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentInterrupt, Interrupts: set.Interrupts},
@@ -73,7 +92,7 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 	if err != nil {
 		return err
 	}
-	events := append(projection.events, started, event)
+	events = append(events, event)
 	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1)
 	if err != nil {
 		return err
