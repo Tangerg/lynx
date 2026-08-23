@@ -115,6 +115,7 @@ export function useAgentSessionView(
   connection: RuntimeConnection,
   sessionId: string | undefined,
   snapshot: SessionSnapshot | undefined,
+	selection: { provider: string; model: string } | undefined,
 ): AgentSessionView {
   const queryClient = useQueryClient();
   const identity = sessionId
@@ -398,6 +399,7 @@ export function useAgentSessionView(
               sessionId,
               input,
               idempotencyKey,
+					selection,
               controller.signal,
             );
           } catch (error) {
@@ -448,6 +450,8 @@ export function useAgentSessionView(
       identity,
       invalidateMaterial,
       runLease,
+		selection?.model,
+		selection?.provider,
       sessionId,
     ],
   );

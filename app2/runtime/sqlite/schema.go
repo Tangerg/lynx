@@ -21,6 +21,7 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			title TEXT NOT NULL,
 			workspace_path TEXT NOT NULL,
+			provider TEXT NOT NULL,
 			model TEXT NOT NULL,
 			favorite INTEGER NOT NULL CHECK (favorite IN (0, 1)),
 			revision INTEGER NOT NULL CHECK (revision > 0),
@@ -156,6 +157,7 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			body TEXT NOT NULL CHECK (json_valid(body)),
 			secret BLOB,
+			revision INTEGER NOT NULL CHECK (revision > 0),
 			updated_at TEXT NOT NULL
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS model_roles (

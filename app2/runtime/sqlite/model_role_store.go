@@ -7,25 +7,43 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 )
 
-func (database *Database) GetModelRole(ctx context.Context, role string, target any) (bool, error) {
+type storedModelRole struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
+func (database *Database) GetModelRole(ctx context.Context, role modelselection.Role) (modelselection.Selection, bool, error) {
+	if !role.Valid() {
+		return modelselection.Selection{}, false, fmt.Errorf("sqlite: invalid model role %q", role)
+	}
 	var body string
 	err := database.database.QueryRowContext(ctx, `SELECT body FROM model_roles WHERE role = ?`, role).Scan(&body)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return modelselection.Selection{}, false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("sqlite: get %s model role: %w", role, err)
+		return modelselection.Selection{}, false, fmt.Errorf("sqlite: get %s model role: %w", role, err)
 	}
-	if err := json.Unmarshal([]byte(body), target); err != nil {
-		return false, fmt.Errorf("sqlite: decode %s model role: %w", role, err)
+	var stored storedModelRole
+	if err := json.Unmarshal([]byte(body), &stored); err != nil {
+		return modelselection.Selection{}, false, fmt.Errorf("sqlite: decode %s model role: %w", role, err)
 	}
-	return true, nil
+	selection, err := modelselection.New(stored.Provider, stored.Model)
+	if err != nil {
+		return modelselection.Selection{}, false, fmt.Errorf("sqlite: restore %s model role: %w", role, err)
+	}
+	return selection, true, nil
 }
 
-func (database *Database) PutModelRole(ctx context.Context, role string, value any) error {
-	body, err := json.Marshal(value)
+func (database *Database) PutModelRole(ctx context.Context, role modelselection.Role, value modelselection.Selection) error {
+	if !role.Valid() {
+		return fmt.Errorf("sqlite: invalid model role %q", role)
+	}
+	body, err := json.Marshal(storedModelRole{Provider: value.Provider(), Model: value.Model()})
 	if err != nil {
 		return fmt.Errorf("sqlite: encode %s model role: %w", role, err)
 	}

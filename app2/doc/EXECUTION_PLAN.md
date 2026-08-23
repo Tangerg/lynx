@@ -175,7 +175,7 @@
 
 ### R2 production implementation 进度（2026-08-23）
 
-- **Workspace/Session truth**：Session aggregate 只拥有 identity/title/workspace/model/favorite/revision；活动状态不落到
+- **Workspace/Session truth**：Session aggregate 只拥有 identity/title/workspace/provider+model/favorite/revision；活动状态不落到
   Session，也不由 flow 猜测。SQLite 的 Work Index projection 在同一次读取中从唯一 open root Run 派生
   `idle | running | waiting`，`sessions.get/list/update` 返回该 committed projection。
 - **Catalog ordering**：分页游标覆盖完整的 `favorite DESC, updated_at DESC, id DESC` 排序键，跨 favorite 分区不会
@@ -620,6 +620,26 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - generation replacement 不接受旧 connect/test/auth result；
 - form draft 不泄漏 wire，save/test/validation 可独立测试；
 - O11/O13/O14/O17/O18，mcp/schedules/models/approvals topics，U21 verified。
+
+### Provider/Model Runtime 实现记录（尚未统一验证）
+
+- A2-028 以同名 model 跨 provider 的明确反例修复 Lyra 合同内部矛盾；协议只增加 Session 模型身份的 provider
+  半边并提升 exact version，不复制参考产品的 wire、transport 或设置结构；
+- Session、fork、rollback、JSON import/export 与 Run admission 共享一个私有 paired selection value object；explicit
+  Run pair 优先，其次 Session durable pair，最后才用 Runtime default；
+- Provider 配置是 revisioned aggregate，SQLite CAS 冲突会重读并重放 exact patch；base URL 与 secret 的并发更新不再
+  whole-record 覆盖，no-op 不消耗 revision；
+- utility/embedding role 使用 typed private store record，不再把 protocol DTO 作为 JSON persistence，也不接受 `any`；
+  chat role 校验 static/live catalog，embedding role校验 provider adapter；
+- dynamic model discovery 的 unreachable/malformed/empty 被区分，错误不再静默降级为空 catalog；provider test 返回
+  有界脱敏 detail；只有 durable provider/role fact 真的变化才发布 `models.changed`；
+- protocol `2026-08-23`、Artifact `app2/2`、SQLite epoch 10 与 generated TypeScript client 已同批刷新；
+- Desktop Composer 以 explicit Session pair 保存模型并在每次 fresh `runs.start` 继续显式发送，active Run 禁止换模；
+  模型能力同时治理 image attachment，已有图片不会在切到 text-only model 后被静默发送；
+- Settings 是明确的 Provider/Model section，不是 generic plugin host。Provider card 的 draft/save/test/secret provenance
+  独立，环境 key 只读；utility/embedding role 各自冷读与保存，dynamic catalog error/empty 分开呈现；
+- `models.changed` 同时失效 models、providers 与 role query，Session update 走既有 `sessions.changed`；所有 UI query
+  仍以 Runtime generation 定界。最终测试/打包门禁仍留到 R11 统一执行。
 
 ## 13. R9：高级 Session 与运营能力
 

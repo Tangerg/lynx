@@ -19,6 +19,7 @@ type Session struct {
 	ID        string        `json:"id"`
 	Title     string        `json:"title"`
 	Status    SessionStatus `json:"status"`
+	Provider  string        `json:"provider,omitempty"`
 	Model     string        `json:"model"`
 	Workspace WorkspaceInfo `json:"workspace"`
 	CreatedAt time.Time     `json:"createdAt"`
@@ -62,6 +63,8 @@ type DeleteSessionRequest struct {
 type CreateSessionRequest struct {
 	Workspace *WorkspaceRef `json:"workspace,omitempty"`
 	Title     string        `json:"title,omitempty"`
+	Provider  string        `json:"provider,omitempty"`
+	Model     string        `json:"model,omitempty"`
 }
 
 // UpdateSessionRequest — sessions.update body. Nil pointers mean "leave alone".
@@ -71,6 +74,7 @@ type UpdateSessionRequest struct {
 	ExpectedRevision uint64        `json:"expectedRevision"`
 	Title            *string       `json:"title,omitempty"`
 	Workspace        *WorkspaceRef `json:"workspace,omitempty"`
+	Provider         *string       `json:"provider,omitempty"`
 	Model            *string       `json:"model,omitempty"`
 	Favorite         *bool         `json:"favorite,omitempty"`
 }
@@ -162,7 +166,7 @@ type ExportSessionResponse struct {
 //
 // app2 starts a new artifact lineage. It never attempts to interpret the old
 // runtime's v22 archive as an app2 aggregate.
-const SessionArtifactVersion = 1
+const SessionArtifactVersion = 2
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -200,6 +204,7 @@ type ArtifactSession struct {
 	ID        string       `json:"id"`
 	Title     string       `json:"title"`
 	Workspace WorkspaceRef `json:"workspace"`
+	Provider  string       `json:"provider,omitempty"`
 	Model     string       `json:"model"`
 	CreatedAt time.Time    `json:"createdAt"`
 	UpdatedAt time.Time    `json:"updatedAt"`

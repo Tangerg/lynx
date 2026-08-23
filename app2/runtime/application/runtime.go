@@ -187,11 +187,11 @@ func (runtime *Runtime) ListProviders(ctx context.Context) (*protocol.Page[proto
 }
 
 func (runtime *Runtime) UpdateProvider(ctx context.Context, request protocol.UpdateProviderRequest) (*protocol.Provider, error) {
-	value, err := runtime.providers.Update(ctx, request)
-	if err == nil {
+	result, err := runtime.providers.Update(ctx, request)
+	if err == nil && result.Changed {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeModelsChanged})
 	}
-	return value, err
+	return result.Provider, err
 }
 
 func (runtime *Runtime) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
@@ -207,8 +207,8 @@ func (runtime *Runtime) GetUtilityRole(ctx context.Context) (*protocol.UtilityRo
 }
 
 func (runtime *Runtime) SetUtilityRole(ctx context.Context, role protocol.UtilityRole) (*protocol.UtilityRole, error) {
-	value, err := runtime.providers.SetUtilityRole(ctx, role)
-	if err == nil {
+	value, changed, err := runtime.providers.SetUtilityRole(ctx, role)
+	if err == nil && changed {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeModelsChanged})
 	}
 	return value, err
@@ -219,8 +219,8 @@ func (runtime *Runtime) GetEmbeddingRole(ctx context.Context) (*protocol.Embeddi
 }
 
 func (runtime *Runtime) SetEmbeddingRole(ctx context.Context, role protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
-	value, err := runtime.providers.SetEmbeddingRole(ctx, role)
-	if err == nil {
+	value, changed, err := runtime.providers.SetEmbeddingRole(ctx, role)
+	if err == nil && changed {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeModelsChanged})
 	}
 	return value, err

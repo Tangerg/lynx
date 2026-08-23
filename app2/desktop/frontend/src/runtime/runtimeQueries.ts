@@ -25,7 +25,10 @@ import {
   type KnowledgeScope,
   type ManagedSkill,
   type Model,
-  type Page,
+	type EmbeddingRole,
+	  type Page,
+	type Provider,
+	type ProviderTestResult,
   type RequestMeta,
   type Recipe,
   type ResumeRunRequest,
@@ -41,6 +44,8 @@ import {
   type SkillProposalRef,
   type StartRunResponse,
   type ToolSpec,
+	type UtilityRole,
+	type UpdateProviderRequest,
   type UpdateSessionRequest,
   type WorkspaceRef,
   type WorkspaceFileChange,
@@ -76,6 +81,12 @@ export const runtimeQueryKeys = {
   models(connection: RuntimeConnection, provider: string) {
     return [...this.scope(connection), "models", provider] as const;
   },
+	providers(connection: RuntimeConnection) {
+		return [...this.scope(connection), "providers"] as const;
+	},
+	modelRole(connection: RuntimeConnection, role: "utility" | "embedding") {
+		return [...this.scope(connection), "model-role", role] as const;
+	},
   workspace(connection: RuntimeConnection, path: string) {
     return [...this.scope(connection), "workspace", path] as const;
   },
@@ -244,6 +255,60 @@ export function listModels(
     { provider },
     { meta: clientMeta, signal },
   );
+}
+
+export function listProviders(
+	connection: RuntimeConnection,
+	signal?: AbortSignal,
+): Promise<Page<Provider>> {
+	return client(connection).call("providers.list", {}, { meta: clientMeta, signal });
+}
+
+export function updateProvider(
+	connection: RuntimeConnection,
+	request: UpdateProviderRequest,
+): Promise<Provider> {
+	return client(connection).call("providers.update", request, { meta: clientMeta });
+}
+
+export function testProvider(
+	connection: RuntimeConnection,
+	provider: string,
+	signal?: AbortSignal,
+): Promise<ProviderTestResult> {
+	return client(connection).call(
+		"providers.test",
+		{ provider },
+		{ meta: clientMeta, signal },
+	);
+}
+
+export function getUtilityRole(
+	connection: RuntimeConnection,
+	signal?: AbortSignal,
+): Promise<UtilityRole> {
+	return client(connection).call("models.getUtilityRole", {}, { meta: clientMeta, signal });
+}
+
+export function setUtilityRole(
+	connection: RuntimeConnection,
+	role: UtilityRole,
+): Promise<UtilityRole> {
+	return client(connection).call("models.setUtilityRole", role, { meta: clientMeta });
+}
+
+export function getEmbeddingRole(
+	connection: RuntimeConnection,
+	signal?: AbortSignal,
+): Promise<EmbeddingRole> {
+	return client(connection).call("models.getEmbeddingRole", {}, { meta: clientMeta, signal });
+}
+
+export function setEmbeddingRole(
+	connection: RuntimeConnection,
+	role: EmbeddingRole,
+): Promise<EmbeddingRole> {
+	return client(connection).call("models.setEmbeddingRole", role, { meta: clientMeta });
 }
 
 export function listWorkspaceFiles(
@@ -587,11 +652,12 @@ export function startRun(
   sessionId: string,
   input: ContentBlock[],
   idempotencyKey: string,
+  selection?: { provider: string; model: string },
   signal?: AbortSignal,
 ): Promise<OpenRuntimeStream<StartRunResponse, RunEvent>> {
   return client(connection).stream(
     "runs.start",
-    { sessionId, input },
+		{ sessionId, input, ...(selection === undefined ? {} : selection) },
     { meta: clientMeta, idempotencyKey, signal },
   );
 }

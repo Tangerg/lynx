@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 	plandomain "github.com/Tangerg/lynx/app2/runtime/domain/plan"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -71,6 +72,10 @@ func New(config Config) (*Service, error) {
 }
 
 func (service *Service) Create(ctx context.Context, request protocol.CreateSessionRequest) (*protocol.Session, error) {
+	selection, err := selectionFromValues(request.Provider, request.Model)
+	if err != nil {
+		return nil, err
+	}
 	requested := ""
 	if request.Workspace != nil {
 		requested = request.Workspace.Path
@@ -84,7 +89,8 @@ func (service *Service) Create(ctx context.Context, request protocol.CreateSessi
 		return nil, err
 	}
 	value, err := session.New(session.Create{
-		ID: session.ID(id), Title: request.Title, Workspace: resolved.Workspace, Now: service.now(),
+		ID: session.ID(id), Title: request.Title, Workspace: resolved.Workspace,
+		Selection: selection, Now: service.now(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
@@ -139,9 +145,13 @@ func (service *Service) Update(ctx context.Context, request protocol.UpdateSessi
 		return nil, projectLookup(err)
 	}
 	previous := value.Revision()
+	selection, err := selectionFromChanges(request.Provider, request.Model)
+	if err != nil {
+		return nil, err
+	}
 	patch := session.Patch{
 		ExpectedRevision: request.ExpectedRevision, Title: request.Title,
-		Model: request.Model, Favorite: request.Favorite, Now: service.now(),
+		Selection: selection, Favorite: request.Favorite, Now: service.now(),
 	}
 	var resolved workspacefs.Resolution
 	if request.Workspace != nil {
@@ -261,7 +271,8 @@ func present(value session.Session, resolved workspacefs.Resolution, status sess
 		availability = protocol.WorkspaceAvailable
 	}
 	return &protocol.Session{
-		ID: value.ID().String(), Title: value.Title(), Status: protocol.SessionStatus(status), Model: value.Model(),
+		ID: value.ID().String(), Title: value.Title(), Status: protocol.SessionStatus(status),
+		Provider: value.Selection().Provider(), Model: value.Selection().Model(),
 		Workspace: protocol.WorkspaceInfo{
 			Ref: protocol.WorkspaceRef{Path: resolved.Workspace.Path()},
 			ProjectRoot: resolved.ProjectRoot, Availability: availability,
@@ -269,6 +280,28 @@ func present(value session.Session, resolved workspacefs.Resolution, status sess
 		CreatedAt: value.CreatedAt(), UpdatedAt: value.UpdatedAt(),
 		Favorite: value.Favorite(), Revision: value.Revision(),
 	}
+}
+
+func selectionFromValues(provider, model string) (modelselection.Selection, error) {
+	selection, err := modelselection.New(provider, model)
+	if err != nil {
+		return modelselection.Selection{}, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	}
+	return selection, nil
+}
+
+func selectionFromChanges(provider, model *string) (*modelselection.Selection, error) {
+	if provider == nil && model == nil {
+		return nil, nil
+	}
+	if provider == nil || model == nil {
+		return nil, fmt.Errorf("%w: provider and model must be changed together", protocol.ErrInvalidParams)
+	}
+	selection, err := selectionFromValues(*provider, *model)
+	if err != nil {
+		return nil, err
+	}
+	return &selection, nil
 }
 
 func projectLookup(err error) error {

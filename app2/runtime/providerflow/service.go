@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 	"github.com/Tangerg/lynx/app2/runtime/domain/provider"
 	"github.com/Tangerg/lynx/app2/runtime/llmadapter"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -19,15 +20,20 @@ import (
 )
 
 type Store interface {
-	GetProvider(context.Context, string) (provider.Provider, bool, error)
-	PutProvider(context.Context, provider.Provider) error
-	GetModelRole(context.Context, string, any) (bool, error)
-	PutModelRole(context.Context, string, any) error
+	GetProvider(context.Context, string) (provider.Configuration, bool, error)
+	SaveProvider(context.Context, provider.Configuration, uint64) error
+	GetModelRole(context.Context, modelselection.Role) (modelselection.Selection, bool, error)
+	PutModelRole(context.Context, modelselection.Role, modelselection.Selection) error
 }
 
 type Service struct {
-	store Store
+	store       Store
 	environment map[string]string
+}
+
+type ProviderUpdate struct {
+	Provider *protocol.Provider
+	Changed  bool
 }
 
 func New(store Store) (*Service, error) {
@@ -50,38 +56,51 @@ func (service *Service) List(ctx context.Context) (*protocol.Page[protocol.Provi
 	return protocol.NewPage(data), nil
 }
 
-func (service *Service) Update(ctx context.Context, request protocol.UpdateProviderRequest) (*protocol.Provider, error) {
+func (service *Service) Update(ctx context.Context, request protocol.UpdateProviderRequest) (ProviderUpdate, error) {
 	providerID := llmadapter.Provider(request.Provider)
 	if !providerID.IsSupported() {
-		return nil, fmt.Errorf("%w: unsupported provider %q", protocol.ErrInvalidParams, request.Provider)
+		return ProviderUpdate{}, fmt.Errorf("%w: unsupported provider %q", protocol.ErrInvalidParams, request.Provider)
 	}
 	if request.APIKey == nil && request.BaseURL == nil {
-		return nil, fmt.Errorf("%w: provider update has no changes", protocol.ErrInvalidParams)
-	}
-	stored, found, err := service.store.GetProvider(ctx, request.Provider)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		stored.ID = request.Provider
+		return ProviderUpdate{}, fmt.Errorf("%w: provider update has no changes", protocol.ErrInvalidParams)
 	}
 	patch, err := providerPatch(request)
 	if err != nil {
-		return nil, err
+		return ProviderUpdate{}, err
 	}
-	stored = stored.Apply(patch)
-	if err := stored.Validate(providerID.RequiresBaseURL()); err != nil {
-		return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	for range 8 {
+		stored, found, err := service.store.GetProvider(ctx, request.Provider)
+		if err != nil {
+			return ProviderUpdate{}, err
+		}
+		previousRevision := uint64(0)
+		if found {
+			previousRevision = stored.Revision()
+		} else {
+			stored, err = provider.New(request.Provider)
+			if err != nil {
+				return ProviderUpdate{}, err
+			}
+		}
+		if !stored.Apply(patch) {
+			effective := service.projectEffective(stored)
+			presented := presentProvider(providerID, effective)
+			return ProviderUpdate{Provider: &presented}, nil
+		}
+		if err := stored.Validate(providerID.RequiresBaseURL()); err != nil {
+			return ProviderUpdate{}, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		}
+		if err := service.store.SaveProvider(ctx, stored, previousRevision); err != nil {
+			if errors.Is(err, provider.ErrRevisionConflict) {
+				continue
+			}
+			return ProviderUpdate{}, err
+		}
+		effective := service.projectEffective(stored)
+		presented := presentProvider(providerID, effective)
+		return ProviderUpdate{Provider: &presented, Changed: true}, nil
 	}
-	if err := service.store.PutProvider(ctx, stored); err != nil {
-		return nil, err
-	}
-	effective, _, err := service.effective(ctx, request.Provider)
-	if err != nil {
-		return nil, err
-	}
-	presented := presentProvider(providerID, effective)
-	return &presented, nil
+	return ProviderUpdate{}, fmt.Errorf("%w: provider %q remained busy after concurrent updates", protocol.ErrProviderError, request.Provider)
 }
 
 func (service *Service) Test(ctx context.Context, id string) (*protocol.ProviderTestResult, error) {
@@ -94,10 +113,16 @@ func (service *Service) Test(ctx context.Context, id string) (*protocol.Provider
 		return nil, err
 	}
 	if !configured {
-		return &protocol.ProviderTestResult{Error: &protocol.ProblemData{Type: protocol.ProblemProviderNotConfigured}}, nil
+		return &protocol.ProviderTestResult{Error: &protocol.ProblemData{
+			Type: protocol.ProblemProviderNotConfigured,
+			Detail: "Configure the provider before testing it.",
+		}}, nil
 	}
 	if err := probe(ctx, providerID, entry); err != nil {
-		return &protocol.ProviderTestResult{Error: &protocol.ProblemData{Type: protocol.ProblemProviderTestFailed}}, nil
+		return &protocol.ProviderTestResult{Error: &protocol.ProblemData{
+			Type: protocol.ProblemProviderTestFailed,
+			Detail: probeDetail(err, entry.apiKey),
+		}}, nil
 	}
 	return &protocol.ProviderTestResult{OK: true}, nil
 }
@@ -108,31 +133,36 @@ func (service *Service) Models(ctx context.Context, request protocol.ListModelsR
 	}
 	providerID := llmadapter.Provider(request.Provider)
 	if !providerID.IsSupported() {
-		return protocol.NewPage([]protocol.Model{}), nil
+		return nil, fmt.Errorf("%w: unsupported provider %q", protocol.ErrInvalidParams, request.Provider)
 	}
 	if providerID.ProbeModels() {
-		entry, _, err := service.effective(ctx, request.Provider)
+		entry, configured, err := service.effective(ctx, request.Provider)
 		if err != nil {
 			return nil, err
 		}
-		baseURL := entry.BaseURL
+		if !configured {
+			return nil, fmt.Errorf("%w: provider %q is not configured", protocol.ErrProviderError, request.Provider)
+		}
+		baseURL := entry.configuration.BaseURL()
 		if baseURL == "" {
 			baseURL = providerID.DefaultBaseURL()
 		}
-		if baseURL != "" {
-			ids, err := llmadapter.ListRemoteModels(ctx, baseURL, entry.APIKey)
-			if err == nil && len(ids) > 0 {
-				data := make([]protocol.Model, 0, len(ids))
-				for _, id := range ids {
-					if model, found := catalog.Lookup(request.Provider, id); found {
-						data = append(data, presentModel(request.Provider, model))
-					} else {
-						data = append(data, protocol.Model{ID: id, Provider: request.Provider})
-					}
-				}
-				return protocol.NewPage(data), nil
+		if baseURL == "" {
+			return nil, fmt.Errorf("%w: provider %q has no model discovery endpoint", protocol.ErrProviderError, request.Provider)
+		}
+		ids, err := llmadapter.ListRemoteModels(ctx, baseURL, entry.apiKey)
+		if err != nil {
+			return nil, fmt.Errorf("%w: discover models for %q: %v", protocol.ErrProviderError, request.Provider, err)
+		}
+		data := make([]protocol.Model, 0, len(ids))
+		for _, id := range ids {
+			if model, found := catalog.Lookup(request.Provider, id); found {
+				data = append(data, presentModel(request.Provider, model))
+			} else {
+				data = append(data, protocol.Model{ID: id, Provider: request.Provider})
 			}
 		}
+		return protocol.NewPage(data), nil
 	}
 	entries := catalog.Models(request.Provider)
 	data := make([]protocol.Model, 0, len(entries))
@@ -143,63 +173,105 @@ func (service *Service) Models(ctx context.Context, request protocol.ListModelsR
 }
 
 func (service *Service) UtilityRole(ctx context.Context) (*protocol.UtilityRole, error) {
-	var role protocol.UtilityRole
-	if _, err := service.store.GetModelRole(ctx, "utility", &role); err != nil {
+	selection, _, err := service.store.GetModelRole(ctx, modelselection.RoleUtility)
+	if err != nil {
 		return nil, err
 	}
-	return &role, nil
+	return &protocol.UtilityRole{Provider: selection.Provider(), Model: selection.Model()}, nil
 }
 
-func (service *Service) SetUtilityRole(ctx context.Context, role protocol.UtilityRole) (*protocol.UtilityRole, error) {
-	if err := service.validateRole(ctx, role.Provider, role.Model, false); err != nil {
-		return nil, err
+func (service *Service) SetUtilityRole(ctx context.Context, role protocol.UtilityRole) (*protocol.UtilityRole, bool, error) {
+	selection, changed, err := service.setRole(ctx, modelselection.RoleUtility, role.Provider, role.Model)
+	if err != nil {
+		return nil, false, err
 	}
-	if err := service.store.PutModelRole(ctx, "utility", role); err != nil {
-		return nil, err
-	}
-	return &role, nil
+	return &protocol.UtilityRole{Provider: selection.Provider(), Model: selection.Model()}, changed, nil
 }
 
 func (service *Service) EmbeddingRole(ctx context.Context) (*protocol.EmbeddingRole, error) {
-	var role protocol.EmbeddingRole
-	if _, err := service.store.GetModelRole(ctx, "embedding", &role); err != nil {
+	selection, _, err := service.store.GetModelRole(ctx, modelselection.RoleEmbedding)
+	if err != nil {
 		return nil, err
 	}
-	return &role, nil
+	return &protocol.EmbeddingRole{Provider: selection.Provider(), Model: selection.Model()}, nil
 }
 
-func (service *Service) SetEmbeddingRole(ctx context.Context, role protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
-	if err := service.validateRole(ctx, role.Provider, role.Model, true); err != nil {
-		return nil, err
+func (service *Service) SetEmbeddingRole(ctx context.Context, role protocol.EmbeddingRole) (*protocol.EmbeddingRole, bool, error) {
+	selection, changed, err := service.setRole(ctx, modelselection.RoleEmbedding, role.Provider, role.Model)
+	if err != nil {
+		return nil, false, err
 	}
-	if err := service.store.PutModelRole(ctx, "embedding", role); err != nil {
-		return nil, err
-	}
-	return &role, nil
+	return &protocol.EmbeddingRole{Provider: selection.Provider(), Model: selection.Model()}, changed, nil
 }
 
-func (service *Service) validateRole(ctx context.Context, providerID, model string, embedding bool) error {
-	if providerID == "" && model == "" {
+func (service *Service) setRole(ctx context.Context, role modelselection.Role, providerID, model string) (modelselection.Selection, bool, error) {
+	selection, err := modelselection.New(providerID, model)
+	if err != nil {
+		return modelselection.Selection{}, false, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	}
+	if err := service.validateRole(ctx, role, selection); err != nil {
+		return modelselection.Selection{}, false, err
+	}
+	current, found, err := service.store.GetModelRole(ctx, role)
+	if err != nil {
+		return modelselection.Selection{}, false, err
+	}
+	if (!found && selection.Empty()) || (found && current == selection) {
+		return current, false, nil
+	}
+	if err := service.store.PutModelRole(ctx, role, selection); err != nil {
+		return modelselection.Selection{}, false, err
+	}
+	return selection, true, nil
+}
+
+func (service *Service) validateRole(ctx context.Context, role modelselection.Role, selection modelselection.Selection) error {
+	if selection.Empty() {
 		return nil
 	}
-	if providerID == "" || model == "" {
-		return fmt.Errorf("%w: provider and model must be set together", protocol.ErrInvalidParams)
-	}
+	providerID, model := selection.Provider(), selection.Model()
 	metadata := llmadapter.Provider(providerID)
+	embedding := role == modelselection.RoleEmbedding
 	if !metadata.IsSupported() || (embedding && !metadata.EmbeddingCapable()) {
 		return fmt.Errorf("%w: provider %q cannot serve this role", protocol.ErrInvalidParams, providerID)
 	}
-	_, configured, err := service.effective(ctx, providerID)
+	entry, configured, err := service.effective(ctx, providerID)
 	if err != nil {
 		return err
 	}
 	if !configured {
 		return fmt.Errorf("%w: provider %q is not configured", protocol.ErrProviderError, providerID)
 	}
+	if embedding {
+		_, err := llmadapter.BuildEmbeddingModel(llmadapter.ClientSpec{
+			Provider: metadata, Model: model, APIKey: entry.apiKey, BaseURL: entry.configuration.BaseURL(),
+		})
+		if err != nil {
+			return fmt.Errorf("%w: invalid embedding selection: %v", protocol.ErrInvalidParams, err)
+		}
+		return nil
+	}
+	if metadata.ProbeModels() {
+		page, err := service.Models(ctx, protocol.ListModelsRequest{Provider: providerID})
+		if err != nil {
+			return err
+		}
+		if !slices.ContainsFunc(page.Data, func(candidate protocol.Model) bool { return candidate.ID == model }) {
+			return fmt.Errorf("%w: model %q is not available from provider %q", protocol.ErrInvalidParams, model, providerID)
+		}
+		return nil
+	}
+	if _, found := catalog.Lookup(providerID, model); !found {
+		return fmt.Errorf("%w: model %q is not in provider %q's catalog", protocol.ErrInvalidParams, model, providerID)
+	}
 	return nil
 }
 
 func (service *Service) ResolveClient(ctx context.Context, providerID, model string) (*chatclient.Client, error) {
+	selection, err := modelselection.New(providerID, model)
+	if err != nil || selection.Empty() || !llmadapter.Provider(providerID).IsSupported() {
+		return nil, fmt.Errorf("%w: invalid provider/model selection", protocol.ErrProviderError)
+	}
 	entry, configured, err := service.effective(ctx, providerID)
 	if err != nil {
 		return nil, err
@@ -209,7 +281,7 @@ func (service *Service) ResolveClient(ctx context.Context, providerID, model str
 	}
 	return llmadapter.BuildClient(llmadapter.ClientSpec{
 		Provider: llmadapter.Provider(providerID), Model: model,
-		APIKey: entry.APIKey, BaseURL: entry.BaseURL,
+		APIKey: entry.apiKey, BaseURL: entry.configuration.BaseURL(),
 	})
 }
 
@@ -230,7 +302,7 @@ func (service *Service) ResolveEmbedding(ctx context.Context) (embedding.Model, 
 	}
 	model, err := llmadapter.BuildEmbeddingModel(llmadapter.ClientSpec{
 		Provider: llmadapter.Provider(role.Provider), Model: role.Model,
-		APIKey: entry.APIKey, BaseURL: entry.BaseURL,
+		APIKey: entry.apiKey, BaseURL: entry.configuration.BaseURL(),
 	})
 	return model, *role, err
 }
@@ -249,28 +321,48 @@ func (service *Service) DefaultSelection(ctx context.Context) (string, string, e
 	return "", "", fmt.Errorf("%w: configure a model provider before starting a run", protocol.ErrProviderError)
 }
 
-func (service *Service) effective(ctx context.Context, id string) (provider.Provider, bool, error) {
+type effectiveProvider struct {
+	configuration provider.Configuration
+	apiKey        string
+	keySource     protocol.ProviderKeySource
+}
+
+func (service *Service) effective(ctx context.Context, id string) (effectiveProvider, bool, error) {
 	entry, found, err := service.store.GetProvider(ctx, id)
 	if err != nil {
-		return provider.Provider{}, false, err
+		return effectiveProvider{}, false, err
 	}
 	if !found {
-		entry.ID = id
+		entry, err = provider.New(id)
+		if err != nil {
+			return effectiveProvider{}, false, err
+		}
 	}
-	if entry.APIKey != "" {
-		entry.KeySource = provider.KeyStored
-		return entry, true, nil
-	}
-	if key := service.environment[id]; key != "" {
-		entry.APIKey = key
-		entry.KeySource = provider.KeyEnv
-		return entry, true, nil
+	effective := service.projectEffective(entry)
+	if effective.apiKey != "" {
+		return effective, true, nil
 	}
 	// Local Ollama can be usable without a credential.
 	if llmadapter.Provider(id) == llmadapter.ProviderOllama {
-		return entry, true, nil
+		return effective, true, nil
 	}
-	return entry, false, nil
+	return effective, false, nil
+}
+
+func (service *Service) projectEffective(configuration provider.Configuration) effectiveProvider {
+	if configuration.APIKey() != "" {
+		return effectiveProvider{
+			configuration: configuration, apiKey: configuration.APIKey(),
+			keySource: protocol.ProviderKeySourceStored,
+		}
+	}
+	if key := service.environment[configuration.ID()]; key != "" {
+		return effectiveProvider{
+			configuration: configuration, apiKey: key,
+			keySource: protocol.ProviderKeySourceEnv,
+		}
+	}
+	return effectiveProvider{configuration: configuration}
 }
 
 func providerPatch(request protocol.UpdateProviderRequest) (provider.Patch, error) {
@@ -302,10 +394,9 @@ func textChange(change *protocol.ProviderConfigChange) (provider.TextChange, err
 	}
 }
 
-func presentProvider(id llmadapter.Provider, entry provider.Provider) protocol.Provider {
-	keySource := protocol.ProviderKeySource(entry.KeySource)
+func presentProvider(id llmadapter.Provider, entry effectiveProvider) protocol.Provider {
 	return protocol.Provider{
-		ID: string(id), BaseURL: entry.BaseURL, APIKeyMasked: mask(entry.APIKey), KeySource: keySource,
+		ID: string(id), BaseURL: entry.configuration.BaseURL(), APIKeyMasked: mask(entry.apiKey), KeySource: entry.keySource,
 		RequiresBaseURL: id.RequiresBaseURL(), EmbeddingCapable: id.EmbeddingCapable(),
 		DefaultEmbeddingModel: id.DefaultEmbeddingModel(),
 	}
@@ -357,13 +448,25 @@ func mask(value string) string {
 	return value[:2] + "****" + value[len(value)-2:]
 }
 
-func probe(ctx context.Context, providerID llmadapter.Provider, entry provider.Provider) error {
+func probeDetail(err error, secret string) string {
+	detail := strings.TrimSpace(err.Error())
+	if secret != "" {
+		detail = strings.ReplaceAll(detail, secret, "[redacted]")
+	}
+	characters := []rune(detail)
+	if len(characters) > 512 {
+		detail = string(characters[:512])
+	}
+	return detail
+}
+
+func probe(ctx context.Context, providerID llmadapter.Provider, entry effectiveProvider) error {
 	if providerID.ProbeModels() {
-		baseURL := entry.BaseURL
+		baseURL := entry.configuration.BaseURL()
 		if baseURL == "" {
 			baseURL = providerID.DefaultBaseURL()
 		}
-		models, err := llmadapter.ListRemoteModels(ctx, baseURL, entry.APIKey)
+		models, err := llmadapter.ListRemoteModels(ctx, baseURL, entry.apiKey)
 		if err != nil {
 			return err
 		}
@@ -373,7 +476,7 @@ func probe(ctx context.Context, providerID llmadapter.Provider, entry provider.P
 		return nil
 	}
 	client, err := llmadapter.BuildClient(llmadapter.ClientSpec{
-		Provider: providerID, Model: providerID.DefaultModel(), APIKey: entry.APIKey, BaseURL: entry.BaseURL,
+		Provider: providerID, Model: providerID.DefaultModel(), APIKey: entry.apiKey, BaseURL: entry.configuration.BaseURL(),
 	})
 	if err != nil {
 		return err

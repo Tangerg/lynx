@@ -32,8 +32,8 @@ type remoteModelList struct {
 // endpoint providers whose model set is user-defined rather than in the static
 // catalog (Ollama and the compatible endpoint providers). apiKey rides as a bearer token when
 // non-empty (a local daemon needs none). The call is bounded (timeout + response
-// cap); a non-200 or unparseable body is returned as an error the caller treats
-// as "no discovery" and falls back to the static catalog.
+// cap); a non-200 or unparseable body is returned as an explicit discovery
+// error. Callers must not turn endpoint unavailability into an empty catalog.
 func ListRemoteModels(ctx context.Context, baseURL, apiKey string) ([]string, error) {
 	endpoint := strings.TrimRight(baseURL, "/") + "/models"
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)

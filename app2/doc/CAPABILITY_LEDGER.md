@@ -52,8 +52,8 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | operations/schedule | R8 | specified | cron validation、revision、workspace/model、next run、runNow 返回可导航 Run/Session |
 | O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | implemented | one incarnation、quiesce/CAS、paused/active/blocked/completing、Session cascade、autonomous control 不进 Transcript；待最终统一门禁 |
 | O16 | `codebase.search`, `codebase.status`, `codebase.reindex` | 3 | workspace index | R6 | implemented | exact Session workspace、none/indexing/ready/error、durable operation CAS、replacement cancellation/crash recovery、Git-aware bounded source corpus、embedding role identity、atomic document replacement、bounded ranked hits 与 Desktop exact-line consumer；待最终统一门禁 |
-| O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | specified | masked key/source、explicit secret change、base URL validation、test 业务判决、不泄漏原文 |
-| O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | specified | provider/model 显式配对、capability/pricing/context、role validation、catalog invalidation |
+| O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | implemented | masked key/source、explicit secret change、base URL validation、revision CAS patch convergence、bounded redacted test verdict、changed-only invalidation 与 draft/save/test Desktop card 已接通；待最终门禁 |
+| O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | implemented | provider/model paired value、Session durable picker、fresh Run explicit pair、static/live catalog honesty、typed role editors、capability/pricing/context/image gate、changed-only invalidation 已接通；待最终门禁 |
 | O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | implemented | Run 外目录闭合为 safe `read/glob/grep`，schema 来自 executable definition；manual invoke 绑定 exact Workspace 并复用 physical/symlink confinement，不伪造 Run/approval；Desktop schema/JSON/result consumer 已实现，待最终统一门禁 |
 | O20 | `usage.session`, `usage.summary` | 2 | operations/usage | R9 | specified | exact attribution、day/model/provider buckets、unknown cost 缺席、terminal/restart 稳定 |
 | O21 | `knowledge.list`, `knowledge.get`, `knowledge.update` | 3 | capability/knowledge | R7 | implemented | distinct home→projectRoot→cwd file cascade、confined physical-target CAS/atomic publish、fresh-root bounded injection/checkpoint freeze、exact external watcher、Desktop conflict-preserving editor 已实现；待最终统一门禁 |
@@ -129,7 +129,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
-| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | specified | form draft 与 wire 分离、validation/test/save、secret masked、query invalidation |
+| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | in_progress | explicit Settings section 已完成 Provider cards、masked/env secret、independent draft/save/test、Utility/Embedding role 与 Session model picker；MCP/schedules/approval/usage sections 继续 R8 |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
 | U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |
@@ -177,7 +177,8 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 
 - 不读取旧 SQLite epoch 77、Artifact v22；
 - 不保留旧 Go package layout、handler/repository concrete API、frontend facade/store shape；
-- Runtime Protocol `2026-08-21`、89 个 dotted methods、HTTP/SSE、sidecars 与部署所需 token/CORS 是主动继承的
+- Runtime Protocol 以 `2026-08-21` 为成熟基线，89 个 dotted methods、HTTP/SSE、sidecars 与部署所需
+  token/CORS 均主动继承；A2-028 仅为修复 Session 模型身份歧义提升到 `2026-08-23`
   合同基线，不是兼容负担；只有 ADR-A2-022 规定的证据和版本门槛才能改变；
 - 不保留外部 JavaScript plugin/sideload（当前生产已无此能力）；
 - 不保留无生产者的 custom RunEvent、clientTools feature、toolResult Interrupt、generic state registry；
@@ -205,7 +206,7 @@ Decision: intentional differences from old app
 
 ```text
 Implementation: runtime/{operation,dispatch,rpcwire,httptransport,runtimehost,localruntime,sqlite,cli,contractgen}; desktop/{supervisor,DesktopHost,NativeHost,frontend,Taskfile}
-Contract: protocol 2026-08-21; R1 verified runtime.discover; current 89 registered shapes + 4 fixed HTTP endpoints generated diff-free
+Contract: protocol 2026-08-23; R1 verified runtime.discover; current 89 registered shapes + 4 fixed HTTP endpoints generated diff-free
 Tests: Runtime/Desktop race+vet+Staticcheck; frontend type+lint+format+7 tests+build; signed package verification
 Recovery: real child SIGKILL -> successor generation; graceful close; corrupt DB/no descriptor; predecessor UI result ignored
 Product: arm64 lyra-app2.app contains sibling lyra-runtime; U01 remains implemented pending R10 visual/native matrix

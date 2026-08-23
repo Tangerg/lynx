@@ -8,6 +8,7 @@ import {
   type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
+	type ReactNode,
 } from "react";
 
 import type { ContentBlock, Recipe, RunRef } from "@lyra/runtime-contract";
@@ -44,6 +45,8 @@ interface ComposerProps {
   recipes: Recipe[];
   pending: boolean;
   error?: string;
+	attachmentPolicy: "text-only" | "multimodal";
+	children?: ReactNode;
   onChange(update: (draft: ComposerDraft) => ComposerDraft): void;
   onSend(input: ContentBlock[], idempotencyKey: string): Promise<void>;
   onStop(): Promise<void>;
@@ -90,7 +93,11 @@ export function Composer(props: ComposerProps) {
     ...props.draft,
     text: expandRecipeInvocation(props.draft.text, props.recipes),
   });
-  const canSend = sendInput.length > 0 && !props.pending && !waiting;
+	const imageBlocked =
+		props.attachmentPolicy === "text-only" &&
+		props.draft.attachments.some((attachment) => attachment.kind === "image");
+  const canSend =
+		sendInput.length > 0 && !props.pending && !waiting && !imageBlocked;
 
   useEffect(() => setRecipeIndex(0), [recipeQuery, recipeSuggestions.length]);
 
@@ -212,7 +219,11 @@ export function Composer(props: ComposerProps) {
     try {
       const remaining = maxAttachments - props.draft.attachments.length;
       if (remaining <= 0) throw new Error("Remove an attachment before adding another.");
-      const additions = await Promise.all(files.slice(0, remaining).map(readAttachment));
+			const additions = await Promise.all(
+				files
+					.slice(0, remaining)
+					.map((file) => readAttachment(file, props.attachmentPolicy)),
+			);
       props.onChange((current) => ({
         ...current,
         attachments: [...current.attachments, ...additions].slice(
@@ -317,7 +328,7 @@ export function Composer(props: ComposerProps) {
             className="sr-only"
             type="file"
             multiple
-            accept="image/*,.txt,.md,.go,.ts,.tsx,.js,.jsx,.json,.yaml,.yml,.toml,.css,.html,.sh,.py,.rs"
+			accept={`${props.attachmentPolicy === "multimodal" ? "image/*," : ""}.txt,.md,.go,.ts,.tsx,.js,.jsx,.json,.yaml,.yml,.toml,.css,.html,.sh,.py,.rs`}
             onChange={chooseFiles}
           />
           <button
@@ -329,6 +340,7 @@ export function Composer(props: ComposerProps) {
             <span aria-hidden="true">＋</span>
             Attach
           </button>
+			{props.children}
           <span className="composer-hint">Enter to send · Shift+Enter for line break</span>
         </div>
         <div className="composer-actions">
@@ -352,6 +364,11 @@ export function Composer(props: ComposerProps) {
       {attachmentError ? (
         <p className="composer-error" role="alert">{attachmentError}</p>
       ) : null}
+		{imageBlocked ? (
+			<p className="composer-error" role="alert">
+				The selected model does not accept images. Remove them or choose a multimodal model.
+			</p>
+		) : null}
       {props.error ? (
         <p className="composer-error" role="alert">{props.error}</p>
       ) : null}
@@ -376,8 +393,14 @@ function inputBlocks(draft: ComposerDraft): ContentBlock[] {
   return blocks;
 }
 
-async function readAttachment(file: File): Promise<ComposerAttachment> {
+async function readAttachment(
+	file: File,
+	policy: "text-only" | "multimodal",
+): Promise<ComposerAttachment> {
   if (file.type.startsWith("image/")) {
+		if (policy !== "multimodal") {
+			throw new Error("Choose a model with image input before attaching images.");
+		}
     if (file.size > maxImageBytes) {
       throw new Error(`${file.name} is larger than 10 MB.`);
     }

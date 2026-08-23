@@ -53,6 +53,12 @@ export function useRuntimeInvalidations(
         void queryClient.invalidateQueries({
           queryKey: [...runtimeQueryKeys.scope(connection), "models"],
         });
+		void queryClient.invalidateQueries({
+			queryKey: runtimeQueryKeys.providers(connection),
+		});
+		void queryClient.invalidateQueries({
+			queryKey: [...runtimeQueryKeys.scope(connection), "model-role"],
+		});
       }
       if (topics.includes("files.changed")) {
         const workspace = event.workspace ?? activeWatch?.workspace;

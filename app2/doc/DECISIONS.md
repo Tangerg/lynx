@@ -321,3 +321,24 @@ operation/stream/typed-client 合同。冻结权限后渐进显示，可以降�
 索引前仍绑定 Lyra safety/Plan/Hook/approval 链，`search_tools` 自身也被观察。ordered manifest metadata 纳入 deployment configuration
 digest：同一清单 waiting/resume 恢复已加载名称，漂移则 fail closed；后续 fresh Run 获得新清单，既有 Run 不能借恢复或 child routing
 换入新定义。最终统一门禁前该能力标记为 `implemented`。
+
+## ADR-A2-028：Session 持有完整模型身份，Provider 配置以 CAS 收敛
+
+**缺陷与反例**：Lyra `runs.start` 已明确规定 provider 不能由 model id 推断，但 `Session`、`sessions.create/update`
+与 Session Artifact 只保存 model。若 `openai-compatible` 与 `ollama` 同时发布 `qwen3`，一个持久化的
+`model=qwen3` 在 reload、fork、import 或下一次 Run admission 时没有唯一含义；现有 Desktop 又不把选择传给
+`runs.start`，使 Session 字段成为不参与执行的装饰状态。这是 Lyra 自身规则的矛盾，不是参考产品协议缺失。
+
+**决定**：Lyra Runtime Protocol 提升为 `2026-08-23`。`Session`、`CreateSessionRequest`、
+`UpdateSessionRequest` 与 Artifact Session 均保存完整的 `provider + model`；两者只能同时缺席、同时清空或同时
+赋值。Run 选择优先级闭合为 explicit `runs.start` pair → Session durable pair → Runtime default。Artifact 提升为
+`app2/2`，SQLite 提升到 epoch 10；开发期不迁移旧 app2 数据或 artifact。
+
+Provider durable aggregate 使用私有 revision 与 SQLite CAS；并发的 base URL/key 非重叠 patch 冲突后必须重读并
+重放，因此不会互相覆盖。模型角色持久化 typed private record，不再序列化 protocol DTO 或接受 `any`。动态模型
+发现失败返回 provider error，不再把不可用伪装成空 catalog；Provider/role no-op 不写 revision，也不发布
+`models.changed`。Provider test 只返回脱敏、有界诊断。
+
+**边界**：89 个 dotted methods、JSON-RPC/SSE、RequestMeta/discover、problem code、Runtime topic 与 operation
+catalog 均保持 Lyra 既有设计；没有引入 connection handshake、Thread/Turn、stdio、别名 method 或第二套模型
+协议。该变更只修复可证明的身份歧义，并由 canonical Go types 重新生成 Desktop client。

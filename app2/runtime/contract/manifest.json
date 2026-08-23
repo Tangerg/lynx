@@ -1,5 +1,5 @@
 {
-  "protocolVersion": "2026-08-21",
+  "protocolVersion": "2026-08-23",
   "methods": [
     {
       "name": "agentDocs.list",
@@ -974,7 +974,8 @@
       "result": "Page<Skill>",
       "resultNullable": false,
       "errors": [
-        "workspace_unavailable"
+        "workspace_unavailable",
+        "path_outside_root"
       ],
       "materializes": []
     },
@@ -987,7 +988,10 @@
       "params": "SkillNameRequest",
       "result": "EmptyObject",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "item_not_found",
+        "path_outside_root"
+      ],
       "materializes": []
     },
     {
@@ -999,7 +1003,9 @@
       "params": "EmptyObject",
       "result": "Page<ManagedSkill>",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "path_outside_root"
+      ],
       "materializes": []
     },
     {
@@ -1011,7 +1017,10 @@
       "params": "SkillNameRequest",
       "result": "EmptyObject",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "item_not_found",
+        "path_outside_root"
+      ],
       "materializes": []
     },
     {
@@ -1023,7 +1032,12 @@
       "params": "SkillProposalRef",
       "result": "EmptyObject",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "workspace_unavailable",
+        "path_outside_root",
+        "item_not_found",
+        "revision_conflict"
+      ],
       "materializes": []
     },
     {
@@ -1035,7 +1049,9 @@
       "params": "WorkspaceQuery",
       "result": "Page<SkillProposal>",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "workspace_unavailable"
+      ],
       "materializes": []
     },
     {
@@ -1047,7 +1063,11 @@
       "params": "SkillProposalRef",
       "result": "EmptyObject",
       "resultNullable": false,
-      "errors": [],
+      "errors": [
+        "workspace_unavailable",
+        "item_not_found",
+        "revision_conflict"
+      ],
       "materializes": []
     },
     {

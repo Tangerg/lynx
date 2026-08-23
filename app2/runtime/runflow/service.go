@@ -287,7 +287,7 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 	} else if !errors.Is(err, rundomain.ErrNotFound) {
 		return nil, nil, err
 	}
-	providerID, model, err := service.selection(ctx, request)
+	providerID, model, err := service.selection(ctx, request, storedSession)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1513,12 +1513,15 @@ func runLimits(request protocol.StartRunRequest) *protocol.RunLimits {
 	}
 }
 
-func (service *Service) selection(ctx context.Context, request protocol.StartRunRequest) (string, string, error) {
+func (service *Service) selection(ctx context.Context, request protocol.StartRunRequest, stored session.Session) (string, string, error) {
 	if (request.Provider == "") != (request.Model == "") {
 		return "", "", fmt.Errorf("%w: provider and model must be set together", protocol.ErrInvalidParams)
 	}
 	if request.Provider != "" {
 		return request.Provider, request.Model, nil
+	}
+	if selection := stored.Selection(); !selection.Empty() {
+		return selection.Provider(), selection.Model(), nil
 	}
 	return service.models.DefaultSelection(ctx)
 }

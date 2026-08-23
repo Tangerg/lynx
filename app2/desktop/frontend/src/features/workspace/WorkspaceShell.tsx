@@ -8,6 +8,7 @@ import type {
 } from "@lyra/runtime-contract";
 
 import { AgentNarrative } from "../agent/AgentNarrative";
+import { SessionModelPicker } from "../agent/SessionModelPicker";
 import {
   Composer,
   emptyComposerDraft,
@@ -19,6 +20,7 @@ import { GoalComposer } from "../goals/GoalComposer";
 import { GoalTray } from "../goals/GoalTray";
 import { useGoalActions } from "../goals/useGoalActions";
 import { PlanCompact } from "../plan/PlanCompact";
+import { ProviderModelSettings } from "../settings/ProviderModelSettings";
 import { NewSessionMenu } from "../sessions/NewSessionMenu";
 import { SessionIndex } from "../sessions/SessionIndex";
 import { compactPath } from "../sessions/sessionPresentation";
@@ -56,6 +58,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     Record<string, ComposerDraft>
   >({});
   const [dockExpanded, setDockExpanded] = useState(false);
+	const [settingsOpen, setSettingsOpen] = useState(false);
   const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
   const goalsEnabled = props.discovery.capabilities.features.goals?.enabled === true;
   const skillsEnabled = props.discovery.capabilities.features.skills?.enabled === true;
@@ -116,23 +119,30 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     retry: 2,
   });
   const goalActions = useGoalActions(connection, selectedSession?.id);
+	const durableSelection =
+		selectedSession?.provider && selectedSession.model
+			? { provider: selectedSession.provider, model: selectedSession.model }
+			: undefined;
   const agentView = useAgentSessionView(
     connection,
     selectedSession?.id,
     snapshot.data,
+		durableSelection,
   );
+	const modelProvider =
+		agentView.focusRootRun?.provider ?? selectedSession?.provider;
   const modelCatalog = useQuery({
     queryKey: runtimeQueryKeys.models(
       connection,
-      agentView.focusRootRun?.provider ?? "unselected",
+		  modelProvider ?? "unselected",
     ),
     queryFn: ({ signal }) =>
       listModels(
         connection,
-        agentView.focusRootRun?.provider ?? "",
+		    modelProvider ?? "",
         signal,
       ),
-    enabled: agentView.focusRootRun?.provider !== undefined,
+		enabled: modelProvider !== undefined,
     staleTime: 5 * 60_000,
   });
   const recipes = useQuery({
@@ -150,7 +160,8 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     retry: 2,
   });
   const contextModel = modelCatalog.data?.data.find(
-    (model) => model.id === agentView.focusRootRun?.model,
+		(model) =>
+			model.id === (agentView.focusRootRun?.model ?? selectedSession?.model),
   );
   const composerDraft = selectedSession
     ? (composerDrafts[selectedSession.id] ?? emptyComposerDraft)
@@ -213,19 +224,23 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     return () => window.removeEventListener("keydown", createOnShortcut);
   }, [catalog.createPending, createSession]);
 
-  return (
-    <main className="app-shell">
+	return (
+		<>
+	<main className="app-shell" aria-hidden={settingsOpen || undefined} inert={settingsOpen}>
       <aside className="work-index" aria-labelledby="work-index-title">
         <header className="panel-header window-drag">
           <div>
             <span className="eyebrow">Lyra</span>
             <h1 id="work-index-title">Work Index</h1>
           </div>
-          <NewSessionMenu
-            pending={catalog.createPending}
-            defaultWorkspace={props.discovery.serverInfo.defaultWorkspace.path}
-            onCreate={createSession}
-          />
+		  <div className="work-index-actions window-no-drag">
+			<button className="icon-action" type="button" aria-label="Open settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button>
+			<NewSessionMenu
+			  pending={catalog.createPending}
+			  defaultWorkspace={props.discovery.serverInfo.defaultWorkspace.path}
+			  onCreate={createSession}
+			/>
+		  </div>
         </header>
         <section className="workspace-card" aria-label="Runtime default workspace">
           <span className="status-dot" aria-hidden="true" />
@@ -276,7 +291,11 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
             <ContextGauge
               tokens={agentView.contextTokens}
               contextWindow={contextModel?.contextWindow}
-              model={contextModel?.displayName ?? agentView.focusRootRun?.model}
+			  model={
+				contextModel?.displayName ??
+				agentView.focusRootRun?.model ??
+				selectedSession?.model
+			  }
             />
             <ConnectionPill state={syncState} />
           </div>
@@ -332,10 +351,27 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 recipes={recipes.data?.data ?? []}
                 pending={agentView.actionPending}
                 error={agentView.actionError}
+				attachmentPolicy={
+					contextModel?.capabilities?.multimodal === true
+						? "multimodal"
+						: "text-only"
+				}
                 onChange={updateComposerDraft}
                 onSend={agentView.send}
                 onStop={agentView.stop}
-              />
+			  >
+				<SessionModelPicker
+					connection={connection}
+					session={selectedSession}
+					disabled={agentView.activeRootRun !== undefined || catalog.updatePending}
+					onChange={(provider, model) =>
+						catalog.update({
+							source: selectedSession,
+							patch: { provider, model },
+						})
+					}
+				/>
+			  </Composer>
             </>
           )}
         </div>
@@ -381,7 +417,11 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           <RuntimeFacts connection={connection} discovery={props.discovery} />
         </ContextDock>
       </aside>
-    </main>
+	</main>
+		{settingsOpen ? (
+			<ProviderModelSettings connection={connection} onClose={() => setSettingsOpen(false)} />
+		) : null}
+		</>
   );
 }
 

@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 )
 
 func (database *Database) CreateSession(ctx context.Context, value session.Session) error {
 	_, err := database.database.ExecContext(ctx, `
 		INSERT INTO sessions (
-			id, title, workspace_path, model, favorite, revision, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		value.ID().String(), value.Title(), value.Workspace().Path(), value.Model(),
+			id, title, workspace_path, provider, model, favorite, revision, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		value.ID().String(), value.Title(), value.Workspace().Path(),
+		value.Selection().Provider(), value.Selection().Model(),
 		value.Favorite(), value.Revision(), encodeTime(value.CreatedAt()), encodeTime(value.UpdatedAt()),
 	)
 	if err != nil {
@@ -26,7 +28,7 @@ func (database *Database) CreateSession(ctx context.Context, value session.Sessi
 
 func (database *Database) GetSession(ctx context.Context, id session.ID) (session.Session, error) {
 	return scanSession(database.database.QueryRowContext(ctx, `
-		SELECT id, title, workspace_path, model, favorite, revision, created_at, updated_at
+		SELECT id, title, workspace_path, provider, model, favorite, revision, created_at, updated_at
 		FROM sessions WHERE id = ?`, id.String()))
 }
 
@@ -97,7 +99,7 @@ func (database *Database) ListSessionProjections(ctx context.Context, limit int,
 
 const sessionProjectionSelect = `
 	SELECT
-		s.id, s.title, s.workspace_path, s.model, s.favorite, s.revision,
+		s.id, s.title, s.workspace_path, s.provider, s.model, s.favorite, s.revision,
 		s.created_at, s.updated_at,
 		CASE
 			WHEN open_root.id IS NULL THEN ''
@@ -119,9 +121,9 @@ const sessionProjectionSelect = `
 func (database *Database) UpdateSession(ctx context.Context, value session.Session, previousRevision uint64) error {
 	result, err := database.database.ExecContext(ctx, `
 		UPDATE sessions SET
-			title = ?, workspace_path = ?, model = ?, favorite = ?, revision = ?, updated_at = ?
+			title = ?, workspace_path = ?, provider = ?, model = ?, favorite = ?, revision = ?, updated_at = ?
 		WHERE id = ? AND revision = ?`,
-		value.Title(), value.Workspace().Path(), value.Model(), value.Favorite(),
+		value.Title(), value.Workspace().Path(), value.Selection().Provider(), value.Selection().Model(), value.Favorite(),
 		value.Revision(), encodeTime(value.UpdatedAt()), value.ID().String(), previousRevision,
 	)
 	if err != nil {
@@ -189,7 +191,7 @@ func scanSessionProjection(row rowScanner) (session.Projection, error) {
 }
 
 type storedSession struct {
-	id, title, workspacePath, model, created, updated string
+	id, title, workspacePath, provider, model, created, updated string
 	favorite bool
 	revision uint64
 }
@@ -199,6 +201,7 @@ func (stored *storedSession) destinations() []any {
 		&stored.id,
 		&stored.title,
 		&stored.workspacePath,
+		&stored.provider,
 		&stored.model,
 		&stored.favorite,
 		&stored.revision,
@@ -220,11 +223,15 @@ func (stored storedSession) restore() (session.Session, error) {
 	if err != nil {
 		return session.Session{}, err
 	}
+	selection, err := modelselection.New(stored.provider, stored.model)
+	if err != nil {
+		return session.Session{}, fmt.Errorf("sqlite: restore session model selection: %w", err)
+	}
 	value, err := session.Rehydrate(session.Restore{
 		ID: session.ID(stored.id),
 		Title: stored.title,
 		Workspace: workspace,
-		Model: stored.model,
+		Selection: selection,
 		Favorite: stored.favorite,
 		Revision: stored.revision,
 		CreatedAt: createdAt,

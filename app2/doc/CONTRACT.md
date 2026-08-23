@@ -10,9 +10,9 @@ change”。第一阶段的合同身份如下：
 
 | 合同 | app2 初始 identity | 决策 |
 | --- | --- | --- |
-| Runtime protocol | `2026-08-21` | 精确继承当前 Lyra 合同；client/server 必须精确相等 |
-| Session artifact | `app2/1` | 新合同；不承诺读取旧 v22 |
-| SQLite schema | epoch `1` | 新存储；不承诺迁移旧 epoch 77 |
+| Runtime protocol | `2026-08-23` | Lyra 合同；client/server 必须精确相等，A2-028 修复 Session 模型身份歧义 |
+| Session artifact | `app2/2` | 新合同；不承诺读取旧 v22 或 app2/1 |
+| SQLite schema | epoch `10` | 新存储；开发期 exact epoch，不承诺迁移旧 epoch |
 | Agent snapshot | adapter 显式声明 | 仅由对应 adapter 解码，不泄漏到领域层 |
 
 协议字段或语义只有在存在明确产品缺陷、不可消除的歧义或更强反例时才能改变；改变必须有 ADR、合同版本提升、
@@ -75,7 +75,7 @@ embedded binding 的结果必须一致。重连形成新的 transport generation
 Runtime 使用完整 JSON-RPC 2.0 envelope：
 
 ```json
-{"jsonrpc":"2.0","id":"01J...","method":"runtime.discover","params":{"_meta":{"protocolVersion":"2026-08-21"}}}
+{"jsonrpc":"2.0","id":"01J...","method":"runtime.discover","params":{"_meta":{"protocolVersion":"2026-08-23"}}}
 {"jsonrpc":"2.0","id":"01J...","result":{}}
 {"jsonrpc":"2.0","method":"notifications.run.event","params":{}}
 ```
@@ -228,7 +228,8 @@ catalog，不返回 secret，也不能把 provider 暂时不可用错误等同�
 
 Artifact 是 portable snapshot，不是数据库备份：
 
-- exact `app2/1` version；
+- exact `app2/2` version；
+- Session 的 provider/model 完整配对，不能由 model id 猜 provider；
 - Session、Runs、Segments、Items、Interrupt settlements、Goal、Plan 的完整 closure；
 - bounded/complete tool results；
 - workspace checkpoint metadata，是否包含文件恢复材料必须显式；
