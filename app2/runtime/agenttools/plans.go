@@ -136,7 +136,7 @@ func (catalog *Catalog) newExitPlanMode(scope agentexec.ToolScope) (toolcontract
 				{Label: "Reject", Description: "Keep Plan mode and revise the Plan"},
 			},
 		}}}
-		if err := question.ValidateWire(); err != nil {
+		if err := protocol.ValidateWireTree(question); err != nil {
 			return "", err
 		}
 		invocation, ok := agentexec.ToolInvocationFromContext(ctx)

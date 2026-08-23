@@ -449,7 +449,7 @@ func newAskUser(runID string) (toolcontract.Tool, error) {
 			return string(encoded), err
 		}
 		question := protocol.Question{Fields: slices.Clone(request.Fields)}
-		if err := question.ValidateWire(); err != nil {
+		if err := protocol.ValidateWireTree(question); err != nil {
 			return "", fmt.Errorf("ask_user: %w", err)
 		}
 		invocation, ok := agentexec.ToolInvocationFromContext(ctx)

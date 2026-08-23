@@ -389,6 +389,9 @@ func waitingProjection(runID string, prompt agentexec.ToolInputPrompt, now time.
 			return protocol.Item{}, protocol.Interrupt{}, errors.New("runflow: question prompt has no question")
 		}
 		question := *prompt.Question
+		if err := protocol.ValidateWireTree(question); err != nil {
+			return protocol.Item{}, protocol.Interrupt{}, fmt.Errorf("runflow: invalid question prompt: %w", err)
+		}
 		item := protocol.Item{ID: prompt.ItemID, RunID: runID, Status: protocol.ItemStatusRunning, CreatedAt: now, Type: protocol.ItemTypeQuestion, Question: &question}
 		interrupt := protocol.Interrupt{ItemID: prompt.ItemID, RunID: runID, Type: protocol.InterruptQuestion, Payload: &protocol.InterruptPayload{Question: &question}}
 		return item, interrupt, nil

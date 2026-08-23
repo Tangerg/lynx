@@ -282,9 +282,24 @@ func rpcRequest(
 	idempotencyKey string,
 	idempotencyNamespace string,
 ) rpcResponse {
+	return rpcRequestWithMeta(
+		t, baseURL, method, params, nil, idempotencyKey, idempotencyNamespace,
+	)
+}
+
+func rpcRequestWithMeta(
+	t *testing.T,
+	baseURL string,
+	method string,
+	params any,
+	meta *protocol.RequestMeta,
+	idempotencyKey string,
+	idempotencyNamespace string,
+) rpcResponse {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"jsonrpc": "2.0", "id": "acceptance", "method": method, "params": params,
+		"jsonrpc": "2.0", "id": "acceptance", "method": method,
+		"params": rpcParameters(t, params, meta),
 	})
 	if err != nil {
 		t.Fatalf("encode %s request error = %v", method, err)
@@ -313,6 +328,22 @@ func rpcRequest(
 		t.Fatalf("decode %s response error = %v", method, err)
 	}
 	return document
+}
+
+func rpcParameters(t *testing.T, params any, meta *protocol.RequestMeta) map[string]any {
+	t.Helper()
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("encode RPC parameters error = %v", err)
+	}
+	var object map[string]any
+	if err := json.Unmarshal(encoded, &object); err != nil || object == nil {
+		t.Fatalf("RPC parameters must encode as an object: %v", err)
+	}
+	if meta != nil {
+		object["_meta"] = meta
+	}
+	return object
 }
 
 func privateDirectory(t *testing.T, name string) string {
