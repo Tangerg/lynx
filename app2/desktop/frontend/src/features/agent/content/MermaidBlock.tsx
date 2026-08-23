@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
 
+import { useShellPreferences } from "../../preferences/ShellPreferences";
 import { CodeBlock } from "./CodeBlock";
 
 let mermaidModule: Promise<typeof import("mermaid")> | undefined;
-let mermaidReady = false;
 let mermaidSequence = 0;
 let mermaidRenderQueue = Promise.resolve();
 
 export function MermaidBlock({ source }: { source: string }) {
+  const { resolvedTheme } = useShellPreferences();
   const container = useRef<HTMLDivElement>(null);
   const identity = `lyra-diagram-${useId().replaceAll(":", "")}`;
   const [visible, setVisible] = useState(false);
@@ -38,7 +39,7 @@ export function MermaidBlock({ source }: { source: string }) {
     let current = true;
     setMarkup(undefined);
     setError(false);
-    void renderMermaid(identity, source).then((svg) => {
+    void renderMermaid(identity, source, resolvedTheme).then((svg) => {
       if (!current) return;
       if (svg === undefined) {
         setError(true);
@@ -49,7 +50,7 @@ export function MermaidBlock({ source }: { source: string }) {
     return () => {
       current = false;
     };
-  }, [identity, source, visible]);
+  }, [identity, resolvedTheme, source, visible]);
 
   return (
     <section
@@ -79,10 +80,14 @@ export function MermaidBlock({ source }: { source: string }) {
   );
 }
 
-async function renderMermaid(identity: string, source: string) {
+async function renderMermaid(
+  identity: string,
+  source: string,
+  theme: "linen" | "graphite",
+) {
   const renderIdentity = `${identity}-${++mermaidSequence}`;
   const result = mermaidRenderQueue.then(() =>
-    renderMermaidNow(renderIdentity, source),
+    renderMermaidNow(renderIdentity, source, theme),
   );
   mermaidRenderQueue = result.then(
     () => undefined,
@@ -91,21 +96,22 @@ async function renderMermaid(identity: string, source: string) {
   return result;
 }
 
-async function renderMermaidNow(identity: string, source: string) {
+async function renderMermaidNow(
+  identity: string,
+  source: string,
+  theme: "linen" | "graphite",
+) {
   try {
     mermaidModule ??= import("mermaid");
     const { default: mermaid } = await mermaidModule;
-    if (!mermaidReady) {
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        suppressErrorRendering: true,
-        theme: "neutral",
-        fontFamily:
-          'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      });
-      mermaidReady = true;
-    }
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      theme: theme === "graphite" ? "dark" : "neutral",
+      fontFamily:
+        'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    });
     const { svg } = await mermaid.render(identity, source);
     const { default: DOMPurify } = await import("dompurify");
     return DOMPurify.sanitize(svg, {

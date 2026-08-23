@@ -27,6 +27,7 @@
   --green: #3f775c;
   --amber: #a66b25;
   --red: #a4473d;
+  --on-solid: #ffffff;
   --divider: rgba(40, 39, 34, 0.1);
   --divider-strong: rgba(40, 39, 34, 0.17);
   --shadow-sm:
@@ -260,7 +261,7 @@ input::placeholder {
   gap: 2px;
   margin-bottom: 14px;
   padding: 3px;
-  border: 1px solid rgba(40, 39, 34, 0.045);
+  border: 1px solid color-mix(in srgb, var(--ink) 4.5%, transparent);
   border-radius: 11px;
   background: color-mix(in srgb, var(--paper-muted) 90%, transparent);
   backdrop-filter: blur(14px);
@@ -330,7 +331,7 @@ input::placeholder {
   margin-bottom: 12px;
   padding: 13px;
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.64);
+  background: color-mix(in srgb, var(--paper-raised) 64%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -436,7 +437,7 @@ input::placeholder {
   width: 22px;
   height: 22px;
   place-items: center;
-  border: 1px solid rgba(40, 39, 34, 0.065);
+  border: 1px solid color-mix(in srgb, var(--ink) 6.5%, transparent);
   border-radius: 7px;
   color: var(--ink-muted);
   background: var(--paper-raised);
@@ -685,7 +686,7 @@ input::placeholder {
   min-height: 54px;
   align-content: center;
   padding: 9px 11px;
-  background: rgba(255, 255, 255, 0.68);
+  background: color-mix(in srgb, var(--paper-raised) 68%, transparent);
 }
 
 .run-summary-facts dt {
@@ -714,7 +715,7 @@ input::placeholder {
 .run-summary-section {
   padding: 12px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.64);
+  background: color-mix(in srgb, var(--paper-raised) 64%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -800,7 +801,7 @@ input::placeholder {
   flex-direction: column;
   overflow: hidden;
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.56);
+  background: color-mix(in srgb, var(--paper-raised) 56%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -882,7 +883,7 @@ input::placeholder {
   align-items: center;
   overflow: hidden;
   border-radius: 9px;
-  background: rgba(40, 39, 34, 0.035);
+  background: color-mix(in srgb, var(--ink) 3.5%, transparent);
 }
 
 .workspace-open-tabs > span[data-selected="true"] {
@@ -953,7 +954,7 @@ input::placeholder {
 .file-tree-entry > button:hover,
 .file-tree-entry > button[data-selected="true"] {
   color: var(--ink);
-  background: rgba(40, 39, 34, 0.055);
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
 }
 
 .file-tree-entry > button > span:nth-child(2) {
@@ -1017,7 +1018,7 @@ input::placeholder {
 }
 
 .workspace-search-hit:hover {
-  background: rgba(40, 39, 34, 0.055);
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
 }
 
 .workspace-search-hit strong,
@@ -1277,7 +1278,7 @@ input::placeholder {
 .workspace-change-row:hover,
 .workspace-change-row[data-selected="true"] {
   color: var(--ink);
-  background: rgba(40, 39, 34, 0.055);
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
 }
 
 .file-status-mark {
@@ -2640,7 +2641,7 @@ input::placeholder {
   padding: 0;
   place-items: center;
   color: var(--ink-subtle);
-  background: rgba(255, 255, 255, 0.55);
+  background: color-mix(in srgb, var(--paper-raised) 55%, transparent);
   box-shadow: inset 0 0 0 1px var(--divider);
   font-size: 20px;
   transition: background-color 140ms ease-out, transform 140ms ease-out;
@@ -2744,7 +2745,7 @@ input::placeholder {
   align-items: start;
   padding: 13px;
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.66);
+  background: color-mix(in srgb, var(--paper-raised) 66%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -2784,7 +2785,7 @@ input::placeholder {
   padding: 0 5px 0 10px;
   border-radius: 12px;
   color: var(--ink-muted);
-  background: rgba(255, 255, 255, 0.48);
+  background: color-mix(in srgb, var(--paper-raised) 48%, transparent);
   box-shadow: inset 0 0 0 1px var(--divider);
 }
 
@@ -2863,7 +2864,7 @@ input::placeholder {
 
 .session-row:hover,
 .session-row:focus-within {
-  background: rgba(255, 255, 255, 0.54);
+  background: color-mix(in srgb, var(--paper-raised) 54%, transparent);
 }
 
 .session-row[data-selected="true"] {
@@ -2988,7 +2989,7 @@ input::placeholder {
 }
 
 .session-actions > div button.confirm-delete {
-  color: white;
+  color: var(--on-solid);
   background: var(--red);
 }
 
@@ -3162,7 +3163,7 @@ input::placeholder {
   padding: 0 8px;
   border-radius: 999px;
   color: var(--ink-subtle);
-  background: rgba(40, 39, 34, 0.045);
+  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
@@ -3533,7 +3534,7 @@ input::placeholder {
 .session-history-actions > details > summary:hover,
 .session-history-actions > details[open] > summary {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.52);
+  background: color-mix(in srgb, var(--paper-raised) 52%, transparent);
 }
 
 .session-history-actions > details > div {
@@ -3636,7 +3637,7 @@ input::placeholder {
   padding: 10px 12px;
   border-radius: 12px;
   color: var(--ink-subtle);
-  background: rgba(40, 39, 34, 0.035);
+  background: color-mix(in srgb, var(--ink) 3.5%, transparent);
 }
 
 .reasoning-turn > summary,
@@ -3858,7 +3859,7 @@ input::placeholder {
 .tool-arguments {
   margin-top: 7px;
   border-radius: 8px;
-  background: rgba(40, 39, 34, 0.03);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
 }
 
 .tool-arguments > summary {
@@ -3906,8 +3907,8 @@ input::placeholder {
   overflow: hidden;
   border: 1px solid var(--divider);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 1px 0 rgba(40, 39, 34, 0.025);
+  background: color-mix(in srgb, var(--paper-raised) 58%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 2.5%, transparent);
 }
 
 .narrative-timeline > .delegated-run {
@@ -4194,19 +4195,19 @@ input::placeholder {
 }
 
 .approval-decisions button:first-child[data-selected="true"] {
-  color: white;
+  color: var(--on-solid);
   background: var(--green);
 }
 
 .approval-decisions button:last-child[data-selected="true"] {
-  color: white;
+  color: var(--on-solid);
   background: var(--red);
 }
 
 .approval-arguments {
   margin-top: 10px;
   border-radius: 10px;
-  background: rgba(40, 39, 34, 0.03);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
 }
 
 .approval-arguments summary {
@@ -4396,7 +4397,7 @@ input::placeholder {
   flex: none;
   min-height: 38px;
   padding: 0 14px;
-  color: white;
+  color: var(--on-solid);
   background: var(--ink);
   font-size: 10px;
   font-weight: 720;
@@ -4629,7 +4630,7 @@ input::placeholder {
 }
 
 .send-action {
-  color: white;
+  color: var(--on-solid);
   background: var(--ink);
 }
 
@@ -6268,7 +6269,7 @@ input::placeholder {
 }
 
 .approval-forget-confirm button.danger {
-  color: white;
+  color: var(--on-solid);
   background: var(--red);
 }
 
@@ -6322,7 +6323,7 @@ input::placeholder {
   align-items: center;
   padding: 6px 9px 6px 7px;
   border-radius: 12px;
-  background: rgba(40, 39, 34, 0.045);
+  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
   cursor: default;
 }
 
@@ -6447,7 +6448,7 @@ input::placeholder {
 
 .plan-popover li[data-status="completed"] > span:nth-child(2) {
   text-decoration: line-through;
-  text-decoration-color: rgba(40, 39, 34, 0.22);
+  text-decoration-color: color-mix(in srgb, var(--ink) 22%, transparent);
 }
 
 .plan-popover li[data-status="in_progress"] {
@@ -6594,13 +6595,13 @@ input::placeholder {
 }
 
 .primary-action {
-  color: white;
+  color: var(--on-solid);
   background: var(--ink);
   box-shadow: var(--shadow-sm);
 }
 
 .primary-action:hover:not(:disabled) {
-  background: #3b3932;
+  background: color-mix(in srgb, var(--ink) 88%, var(--paper));
 }
 
 .secondary-action {
@@ -6615,16 +6616,16 @@ input::placeholder {
 
 .quiet-action:hover:not(:disabled) {
   color: var(--ink);
-  background: rgba(40, 39, 34, 0.055);
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
 }
 
 .danger-action {
-  color: white;
+  color: var(--on-solid);
   background: var(--red);
 }
 
 .danger-action:hover:not(:disabled) {
-  background: #8f3e36;
+  background: color-mix(in srgb, var(--red) 84%, black);
 }
 
 .primary-action:active:not(:disabled),
@@ -6637,7 +6638,7 @@ input::placeholder {
 .goal-tray {
   padding: 14px;
   border-radius: 17px;
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--paper-raised) 70%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -6663,7 +6664,7 @@ input::placeholder {
   padding: 5px 7px;
   border-radius: 999px;
   color: var(--ink-muted);
-  background: rgba(40, 39, 34, 0.055);
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
   font-size: 9px;
   font-weight: 720;
   white-space: nowrap;
@@ -6818,7 +6819,7 @@ input::placeholder {
   margin-top: 14px;
   padding: 12px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.58);
+  background: color-mix(in srgb, var(--paper-raised) 58%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -6862,8 +6863,24 @@ input::placeholder {
 
 .boot-state button {
   padding: 0 18px;
-  color: white;
+  color: var(--on-solid);
   background: var(--ink);
+}
+
+.boot-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.boot-actions button + button {
+  border: 1px solid var(--divider-strong);
+  color: var(--ink);
+  background: var(--paper-raised);
+}
+
+.boot-state p[role="alert"] {
+  margin-top: 14px;
+  color: var(--red);
 }
 
 .brand-mark {
@@ -6872,7 +6889,7 @@ input::placeholder {
   height: 56px;
   place-items: center;
   border-radius: 18px;
-  color: white;
+  color: var(--on-solid);
   background: var(--ink);
   box-shadow: var(--shadow-sm);
   font-family: Georgia, serif;

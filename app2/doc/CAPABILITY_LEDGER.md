@@ -66,9 +66,9 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 
 | ID | 旧 endpoint | app2 本地 | app2 remote | 阶段 | 状态 | 验收 |
 | --- | --- | --- | --- | --- | --- | --- |
-| P01 | `/v2/info` | `/v2/info` + supervisor identity check | 同 `/v2/info` | R1/R10 | implemented | remote HTTPS attach 同时校验 TLS、origin-only endpoint、server name、instance/protocol 与 `runtime.discover`；待最终 conformance |
-| P02 | `/v2/health/live` | `/v2/health/live` | 同 `/v2/health/live` | R1/R10 | implemented | remote attach 与每次 bootstrap 都要求 live identity 对齐；待 offline/restart 最终矩阵 |
-| P03 | `/v2/health/ready` | `/v2/health/ready` | 同 `/v2/health/ready` | R1/R10 | implemented | remote attach 不把 liveness 冒充 readiness，ready 与 discover 同 generation；待最终 conformance |
+| P01 | `/v2/info` | `/v2/info` + supervisor identity check | 同 `/v2/info` | R1/R10 | implemented | remote HTTPS attach 同时校验 TLS、origin-only endpoint、server name、instance/protocol 与 `runtime.discover`；Desktop 有 profile/active identity 与 local escape，待最终 conformance |
+| P02 | `/v2/health/live` | `/v2/health/live` | 同 `/v2/health/live` | R1/R10 | implemented | remote attach 与每次 bootstrap 都要求 live identity 对齐；active remote boot failure 可显式回到 local，待 offline/restart 最终矩阵 |
+| P03 | `/v2/health/ready` | `/v2/health/ready` | 同 `/v2/health/ready` | R1/R10 | implemented | remote attach 不把 liveness 冒充 readiness，ready/discover/instance 同代；target change remount Workspace，待最终 conformance |
 
 ## 5. Runtime topics 映射（16）
 
@@ -130,7 +130,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | implemented | 既有 `items.list(desc)` 按需翻页、snapshot overlap skip、Run summary merge、Cmd/Ctrl+F、Enter/Shift+Enter、loaded highlight/exact scroll 与逐 window Search older 已实现；mount 不 eager 全历史，待 large-history/a11y/visual/package 门禁 |
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
 | U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8/R9 | implemented | explicit Settings 已完成 Provider/Model、MCP、Approval、Schedules、Lifecycle Hooks 与 7/30/all-time Usage；用量只消费 terminal Runtime authority，明确 unknown-cost，selected Session 单独展示；待最终 UI/restart/package 门禁 |
-| U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
+| U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | in_progress | single-owner strict theme/accent persistence、system scheme、Linen/Graphite semantic token ladder、4 accents、live Mermaid scheme 与 Appearance UI 已实现；locale dictionaries/no raw key/RTL 仍待下一 production 批与最终门禁 |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
 | U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |
 

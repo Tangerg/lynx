@@ -286,7 +286,11 @@
   overflow: hidden;
   border-radius: 13px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.68), transparent),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--paper-raised) 68%, transparent),
+      transparent
+    ),
     var(--paper-muted);
   box-shadow: 0 0 0 1px var(--divider);
 }
@@ -477,7 +481,12 @@
   place-items: center;
   color: var(--ink-muted);
   background:
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.74), transparent),
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--paper-raised) 74%, transparent),
+      transparent
+    ),
     var(--paper-muted);
   background-size: 220% 100%;
   animation: mermaid-shimmer 1.8s linear infinite;

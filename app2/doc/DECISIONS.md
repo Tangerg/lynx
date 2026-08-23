@@ -563,3 +563,21 @@ enhancement、安全分层与交互机制，不复制协议、component family �
 **后果**：Lyra Protocol、89 operations、topics/events、SQLite epoch 与 generated contract shape 零变化；新增前端 parser/render dependencies
 只属于 Desktop bundle。U17/U18 到 `implemented`，CSP/bundle budget、streaming incomplete syntax、large payload、keyboard/screen reader、Retina/
 WebKit 与 packaged native save 的证据在 R11 统一产出。
+
+## ADR-A2-039：Appearance 是有限本地偏好，Runtime target change 是实例替换
+
+**缺陷与反例**：旧实现曾把 theme、accent、font、density、plugin contribution 与任意 custom colors 聚在大型 persisted UI store；app2 若照搬，
+会在只需要两个 taste axis 时重新建立 plugin kernel 与无界 token writer。另一方面，把 remote/local Runtime 当普通下拉偏好只替换 endpoint，会让旧
+Query cache、selected Session、draft 与 stream owner 继续活在新实例上。
+
+**决定**：app2 当前 appearance 范围只有 finite theme 与 accent。单一 `ShellPreferencesProvider` strict 读取/写入 local value、解析 system scheme、
+监听 OS change，并把 resolved Linen/Graphite token ladder 与 functional accent 一次性发布到 root；组件不得各写 localStorage，也不开放 custom CSS/
+theme plugin host。Mermaid 等需要 literal scheme 的 renderer 订阅同一 owner，并在自己的 serialized lifecycle 内重建。
+
+Runtime target 仍由 ADR-A2-037 的 DesktopHost/remote manager/keyring owner 修改。Settings 只提交 write-only secret 或选择 saved/local profile；active
+target 改变后，App 重新 bootstrap，并以 endpoint/instance/generation key remount Workspace。启动阶段 active remote 不可达时，failure surface 可调用
+同一个 `UseLocalRuntime` owner 逃生，不增加 bypass 或第二连接 store。
+
+**后果**：theme/accent/light-dark production path 到 implemented，locale/RTL 单独继续，避免伪完成；remote/local switch 不改变 Lyra method/event/
+error shape。appearance persistence failure 不改变当前 in-memory preference，Runtime mutation failure 不替换当前 consumer tree。视觉、offline/restart、
+keyring/native、WebKit 与 package 证据仍在 R11 统一验证。

@@ -52,6 +52,7 @@ import {
 interface WorkspaceShellProps {
   connection: RuntimeConnection;
   discovery: DiscoverResponse;
+  onRuntimeChanged(): Promise<void>;
 }
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
@@ -571,6 +572,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 				connection={connection}
 				sessionId={selectedSession?.id}
 				workspace={selectedSession?.workspace.ref}
+				onRuntimeChanged={props.onRuntimeChanged}
 				onClose={() => setSettingsOpen(false)}
 				onOpenSession={(sessionId) => {
 					setSelectedSessionId(sessionId);

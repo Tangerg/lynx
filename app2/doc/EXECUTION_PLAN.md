@@ -32,7 +32,7 @@
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | implemented（真实 PreCompact producer 已由 R10 compaction 纵切补齐，整体待最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | implemented（production 纵切与全 topic/resync 已闭环，最终统一门禁留到 R11） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | implemented（production 纵切已闭环，最终统一门禁留到 R11） |
-| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（R10a remote/tool/lifecycle 与 R10b content/media production 已实现，shell product 收口继续） |
+| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（R10a remote/tool/lifecycle、R10b content/media、R10c appearance/remote control production 已实现，locale 与 product 收口继续） |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
 | R12 | 迁移 CLI/其余 consumer（deferred，本轮不实施） | deferred |
 | R13 | 切换与删除旧 app（deferred，本轮不实施） | deferred |
@@ -829,6 +829,14 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - fenced code 拥有 language、copy、wrap 与 plain fallback；Shiki 仅在带语言 code 首次出现时动态加载，未知 language 或加载失败不损失 source。table 使用可聚焦 semantic overflow container；KaTeX 保留横向阅读而不挤坏 Narrative；Mermaid 进入视口前不加载，使用 strict renderer、unique identity 与二次 SVG sanitation，失败回退原始 source；
 - Runtime `ContentBlock` 与 Lyra Protocol 完全不变。Renderer 只接受 allowlisted image MIME、strict base64 与 32 MiB 对应的 encoded bound；相邻图片组成 gallery。lightbox 支持 zoom、前后键、Escape、focus containment、40px+ controls 与 reduced-motion；保存只调用既有 `NativeHost.SaveImage`，由 Go host 再次校验并打开 native save dialog，不建立浏览器 download 或任意路径写入；
 - `react-markdown`/unified、KaTeX、Shiki、Mermaid 是 presentation implementation detail，不形成新的 wire、conversation identity 或参考产品兼容层。U17/U18 到 `implemented`；streaming/large material/a11y/visual/WebKit/package 与 dependency audit 留到 R11 统一门禁。
+
+### R10c Appearance / remote control 实现记录（尚未统一验证）
+
+- shell appearance 由单一 React context owner 持有，只持久化 strict `{theme, accent}` value；system/light/dark resolution、OS scheme listener、root token painting、native `color-scheme`/theme-color 同步在一个 boundary 完成。内建 Linen/Graphite 与四个 functional accents 不建立 plugin registry、custom theme engine 或 component-local storage；
+- dark token ladder、status foreground 与之前散落的 light-only translucent surface 已收敛到 semantic tokens；内容 Mermaid 在 serialized render owner 内按当前 scheme 重建，避免切换主题后保留不可读 SVG；
+- Settings 增加 Appearance 与 Runtime connection 两个真实页面。remote profile 显示 active identity，initial/replacement secret 仍只作为 write-only Wails call 进入 OS keyring；saved remote/local/forget 都经过既有 DesktopHost owner，mutation single-flight，active target change 以 Runtime instance/generation key 重新 mount Workspace，避免 Query 与 local Session state 跨实例串线；
+- active remote 在启动时不可达时，boot failure 提供显式 `Use local Runtime` recovery，不要求先进入已不可达 Runtime 的 Settings。remote 仍复用 Lyra probes/RPC；本批没有新增 wire、descriptor 或 secret persistence；
+- U22 中 theme/accent/light-dark production 已实现，locale/RTL 仍保持 `in_progress`，不得因只设置 `lang` 冒充完成。P01–P03 的用户切换/离线逃生路径已接通；最终 network/package matrix 留到 R11。
 
 ## 15. R11：Wave A 全量 parity 与切换
 

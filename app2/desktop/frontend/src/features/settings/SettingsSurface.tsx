@@ -8,6 +8,9 @@ import { ProviderModelSettings } from "./ProviderModelSettings";
 import { ScheduleSettings } from "./ScheduleSettings";
 import { HookSettings } from "./HookSettings";
 import { UsageSettings } from "./UsageSettings";
+import { AppearanceSettings } from "./AppearanceSettings";
+import { RuntimeSettings } from "./RuntimeSettings";
+import "./ShellSettings.css";
 
 interface SettingsSurfaceProps {
 	connection: RuntimeConnection;
@@ -15,9 +18,12 @@ interface SettingsSurfaceProps {
 	workspace?: WorkspaceRef;
 	onClose: () => void;
 	onOpenSession: (sessionId: string) => void;
+	onRuntimeChanged: () => Promise<void>;
 }
 
 type SettingsPage =
+	| "appearance"
+	| "runtime"
 	| "providers"
 	| "mcp"
 	| "approvals"
@@ -26,6 +32,14 @@ type SettingsPage =
 	| "usage";
 
 const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
+	appearance: {
+		title: "Appearance",
+		description: "Choose a durable theme and accent without changing application semantics.",
+	},
+	runtime: {
+		title: "Runtime connection",
+		description: "Switch between the supervised local Runtime and one verified remote deployment.",
+	},
 	providers: {
 		title: "Models & providers",
 		description: "Connect model providers and assign optional Runtime-wide model roles.",
@@ -53,21 +67,40 @@ const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 };
 
 export function SettingsSurface(props: SettingsSurfaceProps) {
-	const [page, setPage] = useState<SettingsPage>("providers");
+	const [page, setPage] = useState<SettingsPage>("appearance");
+	const surface = useRef<HTMLElement>(null);
 	const closeButton = useRef<HTMLButtonElement>(null);
 	const close = useRef(props.onClose);
 	close.current = props.onClose;
 
 	useEffect(() => {
 		closeButton.current?.focus();
-		const closeOnEscape = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
-			event.preventDefault();
-			close.current();
+		const handleDialogKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				close.current();
+				return;
+			}
+			if (event.key !== "Tab") return;
+			const controls = [
+				...(surface.current?.querySelectorAll<HTMLElement>(
+					'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+				) ?? []),
+			];
+			const first = controls[0];
+			const last = controls.at(-1);
+			if (first === undefined || last === undefined) return;
+			if (event.shiftKey && document.activeElement === first) {
+				event.preventDefault();
+				last.focus();
+			} else if (!event.shiftKey && document.activeElement === last) {
+				event.preventDefault();
+				first.focus();
+			}
 		};
-		window.addEventListener("keydown", closeOnEscape);
+		window.addEventListener("keydown", handleDialogKey);
 		return () => {
-			window.removeEventListener("keydown", closeOnEscape);
+			window.removeEventListener("keydown", handleDialogKey);
 			window.requestAnimationFrame(() => {
 				const trigger = document.querySelector<HTMLButtonElement>(
 					'button[aria-label="Open settings"]',
@@ -79,6 +112,7 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 
 	return (
 		<section
+			ref={surface}
 			className="settings-surface"
 			role="dialog"
 			aria-modal="true"
@@ -86,10 +120,26 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 		>
 			<aside className="settings-nav">
 				<header>
-					<span className="eyebrow">Lyra Runtime</span>
+					<span className="eyebrow">Lyra Desktop</span>
 					<h2>Settings</h2>
 				</header>
 				<nav aria-label="Settings sections">
+					<button
+						type="button"
+						aria-current={page === "appearance" ? "page" : undefined}
+						onClick={() => setPage("appearance")}
+					>
+						<span aria-hidden="true">◐</span>
+						Appearance
+					</button>
+					<button
+						type="button"
+						aria-current={page === "runtime" ? "page" : undefined}
+						onClick={() => setPage("runtime")}
+					>
+						<span aria-hidden="true">⇄</span>
+						Runtime connection
+					</button>
 					<button
 						type="button"
 						aria-current={page === "providers" ? "page" : undefined}
@@ -139,12 +189,12 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						Usage
 					</button>
 				</nav>
-				<p>Secrets are write-only. Runtime state remains the authority after every mutation.</p>
+				<p>Appearance stays local. Runtime state remains the authority after every mutation.</p>
 			</aside>
 			<div className="settings-content">
 				<header className="settings-heading">
 					<div>
-						<span className="eyebrow">Runtime configuration</span>
+						<span className="eyebrow">Desktop settings</span>
 						<h1 id="settings-title">{pageCopy[page].title}</h1>
 						<p>{pageCopy[page].description}</p>
 					</div>
@@ -159,7 +209,11 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 					</button>
 				</header>
 				<div className="settings-scroll">
-					{page === "providers" ? (
+					{page === "appearance" ? (
+						<AppearanceSettings />
+					) : page === "runtime" ? (
+						<RuntimeSettings onRuntimeChanged={props.onRuntimeChanged} />
+					) : page === "providers" ? (
 						<ProviderModelSettings connection={props.connection} />
 					) : page === "mcp" ? (
 						<MCPSettings connection={props.connection} />

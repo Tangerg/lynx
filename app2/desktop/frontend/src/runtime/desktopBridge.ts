@@ -159,8 +159,18 @@ export async function forgetRemoteRuntime(binding?: DesktopBinding) {
 }
 
 function parseRemoteRuntimeState(value: unknown): RemoteRuntimeState {
+	const allowedKeys = new Set([
+		"configured",
+		"active",
+		"connected",
+		"endpoint",
+		"serverName",
+		"detail",
+	]);
 	if (
 		!isRecord(value) ||
+		!["configured", "active", "connected"].every((key) => key in value) ||
+		!Object.keys(value).every((key) => allowedKeys.has(key)) ||
 		typeof value.configured !== "boolean" ||
 		typeof value.active !== "boolean" ||
 		typeof value.connected !== "boolean" ||
@@ -170,7 +180,38 @@ function parseRemoteRuntimeState(value: unknown): RemoteRuntimeState {
 	) {
 		throw new TypeError("Desktop returned an invalid remote Runtime state");
 	}
+	if (
+		(value.active && !value.configured) ||
+		(value.connected && !value.active) ||
+		value.configured !== (value.endpoint !== undefined) ||
+		value.configured !== (value.serverName !== undefined) ||
+		(value.endpoint !== undefined && !isSafeRemoteOrigin(value.endpoint)) ||
+		(value.serverName !== undefined &&
+			(value.serverName.trim() !== value.serverName || value.serverName === "")) ||
+		(value.detail !== undefined &&
+			(value.detail.trim() !== value.detail || value.detail.length > 4_096))
+	) {
+		throw new TypeError("Desktop returned an inconsistent remote Runtime state");
+	}
 	return value as unknown as RemoteRuntimeState;
+}
+
+function isSafeRemoteOrigin(value: string) {
+	try {
+		const endpoint = new URL(value);
+		return (
+			endpoint.protocol === "https:" &&
+			value.trim() === value &&
+			endpoint.hostname !== "" &&
+			endpoint.pathname === "/" &&
+			endpoint.search === "" &&
+			endpoint.hash === "" &&
+			endpoint.username === "" &&
+			endpoint.password === ""
+		);
+	} catch {
+		return false;
+	}
 }
 
 export async function chooseDirectory(

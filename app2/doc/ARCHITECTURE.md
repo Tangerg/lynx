@@ -302,6 +302,10 @@ global/session    session/run                      workspace/session/run
 Runtime event 是 Query invalidation 或 Agent fold 输入，不直接修改多个 stores。mutation owner 管理 single-flight、
 optimistic compensation 和迟到 settlement；裸 gateway 不能绕过它。
 
+Shell preference store 在 app2 是一个 composition-root context：只持久化 strict finite values，由同一 owner 解析 system scheme、监听 OS
+变化并一次性 paint root tokens。Theme/accent 是 presentation preference，不进入 Runtime、Query cache 或 plugin registry。Runtime target change
+则相反：它不是 theme preference，必须通过 DesktopHost/keyring owner，并以新 `instanceId/generation` remount 整个 Workspace consumer tree。
+
 ### 8.4 渲染性能与正确性
 
 - streaming fold 在协议入口做一次解析/归一化，render 不按 token 重复 parse；

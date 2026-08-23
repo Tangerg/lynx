@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+import { ShellPreferencesProvider } from "./features/preferences/ShellPreferences";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,8 +16,10 @@ if (!root) throw new Error("Lyra root element is missing");
 
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ShellPreferencesProvider>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ShellPreferencesProvider>
   </StrictMode>,
 );
