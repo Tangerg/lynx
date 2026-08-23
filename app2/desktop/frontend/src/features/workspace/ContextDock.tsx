@@ -59,6 +59,7 @@ interface ContextDockProps {
   cancelingRunId?: string;
   cancelError?: { runId: string; message: string };
   skillsEnabled: boolean;
+  knowledgeEnabled: boolean;
   onExpandedChange(expanded: boolean): void;
   onCancelRun(runId: string): Promise<void>;
   children: ReactNode;
@@ -173,6 +174,7 @@ export function ContextDock(props: ContextDockProps) {
             workspace={props.session.workspace.ref}
             state={state}
             skillsEnabled={props.skillsEnabled}
+            knowledgeEnabled={props.knowledgeEnabled}
             update={update}
             onOpenFile={openFile}
             onCloseFile={closeFile}
@@ -216,6 +218,7 @@ interface WorkspaceBrowserProps {
   workspace: WorkspaceRef;
   state: SessionDockState;
   skillsEnabled: boolean;
+  knowledgeEnabled: boolean;
   update(change: (current: SessionDockState) => SessionDockState): void;
   onOpenFile(path: string, line?: number): void;
   onCloseFile(path: string): void;
@@ -388,6 +391,7 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
           connection={props.connection}
           workspace={props.workspace}
           skillsEnabled={props.skillsEnabled}
+          knowledgeEnabled={props.knowledgeEnabled}
           view={props.state.resourceView}
           skillView={props.state.skillView}
           onViewChange={(resourceView) =>

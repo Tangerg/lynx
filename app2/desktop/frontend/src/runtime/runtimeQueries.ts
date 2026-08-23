@@ -17,6 +17,8 @@ import {
   type GoalBudget,
   type GrepResult,
   type InterruptResponse,
+  type KnowledgeEntry,
+  type KnowledgeScope,
   type ManagedSkill,
   type Model,
   type Page,
@@ -158,6 +160,12 @@ export const runtimeQueryKeys = {
   skillLibrary(connection: RuntimeConnection) {
     return [...this.skills(connection), "library"] as const;
   },
+  knowledge(connection: RuntimeConnection) {
+    return [...this.scope(connection), "knowledge"] as const;
+  },
+  workspaceKnowledge(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.knowledge(connection), workspacePath] as const;
+  },
 };
 
 function client(connection: RuntimeConnection): LyraClient {
@@ -295,6 +303,35 @@ export function listAgentDocs(
   return client(connection).call(
     "agentDocs.list",
     { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listKnowledge(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<Page<KnowledgeEntry>> {
+  return client(connection).call(
+    "knowledge.list",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function updateKnowledge(
+  connection: RuntimeConnection,
+  request: {
+    scope: KnowledgeScope;
+    workspace?: WorkspaceRef;
+    expectedRevision: string;
+    content: string;
+  },
+  signal?: AbortSignal,
+): Promise<KnowledgeEntry> {
+  return client(connection).call(
+    "knowledge.update",
+    request,
     { meta: clientMeta, signal },
   );
 }
@@ -610,6 +647,7 @@ export async function consumeRuntimeInvalidations(
         "models.changed",
         "files.changed",
         "skills.changed",
+        "knowledge.changed",
         "codebase.changed",
       ],
       ...(watch === undefined

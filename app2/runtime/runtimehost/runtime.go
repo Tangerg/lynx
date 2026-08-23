@@ -152,6 +152,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	events, err := runtimeevents.New(runtimeevents.Config{
 		UserSkillsDirectory: filepath.Join(config.UserHome, ".lyra", "skills"),
+		KnowledgeFiles: capabilities,
 	})
 	if err != nil {
 		return nil, err
@@ -181,6 +182,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	executor, err := agentexec.New(agentexec.Config{
 		Clients: providers, Tools: agentToolCatalog,
 		Documents: runtimeAgentDocuments{capabilities: capabilities},
+		Knowledge: runtimeKnowledgeDocuments{capabilities: capabilities},
 	})
 	if err != nil {
 		return nil, err

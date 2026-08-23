@@ -13,12 +13,15 @@ import {
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
 import type { ResourceView, SkillView } from "./contextDockState";
+import { KnowledgeWorkspace } from "./KnowledgeWorkspace";
+import { ResourceState } from "./ResourceState";
 import { SkillsWorkspace } from "./SkillsWorkspace";
 
 interface ResourcesWorkspaceProps {
   connection: RuntimeConnection;
   workspace: WorkspaceRef;
   skillsEnabled: boolean;
+  knowledgeEnabled: boolean;
   view: ResourceView;
   skillView: SkillView;
   onViewChange(view: ResourceView): void;
@@ -65,6 +68,11 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
           selected={props.view === "agentDocs"}
           onSelect={() => props.onViewChange("agentDocs")}
         />
+        <ResourceButton
+          label="Knowledge"
+          selected={props.view === "knowledge"}
+          onSelect={() => props.onViewChange("knowledge")}
+        />
       </nav>
       {props.view === "skills" ? (
         <SkillsWorkspace
@@ -81,12 +89,18 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
           error={recipes.error}
           onRetry={() => void recipes.refetch()}
         />
-      ) : (
+      ) : props.view === "agentDocs" ? (
         <AgentDocCatalog
           values={agentDocs.data?.data}
           pending={agentDocs.isPending}
           error={agentDocs.error}
           onRetry={() => void agentDocs.refetch()}
+        />
+      ) : (
+        <KnowledgeWorkspace
+          connection={props.connection}
+          workspace={props.workspace}
+          enabled={props.knowledgeEnabled}
         />
       )}
     </section>
@@ -201,25 +215,6 @@ function AgentDocCatalog(props: {
 
 function ResourceTag(props: { children: string }) {
   return <span className="resource-tag">{props.children}</span>;
-}
-
-function ResourceState(props: {
-  title: string;
-  detail?: string;
-  action?: string;
-  onAction?(): void;
-}) {
-  return (
-    <div className="resource-state">
-      <h4>{props.title}</h4>
-      {props.detail ? <p>{props.detail}</p> : null}
-      {props.action && props.onAction ? (
-        <button type="button" onClick={props.onAction}>
-          {props.action}
-        </button>
-      ) : null}
-    </div>
-  );
 }
 
 function compactPath(path: string) {

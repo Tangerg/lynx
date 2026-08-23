@@ -1760,7 +1760,9 @@ input::placeholder {
   flex: none;
   gap: 4px;
   padding: 9px 12px;
+  overflow-x: auto;
   border-bottom: 1px solid var(--divider);
+  scrollbar-width: thin;
 }
 
 .resource-view-switch button {
@@ -1916,6 +1918,104 @@ input::placeholder {
   padding: 0 10px;
   font-size: 8px;
   font-weight: 700;
+}
+
+.knowledge-document-list {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.knowledge-document {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: var(--paper-raised);
+}
+
+.knowledge-document > header,
+.knowledge-document > footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.knowledge-document > header {
+  justify-content: space-between;
+}
+
+.knowledge-document h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 730;
+}
+
+.knowledge-document header p,
+.knowledge-document header time,
+.knowledge-document header > span,
+.knowledge-document footer > span {
+  color: var(--ink-muted);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.knowledge-document header p {
+  margin: 3px 0 0;
+}
+
+.knowledge-document header time,
+.knowledge-document header > span {
+  text-align: right;
+}
+
+.knowledge-document textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--divider);
+  border-radius: 9px;
+  outline: 0;
+  color: var(--ink-subtle);
+  background: var(--paper);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.knowledge-document textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--divider));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+.knowledge-document > footer {
+  justify-content: flex-end;
+}
+
+.knowledge-document footer > span {
+  margin-right: auto;
+}
+
+.knowledge-document footer button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.knowledge-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 9px;
+  line-height: 1.5;
 }
 
 .skill-view-switch {

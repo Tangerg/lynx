@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -43,6 +45,15 @@ type AgentDocument struct {
 	Content string
 }
 
+type KnowledgeDocumentSource interface {
+	Knowledge(context.Context, string) ([]KnowledgeDocument, error)
+}
+
+type KnowledgeDocument struct {
+	Path    string
+	Content string
+}
+
 // ToolFactSink receives committed domain facts that cannot be reconstructed
 // from a provider-facing string result. The executor owns its lifetime and
 // attaches each fact to the exact observed ToolCall.
@@ -62,20 +73,23 @@ type Executor struct {
 	clients   ClientResolver
 	tools     ToolCatalog
 	documents AgentDocumentSource
+	knowledge KnowledgeDocumentSource
 }
 
 type Config struct {
 	Clients   ClientResolver
 	Tools     ToolCatalog
 	Documents AgentDocumentSource
+	Knowledge KnowledgeDocumentSource
 }
 
 func New(config Config) (*Executor, error) {
-	if config.Clients == nil || config.Documents == nil {
-		return nil, errors.New("agentexec: clients and agent documents are required")
+	if config.Clients == nil || config.Documents == nil || config.Knowledge == nil {
+		return nil, errors.New("agentexec: clients, agent documents and knowledge are required")
 	}
 	return &Executor{
-		clients: config.Clients, tools: config.Tools, documents: config.Documents,
+		clients: config.Clients, tools: config.Tools,
+		documents: config.Documents, knowledge: config.Knowledge,
 	}, nil
 }
 
@@ -289,6 +303,14 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 		return Output{}, err
 	}
 	if input.IsRootRun {
+		knowledge, err := executor.knowledge.Knowledge(ctx, input.Workspace)
+		if err != nil {
+			return Output{}, fmt.Errorf("agentexec: load knowledge: %w", err)
+		}
+		knowledgeGuidance, err := renderKnowledgeDocuments(knowledge)
+		if err != nil {
+			return Output{}, err
+		}
 		documents, err := executor.documents.Documents(ctx, input.Workspace)
 		if err != nil {
 			return Output{}, fmt.Errorf("agentexec: load agent documents: %w", err)
@@ -297,8 +319,16 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 		if err != nil {
 			return Output{}, err
 		}
-		if guidance != "" {
-			messages = append([]chat.Message{chat.NewSystemMessage(guidance)}, messages...)
+		workingContext := strings.Join(
+			slices.DeleteFunc([]string{knowledgeGuidance, guidance}, func(value string) bool {
+				return value == ""
+			}),
+			"\n\n",
+		)
+		if workingContext != "" {
+			messages = append(
+				[]chat.Message{chat.NewSystemMessage(workingContext)}, messages...,
+			)
 		}
 	}
 	prepared, err := executor.deployment(ctx, deploymentRequest{

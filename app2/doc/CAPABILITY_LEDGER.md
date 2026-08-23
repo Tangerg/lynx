@@ -56,7 +56,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | specified | provider/model 显式配对、capability/pricing/context、role validation、catalog invalidation |
 | O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | specified | catalog 是诊断非 Run 配置；manual invoke 完整 approval/safety/result/error 语义 |
 | O20 | `usage.session`, `usage.summary` | 2 | operations/usage | R9 | specified | exact attribution、day/model/provider buckets、unknown cost 缺席、terminal/restart 稳定 |
-| O21 | `knowledge.list`, `knowledge.get`, `knowledge.update` | 3 | capability/knowledge | R7 | specified | cwd/projectRoot/home、path/content/revision、CAS、外部文件变化 invalidation |
+| O21 | `knowledge.list`, `knowledge.get`, `knowledge.update` | 3 | capability/knowledge | R7 | implemented | distinct home→projectRoot→cwd file cascade、confined physical-target CAS/atomic publish、fresh-root bounded injection/checkpoint freeze、exact external watcher、Desktop conflict-preserving editor 已实现；待最终统一门禁 |
 | O22 | `agentMemory.list`, `agentMemory.review`, `agentMemory.update`, `agentMemory.delete`, `agentMemory.add` | 5 | capability/memory | R7 | specified | project/user、pending/active、auto/user、pin/source、review 后才注入、条件写 |
 | O23 | `feedback.create` | 1 | operations/feedback | R9 | specified | bounded/redacted payload、run/session attribution、transport failure 不改 Run outcome |
 
@@ -128,7 +128,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
-| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | in_progress | Codebase index/search 已覆盖 none/indexing/ready/error/provider failure/empty/result 与 exact-line navigation；Resources 已覆盖 Skills Available/Proposals/Library、Recipes full prompt/source/slash invoke、AgentDocs hierarchy/path 及各自 loading/error/empty；memory/knowledge/tool 随 R7 |
+| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | in_progress | Codebase index/search 已覆盖完整状态；Resources 已覆盖 Skills 三面、Recipes prompt/source/slash invoke、AgentDocs hierarchy/path、Knowledge distinct scopes/CAS dirty editor/uncertain acknowledgement convergence；memory/tool 随 R7 |
 | U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | specified | form draft 与 wire 分离、validation/test/save、secret masked、query invalidation |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |

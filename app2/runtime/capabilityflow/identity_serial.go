@@ -12,36 +12,35 @@ func skillProposalLane(workspace, name string) string {
 	return "proposal\x00" + workspace + "\x00" + name
 }
 
-// skillCoordinator serializes only operations that contend for the same user
-// library or immutable proposal identity. Its mutex owns the lane registry;
-// cancellable lane tokens own I/O ordering, so unrelated project Skills never
-// wait behind one global lock.
-type skillCoordinator struct {
+// identityCoordinator serializes only operations that contend for the same
+// physical or domain identity. Its mutex owns the lane registry; cancellable
+// tokens own I/O ordering, so unrelated resources never wait behind global I/O.
+type identityCoordinator struct {
 	mu    sync.Mutex
-	lanes map[string]*skillLane
+	lanes map[string]*identityLane
 }
 
-type skillLane struct {
+type identityLane struct {
 	token chan struct{}
 	refs  int
 }
 
-func newSkillCoordinator() *skillCoordinator {
-	return &skillCoordinator{lanes: make(map[string]*skillLane)}
+func newIdentityCoordinator() *identityCoordinator {
+	return &identityCoordinator{lanes: make(map[string]*identityLane)}
 }
 
-func (coordinator *skillCoordinator) Acquire(
+func (coordinator *identityCoordinator) Acquire(
 	ctx context.Context,
 	keys ...string,
 ) (func(), error) {
 	slices.Sort(keys)
 	keys = slices.Compact(keys)
 	coordinator.mu.Lock()
-	lanes := make([]*skillLane, len(keys))
+	lanes := make([]*identityLane, len(keys))
 	for index, key := range keys {
 		lane := coordinator.lanes[key]
 		if lane == nil {
-			lane = &skillLane{token: make(chan struct{}, 1)}
+			lane = &identityLane{token: make(chan struct{}, 1)}
 			lane.token <- struct{}{}
 			coordinator.lanes[key] = lane
 		}
@@ -66,9 +65,9 @@ func (coordinator *skillCoordinator) Acquire(
 	}, nil
 }
 
-func (coordinator *skillCoordinator) release(
+func (coordinator *identityCoordinator) release(
 	keys []string,
-	lanes []*skillLane,
+	lanes []*identityLane,
 	acquired int,
 ) {
 	for index := acquired - 1; index >= 0; index-- {

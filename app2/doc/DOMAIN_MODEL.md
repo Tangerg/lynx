@@ -312,6 +312,11 @@ empty 明确不同。boundary 由 Run FK 拥有，Run 被回滚删除时自动�
 配置写使用闭合 draft/command 和 revision；secret 写采用 `set | clear | keep` 的显式三态，读侧只返回
 masked/source metadata。作用域改变时不得自动搬运 secret。
 
+Knowledge 是人类编辑的 file-backed capability，不是 AgentMemory 或 generic settings：home、projectRoot、cwd 按宽到窄组成
+有效 cascade，正文和 revision 的 owner 都是各自 LYRA.md。相同物理文件在 list 与 Desktop 只能出现一次；conditional update
+绑定物理 target identity 和 content revision，symlink 不得逃逸 scope，也不得因原子替换而意外改写为普通文件。fresh root Run
+读取一次有效 cascade；checkpoint 之后外部变化只影响后续 fresh Run，不改变 waiting/resume 的历史上下文。
+
 ## 11. Runtime 生命周期与事件
 
 `RuntimeInstance` 是进程代际，不是业务聚合：每次启动获得新 `instanceId`，同一 durable store 可跨代保持；

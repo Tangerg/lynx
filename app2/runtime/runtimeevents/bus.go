@@ -93,14 +93,22 @@ type Bus struct {
 	nextID              uint64
 	subscribers         map[uint64]*subscriber
 	userSkillsDirectory string
+	knowledgeFiles      KnowledgeFileSource
 	closed              bool
 	watches             sync.WaitGroup
+}
+
+type KnowledgeFileSource interface {
+	KnowledgeFiles(context.Context, []protocol.WorkspaceRef) ([]string, error)
 }
 
 type Config struct {
 	// UserSkillsDirectory is optional. When set, subscribers to skills.changed
 	// also observe external edits in this absolute, existing directory.
 	UserSkillsDirectory string
+	// KnowledgeFiles resolves the home and selected-workspace LYRA.md documents
+	// observed for subscribers to knowledge.changed.
+	KnowledgeFiles KnowledgeFileSource
 }
 
 func New(config Config) (*Bus, error) {
@@ -118,6 +126,7 @@ func New(config Config) (*Bus, error) {
 	return &Bus{
 		subscribers: make(map[uint64]*subscriber),
 		userSkillsDirectory: directory,
+		knowledgeFiles: config.KnowledgeFiles,
 	}, nil
 }
 
@@ -158,18 +167,35 @@ func (bus *Bus) Subscribe(
 	bus.mu.Unlock()
 
 	for _, watch := range request.Watches {
-		bus.watches.Add(1)
-		go func(spec protocol.WatchSpec) {
-			defer bus.watches.Done()
-			watchFiles(watchContext, subscription, spec)
-		}(watch)
+		if bus.beginWatch() {
+			go func(spec protocol.WatchSpec) {
+				defer bus.watches.Done()
+				watchFiles(watchContext, subscription, spec)
+			}(watch)
+		}
 	}
 	if subscription.accepts(protocol.TopicSkillsChanged) && bus.userSkillsDirectory != "" {
-		bus.watches.Add(1)
-		go func() {
-			defer bus.watches.Done()
-			watchUserSkills(watchContext, subscription, bus.userSkillsDirectory)
-		}()
+		if bus.beginWatch() {
+			go func() {
+				defer bus.watches.Done()
+				watchUserSkills(watchContext, subscription, bus.userSkillsDirectory)
+			}()
+		}
+	}
+	if subscription.accepts(protocol.TopicKnowledgeChanged) && bus.knowledgeFiles != nil {
+		workspaces := make([]protocol.WorkspaceRef, 0, len(request.Watches))
+		for _, watch := range request.Watches {
+			workspaces = append(workspaces, watch.Workspace)
+		}
+		files, filesErr := bus.knowledgeFiles.KnowledgeFiles(watchContext, workspaces)
+		if filesErr != nil {
+			subscription.emit(resyncTopic(protocol.TopicKnowledgeChanged))
+		} else if len(files) > 0 && bus.beginWatch() {
+			go func() {
+				defer bus.watches.Done()
+				watchKnowledgeFiles(watchContext, subscription, files)
+			}()
+		}
 	}
 	remove := func() {
 		cancelWatches()
@@ -196,6 +222,18 @@ func (bus *Bus) Subscribe(
 		}
 	}
 	return &protocol.RuntimeSubscribeResponse{}, stream, nil
+}
+
+// beginWatch makes WaitGroup registration atomic with the closed check. Close
+// may therefore wait without racing a late Subscribe Add.
+func (bus *Bus) beginWatch() bool {
+	bus.mu.Lock()
+	defer bus.mu.Unlock()
+	if bus.closed {
+		return false
+	}
+	bus.watches.Add(1)
+	return true
 }
 
 func (bus *Bus) Close() {
@@ -351,6 +389,54 @@ func watchUserSkills(ctx context.Context, target *subscriber, directory string) 
 				return
 			}
 			target.emit(resyncTopic(protocol.TopicSkillsChanged))
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func watchKnowledgeFiles(
+	ctx context.Context,
+	target *subscriber,
+	files []string,
+) {
+	targets := make(map[string]struct{}, len(files))
+	directories := make(map[string]struct{}, len(files))
+	for _, path := range files {
+		if !filepath.IsAbs(path) {
+			target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
+			return
+		}
+		path = filepath.Clean(path)
+		targets[path] = struct{}{}
+		directories[filepath.Dir(path)] = struct{}{}
+	}
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
+		return
+	}
+	defer watcher.Close()
+	for directory := range directories {
+		if err := watcher.Add(directory); err != nil {
+			target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
+			return
+		}
+	}
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if _, observed := targets[filepath.Clean(event.Name)]; observed {
+				target.emit(protocol.RuntimeEvent{Type: protocol.RuntimeKnowledgeChanged})
+			}
+		case _, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			target.emit(resyncTopic(protocol.TopicKnowledgeChanged))
 		case <-ctx.Done():
 			return
 		}

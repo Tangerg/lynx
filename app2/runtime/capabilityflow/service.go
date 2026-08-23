@@ -5,8 +5,6 @@ package capabilityflow
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +12,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -49,8 +46,7 @@ type Service struct {
 	ids         IDs
 	home        string
 	userRoot    string
-	mu          sync.Mutex
-	skillSerial *skillCoordinator
+	serial      *identityCoordinator
 }
 
 func New(store Store, resolver Resolver, ids IDs, home string) (*Service, error) {
@@ -67,13 +63,9 @@ func New(store Store, resolver Resolver, ids IDs, home string) (*Service, error)
 		ids:         ids,
 		home:        home,
 		userRoot:    filepath.Join(home, ".lyra"),
-		skillSerial: newSkillCoordinator(),
+		serial:      newIdentityCoordinator(),
 	}, nil
 }
-
-func (service *Service) ListKnowledge(ctx context.Context,query protocol.WorkspaceQuery)(*protocol.Page[protocol.KnowledgeEntry],error){values:=make([]protocol.KnowledgeEntry,0,3);for _,scope:=range []protocol.KnowledgeScope{protocol.KnowledgeScopeCWD,protocol.KnowledgeScopeProjectRoot,protocol.KnowledgeScopeHome}{value,err:=service.GetKnowledge(ctx,protocol.GetKnowledgeRequest{Scope:scope,Workspace:&query.Workspace});if err!=nil{return nil,err};values=append(values,*value)};return protocol.NewPage(values),nil}
-func (service *Service) GetKnowledge(ctx context.Context,request protocol.GetKnowledgeRequest)(*protocol.KnowledgeEntry,error){path,err:=service.knowledgePath(ctx,request.Scope,request.Workspace);if err!=nil{return nil,err};data,modified,err:=readOptional(path);if err!=nil{return nil,err};return &protocol.KnowledgeEntry{Scope:request.Scope,Content:string(data),Revision:revision(data),UpdatedAt:modified},nil}
-func (service *Service) UpdateKnowledge(ctx context.Context,request protocol.UpdateKnowledgeRequest)(*protocol.KnowledgeEntry,error){if !request.Scope.Valid(){return nil,fmt.Errorf("%w: invalid knowledge scope",protocol.ErrInvalidParams)};path,err:=service.knowledgePath(ctx,request.Scope,request.Workspace);if err!=nil{return nil,err};service.mu.Lock();defer service.mu.Unlock();current,_,err:=readOptional(path);if err!=nil{return nil,err};if revision(current)!=request.ExpectedRevision{return nil,protocol.ErrRevisionConflict};mode:=os.FileMode(0o644);if request.Scope==protocol.KnowledgeScopeHome{mode=0o600};if err:=atomicWrite(path,[]byte(request.Content),mode);err!=nil{return nil,err};info,err:=os.Stat(path);if err!=nil{return nil,err};return &protocol.KnowledgeEntry{Scope:request.Scope,Content:request.Content,Revision:revision([]byte(request.Content)),UpdatedAt:info.ModTime()},nil}
 
 func (service *Service) ListMemory(ctx context.Context,request protocol.AgentMemoryListRequest)(*protocol.AgentMemoryList,error){project,err:=service.memoryProject(ctx,request.Scope,request.Workspace);if err!=nil{return nil,err};values,err:=service.store.ListAgentMemoryRecords(ctx,request.Scope,project);if err!=nil{return nil,err};return &protocol.AgentMemoryList{Items:values},nil}
 func (service *Service) AddMemory(ctx context.Context,request protocol.AgentMemoryAddRequest)(*protocol.AgentMemoryItem,error){if strings.TrimSpace(request.Content)==""{return nil,fmt.Errorf("%w: content is required",protocol.ErrInvalidParams)};project,err:=service.memoryProject(ctx,request.Scope,request.Workspace);if err!=nil{return nil,err};id,err:=service.ids.New("mem_");if err!=nil{return nil,err};now:=time.Now().UTC();value:=protocol.AgentMemoryItem{ID:id,Scope:request.Scope,Content:strings.TrimSpace(request.Content),Origin:protocol.AgentMemoryOriginUser,Status:protocol.AgentMemoryStatusActive,CreatedAt:now,UpdatedAt:now};if err:=service.store.PutAgentMemoryRecord(ctx,value,project);err!=nil{return nil,err};return &value,nil}
@@ -85,10 +77,6 @@ func (service *Service) ListHooks(ctx context.Context,request protocol.ListHooks
 func (service *Service) SetHookTrust(ctx context.Context,request protocol.SetHookTrustRequest)error{if !filepath.IsAbs(request.ProjectRoot){return fmt.Errorf("%w: project root must be absolute",protocol.ErrInvalidParams)};return service.store.SetProjectHookTrust(ctx,filepath.Clean(request.ProjectRoot),request.Trusted)}
 
 func (service *Service) resolve(ctx context.Context,workspace *protocol.WorkspaceRef)(workspacefs.Resolution,error){requested:="";if workspace!=nil{requested=workspace.Path};resolved,err:=service.resolver.Resolve(ctx,requested);if err!=nil||!resolved.Available{return workspacefs.Resolution{},protocol.ErrWorkspaceUnavailable};return resolved,nil}
-func (service *Service) knowledgePath(ctx context.Context,scope protocol.KnowledgeScope,workspace *protocol.WorkspaceRef)(string,error){if !scope.Valid(){return "",fmt.Errorf("%w: invalid knowledge scope",protocol.ErrInvalidParams)};if scope==protocol.KnowledgeScopeHome{return filepath.Join(service.userRoot,"LYRA.md"),nil};resolved,err:=service.resolve(ctx,workspace);if err!=nil{return "",err};root:=resolved.Workspace.Path();if scope==protocol.KnowledgeScopeProjectRoot&&resolved.ProjectRoot!=""{root=resolved.ProjectRoot};return filepath.Join(root,"LYRA.md"),nil}
 func (service *Service) memoryProject(ctx context.Context,scope protocol.AgentMemoryScope,workspace *protocol.WorkspaceRef)(string,error){if scope==protocol.AgentMemoryScopeUser{if workspace!=nil{return "",fmt.Errorf("%w: user memory forbids workspace",protocol.ErrInvalidParams)};return "",nil};if scope!=protocol.AgentMemoryScopeProject||workspace==nil{return "",fmt.Errorf("%w: project memory requires workspace",protocol.ErrInvalidParams)};resolved,err:=service.resolve(ctx,workspace);if err!=nil{return "",err};if resolved.ProjectRoot!=""{return resolved.ProjectRoot,nil};return resolved.Workspace.Path(),nil}
 
 func rootToLeaf(root,leaf string)[]string{root=filepath.Clean(root);leaf=filepath.Clean(leaf);values:=[]string{};for current:=leaf;;current=filepath.Dir(current){values=append(values,current);if current==root||filepath.Dir(current)==current{break}};slices.Reverse(values);return values}
-func revision(data []byte)string{sum:=sha256.Sum256(data);return hex.EncodeToString(sum[:])}
-func readOptional(path string)([]byte,time.Time,error){info,err:=os.Stat(path);if errors.Is(err,os.ErrNotExist){return nil,time.Time{},nil};if err!=nil{return nil,time.Time{},err};if !info.Mode().IsRegular()||info.Size()>maxAuthoredDocumentBytes{return nil,time.Time{},fmt.Errorf("capabilityflow: invalid authored document %s",path)};data,err:=os.ReadFile(path);return data,info.ModTime(),err}
-func atomicWrite(path string,data []byte,mode os.FileMode)error{if err:=os.MkdirAll(filepath.Dir(path),0o755);err!=nil{return err};temporary,err:=os.CreateTemp(filepath.Dir(path),".lyra-write-*");if err!=nil{return err};name:=temporary.Name();committed:=false;defer func(){_ = temporary.Close();if !committed{_ = os.Remove(name)}}();if err:=temporary.Chmod(mode);err!=nil{return err};if _,err:=temporary.Write(data);err!=nil{return err};if err:=temporary.Sync();err!=nil{return err};if err:=temporary.Close();err!=nil{return err};if err:=os.Rename(name,path);err!=nil{return err};committed=true;return nil}

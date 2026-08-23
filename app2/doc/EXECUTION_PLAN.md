@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs production 已实现，待其余资源与最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge production 已实现，待其余资源与最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -503,6 +503,27 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   Workspace file watcher 失效，user 资源在 query mount/focus/reconnect 时重读，不为缺少语义身份的全局文件伪造 `files.changed`。
 - **协议边界**：`recipes.list`、`agentDocs.list`、Recipe/AgentDoc 与现有 Run/ContentBlock 继续是唯一合同；Codex 仅提供
   “资源发现与渐进消费”研究样本，未复制其协议、prompt 或产品路径。
+
+### R7 Knowledge 纵切（已实现，待最终统一门禁）
+
+- **人类知识的唯一事实源**：`~/.lyra/LYRA.md`、`<project-root>/LYRA.md`、`<cwd>/LYRA.md` 是 broad-to-specific
+  cascade；SQLite 不保存正文。projectRoot 与 cwd 指向同一物理文件时，`knowledge.list` 只返回一个 cwd 编辑入口，避免一份文件出现
+  两个可写表示；`knowledge.get` 仍可按 exact scope 读取；
+- **物理 identity CAS**：每次读写先解析已有 symlink 并证明最终目标仍在 scope root 内；in-root file symlink 更新物理目标而不替换 alias，
+  out-of-root target 明确返回 `path_outside_root`。写入按物理 path 使用共享的可取消 identity lane，只串行同一文档；compare revision、
+  同目录 exclusive stage、file sync、atomic rename、directory sync 构成一个提交边界。rename 后的响应由已写入 bytes 构造，避免成功提交被
+  post-commit 读失败伪装成失败；home 强制 `0600`，project/cwd 强制 `0644`；
+- **fresh Run 上下文**：Capability 通过 consumer-owned `KnowledgeDocumentSource` 向 executor 提供非空 cascade；Knowledge 与
+  AgentDocs 各自执行完整文档/most-specific-tail 预算，再合成一条 Lyra system message。fresh root Run 读取一次并由 checkpoint 冻结，
+  resume 不重读，也不把外部文件 revision 混入 deployment digest；
+- **外部变化 owner**：`knowledge.changed` 继续是现有全局失效语义。Runtime subscription 根据 home 与 active Workspace refs 解析 exact
+  home/projectRoot/cwd 文件，单一 watcher goroutine 只观察这些文件的 parent directory；subscription cancel 与 Bus close 都会 close/join。
+  `knowledge.update` 的 committed publish 与外部编辑最终收敛到同一 query family；
+- **Desktop CAS editor**：Resources 增加 Knowledge 子视图，覆盖 capability unavailable、loading、error/retry、distinct scopes、
+  never-created、dirty/saving/saved、revert 和 write error。clean draft 接受 event refetch；dirty draft 保留 exact baseline。冲突后刷新
+  authoritative revision 并保留用户正文，要求显式再次保存；若写响应丢失但冷读已与 submitted content 收敛，则直接认定已保存；
+- **协议与资源边界**：只使用既有 `knowledge.list/get/update`、content revision 与 `knowledge.changed`，没有复制旧 app 的 Plugin Host、
+  publication slot 或 Codex prompt。实现批未启动 Runtime、Wails、Vite、browser/agent-browser 或独立 watcher 进程。
 
 ## 12. R8：Integration 与 Settings
 

@@ -100,7 +100,7 @@ func (service *Service) skillSources(
 	if err != nil {
 		return nil, nil, fmt.Errorf("capabilityflow: user skill library: %w", err)
 	}
-	release, err := service.skillSerial.Acquire(ctx, userSkillLibraryLane)
+	release, err := service.serial.Acquire(ctx, userSkillLibraryLane)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -121,7 +121,7 @@ func (service *Service) skillSources(
 }
 
 func (service *Service) ManagedSkills(ctx context.Context) (*protocol.Page[protocol.ManagedSkill], error) {
-	release, err := service.skillSerial.Acquire(ctx, userSkillLibraryLane)
+	release, err := service.serial.Acquire(ctx, userSkillLibraryLane)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (service *Service) SetSkillLifecycle(
 	}).Validate(); err != nil {
 		return fmt.Errorf("%w: invalid Skill name: %v", protocol.ErrInvalidParams, err)
 	}
-	release, err := service.skillSerial.Acquire(ctx, userSkillLibraryLane)
+	release, err := service.serial.Acquire(ctx, userSkillLibraryLane)
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func (service *Service) ProposeSkill(
 	if proposal.Scope == protocol.SkillScopeUser {
 		lanes = append(lanes, userSkillLibraryLane)
 	}
-	release, err := service.skillSerial.Acquire(ctx, lanes...)
+	release, err := service.serial.Acquire(ctx, lanes...)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +289,7 @@ func (service *Service) ApproveProposal(ctx context.Context, ref protocol.SkillP
 	if ref.Scope == protocol.SkillScopeUser {
 		lanes = append(lanes, userSkillLibraryLane)
 	}
-	release, err := service.skillSerial.Acquire(ctx, lanes...)
+	release, err := service.serial.Acquire(ctx, lanes...)
 	if err != nil {
 		return err
 	}
@@ -356,7 +356,7 @@ func (service *Service) RejectProposal(ctx context.Context, ref protocol.SkillPr
 	if err := validateSkillProposalRef(ref); err != nil {
 		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 	}
-	release, err := service.skillSerial.Acquire(
+	release, err := service.serial.Acquire(
 		ctx, skillProposalLane(resolved.Workspace.Path(), ref.Name),
 	)
 	if err != nil {
