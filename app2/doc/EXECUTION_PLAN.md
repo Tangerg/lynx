@@ -881,6 +881,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - provider/model/server/tool/hook event/scope/matcher/command/injection/source、MCP transport/config、cron/workspace 与 Runtime problem detail 仍保留 canonical 原值；`Scheduled task` 继续是 Schedule application request 的稳定默认标题，不随 UI locale 改写 durable domain data；
 - MCP draft conversion 不再抛 presentation English，而是抛 stable `MCPDraftValidationError` code，由 Settings adapter 映射 semantic key；这不会新增或改变 Lyra Protocol error shape。后续只剩全 surface 字符串盘点、8 个 parity locale + Arabic、locale preference/selector 与 RTL logical CSS，U22 继续保持 `in_progress`。
 
+### R10d6a Agent hidden error channel 收口记录（尚未统一验证）
+
+- 全 Desktop TSX AST 盘点确认显式 JSX text/a11y/form copy 已进入 typed boundary；继续向下追踪后，收口 Interrupt response、live stream/action/resume 与 older-history 的隐式英文 error channel；
+- pure Interrupt response builder 改为 stable `InterruptResponseValidationError` code，并由 Interrupt card presentation adapter 映射 semantic key；question prompt、unsupported field type、edited arguments 与 response payload 仍保持 Runtime canonical material；
+- Agent session/history hooks 的 renderer-local guard、stream fallback 与 mutation error 使用 active translator，callback dependency 同步 locale identity；Runtime 返回的具体 error detail 仍原样展示。Desktop bridge parser 的内部英文异常是下一盘点批，U22 保持 `in_progress`。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

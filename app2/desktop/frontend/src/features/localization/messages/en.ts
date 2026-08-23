@@ -25,6 +25,10 @@ export const englishMessages = {
   "approval.rememberSession": "This session",
   "approval.rememberProject": "This project",
   "approval.rememberGlobal": "Everywhere",
+  "approval.decisionRequired":
+    "Choose Approve or Deny for every approval request.",
+  "approval.argumentsInvalidJSON": "Edited tool arguments must be valid JSON.",
+  "approval.argumentsNotObject": "Edited tool arguments must be a JSON object.",
 
   "question.title": "Question",
   "question.inputForLyra": "Input for Lyra",
@@ -33,6 +37,11 @@ export const englishMessages = {
   "question.unsupportedField": "Unsupported question field type: {type}",
   "question.customAnswer": "Custom answer",
   "question.customAnswerPlaceholder": "Write another answer",
+  "question.incomplete": "The Runtime did not provide a complete question.",
+  "question.answerBeforeContinue": "Answer “{prompt}” before continuing.",
+  "question.chooseBeforeContinue":
+    "Choose an answer for “{prompt}” before continuing.",
+  "question.chooseOne": "Choose one answer for “{prompt}”.",
 
   "interrupt.actionRequired": "Action required",
   "interrupt.waitingForYou": "Lyra is waiting for you",
@@ -117,6 +126,20 @@ export const englishMessages = {
   "narrative.needsWork": "Needs work",
   "narrative.delegated": "Delegated",
   "narrative.historyActionFailed": "Session history action failed.",
+  "narrative.streamClosedEarly":
+    "Runtime closed the live stream before the segment finished.",
+  "narrative.streamInterrupted": "Runtime stream interrupted.",
+  "narrative.waitingForResponse":
+    "This run is waiting for a response before it can continue.",
+  "narrative.activeSegmentMissing": "The active run has no current segment.",
+  "narrative.actionFailed": "The run action could not be completed.",
+  "narrative.noSessionMounted": "No session is mounted.",
+  "narrative.interruptSessionMismatch":
+    "This interrupt belongs to a different session.",
+  "narrative.interruptResponsesIncomplete":
+    "Responses must cover the complete interrupt set.",
+  "narrative.actionInProgress": "Another run action is already in progress.",
+  "narrative.olderHistoryFailed": "Older history could not be loaded.",
   "narrative.forkHere": "Fork here",
   "narrative.rewind": "Rewind…",
   "narrative.rewindHistory": "History after this turn",

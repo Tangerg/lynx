@@ -22,6 +22,27 @@ export interface InterruptDraft {
   question?: QuestionDraft;
 }
 
+export type InterruptResponseValidationCode =
+  | "unsupportedInteraction"
+  | "approvalDecisionRequired"
+  | "questionIncomplete"
+  | "textAnswerRequired"
+  | "unsupportedQuestionField"
+  | "choiceRequired"
+  | "singleChoiceRequired"
+  | "argumentsInvalidJSON"
+  | "argumentsNotObject";
+
+export class InterruptResponseValidationError extends Error {
+  constructor(
+    readonly code: InterruptResponseValidationCode,
+    readonly detail?: string,
+  ) {
+    super(code);
+    this.name = "InterruptResponseValidationError";
+  }
+}
+
 export function createInterruptDrafts(
   interruptSet: PendingInterruptSet,
 ): Record<string, InterruptDraft> {
@@ -78,7 +99,7 @@ export function buildInterruptResponses(
         response: questionResponse(interrupt, draft?.question),
       };
     }
-    throw new Error("This Runtime requested an unsupported interaction.");
+    throw new InterruptResponseValidationError("unsupportedInteraction");
   });
 }
 
@@ -87,7 +108,7 @@ function approvalResponse(
   draft: ApprovalDraft | undefined,
 ): InterruptResponseValue {
   if (draft?.decision === undefined) {
-    throw new Error("Choose Approve or Deny for every approval request.");
+    throw new InterruptResponseValidationError("approvalDecisionRequired");
   }
   const original = interrupt.payload?.tool?.arguments ?? {};
   const edited = parseArguments(draft.argumentsText);
@@ -110,18 +131,18 @@ function questionResponse(
 ): InterruptResponseValue {
   const question = interrupt.payload?.question;
   if (question === undefined || draft === undefined) {
-    throw new Error("The Runtime did not provide a complete question.");
+    throw new InterruptResponseValidationError("questionIncomplete");
   }
   const answers = question.fields.map((field, index) => {
     if (field.type === "text") {
       const answer = draft.values[index]?.[0]?.trim() ?? "";
       if (answer === "") {
-        throw new Error(`Answer “${field.prompt}” before continuing.`);
+        throw new InterruptResponseValidationError("textAnswerRequired", field.prompt);
       }
       return [answer];
     }
     if (field.type !== "choice") {
-      throw new Error(`Unsupported question field type: ${field.type}`);
+      throw new InterruptResponseValidationError("unsupportedQuestionField", field.type);
     }
     const selected = (draft.values[index] ?? [])
       .map((value) => value.trim())
@@ -132,12 +153,10 @@ function questionResponse(
         ? selected
         : [...selected, custom];
     if (values.length === 0) {
-      throw new Error(
-        `Choose an answer for “${field.prompt}” before continuing.`,
-      );
+      throw new InterruptResponseValidationError("choiceRequired", field.prompt);
     }
     if (!field.multiple && values.length !== 1) {
-      throw new Error(`Choose one answer for “${field.prompt}”.`);
+      throw new InterruptResponseValidationError("singleChoiceRequired", field.prompt);
     }
     return values;
   });
@@ -149,10 +168,10 @@ function parseArguments(value: string): Record<string, unknown> {
   try {
     parsed = JSON.parse(value);
   } catch {
-    throw new Error("Edited tool arguments must be valid JSON.");
+    throw new InterruptResponseValidationError("argumentsInvalidJSON");
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("Edited tool arguments must be a JSON object.");
+    throw new InterruptResponseValidationError("argumentsNotObject");
   }
   return parsed as Record<string, unknown>;
 }

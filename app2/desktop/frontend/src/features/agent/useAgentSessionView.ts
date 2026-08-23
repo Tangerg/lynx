@@ -31,6 +31,7 @@ import {
   steerRun,
   subscribeRun,
 } from "../../runtime/runtimeQueries";
+import { useLocalization } from "../localization/Localization";
 import type { LiveToolOutput } from "./agentSessionTypes";
 
 const seenEventLimit = 8_192;
@@ -117,6 +118,7 @@ export function useAgentSessionView(
   snapshot: SessionSnapshot | undefined,
 	selection: { provider: string; model: string } | undefined,
 ): AgentSessionView {
+  const { t } = useLocalization();
   const queryClient = useQueryClient();
   const identity = sessionId
     ? `${connection.instanceId}:${connection.generation}:${sessionId}`
@@ -271,7 +273,7 @@ export function useAgentSessionView(
             if (!terminal) {
               retry += 1;
               if (currentIdentity.current === lease.identity) {
-                setStreamError("Runtime closed the live stream before the segment finished");
+                setStreamError(t("narrative.streamClosedEarly"));
               }
               invalidateMaterial();
               await abortableDelay(
@@ -284,7 +286,7 @@ export function useAgentSessionView(
             stream = undefined;
             if (lease.controller.signal.aborted || isAbort(error)) break;
             if (currentIdentity.current === lease.identity) {
-              setStreamError(messageOf(error));
+              setStreamError(messageOf(error, t("narrative.streamInterrupted")));
             }
             invalidateMaterial();
             retry += 1;
@@ -302,7 +304,7 @@ export function useAgentSessionView(
         invalidateMaterial();
       }
     },
-    [connection, fold, invalidateMaterial],
+    [connection, fold, invalidateMaterial, t],
   );
 
   const ensureLease = useCallback(
@@ -362,13 +364,13 @@ export function useAgentSessionView(
         let command = sendCommand.current;
         if (command?.key !== idempotencyKey) {
           if (activeRootRun?.status === "waiting") {
-            throw new Error("This run is waiting for a response before it can continue.");
+            throw new Error(t("narrative.waitingForResponse"));
           }
           if (
             activeRootRun?.status === "running" &&
             !activeRootRun.activeSegmentId
           ) {
-            throw new Error("The active run has no current segment.");
+            throw new Error(t("narrative.activeSegmentMissing"));
           }
           command =
             activeRootRun?.status === "running" &&
@@ -433,7 +435,7 @@ export function useAgentSessionView(
         invalidateMaterial();
       } catch (error) {
         if (currentIdentity.current === actionIdentity && !isAbort(error)) {
-          setActionError(messageOf(error));
+          setActionError(messageOf(error, t("narrative.actionFailed")));
         }
         throw error;
       } finally {
@@ -453,6 +455,7 @@ export function useAgentSessionView(
 		selection?.model,
 		selection?.provider,
       sessionId,
+      t,
     ],
   );
 
@@ -487,7 +490,7 @@ export function useAgentSessionView(
       invalidateMaterial();
     } catch (error) {
       if (currentIdentity.current === actionIdentity && !isAbort(error)) {
-        const message = messageOf(error);
+        const message = messageOf(error, t("narrative.actionFailed"));
         setCancelError({ runId, message });
         if (target.parentRunId === undefined) setActionError(message);
       }
@@ -500,7 +503,7 @@ export function useAgentSessionView(
         setCancelingRunId(undefined);
       }
     }
-  }, [connection, identity, invalidateMaterial, visible.runsById]);
+  }, [connection, identity, invalidateMaterial, t, visible.runsById]);
 
   const stop = useCallback(async () => {
     if (activeRootRun !== undefined) await cancel(activeRootRun.id);
@@ -512,15 +515,15 @@ export function useAgentSessionView(
       responses: InterruptResponse[],
       idempotencyKey: string,
     ) => {
-      if (!sessionId) throw new Error("No session is mounted.");
+      if (!sessionId) throw new Error(t("narrative.noSessionMounted"));
       if (interruptSet.sessionId !== sessionId) {
-        throw new Error("This interrupt belongs to a different session.");
+        throw new Error(t("narrative.interruptSessionMismatch"));
       }
       if (responses.length !== interruptSet.interrupts.length) {
-        throw new Error("Responses must cover the complete interrupt set.");
+        throw new Error(t("narrative.interruptResponsesIncomplete"));
       }
       if (actionInFlight.current) {
-        throw new Error("Another run action is already in progress.");
+        throw new Error(t("narrative.actionInProgress"));
       }
       const actionIdentity = identity;
       const controller = new AbortController();
@@ -577,7 +580,7 @@ export function useAgentSessionView(
         invalidateMaterial();
       } catch (error) {
         if (currentIdentity.current === actionIdentity && !isAbort(error)) {
-          setInterruptError(messageOf(error));
+          setInterruptError(messageOf(error, t("interrupt.resumeFailed")));
         }
         throw error;
       } finally {
@@ -588,7 +591,7 @@ export function useAgentSessionView(
         }
       }
     },
-    [connection, identity, invalidateMaterial, runLease, sessionId],
+    [connection, identity, invalidateMaterial, runLease, sessionId, t],
   );
 
   return {
@@ -927,8 +930,8 @@ function rootRunIdentity(run: RunRef) {
   return run.parentRunId === undefined ? run.id : (run.rootRunId ?? run.id);
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "Runtime stream interrupted.";
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function isAbort(error: unknown) {

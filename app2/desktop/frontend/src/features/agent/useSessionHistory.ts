@@ -11,6 +11,7 @@ import {
 	listItems,
 	runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
+import { useLocalization } from "../localization/Localization";
 
 const historyPageSize = 100;
 
@@ -28,6 +29,7 @@ export function useSessionHistory(
 	sessionId: string | undefined,
 	mountedItems: Item[],
 ): SessionHistoryView {
+	const { t } = useLocalization();
 	const query = useInfiniteQuery({
 		queryKey: runtimeQueryKeys.sessionHistory(
 			connection,
@@ -89,7 +91,7 @@ export function useSessionHistory(
 		runs: material.runs,
 		hasOlder: query.hasNextPage === true,
 		loading: query.isPending || query.isFetchingNextPage,
-		error: query.isError ? messageOf(query.error) : undefined,
+		error: query.isError ? messageOf(query.error, t("narrative.olderHistoryFailed")) : undefined,
 		loadOlder,
 	};
 }
@@ -107,6 +109,6 @@ function countOlderItems(
 	return ids.size;
 }
 
-function messageOf(error: unknown): string {
-	return error instanceof Error ? error.message : "Older history could not be loaded.";
+function messageOf(error: unknown, fallback: string): string {
+	return error instanceof Error ? error.message : fallback;
 }

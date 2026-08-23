@@ -10,12 +10,13 @@ import type {
   PendingInterruptSet,
 } from "@lyra/runtime-contract";
 
-import { useLocalization } from "../localization/Localization";
+import { useLocalization, type Translate } from "../localization/Localization";
 import { ApprovalInterrupt } from "./ApprovalInterrupt";
 import { QuestionInterrupt } from "./QuestionInterrupt";
 import {
   buildInterruptResponses,
   createInterruptDrafts,
+  InterruptResponseValidationError,
   type InterruptDraft,
 } from "./interruptResponse";
 
@@ -31,7 +32,7 @@ interface InterruptSetCardProps {
 }
 
 export function InterruptSetCard(props: InterruptSetCardProps) {
-  const { t } = useLocalization();
+  const { t, formatNumber } = useLocalization();
   const [drafts, setDrafts] = useState<Record<string, InterruptDraft>>(() =>
     createInterruptDrafts(props.interruptSet),
   );
@@ -71,7 +72,7 @@ export function InterruptSetCard(props: InterruptSetCardProps) {
       );
       intent.current = undefined;
     } catch (error) {
-      setLocalError(messageOf(error, t("interrupt.resumeFailed")));
+      setLocalError(messageOf(error, t("interrupt.resumeFailed"), t));
     }
   };
 
@@ -99,7 +100,7 @@ export function InterruptSetCard(props: InterruptSetCardProps) {
             props.interruptSet.interrupts.length === 1
               ? "interrupt.requestCountOne"
               : "interrupt.requestCountMany",
-            { count: props.interruptSet.interrupts.length },
+            { count: formatNumber(props.interruptSet.interrupts.length) },
           )}
         </span>
       </header>
@@ -156,6 +157,19 @@ function InterruptEditor(props: InterruptEditorProps) {
   );
 }
 
-function messageOf(error: unknown, fallback: string) {
+function messageOf(error: unknown, fallback: string, t: Translate) {
+  if (error instanceof InterruptResponseValidationError) {
+    switch (error.code) {
+      case "unsupportedInteraction": return t("interrupt.unsupported");
+      case "approvalDecisionRequired": return t("approval.decisionRequired");
+      case "questionIncomplete": return t("question.incomplete");
+      case "textAnswerRequired": return t("question.answerBeforeContinue", { prompt: error.detail ?? "" });
+      case "unsupportedQuestionField": return t("question.unsupportedField", { type: error.detail ?? "" });
+      case "choiceRequired": return t("question.chooseBeforeContinue", { prompt: error.detail ?? "" });
+      case "singleChoiceRequired": return t("question.chooseOne", { prompt: error.detail ?? "" });
+      case "argumentsInvalidJSON": return t("approval.argumentsInvalidJSON");
+      case "argumentsNotObject": return t("approval.argumentsNotObject");
+    }
+  }
   return error instanceof Error ? error.message : fallback;
 }
