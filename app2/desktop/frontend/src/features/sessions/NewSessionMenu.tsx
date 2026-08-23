@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { ArrowUpRight, Download, FolderOpen, SquarePen } from "lucide-react";
 
 import type { CreateSessionRequest, Session } from "@lyra/runtime-contract";
 
@@ -13,6 +14,7 @@ import {
 } from "../shell/commandCatalog";
 import { Tooltip } from "../shell/Tooltip";
 import { useActionMenu } from "../shell/useActionMenu";
+import { Icon } from "../shell/Icon";
 
 interface NewSessionMenuProps {
   pending: boolean;
@@ -81,7 +83,8 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
             menu.toggle();
           }}
         >
-          <span aria-hidden="true">＋</span>
+          <Icon glyph={SquarePen} size="sm" />
+          <span className="new-session-label">{t("session.new")}</span>
         </button>
       </Tooltip>
       <section
@@ -104,7 +107,7 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
           disabled={props.pending}
           onClick={() => void create()}
         >
-          <span aria-hidden="true">↗</span>
+          <Icon glyph={ArrowUpRight} size="md" />
           <span>
             <strong>{t("session.defaultWorkspace")}</strong>
             <small title={props.defaultWorkspace}>
@@ -118,7 +121,7 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
           disabled={props.pending}
           onClick={() => void choose()}
         >
-          <span aria-hidden="true">⌁</span>
+          <Icon glyph={FolderOpen} size="md" />
           <span>
             <strong>{t("session.chooseFolder")}</strong>
             <small>{t("session.chooseFolderDetail")}</small>
@@ -130,7 +133,7 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
           disabled={props.pending}
           onClick={() => void importArtifact()}
         >
-          <span aria-hidden="true">⇣</span>
+          <Icon glyph={Download} size="md" />
           <span>
             <strong>{t("session.import")}</strong>
             <small>{t("session.importDetail")}</small>

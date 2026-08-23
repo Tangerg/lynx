@@ -1,5 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  CalendarClock,
+  Folder,
+  PanelLeft,
+  PanelRight,
+  Settings,
+  Wrench,
+  X,
+} from "lucide-react";
 
 import type {
   ContentBlock,
@@ -28,10 +37,13 @@ import { GoalComposer } from "../goals/GoalComposer";
 import { GoalTray } from "../goals/GoalTray";
 import { useGoalActions } from "../goals/useGoalActions";
 import { PlanCompact } from "../plan/PlanCompact";
-import { SettingsSurface } from "../settings/SettingsSurface";
+import {
+  SettingsSurface,
+  type SettingsPage,
+} from "../settings/SettingsSurface";
 import { NewSessionMenu } from "../sessions/NewSessionMenu";
 import { SessionIndex } from "../sessions/SessionIndex";
-import { compactPath } from "../sessions/sessionPresentation";
+import { workspaceName } from "../sessions/sessionPresentation";
 import { useSessionCatalog } from "../sessions/useSessionCatalog";
 import {
   createFeedback,
@@ -53,7 +65,6 @@ import {
 import {
   ariaKeyShortcuts,
   commandByID,
-  shortcutTokens,
   type CommandDescriptor,
 } from "../shell/commandCatalog";
 import {
@@ -62,6 +73,7 @@ import {
 } from "../shell/useCommandDispatcher";
 import { useToasts } from "../shell/ToastCenter";
 import { Tooltip } from "../shell/Tooltip";
+import { Icon } from "../shell/Icon";
 
 interface WorkspaceShellProps {
   connection: RuntimeConnection;
@@ -88,8 +100,11 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     Record<string, ComposerDraft>
   >({});
   const historyActionInFlight = useRef(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [dockOpen, setDockOpen] = useState(false);
   const [dockExpanded, setDockExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<SettingsPage>("appearance");
   const sessionSearchInput = useRef<HTMLInputElement>(null);
   const [historySearchRequest, setHistorySearchRequest] = useState(0);
   const planEnabled =
@@ -377,8 +392,11 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     () => [
       {
         descriptor: commandByID("workspace.close"),
-        enabled: dockExpanded,
-        run: () => setDockExpanded(false),
+        enabled: dockOpen || dockExpanded,
+        run: () => {
+          setDockExpanded(false);
+          setDockOpen(false);
+        },
       },
       {
         descriptor: commandByID("session.new"),
@@ -403,7 +421,10 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       {
         descriptor: commandByID("settings.open"),
         enabled: true,
-        run: () => setSettingsOpen(true),
+        run: () => {
+          setSettingsPage("appearance");
+          setSettingsOpen(true);
+        },
       },
     ],
     [
@@ -412,6 +433,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       catalog.sessions.length,
       createSession,
       dockExpanded,
+      dockOpen,
       narrativeItems.length,
       selectedSession,
     ],
@@ -437,55 +459,31 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     <>
       <main
         className="app-shell"
+        data-sidebar={sidebarOpen ? "expanded" : "collapsed"}
+        data-dock={dockOpen ? "expanded" : "collapsed"}
+        data-dock-reading={dockExpanded || undefined}
         aria-hidden={settingsOpen || undefined}
         inert={settingsOpen}
       >
         <aside className="work-index" aria-labelledby="work-index-title">
           <header className="panel-header window-drag">
-            <div>
-              <span className="eyebrow">Lyra</span>
-              <h1 id="work-index-title">{t("shell.workIndex")}</h1>
-            </div>
             <div className="work-index-actions window-no-drag">
-              <Tooltip
-                label={t("shell.settings")}
-                shortcut={shortcutTokens(commandByID("settings.open").shortcut)}
-              >
+              <Tooltip label={t("shell.workIndex")}>
                 <button
-                  data-settings-trigger="true"
-                  className="icon-action"
+                  className="icon-action work-index-toggle"
                   type="button"
-                  aria-label={t("shell.openSettings")}
-                  aria-keyshortcuts={ariaKeyShortcuts(
-                    commandByID("settings.open").shortcut,
-                  )}
-                  onClick={() => setSettingsOpen(true)}
+                  aria-label={t("shell.workIndex")}
+                  aria-expanded={sidebarOpen}
+                  onClick={() => setSidebarOpen((current) => !current)}
                 >
-                  ⚙
+                  <Icon glyph={PanelLeft} size="sm" />
                 </button>
               </Tooltip>
-              <NewSessionMenu
-                pending={catalog.createPending || catalog.importPending}
-                defaultWorkspace={
-                  props.discovery.serverInfo.defaultWorkspace.path
-                }
-                onCreate={createSession}
-                onImport={importSessionArtifact}
-              />
             </div>
+            <h1 id="work-index-title" className="sr-only">
+              {t("shell.workIndex")}
+            </h1>
           </header>
-          <section
-            className="workspace-card"
-            aria-label={t("shell.runtimeDefaultWorkspace")}
-          >
-            <span className="status-dot" aria-hidden="true" />
-            <div>
-              <strong>{t("shell.runtimeDefault")}</strong>
-              <p title={props.discovery.serverInfo.defaultWorkspace.path}>
-                {compactPath(props.discovery.serverInfo.defaultWorkspace.path)}
-              </p>
-            </div>
-          </section>
           <SessionIndex
             sessions={catalog.sessions}
             selectedId={selectedSession?.id}
@@ -512,6 +510,41 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
             onRetry={() => void catalog.query.refetch()}
             onLoadMore={() => void catalog.query.fetchNextPage()}
             searchInputRef={sessionSearchInput}
+            headerActions={
+              <nav
+                className="work-index-primary-actions"
+                aria-label={t("shell.workIndex")}
+              >
+                <NewSessionMenu
+                  pending={catalog.createPending || catalog.importPending}
+                  defaultWorkspace={
+                    props.discovery.serverInfo.defaultWorkspace.path
+                  }
+                  onCreate={createSession}
+                  onImport={importSessionArtifact}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsPage("schedules");
+                    setSettingsOpen(true);
+                  }}
+                >
+                  <Icon glyph={CalendarClock} size="sm" />
+                  {t("settings.page.schedules.title")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsPage("mcp");
+                    setSettingsOpen(true);
+                  }}
+                >
+                  <Icon glyph={Wrench} size="sm" />
+                  {t("settings.page.mcp.title")}
+                </button>
+              </nav>
+            }
           />
           {catalog.createError ? (
             <p className="sidebar-command-error" role="alert">
@@ -522,12 +555,44 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
               )}
             </p>
           ) : null}
+          <footer className="work-index-footer window-no-drag">
+            <button
+              data-settings-trigger="true"
+              type="button"
+              aria-keyshortcuts={ariaKeyShortcuts(
+                commandByID("settings.open").shortcut,
+              )}
+              onClick={() => {
+                setSettingsPage("appearance");
+                setSettingsOpen(true);
+              }}
+            >
+              <Icon glyph={Settings} size="sm" />
+              {t("shell.settings")}
+            </button>
+          </footer>
         </aside>
 
         <section className="narrative" aria-labelledby="narrative-title">
           <header className="narrative-header window-drag">
             <div className="narrative-heading">
-              <span className="eyebrow">{t("shell.agentNarrative")}</span>
+              {!sidebarOpen ? (
+                <button
+                  className="icon-action window-no-drag narrative-sidebar-toggle"
+                  type="button"
+                  aria-label={t("shell.workIndex")}
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <Icon glyph={PanelLeft} size="sm" />
+                </button>
+              ) : null}
+              <span>
+                <Icon glyph={Folder} size="xs" />
+                {selectedSession
+                  ? workspaceName(selectedSession.workspace.ref.path)
+                  : "Lyra"}
+              </span>
+              <i aria-hidden="true">/</i>
               <h2 id="narrative-title">
                 {selectedSession?.title || t("shell.chooseSession")}
               </h2>
@@ -550,6 +615,17 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 }
               />
               <ConnectionPill state={syncState} />
+              <Tooltip label={t("shell.contextDock")}>
+                <button
+                  className="icon-action narrative-dock-toggle window-no-drag"
+                  type="button"
+                  aria-label={t("shell.contextDock")}
+                  aria-expanded={dockOpen}
+                  onClick={() => setDockOpen((current) => !current)}
+                >
+                  <Icon glyph={PanelRight} size="sm" />
+                </button>
+              </Tooltip>
             </div>
           </header>
           <div className="narrative-content">
@@ -651,9 +727,19 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         >
           <header className="panel-header window-drag">
             <div>
-              <span className="eyebrow">{t("shell.contextDock")}</span>
               <h2 id="context-title">{t("shell.session")}</h2>
             </div>
+            <button
+              className="icon-action window-no-drag"
+              type="button"
+              aria-label={t("shell.contextDock")}
+              onClick={() => {
+                setDockExpanded(false);
+                setDockOpen(false);
+              }}
+            >
+              <Icon glyph={X} size="sm" />
+            </button>
           </header>
           <ContextDock
             connection={connection}
@@ -665,7 +751,10 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
             actionPending={agentView.actionPending}
             cancelingRunId={agentView.cancelingRunId}
             cancelError={agentView.cancelError}
-            onExpandedChange={setDockExpanded}
+            onExpandedChange={(expanded) => {
+              setDockExpanded(expanded);
+              if (expanded) setDockOpen(true);
+            }}
             onCancelRun={agentView.cancel}
             skillsEnabled={skillsEnabled}
             knowledgeEnabled={knowledgeEnabled}
@@ -691,6 +780,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           sessionId={selectedSession?.id}
           workspace={selectedSession?.workspace.ref}
           onRuntimeChanged={props.onRuntimeChanged}
+          initialPage={settingsPage}
           onClose={() => setSettingsOpen(false)}
           onOpenSession={(sessionId) => {
             setSelectedSessionId(sessionId);

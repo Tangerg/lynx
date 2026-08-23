@@ -40,7 +40,7 @@ interface ShellPreferenceContext extends ShellPreferenceState {
   setLocale(locale: Locale): void;
 }
 
-const storageKey = "lyra.app2.shell.v2";
+const storageKey = "lyra.app2.shell.v3";
 const ShellPreferencesContext = createContext<
   ShellPreferenceContext | undefined
 >(undefined);
@@ -75,7 +75,7 @@ export function ShellPreferencesProvider({
       .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
       ?.setAttribute(
         "content",
-        resolvedTheme === "graphite" ? "#171816" : "#f2f0eb",
+        resolvedTheme === "graphite" ? "#1b1c1f" : "#ffffff",
       );
   }, [preferences.accent, resolvedTheme]);
 
@@ -133,7 +133,7 @@ function systemPrefersDark() {
 function readPreferences(): ShellPreferenceState {
   const defaults: ShellPreferenceState = {
     theme: "system",
-    accent: "ember",
+    accent: "ocean",
     locale: detectLocale(navigator.languages),
   };
   try {

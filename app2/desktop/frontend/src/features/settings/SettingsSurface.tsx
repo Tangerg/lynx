@@ -1,4 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  CalendarClock,
+  ChartNoAxesColumnIncreasing,
+  ChevronLeft,
+  Command,
+  Palette,
+  Plug,
+  Server,
+  ShieldCheck,
+  Sparkles,
+  Workflow,
+} from "lucide-react";
 
 import type { RuntimeConnection, WorkspaceRef } from "@lyra/runtime-contract";
 
@@ -13,6 +26,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { RuntimeSettings } from "./RuntimeSettings";
 import { KeyboardSettings } from "./KeyboardSettings";
 import { ariaKeyShortcuts, commandByID } from "../shell/commandCatalog";
+import { Icon } from "../shell/Icon";
 import "./ShellSettings.css";
 
 interface SettingsSurfaceProps {
@@ -22,79 +36,86 @@ interface SettingsSurfaceProps {
   onClose: () => void;
   onOpenSession: (sessionId: string) => void;
   onRuntimeChanged: () => Promise<void>;
+  initialPage?: SettingsPage;
 }
 
 const settingsPages = [
   {
     id: "appearance",
-    icon: "◐",
+    icon: Palette,
     title: "settings.page.appearance.title",
     description: "settings.page.appearance.description",
   },
   {
     id: "runtime",
-    icon: "⇄",
+    icon: Server,
     title: "settings.page.runtime.title",
     description: "settings.page.runtime.description",
   },
   {
     id: "providers",
-    icon: "◫",
+    icon: Sparkles,
     title: "settings.page.providers.title",
     description: "settings.page.providers.description",
   },
   {
     id: "mcp",
-    icon: "⌘",
+    icon: Plug,
     title: "settings.page.mcp.title",
     description: "settings.page.mcp.description",
   },
   {
     id: "approvals",
-    icon: "✓",
+    icon: ShieldCheck,
     title: "settings.page.approvals.title",
     description: "settings.page.approvals.description",
   },
   {
     id: "schedules",
-    icon: "◷",
+    icon: CalendarClock,
     title: "settings.page.schedules.title",
     description: "settings.page.schedules.description",
   },
   {
     id: "hooks",
-    icon: "⌁",
+    icon: Workflow,
     title: "settings.page.hooks.title",
     description: "settings.page.hooks.description",
   },
   {
     id: "keyboard",
-    icon: "⌨",
+    icon: Command,
     title: "settings.page.keyboard.title",
     description: "settings.page.keyboard.description",
   },
   {
     id: "usage",
-    icon: "∑",
+    icon: ChartNoAxesColumnIncreasing,
     title: "settings.page.usage.title",
     description: "settings.page.usage.description",
   },
 ] as const satisfies ReadonlyArray<{
   id: string;
-  icon: string;
+  icon: LucideIcon;
   title: MessageKey;
   description: MessageKey;
 }>;
 
-type SettingsPage = (typeof settingsPages)[number]["id"];
+export type SettingsPage = (typeof settingsPages)[number]["id"];
 
 export function SettingsSurface(props: SettingsSurfaceProps) {
   const { t } = useLocalization();
-  const [page, setPage] = useState<SettingsPage>("appearance");
+  const [page, setPage] = useState<SettingsPage>(
+    props.initialPage ?? "appearance",
+  );
   const surface = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const close = useRef(props.onClose);
   close.current = props.onClose;
+
+  useEffect(() => {
+    if (props.initialPage !== undefined) setPage(props.initialPage);
+  }, [props.initialPage]);
 
   useEffect(() => {
     closeButton.current?.focus();
@@ -147,8 +168,19 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
     >
       <aside className="settings-nav">
         <header>
-          <span className="eyebrow">{t("settings.desktopBrand")}</span>
-          <h2>{t("settings.title")}</h2>
+          <button
+            ref={closeButton}
+            className="settings-back"
+            type="button"
+            aria-label={t("settings.close")}
+            aria-keyshortcuts={ariaKeyShortcuts(
+              commandByID("workspace.close").shortcut,
+            )}
+            onClick={props.onClose}
+          >
+            <Icon glyph={ChevronLeft} size="sm" />
+            {t("settings.close")}
+          </button>
         </header>
         <nav aria-label={t("settings.sections")}>
           {settingsPages.map((candidate) => (
@@ -158,7 +190,7 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
               aria-current={page === candidate.id ? "page" : undefined}
               onClick={() => setPage(candidate.id)}
             >
-              <span aria-hidden="true">{candidate.icon}</span>
+              <Icon glyph={candidate.icon} size="sm" />
               {t(candidate.title)}
             </button>
           ))}
@@ -168,22 +200,9 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
       <div className="settings-content">
         <header className="settings-heading">
           <div>
-            <span className="eyebrow">{t("settings.desktopSettings")}</span>
             <h1 id="settings-title">{t(activePage.title)}</h1>
             <p>{t(activePage.description)}</p>
           </div>
-          <button
-            ref={closeButton}
-            className="settings-close"
-            type="button"
-            aria-label={t("settings.close")}
-            aria-keyshortcuts={ariaKeyShortcuts(
-              commandByID("workspace.close").shortcut,
-            )}
-            onClick={props.onClose}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
         </header>
         <div className="settings-scroll">
           {page === "appearance" ? (

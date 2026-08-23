@@ -11,12 +11,14 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { ArrowUp, Paperclip, Square } from "lucide-react";
 
 import type { ContentBlock, Recipe, RunRef } from "@lyra/runtime-contract";
 
 import { useLocalization, type Translate } from "../localization/Localization";
 import { RecipeSuggestions } from "./RecipeSuggestions";
 import { expandRecipeInvocation, slashRecipeQuery } from "./recipeInvocation";
+import { Icon } from "../shell/Icon";
 
 const maxAttachments = 6;
 const maxImageBytes = 10 * 1024 * 1024;
@@ -362,10 +364,12 @@ export function Composer(props: ComposerProps) {
             className="composer-tool"
             type="button"
             disabled={props.pending}
+            aria-label={t("composer.attach")}
+            title={t("composer.attach")}
             onClick={() => fileInput.current?.click()}
           >
-            <span aria-hidden="true">＋</span>
-            {t("composer.attach")}
+            <Icon glyph={Paperclip} size="md" />
+            <span className="composer-tool-label">{t("composer.attach")}</span>
           </button>
           {props.children}
           <span className="composer-hint">{t("composer.keyboardHint")}</span>
@@ -376,19 +380,36 @@ export function Composer(props: ComposerProps) {
               className="stop-action"
               type="button"
               disabled={props.pending}
+              aria-label={t("composer.stop")}
+              title={t("composer.stop")}
               onClick={() => void props.onStop().catch(() => undefined)}
             >
-              <span aria-hidden="true" />
-              {t("composer.stop")}
+              <Icon glyph={Square} size="sm" fill="currentColor" />
+              <span className="composer-action-label">
+                {t("composer.stop")}
+              </span>
             </button>
           ) : null}
-          <button className="send-action" type="submit" disabled={!canSend}>
-            {props.pending
-              ? t("composer.sending")
-              : running
-                ? t("composer.steer")
-                : t("composer.send")}
-            <span aria-hidden="true">↑</span>
+          <button
+            className="send-action"
+            type="submit"
+            disabled={!canSend}
+            aria-label={
+              props.pending
+                ? t("composer.sending")
+                : running
+                  ? t("composer.steer")
+                  : t("composer.send")
+            }
+          >
+            <span className="composer-action-label">
+              {props.pending
+                ? t("composer.sending")
+                : running
+                  ? t("composer.steer")
+                  : t("composer.send")}
+            </span>
+            <Icon glyph={ArrowUp} size="md" />
           </button>
         </div>
       </footer>

@@ -1,0 +1,430 @@
+.settings-surface {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 255px minmax(0, 1fr);
+  color: var(--ink);
+  background: var(--paper);
+  animation: settings-enter var(--motion-medium) var(--ease-standard) both;
+}
+
+@keyframes settings-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+.settings-nav {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 0 10px 14px;
+  border-inline-end: 1px solid var(--divider);
+  background: var(--paper-muted);
+}
+
+.settings-nav header {
+  display: flex;
+  min-height: var(--chrome-height);
+  flex: none;
+  align-items: center;
+  padding: 5px 0;
+}
+
+.settings-back {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 7px;
+  color: var(--ink-subtle);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 480;
+  text-align: start;
+}
+
+.settings-back:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--control-hover);
+}
+
+.settings-nav nav {
+  display: grid;
+  gap: 1px;
+  margin-top: 7px;
+}
+
+.settings-nav nav button {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 470;
+  text-align: start;
+}
+
+.settings-nav nav button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--control-hover);
+}
+
+.settings-nav nav button[aria-current="page"] {
+  color: var(--ink);
+  background: var(--control-selected);
+  box-shadow: none;
+}
+
+.settings-nav nav button .ui-icon {
+  color: var(--ink-muted);
+}
+
+.settings-nav nav button[aria-current="page"] .ui-icon {
+  color: var(--accent);
+}
+
+.settings-nav > p {
+  margin: auto 8px 0;
+  color: var(--ink-faint);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.settings-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.settings-heading {
+  display: flex;
+  width: min(100%, 980px);
+  min-height: auto;
+  flex: none;
+  align-items: flex-start;
+  margin: 0 auto;
+  padding: 32px 40px 18px;
+  border-bottom: 0;
+}
+
+.settings-heading h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 560;
+  letter-spacing: -0.025em;
+}
+
+.settings-heading p,
+.settings-section > header p,
+.provider-section-heading p {
+  max-width: 620px;
+  margin: 6px 0 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 40px 72px;
+}
+
+.settings-section,
+.appearance-settings,
+.runtime-settings,
+.keyboard-settings,
+.usage-settings {
+  width: min(900px, 100%);
+  margin-inline: auto;
+}
+
+.settings-section {
+  margin-bottom: 34px;
+}
+
+.settings-section > header,
+.provider-section-heading {
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 11px;
+}
+
+.settings-section h2 {
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: 0;
+}
+
+.settings-scroll
+  :is(
+    .model-role-card,
+    .provider-card,
+    .runtime-connection-card,
+    .remote-runtime-form,
+    .approval-mode-card,
+    .approval-rule-card,
+    .mcp-editor,
+    .mcp-status-block,
+    .schedule-editor,
+    .schedule-card-heading,
+    .hook-card,
+    .hook-trust-card,
+    .usage-metrics,
+    .usage-session-metrics,
+    .keyboard-table-frame
+  ) {
+  border-color: var(--divider);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.model-role-grid,
+.approval-mode-grid {
+  gap: 9px;
+}
+
+.provider-card-list,
+.approval-rule-list,
+.mcp-server-list,
+.schedule-list,
+.hook-list {
+  gap: 8px;
+}
+
+.model-role-card,
+.provider-card,
+.runtime-connection-card,
+.remote-runtime-form,
+.approval-mode-card,
+.approval-rule-card,
+.mcp-editor,
+.schedule-editor,
+.hook-card,
+.hook-trust-card {
+  padding: 14px;
+}
+
+.model-role-card h3,
+.provider-card h3,
+.mcp-server-heading strong,
+.schedule-card-heading strong,
+.hook-card h3 {
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.model-role-card header p,
+.provider-card header code,
+.provider-fields small,
+.provider-fields b {
+  font-size: 10px;
+}
+
+.model-role-card label,
+.provider-fields label,
+.remote-runtime-form label,
+.mcp-fields label,
+.schedule-fields label {
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.model-role-card input,
+.model-role-card select,
+.provider-fields input,
+.remote-runtime-form input,
+.mcp-fields input,
+.mcp-fields select,
+.schedule-fields input,
+.schedule-fields textarea,
+.appearance-language select,
+.provider-section-heading input {
+  height: 36px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+
+.schedule-fields textarea {
+  height: auto;
+}
+
+.theme-options {
+  gap: 10px;
+}
+
+.theme-options > button {
+  min-height: 154px;
+  padding: 9px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.theme-options > button:hover:not(:disabled) {
+  border-color: var(--divider-strong);
+  transform: none;
+}
+
+.theme-options > button[aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--accent) 52%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.theme-options strong {
+  font-size: 12px;
+  font-weight: 540;
+}
+
+.theme-options small {
+  font-size: 10px;
+}
+
+.theme-preview {
+  height: 86px;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.theme-preview i:first-child {
+  background: #f3f4f7;
+}
+
+.theme-preview i:nth-child(2) {
+  background: #ffffff;
+}
+
+.theme-options > button[data-theme-preview="graphite"] .theme-preview {
+  background: #1b1c1f;
+}
+
+.theme-options
+  > button[data-theme-preview="graphite"]
+  .theme-preview
+  i:first-child {
+  background: #25272b;
+}
+
+.theme-options
+  > button[data-theme-preview="graphite"]
+  .theme-preview
+  i:nth-child(2) {
+  background: #1b1c1f;
+}
+
+.accent-options {
+  gap: 7px;
+}
+
+.accent-options button {
+  min-width: 104px;
+  min-height: 38px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.accent-options button[aria-checked="true"] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.keyboard-filter {
+  min-height: 38px;
+  border-radius: var(--radius-md);
+}
+
+.keyboard-table {
+  font-size: 11px;
+}
+
+.keyboard-table th,
+.keyboard-table td {
+  padding: 10px 12px;
+}
+
+.keyboard-table th {
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.shortcut-keys kbd {
+  min-width: 24px;
+  min-height: 23px;
+  font: 500 10px/1 var(--font-sans);
+}
+
+.runtime-connection-card dt,
+.runtime-connection-card dd,
+.remote-runtime-form footer span,
+.runtime-danger > div > span,
+.provider-card > footer button,
+.model-role-card > footer button,
+.settings-state button,
+.text-action,
+.provider-verdict,
+.settings-inline-error {
+  font-size: 11px;
+}
+
+.settings-scroll :is(.primary-action, .secondary-action, .danger-action) {
+  min-height: 34px;
+  padding-inline: 11px;
+  font-size: 11px;
+  font-weight: 520;
+}
+
+@media (max-width: 900px) {
+  .settings-surface {
+    grid-template-columns: 218px minmax(0, 1fr);
+  }
+
+  .settings-heading {
+    padding-inline: 26px;
+  }
+
+  .settings-scroll {
+    padding-inline: 26px;
+  }
+}
+
+@media (max-width: 680px) {
+  .settings-surface {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .settings-back,
+  .settings-nav nav button {
+    justify-content: center;
+    padding-inline: 0;
+    font-size: 0;
+  }
+
+  .settings-nav > p {
+    display: none;
+  }
+
+  .settings-heading {
+    padding: 24px 18px 15px;
+  }
+
+  .settings-scroll {
+    padding: 3px 18px 56px;
+  }
+
+  .model-role-grid,
+  .theme-options {
+    grid-template-columns: 1fr;
+  }
+}

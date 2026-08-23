@@ -1,0 +1,247 @@
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+:root {
+  color: #202123;
+  background: #ffffff;
+  font-family:
+    "Geist",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --font-sans:
+    "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+  --app-min-width: 860px;
+  --app-min-height: 600px;
+  --ink: #202123;
+  --ink-subtle: #4e5055;
+  --ink-muted: #777b83;
+  --ink-faint: #a5a8ae;
+  --paper: #ffffff;
+  --paper-raised: #ffffff;
+  --paper-muted: #f3f4f7;
+  --paper-strong: #e8eaee;
+  --accent: #2f63d8;
+  --accent-dark: #1f54c5;
+  --accent-soft: #e8efff;
+  --green: #17825c;
+  --amber: #a76f1e;
+  --red: #c1463a;
+  --on-solid: #ffffff;
+  --divider: rgba(32, 33, 35, 0.08);
+  --divider-strong: rgba(32, 33, 35, 0.14);
+  --control-hover: rgba(32, 33, 35, 0.045);
+  --control-selected: rgba(32, 33, 35, 0.07);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-composer: 20px;
+  --content-width: 760px;
+  --sidebar-width: 276px;
+  --dock-width: 360px;
+  --chrome-height: 42px;
+
+  --motion-instant: 80ms;
+  --motion-fast: 120ms;
+  --motion-medium: 180ms;
+  --motion-slow: 260ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dropdown-open-dur: 180ms;
+  --dropdown-close-dur: 120ms;
+  --dropdown-pre-scale: 0.985;
+  --dropdown-closing-scale: 0.99;
+  --dropdown-ease: var(--ease-emphasized);
+
+  --shadow-sm:
+    0 0 0 1px rgba(32, 33, 35, 0.045), 0 1px 2px rgba(32, 33, 35, 0.04),
+    0 4px 12px rgba(32, 33, 35, 0.035);
+  --shadow-popover:
+    0 0 0 1px rgba(32, 33, 35, 0.075), 0 16px 42px rgba(32, 33, 35, 0.14);
+  --shadow-composer:
+    0 0 0 1px rgba(32, 33, 35, 0.075), 0 2px 8px rgba(32, 33, 35, 0.06),
+    0 16px 38px rgba(32, 33, 35, 0.09);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+body {
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 430;
+  line-height: 1.45;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+summary {
+  min-height: 32px;
+}
+
+button {
+  min-width: 32px;
+  border-radius: var(--radius-md);
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+.plan-compact:focus-visible {
+  outline: 1.5px solid color-mix(in srgb, var(--accent) 82%, white);
+  outline-offset: 2px;
+}
+
+button:not(:disabled) {
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-emphasized),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.975);
+}
+
+textarea::placeholder,
+input::placeholder {
+  color: var(--ink-faint);
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+}
+
+.ui-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.ui-icon[data-size="xs"] {
+  width: 13px;
+  height: 13px;
+}
+
+.ui-icon[data-size="sm"] {
+  width: 16px;
+  height: 16px;
+}
+
+.ui-icon[data-size="lg"] {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-action {
+  display: grid;
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.icon-action:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--control-hover);
+}
+
+.icon-action:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.tooltip-bubble {
+  min-height: 28px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--paper);
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.tooltip-shortcut kbd {
+  font: 500 10px/1 var(--font-sans);
+}
+
+.t-dropdown {
+  transition:
+    transform var(--dropdown-open-dur) var(--dropdown-ease),
+    opacity var(--dropdown-open-dur) var(--ease-standard);
+}
+
+::selection {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+* {
+  scrollbar-color: color-mix(in srgb, var(--ink) 17%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

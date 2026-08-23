@@ -8,6 +8,9 @@ import { WorkspaceShell } from "./features/workspace/WorkspaceShell";
 import { loadDesktopBootstrap, useLocalRuntime } from "./runtime/desktopBridge";
 import { discoverRuntime, runtimeQueryKeys } from "./runtime/runtimeQueries";
 import "./styles.css";
+import "./styles/foundation.css";
+import "./styles/shell.css";
+import "./styles/settings.css";
 
 export function App() {
   const { t } = useLocalization();

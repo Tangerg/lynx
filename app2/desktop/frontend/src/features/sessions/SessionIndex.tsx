@@ -4,8 +4,10 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   type Ref,
 } from "react";
+import { Check, Ellipsis, Search, Star, X } from "lucide-react";
 
 import type { Session } from "@lyra/runtime-contract";
 
@@ -18,6 +20,7 @@ import {
 } from "./sessionPresentation";
 import { ariaKeyShortcuts, commandByID } from "../shell/commandCatalog";
 import { useActionMenu } from "../shell/useActionMenu";
+import { Icon } from "../shell/Icon";
 
 interface SessionIndexProps {
   sessions: Session[];
@@ -38,6 +41,7 @@ interface SessionIndexProps {
   onRetry: () => void;
   onLoadMore: () => void;
   searchInputRef?: Ref<HTMLInputElement>;
+  headerActions?: ReactNode;
 }
 
 export function SessionIndex(props: SessionIndexProps) {
@@ -52,31 +56,10 @@ export function SessionIndex(props: SessionIndexProps) {
     [groups],
   );
 
-  if (props.pending) {
-    return (
-      <p className="panel-note" aria-busy="true">
-        {t("session.loading")}
-      </p>
-    );
-  }
-  if (props.error && props.sessions.length === 0) {
-    return (
-      <div className="panel-error" role="alert">
-        <p>{messageOf(props.error, t("session.changeFailed"))}</p>
-        <button className="quiet-action" type="button" onClick={props.onRetry}>
-          {t("session.retry")}
-        </button>
-      </div>
-    );
-  }
-  if (props.sessions.length === 0) {
-    return <p className="panel-note">{t("session.empty")}</p>;
-  }
-
   return (
     <div className="session-index">
       <label className="session-search">
-        <span aria-hidden="true">⌕</span>
+        <Icon glyph={Search} size="sm" />
         <span className="sr-only">{t("session.search")}</span>
         <input
           ref={props.searchInputRef}
@@ -95,69 +78,92 @@ export function SessionIndex(props: SessionIndexProps) {
             aria-label={t("session.clearSearch")}
             onClick={() => setSearch("")}
           >
-            ×
+            <Icon glyph={X} size="sm" />
           </button>
         ) : null}
       </label>
-      <span className="sr-only" aria-live="polite">
-        {t(visible.length === 1 ? "session.shownOne" : "session.shownMany", {
-          count: visible.length,
-        })}
-      </span>
-      {props.error ? (
-        <p className="session-refresh-warning" role="status">
-          {t("session.refreshFailed", {
-            detail: messageOf(props.error, t("session.changeFailed")),
-          })}
+      {props.headerActions}
+      {props.pending ? (
+        <p className="panel-note" aria-busy="true">
+          {t("session.loading")}
         </p>
-      ) : null}
-      {visible.length === 0 ? (
-        <p className="panel-note">
-          {t("session.noMatch", { query: search.trim() })}
-        </p>
+      ) : props.error && props.sessions.length === 0 ? (
+        <div className="panel-error" role="alert">
+          <p>{messageOf(props.error, t("session.changeFailed"))}</p>
+          <button
+            className="quiet-action"
+            type="button"
+            onClick={props.onRetry}
+          >
+            {t("session.retry")}
+          </button>
+        </div>
+      ) : props.sessions.length === 0 ? (
+        <p className="panel-note">{t("session.empty")}</p>
       ) : (
-        <nav
-          className="session-list"
-          aria-label={t("session.groupedLabel")}
-          onKeyDown={(event) =>
-            navigateSessions(event, visible, props.onSelect)
-          }
-        >
-          {groups.map((group) => (
-            <section className="session-group" key={group.path}>
-              <header title={group.path}>
-                <span>{workspaceName(group.path)}</span>
-                <small>{group.sessions.length}</small>
-              </header>
-              {group.sessions.map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  selected={session.id === props.selectedId}
-                  busy={props.actionPending}
-                  onSelect={props.onSelect}
-                  onUpdate={props.onUpdate}
-                  onRemove={props.onRemove}
-                  onFork={props.onFork}
-                  onExport={props.onExport}
-                />
+        <>
+          <span className="sr-only" aria-live="polite">
+            {t(
+              visible.length === 1 ? "session.shownOne" : "session.shownMany",
+              { count: visible.length },
+            )}
+          </span>
+          {props.error ? (
+            <p className="session-refresh-warning" role="status">
+              {t("session.refreshFailed", {
+                detail: messageOf(props.error, t("session.changeFailed")),
+              })}
+            </p>
+          ) : null}
+          {visible.length === 0 ? (
+            <p className="panel-note">
+              {t("session.noMatch", { query: search.trim() })}
+            </p>
+          ) : (
+            <nav
+              className="session-list"
+              aria-label={t("session.groupedLabel")}
+              onKeyDown={(event) =>
+                navigateSessions(event, visible, props.onSelect)
+              }
+            >
+              {groups.map((group) => (
+                <section className="session-group" key={group.path}>
+                  <header title={group.path}>
+                    <span>{workspaceName(group.path)}</span>
+                    <small>{group.sessions.length}</small>
+                  </header>
+                  {group.sessions.map((session) => (
+                    <SessionRow
+                      key={session.id}
+                      session={session}
+                      selected={session.id === props.selectedId}
+                      busy={props.actionPending}
+                      onSelect={props.onSelect}
+                      onUpdate={props.onUpdate}
+                      onRemove={props.onRemove}
+                      onFork={props.onFork}
+                      onExport={props.onExport}
+                    />
+                  ))}
+                </section>
               ))}
-            </section>
-          ))}
-        </nav>
+            </nav>
+          )}
+          {props.hasMore ? (
+            <button
+              className="load-more-sessions quiet-action"
+              type="button"
+              disabled={props.loadingMore}
+              onClick={props.onLoadMore}
+            >
+              {props.loadingMore
+                ? t("session.loadingOlder")
+                : t("session.loadOlder")}
+            </button>
+          ) : null}
+        </>
       )}
-      {props.hasMore ? (
-        <button
-          className="load-more-sessions quiet-action"
-          type="button"
-          disabled={props.loadingMore}
-          onClick={props.onLoadMore}
-        >
-          {props.loadingMore
-            ? t("session.loadingOlder")
-            : t("session.loadOlder")}
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -299,7 +305,7 @@ function SessionRow(props: {
               disabled={props.busy}
               aria-label={t("session.saveTitle")}
             >
-              ✓
+              <Icon glyph={Check} size="sm" />
             </button>
             <button
               type="button"
@@ -312,7 +318,7 @@ function SessionRow(props: {
                 setError(undefined);
               }}
             >
-              ×
+              <Icon glyph={X} size="sm" />
             </button>
           </div>
         </form>
@@ -327,7 +333,9 @@ function SessionRow(props: {
           <span className="session-row-main">
             <strong>
               {props.session.favorite ? (
-                <span aria-label={t("session.favorite")}>★</span>
+                <span aria-label={t("session.favorite")}>
+                  <Icon glyph={Star} size="xs" fill="currentColor" />
+                </span>
               ) : null}
               {props.session.title || t("session.untitled")}
             </strong>
@@ -362,7 +370,7 @@ function SessionRow(props: {
               title: props.session.title || t("session.untitled"),
             })}
           >
-            •••
+            <Icon glyph={Ellipsis} size="sm" />
           </summary>
           <div ref={actionMenu.menuRef} role="menu">
             <button

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Bot, ChevronDown, X } from "lucide-react";
 
 import type { Model, RuntimeConnection, Session } from "@lyra/runtime-contract";
 
@@ -9,6 +10,7 @@ import {
   listProviders,
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
+import { Icon } from "../shell/Icon";
 
 interface SessionModelPickerProps {
   connection: RuntimeConnection;
@@ -114,8 +116,9 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
           setOpen((current) => !current);
         }}
       >
-        <span aria-hidden="true">◇</span>
+        <Icon glyph={Bot} size="sm" />
         {props.session.model || t("model.choose")}
+        <Icon glyph={ChevronDown} size="xs" />
       </button>
       {open ? (
         <section
@@ -133,7 +136,7 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
               aria-label={t("model.closePicker")}
               onClick={() => setOpen(false)}
             >
-              ×
+              <Icon glyph={X} size="sm" />
             </button>
           </header>
           {providers.isPending ? (
