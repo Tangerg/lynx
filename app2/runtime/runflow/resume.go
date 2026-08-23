@@ -197,7 +197,9 @@ func (service *Service) launchResumeExecution(record rundomain.Record, segmentID
 		live := newLiveProjector(service, record, segmentID)
 		output, executeErr := service.executor.Resume(ctx, agentexec.ResumeInput{
 			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
-			SessionID: record.Run.SessionID(), RunID: record.Run.ID(), IsRootRun: record.Run.ParentRunID() == "", MaxSteps: runMaxSteps(record.Body),
+			SessionID: record.Run.SessionID(), RunID: record.Run.ID(), SegmentID: segmentID,
+			IsRootRun: record.Run.ParentRunID() == "", Subagents: runUsesSubagents(record.Body), Delegation: service,
+			MaxSteps: runMaxSteps(record.Body),
 			Checkpoint: checkpoint, Response: response, Steers: steers,
 			AdditionalInput: slices.Clone(additionalInput),
 			Live: live,

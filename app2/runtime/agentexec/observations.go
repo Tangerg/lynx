@@ -112,6 +112,7 @@ type executionObserver struct {
 	plans          map[string]protocol.Plan
 	live           LiveObservationSink
 	streams        map[string]*modelStream
+	delegation     *delegationBridge
 }
 
 type modelStream struct {
@@ -119,12 +120,12 @@ type modelStream struct {
 	startedAt   time.Time
 }
 
-func newExecutionObserver(runID, model string, live LiveObservationSink) *executionObserver {
+func newExecutionObserver(runID, model string, live LiveObservationSink, delegation *delegationBridge) *executionObserver {
 	return &executionObserver{
 		runID: runID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
 		intrinsicInput: make(map[string]bool),
 		tools: make(map[string]ToolObservation), plans: make(map[string]protocol.Plan), live: live,
-		streams: make(map[string]*modelStream),
+		streams: make(map[string]*modelStream), delegation: delegation,
 	}
 }
 
@@ -137,6 +138,10 @@ func (observer *executionObserver) bindTools(executables []ExecutableTool) {
 }
 
 func (observer *executionObserver) RecordCommittedPlan(callID string, plan protocol.Plan) {
+	observer.recordCommittedPlan(observer.runID, callID, plan)
+}
+
+func (observer *executionObserver) recordCommittedPlan(_ string, callID string, plan protocol.Plan) {
 	observer.mu.Lock()
 	observer.plans[callID] = clonePlan(plan)
 	observer.mu.Unlock()
@@ -148,6 +153,9 @@ func (observer *executionObserver) OnModelResponse(_ context.Context, invocation
 	observer.mu.Lock()
 	if stream := observer.streams[effectID]; stream != nil && !stream.startedAt.IsZero() {
 		occurredAt = stream.startedAt
+	}
+	if observer.delegation != nil {
+		observer.delegation.register(invocation, response, occurredAt)
 	}
 	observer.models = append(observer.models, ModelObservation{
 		EffectID: effectID, Sequence: int(invocation.ModelCallSequence()), OccurredAt: occurredAt, Response: response.Clone(),

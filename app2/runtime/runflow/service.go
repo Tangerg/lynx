@@ -347,7 +347,9 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 		live := newLiveProjector(service, record, segmentID)
 		output, executeErr := service.executor.Execute(ctx, agentexec.Input{
 			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
-			SessionID: record.Run.SessionID(), RunID: runID, IsRootRun: record.Run.ParentRunID() == "", Conversation: conversation, Steers: steers,
+			SessionID: record.Run.SessionID(), RunID: runID, SegmentID: segmentID,
+			IsRootRun: record.Run.ParentRunID() == "", Subagents: runUsesSubagents(record.Body), Delegation: service,
+			Conversation: conversation, Steers: steers,
 			MaxSteps: runMaxSteps(record.Body), Live: live,
 		})
 		live.Close()
@@ -362,6 +364,19 @@ func runMaxSteps(body []byte) int {
 		return 0
 	}
 	return facts.Limits.MaxSteps
+}
+
+func runUsesSubagents(body []byte) bool {
+	facts, err := decodeFacts(body)
+	if err != nil {
+		return false
+	}
+	for _, feature := range facts.Profile.RequiredFeatures {
+		if feature == protocol.RunProtocolFeatureSubagents {
+			return true
+		}
+	}
+	return false
 }
 
 func (service *Service) conversation(ctx context.Context, sessionID string) ([]agentexec.Message, int, error) {

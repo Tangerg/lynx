@@ -289,8 +289,13 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   Process identity 与 Lyra Run identity；SQLite 只在 private pending reservation 中保存映射，重复 admission 必须完全一致，
   且 pending 永远不是 wire Run。父级 running `delegate_task` Item 与 reservation 同事务；只有 started outcome 会在同一
   transaction 里建立 child Run + `segment.started`，aborted outcome 则原子结算父级 Item 而不伪造 child。root profile
-  继续治理整棵树，child RunRef 不复制 `protocolProfile`；当前尚未把 Delegate deployment 接入 Engine，也未向 Desktop
-  声明 `subagents`；
+  继续治理整棵树，child RunRef 不复制 `protocolProfile`；
+- **Managed Delegate family**：agentexec 已建立固定深度、固定 fan-out/active/tree/process budget 的
+  bottom-up Deployment family；`delegate_task` 是 Framework managed Delegate，不是一个同步 Tool。ProcessAdmitter 与
+  start-outcome acknowledger 只把 opaque Framework identity 交给上述 application port，Run/Segment identity 仍由 Lyra
+  分配。child Tool 通过当前 invocation 动态解析真正的 Run scope，placeholder manifest 只冻结 definition/capability，
+  绝不执行；root 未协商 `subagents` 时仍走原本单 Process deployment。tree checkpoint、child source projection 和
+  Desktop disclosure 尚未完成，因此 Desktop 仍不声明该 feature；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

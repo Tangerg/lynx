@@ -61,7 +61,10 @@ type Input struct {
 	Provider, Model, Workspace string
 	SessionID                  string
 	RunID                      string
+	SegmentID                  string
 	IsRootRun                  bool
+	Subagents                  bool
+	Delegation                 DelegationCoordinator
 	Conversation               []Message
 	MaxSteps                   int
 	Steers                     <-chan Steer
@@ -70,8 +73,10 @@ type Input struct {
 
 type ResumeInput struct {
 	Provider, Model, Workspace string
-	SessionID, RunID           string
+	SessionID, RunID, SegmentID string
 	IsRootRun                  bool
+	Subagents                  bool
+	Delegation                 DelegationCoordinator
 	MaxSteps                   int
 	Checkpoint                 json.RawMessage
 	Response                   json.RawMessage
@@ -128,11 +133,16 @@ type ToolInputInvocation struct {
 }
 
 func (executor *Executor) Execute(ctx context.Context, input Input) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.Live)
+	prepared, err := executor.deployment(ctx, deploymentRequest{
+		provider: input.Provider, model: input.Model, sessionID: input.SessionID,
+		runID: input.RunID, segmentID: input.SegmentID, workspace: input.Workspace,
+		rootRun: input.IsRootRun, subagents: input.Subagents, maxSteps: input.MaxSteps,
+		delegation: input.Delegation, live: input.Live,
+	})
 	if err != nil {
 		return Output{}, err
 	}
-	engine, err := agent.NewEngine(engineConfig(observer))
+	engine, err := agent.NewEngine(prepared.engine)
 	if err != nil {
 		return Output{}, fmt.Errorf("agentexec: create engine: %w", err)
 	}
@@ -146,16 +156,23 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 		_ = engine.Close()
 		return Output{}, fmt.Errorf("agentexec: encode input: %w", err)
 	}
-	process, err := engine.Start(ctx, deployment, encoded)
+	process, err := engine.Start(ctx, prepared.root, encoded)
 	if err != nil {
 		_ = engine.Close()
 		return Output{}, fmt.Errorf("agentexec: start interaction: %w", err)
 	}
-	return awaitProcess(ctx, engine, process, observer, input.RunID, input.Steers)
+	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers)
 }
 
 func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps, input.Live)
+	if input.Subagents {
+		return Output{}, errors.New("agentexec: delegated tree resume requires a tree checkpoint")
+	}
+	prepared, err := executor.deployment(ctx, deploymentRequest{
+		provider: input.Provider, model: input.Model, sessionID: input.SessionID,
+		runID: input.RunID, segmentID: input.SegmentID, workspace: input.Workspace,
+		rootRun: input.IsRootRun, maxSteps: input.MaxSteps, live: input.Live,
+	})
 	if err != nil {
 		return Output{}, err
 	}
@@ -163,11 +180,11 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 	if err != nil {
 		return Output{}, fmt.Errorf("agentexec: parse checkpoint: %w", err)
 	}
-	engine, err := agent.NewEngine(engineConfig(observer))
+	engine, err := agent.NewEngine(prepared.engine)
 	if err != nil {
 		return Output{}, fmt.Errorf("agentexec: create resume engine: %w", err)
 	}
-	process, err := engine.Restore(ctx, deployment, snapshot)
+	process, err := engine.Restore(ctx, prepared.root, snapshot)
 	if err != nil {
 		_ = engine.Close()
 		return Output{}, fmt.Errorf("agentexec: restore interaction: %w", err)
@@ -205,54 +222,109 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 		}
 		return Output{}, errors.New("agentexec: resume signal was not accepted")
 	}
-	return awaitProcess(ctx, engine, process, observer, input.RunID, input.Steers)
+	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers)
 }
 
-func (executor *Executor) deployment(ctx context.Context, provider, model, sessionID, runID, workspace string, rootRun bool, maxSteps int, live LiveObservationSink) (agent.Deployment, *executionObserver, error) {
-	client, err := executor.clients.ResolveClient(ctx, provider, model)
+type deploymentRequest struct {
+	provider, model, sessionID, runID, segmentID, workspace string
+	rootRun, subagents                                  bool
+	maxSteps                                            int
+	delegation                                          DelegationCoordinator
+	live                                                LiveObservationSink
+}
+
+type preparedDeployment struct {
+	root     agent.Deployment
+	observer *executionObserver
+	engine   agent.EngineConfig
+}
+
+func (executor *Executor) deployment(ctx context.Context, request deploymentRequest) (preparedDeployment, error) {
+	client, err := executor.clients.ResolveClient(ctx, request.provider, request.model)
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return preparedDeployment{}, err
 	}
-	observer := newExecutionObserver(runID, model, live)
+	var bridge *delegationBridge
+	if request.subagents {
+		bridge, err = newDelegationBridge(request.runID, request.segmentID, request.delegation)
+		if err != nil {
+			return preparedDeployment{}, err
+		}
+	}
+	observer := newExecutionObserver(request.runID, request.model, request.live, bridge)
 	bindings := []ExecutableTool{}
 	if executor.tools != nil {
-		bindings, err = executor.tools.ForRun(ctx, ToolScope{SessionID: sessionID, RunID: runID, Workspace: workspace, IsRootRun: rootRun, Facts: observer})
+		bindings, err = executor.tools.ForRun(ctx, ToolScope{
+			SessionID: request.sessionID, RunID: request.runID, Workspace: request.workspace,
+			IsRootRun: request.rootRun, Facts: observer,
+		})
 		if err != nil {
-			return agent.Deployment{}, nil, fmt.Errorf("agentexec: resolve tools: %w", err)
+			return preparedDeployment{}, fmt.Errorf("agentexec: resolve tools: %w", err)
 		}
 	}
 	observer.bindTools(bindings)
+	if request.subagents {
+		childManifest, manifestErr := executor.childToolManifest(ctx, request.sessionID, request.workspace, observer)
+		if manifestErr != nil {
+			return preparedDeployment{}, fmt.Errorf("agentexec: resolve delegated Tool manifest: %w", manifestErr)
+		}
+		observer.bindTools(childManifest)
+		router := newRunToolRouter(executor.tools, bridge, ToolScope{
+			SessionID: request.sessionID, Workspace: request.workspace,
+		}, observer)
+		family, familyErr := newDeploymentFamily(familyConfig{
+			client: client, provider: request.provider, model: request.model, workspace: request.workspace,
+			maxModelCalls: maxModelCalls(request.maxSteps), rootTools: bindings,
+			childManifest: childManifest, toolRouter: router, observer: observer,
+		})
+		if familyErr != nil {
+			return preparedDeployment{}, familyErr
+		}
+		bridge.installFamily(family.root.DeploymentRef(), family.targets)
+		return preparedDeployment{
+			root: family.root, observer: observer,
+			engine: agent.EngineConfig{
+				DeploymentResolver: family, ProcessAdmitter: bridge,
+				ProcessStartOutcomeAcknowledger: bridge,
+				DeltaListeners: liveDeltaListeners(observer), TreeLimits: family.limits,
+			},
+		}, nil
+	}
 	executables := make([]tool.Tool, len(bindings))
 	for index, binding := range bindings {
 		executables[index] = binding.Tool
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "lyra.interaction", Description: "Complete the user's request using the available tools.",
-		Version: "2.0.0", MaxModelCalls: maxModelCalls(maxSteps),
+		Version: "2.0.0", MaxModelCalls: maxModelCalls(request.maxSteps),
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, fmt.Errorf("agentexec: define interaction: %w", err)
+		return preparedDeployment{}, fmt.Errorf("agentexec: define interaction: %w", err)
 	}
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{Client: client, Tools: executables, StreamModelResponses: true, Observer: observer})
 	if err != nil {
-		return agent.Deployment{}, nil, fmt.Errorf("agentexec: create dispatcher: %w", err)
+		return preparedDeployment{}, fmt.Errorf("agentexec: create dispatcher: %w", err)
 	}
 	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition: definition, Dispatcher: dispatcher,
 		ImplementationDigest: agent.ComputeDigest([]byte("lyra-app2-interaction-v2")),
-		ConfigurationDigest: agent.ComputeDigest([]byte(provider + "\x00" + model + "\x00" + workspace)),
+		ConfigurationDigest: agent.ComputeDigest([]byte(request.provider + "\x00" + request.model + "\x00" + request.workspace)),
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, fmt.Errorf("agentexec: create deployment: %w", err)
+		return preparedDeployment{}, fmt.Errorf("agentexec: create deployment: %w", err)
 	}
-	return deployment, observer, nil
+	return preparedDeployment{root: deployment, observer: observer, engine: engineConfig(observer)}, nil
 }
 
 func engineConfig(observer *executionObserver) agent.EngineConfig {
+	return agent.EngineConfig{DeltaListeners: liveDeltaListeners(observer)}
+}
+
+func liveDeltaListeners(observer *executionObserver) []agent.DeltaListener {
 	if observer == nil || observer.live == nil {
-		return agent.EngineConfig{}
+		return nil
 	}
-	return agent.EngineConfig{DeltaListeners: []agent.DeltaListener{observer}}
+	return []agent.DeltaListener{observer}
 }
 
 func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Process, observer *executionObserver, runID string, steers <-chan Steer) (Output, error) {
