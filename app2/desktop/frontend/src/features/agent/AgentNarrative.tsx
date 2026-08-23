@@ -19,6 +19,10 @@ import { ToolDisclosure } from "./ToolDisclosure";
 import type { LiveToolOutput } from "./agentSessionTypes";
 import { MarkdownContent } from "./content/MarkdownContent";
 import { NarrativeContent } from "./content/NarrativeContent";
+import {
+	ariaKeyShortcuts,
+	commandByID,
+} from "../shell/commandCatalog";
 
 interface AgentNarrativeProps {
   sessionTitle: string;
@@ -46,6 +50,7 @@ interface AgentNarrativeProps {
 	onLoadOlderHistory(): Promise<void>;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
+  searchRequest: number;
   children?: ReactNode;
 }
 
@@ -62,6 +67,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
   const { t } = useLocalization();
   const scroll = useRef<HTMLDivElement>(null);
 	const searchInput = useRef<HTMLInputElement>(null);
+	const observedSearchRequest = useRef(props.searchRequest);
   const followsTail = useRef(true);
 	const [search, setSearch] = useState("");
 	const [activeMatch, setActiveMatch] = useState(0);
@@ -132,17 +138,11 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 	}, [activeMatchID]);
 
 	useEffect(() => {
-		const focusSearch = (event: KeyboardEvent) => {
-			if (!(event.metaKey || event.ctrlKey) || event.key.toLocaleLowerCase() !== "f") return;
-			if (document.querySelector(".settings-surface") !== null) return;
-			if (searchInput.current === null) return;
-			event.preventDefault();
-			searchInput.current?.focus();
-			searchInput.current?.select();
-		};
-		window.addEventListener("keydown", focusSearch);
-		return () => window.removeEventListener("keydown", focusSearch);
-	}, []);
+		if (observedSearchRequest.current === props.searchRequest) return;
+		observedSearchRequest.current = props.searchRequest;
+		searchInput.current?.focus();
+		searchInput.current?.select();
+	}, [props.searchRequest]);
 
 	const moveMatch = (direction: -1 | 1) => {
 		if (searchMatches.length === 0) {
@@ -183,7 +183,9 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 				value={search}
 				placeholder={t("narrative.searchPlaceholder")}
 				autoComplete="off"
-				aria-keyshortcuts="Control+f Meta+f"
+				aria-keyshortcuts={ariaKeyShortcuts(
+					commandByID("narrative.search").shortcut,
+				)}
 				onChange={(event) => setSearch(event.target.value)}
 				onKeyDown={(event) => {
 				  if (event.key === "Escape") {

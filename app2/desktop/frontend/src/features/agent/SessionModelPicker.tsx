@@ -54,7 +54,10 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
 			if (!root.current?.contains(event.target as Node)) setOpen(false);
 		};
 		const escape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") setOpen(false);
+			if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+			event.preventDefault();
+			event.stopPropagation();
+			setOpen(false);
 		};
 		document.addEventListener("pointerdown", close);
 		document.addEventListener("keydown", escape);

@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type Ref,
 } from "react";
 
 import type { Session } from "@lyra/runtime-contract";
@@ -15,6 +16,7 @@ import {
   sessionStatus,
   workspaceName,
 } from "./sessionPresentation";
+import { ariaKeyShortcuts, commandByID } from "../shell/commandCatalog";
 
 interface SessionIndexProps {
   sessions: Session[];
@@ -34,6 +36,7 @@ interface SessionIndexProps {
 	onExport: (session: Session, format: "json" | "md") => Promise<unknown>;
   onRetry: () => void;
   onLoadMore: () => void;
+  searchInputRef?: Ref<HTMLInputElement>;
 }
 
 export function SessionIndex(props: SessionIndexProps) {
@@ -75,10 +78,14 @@ export function SessionIndex(props: SessionIndexProps) {
         <span aria-hidden="true">⌕</span>
         <span className="sr-only">{t("session.search")}</span>
         <input
+          ref={props.searchInputRef}
           type="search"
           value={search}
           placeholder={t("session.search")}
           autoComplete="off"
+          aria-keyshortcuts={ariaKeyShortcuts(
+            commandByID("session.search").shortcut,
+          )}
           onChange={(event) => setSearch(event.target.value)}
         />
         {search ? (

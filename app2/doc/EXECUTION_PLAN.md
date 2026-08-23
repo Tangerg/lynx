@@ -32,7 +32,7 @@
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | implemented（真实 PreCompact producer 已由 R10 compaction 纵切补齐，整体待最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | implemented（production 纵切与全 topic/resync 已闭环，最终统一门禁留到 R11） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | implemented（production 纵切已闭环，最终统一门禁留到 R11） |
-| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（R10a remote/tool/lifecycle、R10b content/media、R10c appearance/remote control production 已实现，locale 与 product 收口继续） |
+| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（remote/content/appearance/i18n production 已实现，U23/U24 product 收口继续） |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
 | R12 | 迁移 CLI/其余 consumer（deferred，本轮不实施） | deferred |
 | R13 | 切换与删除旧 app（deferred，本轮不实施） | deferred |
@@ -904,6 +904,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - production CSS 的阅读与布局语义已改用 logical properties；Work Index、Context Dock、Settings nav、Session/action popover、Narrative nesting、approval/tool status、workspace tree/review 与 responsive padding 随 `html.dir` 镜像。只有显式 LTR 的 code/diff gutter 与带成对 RTL override 的动画原点保留物理方向；
 - file tree/review disclosure、file-window 与 image-lightbox previous/next 控件按 active direction 呈现，lightbox arrow-key 顺序同步 RTL。code/pre、diff/source material、path/URL/secret/model/cron/command/JSON 等技术内容在展示或编辑边界显式 LTR/bidi isolate，用户 instructions、reason、title、search 与 composer 内容继续继承自然语言方向；
 - 本批只改变 presentation geometry 和 bidi 语义，不改变持久化 locale ID、Runtime/Lyra wire、domain value、Desktop bridge 或 Wails surface。U22 production 纵切至此为 `implemented`；native-language copy、screen-reader、Arabic visual、WebKit、narrow-window 与 package evidence 仍统一在 R11 产出。
+
+### R10e1 Finite commands / shortcuts / toast owner 实现记录（尚未统一验证）
+
+- app2 建立有限、静态、typed command catalog，不迁移旧 app 的 plugin extension point，也不恢复已经被旧产品判定为冗余的 command palette。`Mod+N` 新建 Session、`Mod+K` 搜索 Session、`Mod+F` 搜索当前对话、`Mod+,` 打开 Settings、`Escape` 关闭 active workspace view 共用一个 ID/label/scope/shortcut source；Settings 只读该 catalog 提供本地化可发现页面；
+- dispatcher 按 `KeyboardEvent.code` 匹配，分别处理 macOS Meta 与其他平台 Control，拒绝重复键、IME composition/229、错误 modifier、disabled action 与不允许的 editable target；每个 async command 都在 owner boundary 捕获失败并送入 transient toast，不制造 unhandled rejection。现有 Narrative 搜索不再注册第二个 global listener；
+- toast owner 只保存最多四条短期 presentation notice，成功导入/导出和 command failure 复用同一 bounded viewport；Runtime/bridge/row-level authoritative error 仍留在原有 surface，toast 不持久化、不写 Query/Session/Run，也不成为通知领域。U23 进入 `in_progress`；action-menu focus/keyboard 与 shared tooltip 下一批闭合，最终 a11y/IME/visual/package 证据仍在 R11。
 
 ## 15. R11：Wave A 全量 parity 与切换
 

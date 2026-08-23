@@ -6,6 +6,7 @@ import { useLocalization } from "../localization/Localization";
 import { presentRuntimeError } from "../localization/presentRuntimeError";
 import { chooseDirectory } from "../../runtime/desktopBridge";
 import { compactPath } from "./sessionPresentation";
+import { ariaKeyShortcuts, commandByID } from "../shell/commandCatalog";
 
 interface NewSessionMenuProps {
   pending: boolean;
@@ -28,7 +29,9 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      event.stopPropagation();
       setOpen(false);
       root.current?.querySelector<HTMLButtonElement>(".icon-action")?.focus();
     };
@@ -76,6 +79,9 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
         type="button"
         aria-label={t("session.new")}
         title={t("session.newShortcut")}
+        aria-keyshortcuts={ariaKeyShortcuts(
+          commandByID("session.new").shortcut,
+        )}
         aria-expanded={open}
         aria-controls={menuId}
         disabled={props.pending}

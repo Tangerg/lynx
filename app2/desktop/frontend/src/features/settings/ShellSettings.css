@@ -1,7 +1,115 @@
 .appearance-settings,
-.runtime-settings {
+.runtime-settings,
+.keyboard-settings {
   width: min(980px, 100%);
   margin: 0 auto;
+}
+
+.keyboard-filter {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 40px;
+  min-height: 42px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-inline: 9px 4px;
+  border: 1px solid var(--divider-strong);
+  border-radius: 11px;
+  color: var(--ink-muted);
+  background: var(--paper-raised);
+}
+
+.keyboard-filter input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+}
+
+.keyboard-filter button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 17px;
+}
+
+.keyboard-table-frame {
+  overflow: auto;
+  border: 1px solid var(--divider);
+  border-radius: 13px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.keyboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--ink-subtle);
+  font-size: 9px;
+  text-align: start;
+}
+
+.keyboard-table th,
+.keyboard-table td {
+  padding: 11px 13px;
+  border-block-end: 1px solid var(--divider);
+  text-align: start;
+}
+
+.keyboard-table th {
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+  font-size: 8px;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.keyboard-table th:last-child,
+.keyboard-table td:last-child {
+  text-align: end;
+}
+
+.keyboard-table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.keyboard-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.shortcut-keys {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.shortcut-keys kbd {
+  display: grid;
+  min-width: 26px;
+  min-height: 25px;
+  padding-inline: 6px;
+  place-items: center;
+  border: 1px solid var(--divider-strong);
+  border-block-end-width: 2px;
+  border-radius: 6px;
+  color: var(--ink-subtle);
+  background: var(--paper);
+  font: 650 9px/1 var(--font-sans);
+  white-space: nowrap;
+}
+
+.keyboard-empty {
+  margin: 0;
+  padding: 30px 14px;
+  border: 1px dashed var(--divider-strong);
+  border-radius: 13px;
+  color: var(--ink-muted);
+  text-align: center;
 }
 
 .appearance-scheme,

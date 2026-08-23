@@ -11,6 +11,8 @@ import { HookSettings } from "./HookSettings";
 import { UsageSettings } from "./UsageSettings";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { RuntimeSettings } from "./RuntimeSettings";
+import { KeyboardSettings } from "./KeyboardSettings";
+import { ariaKeyShortcuts, commandByID } from "../shell/commandCatalog";
 import "./ShellSettings.css";
 
 interface SettingsSurfaceProps {
@@ -30,6 +32,7 @@ const settingsPages = [
 	{ id: "approvals", icon: "✓", title: "settings.page.approvals.title", description: "settings.page.approvals.description" },
 	{ id: "schedules", icon: "◷", title: "settings.page.schedules.title", description: "settings.page.schedules.description" },
 	{ id: "hooks", icon: "⌁", title: "settings.page.hooks.title", description: "settings.page.hooks.description" },
+	{ id: "keyboard", icon: "⌨", title: "settings.page.keyboard.title", description: "settings.page.keyboard.description" },
 	{ id: "usage", icon: "∑", title: "settings.page.usage.title", description: "settings.page.usage.description" },
 ] as const satisfies ReadonlyArray<{
 	id: string;
@@ -51,6 +54,7 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 	useEffect(() => {
 		closeButton.current?.focus();
 		const handleDialogKey = (event: KeyboardEvent) => {
+			if (event.isComposing || event.keyCode === 229) return;
 			if (event.key === "Escape") {
 				event.preventDefault();
 				close.current();
@@ -126,6 +130,9 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						className="settings-close"
 						type="button"
 						aria-label={t("settings.close")}
+						aria-keyshortcuts={ariaKeyShortcuts(
+							commandByID("workspace.close").shortcut,
+						)}
 						onClick={props.onClose}
 					>
 						<span aria-hidden="true">×</span>
@@ -146,6 +153,8 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<ScheduleSettings connection={props.connection} onOpenSession={props.onOpenSession} />
 					) : page === "hooks" ? (
 						<HookSettings connection={props.connection} workspace={props.workspace} />
+					) : page === "keyboard" ? (
+						<KeyboardSettings />
 					) : (
 						<UsageSettings connection={props.connection} sessionId={props.sessionId} />
 					)}

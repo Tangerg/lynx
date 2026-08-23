@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type {
 	ContentBlock,
@@ -53,6 +53,16 @@ import {
   useRuntimeInvalidations,
   type RuntimeSyncState,
 } from "../../runtime/useRuntimeInvalidations";
+import {
+	ariaKeyShortcuts,
+	commandByID,
+	type CommandDescriptor,
+} from "../shell/commandCatalog";
+import {
+	useCommandDispatcher,
+	type CommandBinding,
+} from "../shell/useCommandDispatcher";
+import { useToasts } from "../shell/ToastCenter";
 
 interface WorkspaceShellProps {
   connection: RuntimeConnection;
@@ -62,6 +72,7 @@ interface WorkspaceShellProps {
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
   const { t } = useLocalization();
+  const { notify } = useToasts();
   const connection = useMemo(
     () => props.connection,
     [
@@ -80,6 +91,8 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 	const historyActionInFlight = useRef(false);
   const [dockExpanded, setDockExpanded] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+  const sessionSearchInput = useRef<HTMLInputElement>(null);
+	const [historySearchRequest, setHistorySearchRequest] = useState(0);
   const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
   const goalsEnabled = props.discovery.capabilities.features.goals?.enabled === true;
   const skillsEnabled = props.discovery.capabilities.features.skills?.enabled === true;
@@ -239,8 +252,14 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 		}
 		const response = await catalog.importArtifact(decoded as SessionArtifact);
 		setSelectedSessionId(response.session.id);
+		notify({
+			tone: "success",
+			title: t("toast.sessionImported", {
+				title: response.session.title || t("session.untitled"),
+			}),
+		});
 		return response.session;
-	}, [catalog.importArtifact, t]);
+	}, [catalog.importArtifact, notify, t]);
 	const saveSession = useCallback(
 		async (source: Session, format: "json" | "md") => {
 			const exported = await exportSession(connection, source.id, format);
@@ -256,9 +275,17 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 				}
 				contents = exported.markdown;
 			}
-			await saveSessionExport(source.id, format, contents);
+			const result = await saveSessionExport(source.id, format, contents);
+			if (result.type === "saved") {
+				notify({
+					tone: "success",
+					title: t("toast.sessionExported", {
+						title: source.title || t("session.untitled"),
+					}),
+				});
+			}
 		},
-		[connection, t],
+		[connection, notify, t],
 	);
 	const forkSessionFrom = useCallback(
 		async (runId: string) => {
@@ -346,23 +373,69 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     [catalog.remove, catalog.sessions, selectedSession?.id],
   );
 
-  useEffect(() => {
-    const createOnShortcut = (event: KeyboardEvent) => {
-      if (
-        event.key.toLocaleLowerCase() !== "n" ||
-        (!event.metaKey && !event.ctrlKey) ||
-        event.altKey ||
-        event.shiftKey ||
-        catalog.createPending
-      ) {
-        return;
-      }
-      event.preventDefault();
-      void createSession().catch(() => undefined);
-    };
-    window.addEventListener("keydown", createOnShortcut);
-    return () => window.removeEventListener("keydown", createOnShortcut);
-  }, [catalog.createPending, createSession]);
+	const commandBindings = useMemo<CommandBinding[]>(
+		() => [
+			{
+				descriptor: commandByID("workspace.close"),
+				enabled: dockExpanded,
+				run: () => setDockExpanded(false),
+			},
+			{
+				descriptor: commandByID("session.new"),
+				enabled: !catalog.createPending && !catalog.importPending,
+				run: async () => {
+					await createSession();
+				},
+			},
+			{
+				descriptor: commandByID("session.search"),
+				enabled: catalog.sessions.length > 0,
+				run: () => {
+					sessionSearchInput.current?.focus();
+					sessionSearchInput.current?.select();
+				},
+			},
+			{
+				descriptor: commandByID("narrative.search"),
+				enabled: selectedSession !== undefined && narrativeItems.length > 0,
+				run: () => setHistorySearchRequest((current) => current + 1),
+			},
+			{
+				descriptor: commandByID("settings.open"),
+				enabled: true,
+				run: () => setSettingsOpen(true),
+			},
+		],
+		[
+			catalog.createPending,
+			catalog.importPending,
+			catalog.sessions.length,
+			createSession,
+			dockExpanded,
+			narrativeItems.length,
+			selectedSession,
+		],
+	);
+	const reportCommandError = useCallback(
+		(command: CommandDescriptor, error: unknown) => {
+			const commandLabel = t(command.label);
+			notify({
+				tone: "error",
+				title: t("command.failed", { command: commandLabel }),
+				detail: presentRuntimeError(
+					error,
+					t("shell.unknownRuntimeError"),
+					t,
+				),
+			});
+		},
+		[notify, t],
+	);
+	useCommandDispatcher({
+		active: !settingsOpen,
+		commands: commandBindings,
+		onError: reportCommandError,
+	});
 
 	return (
 		<>
@@ -380,6 +453,9 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 			  type="button"
 			  aria-label={t("shell.openSettings")}
 			  title={t("shell.settings")}
+			  aria-keyshortcuts={ariaKeyShortcuts(
+				commandByID("settings.open").shortcut,
+			  )}
 			  onClick={() => setSettingsOpen(true)}
 			>
 			  ⚙
@@ -425,6 +501,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 		  onExport={saveSession}
           onRetry={() => void catalog.query.refetch()}
           onLoadMore={() => void catalog.query.fetchNextPage()}
+          searchInputRef={sessionSearchInput}
         />
         {catalog.createError ? (
           <p className="sidebar-command-error" role="alert">
@@ -501,6 +578,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 				onLoadOlderHistory={history.loadOlder}
 				onForkFrom={forkSessionFrom}
 				onRollback={rollbackSessionTo}
+                searchRequest={historySearchRequest}
               >
                 {goalsEnabled ? (
                   <GoalComposer

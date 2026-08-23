@@ -601,3 +601,23 @@ fetch 或第二 persisted store。
 **后果**：首批 typed boundary 可先迁移 production surface，而 selector 保持隐藏；只有全部 Desktop copy、八个既有 locale、Arabic RTL 与 logical CSS
 闭合后，U22 才能到 `implemented`。本决策不改变 Runtime contract、SQLite、transport 或 Desktop bridge；compile、screen-reader、RTL visual、
 WebKit 与 packaged evidence 仍在 R11 统一门禁产出。
+
+## ADR-A2-041：命令目录是有限静态 read model，toast 不是错误真相
+
+**缺陷与反例**：旧 Desktop 通过 plugin extension point 动态贡献 command、shortcut、settings pane 与 toast；对于 app2 随同一 bundle 发布的五个 shell
+动作，这会重新引入 installation order、late contribution、collision repair 与隐式全局 listener。恢复 command palette 也只会给已有按钮/快捷键增加第三条重复路径。
+另一方面，若每个组件自行监听 `keydown` 或随手弹 toast，modifier、IME、input scope、错误处理和 screen-reader 语义会持续分叉，瞬时提示还可能冒充
+Runtime/Session 的 authoritative failure record。
+
+**决定**：app2 只有一个 finite typed command catalog，稳定记录 ID、semantic label、scope 与 shortcut；同一 read model 同时驱动 dispatcher、
+`aria-keyshortcuts` 和 Settings discoverability。global dispatcher 使用 physical `KeyboardEvent.code` 适配非美式键盘，按平台解释 Mod，并在执行前检查
+composition、repeat、modifier、editable target、active overlay 与 enabled predicate。context-local menu/listbox navigation 可以使用具体 UI primitive，但不得
+注册第二个 command registry 或 arbitrary command bus。所有 async command failure 在 dispatcher boundary settle，进入一个最多四条、可暂停和自动关闭的
+transient toast owner。
+
+toast 只表达刚发生的 action feedback；Runtime error、mutation conflict、HITL failure 与 recovery state 继续由原 surface/Query authority 展示。
+toast 不持久化、不进入通知 feed、不影响 Run outcome，也不承载跨重启任务。command catalog 与 toast 都是 Desktop presentation detail，不增加 Lyra
+operation、event、error、Wails method 或 plugin protocol。
+
+**后果**：U23 可在不复活旧 plugin host 的前提下拥有统一 shortcut、可发现性和失败隔离；menu focus/keyboard、tooltip 与最终 collision/a11y/IME/
+packaged evidence 继续在 R10e/R11 闭合。新增 shortcut 或 toast producer 必须进入同一静态目录/owner，不能直接增加 window listener 或第二队列。
