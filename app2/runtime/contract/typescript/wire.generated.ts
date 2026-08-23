@@ -4,6 +4,259 @@ export const protocolVersion = "2026-08-21" as const;
 
 export type EmptyObject = Record<string, never>;
 
+export interface Page<Value> {
+  data: Array<Value>;
+  nextCursor?: string;
+}
+
+export interface ActiveRunRef {
+  runId: string;
+  status: RunStatus;
+}
+
+export interface AgentDoc {
+  path: string;
+  title?: string;
+  scope: AgentDocScope;
+}
+
+export type AgentDocScope = string;
+
+export interface AgentMemoryAddRequest {
+  scope: AgentMemoryScope;
+  workspace?: WorkspaceRef;
+  content: string;
+}
+
+export interface AgentMemoryItem {
+  id: string;
+  scope: AgentMemoryScope;
+  content: string;
+  origin: AgentMemoryOrigin;
+  status: AgentMemoryStatus;
+  pinned: boolean;
+  sessionId?: string;
+  day?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentMemoryItemRequest {
+  id: string;
+}
+
+export interface AgentMemoryList {
+  items: Array<AgentMemoryItem>;
+}
+
+export interface AgentMemoryListRequest {
+  scope: AgentMemoryScope;
+  workspace?: WorkspaceRef;
+}
+
+export type AgentMemoryOrigin = string;
+
+export type AgentMemoryReviewDecision = string;
+
+export interface AgentMemoryReviewRequest {
+  id: string;
+  decision: AgentMemoryReviewDecision;
+}
+
+export type AgentMemoryScope = string;
+
+export type AgentMemoryStatus = string;
+
+export interface AgentMemoryUpdateRequest {
+  id: string;
+  content?: string;
+  pinned?: boolean;
+}
+
+export type ApprovalDecision = string;
+
+export type ApprovalMode = string;
+
+export interface ApprovalModeResult {
+  mode: ApprovalMode;
+}
+
+export type ApprovalRisk = string;
+
+export interface ApprovalRule {
+  id: string;
+  scope: ApprovalRuleScope;
+  tool: string;
+  subject?: string;
+  dir?: string;
+  decision: ApprovalRuleDecision;
+}
+
+export type ApprovalRuleDecision = string;
+
+export type ApprovalRuleScope = string;
+
+export interface ArtifactContentBlock {
+  type: ContentBlockType;
+  text?: string;
+  mime?: string;
+  data?: string;
+}
+
+export interface ArtifactItem {
+  id: string;
+  runId: string;
+  status: ItemStatus;
+  createdAt?: string;
+  type: ItemType;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMillis?: number;
+  content?: Array<ArtifactContentBlock>;
+  phase?: MessagePhase;
+  text?: string;
+  redacted?: boolean;
+  question?: ArtifactQuestion;
+  tool?: ArtifactToolInvocation;
+  safetyClass?: SafetyClass;
+  approvalDecision?: ApprovalDecision;
+  error?: ArtifactProblem;
+  summary?: string;
+  droppedMessages?: number;
+}
+
+export interface ArtifactModelUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+}
+
+export interface ArtifactOutcome {
+  type: ArtifactOutcomeType;
+  error?: ArtifactProblem;
+  detail?: string;
+}
+
+export type ArtifactOutcomeType = string;
+
+export interface ArtifactProblem {
+  type: ArtifactProblemType;
+  detail?: string;
+  docUrl?: string;
+  retryAfterSeconds?: number;
+}
+
+export type ArtifactProblemType = string;
+
+export interface ArtifactQuestion {
+  fields: Array<ArtifactQuestionField>;
+  answers?: Array<Array<string>>;
+}
+
+export interface ArtifactQuestionField {
+  prompt: string;
+  header?: string;
+  type: QuestionFieldType;
+  options?: Array<ArtifactQuestionOption>;
+  multiple?: boolean;
+  allowCustom?: boolean;
+}
+
+export interface ArtifactQuestionOption {
+  label: string;
+  description?: string;
+  preview?: string;
+}
+
+export interface ArtifactRun {
+  id: string;
+  sessionId: string;
+  spawnedByItemId?: string;
+  parentRunId?: string;
+  rootRunId?: string;
+  provider?: string;
+  model?: string;
+  limits?: ArtifactRunLimits;
+  metrics: ArtifactRunMetrics;
+  contextTokens?: number;
+  protocolProfile?: RunProtocolProfile;
+  outcome: ArtifactOutcome;
+  createdAt: string;
+  finishedAt: string;
+  updatedAt: string;
+  messageMark: number;
+}
+
+export interface ArtifactRunLimits {
+  maxTotalTokens?: number;
+  maxSteps?: number;
+  maxBudgetUsd?: number;
+}
+
+export interface ArtifactRunMetrics {
+  usage?: ArtifactUsage;
+  steps: number;
+  activeDurationMillis: number;
+}
+
+export interface ArtifactSession {
+  id: string;
+  title: string;
+  workspace: WorkspaceRef;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+  favorite?: boolean;
+}
+
+export interface ArtifactToolInvocation {
+  name: string;
+  arguments: Record<string, unknown>;
+  result?: unknown;
+}
+
+export interface ArtifactToolResult {
+  id: string;
+  itemId: string;
+  toolName: string;
+  preview: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface ArtifactUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+  byModel?: Record<string, ArtifactModelUsage>;
+}
+
+export interface CancelRunRequest {
+  runId: string;
+  reason?: string;
+}
+
+export interface CancelRunResponse {
+  type: CancelRunResponseType;
+  run: RunRef;
+  rootRun?: RunRef;
+}
+
+export type CancelRunResponseType = string;
+
+export interface CapabilityRequirement {
+  type: CapabilityRequirementType;
+  name: string;
+}
+
+export type CapabilityRequirementType = string;
+
 export interface ClientCapabilities {
   features?: Record<string, FeaturePreference>;
   interruptTypes?: Array<InterruptType>;
@@ -15,10 +268,130 @@ export interface ClientInfo {
   version: string;
 }
 
+export interface CodebaseHit {
+  path: string;
+  startLine: number;
+  endLine: number;
+  snippet: string;
+  score: number;
+}
+
+export interface CodebaseReindexRequest {
+  workspace: WorkspaceRef;
+}
+
+export interface CodebaseReindexResponse {
+  operationId: string;
+}
+
+export interface CodebaseSearchRequest {
+  workspace: WorkspaceRef;
+  query: string;
+  limit?: number;
+}
+
+export interface CodebaseSearchResult {
+  hits: Array<CodebaseHit>;
+}
+
+export type CodebaseState = string;
+
+export interface CodebaseStatus {
+  state: CodebaseState;
+  modelId?: string;
+  fileCount: number;
+  chunkCount: number;
+  indexedAt?: string;
+  truncated?: boolean;
+  operationId?: string;
+}
+
+export interface CodebaseStatusRequest {
+  workspace: WorkspaceRef;
+}
+
+export interface ContentBlock {
+  type: ContentBlockType;
+  text?: string;
+  mime?: string;
+  data?: string;
+}
+
+export type ContentBlockType = string;
+
+export interface CreateMCPAuthorizationAttemptRequest {
+  server: string;
+}
+
+export interface CreateScheduleRequest {
+  title?: string;
+  instructions: string;
+  workspace?: WorkspaceRef;
+  provider?: string;
+  model?: string;
+  cron: string;
+}
+
+export interface CreateSessionRequest {
+  workspace?: WorkspaceRef;
+  title?: string;
+}
+
+export interface DeleteScheduleRequest {
+  id: string;
+}
+
+export interface DeleteSessionRequest {
+  sessionId: string;
+}
+
+export interface Diff {
+  files?: Array<FileDiff>;
+  patch?: string;
+  truncated?: boolean;
+}
+
+export type DiffFormat = string;
+
+export type DiffMode = string;
+
+export interface DiffRow {
+  type: DiffRowType;
+  text?: string;
+  leftLine?: number;
+  rightLine?: number;
+  code?: string;
+}
+
+export type DiffRowType = string;
+
 export interface DiscoverResponse {
   protocolVersion: string;
   serverInfo: ServerInfo;
   capabilities: ServerCapabilities;
+}
+
+export interface DroppedRun {
+  run: RunSummary;
+  userInput?: Array<ContentBlock>;
+}
+
+export interface EmbeddingRole {
+  provider?: string;
+  model?: string;
+}
+
+export type ExportFormat = string;
+
+export interface ExportSessionRequest {
+  sessionId: string;
+  format?: ExportFormat;
+}
+
+export interface ExportSessionResponse {
+  format: ExportFormat;
+  artifact?: SessionArtifact;
+  markdown?: string;
 }
 
 export interface FeatureCapability {
@@ -31,33 +404,612 @@ export interface FeaturePreference {
   enabled: boolean;
 }
 
+export type FeedbackRating = string;
+
+export interface FeedbackRequest {
+  sessionId?: string;
+  runId?: string;
+  itemId?: string;
+  rating?: FeedbackRating;
+  text?: string;
+}
+
 export interface FieldError {
   field: string;
   detail: string;
 }
 
+export interface FileContent {
+  path: string;
+  content: string;
+  encoding: string;
+  totalLines: number;
+  truncated?: boolean;
+  startLine?: number;
+  endLine?: number;
+}
+
+export interface FileDiff {
+  path: string;
+  status: FileStatus;
+  previousPath?: string;
+  added?: number;
+  removed?: number;
+  binary?: boolean;
+  rows: Array<DiffRow>;
+}
+
+export interface FileEntry {
+  path: string;
+  name: string;
+  type: FileEntryType;
+  sizeBytes?: number;
+  modifiedAt: string;
+}
+
+export type FileEntryType = string;
+
+export interface FileHead {
+  path: string;
+  lines: Array<FileLine>;
+}
+
+export interface FileLine {
+  lineNumber: number;
+  text: string;
+}
+
+export type FileStatus = string;
+
+export interface ForgetApprovalRuleRequest {
+  id: string;
+}
+
+export interface ForkSessionRequest {
+  sessionId: string;
+  fromRunId?: string;
+  title?: string;
+}
+
+export interface GenerationParams {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  stop?: Array<string>;
+}
+
+export interface GetDiffRequest {
+  workspace: WorkspaceRef;
+  path?: string;
+  mode?: DiffMode;
+  format?: DiffFormat;
+  limit?: number;
+}
+
+export interface GetFileHeadRequest {
+  workspace: WorkspaceRef;
+  path: string;
+  lines?: number;
+}
+
+export interface GetKnowledgeRequest {
+  scope: KnowledgeScope;
+  workspace?: WorkspaceRef;
+}
+
+export interface GetPlanRequest {
+  sessionId: string;
+}
+
+export interface GetRunRequest {
+  runId: string;
+}
+
+export interface GetSessionRequest {
+  sessionId: string;
+}
+
+export interface GetSessionSnapshotRequest {
+  sessionId: string;
+  includeDescendants?: boolean;
+}
+
+export interface Goal {
+  sessionId: string;
+  objective: string;
+  status: GoalStatus;
+  reason?: GoalReason;
+  provider?: string;
+  model?: string;
+  budget: GoalBudget;
+  used: GoalUsage;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GoalBudget {
+  maxRuns?: number;
+  maxCostUsd?: number;
+  maxSteps?: number;
+}
+
+export interface GoalReason {
+  code: GoalReasonCode;
+  detail?: string;
+}
+
+export type GoalReasonCode = string;
+
+export interface GoalRequest {
+  sessionId: string;
+}
+
+export type GoalStatus = string;
+
+export interface GoalUsage {
+  runs: number;
+  costUsd: number;
+  steps: number;
+}
+
+export interface GrepMatch {
+  path: string;
+  lineNumber: number;
+  text: string;
+}
+
+export interface GrepRequest {
+  workspace: WorkspaceRef;
+  query: string;
+  path?: string;
+  limit?: number;
+}
+
+export interface GrepResult {
+  matches: Array<GrepMatch>;
+  total: number;
+}
+
 export type HealthStatus = "ok" | "degraded" | "unhealthy";
+
+export type HookEvent = string;
+
+export interface HookInfo {
+  event: HookEvent;
+  matcher?: string;
+  command?: string;
+  inject?: string;
+  timeoutMillis?: number;
+  scope: HookScope;
+  source: string;
+  active: boolean;
+}
+
+export type HookScope = string;
+
+export interface HooksListResult {
+  projectRoot?: string;
+  projectTrusted: boolean;
+  hooks: Array<HookInfo>;
+}
 
 export interface IdempotencyLimits {
   retentionSeconds: number;
   namespace: string;
 }
 
+export interface ImportSessionRequest {
+  artifact: SessionArtifact;
+}
+
+export interface ImportSessionResponse {
+  session: Session | null;
+}
+
+export interface Interrupt {
+  itemId: string;
+  runId: string;
+  type: InterruptType;
+  payload?: InterruptPayload;
+}
+
+export interface InterruptPayload {
+  tool?: ToolInvocation;
+  risk?: ApprovalRisk;
+  reason?: string;
+  rememberable?: boolean;
+  question?: Question;
+}
+
+export interface InterruptResponse {
+  itemId: string;
+  response: InterruptResponseValue;
+}
+
+export type InterruptResponseType = string;
+
+export interface InterruptResponseValue {
+  type: InterruptResponseType;
+  decision?: ApprovalDecision;
+  remember?: RememberScope;
+  editedArgs?: Record<string, unknown>;
+  reason?: string;
+  answers?: Array<Array<string>>;
+}
+
 export type InterruptType = "approval" | "question";
+
+export interface InvokeToolRequest {
+  name: string;
+  arguments: Record<string, unknown>;
+  workspace?: WorkspaceRef;
+}
+
+export interface Item {
+  id: string;
+  runId: string;
+  status: ItemStatus;
+  createdAt?: string;
+  type: ItemType;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMillis?: number;
+  content?: Array<ContentBlock>;
+  phase?: MessagePhase;
+  text?: string;
+  redacted?: boolean;
+  question?: Question;
+  tool?: ToolInvocation;
+  safetyClass?: SafetyClass;
+  approvalDecision?: ApprovalDecision;
+  error?: ProblemData;
+  summary?: string;
+  droppedMessages?: number;
+}
+
+export interface ItemDelta {
+  type: ItemDeltaType;
+  index?: number;
+  text?: string;
+  argumentsTextDelta?: string;
+}
+
+export type ItemDeltaType = string;
+
+export interface ItemListScope {
+  type: ItemScopeType;
+  sessionId?: string;
+  runId?: string;
+  includeDescendants?: boolean;
+}
+
+export type ItemOrder = string;
+
+export type ItemScopeType = string;
+
+export type ItemStatus = string;
+
+export type ItemType = string;
+
+export interface KnowledgeEntry {
+  scope: KnowledgeScope;
+  content: string;
+  revision: string;
+  updatedAt?: string;
+}
+
+export type KnowledgeScope = string;
+
+export interface ListApprovalRulesRequest {
+  sessionId: string;
+}
+
+export interface ListApprovalRulesResult {
+  rules: Array<ApprovalRule>;
+}
+
+export interface ListFilesRequest {
+  workspace: WorkspaceRef;
+  path?: string;
+  glob?: string;
+  recursive?: boolean;
+  includeIgnored?: boolean;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListHooksRequest {
+  workspace: WorkspaceRef;
+}
+
+export interface ListInterruptsRequest {
+  sessionId?: string;
+  rootRunId?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListItemsRequest {
+  scope: ItemListScope;
+  order?: ItemOrder;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListItemsResponse {
+  data: Array<Item>;
+  nextCursor?: string;
+  runs: Array<RunSummary>;
+}
+
+export interface ListModelsRequest {
+  provider?: string;
+}
+
+export interface ListRunsRequest {
+  sessionId?: string;
+  statuses?: Array<RunStatus>;
+  includeDescendants?: boolean;
+  limit?: number;
+  cursor?: string;
+}
 
 export interface LivenessStatus {
   instanceId: string;
   status: HealthStatus;
 }
 
+export interface MCPAuthorizationAttempt {
+  id: string;
+  server: string;
+  status: MCPAuthorizationAttemptStatus;
+  createdAt: string;
+  finishedAt?: string;
+}
+
 export interface MCPAuthorizationAttemptLimits {
   retentionSeconds: number;
+}
+
+export interface MCPAuthorizationAttemptRequest {
+  attemptId: string;
+}
+
+export interface MCPAuthorizationAttemptStatus {
+  type: MCPAuthorizationAttemptStatusType;
+  error?: ProblemData;
+}
+
+export type MCPAuthorizationAttemptStatusType = string;
+
+export interface MCPAuthorizationChange {
+  type: MCPSecretChangeType;
+  value?: string;
+}
+
+export interface MCPConnection {
+  type: MCPTransport;
+  url?: string;
+  authorizationMasked?: string;
+  headersMasked?: Record<string, string>;
+  command?: string;
+  args?: Array<string>;
+  envMasked?: Record<string, string>;
+  dir?: string;
+}
+
+export interface MCPConnectionInput {
+  type: MCPTransport;
+  url?: string;
+  authorization?: MCPAuthorizationChange;
+  headers?: MCPHeadersChange;
+  command?: string;
+  args?: Array<string>;
+  env?: MCPEnvironmentChange;
+  dir?: string;
+}
+
+export interface MCPEnvironmentChange {
+  type: MCPSecretChangeType;
+  value?: Record<string, string>;
+}
+
+export interface MCPHeadersChange {
+  type: MCPSecretChangeType;
+  value?: Record<string, string>;
+}
+
+export interface MCPListToolsRequest {
+  server?: string;
+}
+
+export type MCPSecretChangeType = string;
+
+export interface MCPServer {
+  name: string;
+  description?: string;
+  connection: MCPConnection;
+  timeoutSeconds?: number;
+  disabledTools?: Array<string>;
+  autoApproveTools?: Array<string>;
+  status: MCPServerState;
+}
+
+export interface MCPServerCandidate {
+  name: string;
+  enabled: boolean;
+  description?: string;
+  connection: MCPConnectionInput;
+  timeoutSeconds?: number;
+  disabledTools?: Array<string>;
+  autoApproveTools?: Array<string>;
+}
+
+export interface MCPServerRequest {
+  server: string;
+}
+
+export interface MCPServerState {
+  type: MCPServerStateType;
+  toolCount?: number;
+  error?: ProblemData;
+}
+
+export type MCPServerStateType = string;
+
+export interface MCPTestResult {
+  ok: boolean;
+  error?: ProblemData;
+}
+
+export interface MCPTool {
+  server: string;
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export type MCPTransport = string;
+
+export interface ManagedSkill {
+  name: string;
+  description?: string;
+  lifecycle: SkillLifecycle;
+}
+
+export type MessagePhase = string;
+
+export type Modality = string;
+
+export interface Model {
+  id: string;
+  provider: string;
+  displayName?: string;
+  contextWindow?: number;
+  maxInputTokens?: number;
+  maxOutputTokens?: number;
+  knowledgeCutoff?: string;
+  deprecated?: boolean;
+  capabilities?: ModelCapabilities;
+  pricing?: ModelPricing;
+}
+
+export interface ModelCapabilities {
+  reasoning?: boolean;
+  reasoningLevels?: Array<string>;
+  reasoningDefaultLevel?: string;
+  multimodal?: boolean;
+  inputModalities?: Array<Modality>;
+  outputModalities?: Array<Modality>;
+  toolUse?: boolean;
+  structuredOutput?: boolean;
+}
+
+export interface ModelPricing {
+  inputUsdPerMillionTokens?: number;
+  outputUsdPerMillionTokens?: number;
+  cacheReadUsdPerMillionTokens?: number;
+  cacheWriteUsdPerMillionTokens?: number;
+}
+
+export interface ModelUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+}
+
+export interface PageQuery {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface PendingInterruptSet {
+  rootRunId: string;
+  sessionId: string;
+  interrupts: Array<Interrupt>;
+  createdAt: string;
+}
+
+export interface Plan {
+  sessionId: string;
+  revision: number;
+  steps: Array<PlanStep>;
+  updatedAt?: string;
+}
+
+export type PlanStatus = string;
+
+export interface PlanStep {
+  id: string;
+  description: string;
+  status: PlanStatus;
 }
 
 export interface ProblemData {
   type: string;
   detail?: string;
+  docUrl?: string;
+  retryAfterSeconds?: number;
+  requiredCapabilities?: Array<CapabilityRequirement>;
+  activeRun?: ActiveRunRef;
   errors?: Array<FieldError>;
+}
+
+export interface Provider {
+  id: string;
+  baseUrl?: string;
+  apiKeyMasked: string;
+  keySource?: ProviderKeySource;
+  requiresBaseUrl?: boolean;
+  embeddingCapable?: boolean;
+  defaultEmbeddingModel?: string;
+}
+
+export interface ProviderConfigChange {
+  type: ProviderConfigChangeType;
+  value?: string;
+}
+
+export type ProviderConfigChangeType = string;
+
+export type ProviderKeySource = string;
+
+export interface ProviderTestResult {
+  ok: boolean;
+  error?: ProblemData;
+}
+
+export interface Question {
+  fields: Array<QuestionField>;
+  answers?: Array<Array<string>>;
+}
+
+export interface QuestionField {
+  prompt: string;
+  header?: string;
+  type: QuestionFieldType;
+  options?: Array<QuestionOption>;
+  multiple?: boolean;
+  allowCustom?: boolean;
+}
+
+export type QuestionFieldType = string;
+
+export interface QuestionOption {
+  label: string;
+  description?: string;
+  preview?: string;
+}
+
+export interface ReadFileRequest {
+  workspace: WorkspaceRef;
+  path: string;
+  startLine?: number;
+  endLine?: number;
+  maxBytes?: number;
 }
 
 export interface ReadinessStatus {
@@ -66,10 +1018,117 @@ export interface ReadinessStatus {
   checks?: Record<string, HealthStatus>;
 }
 
+export interface Recipe {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+  body: string;
+  scope: RecipeScope;
+  source: string;
+}
+
+export type RecipeScope = string;
+
+export interface RememberScope {
+  scope: RememberScopeKind;
+}
+
+export type RememberScopeKind = string;
+
 export interface RequestMeta {
   protocolVersion?: string;
   clientInfo?: ClientInfo;
   clientCapabilities?: ClientCapabilities;
+}
+
+export interface ResolveWorkspaceRequest {
+  ref?: WorkspaceRef;
+}
+
+export type RestoreType = string;
+
+export interface ResumeRunRequest {
+  runId: string;
+  responses: Array<InterruptResponse>;
+  input?: Array<ContentBlock>;
+}
+
+export interface ResumeRunResponse {
+  runId: string;
+  segmentId: string;
+  userItemId?: string;
+}
+
+export interface RollbackSessionRequest {
+  sessionId: string;
+  toRunId?: string;
+  restoreType?: RestoreType;
+}
+
+export interface RollbackSessionResponse {
+  session: Session | null;
+  droppedRuns: Array<DroppedRun>;
+}
+
+export interface RunEvent {
+  runId: string;
+  segmentId: string;
+  eventId: string;
+  timestamp: string;
+  event: StreamEvent;
+}
+
+export interface RunLimits {
+  maxTotalTokens?: number;
+  maxSteps?: number;
+  maxBudgetUsd?: number;
+}
+
+export interface RunMetrics {
+  usage?: Usage;
+  steps: number;
+  activeDurationMillis: number;
+}
+
+export interface RunOutcome {
+  type: RunOutcomeType;
+  error?: ProblemData;
+  detail?: string;
+}
+
+export type RunOutcomeType = string;
+
+export interface RunProgress {
+  step?: number;
+  usage?: Usage;
+  contextTokens?: number;
+  activity?: string;
+}
+
+export type RunProtocolFeature = string;
+
+export interface RunProtocolProfile {
+  requiredFeatures: Array<RunProtocolFeature>;
+  interruptTypes: Array<InterruptType>;
+}
+
+export interface RunRef {
+  id: string;
+  sessionId: string;
+  spawnedByItemId?: string;
+  parentRunId?: string;
+  rootRunId?: string;
+  model?: string;
+  provider?: string;
+  status?: RunStatus;
+  outcome?: RunOutcome;
+  createdAt?: string;
+  finishedAt?: string;
+  activeSegmentId?: string;
+  metrics: RunMetrics;
+  contextTokens?: number;
+  limits?: RunLimits;
+  protocolProfile: RunProtocolProfile;
 }
 
 export interface RunReplayLimits {
@@ -80,12 +1139,54 @@ export interface RunReplayLimits {
 
 export type RunReplayScope = "runtimeInstanceRootSegment";
 
+export interface RunScheduleNowRequest {
+  id: string;
+}
+
+export interface RunScheduleNowResponse {
+  sessionId: string;
+  runId: string;
+}
+
+export type RunStatus = string;
+
+export interface RunSummary {
+  id: string;
+  sessionId: string;
+  spawnedByItemId?: string;
+  parentRunId?: string;
+  rootRunId?: string;
+  model?: string;
+  provider?: string;
+  status?: RunStatus;
+  outcome?: RunOutcome;
+  createdAt?: string;
+  finishedAt?: string;
+}
+
 export interface RuntimeEndpoints {
   rpc: string;
   info: string;
   liveness: string;
   readiness: string;
 }
+
+export interface RuntimeEvent {
+  type: RuntimeEventType;
+  sequence: number;
+  watchId?: string;
+  workspace?: WorkspaceRef;
+  paths?: Array<string>;
+  names?: Array<string>;
+  serverIds?: Array<string>;
+  scheduleIds?: Array<string>;
+  sessionIds?: Array<string>;
+  runIds?: Array<string>;
+  topics?: Array<RuntimeTopic>;
+  watchIds?: Array<string>;
+}
+
+export type RuntimeEventType = string;
 
 export interface RuntimeInfo {
   protocolVersion: string;
@@ -108,7 +1209,42 @@ export interface RuntimeServerInfo {
   version: string;
 }
 
+export interface RuntimeSubscribeRequest {
+  topics: Array<RuntimeTopic>;
+  watches?: Array<WatchSpec>;
+}
+
+export type RuntimeSubscribeResponse = EmptyObject;
+
 export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "plan.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed";
+
+export type SafetyClass = string;
+
+export interface Schedule {
+  id: string;
+  title: string;
+  instructions: string;
+  workspace?: WorkspaceRef;
+  provider?: string;
+  model?: string;
+  cron: string;
+  enabled: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  createdAt: string;
+  revision: number;
+}
+
+export type ScheduleWorkspaceMode = string;
+
+export interface SegmentOutcome {
+  type: SegmentOutcomeType;
+  error?: ProblemData;
+  detail?: string;
+  interrupts?: Array<Interrupt>;
+}
+
+export type SegmentOutcomeType = string;
 
 export interface ServerCapabilities {
   runEvents: Array<StreamEventType>;
@@ -126,7 +1262,140 @@ export interface ServerInfo {
   home: string;
 }
 
+export interface Session {
+  id: string;
+  title: string;
+  status: SessionStatus;
+  model: string;
+  workspace: WorkspaceInfo;
+  createdAt: string;
+  updatedAt: string;
+  favorite?: boolean;
+  revision: number;
+}
+
+export interface SessionArtifact {
+  version: number;
+  session: ArtifactSession;
+  messages: Array<unknown>;
+  runs: Array<ArtifactRun>;
+  items: Array<ArtifactItem>;
+  toolResults: Array<ArtifactToolResult>;
+  plan?: Array<PlanStep>;
+}
+
+export interface SessionSnapshot {
+  items: Array<Item>;
+  runs: Array<RunRef>;
+  interrupts: Array<PendingInterruptSet>;
+  plan?: Plan;
+  goal?: Goal;
+}
+
+export type SessionStatus = string;
+
+export interface SessionUsageRequest {
+  sessionId: string;
+}
+
+export interface SetApprovalModeRequest {
+  mode: ApprovalMode;
+}
+
+export interface SetHookTrustRequest {
+  projectRoot: string;
+  trusted: boolean;
+}
+
+export interface Skill {
+  name: string;
+  description?: string;
+  scope: SkillScope;
+}
+
+export type SkillLifecycle = string;
+
+export interface SkillNameRequest {
+  name: string;
+}
+
+export interface SkillProposal {
+  name: string;
+  revision: string;
+  scope: SkillScope;
+  description: string;
+  instructions: string;
+  origin?: SkillProposalOrigin;
+  sourceSession?: string;
+  revises?: boolean;
+}
+
+export type SkillProposalOrigin = string;
+
+export interface SkillProposalRef {
+  workspace: WorkspaceRef;
+  name: string;
+  revision: string;
+  scope: SkillScope;
+}
+
+export type SkillScope = string;
+
+export interface StartGoalRequest {
+  sessionId: string;
+  objective: string;
+  provider?: string;
+  model?: string;
+  budget?: GoalBudget;
+}
+
+export interface StartRunRequest {
+  sessionId: string;
+  input: Array<ContentBlock>;
+  provider?: string;
+  model?: string;
+  maxTotalTokens?: number;
+  maxSteps?: number;
+  maxBudgetUsd?: number;
+  params?: GenerationParams;
+}
+
+export interface StartRunResponse {
+  runId: string;
+  segmentId: string;
+  userItemId: string;
+}
+
+export interface SteerRunRequest {
+  runId: string;
+  expectedSegmentId: string;
+  input: Array<ContentBlock>;
+}
+
+export interface StreamEvent {
+  type: StreamEventType;
+  run?: RunRef;
+  progress?: RunProgress;
+  outcome?: SegmentOutcome;
+  metrics?: RunMetrics;
+  item?: Item;
+  itemId?: string;
+  delta?: ItemDelta;
+  plan?: Plan;
+}
+
 export type StreamEventType = "segment.started" | "segment.progress" | "segment.finished" | "item.started" | "item.delta" | "item.completed" | "plan.updated";
+
+export interface SubscribeRunRequest {
+  runId: string;
+  segmentId: string;
+}
+
+export interface SubscribeRunResponse {
+  runId: string;
+  segmentId: string;
+  headEventId?: string;
+}
 
 export interface SubscriptionLimits {
   maxTopics: number;
@@ -135,23 +1404,722 @@ export interface SubscriptionLimits {
 
 export type SuppressibleRunEventType = "segment.progress" | "item.delta";
 
+export interface TestProviderRequest {
+  provider: string;
+}
+
+export interface ToolInvocation {
+  name: string;
+  arguments: Record<string, unknown>;
+  result?: unknown;
+}
+
+export interface ToolSpec {
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+  safetyClass?: SafetyClass;
+}
+
 export type TransportKind = "http";
+
+export interface UpdateGoalRequest {
+  sessionId: string;
+  objective: string;
+}
+
+export interface UpdateKnowledgeRequest {
+  scope: KnowledgeScope;
+  workspace?: WorkspaceRef;
+  expectedRevision: string;
+  content: string;
+}
+
+export interface UpdateMCPServerRequest {
+  server: string;
+  enabled?: boolean;
+  description?: string;
+  connection?: MCPConnectionInput;
+  timeoutSeconds?: number;
+  disabledTools?: Array<string>;
+  autoApproveTools?: Array<string>;
+}
+
+export interface UpdateProviderRequest {
+  provider: string;
+  baseUrl?: ProviderConfigChange;
+  apiKey?: ProviderConfigChange;
+}
+
+export interface UpdateScheduleRequest {
+  id: string;
+  expectedRevision: number;
+  title?: string;
+  instructions?: string;
+  workspace?: WorkspaceRef;
+  workspaceMode?: ScheduleWorkspaceMode;
+  provider?: string;
+  model?: string;
+  cron?: string;
+  enabled?: boolean;
+}
+
+export interface UpdateSessionRequest {
+  sessionId: string;
+  expectedRevision: number;
+  title?: string;
+  workspace?: WorkspaceRef;
+  model?: string;
+  favorite?: boolean;
+}
+
+export interface Usage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+  byModel?: Record<string, ModelUsage>;
+}
+
+export interface UsageBucket {
+  key: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+  runs?: number;
+}
+
+export interface UsageSummary {
+  total: ModelUsage;
+  byProvider?: Array<UsageBucket>;
+  byModel?: Array<UsageBucket>;
+  byDay?: Array<UsageBucket>;
+  sessions?: number;
+  runs?: number;
+}
+
+export interface UsageSummaryRequest {
+  sinceDays?: number;
+}
+
+export interface UtilityRole {
+  provider?: string;
+  model?: string;
+}
+
+export interface WatchSpec {
+  watchId: string;
+  workspace: WorkspaceRef;
+}
+
+export type WorkspaceAvailability = string;
+
+export interface WorkspaceFileChange {
+  path: string;
+  status: FileStatus;
+  previousPath?: string;
+  added?: number;
+  removed?: number;
+  binary?: boolean;
+}
+
+export interface WorkspaceInfo {
+  ref: WorkspaceRef;
+  projectRoot?: string;
+  availability: WorkspaceAvailability;
+}
+
+export interface WorkspaceQuery {
+  workspace: WorkspaceRef;
+}
 
 export interface WorkspaceRef {
   path: string;
 }
 
-export interface RuntimeMethods {
-  "runtime.discover": { params: EmptyObject; result: DiscoverResponse };
+export interface WorkspaceSummary {
+  workspace: WorkspaceInfo;
+  name: string;
+  sessionCount: number;
+  lastActiveAt?: string;
 }
+
+export interface UnaryRuntimeMethods {
+  "runtime.discover": { params: EmptyObject; result: DiscoverResponse };
+  "sessions.list": { params: PageQuery; result: Page<Session> };
+  "sessions.get": { params: GetSessionRequest; result: Session };
+  "sessions.snapshot": { params: GetSessionSnapshotRequest; result: SessionSnapshot };
+  "sessions.create": { params: CreateSessionRequest; result: Session };
+  "sessions.update": { params: UpdateSessionRequest; result: Session };
+  "sessions.delete": { params: DeleteSessionRequest; result: EmptyObject };
+  "sessions.fork": { params: ForkSessionRequest; result: Session };
+  "sessions.rollback": { params: RollbackSessionRequest; result: RollbackSessionResponse };
+  "sessions.export": { params: ExportSessionRequest; result: ExportSessionResponse };
+  "sessions.import": { params: ImportSessionRequest; result: ImportSessionResponse };
+  "runs.cancel": { params: CancelRunRequest; result: CancelRunResponse };
+  "runs.steer": { params: SteerRunRequest; result: EmptyObject };
+  "runs.get": { params: GetRunRequest; result: RunRef };
+  "runs.list": { params: ListRunsRequest; result: Page<RunRef> };
+  "interrupts.list": { params: ListInterruptsRequest; result: Page<PendingInterruptSet> };
+  "plan.get": { params: GetPlanRequest; result: Plan };
+  "items.list": { params: ListItemsRequest; result: ListItemsResponse };
+  "workspaces.resolve": { params: ResolveWorkspaceRequest; result: WorkspaceInfo };
+  "workspaces.list": { params: EmptyObject; result: Page<WorkspaceSummary> };
+  "workspace.changes.list": { params: WorkspaceQuery; result: Page<WorkspaceFileChange> };
+  "workspace.diff.get": { params: GetDiffRequest; result: Diff };
+  "workspace.files.head": { params: GetFileHeadRequest; result: FileHead };
+  "workspace.files.search": { params: GrepRequest; result: GrepResult };
+  "workspace.files.list": { params: ListFilesRequest; result: Page<FileEntry> };
+  "workspace.files.read": { params: ReadFileRequest; result: FileContent };
+  "skills.discovered.list": { params: WorkspaceQuery; result: Page<Skill> };
+  "skills.library.list": { params: EmptyObject; result: Page<ManagedSkill> };
+  "skills.library.archive": { params: SkillNameRequest; result: EmptyObject };
+  "skills.library.restore": { params: SkillNameRequest; result: EmptyObject };
+  "skills.proposals.list": { params: WorkspaceQuery; result: Page<SkillProposal> };
+  "skills.proposals.approve": { params: SkillProposalRef; result: EmptyObject };
+  "skills.proposals.reject": { params: SkillProposalRef; result: EmptyObject };
+  "recipes.list": { params: WorkspaceQuery; result: Page<Recipe> };
+  "agentDocs.list": { params: WorkspaceQuery; result: Page<AgentDoc> };
+  "mcp.servers.list": { params: EmptyObject; result: Page<MCPServer> };
+  "mcp.servers.create": { params: MCPServerCandidate; result: MCPServer };
+  "mcp.servers.update": { params: UpdateMCPServerRequest; result: MCPServer };
+  "mcp.servers.delete": { params: MCPServerRequest; result: EmptyObject };
+  "mcp.servers.test": { params: MCPServerCandidate; result: MCPTestResult };
+  "mcp.tools.list": { params: MCPListToolsRequest; result: Page<MCPTool> };
+  "mcp.servers.reconnect": { params: MCPServerRequest; result: EmptyObject };
+  "mcp.authorizationAttempts.create": { params: CreateMCPAuthorizationAttemptRequest; result: MCPAuthorizationAttempt };
+  "mcp.authorizationAttempts.get": { params: MCPAuthorizationAttemptRequest; result: MCPAuthorizationAttempt };
+  "hooks.list": { params: ListHooksRequest; result: HooksListResult };
+  "hooks.setTrust": { params: SetHookTrustRequest; result: EmptyObject };
+  "approval.getMode": { params: EmptyObject; result: ApprovalModeResult };
+  "approval.setMode": { params: SetApprovalModeRequest; result: ApprovalModeResult };
+  "approval.listRules": { params: ListApprovalRulesRequest; result: ListApprovalRulesResult };
+  "approval.forgetRule": { params: ForgetApprovalRuleRequest; result: EmptyObject };
+  "schedules.list": { params: PageQuery; result: Page<Schedule> };
+  "schedules.create": { params: CreateScheduleRequest; result: Schedule };
+  "schedules.update": { params: UpdateScheduleRequest; result: Schedule };
+  "schedules.delete": { params: DeleteScheduleRequest; result: EmptyObject };
+  "schedules.runNow": { params: RunScheduleNowRequest; result: RunScheduleNowResponse };
+  "goals.start": { params: StartGoalRequest; result: Goal };
+  "goals.update": { params: UpdateGoalRequest; result: Goal };
+  "goals.clear": { params: GoalRequest; result: EmptyObject };
+  "goals.get": { params: GoalRequest; result: Goal | null };
+  "goals.stop": { params: GoalRequest; result: Goal };
+  "goals.resume": { params: GoalRequest; result: Goal };
+  "codebase.search": { params: CodebaseSearchRequest; result: CodebaseSearchResult };
+  "codebase.status": { params: CodebaseStatusRequest; result: CodebaseStatus };
+  "codebase.reindex": { params: CodebaseReindexRequest; result: CodebaseReindexResponse };
+  "providers.list": { params: EmptyObject; result: Page<Provider> };
+  "providers.update": { params: UpdateProviderRequest; result: Provider };
+  "providers.test": { params: TestProviderRequest; result: ProviderTestResult };
+  "models.list": { params: ListModelsRequest; result: Page<Model> };
+  "models.getUtilityRole": { params: EmptyObject; result: UtilityRole };
+  "models.setUtilityRole": { params: UtilityRole; result: UtilityRole };
+  "models.getEmbeddingRole": { params: EmptyObject; result: EmbeddingRole };
+  "models.setEmbeddingRole": { params: EmbeddingRole; result: EmbeddingRole };
+  "tools.list": { params: EmptyObject; result: Page<ToolSpec> };
+  "tools.invoke": { params: InvokeToolRequest; result: unknown };
+  "usage.session": { params: SessionUsageRequest; result: Usage };
+  "usage.summary": { params: UsageSummaryRequest; result: UsageSummary };
+  "knowledge.list": { params: WorkspaceQuery; result: Page<KnowledgeEntry> };
+  "knowledge.get": { params: GetKnowledgeRequest; result: KnowledgeEntry };
+  "knowledge.update": { params: UpdateKnowledgeRequest; result: KnowledgeEntry };
+  "agentMemory.list": { params: AgentMemoryListRequest; result: AgentMemoryList };
+  "agentMemory.review": { params: AgentMemoryReviewRequest; result: EmptyObject };
+  "agentMemory.update": { params: AgentMemoryUpdateRequest; result: AgentMemoryItem };
+  "agentMemory.delete": { params: AgentMemoryItemRequest; result: EmptyObject };
+  "agentMemory.add": { params: AgentMemoryAddRequest; result: AgentMemoryItem };
+  "feedback.create": { params: FeedbackRequest; result: EmptyObject };
+}
+
+export interface StreamRuntimeMethods {
+  "runs.start": { params: StartRunRequest; result: StartRunResponse; event: RunEvent };
+  "runs.resume": { params: ResumeRunRequest; result: ResumeRunResponse; event: RunEvent };
+  "runs.subscribe": { params: SubscribeRunRequest; result: SubscribeRunResponse; event: RunEvent };
+  "runtime.subscribe": { params: RuntimeSubscribeRequest; result: RuntimeSubscribeResponse; event: RuntimeEvent };
+}
+
+export type RuntimeMethods = UnaryRuntimeMethods & StreamRuntimeMethods;
+
+export const runtimeMethodFacts = {
+  "runtime.discover": { kind: "unary", operation: "query", idempotency: "none" },
+  "sessions.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "sessions.get": { kind: "unary", operation: "query", idempotency: "none" },
+  "sessions.snapshot": { kind: "unary", operation: "query", idempotency: "none" },
+  "sessions.create": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "sessions.update": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "sessions.delete": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "sessions.fork": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "sessions.rollback": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "sessions.export": { kind: "unary", operation: "query", idempotency: "none" },
+  "sessions.import": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "runs.start": { kind: "stream", operation: "command", idempotency: "replayRunStream" },
+  "runs.resume": { kind: "stream", operation: "command", idempotency: "replayRunStream" },
+  "runs.subscribe": { kind: "stream", operation: "subscription", idempotency: "none" },
+  "runs.cancel": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "runs.steer": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "runs.get": { kind: "unary", operation: "query", idempotency: "none" },
+  "runs.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "interrupts.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "plan.get": { kind: "unary", operation: "query", idempotency: "none" },
+  "items.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspaces.resolve": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspaces.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspace.changes.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspace.diff.get": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspace.files.head": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspace.files.search": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspace.files.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "workspace.files.read": { kind: "unary", operation: "query", idempotency: "none" },
+  "runtime.subscribe": { kind: "stream", operation: "subscription", idempotency: "none" },
+  "skills.discovered.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "skills.library.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "skills.library.archive": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "skills.library.restore": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "skills.proposals.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "skills.proposals.approve": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "skills.proposals.reject": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "recipes.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "agentDocs.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "mcp.servers.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "mcp.servers.create": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "mcp.servers.update": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "mcp.servers.delete": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "mcp.servers.test": { kind: "unary", operation: "query", idempotency: "none" },
+  "mcp.tools.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "mcp.servers.reconnect": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "mcp.authorizationAttempts.create": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "mcp.authorizationAttempts.get": { kind: "unary", operation: "query", idempotency: "none" },
+  "hooks.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "hooks.setTrust": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "approval.getMode": { kind: "unary", operation: "query", idempotency: "none" },
+  "approval.setMode": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "approval.listRules": { kind: "unary", operation: "query", idempotency: "none" },
+  "approval.forgetRule": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "schedules.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "schedules.create": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "schedules.update": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "schedules.delete": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "schedules.runNow": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "goals.start": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "goals.update": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "goals.clear": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "goals.get": { kind: "unary", operation: "query", idempotency: "none" },
+  "goals.stop": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "goals.resume": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "codebase.search": { kind: "unary", operation: "query", idempotency: "none" },
+  "codebase.status": { kind: "unary", operation: "query", idempotency: "none" },
+  "codebase.reindex": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "providers.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "providers.update": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "providers.test": { kind: "unary", operation: "query", idempotency: "none" },
+  "models.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "models.getUtilityRole": { kind: "unary", operation: "query", idempotency: "none" },
+  "models.setUtilityRole": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "models.getEmbeddingRole": { kind: "unary", operation: "query", idempotency: "none" },
+  "models.setEmbeddingRole": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "tools.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "tools.invoke": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "usage.session": { kind: "unary", operation: "query", idempotency: "none" },
+  "usage.summary": { kind: "unary", operation: "query", idempotency: "none" },
+  "knowledge.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "knowledge.get": { kind: "unary", operation: "query", idempotency: "none" },
+  "knowledge.update": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "agentMemory.list": { kind: "unary", operation: "query", idempotency: "none" },
+  "agentMemory.review": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "agentMemory.update": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "agentMemory.delete": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "agentMemory.add": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+  "feedback.create": { kind: "unary", operation: "command", idempotency: "replayResponse" },
+} as const satisfies { [Name in keyof RuntimeMethods]: { kind: "unary" | "stream"; operation: "query" | "command" | "subscription"; idempotency: "none" | "replayResponse" | "replayRunStream" } };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isEmptyObject(value: unknown): value is EmptyObject {
+  return isRecord(value) && Object.keys(value).length === 0;
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+function isPage<Value>(value: unknown, isValue: (value: unknown) => value is Value): value is Page<Value> {
+  return isRecord(value) && hasOnlyKeys(value, ["data"], ["nextCursor"]) && Array.isArray(value.data) && value.data.every(isValue) && (!("nextCursor" in value) || typeof value.nextCursor === "string");
+}
+
 function hasOnlyKeys(value: Record<string, unknown>, required: readonly string[], optional: readonly string[]): boolean {
   const allowed = new Set([...required, ...optional]);
   return required.every((key) => key in value) && Object.keys(value).every((key) => allowed.has(key));
+}
+
+export function isActiveRunRef(value: unknown): value is ActiveRunRef {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "status"], [])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(isRunStatus(value["status"]))) return false;
+  return true;
+}
+
+export function isAgentDoc(value: unknown): value is AgentDoc {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "scope"], ["title"])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if ("title" in value && !(typeof value["title"] === "string")) return false;
+  if (!(isAgentDocScope(value["scope"]))) return false;
+  return true;
+}
+
+export function isAgentDocScope(value: unknown): value is AgentDocScope {
+  return typeof value === "string";
+}
+
+export function isAgentMemoryAddRequest(value: unknown): value is AgentMemoryAddRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["scope", "content"], ["workspace"])) return false;
+  if (!(isAgentMemoryScope(value["scope"]))) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["content"] === "string")) return false;
+  return true;
+}
+
+export function isAgentMemoryItem(value: unknown): value is AgentMemoryItem {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "scope", "content", "origin", "status", "pinned", "createdAt", "updatedAt"], ["sessionId", "day"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(isAgentMemoryScope(value["scope"]))) return false;
+  if (!(typeof value["content"] === "string")) return false;
+  if (!(isAgentMemoryOrigin(value["origin"]))) return false;
+  if (!(isAgentMemoryStatus(value["status"]))) return false;
+  if (!(typeof value["pinned"] === "boolean")) return false;
+  if ("sessionId" in value && !(typeof value["sessionId"] === "string")) return false;
+  if ("day" in value && !(typeof value["day"] === "string")) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  if (!(isTimestamp(value["updatedAt"]))) return false;
+  return true;
+}
+
+export function isAgentMemoryItemRequest(value: unknown): value is AgentMemoryItemRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id"], [])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  return true;
+}
+
+export function isAgentMemoryList(value: unknown): value is AgentMemoryList {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["items"], [])) return false;
+  if (!(Array.isArray(value["items"]) && value["items"].every((entry) => isAgentMemoryItem(entry)))) return false;
+  return true;
+}
+
+export function isAgentMemoryListRequest(value: unknown): value is AgentMemoryListRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["scope"], ["workspace"])) return false;
+  if (!(isAgentMemoryScope(value["scope"]))) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
+}
+
+export function isAgentMemoryOrigin(value: unknown): value is AgentMemoryOrigin {
+  return typeof value === "string";
+}
+
+export function isAgentMemoryReviewDecision(value: unknown): value is AgentMemoryReviewDecision {
+  return typeof value === "string";
+}
+
+export function isAgentMemoryReviewRequest(value: unknown): value is AgentMemoryReviewRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "decision"], [])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(isAgentMemoryReviewDecision(value["decision"]))) return false;
+  return true;
+}
+
+export function isAgentMemoryScope(value: unknown): value is AgentMemoryScope {
+  return typeof value === "string";
+}
+
+export function isAgentMemoryStatus(value: unknown): value is AgentMemoryStatus {
+  return typeof value === "string";
+}
+
+export function isAgentMemoryUpdateRequest(value: unknown): value is AgentMemoryUpdateRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id"], ["content", "pinned"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if ("content" in value && !(typeof value["content"] === "string")) return false;
+  if ("pinned" in value && !(typeof value["pinned"] === "boolean")) return false;
+  return true;
+}
+
+export function isApprovalDecision(value: unknown): value is ApprovalDecision {
+  return typeof value === "string";
+}
+
+export function isApprovalMode(value: unknown): value is ApprovalMode {
+  return typeof value === "string";
+}
+
+export function isApprovalModeResult(value: unknown): value is ApprovalModeResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["mode"], [])) return false;
+  if (!(isApprovalMode(value["mode"]))) return false;
+  return true;
+}
+
+export function isApprovalRisk(value: unknown): value is ApprovalRisk {
+  return typeof value === "string";
+}
+
+export function isApprovalRule(value: unknown): value is ApprovalRule {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "scope", "tool", "decision"], ["subject", "dir"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(isApprovalRuleScope(value["scope"]))) return false;
+  if (!(typeof value["tool"] === "string")) return false;
+  if ("subject" in value && !(typeof value["subject"] === "string")) return false;
+  if ("dir" in value && !(typeof value["dir"] === "string")) return false;
+  if (!(isApprovalRuleDecision(value["decision"]))) return false;
+  return true;
+}
+
+export function isApprovalRuleDecision(value: unknown): value is ApprovalRuleDecision {
+  return typeof value === "string";
+}
+
+export function isApprovalRuleScope(value: unknown): value is ApprovalRuleScope {
+  return typeof value === "string";
+}
+
+export function isArtifactContentBlock(value: unknown): value is ArtifactContentBlock {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["text", "mime", "data"])) return false;
+  if (!(isContentBlockType(value["type"]))) return false;
+  if ("text" in value && !(typeof value["text"] === "string")) return false;
+  if ("mime" in value && !(typeof value["mime"] === "string")) return false;
+  if ("data" in value && !(typeof value["data"] === "string")) return false;
+  return true;
+}
+
+export function isArtifactItem(value: unknown): value is ArtifactItem {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "runId", "status", "type"], ["createdAt", "startedAt", "finishedAt", "durationMillis", "content", "phase", "text", "redacted", "question", "tool", "safetyClass", "approvalDecision", "error", "summary", "droppedMessages"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(isItemStatus(value["status"]))) return false;
+  if ("createdAt" in value && !(isTimestamp(value["createdAt"]))) return false;
+  if (!(isItemType(value["type"]))) return false;
+  if ("startedAt" in value && !(isTimestamp(value["startedAt"]))) return false;
+  if ("finishedAt" in value && !(isTimestamp(value["finishedAt"]))) return false;
+  if ("durationMillis" in value && !(Number.isInteger(value["durationMillis"]))) return false;
+  if ("content" in value && !(Array.isArray(value["content"]) && value["content"].every((entry) => isArtifactContentBlock(entry)))) return false;
+  if ("phase" in value && !(isMessagePhase(value["phase"]))) return false;
+  if ("text" in value && !(typeof value["text"] === "string")) return false;
+  if ("redacted" in value && !(typeof value["redacted"] === "boolean")) return false;
+  if ("question" in value && !(isArtifactQuestion(value["question"]))) return false;
+  if ("tool" in value && !(isArtifactToolInvocation(value["tool"]))) return false;
+  if ("safetyClass" in value && !(isSafetyClass(value["safetyClass"]))) return false;
+  if ("approvalDecision" in value && !(isApprovalDecision(value["approvalDecision"]))) return false;
+  if ("error" in value && !(isArtifactProblem(value["error"]))) return false;
+  if ("summary" in value && !(typeof value["summary"] === "string")) return false;
+  if ("droppedMessages" in value && !(Number.isInteger(value["droppedMessages"]))) return false;
+  return true;
+}
+
+export function isArtifactModelUsage(value: unknown): value is ArtifactModelUsage {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd"])) return false;
+  if ("inputTokens" in value && !(Number.isInteger(value["inputTokens"]))) return false;
+  if ("outputTokens" in value && !(Number.isInteger(value["outputTokens"]))) return false;
+  if ("cacheReadTokens" in value && !(Number.isInteger(value["cacheReadTokens"]))) return false;
+  if ("cacheWriteTokens" in value && !(Number.isInteger(value["cacheWriteTokens"]))) return false;
+  if ("reasoningTokens" in value && !(Number.isInteger(value["reasoningTokens"]))) return false;
+  if ("costUsd" in value && !(typeof value["costUsd"] === "number" && Number.isFinite(value["costUsd"]))) return false;
+  return true;
+}
+
+export function isArtifactOutcome(value: unknown): value is ArtifactOutcome {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["error", "detail"])) return false;
+  if (!(isArtifactOutcomeType(value["type"]))) return false;
+  if ("error" in value && !(isArtifactProblem(value["error"]))) return false;
+  if ("detail" in value && !(typeof value["detail"] === "string")) return false;
+  return true;
+}
+
+export function isArtifactOutcomeType(value: unknown): value is ArtifactOutcomeType {
+  return typeof value === "string";
+}
+
+export function isArtifactProblem(value: unknown): value is ArtifactProblem {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["detail", "docUrl", "retryAfterSeconds"])) return false;
+  if (!(isArtifactProblemType(value["type"]))) return false;
+  if ("detail" in value && !(typeof value["detail"] === "string")) return false;
+  if ("docUrl" in value && !(typeof value["docUrl"] === "string")) return false;
+  if ("retryAfterSeconds" in value && !(Number.isInteger(value["retryAfterSeconds"]))) return false;
+  return true;
+}
+
+export function isArtifactProblemType(value: unknown): value is ArtifactProblemType {
+  return typeof value === "string";
+}
+
+export function isArtifactQuestion(value: unknown): value is ArtifactQuestion {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["fields"], ["answers"])) return false;
+  if (!(Array.isArray(value["fields"]) && value["fields"].every((entry) => isArtifactQuestionField(entry)))) return false;
+  if ("answers" in value && !(Array.isArray(value["answers"]) && value["answers"].every((entry) => Array.isArray(entry) && entry.every((entry) => typeof entry === "string")))) return false;
+  return true;
+}
+
+export function isArtifactQuestionField(value: unknown): value is ArtifactQuestionField {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["prompt", "type"], ["header", "options", "multiple", "allowCustom"])) return false;
+  if (!(typeof value["prompt"] === "string")) return false;
+  if ("header" in value && !(typeof value["header"] === "string")) return false;
+  if (!(isQuestionFieldType(value["type"]))) return false;
+  if ("options" in value && !(Array.isArray(value["options"]) && value["options"].every((entry) => isArtifactQuestionOption(entry)))) return false;
+  if ("multiple" in value && !(typeof value["multiple"] === "boolean")) return false;
+  if ("allowCustom" in value && !(typeof value["allowCustom"] === "boolean")) return false;
+  return true;
+}
+
+export function isArtifactQuestionOption(value: unknown): value is ArtifactQuestionOption {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["label"], ["description", "preview"])) return false;
+  if (!(typeof value["label"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if ("preview" in value && !(typeof value["preview"] === "string")) return false;
+  return true;
+}
+
+export function isArtifactRun(value: unknown): value is ArtifactRun {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "sessionId", "metrics", "outcome", "createdAt", "finishedAt", "updatedAt", "messageMark"], ["spawnedByItemId", "parentRunId", "rootRunId", "provider", "model", "limits", "contextTokens", "protocolProfile"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if ("spawnedByItemId" in value && !(typeof value["spawnedByItemId"] === "string")) return false;
+  if ("parentRunId" in value && !(typeof value["parentRunId"] === "string")) return false;
+  if ("rootRunId" in value && !(typeof value["rootRunId"] === "string")) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if ("limits" in value && !(isArtifactRunLimits(value["limits"]))) return false;
+  if (!(isArtifactRunMetrics(value["metrics"]))) return false;
+  if ("contextTokens" in value && !(Number.isInteger(value["contextTokens"]))) return false;
+  if ("protocolProfile" in value && !(isRunProtocolProfile(value["protocolProfile"]))) return false;
+  if (!(isArtifactOutcome(value["outcome"]))) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  if (!(isTimestamp(value["finishedAt"]))) return false;
+  if (!(isTimestamp(value["updatedAt"]))) return false;
+  if (!(Number.isInteger(value["messageMark"]))) return false;
+  return true;
+}
+
+export function isArtifactRunLimits(value: unknown): value is ArtifactRunLimits {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["maxTotalTokens", "maxSteps", "maxBudgetUsd"])) return false;
+  if ("maxTotalTokens" in value && !(Number.isInteger(value["maxTotalTokens"]))) return false;
+  if ("maxSteps" in value && !(Number.isInteger(value["maxSteps"]))) return false;
+  if ("maxBudgetUsd" in value && !(typeof value["maxBudgetUsd"] === "number" && Number.isFinite(value["maxBudgetUsd"]))) return false;
+  return true;
+}
+
+export function isArtifactRunMetrics(value: unknown): value is ArtifactRunMetrics {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["steps", "activeDurationMillis"], ["usage"])) return false;
+  if ("usage" in value && !(isArtifactUsage(value["usage"]))) return false;
+  if (!(Number.isInteger(value["steps"]))) return false;
+  if (!(Number.isInteger(value["activeDurationMillis"]))) return false;
+  return true;
+}
+
+export function isArtifactSession(value: unknown): value is ArtifactSession {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "title", "workspace", "model", "createdAt", "updatedAt"], ["favorite"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["title"] === "string")) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["model"] === "string")) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  if (!(isTimestamp(value["updatedAt"]))) return false;
+  if ("favorite" in value && !(typeof value["favorite"] === "boolean")) return false;
+  return true;
+}
+
+export function isArtifactToolInvocation(value: unknown): value is ArtifactToolInvocation {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "arguments"], ["result"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(isRecord(value["arguments"]) && Object.values(value["arguments"]).every((entry) => true))) return false;
+  if ("result" in value && !(true)) return false;
+  return true;
+}
+
+export function isArtifactToolResult(value: unknown): value is ArtifactToolResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "itemId", "toolName", "preview", "body", "createdAt"], [])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["itemId"] === "string")) return false;
+  if (!(typeof value["toolName"] === "string")) return false;
+  if (!(typeof value["preview"] === "string")) return false;
+  if (!(typeof value["body"] === "string")) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  return true;
+}
+
+export function isArtifactUsage(value: unknown): value is ArtifactUsage {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd", "byModel"])) return false;
+  if ("inputTokens" in value && !(Number.isInteger(value["inputTokens"]))) return false;
+  if ("outputTokens" in value && !(Number.isInteger(value["outputTokens"]))) return false;
+  if ("cacheReadTokens" in value && !(Number.isInteger(value["cacheReadTokens"]))) return false;
+  if ("cacheWriteTokens" in value && !(Number.isInteger(value["cacheWriteTokens"]))) return false;
+  if ("reasoningTokens" in value && !(Number.isInteger(value["reasoningTokens"]))) return false;
+  if ("costUsd" in value && !(typeof value["costUsd"] === "number" && Number.isFinite(value["costUsd"]))) return false;
+  if ("byModel" in value && !(isRecord(value["byModel"]) && Object.values(value["byModel"]).every((entry) => isArtifactModelUsage(entry)))) return false;
+  return true;
+}
+
+export function isCancelRunRequest(value: unknown): value is CancelRunRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId"], ["reason"])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if ("reason" in value && !(typeof value["reason"] === "string")) return false;
+  return true;
+}
+
+export function isCancelRunResponse(value: unknown): value is CancelRunResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type", "run"], ["rootRun"])) return false;
+  if (!(isCancelRunResponseType(value["type"]))) return false;
+  if (!(isRunRef(value["run"]))) return false;
+  if ("rootRun" in value && !(isRunRef(value["rootRun"]))) return false;
+  return true;
+}
+
+export function isCancelRunResponseType(value: unknown): value is CancelRunResponseType {
+  return typeof value === "string";
+}
+
+export function isCapabilityRequirement(value: unknown): value is CapabilityRequirement {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type", "name"], [])) return false;
+  if (!(isCapabilityRequirementType(value["type"]))) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  return true;
+}
+
+export function isCapabilityRequirementType(value: unknown): value is CapabilityRequirementType {
+  return typeof value === "string";
 }
 
 export function isClientCapabilities(value: unknown): value is ClientCapabilities {
@@ -171,12 +2139,201 @@ export function isClientInfo(value: unknown): value is ClientInfo {
   return true;
 }
 
+export function isCodebaseHit(value: unknown): value is CodebaseHit {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "startLine", "endLine", "snippet", "score"], [])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if (!(Number.isInteger(value["startLine"]))) return false;
+  if (!(Number.isInteger(value["endLine"]))) return false;
+  if (!(typeof value["snippet"] === "string")) return false;
+  if (!(typeof value["score"] === "number" && Number.isFinite(value["score"]))) return false;
+  return true;
+}
+
+export function isCodebaseReindexRequest(value: unknown): value is CodebaseReindexRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace"], [])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
+}
+
+export function isCodebaseReindexResponse(value: unknown): value is CodebaseReindexResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["operationId"], [])) return false;
+  if (!(typeof value["operationId"] === "string")) return false;
+  return true;
+}
+
+export function isCodebaseSearchRequest(value: unknown): value is CodebaseSearchRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace", "query"], ["limit"])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["query"] === "string")) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  return true;
+}
+
+export function isCodebaseSearchResult(value: unknown): value is CodebaseSearchResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["hits"], [])) return false;
+  if (!(Array.isArray(value["hits"]) && value["hits"].every((entry) => isCodebaseHit(entry)))) return false;
+  return true;
+}
+
+export function isCodebaseState(value: unknown): value is CodebaseState {
+  return typeof value === "string";
+}
+
+export function isCodebaseStatus(value: unknown): value is CodebaseStatus {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["state", "fileCount", "chunkCount"], ["modelId", "indexedAt", "truncated", "operationId"])) return false;
+  if (!(isCodebaseState(value["state"]))) return false;
+  if ("modelId" in value && !(typeof value["modelId"] === "string")) return false;
+  if (!(Number.isInteger(value["fileCount"]))) return false;
+  if (!(Number.isInteger(value["chunkCount"]))) return false;
+  if ("indexedAt" in value && !(typeof value["indexedAt"] === "string")) return false;
+  if ("truncated" in value && !(typeof value["truncated"] === "boolean")) return false;
+  if ("operationId" in value && !(typeof value["operationId"] === "string")) return false;
+  return true;
+}
+
+export function isCodebaseStatusRequest(value: unknown): value is CodebaseStatusRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace"], [])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
+}
+
+export function isContentBlock(value: unknown): value is ContentBlock {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["text", "mime", "data"])) return false;
+  if (!(isContentBlockType(value["type"]))) return false;
+  if ("text" in value && !(typeof value["text"] === "string")) return false;
+  if ("mime" in value && !(typeof value["mime"] === "string")) return false;
+  if ("data" in value && !(typeof value["data"] === "string")) return false;
+  return true;
+}
+
+export function isContentBlockType(value: unknown): value is ContentBlockType {
+  return typeof value === "string";
+}
+
+export function isCreateMCPAuthorizationAttemptRequest(value: unknown): value is CreateMCPAuthorizationAttemptRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["server"], [])) return false;
+  if (!(typeof value["server"] === "string")) return false;
+  return true;
+}
+
+export function isCreateScheduleRequest(value: unknown): value is CreateScheduleRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["instructions", "cron"], ["title", "workspace", "provider", "model"])) return false;
+  if ("title" in value && !(typeof value["title"] === "string")) return false;
+  if (!(typeof value["instructions"] === "string")) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if (!(typeof value["cron"] === "string")) return false;
+  return true;
+}
+
+export function isCreateSessionRequest(value: unknown): value is CreateSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["workspace", "title"])) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if ("title" in value && !(typeof value["title"] === "string")) return false;
+  return true;
+}
+
+export function isDeleteScheduleRequest(value: unknown): value is DeleteScheduleRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id"], [])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  return true;
+}
+
+export function isDeleteSessionRequest(value: unknown): value is DeleteSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  return true;
+}
+
+export function isDiff(value: unknown): value is Diff {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["files", "patch", "truncated"])) return false;
+  if ("files" in value && !(Array.isArray(value["files"]) && value["files"].every((entry) => isFileDiff(entry)))) return false;
+  if ("patch" in value && !(typeof value["patch"] === "string")) return false;
+  if ("truncated" in value && !(typeof value["truncated"] === "boolean")) return false;
+  return true;
+}
+
+export function isDiffFormat(value: unknown): value is DiffFormat {
+  return typeof value === "string";
+}
+
+export function isDiffMode(value: unknown): value is DiffMode {
+  return typeof value === "string";
+}
+
+export function isDiffRow(value: unknown): value is DiffRow {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["text", "leftLine", "rightLine", "code"])) return false;
+  if (!(isDiffRowType(value["type"]))) return false;
+  if ("text" in value && !(typeof value["text"] === "string")) return false;
+  if ("leftLine" in value && !(Number.isInteger(value["leftLine"]))) return false;
+  if ("rightLine" in value && !(Number.isInteger(value["rightLine"]))) return false;
+  if ("code" in value && !(typeof value["code"] === "string")) return false;
+  return true;
+}
+
+export function isDiffRowType(value: unknown): value is DiffRowType {
+  return typeof value === "string";
+}
+
 export function isDiscoverResponse(value: unknown): value is DiscoverResponse {
   if (!isRecord(value)) return false;
   if (!hasOnlyKeys(value, ["protocolVersion", "serverInfo", "capabilities"], [])) return false;
   if (!(typeof value["protocolVersion"] === "string")) return false;
   if (!(isServerInfo(value["serverInfo"]))) return false;
   if (!(isServerCapabilities(value["capabilities"]))) return false;
+  return true;
+}
+
+export function isDroppedRun(value: unknown): value is DroppedRun {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["run"], ["userInput"])) return false;
+  if (!(isRunSummary(value["run"]))) return false;
+  if ("userInput" in value && !(Array.isArray(value["userInput"]) && value["userInput"].every((entry) => isContentBlock(entry)))) return false;
+  return true;
+}
+
+export function isEmbeddingRole(value: unknown): value is EmbeddingRole {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["provider", "model"])) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  return true;
+}
+
+export function isExportFormat(value: unknown): value is ExportFormat {
+  return typeof value === "string";
+}
+
+export function isExportSessionRequest(value: unknown): value is ExportSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], ["format"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if ("format" in value && !(isExportFormat(value["format"]))) return false;
+  return true;
+}
+
+export function isExportSessionResponse(value: unknown): value is ExportSessionResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["format"], ["artifact", "markdown"])) return false;
+  if (!(isExportFormat(value["format"]))) return false;
+  if ("artifact" in value && !(isSessionArtifact(value["artifact"]))) return false;
+  if ("markdown" in value && !(typeof value["markdown"] === "string")) return false;
   return true;
 }
 
@@ -196,6 +2353,21 @@ export function isFeaturePreference(value: unknown): value is FeaturePreference 
   return true;
 }
 
+export function isFeedbackRating(value: unknown): value is FeedbackRating {
+  return typeof value === "string";
+}
+
+export function isFeedbackRequest(value: unknown): value is FeedbackRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["sessionId", "runId", "itemId", "rating", "text"])) return false;
+  if ("sessionId" in value && !(typeof value["sessionId"] === "string")) return false;
+  if ("runId" in value && !(typeof value["runId"] === "string")) return false;
+  if ("itemId" in value && !(typeof value["itemId"] === "string")) return false;
+  if ("rating" in value && !(isFeedbackRating(value["rating"]))) return false;
+  if ("text" in value && !(typeof value["text"] === "string")) return false;
+  return true;
+}
+
 export function isFieldError(value: unknown): value is FieldError {
   if (!isRecord(value)) return false;
   if (!hasOnlyKeys(value, ["field", "detail"], [])) return false;
@@ -204,8 +2376,267 @@ export function isFieldError(value: unknown): value is FieldError {
   return true;
 }
 
+export function isFileContent(value: unknown): value is FileContent {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "content", "encoding", "totalLines"], ["truncated", "startLine", "endLine"])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if (!(typeof value["content"] === "string")) return false;
+  if (!(typeof value["encoding"] === "string")) return false;
+  if (!(Number.isInteger(value["totalLines"]))) return false;
+  if ("truncated" in value && !(typeof value["truncated"] === "boolean")) return false;
+  if ("startLine" in value && !(Number.isInteger(value["startLine"]))) return false;
+  if ("endLine" in value && !(Number.isInteger(value["endLine"]))) return false;
+  return true;
+}
+
+export function isFileDiff(value: unknown): value is FileDiff {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "status", "rows"], ["previousPath", "added", "removed", "binary"])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if (!(isFileStatus(value["status"]))) return false;
+  if ("previousPath" in value && !(typeof value["previousPath"] === "string")) return false;
+  if ("added" in value && !(Number.isInteger(value["added"]))) return false;
+  if ("removed" in value && !(Number.isInteger(value["removed"]))) return false;
+  if ("binary" in value && !(typeof value["binary"] === "boolean")) return false;
+  if (!(Array.isArray(value["rows"]) && value["rows"].every((entry) => isDiffRow(entry)))) return false;
+  return true;
+}
+
+export function isFileEntry(value: unknown): value is FileEntry {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "name", "type", "modifiedAt"], ["sizeBytes"])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(isFileEntryType(value["type"]))) return false;
+  if ("sizeBytes" in value && !(Number.isInteger(value["sizeBytes"]))) return false;
+  if (!(typeof value["modifiedAt"] === "string")) return false;
+  return true;
+}
+
+export function isFileEntryType(value: unknown): value is FileEntryType {
+  return typeof value === "string";
+}
+
+export function isFileHead(value: unknown): value is FileHead {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "lines"], [])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if (!(Array.isArray(value["lines"]) && value["lines"].every((entry) => isFileLine(entry)))) return false;
+  return true;
+}
+
+export function isFileLine(value: unknown): value is FileLine {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["lineNumber", "text"], [])) return false;
+  if (!(Number.isInteger(value["lineNumber"]))) return false;
+  if (!(typeof value["text"] === "string")) return false;
+  return true;
+}
+
+export function isFileStatus(value: unknown): value is FileStatus {
+  return typeof value === "string";
+}
+
+export function isForgetApprovalRuleRequest(value: unknown): value is ForgetApprovalRuleRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id"], [])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  return true;
+}
+
+export function isForkSessionRequest(value: unknown): value is ForkSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], ["fromRunId", "title"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if ("fromRunId" in value && !(typeof value["fromRunId"] === "string")) return false;
+  if ("title" in value && !(typeof value["title"] === "string")) return false;
+  return true;
+}
+
+export function isGenerationParams(value: unknown): value is GenerationParams {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["temperature", "maxTokens", "topP", "stop"])) return false;
+  if ("temperature" in value && !(typeof value["temperature"] === "number" && Number.isFinite(value["temperature"]))) return false;
+  if ("maxTokens" in value && !(Number.isInteger(value["maxTokens"]))) return false;
+  if ("topP" in value && !(typeof value["topP"] === "number" && Number.isFinite(value["topP"]))) return false;
+  if ("stop" in value && !(Array.isArray(value["stop"]) && value["stop"].every((entry) => typeof entry === "string"))) return false;
+  return true;
+}
+
+export function isGetDiffRequest(value: unknown): value is GetDiffRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace"], ["path", "mode", "format", "limit"])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if ("path" in value && !(typeof value["path"] === "string")) return false;
+  if ("mode" in value && !(isDiffMode(value["mode"]))) return false;
+  if ("format" in value && !(isDiffFormat(value["format"]))) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  return true;
+}
+
+export function isGetFileHeadRequest(value: unknown): value is GetFileHeadRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace", "path"], ["lines"])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if ("lines" in value && !(Number.isInteger(value["lines"]))) return false;
+  return true;
+}
+
+export function isGetKnowledgeRequest(value: unknown): value is GetKnowledgeRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["scope"], ["workspace"])) return false;
+  if (!(isKnowledgeScope(value["scope"]))) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
+}
+
+export function isGetPlanRequest(value: unknown): value is GetPlanRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  return true;
+}
+
+export function isGetRunRequest(value: unknown): value is GetRunRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId"], [])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  return true;
+}
+
+export function isGetSessionRequest(value: unknown): value is GetSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  return true;
+}
+
+export function isGetSessionSnapshotRequest(value: unknown): value is GetSessionSnapshotRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], ["includeDescendants"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if ("includeDescendants" in value && !(typeof value["includeDescendants"] === "boolean")) return false;
+  return true;
+}
+
+export function isGoal(value: unknown): value is Goal {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId", "objective", "status", "budget", "used", "createdAt", "updatedAt"], ["reason", "provider", "model"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(typeof value["objective"] === "string")) return false;
+  if (!(isGoalStatus(value["status"]))) return false;
+  if ("reason" in value && !(isGoalReason(value["reason"]))) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if (!(isGoalBudget(value["budget"]))) return false;
+  if (!(isGoalUsage(value["used"]))) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  if (!(isTimestamp(value["updatedAt"]))) return false;
+  return true;
+}
+
+export function isGoalBudget(value: unknown): value is GoalBudget {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["maxRuns", "maxCostUsd", "maxSteps"])) return false;
+  if ("maxRuns" in value && !(Number.isInteger(value["maxRuns"]))) return false;
+  if ("maxCostUsd" in value && !(typeof value["maxCostUsd"] === "number" && Number.isFinite(value["maxCostUsd"]))) return false;
+  if ("maxSteps" in value && !(Number.isInteger(value["maxSteps"]))) return false;
+  return true;
+}
+
+export function isGoalReason(value: unknown): value is GoalReason {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["code"], ["detail"])) return false;
+  if (!(isGoalReasonCode(value["code"]))) return false;
+  if ("detail" in value && !(typeof value["detail"] === "string")) return false;
+  return true;
+}
+
+export function isGoalReasonCode(value: unknown): value is GoalReasonCode {
+  return typeof value === "string";
+}
+
+export function isGoalRequest(value: unknown): value is GoalRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  return true;
+}
+
+export function isGoalStatus(value: unknown): value is GoalStatus {
+  return typeof value === "string";
+}
+
+export function isGoalUsage(value: unknown): value is GoalUsage {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runs", "costUsd", "steps"], [])) return false;
+  if (!(Number.isInteger(value["runs"]))) return false;
+  if (!(typeof value["costUsd"] === "number" && Number.isFinite(value["costUsd"]))) return false;
+  if (!(Number.isInteger(value["steps"]))) return false;
+  return true;
+}
+
+export function isGrepMatch(value: unknown): value is GrepMatch {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "lineNumber", "text"], [])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if (!(Number.isInteger(value["lineNumber"]))) return false;
+  if (!(typeof value["text"] === "string")) return false;
+  return true;
+}
+
+export function isGrepRequest(value: unknown): value is GrepRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace", "query"], ["path", "limit"])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["query"] === "string")) return false;
+  if ("path" in value && !(typeof value["path"] === "string")) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  return true;
+}
+
+export function isGrepResult(value: unknown): value is GrepResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["matches", "total"], [])) return false;
+  if (!(Array.isArray(value["matches"]) && value["matches"].every((entry) => isGrepMatch(entry)))) return false;
+  if (!(Number.isInteger(value["total"]))) return false;
+  return true;
+}
+
 export function isHealthStatus(value: unknown): value is HealthStatus {
   return typeof value === "string" && ["ok", "degraded", "unhealthy"].includes(value);
+}
+
+export function isHookEvent(value: unknown): value is HookEvent {
+  return typeof value === "string";
+}
+
+export function isHookInfo(value: unknown): value is HookInfo {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["event", "scope", "source", "active"], ["matcher", "command", "inject", "timeoutMillis"])) return false;
+  if (!(isHookEvent(value["event"]))) return false;
+  if ("matcher" in value && !(typeof value["matcher"] === "string")) return false;
+  if ("command" in value && !(typeof value["command"] === "string")) return false;
+  if ("inject" in value && !(typeof value["inject"] === "string")) return false;
+  if ("timeoutMillis" in value && !(Number.isInteger(value["timeoutMillis"]))) return false;
+  if (!(isHookScope(value["scope"]))) return false;
+  if (!(typeof value["source"] === "string")) return false;
+  if (!(typeof value["active"] === "boolean")) return false;
+  return true;
+}
+
+export function isHookScope(value: unknown): value is HookScope {
+  return typeof value === "string";
+}
+
+export function isHooksListResult(value: unknown): value is HooksListResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["projectTrusted", "hooks"], ["projectRoot"])) return false;
+  if ("projectRoot" in value && !(typeof value["projectRoot"] === "string")) return false;
+  if (!(typeof value["projectTrusted"] === "boolean")) return false;
+  if (!(Array.isArray(value["hooks"]) && value["hooks"].every((entry) => isHookInfo(entry)))) return false;
+  return true;
 }
 
 export function isIdempotencyLimits(value: unknown): value is IdempotencyLimits {
@@ -216,8 +2647,236 @@ export function isIdempotencyLimits(value: unknown): value is IdempotencyLimits 
   return true;
 }
 
+export function isImportSessionRequest(value: unknown): value is ImportSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["artifact"], [])) return false;
+  if (!(isSessionArtifact(value["artifact"]))) return false;
+  return true;
+}
+
+export function isImportSessionResponse(value: unknown): value is ImportSessionResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["session"], [])) return false;
+  if (!(value["session"] === null || isSession(value["session"]))) return false;
+  return true;
+}
+
+export function isInterrupt(value: unknown): value is Interrupt {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["itemId", "runId", "type"], ["payload"])) return false;
+  if (!(typeof value["itemId"] === "string")) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(isInterruptType(value["type"]))) return false;
+  if ("payload" in value && !(isInterruptPayload(value["payload"]))) return false;
+  return true;
+}
+
+export function isInterruptPayload(value: unknown): value is InterruptPayload {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["tool", "risk", "reason", "rememberable", "question"])) return false;
+  if ("tool" in value && !(isToolInvocation(value["tool"]))) return false;
+  if ("risk" in value && !(isApprovalRisk(value["risk"]))) return false;
+  if ("reason" in value && !(typeof value["reason"] === "string")) return false;
+  if ("rememberable" in value && !(typeof value["rememberable"] === "boolean")) return false;
+  if ("question" in value && !(isQuestion(value["question"]))) return false;
+  return true;
+}
+
+export function isInterruptResponse(value: unknown): value is InterruptResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["itemId", "response"], [])) return false;
+  if (!(typeof value["itemId"] === "string")) return false;
+  if (!(isInterruptResponseValue(value["response"]))) return false;
+  return true;
+}
+
+export function isInterruptResponseType(value: unknown): value is InterruptResponseType {
+  return typeof value === "string";
+}
+
+export function isInterruptResponseValue(value: unknown): value is InterruptResponseValue {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["decision", "remember", "editedArgs", "reason", "answers"])) return false;
+  if (!(isInterruptResponseType(value["type"]))) return false;
+  if ("decision" in value && !(isApprovalDecision(value["decision"]))) return false;
+  if ("remember" in value && !(isRememberScope(value["remember"]))) return false;
+  if ("editedArgs" in value && !(isRecord(value["editedArgs"]) && Object.values(value["editedArgs"]).every((entry) => true))) return false;
+  if ("reason" in value && !(typeof value["reason"] === "string")) return false;
+  if ("answers" in value && !(Array.isArray(value["answers"]) && value["answers"].every((entry) => Array.isArray(entry) && entry.every((entry) => typeof entry === "string")))) return false;
+  return true;
+}
+
 export function isInterruptType(value: unknown): value is InterruptType {
   return typeof value === "string" && ["approval", "question"].includes(value);
+}
+
+export function isInvokeToolRequest(value: unknown): value is InvokeToolRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "arguments"], ["workspace"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(isRecord(value["arguments"]) && Object.values(value["arguments"]).every((entry) => true))) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
+}
+
+export function isItem(value: unknown): value is Item {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "runId", "status", "type"], ["createdAt", "startedAt", "finishedAt", "durationMillis", "content", "phase", "text", "redacted", "question", "tool", "safetyClass", "approvalDecision", "error", "summary", "droppedMessages"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(isItemStatus(value["status"]))) return false;
+  if ("createdAt" in value && !(isTimestamp(value["createdAt"]))) return false;
+  if (!(isItemType(value["type"]))) return false;
+  if ("startedAt" in value && !(isTimestamp(value["startedAt"]))) return false;
+  if ("finishedAt" in value && !(isTimestamp(value["finishedAt"]))) return false;
+  if ("durationMillis" in value && !(Number.isInteger(value["durationMillis"]))) return false;
+  if ("content" in value && !(Array.isArray(value["content"]) && value["content"].every((entry) => isContentBlock(entry)))) return false;
+  if ("phase" in value && !(isMessagePhase(value["phase"]))) return false;
+  if ("text" in value && !(typeof value["text"] === "string")) return false;
+  if ("redacted" in value && !(typeof value["redacted"] === "boolean")) return false;
+  if ("question" in value && !(isQuestion(value["question"]))) return false;
+  if ("tool" in value && !(isToolInvocation(value["tool"]))) return false;
+  if ("safetyClass" in value && !(isSafetyClass(value["safetyClass"]))) return false;
+  if ("approvalDecision" in value && !(isApprovalDecision(value["approvalDecision"]))) return false;
+  if ("error" in value && !(isProblemData(value["error"]))) return false;
+  if ("summary" in value && !(typeof value["summary"] === "string")) return false;
+  if ("droppedMessages" in value && !(Number.isInteger(value["droppedMessages"]))) return false;
+  return true;
+}
+
+export function isItemDelta(value: unknown): value is ItemDelta {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["index", "text", "argumentsTextDelta"])) return false;
+  if (!(isItemDeltaType(value["type"]))) return false;
+  if ("index" in value && !(Number.isInteger(value["index"]))) return false;
+  if ("text" in value && !(typeof value["text"] === "string")) return false;
+  if ("argumentsTextDelta" in value && !(typeof value["argumentsTextDelta"] === "string")) return false;
+  return true;
+}
+
+export function isItemDeltaType(value: unknown): value is ItemDeltaType {
+  return typeof value === "string";
+}
+
+export function isItemListScope(value: unknown): value is ItemListScope {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["sessionId", "runId", "includeDescendants"])) return false;
+  if (!(isItemScopeType(value["type"]))) return false;
+  if ("sessionId" in value && !(typeof value["sessionId"] === "string")) return false;
+  if ("runId" in value && !(typeof value["runId"] === "string")) return false;
+  if ("includeDescendants" in value && !(typeof value["includeDescendants"] === "boolean")) return false;
+  return true;
+}
+
+export function isItemOrder(value: unknown): value is ItemOrder {
+  return typeof value === "string";
+}
+
+export function isItemScopeType(value: unknown): value is ItemScopeType {
+  return typeof value === "string";
+}
+
+export function isItemStatus(value: unknown): value is ItemStatus {
+  return typeof value === "string";
+}
+
+export function isItemType(value: unknown): value is ItemType {
+  return typeof value === "string";
+}
+
+export function isKnowledgeEntry(value: unknown): value is KnowledgeEntry {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["scope", "content", "revision"], ["updatedAt"])) return false;
+  if (!(isKnowledgeScope(value["scope"]))) return false;
+  if (!(typeof value["content"] === "string")) return false;
+  if (!(typeof value["revision"] === "string")) return false;
+  if ("updatedAt" in value && !(isTimestamp(value["updatedAt"]))) return false;
+  return true;
+}
+
+export function isKnowledgeScope(value: unknown): value is KnowledgeScope {
+  return typeof value === "string";
+}
+
+export function isListApprovalRulesRequest(value: unknown): value is ListApprovalRulesRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  return true;
+}
+
+export function isListApprovalRulesResult(value: unknown): value is ListApprovalRulesResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["rules"], [])) return false;
+  if (!(Array.isArray(value["rules"]) && value["rules"].every((entry) => isApprovalRule(entry)))) return false;
+  return true;
+}
+
+export function isListFilesRequest(value: unknown): value is ListFilesRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace"], ["path", "glob", "recursive", "includeIgnored", "limit", "cursor"])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if ("path" in value && !(typeof value["path"] === "string")) return false;
+  if ("glob" in value && !(typeof value["glob"] === "string")) return false;
+  if ("recursive" in value && !(typeof value["recursive"] === "boolean")) return false;
+  if ("includeIgnored" in value && !(typeof value["includeIgnored"] === "boolean")) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  if ("cursor" in value && !(typeof value["cursor"] === "string")) return false;
+  return true;
+}
+
+export function isListHooksRequest(value: unknown): value is ListHooksRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace"], [])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
+}
+
+export function isListInterruptsRequest(value: unknown): value is ListInterruptsRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["sessionId", "rootRunId", "limit", "cursor"])) return false;
+  if ("sessionId" in value && !(typeof value["sessionId"] === "string")) return false;
+  if ("rootRunId" in value && !(typeof value["rootRunId"] === "string")) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  if ("cursor" in value && !(typeof value["cursor"] === "string")) return false;
+  return true;
+}
+
+export function isListItemsRequest(value: unknown): value is ListItemsRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["scope"], ["order", "limit", "cursor"])) return false;
+  if (!(isItemListScope(value["scope"]))) return false;
+  if ("order" in value && !(isItemOrder(value["order"]))) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  if ("cursor" in value && !(typeof value["cursor"] === "string")) return false;
+  return true;
+}
+
+export function isListItemsResponse(value: unknown): value is ListItemsResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["data", "runs"], ["nextCursor"])) return false;
+  if (!(Array.isArray(value["data"]) && value["data"].every((entry) => isItem(entry)))) return false;
+  if ("nextCursor" in value && !(typeof value["nextCursor"] === "string")) return false;
+  if (!(Array.isArray(value["runs"]) && value["runs"].every((entry) => isRunSummary(entry)))) return false;
+  return true;
+}
+
+export function isListModelsRequest(value: unknown): value is ListModelsRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["provider"])) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  return true;
+}
+
+export function isListRunsRequest(value: unknown): value is ListRunsRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["sessionId", "statuses", "includeDescendants", "limit", "cursor"])) return false;
+  if ("sessionId" in value && !(typeof value["sessionId"] === "string")) return false;
+  if ("statuses" in value && !(Array.isArray(value["statuses"]) && value["statuses"].every((entry) => isRunStatus(entry)))) return false;
+  if ("includeDescendants" in value && !(typeof value["includeDescendants"] === "boolean")) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  if ("cursor" in value && !(typeof value["cursor"] === "string")) return false;
+  return true;
 }
 
 export function isLivenessStatus(value: unknown): value is LivenessStatus {
@@ -228,6 +2887,17 @@ export function isLivenessStatus(value: unknown): value is LivenessStatus {
   return true;
 }
 
+export function isMCPAuthorizationAttempt(value: unknown): value is MCPAuthorizationAttempt {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "server", "status", "createdAt"], ["finishedAt"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["server"] === "string")) return false;
+  if (!(isMCPAuthorizationAttemptStatus(value["status"]))) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  if ("finishedAt" in value && !(isTimestamp(value["finishedAt"]))) return false;
+  return true;
+}
+
 export function isMCPAuthorizationAttemptLimits(value: unknown): value is MCPAuthorizationAttemptLimits {
   if (!isRecord(value)) return false;
   if (!hasOnlyKeys(value, ["retentionSeconds"], [])) return false;
@@ -235,12 +2905,357 @@ export function isMCPAuthorizationAttemptLimits(value: unknown): value is MCPAut
   return true;
 }
 
+export function isMCPAuthorizationAttemptRequest(value: unknown): value is MCPAuthorizationAttemptRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["attemptId"], [])) return false;
+  if (!(typeof value["attemptId"] === "string")) return false;
+  return true;
+}
+
+export function isMCPAuthorizationAttemptStatus(value: unknown): value is MCPAuthorizationAttemptStatus {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["error"])) return false;
+  if (!(isMCPAuthorizationAttemptStatusType(value["type"]))) return false;
+  if ("error" in value && !(isProblemData(value["error"]))) return false;
+  return true;
+}
+
+export function isMCPAuthorizationAttemptStatusType(value: unknown): value is MCPAuthorizationAttemptStatusType {
+  return typeof value === "string";
+}
+
+export function isMCPAuthorizationChange(value: unknown): value is MCPAuthorizationChange {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["value"])) return false;
+  if (!(isMCPSecretChangeType(value["type"]))) return false;
+  if ("value" in value && !(typeof value["value"] === "string")) return false;
+  return true;
+}
+
+export function isMCPConnection(value: unknown): value is MCPConnection {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["url", "authorizationMasked", "headersMasked", "command", "args", "envMasked", "dir"])) return false;
+  if (!(isMCPTransport(value["type"]))) return false;
+  if ("url" in value && !(typeof value["url"] === "string")) return false;
+  if ("authorizationMasked" in value && !(typeof value["authorizationMasked"] === "string")) return false;
+  if ("headersMasked" in value && !(isRecord(value["headersMasked"]) && Object.values(value["headersMasked"]).every((entry) => typeof entry === "string"))) return false;
+  if ("command" in value && !(typeof value["command"] === "string")) return false;
+  if ("args" in value && !(Array.isArray(value["args"]) && value["args"].every((entry) => typeof entry === "string"))) return false;
+  if ("envMasked" in value && !(isRecord(value["envMasked"]) && Object.values(value["envMasked"]).every((entry) => typeof entry === "string"))) return false;
+  if ("dir" in value && !(typeof value["dir"] === "string")) return false;
+  return true;
+}
+
+export function isMCPConnectionInput(value: unknown): value is MCPConnectionInput {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["url", "authorization", "headers", "command", "args", "env", "dir"])) return false;
+  if (!(isMCPTransport(value["type"]))) return false;
+  if ("url" in value && !(typeof value["url"] === "string")) return false;
+  if ("authorization" in value && !(isMCPAuthorizationChange(value["authorization"]))) return false;
+  if ("headers" in value && !(isMCPHeadersChange(value["headers"]))) return false;
+  if ("command" in value && !(typeof value["command"] === "string")) return false;
+  if ("args" in value && !(Array.isArray(value["args"]) && value["args"].every((entry) => typeof entry === "string"))) return false;
+  if ("env" in value && !(isMCPEnvironmentChange(value["env"]))) return false;
+  if ("dir" in value && !(typeof value["dir"] === "string")) return false;
+  return true;
+}
+
+export function isMCPEnvironmentChange(value: unknown): value is MCPEnvironmentChange {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["value"])) return false;
+  if (!(isMCPSecretChangeType(value["type"]))) return false;
+  if ("value" in value && !(isRecord(value["value"]) && Object.values(value["value"]).every((entry) => typeof entry === "string"))) return false;
+  return true;
+}
+
+export function isMCPHeadersChange(value: unknown): value is MCPHeadersChange {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["value"])) return false;
+  if (!(isMCPSecretChangeType(value["type"]))) return false;
+  if ("value" in value && !(isRecord(value["value"]) && Object.values(value["value"]).every((entry) => typeof entry === "string"))) return false;
+  return true;
+}
+
+export function isMCPListToolsRequest(value: unknown): value is MCPListToolsRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["server"])) return false;
+  if ("server" in value && !(typeof value["server"] === "string")) return false;
+  return true;
+}
+
+export function isMCPSecretChangeType(value: unknown): value is MCPSecretChangeType {
+  return typeof value === "string";
+}
+
+export function isMCPServer(value: unknown): value is MCPServer {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "connection", "status"], ["description", "timeoutSeconds", "disabledTools", "autoApproveTools"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if (!(isMCPConnection(value["connection"]))) return false;
+  if ("timeoutSeconds" in value && !(Number.isInteger(value["timeoutSeconds"]))) return false;
+  if ("disabledTools" in value && !(Array.isArray(value["disabledTools"]) && value["disabledTools"].every((entry) => typeof entry === "string"))) return false;
+  if ("autoApproveTools" in value && !(Array.isArray(value["autoApproveTools"]) && value["autoApproveTools"].every((entry) => typeof entry === "string"))) return false;
+  if (!(isMCPServerState(value["status"]))) return false;
+  return true;
+}
+
+export function isMCPServerCandidate(value: unknown): value is MCPServerCandidate {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "enabled", "connection"], ["description", "timeoutSeconds", "disabledTools", "autoApproveTools"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(typeof value["enabled"] === "boolean")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if (!(isMCPConnectionInput(value["connection"]))) return false;
+  if ("timeoutSeconds" in value && !(Number.isInteger(value["timeoutSeconds"]))) return false;
+  if ("disabledTools" in value && !(Array.isArray(value["disabledTools"]) && value["disabledTools"].every((entry) => typeof entry === "string"))) return false;
+  if ("autoApproveTools" in value && !(Array.isArray(value["autoApproveTools"]) && value["autoApproveTools"].every((entry) => typeof entry === "string"))) return false;
+  return true;
+}
+
+export function isMCPServerRequest(value: unknown): value is MCPServerRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["server"], [])) return false;
+  if (!(typeof value["server"] === "string")) return false;
+  return true;
+}
+
+export function isMCPServerState(value: unknown): value is MCPServerState {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["toolCount", "error"])) return false;
+  if (!(isMCPServerStateType(value["type"]))) return false;
+  if ("toolCount" in value && !(Number.isInteger(value["toolCount"]))) return false;
+  if ("error" in value && !(isProblemData(value["error"]))) return false;
+  return true;
+}
+
+export function isMCPServerStateType(value: unknown): value is MCPServerStateType {
+  return typeof value === "string";
+}
+
+export function isMCPTestResult(value: unknown): value is MCPTestResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["ok"], ["error"])) return false;
+  if (!(typeof value["ok"] === "boolean")) return false;
+  if ("error" in value && !(isProblemData(value["error"]))) return false;
+  return true;
+}
+
+export function isMCPTool(value: unknown): value is MCPTool {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["server", "name"], ["description", "inputSchema"])) return false;
+  if (!(typeof value["server"] === "string")) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if ("inputSchema" in value && !(isRecord(value["inputSchema"]) && Object.values(value["inputSchema"]).every((entry) => true))) return false;
+  return true;
+}
+
+export function isMCPTransport(value: unknown): value is MCPTransport {
+  return typeof value === "string";
+}
+
+export function isManagedSkill(value: unknown): value is ManagedSkill {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "lifecycle"], ["description"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if (!(isSkillLifecycle(value["lifecycle"]))) return false;
+  return true;
+}
+
+export function isMessagePhase(value: unknown): value is MessagePhase {
+  return typeof value === "string";
+}
+
+export function isModality(value: unknown): value is Modality {
+  return typeof value === "string";
+}
+
+export function isModel(value: unknown): value is Model {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "provider"], ["displayName", "contextWindow", "maxInputTokens", "maxOutputTokens", "knowledgeCutoff", "deprecated", "capabilities", "pricing"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["provider"] === "string")) return false;
+  if ("displayName" in value && !(typeof value["displayName"] === "string")) return false;
+  if ("contextWindow" in value && !(Number.isInteger(value["contextWindow"]))) return false;
+  if ("maxInputTokens" in value && !(Number.isInteger(value["maxInputTokens"]))) return false;
+  if ("maxOutputTokens" in value && !(Number.isInteger(value["maxOutputTokens"]))) return false;
+  if ("knowledgeCutoff" in value && !(typeof value["knowledgeCutoff"] === "string")) return false;
+  if ("deprecated" in value && !(typeof value["deprecated"] === "boolean")) return false;
+  if ("capabilities" in value && !(isModelCapabilities(value["capabilities"]))) return false;
+  if ("pricing" in value && !(isModelPricing(value["pricing"]))) return false;
+  return true;
+}
+
+export function isModelCapabilities(value: unknown): value is ModelCapabilities {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["reasoning", "reasoningLevels", "reasoningDefaultLevel", "multimodal", "inputModalities", "outputModalities", "toolUse", "structuredOutput"])) return false;
+  if ("reasoning" in value && !(typeof value["reasoning"] === "boolean")) return false;
+  if ("reasoningLevels" in value && !(Array.isArray(value["reasoningLevels"]) && value["reasoningLevels"].every((entry) => typeof entry === "string"))) return false;
+  if ("reasoningDefaultLevel" in value && !(typeof value["reasoningDefaultLevel"] === "string")) return false;
+  if ("multimodal" in value && !(typeof value["multimodal"] === "boolean")) return false;
+  if ("inputModalities" in value && !(Array.isArray(value["inputModalities"]) && value["inputModalities"].every((entry) => isModality(entry)))) return false;
+  if ("outputModalities" in value && !(Array.isArray(value["outputModalities"]) && value["outputModalities"].every((entry) => isModality(entry)))) return false;
+  if ("toolUse" in value && !(typeof value["toolUse"] === "boolean")) return false;
+  if ("structuredOutput" in value && !(typeof value["structuredOutput"] === "boolean")) return false;
+  return true;
+}
+
+export function isModelPricing(value: unknown): value is ModelPricing {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["inputUsdPerMillionTokens", "outputUsdPerMillionTokens", "cacheReadUsdPerMillionTokens", "cacheWriteUsdPerMillionTokens"])) return false;
+  if ("inputUsdPerMillionTokens" in value && !(typeof value["inputUsdPerMillionTokens"] === "number" && Number.isFinite(value["inputUsdPerMillionTokens"]))) return false;
+  if ("outputUsdPerMillionTokens" in value && !(typeof value["outputUsdPerMillionTokens"] === "number" && Number.isFinite(value["outputUsdPerMillionTokens"]))) return false;
+  if ("cacheReadUsdPerMillionTokens" in value && !(typeof value["cacheReadUsdPerMillionTokens"] === "number" && Number.isFinite(value["cacheReadUsdPerMillionTokens"]))) return false;
+  if ("cacheWriteUsdPerMillionTokens" in value && !(typeof value["cacheWriteUsdPerMillionTokens"] === "number" && Number.isFinite(value["cacheWriteUsdPerMillionTokens"]))) return false;
+  return true;
+}
+
+export function isModelUsage(value: unknown): value is ModelUsage {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd"])) return false;
+  if ("inputTokens" in value && !(Number.isInteger(value["inputTokens"]))) return false;
+  if ("outputTokens" in value && !(Number.isInteger(value["outputTokens"]))) return false;
+  if ("cacheReadTokens" in value && !(Number.isInteger(value["cacheReadTokens"]))) return false;
+  if ("cacheWriteTokens" in value && !(Number.isInteger(value["cacheWriteTokens"]))) return false;
+  if ("reasoningTokens" in value && !(Number.isInteger(value["reasoningTokens"]))) return false;
+  if ("costUsd" in value && !(typeof value["costUsd"] === "number" && Number.isFinite(value["costUsd"]))) return false;
+  return true;
+}
+
+export function isPageQuery(value: unknown): value is PageQuery {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["limit", "cursor"])) return false;
+  if ("limit" in value && !(Number.isInteger(value["limit"]))) return false;
+  if ("cursor" in value && !(typeof value["cursor"] === "string")) return false;
+  return true;
+}
+
+export function isPendingInterruptSet(value: unknown): value is PendingInterruptSet {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["rootRunId", "sessionId", "interrupts", "createdAt"], [])) return false;
+  if (!(typeof value["rootRunId"] === "string")) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(Array.isArray(value["interrupts"]) && value["interrupts"].every((entry) => isInterrupt(entry)))) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  return true;
+}
+
+export function isPlan(value: unknown): value is Plan {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId", "revision", "steps"], ["updatedAt"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(Number.isInteger(value["revision"]))) return false;
+  if (!(Array.isArray(value["steps"]) && value["steps"].every((entry) => isPlanStep(entry)))) return false;
+  if ("updatedAt" in value && !(isTimestamp(value["updatedAt"]))) return false;
+  return true;
+}
+
+export function isPlanStatus(value: unknown): value is PlanStatus {
+  return typeof value === "string";
+}
+
+export function isPlanStep(value: unknown): value is PlanStep {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "description", "status"], [])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["description"] === "string")) return false;
+  if (!(isPlanStatus(value["status"]))) return false;
+  return true;
+}
+
 export function isProblemData(value: unknown): value is ProblemData {
   if (!isRecord(value)) return false;
-  if (!hasOnlyKeys(value, ["type"], ["detail", "errors"])) return false;
+  if (!hasOnlyKeys(value, ["type"], ["detail", "docUrl", "retryAfterSeconds", "requiredCapabilities", "activeRun", "errors"])) return false;
   if (!(typeof value["type"] === "string")) return false;
   if ("detail" in value && !(typeof value["detail"] === "string")) return false;
+  if ("docUrl" in value && !(typeof value["docUrl"] === "string")) return false;
+  if ("retryAfterSeconds" in value && !(Number.isInteger(value["retryAfterSeconds"]))) return false;
+  if ("requiredCapabilities" in value && !(Array.isArray(value["requiredCapabilities"]) && value["requiredCapabilities"].every((entry) => isCapabilityRequirement(entry)))) return false;
+  if ("activeRun" in value && !(isActiveRunRef(value["activeRun"]))) return false;
   if ("errors" in value && !(Array.isArray(value["errors"]) && value["errors"].every((entry) => isFieldError(entry)))) return false;
+  return true;
+}
+
+export function isProvider(value: unknown): value is Provider {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "apiKeyMasked"], ["baseUrl", "keySource", "requiresBaseUrl", "embeddingCapable", "defaultEmbeddingModel"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if ("baseUrl" in value && !(typeof value["baseUrl"] === "string")) return false;
+  if (!(typeof value["apiKeyMasked"] === "string")) return false;
+  if ("keySource" in value && !(isProviderKeySource(value["keySource"]))) return false;
+  if ("requiresBaseUrl" in value && !(typeof value["requiresBaseUrl"] === "boolean")) return false;
+  if ("embeddingCapable" in value && !(typeof value["embeddingCapable"] === "boolean")) return false;
+  if ("defaultEmbeddingModel" in value && !(typeof value["defaultEmbeddingModel"] === "string")) return false;
+  return true;
+}
+
+export function isProviderConfigChange(value: unknown): value is ProviderConfigChange {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["value"])) return false;
+  if (!(isProviderConfigChangeType(value["type"]))) return false;
+  if ("value" in value && !(typeof value["value"] === "string")) return false;
+  return true;
+}
+
+export function isProviderConfigChangeType(value: unknown): value is ProviderConfigChangeType {
+  return typeof value === "string";
+}
+
+export function isProviderKeySource(value: unknown): value is ProviderKeySource {
+  return typeof value === "string";
+}
+
+export function isProviderTestResult(value: unknown): value is ProviderTestResult {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["ok"], ["error"])) return false;
+  if (!(typeof value["ok"] === "boolean")) return false;
+  if ("error" in value && !(isProblemData(value["error"]))) return false;
+  return true;
+}
+
+export function isQuestion(value: unknown): value is Question {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["fields"], ["answers"])) return false;
+  if (!(Array.isArray(value["fields"]) && value["fields"].every((entry) => isQuestionField(entry)))) return false;
+  if ("answers" in value && !(Array.isArray(value["answers"]) && value["answers"].every((entry) => Array.isArray(entry) && entry.every((entry) => typeof entry === "string")))) return false;
+  return true;
+}
+
+export function isQuestionField(value: unknown): value is QuestionField {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["prompt", "type"], ["header", "options", "multiple", "allowCustom"])) return false;
+  if (!(typeof value["prompt"] === "string")) return false;
+  if ("header" in value && !(typeof value["header"] === "string")) return false;
+  if (!(isQuestionFieldType(value["type"]))) return false;
+  if ("options" in value && !(Array.isArray(value["options"]) && value["options"].every((entry) => isQuestionOption(entry)))) return false;
+  if ("multiple" in value && !(typeof value["multiple"] === "boolean")) return false;
+  if ("allowCustom" in value && !(typeof value["allowCustom"] === "boolean")) return false;
+  return true;
+}
+
+export function isQuestionFieldType(value: unknown): value is QuestionFieldType {
+  return typeof value === "string";
+}
+
+export function isQuestionOption(value: unknown): value is QuestionOption {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["label"], ["description", "preview"])) return false;
+  if (!(typeof value["label"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if ("preview" in value && !(typeof value["preview"] === "string")) return false;
+  return true;
+}
+
+export function isReadFileRequest(value: unknown): value is ReadFileRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace", "path"], ["startLine", "endLine", "maxBytes"])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if ("startLine" in value && !(Number.isInteger(value["startLine"]))) return false;
+  if ("endLine" in value && !(Number.isInteger(value["endLine"]))) return false;
+  if ("maxBytes" in value && !(Number.isInteger(value["maxBytes"]))) return false;
   return true;
 }
 
@@ -253,12 +3268,171 @@ export function isReadinessStatus(value: unknown): value is ReadinessStatus {
   return true;
 }
 
+export function isRecipe(value: unknown): value is Recipe {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "body", "scope", "source"], ["description", "argumentHint"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if ("argumentHint" in value && !(typeof value["argumentHint"] === "string")) return false;
+  if (!(typeof value["body"] === "string")) return false;
+  if (!(isRecipeScope(value["scope"]))) return false;
+  if (!(typeof value["source"] === "string")) return false;
+  return true;
+}
+
+export function isRecipeScope(value: unknown): value is RecipeScope {
+  return typeof value === "string";
+}
+
+export function isRememberScope(value: unknown): value is RememberScope {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["scope"], [])) return false;
+  if (!(isRememberScopeKind(value["scope"]))) return false;
+  return true;
+}
+
+export function isRememberScopeKind(value: unknown): value is RememberScopeKind {
+  return typeof value === "string";
+}
+
 export function isRequestMeta(value: unknown): value is RequestMeta {
   if (!isRecord(value)) return false;
   if (!hasOnlyKeys(value, [], ["protocolVersion", "clientInfo", "clientCapabilities"])) return false;
   if ("protocolVersion" in value && !(typeof value["protocolVersion"] === "string")) return false;
   if ("clientInfo" in value && !(isClientInfo(value["clientInfo"]))) return false;
   if ("clientCapabilities" in value && !(isClientCapabilities(value["clientCapabilities"]))) return false;
+  return true;
+}
+
+export function isResolveWorkspaceRequest(value: unknown): value is ResolveWorkspaceRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["ref"])) return false;
+  if ("ref" in value && !(isWorkspaceRef(value["ref"]))) return false;
+  return true;
+}
+
+export function isRestoreType(value: unknown): value is RestoreType {
+  return typeof value === "string";
+}
+
+export function isResumeRunRequest(value: unknown): value is ResumeRunRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "responses"], ["input"])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(Array.isArray(value["responses"]) && value["responses"].every((entry) => isInterruptResponse(entry)))) return false;
+  if ("input" in value && !(Array.isArray(value["input"]) && value["input"].every((entry) => isContentBlock(entry)))) return false;
+  return true;
+}
+
+export function isResumeRunResponse(value: unknown): value is ResumeRunResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "segmentId"], ["userItemId"])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(typeof value["segmentId"] === "string")) return false;
+  if ("userItemId" in value && !(typeof value["userItemId"] === "string")) return false;
+  return true;
+}
+
+export function isRollbackSessionRequest(value: unknown): value is RollbackSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], ["toRunId", "restoreType"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if ("toRunId" in value && !(typeof value["toRunId"] === "string")) return false;
+  if ("restoreType" in value && !(isRestoreType(value["restoreType"]))) return false;
+  return true;
+}
+
+export function isRollbackSessionResponse(value: unknown): value is RollbackSessionResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["session", "droppedRuns"], [])) return false;
+  if (!(value["session"] === null || isSession(value["session"]))) return false;
+  if (!(Array.isArray(value["droppedRuns"]) && value["droppedRuns"].every((entry) => isDroppedRun(entry)))) return false;
+  return true;
+}
+
+export function isRunEvent(value: unknown): value is RunEvent {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "segmentId", "eventId", "timestamp", "event"], [])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(typeof value["segmentId"] === "string")) return false;
+  if (!(typeof value["eventId"] === "string")) return false;
+  if (!(isTimestamp(value["timestamp"]))) return false;
+  if (!(isStreamEvent(value["event"]))) return false;
+  return true;
+}
+
+export function isRunLimits(value: unknown): value is RunLimits {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["maxTotalTokens", "maxSteps", "maxBudgetUsd"])) return false;
+  if ("maxTotalTokens" in value && !(Number.isInteger(value["maxTotalTokens"]))) return false;
+  if ("maxSteps" in value && !(Number.isInteger(value["maxSteps"]))) return false;
+  if ("maxBudgetUsd" in value && !(typeof value["maxBudgetUsd"] === "number" && Number.isFinite(value["maxBudgetUsd"]))) return false;
+  return true;
+}
+
+export function isRunMetrics(value: unknown): value is RunMetrics {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["steps", "activeDurationMillis"], ["usage"])) return false;
+  if ("usage" in value && !(isUsage(value["usage"]))) return false;
+  if (!(Number.isInteger(value["steps"]))) return false;
+  if (!(Number.isInteger(value["activeDurationMillis"]))) return false;
+  return true;
+}
+
+export function isRunOutcome(value: unknown): value is RunOutcome {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["error", "detail"])) return false;
+  if (!(isRunOutcomeType(value["type"]))) return false;
+  if ("error" in value && !(isProblemData(value["error"]))) return false;
+  if ("detail" in value && !(typeof value["detail"] === "string")) return false;
+  return true;
+}
+
+export function isRunOutcomeType(value: unknown): value is RunOutcomeType {
+  return typeof value === "string";
+}
+
+export function isRunProgress(value: unknown): value is RunProgress {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["step", "usage", "contextTokens", "activity"])) return false;
+  if ("step" in value && !(Number.isInteger(value["step"]))) return false;
+  if ("usage" in value && !(isUsage(value["usage"]))) return false;
+  if ("contextTokens" in value && !(Number.isInteger(value["contextTokens"]))) return false;
+  if ("activity" in value && !(typeof value["activity"] === "string")) return false;
+  return true;
+}
+
+export function isRunProtocolFeature(value: unknown): value is RunProtocolFeature {
+  return typeof value === "string";
+}
+
+export function isRunProtocolProfile(value: unknown): value is RunProtocolProfile {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["requiredFeatures", "interruptTypes"], [])) return false;
+  if (!(Array.isArray(value["requiredFeatures"]) && value["requiredFeatures"].every((entry) => isRunProtocolFeature(entry)))) return false;
+  if (!(Array.isArray(value["interruptTypes"]) && value["interruptTypes"].every((entry) => isInterruptType(entry)))) return false;
+  return true;
+}
+
+export function isRunRef(value: unknown): value is RunRef {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "sessionId", "metrics", "protocolProfile"], ["spawnedByItemId", "parentRunId", "rootRunId", "model", "provider", "status", "outcome", "createdAt", "finishedAt", "activeSegmentId", "contextTokens", "limits"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if ("spawnedByItemId" in value && !(typeof value["spawnedByItemId"] === "string")) return false;
+  if ("parentRunId" in value && !(typeof value["parentRunId"] === "string")) return false;
+  if ("rootRunId" in value && !(typeof value["rootRunId"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("status" in value && !(isRunStatus(value["status"]))) return false;
+  if ("outcome" in value && !(isRunOutcome(value["outcome"]))) return false;
+  if ("createdAt" in value && !(isTimestamp(value["createdAt"]))) return false;
+  if ("finishedAt" in value && !(isTimestamp(value["finishedAt"]))) return false;
+  if ("activeSegmentId" in value && !(typeof value["activeSegmentId"] === "string")) return false;
+  if (!(isRunMetrics(value["metrics"]))) return false;
+  if ("contextTokens" in value && !(Number.isInteger(value["contextTokens"]))) return false;
+  if ("limits" in value && !(isRunLimits(value["limits"]))) return false;
+  if (!(isRunProtocolProfile(value["protocolProfile"]))) return false;
   return true;
 }
 
@@ -275,6 +3449,42 @@ export function isRunReplayScope(value: unknown): value is RunReplayScope {
   return typeof value === "string" && ["runtimeInstanceRootSegment"].includes(value);
 }
 
+export function isRunScheduleNowRequest(value: unknown): value is RunScheduleNowRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id"], [])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  return true;
+}
+
+export function isRunScheduleNowResponse(value: unknown): value is RunScheduleNowResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId", "runId"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  return true;
+}
+
+export function isRunStatus(value: unknown): value is RunStatus {
+  return typeof value === "string";
+}
+
+export function isRunSummary(value: unknown): value is RunSummary {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "sessionId"], ["spawnedByItemId", "parentRunId", "rootRunId", "model", "provider", "status", "outcome", "createdAt", "finishedAt"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if ("spawnedByItemId" in value && !(typeof value["spawnedByItemId"] === "string")) return false;
+  if ("parentRunId" in value && !(typeof value["parentRunId"] === "string")) return false;
+  if ("rootRunId" in value && !(typeof value["rootRunId"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("status" in value && !(isRunStatus(value["status"]))) return false;
+  if ("outcome" in value && !(isRunOutcome(value["outcome"]))) return false;
+  if ("createdAt" in value && !(isTimestamp(value["createdAt"]))) return false;
+  if ("finishedAt" in value && !(isTimestamp(value["finishedAt"]))) return false;
+  return true;
+}
+
 export function isRuntimeEndpoints(value: unknown): value is RuntimeEndpoints {
   if (!isRecord(value)) return false;
   if (!hasOnlyKeys(value, ["rpc", "info", "liveness", "readiness"], [])) return false;
@@ -283,6 +3493,28 @@ export function isRuntimeEndpoints(value: unknown): value is RuntimeEndpoints {
   if (!(typeof value["liveness"] === "string")) return false;
   if (!(typeof value["readiness"] === "string")) return false;
   return true;
+}
+
+export function isRuntimeEvent(value: unknown): value is RuntimeEvent {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type", "sequence"], ["watchId", "workspace", "paths", "names", "serverIds", "scheduleIds", "sessionIds", "runIds", "topics", "watchIds"])) return false;
+  if (!(isRuntimeEventType(value["type"]))) return false;
+  if (!(Number.isInteger(value["sequence"]))) return false;
+  if ("watchId" in value && !(typeof value["watchId"] === "string")) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if ("paths" in value && !(Array.isArray(value["paths"]) && value["paths"].every((entry) => typeof entry === "string"))) return false;
+  if ("names" in value && !(Array.isArray(value["names"]) && value["names"].every((entry) => typeof entry === "string"))) return false;
+  if ("serverIds" in value && !(Array.isArray(value["serverIds"]) && value["serverIds"].every((entry) => typeof entry === "string"))) return false;
+  if ("scheduleIds" in value && !(Array.isArray(value["scheduleIds"]) && value["scheduleIds"].every((entry) => typeof entry === "string"))) return false;
+  if ("sessionIds" in value && !(Array.isArray(value["sessionIds"]) && value["sessionIds"].every((entry) => typeof entry === "string"))) return false;
+  if ("runIds" in value && !(Array.isArray(value["runIds"]) && value["runIds"].every((entry) => typeof entry === "string"))) return false;
+  if ("topics" in value && !(Array.isArray(value["topics"]) && value["topics"].every((entry) => isRuntimeTopic(entry)))) return false;
+  if ("watchIds" in value && !(Array.isArray(value["watchIds"]) && value["watchIds"].every((entry) => typeof entry === "string"))) return false;
+  return true;
+}
+
+export function isRuntimeEventType(value: unknown): value is RuntimeEventType {
+  return typeof value === "string";
 }
 
 export function isRuntimeInfo(value: unknown): value is RuntimeInfo {
@@ -315,8 +3547,62 @@ export function isRuntimeServerInfo(value: unknown): value is RuntimeServerInfo 
   return true;
 }
 
+export function isRuntimeSubscribeRequest(value: unknown): value is RuntimeSubscribeRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["topics"], ["watches"])) return false;
+  if (!(Array.isArray(value["topics"]) && value["topics"].every((entry) => isRuntimeTopic(entry)))) return false;
+  if ("watches" in value && !(Array.isArray(value["watches"]) && value["watches"].every((entry) => isWatchSpec(entry)))) return false;
+  return true;
+}
+
+export function isRuntimeSubscribeResponse(value: unknown): value is RuntimeSubscribeResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], [])) return false;
+  return true;
+}
+
 export function isRuntimeTopic(value: unknown): value is RuntimeTopic {
   return typeof value === "string" && ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"].includes(value);
+}
+
+export function isSafetyClass(value: unknown): value is SafetyClass {
+  return typeof value === "string";
+}
+
+export function isSchedule(value: unknown): value is Schedule {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "title", "instructions", "cron", "enabled", "createdAt", "revision"], ["workspace", "provider", "model", "lastRunAt", "nextRunAt"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["title"] === "string")) return false;
+  if (!(typeof value["instructions"] === "string")) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if (!(typeof value["cron"] === "string")) return false;
+  if (!(typeof value["enabled"] === "boolean")) return false;
+  if ("lastRunAt" in value && !(isTimestamp(value["lastRunAt"]))) return false;
+  if ("nextRunAt" in value && !(isTimestamp(value["nextRunAt"]))) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  if (!(Number.isInteger(value["revision"]))) return false;
+  return true;
+}
+
+export function isScheduleWorkspaceMode(value: unknown): value is ScheduleWorkspaceMode {
+  return typeof value === "string";
+}
+
+export function isSegmentOutcome(value: unknown): value is SegmentOutcome {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["error", "detail", "interrupts"])) return false;
+  if (!(isSegmentOutcomeType(value["type"]))) return false;
+  if ("error" in value && !(isProblemData(value["error"]))) return false;
+  if ("detail" in value && !(typeof value["detail"] === "string")) return false;
+  if ("interrupts" in value && !(Array.isArray(value["interrupts"]) && value["interrupts"].every((entry) => isInterrupt(entry)))) return false;
+  return true;
+}
+
+export function isSegmentOutcomeType(value: unknown): value is SegmentOutcomeType {
+  return typeof value === "string";
 }
 
 export function isServerCapabilities(value: unknown): value is ServerCapabilities {
@@ -341,8 +3627,200 @@ export function isServerInfo(value: unknown): value is ServerInfo {
   return true;
 }
 
+export function isSession(value: unknown): value is Session {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "title", "status", "model", "workspace", "createdAt", "updatedAt", "revision"], ["favorite"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(typeof value["title"] === "string")) return false;
+  if (!(isSessionStatus(value["status"]))) return false;
+  if (!(typeof value["model"] === "string")) return false;
+  if (!(isWorkspaceInfo(value["workspace"]))) return false;
+  if (!(isTimestamp(value["createdAt"]))) return false;
+  if (!(isTimestamp(value["updatedAt"]))) return false;
+  if ("favorite" in value && !(typeof value["favorite"] === "boolean")) return false;
+  if (!(Number.isInteger(value["revision"]))) return false;
+  return true;
+}
+
+export function isSessionArtifact(value: unknown): value is SessionArtifact {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["version", "session", "messages", "runs", "items", "toolResults"], ["plan"])) return false;
+  if (!(Number.isInteger(value["version"]))) return false;
+  if (!(isArtifactSession(value["session"]))) return false;
+  if (!(Array.isArray(value["messages"]) && value["messages"].every((entry) => true))) return false;
+  if (!(Array.isArray(value["runs"]) && value["runs"].every((entry) => isArtifactRun(entry)))) return false;
+  if (!(Array.isArray(value["items"]) && value["items"].every((entry) => isArtifactItem(entry)))) return false;
+  if (!(Array.isArray(value["toolResults"]) && value["toolResults"].every((entry) => isArtifactToolResult(entry)))) return false;
+  if ("plan" in value && !(Array.isArray(value["plan"]) && value["plan"].every((entry) => isPlanStep(entry)))) return false;
+  return true;
+}
+
+export function isSessionSnapshot(value: unknown): value is SessionSnapshot {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["items", "runs", "interrupts"], ["plan", "goal"])) return false;
+  if (!(Array.isArray(value["items"]) && value["items"].every((entry) => isItem(entry)))) return false;
+  if (!(Array.isArray(value["runs"]) && value["runs"].every((entry) => isRunRef(entry)))) return false;
+  if (!(Array.isArray(value["interrupts"]) && value["interrupts"].every((entry) => isPendingInterruptSet(entry)))) return false;
+  if ("plan" in value && !(isPlan(value["plan"]))) return false;
+  if ("goal" in value && !(isGoal(value["goal"]))) return false;
+  return true;
+}
+
+export function isSessionStatus(value: unknown): value is SessionStatus {
+  return typeof value === "string";
+}
+
+export function isSessionUsageRequest(value: unknown): value is SessionUsageRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  return true;
+}
+
+export function isSetApprovalModeRequest(value: unknown): value is SetApprovalModeRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["mode"], [])) return false;
+  if (!(isApprovalMode(value["mode"]))) return false;
+  return true;
+}
+
+export function isSetHookTrustRequest(value: unknown): value is SetHookTrustRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["projectRoot", "trusted"], [])) return false;
+  if (!(typeof value["projectRoot"] === "string")) return false;
+  if (!(typeof value["trusted"] === "boolean")) return false;
+  return true;
+}
+
+export function isSkill(value: unknown): value is Skill {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "scope"], ["description"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if (!(isSkillScope(value["scope"]))) return false;
+  return true;
+}
+
+export function isSkillLifecycle(value: unknown): value is SkillLifecycle {
+  return typeof value === "string";
+}
+
+export function isSkillNameRequest(value: unknown): value is SkillNameRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name"], [])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  return true;
+}
+
+export function isSkillProposal(value: unknown): value is SkillProposal {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "revision", "scope", "description", "instructions"], ["origin", "sourceSession", "revises"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(typeof value["revision"] === "string")) return false;
+  if (!(isSkillScope(value["scope"]))) return false;
+  if (!(typeof value["description"] === "string")) return false;
+  if (!(typeof value["instructions"] === "string")) return false;
+  if ("origin" in value && !(isSkillProposalOrigin(value["origin"]))) return false;
+  if ("sourceSession" in value && !(typeof value["sourceSession"] === "string")) return false;
+  if ("revises" in value && !(typeof value["revises"] === "boolean")) return false;
+  return true;
+}
+
+export function isSkillProposalOrigin(value: unknown): value is SkillProposalOrigin {
+  return typeof value === "string";
+}
+
+export function isSkillProposalRef(value: unknown): value is SkillProposalRef {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace", "name", "revision", "scope"], [])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(typeof value["revision"] === "string")) return false;
+  if (!(isSkillScope(value["scope"]))) return false;
+  return true;
+}
+
+export function isSkillScope(value: unknown): value is SkillScope {
+  return typeof value === "string";
+}
+
+export function isStartGoalRequest(value: unknown): value is StartGoalRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId", "objective"], ["provider", "model", "budget"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(typeof value["objective"] === "string")) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if ("budget" in value && !(isGoalBudget(value["budget"]))) return false;
+  return true;
+}
+
+export function isStartRunRequest(value: unknown): value is StartRunRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId", "input"], ["provider", "model", "maxTotalTokens", "maxSteps", "maxBudgetUsd", "params"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(Array.isArray(value["input"]) && value["input"].every((entry) => isContentBlock(entry)))) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if ("maxTotalTokens" in value && !(Number.isInteger(value["maxTotalTokens"]))) return false;
+  if ("maxSteps" in value && !(Number.isInteger(value["maxSteps"]))) return false;
+  if ("maxBudgetUsd" in value && !(typeof value["maxBudgetUsd"] === "number" && Number.isFinite(value["maxBudgetUsd"]))) return false;
+  if ("params" in value && !(isGenerationParams(value["params"]))) return false;
+  return true;
+}
+
+export function isStartRunResponse(value: unknown): value is StartRunResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "segmentId", "userItemId"], [])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(typeof value["segmentId"] === "string")) return false;
+  if (!(typeof value["userItemId"] === "string")) return false;
+  return true;
+}
+
+export function isSteerRunRequest(value: unknown): value is SteerRunRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "expectedSegmentId", "input"], [])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(typeof value["expectedSegmentId"] === "string")) return false;
+  if (!(Array.isArray(value["input"]) && value["input"].every((entry) => isContentBlock(entry)))) return false;
+  return true;
+}
+
+export function isStreamEvent(value: unknown): value is StreamEvent {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["type"], ["run", "progress", "outcome", "metrics", "item", "itemId", "delta", "plan"])) return false;
+  if (!(isStreamEventType(value["type"]))) return false;
+  if ("run" in value && !(isRunRef(value["run"]))) return false;
+  if ("progress" in value && !(isRunProgress(value["progress"]))) return false;
+  if ("outcome" in value && !(isSegmentOutcome(value["outcome"]))) return false;
+  if ("metrics" in value && !(isRunMetrics(value["metrics"]))) return false;
+  if ("item" in value && !(isItem(value["item"]))) return false;
+  if ("itemId" in value && !(typeof value["itemId"] === "string")) return false;
+  if ("delta" in value && !(isItemDelta(value["delta"]))) return false;
+  if ("plan" in value && !(isPlan(value["plan"]))) return false;
+  return true;
+}
+
 export function isStreamEventType(value: unknown): value is StreamEventType {
   return typeof value === "string" && ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "plan.updated"].includes(value);
+}
+
+export function isSubscribeRunRequest(value: unknown): value is SubscribeRunRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "segmentId"], [])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(typeof value["segmentId"] === "string")) return false;
+  return true;
+}
+
+export function isSubscribeRunResponse(value: unknown): value is SubscribeRunResponse {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["runId", "segmentId"], ["headEventId"])) return false;
+  if (!(typeof value["runId"] === "string")) return false;
+  if (!(typeof value["segmentId"] === "string")) return false;
+  if ("headEventId" in value && !(typeof value["headEventId"] === "string")) return false;
+  return true;
 }
 
 export function isSubscriptionLimits(value: unknown): value is SubscriptionLimits {
@@ -357,8 +3835,196 @@ export function isSuppressibleRunEventType(value: unknown): value is Suppressibl
   return typeof value === "string" && ["segment.progress", "item.delta"].includes(value);
 }
 
+export function isTestProviderRequest(value: unknown): value is TestProviderRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["provider"], [])) return false;
+  if (!(typeof value["provider"] === "string")) return false;
+  return true;
+}
+
+export function isToolInvocation(value: unknown): value is ToolInvocation {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name", "arguments"], ["result"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(isRecord(value["arguments"]) && Object.values(value["arguments"]).every((entry) => true))) return false;
+  if ("result" in value && !(true)) return false;
+  return true;
+}
+
+export function isToolSpec(value: unknown): value is ToolSpec {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["name"], ["description", "parameters", "safetyClass"])) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if ("parameters" in value && !(isRecord(value["parameters"]) && Object.values(value["parameters"]).every((entry) => true))) return false;
+  if ("safetyClass" in value && !(isSafetyClass(value["safetyClass"]))) return false;
+  return true;
+}
+
 export function isTransportKind(value: unknown): value is TransportKind {
   return typeof value === "string" && ["http"].includes(value);
+}
+
+export function isUpdateGoalRequest(value: unknown): value is UpdateGoalRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId", "objective"], [])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(typeof value["objective"] === "string")) return false;
+  return true;
+}
+
+export function isUpdateKnowledgeRequest(value: unknown): value is UpdateKnowledgeRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["scope", "expectedRevision", "content"], ["workspace"])) return false;
+  if (!(isKnowledgeScope(value["scope"]))) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if (!(typeof value["expectedRevision"] === "string")) return false;
+  if (!(typeof value["content"] === "string")) return false;
+  return true;
+}
+
+export function isUpdateMCPServerRequest(value: unknown): value is UpdateMCPServerRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["server"], ["enabled", "description", "connection", "timeoutSeconds", "disabledTools", "autoApproveTools"])) return false;
+  if (!(typeof value["server"] === "string")) return false;
+  if ("enabled" in value && !(typeof value["enabled"] === "boolean")) return false;
+  if ("description" in value && !(typeof value["description"] === "string")) return false;
+  if ("connection" in value && !(isMCPConnectionInput(value["connection"]))) return false;
+  if ("timeoutSeconds" in value && !(Number.isInteger(value["timeoutSeconds"]))) return false;
+  if ("disabledTools" in value && !(Array.isArray(value["disabledTools"]) && value["disabledTools"].every((entry) => typeof entry === "string"))) return false;
+  if ("autoApproveTools" in value && !(Array.isArray(value["autoApproveTools"]) && value["autoApproveTools"].every((entry) => typeof entry === "string"))) return false;
+  return true;
+}
+
+export function isUpdateProviderRequest(value: unknown): value is UpdateProviderRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["provider"], ["baseUrl", "apiKey"])) return false;
+  if (!(typeof value["provider"] === "string")) return false;
+  if ("baseUrl" in value && !(isProviderConfigChange(value["baseUrl"]))) return false;
+  if ("apiKey" in value && !(isProviderConfigChange(value["apiKey"]))) return false;
+  return true;
+}
+
+export function isUpdateScheduleRequest(value: unknown): value is UpdateScheduleRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["id", "expectedRevision"], ["title", "instructions", "workspace", "workspaceMode", "provider", "model", "cron", "enabled"])) return false;
+  if (!(typeof value["id"] === "string")) return false;
+  if (!(Number.isInteger(value["expectedRevision"]))) return false;
+  if ("title" in value && !(typeof value["title"] === "string")) return false;
+  if ("instructions" in value && !(typeof value["instructions"] === "string")) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if ("workspaceMode" in value && !(isScheduleWorkspaceMode(value["workspaceMode"]))) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if ("cron" in value && !(typeof value["cron"] === "string")) return false;
+  if ("enabled" in value && !(typeof value["enabled"] === "boolean")) return false;
+  return true;
+}
+
+export function isUpdateSessionRequest(value: unknown): value is UpdateSessionRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["sessionId", "expectedRevision"], ["title", "workspace", "model", "favorite"])) return false;
+  if (!(typeof value["sessionId"] === "string")) return false;
+  if (!(Number.isInteger(value["expectedRevision"]))) return false;
+  if ("title" in value && !(typeof value["title"] === "string")) return false;
+  if ("workspace" in value && !(isWorkspaceRef(value["workspace"]))) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  if ("favorite" in value && !(typeof value["favorite"] === "boolean")) return false;
+  return true;
+}
+
+export function isUsage(value: unknown): value is Usage {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd", "byModel"])) return false;
+  if ("inputTokens" in value && !(Number.isInteger(value["inputTokens"]))) return false;
+  if ("outputTokens" in value && !(Number.isInteger(value["outputTokens"]))) return false;
+  if ("cacheReadTokens" in value && !(Number.isInteger(value["cacheReadTokens"]))) return false;
+  if ("cacheWriteTokens" in value && !(Number.isInteger(value["cacheWriteTokens"]))) return false;
+  if ("reasoningTokens" in value && !(Number.isInteger(value["reasoningTokens"]))) return false;
+  if ("costUsd" in value && !(typeof value["costUsd"] === "number" && Number.isFinite(value["costUsd"]))) return false;
+  if ("byModel" in value && !(isRecord(value["byModel"]) && Object.values(value["byModel"]).every((entry) => isModelUsage(entry)))) return false;
+  return true;
+}
+
+export function isUsageBucket(value: unknown): value is UsageBucket {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["key"], ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd", "runs"])) return false;
+  if (!(typeof value["key"] === "string")) return false;
+  if ("inputTokens" in value && !(Number.isInteger(value["inputTokens"]))) return false;
+  if ("outputTokens" in value && !(Number.isInteger(value["outputTokens"]))) return false;
+  if ("cacheReadTokens" in value && !(Number.isInteger(value["cacheReadTokens"]))) return false;
+  if ("cacheWriteTokens" in value && !(Number.isInteger(value["cacheWriteTokens"]))) return false;
+  if ("reasoningTokens" in value && !(Number.isInteger(value["reasoningTokens"]))) return false;
+  if ("costUsd" in value && !(typeof value["costUsd"] === "number" && Number.isFinite(value["costUsd"]))) return false;
+  if ("runs" in value && !(Number.isInteger(value["runs"]))) return false;
+  return true;
+}
+
+export function isUsageSummary(value: unknown): value is UsageSummary {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["total"], ["byProvider", "byModel", "byDay", "sessions", "runs"])) return false;
+  if (!(isModelUsage(value["total"]))) return false;
+  if ("byProvider" in value && !(Array.isArray(value["byProvider"]) && value["byProvider"].every((entry) => isUsageBucket(entry)))) return false;
+  if ("byModel" in value && !(Array.isArray(value["byModel"]) && value["byModel"].every((entry) => isUsageBucket(entry)))) return false;
+  if ("byDay" in value && !(Array.isArray(value["byDay"]) && value["byDay"].every((entry) => isUsageBucket(entry)))) return false;
+  if ("sessions" in value && !(Number.isInteger(value["sessions"]))) return false;
+  if ("runs" in value && !(Number.isInteger(value["runs"]))) return false;
+  return true;
+}
+
+export function isUsageSummaryRequest(value: unknown): value is UsageSummaryRequest {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["sinceDays"])) return false;
+  if ("sinceDays" in value && !(Number.isInteger(value["sinceDays"]))) return false;
+  return true;
+}
+
+export function isUtilityRole(value: unknown): value is UtilityRole {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [], ["provider", "model"])) return false;
+  if ("provider" in value && !(typeof value["provider"] === "string")) return false;
+  if ("model" in value && !(typeof value["model"] === "string")) return false;
+  return true;
+}
+
+export function isWatchSpec(value: unknown): value is WatchSpec {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["watchId", "workspace"], [])) return false;
+  if (!(typeof value["watchId"] === "string")) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
+}
+
+export function isWorkspaceAvailability(value: unknown): value is WorkspaceAvailability {
+  return typeof value === "string";
+}
+
+export function isWorkspaceFileChange(value: unknown): value is WorkspaceFileChange {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["path", "status"], ["previousPath", "added", "removed", "binary"])) return false;
+  if (!(typeof value["path"] === "string")) return false;
+  if (!(isFileStatus(value["status"]))) return false;
+  if ("previousPath" in value && !(typeof value["previousPath"] === "string")) return false;
+  if ("added" in value && !(Number.isInteger(value["added"]))) return false;
+  if ("removed" in value && !(Number.isInteger(value["removed"]))) return false;
+  if ("binary" in value && !(typeof value["binary"] === "boolean")) return false;
+  return true;
+}
+
+export function isWorkspaceInfo(value: unknown): value is WorkspaceInfo {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["ref", "availability"], ["projectRoot"])) return false;
+  if (!(isWorkspaceRef(value["ref"]))) return false;
+  if ("projectRoot" in value && !(typeof value["projectRoot"] === "string")) return false;
+  if (!(isWorkspaceAvailability(value["availability"]))) return false;
+  return true;
+}
+
+export function isWorkspaceQuery(value: unknown): value is WorkspaceQuery {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace"], [])) return false;
+  if (!(isWorkspaceRef(value["workspace"]))) return false;
+  return true;
 }
 
 export function isWorkspaceRef(value: unknown): value is WorkspaceRef {
@@ -367,6 +4033,124 @@ export function isWorkspaceRef(value: unknown): value is WorkspaceRef {
   if (!(typeof value["path"] === "string")) return false;
   return true;
 }
+
+export function isWorkspaceSummary(value: unknown): value is WorkspaceSummary {
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, ["workspace", "name", "sessionCount"], ["lastActiveAt"])) return false;
+  if (!(isWorkspaceInfo(value["workspace"]))) return false;
+  if (!(typeof value["name"] === "string")) return false;
+  if (!(Number.isInteger(value["sessionCount"]))) return false;
+  if ("lastActiveAt" in value && !(isTimestamp(value["lastActiveAt"]))) return false;
+  return true;
+}
+
+export const unaryResultValidators: {
+  [Name in keyof UnaryRuntimeMethods]: (value: unknown) => value is UnaryRuntimeMethods[Name]["result"];
+} = {
+  "runtime.discover": (value: unknown): value is DiscoverResponse => isDiscoverResponse(value),
+  "sessions.list": (value: unknown): value is Page<Session> => isPage(value, (entry: unknown): entry is Session => isSession(entry)),
+  "sessions.get": (value: unknown): value is Session => isSession(value),
+  "sessions.snapshot": (value: unknown): value is SessionSnapshot => isSessionSnapshot(value),
+  "sessions.create": (value: unknown): value is Session => isSession(value),
+  "sessions.update": (value: unknown): value is Session => isSession(value),
+  "sessions.delete": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "sessions.fork": (value: unknown): value is Session => isSession(value),
+  "sessions.rollback": (value: unknown): value is RollbackSessionResponse => isRollbackSessionResponse(value),
+  "sessions.export": (value: unknown): value is ExportSessionResponse => isExportSessionResponse(value),
+  "sessions.import": (value: unknown): value is ImportSessionResponse => isImportSessionResponse(value),
+  "runs.cancel": (value: unknown): value is CancelRunResponse => isCancelRunResponse(value),
+  "runs.steer": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "runs.get": (value: unknown): value is RunRef => isRunRef(value),
+  "runs.list": (value: unknown): value is Page<RunRef> => isPage(value, (entry: unknown): entry is RunRef => isRunRef(entry)),
+  "interrupts.list": (value: unknown): value is Page<PendingInterruptSet> => isPage(value, (entry: unknown): entry is PendingInterruptSet => isPendingInterruptSet(entry)),
+  "plan.get": (value: unknown): value is Plan => isPlan(value),
+  "items.list": (value: unknown): value is ListItemsResponse => isListItemsResponse(value),
+  "workspaces.resolve": (value: unknown): value is WorkspaceInfo => isWorkspaceInfo(value),
+  "workspaces.list": (value: unknown): value is Page<WorkspaceSummary> => isPage(value, (entry: unknown): entry is WorkspaceSummary => isWorkspaceSummary(entry)),
+  "workspace.changes.list": (value: unknown): value is Page<WorkspaceFileChange> => isPage(value, (entry: unknown): entry is WorkspaceFileChange => isWorkspaceFileChange(entry)),
+  "workspace.diff.get": (value: unknown): value is Diff => isDiff(value),
+  "workspace.files.head": (value: unknown): value is FileHead => isFileHead(value),
+  "workspace.files.search": (value: unknown): value is GrepResult => isGrepResult(value),
+  "workspace.files.list": (value: unknown): value is Page<FileEntry> => isPage(value, (entry: unknown): entry is FileEntry => isFileEntry(entry)),
+  "workspace.files.read": (value: unknown): value is FileContent => isFileContent(value),
+  "skills.discovered.list": (value: unknown): value is Page<Skill> => isPage(value, (entry: unknown): entry is Skill => isSkill(entry)),
+  "skills.library.list": (value: unknown): value is Page<ManagedSkill> => isPage(value, (entry: unknown): entry is ManagedSkill => isManagedSkill(entry)),
+  "skills.library.archive": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "skills.library.restore": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "skills.proposals.list": (value: unknown): value is Page<SkillProposal> => isPage(value, (entry: unknown): entry is SkillProposal => isSkillProposal(entry)),
+  "skills.proposals.approve": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "skills.proposals.reject": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "recipes.list": (value: unknown): value is Page<Recipe> => isPage(value, (entry: unknown): entry is Recipe => isRecipe(entry)),
+  "agentDocs.list": (value: unknown): value is Page<AgentDoc> => isPage(value, (entry: unknown): entry is AgentDoc => isAgentDoc(entry)),
+  "mcp.servers.list": (value: unknown): value is Page<MCPServer> => isPage(value, (entry: unknown): entry is MCPServer => isMCPServer(entry)),
+  "mcp.servers.create": (value: unknown): value is MCPServer => isMCPServer(value),
+  "mcp.servers.update": (value: unknown): value is MCPServer => isMCPServer(value),
+  "mcp.servers.delete": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "mcp.servers.test": (value: unknown): value is MCPTestResult => isMCPTestResult(value),
+  "mcp.tools.list": (value: unknown): value is Page<MCPTool> => isPage(value, (entry: unknown): entry is MCPTool => isMCPTool(entry)),
+  "mcp.servers.reconnect": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "mcp.authorizationAttempts.create": (value: unknown): value is MCPAuthorizationAttempt => isMCPAuthorizationAttempt(value),
+  "mcp.authorizationAttempts.get": (value: unknown): value is MCPAuthorizationAttempt => isMCPAuthorizationAttempt(value),
+  "hooks.list": (value: unknown): value is HooksListResult => isHooksListResult(value),
+  "hooks.setTrust": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "approval.getMode": (value: unknown): value is ApprovalModeResult => isApprovalModeResult(value),
+  "approval.setMode": (value: unknown): value is ApprovalModeResult => isApprovalModeResult(value),
+  "approval.listRules": (value: unknown): value is ListApprovalRulesResult => isListApprovalRulesResult(value),
+  "approval.forgetRule": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "schedules.list": (value: unknown): value is Page<Schedule> => isPage(value, (entry: unknown): entry is Schedule => isSchedule(entry)),
+  "schedules.create": (value: unknown): value is Schedule => isSchedule(value),
+  "schedules.update": (value: unknown): value is Schedule => isSchedule(value),
+  "schedules.delete": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "schedules.runNow": (value: unknown): value is RunScheduleNowResponse => isRunScheduleNowResponse(value),
+  "goals.start": (value: unknown): value is Goal => isGoal(value),
+  "goals.update": (value: unknown): value is Goal => isGoal(value),
+  "goals.clear": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "goals.get": (value: unknown): value is Goal | null => value === null || isGoal(value),
+  "goals.stop": (value: unknown): value is Goal => isGoal(value),
+  "goals.resume": (value: unknown): value is Goal => isGoal(value),
+  "codebase.search": (value: unknown): value is CodebaseSearchResult => isCodebaseSearchResult(value),
+  "codebase.status": (value: unknown): value is CodebaseStatus => isCodebaseStatus(value),
+  "codebase.reindex": (value: unknown): value is CodebaseReindexResponse => isCodebaseReindexResponse(value),
+  "providers.list": (value: unknown): value is Page<Provider> => isPage(value, (entry: unknown): entry is Provider => isProvider(entry)),
+  "providers.update": (value: unknown): value is Provider => isProvider(value),
+  "providers.test": (value: unknown): value is ProviderTestResult => isProviderTestResult(value),
+  "models.list": (value: unknown): value is Page<Model> => isPage(value, (entry: unknown): entry is Model => isModel(entry)),
+  "models.getUtilityRole": (value: unknown): value is UtilityRole => isUtilityRole(value),
+  "models.setUtilityRole": (value: unknown): value is UtilityRole => isUtilityRole(value),
+  "models.getEmbeddingRole": (value: unknown): value is EmbeddingRole => isEmbeddingRole(value),
+  "models.setEmbeddingRole": (value: unknown): value is EmbeddingRole => isEmbeddingRole(value),
+  "tools.list": (value: unknown): value is Page<ToolSpec> => isPage(value, (entry: unknown): entry is ToolSpec => isToolSpec(entry)),
+  "tools.invoke": (value: unknown): value is unknown => true,
+  "usage.session": (value: unknown): value is Usage => isUsage(value),
+  "usage.summary": (value: unknown): value is UsageSummary => isUsageSummary(value),
+  "knowledge.list": (value: unknown): value is Page<KnowledgeEntry> => isPage(value, (entry: unknown): entry is KnowledgeEntry => isKnowledgeEntry(entry)),
+  "knowledge.get": (value: unknown): value is KnowledgeEntry => isKnowledgeEntry(value),
+  "knowledge.update": (value: unknown): value is KnowledgeEntry => isKnowledgeEntry(value),
+  "agentMemory.list": (value: unknown): value is AgentMemoryList => isAgentMemoryList(value),
+  "agentMemory.review": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "agentMemory.update": (value: unknown): value is AgentMemoryItem => isAgentMemoryItem(value),
+  "agentMemory.delete": (value: unknown): value is EmptyObject => isEmptyObject(value),
+  "agentMemory.add": (value: unknown): value is AgentMemoryItem => isAgentMemoryItem(value),
+  "feedback.create": (value: unknown): value is EmptyObject => isEmptyObject(value),
+};
+
+export const streamResultValidators: {
+  [Name in keyof StreamRuntimeMethods]: (value: unknown) => value is StreamRuntimeMethods[Name]["result"];
+} = {
+  "runs.start": (value: unknown): value is StartRunResponse => isStartRunResponse(value),
+  "runs.resume": (value: unknown): value is ResumeRunResponse => isResumeRunResponse(value),
+  "runs.subscribe": (value: unknown): value is SubscribeRunResponse => isSubscribeRunResponse(value),
+  "runtime.subscribe": (value: unknown): value is RuntimeSubscribeResponse => isRuntimeSubscribeResponse(value),
+};
+
+export const streamEventValidators: {
+  [Name in keyof StreamRuntimeMethods]: (value: unknown) => value is StreamRuntimeMethods[Name]["event"];
+} = {
+  "runs.start": (value: unknown): value is RunEvent => isRunEvent(value),
+  "runs.resume": (value: unknown): value is RunEvent => isRunEvent(value),
+  "runs.subscribe": (value: unknown): value is RunEvent => isRunEvent(value),
+  "runtime.subscribe": (value: unknown): value is RuntimeEvent => isRuntimeEvent(value),
+};
 
 export function assertDiscoverResponse(value: unknown): asserts value is DiscoverResponse {
   if (!isDiscoverResponse(value)) throw new TypeError("invalid runtime.discover response");
