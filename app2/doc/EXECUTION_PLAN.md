@@ -29,10 +29,10 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（全部 production 纵切已实现；Hooks 只待真实 PreCompact producer，整体待最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | implemented（真实 PreCompact producer 已由 R10 compaction 纵切补齐，整体待最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | implemented（production 纵切与全 topic/resync 已闭环，最终统一门禁留到 R11） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | implemented（production 纵切已闭环，最终统一门禁留到 R11） |
-| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
+| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（R10a remote/tool/lifecycle production 已实现，内容与产品打磨继续） |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
 | R12 | 迁移 CLI/其余 consumer（deferred，本轮不实施） | deferred |
 | R13 | 切换与删除旧 app（deferred，本轮不实施） | deferred |
@@ -554,9 +554,9 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - **lifecycle isolation**：terminal Run 先 durable commit 并发布既有 Run 事件，再发非阻塞维护信号；重启扫描补偿 commit/signal 间 crash。
   utility role 可用时用于维护，否则回退 source Run 的 provider/model。单一有界/coalescing worker 归 Runtime lifetime 所有，Close cancel/join；
   失败仅保留 backlog，不改变 Run outcome，不写 LYRA.md，也不扩张现有 Lyra wire；
-- **后续纵切**：Hooks 与 Tool catalog 已按同一资源边界完成，待真实 PreCompact producer 与最终统一门禁。
+- **后续纵切**：Hooks 与 Tool catalog 已按同一资源边界完成；真实 PreCompact producer 已在 R10 闭合，现只待最终统一门禁。
 
-### R7 Hooks 管理 / execution / observation 纵切（除 PreCompact consumer 外已实现）
+### R7 Hooks 管理 / execution / observation 纵切（已实现，待最终统一门禁）
 
 - **独立领域与 owner**：移除 `capabilityflow` 内嵌的一行 JSON parser 与 generic `hook_id='project'` persistence；由 closed
   `domain/lifecyclehook`、`hookfs`、`hookflow` 分别拥有规则、受限文件 I/O 与 use case。当前 SQLite epoch 9 只以
@@ -575,8 +575,9 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - **committed lifecycle**：SubagentStart 只在 child Run durable admission 后排队；SubagentStop、Stop 覆盖 completion/cancel/lost recovery 等所有
   terminal commit；Notification 只覆盖真实 interrupt source。observe-only cascade 在 commit 时冻结并进入单一 bounded Runtime worker，Close
   cancel/join。命令私有契约见 `HOOKS.md`；现有 Lyra management/event wire 未改变；
-- **余项 / 下一纵切**：`PreCompact` 的领域与执行规则已闭合，但必须等真正 compaction producer 在 candidate boundary 调用，不能造假 consumer。
-  Tool catalog 已完成；compaction 实现时同纵切接入 `PreCompact`，最后统一门禁验证。
+- **R10 闭环**：真实 post-Run compaction worker 从 immutable Conversation journal 建 candidate；在 summary model call 与 projection commit 前执行
+  `PreCompact`，deny 保留原上下文，allow/inject 进入唯一 summary boundary。summary projection 与 Compaction Item 原子提交，Runtime Close cancel/join；
+  旧 journal 不删除，因此 export/fork/rollback 仍有完整事实。Hooks 与 Tool catalog production 纵切现已闭合，只待最终统一门禁。
 
 ### R7 Tool catalog / 渐进暴露纵切（已实现，待最终统一门禁）
 
@@ -811,6 +812,16 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - keyboard/IME/CJK/reduced motion/WCAG/Retina/WebKit/Wails packaged app。
 
 完成 U17/U18/U22–U24、P01–P03 remote path，并对所有 Desktop surface 做 production-equivalent matrix。
+
+### R10a Remote / Tool / lifecycle 实现记录（尚未统一验证）
+
+- remote Runtime 继续使用 Lyra `/v2/rpc`、SSE replay/cancel 与既有 sidecars；explicit remote mode 才允许非 loopback，且必须同时提供 TLS certificate/key、path-owned bearer token 与 exact non-wildcard Origin；
+- bearer source 每个 RPC 从 0600 token file 读取，原子替换即可轮换，失效 credential 返回 bounded transport problem；本地 descriptor 与 remote mode 互斥，Desktop 绝不终止不属于自己的 remote process；
+- Desktop remote profile 只持久化 origin 与 server name，token 进入 OS keyring；首次配置、重新启用与后续 bootstrap 都验证系统 TLS、`info/live/ready/discover` 的 protocol/instance 同一性，instance replacement 形成新 renderer generation；本地/已保存远端切换不要求把 secret 重新带回 renderer；
+- 通用 connection credential breaking rename 为 `bearerToken`，endpoint contract authentication 收敛为 `bearer`，不保留 `localToken` alias；RPC method/event/error 仍完全沿用 Lyra Protocol；
+- generated client 只放行 loopback HTTP 或 origin-only HTTPS，不修改 Runtime method、params/result、event 或 error shape；这是 transport deployment 能力，不是复制 Codex handshake；
+- Shell 改为 Runtime-owned background job aggregate，`shell/read_shell_output/stop_shell` 共享 process/output/cancel owner，并在 owner boundary 强制 session identity、终态有界回收；下一 root Run 动态注入仍存活 job ID 与当前 in-progress Plan，不把命令文本或过期状态固化进 summary。LSP 为 workspace-confined lazy server manager，支持 config replacement table 与单文件 mutation 前后新诊断差分；三个 network tools 只有凭据/allowlist 明确配置时才进入 deferred manifest；
+- Conversation 完整 journal 继续 immutable；`conversation_compactions` 只保存可回退的 effective-context projection。真实 candidate 调 `PreCompact` 后由 utility/fallback model 总结，并与 user-visible Compaction Item 原子提交；启动时在 Run recovery 后幂等重排关机窗口遗漏的 candidate；SQLite epoch 提升到 16，Lyra wire shape 不变。
 
 ## 15. R11：Wave A 全量 parity 与切换
 

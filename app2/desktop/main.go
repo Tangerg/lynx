@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app2/desktop/supervisor"
+	"github.com/Tangerg/lynx/app2/desktop/remote"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -48,7 +49,10 @@ func runDesktop() (err error) {
 	if _, err := runtimeSupervisor.Start(context.Background()); err != nil {
 		return fmt.Errorf("desktop: start local Runtime: %w", err)
 	}
-	desktopHost, err := newDesktopHost(runtimeSupervisor)
+	remoteManager,err:=remote.Open(filepath.Join(config.DataHome,"desktop-remote.json"))
+	if err!=nil{return err}
+	defer remoteManager.Close()
+	desktopHost, err := newDesktopHost(runtimeSupervisor,remoteManager)
 	if err != nil {
 		return err
 	}
@@ -59,6 +63,7 @@ func runDesktop() (err error) {
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 		OnShutdown: func() {
+			remoteManager.Close()
 			ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 			defer cancel()
 			if closeErr := runtimeSupervisor.Close(ctx); closeErr != nil {

@@ -81,6 +81,10 @@ type MemoryMaintenance interface {
 	RunSettled()
 }
 
+type CompactionMaintenance interface {
+	RunSettled(string, string, string)
+}
+
 type LifecycleHooks interface {
 	Observe(context.Context, lifecyclehook.Invocation)
 }
@@ -106,6 +110,7 @@ type Service struct {
 	hub       *streamhub.Hub
 	events    Publisher
 	memory    MemoryMaintenance
+	compaction CompactionMaintenance
 	hooks     LifecycleHooks
 	now       func() time.Time
 	lifetime  context.Context
@@ -133,13 +138,14 @@ type Config struct {
 	Hub *streamhub.Hub
 	Events Publisher
 	Memory MemoryMaintenance
+	Compaction CompactionMaintenance
 	Hooks LifecycleHooks
 	Lifetime context.Context
 	Clock func() time.Time
 }
 
 func New(config Config) (*Service, error) {
-	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Events == nil || config.Checkpoints == nil || config.Memory == nil || config.Hooks == nil {
+	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Events == nil || config.Checkpoints == nil || config.Memory == nil || config.Compaction == nil || config.Hooks == nil {
 		return nil, errors.New("runflow: stores, execution ports, events, memory, and lifecycle hooks are required")
 	}
 	if config.Lifetime == nil {
@@ -152,7 +158,7 @@ func New(config Config) (*Service, error) {
 	lifetime, cancel := context.WithCancel(config.Lifetime)
 	return &Service{
 		store: config.Store, ids: config.IDs, executor: config.Executor, models: config.Models, checkpoints: config.Checkpoints,
-		hub: config.Hub, events: config.Events, memory: config.Memory, hooks: config.Hooks,
+		hub: config.Hub, events: config.Events, memory: config.Memory, compaction: config.Compaction, hooks: config.Hooks,
 		now: clock, lifetime: lifetime, cancel: cancel,
 		active: make(map[string]activeExecution), locks: make(map[string]*sync.Mutex),
 	}, nil
@@ -746,6 +752,7 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	}
 	if record.Run.ParentRunID() == "" {
 		service.memory.RunSettled()
+		service.compaction.RunSettled(record.Run.SessionID(), record.Run.ID(), workspace)
 	}
 }
 

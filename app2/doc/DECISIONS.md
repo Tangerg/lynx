@@ -510,3 +510,37 @@ exact workspace scope，返回 bounded identity/time/snippet，并明确 histori
 **后果**：SQLite exact epoch 提升到 15；Runtime Protocol、89-method catalog、SSE event 与 generated contract shape 均不变。
 R9 production 纵切闭合，U19 与 `search_conversations` 到 `implemented`；FTS corruption/rebuild、large-history cursor、rollback/import、
 keyboard/a11y/visual/package 与资源门禁仍集中到 R11。
+
+## ADR-A2-036：Compaction 是 immutable journal 上的可回退 context projection
+
+**缺陷与反例**：协议已经声明 Compaction Item 与 `PreCompact`，但 app2 没有真实 producer；直接删除或重排 Conversation rows 会让
+fork/rollback/export 的完整历史与 Run message ownership 一并丢失。把 Agent Framework checkpoint 当历史真相，或复制参考产品的
+Thread/Turn compaction wire，同样会绕开 Lyra 已有 Session/Run/Item journal。
+
+**决定**：完整 Conversation journal 永不因自动压缩删除。私有 `conversation_compactions` 以 absolute message ordinal、summary body、
+creator Run 和 before/after count 保存 effective-context projection；多代 projection 独立存在，rollback 删除 creator Run 后可自然回退上一代。
+post-Run bounded worker 只有在 message/byte threshold 触发后才建 candidate，并在任何 model call/commit 之前执行真实 `PreCompact`；deny 是
+no-op，inject 只作为 trusted summary context。summary 与 Compaction Item 在同一 SQLite transaction 提交，CAS 防止并发新消息产生陈旧 winner。
+Runtime startup 在 Run lost-recovery 之后重新排入各 Session 最新终态 root Run；完整 journal 与相同 CAS 让关机窗口恢复和重复排队保持幂等。
+
+**后果**：SQLite exact epoch 提升到 16；Lyra protocol shape 与 generated artifacts 不变。O12 到 implemented，最终 summary quality、
+concurrent next Run、rollback/fork/import、restart、fault 与 shutdown leak 仍在 R11 统一验证。
+
+## ADR-A2-037：Remote 只改变 Lyra HTTP 部署策略，Desktop secret 归 OS keyring
+
+**缺陷与反例**：local-only listener 与 generated client 的 loopback 限制让现有 remote contract 无法真正部署；若新增一套 remote method、
+initialize handshake 或 descriptor reader，会破坏已经成熟的 Lyra wire，并把本地进程所有权错误延伸到远端。
+
+**决定**：remote 继续精确复用 `/v2/rpc`、SSE、`/v2/info`、live 与 ready。Runtime 只有 explicit remote mode 可监听非 loopback，且必须
+TLS、path-owned bearer token 和 exact non-wildcard CORS；每个 RPC 重读 0600 token file，允许原子 secret rotation。local bootstrap descriptor
+与 remote mode 互斥。Desktop profile 只保存 origin 与 server name，bearer secret 由 OS keyring 持有；attach 对系统 TLS 与四个既有 endpoint
+做同 instance/protocol 验证，remote instance replacement 只推进 connection generation，Desktop 不发送 stop signal。
+
+通用 Desktop/generated-client connection 把凭据字段 breaking rename 为 `bearerToken`，不再用 `localToken` 把部署方式泄漏进传输模型；
+endpoint contract 的认证语义同步从 `localToken` 收敛为标准 `bearer`，不提供旧字段 alias 或兼容 reader。
+
+**后果**：Runtime method/event/error shape 零变化；contract generator 放宽 transport URL policy 到 loopback HTTP 或 origin-only HTTPS，
+并生成 `bearerToken` connection 字段，manifest 记录 `bearer` endpoint authentication。这是允许的显式 breaking transport-client change，
+不是引入第二套 remote protocol。
+P01–P03 remote production path 到 implemented；offline/backoff/manual-local UI、secret rotation、TLS/CORS、slow-client 与 packaged app matrix
+仍由 R10c/R11 完成。

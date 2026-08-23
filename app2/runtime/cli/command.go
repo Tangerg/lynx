@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	"github.com/Tangerg/lynx/app2/runtime/agenttools"
+	"github.com/Tangerg/lynx/app2/runtime/codeintel"
 	"github.com/Tangerg/lynx/app2/runtime/httptransport"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/runtimehost"
@@ -71,6 +73,7 @@ func newServeCommand(deps dependencies) *cobra.Command {
 	settings.SetDefault("listen", defaultListen)
 	settings.SetDefault("serverName", "lyra-runtime")
 	settings.SetDefault("corsOrigins", httptransport.DefaultCORSOrigins())
+	settings.SetDefault("httpAllowedMethods", []string{"GET", "HEAD"})
 
 	command := &cobra.Command{
 		Use:   "serve",
@@ -100,6 +103,11 @@ func newServeCommand(deps dependencies) *cobra.Command {
 	flags.String("user-home", "", "absolute user home reported by discovery")
 	flags.String("server-name", "", "Runtime server name")
 	flags.StringSlice("cors-origin", nil, "exact browser origin allowed to access the Runtime")
+	flags.StringSlice("http-allowed-host", nil, "host pattern the agent HTTP tool may reach")
+	flags.StringSlice("http-allowed-method", nil, "HTTP method the agent HTTP tool may use")
+	flags.Bool("remote", false, "serve an explicitly configured remote HTTPS endpoint")
+	flags.String("tls-certificate", "", "absolute PEM certificate chain path for remote HTTPS")
+	flags.String("tls-private-key", "", "absolute PEM private-key path for remote HTTPS")
 
 	bindFlag(settings, flags, "config", "config")
 	bindFlag(settings, flags, "listen", "listen")
@@ -113,12 +121,20 @@ func newServeCommand(deps dependencies) *cobra.Command {
 	bindFlag(settings, flags, "userHome", "user-home")
 	bindFlag(settings, flags, "serverName", "server-name")
 	bindFlag(settings, flags, "corsOrigins", "cors-origin")
+	bindFlag(settings, flags, "httpAllowedHosts", "http-allowed-host")
+	bindFlag(settings, flags, "httpAllowedMethods", "http-allowed-method")
+	bindFlag(settings, flags, "remote", "remote")
+	bindFlag(settings, flags, "tlsCertificatePath", "tls-certificate")
+	bindFlag(settings, flags, "tlsPrivateKeyPath", "tls-private-key")
 	for key, environment := range map[string]string{
 		"listen": "LYRA2_LISTEN", "dataHome": "LYRA2_DATA_HOME", "databasePath": "LYRA2_DATABASE_PATH",
 		"tokenPath": "LYRA2_TOKEN_PATH", "noLocalToken": "LYRA2_NO_LOCAL_TOKEN",
 		"descriptorPath": "LYRA2_BOOTSTRAP_DESCRIPTOR", "bootstrapNonce": "LYRA2_BOOTSTRAP_NONCE",
 		"workspace": "LYRA2_WORKSPACE", "userHome": "LYRA2_USER_HOME", "serverName": "LYRA2_SERVER_NAME",
 		"corsOrigins": "LYRA2_CORS_ORIGINS",
+		"jinaAPIKey": "LYRA2_JINA_API_KEY", "tavilyAPIKey": "LYRA2_TAVILY_API_KEY",
+		"httpAllowedHosts": "LYRA2_HTTP_ALLOWED_HOSTS", "httpAllowedMethods": "LYRA2_HTTP_ALLOWED_METHODS",
+		"remote": "LYRA2_REMOTE", "tlsCertificatePath": "LYRA2_TLS_CERTIFICATE", "tlsPrivateKeyPath": "LYRA2_TLS_PRIVATE_KEY",
 	} {
 		if err := settings.BindEnv(key, environment); err != nil {
 			panic(err)
@@ -175,13 +191,51 @@ func resolveConfig(settings *viper.Viper, deps dependencies) (runtimehost.Config
 	} else if tokenPath == "" {
 		tokenPath = filepath.Join(dataHome, "local-token")
 	}
+	lspServers, err := resolveLSPServers(settings)
+	if err != nil {
+		return runtimehost.Config{}, err
+	}
 	return runtimehost.Config{
 		Listen: settings.GetString("listen"), DatabasePath: filepath.Clean(databasePath), TokenPath: cleanOptional(tokenPath),
 		DescriptorPath: cleanOptional(settings.GetString("descriptorPath")), BootstrapNonce: settings.GetString("bootstrapNonce"),
 		DefaultWorkspace: filepath.Clean(workspace), UserHome: filepath.Clean(userHome),
 		ServerName: settings.GetString("serverName"), ServerVersion: deps.version,
 		CORSOrigins: settings.GetStringSlice("corsOrigins"),
+		Online: agenttools.OnlineConfig{
+			JinaAPIKey: settings.GetString("jinaAPIKey"), TavilyAPIKey: settings.GetString("tavilyAPIKey"),
+			HTTPAllowedHosts: settings.GetStringSlice("httpAllowedHosts"),
+			HTTPAllowedMethods: settings.GetStringSlice("httpAllowedMethods"),
+		},
+		LSPServers: lspServers,
+		Remote: settings.GetBool("remote"),
+		TLSCertificatePath: cleanOptional(settings.GetString("tlsCertificatePath")),
+		TLSPrivateKeyPath: cleanOptional(settings.GetString("tlsPrivateKeyPath")),
 	}, nil
+}
+
+type lspServerConfig struct {
+	Name string `mapstructure:"name"`
+	Command string `mapstructure:"command"`
+	Args []string `mapstructure:"args"`
+	LanguageID string `mapstructure:"languageId"`
+	Extensions []string `mapstructure:"extensions"`
+	RootMarkers []string `mapstructure:"rootMarkers"`
+}
+
+func resolveLSPServers(settings *viper.Viper) ([]codeintel.ServerSpec, error) {
+	var configured []lspServerConfig
+	if err := settings.UnmarshalKey("lsp.servers", &configured); err != nil {
+		return nil, fmt.Errorf("cli: decode lsp.servers: %w", err)
+	}
+	servers := make([]codeintel.ServerSpec, len(configured))
+	for index, value := range configured {
+		servers[index] = codeintel.ServerSpec{
+			Name: value.Name, Command: value.Command, Args: value.Args,
+			LanguageID: value.LanguageID, Extensions: value.Extensions,
+			RootMarkers: value.RootMarkers,
+		}
+	}
+	return servers, nil
 }
 
 func cleanOptional(path string) string {

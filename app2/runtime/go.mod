@@ -3,11 +3,15 @@ module github.com/Tangerg/lynx/app2/runtime
 go 1.26.5
 
 require (
+	github.com/Tangerg/lynx/tools/httpreq v0.0.0
+	github.com/Tangerg/lynx/tools/webfetch v0.0.0
+	github.com/Tangerg/lynx/tools/websearch v0.0.0
 	github.com/Tangerg/sse v0.0.6
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
+	github.com/sourcegraph/jsonrpc2 v0.2.2
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/trace v1.45.0
 	modernc.org/sqlite v1.55.0

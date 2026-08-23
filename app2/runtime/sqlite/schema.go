@@ -116,6 +116,19 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 		) STRICT`,
 		`CREATE INDEX IF NOT EXISTS conversation_messages_by_run
 			ON conversation_messages(run_id, ordinal)`,
+		`CREATE TABLE IF NOT EXISTS conversation_compactions (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+			run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+			through_ordinal INTEGER NOT NULL CHECK (through_ordinal >= 0),
+			summary_body TEXT NOT NULL CHECK (json_valid(summary_body)),
+			messages_before INTEGER NOT NULL CHECK (messages_before > 0),
+			messages_after INTEGER NOT NULL CHECK (messages_after > 0 AND messages_after < messages_before),
+			created_at TEXT NOT NULL,
+			UNIQUE(session_id, through_ordinal)
+		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS conversation_compactions_latest
+			ON conversation_compactions(session_id, through_ordinal DESC)`,
 		`CREATE TABLE IF NOT EXISTS interrupt_sets (
 			run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,

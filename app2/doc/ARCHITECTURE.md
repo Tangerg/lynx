@@ -227,6 +227,11 @@ Runtime 的 bootstrap/supervision state。Renderer 使用生成的 Lyra Client �
 remote attach 由用户配置的 endpoint 与 secret-store token 建立，不读取本地 descriptor，也不让 Desktop 终止
 不属于自己的 Runtime process。
 
+remote deployment 不产生第二套 protocol binding。Runtime 只有在 explicit remote mode 下才接受非 loopback listener，并强制 TLS、
+path-owned bearer source 与 exact Origin；token 在每次 RPC boundary 重读，原子文件替换就是 rotation commit。Desktop 仅持久化
+origin/server-name profile，bearer 进入 OS keyring；`info/live/ready/discover` 必须在同一 TLS origin 上给出相同 instance/protocol，
+instance replacement 只推进 renderer generation，不改 method/event 语义。
+
 ## 8. Frontend 代码语法
 
 ```text

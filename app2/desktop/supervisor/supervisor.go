@@ -40,7 +40,7 @@ type Config struct {
 
 type Connection struct {
 	Endpoint             string `json:"endpoint"`
-	LocalToken           string `json:"localToken"`
+	BearerToken          string `json:"bearerToken"`
 	InstanceID           string `json:"instanceId"`
 	ProtocolVersion      string `json:"protocolVersion"`
 	IdempotencyNamespace string `json:"idempotencyNamespace"`
@@ -50,7 +50,7 @@ type Connection struct {
 }
 
 func (connection Connection) redacted() Connection {
-	connection.LocalToken = "[redacted]"
+	connection.BearerToken = "[redacted]"
 	return connection
 }
 
@@ -350,7 +350,7 @@ func (supervisor *Supervisor) verifyConnection(number uint64, process *os.Proces
 		return Connection{}, errors.New("supervisor: Runtime bootstrap identities or readiness do not agree")
 	}
 	return Connection{
-		Endpoint: descriptor.BaseURL, LocalToken: token, InstanceID: instanceID,
+		Endpoint: descriptor.BaseURL, BearerToken: token, InstanceID: instanceID,
 		ProtocolVersion:      protocol.ProtocolVersion,
 		IdempotencyNamespace: rpcResponse.Result.Capabilities.Limits.Idempotency.Namespace,
 		Generation:           number, process: process,

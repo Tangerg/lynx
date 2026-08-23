@@ -16,7 +16,7 @@ import {
 
 export interface RuntimeConnection {
   endpoint: string;
-  localToken: string;
+  bearerToken: string;
   instanceId: string;
   protocolVersion: typeof protocolVersion;
   idempotencyNamespace: string;
@@ -119,7 +119,7 @@ function requestHeaders(
   }
   const headers: Record<string, string> = {
     Accept: accept,
-    Authorization: "Bearer " + connection.localToken,
+    Authorization: "Bearer " + connection.bearerToken,
     "Content-Type": "application/json",
   };
   if (idempotencyKey !== undefined) {
@@ -248,11 +248,13 @@ export class LyraClient {
       throw new TypeError("Unsupported Runtime protocol " + connection.protocolVersion);
     }
     const endpoint = new URL(connection.endpoint);
-    if (endpoint.protocol !== "http:" || endpoint.username !== "" || endpoint.password !== "") {
-      throw new TypeError("Local Runtime endpoint must be an uncredentialed HTTP URL");
-    }
-    if (!["127.0.0.1", "[::1]"].includes(endpoint.hostname) || endpoint.pathname !== "/" || endpoint.search !== "" || endpoint.hash !== "") {
-      throw new TypeError("Local Runtime endpoint must be an origin-only loopback URL");
+	const local = endpoint.protocol === "http:" && ["127.0.0.1", "[::1]"].includes(endpoint.hostname);
+	const remote = endpoint.protocol === "https:" && endpoint.hostname !== "";
+	if ((!local && !remote) || endpoint.username !== "" || endpoint.password !== "") {
+	  throw new TypeError("Runtime endpoint must be loopback HTTP or authenticated HTTPS");
+	}
+	if (endpoint.pathname !== "/" || endpoint.search !== "" || endpoint.hash !== "") {
+	  throw new TypeError("Runtime endpoint must be an origin-only URL");
     }
     this.#connection = { ...connection };
     this.#rpcURL = new URL("/v2/rpc", endpoint);

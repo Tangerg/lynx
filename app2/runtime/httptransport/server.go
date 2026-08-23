@@ -9,12 +9,14 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/Tangerg/lynx/app2/runtime/dispatch"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -37,7 +39,7 @@ type EndpointAuthentication string
 
 const (
 	AuthenticationNone       EndpointAuthentication = "none"
-	AuthenticationLocalToken EndpointAuthentication = "localToken"
+	AuthenticationBearer EndpointAuthentication = "bearer"
 )
 
 type EndpointSpec struct {
@@ -56,7 +58,7 @@ type endpointRegistration struct {
 
 var endpointRegistry = []endpointRegistration{
 	{
-		spec:   EndpointSpec{Name: "rpc", Method: http.MethodPost, Path: PathRPC, Authentication: AuthenticationLocalToken, ResponseStatuses: []int{http.StatusOK, http.StatusNoContent}},
+		spec:   EndpointSpec{Name: "rpc", Method: http.MethodPost, Path: PathRPC, Authentication: AuthenticationBearer, ResponseStatuses: []int{http.StatusOK, http.StatusNoContent}},
 		handle: (*Server).serveRPC,
 	},
 	{
@@ -85,7 +87,7 @@ func Contract() []EndpointSpec {
 type Config struct {
 	Dispatcher   Dispatcher
 	ServerInfo   protocol.ServerInfo
-	LocalToken   string
+	BearerToken  TokenSource
 	CORSOrigins  []string
 	HealthProbes []HealthProbe
 	Logger       *slog.Logger
@@ -95,7 +97,7 @@ type Server struct {
 	dispatcher Dispatcher
 	info       RuntimeInfo
 	serverID   string
-	token      string
+	token      TokenSource
 	origins    []string
 	probes     []*probeRunner
 	logger     *slog.Logger
@@ -113,7 +115,7 @@ func New(config Config) (*Server, error) {
 	if config.Dispatcher == nil {
 		return nil, errors.New("httptransport: dispatcher is required")
 	}
-	if config.ServerInfo.InstanceID == "" || config.ServerInfo.Name == "" || config.ServerInfo.Version == "" {
+	if !validIdentityText(config.ServerInfo.InstanceID) || !validIdentityText(config.ServerInfo.Name) || !validIdentityText(config.ServerInfo.Version) {
 		return nil, errors.New("httptransport: complete server identity is required")
 	}
 	if err := validateOrigins(config.CORSOrigins); err != nil {
@@ -127,7 +129,7 @@ func New(config Config) (*Server, error) {
 		dispatcher: config.Dispatcher,
 		info:       newRuntimeInfo(config.ServerInfo),
 		serverID:   config.ServerInfo.Name + "/" + config.ServerInfo.Version,
-		token:      config.LocalToken,
+		token:      config.BearerToken,
 		origins:    slices.Clone(config.CORSOrigins),
 		probes:     probes,
 		logger:     config.Logger,
@@ -147,6 +149,11 @@ func New(config Config) (*Server, error) {
 	return server, nil
 }
 
+func validIdentityText(value string) bool {
+	return value != "" && len(value) <= 256 && strings.TrimSpace(value) == value &&
+		strings.IndexFunc(value, unicode.IsControl) < 0
+}
+
 func DefaultCORSOrigins() []string {
 	return []string{"wails://localhost", "http://wails.localhost", "http://127.0.0.1:5174", "http://localhost:5173"}
 }
@@ -157,12 +164,16 @@ func (server *Server) Handler() http.Handler {
 		handler := http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 			endpoint.handle(server, response, request)
 		})
-		if endpoint.spec.Authentication == AuthenticationLocalToken {
+		if endpoint.spec.Authentication == AuthenticationBearer {
 			handler = server.requireToken(handler)
 		}
 		mux.Handle(endpoint.spec.Method+" "+endpoint.spec.Path, handler)
 	}
 	return server.withLifecycle(server.withTelemetry(server.withIdentity(server.withCORS(mux))))
+}
+
+type TokenSource interface {
+	Token(context.Context) (string, error)
 }
 
 func (server *Server) Serve(listener net.Listener) error {
@@ -180,6 +191,22 @@ func (server *Server) Serve(listener net.Listener) error {
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
+	return err
+}
+
+func (server *Server) ServeTLS(listener net.Listener, certificatePath, privateKeyPath string) error {
+	if listener == nil || certificatePath == "" || privateKeyPath == "" {
+		return errors.New("httptransport: listener and TLS certificate paths are required")
+	}
+	server.serveMu.Lock()
+	if server.served {
+		server.serveMu.Unlock()
+		return errors.New("httptransport: Serve may be called only once")
+	}
+	server.served = true
+	server.serveMu.Unlock()
+	err := server.httpServer.ServeTLS(listener, certificatePath, privateKeyPath)
+	if errors.Is(err, http.ErrServerClosed) { return nil }
 	return err
 }
 
@@ -222,8 +249,9 @@ func (server *Server) withIdentity(next http.Handler) http.Handler {
 func validateOrigins(origins []string) error {
 	seen := make(map[string]struct{}, len(origins))
 	for _, origin := range origins {
-		if strings.TrimSpace(origin) == "" || origin != strings.TrimSpace(origin) {
-			return errors.New("httptransport: CORS origins must be non-empty and trimmed")
+		parsed, err := url.Parse(origin)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || strings.Contains(origin, "*") || origin != parsed.Scheme+"://"+parsed.Host {
+			return fmt.Errorf("httptransport: CORS origin %q must be one exact origin", origin)
 		}
 		if _, exists := seen[origin]; exists {
 			return fmt.Errorf("httptransport: duplicate CORS origin %q", origin)

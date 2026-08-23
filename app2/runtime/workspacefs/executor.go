@@ -21,6 +21,25 @@ type ConfinedExecutor struct {
 	delegate *fs.LocalExecutor
 }
 
+// Root returns the physical workspace root owned by this executor.
+func (executor *ConfinedExecutor) Root() string {
+	if executor == nil {
+		return ""
+	}
+	return executor.root
+}
+
+// AbsolutePath returns a physically confined absolute path. It is intended for
+// adapters, such as language servers, that cannot consume LocalExecutor's
+// workspace-relative path convention.
+func (executor *ConfinedExecutor) AbsolutePath(path string) (string, error) {
+	relative, err := executor.Path(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(executor.root, filepath.FromSlash(relative)), nil
+}
+
 func NewConfinedExecutor(root string) (*ConfinedExecutor, error) {
 	physical, err := filepath.EvalSymlinks(root)
 	if err != nil {

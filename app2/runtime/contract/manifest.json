@@ -1246,7 +1246,7 @@
       "name": "rpc",
       "method": "POST",
       "path": "/v2/rpc",
-      "authentication": "localToken",
+      "authentication": "bearer",
       "responseStatuses": [
         200,
         204

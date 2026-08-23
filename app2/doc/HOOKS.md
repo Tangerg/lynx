@@ -89,7 +89,7 @@ Tool result、prompt、arguments 与 reason 还各自受更小的领域上限。
   gated event 的 exit 2 即使 stdout 损坏也保持 deny，并退回 stderr / 默认 reason。
 
 PreToolUse deny 在 effect 前返回 recoverable Tool error；UserPromptSubmit/SessionStart deny 让已 admission 的 Run 明确失败。PostToolUse、
-SubagentStart/Stop、Notification、Stop 是 observe-only，control verdict 无效。PreCompact 可 deny candidate，但只有真正的 compaction producer
+SubagentStart/Stop、Notification、Stop 是 observe-only，control verdict 无效。PreCompact 可 deny candidate；真正的 post-Run compaction producer
 到达 candidate boundary 才会触发。
 
 ## 4. Approval 与 lifecycle ownership

@@ -18,15 +18,21 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools/fs"
-	"github.com/Tangerg/lynx/tools/shell"
+	"github.com/Tangerg/lynx/tools/httpreq"
+	"github.com/Tangerg/lynx/tools/webfetch"
+	"github.com/Tangerg/lynx/tools/webfetch/jina"
+	"github.com/Tangerg/lynx/tools/websearch"
+	"github.com/Tangerg/lynx/tools/websearch/tavily"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
+	"github.com/Tangerg/lynx/app2/runtime/codeintel"
 	"github.com/Tangerg/lynx/app2/runtime/domain/approvalpolicy"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/domain/mcpserver"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
+	"github.com/Tangerg/lynx/app2/runtime/shellflow"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
 )
 
@@ -87,6 +93,16 @@ type Catalog struct {
 	memory       MemoryGateway
 	conversations ConversationGateway
 	hooks        LifecycleHooks
+	shells       *shellflow.Service
+	online       []scopedTool
+	codeIntel    *codeintel.Service
+}
+
+type OnlineConfig struct {
+	JinaAPIKey      string
+	TavilyAPIKey    string
+	HTTPAllowedHosts []string
+	HTTPAllowedMethods []string
 }
 
 type Config struct {
@@ -100,18 +116,24 @@ type Config struct {
 	Memory  MemoryGateway
 	Conversations ConversationGateway
 	Hooks   LifecycleHooks
+	Shells  *shellflow.Service
+	Online  OnlineConfig
+	CodeIntel *codeintel.Service
 }
 
 func New(config Config) (*Catalog, error) {
 	if config.Policy == nil || config.Goals == nil || config.Plans == nil || config.Schedules == nil ||
-		config.Skills == nil || config.Memory == nil || config.Conversations == nil || config.Hooks == nil {
+		config.Skills == nil || config.Memory == nil || config.Conversations == nil || config.Hooks == nil || config.Shells == nil || config.CodeIntel == nil {
 		return nil, errors.New("agenttools: policy, domain gateways, and lifecycle hooks are required")
 	}
+	online, err := buildOnlineTools(config.Online)
+	if err != nil { return nil, err }
 	return &Catalog{
 		policy: config.Policy, mcp: config.MCP, results: config.Results,
 		goals: config.Goals, plans: config.Plans, schedules: config.Schedules,
 		skillGateway: config.Skills,
 		memory: config.Memory, conversations: config.Conversations, hooks: config.Hooks,
+		shells: config.Shells, online: online, codeIntel: config.CodeIntel,
 	}, nil
 }
 
@@ -131,9 +153,15 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		{tool: fs.NewEditTool(executor), safety: protocol.SafetyClassWrite},
 		{tool: fs.NewWriteTool(executor), safety: protocol.SafetyClassWrite},
 	}
-	shellExecutor := shell.NewLocalExecutor()
-	shellExecutor.Dir = scope.Workspace
-	values = append(values, scopedTool{tool: shell.NewTool(shellExecutor), safety: protocol.SafetyClassExec})
+	shellTools, err := newShellTools(catalog.shells, scope.SessionID, scope.Workspace)
+	if err != nil { return nil, err }
+	for _, executable := range shellTools {
+		values = append(values, scopedTool{tool: executable, safety: protocol.SafetyClassExec})
+	}
+	lspTool, err := newLSPTool(catalog.codeIntel, executor)
+	if err != nil { return nil, err }
+	values = append(values, scopedTool{tool: lspTool, safety: protocol.SafetyClassSafe, deferred: true})
+	values = append(values, catalog.online...)
 
 	skillValues, err := catalog.skillTools(ctx, scope)
 	if err != nil {
@@ -217,6 +245,35 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 	return result, nil
 }
 
+func buildOnlineTools(config OnlineConfig) ([]scopedTool, error) {
+	result := make([]scopedTool, 0, 3)
+	if config.JinaAPIKey != "" {
+		client, err := jina.NewClient(jina.Config{APIKey: config.JinaAPIKey})
+		if err != nil { return nil, fmt.Errorf("agenttools: configure Jina: %w", err) }
+		tool, err := webfetch.NewTool(client)
+		if err != nil { return nil, err }
+		result = append(result, scopedTool{tool: tool, safety: protocol.SafetyClassNetwork, deferred: true})
+	}
+	if config.TavilyAPIKey != "" {
+		client, err := tavily.NewClient(tavily.Config{APIKey: config.TavilyAPIKey})
+		if err != nil { return nil, fmt.Errorf("agenttools: configure Tavily: %w", err) }
+		tool, err := websearch.NewTool(client)
+		if err != nil { return nil, err }
+		result = append(result, scopedTool{tool: tool, safety: protocol.SafetyClassNetwork, deferred: true})
+	}
+	if len(config.HTTPAllowedHosts) > 0 {
+		client, err := httpreq.NewClient(httpreq.Config{
+			AllowedHosts: slices.Clone(config.HTTPAllowedHosts),
+			AllowedMethods: slices.Clone(config.HTTPAllowedMethods),
+		})
+		if err != nil { return nil, fmt.Errorf("agenttools: configure HTTP request tool: %w", err) }
+		tool, err := httpreq.NewTool(client)
+		if err != nil { return nil, err }
+		result = append(result, scopedTool{tool: tool, safety: protocol.SafetyClassNetwork, deferred: true})
+	}
+	return slices.Clip(result), nil
+}
+
 type scopedTool struct {
 	tool           toolcontract.Tool
 	safety         protocol.SafetyClass
@@ -238,6 +295,12 @@ func (catalog *Catalog) bindForRun(
 	if ok {
 		executable = &pathGuardTool{
 			Tool: executable, paths: paths, executor: executor,
+		}
+		if value.safety == protocol.SafetyClassWrite {
+			executable = &mutationDiagnosticsTool{
+				Tool: executable, paths: paths, executor: executor,
+				codeIntel: catalog.codeIntel,
+			}
 		}
 	}
 	if value.safety != protocol.SafetyClassSafe {

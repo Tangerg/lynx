@@ -21,12 +21,12 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，86 implemented，2 in_progress，0 specified | 89 verified |
-| Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
+| Runtime operations | 89 | 1 verified，88 implemented，0 in_progress，0 specified | 89 verified |
+| Operational probes | 3 | 3 implemented；local/remote production path 已闭合 | 本地/远程机制均 verified |
 | Runtime resource topics | 16 | 16 implemented | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
 | Desktop product surfaces | 24 groups | 1 verified，17 implemented，1 in_progress，5 specified | 全部 verified |
-| 内置 tool presentation | 30 + MCP/unknown | 19 + MCP/unknown implemented，0 in_progress，11 specified | 全部真实 material verified |
+| 内置 tool presentation | 30 + MCP/unknown | 30 + MCP/unknown implemented，0 in_progress，0 specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
 
@@ -47,7 +47,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O09 | `skills.discovered.list`, `skills.library.list`, `skills.library.archive`, `skills.library.restore`, `skills.proposals.list`, `skills.proposals.approve`, `skills.proposals.reject` | 7 | capability/skills | R7 | implemented | `.lyra/skills` 单一内容源、project-first/user lifecycle reconcile、exact immutable proposal review、confined atomic publish、Desktop 三面 consumer 与 external watch 已实现；待最终统一门禁 |
 | O10 | `recipes.list`, `agentDocs.list` | 2 | capability/recipes/docs | R7 | implemented | confined project-first/global Recipe discovery、Desktop slash expansion + actual-payload idempotency、home→root→cwd AgentDoc discovery、fresh-root bounded injection/checkpoint freeze、Resources consumer 与 files invalidation 已实现；待最终统一门禁 |
 | O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | implemented | 既有 9-method Lyra wire 不变；private revisioned aggregate、secret set/clear/keep、真实 timeout、generation-safe connect/tool refresh/OAuth CAS、terminal retention、Desktop candidate test/auth/tool trust 已接通；待最终门禁 |
-| O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | in_progress | 独立 lifecyclehook domain、confined discovery/trust/observation，以及 prompt、Tool、subagent、waiting/terminal execution 已实现；`PreCompact` 等真实 compaction producer，待最终统一门禁 |
+| O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7/R10 | implemented | 独立 lifecyclehook domain、confined discovery/trust/observation，以及 prompt、Tool、subagent、waiting/terminal execution 已实现；真实 post-Run compaction candidate 在 summary model call 与 durable projection commit 前执行 `PreCompact`，deny 不改 journal；待最终统一门禁 |
 | O13 | `approval.getMode`, `approval.setMode`, `approval.listRules`, `approval.forgetRule` | 4 | interaction policy | R4/R8 | implemented | 既有四方法 Lyra wire 不变；动态 effect stance、Session/Project/Global specificity、exact remembered subject、deny fail-closed、catastrophic override、remember/forget 与 Desktop rule consumer 已接通；待最终门禁 |
 | O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | schedule + scheduleflow | R8 | implemented | 私有聚合与 normalized store、5-field cron、revision/no-op、显式/default workspace、paired model、durable occurrence、atomic Session/Run admission、pending recovery、runNow 可导航；待最终门禁 |
 | O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | implemented | one incarnation、quiesce/CAS、paused/active/blocked/completing、Session cascade、autonomous control 不进 Transcript；待最终统一门禁 |
@@ -66,9 +66,9 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 
 | ID | 旧 endpoint | app2 本地 | app2 remote | 阶段 | 状态 | 验收 |
 | --- | --- | --- | --- | --- | --- | --- |
-| P01 | `/v2/info` | `/v2/info` + supervisor identity check | `/v2/info` | R1/R10 | implemented | local protocol/server/instance 与 `runtime.discover` 同 generation 已验证；remote 待 R10 |
-| P02 | `/v2/health/live` | `/v2/health/live` | `/v2/health/live` | R1/R10 | implemented | local process/event loop 语义已验证；remote 待 R10 |
-| P03 | `/v2/health/ready` | `/v2/health/ready` | `/v2/health/ready` | R1/R10 | implemented | local schema/store/dispatcher 与 draining 语义已验证；remote 待 R10 |
+| P01 | `/v2/info` | `/v2/info` + supervisor identity check | 同 `/v2/info` | R1/R10 | implemented | remote HTTPS attach 同时校验 TLS、origin-only endpoint、server name、instance/protocol 与 `runtime.discover`；待最终 conformance |
+| P02 | `/v2/health/live` | `/v2/health/live` | 同 `/v2/health/live` | R1/R10 | implemented | remote attach 与每次 bootstrap 都要求 live identity 对齐；待 offline/restart 最终矩阵 |
+| P03 | `/v2/health/ready` | `/v2/health/ready` | 同 `/v2/health/ready` | R1/R10 | implemented | remote attach 不把 liveness 冒充 readiness，ready 与 discover 同 generation；待最终 conformance |
 
 ## 5. Runtime topics 映射（16）
 
@@ -140,9 +140,9 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 
 | Family | Tool names | 阶段 | 状态 | 验收重点 |
 | --- | --- | --- | --- | --- |
-| 文件与代码（5） | `read`, `glob`, `grep`, `lsp`, `apply_patch` | R4/R6 | specified | path/range/hits/symbol/diff；真实 material；不把 VCS status 与 patch status 合并 |
-| 命令（3） | `shell`, `read_shell_output`, `stop_shell` | R4 | specified | command/description、stream/output、exit/duration、background exact ID、cancel |
-| 网络（3） | `web_search`, `web_fetch`, `http_request` | R4 | specified | URL/status/header/body、安全 link、result normalization、bounded preview |
+| 文件与代码（5） | `read`, `glob`, `grep`, `lsp`, `apply_patch` | R4/R6/R10 | implemented | Runtime-owned lazy LSP process、workspace confinement、replacement server table、9 query ops、单文件 mutation 新诊断差分、1-based presentation 与 shutdown join 已接通；文件/diff material 沿用既有 typed projection，待最终 server/query/UI 门禁 |
+| 命令（3） | `shell`, `read_shell_output`, `stop_shell` | R4/R10 | implemented | 单一 Runtime-owned background job lifecycle 支持 session-bound identity、auto-background、incremental bounded output、event-first wait、stop、终态回收与 Close join；存活 ID 进入下一 root Run live context，三工具继续经过 Plan/Hook/approval，待最终门禁 |
+| 网络（3） | `web_search`, `web_fetch`, `http_request` | R10 | implemented | Jina/Tavily 与 explicit host/method allowlist 只在配置存在时渐进暴露，统一 network safety/approval、bounded provider result；待最终 live/preview 门禁 |
 | Skill（4） | `list_skills`, `load_skill`, `read_skill_resource`, `propose_skill` | R7 | implemented | progressive tools 与 Desktop discovery 共用 archive-aware Lyra source；resource confined；root-only proposal 只进 review queue，正文与管理 UI owner 分离；待最终统一门禁 |
 | Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | implemented | root-only、durable Session read-only policy、dynamic effect gate、committed Plan fact、revision-bound approve/reject question；待 Desktop 与最终统一门禁 |
 | Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |

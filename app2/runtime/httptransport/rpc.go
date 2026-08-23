@@ -69,10 +69,20 @@ func (server *Server) serveRPC(response http.ResponseWriter, request *http.Reque
 
 func (server *Server) requireToken(next http.Handler) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
-		if server.token != "" && !validBearer(request.Header.Get("Authorization"), server.token) {
+		if server.token == nil {
+			next.ServeHTTP(response, request)
+			return
+		}
+		token, err := server.token.Token(request.Context())
+		if err != nil || token == "" {
+			response.Header().Set("Cache-Control", "no-store")
+			writeProblem(response, http.StatusServiceUnavailable, "authentication_unavailable", "the bearer credential is temporarily unavailable")
+			return
+		}
+		if !validBearer(request.Header.Get("Authorization"), token) {
 			response.Header().Set("WWW-Authenticate", "Bearer")
 			response.Header().Set("Cache-Control", "no-store")
-			writeProblem(response, http.StatusUnauthorized, "unauthorized", "a valid local bearer token is required")
+			writeProblem(response, http.StatusUnauthorized, "unauthorized", "a valid bearer credential is required")
 			return
 		}
 		next.ServeHTTP(response, request)

@@ -62,7 +62,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       props.connection.generation,
       props.connection.idempotencyNamespace,
       props.connection.instanceId,
-      props.connection.localToken,
+		props.connection.bearerToken,
       props.connection.protocolVersion,
     ],
   );

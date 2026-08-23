@@ -15,6 +15,11 @@ const bootstrapMethod = "main.DesktopHost.Bootstrap";
 const chooseDirectoryMethod = "main.NativeHost.ChooseDirectory";
 const openSessionArtifactMethod = "main.NativeHost.OpenSessionArtifact";
 const saveSessionExportMethod = "main.NativeHost.SaveSessionExport";
+const remoteRuntimeMethod = "main.DesktopHost.RemoteRuntime";
+const connectRemoteRuntimeMethod = "main.DesktopHost.ConnectRemoteRuntime";
+const useLocalRuntimeMethod = "main.DesktopHost.UseLocalRuntime";
+const useRemoteRuntimeMethod = "main.DesktopHost.UseRemoteRuntime";
+const forgetRemoteRuntimeMethod = "main.DesktopHost.ForgetRemoteRuntime";
 
 export type DirectorySelection =
   | { type: "selected"; path: string }
@@ -27,6 +32,15 @@ export type SessionArtifactSelection =
 export type SessionExportSaveResult =
   | { type: "saved" }
   | { type: "canceled" };
+
+export interface RemoteRuntimeState {
+	configured: boolean;
+	active: boolean;
+	connected: boolean;
+	endpoint?: string;
+	serverName?: string;
+	detail?: string;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -47,15 +61,15 @@ function parseConnection(value: unknown): RuntimeConnection {
     !isRecord(value) ||
     !exactKeys(value, [
       "endpoint",
-      "localToken",
+      "bearerToken",
       "instanceId",
       "protocolVersion",
       "idempotencyNamespace",
       "generation",
     ]) ||
     typeof value.endpoint !== "string" ||
-    typeof value.localToken !== "string" ||
-    value.localToken.length === 0 ||
+    typeof value.bearerToken !== "string" ||
+    value.bearerToken.length === 0 ||
     typeof value.instanceId !== "string" ||
     value.instanceId.length === 0 ||
     value.protocolVersion !== protocolVersion ||
@@ -67,20 +81,21 @@ function parseConnection(value: unknown): RuntimeConnection {
     throw new TypeError("Desktop returned an invalid Runtime bootstrap");
   }
   const endpoint = new URL(value.endpoint);
+  const local = endpoint.protocol === "http:" && ["127.0.0.1", "[::1]"].includes(endpoint.hostname);
+  const remote = endpoint.protocol === "https:" && endpoint.hostname !== "";
   if (
-    endpoint.protocol !== "http:" ||
-    !["127.0.0.1", "[::1]"].includes(endpoint.hostname) ||
+	(!local && !remote) ||
     endpoint.pathname !== "/" ||
     endpoint.search !== "" ||
     endpoint.hash !== "" ||
     endpoint.username !== "" ||
     endpoint.password !== ""
   ) {
-    throw new TypeError("Desktop returned a non-loopback Runtime endpoint");
+	throw new TypeError("Desktop returned an unsafe Runtime endpoint");
   }
   return {
     endpoint: endpoint.origin,
-    localToken: value.localToken,
+    bearerToken: value.bearerToken,
     instanceId: value.instanceId,
     protocolVersion,
     idempotencyNamespace: value.idempotencyNamespace,
@@ -107,6 +122,52 @@ export async function loadDesktopBootstrap(
     throw new TypeError("Desktop returned an invalid bootstrap envelope");
   }
   return { runtime: parseConnection(value.runtime) };
+}
+
+export async function remoteRuntimeState(binding?: DesktopBinding) {
+	const activeBinding = binding ?? (await defaultBinding());
+	return parseRemoteRuntimeState(await activeBinding.call(remoteRuntimeMethod));
+}
+
+export async function connectRemoteRuntime(
+	endpoint: string,
+	token: string,
+	binding?: DesktopBinding,
+) {
+	const activeBinding = binding ?? (await defaultBinding());
+	return parseRemoteRuntimeState(
+		await activeBinding.call(connectRemoteRuntimeMethod, endpoint, token),
+	);
+}
+
+export async function useLocalRuntime(binding?: DesktopBinding) {
+	const activeBinding = binding ?? (await defaultBinding());
+	return parseRemoteRuntimeState(await activeBinding.call(useLocalRuntimeMethod));
+}
+
+export async function useRemoteRuntime(binding?: DesktopBinding) {
+	const activeBinding = binding ?? (await defaultBinding());
+	return parseRemoteRuntimeState(await activeBinding.call(useRemoteRuntimeMethod));
+}
+
+export async function forgetRemoteRuntime(binding?: DesktopBinding) {
+	const activeBinding = binding ?? (await defaultBinding());
+	return parseRemoteRuntimeState(await activeBinding.call(forgetRemoteRuntimeMethod));
+}
+
+function parseRemoteRuntimeState(value: unknown): RemoteRuntimeState {
+	if (
+		!isRecord(value) ||
+		typeof value.configured !== "boolean" ||
+		typeof value.active !== "boolean" ||
+		typeof value.connected !== "boolean" ||
+		(value.endpoint !== undefined && typeof value.endpoint !== "string") ||
+		(value.serverName !== undefined && typeof value.serverName !== "string") ||
+		(value.detail !== undefined && typeof value.detail !== "string")
+	) {
+		throw new TypeError("Desktop returned an invalid remote Runtime state");
+	}
+	return value as unknown as RemoteRuntimeState;
 }
 
 export async function chooseDirectory(

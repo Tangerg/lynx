@@ -46,6 +46,29 @@ export function presentTool(
         "exec",
         ">_",
       );
+	case "read_shell_output":
+	  return tool(
+		"Read command output",
+		stringArgument(argumentsValue, "shell_id"),
+		"exec",
+		">_",
+	  );
+	case "stop_shell":
+	  return tool(
+		"Stop command",
+		stringArgument(argumentsValue, "shell_id"),
+		"exec",
+		"■",
+	  );
+	case "lsp": {
+	  const operation = stringArgument(argumentsValue, "operation");
+	  return tool(
+		operation ? humanize(operation) : "Query language server",
+		path ?? stringArgument(argumentsValue, "query"),
+		"read",
+		"⌘",
+	  );
+	}
     case "web_search":
       return tool(
         "Search the web",

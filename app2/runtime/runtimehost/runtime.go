@@ -22,6 +22,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/capabilityflow"
 	"github.com/Tangerg/lynx/app2/runtime/checkpoint"
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
+	"github.com/Tangerg/lynx/app2/runtime/codeintel"
+	"github.com/Tangerg/lynx/app2/runtime/compactionflow"
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/dispatch"
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
@@ -43,6 +45,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/runtimeevents"
 	"github.com/Tangerg/lynx/app2/runtime/scheduleflow"
 	"github.com/Tangerg/lynx/app2/runtime/sessionflow"
+	"github.com/Tangerg/lynx/app2/runtime/shellflow"
 	"github.com/Tangerg/lynx/app2/runtime/sqlite"
 	"github.com/Tangerg/lynx/app2/runtime/streamhub"
 	"github.com/Tangerg/lynx/app2/runtime/toolflow"
@@ -62,6 +65,11 @@ type Config struct {
 	ServerName       string
 	ServerVersion    string
 	CORSOrigins      []string
+	Online           agenttools.OnlineConfig
+	LSPServers       []codeintel.ServerSpec
+	Remote           bool
+	TLSCertificatePath string
+	TLSPrivateKeyPath string
 	Logger           *slog.Logger
 }
 
@@ -74,11 +82,17 @@ type Runtime struct {
 	descriptor     localruntime.Descriptor
 	descriptorPath string
 	tokenPath      string
+	tlsCertificatePath string
+	tlsPrivateKeyPath string
+	shells         *shellflow.Service
+	languageServers *codeintel.Service
+	compactions    *compactionflow.Service
 	ephemeral      bool
 	cancelLife     context.CancelFunc
 
 	runMu     sync.Mutex
 	ran       bool
+	closing   bool
 	closeOnce sync.Once
 	closed    chan struct{}
 	closeErr  error
@@ -105,9 +119,8 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		}
 	}()
 
-	token := ""
 	if config.TokenPath != "" {
-		token, err = localruntime.OpenToken(config.TokenPath)
+		_, err = localruntime.OpenToken(config.TokenPath)
 		if err != nil {
 			return nil, fmt.Errorf("runtimehost: open local token: %w", err)
 		}
@@ -119,6 +132,12 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	lifetime, cancel := context.WithCancel(context.Background())
 	cancelLife = cancel
+	shells, err := shellflow.New(lifetime)
+	if err != nil { return nil, err }
+	guard.AddClose(shells.Close)
+	languageServers, err := codeintel.New(lifetime, config.LSPServers)
+	if err != nil { return nil, err }
+	guard.Add(languageServers.Close)
 	enabledFeatures := make(map[string]bool, len(protocol.Features()))
 	for _, feature := range protocol.Features() {
 		enabledFeatures[feature.Key] = true
@@ -216,11 +235,18 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
+	compactions, err := compactionflow.New(compactionflow.Config{
+		Store: database, Models: runtimeCompactionModels{providers: providers}, Hooks: hooks,
+		IDs: identity.Generator{}, Events: events, Lifetime: lifetime, Logger: config.Logger,
+	})
+	if err != nil { return nil, err }
+	guard.AddClose(compactions.Close)
 	agentToolCatalog, err := agenttools.New(agenttools.Config{
 		Policy: approvals, MCP: mcp, Results: database,
 		Goals: goals, Plans: plans, Schedules: schedules,
 		Skills: runtimeSkillGateway{capabilities: capabilities, events: events},
 		Memory: runtimeMemory{service: memory}, Conversations: transcripts, Hooks: hooks,
+		Shells: shells, Online: config.Online, CodeIntel: languageServers,
 	})
 	if err != nil {
 		return nil, err
@@ -230,6 +256,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Documents: runtimeAgentDocuments{capabilities: capabilities},
 		Knowledge: runtimeKnowledgeDocuments{capabilities: capabilities},
 		Memory: runtimeMemory{service: memory}, Hooks: hooks,
+		RuntimeContext: runtimeLiveContext{shells: shells, plans: plans},
 	})
 	if err != nil {
 		return nil, err
@@ -238,7 +265,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	runs, err := runflow.New(runflow.Config{
 		Store: database, IDs: identity.Generator{}, Executor: executor,
 		Models: providers, Hub: hub, Events: events, Lifetime: lifetime, Checkpoints: checkpoints,
-		Memory: memory, Hooks: hooks,
+		Memory: memory, Compaction: compactions, Hooks: hooks,
 	})
 	if err != nil {
 		return nil, err
@@ -246,6 +273,9 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	guard.AddClose(runs.Close)
 	if err := runs.Recover(ctx); err != nil {
 		return nil, fmt.Errorf("runtimehost: recover predecessor runs: %w", err)
+	}
+	if err := compactions.Recover(ctx); err != nil {
+		return nil, fmt.Errorf("runtimehost: recover conversation compaction: %w", err)
 	}
 	memory.Recover()
 	goalDriver, err := goalflow.NewDriver(goalflow.DriverConfig{Goals: goals, Runs: runs, Signals: goalSignals, Lifetime: lifetime})
@@ -306,7 +336,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	server, err := httptransport.New(httptransport.Config{
 		Dispatcher: dispatch.New(endpoint),
 		ServerInfo: protocol.ServerInfo{InstanceID: instanceID, Name: config.ServerName, Version: config.ServerVersion},
-		LocalToken: token, CORSOrigins: config.CORSOrigins,
+		BearerToken: tokenSource(config.TokenPath), CORSOrigins: config.CORSOrigins,
 		Logger: config.Logger,
 		HealthProbes: []httptransport.HealthProbe{
 			{Name: "runtime", Check: func(context.Context) httptransport.HealthCheck {
@@ -333,19 +363,25 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	guard.Add(listener.Close)
 	address, ok := listener.Addr().(*net.TCPAddr)
-	if !ok || address.IP == nil || !address.IP.IsLoopback() {
-		return nil, errors.New("runtimehost: listener must resolve to a loopback TCP address")
+	if !ok || address.IP == nil {
+		return nil, errors.New("runtimehost: listener must resolve to a TCP address")
 	}
+	if !config.Remote && !address.IP.IsLoopback() {
+		return nil, errors.New("runtimehost: local mode requires a loopback listener")
+	}
+	scheme := "http"; if config.TLSCertificatePath != "" { scheme = "https" }
 	descriptor := localruntime.Descriptor{
 		BootstrapVersion: localruntime.BootstrapVersion,
 		Nonce:            config.BootstrapNonce, PID: os.Getpid(), InstanceID: instanceID,
 		ProtocolVersion: protocol.ProtocolVersion,
-		BaseURL:         (&url.URL{Scheme: "http", Host: listener.Addr().String()}).String(),
+		BaseURL:         (&url.URL{Scheme: scheme, Host: listener.Addr().String()}).String(),
 		TokenPath:       config.TokenPath,
 	}
 	runtime := &Runtime{
 		database: database, application: app, endpoint: endpoint, server: server, listener: listener,
 		descriptor: descriptor, tokenPath: config.TokenPath, ephemeral: config.DescriptorPath != "",
+		tlsCertificatePath: config.TLSCertificatePath, tlsPrivateKeyPath: config.TLSPrivateKeyPath,
+		shells: shells, languageServers: languageServers, compactions: compactions,
 		cancelLife: cancelLife, closed: make(chan struct{}),
 	}
 	if config.DescriptorPath != "" {
@@ -362,21 +398,25 @@ func (runtime *Runtime) Run(ctx context.Context) error {
 		return errors.New("runtimehost: context is required")
 	}
 	runtime.runMu.Lock()
-	if runtime.ran {
+	if runtime.ran || runtime.closing {
 		runtime.runMu.Unlock()
-		return errors.New("runtimehost: Run may be called only once")
+		return errors.New("runtimehost: Run may be called only once and before Close")
 	}
 	runtime.ran = true
-	runtime.runMu.Unlock()
 
 	served := make(chan error, 1)
-	go func() { served <- runtime.server.Serve(runtime.listener) }()
+	go func() {
+		if runtime.tlsCertificatePath != "" { served <- runtime.server.ServeTLS(runtime.listener, runtime.tlsCertificatePath, runtime.tlsPrivateKeyPath); return }
+		served <- runtime.server.Serve(runtime.listener)
+	}()
 	if runtime.descriptorPath != "" {
 		if err := localruntime.Publish(runtime.descriptorPath, runtime.descriptor); err != nil {
+			runtime.runMu.Unlock()
 			_ = runtime.Close(context.Background())
 			return errors.Join(err, <-served)
 		}
 	}
+	runtime.runMu.Unlock()
 	select {
 	case err := <-served:
 		return errors.Join(err, runtime.Close(context.Background()))
@@ -390,7 +430,12 @@ func (runtime *Runtime) Close(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("runtimehost: context is required")
 	}
-	runtime.closeOnce.Do(func() { go runtime.closeOwned() })
+	runtime.closeOnce.Do(func() {
+		runtime.runMu.Lock()
+		runtime.closing = true
+		runtime.runMu.Unlock()
+		go runtime.closeOwned()
+	})
 	select {
 	case <-runtime.closed:
 		return runtime.closeErr
@@ -415,12 +460,15 @@ func (runtime *Runtime) closeOwned() {
 	}
 	endpointErr := runtime.endpoint.AwaitShutdown(shutdownCtx)
 	runtime.application.Close()
+	runtime.compactions.Close()
+	runtime.shells.Close()
+	languageServerErr := runtime.languageServers.Close()
 	databaseErr := runtime.database.Close()
 	var artifactErr error
 	if runtime.ephemeral {
 		artifactErr = errors.Join(removeOwned(runtime.descriptorPath), removeOwned(runtime.tokenPath))
 	}
-	runtime.closeErr = errors.Join(serverErr, listenerErr, endpointErr, databaseErr, artifactErr)
+	runtime.closeErr = errors.Join(serverErr, listenerErr, endpointErr, languageServerErr, databaseErr, artifactErr)
 }
 
 func validateConfig(config Config) error {
@@ -437,6 +485,29 @@ func validateConfig(config Config) error {
 	if config.TokenPath != "" && !filepath.IsAbs(config.TokenPath) {
 		return errors.New("runtimehost: token path must be absolute")
 	}
+	if (config.TLSCertificatePath == "") != (config.TLSPrivateKeyPath == "") {
+		return errors.New("runtimehost: TLS certificate and private key must be configured together")
+	}
+	if config.TLSCertificatePath != "" && (!filepath.IsAbs(config.TLSCertificatePath) || !filepath.IsAbs(config.TLSPrivateKeyPath)) {
+		return errors.New("runtimehost: TLS certificate paths must be absolute")
+	}
+	if config.Remote {
+		if config.TokenPath == "" || config.TLSCertificatePath == "" || len(config.CORSOrigins) == 0 {
+			return errors.New("runtimehost: remote mode requires bearer token, TLS, and exact CORS origins")
+		}
+		certificate, certificateErr := os.Stat(config.TLSCertificatePath)
+		privateKey, privateKeyErr := os.Stat(config.TLSPrivateKeyPath)
+		if certificateErr != nil || privateKeyErr != nil || !certificate.Mode().IsRegular() || !privateKey.Mode().IsRegular() {
+			return errors.New("runtimehost: TLS certificate and private key must be existing regular files")
+		}
+		if privateKey.Mode().Perm()&0o077 != 0 || privateKey.Mode().Perm()&0o400 == 0 {
+			return errors.New("runtimehost: TLS private key must be owner-readable and inaccessible to group or other users")
+		}
+		if config.DescriptorPath != "" { return errors.New("runtimehost: remote mode forbids a local bootstrap descriptor") }
+		for _, origin := range config.CORSOrigins { if origin == "*" { return errors.New("runtimehost: remote mode forbids wildcard CORS") } }
+	} else if config.TLSCertificatePath != "" {
+		return errors.New("runtimehost: TLS is available only in explicit remote mode")
+	}
 	if config.DescriptorPath == "" {
 		if config.BootstrapNonce != "" {
 			return errors.New("runtimehost: bootstrap nonce requires a descriptor path")
@@ -450,6 +521,11 @@ func validateConfig(config Config) error {
 		return errors.New("runtimehost: descriptor and token must share one private spawn root")
 	}
 	return nil
+}
+
+func tokenSource(path string) httptransport.TokenSource {
+	if path == "" { return nil }
+	return fileTokenSource{path:path}
 }
 
 func newInstanceID() (string, error) {

@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/Tangerg/lynx/app2/runtime v0.0.0
 	github.com/wailsapp/wails/v3 v3.0.0-beta.12
+	github.com/zalando/go-keyring v0.2.6
 )
 
 require (

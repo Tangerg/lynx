@@ -63,6 +63,13 @@ type LifecycleHooks interface {
 	Evaluate(context.Context, lifecyclehook.Invocation) (lifecyclehook.Decision, error)
 }
 
+// RuntimeContextSource reports ephemeral Runtime-owned state that must be
+// refreshed for every root Run instead of being persisted into conversation
+// history or user-authored workspace guidance.
+type RuntimeContextSource interface {
+	Context(context.Context, string, string) (string, error)
+}
+
 type MemoryItem struct {
 	ID      string
 	Scope   string
@@ -92,6 +99,7 @@ type Executor struct {
 	knowledge KnowledgeDocumentSource
 	memory    MemorySource
 	hooks     LifecycleHooks
+	runtimeContext RuntimeContextSource
 }
 
 type Config struct {
@@ -101,17 +109,18 @@ type Config struct {
 	Knowledge KnowledgeDocumentSource
 	Memory    MemorySource
 	Hooks     LifecycleHooks
+	RuntimeContext RuntimeContextSource
 }
 
 func New(config Config) (*Executor, error) {
 	if config.Clients == nil || config.Documents == nil || config.Knowledge == nil ||
-		config.Memory == nil || config.Hooks == nil {
+		config.Memory == nil || config.Hooks == nil || config.RuntimeContext == nil {
 		return nil, errors.New("agentexec: clients, context sources, memory and lifecycle hooks are required")
 	}
 	return &Executor{
 		clients: config.Clients, tools: config.Tools,
 		documents: config.Documents, knowledge: config.Knowledge,
-		memory: config.Memory, hooks: config.Hooks,
+		memory: config.Memory, hooks: config.Hooks, runtimeContext: config.RuntimeContext,
 	}, nil
 }
 
@@ -361,8 +370,12 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 		if err != nil {
 			return Output{}, err
 		}
+		liveContext, err := executor.runtimeContext.Context(ctx, input.SessionID, input.Workspace)
+		if err != nil {
+			return Output{}, fmt.Errorf("agentexec: load Runtime context: %w", err)
+		}
 		workingContext := strings.Join(
-			slices.DeleteFunc([]string{memoryGuidance, knowledgeGuidance, guidance}, func(value string) bool {
+			slices.DeleteFunc([]string{memoryGuidance, knowledgeGuidance, guidance, strings.TrimSpace(liveContext)}, func(value string) bool {
 				return value == ""
 			}),
 			"\n\n",
