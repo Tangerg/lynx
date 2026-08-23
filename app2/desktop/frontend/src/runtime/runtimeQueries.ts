@@ -13,6 +13,7 @@ import {
   type EmptyObject,
   type FileContent,
   type FileEntry,
+	type FeedbackRequest,
 	type ExportSessionResponse,
 	type ForkSessionRequest,
   type AgentDoc,
@@ -62,6 +63,9 @@ import {
   type StartRunResponse,
   type ToolSpec,
 	type UtilityRole,
+	type Usage,
+	type UsageSummary,
+	type UsageSummaryRequest,
 	type UpdateProviderRequest,
   type UpdateMCPServerRequest,
   type UpdateSessionRequest,
@@ -94,6 +98,12 @@ export const runtimeQueryKeys = {
   sessions(connection: RuntimeConnection) {
     return [...this.scope(connection), "sessions"] as const;
   },
+	usageSummary(connection: RuntimeConnection, sinceDays: number) {
+		return [...this.scope(connection), "usage", "summary", sinceDays] as const;
+	},
+	sessionUsage(connection: RuntimeConnection, sessionId: string) {
+		return [...this.scope(connection), "usage", "session", sessionId] as const;
+	},
   snapshot(connection: RuntimeConnection, sessionId: string) {
     return [...this.scope(connection), "session", sessionId, "snapshot"] as const;
   },
@@ -314,6 +324,37 @@ export function importSession(
 		{ artifact },
 		{ meta: clientMeta },
 	);
+}
+
+export function loadSessionUsage(
+	connection: RuntimeConnection,
+	sessionId: string,
+	signal?: AbortSignal,
+): Promise<Usage> {
+	return client(connection).call(
+		"usage.session",
+		{ sessionId },
+		{ meta: clientMeta, signal },
+	);
+}
+
+export function loadUsageSummary(
+	connection: RuntimeConnection,
+	request: UsageSummaryRequest,
+	signal?: AbortSignal,
+): Promise<UsageSummary> {
+	return client(connection).call(
+		"usage.summary",
+		request,
+		{ meta: clientMeta, signal },
+	);
+}
+
+export async function createFeedback(
+	connection: RuntimeConnection,
+	request: FeedbackRequest,
+): Promise<void> {
+	await client(connection).call("feedback.create", request, { meta: clientMeta });
 }
 
 export function listSchedules(

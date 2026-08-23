@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type {
   ContentBlock,
+	FeedbackRating,
   InterruptResponse,
   Item,
   PendingInterruptSet,
@@ -33,6 +34,7 @@ interface AgentNarrativeProps {
     idempotencyKey: string,
   ): Promise<void>;
   onCancelRun(runId: string): Promise<void>;
+	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
   children?: ReactNode;
@@ -122,6 +124,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
               cancelingRunId={props.cancelingRunId}
               cancelError={props.cancelError}
               onCancelRun={props.onCancelRun}
+			  onFeedback={props.onFeedback}
 			  onForkFrom={props.onForkFrom}
 			  onRollback={props.onRollback}
             />
@@ -137,6 +140,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
             cancelingRunId={props.cancelingRunId}
             cancelError={props.cancelError}
             onCancelRun={props.onCancelRun}
+			onFeedback={props.onFeedback}
 			onForkFrom={props.onForkFrom}
 			onRollback={props.onRollback}
             integrity="The parent delegation is unavailable in this snapshot."
@@ -166,6 +170,7 @@ interface MaterialItemProps {
   cancelingRunId?: string;
   cancelError?: { runId: string; message: string };
   onCancelRun(runId: string): Promise<void>;
+	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }
@@ -186,6 +191,7 @@ function MaterialItem(props: MaterialItemProps) {
       run={run}
       liveOutput={props.material.liveToolOutputs[props.item.id]}
 	  historyBoundary={historyBoundary}
+	  onFeedback={props.onFeedback}
 	  onForkFrom={props.onForkFrom}
 	  onRollback={props.onRollback}
     >
@@ -199,6 +205,7 @@ function MaterialItem(props: MaterialItemProps) {
           cancelingRunId={props.cancelingRunId}
           cancelError={props.cancelError}
           onCancelRun={props.onCancelRun}
+		  onFeedback={props.onFeedback}
 		  onForkFrom={props.onForkFrom}
 		  onRollback={props.onRollback}
         />
@@ -213,6 +220,7 @@ function NarrativeItem({
   children,
   liveOutput,
 	historyBoundary,
+	onFeedback,
 	onForkFrom,
 	onRollback,
 }: {
@@ -221,6 +229,7 @@ function NarrativeItem({
   children?: ReactNode;
   liveOutput?: LiveToolOutput;
 	historyBoundary: boolean;
+	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }) {
@@ -251,6 +260,13 @@ function NarrativeItem({
           <ItemMeta label={final ? "Answer" : "Lyra"} item={item} run={run} />
           <Content content={item.content} />
           {item.status === "running" ? <TypingMark /> : null}
+		  {final && !child && run?.status === "finished" && item.status === "completed" ? (
+			<FeedbackActions
+			  itemId={item.id}
+			  runId={run.id}
+			  onFeedback={onFeedback}
+			/>
+		  ) : null}
         </article>
       );
     }
@@ -307,6 +323,7 @@ interface DelegatedRunDisclosureProps {
   cancelError?: { runId: string; message: string };
   integrity?: string;
   onCancelRun(runId: string): Promise<void>;
+	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }
@@ -386,6 +403,7 @@ function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
               cancelingRunId={props.cancelingRunId}
               cancelError={props.cancelError}
               onCancelRun={props.onCancelRun}
+			  onFeedback={props.onFeedback}
 			  onForkFrom={props.onForkFrom}
 			  onRollback={props.onRollback}
             />
@@ -397,6 +415,57 @@ function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
       ) : null}
     </section>
   );
+}
+
+function FeedbackActions(props: {
+	itemId: string;
+	runId: string;
+	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
+}) {
+	const [pending, setPending] = useState<FeedbackRating>();
+	const [selected, setSelected] = useState<FeedbackRating>();
+	const [error, setError] = useState<string>();
+	const submit = async (rating: FeedbackRating) => {
+		if (pending !== undefined || selected !== undefined) return;
+		setPending(rating);
+		setError(undefined);
+		try {
+			await props.onFeedback(props.itemId, props.runId, rating);
+			setSelected(rating);
+		} catch (failure) {
+			setError(
+				failure instanceof Error
+					? failure.message
+					: "Feedback could not be saved.",
+			);
+		} finally {
+			setPending(undefined);
+		}
+	};
+	return (
+		<footer className="feedback-actions" aria-label="Rate this answer">
+			<span>{selected === undefined ? "Was this helpful?" : "Feedback saved"}</span>
+			<button
+				type="button"
+				aria-label="Helpful"
+				aria-pressed={selected === "positive"}
+				disabled={pending !== undefined || selected !== undefined}
+				onClick={() => void submit("positive")}
+			>
+				<span aria-hidden="true">↑</span> Helpful
+			</button>
+			<button
+				type="button"
+				aria-label="Needs work"
+				aria-pressed={selected === "negative"}
+				disabled={pending !== undefined || selected !== undefined}
+				onClick={() => void submit("negative")}
+			>
+				<span aria-hidden="true">↓</span> Needs work
+			</button>
+			{error ? <p role="alert">{error}</p> : null}
+		</footer>
+	);
 }
 
 function ItemMeta(props: { label: string; item: Item; run?: RunRef }) {

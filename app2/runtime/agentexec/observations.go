@@ -485,31 +485,46 @@ func cloneObject(value map[string]any) map[string]any {
 }
 
 func addUsage(total *protocol.Usage, model string, value protocol.ModelUsage) {
+	hadUsage := observedUsageContributed(total.ModelUsage)
 	total.InputTokens += value.InputTokens
 	total.OutputTokens += value.OutputTokens
 	total.CacheReadTokens += value.CacheReadTokens
 	total.CacheWriteTokens += value.CacheWriteTokens
 	total.ReasoningTokens += value.ReasoningTokens
-	addObservedCost(&total.CostUSD, value.CostUSD)
+	mergeObservedCost(&total.CostUSD, value.CostUSD, hadUsage)
 	byModel := total.ByModel[model]
+	hadModelUsage := observedUsageContributed(byModel)
 	byModel.InputTokens += value.InputTokens
 	byModel.OutputTokens += value.OutputTokens
 	byModel.CacheReadTokens += value.CacheReadTokens
 	byModel.CacheWriteTokens += value.CacheWriteTokens
 	byModel.ReasoningTokens += value.ReasoningTokens
-	addObservedCost(&byModel.CostUSD, value.CostUSD)
+	mergeObservedCost(&byModel.CostUSD, value.CostUSD, hadModelUsage)
 	total.ByModel[model] = byModel
 }
 
-func addObservedCost(total **float64, value *float64) {
-	if value == nil {
+func mergeObservedCost(total **float64, value *float64, hadPrior bool) {
+	if !hadPrior {
+		if value == nil {
+			*total = nil
+			return
+		}
+		known := *value
+		*total = &known
 		return
 	}
-	merged := *value
-	if *total != nil {
-		merged += **total
+	if *total == nil || value == nil {
+		*total = nil
+		return
 	}
+	merged := **total + *value
 	*total = &merged
+}
+
+func observedUsageContributed(value protocol.ModelUsage) bool {
+	return value.InputTokens != 0 || value.OutputTokens != 0 ||
+		value.CacheReadTokens != 0 || value.CacheWriteTokens != 0 ||
+		value.ReasoningTokens != 0 || value.CostUSD != nil
 }
 
 func usageForModel(model string, value chat.Usage) protocol.Usage {

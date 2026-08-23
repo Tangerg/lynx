@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -143,5 +142,3 @@ func (database *Database) DeleteSkillProposalRecord(ctx context.Context, workspa
 	}
 	return nil
 }
-
-func (database *Database) CreateFeedbackRecord(ctx context.Context,id string,value protocol.FeedbackRequest)error{body,err:=json.Marshal(value);if err!=nil{return err};_,err=database.database.ExecContext(ctx,`INSERT INTO feedback(id,body,created_at)VALUES(?,?,?)`,id,string(body),encodeTime(time.Now()));if err!=nil{return fmt.Errorf("sqlite: create feedback: %w",err)};return nil}

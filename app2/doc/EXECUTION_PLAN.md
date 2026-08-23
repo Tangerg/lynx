@@ -759,6 +759,25 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - 当前只标记 O02/U03 为 `implemented`；conversation search/long-history UI、usage、feedback 仍分别留在 R9c/R9b，所有
   compile/test/fault/parity/package 与 resource-leak 证据按既定节奏集中到 R11。
 
+### R9b Usage + Feedback 纵切（已实现，待最终统一门禁）
+
+- **成熟 Lyra wire 保持唯一**：继续使用 `usage.session`、`usage.summary`、`feedback.create` 与 generated Desktop client；
+  不复制 Codex analytics、Thread/Turn attribution、通知 taxonomy，也不新增运营 topic 或第二套 transport；
+- **typed accounting boundary**：SQLite adapter 是唯一 Run durable JSON decoder，operations owner 只消费私有 typed usage
+  record。只读取 terminal Run，按 exact Session/provider/served-model/UTC-day 汇总；Session 的 `byModel` key 使用
+  `provider/model`，避免跨 provider 的 model id 冲突；
+- **unknown cost 端到端闭合**：模型 observation、live/durable Run projection 与跨 Run accumulator 都遵循同一规则——只要
+  任一真实 contribution 没有 cost，对应 total/bucket 就省略 cost；绝不把已知部分或 0 当作完整价格。provider/day 使用
+  whole-Run total，model bucket 优先使用 durable `byModel` slice；
+- **private feedback aggregate**：Item/Run/Session 以最具体身份回查 canonical owner，请求同时给出的上层身份必须一致；
+  general feedback 必须有文本。文本限制为 4000 UTF-8 bytes，并在领域边界确定性 redaction credential-like material；SQLite
+  只持久化 normalized private record，exact schema epoch 为 14；
+- **产品边界**：Settings 新增 7/30/all-time Usage section，展示 authoritative token/run/session/provider/model/day 与明确的
+  unknown-cost 语义。只有 terminal root Run 的 completed final answer 显示 Helpful/Needs work；失败只显示该 answer 的局部
+  error，不修改 Run outcome、snapshot 或 Session 状态，delegated final material 没有反馈入口；
+- O20、O23、U21 当前只标记为 `implemented`。production code 已完成；compile/test/restart/corruption/transport/UI/package 与
+  resource-leak 证据按集中验证约定留到 R11 一次执行。
+
 ## 14. R10：Remote、内容与产品打磨
 
 ### Remote HTTP(S)

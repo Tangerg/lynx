@@ -327,33 +327,48 @@ func stableItemID(runID, source string) string {
 
 func mergeRunUsage(metrics *protocol.RunMetrics, usage protocol.Usage, steps int) {
 	if metrics.Usage == nil { metrics.Usage = &protocol.Usage{} }
+	hadUsage := modelUsageContributed(metrics.Usage.ModelUsage)
 	metrics.Usage.InputTokens += usage.InputTokens
 	metrics.Usage.OutputTokens += usage.OutputTokens
 	metrics.Usage.CacheReadTokens += usage.CacheReadTokens
 	metrics.Usage.CacheWriteTokens += usage.CacheWriteTokens
 	metrics.Usage.ReasoningTokens += usage.ReasoningTokens
-	mergeUsageCost(&metrics.Usage.CostUSD, usage.CostUSD)
+	mergeUsageCost(&metrics.Usage.CostUSD, usage.CostUSD, hadUsage)
 	if len(usage.ByModel) > 0 && metrics.Usage.ByModel == nil { metrics.Usage.ByModel = make(map[string]protocol.ModelUsage) }
 	for model, value := range usage.ByModel {
 		current := metrics.Usage.ByModel[model]
+		hadModelUsage := modelUsageContributed(current)
 		current.InputTokens += value.InputTokens
 		current.OutputTokens += value.OutputTokens
 		current.CacheReadTokens += value.CacheReadTokens
 		current.CacheWriteTokens += value.CacheWriteTokens
 		current.ReasoningTokens += value.ReasoningTokens
-		mergeUsageCost(&current.CostUSD, value.CostUSD)
+		mergeUsageCost(&current.CostUSD, value.CostUSD, hadModelUsage)
 		metrics.Usage.ByModel[model] = current
 	}
 	metrics.Steps += steps
 }
 
-func mergeUsageCost(total **float64, value *float64) {
-	if value == nil {
+func mergeUsageCost(total **float64, value *float64, hadPrior bool) {
+	if !hadPrior {
+		if value == nil {
+			*total = nil
+			return
+		}
+		known := *value
+		*total = &known
 		return
 	}
-	merged := *value
-	if *total != nil {
-		merged += **total
+	if *total == nil || value == nil {
+		*total = nil
+		return
 	}
+	merged := **total + *value
 	*total = &merged
+}
+
+func modelUsageContributed(value protocol.ModelUsage) bool {
+	return value.InputTokens != 0 || value.OutputTokens != 0 ||
+		value.CacheReadTokens != 0 || value.CacheWriteTokens != 0 ||
+		value.ReasoningTokens != 0 || value.CostUSD != nil
 }

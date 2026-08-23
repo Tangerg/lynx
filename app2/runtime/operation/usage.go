@@ -15,7 +15,10 @@ func registerUsage(registry *Registry) {
 		return service.SessionUsage(ctx, request.SessionID)
 	})
 
-	Query(registry, MethodMeta{Name: "usage.summary"},
+	Query(registry, MethodMeta{
+		Name: "usage.summary",
+		Errors: []string{protocol.ErrInvalidParams.Error()},
+	},
 		func(service interface {
 			UsageSummary(context.Context, protocol.UsageSummaryRequest) (*protocol.UsageSummary, error)
 		}, ctx context.Context, request protocol.UsageSummaryRequest) (*protocol.UsageSummary, error) {

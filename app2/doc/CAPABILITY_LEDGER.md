@@ -21,11 +21,11 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，83 implemented，2 in_progress，3 specified | 89 verified |
+| Runtime operations | 89 | 1 verified，86 implemented，2 in_progress，0 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
 | Runtime resource topics | 16 | 16 implemented | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
-| Desktop product surfaces | 24 groups | 1 verified，15 implemented，2 in_progress，6 specified | 全部 verified |
+| Desktop product surfaces | 24 groups | 1 verified，16 implemented，1 in_progress，6 specified | 全部 verified |
 | 内置 tool presentation | 30 + MCP/unknown | 15 + MCP/unknown implemented，4 in_progress，11 specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
@@ -55,10 +55,10 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | implemented | masked key/source、explicit secret change、base URL validation、revision CAS patch convergence、bounded redacted test verdict、changed-only invalidation 与 draft/save/test Desktop card 已接通；待最终门禁 |
 | O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | implemented | provider/model paired value、Session durable picker、fresh Run explicit pair、static/live catalog honesty、typed role editors、capability/pricing/context/image gate、changed-only invalidation 已接通；待最终门禁 |
 | O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | implemented | Run 外目录闭合为 safe `read/glob/grep`，schema 来自 executable definition；manual invoke 绑定 exact Workspace 并复用 physical/symlink confinement，不伪造 Run/approval；Desktop schema/JSON/result consumer 已实现，待最终统一门禁 |
-| O20 | `usage.session`, `usage.summary` | 2 | operations/usage | R9 | specified | exact attribution、day/model/provider buckets、unknown cost 缺席、terminal/restart 稳定 |
+| O20 | `usage.session`, `usage.summary` | 2 | operations/usage | R9 | implemented | terminal durable Run typed projection、exact provider/served-model/UTC-day buckets 与 `provider/model` Session key 已实现；任一 contribution cost unknown 时对应 total/bucket 省略 cost；待 R11 aggregate/restart/corruption/UI 门禁 |
 | O21 | `knowledge.list`, `knowledge.get`, `knowledge.update` | 3 | capability/knowledge | R7 | implemented | distinct home→projectRoot→cwd file cascade、confined physical-target CAS/atomic publish、fresh-root bounded injection/checkpoint freeze、exact external watcher、Desktop conflict-preserving editor 已实现；待最终统一门禁 |
 | O22 | `agentMemory.list`, `agentMemory.review`, `agentMemory.update`, `agentMemory.delete`, `agentMemory.add` | 5 | capability/memory | R7 | implemented | project/user closed target、review lifecycle、recall/search/Desktop management，以及 completed-root bounded extraction、durable ledger、watermark CAS curation、pending-only proposal 已实现；既有 Lyra wire 不变，待最终统一门禁 |
-| O23 | `feedback.create` | 1 | operations/feedback | R9 | specified | bounded/redacted payload、run/session attribution、transport failure 不改 Run outcome |
+| O23 | `feedback.create` | 1 | operations/feedback | R9 | implemented | private bounded/redacted record、Item→Run→Session canonical ownership、normalized store 与 root final-answer consumer 已实现；transport/storage failure 只留局部 UI error，永不修改 Run outcome；待 R11 fault/package 门禁 |
 
 总数：`1+1+10+7+1+1+1+2+6+7+2+9+2+4+5+6+3+3+5+2+2+3+5+1 = 89`。
 
@@ -129,7 +129,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
-| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8/R9 | in_progress | explicit Settings 已完成 Provider/Model、MCP、Approval、Schedules 与 Lifecycle Hooks；Hook global/project cascade、verbatim action/source、active/inert 与 review-before-trust/revoke 消费 authoritative Runtime 与 `hooks.changed`；usage section 继续 R9 |
+| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8/R9 | implemented | explicit Settings 已完成 Provider/Model、MCP、Approval、Schedules、Lifecycle Hooks 与 7/30/all-time Usage；用量只消费 terminal Runtime authority，明确 unknown-cost，selected Session 单独展示；待最终 UI/restart/package 门禁 |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
 | U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |

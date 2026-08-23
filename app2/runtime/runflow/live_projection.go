@@ -431,23 +431,25 @@ func cloneLiveUsage(value protocol.Usage) protocol.Usage {
 }
 
 func mergeLiveUsage(total *protocol.Usage, value protocol.Usage) {
+	hadUsage := modelUsageContributed(total.ModelUsage)
 	total.InputTokens += value.InputTokens
 	total.OutputTokens += value.OutputTokens
 	total.CacheReadTokens += value.CacheReadTokens
 	total.CacheWriteTokens += value.CacheWriteTokens
 	total.ReasoningTokens += value.ReasoningTokens
-	mergeUsageCost(&total.CostUSD, value.CostUSD)
+	mergeUsageCost(&total.CostUSD, value.CostUSD, hadUsage)
 	if len(value.ByModel) > 0 && total.ByModel == nil {
 		total.ByModel = make(map[string]protocol.ModelUsage)
 	}
 	for model, usage := range value.ByModel {
 		current := total.ByModel[model]
+		hadModelUsage := modelUsageContributed(current)
 		current.InputTokens += usage.InputTokens
 		current.OutputTokens += usage.OutputTokens
 		current.CacheReadTokens += usage.CacheReadTokens
 		current.CacheWriteTokens += usage.CacheWriteTokens
 		current.ReasoningTokens += usage.ReasoningTokens
-		mergeUsageCost(&current.CostUSD, usage.CostUSD)
+		mergeUsageCost(&current.CostUSD, usage.CostUSD, hadModelUsage)
 		total.ByModel[model] = current
 	}
 }

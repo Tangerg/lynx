@@ -3466,6 +3466,65 @@ input::placeholder {
   line-height: 1.4;
 }
 
+.feedback-actions {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+  color: var(--ink-muted);
+  font-size: 8px;
+}
+
+.feedback-actions > span:first-child {
+  margin-right: 3px;
+}
+
+.feedback-actions button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 8px;
+  font-weight: 650;
+  transition:
+    color 120ms ease-out,
+    border-color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.feedback-actions button span {
+  display: inline-block;
+  margin-right: 3px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.feedback-actions button:hover:not(:disabled) {
+  border-color: var(--divider-strong);
+  color: var(--ink);
+  background: var(--paper-muted);
+}
+
+.feedback-actions button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--accent-dark);
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper-raised));
+  opacity: 1;
+}
+
+.feedback-actions > p {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--red);
+  line-height: 1.45;
+}
+
 .message-content {
   min-width: 0;
   color: var(--ink);
@@ -5113,6 +5172,134 @@ input::placeholder {
   line-height: 1.5;
 }
 
+.usage-settings {
+  display: grid;
+  gap: 4px;
+}
+
+.usage-period {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  background: var(--paper-muted);
+}
+
+.usage-period button {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 8px;
+  font-weight: 680;
+}
+
+.usage-period button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.usage-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.usage-metrics > div {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  padding: 15px;
+  border: 1px solid var(--divider);
+  border-radius: 13px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.usage-metrics span {
+  color: var(--ink-muted);
+  font-size: 8px;
+  font-weight: 680;
+}
+
+.usage-metrics strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 560;
+  letter-spacing: -0.035em;
+  text-overflow: ellipsis;
+}
+
+.usage-session-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.usage-cost-note {
+  margin: 10px 2px 20px;
+  color: var(--ink-muted);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.usage-breakdown {
+  margin-top: 20px;
+}
+
+.usage-breakdown h3 {
+  margin: 0 0 8px;
+  color: var(--ink-subtle);
+  font-size: 9px;
+  font-weight: 720;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.usage-breakdown > div {
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  border-radius: 13px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.usage-breakdown article {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) repeat(3, minmax(74px, auto));
+  align-items: center;
+  gap: 16px;
+  min-height: 43px;
+  padding: 8px 13px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-breakdown article:last-child {
+  border-bottom: 0;
+}
+
+.usage-breakdown article strong {
+  overflow: hidden;
+  color: var(--ink-subtle);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-breakdown article span,
+.usage-breakdown article small {
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+.usage-breakdown article small {
+  font-size: 7px;
+}
+
 .schedule-count {
   min-height: 24px;
   padding: 6px 9px;
@@ -6026,6 +6213,15 @@ input::placeholder {
 
   .approval-mode-grid {
     grid-template-columns: 1fr;
+  }
+
+  .usage-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .usage-breakdown article {
+    grid-template-columns: minmax(110px, 1fr) repeat(3, minmax(62px, auto));
+    gap: 10px;
   }
 }
 

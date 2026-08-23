@@ -327,9 +327,18 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS feedback (
 			id TEXT PRIMARY KEY,
-			body TEXT NOT NULL CHECK (json_valid(body)),
-			created_at TEXT NOT NULL
+			session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+			run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
+			item_id TEXT REFERENCES items(id) ON DELETE CASCADE,
+			rating TEXT NOT NULL CHECK (rating IN ('positive', 'negative')),
+			text TEXT NOT NULL CHECK (length(CAST(text AS BLOB)) <= 4000),
+			created_at TEXT NOT NULL,
+			CHECK (session_id IS NOT NULL OR (run_id IS NULL AND item_id IS NULL)),
+			CHECK (run_id IS NOT NULL OR item_id IS NULL),
+			CHECK (session_id IS NOT NULL OR length(trim(text)) > 0)
 		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS feedback_by_session
+			ON feedback(session_id, created_at, id)`,
 		`CREATE TABLE IF NOT EXISTS trusted_hook_projects (
 			project_path TEXT PRIMARY KEY,
 			trusted_at TEXT NOT NULL

@@ -14,7 +14,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaEpoch = 13
+const SchemaEpoch = 14
 
 var (
 	ErrInvalidConfig  = errors.New("sqlite: invalid config")

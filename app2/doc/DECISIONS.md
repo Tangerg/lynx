@@ -467,3 +467,25 @@ Conversation journal、dotted operations 和 generated client 已经是更贴合
 **后果**：O02 与 Work Index/history actions 到 `implemented`，最终 fault/parity/package 前不标记 verified。Session 没有独立
 `archived` 状态；这里的 archive 指 portable artifact，favorite 仍由既有 revisioned Session field 表达。conversation search 与
 long-history UI 只会在现有 transcript owner 上增加 R9c consumer，不建立第二份 history store。
+
+## ADR-A2-034：Usage 只汇总终态 Run 事实，Feedback 不参与 Run 结果
+
+**缺陷与反例**：既有 operations 实现直接解码 SQLite Run JSON，并把公开 `FeedbackRequest` 原样 JSON 持久化；这让
+应用层依赖 adapter 表示，也让可选 Session/Run/Item 身份缺少 canonical ownership 校验。既有 cost 聚合还会在一部分
+contribution 有价格、另一部分价格未知时保留已知小计，使 Desktop 把不完整成本误报成完整成本。把参考产品 analytics、
+Thread/Turn attribution 或 event taxonomy 搬进来不会修复这些 owner 问题，反而会建立第二套运营协议。
+
+**决定**：继续使用 Lyra 既有 `usage.session`、`usage.summary` 与 `feedback.create`，不增加 method、topic、event 或 wire
+字段。SQLite adapter 从 terminal durable Run facts 投影私有 accounting record；operations owner 只消费 typed record，按
+exact provider、served model 与 UTC day 汇总。只有每个 contributing Run/model slice 都具有已知 cost 时才返回 `costUsd`；
+任一 contribution 未知就省略整个对应 total/bucket 的 cost，绝不以 0 或已知部分代替。
+
+Feedback 进入私有 bounded record：先按最具体的 Item → Run → Session 查 canonical ownership，再拒绝请求中互相矛盾的
+身份；文本按 UTF-8 4000 bytes 限制并在领域边界确定性移除 credential-like material。SQLite 保存 normalized identity、rating、
+redacted text 与时间，不保存协议 DTO。Feedback 是 write-only operational fact；成功或 transport/storage failure 都不修改
+Run outcome、Session revision、Transcript 或 Runtime invalidation。Desktop 只在 terminal root Run 的 completed final answer
+上提供局部 rating action，delegated answer 不冒充用户当前任务的最终结果。
+
+**后果**：SQLite exact epoch 提升到 14，开发期直接重建旧 app2 data home；Runtime Protocol 仍为 `2026-08-23`，generated
+contract 无 shape 变化。O20/O23 与 Usage Settings/answer feedback 到 `implemented`，只有 R11 的 aggregate、restart、corruption、
+transport-failure、UI 与 package 门禁通过后才升级为 `verified`。

@@ -7,6 +7,7 @@ import { ApprovalSettings } from "./ApprovalSettings";
 import { ProviderModelSettings } from "./ProviderModelSettings";
 import { ScheduleSettings } from "./ScheduleSettings";
 import { HookSettings } from "./HookSettings";
+import { UsageSettings } from "./UsageSettings";
 
 interface SettingsSurfaceProps {
 	connection: RuntimeConnection;
@@ -16,7 +17,13 @@ interface SettingsSurfaceProps {
 	onOpenSession: (sessionId: string) => void;
 }
 
-type SettingsPage = "providers" | "mcp" | "approvals" | "schedules" | "hooks";
+type SettingsPage =
+	| "providers"
+	| "mcp"
+	| "approvals"
+	| "schedules"
+	| "hooks"
+	| "usage";
 
 const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	providers: {
@@ -38,6 +45,10 @@ const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	hooks: {
 		title: "Lifecycle hooks",
 		description: "Review user and project automation before deciding which project hooks may execute.",
+	},
+	usage: {
+		title: "Usage",
+		description: "Inspect authoritative terminal Run usage without inventing prices the Runtime does not know.",
 	},
 };
 
@@ -119,6 +130,14 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<span aria-hidden="true">⌁</span>
 						Lifecycle hooks
 					</button>
+					<button
+						type="button"
+						aria-current={page === "usage" ? "page" : undefined}
+						onClick={() => setPage("usage")}
+					>
+						<span aria-hidden="true">∑</span>
+						Usage
+					</button>
 				</nav>
 				<p>Secrets are write-only. Runtime state remains the authority after every mutation.</p>
 			</aside>
@@ -148,8 +167,10 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<ApprovalSettings connection={props.connection} sessionId={props.sessionId} />
 					) : page === "schedules" ? (
 						<ScheduleSettings connection={props.connection} onOpenSession={props.onOpenSession} />
-					) : (
+					) : page === "hooks" ? (
 						<HookSettings connection={props.connection} workspace={props.workspace} />
+					) : (
+						<UsageSettings connection={props.connection} sessionId={props.sessionId} />
 					)}
 				</div>
 			</div>

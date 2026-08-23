@@ -1,6 +1,8 @@
 package protocol
 
 // SessionUsageRequest identifies the session whose aggregate usage is read.
+// The response's ByModel keys are "provider/model" identities because one
+// Session may change providers and model ids are not globally unique.
 type SessionUsageRequest struct {
 	SessionID string `json:"sessionId"`
 }

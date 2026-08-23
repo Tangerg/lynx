@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
 	ContentBlock,
   DiscoverResponse,
+	FeedbackRating,
 	RestoreType,
   RuntimeConnection,
   Session,
@@ -30,6 +31,7 @@ import { SessionIndex } from "../sessions/SessionIndex";
 import { compactPath } from "../sessions/sessionPresentation";
 import { useSessionCatalog } from "../sessions/useSessionCatalog";
 import {
+	createFeedback,
 	exportSession,
   listModels,
   listRecipes,
@@ -288,6 +290,20 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 		},
 		[catalog.query, connection, selectedSession, snapshot],
 	);
+	const submitFeedback = useCallback(
+		async (itemId: string, runId: string, rating: FeedbackRating) => {
+			if (selectedSession === undefined) {
+				throw new Error("Select a Session before sending feedback.");
+			}
+			await createFeedback(connection, {
+				sessionId: selectedSession.id,
+				runId,
+				itemId,
+				rating,
+			});
+		},
+		[connection, selectedSession],
+	);
   const removeSession = useCallback(
     async (session: Session) => {
       const fallback = catalog.sessions.find(
@@ -443,6 +459,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 cancelError={agentView.cancelError}
                 onResume={agentView.resume}
                 onCancelRun={agentView.cancel}
+				onFeedback={submitFeedback}
 				onForkFrom={forkSessionFrom}
 				onRollback={rollbackSessionTo}
               >
