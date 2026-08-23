@@ -13,6 +13,10 @@ import {
 
 import type { ContentBlock, Recipe, RunRef } from "@lyra/runtime-contract";
 
+import {
+	useLocalization,
+	type Translate,
+} from "../localization/Localization";
 import { RecipeSuggestions } from "./RecipeSuggestions";
 import {
   expandRecipeInvocation,
@@ -59,6 +63,7 @@ export const emptyComposerDraft: ComposerDraft = {
 };
 
 export function Composer(props: ComposerProps) {
+  const { t } = useLocalization();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const intent = useRef<{ fingerprint: string; key: string } | undefined>(
@@ -218,11 +223,13 @@ export function Composer(props: ComposerProps) {
     setAttachmentError(undefined);
     try {
       const remaining = maxAttachments - props.draft.attachments.length;
-      if (remaining <= 0) throw new Error("Remove an attachment before adding another.");
+		if (remaining <= 0) {
+			throw new Error(t("composer.removeAttachmentFirst"));
+		}
 			const additions = await Promise.all(
 				files
 					.slice(0, remaining)
-					.map((file) => readAttachment(file, props.attachmentPolicy)),
+					.map((file) => readAttachment(file, props.attachmentPolicy, t)),
 			);
       props.onChange((current) => ({
         ...current,
@@ -232,10 +239,12 @@ export function Composer(props: ComposerProps) {
         ),
       }));
       if (files.length > remaining) {
-        setAttachmentError(`Only ${maxAttachments} attachments can be sent at once.`);
+        setAttachmentError(
+			t("composer.attachmentLimit", { count: maxAttachments }),
+		);
       }
     } catch (error) {
-      setAttachmentError(messageOf(error));
+      setAttachmentError(messageOf(error, t("composer.attachmentReadFailed")));
     }
   };
 
@@ -263,14 +272,23 @@ export function Composer(props: ComposerProps) {
         />
       ) : null}
       {props.draft.attachments.length > 0 ? (
-        <div className="composer-attachments" aria-label="Attachments">
+        <div
+		  className="composer-attachments"
+		  aria-label={t("composer.attachments")}
+		>
           {props.draft.attachments.map((attachment) => (
             <span key={attachment.id}>
-              <b>{attachment.kind === "image" ? "Image" : "File"}</b>
+              <b>
+				{attachment.kind === "image"
+				  ? t("composer.image")
+				  : t("composer.file")}
+			  </b>
               <span>{attachment.name}</span>
               <button
                 type="button"
-                aria-label={`Remove ${attachment.name}`}
+                aria-label={t("composer.removeAttachment", {
+				  name: attachment.name,
+				})}
                 onClick={() =>
                   props.onChange((current) => ({
                     ...current,
@@ -287,7 +305,7 @@ export function Composer(props: ComposerProps) {
         </div>
       ) : null}
       <label className="sr-only" htmlFor={`composer-${props.sessionId}`}>
-        Message Lyra
+        {t("composer.messageLyra")}
       </label>
       <textarea
         ref={textarea}
@@ -297,10 +315,10 @@ export function Composer(props: ComposerProps) {
         maxLength={24_000}
         placeholder={
           waiting
-            ? "This run is waiting for your response…"
+            ? t("composer.waitingPlaceholder")
             : running
-              ? "Add guidance while Lyra works…"
-              : "Describe what you want to accomplish…"
+              ? t("composer.runningPlaceholder")
+              : t("composer.readyPlaceholder")
         }
         onChange={(event) => {
           setHistoryIndex(-1);
@@ -338,10 +356,10 @@ export function Composer(props: ComposerProps) {
             onClick={() => fileInput.current?.click()}
           >
             <span aria-hidden="true">＋</span>
-            Attach
+            {t("composer.attach")}
           </button>
 			{props.children}
-          <span className="composer-hint">Enter to send · Shift+Enter for line break</span>
+          <span className="composer-hint">{t("composer.keyboardHint")}</span>
         </div>
         <div className="composer-actions">
           {running || waiting ? (
@@ -352,11 +370,15 @@ export function Composer(props: ComposerProps) {
               onClick={() => void props.onStop().catch(() => undefined)}
             >
               <span aria-hidden="true" />
-              Stop
+              {t("composer.stop")}
             </button>
           ) : null}
           <button className="send-action" type="submit" disabled={!canSend}>
-            {props.pending ? "Sending…" : running ? "Steer" : "Send"}
+            {props.pending
+			  ? t("composer.sending")
+			  : running
+				? t("composer.steer")
+				: t("composer.send")}
             <span aria-hidden="true">↑</span>
           </button>
         </div>
@@ -366,7 +388,7 @@ export function Composer(props: ComposerProps) {
       ) : null}
 		{imageBlocked ? (
 			<p className="composer-error" role="alert">
-				The selected model does not accept images. Remove them or choose a multimodal model.
+				{t("composer.imagesUnsupported")}
 			</p>
 		) : null}
       {props.error ? (
@@ -396,13 +418,14 @@ function inputBlocks(draft: ComposerDraft): ContentBlock[] {
 async function readAttachment(
 	file: File,
 	policy: "text-only" | "multimodal",
+	t: Translate,
 ): Promise<ComposerAttachment> {
   if (file.type.startsWith("image/")) {
 		if (policy !== "multimodal") {
-			throw new Error("Choose a model with image input before attaching images.");
+			throw new Error(t("composer.chooseImageModel"));
 		}
     if (file.size > maxImageBytes) {
-      throw new Error(`${file.name} is larger than 10 MB.`);
+      throw new Error(t("composer.imageTooLarge", { name: file.name }));
     }
     return {
       id: crypto.randomUUID(),
@@ -414,7 +437,7 @@ async function readAttachment(
     };
   }
   if (file.size > maxTextBytes) {
-    throw new Error(`${file.name} is larger than 1 MB.`);
+    throw new Error(t("composer.fileTooLarge", { name: file.name }));
   }
   return {
     id: crypto.randomUUID(),
@@ -434,6 +457,6 @@ function bytesToBase64(bytes: Uint8Array) {
   return window.btoa(binary);
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "The attachment could not be read.";
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }

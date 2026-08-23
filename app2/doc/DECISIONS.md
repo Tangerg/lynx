@@ -581,3 +581,23 @@ target 改变后，App 重新 bootstrap，并以 endpoint/instance/generation ke
 **后果**：theme/accent/light-dark production path 到 implemented，locale/RTL 单独继续，避免伪完成；remote/local switch 不改变 Lyra method/event/
 error shape。appearance persistence failure 不改变当前 in-memory preference，Runtime mutation failure 不替换当前 consumer tree。视觉、offline/restart、
 keyring/native、WebKit 与 package 证据仍在 R11 统一验证。
+
+## ADR-A2-040：本地化是 typed presentation language，不是协议或插件系统
+
+**缺陷与反例**：旧 Desktop 的大型 i18next/plugin graph 混合 locale discovery、dictionary merge、raw key fallback 与组件文案，既难证明某个
+locale 完整，也允许未翻译 key 在运行时泄漏。直接复制 Codex 的 key、文案层级或 locale lifecycle 会把参考产品身份带入 Lyra；反过来，仅设置
+`html.lang` 或提供一个能选但只翻译部分页面的 selector，会制造不可验收的假能力。
+
+**决定**：app2 以 English flat semantic dictionary 作为唯一 canonical key set，`MessageKey` 从它静态派生；每个可发布 locale 必须用 TypeScript
+exact-key constraint 提供完整 dictionary，缺失 key 不允许 raw-key 或旧 app fallback。插值只接受 named string/number values；日期和数字由 active
+locale 的 `Intl` formatter 负责。Context 提供完整 English default，允许独立 component/test 渲染，但 production 只有在 dictionary 真实加载后才
+发布该 locale 并同步 `html.lang/dir`。locale 最终与 theme/accent 同属 Shell preference owner；不建立 registry、runtime plugin、remote translation
+fetch 或第二 persisted store。
+
+翻译只发生在 presentation copy、accessibility label 与 presentation error fallback。Lyra Protocol method/event/error code、Run/Item/Tool identity、
+用户和模型内容、文件路径、命令、provider/model 名称及 durable fact 保持原值；需要人类化的已知状态由显式 display resolver 映射，不修改 wire。
+旧 app locale 只作为用户能力与人工译文证据，Codex 只作为 locale lifecycle/RTL 机制参考，二者都不是 app2 import 或兼容来源。
+
+**后果**：首批 typed boundary 可先迁移 production surface，而 selector 保持隐藏；只有全部 Desktop copy、八个既有 locale、Arabic RTL 与 logical CSS
+闭合后，U22 才能到 `implemented`。本决策不改变 Runtime contract、SQLite、transport 或 Desktop bridge；compile、screen-reader、RTL visual、
+WebKit 与 packaged evidence 仍在 R11 统一门禁产出。

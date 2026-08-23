@@ -10,6 +10,7 @@ import type {
   PendingInterruptSet,
 } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import { ApprovalInterrupt } from "./ApprovalInterrupt";
 import { QuestionInterrupt } from "./QuestionInterrupt";
 import {
@@ -30,6 +31,7 @@ interface InterruptSetCardProps {
 }
 
 export function InterruptSetCard(props: InterruptSetCardProps) {
+  const { t } = useLocalization();
   const [drafts, setDrafts] = useState<Record<string, InterruptDraft>>(() =>
     createInterruptDrafts(props.interruptSet),
   );
@@ -69,7 +71,7 @@ export function InterruptSetCard(props: InterruptSetCardProps) {
       );
       intent.current = undefined;
     } catch (error) {
-      setLocalError(messageOf(error));
+      setLocalError(messageOf(error, t("interrupt.resumeFailed")));
     }
   };
 
@@ -87,19 +89,22 @@ export function InterruptSetCard(props: InterruptSetCardProps) {
     >
       <header className="interrupt-heading">
         <div>
-          <span className="eyebrow">Action required</span>
+          <span className="eyebrow">{t("interrupt.actionRequired")}</span>
           <h3 id={`interrupt-title-${props.interruptSet.rootRunId}`}>
-            Lyra is waiting for you
+            {t("interrupt.waitingForYou")}
           </h3>
         </div>
         <span className="interrupt-count">
-          {props.interruptSet.interrupts.length} request
-          {props.interruptSet.interrupts.length === 1 ? "" : "s"}
+          {t(
+            props.interruptSet.interrupts.length === 1
+              ? "interrupt.requestCountOne"
+              : "interrupt.requestCountMany",
+            { count: props.interruptSet.interrupts.length },
+          )}
         </span>
       </header>
       <p className="interrupt-intro">
-        Review every request below. The complete set is committed together before
-        this run continues.
+        {t("interrupt.intro")}
       </p>
       <div className="interrupt-requests">
         {props.interruptSet.interrupts.map((interrupt, index) => (
@@ -114,9 +119,9 @@ export function InterruptSetCard(props: InterruptSetCardProps) {
         ))}
       </div>
       <footer className="interrupt-actions">
-        <span>Answers are applied atomically to this waiting run.</span>
+        <span>{t("interrupt.atomicNote")}</span>
         <button type="submit" disabled={props.pending}>
-          {props.pending ? "Continuing…" : "Submit all & continue"}
+          {props.pending ? t("interrupt.continuing") : t("interrupt.submitAll")}
         </button>
       </footer>
       {localError || props.error ? (
@@ -137,6 +142,7 @@ interface InterruptEditorProps {
 }
 
 function InterruptEditor(props: InterruptEditorProps) {
+  const { t } = useLocalization();
   if (props.interrupt.type === "approval") {
     return <ApprovalInterrupt {...props} />;
   }
@@ -145,11 +151,11 @@ function InterruptEditor(props: InterruptEditorProps) {
   }
   return (
     <section className="interrupt-request">
-      <p role="alert">This Runtime requested an unsupported interaction.</p>
+      <p role="alert">{t("interrupt.unsupported")}</p>
     </section>
   );
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "The run could not be resumed.";
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }

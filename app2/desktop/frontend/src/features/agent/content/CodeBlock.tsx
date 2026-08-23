@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { BundledLanguage } from "shiki";
 
+import { useLocalization } from "../../localization/Localization";
+
 interface CodeBlockProps {
   code: string;
   language?: string;
@@ -14,6 +16,7 @@ type HighlightState =
 let shikiModule: Promise<typeof import("shiki")> | undefined;
 
 export function CodeBlock({ code, language }: CodeBlockProps) {
+  const { t } = useLocalization();
   const [wrap, setWrap] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
@@ -57,21 +60,21 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
   return (
     <section className="code-block" data-wrap={wrap}>
       <header>
-        <span>{language || "plain text"}</span>
+        <span>{language || t("code.plainText")}</span>
         <div>
           <button
             type="button"
             aria-pressed={wrap}
             onClick={() => setWrap((current) => !current)}
           >
-            {wrap ? "No wrap" : "Wrap"}
+            {wrap ? t("code.noWrap") : t("code.wrap")}
           </button>
           <button type="button" onClick={() => void copy()}>
             {copyState === "copied"
-              ? "Copied"
+              ? t("code.copied")
               : copyState === "failed"
-                ? "Retry copy"
-                : "Copy"}
+                ? t("code.retryCopy")
+                : t("code.copy")}
           </button>
         </div>
       </header>

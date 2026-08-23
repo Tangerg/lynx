@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { RuntimeConnection } from "@lyra/runtime-contract";
 import { useState } from "react";
 
+import { useLocalization } from "./features/localization/Localization";
 import { WorkspaceShell } from "./features/workspace/WorkspaceShell";
 import {
   loadDesktopBootstrap,
@@ -11,6 +12,7 @@ import { discoverRuntime, runtimeQueryKeys } from "./runtime/runtimeQueries";
 import "./styles.css";
 
 export function App() {
+  const { t } = useLocalization();
   const bootstrap = useQuery({
     queryKey: ["desktop", "bootstrap"],
     queryFn: () => loadDesktopBootstrap(),
@@ -42,11 +44,11 @@ export function App() {
   if (bootstrap.isError) {
     return (
       <Failure
-        title="Runtime unavailable"
-        detail={messageOf(bootstrap.error)}
+        title={t("app.runtimeUnavailable")}
+        detail={messageOf(bootstrap.error, t("app.unknownStartupError"))}
         retry={bootstrap.refetch}
         recovery={{
-          label: "Use local Runtime",
+          label: t("app.useLocalRuntime"),
           run: returnToLocal,
         }}
       />
@@ -58,11 +60,11 @@ export function App() {
   if (discovery.isError) {
     return (
       <Failure
-        title="Runtime handshake failed"
-        detail={messageOf(discovery.error)}
+        title={t("app.runtimeHandshakeFailed")}
+        detail={messageOf(discovery.error, t("app.unknownStartupError"))}
         retry={discovery.refetch}
         recovery={{
-          label: "Use local Runtime",
+          label: t("app.useLocalRuntime"),
           run: returnToLocal,
         }}
       />
@@ -79,16 +81,17 @@ export function App() {
 }
 
 function Loading() {
+  const { t } = useLocalization();
   return (
     <main
       className="boot-state"
       aria-busy="true"
-      aria-label="Connecting to Lyra Runtime"
+      aria-label={t("app.connectingLabel")}
     >
       <div className="brand-mark" aria-hidden="true">
         L
       </div>
-      <p>Connecting to your Runtime…</p>
+      <p>{t("app.connecting")}</p>
     </main>
   );
 }
@@ -99,6 +102,7 @@ function Failure(props: {
   retry: () => unknown;
   recovery?: { label: string; run(): Promise<void> };
 }) {
+  const { t } = useLocalization();
   const [recoveryPending, setRecoveryPending] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string>();
   return (
@@ -110,7 +114,7 @@ function Failure(props: {
       <p>{props.detail}</p>
       <div className="boot-actions">
         <button type="button" onClick={() => props.retry()}>
-          Try again
+          {t("app.tryAgain")}
         </button>
         {props.recovery ? (
           <button
@@ -123,11 +127,15 @@ function Failure(props: {
               setRecoveryError(undefined);
               void recovery
                 .run()
-                .catch((error) => setRecoveryError(messageOf(error)))
+                .catch((error) =>
+                  setRecoveryError(
+                    messageOf(error, t("app.unknownStartupError")),
+                  ),
+                )
                 .finally(() => setRecoveryPending(false));
             }}
           >
-            {recoveryPending ? "Switching…" : props.recovery.label}
+            {recoveryPending ? t("app.switchingRuntime") : props.recovery.label}
           </button>
         ) : null}
       </div>
@@ -136,8 +144,8 @@ function Failure(props: {
   );
 }
 
-function messageOf(error: unknown): string {
+function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error
     ? error.message
-    : "An unknown error interrupted startup.";
+    : fallback;
 }

@@ -838,6 +838,13 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - active remote 在启动时不可达时，boot failure 提供显式 `Use local Runtime` recovery，不要求先进入已不可达 Runtime 的 Settings。remote 仍复用 Lyra probes/RPC；本批没有新增 wire、descriptor 或 secret persistence；
 - U22 中 theme/accent/light-dark production 已实现，locale/RTL 仍保持 `in_progress`，不得因只设置 `lang` 冒充完成。P01–P03 的用户切换/离线逃生路径已接通；最终 network/package matrix 留到 R11。
 
+### R10d1 Typed localization boundary 实现记录（尚未统一验证）
+
+- Desktop 新增 app2-owned typed semantic message set、safe named interpolation、locale-aware number/time formatting 与 isolated-component English default；不引入旧 app 的 i18next/plugin graph，也不复制 Codex 的文案 key、协议或产品命名；
+- 启动/recovery、Agent Narrative、history search、HITL approval/question、Composer attachment、recipe、Markdown code/diagram/image/lightbox 的可见 copy、error fallback 与 accessibility label 已进入同一 localization boundary；用户/模型内容、Tool identity、Lyra enum 与发送给模型的 attachment material 保持原始领域值；
+- provider 当前只激活完整 English dictionary，并据此设置 `html.lang/dir`；locale preference、其余 Desktop surface、八个旧能力 locale 的精选 app2 dictionary、Arabic RTL 与 logical CSS 尚未闭合前不暴露 locale selector，因此 U22 继续保持 `in_progress`；
+- 本批不改变 Lyra wire、generated contract、Runtime method/event/error、SQLite epoch 或 Desktop bridge。其余 production copy 继续按 bounded surface 迁移，最终 compile/a11y/visual/package 仍只在 R11 统一门禁执行。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

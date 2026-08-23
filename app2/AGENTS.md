@@ -129,6 +129,9 @@ app2 规则优先。本文吸收 `~/Desktop/dougong/AGENTS.md`、
 - 列表 key 必须是领域身份；流式更新不能因 index key 泄漏草稿、展开态或 HITL 选择。
 - Wails v3 API 不与 v2 混用。每个 exported Go method 都是 IPC surface，必须由绑定面测试锁定。
 - Renderer 输入始终不可信；路径、URL、data URL、保存内容和协议 payload 在 host/runtime 边界重新校验。
+- 本地化只使用 app2 自有的 typed semantic key；English 是 canonical key set，任一发布 locale 必须 exact-key
+  完整且不得 raw-key fallback。只有真实 active dictionary 才能设置 `html.lang/dir`；协议 enum、Tool identity、
+  用户/模型内容与 durable fact 不因 locale 改写。
 - 视觉遵循 Work Index / Agent Narrative / Context Dock 心智模型、token 化 surface ladder、桌面命中区、
   键盘/IME/RTL/窄窗/Retina 和 reduced-motion 约束。
 

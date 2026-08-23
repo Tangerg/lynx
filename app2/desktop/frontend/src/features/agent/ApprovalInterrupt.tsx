@@ -1,5 +1,6 @@
 import type { Interrupt } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
   createApprovalDraft,
   type ApprovalDraft,
@@ -15,6 +16,7 @@ interface ApprovalInterruptProps {
 }
 
 export function ApprovalInterrupt(props: ApprovalInterruptProps) {
+  const { t } = useLocalization();
   const approval = props.draft.approval ?? createApprovalDraft(props.interrupt);
   const tool = props.interrupt.payload?.tool;
   const update = (patch: Partial<ApprovalDraft>) => {
@@ -29,22 +31,26 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
       <div className="request-title">
         <span>{props.index + 1}</span>
         <div>
-          <small>Approval</small>
-          <h4>{tool?.name ?? "Tool execution"}</h4>
+          <small>{t("approval.title")}</small>
+          <h4>{tool?.name ?? t("approval.toolExecution")}</h4>
         </div>
         {props.interrupt.payload?.risk ? (
           <span
             className="risk-badge"
             data-risk={props.interrupt.payload.risk}
           >
-            {props.interrupt.payload.risk} risk
+            {t("approval.risk", { risk: props.interrupt.payload.risk })}
           </span>
         ) : null}
       </div>
       {props.interrupt.payload?.reason ? (
         <p className="request-reason">{props.interrupt.payload.reason}</p>
       ) : null}
-      <div className="approval-decisions" role="group" aria-label="Decision">
+      <div
+        className="approval-decisions"
+        role="group"
+        aria-label={t("approval.decision")}
+      >
         <button
           type="button"
           data-selected={approval.decision === "approve"}
@@ -52,7 +58,7 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
           disabled={props.disabled}
           onClick={() => update({ decision: "approve" })}
         >
-          Approve
+          {t("approval.approve")}
         </button>
         <button
           type="button"
@@ -61,12 +67,12 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
           disabled={props.disabled}
           onClick={() => update({ decision: "deny" })}
         >
-          Deny
+          {t("approval.deny")}
         </button>
       </div>
       {tool ? (
         <details className="approval-arguments">
-          <summary>Edit arguments</summary>
+          <summary>{t("approval.editArguments")}</summary>
           <textarea
             value={approval.argumentsText}
             rows={Math.min(
@@ -75,7 +81,7 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
             )}
             spellCheck={false}
             disabled={props.disabled}
-            aria-label={`Arguments for ${tool.name}`}
+            aria-label={t("approval.argumentsFor", { tool: tool.name })}
             onChange={(event) =>
               update({ argumentsText: event.currentTarget.value })
             }
@@ -85,22 +91,22 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
       <div className="approval-details">
         <label>
           <span>
-            Reason <small>optional</small>
+            {t("approval.reason")} <small>{t("approval.optional")}</small>
           </span>
           <input
             value={approval.reason}
             disabled={props.disabled}
             placeholder={
               approval.decision === "deny"
-                ? "Tell Lyra why this was denied"
-                : "Add context for this decision"
+                ? t("approval.denialReasonPlaceholder")
+                : t("approval.contextPlaceholder")
             }
             onChange={(event) => update({ reason: event.currentTarget.value })}
           />
         </label>
         {props.interrupt.payload?.rememberable ? (
           <label>
-            <span>Remember decision</span>
+            <span>{t("approval.rememberDecision")}</span>
             <select
               value={approval.remember}
               disabled={props.disabled}
@@ -111,10 +117,10 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
                 })
               }
             >
-              <option value="once">Just this time</option>
-              <option value="session">This session</option>
-              <option value="project">This project</option>
-              <option value="global">Everywhere</option>
+              <option value="once">{t("approval.rememberOnce")}</option>
+              <option value="session">{t("approval.rememberSession")}</option>
+              <option value="project">{t("approval.rememberProject")}</option>
+              <option value="global">{t("approval.rememberGlobal")}</option>
             </select>
           </label>
         ) : null}

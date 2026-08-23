@@ -1,5 +1,7 @@
 import type { Recipe } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
+
 interface RecipeSuggestionsProps {
   sessionId: string;
   recipes: Recipe[];
@@ -8,12 +10,13 @@ interface RecipeSuggestionsProps {
 }
 
 export function RecipeSuggestions(props: RecipeSuggestionsProps) {
+  const { t } = useLocalization();
   return (
     <div
       id={`recipe-options-${props.sessionId}`}
       className="recipe-options"
       role="listbox"
-      aria-label="Recipes"
+      aria-label={t("recipe.listLabel")}
     >
       {props.recipes.map((recipe, index) => (
         <button
@@ -29,7 +32,7 @@ export function RecipeSuggestions(props: RecipeSuggestionsProps) {
             <strong>/{recipe.name}</strong>
             {recipe.argumentHint ? <small>{recipe.argumentHint}</small> : null}
           </span>
-          <p>{recipe.description || "No description provided."}</p>
+          <p>{recipe.description || t("recipe.noDescription")}</p>
         </button>
       ))}
     </div>

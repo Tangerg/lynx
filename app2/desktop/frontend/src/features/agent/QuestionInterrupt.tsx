@@ -5,6 +5,7 @@ import type {
   QuestionField,
 } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
   createQuestionDraft,
   type InterruptDraft,
@@ -19,6 +20,7 @@ interface QuestionInterruptProps {
 }
 
 export function QuestionInterrupt(props: QuestionInterruptProps) {
+  const { t } = useLocalization();
   const question = props.interrupt.payload?.question;
   const draft = props.draft.question ?? createQuestionDraft(props.interrupt);
   const updateField = (
@@ -44,8 +46,8 @@ export function QuestionInterrupt(props: QuestionInterruptProps) {
       <div className="request-title">
         <span>{props.index + 1}</span>
         <div>
-          <small>Question</small>
-          <h4>Input for Lyra</h4>
+          <small>{t("question.title")}</small>
+          <h4>{t("question.inputForLyra")}</h4>
         </div>
       </div>
       {question ? (
@@ -66,7 +68,7 @@ export function QuestionInterrupt(props: QuestionInterruptProps) {
           ))}
         </div>
       ) : (
-        <p role="alert">The Runtime did not provide the question fields.</p>
+        <p role="alert">{t("question.fieldsMissing")}</p>
       )}
     </section>
   );
@@ -83,6 +85,7 @@ interface QuestionInputProps {
 }
 
 function QuestionInput(props: QuestionInputProps) {
+  const { t } = useLocalization();
   const submitOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (
       event.key === "Enter" &&
@@ -104,20 +107,23 @@ function QuestionInput(props: QuestionInputProps) {
           value={props.values[0] ?? ""}
           rows={3}
           disabled={props.disabled}
-          placeholder="Type your answer"
+          placeholder={t("question.answerPlaceholder")}
           onKeyDown={submitOnShortcut}
           onChange={(event) => props.onChange([event.currentTarget.value], "")}
         />
       ) : props.field.type === "choice" ? (
         <ChoiceInput {...props} />
       ) : (
-        <p role="alert">Unsupported question field type: {props.field.type}</p>
+        <p role="alert">
+          {t("question.unsupportedField", { type: props.field.type })}
+        </p>
       )}
     </fieldset>
   );
 }
 
 function ChoiceInput(props: QuestionInputProps) {
+  const { t } = useLocalization();
   return (
     <>
       <div className="question-options">
@@ -160,11 +166,11 @@ function ChoiceInput(props: QuestionInputProps) {
       </div>
       {props.field.allowCustom ? (
         <label className="custom-answer">
-          <span>Custom answer</span>
+          <span>{t("question.customAnswer")}</span>
           <input
             value={props.custom}
             disabled={props.disabled}
-            placeholder="Write another answer"
+            placeholder={t("question.customAnswerPlaceholder")}
             onChange={(event) =>
               props.onChange(
                 props.field.multiple ? props.values : [],

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 
+import { useLocalization } from "../../localization/Localization";
 import { useShellPreferences } from "../../preferences/ShellPreferences";
 import { CodeBlock } from "./CodeBlock";
 
@@ -8,6 +9,7 @@ let mermaidSequence = 0;
 let mermaidRenderQueue = Promise.resolve();
 
 export function MermaidBlock({ source }: { source: string }) {
+  const { t } = useLocalization();
   const { resolvedTheme } = useShellPreferences();
   const container = useRef<HTMLDivElement>(null);
   const identity = `lyra-diagram-${useId().replaceAll(":", "")}`;
@@ -59,7 +61,7 @@ export function MermaidBlock({ source }: { source: string }) {
       aria-busy={visible && !markup && !error}
     >
       <header>
-        <span>Diagram</span>
+        <span>{t("diagram.title")}</span>
       </header>
       {markup ? (
         <div
@@ -68,12 +70,12 @@ export function MermaidBlock({ source }: { source: string }) {
         />
       ) : error ? (
         <div>
-          <p role="status">This diagram could not be rendered.</p>
+          <p role="status">{t("diagram.renderFailed")}</p>
           <CodeBlock code={source} language="mermaid" />
         </div>
       ) : (
         <div className="mermaid-placeholder" role="status">
-          {visible ? "Rendering diagram…" : "Diagram loads when visible"}
+          {visible ? t("diagram.rendering") : t("diagram.lazy")}
         </div>
       )}
     </section>

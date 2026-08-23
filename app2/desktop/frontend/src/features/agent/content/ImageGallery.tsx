@@ -6,6 +6,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { useLocalization } from "../../localization/Localization";
 import { saveImage } from "../../../runtime/desktopBridge";
 
 export interface GalleryImage {
@@ -15,6 +16,7 @@ export interface GalleryImage {
 }
 
 export function ImageGallery({ images }: { images: GalleryImage[] }) {
+  const { t } = useLocalization();
   const [activeIndex, setActiveIndex] = useState<number>();
   if (images.length === 0) return null;
   const selectedIndex =
@@ -29,11 +31,11 @@ export function ImageGallery({ images }: { images: GalleryImage[] }) {
             key={image.key}
             type="button"
             className="message-image-trigger"
-            aria-label={`Open ${image.alt}`}
+            aria-label={t("image.open", { name: image.alt })}
             onClick={() => setActiveIndex(index)}
           >
             <img src={image.source} alt={image.alt} loading="lazy" />
-            <span aria-hidden="true">Expand</span>
+            <span aria-hidden="true">{t("image.expand")}</span>
           </button>
         ))}
       </div>
@@ -60,6 +62,7 @@ function ImageLightbox({
   onSelect(index: number): void;
   onClose(): void;
 }) {
+  const { t } = useLocalization();
   const dialog = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const saveOperation = useRef(0);
@@ -144,26 +147,31 @@ function ImageLightbox({
         className="image-lightbox"
         role="dialog"
         aria-modal="true"
-        aria-label="Image preview"
+        aria-label={t("image.preview")}
         onMouseDown={stopBackdrop}
       >
         <header>
           <span className="image-lightbox-position">
-            {images.length > 1 ? `${activeIndex + 1} / ${images.length}` : "Image"}
+            {images.length > 1
+              ? t("image.position", {
+                  current: activeIndex + 1,
+                  total: images.length,
+                })
+              : t("image.label")}
           </span>
           <div className="image-lightbox-actions">
             <button
               type="button"
-              aria-label="Zoom out"
+              aria-label={t("image.zoomOut")}
               disabled={zoom <= 0.5}
               onClick={() => setZoom((current) => Math.max(0.5, current - 0.5))}
             >
               −
             </button>
-            <output aria-label="Image zoom">{Math.round(zoom * 100)}%</output>
+            <output aria-label={t("image.zoom")}>{Math.round(zoom * 100)}%</output>
             <button
               type="button"
-              aria-label="Zoom in"
+              aria-label={t("image.zoomIn")}
               disabled={zoom >= 4}
               onClick={() => setZoom((current) => Math.min(4, current + 0.5))}
             >
@@ -174,12 +182,12 @@ function ImageLightbox({
               disabled={saveState === "saving"}
               onClick={() => void save()}
             >
-              {saveState === "saving" ? "Saving…" : "Save"}
+              {saveState === "saving" ? t("image.saving") : t("image.save")}
             </button>
             <button
               ref={closeButton}
               type="button"
-              aria-label="Close image preview"
+              aria-label={t("image.closePreview")}
               onClick={onClose}
             >
               ×
@@ -194,7 +202,7 @@ function ImageLightbox({
             <button
               type="button"
               className="image-lightbox-previous"
-              aria-label="Previous image"
+              aria-label={t("image.previous")}
               onClick={() =>
                 onSelect((activeIndex - 1 + images.length) % images.length)
               }
@@ -222,7 +230,7 @@ function ImageLightbox({
             <button
               type="button"
               className="image-lightbox-next"
-              aria-label="Next image"
+              aria-label={t("image.next")}
               onClick={() => onSelect((activeIndex + 1) % images.length)}
             >
               ›
@@ -231,11 +239,11 @@ function ImageLightbox({
         </div>
         <p className="image-lightbox-status" aria-live="polite">
           {saveState === "saved"
-            ? "Image saved."
+            ? t("image.saved")
             : saveState === "canceled"
-              ? "Save canceled."
+              ? t("image.saveCanceled")
               : saveState === "failed"
-                ? "Image could not be saved."
+                ? t("image.saveFailed")
                 : ""}
         </p>
       </section>

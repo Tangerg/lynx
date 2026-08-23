@@ -17,6 +17,10 @@ import remarkCJKFriendlyGFMStrikethrough from "remark-cjk-friendly-gfm-strikethr
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
+import {
+  useLocalization,
+  type Translate,
+} from "../../localization/Localization";
 import { CodeBlock } from "./CodeBlock";
 import { MermaidBlock } from "./MermaidBlock";
 import "./content.css";
@@ -55,9 +59,10 @@ type KatexPlugin = typeof import("rehype-katex")["default"];
 let katexEnhancement: Promise<KatexPlugin | undefined> | undefined;
 
 export function MarkdownContent(props: MarkdownContentProps) {
+  const { t } = useLocalization();
   return (
     <MarkdownBoundary {...props}>
-      <MarkdownMaterial {...props} />
+      <MarkdownMaterial {...props} t={t} />
     </MarkdownBoundary>
   );
 }
@@ -65,7 +70,8 @@ export function MarkdownContent(props: MarkdownContentProps) {
 const MarkdownMaterial = memo(function MarkdownMaterial({
   source,
   highlight,
-}: MarkdownContentProps) {
+  t,
+}: MarkdownContentProps & { t: Translate }) {
   const [katexPlugin, setKatexPlugin] = useState<KatexPlugin>();
   const hasMath =
     source.includes("$") || source.includes("\\[") || source.includes("\\(");
@@ -96,7 +102,7 @@ const MarkdownMaterial = memo(function MarkdownMaterial({
           : [rehypeRaw, [rehypeSanitize, rawHTMLSchema]]
       }
       urlTransform={safeMarkdownURL}
-      components={componentsWithHighlight(highlight)}
+      components={componentsWithHighlight(highlight, t)}
     >
       {source}
     </ReactMarkdown>
@@ -131,7 +137,7 @@ class MarkdownBoundary extends Component<
   }
 }
 
-function componentsWithHighlight(highlight: string): Components {
+function componentsWithHighlight(highlight: string, t: Translate): Components {
   return {
     a({ node: _node, href, children, ...props }) {
       const external = href?.startsWith("http://") || href?.startsWith("https://");
@@ -183,7 +189,7 @@ function componentsWithHighlight(highlight: string): Components {
       if (!src) return null;
       return (
         <a className="markdown-image-link" href={src} target="_blank" rel="noreferrer noopener">
-          {alt || "Open linked image"}
+          {alt || t("markdown.openLinkedImage")}
         </a>
       );
     },

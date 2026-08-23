@@ -10,6 +10,10 @@ import type {
 	RestoreType,
 } from "@lyra/runtime-contract";
 
+import {
+	useLocalization,
+	type Translate,
+} from "../localization/Localization";
 import { InterruptSetCard } from "./InterruptSetCard";
 import { ToolDisclosure } from "./ToolDisclosure";
 import type { LiveToolOutput } from "./agentSessionTypes";
@@ -55,6 +59,7 @@ interface NarrativeMaterial {
 }
 
 export function AgentNarrative(props: AgentNarrativeProps) {
+  const { t } = useLocalization();
   const scroll = useRef<HTMLDivElement>(null);
 	const searchInput = useRef<HTMLInputElement>(null);
   const followsTail = useRef(true);
@@ -171,12 +176,12 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 		  <div className="history-navigator">
 			<label>
 			  <span aria-hidden="true">⌕</span>
-			  <span className="sr-only">Search loaded conversation history</span>
+			  <span className="sr-only">{t("narrative.searchLoadedHistory")}</span>
 			  <input
 				ref={searchInput}
 				type="search"
 				value={search}
-				placeholder="Search conversation"
+				placeholder={t("narrative.searchPlaceholder")}
 				autoComplete="off"
 				aria-keyshortcuts="Control+f Meta+f"
 				onChange={(event) => setSearch(event.target.value)}
@@ -192,18 +197,29 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 				}}
 			  />
 			  {search ? (
-				<button type="button" aria-label="Clear conversation search" onClick={() => setSearch("")}>×</button>
+				<button
+				  type="button"
+				  aria-label={t("narrative.clearSearch")}
+				  onClick={() => setSearch("")}
+				>
+				  ×
+				</button>
 			  ) : null}
 			</label>
 			{normalizedSearch !== "" ? (
 			  <span className="history-match-count" aria-live="polite">
-				{searchMatches.length === 0 ? "No loaded matches" : `${activeMatch + 1} / ${searchMatches.length}`}
+				{searchMatches.length === 0
+				  ? t("narrative.noLoadedMatches")
+				  : t("narrative.matchPosition", {
+					  current: activeMatch + 1,
+					  total: searchMatches.length,
+					})}
 			  </span>
 			) : null}
 			{searchMatches.length > 0 ? (
 			  <span className="history-match-actions">
-				<button type="button" aria-label="Previous match" onClick={() => moveMatch(-1)}>↑</button>
-				<button type="button" aria-label="Next match" onClick={() => moveMatch(1)}>↓</button>
+				<button type="button" aria-label={t("narrative.previousMatch")} onClick={() => moveMatch(-1)}>↑</button>
+				<button type="button" aria-label={t("narrative.nextMatch")} onClick={() => moveMatch(1)}>↓</button>
 			  </span>
 			) : null}
 			{props.hasOlderHistory || props.historyError ? (
@@ -217,12 +233,12 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 				}}
 			  >
 				{props.historyPending
-				  ? "Loading…"
+				  ? t("narrative.loadingHistory")
 				  : props.historyError
-					? "Retry history"
+					? t("narrative.retryHistory")
 					: normalizedSearch !== "" && searchMatches.length === 0
-					  ? "Search older"
-					  : "Load older"}
+					  ? t("narrative.searchOlder")
+					  : t("narrative.loadOlder")}
 			  </button>
 			) : null}
 			{props.historyError ? <p role="alert">{props.historyError}</p> : null}
@@ -230,18 +246,14 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 		) : null}
         {props.streamError ? (
           <p className="stream-warning" role="status">
-            Live updates paused: {props.streamError}. Durable material is being
-            reloaded.
+            {t("narrative.streamPaused", { detail: props.streamError })}
           </p>
         ) : null}
         {material.rootItems.length === 0 && material.orphanRuns.length === 0 ? (
           <section className="session-welcome">
-            <span className="eyebrow">Ready</span>
-            <h3>{props.sessionTitle || "Untitled session"}</h3>
-            <p>
-              Describe the work below. Lyra will keep the conversation,
-              execution facts, and recovery state attached to this workspace.
-            </p>
+            <span className="eyebrow">{t("narrative.ready")}</span>
+            <h3>{props.sessionTitle || t("narrative.untitledSession")}</h3>
+            <p>{t("narrative.welcome")}</p>
           </section>
         ) : (
           material.rootItems.map((item) => (
@@ -277,7 +289,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 			activeMatchID={activeMatchID}
 			onForkFrom={props.onForkFrom}
 			onRollback={props.onRollback}
-            integrity="The parent delegation is unavailable in this snapshot."
+            integrity={t("narrative.orphanDelegation")}
           />
         ))}
         {props.interrupts.map((interruptSet) => (
@@ -377,6 +389,7 @@ function NarrativeItem({
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }) {
+  const { t } = useLocalization();
   const child = run?.parentRunId !== undefined;
   switch (item.type) {
     case "userMessage":
@@ -387,7 +400,7 @@ function NarrativeItem({
 		  data-item-id={item.id}
 		  data-search-match={activeMatch}
 		>
-          <ItemMeta label="You" item={item} run={run} />
+          <ItemMeta label={t("narrative.you")} item={item} run={run} />
 		  <NarrativeContent content={item.content} highlight={searchQuery} />
 		  {historyBoundary ? (
 			<SessionHistoryActions
@@ -408,7 +421,11 @@ function NarrativeItem({
 		  data-item-id={item.id}
 		  data-search-match={activeMatch}
         >
-          <ItemMeta label={final ? "Answer" : "Lyra"} item={item} run={run} />
+          <ItemMeta
+			label={final ? t("narrative.answer") : t("narrative.lyra")}
+			item={item}
+			run={run}
+		  />
 		  <NarrativeContent content={item.content} highlight={searchQuery} />
           {item.status === "running" ? <TypingMark /> : null}
 		  {final && !child && run?.status === "finished" && item.status === "completed" ? (
@@ -431,12 +448,16 @@ function NarrativeItem({
 		  data-search-match={activeMatch}
         >
           <summary>
-            <span>Reasoning</span>
-            <small>{item.status === "running" ? "working" : "complete"}</small>
+            <span>{t("narrative.reasoning")}</span>
+            <small>
+			  {item.status === "running"
+				? t("narrative.working")
+				: t("narrative.complete")}
+			</small>
           </summary>
 		  <div className="message-content">
 			<MarkdownContent
-			  source={item.redacted ? "Reasoning was redacted." : item.text ?? ""}
+			  source={item.redacted ? t("narrative.reasoningRedacted") : item.text ?? ""}
 			  highlight={searchQuery}
 			/>
 		  </div>
@@ -462,7 +483,7 @@ function NarrativeItem({
 		  data-item-id={item.id}
 		  data-search-match={activeMatch}
 		>
-          <ItemMeta label="Input needed" item={item} run={run} />
+          <ItemMeta label={t("narrative.inputNeeded")} item={item} run={run} />
           {item.question?.fields.map((field, index) => (
 			<p key={`${item.id}:${index}`}><HighlightedText text={field.prompt} query={searchQuery} /></p>
           ))}
@@ -475,9 +496,11 @@ function NarrativeItem({
 		  data-item-id={item.id}
 		  data-search-match={activeMatch}
 		>
-          Context compacted
+          {t("narrative.contextCompacted")}
           {item.droppedMessages
-            ? ` · ${item.droppedMessages} messages condensed`
+            ? ` · ${t("narrative.messagesCondensed", {
+				count: item.droppedMessages,
+			  })}`
             : ""}
         </aside>
       );
@@ -503,10 +526,13 @@ interface DelegatedRunDisclosureProps {
 }
 
 function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
+  const { t } = useLocalization();
   if (props.ancestry.has(props.run.id)) {
     return (
       <p className="delegated-run-integrity" role="alert">
-        Delegated run lineage contains a cycle at {shortIdentity(props.run.id)}.
+        {t("narrative.delegationCycle", {
+		  id: shortIdentity(props.run.id),
+		})}
       </p>
     );
   }
@@ -525,17 +551,19 @@ function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
     <section
       className="delegated-run"
       data-status={runState(props.run)}
-      aria-label={`Delegated run ${props.run.id}`}
+      aria-label={t("narrative.delegatedRunLabel", { id: props.run.id })}
     >
       <header className="delegated-run-header">
         <span className="delegated-run-state" aria-hidden="true" />
         <span className="delegated-run-identity">
-          <strong>Delegated run</strong>
+          <strong>{t("narrative.delegatedRun")}</strong>
           <small title={props.run.id}>
-            {modelIdentity(props.run)} · {shortIdentity(props.run.id)}
+            {modelIdentity(props.run, t)} · {shortIdentity(props.run.id)}
           </small>
         </span>
-        <span className="delegated-run-status">{runState(props.run)}</span>
+        <span className="delegated-run-status">
+		  {runStateLabel(runState(props.run), t)}
+		</span>
         {active ? (
           <button
             className="delegated-run-cancel"
@@ -545,7 +573,7 @@ function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
               void props.onCancelRun(props.run.id).catch(() => undefined)
             }
           >
-            {canceling ? "Canceling…" : "Cancel"}
+            {canceling ? t("narrative.canceling") : t("narrative.cancel")}
           </button>
         ) : null}
       </header>
@@ -563,8 +591,8 @@ function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
         {items.length === 0 ? (
           <p className="delegated-run-empty">
             {active
-              ? "Waiting for delegated material…"
-              : "No delegated material was recorded."}
+              ? t("narrative.waitingDelegatedMaterial")
+              : t("narrative.noDelegatedMaterial")}
           </p>
         ) : (
           items.map((item) => (
@@ -598,6 +626,7 @@ function FeedbackActions(props: {
 	runId: string;
 	onFeedback(itemId: string, runId: string, rating: FeedbackRating): Promise<void>;
 }) {
+	const { t } = useLocalization();
 	const [pending, setPending] = useState<FeedbackRating>();
 	const [selected, setSelected] = useState<FeedbackRating>();
 	const [error, setError] = useState<string>();
@@ -612,32 +641,36 @@ function FeedbackActions(props: {
 			setError(
 				failure instanceof Error
 					? failure.message
-					: "Feedback could not be saved.",
+					: t("narrative.feedbackSaveFailed"),
 			);
 		} finally {
 			setPending(undefined);
 		}
 	};
 	return (
-		<footer className="feedback-actions" aria-label="Rate this answer">
-			<span>{selected === undefined ? "Was this helpful?" : "Feedback saved"}</span>
+		<footer className="feedback-actions" aria-label={t("narrative.rateAnswer")}>
+			<span>
+			  {selected === undefined
+				? t("narrative.wasHelpful")
+				: t("narrative.feedbackSaved")}
+			</span>
 			<button
 				type="button"
-				aria-label="Helpful"
+				aria-label={t("narrative.helpful")}
 				aria-pressed={selected === "positive"}
 				disabled={pending !== undefined || selected !== undefined}
 				onClick={() => void submit("positive")}
 			>
-				<span aria-hidden="true">↑</span> Helpful
+				<span aria-hidden="true">↑</span> {t("narrative.helpful")}
 			</button>
 			<button
 				type="button"
-				aria-label="Needs work"
+				aria-label={t("narrative.needsWork")}
 				aria-pressed={selected === "negative"}
 				disabled={pending !== undefined || selected !== undefined}
 				onClick={() => void submit("negative")}
 			>
-				<span aria-hidden="true">↓</span> Needs work
+				<span aria-hidden="true">↓</span> {t("narrative.needsWork")}
 			</button>
 			{error ? <p role="alert">{error}</p> : null}
 		</footer>
@@ -645,13 +678,19 @@ function FeedbackActions(props: {
 }
 
 function ItemMeta(props: { label: string; item: Item; run?: RunSummary }) {
+  const { formatDateTime, t } = useLocalization();
   const occurredAt = props.item.createdAt ?? props.item.startedAt;
   return (
     <header className="item-meta">
       <strong>{props.label}</strong>
-      {props.run?.parentRunId ? <span>Delegated</span> : null}
+      {props.run?.parentRunId ? <span>{t("narrative.delegated")}</span> : null}
       {occurredAt ? (
-        <time dateTime={occurredAt}>{formatTime(occurredAt)}</time>
+        <time dateTime={occurredAt}>
+		  {formatDateTime(new Date(occurredAt), {
+			hour: "numeric",
+			minute: "2-digit",
+		  })}
+		</time>
       ) : null}
     </header>
   );
@@ -662,6 +701,7 @@ function SessionHistoryActions(props: {
 	onForkFrom(runId: string): Promise<void>;
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }) {
+	const { t } = useLocalization();
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string>();
 	const run = async (action: () => Promise<void>) => {
@@ -674,7 +714,7 @@ function SessionHistoryActions(props: {
 			setError(
 				failure instanceof Error
 					? failure.message
-					: "Session history action failed.",
+					: t("narrative.historyActionFailed"),
 			);
 		} finally {
 			setPending(false);
@@ -687,10 +727,10 @@ function SessionHistoryActions(props: {
 				disabled={pending}
 				onClick={() => void run(() => props.onForkFrom(props.runId))}
 			>
-				Fork here
+				{t("narrative.forkHere")}
 			</button>
 			<details>
-				<summary>Rewind…</summary>
+				<summary>{t("narrative.rewind")}</summary>
 				<div>
 					<button
 						type="button"
@@ -699,7 +739,7 @@ function SessionHistoryActions(props: {
 							void run(() => props.onRollback(props.runId, "history"))
 						}
 					>
-						History after this turn
+						{t("narrative.rewindHistory")}
 					</button>
 					<button
 						type="button"
@@ -708,7 +748,7 @@ function SessionHistoryActions(props: {
 							void run(() => props.onRollback(props.runId, "files"))
 						}
 					>
-						Files to this checkpoint
+						{t("narrative.rewindFiles")}
 					</button>
 					<button
 						type="button"
@@ -717,7 +757,7 @@ function SessionHistoryActions(props: {
 							void run(() => props.onRollback(props.runId, "both"))
 						}
 					>
-						History and files
+						{t("narrative.rewindBoth")}
 					</button>
 				</div>
 			</details>
@@ -762,8 +802,9 @@ function itemSearchText(item: Item): string {
 }
 
 function TypingMark() {
+  const { t } = useLocalization();
   return (
-    <span className="typing-mark" aria-label="Lyra is responding">
+    <span className="typing-mark" aria-label={t("narrative.responding")}>
       <i />
       <i />
       <i />
@@ -772,15 +813,20 @@ function TypingMark() {
 }
 
 function LiveProgress({ progress }: { progress: RunProgress }) {
+  const { formatNumber, t } = useLocalization();
   const tokens = progress.usage
     ? (progress.usage.inputTokens ?? 0) + (progress.usage.outputTokens ?? 0)
     : undefined;
   return (
     <div className="live-progress" role="status">
       <span className="status-dot" aria-hidden="true" />
-      <span>{progress.activity || "Agent is working"}</span>
-      {progress.step ? <small>Step {progress.step}</small> : null}
-      {tokens ? <small>{tokens.toLocaleString()} tokens</small> : null}
+      <span>{progress.activity || t("narrative.agentWorking")}</span>
+      {progress.step ? (
+		<small>{t("narrative.step", { step: progress.step })}</small>
+	  ) : null}
+      {tokens ? (
+		<small>{t("narrative.tokens", { count: formatNumber(tokens) })}</small>
+	  ) : null}
     </div>
   );
 }
@@ -851,18 +897,38 @@ function runState(run: RunSummary) {
     : (run.status ?? "unknown");
 }
 
-function modelIdentity(run: RunSummary) {
+function modelIdentity(run: RunSummary, t: Translate) {
   if (run.provider && run.model) return `${run.provider}/${run.model}`;
-  return run.model ?? run.provider ?? "default model";
+  return run.model ?? run.provider ?? t("narrative.defaultModel");
+}
+
+function runStateLabel(state: string, t: Translate) {
+  switch (state) {
+    case "finished":
+      return t("narrative.status.finished");
+    case "running":
+      return t("narrative.status.running");
+    case "waiting":
+      return t("narrative.status.waiting");
+    case "completed":
+      return t("narrative.status.completed");
+    case "failed":
+      return t("narrative.status.failed");
+    case "canceled":
+      return t("narrative.status.canceled");
+    case "timedOut":
+      return t("narrative.status.timedOut");
+    case "maxSteps":
+      return t("narrative.status.maxSteps");
+    case "maxBudget":
+      return t("narrative.status.maxBudget");
+    case "lost":
+      return t("narrative.status.lost");
+    default:
+      return t("narrative.status.unknown");
+  }
 }
 
 function shortIdentity(value: string) {
   return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-3)}` : value;
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
 }
