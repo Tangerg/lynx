@@ -88,10 +88,15 @@ func runDesktop() (err error) {
 }
 
 func defaultSupervisorConfig() (supervisor.Config, error) {
-	userHome, err := os.UserHomeDir()
-	if err != nil || !filepath.IsAbs(userHome) {
-		return supervisor.Config{}, errors.New("desktop: absolute user home is required")
+	userHome := os.Getenv("LYRA2_USER_HOME")
+	var err error
+	if userHome == "" {
+		userHome, err = os.UserHomeDir()
 	}
+	if err != nil || !filepath.IsAbs(userHome) {
+		return supervisor.Config{}, errors.New("desktop: LYRA2_USER_HOME or the system user home must be absolute")
+	}
+	userHome = filepath.Clean(userHome)
 	executable, err := os.Executable()
 	if err != nil {
 		return supervisor.Config{}, fmt.Errorf("desktop: locate executable: %w", err)
