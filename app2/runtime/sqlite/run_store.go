@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
-	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
+	"github.com/Tangerg/lynx/app2/runtime/runflow"
 )
 
 func (database *Database) CreateRun(
@@ -45,25 +45,20 @@ func (database *Database) CreateRun(
 	return nil
 }
 
-func (database *Database) CommitRun(
-	ctx context.Context,
-	record rundomain.Record,
-	items []transcript.Record,
-	messages []conversation.Record,
-	toolResults []toolresult.Record,
-	events []rundomain.EventRecord,
-) error {
+func (database *Database) CommitRun(ctx context.Context, write runflow.CommitWrite) error {
 	transaction, err := database.database.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("sqlite: begin run commit: %w", err)
 	}
 	defer transaction.Rollback()
+	record := write.Run
 	value := record.Run
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE runs SET status = ?, active_segment_id = nullif(?, ''), outcome = nullif(?, ''), detail = ?, body = ?,
-			updated_at = ?, finished_at = nullif(?, '') WHERE id = ?`,
+			updated_at = ?, finished_at = nullif(?, '')
+		WHERE id = ? AND status = ? AND coalesce(active_segment_id, '') = ?`,
 		string(value.Status()), value.ActiveSegmentID(), string(value.Outcome()), value.Detail(), string(record.Body),
-		encodeTime(value.UpdatedAt()), encodeOptionalTime(value.FinishedAt()), value.ID(),
+		encodeTime(value.UpdatedAt()), encodeOptionalTime(value.FinishedAt()), value.ID(), string(write.ExpectedStatus), write.ExpectedSegmentID,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: commit run %s: %w", value.ID(), err)
@@ -73,21 +68,25 @@ func (database *Database) CommitRun(
 		return fmt.Errorf("sqlite: inspect run commit: %w", err)
 	}
 	if changed == 0 {
-		return rundomain.ErrNotFound
+		return rundomain.ErrInvalidTransition
 	}
-	for _, item := range items {
+	for _, item := range write.Items {
 		if err := putItem(ctx, transaction, item); err != nil {
 			return err
 		}
 	}
-	for _, message := range messages {
+	for _, message := range write.Messages {
 		if err := insertConversationMessage(ctx, transaction, message); err != nil { return err }
 	}
-	for _, result := range toolResults {
+	for _, result := range write.ToolResults {
 		if err := insertToolResult(ctx, transaction, result); err != nil { return err }
 	}
-	if err := insertRunEvents(ctx, transaction, events); err != nil {
+	if err := insertRunEvents(ctx, transaction, write.Events); err != nil {
 		return err
+	}
+	if value.Status() == rundomain.Finished {
+		if _, err := transaction.ExecContext(ctx, `DELETE FROM interrupt_sets WHERE run_id = ?`, value.ID()); err != nil { return fmt.Errorf("sqlite: clear terminal interrupt: %w", err) }
+		if _, err := transaction.ExecContext(ctx, `DELETE FROM executor_checkpoints WHERE run_id = ?`, value.ID()); err != nil { return fmt.Errorf("sqlite: clear terminal checkpoint: %w", err) }
 	}
 	if err := transaction.Commit(); err != nil {
 		return fmt.Errorf("sqlite: finish run commit: %w", err)
@@ -178,6 +177,30 @@ func (database *Database) GetOpenRootRun(ctx context.Context, sessionID string) 
 			coalesce(spawned_by_item_id, ''), status, coalesce(active_segment_id, ''),
 			provider, model, coalesce(outcome, ''), detail, body, created_at, updated_at, coalesce(finished_at, '')
 		FROM runs WHERE session_id = ? AND parent_run_id IS NULL AND status != 'finished'`, sessionID))
+}
+
+func (database *Database) ListRunningRuns(ctx context.Context) ([]rundomain.Record, error) {
+	rows, err := database.database.QueryContext(ctx, `
+		SELECT id, session_id, coalesce(parent_run_id, ''), coalesce(root_run_id, ''),
+			coalesce(spawned_by_item_id, ''), status, coalesce(active_segment_id, ''),
+			provider, model, coalesce(outcome, ''), detail, body, created_at, updated_at, coalesce(finished_at, '')
+		FROM runs WHERE status = 'running' ORDER BY created_at, id`)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list running runs: %w", err)
+	}
+	defer rows.Close()
+	records := make([]rundomain.Record, 0)
+	for rows.Next() {
+		record, err := scanRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: iterate running runs: %w", err)
+	}
+	return records, nil
 }
 
 func (database *Database) ListRuns(

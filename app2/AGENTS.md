@@ -8,6 +8,8 @@ app2 规则优先。本文吸收 `~/Desktop/dougong/AGENTS.md`、
 ## 1. 产品与迁移边界
 
 - `app2` 是唯一目标实现；旧 `app` 只是只读行为证据和验收 oracle。
+- 当前授权范围只重写 `app2/runtime` 与 `app2/desktop`。不得修改或删除旧 `app/runtime`、
+  `app/desktop`、`app/cli`；CLI、产品入口切换和旧树删除属于明确延期的后续目标。
 - 不提供旧 API alias、deprecated wrapper、双读、双写、旧 wire reader、旧数据库迁移、
   旧 Artifact reader、目录 fallback 或长期 shadow implementation。
 - breaking change 一次完成。不能用“以后删除”批准已知债；协议 breaking 还必须满足 ADR-A2-022 的反例、
@@ -132,7 +134,9 @@ app2 规则优先。本文吸收 `~/Desktop/dougong/AGENTS.md`、
 
 ## 10. 测试与门禁
 
-- 修复或实现新行为先写能失败的最小测试，再实现根因修复。
+- 本轮迁移采用一次性实现、最终统一验证：先完整写完 R2–R11 的 Runtime/Desktop 生产代码，随后只执行一轮
+  总体生成、测试、race、vet、static、frontend、视觉与 package 门禁，并在该轮集中修复。实现批次之间不得
+  启动局部测试循环；已有测试只作为设计证据读取，新增最终测试在统一验证阶段补齐。
 - Domain 测试状态迁移和不变量；Application 测试完整 use case 与事务；adapter 测试真实边界；
   transport 测试 framing/背压/断线；Desktop 测试用户可观察行为。
 - 每个纵切至少包含一个从 Desktop intent 到 durable Runtime fact 再回到 UI projection 的真实集成测试。
@@ -153,13 +157,15 @@ app2 规则优先。本文吸收 `~/Desktop/dougong/AGENTS.md`、
 
 ## 12. 每批完成与资源回收
 
-每批只有同时满足以下条件才完成：
+实现阶段的每批是防丢失 checkpoint，不代表能力已验证。每批必须：
 
-1. 纵切没有 TODO、兼容分支、重复 owner 或假实现；
-2. 受影响的 unit/integration/race/static/contract/frontend/visual/package 门禁通过；
-3. `CAPABILITY_LEDGER.md` 和当前阶段证据已更新；
-4. 没有修改或覆盖用户的无关 worktree 内容；
+1. 保持边界清晰，不引入兼容分支、重复 owner 或假实现；
+2. 不把未运行门禁的能力标为 `verified`；
+3. 提交并推送到当前 `codex/` 分支，防止进度意外丢失；
+4. 没有修改或覆盖用户的无关 worktree 内容，尤其不得纳入 `.opencode/`；
 5. 关闭本批打开的浏览器会话、agent-browser、Playwright、Vite、Wails、Runtime、MCP、LSP、
    临时 watcher、端口转发和后台命令；
 6. 删除本批临时 HOME、数据库、socket、日志、截图和构建目录；保留的诊断资产必须有明确路径与用途；
 7. 用进程、端口和临时目录检查证明资源已经释放，而不是只发送 stop 信号。
+
+只有最终统一门禁通过，R2–R11 才能从 `implemented` 升为 `verified`。

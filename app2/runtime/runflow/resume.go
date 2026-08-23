@@ -147,15 +147,17 @@ func (service *Service) Resume(ctx context.Context, request protocol.ResumeRunRe
 		return nil, nil, err
 	}
 	stream := service.hub.SubscribeRun(ctx, request.RunID, segmentID, events)
-	service.launchResumeExecution(record, segmentID, storedSession.Workspace().Path(), checkpoint, frameworkResponse, request.Input)
+	if !service.launchResumeExecution(record, segmentID, storedSession.Workspace().Path(), checkpoint, frameworkResponse, request.Input) {
+		service.settleUnlaunched(request.RunID)
+	}
 	return &protocol.ResumeRunResponse{RunID: request.RunID, SegmentID: segmentID, UserItemID: userItemID}, stream, nil
 }
 
-func (service *Service) launchResumeExecution(record rundomain.Record, segmentID, workspace string, checkpoint, response []byte, additionalInput []protocol.ContentBlock) {
+func (service *Service) launchResumeExecution(record rundomain.Record, segmentID, workspace string, checkpoint, response []byte, additionalInput []protocol.ContentBlock) bool {
 	service.mu.Lock()
 	if service.closing {
 		service.mu.Unlock()
-		return
+		return false
 	}
 	ctx, cancel := context.WithCancel(service.lifetime)
 	steers := make(chan agentexec.Steer, 32)
@@ -178,6 +180,7 @@ func (service *Service) launchResumeExecution(record rundomain.Record, segmentID
 		})
 		service.finishExecution(record.Run.ID(), segmentID, workspace, output, executeErr)
 	}()
+	return true
 }
 
 func validateResumeResponses(pending protocol.PendingInterruptSet, responses []protocol.InterruptResponse) (map[string]protocol.InterruptResponseValue, error) {

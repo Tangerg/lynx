@@ -235,3 +235,14 @@ bootstrap 合同，并且不创建第二套业务 RPC。
 路径读取。Runtime 在 listener/descriptor 发布前失败时保持 not-ready；supervisor timeout 只终止自己记录的 exact
 child PID。`lyra-runtime` command 由 Cobra factory 构造，配置经 fresh Viper 解析为 typed Config；Runtime 业务和
 host packages 不 import Cobra/Viper。
+
+## ADR-A2-024：本轮止于 app2 Runtime/Desktop 独立交付
+
+**决定**：当前目标只完成 R2–R11 的 app2 Runtime/Desktop 全功能重写、统一门禁与独立 package。R12 的 CLI/
+其余 consumer 迁移和 R13 的入口切换/旧树删除全部延期；不得修改或删除旧 `app`。实现期一次性写完生产代码，
+最终只运行一轮总体测试与修复；每个边界清晰的实现批次仍提交并推送作为防丢失 checkpoint。
+
+**原因**：用户明确收窄本轮授权，并要求用集中验证减少反复测试成本，同时用远端提交降低长周期重写的丢失风险。
+
+**后果**：本 ADR 在当前目标范围内取代 ADR-A2-021 的 Wave B/Wave C 连续执行要求；它不引入旧实现兼容层，
+也不把未运行最终门禁的能力标为 `verified`。后续切换必须由新的明确目标重新授权。

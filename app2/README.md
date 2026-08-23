@@ -2,8 +2,8 @@
 
 `app2` 是 `app` 的绿地替代实现。它不是兼容层、渐进重构目录或第二套长期实现。
 
-当前阶段：**R1 已完成，进入 R2**。Runtime/Desktop 的可执行骨架、合同生成、进程监督、
-`runtime.discover` 直连纵切和生产打包链已经闭环；后续严格按能力账本推进 Workspace + Session。
+当前阶段：**R1 已完成，正在一次性实现 R2–R11**。Runtime/Desktop 的可执行骨架、合同生成、进程监督、
+`runtime.discover` 直连纵切和生产打包链已经闭环；本轮先写完全部 Runtime/Desktop，再执行一次统一门禁。
 
 ## 目标
 
@@ -13,8 +13,8 @@
 - 用领域边界组织代码，以依赖方向实现整洁架构，不复制“分层目录仪式”；
 - Runtime 保持独立可监督进程，并以当前 Lyra Runtime Protocol 作为合同基线；
 - 以静态限界上下文组合替代没有生产动态安装入口的通用插件内核；
-- 完成等价验收后一次切换，随后删除旧 Runtime/Desktop 实现；
-- Runtime/Desktop 完成后，继续迁移 `app` 的其余消费者，直到 `app2` 成为唯一实现。
+- 完成 app2 Runtime/Desktop 的全部能力、统一验收与独立 package；
+- 当前不切换产品入口，不修改或删除旧 `app`，也不迁移 `app/cli`。这些工作明确延期到后续目标。
 
 ## 文档地图
 
@@ -33,9 +33,9 @@
 `DOMAIN_MODEL.md` 定义，合同形状只在生成源和 `CONTRACT.md` 定义，迁移状态只在
 `CAPABILITY_LEDGER.md` 定义。
 
-## 当前阶段入口
+## 当前实现入口
 
-R2 只从以下已验证基础继续，不重新发明协议或进程拓扑：
+R2–R11 只从以下已验证基础继续，不重新发明协议或进程拓扑：
 
 1. `runtime.discover` 是 app2 registry 中唯一已迁入的 operation，另外 88 项仍不得用 placeholder 冒充；
 2. `/v2/info`、live、ready、one-shot descriptor、token 与 generation identity 已验证；

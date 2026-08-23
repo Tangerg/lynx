@@ -28,9 +28,10 @@ type Store interface {
 	GetSession(context.Context, session.ID) (session.Session, error)
 	GetRun(context.Context, string) (rundomain.Record, error)
 	GetOpenRootRun(context.Context, string) (rundomain.Record, error)
+	ListRunningRuns(context.Context) ([]rundomain.Record, error)
 	ListRuns(context.Context, string, []rundomain.Status, bool, int, *rundomain.Cursor) (rundomain.Page, error)
 	CreateRun(context.Context, rundomain.Record, *transcript.Record, *conversationdomain.Record, []rundomain.EventRecord) error
-	CommitRun(context.Context, rundomain.Record, []transcript.Record, []conversationdomain.Record, []toolresult.Record, []rundomain.EventRecord) error
+	CommitRun(context.Context, CommitWrite) error
 	ListItems(context.Context, string, string) ([]transcript.Record, error)
 	ListConversationMessages(context.Context, string) ([]conversationdomain.Record, error)
 	ListRunEvents(context.Context, string, string, string) ([]rundomain.EventRecord, error)
@@ -126,6 +127,19 @@ type StartCommand struct {
 	Meta    protocol.RequestMeta
 }
 
+// CommitWrite is the single terminal/update transaction for an admitted Run.
+// ExpectedStatus and ExpectedSegmentID are the generation token: every caller
+// must prove which durable lifecycle version it is replacing.
+type CommitWrite struct {
+	Run               rundomain.Record
+	ExpectedStatus    rundomain.Status
+	ExpectedSegmentID string
+	Items             []transcript.Record
+	Messages          []conversationdomain.Record
+	ToolResults       []toolresult.Record
+	Events            []rundomain.EventRecord
+}
+
 func (service *Service) Start(ctx context.Context, command StartCommand) (
 	*protocol.StartRunResponse,
 	iter.Seq[protocol.RunEvent],
@@ -216,15 +230,17 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 		return nil, nil, err
 	}
 	stream := service.hub.SubscribeRun(ctx, runID, segmentID, events)
-	service.launchExecution(runID, segmentID, storedSession.Workspace().Path(), conversation)
+	if !service.launchExecution(runID, segmentID, storedSession.Workspace().Path(), conversation) {
+		service.settleUnlaunched(runID)
+	}
 	return &protocol.StartRunResponse{RunID: runID, SegmentID: segmentID, UserItemID: itemID}, stream, nil
 }
 
-func (service *Service) launchExecution(runID, segmentID, workspace string, conversation []agentexec.Message) {
+func (service *Service) launchExecution(runID, segmentID, workspace string, conversation []agentexec.Message) bool {
 	service.mu.Lock()
 	if service.closing {
 		service.mu.Unlock()
-		return
+		return false
 	}
 	ctx, cancel := context.WithCancel(service.lifetime)
 	steers := make(chan agentexec.Steer, 32)
@@ -250,6 +266,7 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 		})
 		service.finishExecution(runID, segmentID, workspace, output, executeErr)
 	}()
+	return true
 }
 
 func runMaxSteps(body []byte) int {
@@ -317,9 +334,15 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	detail := ""
 	problem := (*protocol.ProblemData)(nil)
 	if executeErr != nil {
-		outcome = rundomain.Failed
-		detail = "the agent execution failed"
-		problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
+		if errors.Is(executeErr, context.Canceled) && service.lifetime.Err() != nil {
+			outcome = rundomain.Lost
+			detail = lostRunDetail
+			problem = &protocol.ProblemData{Type: protocol.ProblemRunLost, Detail: detail}
+		} else {
+			outcome = rundomain.Failed
+			detail = "the agent execution failed"
+			problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
+		}
 	}
 	if err := record.Run.Finish(segmentID, outcome, detail, now); err != nil {
 		return
@@ -342,7 +365,7 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	if err != nil {
 		return
 	}
-	if err := service.store.CommitRun(ctx, record, items, projection.messages, projection.results, persisted); err != nil {
+	if err := service.store.CommitRun(ctx, CommitWrite{Run: record, ExpectedStatus: rundomain.Running, ExpectedSegmentID: segmentID, Items: items, Messages: projection.messages, ToolResults: projection.results, Events: persisted}); err != nil {
 		return
 	}
 	for _, event := range events {
@@ -427,6 +450,8 @@ func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRe
 	if record.Run.Status() == rundomain.Finished {
 		return nil, protocol.ErrRunFinished
 	}
+	expectedStatus := record.Run.Status()
+	expectedSegmentID := record.Run.ActiveSegmentID()
 	service.mu.Lock()
 	if active, ok := service.active[request.RunID]; ok {
 		active.cancel()
@@ -473,7 +498,7 @@ func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRe
 	if err != nil {
 		return nil, err
 	}
-	if err := service.store.CommitRun(ctx, record, nil, nil, nil, persisted); err != nil {
+	if err := service.store.CommitRun(ctx, CommitWrite{Run: record, ExpectedStatus: expectedStatus, ExpectedSegmentID: expectedSegmentID, Events: persisted}); err != nil {
 		return nil, err
 	}
 	service.hub.PublishRun(event)
@@ -548,6 +573,7 @@ func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequ
 		storedMessage := conversationdomain.Record{SessionID: record.Run.SessionID(), RunID: request.RunID, Ordinal: nextConversationOrdinal(messages), Body: body}
 		facts, err := decodeFacts(record.Body)
 		if err != nil { active.cancel(); return err }
+		if err := record.Run.Touch(request.ExpectedSegmentID, now); err != nil { active.cancel(); return err }
 		event, err := service.event(request.RunID, request.ExpectedSegmentID, &facts, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item}, now)
 		if err != nil { active.cancel(); return err }
 		record, err = makeRecord(record.Run, facts)
@@ -722,8 +748,10 @@ func presentRecord(record rundomain.Record) (*protocol.RunRef, error) {
 	}
 	if value.Status() == rundomain.Finished {
 		summary.Outcome = &protocol.RunOutcome{Type: protocol.RunOutcomeType(value.Outcome())}
-		if value.Outcome() == rundomain.Failed {
-			summary.Outcome.Error = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: value.Detail()}
+		if value.Outcome() == rundomain.Failed || value.Outcome() == rundomain.Lost {
+			problemType := protocol.ProblemInternalError
+			if value.Outcome() == rundomain.Lost { problemType = protocol.ProblemRunLost }
+			summary.Outcome.Error = &protocol.ProblemData{Type: problemType, Detail: value.Detail()}
 		} else {
 			summary.Outcome.Detail = value.Detail()
 		}
@@ -736,7 +764,7 @@ func presentRecord(record rundomain.Record) (*protocol.RunRef, error) {
 
 func segmentOutcome(outcome rundomain.Outcome, problem *protocol.ProblemData, detail string) *protocol.SegmentOutcome {
 	result := &protocol.SegmentOutcome{Type: protocol.SegmentOutcomeType(outcome)}
-	if outcome == rundomain.Failed {
+	if outcome == rundomain.Failed || outcome == rundomain.Lost {
 		result.Error = problem
 	} else {
 		result.Detail = detail
@@ -839,5 +867,6 @@ func (service *Service) Close() {
 		active.cancel()
 	}
 	service.mu.Unlock()
+	service.hub.Close()
 	service.tasks.Wait()
 }

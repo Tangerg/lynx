@@ -87,32 +87,30 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtimehost: open database: %w", err)
 	}
-	cleanupDatabase := true
+	guard := newOpenGuard()
+	guard.Add(database.Close)
+	var cancelLife context.CancelFunc
 	defer func() {
-		if cleanupDatabase {
-			err = errors.Join(err, database.Close())
+		if err != nil {
+			if cancelLife != nil { cancelLife() }
+			err = errors.Join(err, guard.Close())
 		}
 	}()
 
 	token := ""
-	cleanupToken := false
 	if config.TokenPath != "" {
 		token, err = localruntime.OpenToken(config.TokenPath)
 		if err != nil {
 			return nil, fmt.Errorf("runtimehost: open local token: %w", err)
 		}
-		cleanupToken = config.DescriptorPath != ""
-		defer func() {
-			if cleanupToken {
-				err = errors.Join(err, removeOwned(config.TokenPath))
-			}
-		}()
+		if config.DescriptorPath != "" { guard.Add(func() error { return removeOwned(config.TokenPath) }) }
 	}
 	instanceID, err := newInstanceID()
 	if err != nil {
 		return nil, err
 	}
-	lifetime, cancelLife := context.WithCancel(context.Background())
+	lifetime, cancel := context.WithCancel(context.Background())
+	cancelLife = cancel
 	enabledFeatures := make(map[string]bool, len(protocol.Features()))
 	for _, feature := range protocol.Features() {
 		enabledFeatures[feature.Key] = true
@@ -128,12 +126,10 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		StreamingMethods: operation.Contract().StreamMethods(),
 	})
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	workspaceResolver, err := workspacefs.NewResolver(config.DefaultWorkspace)
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	checkpoints := checkpoint.NewStore(filepath.Join(filepath.Dir(config.DatabasePath), "checkpoints"))
@@ -142,29 +138,23 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Checkpoints: checkpoints,
 	})
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	providers, err := providerflow.New(database)
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	mcp, err := mcpflow.New(database, identity.Generator{}, lifetime)
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
+	guard.AddClose(mcp.Close)
 	agentToolCatalog, err := agenttools.New(database, mcp, database, config.UserHome)
 	if err != nil {
-		cancelLife()
-		mcp.Close()
 		return nil, err
 	}
 	executor, err := agentexec.New(providers, agentToolCatalog)
 	if err != nil {
-		cancelLife()
-		mcp.Close()
 		return nil, err
 	}
 	hub := streamhub.New()
@@ -173,55 +163,51 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Models: providers, Hub: hub, Lifetime: lifetime, Checkpoints: checkpoints,
 	})
 	if err != nil {
-		cancelLife()
-		mcp.Close()
 		return nil, err
+	}
+	guard.AddClose(runs.Close)
+	if err := runs.Recover(ctx); err != nil {
+		return nil, fmt.Errorf("runtimehost: recover predecessor runs: %w", err)
 	}
 	workspace, err := workspaceflow.New(workspaceResolver)
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	events := runtimeevents.New()
+	guard.AddClose(events.Close)
 	settings, err := settingsflow.New(database, identity.Generator{}, settingsflow.NewLauncher(sessions, runs))
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
+	guard.AddClose(settings.Close)
 	state, err := stateflow.New(database)
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	capabilities, err := capabilityflow.New(database, workspaceResolver, identity.Generator{}, config.UserHome)
 	if err != nil {
-		cancelLife()
-		mcp.Close()
 		return nil, err
 	}
 	codebase, err := codebaseflow.New(database, workspaceResolver, providers, identity.Generator{}, events, lifetime)
-	if err != nil { cancelLife(); mcp.Close(); return nil, err }
+	if err != nil { return nil, err }
+	guard.AddClose(codebase.Close)
 	tools, err := toolflow.New(workspaceResolver)
-	if err != nil { cancelLife(); mcp.Close(); codebase.Close(); return nil, err }
+	if err != nil { return nil, err }
 	operations, err := operationsflow.New(database, identity.Generator{})
-	if err != nil { cancelLife(); mcp.Close(); codebase.Close(); return nil, err }
+	if err != nil { return nil, err }
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
 		Runs: runs, Workspace: workspace, Settings: settings, State: state, MCP: mcp,
 		Capability: capabilities, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
 	})
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	if err := settings.Start(lifetime); err != nil {
-		cancelLife()
-		app.Close()
 		return nil, err
 	}
 	endpoint, err := operation.New(app, lifetime)
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
 	server, err := httptransport.New(httptransport.Config{
@@ -245,20 +231,16 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		},
 	})
 	if err != nil {
-		cancelLife()
 		return nil, err
 	}
+	guard.Add(server.Close)
 	listener, err := net.Listen("tcp", config.Listen)
 	if err != nil {
-		cancelLife()
-		_ = server.Close()
 		return nil, fmt.Errorf("runtimehost: listen: %w", err)
 	}
+	guard.Add(listener.Close)
 	address, ok := listener.Addr().(*net.TCPAddr)
 	if !ok || address.IP == nil || !address.IP.IsLoopback() {
-		cancelLife()
-		_ = listener.Close()
-		_ = server.Close()
 		return nil, errors.New("runtimehost: listener must resolve to a loopback TCP address")
 	}
 	descriptor := localruntime.Descriptor{
@@ -276,8 +258,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if config.DescriptorPath != "" {
 		runtime.descriptorPath = config.DescriptorPath
 	}
-	cleanupDatabase = false
-	cleanupToken = false
+	guard.Disarm()
 	return runtime, nil
 }
 
@@ -327,9 +308,8 @@ func (runtime *Runtime) Close(ctx context.Context) error {
 
 func (runtime *Runtime) closeOwned() {
 	defer close(runtime.closed)
-	runtime.cancelLife()
-	runtime.application.Close()
 	runtime.endpoint.BeginShutdown()
+	runtime.cancelLife()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	serverErr := runtime.server.Shutdown(shutdownCtx)
@@ -341,6 +321,7 @@ func (runtime *Runtime) closeOwned() {
 		listenerErr = nil
 	}
 	endpointErr := runtime.endpoint.AwaitShutdown(shutdownCtx)
+	runtime.application.Close()
 	databaseErr := runtime.database.Close()
 	var artifactErr error
 	if runtime.ephemeral {

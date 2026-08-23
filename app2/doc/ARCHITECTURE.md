@@ -339,18 +339,15 @@ optimistic compensation 和迟到 settlement；裸 gateway 不能绕过它。
 - goroutine/listener/timer/process/browser resource 在 test teardown 后为零；
 - bundle budget、accessibility、IME、keyboard、RTL、narrow window、light/dark 与 recovery 场景通过。
 
-## 12. 切换拓扑
+## 12. 独立交付拓扑
 
 迁移期 `app` 与 `app2` 使用完全独立的 binary、module、data home、port/socket 和 artifact。不得让 app2
 读取或写入旧 `~/.lyra` 数据。旧实现只运行在隔离临时 HOME 的行为对照测试中。
 
 当 Runtime/Desktop 能力账本全部 `verified`：
 
-1. 冻结旧 Runtime/Desktop；
-2. 运行完整语义对照、恢复、package 和视觉矩阵；
-3. 将产品入口一次切向 app2；
-4. 删除旧 Runtime/Desktop 代码和只为它存在的合同/脚本；
-5. 继续迁移 CLI 等其余 app consumer；
-6. 最终删除空的旧 `app` 树。
+1. 运行完整语义对照、恢复、package 和视觉矩阵；
+2. 产出独立 app2 Runtime/Desktop binary 与 bundle；
+3. 保留旧 Runtime/Desktop、CLI 与产品入口，等待后续明确授权的切换目标。
 
-不维持双实现同步，不在切换后保留 fallback 开关。
+app2 不读取旧数据、不依赖旧实现，也不建立同步或 fallback；旧 app 的存在只是本轮范围边界。

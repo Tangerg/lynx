@@ -157,6 +157,17 @@ func (value *Run) Finish(segmentID string, outcome Outcome, detail string, now t
 	return value.Validate()
 }
 
+// Touch records an accepted mutation against the active segment without
+// changing lifecycle state. The segment precondition keeps a superseded
+// execution generation from advancing the aggregate's durable clock.
+func (value *Run) Touch(segmentID string, now time.Time) error {
+	if err := value.requireActive(segmentID); err != nil {
+		return err
+	}
+	value.updatedAt = now.UTC()
+	return value.Validate()
+}
+
 func (value *Run) requireActive(segmentID string) error {
 	if value.status != Running {
 		return fmt.Errorf("%w: run is %s", ErrInvalidTransition, value.status)

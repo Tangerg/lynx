@@ -20,8 +20,8 @@ func (database *Database) CommitWait(ctx context.Context, write runflow.WaitWrit
 	value := write.Run.Run
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE runs SET status = ?, active_segment_id = NULL, body = ?, updated_at = ?
-		WHERE id = ? AND status = 'running'`,
-		string(value.Status()), string(write.Run.Body), encodeTime(value.UpdatedAt()), value.ID())
+		WHERE id = ? AND status = 'running' AND active_segment_id = ?`,
+		string(value.Status()), string(write.Run.Body), encodeTime(value.UpdatedAt()), value.ID(), write.ExpectedSegmentID)
 	if err != nil {
 		return fmt.Errorf("sqlite: park run: %w", err)
 	}

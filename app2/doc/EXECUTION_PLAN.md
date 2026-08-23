@@ -1,7 +1,7 @@
 # app2 重写执行计划
 
-> 当前阶段：R1 已完成，进入 R2 Workspace + Session。目标不是尽快产生大量文件，而是每轮完成一个可运行、可恢复、可验收的纵切，
-> 直到 app2 成为唯一实现并删除旧 `app`。
+> 当前阶段：R1 已完成，正在一次性实现 R2–R11 的 app2 Runtime/Desktop。按用户要求，全部代码写完后只做
+> 一轮统一测试、修复与 package；每个实现批次提交并推送，但未经过最终门禁前不冒充 `verified`。
 
 ## 1. 授权与边界
 
@@ -14,7 +14,7 @@
 - 吸收 Dougong/Oolong 的 AGENTS/CLAUDE 标准并形成 app2 自身标准；
 - 第一轮先产出文档，后续用文档控制节奏；
 - 每轮释放 agent-browser 等外部资源；
-- Runtime/Desktop 先行，随后继续迁移整个 app，直到彻底完成。
+- 当前目标止于 app2 Runtime/Desktop 全功能与独立交付；旧 app、CLI、入口切换与删除明确不在本轮授权内。
 
 旧 app 在迁移期默认只读。除非发现会妨碍行为对照的严重环境问题，不对旧实现继续做功能修补。
 
@@ -33,25 +33,25 @@
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
-| R11 | Runtime/Desktop 89/3/16 全量 parity、package、切换并删除旧 Runtime/Desktop | pending |
-| R12 | 迁移 `app` 的 CLI 与其余真实 consumer 到 app2 contract/core | pending |
-| R13 | 删除旧 app 残余、最终仓库门禁、goal 完成 | pending |
+| R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
+| R12 | 迁移 CLI/其余 consumer（deferred，本轮不实施） | deferred |
+| R13 | 切换与删除旧 app（deferred，本轮不实施） | deferred |
 
 阶段编号是能力依赖顺序，不是大批量分层开发。每个阶段内部仍按小纵切交付。
 
 ## 3. 每轮固定工作法
 
-每轮只能选择 `CAPABILITY_LEDGER.md` 中一个最小完整场景：
+实现阶段按依赖选择 `CAPABILITY_LEDGER.md` 中边界清晰的场景批次：
 
 1. **选场景**：写清用户意图、durable outcome、UI projection、失败和恢复路径；
 2. **核旧证据**：在隔离临时 HOME 中运行/阅读旧 app，记录语义，不复制实现；
-3. **写红例**：优先 domain/application；需要外边界时增加真实 SQLite/transport/Desktop scenario；
+3. **记录最终例证**：明确最终统一门禁需要覆盖的 domain/SQLite/transport/Desktop scenario；实现期不运行批次测试；
 4. **实现纵切**：domain → flow → store/adapter → protocol → Desktop context → UI；
 5. **删脚手架**：清除临时 adapter、重复 DTO、fallback、TODO、未用 export；
-6. **跑比例化门禁**：先定向，后受影响全量；触及恢复/transport/UI 时跑对应真实 smoke；
-7. **更新 owner 文档**：只更新语义/架构/合同/ledger/plan 中真正变化的 owner；
-8. **释放资源**：关闭进程、浏览器、watcher、端口和临时数据，并验证为零；
-9. **提交证据**：ledger 从 specified → implemented/verified，记录 intentional difference。
+6. **更新 owner 文档**：只更新语义/架构/合同/ledger/plan 中真正变化的 owner；
+7. **释放资源**：关闭进程、浏览器、watcher、端口和临时数据，并验证为零；
+8. **提交推送**：每个批次提交到当前 `codex/` 分支并推送；ledger 最多升到 `implemented`；
+9. **最终统一门禁**：全部生产代码完成后一次执行全矩阵、集中修复，再升为 `verified`。
 
 同一轮不得横向先建多个 context 的空目录，也不得以“后面再接 UI/恢复”宣称纵切完成。
 
@@ -329,17 +329,15 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 
 差异不自动判失败：每项裁决为 app2 defect、旧 bug 或 intentional breaking，并链接 ADR/ledger。
 
-### 切换
+### 本轮交付边界
 
-1. freeze 旧 Runtime/Desktop；
-2. fresh checkout 跑全部 gates 和 package/codesign；
-3. 产品入口一次改向 app2；
-4. 删除 `app/runtime`、`app/desktop` 及只为它们存在的生成物/脚本/依赖；
-5. 再跑全仓消费者检查，任何仍引用旧合同的 consumer 进入 R12，而非加 fallback。
+1. fresh checkout 跑全部 gates 和 package/codesign；
+2. 产出可独立运行的 app2 Runtime/Desktop 与验收证据；
+3. 保留旧 `app/runtime`、`app/desktop`、`app/cli` 和当前产品入口，不做切换或删除。
 
-## 16. R12–R13：整个 app 完成
+## 16. R12–R13：明确延期
 
-### R12
+### R12（本轮不实施）
 
 盘点并迁移 `app/cli` 与 `app/` 下其余真实入口：
 
@@ -350,7 +348,7 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - 每个 consumer 走同样的 capability/contract/recovery tests；
 - 删除已无 consumer 的旧公共 module surface。
 
-### R13
+### R13（本轮不实施）
 
 - `app/` 不再包含任何生产实现或引用；
 - old modules、docs、contract artifacts、scripts、fixtures、dependencies 全部证据化删除；
@@ -374,7 +372,7 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 | Wails/native | Go test/vet/build + Wails production package + launch/native dialog/chrome smoke |
 | Cutover | all above + isolated old/app2 semantic matrix + consumer/deadcode scan |
 
-全量 race/visual/package 不机械地每小轮都跑；按风险升级。但阶段退出和 R11/R13 必须跑完整矩阵。
+实现批次不运行局部门禁；全部生产代码完成后，在 R11 统一执行完整矩阵并集中修复。
 
 ## 18. 数据与环境隔离
 
@@ -407,4 +405,5 @@ MCP/LSP 或持久 watcher；因此没有外部运行资源需要释放。
 - 一个抽象只有一个实现和一个调用点时默认内联，除非它承担明确边界或测试 seam；
 - 每阶段做一次 evidence-backed entropy audit，删除无 producer/consumer/发布义务的新增表面；
 - 旧 app 新增的能力必须先登记到 ledger，再决定进入当前阶段或后续阶段；不能静默漏掉；
-- goal 不因某一阶段完成、预算或时间而结束；只有 R13 完成才结束。
+- 当前 goal 不因某一实现批次、预算或时间而结束；只有 R11 的 app2 Runtime/Desktop 全量统一门禁与独立
+  package 完成才结束。R12/R13 是后续目标，不能在本轮提前实施。

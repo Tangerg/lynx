@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"sync"
 
 	"github.com/Tangerg/lynx/app2/runtime/boundarymeta"
 	"github.com/Tangerg/lynx/app2/runtime/capabilityflow"
@@ -39,6 +40,7 @@ type Runtime struct {
 	tools *toolflow.Service
 	operations *operationsflow.Service
 	events    *runtimeevents.Bus
+	closeOnce sync.Once
 }
 
 type Config struct {
@@ -459,9 +461,12 @@ func (runtime *Runtime) UsageSummary(ctx context.Context, request protocol.Usage
 func (runtime *Runtime) CreateFeedback(ctx context.Context, request protocol.FeedbackRequest) error { return runtime.operations.Feedback(ctx,request) }
 
 func (runtime *Runtime) Close() {
-	runtime.settings.Close()
-	runtime.runs.Close()
-	runtime.mcp.Close()
-	runtime.codebase.Close()
-	runtime.events.Close()
+	if runtime == nil { return }
+	runtime.closeOnce.Do(func() {
+		runtime.settings.Close()
+		runtime.runs.Close()
+		runtime.mcp.Close()
+		runtime.codebase.Close()
+		runtime.events.Close()
+	})
 }

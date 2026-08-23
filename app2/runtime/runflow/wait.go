@@ -19,6 +19,7 @@ import (
 
 type WaitWrite struct {
 	Run         rundomain.Record
+	ExpectedSegmentID string
 	Items       []transcript.Record
 	Messages    []conversationdomain.Record
 	ToolResults []toolresult.Record
@@ -78,7 +79,7 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 		return err
 	}
 	items := append(projection.items, storedItem)
-	if err := service.store.CommitWait(ctx, WaitWrite{Run: record, Items: items, Messages: projection.messages, ToolResults: projection.results, Interrupts: set, Checkpoint: waiting.Checkpoint, Events: persisted}); err != nil {
+	if err := service.store.CommitWait(ctx, WaitWrite{Run: record, ExpectedSegmentID: segmentID, Items: items, Messages: projection.messages, ToolResults: projection.results, Interrupts: set, Checkpoint: waiting.Checkpoint, Events: persisted}); err != nil {
 		return err
 	}
 	for _, event := range events { service.hub.PublishRun(event) }
