@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { RuntimeConnection, WorkspaceRef } from "@lyra/runtime-contract";
 
+import { useLocalization, type MessageKey } from "../localization/Localization";
 import { MCPSettings } from "./MCPSettings";
 import { ApprovalSettings } from "./ApprovalSettings";
 import { ProviderModelSettings } from "./ProviderModelSettings";
@@ -21,52 +22,26 @@ interface SettingsSurfaceProps {
 	onRuntimeChanged: () => Promise<void>;
 }
 
-type SettingsPage =
-	| "appearance"
-	| "runtime"
-	| "providers"
-	| "mcp"
-	| "approvals"
-	| "schedules"
-	| "hooks"
-	| "usage";
+const settingsPages = [
+	{ id: "appearance", icon: "◐", title: "settings.page.appearance.title", description: "settings.page.appearance.description" },
+	{ id: "runtime", icon: "⇄", title: "settings.page.runtime.title", description: "settings.page.runtime.description" },
+	{ id: "providers", icon: "◫", title: "settings.page.providers.title", description: "settings.page.providers.description" },
+	{ id: "mcp", icon: "⌘", title: "settings.page.mcp.title", description: "settings.page.mcp.description" },
+	{ id: "approvals", icon: "✓", title: "settings.page.approvals.title", description: "settings.page.approvals.description" },
+	{ id: "schedules", icon: "◷", title: "settings.page.schedules.title", description: "settings.page.schedules.description" },
+	{ id: "hooks", icon: "⌁", title: "settings.page.hooks.title", description: "settings.page.hooks.description" },
+	{ id: "usage", icon: "∑", title: "settings.page.usage.title", description: "settings.page.usage.description" },
+] as const satisfies ReadonlyArray<{
+	id: string;
+	icon: string;
+	title: MessageKey;
+	description: MessageKey;
+}>;
 
-const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
-	appearance: {
-		title: "Appearance",
-		description: "Choose a durable theme and accent without changing application semantics.",
-	},
-	runtime: {
-		title: "Runtime connection",
-		description: "Switch between the supervised local Runtime and one verified remote deployment.",
-	},
-	providers: {
-		title: "Models & providers",
-		description: "Connect model providers and assign optional Runtime-wide model roles.",
-	},
-	mcp: {
-		title: "MCP servers",
-		description: "Own external tool connections, authorization, and tool-level trust explicitly.",
-	},
-	approvals: {
-		title: "Approval policy",
-		description: "Choose the live effect stance and manage remembered decisions visible to this session.",
-	},
-	schedules: {
-		title: "Schedules",
-		description: "Create recurring Runs with durable cadence, explicit workspace intent, and recoverable firing.",
-	},
-	hooks: {
-		title: "Lifecycle hooks",
-		description: "Review user and project automation before deciding which project hooks may execute.",
-	},
-	usage: {
-		title: "Usage",
-		description: "Inspect authoritative terminal Run usage without inventing prices the Runtime does not know.",
-	},
-};
+type SettingsPage = (typeof settingsPages)[number]["id"];
 
 export function SettingsSurface(props: SettingsSurfaceProps) {
+	const { t } = useLocalization();
 	const [page, setPage] = useState<SettingsPage>("appearance");
 	const surface = useRef<HTMLElement>(null);
 	const closeButton = useRef<HTMLButtonElement>(null);
@@ -103,12 +78,13 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 			window.removeEventListener("keydown", handleDialogKey);
 			window.requestAnimationFrame(() => {
 				const trigger = document.querySelector<HTMLButtonElement>(
-					'button[aria-label="Open settings"]',
+					'button[data-settings-trigger="true"]',
 				);
 				trigger?.focus();
 			});
 		};
 	}, []);
+	const activePage = settingsPages.find((candidate) => candidate.id === page) ?? settingsPages[0];
 
 	return (
 		<section
@@ -120,89 +96,36 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 		>
 			<aside className="settings-nav">
 				<header>
-					<span className="eyebrow">Lyra Desktop</span>
-					<h2>Settings</h2>
+					<span className="eyebrow">{t("settings.desktopBrand")}</span>
+					<h2>{t("settings.title")}</h2>
 				</header>
-				<nav aria-label="Settings sections">
-					<button
-						type="button"
-						aria-current={page === "appearance" ? "page" : undefined}
-						onClick={() => setPage("appearance")}
-					>
-						<span aria-hidden="true">◐</span>
-						Appearance
-					</button>
-					<button
-						type="button"
-						aria-current={page === "runtime" ? "page" : undefined}
-						onClick={() => setPage("runtime")}
-					>
-						<span aria-hidden="true">⇄</span>
-						Runtime connection
-					</button>
-					<button
-						type="button"
-						aria-current={page === "providers" ? "page" : undefined}
-						onClick={() => setPage("providers")}
-					>
-						<span aria-hidden="true">◫</span>
-						Models & providers
-					</button>
-					<button
-						type="button"
-						aria-current={page === "mcp" ? "page" : undefined}
-						onClick={() => setPage("mcp")}
-					>
-						<span aria-hidden="true">⌘</span>
-						MCP servers
-					</button>
-					<button
-						type="button"
-						aria-current={page === "approvals" ? "page" : undefined}
-						onClick={() => setPage("approvals")}
-					>
-						<span aria-hidden="true">✓</span>
-						Approval policy
-					</button>
-					<button
-						type="button"
-						aria-current={page === "schedules" ? "page" : undefined}
-						onClick={() => setPage("schedules")}
-					>
-						<span aria-hidden="true">◷</span>
-						Schedules
-					</button>
-					<button
-						type="button"
-						aria-current={page === "hooks" ? "page" : undefined}
-						onClick={() => setPage("hooks")}
-					>
-						<span aria-hidden="true">⌁</span>
-						Lifecycle hooks
-					</button>
-					<button
-						type="button"
-						aria-current={page === "usage" ? "page" : undefined}
-						onClick={() => setPage("usage")}
-					>
-						<span aria-hidden="true">∑</span>
-						Usage
-					</button>
+				<nav aria-label={t("settings.sections")}>
+					{settingsPages.map((candidate) => (
+						<button
+							key={candidate.id}
+							type="button"
+							aria-current={page === candidate.id ? "page" : undefined}
+							onClick={() => setPage(candidate.id)}
+						>
+							<span aria-hidden="true">{candidate.icon}</span>
+							{t(candidate.title)}
+						</button>
+					))}
 				</nav>
-				<p>Appearance stays local. Runtime state remains the authority after every mutation.</p>
+				<p>{t("settings.authorityNote")}</p>
 			</aside>
 			<div className="settings-content">
 				<header className="settings-heading">
 					<div>
-						<span className="eyebrow">Desktop settings</span>
-						<h1 id="settings-title">{pageCopy[page].title}</h1>
-						<p>{pageCopy[page].description}</p>
+						<span className="eyebrow">{t("settings.desktopSettings")}</span>
+						<h1 id="settings-title">{t(activePage.title)}</h1>
+						<p>{t(activePage.description)}</p>
 					</div>
 					<button
 						ref={closeButton}
 						className="settings-close"
 						type="button"
-						aria-label="Close settings"
+						aria-label={t("settings.close")}
 						onClick={props.onClose}
 					>
 						<span aria-hidden="true">×</span>

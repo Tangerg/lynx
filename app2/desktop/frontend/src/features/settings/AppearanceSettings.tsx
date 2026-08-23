@@ -2,21 +2,25 @@ import {
   accents,
   themes,
   useShellPreferences,
+  type AccentPreference,
+  type ThemePreference,
 } from "../preferences/ShellPreferences";
+import { useLocalization } from "../localization/Localization";
 
 export function AppearanceSettings() {
   const preferences = useShellPreferences();
+  const { t } = useLocalization();
   return (
     <div className="appearance-settings">
       <section className="settings-section" aria-labelledby="appearance-theme-title">
         <header>
           <div>
-            <h2 id="appearance-theme-title">Color theme</h2>
-            <p>Choose a static Lyra palette or follow the operating system.</p>
+            <h2 id="appearance-theme-title">{t("settings.appearance.theme")}</h2>
+            <p>{t("settings.appearance.themeDetail")}</p>
           </div>
-          <span className="appearance-scheme">{preferences.resolvedTheme}</span>
+          <span className="appearance-scheme">{t(themeName(preferences.resolvedTheme))}</span>
         </header>
-        <div className="theme-options" role="radiogroup" aria-label="Color theme">
+        <div className="theme-options" role="radiogroup" aria-label={t("settings.appearance.theme")}>
           {themes.map((theme) => (
             <button
               key={theme.id}
@@ -31,8 +35,8 @@ export function AppearanceSettings() {
                 <i />
                 <i />
               </span>
-              <strong>{theme.label}</strong>
-              <small>{theme.detail}</small>
+              <strong>{t(themeName(theme.id))}</strong>
+              <small>{t(themeDetail(theme.id))}</small>
             </button>
           ))}
         </div>
@@ -40,11 +44,11 @@ export function AppearanceSettings() {
       <section className="settings-section" aria-labelledby="appearance-accent-title">
         <header>
           <div>
-            <h2 id="appearance-accent-title">Accent</h2>
-            <p>One functional color for focus, progress, links, and primary actions.</p>
+            <h2 id="appearance-accent-title">{t("settings.appearance.accent")}</h2>
+            <p>{t("settings.appearance.accentDetail")}</p>
           </div>
         </header>
-        <div className="accent-options" role="radiogroup" aria-label="Accent color">
+        <div className="accent-options" role="radiogroup" aria-label={t("settings.appearance.accentColor")}>
           {accents.map((accent) => (
             <button
               key={accent.id}
@@ -55,11 +59,36 @@ export function AppearanceSettings() {
               onClick={() => preferences.setAccent(accent.id)}
             >
               <span aria-hidden="true" />
-              {accent.label}
+              {t(accentName(accent.id))}
             </button>
           ))}
         </div>
       </section>
     </div>
   );
+}
+
+function themeName(theme: ThemePreference) {
+  switch (theme) {
+    case "system": return "settings.appearance.theme.system.name" as const;
+    case "linen": return "settings.appearance.theme.linen.name" as const;
+    case "graphite": return "settings.appearance.theme.graphite.name" as const;
+  }
+}
+
+function themeDetail(theme: ThemePreference) {
+  switch (theme) {
+    case "system": return "settings.appearance.theme.system.detail" as const;
+    case "linen": return "settings.appearance.theme.linen.detail" as const;
+    case "graphite": return "settings.appearance.theme.graphite.detail" as const;
+  }
+}
+
+function accentName(accent: AccentPreference) {
+  switch (accent) {
+    case "ember": return "settings.appearance.accent.ember" as const;
+    case "ocean": return "settings.appearance.accent.ocean" as const;
+    case "forest": return "settings.appearance.accent.forest" as const;
+    case "violet": return "settings.appearance.accent.violet" as const;
+  }
 }

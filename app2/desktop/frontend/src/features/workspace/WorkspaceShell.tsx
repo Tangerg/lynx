@@ -374,6 +374,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           </div>
 		  <div className="work-index-actions window-no-drag">
 			<button
+			  data-settings-trigger="true"
 			  className="icon-action"
 			  type="button"
 			  aria-label={t("shell.openSettings")}

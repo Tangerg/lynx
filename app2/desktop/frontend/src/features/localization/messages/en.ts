@@ -723,4 +723,158 @@ export const englishMessages = {
   "memory.fromSession": "From session",
   "memory.byteCount": "{used} / {limit} bytes",
   "memory.operationFailed": "Agent Memory operation failed.",
+
+  "settings.desktopBrand": "Lyra Desktop",
+  "settings.title": "Settings",
+  "settings.sections": "Settings sections",
+  "settings.authorityNote":
+    "Appearance stays local. Runtime state remains the authority after every mutation.",
+  "settings.desktopSettings": "Desktop settings",
+  "settings.close": "Close settings",
+  "settings.page.appearance.title": "Appearance",
+  "settings.page.appearance.description":
+    "Choose a durable theme and accent without changing application semantics.",
+  "settings.page.runtime.title": "Runtime connection",
+  "settings.page.runtime.description":
+    "Switch between the supervised local Runtime and one verified remote deployment.",
+  "settings.page.providers.title": "Models & providers",
+  "settings.page.providers.description":
+    "Connect model providers and assign optional Runtime-wide model roles.",
+  "settings.page.mcp.title": "MCP servers",
+  "settings.page.mcp.description":
+    "Own external tool connections, authorization, and tool-level trust explicitly.",
+  "settings.page.approvals.title": "Approval policy",
+  "settings.page.approvals.description":
+    "Choose the live effect stance and manage remembered decisions visible to this session.",
+  "settings.page.schedules.title": "Schedules",
+  "settings.page.schedules.description":
+    "Create recurring Runs with durable cadence, explicit workspace intent, and recoverable firing.",
+  "settings.page.hooks.title": "Lifecycle hooks",
+  "settings.page.hooks.description":
+    "Review user and project automation before deciding which project hooks may execute.",
+  "settings.page.usage.title": "Usage",
+  "settings.page.usage.description":
+    "Inspect authoritative terminal Run usage without inventing prices the Runtime does not know.",
+
+  "settings.appearance.theme": "Color theme",
+  "settings.appearance.themeDetail":
+    "Choose a static Lyra palette or follow the operating system.",
+  "settings.appearance.theme.system.name": "Follow system",
+  "settings.appearance.theme.system.detail":
+    "Switch with your operating system.",
+  "settings.appearance.theme.linen.name": "Linen",
+  "settings.appearance.theme.linen.detail":
+    "Warm, quiet surfaces for daylight.",
+  "settings.appearance.theme.graphite.name": "Graphite",
+  "settings.appearance.theme.graphite.detail":
+    "Low-glare dark surfaces for focused work.",
+  "settings.appearance.accent": "Accent",
+  "settings.appearance.accentDetail":
+    "One functional color for focus, progress, links, and primary actions.",
+  "settings.appearance.accentColor": "Accent color",
+  "settings.appearance.accent.ember": "Ember",
+  "settings.appearance.accent.ocean": "Ocean",
+  "settings.appearance.accent.forest": "Forest",
+  "settings.appearance.accent.violet": "Violet",
+
+  "settings.runtime.tryAgain": "Try again",
+  "settings.runtime.loading": "Loading Runtime connection…",
+  "settings.runtime.status.remoteActive": "Remote active",
+  "settings.runtime.status.remoteUnavailable": "Remote unavailable",
+  "settings.runtime.status.localActive": "Local active",
+  "settings.runtime.active": "Active Runtime",
+  "settings.runtime.activeDetail":
+    "Desktop changes deployment targets without changing Lyra Protocol.",
+  "settings.runtime.target": "Target",
+  "settings.runtime.remote": "Remote Runtime",
+  "settings.runtime.local": "Local Runtime",
+  "settings.runtime.endpoint": "Endpoint",
+  "settings.runtime.privateLoopback": "Private loopback",
+  "settings.runtime.useLocal": "Use local Runtime",
+  "settings.runtime.useSavedRemote": "Use saved remote",
+  "settings.runtime.remoteDetail":
+    "HTTPS origin and bearer secret are verified before the profile becomes active.",
+  "settings.runtime.httpsOrigin": "HTTPS origin",
+  "settings.runtime.bearerSecret": "Bearer secret",
+  "settings.runtime.replacementSecret": "Enter a replacement secret",
+  "settings.runtime.keyringSecret": "Stored in the system keyring",
+  "settings.runtime.secretNote": "Secrets never enter the persisted profile.",
+  "settings.runtime.connecting": "Connecting…",
+  "settings.runtime.replace": "Replace connection",
+  "settings.runtime.connect": "Connect remote",
+  "settings.runtime.forgetTitle": "Forget remote profile",
+  "settings.runtime.forgetDetail":
+    "Remove the saved endpoint identity and bearer secret from this device.",
+  "settings.runtime.irreversible": "This cannot be undone.",
+  "settings.runtime.keep": "Keep profile",
+  "settings.runtime.forgetRemote": "Forget remote",
+  "settings.runtime.forget": "Forget…",
+  "settings.runtime.failed": "Runtime connection failed.",
+
+  "settings.approval.effectStance": "Effect stance",
+  "settings.approval.effectStanceDetail":
+    "The Runtime reads this setting at every tool effect, including Runs already in progress.",
+  "settings.approval.loadingMode": "Loading approval mode…",
+  "settings.approval.tryAgain": "Try again",
+  "settings.approval.mode.safe.name": "Safe",
+  "settings.approval.mode.safe.description":
+    "Confirm workspace writes, command execution, and network access.",
+  "settings.approval.mode.safe.badge": "Most review",
+  "settings.approval.mode.balanced.name": "Balanced",
+  "settings.approval.mode.balanced.description":
+    "Confirm command execution; allow ordinary writes and network tools.",
+  "settings.approval.mode.balanced.badge": "Default",
+  "settings.approval.mode.yolo.name": "Yolo",
+  "settings.approval.mode.yolo.description":
+    "Allow ordinary effects without prompts. Catastrophic commands still require review.",
+  "settings.approval.mode.yolo.badge": "Least review",
+  "settings.approval.remembered": "Remembered decisions",
+  "settings.approval.rememberedDetail":
+    "Session rules take priority over project rules, then global rules. Equal conflicts deny.",
+  "settings.approval.visibleCount": "{count} visible",
+  "settings.approval.selectSession":
+    "Select a session in the Work Index to inspect its visible rules.",
+  "settings.approval.loadingRules": "Loading remembered decisions…",
+  "settings.approval.empty":
+    "No remembered decisions are visible to this session.",
+  "settings.approval.everyInvocation": "Every invocation",
+  "settings.approval.forgetQuestion": "Forget this decision?",
+  "settings.approval.cancel": "Cancel",
+  "settings.approval.forgetting": "Forgetting…",
+  "settings.approval.forget": "Forget",
+  "settings.approval.projectPath": "Project · {path}",
+  "settings.approval.scope.session": "This session",
+  "settings.approval.scope.project": "This project",
+  "settings.approval.scope.global": "Everywhere",
+  "settings.approval.decision.approve": "approve",
+  "settings.approval.decision.deny": "deny",
+  "settings.approval.requestFailed": "The Runtime request failed.",
+
+  "settings.usage.runtime": "Runtime usage",
+  "settings.usage.runtimeDetail":
+    "Finished Run facts grouped by their exact provider and model identity.",
+  "settings.usage.period": "Usage period",
+  "settings.usage.sevenDays": "7 days",
+  "settings.usage.thirtyDays": "30 days",
+  "settings.usage.allTime": "All time",
+  "settings.usage.loading": "Loading usage…",
+  "settings.usage.retry": "Retry",
+  "settings.usage.tokens": "Tokens",
+  "settings.usage.cost": "Cost",
+  "settings.usage.runs": "Runs",
+  "settings.usage.sessions": "Sessions",
+  "settings.usage.models": "Models",
+  "settings.usage.costNote":
+    "Cost is shown only when every contributing Run has known pricing.",
+  "settings.usage.providers": "Providers",
+  "settings.usage.days": "Days",
+  "settings.usage.selectedSession": "Selected session",
+  "settings.usage.selectedSessionDetail":
+    "All finished Runs currently owned by the mounted Session.",
+  "settings.usage.selectSession": "Select a Session to inspect its usage.",
+  "settings.usage.loadingSession": "Loading Session usage…",
+  "settings.usage.runCountOne": "{count} run",
+  "settings.usage.runCountMany": "{count} runs",
+  "settings.usage.unknown": "Unknown",
+  "settings.usage.loadFailed": "Usage could not be loaded.",
 } as const;

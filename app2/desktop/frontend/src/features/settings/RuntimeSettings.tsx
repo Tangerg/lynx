@@ -8,12 +8,14 @@ import {
   useRemoteRuntime,
   type RemoteRuntimeState,
 } from "../../runtime/desktopBridge";
+import { useLocalization, type Translate } from "../localization/Localization";
 
 export function RuntimeSettings({
   onRuntimeChanged,
 }: {
   onRuntimeChanged(): Promise<void>;
 }) {
+  const { t } = useLocalization();
   const [state, setState] = useState<RemoteRuntimeState>();
   const [endpoint, setEndpoint] = useState("");
   const [token, setToken] = useState("");
@@ -31,9 +33,9 @@ export function RuntimeSettings({
       setState(value);
       setEndpoint(value.endpoint ?? "");
     } catch (failure) {
-      if (mounted.current) setError(messageOf(failure));
+      if (mounted.current) setError(messageOf(failure, t));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let current = true;
@@ -44,12 +46,12 @@ export function RuntimeSettings({
         setEndpoint(value.endpoint ?? "");
       })
       .catch((failure) => {
-        if (current) setError(messageOf(failure));
+        if (current) setError(messageOf(failure, t));
       });
     return () => {
       current = false;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     mounted.current = true;
@@ -75,7 +77,7 @@ export function RuntimeSettings({
       }
       if (reconnect) await onRuntimeChanged();
     } catch (failure) {
-      if (mounted.current) setError(messageOf(failure));
+      if (mounted.current) setError(messageOf(failure, t));
     } finally {
       operationInFlight.current = false;
       if (mounted.current) setPending(false);
@@ -89,11 +91,11 @@ export function RuntimeSettings({
           <>
             <p role="alert">{error}</p>
             <button type="button" onClick={() => void load()}>
-              Try again
+              {t("settings.runtime.tryAgain")}
             </button>
           </>
         ) : (
-          <p>Loading Runtime connection…</p>
+          <p>{t("settings.runtime.loading")}</p>
         )}
       </div>
     );
@@ -101,9 +103,9 @@ export function RuntimeSettings({
 
   const connectedLabel = state.active
     ? state.connected
-      ? "Remote active"
-      : "Remote unavailable"
-    : "Local active";
+      ? t("settings.runtime.status.remoteActive")
+      : t("settings.runtime.status.remoteUnavailable")
+    : t("settings.runtime.status.localActive");
 
   return (
     <div className="runtime-settings">
@@ -113,10 +115,8 @@ export function RuntimeSettings({
       >
         <header>
           <div>
-            <h2 id="runtime-active-title">Active Runtime</h2>
-            <p>
-              Desktop changes deployment targets without changing Lyra Protocol.
-            </p>
+            <h2 id="runtime-active-title">{t("settings.runtime.active")}</h2>
+            <p>{t("settings.runtime.activeDetail")}</p>
           </div>
           <span
             className="runtime-state-chip"
@@ -128,16 +128,16 @@ export function RuntimeSettings({
         <div className="runtime-connection-card">
           <dl>
             <div>
-              <dt>Target</dt>
+              <dt>{t("settings.runtime.target")}</dt>
               <dd>
                 {state.active
-                  ? state.serverName || "Remote Runtime"
-                  : "Local Runtime"}
+                  ? state.serverName || t("settings.runtime.remote")
+                  : t("settings.runtime.local")}
               </dd>
             </div>
             <div>
-              <dt>Endpoint</dt>
-              <dd>{state.active ? state.endpoint : "Private loopback"}</dd>
+              <dt>{t("settings.runtime.endpoint")}</dt>
+              <dd>{state.active ? state.endpoint : t("settings.runtime.privateLoopback")}</dd>
             </div>
           </dl>
           <div className="runtime-connection-actions">
@@ -147,7 +147,7 @@ export function RuntimeSettings({
                 disabled={pending}
                 onClick={() => void mutate(useLocalRuntime, true)}
               >
-                Use local Runtime
+                {t("settings.runtime.useLocal")}
               </button>
             ) : state.configured ? (
               <button
@@ -155,7 +155,7 @@ export function RuntimeSettings({
                 disabled={pending}
                 onClick={() => void mutate(useRemoteRuntime, true)}
               >
-                Use saved remote
+                {t("settings.runtime.useSavedRemote")}
               </button>
             ) : null}
           </div>
@@ -168,11 +168,8 @@ export function RuntimeSettings({
       <section className="settings-section" aria-labelledby="runtime-remote-title">
         <header>
           <div>
-            <h2 id="runtime-remote-title">Remote Runtime</h2>
-            <p>
-              HTTPS origin and bearer secret are verified before the profile
-              becomes active.
-            </p>
+            <h2 id="runtime-remote-title">{t("settings.runtime.remote")}</h2>
+            <p>{t("settings.runtime.remoteDetail")}</p>
           </div>
         </header>
         <form
@@ -186,7 +183,7 @@ export function RuntimeSettings({
           }}
         >
           <label>
-            <span>HTTPS origin</span>
+            <span>{t("settings.runtime.httpsOrigin")}</span>
             <input
               type="url"
               inputMode="url"
@@ -198,7 +195,7 @@ export function RuntimeSettings({
             />
           </label>
           <label>
-            <span>Bearer secret</span>
+            <span>{t("settings.runtime.bearerSecret")}</span>
             <input
               type="password"
               autoComplete="new-password"
@@ -206,24 +203,24 @@ export function RuntimeSettings({
               minLength={16}
               placeholder={
                 state.configured
-                  ? "Enter a replacement secret"
-                  : "Stored in the system keyring"
+                  ? t("settings.runtime.replacementSecret")
+                  : t("settings.runtime.keyringSecret")
               }
               value={token}
               onChange={(event) => setToken(event.target.value)}
             />
           </label>
           <footer>
-            <span>Secrets never enter the persisted profile.</span>
+            <span>{t("settings.runtime.secretNote")}</span>
             <button
               type="submit"
               disabled={pending || endpoint.trim() === "" || token.length < 16}
             >
               {pending
-                ? "Connecting…"
+                ? t("settings.runtime.connecting")
                 : state.configured
-                  ? "Replace connection"
-                  : "Connect remote"}
+                  ? t("settings.runtime.replace")
+                  : t("settings.runtime.connect")}
             </button>
           </footer>
         </form>
@@ -236,23 +233,20 @@ export function RuntimeSettings({
         >
           <header>
             <div>
-              <h2 id="runtime-forget-title">Forget remote profile</h2>
-              <p>
-                Remove the saved endpoint identity and bearer secret from this
-                device.
-              </p>
+              <h2 id="runtime-forget-title">{t("settings.runtime.forgetTitle")}</h2>
+              <p>{t("settings.runtime.forgetDetail")}</p>
             </div>
           </header>
           <div>
             {confirmForget ? (
               <>
-                <span>This cannot be undone.</span>
+                <span>{t("settings.runtime.irreversible")}</span>
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => setConfirmForget(false)}
                 >
-                  Keep profile
+                  {t("settings.runtime.keep")}
                 </button>
                 <button
                   className="danger-action"
@@ -260,7 +254,7 @@ export function RuntimeSettings({
                   disabled={pending}
                   onClick={() => void mutate(forgetRemoteRuntime, state.active)}
                 >
-                  Forget remote
+                  {t("settings.runtime.forgetRemote")}
                 </button>
               </>
             ) : (
@@ -269,7 +263,7 @@ export function RuntimeSettings({
                 disabled={pending}
                 onClick={() => setConfirmForget(true)}
               >
-                Forget…
+                {t("settings.runtime.forget")}
               </button>
             )}
           </div>
@@ -284,6 +278,6 @@ export function RuntimeSettings({
   );
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "Runtime connection failed.";
+function messageOf(error: unknown, t: Translate) {
+  return error instanceof Error ? error.message : t("settings.runtime.failed");
 }

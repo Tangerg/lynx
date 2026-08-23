@@ -869,6 +869,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - Skill name/scope/revision/instructions、Memory content/origin identity、proposal decision 与 query keys 保持 Runtime canonical value；翻译不改变 proposal approval、managed lifecycle、Memory convergence refresh 或 abort owner；
 - Resources production copy 已闭合，后续只剩 Settings surface、dictionary/locale owner/selector 与 RTL/CSS 收口；U22 仍保持 `in_progress`。
 
+### R10d5a Shell / Runtime / Approval / Usage settings language 实现记录（尚未统一验证）
+
+- Settings shell/navigation、Appearance、Runtime connection、Approval policy/remembered rules 与 Usage 已迁入 typed localization boundary；导航元数据只保留一份 semantic key，theme/accent preference 只保存稳定 ID，显示名称和帮助文本不再混入 preference model；
+- Runtime endpoint/server、provider/model、rule tool/subject/path 与 Runtime error detail 保持 canonical 原值；仅 known connection/mode/scope/decision 经显式 display resolver 映射。Usage 的 compact count 与 USD presentation 使用 active locale formatter，但不推导 Runtime 未提供的价格；
+- Settings trigger 使用稳定 data identity 恢复焦点，不再依赖翻译后的 aria-label。Provider/MCP/Hooks/Schedules 仍是下一 bounded 批；dictionary/locale owner/selector 与 RTL/CSS 未闭合前 U22 继续保持 `in_progress`。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

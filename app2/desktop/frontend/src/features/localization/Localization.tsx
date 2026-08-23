@@ -16,7 +16,7 @@ interface LocalizationContextValue {
   locale: "en";
   direction: "ltr";
   t: Translate;
-  formatNumber(value: number): string;
+  formatNumber(value: number, options?: Intl.NumberFormatOptions): string;
   formatDateTime(value: Date, options?: Intl.DateTimeFormatOptions): string;
 }
 
@@ -54,7 +54,8 @@ function createLocalization(): LocalizationContextValue {
     locale,
     direction: "ltr",
     t: translateEnglish,
-    formatNumber: (value) => new Intl.NumberFormat(locale).format(value),
+    formatNumber: (value, options) =>
+      new Intl.NumberFormat(locale, options).format(value),
     formatDateTime: (value, options) =>
       new Intl.DateTimeFormat(locale, options).format(value),
   };

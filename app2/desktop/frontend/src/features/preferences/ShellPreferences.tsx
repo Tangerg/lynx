@@ -11,24 +11,16 @@ import {
 import "./theme.css";
 
 export const themes = [
-  {
-    id: "system",
-    label: "Follow system",
-    detail: "Switch with your operating system.",
-  },
-  { id: "linen", label: "Linen", detail: "Warm, quiet surfaces for daylight." },
-  {
-    id: "graphite",
-    label: "Graphite",
-    detail: "Low-glare dark surfaces for focused work.",
-  },
+  { id: "system" },
+  { id: "linen" },
+  { id: "graphite" },
 ] as const;
 
 export const accents = [
-  { id: "ember", label: "Ember" },
-  { id: "ocean", label: "Ocean" },
-  { id: "forest", label: "Forest" },
-  { id: "violet", label: "Violet" },
+  { id: "ember" },
+  { id: "ocean" },
+  { id: "forest" },
+  { id: "violet" },
 ] as const;
 
 export type ThemePreference = (typeof themes)[number]["id"];
