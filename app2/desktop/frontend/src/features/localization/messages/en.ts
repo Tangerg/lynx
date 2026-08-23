@@ -8,6 +8,27 @@ export const englishMessages = {
   "app.switchingRuntime": "Switching…",
   "app.unknownStartupError": "An unknown error interrupted startup.",
 
+  "runtimeError.invalidRuntimeBootstrap":
+    "Desktop returned an invalid Runtime bootstrap.",
+  "runtimeError.unsafeRuntimeEndpoint":
+    "Desktop returned an unsafe Runtime endpoint.",
+  "runtimeError.hostUnavailable": "Lyra Desktop host is unavailable.",
+  "runtimeError.invalidBootstrapEnvelope":
+    "Desktop returned an invalid bootstrap envelope.",
+  "runtimeError.invalidRemoteRuntimeState":
+    "Desktop returned an invalid remote Runtime state.",
+  "runtimeError.inconsistentRemoteRuntimeState":
+    "Desktop returned an inconsistent remote Runtime state.",
+  "runtimeError.invalidDirectorySelection":
+    "Desktop returned an invalid directory selection.",
+  "runtimeError.invalidImageSaveResult":
+    "Desktop returned an invalid image save result.",
+  "runtimeError.invalidSessionArtifactSelection":
+    "Desktop returned an invalid session artifact selection.",
+  "runtimeError.invalidSessionExportResult":
+    "Desktop returned an invalid session export result.",
+  "runtimeError.identityChanged": "Runtime identity changed during discovery.",
+
   "approval.title": "Approval",
   "approval.toolExecution": "Tool execution",
   "approval.risk": "{risk} risk",

@@ -76,6 +76,15 @@ import {
   type WorkspaceFileChange,
 } from "@lyra/runtime-contract";
 
+export type RuntimeDiscoveryErrorCode = "identityChanged";
+
+export class RuntimeDiscoveryError extends Error {
+  constructor(readonly code: RuntimeDiscoveryErrorCode) {
+    super(code);
+    this.name = "RuntimeDiscoveryError";
+  }
+}
+
 const clientMeta: RequestMeta = {
   protocolVersion,
   clientInfo: { name: "lyra-desktop-app2", version: "0.0.0" },
@@ -277,7 +286,7 @@ export async function discoverRuntime(
     response.capabilities.limits.idempotency.namespace !==
       connection.idempotencyNamespace
   ) {
-    throw new Error("Runtime identity changed during discovery");
+    throw new RuntimeDiscoveryError("identityChanged");
   }
   return response;
 }

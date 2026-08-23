@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { CreateSessionRequest, Session } from "@lyra/runtime-contract";
 
 import { useLocalization } from "../localization/Localization";
+import { presentRuntimeError } from "../localization/presentRuntimeError";
 import { chooseDirectory } from "../../runtime/desktopBridge";
 import { compactPath } from "./sessionPresentation";
 
@@ -133,7 +134,7 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
 			</span>
 		  </button>
           {error ? (
-            <p role="alert">{messageOf(error, t("session.createFailed"))}</p>
+            <p role="alert">{presentRuntimeError(error, t("session.createFailed"), t)}</p>
           ) : null}
         </section>
     </div>
@@ -165,8 +166,4 @@ function useDropdownClosing(open: boolean): boolean {
   }, [open]);
 
   return closing;
-}
-
-function messageOf(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }

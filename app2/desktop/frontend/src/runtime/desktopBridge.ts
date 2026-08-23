@@ -11,6 +11,25 @@ export interface DesktopBinding {
   call(method: string, ...parameters: unknown[]): Promise<unknown>;
 }
 
+export type DesktopBridgeErrorCode =
+  | "invalidRuntimeBootstrap"
+  | "unsafeRuntimeEndpoint"
+  | "hostUnavailable"
+  | "invalidBootstrapEnvelope"
+  | "invalidRemoteRuntimeState"
+  | "inconsistentRemoteRuntimeState"
+  | "invalidDirectorySelection"
+  | "invalidImageSaveResult"
+  | "invalidSessionArtifactSelection"
+  | "invalidSessionExportResult";
+
+export class DesktopBridgeError extends TypeError {
+  constructor(readonly code: DesktopBridgeErrorCode) {
+    super(code);
+    this.name = "DesktopBridgeError";
+  }
+}
+
 const bootstrapMethod = "main.DesktopHost.Bootstrap";
 const chooseDirectoryMethod = "main.NativeHost.ChooseDirectory";
 const saveImageMethod = "main.NativeHost.SaveImage";
@@ -81,7 +100,7 @@ function parseConnection(value: unknown): RuntimeConnection {
     !Number.isSafeInteger(value.generation) ||
     (value.generation as number) < 1
   ) {
-    throw new TypeError("Desktop returned an invalid Runtime bootstrap");
+    throw new DesktopBridgeError("invalidRuntimeBootstrap");
   }
   const endpoint = new URL(value.endpoint);
   const local = endpoint.protocol === "http:" && ["127.0.0.1", "[::1]"].includes(endpoint.hostname);
@@ -94,7 +113,7 @@ function parseConnection(value: unknown): RuntimeConnection {
     endpoint.username !== "" ||
     endpoint.password !== ""
   ) {
-	throw new TypeError("Desktop returned an unsafe Runtime endpoint");
+	throw new DesktopBridgeError("unsafeRuntimeEndpoint");
   }
   return {
     endpoint: endpoint.origin,
@@ -108,7 +127,7 @@ function parseConnection(value: unknown): RuntimeConnection {
 
 async function defaultBinding(): Promise<DesktopBinding> {
   if (!("_wails" in globalThis)) {
-    throw new Error("Lyra Desktop host is unavailable");
+    throw new DesktopBridgeError("hostUnavailable");
   }
   const { Call } = await import("@wailsio/runtime");
   return {
@@ -122,7 +141,7 @@ export async function loadDesktopBootstrap(
   const activeBinding = binding ?? (await defaultBinding());
   const value: unknown = await activeBinding.call(bootstrapMethod);
   if (!isRecord(value) || !exactKeys(value, ["runtime"])) {
-    throw new TypeError("Desktop returned an invalid bootstrap envelope");
+    throw new DesktopBridgeError("invalidBootstrapEnvelope");
   }
   return { runtime: parseConnection(value.runtime) };
 }
@@ -178,7 +197,7 @@ function parseRemoteRuntimeState(value: unknown): RemoteRuntimeState {
 		(value.serverName !== undefined && typeof value.serverName !== "string") ||
 		(value.detail !== undefined && typeof value.detail !== "string")
 	) {
-		throw new TypeError("Desktop returned an invalid remote Runtime state");
+		throw new DesktopBridgeError("invalidRemoteRuntimeState");
 	}
 	if (
 		(value.active && !value.configured) ||
@@ -191,7 +210,7 @@ function parseRemoteRuntimeState(value: unknown): RemoteRuntimeState {
 		(value.detail !== undefined &&
 			(value.detail.trim() !== value.detail || value.detail.length > 4_096))
 	) {
-		throw new TypeError("Desktop returned an inconsistent remote Runtime state");
+		throw new DesktopBridgeError("inconsistentRemoteRuntimeState");
 	}
 	return value as unknown as RemoteRuntimeState;
 }
@@ -220,7 +239,7 @@ export async function chooseDirectory(
   const activeBinding = binding ?? (await defaultBinding());
   const value: unknown = await activeBinding.call(chooseDirectoryMethod);
   if (!isRecord(value) || typeof value.type !== "string") {
-    throw new TypeError("Desktop returned an invalid directory selection");
+    throw new DesktopBridgeError("invalidDirectorySelection");
   }
   if (value.type === "canceled" && exactKeys(value, ["type"])) {
     return { type: "canceled" };
@@ -234,7 +253,7 @@ export async function chooseDirectory(
   ) {
     return { type: "selected", path: value.path };
   }
-  throw new TypeError("Desktop returned an invalid directory selection");
+  throw new DesktopBridgeError("invalidDirectorySelection");
 }
 
 export async function saveImage(
@@ -248,7 +267,7 @@ export async function saveImage(
     !exactKeys(value, ["type"]) ||
     (value.type !== "saved" && value.type !== "canceled")
   ) {
-    throw new TypeError("Desktop returned an invalid image save result");
+    throw new DesktopBridgeError("invalidImageSaveResult");
   }
   return { type: value.type };
 }
@@ -259,7 +278,7 @@ export async function openSessionArtifact(
   const activeBinding = binding ?? (await defaultBinding());
   const value: unknown = await activeBinding.call(openSessionArtifactMethod);
   if (!isRecord(value) || typeof value.type !== "string") {
-    throw new TypeError("Desktop returned an invalid session artifact selection");
+    throw new DesktopBridgeError("invalidSessionArtifactSelection");
   }
   if (value.type === "canceled" && exactKeys(value, ["type"])) {
     return { type: "canceled" };
@@ -272,7 +291,7 @@ export async function openSessionArtifact(
   ) {
     return { type: "selected", contents: value.contents };
   }
-  throw new TypeError("Desktop returned an invalid session artifact selection");
+  throw new DesktopBridgeError("invalidSessionArtifactSelection");
 }
 
 export async function saveSessionExport(
@@ -293,7 +312,7 @@ export async function saveSessionExport(
     !exactKeys(value, ["type"]) ||
     (value.type !== "saved" && value.type !== "canceled")
   ) {
-    throw new TypeError("Desktop returned an invalid session export result");
+    throw new DesktopBridgeError("invalidSessionExportResult");
   }
   return { type: value.type };
 }

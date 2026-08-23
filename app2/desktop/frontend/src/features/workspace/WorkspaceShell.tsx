@@ -15,6 +15,7 @@ import {
   useLocalization,
   type Translate,
 } from "../localization/Localization";
+import { presentRuntimeError } from "../localization/presentRuntimeError";
 import { AgentNarrative } from "../agent/AgentNarrative";
 import { SessionModelPicker } from "../agent/SessionModelPicker";
 import {
@@ -427,7 +428,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         />
         {catalog.createError ? (
           <p className="sidebar-command-error" role="alert">
-            {messageOf(catalog.createError, t("session.createFailed"))}
+            {presentRuntimeError(catalog.createError, t("session.createFailed"), t)}
           </p>
         ) : null}
       </aside>
@@ -469,7 +470,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           ) : snapshot.isError ? (
             <StatePanel
               title={t("shell.sessionLoadFailed")}
-              detail={messageOf(snapshot.error, t("shell.unknownRuntimeError"))}
+              detail={presentRuntimeError(snapshot.error, t("shell.unknownRuntimeError"), t)}
               action={t("shell.tryAgain")}
               onAction={() => void snapshot.refetch()}
             />
@@ -799,8 +800,4 @@ function shortIdentity(identity: string): string {
   return identity.length <= 18
     ? identity
     : `${identity.slice(0, 10)}…${identity.slice(-6)}`;
-}
-
-function messageOf(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }

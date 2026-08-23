@@ -3,6 +3,7 @@ import type { RuntimeConnection } from "@lyra/runtime-contract";
 import { useState } from "react";
 
 import { useLocalization } from "./features/localization/Localization";
+import { presentRuntimeError } from "./features/localization/presentRuntimeError";
 import { WorkspaceShell } from "./features/workspace/WorkspaceShell";
 import {
   loadDesktopBootstrap,
@@ -45,7 +46,7 @@ export function App() {
     return (
       <Failure
         title={t("app.runtimeUnavailable")}
-        detail={messageOf(bootstrap.error, t("app.unknownStartupError"))}
+        detail={presentRuntimeError(bootstrap.error, t("app.unknownStartupError"), t)}
         retry={bootstrap.refetch}
         recovery={{
           label: t("app.useLocalRuntime"),
@@ -61,7 +62,7 @@ export function App() {
     return (
       <Failure
         title={t("app.runtimeHandshakeFailed")}
-        detail={messageOf(discovery.error, t("app.unknownStartupError"))}
+        detail={presentRuntimeError(discovery.error, t("app.unknownStartupError"), t)}
         retry={discovery.refetch}
         recovery={{
           label: t("app.useLocalRuntime"),
@@ -129,7 +130,7 @@ function Failure(props: {
                 .run()
                 .catch((error) =>
                   setRecoveryError(
-                    messageOf(error, t("app.unknownStartupError")),
+                    presentRuntimeError(error, t("app.unknownStartupError"), t),
                   ),
                 )
                 .finally(() => setRecoveryPending(false));
@@ -142,10 +143,4 @@ function Failure(props: {
       {recoveryError ? <p role="alert">{recoveryError}</p> : null}
     </main>
   );
-}
-
-function messageOf(error: unknown, fallback: string): string {
-  return error instanceof Error
-    ? error.message
-    : fallback;
 }

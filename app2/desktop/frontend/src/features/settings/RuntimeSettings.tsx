@@ -9,6 +9,7 @@ import {
   type RemoteRuntimeState,
 } from "../../runtime/desktopBridge";
 import { useLocalization, type Translate } from "../localization/Localization";
+import { presentRuntimeError } from "../localization/presentRuntimeError";
 
 export function RuntimeSettings({
   onRuntimeChanged,
@@ -279,5 +280,5 @@ export function RuntimeSettings({
 }
 
 function messageOf(error: unknown, t: Translate) {
-  return error instanceof Error ? error.message : t("settings.runtime.failed");
+  return presentRuntimeError(error, t("settings.runtime.failed"), t);
 }

@@ -887,6 +887,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - pure Interrupt response builder 改为 stable `InterruptResponseValidationError` code，并由 Interrupt card presentation adapter 映射 semantic key；question prompt、unsupported field type、edited arguments 与 response payload 仍保持 Runtime canonical material；
 - Agent session/history hooks 的 renderer-local guard、stream fallback 与 mutation error 使用 active translator，callback dependency 同步 locale identity；Runtime 返回的具体 error detail 仍原样展示。Desktop bridge parser 的内部英文异常是下一盘点批，U22 保持 `in_progress`。
 
+### R10d6b Desktop bridge / discovery error boundary 实现记录（尚未统一验证）
+
+- Desktop bridge 的 bootstrap、Runtime target、directory/artifact/save result parser 由英文 `Error/TypeError` 收敛为 stable `DesktopBridgeError` code；Runtime discovery identity guard 同样使用 `RuntimeDiscoveryError` code；
+- `presentRuntimeError` 是唯一面向这些 infrastructure code 的 presentation adapter，App startup/recovery、new Session folder/import、Workspace snapshot/export 与 Runtime Settings 通过 active dictionary 映射；Native/Wails 抛出的具体外部 Error 仍保留 detail；
+- internal root/provider invariant（React root 缺失、provider 缺失）不进入用户 surface，因此保持 developer diagnostic。此变更不改变 Wails method、native envelope、Runtime connection 或 Lyra Protocol shape。后续进入 locale dictionaries/owner/selector 与 RTL/CSS，U22 保持 `in_progress`。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入
