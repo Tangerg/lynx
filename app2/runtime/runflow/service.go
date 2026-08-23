@@ -103,6 +103,7 @@ type Service struct {
 type activeExecution struct {
 	cancel context.CancelFunc
 	steers chan agentexec.Steer
+	cancels chan agentexec.Cancel
 }
 
 type Config struct {
@@ -370,7 +371,8 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 	}
 	ctx, cancel := context.WithCancel(service.lifetime)
 	steers := make(chan agentexec.Steer, 32)
-	service.active[runID] = activeExecution{cancel: cancel, steers: steers}
+	cancels := make(chan agentexec.Cancel, 8)
+	service.active[runID] = activeExecution{cancel: cancel, steers: steers, cancels: cancels}
 	service.tasks.Add(1)
 	service.mu.Unlock()
 	go func() {
@@ -390,7 +392,7 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
 			SessionID: record.Run.SessionID(), RunID: runID, SegmentID: segmentID,
 			IsRootRun: record.Run.ParentRunID() == "", Subagents: runUsesSubagents(record.Body), Delegation: service,
-			Conversation: conversation, Steers: steers,
+			Conversation: conversation, Steers: steers, Cancels: cancels,
 			MaxSteps: runMaxSteps(record.Body), Live: live,
 		})
 		live.Close()
@@ -466,7 +468,11 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	if output.ContextTokens > 0 {
 		facts.ContextTokens = output.ContextTokens
 	}
-	terminalProjection := executeErr == nil && output.Waiting == nil
+	executionStatus := output.Status
+	if executionStatus == "" {
+		executionStatus = agentexec.ExecutionCompleted
+	}
+	terminalProjection := executeErr == nil && output.Waiting == nil && executionStatus == agentexec.ExecutionCompleted
 	projectedFacts := facts
 	projection, projectionErr := service.projectExecution(
 		ctx,
@@ -504,6 +510,32 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 		} else {
 			outcome = rundomain.Failed
 			detail = "the agent execution failed"
+			problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
+		}
+	} else {
+		detail = output.Detail
+		switch executionStatus {
+		case agentexec.ExecutionCompleted:
+			outcome = rundomain.Completed
+		case agentexec.ExecutionCanceled:
+			if service.lifetime.Err() != nil {
+				outcome = rundomain.Lost
+				detail = lostRunDetail
+				problem = &protocol.ProblemData{Type: protocol.ProblemRunLost, Detail: detail}
+			} else {
+				outcome = rundomain.Canceled
+			}
+		case agentexec.ExecutionTimedOut:
+			outcome = rundomain.TimedOut
+		case agentexec.ExecutionFailed, agentexec.ExecutionKilled:
+			outcome = rundomain.Failed
+			if detail == "" {
+				detail = "the agent execution failed"
+			}
+			problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
+		default:
+			outcome = rundomain.Failed
+			detail = "the agent execution returned an unknown terminal status"
 			problem = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
 		}
 	}
@@ -615,86 +647,234 @@ func (service *Service) Subscribe(ctx context.Context, request protocol.Subscrib
 	}, mergeRunEvents(cancelSubscription, request.RunID, request.SegmentID, replay, live), nil
 }
 
-func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
-	lock := service.runLock(request.RunID)
-	lock.Lock()
-	defer lock.Unlock()
+type CancelCommand struct {
+	Request protocol.CancelRunRequest
+	Meta    protocol.RequestMeta
+}
+
+func (service *Service) Cancel(
+	ctx context.Context,
+	request protocol.CancelRunRequest,
+) (*protocol.CancelRunResponse, error) {
+	return service.CancelWith(ctx, CancelCommand{Request: request})
+}
+
+func (service *Service) CancelWith(
+	ctx context.Context,
+	command CancelCommand,
+) (*protocol.CancelRunResponse, error) {
+	request := command.Request
 	record, err := service.store.GetRun(ctx, request.RunID)
 	if err != nil {
 		return nil, projectRunLookup(err)
 	}
+	if record.Run.ParentRunID() != "" && !clientNegotiatedSubagents(command.Meta.ClientCapabilities) {
+		return nil, protocol.ErrCapabilityNotNeg
+	}
 	if record.Run.Status() == rundomain.Finished {
 		return nil, protocol.ErrRunFinished
 	}
-	expectedStatus := record.Run.Status()
-	expectedSegmentID := record.Run.ActiveSegmentID()
+	if record.Run.Status() == rundomain.Waiting {
+		if record.Run.ParentRunID() != "" || runUsesSubagents(record.Body) {
+			return nil, protocol.ErrSessionBusy
+		}
+		return service.cancelSingleWaiting(ctx, record, request.Reason)
+	}
+	return service.cancelLiveTreeMember(ctx, record, request.Reason)
+}
+
+func (service *Service) cancelLiveTreeMember(
+	ctx context.Context,
+	target rundomain.Record,
+	reason string,
+) (*protocol.CancelRunResponse, error) {
+	rootRunID := target.Run.ID()
+	if target.Run.ParentRunID() != "" {
+		rootRunID = target.Run.RootRunID()
+	}
 	service.mu.Lock()
-	if active, ok := service.active[request.RunID]; ok {
-		active.cancel()
-	}
+	active, found := service.active[rootRunID]
 	service.mu.Unlock()
-	segmentID := record.Run.ActiveSegmentID()
-	if segmentID == "" {
-		segmentID, err = service.ids.New("seg_")
-		if err != nil {
-			return nil, err
-		}
-		if err := record.Run.Resume(segmentID, service.now()); err != nil {
-			return nil, err
-		}
+	if !found {
+		return nil, protocol.ErrSessionBusy
 	}
-	stream, err := service.activeTreeStream(ctx, record.Run, segmentID)
+	if strings.TrimSpace(reason) == "" {
+		reason = "canceled by user"
+	}
+	result := make(chan agentexec.CancelResult, 1)
+	control := agentexec.Cancel{RunID: target.Run.ID(), Reason: reason, Result: result}
+	select {
+	case active.cancels <- control:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-service.lifetime.Done():
+		return nil, protocol.ErrSessionBusy
+	}
+	var accepted agentexec.CancelResult
+	select {
+	case accepted = <-result:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-service.lifetime.Done():
+		return nil, protocol.ErrSessionBusy
+	}
+	if accepted.Err != nil {
+		return nil, accepted.Err
+	}
+	if err := service.finishDelegatedExecutions(context.WithoutCancel(ctx), accepted.Children); err != nil {
+		return nil, err
+	}
+	settled, err := service.waitRunFinished(ctx, target.Run.ID())
 	if err != nil {
 		return nil, err
 	}
-	facts, err := decodeFacts(record.Body)
+	presented, err := presentRecord(settled)
+	if err != nil {
+		return nil, err
+	}
+	if target.Run.ParentRunID() == "" {
+		return &protocol.CancelRunResponse{Type: protocol.CancelRunRoot, Run: *presented}, nil
+	}
+	root, err := service.store.GetRun(ctx, rootRunID)
+	if err != nil {
+		return nil, err
+	}
+	presentedRoot, err := presentRecord(root)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.CancelRunResponse{
+		Type: protocol.CancelRunChild, Run: *presented, RootRun: presentedRoot,
+	}, nil
+}
+
+func (service *Service) waitRunFinished(ctx context.Context, runID string) (rundomain.Record, error) {
+	const interval = 20 * time.Millisecond
+	for {
+		record, err := service.store.GetRun(ctx, runID)
+		if err != nil {
+			return rundomain.Record{}, err
+		}
+		if record.Run.Status() == rundomain.Finished {
+			return record, nil
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return rundomain.Record{}, ctx.Err()
+		case <-service.lifetime.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return rundomain.Record{}, protocol.ErrSessionBusy
+		}
+	}
+}
+
+func (service *Service) cancelSingleWaiting(
+	ctx context.Context,
+	record rundomain.Record,
+	reason string,
+) (*protocol.CancelRunResponse, error) {
+	lock := service.runLock(record.Run.ID())
+	lock.Lock()
+	defer lock.Unlock()
+	current, err := service.store.GetRun(ctx, record.Run.ID())
+	if err != nil {
+		return nil, err
+	}
+	if current.Run.Status() != rundomain.Waiting {
+		return nil, rundomain.ErrInvalidTransition
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "canceled by user"
+	}
+	segmentID, err := service.ids.New("seg_")
 	if err != nil {
 		return nil, err
 	}
 	now := service.now().UTC()
-	storedSession, err := service.store.GetSession(ctx, session.ID(record.Run.SessionID()))
+	if err := current.Run.Resume(segmentID, now); err != nil {
+		return nil, err
+	}
+	facts, err := decodeFacts(current.Body)
 	if err != nil {
 		return nil, err
 	}
-	if err := service.checkpoints.Snapshot(ctx, record.Run.SessionID(), storedSession.Workspace().Path(), request.RunID); err != nil {
-		return nil, fmt.Errorf("runflow: checkpoint canceled run: %w", err)
-	}
-	if err := record.Run.Finish(segmentID, rundomain.Canceled, request.Reason, now); err != nil {
+	current, err = makeRecord(current.Run, facts)
+	if err != nil {
 		return nil, err
 	}
-	event, err := service.event(request.RunID, segmentID, &facts, protocol.StreamEvent{
+	presentedRunning, err := presentRecord(current)
+	if err != nil {
+		return nil, err
+	}
+	started, err := service.event(current.Run.ID(), segmentID, &facts, protocol.StreamEvent{
+		Type: protocol.StreamSegmentStarted, Run: presentedRunning,
+	}, now)
+	if err != nil {
+		return nil, err
+	}
+	storedSession, err := service.store.GetSession(ctx, session.ID(current.Run.SessionID()))
+	if err != nil {
+		return nil, err
+	}
+	if err := service.checkpoints.Snapshot(ctx, current.Run.SessionID(), storedSession.Workspace().Path(), current.Run.ID()); err != nil {
+		return nil, fmt.Errorf("runflow: checkpoint canceled waiting Run: %w", err)
+	}
+	if err := current.Run.Finish(segmentID, rundomain.Canceled, reason, now); err != nil {
+		return nil, err
+	}
+	finished, err := service.event(current.Run.ID(), segmentID, &facts, protocol.StreamEvent{
 		Type: protocol.StreamSegmentFinished,
-		Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentCanceled, Detail: request.Reason},
+		Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentCanceled, Detail: reason},
 		Metrics: &facts.Metrics,
 	}, now)
 	if err != nil {
 		return nil, err
 	}
-	record, err = makeRecord(record.Run, facts)
+	events := []protocol.RunEvent{started, finished}
+	current, err = makeRecord(current.Run, facts)
 	if err != nil {
 		return nil, err
 	}
-	persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal, stream)
+	stream, err := newTreeStream(current.Run.ID(), segmentID)
 	if err != nil {
 		return nil, err
 	}
-	if err := service.store.CommitRun(ctx, CommitWrite{Run: record, ExpectedStatus: expectedStatus, ExpectedSegmentID: expectedSegmentID, Events: persisted}); err != nil {
-		return nil, err
-	}
-	service.publishLifecycleChange(record.Run)
-	if expectedStatus == rundomain.Waiting {
-		service.publishInterruptChange(record.Run)
-	}
-	service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
-	presented, err := presentRecord(record)
+	persisted, err := persistEvents(events, facts.EventOrdinal-len(events)+1, stream)
 	if err != nil {
 		return nil, err
 	}
-	resultType := protocol.CancelRunRoot
-	if record.Run.ParentRunID() != "" {
-		resultType = protocol.CancelRunChild
+	if err := service.store.CommitRun(ctx, CommitWrite{
+		Run: current, ExpectedStatus: rundomain.Waiting, Events: persisted,
+	}); err != nil {
+		return nil, err
 	}
-	return &protocol.CancelRunResponse{Type: resultType, Run: *presented}, nil
+	service.publishLifecycleChange(current.Run)
+	service.publishInterruptChange(current.Run)
+	for _, event := range events {
+		service.hub.PublishRun(stream.rootRunID, stream.rootSegmentID, event)
+	}
+	presented, err := presentRecord(current)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.CancelRunResponse{Type: protocol.CancelRunRoot, Run: *presented}, nil
+}
+
+func clientNegotiatedSubagents(capabilities *protocol.ClientCapabilities) bool {
+	return capabilities != nil && capabilities.Features[protocol.FeatureSubagents]
 }
 
 func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequest) error {

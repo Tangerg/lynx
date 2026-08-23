@@ -140,6 +140,11 @@ Interrupt set 与 opaque checkpoint 必须在一笔事务提交，且 root 最�
 提出对应 Interrupt 的 source member，paused sibling 从同一 checkpoint 恢复。root `runs.resume` 不把 child 折叠成
 新的 root turn，也不重复执行已 terminal 的 snapshot member。
 
+running cancel 先进入 execution owner：root target 取消整棵 Framework tree；child target 只取消 exact subtree，
+descendant terminal 必须先于 target，target settlement 与 parent `delegate_task` Item 同事务。API 只有看到这些 durable
+facts 后才返回 canceled Run；child response 的 root snapshot 来自同一 command boundary。waiting tree 的 child cancel
+必须转换并重新持久化完整 checkpoint，不能只改产品 Run 或删一个 Interrupt。
+
 ## 6. Item、Transcript、Conversation 与 WorkingContext
 
 `Item` 是持久、可回放、可归因的历史事实。最小闭合族：

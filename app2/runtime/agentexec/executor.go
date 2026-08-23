@@ -69,6 +69,7 @@ type Input struct {
 	Conversation               []Message
 	MaxSteps                   int
 	Steers                     <-chan Steer
+	Cancels                    <-chan Cancel
 	Live                       LiveObservationSink
 }
 
@@ -85,6 +86,7 @@ type ResumeInput struct {
 	TreeResponses              []TreeResumeResponse
 	AdditionalInput            []protocol.ContentBlock
 	Steers                     <-chan Steer
+	Cancels                    <-chan Cancel
 	Live                       LiveObservationSink
 }
 
@@ -118,6 +120,8 @@ var steerSequence atomic.Uint64
 
 type Output struct {
 	Text       string
+	Status     ExecutionStatus
+	Detail     string
 	Usage      protocol.Usage
 	ModelCalls int
 	ContextTokens int64
@@ -126,6 +130,16 @@ type Output struct {
 	Waiting    *Waiting
 	Children   []ChildOutput
 }
+
+type ExecutionStatus string
+
+const (
+	ExecutionCompleted ExecutionStatus = "completed"
+	ExecutionFailed    ExecutionStatus = "failed"
+	ExecutionCanceled  ExecutionStatus = "canceled"
+	ExecutionTimedOut  ExecutionStatus = "timed_out"
+	ExecutionKilled    ExecutionStatus = "killed"
+)
 
 // ChildStatus is the adapter-owned terminal vocabulary exposed to the Run
 // application layer. Framework lifecycle enums do not cross this boundary.
@@ -153,6 +167,20 @@ type ChildOutput struct {
 	ContextTokens                            int64
 	Models                                   []ModelObservation
 	Tools                                    []ToolObservation
+}
+
+// Cancel is an exact live control-plane request. The adapter acknowledges only
+// after Framework accepted the intent; child cancellation additionally returns
+// authoritative subtree terminal material in descendant-first order.
+type Cancel struct {
+	RunID  string
+	Reason string
+	Result chan<- CancelResult
+}
+
+type CancelResult struct {
+	Children []ChildOutput
+	Err      error
 }
 
 type Waiting struct {
@@ -233,7 +261,7 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 		_ = engine.Close()
 		return Output{}, fmt.Errorf("agentexec: start interaction: %w", err)
 	}
-	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers)
+	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers, input.Cancels)
 }
 
 func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output, error) {
@@ -294,7 +322,7 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 		}
 		return Output{}, errors.New("agentexec: resume signal was not accepted")
 	}
-	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers)
+	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers, input.Cancels)
 }
 
 func (executor *Executor) resumeTree(ctx context.Context, input ResumeInput) (Output, error) {
@@ -419,7 +447,7 @@ func (executor *Executor) resumeTree(ctx context.Context, input ResumeInput) (Ou
 			return Output{}, fmt.Errorf("agentexec: resume Process %s: %w", process.ID(), err)
 		}
 	}
-	return awaitProcess(ctx, engine, root, prepared.observer, input.RunID, input.Steers)
+	return awaitProcess(ctx, engine, root, prepared.observer, input.RunID, input.Steers, input.Cancels)
 }
 
 type deploymentRequest struct {
@@ -524,7 +552,15 @@ func liveDeltaListeners(observer *executionObserver) []agent.DeltaListener {
 	return []agent.DeltaListener{observer}
 }
 
-func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Process, observer *executionObserver, runID string, steers <-chan Steer) (Output, error) {
+func awaitProcess(
+	ctx context.Context,
+	engine *agent.Engine,
+	process *agent.Process,
+	observer *executionObserver,
+	runID string,
+	steers <-chan Steer,
+	cancels <-chan Cancel,
+) (Output, error) {
 	resultCh := make(chan agent.Result, 1)
 	go func() {
 		result, _ := process.Await(context.WithoutCancel(ctx))
@@ -539,9 +575,21 @@ func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Proc
 			goto completed
 		case command := <-steers:
 			command.Result <- deliverSteer(ctx, process, runID, command.Input)
+		case command := <-cancels:
+			if command.Result != nil {
+				command.Result <- cancelRunTreeMember(ctx, engine, process, observer, command)
+			}
 		case <-ticker.C:
 			if process.Status() != agent.StatusWaiting {
 				continue
+			}
+			select {
+			case command := <-cancels:
+				if command.Result != nil {
+					command.Result <- cancelRunTreeMember(ctx, engine, process, observer, command)
+				}
+				continue
+			default:
 			}
 			if observer.delegation != nil {
 				waiting, children, err := captureWaitingTree(context.WithoutCancel(ctx), engine, process, observer)
@@ -595,6 +643,10 @@ completed:
 	if err := engine.Close(); err != nil {
 		return partial, fmt.Errorf("agentexec: close completed engine: %w", err)
 	}
+	partial.Status, partial.Detail = executionResult(result)
+	if partial.Status != ExecutionCompleted {
+		return partial, nil
+	}
 	erased, ok := result.Output()
 	if !ok {
 		return partial, fmt.Errorf("agentexec: interaction ended with %s", result.Status())
@@ -606,6 +658,69 @@ completed:
 	if decoded.ModelResponse == nil { return partial, errors.New("agentexec: interaction produced no model response") }
 	partial.Text = decoded.ModelResponse.Text()
 	return partial, nil
+}
+
+func cancelRunTreeMember(
+	ctx context.Context,
+	engine *agent.Engine,
+	root *agent.Process,
+	observer *executionObserver,
+	command Cancel,
+) CancelResult {
+	if command.RunID == "" || command.Result == nil {
+		return CancelResult{Err: errors.New("agentexec: cancel identity is incomplete")}
+	}
+	if command.RunID == observer.runID {
+		if err := root.RequestCancellation(ctx, command.Reason); err != nil &&
+			!errors.Is(err, agent.ErrProcessFinished) {
+			return CancelResult{Err: fmt.Errorf("agentexec: cancel root Process: %w", err)}
+		}
+		return CancelResult{}
+	}
+	if observer.delegation == nil {
+		return CancelResult{Err: errors.New("agentexec: cancel target is not in this Run tree")}
+	}
+	target, found := observer.delegation.processForRun(command.RunID)
+	if !found {
+		return CancelResult{Err: errors.New("agentexec: cancel target has no live Process")}
+	}
+	process, found := engine.Process(target)
+	if !found {
+		return CancelResult{Err: errors.New("agentexec: cancel target Process is unavailable")}
+	}
+	if err := process.RequestCancellation(ctx, command.Reason); err != nil &&
+		!errors.Is(err, agent.ErrProcessFinished) {
+		return CancelResult{Err: fmt.Errorf("agentexec: cancel child Process: %w", err)}
+	}
+	children, err := collectChildOutputs(
+		context.WithoutCancel(ctx), engine, observer, observer.delegation.subtree(command.RunID),
+	)
+	return CancelResult{Children: children, Err: err}
+}
+
+func executionResult(result agent.Result) (ExecutionStatus, string) {
+	status := ExecutionFailed
+	switch result.Status() {
+	case agent.StatusCompleted:
+		status = ExecutionCompleted
+	case agent.StatusFailed:
+		status = ExecutionFailed
+	case agent.StatusCanceled:
+		status = ExecutionCanceled
+	case agent.StatusTimedOut:
+		status = ExecutionTimedOut
+	case agent.StatusKilled:
+		status = ExecutionKilled
+	}
+	detail := ""
+	if status != ExecutionCompleted {
+		termination := result.Termination()
+		detail = termination.Cause().String()
+		if termination.Reason() != "" {
+			detail += ": " + termination.Reason()
+		}
+	}
+	return status, detail
 }
 
 func captureWaitingTree(

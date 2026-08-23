@@ -95,6 +95,53 @@ func (bridge *delegationBridge) bindingProcess(processID agent.ProcessID) (proce
 	return binding, found
 }
 
+func (bridge *delegationBridge) processForRun(runID string) (agent.ProcessID, bool) {
+	if bridge == nil || runID == "" {
+		return agent.ProcessID{}, false
+	}
+	bridge.mu.RLock()
+	defer bridge.mu.RUnlock()
+	for processID, binding := range bridge.bindings {
+		if binding.runID == runID {
+			return processID, true
+		}
+	}
+	return agent.ProcessID{}, false
+}
+
+func (bridge *delegationBridge) subtree(runID string) map[agent.ProcessID]bool {
+	selected := make(map[agent.ProcessID]bool)
+	if bridge == nil || runID == "" {
+		return selected
+	}
+	bridge.mu.RLock()
+	defer bridge.mu.RUnlock()
+	for processID, binding := range bridge.bindings {
+		current := binding
+		for current.runID != "" {
+			if current.runID == runID {
+				selected[processID] = true
+				break
+			}
+			if current.parentRunID == "" {
+				break
+			}
+			parentFound := false
+			for _, candidate := range bridge.bindings {
+				if candidate.runID == current.parentRunID {
+					current = candidate
+					parentFound = true
+					break
+				}
+			}
+			if !parentFound {
+				break
+			}
+		}
+	}
+	return selected
+}
+
 func (bridge *delegationBridge) restoreBindings(
 	tree agent.TreeSnapshot,
 	members []TreeResumeMember,

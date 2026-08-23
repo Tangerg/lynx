@@ -256,7 +256,8 @@ func (runtime *Runtime) SubscribeRun(ctx context.Context, request protocol.Subsc
 }
 
 func (runtime *Runtime) CancelRun(ctx context.Context, request protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
-	return runtime.runs.Cancel(ctx, request)
+	meta, _ := boundarymeta.RequestMetaFrom(ctx)
+	return runtime.runs.CancelWith(ctx, runflow.CancelCommand{Request: request, Meta: meta})
 }
 
 func (runtime *Runtime) GetRun(ctx context.Context, request protocol.GetRunRequest) (*protocol.RunRef, error) {

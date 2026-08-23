@@ -210,7 +210,8 @@ func (service *Service) launchResumedExecution(
 	}
 	ctx, cancel := context.WithCancel(service.lifetime)
 	steers := make(chan agentexec.Steer, 32)
-	service.active[record.Run.ID()] = activeExecution{cancel: cancel, steers: steers}
+	cancels := make(chan agentexec.Cancel, 8)
+	service.active[record.Run.ID()] = activeExecution{cancel: cancel, steers: steers, cancels: cancels}
 	service.tasks.Add(1)
 	service.mu.Unlock()
 	go func() {
@@ -233,6 +234,7 @@ func (service *Service) launchResumedExecution(
 		input.Delegation = service
 		input.MaxSteps = runMaxSteps(record.Body)
 		input.Steers = steers
+		input.Cancels = cancels
 		input.Live = live
 		output, executeErr := service.executor.Resume(ctx, input)
 		live.Close()
