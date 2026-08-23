@@ -23,7 +23,7 @@
 | --- | ---: | ---: | --- |
 | Runtime operations | 89 | 1 verified，88 implemented，0 in_progress，0 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local/remote production path 已闭合 | 本地/远程机制均 verified |
-| Runtime resource topics | 16 | 16 implemented | 16 producer/consumer/resync verified |
+| Runtime resource events | 15 subscribable topics + `resync` | 16 variants implemented | 15 topic producer/consumer + `resync` recovery verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
 | Desktop product surfaces | 24 groups | 1 verified，23 implemented，0 in_progress，0 specified | 全部 verified |
 | 内置 tool presentation | 30 + MCP/unknown | 30 + MCP/unknown implemented，0 in_progress，0 specified | 全部真实 material verified |

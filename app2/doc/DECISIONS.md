@@ -637,3 +637,35 @@ packaged evidence 继续在 R10e/R11 闭合。新增 shortcut 或 toast producer
 **后果**：长历史仍可被 DOM search、screen reader 与现有 highlight/navigation 消费，动态高度无需预测；大历史的内存上界继续由用户显式加载页数决定，而非伪装成
 无限滚动。40px action target、fluid native-minimum geometry、IME 229 guard 与 CJK line-break 同属 Desktop presentation 收口，不改变 Lyra Protocol、Runtime query、
 Session/Run/Item identity、Wails method 或 persistence。large-history、Retina、WebKit、keyboard/screen-reader 与 packaged evidence 在 R11 统一验证。
+
+## ADR-A2-043：命令幂等以首个持久 outcome 为唯一权威
+
+**缺陷与反例**：R11 入口验收发现，generated client、discovery limits 与 SQLite schema 已声明幂等能力，但 app2
+operation endpoint 只解析 header，没有真正执行 claim、fingerprint、replay、conflict 和跨重启恢复。若只在内存按 key
+去重，Runtime replacement 后会重复 mutation；若 completion 只返回 `error`，则“写入成功但确认丢失”时无法证明哪个
+outcome 先持久化；若 pending claim 按时间过期，又会把未知提交状态误判成未执行。
+
+**决定**：operation 依赖 persistence-neutral idempotency port，SQLite adapter 原子 claim 并保存 versioned safe outcome。
+key 必须携带 exact discovered namespace；fingerprint 由 method、typed params 与协商后的 client capabilities 共同决定，
+client identity 不参与业务语义。completed outcome 按公开 86400 秒 retention 回收，pending claim 永不自动过期。Store
+completion 返回权威 durable record，使首个持久 payload 在确认丢失、重复 completion 或竞争恢复时始终胜出；claim 丢失
+时只有重新赢得相同 fingerprint 的 fresh claim 才能补写已知 outcome，绝不重跑 mutation。`runs.start`/`runs.resume`
+重放只重新附着已存在 Run stream；shutdown 在关闭 admission、join invocation 后 flush 已知 receipt，再关闭 SQLite。
+
+**后果**：这是对既有 Lyra 幂等合同的落地，不修改 method、header、problem、wire shape 或 protocol version。R11 新增
+HTTP 跨 Runtime replacement、namespace fence、query rejection、first durable winner、claim/ack loss、shutdown flush 与
+Run reattach 证据；完整 race/fault 总门禁通过前相关 operations 仍保持 `implemented`。
+
+## ADR-A2-044：内置 Tool 目录精确收敛为 30 项
+
+**缺陷与反例**：R11 机械盘点发现，账本定义的文件与代码 family 是 `read/glob/grep/lsp/apply_patch`，但实际 catalog
+还因底层通用工具箱顺手暴露了 `edit` 与 `write`，导致 model-visible 内置 surface 从 30 漂移到 32。同一文件 mutation
+同时存在三种表达，会扩大 schema/context、审批和 Hook policy 的测试矩阵，并重新制造重叠入口。
+
+**决定**：`apply_patch` 是唯一 model-visible 文件 mutation primitive；它覆盖新增、局部修改与删除。`edit`、`write`
+不进入 app2 Run catalog，也不提供 alias。其余 29 项由真实 catalog 组装，`delegate_task` 由 agentexec deployment family
+注入；测试从最终 executable definitions 收集名称并精确断言 30 项，MCP dynamic names 单独保留为开放外层。
+
+**后果**：没有删除用户能力，也不改变 Runtime 89-method protocol；只是删除重复的模型调用语法，使账本、approval、
+Hook、progressive discovery 与执行表面重新一致。新增内置 Tool 必须先更新 ADR/ledger 与 exact inventory test，不能因
+底层库已经提供就自动暴露。

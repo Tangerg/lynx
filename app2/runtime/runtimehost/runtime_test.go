@@ -114,6 +114,207 @@ func TestCorruptStoreNeverPublishesReadyDescriptor(t *testing.T) {
 	}
 }
 
+func TestPublicRPCIdempotencySurvivesRuntimeReplacement(t *testing.T) {
+	data := privateDirectory(t, "data")
+	workspace := privateDirectory(t, "workspace")
+	home := privateDirectory(t, "home")
+	config := runtimehost.Config{
+		Listen: "127.0.0.1:0", DatabasePath: filepath.Join(data, "runtime.sqlite"),
+		DefaultWorkspace: workspace, UserHome: home,
+		ServerName: "lyra-runtime", ServerVersion: "test",
+	}
+
+	first := startRuntime(t, config)
+	discovered := rpcCall[protocol.DiscoverResponse](t, first.baseURL, "runtime.discover", struct{}{}, "", "")
+	firstNamespace := discovered.Capabilities.Limits.Idempotency.Namespace
+	create := protocol.CreateSessionRequest{
+		Title: "created once", Provider: "openai-compatible", Model: "test-model",
+	}
+	created := rpcCall[*protocol.Session](
+		t, first.baseURL, "sessions.create", create, "create-once", firstNamespace,
+	)
+	if created.ID == "" {
+		t.Fatal("sessions.create returned an empty identity")
+	}
+	assertRPCProblem(
+		t, first.baseURL, "sessions.create", create,
+		"missing-store", "", protocol.ErrIdempotencyStoreMismatch.Error(),
+	)
+	assertRPCProblem(
+		t, first.baseURL, "sessions.list", protocol.PageQuery{},
+		"query-key", firstNamespace, protocol.ErrInvalidParams.Error(),
+	)
+	first.stop(t)
+
+	second := startRuntime(t, config)
+	t.Cleanup(func() { second.stop(t) })
+	discovered = rpcCall[protocol.DiscoverResponse](t, second.baseURL, "runtime.discover", struct{}{}, "", "")
+	if discovered.ServerInfo.InstanceID == first.instanceID {
+		t.Fatal("replacement Runtime reused its ephemeral instance identity")
+	}
+	secondNamespace := discovered.Capabilities.Limits.Idempotency.Namespace
+	if secondNamespace != firstNamespace {
+		t.Fatalf("idempotency namespace changed across restart: %q -> %q", firstNamespace, secondNamespace)
+	}
+	replayed := rpcCall[*protocol.Session](
+		t, second.baseURL, "sessions.create", create, "create-once", secondNamespace,
+	)
+	if replayed.ID != created.ID || replayed.Revision != created.Revision || !replayed.CreatedAt.Equal(created.CreatedAt) {
+		t.Fatalf("replayed session = %+v, want original %+v", replayed, created)
+	}
+	page := rpcCall[*protocol.Page[protocol.Session]](
+		t, second.baseURL, "sessions.list", protocol.PageQuery{Limit: 100}, "", "",
+	)
+	if len(page.Data) != 1 || page.Data[0].ID != created.ID {
+		t.Fatalf("persisted sessions = %+v, want only %q", page.Data, created.ID)
+	}
+}
+
+type runningRuntime struct {
+	host       *runtimehost.Runtime
+	baseURL    string
+	instanceID string
+	cancel     context.CancelFunc
+	done       <-chan error
+}
+
+func startRuntime(t *testing.T, config runtimehost.Config) *runningRuntime {
+	t.Helper()
+	host, err := runtimehost.Open(t.Context(), config)
+	if err != nil {
+		t.Fatalf("runtimehost.Open() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- host.Run(ctx) }()
+	baseURL := host.BaseURL()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		response, requestErr := http.Get(baseURL + httptransport.PathLiveness)
+		if requestErr == nil {
+			response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatalf("Runtime at %s did not become live: %v", baseURL, requestErr)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	discovered := rpcCall[protocol.DiscoverResponse](t, baseURL, "runtime.discover", struct{}{}, "", "")
+	return &runningRuntime{
+		host: host, baseURL: baseURL, instanceID: discovered.ServerInfo.InstanceID,
+		cancel: cancel, done: done,
+	}
+}
+
+func (runtime *runningRuntime) stop(t *testing.T) {
+	t.Helper()
+	if runtime == nil || runtime.host == nil {
+		return
+	}
+	runtime.cancel()
+	select {
+	case err := <-runtime.done:
+		if err != nil {
+			t.Fatalf("Runtime Run() error = %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Runtime did not stop")
+	}
+	runtime.host = nil
+}
+
+type rpcFailure struct {
+	Code    int                  `json:"code"`
+	Message string               `json:"message"`
+	Data    protocol.ProblemData `json:"data"`
+}
+
+type rpcResponse struct {
+	Result json.RawMessage `json:"result"`
+	Error  *rpcFailure     `json:"error"`
+}
+
+func rpcCall[Result any](
+	t *testing.T,
+	baseURL string,
+	method string,
+	params any,
+	idempotencyKey string,
+	idempotencyNamespace string,
+) Result {
+	t.Helper()
+	response := rpcRequest(t, baseURL, method, params, idempotencyKey, idempotencyNamespace)
+	if response.Error != nil {
+		t.Fatalf("%s problem = %+v", method, response.Error.Data)
+	}
+	var value Result
+	if err := json.Unmarshal(response.Result, &value); err != nil {
+		t.Fatalf("decode %s result error = %v", method, err)
+	}
+	return value
+}
+
+func assertRPCProblem(
+	t *testing.T,
+	baseURL string,
+	method string,
+	params any,
+	idempotencyKey string,
+	idempotencyNamespace string,
+	want string,
+) {
+	t.Helper()
+	response := rpcRequest(t, baseURL, method, params, idempotencyKey, idempotencyNamespace)
+	if response.Error == nil || response.Error.Data.Type != want {
+		t.Fatalf("%s problem = %+v, want %q", method, response.Error, want)
+	}
+}
+
+func rpcRequest(
+	t *testing.T,
+	baseURL string,
+	method string,
+	params any,
+	idempotencyKey string,
+	idempotencyNamespace string,
+) rpcResponse {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": "acceptance", "method": method, "params": params,
+	})
+	if err != nil {
+		t.Fatalf("encode %s request error = %v", method, err)
+	}
+	request, err := http.NewRequest(http.MethodPost, baseURL+httptransport.PathRPC, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("build %s request error = %v", method, err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if idempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", idempotencyKey)
+	}
+	if idempotencyNamespace != "" {
+		request.Header.Set("Idempotency-Namespace", idempotencyNamespace)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("call %s error = %v", method, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("call %s status = %d", method, response.StatusCode)
+	}
+	var document rpcResponse
+	if err := json.NewDecoder(response.Body).Decode(&document); err != nil {
+		t.Fatalf("decode %s response error = %v", method, err)
+	}
+	return document
+}
+
 func privateDirectory(t *testing.T, name string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)

@@ -3,8 +3,10 @@ package operation_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
+	"github.com/Tangerg/lynx/app2/runtime/idempotency"
 	"github.com/Tangerg/lynx/app2/runtime/operation"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
@@ -13,7 +15,7 @@ func TestEndpointInvokesTypedDiscovery(t *testing.T) {
 	t.Parallel()
 
 	service := newDiscovery(t)
-	endpoint, err := operation.New(service, t.Context())
+	endpoint, err := newEndpoint(t, service)
 	if err != nil {
 		t.Fatalf("operation.New() error = %v", err)
 	}
@@ -33,7 +35,7 @@ func TestEndpointInvokesTypedDiscovery(t *testing.T) {
 func TestEndpointRejectsOnlyProvidedMismatchedVersion(t *testing.T) {
 	t.Parallel()
 
-	endpoint, err := operation.New(newDiscovery(t), t.Context())
+	endpoint, err := newEndpoint(t, newDiscovery(t))
 	if err != nil {
 		t.Fatalf("operation.New() error = %v", err)
 	}
@@ -83,4 +85,16 @@ func newDiscovery(t *testing.T) *discovery.Service {
 		t.Fatalf("discovery.New() error = %v", err)
 	}
 	return service
+}
+
+func newEndpoint(t *testing.T, target any) (*operation.Endpoint, error) {
+	t.Helper()
+	store, err := idempotency.NewMemoryStore(24 * time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	return operation.New(target, operation.Config{
+		Lifetime: t.Context(), IdempotencyStore: store,
+		IdempotencyNamespace: "idp_test",
+	})
 }

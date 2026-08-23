@@ -151,8 +151,6 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		{tool: fs.NewGlobTool(executor), safety: protocol.SafetyClassSafe},
 		{tool: fs.NewGrepTool(executor), safety: protocol.SafetyClassSafe},
 		{tool: fs.NewApplyPatchTool(executor), safety: protocol.SafetyClassWrite},
-		{tool: fs.NewEditTool(executor), safety: protocol.SafetyClassWrite},
-		{tool: fs.NewWriteTool(executor), safety: protocol.SafetyClassWrite},
 	}
 	shellTools, err := newShellTools(catalog.shells, scope.SessionID, scope.Workspace)
 	if err != nil {

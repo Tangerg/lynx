@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/app2/runtime/idempotency"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -30,19 +31,38 @@ type Result struct {
 // Endpoint owns operation admission and stream lifetime. Business state stays
 // on the target application facade; framing stays in dispatch/transport.
 type Endpoint struct {
-	target      any
-	invocations *invocationGroup
-	ready       atomic.Bool
+	target               any
+	idempotency          *replayController
+	idempotencyNamespace string
+	invocations          *invocationGroup
+	ready                atomic.Bool
 }
 
-func New(target any, lifetime context.Context) (*Endpoint, error) {
+type Config struct {
+	Lifetime             context.Context
+	IdempotencyStore     idempotency.Store
+	IdempotencyNamespace string
+}
+
+func New(target any, config Config) (*Endpoint, error) {
 	if target == nil {
 		return nil, errors.New("operation: target is required")
 	}
-	if lifetime == nil {
+	if config.Lifetime == nil {
 		return nil, errors.New("operation: lifetime is required")
 	}
-	endpoint := &Endpoint{target: target, invocations: newInvocationGroup(lifetime)}
+	if config.IdempotencyNamespace == "" {
+		return nil, errors.New("operation: idempotency namespace is required")
+	}
+	replay, err := newReplayController(config.IdempotencyStore)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := &Endpoint{
+		target: target, idempotency: replay,
+		idempotencyNamespace: config.IdempotencyNamespace,
+		invocations:          newInvocationGroup(config.Lifetime),
+	}
 	endpoint.ready.Store(true)
 	return endpoint, nil
 }
@@ -60,6 +80,21 @@ func (endpoint *Endpoint) Invoke(ctx context.Context, name string, parameters an
 	if validation := validateOptions(options); validation != nil {
 		release()
 		return failed(validation)
+	}
+	if options.IdempotencyKey != "" && !method.Meta.Idempotency.Replays() {
+		release()
+		return failed(NewFailure(
+			protocol.ErrInvalidParams,
+			"this operation does not accept an idempotency key",
+		))
+	}
+	if options.IdempotencyKey != "" &&
+		options.IdempotencyNamespace != endpoint.idempotencyNamespace {
+		release()
+		return failed(NewFailure(
+			protocol.ErrIdempotencyStoreMismatch,
+			"idempotency namespace does not identify this Runtime store",
+		))
 	}
 	if reflect.TypeOf(parameters) != method.Meta.Params {
 		release()
@@ -79,7 +114,21 @@ func (endpoint *Endpoint) Invoke(ctx context.Context, name string, parameters an
 
 	callCtx = WithRequestMeta(callCtx, options.RequestMeta)
 	callCtx = withAfterEventID(callCtx, options.AfterEventID)
-	result := endpoint.execute(callCtx, method, parameters)
+	execute := func() Result { return endpoint.execute(callCtx, method, parameters) }
+	result := Result{}
+	if options.IdempotencyKey == "" {
+		result = execute()
+	} else {
+		result = endpoint.idempotency.invoke(
+			callCtx,
+			method,
+			parameters,
+			options.RequestMeta,
+			options.IdempotencyKey,
+			execute,
+			endpoint.target,
+		)
+	}
 	if result.Events == nil {
 		release()
 		return result
@@ -237,5 +286,8 @@ func (endpoint *Endpoint) AwaitShutdown(ctx context.Context) error {
 	if endpoint == nil || endpoint.invocations == nil {
 		return nil
 	}
-	return endpoint.invocations.AwaitShutdown(ctx)
+	if err := endpoint.invocations.AwaitShutdown(ctx); err != nil {
+		return err
+	}
+	return endpoint.idempotency.flushPending(ctx)
 }

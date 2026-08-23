@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/dispatch"
+	"github.com/Tangerg/lynx/app2/runtime/idempotency"
 	"github.com/Tangerg/lynx/app2/runtime/operation"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/rpcwire"
@@ -134,7 +136,14 @@ func newRouter(t *testing.T) *dispatch.Router {
 	if err != nil {
 		t.Fatalf("discovery.New() error = %v", err)
 	}
-	endpoint, err := operation.New(service, t.Context())
+	store, err := idempotency.NewMemoryStore(24 * time.Hour)
+	if err != nil {
+		t.Fatalf("idempotency.NewMemoryStore() error = %v", err)
+	}
+	endpoint, err := operation.New(service, operation.Config{
+		Lifetime: t.Context(), IdempotencyStore: store,
+		IdempotencyNamespace: "idp_test",
+	})
 	if err != nil {
 		t.Fatalf("operation.New() error = %v", err)
 	}

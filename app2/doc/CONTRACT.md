@@ -12,7 +12,7 @@ change”。第一阶段的合同身份如下：
 | --- | --- | --- |
 | Runtime protocol | `2026-08-23` | Lyra 合同；client/server 必须精确相等，A2-028 修复 Session 模型身份歧义 |
 | Session artifact | `app2/2` | 新合同；不承诺读取旧 v22 或 app2/1 |
-| SQLite schema | epoch `13` | 新存储；A2-031 的 normalized Schedule 与 durable occurrence；开发期 exact epoch，不承诺迁移旧 epoch |
+| SQLite schema | epoch `16` | 新存储；已包含 normalized Schedule、Transcript FTS 与 Compaction projection；开发期 exact epoch，不承诺迁移旧 epoch |
 | Agent snapshot | adapter 显式声明 | 仅由对应 adapter 解码，不泄漏到领域层 |
 
 协议字段或语义只有在存在明确产品缺陷、不可消除的歧义或更强反例时才能改变；改变必须有 ADR、合同版本提升、
@@ -128,7 +128,8 @@ JSON-RPC error；HTTP status 只表达 HTTP admission/transport 是否成立。
 
 ## 8. Runtime resource events
 
-保留当前 16 个 runtime event topics 的功能：
+保留当前 15 个可订阅 Runtime topics，以及一个不可订阅的 `resync` 恢复 variant（合计 16 个
+`RuntimeEvent` variants）：
 
 ```text
 files.changed, skills.changed, mcp.changed, schedules.changed,
@@ -137,6 +138,7 @@ interrupts.changed, knowledge.changed, hooks.changed, models.changed,
 approvals.changed, agentMemory.changed, codebase.changed, resync
 ```
 
+前 15 项是 `runtime.subscribe` 可请求的 change topics；`resync` 只能由 Runtime 产生，不能被订阅。
 resource event 是 invalidation/fact hint，不是第二份 authoritative state。consumer 看到 sequence gap、buffer
 eviction、新 instance 或 `resync` 时，按 topic 重新调用 typed query。事件 payload 不携带未界定的任意 JSON 快照。
 
@@ -149,12 +151,17 @@ exact requested topics/watch IDs 的 `resync`，要求 consumer 冷读。sequenc
 保留当前 header/operation metadata 驱动的幂等模型：
 
 - durable mutation 的 identity 由 `Idempotency-Key` 与 `Idempotency-Namespace` 承载；
-- identity 绑定 method、normalized params fingerprint 和 discover 发布的幂等 namespace；
+- identity 绑定 method、normalized params、协商后的 client capabilities fingerprint 和 discover 发布的幂等 namespace；
+- 只要存在 key 就必须同时提交完全匹配的 namespace；省略或漂移都在 business admission 前失败；
 - 同 identity、同 fingerprint 返回同一 committed result；
 - 同 identity、不同 fingerprint 返回闭合 conflict problem；
+- 首个 durable outcome 是唯一权威；即使 completion acknowledgement 丢失，也不能由后到的本地结果覆盖；
+- completed outcome 按公开 retention 回收，未决 claim 不因时间经过而自动释放，因为无法由超时证明 mutation 未提交；
 - retention 与 method 支持度由 `runtime.discover`/manifest 公布；
 - query 不接收幂等 key；conditional write 使用独立 revision/etag 语义；
 - response 丢失后重放 exact identity，而不是生成新 identity；
+- `runs.start`/`runs.resume` 重放 opening acknowledgement 后只重新附着既有 Run stream，不启动第二个 Run；
+- Runtime shutdown 先关闭 admission、等待已接收调用，再补写已知但尚未确认的 outcome，最后关闭 SQLite；
 - 无法保证 exactly-once 的 provider effect 使用 attempt/receipt/unknown 领域状态显式表达。
 
 renderer journal 只能保存恢复所需的 identity/fingerprint/namespace/deadline，不能保存 token、完整 params、prompt

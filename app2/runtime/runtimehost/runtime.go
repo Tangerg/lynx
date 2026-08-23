@@ -351,7 +351,17 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	goalDriver.Start()
-	endpoint, err := operation.New(app, lifetime)
+	replayStore, err := sqlite.NewIdempotencyStore(
+		database,
+		time.Duration(protocol.DefaultIdempotencyTTL)*time.Second,
+	)
+	if err != nil {
+		return nil, err
+	}
+	endpoint, err := operation.New(app, operation.Config{
+		Lifetime: lifetime, IdempotencyStore: replayStore,
+		IdempotencyNamespace: database.Metadata().IdempotencyNamespace,
+	})
 	if err != nil {
 		return nil, err
 	}

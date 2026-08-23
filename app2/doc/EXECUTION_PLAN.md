@@ -69,7 +69,7 @@
 - `ARCHITECTURE.md`：Runtime/Desktop/frontend 拓扑、依赖、状态和资源 owner；
 - `CONTRACT.md`：继承 Lyra protocol、重建 artifact/schema 的合同策略；
 - `DECISIONS.md`：23 条 accepted ADR；
-- `CAPABILITY_LEDGER.md`：89 operations、3 probes、16 topics、7 run events、24 UI groups、30 tools。
+- `CAPABILITY_LEDGER.md`：89 operations、3 probes、15 subscribable Runtime topics + `resync`（16 event variants）、7 run events、24 UI groups、30 tools。
 
 ### 退出门
 
@@ -927,7 +927,7 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 
 ### 准入
 
-- 89 operations、3 probes、16 topics、7 run events、24 UI groups、30 tools 全部 `verified`；
+- 89 operations、3 probes、15 subscribable Runtime topics + `resync`（16 event variants）、7 run events、24 UI groups、30 tools 全部 `verified`；
 - app2 没有旧 compatibility reader/alias/fallback；
 - architecture/contract/consumer/leak gates 全绿；
 - no unresolved known smell 或“切换后处理”TODO。
