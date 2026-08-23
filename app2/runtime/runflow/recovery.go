@@ -95,6 +95,7 @@ func (service *Service) recoverRun(ctx context.Context, runID string) error {
 	}); err != nil {
 		return err
 	}
+	service.publishLifecycleChange(record.Run)
 	for _, event := range events { service.hub.PublishRun(event) }
 	return nil
 }

@@ -57,6 +57,10 @@ type Checkpoints interface {
 	Snapshot(context.Context, string, string, string) error
 }
 
+type Publisher interface {
+	Publish(protocol.RuntimeEvent)
+}
+
 type ActiveRunError struct{ Run protocol.RunRef }
 
 func (failure *ActiveRunError) Error() string {
@@ -76,6 +80,7 @@ type Service struct {
 	models    ModelSelection
 	checkpoints Checkpoints
 	hub       *streamhub.Hub
+	events    Publisher
 	now       func() time.Time
 	lifetime  context.Context
 	cancel    context.CancelFunc
@@ -99,13 +104,14 @@ type Config struct {
 	Models ModelSelection
 	Checkpoints Checkpoints
 	Hub *streamhub.Hub
+	Events Publisher
 	Lifetime context.Context
 	Clock func() time.Time
 }
 
 func New(config Config) (*Service, error) {
-	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Checkpoints == nil {
-		return nil, errors.New("runflow: store, ids, executor, models, checkpoints and hub are required")
+	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Events == nil || config.Checkpoints == nil {
+		return nil, errors.New("runflow: store, ids, executor, models, checkpoints, hub and events are required")
 	}
 	if config.Lifetime == nil {
 		return nil, errors.New("runflow: lifetime is required")
@@ -117,7 +123,7 @@ func New(config Config) (*Service, error) {
 	lifetime, cancel := context.WithCancel(config.Lifetime)
 	return &Service{
 		store: config.Store, ids: config.IDs, executor: config.Executor, models: config.Models, checkpoints: config.Checkpoints,
-		hub: config.Hub, now: clock, lifetime: lifetime, cancel: cancel,
+		hub: config.Hub, events: config.Events, now: clock, lifetime: lifetime, cancel: cancel,
 		active: make(map[string]activeExecution), locks: make(map[string]*sync.Mutex),
 	}, nil
 }
@@ -292,6 +298,7 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 		}
 		return nil, nil, err
 	}
+	service.publishLifecycleChange(record.Run)
 	if command.claim != nil {
 		if err := command.claim(ctx, runID); err != nil {
 			service.settleUnlaunched(runID)
@@ -441,6 +448,7 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	if err := service.store.CommitRun(ctx, CommitWrite{Run: record, ExpectedStatus: rundomain.Running, ExpectedSegmentID: segmentID, Items: items, Messages: projection.messages, ToolResults: projection.results, Events: persisted}); err != nil {
 		return
 	}
+	service.publishLifecycleChange(record.Run)
 	for _, event := range events {
 		service.hub.PublishRun(event)
 	}
@@ -503,13 +511,21 @@ func (service *Service) Subscribe(ctx context.Context, request protocol.Subscrib
 	if record.Run.ActiveSegmentID() != request.SegmentID {
 		return nil, nil, protocol.ErrStaleSegment
 	}
+	subscriptionCtx, cancelSubscription := context.WithCancel(ctx)
+	live := service.hub.SubscribeRun(
+		subscriptionCtx,
+		request.RunID,
+		request.SegmentID,
+		nil,
+	)
 	replay, head, err := service.replay(ctx, request.RunID, request.SegmentID, afterEventID)
 	if err != nil {
+		cancelSubscription()
 		return nil, nil, err
 	}
 	return &protocol.SubscribeRunResponse{
 		RunID: request.RunID, SegmentID: request.SegmentID, HeadEventID: head,
-	}, service.hub.SubscribeRun(ctx, request.RunID, request.SegmentID, replay), nil
+	}, mergeRunEvents(cancelSubscription, replay, live), nil
 }
 
 func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
@@ -574,6 +590,7 @@ func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRe
 	if err := service.store.CommitRun(ctx, CommitWrite{Run: record, ExpectedStatus: expectedStatus, ExpectedSegmentID: expectedSegmentID, Events: persisted}); err != nil {
 		return nil, err
 	}
+	service.publishLifecycleChange(record.Run)
 	service.hub.PublishRun(event)
 	presented, err := presentRecord(record)
 	if err != nil {
@@ -654,6 +671,7 @@ func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequ
 		persisted, err := persistEvents([]protocol.RunEvent{event}, facts.EventOrdinal)
 		if err != nil { active.cancel(); return err }
 		if err := service.store.CommitSteer(ctx, SteerWrite{Run: record, ExpectedSegmentID: request.ExpectedSegmentID, Item: storedItem, Message: storedMessage, Event: persisted[0]}); err != nil { active.cancel(); return err }
+		service.publishRunChange(record.Run)
 		service.hub.PublishRun(event)
 		return nil
 	case <-ctx.Done():
@@ -661,6 +679,48 @@ func (service *Service) Steer(ctx context.Context, request protocol.SteerRunRequ
 	case <-service.lifetime.Done():
 		return protocol.ErrRunFinished
 	}
+}
+
+func mergeRunEvents(
+	cancel context.CancelFunc,
+	replay []protocol.RunEvent,
+	live iter.Seq[protocol.RunEvent],
+) iter.Seq[protocol.RunEvent] {
+	return func(yield func(protocol.RunEvent) bool) {
+		defer cancel()
+		seen := make(map[string]struct{}, len(replay))
+		for _, event := range replay {
+			seen[event.EventID] = struct{}{}
+			if !yield(event) || event.Event.Type == protocol.StreamSegmentFinished {
+				return
+			}
+		}
+		for event := range live {
+			if _, duplicate := seen[event.EventID]; duplicate {
+				continue
+			}
+			seen[event.EventID] = struct{}{}
+			if !yield(event) || event.Event.Type == protocol.StreamSegmentFinished {
+				return
+			}
+		}
+	}
+}
+
+func (service *Service) publishLifecycleChange(value rundomain.Run) {
+	service.publishRunChange(value)
+	service.events.Publish(protocol.RuntimeEvent{
+		Type:       protocol.RuntimeSessionsChanged,
+		SessionIDs: []string{value.SessionID()},
+	})
+}
+
+func (service *Service) publishRunChange(value rundomain.Run) {
+	service.events.Publish(protocol.RuntimeEvent{
+		Type:       protocol.RuntimeRunsChanged,
+		SessionIDs: []string{value.SessionID()},
+		RunIDs:     []string{value.ID()},
+	})
 }
 
 func (service *Service) Items(ctx context.Context, request protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {

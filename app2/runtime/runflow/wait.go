@@ -82,6 +82,7 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 	if err := service.store.CommitWait(ctx, WaitWrite{Run: record, ExpectedSegmentID: segmentID, Items: items, Messages: projection.messages, ToolResults: projection.results, Interrupts: set, Checkpoint: waiting.Checkpoint, Events: persisted}); err != nil {
 		return err
 	}
+	service.publishLifecycleChange(record.Run)
 	for _, event := range events { service.hub.PublishRun(event) }
 	return nil
 }

@@ -169,7 +169,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	hub := streamhub.New()
 	runs, err := runflow.New(runflow.Config{
 		Store: database, IDs: identity.Generator{}, Executor: executor,
-		Models: providers, Hub: hub, Lifetime: lifetime, Checkpoints: checkpoints,
+		Models: providers, Hub: hub, Events: events, Lifetime: lifetime, Checkpoints: checkpoints,
 	})
 	if err != nil {
 		return nil, err
