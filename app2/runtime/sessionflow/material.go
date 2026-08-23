@@ -5,6 +5,7 @@ import (
 
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	goaldomain "github.com/Tangerg/lynx/app2/runtime/domain/goal"
+	plandomain "github.com/Tangerg/lynx/app2/runtime/domain/plan"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
@@ -18,7 +19,8 @@ type Material struct {
 	Items []transcript.Record
 	Messages []conversationdomain.Record
 	Interrupts []protocol.PendingInterruptSet
-	Plan protocol.Plan
+	Plan plandomain.State
+	PlanBoundaries map[string]plandomain.Boundary
 	Goal *goaldomain.Goal
 	ToolResults []toolresult.Record
 }
@@ -28,15 +30,35 @@ type ForkWrite struct {
 	Runs []rundomain.Record
 	Items []transcript.Record
 	Messages []conversationdomain.Record
-	Plan *protocol.Plan
+	Plan *plandomain.State
+	PlanBoundaries map[string]plandomain.Boundary
 	ToolResults []toolresult.Record
 }
 
 type RollbackWrite struct {
 	SessionID session.ID
 	DropRootRunIDs []string
-	Plan *protocol.Plan
+	Plan *plandomain.State
+	ExpectedPlanRevision uint64
 	Now time.Time
 }
 
-type ImportWrite struct { Material Material }
+type ImportWrite struct {
+	Material Material
+	ExpectedPlanRevision uint64
+}
+
+type ForkResult struct {
+	Session *protocol.Session
+	PlanChanged bool
+}
+
+type RollbackResult struct {
+	Response *protocol.RollbackSessionResponse
+	PlanChanged bool
+}
+
+type ImportResult struct {
+	Response *protocol.ImportSessionResponse
+	PlanChanged bool
+}

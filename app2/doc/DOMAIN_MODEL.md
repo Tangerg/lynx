@@ -253,14 +253,23 @@ Plan 是一等资源，不是通用 state registry 的一个 key：
 ```text
 Plan {
   sessionId
-  rootRunId
   revision
-  steps[] { id, text, status = pending | inProgress | completed }
+  updatedAt
+  steps[] { id, description, status = pending | in_progress | completed }
 }
 ```
 
-同一时刻至多一个 `inProgress` step。Plan 更新是 committed fact；Desktop 显示紧凑进度，完整步骤在
-需要时展开，但 UI 展开状态不回写 Plan。
+同一时刻至多一个 `in_progress` step。Plan 是 Session-scoped current resource；写它的 root Run 通过
+`plan.updated` 发布 exact committed snapshot，但 Run 不另存第二份 Plan ownership。`plan.changed` 只做冷读失效，
+不携带 Plan payload。Desktop 显示紧凑进度，完整步骤在需要时展开，但 UI 展开状态不回写 Plan。
+
+Plan mode 是独立的 Session-scoped durable safety policy，不是 Plan aggregate 字段，也不替换全局 Approval policy：
+它阻止 write/exec/network effect，直到用户批准 exact stored Plan。进入/退出 mode 本身不伪造 Plan revision。
+
+每个本 Runtime 正常 terminalize 的 root Run 同事务捕获一个 Plan Boundary。fork 取所选 root boundary，而不是
+父 Session 的 live Plan；history rollback 把 known boundary 作为一次新的 Plan replacement，所以 live revision 继续
+单调前进。Artifact 只携带 live Plan，不伪造历史 boundary：imported Run 的 boundary 缺席表示 unknown，与 recorded
+empty 明确不同。boundary 由 Run FK 拥有，Run 被回滚删除时自动消失。
 
 ## 10. 配置与能力资源
 

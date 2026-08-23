@@ -88,9 +88,17 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS plans (
 			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-			revision INTEGER NOT NULL CHECK (revision >= 0),
+			revision INTEGER NOT NULL CHECK (revision > 0),
 			body TEXT NOT NULL CHECK (json_valid(body)),
-			updated_at TEXT
+			updated_at TEXT NOT NULL
+		) STRICT`,
+		`CREATE TABLE IF NOT EXISTS plan_modes (
+			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+			entered_at TEXT NOT NULL
+		) STRICT`,
+		`CREATE TABLE IF NOT EXISTS plan_boundaries (
+			run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+			body TEXT NOT NULL CHECK (json_valid(body))
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS goals (
 			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,

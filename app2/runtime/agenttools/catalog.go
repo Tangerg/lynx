@@ -52,23 +52,32 @@ type GoalGateway interface {
 	Report(context.Context, string, string, string, string) (string, error)
 }
 
+type PlanGateway interface {
+	Get(context.Context, protocol.GetPlanRequest) (*protocol.Plan, error)
+	Replace(context.Context, string, []protocol.PlanStep) (*protocol.Plan, error)
+	EnterMode(context.Context, string) (bool, error)
+	ExitMode(context.Context, string) (bool, error)
+	Mode(context.Context, string) (bool, error)
+}
+
 type Catalog struct {
 	policy   ApprovalPolicy
 	mcp      MCPGateway
 	results  ToolResultReader
 	goals    GoalGateway
+	plans    PlanGateway
 	userHome string
 }
 
-func New(policy ApprovalPolicy, mcp MCPGateway, results ToolResultReader, goals GoalGateway, userHome string) (*Catalog, error) {
-	if policy == nil || goals == nil || !filepath.IsAbs(userHome) {
-		return nil, errors.New("agenttools: approval policy, goal gateway and absolute user home are required")
+func New(policy ApprovalPolicy, mcp MCPGateway, results ToolResultReader, goals GoalGateway, plans PlanGateway, userHome string) (*Catalog, error) {
+	if policy == nil || goals == nil || plans == nil || !filepath.IsAbs(userHome) {
+		return nil, errors.New("agenttools: approval policy, goal and Plan gateways, and absolute user home are required")
 	}
-	return &Catalog{policy: policy, mcp: mcp, results: results, goals: goals, userHome: filepath.Clean(userHome)}, nil
+	return &Catalog{policy: policy, mcp: mcp, results: results, goals: goals, plans: plans, userHome: filepath.Clean(userHome)}, nil
 }
 
 func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) ([]agentexec.ExecutableTool, error) {
-	if scope.SessionID == "" || scope.RunID == "" || !filepath.IsAbs(scope.Workspace) {
+	if scope.SessionID == "" || scope.RunID == "" || !filepath.IsAbs(scope.Workspace) || scope.Facts == nil {
 		return nil, errors.New("agenttools: complete run scope is required")
 	}
 	executor, err := newConfinedExecutor(scope.Workspace)
@@ -110,9 +119,14 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		if err != nil { return nil, err }
 		values = append(values, scopedTool{tool: reader, safety: protocol.SafetyClassSafe})
 	}
-	goalTools, err := catalog.goalTools(ctx, scope)
-	if err != nil { return nil, err }
-	values = append(values, goalTools...)
+	if scope.IsRootRun {
+		goalTools, err := catalog.goalTools(ctx, scope)
+		if err != nil { return nil, err }
+		values = append(values, goalTools...)
+		planTools, err := catalog.planTools(scope)
+		if err != nil { return nil, err }
+		values = append(values, planTools...)
+	}
 	if catalog.mcp != nil {
 		remote, err := catalog.remoteTools(ctx)
 		if err != nil {
@@ -138,6 +152,9 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		}
 		if ok {
 			tool = &pathGuardTool{Tool: tool, paths: paths, root: executor.root}
+		}
+		if value.safety != protocol.SafetyClassSafe {
+			tool = &planModeGate{Tool: tool, plans: catalog.plans, sessionID: scope.SessionID}
 		}
 		name := tool.Definition().Name
 		if _, duplicate := modelNames[name]; duplicate {

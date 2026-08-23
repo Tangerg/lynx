@@ -87,9 +87,25 @@ func (database *Database) CommitRun(ctx context.Context, write runflow.CommitWri
 	if value.Status() == rundomain.Finished {
 		if _, err := transaction.ExecContext(ctx, `DELETE FROM interrupt_sets WHERE run_id = ?`, value.ID()); err != nil { return fmt.Errorf("sqlite: clear terminal interrupt: %w", err) }
 		if _, err := transaction.ExecContext(ctx, `DELETE FROM executor_checkpoints WHERE run_id = ?`, value.ID()); err != nil { return fmt.Errorf("sqlite: clear terminal checkpoint: %w", err) }
+		if value.ParentRunID() == "" {
+			if err := capturePlanBoundary(ctx, transaction, value.ID(), value.SessionID()); err != nil { return err }
+		}
 	}
 	if err := transaction.Commit(); err != nil {
 		return fmt.Errorf("sqlite: finish run commit: %w", err)
+	}
+	return nil
+}
+
+func capturePlanBoundary(ctx context.Context, transaction *sql.Tx, runID, sessionID string) error {
+	var body string
+	err := transaction.QueryRowContext(ctx, `SELECT body FROM plans WHERE session_id=?`, sessionID).Scan(&body)
+	if errors.Is(err, sql.ErrNoRows) {
+		body, err = emptyPlanBody()
+	}
+	if err != nil { return fmt.Errorf("sqlite: read Plan boundary for run %s: %w", runID, err) }
+	if _, err := transaction.ExecContext(ctx, `INSERT INTO plan_boundaries(run_id,body) VALUES(?,?)`, runID, body); err != nil {
+		return fmt.Errorf("sqlite: capture Plan boundary for run %s: %w", runID, err)
 	}
 	return nil
 }

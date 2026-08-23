@@ -134,6 +134,17 @@ func (service *Service) projectExecution(ctx context.Context, record rundomain.R
 				return executionProjection{}, err
 			}
 			projection.events = append(projection.events, completed)
+			if observation.CommittedPlan != nil {
+				plan := *observation.CommittedPlan
+				if plan.SessionID != record.Run.SessionID() {
+					return executionProjection{}, errors.New("runflow: committed Plan belongs to another session")
+				}
+				updated, err := service.event(record.Run.ID(), segmentID, facts, protocol.StreamEvent{Type: protocol.StreamPlanUpdated, Plan: &plan}, observation.FinishedAt)
+				if err != nil {
+					return executionProjection{}, err
+				}
+				projection.events = append(projection.events, updated)
+			}
 		}
 		results := make([]chat.ToolResult, 0)
 		for _, observation := range output.Tools {

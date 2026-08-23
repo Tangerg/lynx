@@ -270,3 +270,32 @@ recovery mutation 都从 Goal owner 发布 `goals.changed`，application facade 
 
 **后果**：Goal status 闭合为 `active | paused | blocked | completing`；停止原因是闭合 code；Goal body 的 SQLite
 表示是 adapter-owned DTO，不序列化领域对象或协议 DTO。该能力在最终统一门禁前只标记 `implemented`。
+
+## ADR-A2-026：Plan 是独立资源，Plan mode 是正交的 Session safety policy
+
+**决定**：继续使用现有 Lyra `plan.get`、`Plan`、`plan.changed` 与 `plan.updated` 合同，不引入 Codex Plan wire、
+Thread/Turn 身份或第二套 planning DTO。服务端删除共管 Plan/Interrupt 的 `stateflow`，把 Plan 重写为私有有序聚合、
+CAS repository 与 `planflow.Service`；SQLite 只保存 adapter-owned body。Plan 整体替换，revision 单调递增，任一
+snapshot 至多一个 `in_progress`。
+
+成功的 `set_plan` 先提交 canonical Plan，再通过 `agentexec` Run-scoped typed fact sink 把该 exact snapshot 绑定到
+同一个 observed ToolCall；runflow 在其 `item.completed` 后投影 authoritative/replayable `plan.updated`。它不解析工具
+参数或字符串 result 反造 Plan。`plan.changed` 仍是无 payload 的冷读失效信号，Desktop 必须回读 `plan.get`。
+
+Plan mode 单独持久化为 Session-scoped safety policy，不放进 Plan 聚合，也不改全局 Approval mode。进入后，Run
+catalog 的动态外层 gate 在 approval 之前拒绝 write/exec/network effect；read-only investigation、Plan replacement
+与用户 question 仍可进行。退出必须以 durable HITL question 展示并批准 exact stored Plan；拒绝或重启后继续保持
+Plan mode，批准时还要匹配提问时的 Plan revision。Session delete/rollback/import 清理 mode，fork 不继承 mode。
+
+Plan/Goal control tools 只向 root Run 暴露。每次 root Run terminal transition 在同一 SQLite transaction 捕获 Plan
+boundary；fork remap 已复制 Run 的 known boundaries，并以所选边界初始化 child live Plan；history rollback 通过 CAS
+把 known boundary 提交成更高 live revision。没有 boundary 的 imported Run 保持 unknown，不能被当作 empty。boundary
+通过 Run foreign key 回收，Artifact 继续只携带 canonical live Plan，不扩张现有 Lyra wire。
+
+**原因**：Plan 内容、Plan mode 与 Interrupt 分别有不同的不变量、生命周期和变化原因；generic state owner 会把
+资源、策略和人机交互重新耦合。Codex 的机制研究说明 read-only planning gate 与 explicit approval 很有价值，但现有
+Lyra Plan/Run/Interrupt 合同已经更贴合当前产品，复制其协议只会产生双重真相。
+
+**后果**：Session snapshot/fork/rollback/import/export 统一消费 Plan domain state；`plan.updated` 与 `plan.get` 共享
+committed revision。Plan Runtime 与 tools 在最终统一门禁前只标记 `implemented`，Desktop compact projection 仍是
+R5 的未完成部分。

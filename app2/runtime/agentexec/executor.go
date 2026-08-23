@@ -30,10 +30,19 @@ type ToolCatalog interface {
 	ForRun(context.Context, ToolScope) ([]ExecutableTool, error)
 }
 
+// ToolFactSink receives committed domain facts that cannot be reconstructed
+// from a provider-facing string result. The executor owns its lifetime and
+// attaches each fact to the exact observed ToolCall.
+type ToolFactSink interface {
+	RecordCommittedPlan(string, protocol.Plan)
+}
+
 type ToolScope struct {
 	SessionID string
 	RunID     string
 	Workspace string
+	IsRootRun bool
+	Facts     ToolFactSink
 }
 
 type Executor struct {
@@ -52,6 +61,7 @@ type Input struct {
 	Provider, Model, Workspace string
 	SessionID                  string
 	RunID                      string
+	IsRootRun                  bool
 	Conversation               []Message
 	MaxSteps                   int
 	Steers                     <-chan Steer
@@ -60,6 +70,7 @@ type Input struct {
 type ResumeInput struct {
 	Provider, Model, Workspace string
 	SessionID, RunID           string
+	IsRootRun                  bool
 	MaxSteps                   int
 	Checkpoint                 json.RawMessage
 	Response                   json.RawMessage
@@ -114,7 +125,7 @@ type ToolInputInvocation struct {
 }
 
 func (executor *Executor) Execute(ctx context.Context, input Input) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.MaxSteps)
+	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps)
 	if err != nil {
 		return Output{}, err
 	}
@@ -141,7 +152,7 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 }
 
 func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output, error) {
-	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.MaxSteps)
+	deployment, observer, err := executor.deployment(ctx, input.Provider, input.Model, input.SessionID, input.RunID, input.Workspace, input.IsRootRun, input.MaxSteps)
 	if err != nil {
 		return Output{}, err
 	}
@@ -194,19 +205,20 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 	return awaitProcess(ctx, engine, process, observer, input.RunID, input.Steers)
 }
 
-func (executor *Executor) deployment(ctx context.Context, provider, model, sessionID, runID, workspace string, maxSteps int) (agent.Deployment, *executionObserver, error) {
+func (executor *Executor) deployment(ctx context.Context, provider, model, sessionID, runID, workspace string, rootRun bool, maxSteps int) (agent.Deployment, *executionObserver, error) {
 	client, err := executor.clients.ResolveClient(ctx, provider, model)
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
+	observer := newExecutionObserver(runID, model)
 	bindings := []ExecutableTool{}
 	if executor.tools != nil {
-		bindings, err = executor.tools.ForRun(ctx, ToolScope{SessionID: sessionID, RunID: runID, Workspace: workspace})
+		bindings, err = executor.tools.ForRun(ctx, ToolScope{SessionID: sessionID, RunID: runID, Workspace: workspace, IsRootRun: rootRun, Facts: observer})
 		if err != nil {
 			return agent.Deployment{}, nil, fmt.Errorf("agentexec: resolve tools: %w", err)
 		}
 	}
-	observer := newExecutionObserver(runID, model, bindings)
+	observer.bindTools(bindings)
 	executables := make([]tool.Tool, len(bindings))
 	for index, binding := range bindings {
 		executables[index] = binding.Tool

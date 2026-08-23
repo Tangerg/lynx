@@ -26,17 +26,18 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
 	"github.com/Tangerg/lynx/app2/runtime/httptransport"
 	"github.com/Tangerg/lynx/app2/runtime/identity"
+	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
 	"github.com/Tangerg/lynx/app2/runtime/localruntime"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
 	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
 	"github.com/Tangerg/lynx/app2/runtime/operation"
+	"github.com/Tangerg/lynx/app2/runtime/planflow"
 	"github.com/Tangerg/lynx/app2/runtime/providerflow"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/runflow"
 	"github.com/Tangerg/lynx/app2/runtime/runtimeevents"
 	"github.com/Tangerg/lynx/app2/runtime/sessionflow"
 	"github.com/Tangerg/lynx/app2/runtime/settingsflow"
-	"github.com/Tangerg/lynx/app2/runtime/stateflow"
 	"github.com/Tangerg/lynx/app2/runtime/sqlite"
 	"github.com/Tangerg/lynx/app2/runtime/streamhub"
 	"github.com/Tangerg/lynx/app2/runtime/toolflow"
@@ -150,12 +151,14 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	goalSignals := goalflow.NewSignals()
 	goals, err := goalflow.New(database, identity.Generator{}, goalSignals, events)
 	if err != nil { return nil, err }
+	plans, err := planflow.New(database, events)
+	if err != nil { return nil, err }
 	mcp, err := mcpflow.New(database, identity.Generator{}, lifetime)
 	if err != nil {
 		return nil, err
 	}
 	guard.AddClose(mcp.Close)
-	agentToolCatalog, err := agenttools.New(database, mcp, database, goals, config.UserHome)
+	agentToolCatalog, err := agenttools.New(database, mcp, database, goals, plans, config.UserHome)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +193,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	guard.AddClose(settings.Close)
-	state, err := stateflow.New(database)
+	interrupts, err := interruptflow.New(database)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +210,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil { return nil, err }
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
-		Runs: runs, Workspace: workspace, Settings: settings, State: state, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
+		Runs: runs, Workspace: workspace, Settings: settings, Interrupts: interrupts, Plans: plans, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
 		Capability: capabilities, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
 	})
 	if err != nil {

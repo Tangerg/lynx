@@ -1,7 +1,7 @@
 # app2 能力迁移账本
 
-> 基线：2026-08-22；最近核验：2026-08-23。本文是迁移状态的唯一 owner。当前 app2 已完成 R1：
-> `runtime.discover` 与 U02 verified，3 个 operational probes 与 U01 implemented（本地证据已通过，remote 仍归 R10）；
+> 基线：2026-08-22；最近更新：2026-08-23。本文是迁移状态的唯一 owner。当前 app2 已完成 R1，并在继续
+> R2–R11 production implementation；R5 的 Plan/Goal Runtime 已到 implemented，Desktop 与最终统一门禁未完成。
 > 旧 app 的全绿证据不能冒充 app2 已完成。
 
 ## 1. 状态定义
@@ -9,7 +9,7 @@
 | 状态 | 含义 |
 | --- | --- |
 | `specified` | 已登记目标 owner、阶段与验收，尚无 app2 生产实现 |
-| `implemented` | app2 纵切存在，定向测试通过，尚未完成 parity/recovery/product 证据 |
+| `implemented` | app2 production 纵切与 owner 文档存在；按当前集中验证节奏，允许尚未运行最终测试/parity/recovery/product 门禁 |
 | `verified` | 场景、合同、恢复、Desktop consumer 和相应视觉/包体验收均通过 |
 | `cutover` | 产品入口已切换且旧实现已删除 |
 | `blocked` | 有具名外部阻塞；必须记录 owner/解除条件，不能用作普通 pending |
@@ -20,12 +20,12 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，88 specified | 89 verified |
+| Runtime operations | 89 | 1 verified，7 implemented，81 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
-| Runtime resource topics | 16 | 16 已映射，0 implemented | 16 producer/consumer/resync verified |
-| Run event variants | 7 | 7 语义已映射，0 implemented | live + replay + recovery verified |
+| Runtime resource topics | 16 | 2 implemented，14 specified | 16 producer/consumer/resync verified |
+| Run event variants | 7 | 1 implemented，6 specified | live + replay + recovery verified |
 | Desktop product surfaces | 24 groups | 1 verified，1 implemented，22 specified | 全部 verified |
-| 内置 tool presentation | 30 + MCP/unknown | 已登记，0 implemented | 全部真实 material verified |
+| 内置 tool presentation | 30 + MCP/unknown | 6 implemented，24 + MCP/unknown specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
 
@@ -39,7 +39,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O02 | `sessions.list`, `sessions.get`, `sessions.snapshot`, `sessions.create`, `sessions.update`, `sessions.delete`, `sessions.fork`, `sessions.rollback`, `sessions.export`, `sessions.import` | 10 | session + sessionflow + artifact | R2/R9 | specified | CRUD/CAS、snapshot closure、fork boundary、rollback files/history、exact app2 artifact、cascade cleanup |
 | O03 | `runs.start`, `runs.resume`, `runs.subscribe`, `runs.cancel`, `runs.steer`, `runs.get`, `runs.list` | 7 | run + runflow + session hydration | R3/R4 | specified | single open tree、source ownership、exact control、snapshot/stream handoff、terminal outcome、pagination、recovery |
 | O04 | `interrupts.list` | 1 | interrupt query in snapshot/audit | R4 | specified | pending exact identity、cursor、settled 不复活、Session/Run filtering |
-| O05 | `plan.get` | 1 | plan | R5 | specified | one current root plan、revision、snapshot/event 一致、无 generic state registry |
+| O05 | `plan.get` | 1 | plan + planflow | R5 | implemented | Session current Plan、CAS revision、root terminal boundary、fork/rollback/import lifecycle、snapshot/event 同源、无 generic state registry；待 Desktop 与最终统一门禁 |
 | O06 | `items.list` | 1 | transcript | R3 | specified | cursor、page Run closure、source Run/phase/order、completed-only cold history |
 | O07 | `workspaces.resolve`, `workspaces.list` | 2 | workspaceflow | R2/R6 | specified | absolute identity、projectRoot 派生、missing 显式、无 active Project |
 | O08 | `workspace.changes.list`, `workspace.diff.get`, `workspace.files.head`, `workspace.files.search`, `workspace.files.list`, `workspace.files.read` | 6 | workspaceflow + filesystem/git | R6 | specified | scope/path safety、rows/raw sum type、binary/rename/untracked、cursor/bounds、纯文本无 server HTML |
@@ -79,7 +79,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
 | `sessions.changed` | session transaction | Work Index | R2 | specified | create/update/delete/archive/status attention 收敛 |
 | `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
-| `plan.changed` | plan transaction | Plan pill/tooltip | R5 | specified | revision/snapshot/event convergent |
+| `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效；待 Desktop 与最终统一门禁 |
 | `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布；待最终统一门禁 |
 | `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | specified | answer settlement 后 exact pending 消失 |
 | `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
@@ -100,7 +100,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `item.started` | authoritative/replayable | placeholder/source owner | R3 | specified | stable item key、no cross-run merge |
 | `item.delta` | ephemeral/non-replay | message/reasoning/tool streaming | R3 | specified | monotonic fold、duplicate/gap rules、history 无 typing effect |
 | `item.completed` | authoritative/replayable | durable content/material | R3/R4 | specified | completion replaces provisional, phase/source exact |
-| `plan.updated` | authoritative/replayable | Plan resource projection | R5 | specified | revision/order/status invariant |
+| `plan.updated` | authoritative/replayable | Plan resource projection | R5 | implemented | 成功 `set_plan` 的 committed result 投影，revision/order/status 与 `plan.get` 同源；待最终统一门禁 |
 
 app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化必须满足 ADR-A2-022 的协议门槛。
 
@@ -143,7 +143,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | 命令（3） | `shell`, `read_shell_output`, `stop_shell` | R4 | specified | command/description、stream/output、exit/duration、background exact ID、cancel |
 | 网络（3） | `web_search`, `web_fetch`, `http_request` | R4 | specified | URL/status/header/body、安全 link、result normalization、bounded preview |
 | Skill（4） | `list_skills`, `load_skill`, `read_skill_resource`, `propose_skill` | R7 | specified | scope/name/resource/proposal，正文滚动，不与 Skill 管理 UI 混 owner |
-| Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | specified | 工具行不重复 Plan/HITL 真身，closed approve/reject question |
+| Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | implemented | root-only、durable Session read-only policy、dynamic effect gate、committed Plan fact、revision-bound approve/reject question；待 Desktop 与最终统一门禁 |
 | Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |
 | Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |
 | 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | specified | prose/bounded result、完整正文按需读取、history search scope |

@@ -27,7 +27,7 @@
 | R2 | Workspace + Session 首个完整纵切、snapshot hydration、Work Index、基础 shell | in progress |
 | R3 | root Run + Item stream + Composer + Agent Narrative + durable cold restore | pending |
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | pending |
-| R5 | Plan + Goal 完整生命周期与 UI | in progress（Goal Runtime 已实现，Plan/Desktop 待实现） |
+| R5 | Plan + Goal 完整生命周期与 UI | in progress（Plan/Goal Runtime 已实现，Desktop 待实现） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | pending |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | pending |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
@@ -229,12 +229,22 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 
 ### 当前实现记录（尚未统一验证）
 
+- Plan 已从共管 Plan/Interrupt 的 `stateflow` 拆为私有聚合、CAS store 与独立 `planflow.Service`；Interrupt
+  冷读也回到独立 owner，不再保留 generic state package；
+- `set_plan` 整体替换有序步骤并提交单调 revision；`plan.changed` 只通知冷读失效，成功工具调用把同一份
+  committed Plan 投影为该 Segment 的 authoritative/replayable `plan.updated`；
+- `enter_plan_mode` 建立 Session-scoped durable read-only policy，动态阻止 write/exec/network；
+  `exit_plan_mode` 只在用户批准 exact stored Plan 后解除，不改变 Lyra 全局 approval policy；
+- Plan/Goal tools 只进入 root Run catalog；root Run terminal commit 原子捕获 Plan boundary，fork 复制被选边界及
+  已知历史边界，rollback 以新 revision 恢复 known boundary；imported Run 的缺席 boundary 保持 unknown，不猜空；
+- Session snapshot/fork/rollback/import/export 都消费 Plan 聚合；delete/rollback/import 清理 Plan mode，fork 不继承；
 - Goal 已从 `stateflow` DTO CRUD 拆为私有聚合、CAS store、`goalflow.Service` 与单 owner Driver；
 - fresh autonomous control 仅进入 exact Conversation journal，不伪装成用户 Transcript Item；
 - Goal Run 在执行启动前认领 exact `incarnationId + revision + runId`，旧 incarnation 无权提交 outcome；
 - restart 先由 runflow 把 predecessor execution 收敛为 `lost`，再把仍 active 的 Goal 显式暂停，绝不暗中续跑；
 - `create_goal`、`get_goal` 常驻，`report_goal_outcome` 只对 exact owned Run 可见；
-- 本记录只升到 implemented；最终 R11 统一门禁通过后才可标记 verified。
+- Plan/Goal 均保留现有 Lyra wire；Codex 只提供机制研究，不提供协议或产品语义；
+- 本记录只升到 implemented；Desktop consumer 与最终 R11 统一门禁通过后才可标记 verified。
 
 ## 10. R6：Workspace 与 Context Dock
 

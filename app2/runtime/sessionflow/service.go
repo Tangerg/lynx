@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	plandomain "github.com/Tangerg/lynx/app2/runtime/domain/plan"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
@@ -23,6 +24,7 @@ type Store interface {
 	ListSessions(context.Context, int, *session.Cursor) (session.Page, error)
 	UpdateSession(context.Context, session.Session, uint64) error
 	DeleteSession(context.Context, session.ID) error
+	LoadPlan(context.Context, string) (plandomain.State, error)
 	ReadSessionMaterial(context.Context, session.ID) (Material, error)
 	CreateSessionFork(context.Context, ForkWrite) error
 	RollbackSessionHistory(context.Context, RollbackWrite) (session.Session, error)

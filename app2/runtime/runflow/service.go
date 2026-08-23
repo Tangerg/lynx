@@ -334,7 +334,7 @@ func (service *Service) launchExecution(runID, segmentID, workspace string, conv
 		}
 		output, executeErr := service.executor.Execute(ctx, agentexec.Input{
 			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
-			SessionID: record.Run.SessionID(), RunID: runID, Conversation: conversation, Steers: steers,
+			SessionID: record.Run.SessionID(), RunID: runID, IsRootRun: record.Run.ParentRunID() == "", Conversation: conversation, Steers: steers,
 			MaxSteps: runMaxSteps(record.Body),
 		})
 		service.finishExecution(runID, segmentID, workspace, output, executeErr)

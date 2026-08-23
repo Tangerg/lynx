@@ -14,15 +14,16 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
+	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
 	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
+	"github.com/Tangerg/lynx/app2/runtime/planflow"
 	"github.com/Tangerg/lynx/app2/runtime/providerflow"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/runflow"
 	"github.com/Tangerg/lynx/app2/runtime/runtimeevents"
 	"github.com/Tangerg/lynx/app2/runtime/sessionflow"
 	"github.com/Tangerg/lynx/app2/runtime/settingsflow"
-	"github.com/Tangerg/lynx/app2/runtime/stateflow"
 	"github.com/Tangerg/lynx/app2/runtime/toolflow"
 	"github.com/Tangerg/lynx/app2/runtime/workspaceflow"
 )
@@ -34,7 +35,8 @@ type Runtime struct {
 	runs      *runflow.Service
 	workspace *workspaceflow.Service
 	settings  *settingsflow.Service
-	state     *stateflow.Service
+	interrupts *interruptflow.Service
+	plans     *planflow.Service
 	goals     *goalflow.Service
 	goalDriver *goalflow.Driver
 	mcp       *mcpflow.Service
@@ -54,7 +56,8 @@ type Config struct {
 	Workspace *workspaceflow.Service
 	Settings *settingsflow.Service
 	Events *runtimeevents.Bus
-	State *stateflow.Service
+	Interrupts *interruptflow.Service
+	Plans *planflow.Service
 	Goals *goalflow.Service
 	GoalDriver *goalflow.Driver
 	MCP *mcpflow.Service
@@ -65,13 +68,13 @@ type Config struct {
 }
 
 func New(config Config) (*Runtime, error) {
-	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.State == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
+	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
 		return nil, errors.New("application: all required capability services must be supplied")
 	}
 	return &Runtime{
 		discovery: config.Discovery, sessions: config.Sessions,
 		providers: config.Providers, runs: config.Runs, workspace: config.Workspace,
-		settings: config.Settings, state: config.State, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability,
+		settings: config.Settings, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability,
 		codebase: config.Codebase, tools: config.Tools, operations: config.Operations, events: config.Events,
 	}, nil
 }
@@ -111,6 +114,7 @@ func (runtime *Runtime) DeleteSession(ctx context.Context, sessionID string) err
 	runtime.goalDriver.ReleaseSession(sessionID, err == nil && hadGoal)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{sessionID}})
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{sessionID}})
 	}
 	return err
 }
@@ -120,22 +124,26 @@ func (runtime *Runtime) GetSessionSnapshot(ctx context.Context, request protocol
 }
 
 func (runtime *Runtime) ForkSession(ctx context.Context, request protocol.ForkSessionRequest) (*protocol.Session, error) {
-	value, err := runtime.sessions.Fork(ctx, request)
+	result, err := runtime.sessions.Fork(ctx, request)
 	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{value.ID}})
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{result.Session.ID}})
+		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{result.Session.ID}}) }
 	}
-	return value, err
+	if err != nil { return nil, err }
+	return result.Session, nil
 }
 
 func (runtime *Runtime) RollbackSession(ctx context.Context, request protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, request.SessionID)
 	if suppressErr != nil { return nil, suppressErr }
-	value, err := runtime.sessions.Rollback(ctx, request)
+	result, err := runtime.sessions.Rollback(ctx, request)
 	runtime.goalDriver.ReleaseSession(request.SessionID, err == nil && hadGoal && request.RestoreType != protocol.RestoreFiles)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{request.SessionID}})
+		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{request.SessionID}}) }
 	}
-	return value, err
+	if err != nil { return nil, err }
+	return result.Response, nil
 }
 
 func (runtime *Runtime) ExportSession(ctx context.Context, request protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
@@ -146,12 +154,14 @@ func (runtime *Runtime) ImportSession(ctx context.Context, request protocol.Impo
 	sessionID := request.Artifact.Session.ID
 	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, sessionID)
 	if suppressErr != nil { return nil, suppressErr }
-	value, err := runtime.sessions.Import(ctx, request)
+	result, err := runtime.sessions.Import(ctx, request)
 	runtime.goalDriver.ReleaseSession(sessionID, err == nil && hadGoal)
 	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{value.Session.ID}})
+		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{result.Response.Session.ID}})
+		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{result.Response.Session.ID}}) }
 	}
-	return value, err
+	if err != nil { return nil, err }
+	return result.Response, nil
 }
 
 func (runtime *Runtime) ResolveWorkspace(ctx context.Context, request protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error) {
@@ -262,11 +272,11 @@ func (runtime *Runtime) ListItems(ctx context.Context, request protocol.ListItem
 }
 
 func (runtime *Runtime) ListInterrupts(ctx context.Context, request protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {
-	return runtime.state.Interrupts(ctx, request)
+	return runtime.interrupts.List(ctx, request)
 }
 
 func (runtime *Runtime) GetPlan(ctx context.Context, request protocol.GetPlanRequest) (*protocol.Plan, error) {
-	return runtime.state.Plan(ctx, request)
+	return runtime.plans.Get(ctx, request)
 }
 
 func (runtime *Runtime) ListWorkspaceFileChanges(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {

@@ -35,6 +35,7 @@ type ToolObservation struct {
 	ItemID, CallID, Name       string
 	Arguments                  map[string]any
 	SafetyClass                protocol.SafetyClass
+	CommittedPlan              *protocol.Plan
 	ModelCallSequence          int
 	ToolCallIndex              int
 	StartedAt, FinishedAt      time.Time
@@ -58,14 +59,26 @@ type executionObserver struct {
 	safetyByName   map[string]protocol.SafetyClass
 	models         []ModelObservation
 	tools          map[string]ToolObservation
+	plans          map[string]protocol.Plan
 }
 
-func newExecutionObserver(runID, model string, executables []ExecutableTool) *executionObserver {
-	safety := make(map[string]protocol.SafetyClass, len(executables))
-	for _, executable := range executables {
-		safety[executable.Tool.Definition().Name] = executable.SafetyClass
+func newExecutionObserver(runID, model string) *executionObserver {
+	return &executionObserver{
+		runID: runID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
+		tools: make(map[string]ToolObservation), plans: make(map[string]protocol.Plan),
 	}
-	return &executionObserver{runID: runID, defaultModel: model, safetyByName: safety, tools: make(map[string]ToolObservation)}
+}
+
+func (observer *executionObserver) bindTools(executables []ExecutableTool) {
+	for _, executable := range executables {
+		observer.safetyByName[executable.Tool.Definition().Name] = executable.SafetyClass
+	}
+}
+
+func (observer *executionObserver) RecordCommittedPlan(callID string, plan protocol.Plan) {
+	observer.mu.Lock()
+	observer.plans[callID] = clonePlan(plan)
+	observer.mu.Unlock()
 }
 
 func (observer *executionObserver) OnModelResponse(_ context.Context, invocation interaction.ModelInvocation, response *chat.Response) {
@@ -132,6 +145,10 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 	tools := make([]ToolObservation, 0, len(observer.tools))
 	for _, value := range observer.tools {
 		value.Arguments = cloneObject(value.Arguments)
+		if plan, found := observer.plans[value.CallID]; found {
+			clone := clonePlan(plan)
+			value.CommittedPlan = &clone
+		}
 		tools = append(tools, value)
 	}
 	sort.SliceStable(tools, func(left, right int) bool {
@@ -144,6 +161,11 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 		usage.ByModel = nil
 	}
 	return models, tools, usage
+}
+
+func clonePlan(value protocol.Plan) protocol.Plan {
+	value.Steps = append(make([]protocol.PlanStep, 0, len(value.Steps)), value.Steps...)
+	return value
 }
 
 func decodeArguments(raw string) map[string]any {
@@ -192,3 +214,4 @@ func addUsage(total *protocol.Usage, model string, value protocol.ModelUsage) {
 }
 
 var _ interaction.ExecutionObserver = (*executionObserver)(nil)
+var _ ToolFactSink = (*executionObserver)(nil)
