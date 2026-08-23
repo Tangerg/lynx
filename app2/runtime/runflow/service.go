@@ -30,6 +30,7 @@ type Store interface {
 	GetSession(context.Context, session.ID) (session.Session, error)
 	GetRun(context.Context, string) (rundomain.Record, error)
 	GetOpenRootRun(context.Context, string) (rundomain.Record, error)
+	ListOpenRunTree(context.Context, string) ([]rundomain.Record, error)
 	ListRunningRuns(context.Context) ([]rundomain.Record, error)
 	ListRuns(context.Context, string, []rundomain.Status, bool, int, *rundomain.Cursor) (rundomain.Page, error)
 	CreateRun(context.Context, rundomain.Record, *transcript.Record, *conversationdomain.Record, []rundomain.EventRecord) error
@@ -42,6 +43,7 @@ type Store interface {
 	ListRunEvents(context.Context, string, string, string) ([]rundomain.EventRecord, error)
 	GetInterruptSet(context.Context, string) (protocol.PendingInterruptSet, error)
 	CommitResume(context.Context, ResumeWrite) error
+	CommitTreeResume(context.Context, TreeResumeWrite) error
 	CommitWait(context.Context, WaitWrite) error
 	CommitTreeWait(context.Context, TreeWaitWrite) error
 	CommitSteer(context.Context, SteerWrite) error

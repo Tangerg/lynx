@@ -79,6 +79,32 @@ func (database *Database) GetDelegateAdmission(
 	return scanDelegateAdmission(database.database.QueryRowContext(ctx, delegateAdmissionSelect+` WHERE member_id = ?`, memberID))
 }
 
+func (database *Database) ListDelegateAdmissions(
+	ctx context.Context,
+	rootRunID string,
+) ([]delegation.Admission, error) {
+	rows, err := database.database.QueryContext(ctx, delegateAdmissionSelect+`
+		WHERE root_run_id = ? AND status = ? ORDER BY started_at, member_id`,
+		rootRunID, string(delegation.Started),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list delegate admissions: %w", err)
+	}
+	defer rows.Close()
+	values := make([]delegation.Admission, 0)
+	for rows.Next() {
+		value, err := scanDelegateAdmission(rows)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: iterate delegate admissions: %w", err)
+	}
+	return values, nil
+}
+
 func (database *Database) CommitDelegateStart(
 	ctx context.Context,
 	write runflow.DelegateStartWrite,

@@ -32,6 +32,20 @@ type ResumeWrite struct {
 	Events             []rundomain.EventRecord
 }
 
+type TreeResumeRunWrite struct {
+	Run    rundomain.Record
+	Depth  uint32
+	Events []rundomain.EventRecord
+}
+
+type TreeResumeWrite struct {
+	Runs                []TreeResumeRunWrite
+	ExpectedInterrupts  protocol.PendingInterruptSet
+	UpdatedItems        []transcript.Record
+	OpeningItem         *transcript.Record
+	OpeningMessage      *conversationdomain.Record
+}
+
 type ResumeCommand struct {
 	Request      protocol.ResumeRunRequest
 	BeforeLaunch func(context.Context, string) error
@@ -91,6 +105,9 @@ func (service *Service) ResumeWith(ctx context.Context, command ResumeCommand) (
 	checkpoint, err := service.store.GetExecutorCheckpoint(ctx, request.RunID)
 	if err != nil {
 		return nil, nil, protocol.ErrInterruptNotOpen
+	}
+	if runUsesSubagents(record.Body) {
+		return service.resumeTree(ctx, command, record, pending, answers, items, updated, checkpoint)
 	}
 	frameworkResponse, err := frameworkResumeResponse(pending, answers)
 	if err != nil {
@@ -176,6 +193,16 @@ func (service *Service) ResumeWith(ctx context.Context, command ResumeCommand) (
 }
 
 func (service *Service) launchResumeExecution(record rundomain.Record, segmentID, workspace string, checkpoint, response []byte, additionalInput []protocol.ContentBlock) bool {
+	return service.launchResumedExecution(record, segmentID, workspace, agentexec.ResumeInput{
+		Checkpoint: checkpoint, Response: response, AdditionalInput: slices.Clone(additionalInput),
+	})
+}
+
+func (service *Service) launchResumedExecution(
+	record rundomain.Record,
+	segmentID, workspace string,
+	input agentexec.ResumeInput,
+) bool {
 	service.mu.Lock()
 	if service.closing {
 		service.mu.Unlock()
@@ -195,15 +222,19 @@ func (service *Service) launchResumeExecution(record rundomain.Record, segmentID
 			cancel()
 		}()
 		live := newLiveProjector(service, record, segmentID)
-		output, executeErr := service.executor.Resume(ctx, agentexec.ResumeInput{
-			Provider: record.Run.Provider(), Model: record.Run.Model(), Workspace: workspace,
-			SessionID: record.Run.SessionID(), RunID: record.Run.ID(), SegmentID: segmentID,
-			IsRootRun: record.Run.ParentRunID() == "", Subagents: runUsesSubagents(record.Body), Delegation: service,
-			MaxSteps: runMaxSteps(record.Body),
-			Checkpoint: checkpoint, Response: response, Steers: steers,
-			AdditionalInput: slices.Clone(additionalInput),
-			Live: live,
-		})
+		input.Provider = record.Run.Provider()
+		input.Model = record.Run.Model()
+		input.Workspace = workspace
+		input.SessionID = record.Run.SessionID()
+		input.RunID = record.Run.ID()
+		input.SegmentID = segmentID
+		input.IsRootRun = record.Run.ParentRunID() == ""
+		input.Subagents = runUsesSubagents(record.Body)
+		input.Delegation = service
+		input.MaxSteps = runMaxSteps(record.Body)
+		input.Steers = steers
+		input.Live = live
+		output, executeErr := service.executor.Resume(ctx, input)
 		live.Close()
 		service.finishExecution(record.Run.ID(), segmentID, workspace, output, executeErr)
 	}()
@@ -361,7 +392,13 @@ func frameworkResumeResponse(pending protocol.PendingInterruptSet, answers map[s
 		return nil, fmt.Errorf("runflow: framework continuation requires one active tool input, got %d", len(pending.Interrupts))
 	}
 	interrupt := pending.Interrupts[0]
-	response := answers[interrupt.ItemID]
+	return frameworkInterruptResponse(interrupt, answers[interrupt.ItemID])
+}
+
+func frameworkInterruptResponse(
+	interrupt protocol.Interrupt,
+	response protocol.InterruptResponseValue,
+) ([]byte, error) {
 	switch interrupt.Type {
 	case protocol.InterruptApproval:
 		return json.Marshal(struct {

@@ -136,6 +136,9 @@ Run tree 不变量：
 所有仍 running 的 member 必须先停在执行框架的 safe boundary；产生输入的 source Run 以 `interrupt` 结束当前
 Segment，其余非终态 member 以 `suspended` 结束。所有 Run 状态、source-owned material、tree stream events、完整
 Interrupt set 与 opaque checkpoint 必须在一笔事务提交，且 root 最后关闭；缺少任一 open member 时整笔拒绝。
+恢复同样以整棵 tree 为原子：每个 waiting/suspended Run 保留稳定 `runId` 并获得自己的新 `segmentId`；答案只送回
+提出对应 Interrupt 的 source member，paused sibling 从同一 checkpoint 恢复。root `runs.resume` 不把 child 折叠成
+新的 root turn，也不重复执行已 terminal 的 snapshot member。
 
 ## 6. Item、Transcript、Conversation 与 WorkingContext
 

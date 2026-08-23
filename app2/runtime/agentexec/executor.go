@@ -81,9 +81,27 @@ type ResumeInput struct {
 	MaxSteps                   int
 	Checkpoint                 json.RawMessage
 	Response                   json.RawMessage
+	TreeMembers                []TreeResumeMember
+	TreeResponses              []TreeResumeResponse
 	AdditionalInput            []protocol.ContentBlock
 	Steers                     <-chan Steer
 	Live                       LiveObservationSink
+}
+
+// TreeResumeMember rebinds one non-terminal Framework member to the exact
+// product Run generation opened by runs.resume. MemberID is opaque outside the
+// adapter; the root leaves it empty because the checkpoint owns that identity.
+type TreeResumeMember struct {
+	MemberID                                  string
+	RunID, SegmentID, ParentRunID, RootRunID string
+	Depth                                     uint32
+}
+
+// TreeResumeResponse is one already-validated answer addressed by source Run.
+// A complete Framework tree can expose at most one external input per member.
+type TreeResumeResponse struct {
+	RunID   string
+	Payload json.RawMessage
 }
 
 type Message = chat.Message
@@ -220,7 +238,7 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 
 func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output, error) {
 	if input.Subagents {
-		return Output{}, errors.New("agentexec: delegated tree resume requires a tree checkpoint")
+		return executor.resumeTree(ctx, input)
 	}
 	prepared, err := executor.deployment(ctx, deploymentRequest{
 		provider: input.Provider, model: input.Model, sessionID: input.SessionID,
@@ -277,6 +295,131 @@ func (executor *Executor) Resume(ctx context.Context, input ResumeInput) (Output
 		return Output{}, errors.New("agentexec: resume signal was not accepted")
 	}
 	return awaitProcess(ctx, engine, process, prepared.observer, input.RunID, input.Steers)
+}
+
+func (executor *Executor) resumeTree(ctx context.Context, input ResumeInput) (Output, error) {
+	prepared, err := executor.deployment(ctx, deploymentRequest{
+		provider: input.Provider, model: input.Model, sessionID: input.SessionID,
+		runID: input.RunID, segmentID: input.SegmentID, workspace: input.Workspace,
+		rootRun: input.IsRootRun, subagents: true, maxSteps: input.MaxSteps,
+		delegation: input.Delegation, live: input.Live,
+	})
+	if err != nil {
+		return Output{}, err
+	}
+	tree, err := agent.ParseTreeSnapshot(input.Checkpoint)
+	if err != nil {
+		return Output{}, fmt.Errorf("agentexec: parse tree checkpoint: %w", err)
+	}
+	if prepared.observer.delegation == nil {
+		return Output{}, errors.New("agentexec: tree resume has no delegation bridge")
+	}
+	if err := prepared.observer.delegation.restoreBindings(tree, input.TreeMembers); err != nil {
+		return Output{}, err
+	}
+	engine, err := agent.NewEngine(prepared.engine)
+	if err != nil {
+		return Output{}, fmt.Errorf("agentexec: create tree resume engine: %w", err)
+	}
+	root, err := engine.RestoreTree(ctx, prepared.root, tree)
+	if err != nil {
+		_ = engine.Close()
+		return Output{}, fmt.Errorf("agentexec: restore interaction tree: %w", err)
+	}
+	responses := make(map[string]json.RawMessage, len(input.TreeResponses))
+	for _, response := range input.TreeResponses {
+		if response.RunID == "" || len(response.Payload) == 0 || responses[response.RunID] != nil {
+			_ = stopProcess(engine, root)
+			return Output{}, errors.New("agentexec: tree response set is invalid")
+		}
+		responses[response.RunID] = response.Payload
+	}
+	type preparedResponse struct {
+		process *agent.Process
+		signal  agent.SignalRequest
+	}
+	preparedResponses := make([]preparedResponse, 0, len(responses))
+	paused := make([]*agent.Process, 0)
+	for _, snapshot := range tree.ProcessSnapshots() {
+		if snapshot.Status() == agent.StatusPaused {
+			process, found := engine.Process(snapshot.ProcessID())
+			if !found {
+				_ = stopProcess(engine, root)
+				return Output{}, fmt.Errorf("agentexec: paused Process %s is unavailable", snapshot.ProcessID())
+			}
+			paused = append(paused, process)
+		}
+		pending, found, pendingErr := interaction.PendingToolInputFromSnapshot(snapshot)
+		if pendingErr != nil {
+			_ = stopProcess(engine, root)
+			return Output{}, fmt.Errorf("agentexec: inspect restored Process %s input: %w", snapshot.ProcessID(), pendingErr)
+		}
+		if !found {
+			continue
+		}
+		binding, bound := prepared.observer.delegation.bindingProcess(snapshot.ProcessID())
+		payload, answered := responses[binding.runID]
+		if !bound || !answered {
+			_ = stopProcess(engine, root)
+			return Output{}, errors.New("agentexec: restored input has no exact product answer")
+		}
+		signalID, err := agent.ParseSignalID(fmt.Sprintf("resume:%s:%d", binding.runID, steerSequence.Add(1)))
+		if err != nil {
+			_ = stopProcess(engine, root)
+			return Output{}, err
+		}
+		signal, err := pending.ResponseSignal(signalID, payload)
+		if err != nil {
+			_ = stopProcess(engine, root)
+			return Output{}, fmt.Errorf("agentexec: construct tree resume signal: %w", err)
+		}
+		process, available := engine.Process(snapshot.ProcessID())
+		if !available {
+			_ = stopProcess(engine, root)
+			return Output{}, fmt.Errorf("agentexec: answered Process %s is unavailable", snapshot.ProcessID())
+		}
+		preparedResponses = append(preparedResponses, preparedResponse{process: process, signal: signal})
+		delete(responses, binding.runID)
+	}
+	if len(responses) != 0 || len(preparedResponses) == 0 {
+		_ = stopProcess(engine, root)
+		return Output{}, errors.New("agentexec: tree answers do not exactly cover restored inputs")
+	}
+	if len(input.AdditionalInput) > 0 && len(preparedResponses) != 1 {
+		_ = stopProcess(engine, root)
+		return Output{}, errors.New("agentexec: additional tree input requires one exact interrupted Process")
+	}
+	for index, response := range preparedResponses {
+		accepted := false
+		if len(input.AdditionalInput) > 0 && len(preparedResponses) == 1 {
+			steer, steerErr := newSteerSignal(input.RunID, input.AdditionalInput)
+			if steerErr != nil {
+				_ = stopProcess(engine, root)
+				return Output{}, steerErr
+			}
+			accepted, err = response.process.DeliverSignals(ctx, response.signal, steer)
+		} else {
+			accepted, err = response.process.DeliverSignal(ctx, response.signal)
+		}
+		if err != nil || !accepted {
+			_ = stopProcess(engine, root)
+			if err != nil {
+				return Output{}, fmt.Errorf("agentexec: deliver tree resume response %d: %w", index, err)
+			}
+			return Output{}, errors.New("agentexec: tree resume response was already accepted")
+		}
+	}
+	for _, process := range paused {
+		if process.Status() != agent.StatusPaused {
+			_ = stopProcess(engine, root)
+			return Output{}, fmt.Errorf("agentexec: Process %s left its paused boundary", process.ID())
+		}
+		if err := process.Resume(ctx); err != nil {
+			_ = stopProcess(engine, root)
+			return Output{}, fmt.Errorf("agentexec: resume Process %s: %w", process.ID(), err)
+		}
+	}
+	return awaitProcess(ctx, engine, root, prepared.observer, input.RunID, input.Steers)
 }
 
 type deploymentRequest struct {

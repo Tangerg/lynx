@@ -95,6 +95,74 @@ func (bridge *delegationBridge) bindingProcess(processID agent.ProcessID) (proce
 	return binding, found
 }
 
+func (bridge *delegationBridge) restoreBindings(
+	tree agent.TreeSnapshot,
+	members []TreeResumeMember,
+) error {
+	if bridge == nil || !tree.Valid() || len(members) == 0 {
+		return errors.New("agentexec: invalid restored delegation bindings")
+	}
+	snapshots := make(map[agent.ProcessID]agent.Snapshot, len(tree.ProcessSnapshots()))
+	for _, snapshot := range tree.ProcessSnapshots() {
+		snapshots[snapshot.ProcessID()] = snapshot
+	}
+	bound := make(map[agent.ProcessID]processBinding, len(members))
+	runs := make(map[string]agent.ProcessID, len(members))
+	for _, member := range members {
+		if member.RunID == "" || member.SegmentID == "" || member.RootRunID != bridge.root.rootRunID ||
+			member.Depth == 0 && member.RunID != bridge.root.runID || runs[member.RunID].Valid() {
+			return errors.New("agentexec: restored member identity is invalid")
+		}
+		processID := tree.RootID()
+		if member.RunID == bridge.root.runID {
+			if member.MemberID != "" || member.ParentRunID != "" || member.Depth != 0 ||
+				member.SegmentID != bridge.root.segmentID {
+				return errors.New("agentexec: restored root binding changed identity")
+			}
+		} else {
+			var err error
+			processID, err = agent.ParseProcessID(member.MemberID)
+			if err != nil || member.ParentRunID == "" || member.Depth == 0 {
+				return errors.New("agentexec: restored child binding is invalid")
+			}
+		}
+		snapshot, found := snapshots[processID]
+		if !found || snapshot.Status().Terminal() || snapshot.Relation().Depth() != member.Depth {
+			return errors.New("agentexec: restored member differs from tree checkpoint")
+		}
+		binding := processBinding{
+			runID: member.RunID, segmentID: member.SegmentID,
+			parentRunID: member.ParentRunID, rootRunID: member.RootRunID, depth: member.Depth,
+		}
+		if prior, duplicate := bound[processID]; duplicate && prior != binding {
+			return errors.New("agentexec: restored Process has conflicting Run bindings")
+		}
+		bound[processID] = binding
+		runs[member.RunID] = processID
+	}
+	for _, snapshot := range tree.ProcessSnapshots() {
+		if snapshot.Status().Terminal() {
+			continue
+		}
+		binding, found := bound[snapshot.ProcessID()]
+		if !found {
+			return fmt.Errorf("agentexec: checkpointed Process %s has no resumed Run", snapshot.ProcessID())
+		}
+		if parentID, child := snapshot.Relation().ParentID(); child {
+			parent, found := bound[parentID]
+			if !found || binding.parentRunID != parent.runID {
+				return errors.New("agentexec: restored Run parent differs from Process relation")
+			}
+		}
+	}
+	bridge.mu.Lock()
+	for processID, binding := range bound {
+		bridge.bindings[processID] = binding
+	}
+	bridge.mu.Unlock()
+	return nil
+}
+
 func (bridge *delegationBridge) register(invocation interaction.ModelInvocation, response *chat.Response, occurredAt time.Time) {
 	if bridge == nil || !invocation.Valid() || response == nil {
 		return

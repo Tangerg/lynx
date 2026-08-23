@@ -309,9 +309,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   其余 source Run 按 depth-descending 投影各自 transcript/metrics/context，并以 `interrupt | suspended` 结束当前 Segment。
   SQLite 用一笔 transaction CAS 整棵 open tree、写入 child-before-root event order，并只在 root 保存完整
   `PendingInterruptSet` 与 checkpoint；任一遗漏 member 都拒绝提交；
+- **Exact tree resume**：`runs.resume` 仍是唯一外部 continuation 命令；application 从 durable open tree 与 private
+  delegate admission 重建 postorder member binding，为每个 waiting/suspended Run 原子开启各自的新 Segment，整组消费
+  InterruptSet/checkpoint，并把 answer 按 source Run 精确交回 restored Framework Process。paused sibling 原位恢复，
+  terminal snapshot 不再生成第二份 child settlement；root stream 继续承载整棵 resumed tree。可选 resume input 在只有一个
+  interrupted branch 时与该 response 同一 Framework safe boundary 接受，多 branch 时 fail closed 而不猜投递目标；
 - **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；完整 tree resume、
   root/child exact cancel、recovery 和 Desktop nested disclosure 尚未完成前，任何 client 都不能协商出半成品 tree；
-- **仍关闭的 delegation 门**：tree HITL resume、root/child exact cancel、recovery 和 Desktop nested disclosure 尚未完成；
+- **仍关闭的 delegation 门**：root/child exact cancel、recovery 和 Desktop nested disclosure 尚未完成；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

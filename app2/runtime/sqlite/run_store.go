@@ -210,6 +210,32 @@ func (database *Database) GetOpenRootRun(ctx context.Context, sessionID string) 
 		FROM runs WHERE session_id = ? AND parent_run_id IS NULL AND status != 'finished'`, sessionID))
 }
 
+func (database *Database) ListOpenRunTree(ctx context.Context, rootRunID string) ([]rundomain.Record, error) {
+	rows, err := database.database.QueryContext(ctx, `
+		SELECT id, session_id, coalesce(parent_run_id, ''), coalesce(root_run_id, ''),
+			coalesce(spawned_by_item_id, ''), status, coalesce(active_segment_id, ''),
+			provider, model, coalesce(outcome, ''), detail, body, created_at, updated_at, coalesce(finished_at, '')
+		FROM runs
+		WHERE status != 'finished' AND (id = ? OR root_run_id = ?)
+		ORDER BY created_at, id`, rootRunID, rootRunID)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list open Run tree: %w", err)
+	}
+	defer rows.Close()
+	records := make([]rundomain.Record, 0)
+	for rows.Next() {
+		record, err := scanRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: iterate open Run tree: %w", err)
+	}
+	return records, nil
+}
+
 func (database *Database) ListRunningRuns(ctx context.Context) ([]rundomain.Record, error) {
 	rows, err := database.database.QueryContext(ctx, `
 		SELECT id, session_id, coalesce(parent_run_id, ''), coalesce(root_run_id, ''),

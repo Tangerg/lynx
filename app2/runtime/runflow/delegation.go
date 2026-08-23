@@ -65,6 +65,7 @@ type DelegationStore interface {
 	CommitDelegateAbort(context.Context, DelegateAbortWrite) (bool, error)
 	CommitDelegateCompletion(context.Context, DelegateCompletionWrite) error
 	GetDelegateAdmission(context.Context, string) (delegation.Admission, error)
+	ListDelegateAdmissions(context.Context, string) ([]delegation.Admission, error)
 }
 
 func (service *Service) ReserveDelegate(
