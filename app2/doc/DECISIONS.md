@@ -436,3 +436,34 @@ queue overflow 继续清空不可信 backlog并只保留全订阅 resync。Deskt
 **后果**：Runtime resource event 仍是 invalidation，不建立 durable snapshot/replay store，不与 RunEvent 的 root-Segment replay 混合。
 Watcher startup、递归目录数量、subscription cancel 与 Bus Close 均有硬边界，并由 Runtime task ledger join。Protocol/version/generated contract shape 均不变；
 该纵切在 R11 最终 fault/reconnect/resource 门禁前标记为 `implemented`。
+
+## ADR-A2-033：Session artifact 是终态输入文档，长历史继续复用 Lyra transcript cursor
+
+**缺陷与反例**：既有高级 Session 实现把 import 当成 replace，identity 冲突时会覆盖另一个 client 可拥有的聚合；Message
+归属靠 user-message heuristic 重建，child lineage、nested Item、Tool result 与 chat journal 没有完整 closure 检查。snapshot
+又无界读取全部 Item，长会话 mount 成本随历史增长。Desktop 缺少 native import/export 与 boundary recovery consumer。把 Codex
+Thread/Turn 或其 artifact 搬进来虽然表面省事，却会让 Lyra 已成熟的 Session/Run/Item/Conversation 四种事实出现第二套身份。
+
+**决定**：保留既有 Lyra `sessions.snapshot/fork/rollback/export/import`、`items.list`、app2/2 artifact 与 HTTP/SSE/generated
+client，不增加方法、别名、Thread/Turn 或兼容 reader。snapshot 只返回最新 200 个 Item 及 render/resume 所需 Run closure；旧历史
+继续通过 `items.list(order=desc)` 的 query-bound keyset cursor 获取。
+
+Artifact 是 terminal-only durable input document。export 从 canonical Conversation journal 为每个 root Run 计算单调 MessageMark；
+import 以它恢复 exact message owner，不猜用户消息。导入在写入前递归验证 Session/model/workspace/time、Run DAG/root profile、Item
+union 与 nested content/question/tool、Tool-result binding、message marks 和 chat ToolCall closure；existing Session ID 返回
+`revision_conflict`。Session、Run、Item、Conversation、Plan boundary、Plan 与 Tool result 只在一个 SQLite transaction 中创建，失败
+不留下 partial aggregate。Artifact 仍只携带协议已经定义的 portable semantic values，不加入 source revision、live status、Goal、
+checkpoint tag 或 Codex provenance。
+
+fork 只在 terminal root Run boundary 截断复制，并为新 aggregate remap identity；rollback 只接受 root boundary，删除其后的整棵
+root/child material，恢复 known Plan boundary，返回 dropped root input 给 Composer，并清理 dropped checkpoint refs。files-only 不改
+history；both 先要求 checkpoint restore 成功再提交 history。Desktop native host 只拥有 bounded file dialog/read/write，建议文件名只由
+受控 Session ID 生成，title 与 artifact 内容都不能参与 path construction。
+
+**原因**：bounded hydration、strict portable closure 与明确 recovery boundary 是可以借鉴的机制；Lyra 的 Session/Run/Item、
+Conversation journal、dotted operations 和 generated client 已经是更贴合本产品的协议资产。治本意味着修复 owner 与 transaction，
+而不是用参考产品概念重命名现有真相。
+
+**后果**：O02 与 Work Index/history actions 到 `implemented`，最终 fault/parity/package 前不标记 verified。Session 没有独立
+`archived` 状态；这里的 archive 指 portable artifact，favorite 仍由既有 revisioned Session field 表达。conversation search 与
+long-history UI 只会在现有 transcript owner 上增加 R9c consumer，不建立第二份 history store。

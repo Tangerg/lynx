@@ -41,10 +41,11 @@ type GetSessionSnapshotRequest struct {
 	IncludeDescendants bool   `json:"includeDescendants,omitempty"`
 }
 
-// SessionSnapshot is one transactionally coherent material read of the facts a
-// live client folds together. Plan is absent when this Runtime does not expose
-// the Plan capability. Goal is absent when Goal mode is unavailable or this
-// Session has no standing objective.
+// SessionSnapshot is one transactionally coherent cold-hydration read of the
+// current facts a live client folds together. Transcript material is a bounded
+// newest window; clients page older history through items.list(order=desc).
+// Plan is absent when this Runtime does not expose the Plan capability. Goal is
+// absent when Goal mode is unavailable or this Session has no standing objective.
 type SessionSnapshot struct {
 	Items      []Item                `json:"items"`
 	Runs       []RunRef              `json:"runs"`
@@ -402,7 +403,8 @@ type ArtifactToolResult struct {
 }
 
 // ImportSessionRequest — sessions.import body. Restore semantics: the session
-// is recreated under Artifact.Session.ID (overwriting one already present).
+// is recreated under Artifact.Session.ID. An existing identity is a revision
+// conflict; import never overwrites an aggregate that another client can own.
 type ImportSessionRequest struct {
 	Artifact SessionArtifact `json:"artifact"`
 }

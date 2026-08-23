@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unsafe"
@@ -35,6 +37,29 @@ type ImageSaveResult struct {
 	Type ImageSaveType `json:"type"`
 }
 
+type SessionArtifactOpenType string
+
+const (
+	SessionArtifactSelected SessionArtifactOpenType = "selected"
+	SessionArtifactCanceled SessionArtifactOpenType = "canceled"
+)
+
+type SessionArtifactOpenResult struct {
+	Type     SessionArtifactOpenType `json:"type"`
+	Contents string                  `json:"contents,omitempty"`
+}
+
+type SessionExportSaveType string
+
+const (
+	SessionExportSaved    SessionExportSaveType = "saved"
+	SessionExportCanceled SessionExportSaveType = "canceled"
+)
+
+type SessionExportSaveResult struct {
+	Type SessionExportSaveType `json:"type"`
+}
+
 type WindowChrome struct {
 	ControlsCentreY   float64 `json:"controlsCentreY"`
 	ControlsInlineEnd float64 `json:"controlsInlineEnd"`
@@ -53,18 +78,31 @@ type imageSaver interface {
 	SaveImage(string, []byte) (bool, error)
 }
 
+type sessionDocumentTransfer interface {
+	OpenArtifact(int64) ([]byte, bool, error)
+	SaveExport(string, []byte) (bool, error)
+}
+
 // NativeHost exposes only capabilities that truly require the desktop shell.
 type NativeHost struct {
 	window nativeWindow
 	picker directoryPicker
 	saver  imageSaver
+	documents sessionDocumentTransfer
 }
 
-func newNativeHost(window nativeWindow, picker directoryPicker, saver imageSaver) (*NativeHost, error) {
-	if window == nil || picker == nil || saver == nil {
-		return nil, errors.New("native host: window, directory picker, and image saver are required")
+func newNativeHost(
+	window nativeWindow,
+	picker directoryPicker,
+	saver imageSaver,
+	documents sessionDocumentTransfer,
+) (*NativeHost, error) {
+	if window == nil || picker == nil || saver == nil || documents == nil {
+		return nil, errors.New("native host: window, pickers, and savers are required")
 	}
-	return &NativeHost{window: window, picker: picker, saver: saver}, nil
+	return &NativeHost{
+		window: window, picker: picker, saver: saver, documents: documents,
+	}, nil
 }
 
 func (host *NativeHost) WindowChrome() WindowChrome {
@@ -107,6 +145,59 @@ func (host *NativeHost) SaveImage(source string) (ImageSaveResult, error) {
 		return ImageSaveResult{Type: ImageCanceled}, nil
 	}
 	return ImageSaveResult{Type: ImageSaved}, nil
+}
+
+const maxSessionDocumentBytes = 256 << 20
+
+var sessionIdentityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
+
+func (host *NativeHost) OpenSessionArtifact() (SessionArtifactOpenResult, error) {
+	contents, selected, err := host.documents.OpenArtifact(maxSessionDocumentBytes)
+	if err != nil {
+		return SessionArtifactOpenResult{}, fmt.Errorf("native host: open session artifact: %w", err)
+	}
+	if !selected {
+		return SessionArtifactOpenResult{Type: SessionArtifactCanceled}, nil
+	}
+	if !json.Valid(contents) {
+		return SessionArtifactOpenResult{}, errors.New("native host: selected session artifact is not JSON")
+	}
+	return SessionArtifactOpenResult{
+		Type: SessionArtifactSelected, Contents: string(contents),
+	}, nil
+}
+
+func (host *NativeHost) SaveSessionExport(
+	sessionID string,
+	format string,
+	contents string,
+) (SessionExportSaveResult, error) {
+	if !sessionIdentityPattern.MatchString(sessionID) {
+		return SessionExportSaveResult{}, errors.New("native host: invalid session identity")
+	}
+	extension := ""
+	switch format {
+	case "json":
+		extension = ".json"
+		if !json.Valid([]byte(contents)) {
+			return SessionExportSaveResult{}, errors.New("native host: JSON export is invalid")
+		}
+	case "md":
+		extension = ".md"
+	default:
+		return SessionExportSaveResult{}, errors.New("native host: invalid session export format")
+	}
+	if len(contents) == 0 || len(contents) > maxSessionDocumentBytes {
+		return SessionExportSaveResult{}, errors.New("native host: session export is empty or too large")
+	}
+	saved, err := host.documents.SaveExport("lyra-"+sessionID+extension, []byte(contents))
+	if err != nil {
+		return SessionExportSaveResult{}, fmt.Errorf("native host: save session export: %w", err)
+	}
+	if !saved {
+		return SessionExportSaveResult{Type: SessionExportCanceled}, nil
+	}
+	return SessionExportSaveResult{Type: SessionExportSaved}, nil
 }
 
 const maxInlineImageBytes = 32 << 20

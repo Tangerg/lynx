@@ -9,6 +9,7 @@ interface NewSessionMenuProps {
   pending: boolean;
   defaultWorkspace: string;
   onCreate: (request?: CreateSessionRequest) => Promise<Session>;
+	onImport: () => Promise<Session | undefined>;
 }
 
 export function NewSessionMenu(props: NewSessionMenuProps) {
@@ -55,6 +56,15 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
       setError(failure);
     }
   };
+	const importArtifact = async () => {
+		setError(undefined);
+		try {
+			const imported = await props.onImport();
+			if (imported !== undefined) setOpen(false);
+		} catch (failure) {
+			setError(failure);
+		}
+	};
 
   return (
     <div className="new-session-menu window-no-drag" ref={root}>
@@ -109,6 +119,17 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
               <small>Bind the exact selected directory</small>
             </span>
           </button>
+		  <button
+			type="button"
+			disabled={props.pending}
+			onClick={() => void importArtifact()}
+		  >
+			<span aria-hidden="true">⇣</span>
+			<span>
+			  <strong>Import session…</strong>
+			  <small>Open an exact app2 JSON artifact</small>
+			</span>
+		  </button>
           {error ? <p role="alert">{messageOf(error)}</p> : null}
         </section>
     </div>

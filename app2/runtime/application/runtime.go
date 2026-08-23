@@ -149,7 +149,10 @@ func (runtime *Runtime) RollbackSession(ctx context.Context, request protocol.Ro
 	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, request.SessionID)
 	if suppressErr != nil { return nil, suppressErr }
 	result, err := runtime.sessions.Rollback(ctx, request)
-	runtime.goalDriver.ReleaseSession(request.SessionID, err == nil && hadGoal && request.RestoreType != protocol.RestoreFiles)
+	runtime.goalDriver.ReleaseSession(
+		request.SessionID,
+		err == nil && hadGoal && result.HistoryChanged,
+	)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{request.SessionID}})
 		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{request.SessionID}}) }
@@ -163,11 +166,7 @@ func (runtime *Runtime) ExportSession(ctx context.Context, request protocol.Expo
 }
 
 func (runtime *Runtime) ImportSession(ctx context.Context, request protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
-	sessionID := request.Artifact.Session.ID
-	hadGoal, suppressErr := runtime.goalDriver.SuppressSession(ctx, sessionID)
-	if suppressErr != nil { return nil, suppressErr }
 	result, err := runtime.sessions.Import(ctx, request)
-	runtime.goalDriver.ReleaseSession(sessionID, err == nil && hadGoal)
 	if err == nil {
 		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged, SessionIDs: []string{result.Response.Session.ID}})
 		if result.PlanChanged { runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimePlanChanged, SessionIDs: []string{result.Response.Session.ID}}) }

@@ -29,6 +29,8 @@ interface SessionIndexProps {
     patch: { title?: string; favorite?: boolean },
   ) => Promise<Session>;
   onRemove: (session: Session) => Promise<unknown>;
+	onFork: (session: Session) => Promise<unknown>;
+	onExport: (session: Session, format: "json" | "md") => Promise<unknown>;
   onRetry: () => void;
   onLoadMore: () => void;
 }
@@ -120,6 +122,8 @@ export function SessionIndex(props: SessionIndexProps) {
                   onSelect={props.onSelect}
                   onUpdate={props.onUpdate}
                   onRemove={props.onRemove}
+				  onFork={props.onFork}
+				  onExport={props.onExport}
                 />
               ))}
             </section>
@@ -147,6 +151,8 @@ function SessionRow(props: {
   onSelect: (sessionId: string) => void;
   onUpdate: SessionIndexProps["onUpdate"];
   onRemove: SessionIndexProps["onRemove"];
+	onFork: SessionIndexProps["onFork"];
+	onExport: SessionIndexProps["onExport"];
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   const renameInput = useRef<HTMLInputElement>(null);
@@ -205,6 +211,24 @@ function SessionRow(props: {
       setError(failure);
     }
   };
+	const fork = async () => {
+		setError(undefined);
+		try {
+			await props.onFork(props.session);
+			if (menu.current) menu.current.open = false;
+		} catch (failure) {
+			setError(failure);
+		}
+	};
+	const exportAs = async (format: "json" | "md") => {
+		setError(undefined);
+		try {
+			await props.onExport(props.session, format);
+			if (menu.current) menu.current.open = false;
+		} catch (failure) {
+			setError(failure);
+		}
+	};
 
   return (
     <article
@@ -313,6 +337,15 @@ function SessionRow(props: {
             >
               {props.session.favorite ? "Remove favorite" : "Favorite"}
             </button>
+			<button type="button" disabled={props.busy} onClick={() => void fork()}>
+				Fork session
+			</button>
+			<button type="button" disabled={props.busy} onClick={() => void exportAs("json")}>
+				Export JSON…
+			</button>
+			<button type="button" disabled={props.busy} onClick={() => void exportAs("md")}>
+				Export Markdown…
+			</button>
             <button
               className={confirmDelete ? "confirm-delete" : undefined}
               type="button"

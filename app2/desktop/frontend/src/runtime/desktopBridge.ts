@@ -13,9 +13,19 @@ export interface DesktopBinding {
 
 const bootstrapMethod = "main.DesktopHost.Bootstrap";
 const chooseDirectoryMethod = "main.NativeHost.ChooseDirectory";
+const openSessionArtifactMethod = "main.NativeHost.OpenSessionArtifact";
+const saveSessionExportMethod = "main.NativeHost.SaveSessionExport";
 
 export type DirectorySelection =
   | { type: "selected"; path: string }
+  | { type: "canceled" };
+
+export type SessionArtifactSelection =
+  | { type: "selected"; contents: string }
+  | { type: "canceled" };
+
+export type SessionExportSaveResult =
+  | { type: "saved" }
   | { type: "canceled" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -120,6 +130,51 @@ export async function chooseDirectory(
     return { type: "selected", path: value.path };
   }
   throw new TypeError("Desktop returned an invalid directory selection");
+}
+
+export async function openSessionArtifact(
+  binding?: DesktopBinding,
+): Promise<SessionArtifactSelection> {
+  const activeBinding = binding ?? (await defaultBinding());
+  const value: unknown = await activeBinding.call(openSessionArtifactMethod);
+  if (!isRecord(value) || typeof value.type !== "string") {
+    throw new TypeError("Desktop returned an invalid session artifact selection");
+  }
+  if (value.type === "canceled" && exactKeys(value, ["type"])) {
+    return { type: "canceled" };
+  }
+  if (
+    value.type === "selected" &&
+    exactKeys(value, ["type", "contents"]) &&
+    typeof value.contents === "string" &&
+    value.contents.length > 0
+  ) {
+    return { type: "selected", contents: value.contents };
+  }
+  throw new TypeError("Desktop returned an invalid session artifact selection");
+}
+
+export async function saveSessionExport(
+  sessionId: string,
+  format: "json" | "md",
+  contents: string,
+  binding?: DesktopBinding,
+): Promise<SessionExportSaveResult> {
+  const activeBinding = binding ?? (await defaultBinding());
+  const value: unknown = await activeBinding.call(
+    saveSessionExportMethod,
+    sessionId,
+    format,
+    contents,
+  );
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, ["type"]) ||
+    (value.type !== "saved" && value.type !== "canceled")
+  ) {
+    throw new TypeError("Desktop returned an invalid session export result");
+  }
+  return { type: value.type };
 }
 
 function isAbsoluteFilesystemPath(path: string): boolean {

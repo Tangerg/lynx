@@ -96,8 +96,10 @@ func registerSessions(registry *Registry) {
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrRunNotFound.Error(),
+			protocol.ErrInvalidParams.Error(),
 			protocol.ErrSessionBusy.Error(),
 			protocol.ErrCheckpointUnavailable.Error(),
+			protocol.ErrRevisionConflict.Error(),
 		},
 		CapabilityRules: []CapabilityRule{
 			{
@@ -117,7 +119,11 @@ func registerSessions(registry *Registry) {
 
 	Query(registry, MethodMeta{
 		Name:            "sessions.export",
-		Errors:          []string{protocol.ErrSessionNotFound.Error()},
+		Errors: []string{
+			protocol.ErrSessionNotFound.Error(),
+			protocol.ErrSessionBusy.Error(),
+			protocol.ErrInvalidParams.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 	}, func(service interface {
 		ExportSession(context.Context, protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error)
@@ -127,6 +133,11 @@ func registerSessions(registry *Registry) {
 
 	Command(registry, MethodMeta{
 		Name:            "sessions.import",
+		Errors: []string{
+			protocol.ErrInvalidParams.Error(),
+			protocol.ErrRevisionConflict.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 	}, func(service interface {
 		ImportSession(context.Context, protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error)

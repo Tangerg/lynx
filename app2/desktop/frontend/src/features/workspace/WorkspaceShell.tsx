@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
+	ContentBlock,
   DiscoverResponse,
+	RestoreType,
   RuntimeConnection,
   Session,
+	SessionArtifact,
 } from "@lyra/runtime-contract";
 
 import { AgentNarrative } from "../agent/AgentNarrative";
@@ -12,6 +15,7 @@ import { SessionModelPicker } from "../agent/SessionModelPicker";
 import {
   Composer,
   emptyComposerDraft,
+	type ComposerAttachment,
   type ComposerDraft,
 } from "../agent/Composer";
 import { useAgentSessionView } from "../agent/useAgentSessionView";
@@ -26,11 +30,17 @@ import { SessionIndex } from "../sessions/SessionIndex";
 import { compactPath } from "../sessions/sessionPresentation";
 import { useSessionCatalog } from "../sessions/useSessionCatalog";
 import {
+	exportSession,
   listModels,
   listRecipes,
   loadSessionSnapshot,
+	rollbackSession,
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
+import {
+	openSessionArtifact,
+	saveSessionExport,
+} from "../../runtime/desktopBridge";
 import {
   useRuntimeInvalidations,
   type RuntimeSyncState,
@@ -57,6 +67,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
   const [composerDrafts, setComposerDrafts] = useState<
     Record<string, ComposerDraft>
   >({});
+	const historyActionInFlight = useRef(false);
   const [dockExpanded, setDockExpanded] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
   const planEnabled = props.discovery.capabilities.features.plan?.enabled === true;
@@ -191,6 +202,92 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
     },
     [catalog.create],
   );
+	const importSessionArtifact = useCallback(async () => {
+		const selection = await openSessionArtifact();
+		if (selection.type === "canceled") return undefined;
+		let decoded: unknown;
+		try {
+			decoded = JSON.parse(selection.contents);
+		} catch (error) {
+			throw new Error("The selected file is not a valid Lyra session artifact.", {
+				cause: error,
+			});
+		}
+		const response = await catalog.importArtifact(decoded as SessionArtifact);
+		setSelectedSessionId(response.session.id);
+		return response.session;
+	}, [catalog.importArtifact]);
+	const saveSession = useCallback(
+		async (source: Session, format: "json" | "md") => {
+			const exported = await exportSession(connection, source.id, format);
+			let contents: string;
+			if (format === "json") {
+				if (exported.artifact === undefined) {
+					throw new Error("Runtime returned no JSON session artifact.");
+				}
+				contents = JSON.stringify(exported.artifact, null, 2) + "\n";
+			} else {
+				if (!exported.markdown) {
+					throw new Error("Runtime returned no Markdown session export.");
+				}
+				contents = exported.markdown;
+			}
+			await saveSessionExport(source.id, format, contents);
+		},
+		[connection],
+	);
+	const forkSessionFrom = useCallback(
+		async (runId: string) => {
+			if (selectedSession === undefined) return;
+			if (historyActionInFlight.current) {
+				throw new Error("Another session history action is still running.");
+			}
+			historyActionInFlight.current = true;
+			try {
+				const forked = await catalog.fork({
+					source: selectedSession,
+					fromRunId: runId,
+				});
+				setSelectedSessionId(forked.id);
+			} finally {
+				historyActionInFlight.current = false;
+			}
+		},
+		[catalog.fork, selectedSession],
+	);
+	const rollbackSessionTo = useCallback(
+		async (runId: string, restoreType: RestoreType) => {
+			if (selectedSession === undefined) return;
+			if (historyActionInFlight.current) {
+				throw new Error("Another session history action is still running.");
+			}
+			historyActionInFlight.current = true;
+			try {
+				const response = await rollbackSession(connection, {
+					sessionId: selectedSession.id,
+					toRunId: runId,
+					restoreType,
+				});
+				const restoredInput = response.droppedRuns.find(
+					(dropped) =>
+						dropped.userInput !== undefined && dropped.userInput.length > 0,
+				)?.userInput;
+				if (restoredInput !== undefined) {
+					setComposerDrafts((current) => ({
+						...current,
+						[selectedSession.id]: composerDraftFromInput(
+							restoredInput,
+							current[selectedSession.id]?.history ?? [],
+						),
+					}));
+				}
+				await Promise.all([snapshot.refetch(), catalog.query.refetch()]);
+			} finally {
+				historyActionInFlight.current = false;
+			}
+		},
+		[catalog.query, connection, selectedSession, snapshot],
+	);
   const removeSession = useCallback(
     async (session: Session) => {
       const fallback = catalog.sessions.find(
@@ -240,9 +337,10 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 		  <div className="work-index-actions window-no-drag">
 			<button className="icon-action" type="button" aria-label="Open settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button>
 			<NewSessionMenu
-			  pending={catalog.createPending}
+			  pending={catalog.createPending || catalog.importPending}
 			  defaultWorkspace={props.discovery.serverInfo.defaultWorkspace.path}
 			  onCreate={createSession}
+			  onImport={importSessionArtifact}
 			/>
 		  </div>
         </header>
@@ -260,12 +358,20 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           selectedId={selectedSession?.id}
           pending={catalog.query.isPending}
           error={catalog.query.error}
-          actionPending={catalog.updatePending || catalog.removePending}
+          actionPending={
+			catalog.updatePending || catalog.removePending || catalog.forkPending
+		  }
           hasMore={catalog.query.hasNextPage}
           loadingMore={catalog.query.isFetchingNextPage}
           onSelect={setSelectedSessionId}
           onUpdate={(session, patch) => catalog.update({ source: session, patch })}
           onRemove={removeSession}
+		  onFork={async (session) => {
+			const forked = await catalog.fork({ source: session });
+			setSelectedSessionId(forked.id);
+			return forked;
+		  }}
+		  onExport={saveSession}
           onRetry={() => void catalog.query.refetch()}
           onLoadMore={() => void catalog.query.fetchNextPage()}
         />
@@ -337,6 +443,8 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 cancelError={agentView.cancelError}
                 onResume={agentView.resume}
                 onCancelRun={agentView.cancel}
+				onForkFrom={forkSessionFrom}
+				onRollback={rollbackSessionTo}
               >
                 {goalsEnabled ? (
                   <GoalComposer
@@ -584,6 +692,35 @@ function selectSession(
   selectedId: string | undefined,
 ): Session | undefined {
   return sessions.find((session) => session.id === selectedId) ?? sessions[0];
+}
+
+function composerDraftFromInput(
+	input: ContentBlock[],
+	history: string[],
+): ComposerDraft {
+	const text = input
+		.flatMap((block) =>
+			block.type === "text" && block.text ? [block.text] : [],
+		)
+		.join("\n\n");
+	const attachments: ComposerAttachment[] = [];
+	for (const [index, block] of input.entries()) {
+		if (block.type !== "image" || !block.mime || !block.data) continue;
+		attachments.push({
+			id: crypto.randomUUID(),
+			name: `restored-image-${index + 1}`,
+			kind: "image",
+			mime: block.mime,
+			data: block.data,
+			bytes: decodedBase64Bytes(block.data),
+		});
+	}
+	return { text, attachments, history };
+}
+
+function decodedBase64Bytes(value: string): number {
+	const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+	return Math.max(0, Math.floor((value.length * 3) / 4) - padding);
 }
 
 function shortIdentity(identity: string): string {

@@ -729,10 +729,35 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - conversation/session search、long history pagination；
 - usage session/summary 与 cost unknown；
 - feedback create；
-- archive/favorite 等最终 Session lifecycle。
+- portable archive/favorite 等最终 Session lifecycle。
 
 必须用大历史、corrupt artifact、identity conflict、partial file failure、restart 和 dropped-run cleanup 验证。
 完成 O02 剩余、O20/O23、U19。
+
+### R9a Session material 纵切（已实现，待最终统一门禁）
+
+- **既有 Lyra Protocol 是唯一边界**：继续使用 `sessions.snapshot/fork/rollback/export/import` 与
+  `items.list(order=desc)`，不复制 Codex Thread/Turn、artifact 或 transport，也不新增平行方法族；Codex 只提供
+  lifecycle、bounded hydration 与恢复机制研究样本；
+- **有界 mount、完整冷读**：Session snapshot 在同一只读事务返回最新 200 个 Item、其 Run ancestor closure、open Run、
+  Interrupt、Plan 与 Goal；更老 transcript 仍由既有 DESC keyset cursor 读取，不再要求 Desktop mount 前下载无限历史；
+- **结构化 fork/rollback**：fork 只接受 terminal root boundary，为 Session/Run/Item remap 新 identity，并复制 exact
+  Conversation、known Plan boundary 与大 Tool result binding；history rollback 原子删除 boundary 后的 root/child tree、
+  Interrupt/Goal/Plan mode 等 FK material，以 known boundary 的新 revision 恢复 Plan，并返回 dropped root user input 给
+  Composer。files/both 继续走 Session shadow checkpoint，提交后清理 dropped Run refs；
+- **portable terminal artifact**：JSON artifact 保留 Session metadata、paired provider/model、terminal Run tree、root-only
+  protocol profile、Run metrics/limits/outcome、Item、opaque validated chat messages、message marks、Plan 与 canonical offloaded
+  Tool result；Markdown 是人类可读导出，不冒充可导入格式。既有 identity 冲突返回 `revision_conflict`，绝不覆盖；
+- **strict all-or-nothing import**：Runtime 在任何 write 前递归校验版本、workspace/model pair、时间、record bound、Run DAG、
+  child ToolCall owner、root profile、Item union/nested content/question/tool、base64 image、tool-result binding、message mark 与
+  ToolCall/ToolResult journal closure；全部 material 只在一个 SQLite transaction 中以新 Session identity 创建；
+- **Desktop native ownership**：Wails host 只负责 bounded JSON open 与 JSON/Markdown save dialog；文件名来自受控 Session ID，
+  不从 title 或导入内容构造 path。Frontend 只消费 generated Lyra client，Work Index 提供 import/export/whole fork，历史 turn
+  提供 boundary fork 与 history/files/both rollback，dropped input 原样恢复到 Composer；并发 history action 在 client 侧串行；
+- **Session lifecycle 收敛**：旧产品没有独立 Session archive operation，89-method Lyra catalog 也没有第二 lifecycle；本阶段的
+  archive 指 portable artifact，收藏继续通过既有 revisioned `favorite` 更新表达，不为参考产品概念扩张协议；
+- 当前只标记 O02/U03 为 `implemented`；conversation search/long-history UI、usage、feedback 仍分别留在 R9c/R9b，所有
+  compile/test/fault/parity/package 与 resource-leak 证据按既定节奏集中到 R11。
 
 ## 14. R10：Remote、内容与产品打磨
 

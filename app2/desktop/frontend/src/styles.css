@@ -3387,6 +3387,85 @@ input::placeholder {
   text-transform: none;
 }
 
+.session-history-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 9px;
+  padding-top: 7px;
+  border-top: 1px solid var(--divider);
+}
+
+.session-history-actions > button,
+.session-history-actions > details > summary {
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 650;
+  list-style: none;
+  transition:
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.session-history-actions > details > summary {
+  display: flex;
+  align-items: center;
+}
+
+.session-history-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.session-history-actions > button:hover:not(:disabled),
+.session-history-actions > details > summary:hover,
+.session-history-actions > details[open] > summary {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.session-history-actions > details > div {
+  position: absolute;
+  z-index: 9;
+  top: calc(100% + 5px);
+  right: 0;
+  display: grid;
+  width: 190px;
+  padding: 6px;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+.session-history-actions > details > div button {
+  min-height: 36px;
+  padding: 0 9px;
+  color: var(--ink-subtle);
+  background: transparent;
+  font-size: 10px;
+  text-align: left;
+}
+
+.session-history-actions > details > div button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--paper-muted);
+}
+
+.session-history-actions > p {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--red);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 .message-content {
   min-width: 0;
   color: var(--ink);

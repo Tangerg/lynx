@@ -1,6 +1,9 @@
 package checkpoint
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -47,6 +50,32 @@ func (s *Store) DropSession(sessionID string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	return os.RemoveAll(s.gitDir(sessionID))
+}
+
+// DropRuns removes the durable boundary refs owned by Runs that a committed
+// history rollback deleted. The shadow repository is serialized with Snapshot,
+// Restore and DropSession, so a finishing Run cannot recreate a discarded tag
+// after the Session transaction has settled.
+func (s *Store) DropRuns(ctx context.Context, sessionID string, runIDs []string) error {
+	if len(runIDs) == 0 {
+		return nil
+	}
+	mu := s.repoLockFor(sessionID)
+	mu.Lock()
+	defer mu.Unlock()
+
+	gitDir := s.gitDir(sessionID)
+	if _, err := os.Stat(filepath.Join(gitDir, "HEAD")); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("checkpoint: inspect session repository: %w", err)
+	}
+	for _, runID := range runIDs {
+		if _, err := s.git(ctx, gitDir, "", "update-ref", "-d", "refs/tags/"+tagFor(runID)); err != nil {
+			return fmt.Errorf("checkpoint: drop run %q: %w", runID, err)
+		}
+	}
+	return nil
 }
 
 func (s *Store) gitDir(sessionID string) string { return filepath.Join(s.root, sessionID) }

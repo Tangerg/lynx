@@ -11,12 +11,15 @@ import type {
   Page,
   RuntimeConnection,
   Session,
+	SessionArtifact,
   UpdateSessionRequest,
 } from "@lyra/runtime-contract";
 
 import {
   createSession,
   deleteSession,
+	forkSession,
+	importSession,
   listSessions,
   runtimeQueryKeys,
   updateSession,
@@ -84,6 +87,28 @@ export function useSessionCatalog(connection: RuntimeConnection) {
       void queryClient.invalidateQueries({ queryKey });
     },
   });
+	const fork = useMutation({
+		mutationFn: ({ source, fromRunId }: { source: Session; fromRunId?: string }) =>
+			forkSession(connection, {
+				sessionId: source.id,
+				...(fromRunId === undefined ? {} : { fromRunId }),
+			}),
+		onSuccess: (committed) => {
+			queryClient.setQueryData<SessionPages>(queryKey, (current) =>
+				upsertSession(current, committed, true),
+			);
+			void queryClient.invalidateQueries({ queryKey });
+		},
+	});
+	const importArtifact = useMutation({
+		mutationFn: (artifact: SessionArtifact) => importSession(connection, artifact),
+		onSuccess: ({ session: committed }) => {
+			queryClient.setQueryData<SessionPages>(queryKey, (current) =>
+				upsertSession(current, committed, true),
+			);
+			void queryClient.invalidateQueries({ queryKey });
+		},
+	});
 
   return {
     query,
@@ -91,9 +116,13 @@ export function useSessionCatalog(connection: RuntimeConnection) {
     create: create.mutateAsync,
     update: update.mutateAsync,
     remove: remove.mutateAsync,
+		fork: fork.mutateAsync,
+		importArtifact: importArtifact.mutateAsync,
     createPending: create.isPending,
     updatePending: update.isPending,
     removePending: remove.isPending,
+		forkPending: fork.isPending,
+		importPending: importArtifact.isPending,
     createError: create.error,
   };
 }

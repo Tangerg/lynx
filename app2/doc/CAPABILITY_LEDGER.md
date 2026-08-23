@@ -1,6 +1,6 @@
 # app2 能力迁移账本
 
-> 基线：2026-08-22；最近更新：2026-08-23。本文是迁移状态的唯一 owner。当前 app2 已完成 R1，并在继续
+> 基线：2026-08-22；最近更新：2026-08-24。本文是迁移状态的唯一 owner。当前 app2 已完成 R1，并在继续
 > R2–R11 production implementation；R2 的 Workspace 与 Session/Work Index 部分纵切、R5 的 Plan/Goal Runtime
 > 与 Desktop consumer 已到 implemented，最终统一门禁未完成。
 > 旧 app 的全绿证据不能冒充 app2 已完成。
@@ -21,7 +21,7 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，73 implemented，2 in_progress，13 specified | 89 verified |
+| Runtime operations | 89 | 1 verified，83 implemented，2 in_progress，3 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
 | Runtime resource topics | 16 | 16 implemented | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
@@ -37,7 +37,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | --- | --- | ---: | --- | --- | --- | --- |
 | O01a | `runtime.discover` | 1 | runtime protocol/discovery | R1 | verified | exact RequestMeta/capability、generated client、sidecar/instance/namespace identity、strict failure |
 | O01b | `runtime.subscribe` | 1 | runtimeevents + Desktop invalidation router | R8 | implemented | bounded topic/watch、watch-ready cold resync、per-subscription sequence、gap/reconnect/queue eviction 全范围回读、cancel/join 已实现；待最终门禁 |
-| O02 | `sessions.list`, `sessions.get`, `sessions.snapshot`, `sessions.create`, `sessions.update`, `sessions.delete`, `sessions.fork`, `sessions.rollback`, `sessions.export`, `sessions.import` | 10 | session + sessionflow + artifact | R2/R9 | specified | CRUD/CAS、snapshot closure、fork boundary、rollback files/history、exact app2 artifact、cascade cleanup |
+| O02 | `sessions.list`, `sessions.get`, `sessions.snapshot`, `sessions.create`, `sessions.update`, `sessions.delete`, `sessions.fork`, `sessions.rollback`, `sessions.export`, `sessions.import` | 10 | session + sessionflow + artifact | R2/R9 | implemented | 既有十方法 Lyra wire 不变；CRUD/CAS、200-Item bounded snapshot、exact root fork、history/files/both rollback、dropped-input restore、terminal app2/2 JSON/Markdown、strict conflict-reject atomic import、message/tool/lineage closure 与 native file transfer 已实现；待 R11 fault/parity/package 门禁 |
 | O03 | `runs.start`, `runs.resume`, `runs.subscribe`, `runs.cancel`, `runs.steer`, `runs.get`, `runs.list` | 7 | run + runflow + session hydration | R3/R4 | implemented | single-open-tree、root tree Segment stream、tree-scoped replay/live handoff、running/waiting exact cancel、tree-atomic recovery、exact steer、cursor list 与 Desktop resume lease 已实现；HITL 统一门禁后 verified |
 | O04 | `interrupts.list` | 1 | interrupt query in snapshot/audit | R4 | implemented | pending exact identity、cursor、settled 不复活、Session/Run filtering 与 snapshot consumer 已实现；待统一门禁 |
 | O05 | `plan.get` | 1 | plan + planflow | R5 | implemented | Session current Plan、CAS revision、root terminal boundary、fork/rollback/import lifecycle、snapshot/event 同源、无 generic state registry；待 Desktop 与最终统一门禁 |
@@ -111,7 +111,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | --- | --- | --- | --- | --- | --- |
 | U01 | Wails window/titlebar/chrome/min geometry | NativeHost + shell | R1/R10 | implemented | Wails v3 beta.12、精确 host surface、min 1120×720、signed package；R10 完成全量视觉/原生验收 |
 | U02 | Runtime start/reconnect/error/version | supervisor + runtime context | R1 | verified | one-shot descriptor、sidecars + `runtime.discover`、SIGKILL successor、stale callback ignored、bounded backoff、quit join |
-| U03 | Work Index/new Session/cwd grouping/search | sessions context | R2 | implemented | source-owned paged projection、exact cwd、status、native create、rename/favorite/delete/search/keyboard；fork 随 R9 |
+| U03 | Work Index/new Session/cwd grouping/search | sessions context | R2/R9 | implemented | source-owned paged projection、exact cwd、status、native create/import/export、rename/favorite/delete/search/keyboard、whole/boundary fork 与 history/file rollback actions 已接通；待最终门禁 |
 | U04 | Agent Session hydrate/cold restore | agent context | R2/R3 | implemented | coherent snapshot + attach-first full replay/live fold、bounded dedupe、generation fencing；待 reload/restart 统一门禁 |
 | U05 | Composer draft/attachments/paste/@file/history/IME | composer context | R3 | implemented | per-Session draft、image/text attachment+paste、history、IME-safe send、start/steer/stop、success clear/failure exact retry |
 | U06 | Root narrative commentary/final hierarchy | agent presentation | R3 | implemented | user/work/reasoning/final/tool/question/compaction 同 renderer，work/final 分层与 reader-owned follow lock；待视觉统一门禁 |

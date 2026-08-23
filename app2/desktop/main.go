@@ -71,6 +71,7 @@ func runDesktop() (err error) {
 		window,
 		wailsDirectoryPicker{dialogs: app.Dialog, window: window},
 		wailsImageSaver{dialogs: app.Dialog, window: window},
+		wailsSessionDocumentTransfer{dialogs: app.Dialog, window: window},
 	)
 	if err != nil {
 		return err

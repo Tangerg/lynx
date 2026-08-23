@@ -32,7 +32,7 @@ Workspace value
 
 | 上下文 | 拥有的语言与规则 | 不拥有 |
 | --- | --- | --- |
-| Session | Session identity、title、workspace、revision、archive/fork/rollback/import/export | agent 进程、文件内容、UI tab |
+| Session | Session identity、title、workspace、revision、favorite/fork/rollback/import/export | agent 进程、文件内容、UI tab |
 | Execution | Run tree、Segment、admission、steer/cancel、termination、recovery | provider SDK 类型、Wails、HTTP |
 | Transcript | 可见 Item、phase、source Run、顺序、tool/HITL 审计事实 | provider request history |
 | Interaction | approval/question Interrupt、claim、answer、waiting barrier | 客户端草稿、风险猜测 |
@@ -78,7 +78,6 @@ Session {
   modelRef
   revision
   favorite
-  lifecycle = active | archived
   createdAt
   updatedAt
 }
@@ -86,13 +85,14 @@ Session {
 
 不变量：
 
-- update、archive、rollback 等条件写必须携带 `expectedRevision`；过期写返回 revision conflict；
+- update 的条件写必须携带 `expectedRevision`；rollback 由 exact root Run boundary、open-Run guard 与内部 CAS 防止并发覆盖；
 - Session status 是由 open Run/Interrupt 派生的 `running | waiting | idle`，不是独立可写字段；
 - 一个 Session 同时最多有一个 open root Run tree；
 - 删除 Session 原子删除其 Run、Item、Interrupt、checkpoint、Goal、Plan、usage attribution 和 owner claim；
 - fork 产生新 Session identity 并复制被选择边界之前的语义历史；
 - rollback 明确选择 `history | files | both`，并返回被丢弃 Run 的原用户输入，便于重新编辑；
 - import 是导入 app2 artifact，不接受旧 app artifact。identity 冲突是明确拒绝，不自动改名。
+- “archive”在 Session 语境只指 portable export artifact，不是第二套隐藏 lifecycle；收藏继续由既有 `favorite` 字段表达。
 
 ## 5. Run 与 Segment
 

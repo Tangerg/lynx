@@ -45,7 +45,6 @@ type RollbackWrite struct {
 
 type ImportWrite struct {
 	Material Material
-	ExpectedPlanRevision uint64
 }
 
 type ForkResult struct {
@@ -56,6 +55,7 @@ type ForkResult struct {
 type RollbackResult struct {
 	Response *protocol.RollbackSessionResponse
 	PlanChanged bool
+	HistoryChanged bool
 }
 
 type ImportResult struct {

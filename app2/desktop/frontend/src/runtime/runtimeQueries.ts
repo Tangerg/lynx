@@ -13,6 +13,8 @@ import {
   type EmptyObject,
   type FileContent,
   type FileEntry,
+	type ExportSessionResponse,
+	type ForkSessionRequest,
   type AgentDoc,
 	type ApprovalModeResult,
 	type ApprovalRule,
@@ -47,9 +49,12 @@ import {
 	type RuntimeTopic,
   type OpenRuntimeStream,
   type RunEvent,
+	type RollbackSessionRequest,
+	type RollbackSessionResponse,
 	type RunScheduleNowResponse,
 	type Schedule,
   type Session,
+	type SessionArtifact,
   type SessionSnapshot,
   type Skill,
   type SkillProposal,
@@ -272,6 +277,43 @@ export async function listSessions(
     { limit: 100, ...(cursor === undefined ? {} : { cursor }) },
     { meta: clientMeta, signal },
   );
+}
+
+export function forkSession(
+	connection: RuntimeConnection,
+	request: ForkSessionRequest,
+): Promise<Session> {
+	return client(connection).call("sessions.fork", request, { meta: clientMeta });
+}
+
+export function rollbackSession(
+	connection: RuntimeConnection,
+	request: RollbackSessionRequest,
+): Promise<RollbackSessionResponse> {
+	return client(connection).call("sessions.rollback", request, { meta: clientMeta });
+}
+
+export function exportSession(
+	connection: RuntimeConnection,
+	sessionId: string,
+	format: "json" | "md",
+): Promise<ExportSessionResponse> {
+	return client(connection).call(
+		"sessions.export",
+		{ sessionId, format },
+		{ meta: clientMeta },
+	);
+}
+
+export function importSession(
+	connection: RuntimeConnection,
+	artifact: SessionArtifact,
+): Promise<{ session: Session }> {
+	return client(connection).call(
+		"sessions.import",
+		{ artifact },
+		{ meta: clientMeta },
+	);
 }
 
 export function listSchedules(

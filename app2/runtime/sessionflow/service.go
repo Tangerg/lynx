@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
-	plandomain "github.com/Tangerg/lynx/app2/runtime/domain/plan"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
@@ -21,16 +20,16 @@ import (
 
 type Store interface {
 	CreateSession(context.Context, session.Session) error
+	SessionExists(context.Context, string) (bool, error)
 	GetSession(context.Context, session.ID) (session.Session, error)
 	GetSessionProjection(context.Context, session.ID) (session.Projection, error)
 	ListSessionProjections(context.Context, int, *session.Cursor) (session.Page, error)
 	UpdateSession(context.Context, session.Session, uint64) error
 	DeleteSession(context.Context, session.ID) error
-	LoadPlan(context.Context, string) (plandomain.State, error)
 	ReadSessionMaterial(context.Context, session.ID) (Material, error)
 	CreateSessionFork(context.Context, ForkWrite) error
 	RollbackSessionHistory(context.Context, RollbackWrite) (session.Session, error)
-	ReplaceSessionMaterial(context.Context, ImportWrite) error
+	CreateImportedSession(context.Context, ImportWrite) error
 }
 
 type IDGenerator interface{ New(string) (string, error) }
@@ -41,6 +40,7 @@ type WorkspaceResolver interface {
 
 type Checkpoints interface {
 	Restore(context.Context, string, string, string) error
+	DropRuns(context.Context, string, []string) error
 	DropSession(string) error
 }
 

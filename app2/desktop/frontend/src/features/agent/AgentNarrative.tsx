@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type {
   ContentBlock,
@@ -7,6 +7,7 @@ import type {
   PendingInterruptSet,
   RunProgress,
   RunRef,
+	RestoreType,
 } from "@lyra/runtime-contract";
 
 import { InterruptSetCard } from "./InterruptSetCard";
@@ -32,6 +33,8 @@ interface AgentNarrativeProps {
     idempotencyKey: string,
   ): Promise<void>;
   onCancelRun(runId: string): Promise<void>;
+	onForkFrom(runId: string): Promise<void>;
+	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
   children?: ReactNode;
 }
 
@@ -119,6 +122,8 @@ export function AgentNarrative(props: AgentNarrativeProps) {
               cancelingRunId={props.cancelingRunId}
               cancelError={props.cancelError}
               onCancelRun={props.onCancelRun}
+			  onForkFrom={props.onForkFrom}
+			  onRollback={props.onRollback}
             />
           ))
         )}
@@ -132,6 +137,8 @@ export function AgentNarrative(props: AgentNarrativeProps) {
             cancelingRunId={props.cancelingRunId}
             cancelError={props.cancelError}
             onCancelRun={props.onCancelRun}
+			onForkFrom={props.onForkFrom}
+			onRollback={props.onRollback}
             integrity="The parent delegation is unavailable in this snapshot."
           />
         ))}
@@ -159,16 +166,28 @@ interface MaterialItemProps {
   cancelingRunId?: string;
   cancelError?: { runId: string; message: string };
   onCancelRun(runId: string): Promise<void>;
+	onForkFrom(runId: string): Promise<void>;
+	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }
 
 function MaterialItem(props: MaterialItemProps) {
   const run = props.material.runById.get(props.item.runId);
   const children = props.material.childRunsByItemId.get(props.item.id) ?? [];
+	const historyBoundary =
+		run?.parentRunId === undefined &&
+		run?.status === "finished" &&
+		props.item.createdAt === run.createdAt &&
+		props.material.itemsByRunId
+			.get(props.item.runId)
+			?.find((item) => item.type === "userMessage")?.id === props.item.id;
   return (
     <NarrativeItem
       item={props.item}
       run={run}
       liveOutput={props.material.liveToolOutputs[props.item.id]}
+	  historyBoundary={historyBoundary}
+	  onForkFrom={props.onForkFrom}
+	  onRollback={props.onRollback}
     >
       {children.map((child) => (
         <DelegatedRunDisclosure
@@ -180,6 +199,8 @@ function MaterialItem(props: MaterialItemProps) {
           cancelingRunId={props.cancelingRunId}
           cancelError={props.cancelError}
           onCancelRun={props.onCancelRun}
+		  onForkFrom={props.onForkFrom}
+		  onRollback={props.onRollback}
         />
       ))}
     </NarrativeItem>
@@ -191,11 +212,17 @@ function NarrativeItem({
   run,
   children,
   liveOutput,
+	historyBoundary,
+	onForkFrom,
+	onRollback,
 }: {
   item: Item;
   run?: RunRef;
   children?: ReactNode;
   liveOutput?: LiveToolOutput;
+	historyBoundary: boolean;
+	onForkFrom(runId: string): Promise<void>;
+	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }) {
   const child = run?.parentRunId !== undefined;
   switch (item.type) {
@@ -204,6 +231,13 @@ function NarrativeItem({
         <article className="narrative-item user-turn" data-child={child}>
           <ItemMeta label="You" item={item} run={run} />
           <Content content={item.content} />
+		  {historyBoundary ? (
+			<SessionHistoryActions
+			  runId={run.id}
+			  onForkFrom={onForkFrom}
+			  onRollback={onRollback}
+			/>
+		  ) : null}
         </article>
       );
     case "agentMessage": {
@@ -273,6 +307,8 @@ interface DelegatedRunDisclosureProps {
   cancelError?: { runId: string; message: string };
   integrity?: string;
   onCancelRun(runId: string): Promise<void>;
+	onForkFrom(runId: string): Promise<void>;
+	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }
 
 function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
@@ -350,6 +386,8 @@ function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
               cancelingRunId={props.cancelingRunId}
               cancelError={props.cancelError}
               onCancelRun={props.onCancelRun}
+			  onForkFrom={props.onForkFrom}
+			  onRollback={props.onRollback}
             />
           ))
         )}
@@ -372,6 +410,75 @@ function ItemMeta(props: { label: string; item: Item; run?: RunRef }) {
       ) : null}
     </header>
   );
+}
+
+function SessionHistoryActions(props: {
+	runId: string;
+	onForkFrom(runId: string): Promise<void>;
+	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
+}) {
+	const [pending, setPending] = useState(false);
+	const [error, setError] = useState<string>();
+	const run = async (action: () => Promise<void>) => {
+		if (pending) return;
+		setPending(true);
+		setError(undefined);
+		try {
+			await action();
+		} catch (failure) {
+			setError(
+				failure instanceof Error
+					? failure.message
+					: "Session history action failed.",
+			);
+		} finally {
+			setPending(false);
+		}
+	};
+	return (
+		<div className="session-history-actions">
+			<button
+				type="button"
+				disabled={pending}
+				onClick={() => void run(() => props.onForkFrom(props.runId))}
+			>
+				Fork here
+			</button>
+			<details>
+				<summary>Rewind…</summary>
+				<div>
+					<button
+						type="button"
+						disabled={pending}
+						onClick={() =>
+							void run(() => props.onRollback(props.runId, "history"))
+						}
+					>
+						History after this turn
+					</button>
+					<button
+						type="button"
+						disabled={pending}
+						onClick={() =>
+							void run(() => props.onRollback(props.runId, "files"))
+						}
+					>
+						Files to this checkpoint
+					</button>
+					<button
+						type="button"
+						disabled={pending}
+						onClick={() =>
+							void run(() => props.onRollback(props.runId, "both"))
+						}
+					>
+						History and files
+					</button>
+				</div>
+			</details>
+			{error ? <p role="alert">{error}</p> : null}
+		</div>
+	);
 }
 
 function Content({ content = [] }: { content: ContentBlock[] | undefined }) {
