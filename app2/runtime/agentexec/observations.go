@@ -25,6 +25,10 @@ import (
 type ExecutableTool struct {
 	Tool        tool.Tool
 	SafetyClass protocol.SafetyClass
+	// Deferred keeps executable authority frozen for the Run while withholding
+	// its schema from the initial model manifest until an in-Run discovery tool
+	// advertises the exact name.
+	Deferred bool
 	// IntrinsicInput marks a capability whose visible identity is a Question,
 	// not a provisional ToolCall. It is projected only after its typed input
 	// request exists, avoiding a wire-level Item type mutation.

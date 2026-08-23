@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory production 已实现；Hooks 除 PreCompact consumer 外已贯通，待 Tool catalog 与最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（全部 production 纵切已实现；Hooks 只待真实 PreCompact producer，整体待最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -554,7 +554,7 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - **lifecycle isolation**：terminal Run 先 durable commit 并发布既有 Run 事件，再发非阻塞维护信号；重启扫描补偿 commit/signal 间 crash。
   utility role 可用时用于维护，否则回退 source Run 的 provider/model。单一有界/coalescing worker 归 Runtime lifetime 所有，Close cancel/join；
   失败仅保留 backlog，不改变 Run outcome，不写 LYRA.md，也不扩张现有 Lyra wire；
-- **下一纵切**：Hooks，然后 Tool catalog。
+- **后续纵切**：Hooks 与 Tool catalog 已按同一资源边界完成，待真实 PreCompact producer 与最终统一门禁。
 
 ### R7 Hooks 管理 / execution / observation 纵切（除 PreCompact consumer 外已实现）
 
@@ -576,7 +576,30 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   terminal commit；Notification 只覆盖真实 interrupt source。observe-only cascade 在 commit 时冻结并进入单一 bounded Runtime worker，Close
   cancel/join。命令私有契约见 `HOOKS.md`；现有 Lyra management/event wire 未改变；
 - **余项 / 下一纵切**：`PreCompact` 的领域与执行规则已闭合，但必须等真正 compaction producer 在 candidate boundary 调用，不能造假 consumer。
-  R7 主序继续 Tool catalog；compaction 实现时同纵切接入 `PreCompact`，最后统一门禁验证。
+  Tool catalog 已完成；compaction 实现时同纵切接入 `PreCompact`，最后统一门禁验证。
+
+### R7 Tool catalog / 渐进暴露纵切（已实现，待最终统一门禁）
+
+- **两个目录、两个边界**：既有 `tools.list/tools.invoke` 只描述无需 Session、模型循环、approval 或进程生命周期即可安全执行的
+  Run 外诊断能力，目前闭合为 `read/glob/grep`；Agent 的完整可执行集合继续由每个 Run 私有装配，绝不把 MCP、Skill、Memory 或写入工具
+  暴露成 direct API，也不新增 Codex tool wire；
+- **单一文件安全适配器**：`workspacefs.ConfinedExecutor` 统一拥有 admitted physical root、absolute/parent 拒绝、existing target 与 nearest
+  existing ancestor 的 symlink escape 检查。Agent 文件工具、mutation path guard 与 direct diagnostics 共用这一实现；`LocalExecutor` 不再被任何
+  app2 consumer 误当作 security jail，旧 `toolflow` 的手写 strict/normalize/confine 副本已删除；
+- **冻结权限、渐进可见性**：Run admission 先建立完整 executable manifest，再把 Skill、Memory 与 MCP bindings 标为 deferred；初始模型只看到
+  核心文件/命令/HITL/Plan/Goal/result 工具和 `search_tools`。`search_tools` 对冻结 definitions 做有界确定性关键词检索，只有再次提交 exact
+  `select` names 才从下一次 model call 起可见；有序 definition/safety/deferred/intrinsic metadata 进入 deployment configuration digest，Framework
+  checkpoint 持久化 advertised names，因此同清单 waiting/resume 不丢失已加载工具，外部清单漂移则按 deployment identity fail closed，绝不动态换权；
+- **策略链不旁路**：deferred Tool 在进入索引前已绑定 exact safety class、Plan gate、Lyra approval 与 lifecycle Hook；`search_tools` 自身也经过同一
+  Hook observation。加载只改变模型 manifest，不执行 capability、不修改安全等级，也不绕过 ToolCall/Item/Transcript 的 Lyra 语义；
+- **委派清单稳定性**：delegated deployment 保留每个 binding 的 visible/deferred metadata。child 第一次真实调用以 per-Run 可取消 resolution lane
+  在锁外装配能力，并对数量、definition、safety、deferred 与 intrinsic-input 做整份 frozen manifest 比对；MCP/Skill 配置漂移不能借由
+  `search_tools` 换入未冻结定义，不同 child 仍可并行解析；
+- **Desktop 诊断工作台**：Resources 增加可持久化 Tools 子视图，展示 Runtime 返回的真实 JSON Schema、安全级别与当前 Workspace，提供有界 JSON
+  object 编辑、取消、loading/error/empty/result 状态。页面明确标注 direct diagnostics 不属于 Agent Run，不伪造 approval、Transcript 或 Run 结果；
+- **资源边界**：本纵切未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher；React unmount/新调用会取消 exact diagnostic request，
+  Runtime 工具清单无额外 goroutine。参考实现只提供 progressive visibility 的机制研究，Lyra Protocol、operation registry 与 generated client 仍是
+  唯一合同真源。
 
 ## 12. R8：Integration 与 Settings
 

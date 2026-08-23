@@ -14,6 +14,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
+var errChildToolManifestChanged = errors.New("agentexec: child Tool manifest changed")
+
 // routedTool preserves a frozen model-visible definition while resolving the
 // actual Run-scoped capability from the current child invocation. Its template
 // is used only for immutable optional capabilities; it is never called.
@@ -44,14 +46,46 @@ type runToolRouter struct {
 	bridge    *delegationBridge
 	base      ToolScope
 	observer  *executionObserver
-	byRunID   map[string]map[string]toolcontract.Tool
+	manifest  map[string]toolBindingContract
+	byRunID   map[string]*toolResolution
 }
 
-func newRunToolRouter(catalog ToolCatalog, bridge *delegationBridge, base ToolScope, observer *executionObserver) *runToolRouter {
+type toolResolution struct {
+	ready chan struct{}
+	tools map[string]toolcontract.Tool
+	err   error
+}
+
+type toolBindingContract struct {
+	definition     chat.ToolDefinition
+	safety         protocol.SafetyClass
+	deferred       bool
+	intrinsicInput bool
+}
+
+func newRunToolRouter(
+	catalog ToolCatalog,
+	bridge *delegationBridge,
+	base ToolScope,
+	observer *executionObserver,
+	bindings []ExecutableTool,
+) (*runToolRouter, error) {
+	manifest := make(map[string]toolBindingContract, len(bindings))
+	for _, binding := range bindings {
+		definition := binding.Tool.Definition()
+		if _, duplicate := manifest[definition.Name]; duplicate {
+			return nil, fmt.Errorf("agentexec: duplicate child Tool %q", definition.Name)
+		}
+		manifest[definition.Name] = toolBindingContract{
+			definition: definition.Clone(), safety: binding.SafetyClass,
+			deferred: binding.Deferred, intrinsicInput: binding.IntrinsicInput,
+		}
+	}
 	return &runToolRouter{
 		catalog: catalog, bridge: bridge, base: base, observer: observer,
-		byRunID: make(map[string]map[string]toolcontract.Tool),
-	}
+		manifest: manifest,
+		byRunID: make(map[string]*toolResolution),
+	}, nil
 }
 
 func (router *runToolRouter) resolve(
@@ -64,36 +98,91 @@ func (router *runToolRouter) resolve(
 		return nil, errors.New("agentexec: child Tool has no product Run binding")
 	}
 	router.mu.Lock()
-	defer router.mu.Unlock()
-	if executable := router.byRunID[binding.runID][want.Name]; executable != nil {
-		return executable, nil
+	resolution := router.byRunID[binding.runID]
+	owner := resolution == nil
+	if owner {
+		resolution = &toolResolution{ready: make(chan struct{})}
+		router.byRunID[binding.runID] = resolution
 	}
+	router.mu.Unlock()
+	if !owner {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-resolution.ready:
+			return resolvedTool(resolution, want)
+		}
+	}
+
 	scope := router.base
 	scope.RunID = binding.runID
 	scope.IsRootRun = false
 	scope.Facts = scopedToolFacts{runID: binding.runID, observer: router.observer}
+	resolved, err := router.resolveManifest(ctx, scope)
+	router.mu.Lock()
+	resolution.tools = resolved
+	resolution.err = err
+	close(resolution.ready)
+	if err != nil && !errors.Is(err, errChildToolManifestChanged) &&
+		router.byRunID[binding.runID] == resolution {
+		delete(router.byRunID, binding.runID)
+	}
+	router.mu.Unlock()
+	return resolvedTool(resolution, want)
+}
+
+func (router *runToolRouter) resolveManifest(
+	ctx context.Context,
+	scope ToolScope,
+) (map[string]toolcontract.Tool, error) {
 	bindings, err := router.catalog.ForRun(ctx, scope)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: resolve child Tools: %w", err)
 	}
+	if len(bindings) != len(router.manifest) {
+		return nil, errChildToolManifestChanged
+	}
 	resolved := make(map[string]toolcontract.Tool, len(bindings))
 	for _, binding := range bindings {
 		definition := binding.Tool.Definition()
+		contract, expected := router.manifest[definition.Name]
+		if !expected || !reflect.DeepEqual(definition, contract.definition) ||
+			binding.SafetyClass != contract.safety ||
+			binding.Deferred != contract.deferred ||
+			binding.IntrinsicInput != contract.intrinsicInput {
+			return nil, fmt.Errorf("%w for %q", errChildToolManifestChanged, definition.Name)
+		}
+		if _, duplicate := resolved[definition.Name]; duplicate {
+			return nil, fmt.Errorf("agentexec: duplicate resolved child Tool %q", definition.Name)
+		}
 		resolved[definition.Name] = binding.Tool
 	}
-	executable := resolved[want.Name]
-	if executable == nil || !reflect.DeepEqual(executable.Definition(), want) {
-		return nil, fmt.Errorf("agentexec: child Tool manifest changed for %q", want.Name)
+	return resolved, nil
+}
+
+func resolvedTool(
+	resolution *toolResolution,
+	want chat.ToolDefinition,
+) (toolcontract.Tool, error) {
+	if resolution.err != nil {
+		return nil, resolution.err
 	}
-	router.byRunID[binding.runID] = resolved
+	executable := resolution.tools[want.Name]
+	if executable == nil || !reflect.DeepEqual(executable.Definition(), want) {
+		return nil, fmt.Errorf("%w for %q", errChildToolManifestChanged, want.Name)
+	}
 	return executable, nil
 }
 
-func routedManifest(bindings []ExecutableTool, router *runToolRouter) []toolcontract.Tool {
-	result := make([]toolcontract.Tool, 0, len(bindings))
+func routedManifest(bindings []ExecutableTool, router *runToolRouter) []ExecutableTool {
+	result := make([]ExecutableTool, 0, len(bindings))
 	for _, binding := range bindings {
-		result = append(result, &routedTool{
-			definition: binding.Tool.Definition(), template: binding.Tool, router: router,
+		result = append(result, ExecutableTool{
+			Tool: &routedTool{
+				definition: binding.Tool.Definition(), template: binding.Tool, router: router,
+			},
+			SafetyClass: binding.SafetyClass, Deferred: binding.Deferred,
+			IntrinsicInput: binding.IntrinsicInput,
 		})
 	}
 	return result

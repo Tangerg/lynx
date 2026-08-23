@@ -9,6 +9,7 @@ import type {
 
 import {
   listAgentDocs,
+  listDiagnosticTools,
   listRecipes,
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
@@ -17,6 +18,7 @@ import { KnowledgeWorkspace } from "./KnowledgeWorkspace";
 import { MemoryWorkspace } from "./MemoryWorkspace";
 import { ResourceState } from "./ResourceState";
 import { SkillsWorkspace } from "./SkillsWorkspace";
+import { ToolCatalogWorkspace } from "./ToolCatalogWorkspace";
 
 interface ResourcesWorkspaceProps {
   connection: RuntimeConnection;
@@ -49,6 +51,11 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
       listAgentDocs(props.connection, props.workspace, signal),
     retry: 2,
   });
+  const tools = useQuery({
+    queryKey: runtimeQueryKeys.tools(props.connection),
+    queryFn: ({ signal }) => listDiagnosticTools(props.connection, signal),
+    retry: 2,
+  });
 
   return (
     <section className="resources-workspace" aria-label="Workspace resources">
@@ -57,6 +64,12 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
           label="Skills"
           selected={props.view === "skills"}
           onSelect={() => props.onViewChange("skills")}
+        />
+        <ResourceButton
+          label="Tools"
+          count={tools.data?.data.length}
+          selected={props.view === "tools"}
+          onSelect={() => props.onViewChange("tools")}
         />
         <ResourceButton
           label="Recipes"
@@ -88,6 +101,15 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
           enabled={props.skillsEnabled}
           view={props.skillView}
           onViewChange={props.onSkillViewChange}
+        />
+      ) : props.view === "tools" ? (
+        <ToolCatalogWorkspace
+          connection={props.connection}
+          workspace={props.workspace}
+          values={tools.data?.data}
+          pending={tools.isPending}
+          error={tools.error}
+          onRetry={() => void tools.refetch()}
         />
       ) : props.view === "recipes" ? (
         <RecipeCatalog

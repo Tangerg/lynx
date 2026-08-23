@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -28,6 +27,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
+	"github.com/Tangerg/lynx/app2/runtime/workspacefs"
 )
 
 type ApprovalPolicy interface {
@@ -102,7 +102,7 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 	if scope.SessionID == "" || scope.RunID == "" || !filepath.IsAbs(scope.Workspace) || scope.Facts == nil {
 		return nil, errors.New("agenttools: complete run scope is required")
 	}
-	executor, err := newConfinedExecutor(scope.Workspace)
+	executor, err := workspacefs.NewConfinedExecutor(scope.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -158,36 +158,40 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 	if err != nil {
 		return nil, fmt.Errorf("agenttools: approval mode: %w", err)
 	}
-	result := make([]agentexec.ExecutableTool, 0, len(values))
-	modelNames := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		tool := value.tool
-		paths, ok, capabilityErr := toolcontract.Capability[mutationPaths](tool)
-		if capabilityErr != nil {
-			return nil, capabilityErr
+	result := make([]agentexec.ExecutableTool, 0, len(values)+1)
+	deferred := make([]agentexec.ExecutableTool, 0, len(values))
+	modelNames := make(map[string]struct{}, len(values)+1)
+	add := func(value scopedTool) error {
+		binding, err := catalog.bindForRun(scope, executor, mode, value)
+		if err != nil {
+			return err
 		}
-		if ok {
-			tool = &pathGuardTool{Tool: tool, paths: paths, root: executor.root}
-		}
-		if value.safety != protocol.SafetyClassSafe {
-			tool = &planModeGate{Tool: tool, plans: catalog.plans, sessionID: scope.SessionID}
-		}
-		approvalRequired := !value.intrinsicInput && !value.autoApproved &&
-			requiresApproval(mode, value.safety)
-		tool = &lifecyclePolicyTool{
-			Tool: tool, hooks: catalog.hooks, scope: scope,
-			safety: value.safety, approvalRequired: approvalRequired,
-			intrinsicInput: value.intrinsicInput,
-		}
-		name := tool.Definition().Name
+		name := binding.Tool.Definition().Name
 		if _, duplicate := modelNames[name]; duplicate {
-			return nil, fmt.Errorf("agenttools: duplicate model-visible tool name %q", name)
+			return fmt.Errorf("agenttools: duplicate model-visible tool name %q", name)
 		}
 		modelNames[name] = struct{}{}
-		result = append(result, agentexec.ExecutableTool{
-			Tool: tool, SafetyClass: value.safety,
-			IntrinsicInput: value.intrinsicInput,
-		})
+		result = append(result, binding)
+		if binding.Deferred {
+			deferred = append(deferred, binding)
+		}
+		return nil
+	}
+	for _, value := range values {
+		if err := add(value); err != nil {
+			return nil, err
+		}
+	}
+	if len(deferred) > 0 {
+		discovery, err := newToolDiscovery(deferred)
+		if err != nil {
+			return nil, err
+		}
+		if err := add(scopedTool{
+			tool: discovery, safety: protocol.SafetyClassSafe,
+		}); err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
 }
@@ -197,6 +201,41 @@ type scopedTool struct {
 	safety         protocol.SafetyClass
 	intrinsicInput bool
 	autoApproved   bool
+	deferred       bool
+}
+
+func (catalog *Catalog) bindForRun(
+	scope agentexec.ToolScope,
+	executor *workspacefs.ConfinedExecutor,
+	mode protocol.ApprovalMode,
+	value scopedTool,
+) (agentexec.ExecutableTool, error) {
+	executable := value.tool
+	paths, ok, err := toolcontract.Capability[mutationPaths](executable)
+	if err != nil {
+		return agentexec.ExecutableTool{}, err
+	}
+	if ok {
+		executable = &pathGuardTool{
+			Tool: executable, paths: paths, executor: executor,
+		}
+	}
+	if value.safety != protocol.SafetyClassSafe {
+		executable = &planModeGate{
+			Tool: executable, plans: catalog.plans, sessionID: scope.SessionID,
+		}
+	}
+	approvalRequired := !value.intrinsicInput && !value.autoApproved &&
+		requiresApproval(mode, value.safety)
+	executable = &lifecyclePolicyTool{
+		Tool: executable, hooks: catalog.hooks, scope: scope,
+		safety: value.safety, approvalRequired: approvalRequired,
+		intrinsicInput: value.intrinsicInput,
+	}
+	return agentexec.ExecutableTool{
+		Tool: executable, SafetyClass: value.safety,
+		IntrinsicInput: value.intrinsicInput, Deferred: value.deferred,
+	}, nil
 }
 
 func (catalog *Catalog) remoteTools(ctx context.Context) ([]scopedTool, error) {
@@ -231,7 +270,8 @@ func (catalog *Catalog) remoteTools(ctx context.Context) ([]scopedTool, error) {
 		}
 		_, approved := auto[descriptor.Name]
 		values = append(values, scopedTool{
-			tool: executable, safety: protocol.SafetyClassNetwork, autoApproved: approved,
+			tool: executable, safety: protocol.SafetyClassNetwork,
+			autoApproved: approved, deferred: true,
 		})
 	}
 	return values, nil
@@ -387,8 +427,8 @@ type mutationPaths interface {
 
 type pathGuardTool struct {
 	toolcontract.Tool
-	paths mutationPaths
-	root  string
+	paths    mutationPaths
+	executor *workspacefs.ConfinedExecutor
 }
 
 func (tool *pathGuardTool) Unwrap() toolcontract.Tool { return tool.Tool }
@@ -399,88 +439,9 @@ func (tool *pathGuardTool) Call(ctx context.Context, arguments string) (string, 
 		return "", err
 	}
 	for _, path := range paths {
-		if _, err := confine(tool.root, path); err != nil {
+		if _, err := tool.executor.Path(path); err != nil {
 			return "", err
 		}
 	}
 	return tool.Tool.Call(ctx, arguments)
-}
-
-type confinedExecutor struct {
-	root     string
-	delegate *fs.LocalExecutor
-}
-
-func newConfinedExecutor(root string) (*confinedExecutor, error) {
-	physical, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return nil, fmt.Errorf("agenttools: resolve workspace: %w", err)
-	}
-	physical, err = filepath.Abs(physical)
-	if err != nil {
-		return nil, err
-	}
-	return &confinedExecutor{root: physical, delegate: fs.NewLocalExecutor(physical)}, nil
-}
-
-func (executor *confinedExecutor) Read(ctx context.Context, input fs.ReadInput) (fs.ReadOutput, error) {
-	path, err := confine(executor.root, input.Path); if err != nil { return fs.ReadOutput{}, err }; input.Path = path
-	return executor.delegate.Read(ctx, input)
-}
-func (executor *confinedExecutor) Write(ctx context.Context, input fs.WriteInput) (fs.WriteOutput, error) {
-	path, err := confine(executor.root, input.Path); if err != nil { return fs.WriteOutput{}, err }; input.Path = path
-	return executor.delegate.Write(ctx, input)
-}
-func (executor *confinedExecutor) Edit(ctx context.Context, input fs.EditInput) (fs.EditOutput, error) {
-	path, err := confine(executor.root, input.Path); if err != nil { return fs.EditOutput{}, err }; input.Path = path
-	return executor.delegate.Edit(ctx, input)
-}
-func (executor *confinedExecutor) ApplyPatch(ctx context.Context, input fs.ApplyPatchInput) (fs.ApplyPatchOutput, error) {
-	return executor.delegate.ApplyPatch(ctx, input)
-}
-func (executor *confinedExecutor) Glob(ctx context.Context, input fs.GlobInput) (fs.GlobOutput, error) {
-	if filepath.IsAbs(input.Pattern) || containsParent(input.Pattern) { return fs.GlobOutput{}, protocol.ErrPathOutsideRoot }
-	if input.Root != "" { path, err := confine(executor.root, input.Root); if err != nil { return fs.GlobOutput{}, err }; input.Root = path }
-	return executor.delegate.Glob(ctx, input)
-}
-func (executor *confinedExecutor) Grep(ctx context.Context, input fs.GrepInput) (fs.GrepOutput, error) {
-	if input.Root != "" { path, err := confine(executor.root, input.Root); if err != nil { return fs.GrepOutput{}, err }; input.Root = path }
-	return executor.delegate.Grep(ctx, input)
-}
-
-func confine(root, path string) (string, error) {
-	if strings.TrimSpace(path) == "" || containsParent(path) {
-		return "", protocol.ErrPathOutsideRoot
-	}
-	if filepath.IsAbs(path) {
-		relative, err := filepath.Rel(root, filepath.Clean(path))
-		if err != nil || escapes(relative) { return "", protocol.ErrPathOutsideRoot }
-		path = relative
-	}
-	candidate := filepath.Join(root, filepath.Clean(path))
-	parent := candidate
-	for {
-		resolved, err := filepath.EvalSymlinks(parent)
-		if err == nil {
-			relative, relErr := filepath.Rel(root, resolved)
-			if relErr != nil || escapes(relative) { return "", protocol.ErrPathOutsideRoot }
-			break
-		}
-		if !errors.Is(err, os.ErrNotExist) { return "", err }
-		next := filepath.Dir(parent)
-		if next == parent { return "", protocol.ErrPathOutsideRoot }
-		parent = next
-	}
-	return filepath.ToSlash(path), nil
-}
-
-func containsParent(path string) bool {
-	for _, part := range strings.FieldsFunc(filepath.ToSlash(path), func(r rune) bool { return r == '/' }) {
-		if part == ".." { return true }
-	}
-	return false
-}
-
-func escapes(relative string) bool {
-	return relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }

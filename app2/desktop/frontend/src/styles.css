@@ -1801,6 +1801,48 @@ input::placeholder {
   scrollbar-width: thin;
 }
 
+.tool-catalog {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.tool-catalog-intro {
+  flex: none;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--divider);
+  background: var(--paper-muted);
+}
+
+.tool-catalog-intro strong,
+.tool-invocation-result strong {
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 740;
+}
+
+.tool-catalog-intro p {
+  max-width: 620px;
+  margin: 4px 0 0;
+  color: var(--ink-muted);
+  font-size: 8px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.tool-card-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.tool-card header small {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .resource-card {
   min-width: 0;
   padding: 13px;
@@ -1880,6 +1922,76 @@ input::placeholder {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tool-invocation {
+  display: grid;
+  gap: 6px;
+  margin-top: 11px;
+}
+
+.tool-invocation label {
+  color: var(--ink-subtle);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.tool-invocation textarea {
+  width: 100%;
+  min-height: 104px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--divider);
+  border-radius: 9px;
+  outline: 0;
+  color: var(--ink-subtle);
+  background: var(--paper);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.tool-invocation textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--divider));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+.tool-invocation footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tool-invocation footer span {
+  color: var(--ink-muted);
+  font-size: 8px;
+}
+
+.tool-invocation-error {
+  color: var(--red) !important;
+}
+
+.tool-invocation-result {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+}
+
+.tool-invocation-result pre {
+  max-height: 360px;
+  margin: 6px 0 0;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 9px;
+  color: var(--ink-subtle);
+  background: var(--paper-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
 }
 
 .resource-tag {

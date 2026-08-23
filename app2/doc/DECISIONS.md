@@ -300,3 +300,24 @@ Lyra Plan/Run/Interrupt 合同已经更贴合当前产品，复制其协议只�
 **后果**：Session snapshot/fork/rollback/import/export 统一消费 Plan domain state；`plan.updated` 与 `plan.get` 共享
 committed revision。Desktop compact projection 直接消费 snapshot/`plan.changed`，不创建第二份 Plan state；Plan
 Runtime、tools 与 Desktop 在最终统一门禁前只标记 `implemented`。
+
+## ADR-A2-027：Run 外诊断目录与 Run 内渐进工具权限分离
+
+**决定**：保留 Lyra 既有 `tools.list/tools.invoke` 合同，且只允许无需 Session、模型循环、approval、network 或 process
+lifecycle 的 direct diagnostics 进入该目录；当前集合为 `read/glob/grep`。完整 Agent 工具权限在 Run admission 时一次冻结，
+其中核心工具初始可见，Skill、Memory 与 MCP 工具作为 deferred executable bindings。Run 内 `search_tools` 只检索这些冻结
+definitions，并通过 exact names 改变下一次 model call 的可见清单；它不能增加 executable authority。
+
+direct diagnostics 与 Agent filesystem tools 必须共用 `workspacefs` 的 physical-root confinement。delegated Run 的 routed
+manifest 必须同时冻结 definition、safety、deferred 与 intrinsic-input metadata；第一次绑定真实 child identity 时，在锁外解析并
+核对整份 manifest。Framework checkpoint 是 advertised-name state 的 owner，Lyra wire、Run/Item/Interrupt/Transcript 不增加
+对应字段或兼容层。
+
+**原因**：Run 外诊断、Run 内执行权限与模型 context visibility 有不同的安全边界和变化原因。把三者合成一个“全局工具目录”会让
+Desktop 绕过 Run policy，或为了减少 prompt schema 又动态授予能力；复制参考实现的 tool protocol 则会破坏已经成熟的 Lyra
+operation/stream/typed-client 合同。冻结权限后渐进显示，可以降低上下文噪声而不引入第二套真相。
+
+**后果**：`tools.*` 不承担 approval 或 Agent catalog 配置语义；Desktop Tools 页明确是 safe diagnostics。deferred Tool 在进入
+索引前仍绑定 Lyra safety/Plan/Hook/approval 链，`search_tools` 自身也被观察。ordered manifest metadata 纳入 deployment configuration
+digest：同一清单 waiting/resume 恢复已加载名称，漂移则 fail closed；后续 fresh Run 获得新清单，既有 Run 不能借恢复或 child routing
+换入新定义。最终统一门禁前该能力标记为 `implemented`。

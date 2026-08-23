@@ -62,6 +62,11 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 	targets := make(map[agent.DeploymentRef]agent.DeploymentRef, delegationMaxDepth)
 	children := make([]agent.Deployment, delegationMaxDepth+1)
 	routedTools := routedManifest(config.childManifest, config.toolRouter)
+	childVisible, childDeferred := partitionToolManifest(routedTools)
+	childToolDigest, err := toolManifestDigest(config.childManifest)
+	if err != nil {
+		return nil, err
+	}
 	var next agent.Deployment
 	for depth := delegationMaxDepth; depth >= 1; depth-- {
 		delegates := []interaction.Delegate{}
@@ -83,13 +88,14 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 		inner, defineErr := interaction.NewDefinition(interaction.DefinitionConfig{
 			Name: fmt.Sprintf("lyra.interaction.delegated.depth_%d", depth),
 			Description: "Complete one delegated task using only the authority assigned to this worker.",
-			Version: "1.0.0", MaxModelCalls: config.maxModelCalls, Delegates: delegates,
+			Version: "2.0.0", MaxModelCalls: config.maxModelCalls, Delegates: delegates,
 		})
 		if defineErr != nil {
 			return nil, fmt.Errorf("agentexec: define delegated Interaction at depth %d: %w", depth, defineErr)
 		}
 		dispatcher, dispatchErr := interaction.NewDispatcher(inner, interaction.DispatcherConfig{
-			Client: config.client, Tools: cloneTools(routedTools),
+			Client: config.client, Tools: cloneTools(childVisible),
+			DeferredTools: cloneTools(childDeferred),
 			StreamModelResponses: true, Observer: config.observer,
 		})
 		if dispatchErr != nil {
@@ -103,9 +109,10 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 		}
 		deployment, deploymentErr := agent.NewDeployment(agent.DeploymentConfig{
 			Definition: definition, Dispatcher: dispatcher,
-			ImplementationDigest: agent.ComputeDigest([]byte("lyra-app2-delegated-interaction-v1")),
+			ImplementationDigest: agent.ComputeDigest([]byte("lyra-app2-delegated-interaction-v2")),
 			ConfigurationDigest: agent.ComputeDigest([]byte(fmt.Sprintf(
-				"%s\x00%s\x00%s\x00depth:%d", config.provider, config.model, config.workspace, depth,
+				"%s\x00%s\x00%s\x00depth:%d\x00tools:%s",
+				config.provider, config.model, config.workspace, depth, childToolDigest.String(),
 			))),
 		})
 		if deploymentErr != nil {
@@ -132,18 +139,19 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 	}
 	rootDefinition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "lyra.interaction", Description: "Complete the user's request using the available tools.",
-		Version: "3.0.0", MaxModelCalls: config.maxModelCalls,
+		Version: "4.0.0", MaxModelCalls: config.maxModelCalls,
 		Delegates: []interaction.Delegate{rootDelegate},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: define delegated root: %w", err)
 	}
-	rootExecutables := make([]toolcontract.Tool, len(config.rootTools))
-	for index, binding := range config.rootTools {
-		rootExecutables[index] = binding.Tool
+	rootVisible, rootDeferred := partitionToolManifest(config.rootTools)
+	rootToolDigest, err := toolManifestDigest(config.rootTools)
+	if err != nil {
+		return nil, err
 	}
 	rootDispatcher, err := interaction.NewDispatcher(rootDefinition, interaction.DispatcherConfig{
-		Client: config.client, Tools: rootExecutables,
+		Client: config.client, Tools: rootVisible, DeferredTools: rootDeferred,
 		StreamModelResponses: true, Observer: config.observer,
 	})
 	if err != nil {
@@ -151,8 +159,11 @@ func newDeploymentFamily(config familyConfig) (*deploymentFamily, error) {
 	}
 	root, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition: rootDefinition, Dispatcher: rootDispatcher,
-		ImplementationDigest: agent.ComputeDigest([]byte("lyra-app2-interaction-v3")),
-		ConfigurationDigest: agent.ComputeDigest([]byte(config.provider + "\x00" + config.model + "\x00" + config.workspace + "\x00delegation")),
+		ImplementationDigest: agent.ComputeDigest([]byte("lyra-app2-interaction-v4")),
+		ConfigurationDigest: agent.ComputeDigest([]byte(
+			config.provider + "\x00" + config.model + "\x00" + config.workspace +
+				"\x00delegation\x00tools:" + rootToolDigest.String(),
+		)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: deploy delegated root: %w", err)

@@ -54,7 +54,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O16 | `codebase.search`, `codebase.status`, `codebase.reindex` | 3 | workspace index | R6 | implemented | exact Session workspace、none/indexing/ready/error、durable operation CAS、replacement cancellation/crash recovery、Git-aware bounded source corpus、embedding role identity、atomic document replacement、bounded ranked hits 与 Desktop exact-line consumer；待最终统一门禁 |
 | O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | specified | masked key/source、explicit secret change、base URL validation、test 业务判决、不泄漏原文 |
 | O18 | `models.list`, `models.getUtilityRole`, `models.setUtilityRole`, `models.getEmbeddingRole`, `models.setEmbeddingRole` | 5 | integration/model | R8 | specified | provider/model 显式配对、capability/pricing/context、role validation、catalog invalidation |
-| O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | specified | catalog 是诊断非 Run 配置；manual invoke 完整 approval/safety/result/error 语义 |
+| O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | implemented | Run 外目录闭合为 safe `read/glob/grep`，schema 来自 executable definition；manual invoke 绑定 exact Workspace 并复用 physical/symlink confinement，不伪造 Run/approval；Desktop schema/JSON/result consumer 已实现，待最终统一门禁 |
 | O20 | `usage.session`, `usage.summary` | 2 | operations/usage | R9 | specified | exact attribution、day/model/provider buckets、unknown cost 缺席、terminal/restart 稳定 |
 | O21 | `knowledge.list`, `knowledge.get`, `knowledge.update` | 3 | capability/knowledge | R7 | implemented | distinct home→projectRoot→cwd file cascade、confined physical-target CAS/atomic publish、fresh-root bounded injection/checkpoint freeze、exact external watcher、Desktop conflict-preserving editor 已实现；待最终统一门禁 |
 | O22 | `agentMemory.list`, `agentMemory.review`, `agentMemory.update`, `agentMemory.delete`, `agentMemory.add` | 5 | capability/memory | R7 | implemented | project/user closed target、review lifecycle、recall/search/Desktop management，以及 completed-root bounded extraction、durable ledger、watermark CAS curation、pending-only proposal 已实现；既有 Lyra wire 不变，待最终统一门禁 |
@@ -128,7 +128,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
-| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | in_progress | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge；Memory 覆盖 project/user、pending review、active add/edit/pin/two-step delete、loading/error/empty/unavailable 与 lost-ack convergence；tool catalog 随 R7 |
+| U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
 | U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | specified | form draft 与 wire 分离、validation/test/save、secret masked、query invalidation |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
@@ -147,7 +147,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | implemented | root-only、durable Session read-only policy、dynamic effect gate、committed Plan fact、revision-bound approve/reject question；待 Desktop 与最终统一门禁 |
 | Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |
 | Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |
-| 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | in_progress | `search_memory` 已使用 effective reviewed user+project corpus、bounded prose、lexical-complete + optional semantic degradation；其余随 R7/R9 |
+| 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | in_progress | `search_memory` 已使用 reviewed corpus 与有界 lexical/semantic degradation；`search_tools` 已对 Run-frozen deferred manifest 做 query→exact select 渐进暴露并跨 checkpoint 恢复；`read_tool_result` 已有界读取 durable overflow；`search_conversations` 随 R9 |
 | 委派与提问（2） | `delegate_task`, `ask_user` | R4 | implemented | child Run 以父 Delegate Item 为唯一 disclosure anchor；Question 为唯一交互真身；model/protocol field mapping 保持 Lyra 自有语义；待最终统一门禁 |
 | MCP/unknown | dynamically discovered names | R8 | specified | remote original name 与 model-visible collapsed name 分离、safety class、JSON fallback |
 

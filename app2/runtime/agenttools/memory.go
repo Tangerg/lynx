@@ -61,7 +61,9 @@ func (catalog *Catalog) memoryTools(
 	if err != nil {
 		return nil, fmt.Errorf("agenttools: build memory search: %w", err)
 	}
-	return []scopedTool{{tool: search, safety: protocol.SafetyClassSafe}}, nil
+	return []scopedTool{{
+		tool: search, safety: protocol.SafetyClassSafe, deferred: true,
+	}}, nil
 }
 
 func renderMemoryHits(items []MemoryHit) string {

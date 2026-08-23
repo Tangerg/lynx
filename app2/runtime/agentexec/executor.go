@@ -21,7 +21,6 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
@@ -807,9 +806,12 @@ func (executor *Executor) deployment(ctx context.Context, request deploymentRequ
 			return preparedDeployment{}, fmt.Errorf("agentexec: resolve delegated Tool manifest: %w", manifestErr)
 		}
 		observer.bindTools(childManifest)
-		router := newRunToolRouter(executor.tools, bridge, ToolScope{
+		router, routerErr := newRunToolRouter(executor.tools, bridge, ToolScope{
 			SessionID: request.sessionID, Workspace: request.workspace,
-		}, observer)
+		}, observer, childManifest)
+		if routerErr != nil {
+			return preparedDeployment{}, routerErr
+		}
 		family, familyErr := newDeploymentFamily(familyConfig{
 			client: client, provider: request.provider, model: request.model, workspace: request.workspace,
 			maxModelCalls: maxModelCalls(request.maxSteps), rootTools: bindings,
@@ -828,25 +830,35 @@ func (executor *Executor) deployment(ctx context.Context, request deploymentRequ
 			},
 		}, nil
 	}
-	executables := make([]tool.Tool, len(bindings))
-	for index, binding := range bindings {
-		executables[index] = binding.Tool
+	visible, deferred := partitionToolManifest(bindings)
+	toolDigest, err := toolManifestDigest(bindings)
+	if err != nil {
+		return preparedDeployment{}, err
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "lyra.interaction", Description: "Complete the user's request using the available tools.",
-		Version: "2.0.0", MaxModelCalls: maxModelCalls(request.maxSteps),
+		Version: "3.0.0", MaxModelCalls: maxModelCalls(request.maxSteps),
 	})
 	if err != nil {
 		return preparedDeployment{}, fmt.Errorf("agentexec: define interaction: %w", err)
 	}
-	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{Client: client, Tools: executables, StreamModelResponses: true, Observer: observer})
+	dispatcher, err := interaction.NewDispatcher(
+		definition,
+		interaction.DispatcherConfig{
+			Client: client, Tools: visible, DeferredTools: deferred,
+			StreamModelResponses: true, Observer: observer,
+		},
+	)
 	if err != nil {
 		return preparedDeployment{}, fmt.Errorf("agentexec: create dispatcher: %w", err)
 	}
 	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition: definition, Dispatcher: dispatcher,
-		ImplementationDigest: agent.ComputeDigest([]byte("lyra-app2-interaction-v2")),
-		ConfigurationDigest: agent.ComputeDigest([]byte(request.provider + "\x00" + request.model + "\x00" + request.workspace)),
+		ImplementationDigest: agent.ComputeDigest([]byte("lyra-app2-interaction-v3")),
+		ConfigurationDigest: agent.ComputeDigest([]byte(
+			request.provider + "\x00" + request.model + "\x00" + request.workspace +
+				"\x00tools:" + toolDigest.String(),
+		)),
 	})
 	if err != nil {
 		return preparedDeployment{}, fmt.Errorf("agentexec: create deployment: %w", err)

@@ -57,7 +57,9 @@ func (catalog *Catalog) skillTools(
 	}
 	values := make([]scopedTool, 0, len(progressive)+1)
 	for _, executable := range progressive {
-		values = append(values, scopedTool{tool: executable, safety: protocol.SafetyClassSafe})
+		values = append(values, scopedTool{
+			tool: executable, safety: protocol.SafetyClassSafe, deferred: true,
+		})
 	}
 	if !scope.IsRootRun {
 		return values, nil
@@ -90,5 +92,7 @@ func (catalog *Catalog) skillTools(
 	if err != nil {
 		return nil, fmt.Errorf("agenttools: build propose_skill: %w", err)
 	}
-	return append(values, scopedTool{tool: propose, safety: protocol.SafetyClassSafe}), nil
+	return append(values, scopedTool{
+		tool: propose, safety: protocol.SafetyClassSafe, deferred: true,
+	}), nil
 }

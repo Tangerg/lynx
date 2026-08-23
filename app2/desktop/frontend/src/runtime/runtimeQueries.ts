@@ -40,6 +40,7 @@ import {
   type SkillProposal,
   type SkillProposalRef,
   type StartRunResponse,
+  type ToolSpec,
   type UpdateSessionRequest,
   type WorkspaceRef,
   type WorkspaceFileChange,
@@ -172,6 +173,9 @@ export const runtimeQueryKeys = {
   },
   memory(connection: RuntimeConnection) {
     return [...this.scope(connection), "agent-memory"] as const;
+  },
+  tools(connection: RuntimeConnection) {
+    return [...this.scope(connection), "tools", "direct"] as const;
   },
   memoryTarget(
     connection: RuntimeConnection,
@@ -321,6 +325,31 @@ export function listAgentDocs(
   return client(connection).call(
     "agentDocs.list",
     { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listDiagnosticTools(
+  connection: RuntimeConnection,
+  signal?: AbortSignal,
+): Promise<Page<ToolSpec>> {
+  return client(connection).call(
+    "tools.list",
+    {},
+    { meta: clientMeta, signal },
+  );
+}
+
+export function invokeDiagnosticTool(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  name: string,
+  args: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  return client(connection).call(
+    "tools.invoke",
+    { name, arguments: args, workspace },
     { meta: clientMeta, signal },
   );
 }

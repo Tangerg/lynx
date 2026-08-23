@@ -15,7 +15,8 @@ export type ResourceView =
   | "recipes"
   | "agentDocs"
   | "knowledge"
-  | "memory";
+  | "memory"
+  | "tools";
 export type SkillView = "available" | "proposals" | "library";
 export type ReviewMode = "worktree" | "base";
 export type DiffLayout = "unified" | "split";
@@ -132,7 +133,8 @@ function parseDockState(value: unknown): SessionDockState | undefined {
       value.resourceView === "recipes" ||
       value.resourceView === "agentDocs" ||
       value.resourceView === "knowledge" ||
-      value.resourceView === "memory"
+      value.resourceView === "memory" ||
+      value.resourceView === "tools"
         ? value.resourceView
         : "skills",
     skillView:
