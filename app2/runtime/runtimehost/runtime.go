@@ -178,7 +178,10 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
-	executor, err := agentexec.New(providers, agentToolCatalog)
+	executor, err := agentexec.New(agentexec.Config{
+		Clients: providers, Tools: agentToolCatalog,
+		Documents: runtimeAgentDocuments{capabilities: capabilities},
+	})
 	if err != nil {
 		return nil, err
 	}

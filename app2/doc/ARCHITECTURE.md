@@ -276,7 +276,8 @@ global/session    session/run                      workspace/session/run
 - Work Index：New Session、cwd 分组、Session rows/status/attention、global utility；
 - Agent Narrative：root transcript、delegated disclosure、commentary/reasoning/tools、final answer、
   approval/question、Goal/Plan/composer；
-- Context Dock：overview/files/diff/review/search/tool detail/timeline/terminal/run summary/skills/recipes/memory/knowledge/index；
+- Context Dock：overview/files/diff/review/search/tool detail/timeline/terminal/run summary，以及可继续扩展的
+  Resources（skills/recipes/agent docs/memory/knowledge）和 codebase index；
 - settings 是 global surface，不与 session-scoped dock state 混存；
 - blocking HITL 必须在 Narrative 可完成，Work Index 只投影 attention。
 
@@ -289,7 +290,7 @@ global/session    session/run                      workspace/session/run
 | active Session run/item/HITL | one `AgentSessionView` fold owner | per-component stream state |
 | Work Index groups/attention | sessions application projection | sidebar joins |
 | Draft/attachments/IME | composer context | agent store |
-| per-session dock view/tabs/file target | bounded workspace presentation keyed by Session | one global active file/activity view |
+| per-session dock view/tabs/file target/resource subview | bounded workspace presentation keyed by Session | one global active file/activity/resource view |
 | theme/sidebar/dock widths | shell preference store | component localStorage writes |
 | transient hover/filter/disclosure | local component | persisted global patch |
 

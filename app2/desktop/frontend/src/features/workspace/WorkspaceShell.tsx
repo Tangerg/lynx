@@ -25,6 +25,7 @@ import { compactPath } from "../sessions/sessionPresentation";
 import { useSessionCatalog } from "../sessions/useSessionCatalog";
 import {
   listModels,
+  listRecipes,
   loadSessionSnapshot,
   runtimeQueryKeys,
 } from "../../runtime/runtimeQueries";
@@ -127,6 +128,20 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       ),
     enabled: agentView.focusRootRun?.provider !== undefined,
     staleTime: 5 * 60_000,
+  });
+  const recipes = useQuery({
+    queryKey: runtimeQueryKeys.workspaceRecipes(
+      connection,
+      selectedSession?.workspace.ref.path ?? "unselected",
+    ),
+    queryFn: ({ signal }) =>
+      listRecipes(
+        connection,
+        selectedSession?.workspace.ref ?? { path: "" },
+        signal,
+      ),
+    enabled: selectedSession?.workspace.availability === "available",
+    retry: 2,
   });
   const contextModel = modelCatalog.data?.data.find(
     (model) => model.id === agentView.focusRootRun?.model,
@@ -308,6 +323,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 sessionId={selectedSession.id}
                 draft={composerDraft}
                 activeRun={agentView.activeRootRun}
+                recipes={recipes.data?.data ?? []}
                 pending={agentView.actionPending}
                 error={agentView.actionError}
                 onChange={updateComposerDraft}

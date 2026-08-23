@@ -1745,6 +1745,179 @@ input::placeholder {
   background: var(--paper);
 }
 
+.resources-workspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.resource-view-switch {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.resource-view-switch button {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.resource-view-switch button[aria-current="page"] {
+  color: var(--ink);
+  background: var(--paper-strong);
+}
+
+.resource-view-switch small {
+  min-width: 18px;
+  color: var(--ink-muted);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.resource-card-list {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  align-content: start;
+  gap: 9px;
+  padding: 12px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.resource-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: var(--paper-raised);
+  box-shadow: 0 1px 1px rgba(28, 27, 23, 0.025);
+}
+
+.resource-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.resource-card h4,
+.resource-state h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 730;
+  overflow-wrap: anywhere;
+}
+
+.resource-card header small,
+.resource-card > footer,
+.resource-card p,
+.resource-state p {
+  color: var(--ink-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.resource-card header small {
+  display: block;
+  margin-top: 3px;
+}
+
+.resource-card p {
+  margin: 7px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.resource-card details {
+  margin-top: 10px;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+}
+
+.resource-card summary {
+  padding: 9px 0;
+  color: var(--ink-subtle);
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.resource-card pre {
+  max-height: 320px;
+  margin: 0 0 10px;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 9px;
+  color: var(--ink-subtle);
+  background: var(--paper-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+.resource-card > footer {
+  margin-top: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-tag {
+  display: inline-flex;
+  min-height: 21px;
+  flex: none;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--ink-subtle);
+  background: var(--paper-strong);
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.resource-state {
+  display: grid;
+  min-height: 180px;
+  place-content: center;
+  justify-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.resource-state p {
+  max-width: 430px;
+  margin: 7px 0 0;
+  text-wrap: balance;
+}
+
+.resource-state button {
+  min-height: 34px;
+  margin-top: 15px;
+  padding: 0 10px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
 .skill-view-switch {
   display: flex;
   flex: none;
@@ -3736,6 +3909,62 @@ input::placeholder {
   background: transparent;
   font-size: 13px;
   line-height: 1.55;
+}
+
+.recipe-options {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  max-height: 310px;
+  padding: 6px;
+  overflow: auto;
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-popover);
+  scrollbar-width: thin;
+}
+
+.recipe-options > button {
+  display: grid;
+  min-height: 52px;
+  gap: 4px;
+  padding: 8px 10px;
+  color: var(--ink-subtle);
+  background: transparent;
+  text-align: left;
+}
+
+.recipe-options > button[aria-selected="true"],
+.recipe-options > button:hover {
+  background: var(--paper-muted);
+}
+
+.recipe-options span {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.recipe-options strong {
+  color: var(--ink);
+  font-size: 10px;
+}
+
+.recipe-options small,
+.recipe-options p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.recipe-options p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .run-composer footer {

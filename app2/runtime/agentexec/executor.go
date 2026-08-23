@@ -31,6 +31,18 @@ type ToolCatalog interface {
 	ForRun(context.Context, ToolScope) ([]ExecutableTool, error)
 }
 
+// AgentDocumentSource is the consumer-owned view of Runtime-authored workspace
+// guidance. The executor receives content only; discovery and filesystem
+// conventions remain owned by capabilityflow.
+type AgentDocumentSource interface {
+	Documents(context.Context, string) ([]AgentDocument, error)
+}
+
+type AgentDocument struct {
+	Path    string
+	Content string
+}
+
 // ToolFactSink receives committed domain facts that cannot be reconstructed
 // from a provider-facing string result. The executor owns its lifetime and
 // attaches each fact to the exact observed ToolCall.
@@ -47,15 +59,24 @@ type ToolScope struct {
 }
 
 type Executor struct {
-	clients ClientResolver
-	tools   ToolCatalog
+	clients   ClientResolver
+	tools     ToolCatalog
+	documents AgentDocumentSource
 }
 
-func New(clients ClientResolver, tools ToolCatalog) (*Executor, error) {
-	if clients == nil {
-		return nil, errors.New("agentexec: client resolver is required")
+type Config struct {
+	Clients   ClientResolver
+	Tools     ToolCatalog
+	Documents AgentDocumentSource
+}
+
+func New(config Config) (*Executor, error) {
+	if config.Clients == nil || config.Documents == nil {
+		return nil, errors.New("agentexec: clients and agent documents are required")
 	}
-	return &Executor{clients: clients, tools: tools}, nil
+	return &Executor{
+		clients: config.Clients, tools: config.Tools, documents: config.Documents,
+	}, nil
 }
 
 type Input struct {
@@ -263,6 +284,23 @@ type ToolInputInvocation struct {
 }
 
 func (executor *Executor) Execute(ctx context.Context, input Input) (Output, error) {
+	messages, err := materializeConversation(input.Conversation)
+	if err != nil {
+		return Output{}, err
+	}
+	if input.IsRootRun {
+		documents, err := executor.documents.Documents(ctx, input.Workspace)
+		if err != nil {
+			return Output{}, fmt.Errorf("agentexec: load agent documents: %w", err)
+		}
+		guidance, err := renderAgentDocuments(documents)
+		if err != nil {
+			return Output{}, err
+		}
+		if guidance != "" {
+			messages = append([]chat.Message{chat.NewSystemMessage(guidance)}, messages...)
+		}
+	}
 	prepared, err := executor.deployment(ctx, deploymentRequest{
 		provider: input.Provider, model: input.Model, sessionID: input.SessionID,
 		runID: input.RunID, segmentID: input.SegmentID, workspace: input.Workspace,
@@ -275,11 +313,6 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 	engine, err := agent.NewEngine(prepared.engine)
 	if err != nil {
 		return Output{}, fmt.Errorf("agentexec: create engine: %w", err)
-	}
-	messages, err := materializeConversation(input.Conversation)
-	if err != nil {
-		_ = engine.Close()
-		return Output{}, err
 	}
 	encoded, err := agent.EncodeInput(interaction.Input{Messages: messages})
 	if err != nil {

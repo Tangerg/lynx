@@ -1,5 +1,7 @@
 import {
+  useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -8,7 +10,13 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import type { ContentBlock, RunRef } from "@lyra/runtime-contract";
+import type { ContentBlock, Recipe, RunRef } from "@lyra/runtime-contract";
+
+import { RecipeSuggestions } from "./RecipeSuggestions";
+import {
+  expandRecipeInvocation,
+  slashRecipeQuery,
+} from "./recipeInvocation";
 
 const maxAttachments = 6;
 const maxImageBytes = 10 * 1024 * 1024;
@@ -33,6 +41,7 @@ interface ComposerProps {
   sessionId: string;
   draft: ComposerDraft;
   activeRun?: RunRef;
+  recipes: Recipe[];
   pending: boolean;
   error?: string;
   onChange(update: (draft: ComposerDraft) => ComposerDraft): void;
@@ -54,10 +63,36 @@ export function Composer(props: ComposerProps) {
   );
   const [attachmentError, setAttachmentError] = useState<string>();
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [recipeIndex, setRecipeIndex] = useState(0);
+  const [dismissedRecipeText, setDismissedRecipeText] = useState<string>();
   const waiting = props.activeRun?.status === "waiting";
   const running = props.activeRun?.status === "running";
-  const input = inputBlocks(props.draft);
-  const canSend = input.length > 0 && !props.pending && !waiting;
+  const recipeQuery = slashRecipeQuery(props.draft.text);
+  const recipeSuggestions = useMemo(
+    () =>
+      recipeQuery === undefined
+        ? []
+        : props.recipes
+            .filter((recipe) =>
+              recipe.name.toLowerCase().startsWith(recipeQuery),
+            )
+            .slice(0, 8),
+    [props.recipes, recipeQuery],
+  );
+  const recipesOpen =
+    recipeSuggestions.length > 0 && dismissedRecipeText !== props.draft.text;
+  const activeRecipeIndex = Math.min(
+    recipeIndex,
+    Math.max(recipeSuggestions.length - 1, 0),
+  );
+  const rawInput = inputBlocks(props.draft);
+  const sendInput = inputBlocks({
+    ...props.draft,
+    text: expandRecipeInvocation(props.draft.text, props.recipes),
+  });
+  const canSend = sendInput.length > 0 && !props.pending && !waiting;
+
+  useEffect(() => setRecipeIndex(0), [recipeQuery, recipeSuggestions.length]);
 
   useLayoutEffect(() => {
     const element = textarea.current;
@@ -73,7 +108,8 @@ export function Composer(props: ComposerProps) {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSend) return;
-    const fingerprint = JSON.stringify(input);
+    const rawFingerprint = JSON.stringify(rawInput);
+    const fingerprint = JSON.stringify(sendInput);
     const sendIntent =
       intent.current?.fingerprint === fingerprint
         ? intent.current
@@ -81,9 +117,9 @@ export function Composer(props: ComposerProps) {
     intent.current = sendIntent;
     const submittedText = props.draft.text.trim();
     try {
-      await props.onSend(input, sendIntent.key);
+      await props.onSend(sendInput, sendIntent.key);
       props.onChange((current) => {
-        const unchanged = JSON.stringify(inputBlocks(current)) === fingerprint;
+        const unchanged = JSON.stringify(inputBlocks(current)) === rawFingerprint;
         const history =
           submittedText === ""
             ? current.history
@@ -106,6 +142,33 @@ export function Composer(props: ComposerProps) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (recipesOpen) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setRecipeIndex(
+          (current) =>
+            (current + direction + recipeSuggestions.length) %
+            recipeSuggestions.length,
+        );
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDismissedRecipeText(props.draft.text);
+        return;
+      }
+      if (
+        (event.key === "Enter" || event.key === "Tab") &&
+        !event.nativeEvent.isComposing
+      ) {
+        event.preventDefault();
+        chooseRecipe(
+          recipeSuggestions[activeRecipeIndex] ?? recipeSuggestions[0],
+        );
+        return;
+      }
+    }
     if (
       event.key === "Enter" &&
       !event.shiftKey &&
@@ -134,6 +197,15 @@ export function Composer(props: ComposerProps) {
       update({ text: next < 0 ? "" : (props.draft.history[next] ?? "") });
     }
   };
+
+  function chooseRecipe(recipe: Recipe | undefined) {
+    if (recipe === undefined) return;
+    setHistoryIndex(-1);
+    setRecipeIndex(0);
+    setDismissedRecipeText(undefined);
+    update({ text: `/${recipe.name} ` });
+    requestAnimationFrame(() => textarea.current?.focus());
+  }
 
   const attach = async (files: File[]) => {
     setAttachmentError(undefined);
@@ -171,6 +243,14 @@ export function Composer(props: ComposerProps) {
 
   return (
     <form className="run-composer" onSubmit={submit}>
+      {recipesOpen ? (
+        <RecipeSuggestions
+          sessionId={props.sessionId}
+          recipes={recipeSuggestions}
+          activeIndex={activeRecipeIndex}
+          onChoose={chooseRecipe}
+        />
+      ) : null}
       {props.draft.attachments.length > 0 ? (
         <div className="composer-attachments" aria-label="Attachments">
           {props.draft.attachments.map((attachment) => (
@@ -213,10 +293,22 @@ export function Composer(props: ComposerProps) {
         }
         onChange={(event) => {
           setHistoryIndex(-1);
+          setDismissedRecipeText(undefined);
           update({ text: event.currentTarget.value });
         }}
         onKeyDown={handleKeyDown}
         onPaste={pasteFiles}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={recipesOpen}
+        aria-controls={
+          recipesOpen ? `recipe-options-${props.sessionId}` : undefined
+        }
+        aria-activedescendant={
+          recipesOpen
+            ? `recipe-option-${props.sessionId}-${activeRecipeIndex}`
+            : undefined
+        }
       />
       <footer>
         <div className="composer-tools">

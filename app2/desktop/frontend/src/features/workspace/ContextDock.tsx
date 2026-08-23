@@ -43,7 +43,7 @@ import {
   type SessionDockState,
 } from "./contextDockState";
 import { CodebaseWorkspace } from "./CodebaseWorkspace";
-import { SkillsWorkspace } from "./SkillsWorkspace";
+import { ResourcesWorkspace } from "./ResourcesWorkspace";
 import { WorkspaceReview } from "./WorkspaceReview";
 
 const fileWindowLines = 1_000;
@@ -291,21 +291,16 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
             <button
               type="button"
               aria-current={
-                props.state.workspaceView === "skills" ? "page" : undefined
-              }
-              title={
-                props.skillsEnabled
-                  ? undefined
-                  : "Skills are unavailable in this Runtime"
+                props.state.workspaceView === "resources" ? "page" : undefined
               }
               onClick={() =>
                 props.update((current) => ({
                   ...current,
-                  workspaceView: "skills",
+                  workspaceView: "resources",
                 }))
               }
             >
-              Skills
+              Resources
             </button>
           </nav>
           <small title={props.workspace.path}>
@@ -388,13 +383,17 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
           }
           onOpenFile={props.onOpenFile}
         />
-      ) : props.state.workspaceView === "skills" ? (
-        <SkillsWorkspace
+      ) : props.state.workspaceView === "resources" ? (
+        <ResourcesWorkspace
           connection={props.connection}
           workspace={props.workspace}
-          enabled={props.skillsEnabled}
-          view={props.state.skillView}
-          onViewChange={(skillView) =>
+          skillsEnabled={props.skillsEnabled}
+          view={props.state.resourceView}
+          skillView={props.state.skillView}
+          onViewChange={(resourceView) =>
+            props.update((current) => ({ ...current, resourceView }))
+          }
+          onSkillViewChange={(skillView) =>
             props.update((current) => ({ ...current, skillView }))
           }
         />

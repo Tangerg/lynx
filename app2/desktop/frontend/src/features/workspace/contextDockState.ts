@@ -9,7 +9,8 @@ export const maxOpenFiles = 8;
 export const maxExpandedDirectories = 100;
 
 export type DockPane = "workspace" | "session";
-export type WorkspaceView = "files" | "review" | "codebase" | "skills";
+export type WorkspaceView = "files" | "review" | "codebase" | "resources";
+export type ResourceView = "skills" | "recipes" | "agentDocs";
 export type SkillView = "available" | "proposals" | "library";
 export type ReviewMode = "worktree" | "base";
 export type DiffLayout = "unified" | "split";
@@ -19,6 +20,7 @@ export interface SessionDockState {
   pane: DockPane;
   sessionView: SessionActivityView;
   workspaceView: WorkspaceView;
+  resourceView: ResourceView;
   skillView: SkillView;
   openPaths: string[];
   selectedPath?: string;
@@ -42,6 +44,7 @@ export function newDockState(workspacePath: string): SessionDockState {
     pane: "session",
     sessionView: "overview",
     workspaceView: "files",
+    resourceView: "skills",
     skillView: "available",
     openPaths: [],
     expandedDirectories: [],
@@ -117,9 +120,13 @@ function parseDockState(value: unknown): SessionDockState | undefined {
     workspaceView:
       value.workspaceView === "review" ||
       value.workspaceView === "codebase" ||
-      value.workspaceView === "skills"
+      value.workspaceView === "resources"
         ? value.workspaceView
         : "files",
+    resourceView:
+      value.resourceView === "recipes" || value.resourceView === "agentDocs"
+        ? value.resourceView
+        : "skills",
     skillView:
       value.skillView === "proposals" || value.skillView === "library"
         ? value.skillView

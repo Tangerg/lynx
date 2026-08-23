@@ -12,6 +12,7 @@ import {
   type EmptyObject,
   type FileContent,
   type FileEntry,
+  type AgentDoc,
   type Goal,
   type GoalBudget,
   type GrepResult,
@@ -20,6 +21,7 @@ import {
   type Model,
   type Page,
   type RequestMeta,
+  type Recipe,
   type ResumeRunRequest,
   type ResumeRunResponse,
   type RuntimeEvent,
@@ -107,6 +109,12 @@ export const runtimeQueryKeys = {
   },
   workspaceChanges(connection: RuntimeConnection, workspacePath: string) {
     return [...this.workspace(connection, workspacePath), "changes"] as const;
+  },
+  workspaceRecipes(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.workspace(connection, workspacePath), "recipes"] as const;
+  },
+  workspaceAgentDocs(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.workspace(connection, workspacePath), "agent-docs"] as const;
   },
   workspaceDiff(
     connection: RuntimeConnection,
@@ -262,6 +270,30 @@ export function listDiscoveredSkills(
 ): Promise<Page<Skill>> {
   return client(connection).call(
     "skills.discovered.list",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listRecipes(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<Page<Recipe>> {
+  return client(connection).call(
+    "recipes.list",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listAgentDocs(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<Page<AgentDoc>> {
+  return client(connection).call(
+    "agentDocs.list",
     { workspace },
     { meta: clientMeta, signal },
   );

@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills production 已实现，待其余资源与最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs production 已实现，待其余资源与最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -482,6 +482,27 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   approve/reject 使用 exact ref；user library 明确分组 active/archived，archive 永不删除物理 bundle；
 - **协议边界**：继续使用既有 Lyra dotted operations、Skill/Proposal types、`skills.changed` 与 generated TypeScript client；没有引入
   Codex wire、Skill 路径或兼容 adapter。Codex 只作为 progressive disclosure / lifecycle 机制研究样本。
+
+### R7 Recipes / AgentDocs 纵切（已实现，待最终统一门禁）
+
+- **Recipes 是现有 Run 的客户端入口**：Runtime 只从 Workspace `.lyra/recipes` 与 user `~/.lyra/recipes` 发现
+  有界 Markdown 模板，project 同名项优先；文件名必须能直接作为 slash identity，frontmatter 只拥有 description 与 argument hint，
+  损坏或未闭合 frontmatter 会退化为完整正文而不吞掉用户内容。Desktop 负责 `$ARGUMENTS`、`$1..$9` 展开，再以现有
+  `ContentBlock[]` 和 Run operation 发送，不建立 command/plugin 协议；幂等 key 绑定展开后的真实 payload，历史保留原始 slash invocation；
+- **AgentDocs 是 capability owner 与 executor consumer 的窄接口**：Capability 以 home → project root → cwd 顺序发现
+  `~/.lyra/AGENTS.md`、通用 `~/.agents/AGENTS.md` 与项目层级的 `.lyra/AGENTS.md`/`AGENTS.md`，所有读取均由 `os.Root`
+  confinement、regular-file 检查、物理文件去重和大小门禁保护。`agentDocs.list` 只暴露 path/title/scope；完整 content 只通过
+  consumer-owned `AgentDocumentSource` 进入 Agent executor，不扩张 wire；
+- **新 Run 冻结、恢复不漂移**：只有 fresh root Run 会把适用文档组装为一条 Lyra system message；单文档绝不截断，聚合超预算时保留
+  更靠近 cwd 的完整文档。消息随 Framework checkpoint 冻结，waiting/resume 不重新读取外部文档，也不把外部文件 digest 混入
+  deployment identity；delegated Run 依赖 root 已接收的约束，不建立 Codex prompt/wire 兼容层；
+- **统一 Resources 工作台**：Context Dock 顶层用 Resources 聚合 Skills、Recipes、Agent docs，避免顶层导航随资源种类横向膨胀；
+  Recipes/Agent docs 覆盖 loading、error/retry、empty、scope/source，并与 selected Workspace query scope 及 `files.changed`
+  invalidation 共用同一所有权。Composer 提供有界 slash listbox、键盘/鼠标选择和 ARIA combobox 语义；
+- **资源生命周期**：本纵切没有启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher 进程；project 外部改动沿既有
+  Workspace file watcher 失效，user 资源在 query mount/focus/reconnect 时重读，不为缺少语义身份的全局文件伪造 `files.changed`。
+- **协议边界**：`recipes.list`、`agentDocs.list`、Recipe/AgentDoc 与现有 Run/ContentBlock 继续是唯一合同；Codex 仅提供
+  “资源发现与渐进消费”研究样本，未复制其协议、prompt 或产品路径。
 
 ## 12. R8：Integration 与 Settings
 
