@@ -851,6 +851,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - known Tool 与 Run/Session 状态经显式 display resolver 映射，`presentTool`/activity projection 仍是 pure presentation function，并以 complete English translator 作为 isolated test/default seam；wire status、approval decision、tool name、provider/model identity、command/path/output 继续保留 canonical 原值；
 - summary projection 的本地化只影响当前 renderer/copy material，不写回 Session、Item、Run 或 artifact，也不新增 protocol operation。Settings、Workspace、Goal/Plan 与最终 locale dictionaries/selector/RTL 仍继续迁移，U22 保持 `in_progress`。
 
+### R10d3 Goal / Plan / shell context language 实现记录（尚未统一验证）
+
+- Goal composer/tray/budget/status/reason、Plan compact/progress/a11y、Work Index/Agent Narrative/Context Dock shell、Runtime identity/facts 与 file Context Dock 的 tree/search/tabs/reader states 已迁入 typed localization boundary；数字、日期、USD budget presentation 从 active locale formatter 派生；
+- Goal reason/Plan step/connection/Run-facing shell 状态只在 display resolver 变成人类可读 copy；objective、step description、workspace/path/file/command、Runtime instance/protocol 与 artifact material 不翻译、不写回。恢复图片名称是 renderer-local attachment label，不进入 wire；
+- Session artifact/import/export/history/feedback 的 renderer fallback error 使用 semantic key，但 RPC error detail 继续原样展示。Resources 子页面与 Settings 尚待后续 bounded 批；U22 仍保持 `in_progress`，locale selector 继续隐藏。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

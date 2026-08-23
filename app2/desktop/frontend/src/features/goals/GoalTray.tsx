@@ -2,6 +2,10 @@ import { useState } from "react";
 
 import type { Goal } from "@lyra/runtime-contract";
 
+import {
+  useLocalization,
+  type Translate,
+} from "../localization/Localization";
 import type { GoalActions } from "./useGoalActions";
 
 export function GoalTray(props: {
@@ -11,14 +15,15 @@ export function GoalTray(props: {
   error: unknown;
   actions: GoalActions;
 }) {
+  const { t } = useLocalization();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const { goal, actions } = props;
 
   if (props.error) {
     return (
       <section className="goal-tray goal-tray-empty" role="alert">
-        <TrayHeading status="Unavailable" />
-        <p>{messageOf(props.error)}</p>
+        <TrayHeading status={t("goal.unavailable")} />
+        <p>{messageOf(props.error, t("goal.actionFailed"))}</p>
       </section>
     );
   }
@@ -26,8 +31,8 @@ export function GoalTray(props: {
   if (props.pending) {
     return (
       <section className="goal-tray goal-tray-empty" aria-busy="true">
-        <TrayHeading status="Loading" />
-        <p>Reading the current Goal from the session snapshot…</p>
+        <TrayHeading status={t("goal.loading")} />
+        <p>{t("goal.reading")}</p>
       </section>
     );
   }
@@ -35,11 +40,11 @@ export function GoalTray(props: {
   if (!goal) {
     return (
       <section className="goal-tray goal-tray-empty" aria-labelledby="goal-title">
-        <TrayHeading status="Not started" />
-        <p>Use the Goal composer to give this session a durable objective.</p>
+        <TrayHeading status={t("goal.notStarted")} />
+        <p>{t("goal.empty")}</p>
         {actions.error ? (
           <p className="inline-error" role="alert">
-            {messageOf(actions.error)}
+            {messageOf(actions.error, t("goal.actionFailed"))}
           </p>
         ) : null}
       </section>
@@ -59,27 +64,30 @@ export function GoalTray(props: {
 
   return (
     <section className="goal-tray" aria-labelledby="goal-title">
-      <TrayHeading status={statusLabel(goal.status)} statusCode={goal.status} />
+      <TrayHeading
+        status={statusLabel(goal.status, t)}
+        statusCode={goal.status}
+      />
       <p className="goal-objective">{goal.objective}</p>
       {goal.reason ? (
         <div className="goal-reason">
-          <strong>{reasonLabel(goal.reason.code)}</strong>
+          <strong>{reasonLabel(goal.reason.code, t)}</strong>
           {goal.reason.detail ? <p>{goal.reason.detail}</p> : null}
         </div>
       ) : null}
-      <div className="goal-usage" aria-label="Goal budget usage">
+      <div className="goal-usage" aria-label={t("goal.budgetUsage")}>
         <UsageLine
-          label="Runs"
+          label={t("goal.runs")}
           used={goal.used.runs}
           limit={goal.budget.maxRuns}
         />
         <UsageLine
-          label="Steps"
+          label={t("goal.steps")}
           used={goal.used.steps}
           limit={goal.budget.maxSteps}
         />
         <UsageLine
-          label="Cost"
+          label={t("goal.cost")}
           used={goal.used.costUsd}
           limit={goal.budget.maxCostUsd}
           currency
@@ -87,7 +95,7 @@ export function GoalTray(props: {
       </div>
       {actions.error ? (
         <p className="inline-error" role="alert">
-          {messageOf(actions.error)}
+          {messageOf(actions.error, t("goal.actionFailed"))}
         </p>
       ) : null}
       <div className="goal-actions">
@@ -98,7 +106,7 @@ export function GoalTray(props: {
             disabled={actions.pending}
             onClick={() => void actions.pause(props.sessionId).catch(() => undefined)}
           >
-            Pause
+            {t("goal.pause")}
           </button>
         ) : null}
         {resumable ? (
@@ -108,17 +116,21 @@ export function GoalTray(props: {
             disabled={actions.pending}
             onClick={() => void actions.resume(props.sessionId).catch(() => undefined)}
           >
-            Resume
+            {t("goal.resume")}
           </button>
         ) : null}
         {confirmingClear ? (
-          <div className="clear-confirm" role="group" aria-label="Confirm clear goal">
+          <div
+            className="clear-confirm"
+            role="group"
+            aria-label={t("goal.confirmClear")}
+          >
             <button
               className="quiet-action"
               type="button"
               onClick={() => setConfirmingClear(false)}
             >
-              Keep
+              {t("goal.keep")}
             </button>
             <button
               className="danger-action"
@@ -126,7 +138,7 @@ export function GoalTray(props: {
               disabled={actions.pending}
               onClick={() => void clear()}
             >
-              Clear goal
+              {t("goal.clearGoal")}
             </button>
           </div>
         ) : (
@@ -136,7 +148,7 @@ export function GoalTray(props: {
             disabled={actions.pending}
             onClick={() => setConfirmingClear(true)}
           >
-            Clear
+            {t("goal.clear")}
           </button>
         )}
       </div>
@@ -145,11 +157,12 @@ export function GoalTray(props: {
 }
 
 function TrayHeading(props: { status: string; statusCode?: string }) {
+  const { t } = useLocalization();
   return (
     <header className="goal-tray-heading">
       <div>
-        <span className="eyebrow">Autonomous work</span>
-        <h3 id="goal-title">Goal</h3>
+        <span className="eyebrow">{t("goal.autonomousWork")}</span>
+        <h3 id="goal-title">{t("goal.title")}</h3>
       </div>
       <span className="goal-status" data-status={props.statusCode}>
         {props.status}
@@ -164,13 +177,17 @@ function UsageLine(props: {
   limit: number | undefined;
   currency?: boolean;
 }) {
-  const value = props.currency ? formatCost(props.used) : String(props.used);
+  const { formatNumber, locale, t } = useLocalization();
+  const limitValue = props.limit;
+  const value = props.currency
+    ? formatCost(props.used, locale)
+    : formatNumber(props.used);
   const limit =
-    props.limit === undefined
+    limitValue === undefined
       ? undefined
       : props.currency
-        ? formatCost(props.limit)
-        : String(props.limit);
+        ? formatCost(limitValue, locale)
+        : formatNumber(limitValue);
   return (
     <div>
       <span>
@@ -180,43 +197,47 @@ function UsageLine(props: {
           {limit ? ` / ${limit}` : ""}
         </b>
       </span>
-      {props.limit ? (
+      {limitValue !== undefined && limit !== undefined ? (
         <progress
-          value={Math.min(props.used, props.limit)}
-          max={props.limit}
-          aria-label={`${props.label}: ${value} of ${limit}`}
+          value={Math.min(props.used, limitValue)}
+          max={limitValue}
+          aria-label={t("goal.usageOf", {
+            label: props.label,
+            used: value,
+            limit,
+          })}
         />
       ) : null}
     </div>
   );
 }
 
-function statusLabel(status: string): string {
-  if (status === "active") return "Active";
-  if (status === "paused") return "Paused";
-  if (status === "blocked") return "Needs attention";
-  if (status === "completing") return "Completing";
+function statusLabel(status: string, t: Translate): string {
+  if (status === "active") return t("goal.status.active");
+  if (status === "paused") return t("goal.status.paused");
+  if (status === "blocked") return t("goal.status.blocked");
+  if (status === "completing") return t("goal.status.completing");
   return status;
 }
 
-function reasonLabel(code: string): string {
+function reasonLabel(code: string, t: Translate): string {
   const labels: Record<string, string> = {
-    stoppedByUser: "Paused by you",
-    runtimeRestarted: "Runtime restarted",
-    runStartFailed: "A run could not start",
-    awaitingInput: "Waiting for input",
-    terminalOutcomeMissing: "Run outcome is unavailable",
-    runNotCompleted: "The last run did not complete",
-    runBudgetReached: "Run budget reached",
-    costBudgetReached: "Cost budget reached",
-    stepBudgetReached: "Step budget reached",
-    blockedByModel: "The model reported a blocker",
+    stoppedByUser: t("goal.reason.stoppedByUser"),
+    runtimeRestarted: t("goal.reason.runtimeRestarted"),
+    runStartFailed: t("goal.reason.runStartFailed"),
+    awaitingInput: t("goal.reason.awaitingInput"),
+    terminalOutcomeMissing: t("goal.reason.terminalOutcomeMissing"),
+    runNotCompleted: t("goal.reason.runNotCompleted"),
+    runBudgetReached: t("goal.reason.runBudgetReached"),
+    costBudgetReached: t("goal.reason.costBudgetReached"),
+    stepBudgetReached: t("goal.reason.stepBudgetReached"),
+    blockedByModel: t("goal.reason.blockedByModel"),
   };
   return labels[code] ?? code;
 }
 
-function formatCost(value: number): string {
-  return new Intl.NumberFormat(undefined, {
+function formatCost(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
@@ -224,6 +245,6 @@ function formatCost(value: number): string {
   }).format(value);
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : "Goal action failed.";
+function messageOf(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }

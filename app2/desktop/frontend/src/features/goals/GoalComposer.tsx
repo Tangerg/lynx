@@ -2,6 +2,7 @@ import { useEffect, useReducer, useState, type FormEvent } from "react";
 
 import type { Goal, GoalBudget } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import type { GoalActions } from "./useGoalActions";
 
 interface GoalComposerProps {
@@ -21,6 +22,7 @@ type ObjectiveDraftAction =
   | { type: "canonical"; value: string };
 
 export function GoalComposer({ sessionId, goal, actions }: GoalComposerProps) {
+  const { t } = useLocalization();
   const canonicalObjective = goal?.objective ?? "";
   const [draft, dispatch] = useReducer(objectiveDraftReducer, {
     value: canonicalObjective,
@@ -64,12 +66,14 @@ export function GoalComposer({ sessionId, goal, actions }: GoalComposerProps) {
       <div className="goal-mode-label">
         <span>/goal</span>
         <div>
-          <strong>{goal ? "Edit autonomous objective" : "New autonomous objective"}</strong>
-          <small>The Runtime owns execution, accounting, and recovery.</small>
+          <strong>
+            {goal ? t("goal.editObjective") : t("goal.newObjective")}
+          </strong>
+          <small>{t("goal.runtimeOwnership")}</small>
         </div>
       </div>
       <label className="sr-only" htmlFor="goal-objective">
-        Goal objective
+        {t("goal.objective")}
       </label>
       <textarea
         id="goal-objective"
@@ -77,35 +81,34 @@ export function GoalComposer({ sessionId, goal, actions }: GoalComposerProps) {
         onChange={(event) =>
           dispatch({ type: "input", value: event.currentTarget.value })
         }
-        placeholder="Describe the outcome Lyra should keep working toward…"
+        placeholder={t("goal.objectivePlaceholder")}
         rows={4}
         maxLength={8_000}
         disabled={actions.pending}
       />
       {canonicalMoved ? (
         <p className="draft-notice" role="status">
-          The Runtime objective changed while you were editing. Your draft is
-          preserved; saving will explicitly replace it.
+          {t("goal.externalChange")}
         </p>
       ) : null}
       {!goal ? (
         <details className="goal-budget-fields">
-          <summary>Optional budget</summary>
+          <summary>{t("goal.optionalBudget")}</summary>
           <div>
             <NumberField
-              label="Runs"
+              label={t("goal.runs")}
               value={maxRuns}
               onChange={setMaxRuns}
               step="1"
             />
             <NumberField
-              label="Steps"
+              label={t("goal.steps")}
               value={maxSteps}
               onChange={setMaxSteps}
               step="1"
             />
             <NumberField
-              label="Cost (USD)"
+              label={t("goal.costUSD")}
               value={maxCost}
               onChange={setMaxCost}
               step="0.01"
@@ -117,9 +120,9 @@ export function GoalComposer({ sessionId, goal, actions }: GoalComposerProps) {
         <span>
           {goal
             ? dirty
-              ? "Unsaved objective"
-              : "Objective is up to date"
-            : "Starts a durable Goal for this session"}
+              ? t("goal.unsaved")
+              : t("goal.upToDate")
+            : t("goal.durableStart")}
         </span>
         <button
           className="primary-action"
@@ -128,7 +131,11 @@ export function GoalComposer({ sessionId, goal, actions }: GoalComposerProps) {
             actions.pending || objective === "" || (goal !== undefined && !dirty)
           }
         >
-          {actions.pending ? "Saving…" : goal ? "Update goal" : "Start goal"}
+          {actions.pending
+            ? t("goal.saving")
+            : goal
+              ? t("goal.update")
+              : t("goal.start")}
         </button>
       </footer>
     </form>
@@ -141,6 +148,7 @@ function NumberField(props: {
   onChange: (value: string) => void;
   step: string;
 }) {
+  const { t } = useLocalization();
   return (
     <label>
       <span>{props.label}</span>
@@ -150,7 +158,7 @@ function NumberField(props: {
         step={props.step}
         value={props.value}
         onChange={(event) => props.onChange(event.currentTarget.value)}
-        placeholder="Unlimited"
+        placeholder={t("goal.unlimited")}
       />
     </label>
   );

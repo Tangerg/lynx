@@ -20,6 +20,7 @@ import type {
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import { SessionActivity } from "../agent/SessionActivity";
 import type { LiveToolOutput } from "../agent/agentSessionTypes";
 import {
@@ -67,6 +68,7 @@ interface ContextDockProps {
 }
 
 export function ContextDock(props: ContextDockProps) {
+  const { t } = useLocalization();
   const [states, setStates] = useState<Record<string, SessionDockState>>(
     readDockState,
   );
@@ -149,7 +151,10 @@ export function ContextDock(props: ContextDockProps) {
 
   return (
     <>
-      <nav className="context-dock-tabs" aria-label="Context Dock sections">
+      <nav
+        className="context-dock-tabs"
+        aria-label={t("workspace.dockSections")}
+      >
         <button
           type="button"
           role="tab"
@@ -157,7 +162,7 @@ export function ContextDock(props: ContextDockProps) {
           disabled={state === undefined}
           onClick={() => setPane("workspace")}
         >
-          Workspace
+          {t("workspace.title")}
         </button>
         <button
           type="button"
@@ -165,7 +170,7 @@ export function ContextDock(props: ContextDockProps) {
           aria-selected={state?.pane !== "workspace"}
           onClick={() => setPane("session")}
         >
-          Session
+          {t("workspace.session")}
         </button>
       </nav>
       {props.session && state?.pane === "workspace" ? (
@@ -183,8 +188,8 @@ export function ContextDock(props: ContextDockProps) {
           />
         ) : (
           <DockState
-            title="Workspace unavailable"
-            detail="Reconnect this Session to an available directory before browsing files."
+            title={t("workspace.unavailable")}
+            detail={t("workspace.unavailableDetail")}
           />
         )
       ) : (
@@ -228,6 +233,7 @@ interface WorkspaceBrowserProps {
 }
 
 function WorkspaceBrowser(props: WorkspaceBrowserProps) {
+  const { t } = useLocalization();
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     props.update((current) => ({
@@ -247,11 +253,14 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
     <section
       className="workspace-browser"
       data-reading={props.state.selectedPath !== undefined}
-      aria-label="Workspace context"
+      aria-label={t("workspace.context")}
     >
       <header className="workspace-browser-header">
         <div>
-          <nav className="workspace-view-switch" aria-label="Workspace views">
+          <nav
+            className="workspace-view-switch"
+            aria-label={t("workspace.views")}
+          >
             <button
               type="button"
               aria-current={
@@ -264,7 +273,7 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
                 }))
               }
             >
-              Files
+              {t("workspace.files")}
             </button>
             <button
               type="button"
@@ -278,7 +287,7 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
                 }))
               }
             >
-              Review
+              {t("workspace.review")}
             </button>
             <button
               type="button"
@@ -292,7 +301,7 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
                 }))
               }
             >
-              Codebase
+              {t("workspace.codebase")}
             </button>
             <button
               type="button"
@@ -306,7 +315,7 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
                 }))
               }
             >
-              Resources
+              {t("workspace.resources")}
             </button>
           </nav>
           <small title={props.workspace.path}>
@@ -316,13 +325,13 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
         {props.state.workspaceView === "files" ? (
           <form role="search" onSubmit={submitSearch}>
             <label className="sr-only" htmlFor="workspace-file-search">
-              Search workspace text
+              {t("workspace.searchText")}
             </label>
             <input
               id="workspace-file-search"
               type="search"
               value={props.state.searchDraft}
-              placeholder="Search text"
+              placeholder={t("workspace.searchPlaceholder")}
               onChange={(event) => {
                 const value = event.currentTarget.value;
                 props.update((current) => ({
@@ -425,7 +434,10 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
         />
       ) : (
         <div className="workspace-browser-body">
-          <aside className="workspace-tree" aria-label="Workspace file tree">
+          <aside
+            className="workspace-tree"
+            aria-label={t("workspace.fileTree")}
+          >
             {props.state.searchQuery ? (
               <WorkspaceSearchResults
                 connection={props.connection}
@@ -472,6 +484,7 @@ interface DirectoryContentsProps {
 }
 
 function DirectoryContents(props: DirectoryContentsProps) {
+  const { t } = useLocalization();
   const query = useInfiniteQuery({
     queryKey: runtimeQueryKeys.workspaceFiles(
       props.connection,
@@ -491,9 +504,18 @@ function DirectoryContents(props: DirectoryContentsProps) {
     retry: 2,
   });
   const entries = query.data?.pages.flatMap((page) => page.data) ?? [];
-  if (query.isPending) return <TreeNotice label="Loading files…" />;
-  if (query.isError) return <TreeNotice label={messageOf(query.error)} error />;
-  if (entries.length === 0) return <TreeNotice label="This folder is empty." />;
+  if (query.isPending) return <TreeNotice label={t("workspace.loadingFiles")} />;
+  if (query.isError) {
+    return (
+      <TreeNotice
+        label={messageOf(query.error, t("workspace.requestFailed"))}
+        error
+      />
+    );
+  }
+  if (entries.length === 0) {
+    return <TreeNotice label={t("workspace.emptyFolder")} />;
+  }
   return (
     <div className="directory-contents">
       {entries.map((entry) => (
@@ -510,7 +532,9 @@ function DirectoryContents(props: DirectoryContentsProps) {
           disabled={query.isFetchingNextPage}
           onClick={() => void query.fetchNextPage()}
         >
-          {query.isFetchingNextPage ? "Loading…" : "Load more"}
+          {query.isFetchingNextPage
+            ? t("workspace.loadingMore")
+            : t("workspace.loadMore")}
         </button>
       ) : null}
     </div>
@@ -518,6 +542,7 @@ function DirectoryContents(props: DirectoryContentsProps) {
 }
 
 function FileTreeEntry(props: DirectoryContentsProps & { entry: FileEntry }) {
+  const { t } = useLocalization();
   const directory = props.entry.type === "dir";
   const expanded =
     directory && props.expandedDirectories.includes(props.entry.path);
@@ -540,7 +565,9 @@ function FileTreeEntry(props: DirectoryContentsProps & { entry: FileEntry }) {
           {directory ? (expanded ? "▾" : "▸") : "·"}
         </span>
         <span>{props.entry.name}</span>
-        {props.entry.type === "symlink" ? <small>link</small> : null}
+        {props.entry.type === "symlink" ? (
+          <small>{t("workspace.symlink")}</small>
+        ) : null}
       </button>
       {expanded ? (
         <DirectoryContents
@@ -559,6 +586,7 @@ function WorkspaceSearchResults(props: {
   query: string;
   onOpen(path: string, line: number): void;
 }) {
+  const { formatNumber, t } = useLocalization();
   const result = useQuery({
     queryKey: runtimeQueryKeys.workspaceSearch(
       props.connection,
@@ -575,17 +603,28 @@ function WorkspaceSearchResults(props: {
     enabled: props.query !== "",
     retry: 1,
   });
-  if (result.isPending) return <TreeNotice label="Searching…" />;
-  if (result.isError) return <TreeNotice label={messageOf(result.error)} error />;
+  if (result.isPending) return <TreeNotice label={t("workspace.searching")} />;
+  if (result.isError) {
+    return (
+      <TreeNotice
+        label={messageOf(result.error, t("workspace.requestFailed"))}
+        error
+      />
+    );
+  }
   if (!result.data || result.data.matches.length === 0) {
-    return <TreeNotice label="No text matches." />;
+    return <TreeNotice label={t("workspace.noMatches")} />;
   }
   return (
     <div className="workspace-search-results">
       <header>
-        <strong>{result.data.total.toLocaleString()} matches</strong>
+        <strong>
+          {t("workspace.matchCount", {
+            count: formatNumber(result.data.total),
+          })}
+        </strong>
         {result.data.total > result.data.matches.length ? (
-          <small>first 200</small>
+          <small>{t("workspace.firstResults", { count: 200 })}</small>
         ) : null}
       </header>
       {result.data.matches.map((match, index) => (
@@ -603,6 +642,7 @@ function SearchHit(props: {
   match: GrepMatch;
   onOpen(path: string, line: number): void;
 }) {
+  const { t } = useLocalization();
   return (
     <button
       className="workspace-search-hit"
@@ -612,7 +652,7 @@ function SearchHit(props: {
     >
       <strong>{baseName(props.match.path)}</strong>
       <small>{props.match.path}:{props.match.lineNumber}</small>
-      <span>{props.match.text.trim() || "Empty line"}</span>
+      <span>{props.match.text.trim() || t("workspace.emptyLine")}</span>
     </button>
   );
 }
@@ -623,8 +663,13 @@ function OpenFileTabs(props: {
   onSelect(path: string): void;
   onClose(path: string): void;
 }) {
+  const { t } = useLocalization();
   return (
-    <div className="workspace-open-tabs" role="tablist" aria-label="Open files">
+    <div
+      className="workspace-open-tabs"
+      role="tablist"
+      aria-label={t("workspace.openFiles")}
+    >
       {props.paths.map((path) => (
         <span key={path} data-selected={path === props.selectedPath}>
           <button
@@ -638,7 +683,7 @@ function OpenFileTabs(props: {
           </button>
           <button
             type="button"
-            aria-label={`Close ${path}`}
+            aria-label={t("workspace.closeFile", { path })}
             onClick={() => props.onClose(path)}
           >
             ×
@@ -655,6 +700,7 @@ function FileReader(props: {
   path: string;
   targetLine?: number;
 }) {
+  const { formatNumber, t } = useLocalization();
   const [startLine, setStartLine] = useState(() =>
     windowStart(props.targetLine),
   );
@@ -690,13 +736,13 @@ function FileReader(props: {
     return () => window.cancelAnimationFrame(frame);
   }, [file.data, props.path, props.targetLine]);
   if (file.isPending) {
-    return <DockState title="Opening file" detail={props.path} />;
+    return <DockState title={t("workspace.openingFile")} detail={props.path} />;
   }
   if (file.isError) {
     return (
       <DockState
-        title="File could not be opened"
-        detail={messageOf(file.error)}
+        title={t("workspace.fileOpenFailed")}
+        detail={messageOf(file.error, t("workspace.requestFailed"))}
       />
     );
   }
@@ -711,11 +757,14 @@ function FileReader(props: {
           <strong>{baseName(props.path)}</strong>
           <small title={props.path}>{props.path}</small>
         </div>
-        <nav className="file-window-actions" aria-label="File line range">
+        <nav
+          className="file-window-actions"
+          aria-label={t("workspace.lineRange")}
+        >
           <button
             type="button"
             disabled={servedStart <= 1}
-            aria-label="Previous lines"
+            aria-label={t("workspace.previousLines")}
             onClick={() =>
               setStartLine(Math.max(1, startLine - fileWindowLines))
             }
@@ -724,13 +773,17 @@ function FileReader(props: {
           </button>
           <span>
             {file.data.totalLines === 0
-              ? "Empty file"
-              : `${servedStart.toLocaleString()}–${servedEnd.toLocaleString()} / ${file.data.totalLines.toLocaleString()}`}
+              ? t("workspace.emptyFile")
+              : t("workspace.linePosition", {
+                  start: formatNumber(servedStart),
+                  end: formatNumber(servedEnd),
+                  total: formatNumber(file.data.totalLines),
+                })}
           </span>
           <button
             type="button"
             disabled={servedEnd >= file.data.totalLines}
-            aria-label="Next lines"
+            aria-label={t("workspace.nextLines")}
             onClick={() => setStartLine(startLine + fileWindowLines)}
           >
             →
@@ -739,7 +792,7 @@ function FileReader(props: {
       </header>
       {file.data.truncated ? (
         <p className="file-truncated" role="status">
-          This view is bounded to an exact line window.
+          {t("workspace.boundedWindow")}
         </p>
       ) : null}
       <pre data-language={languageOf(props.path)}>
@@ -804,6 +857,6 @@ function compactPath(path: string) {
   return parts.length <= 2 ? path : `…/${parts.slice(-2).join("/")}`;
 }
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : "The workspace request failed.";
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }

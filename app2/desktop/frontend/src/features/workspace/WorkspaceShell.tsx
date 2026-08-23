@@ -11,6 +11,10 @@ import type {
 	SessionArtifact,
 } from "@lyra/runtime-contract";
 
+import {
+  useLocalization,
+  type Translate,
+} from "../localization/Localization";
 import { AgentNarrative } from "../agent/AgentNarrative";
 import { SessionModelPicker } from "../agent/SessionModelPicker";
 import {
@@ -56,6 +60,7 @@ interface WorkspaceShellProps {
 }
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
+  const { t } = useLocalization();
   const connection = useMemo(
     () => props.connection,
     [
@@ -227,38 +232,38 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 		try {
 			decoded = JSON.parse(selection.contents);
 		} catch (error) {
-			throw new Error("The selected file is not a valid Lyra session artifact.", {
+			throw new Error(t("shell.invalidArtifact"), {
 				cause: error,
 			});
 		}
 		const response = await catalog.importArtifact(decoded as SessionArtifact);
 		setSelectedSessionId(response.session.id);
 		return response.session;
-	}, [catalog.importArtifact]);
+	}, [catalog.importArtifact, t]);
 	const saveSession = useCallback(
 		async (source: Session, format: "json" | "md") => {
 			const exported = await exportSession(connection, source.id, format);
 			let contents: string;
 			if (format === "json") {
 				if (exported.artifact === undefined) {
-					throw new Error("Runtime returned no JSON session artifact.");
+					throw new Error(t("shell.missingJSONExport"));
 				}
 				contents = JSON.stringify(exported.artifact, null, 2) + "\n";
 			} else {
 				if (!exported.markdown) {
-					throw new Error("Runtime returned no Markdown session export.");
+					throw new Error(t("shell.missingMarkdownExport"));
 				}
 				contents = exported.markdown;
 			}
 			await saveSessionExport(source.id, format, contents);
 		},
-		[connection],
+		[connection, t],
 	);
 	const forkSessionFrom = useCallback(
 		async (runId: string) => {
 			if (selectedSession === undefined) return;
 			if (historyActionInFlight.current) {
-				throw new Error("Another session history action is still running.");
+				throw new Error(t("shell.historyBusy"));
 			}
 			historyActionInFlight.current = true;
 			try {
@@ -271,13 +276,13 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 				historyActionInFlight.current = false;
 			}
 		},
-		[catalog.fork, selectedSession],
+		[catalog.fork, selectedSession, t],
 	);
 	const rollbackSessionTo = useCallback(
 		async (runId: string, restoreType: RestoreType) => {
 			if (selectedSession === undefined) return;
 			if (historyActionInFlight.current) {
-				throw new Error("Another session history action is still running.");
+				throw new Error(t("shell.historyBusy"));
 			}
 			historyActionInFlight.current = true;
 			try {
@@ -296,6 +301,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 						[selectedSession.id]: composerDraftFromInput(
 							restoredInput,
 							current[selectedSession.id]?.history ?? [],
+							t,
 						),
 					}));
 				}
@@ -304,12 +310,12 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 				historyActionInFlight.current = false;
 			}
 		},
-		[catalog.query, connection, selectedSession, snapshot],
+		[catalog.query, connection, selectedSession, snapshot, t],
 	);
 	const submitFeedback = useCallback(
 		async (itemId: string, runId: string, rating: FeedbackRating) => {
 			if (selectedSession === undefined) {
-				throw new Error("Select a Session before sending feedback.");
+				throw new Error(t("shell.selectForFeedback"));
 			}
 			await createFeedback(connection, {
 				sessionId: selectedSession.id,
@@ -318,7 +324,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 				rating,
 			});
 		},
-		[connection, selectedSession],
+		[connection, selectedSession, t],
 	);
   const removeSession = useCallback(
     async (session: Session) => {
@@ -364,10 +370,18 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         <header className="panel-header window-drag">
           <div>
             <span className="eyebrow">Lyra</span>
-            <h1 id="work-index-title">Work Index</h1>
+            <h1 id="work-index-title">{t("shell.workIndex")}</h1>
           </div>
 		  <div className="work-index-actions window-no-drag">
-			<button className="icon-action" type="button" aria-label="Open settings" title="Settings" onClick={() => setSettingsOpen(true)}>⚙</button>
+			<button
+			  className="icon-action"
+			  type="button"
+			  aria-label={t("shell.openSettings")}
+			  title={t("shell.settings")}
+			  onClick={() => setSettingsOpen(true)}
+			>
+			  ⚙
+			</button>
 			<NewSessionMenu
 			  pending={catalog.createPending || catalog.importPending}
 			  defaultWorkspace={props.discovery.serverInfo.defaultWorkspace.path}
@@ -376,10 +390,13 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 			/>
 		  </div>
         </header>
-        <section className="workspace-card" aria-label="Runtime default workspace">
+        <section
+		  className="workspace-card"
+		  aria-label={t("shell.runtimeDefaultWorkspace")}
+		>
           <span className="status-dot" aria-hidden="true" />
           <div>
-            <strong>Runtime default</strong>
+            <strong>{t("shell.runtimeDefault")}</strong>
             <p title={props.discovery.serverInfo.defaultWorkspace.path}>
               {compactPath(props.discovery.serverInfo.defaultWorkspace.path)}
             </p>
@@ -409,7 +426,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         />
         {catalog.createError ? (
           <p className="sidebar-command-error" role="alert">
-            {messageOf(catalog.createError)}
+            {messageOf(catalog.createError, t("session.createFailed"))}
           </p>
         ) : null}
       </aside>
@@ -417,9 +434,9 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       <section className="narrative" aria-labelledby="narrative-title">
         <header className="narrative-header window-drag">
           <div className="narrative-heading">
-            <span className="eyebrow">Agent Narrative</span>
+            <span className="eyebrow">{t("shell.agentNarrative")}</span>
             <h2 id="narrative-title">
-              {selectedSession?.title || "Choose a session"}
+              {selectedSession?.title || t("shell.chooseSession")}
             </h2>
           </div>
           <div className="narrative-tools window-no-drag">
@@ -450,9 +467,9 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
             />
           ) : snapshot.isError ? (
             <StatePanel
-              title="Session could not be loaded"
-              detail={messageOf(snapshot.error)}
-              action="Try again"
+              title={t("shell.sessionLoadFailed")}
+              detail={messageOf(snapshot.error, t("shell.unknownRuntimeError"))}
+              action={t("shell.tryAgain")}
               onAction={() => void snapshot.refetch()}
             />
           ) : snapshot.isPending || snapshot.data === undefined ? (
@@ -533,8 +550,8 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       >
         <header className="panel-header window-drag">
           <div>
-            <span className="eyebrow">Context Dock</span>
-            <h2 id="context-title">Session</h2>
+            <span className="eyebrow">{t("shell.contextDock")}</span>
+            <h2 id="context-title">{t("shell.session")}</h2>
           </div>
         </header>
         <ContextDock
@@ -585,32 +602,31 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
 }
 
 function EmptySession(props: { onCreate: () => void; pending: boolean }) {
+  const { t } = useLocalization();
   return (
     <section className="narrative-empty">
       <div className="orb" aria-hidden="true"><span /></div>
-      <h3>Start with a clean session.</h3>
-      <p>
-        A session binds conversation, plan, goal, and recovery facts to one exact
-        workspace identity.
-      </p>
+      <h3>{t("shell.emptyTitle")}</h3>
+      <p>{t("shell.emptyDetail")}</p>
       <button
         className="primary-action"
         type="button"
         disabled={props.pending}
         onClick={props.onCreate}
       >
-        {props.pending ? "Creating…" : "New session"}
+        {props.pending ? t("shell.creating") : t("shell.newSession")}
       </button>
     </section>
   );
 }
 
 function SessionLoading({ title }: { title: string }) {
+  const { t } = useLocalization();
   return (
     <section className="session-overview" aria-busy="true">
-      <span className="eyebrow">Mounting session</span>
-      <h3>{title || "Untitled session"}</h3>
-      <p>Loading one coherent Runtime snapshot before accepting new work…</p>
+      <span className="eyebrow">{t("shell.mountingSession")}</span>
+      <h3>{title || t("session.untitled")}</h3>
+      <p>{t("shell.loadingSnapshot")}</p>
     </section>
   );
 }
@@ -633,14 +649,15 @@ function StatePanel(props: {
 }
 
 function ConnectionPill({ state }: { state: RuntimeSyncState }) {
+  const { t } = useLocalization();
   const label =
     state === "live"
-      ? "Live updates"
+      ? t("shell.liveUpdates")
       : state === "retrying"
-        ? "Reconnecting"
+        ? t("shell.reconnecting")
         : state === "connecting"
-          ? "Connecting"
-          : "Runtime online";
+          ? t("shell.connecting")
+          : t("shell.runtimeOnline");
   return (
     <span className="online-pill" data-state={state}>
       <span aria-hidden="true" />
@@ -654,6 +671,7 @@ function ContextGauge(props: {
   contextWindow: number | undefined;
   model: string | undefined;
 }) {
+  const { formatNumber, t } = useLocalization();
   if (props.tokens === undefined || props.tokens <= 0) return null;
   const ratio =
     props.contextWindow && props.contextWindow > 0
@@ -661,8 +679,13 @@ function ContextGauge(props: {
       : undefined;
   const label =
     ratio === undefined
-      ? `${formatTokens(props.tokens)} context tokens`
-      : `${Math.round(ratio * 100)}% of ${formatTokens(props.contextWindow ?? 0)} context`;
+      ? t("shell.contextTokens", {
+          tokens: formatTokens(props.tokens, formatNumber),
+        })
+      : t("shell.contextRatio", {
+          ratio: Math.round(ratio * 100),
+          window: formatTokens(props.contextWindow ?? 0, formatNumber),
+        });
   return (
     <div className="context-gauge" title={props.model} aria-label={label}>
       <span>
@@ -674,42 +697,51 @@ function ContextGauge(props: {
       </span>
       <b>
         {ratio === undefined
-          ? formatTokens(props.tokens)
+          ? formatTokens(props.tokens, formatNumber)
           : `${Math.round(ratio * 100)}%`}
       </b>
-      <small>ctx</small>
+      <small>{t("shell.contextAbbreviation")}</small>
     </div>
   );
 }
 
-function formatTokens(value: number) {
+function formatTokens(value: number, formatNumber: (value: number) => string) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return value.toLocaleString();
+  return formatNumber(value);
 }
 
 function RuntimeFacts(props: {
   connection: RuntimeConnection;
   discovery: DiscoverResponse;
 }) {
+  const { formatNumber, t } = useLocalization();
   const enabledFeatures = Object.values(
     props.discovery.capabilities.features,
   ).filter((feature) => feature.enabled).length;
   return (
     <section className="runtime-section" aria-labelledby="runtime-facts-title">
-      <h3 id="runtime-facts-title">Runtime</h3>
+      <h3 id="runtime-facts-title">{t("shell.runtime")}</h3>
       <dl className="runtime-facts">
-        <Fact label="Generation" value={String(props.connection.generation)} numeric />
-        <Fact label="Protocol" value={props.discovery.protocolVersion} />
-        <Fact label="Features online" value={String(enabledFeatures)} numeric />
         <Fact
-          label="Streaming methods"
-          value={String(props.discovery.capabilities.streamingMethods.length)}
+          label={t("shell.generation")}
+          value={formatNumber(props.connection.generation)}
+          numeric
+        />
+        <Fact label={t("shell.protocol")} value={props.discovery.protocolVersion} />
+        <Fact
+          label={t("shell.featuresOnline")}
+          value={formatNumber(enabledFeatures)}
+          numeric
+        />
+        <Fact
+          label={t("shell.streamingMethods")}
+          value={formatNumber(props.discovery.capabilities.streamingMethods.length)}
           numeric
         />
       </dl>
       <div className="identity-card">
-        <span>Instance</span>
+        <span>{t("shell.instance")}</span>
         <code>{shortIdentity(props.connection.instanceId)}</code>
       </div>
     </section>
@@ -735,6 +767,7 @@ function selectSession(
 function composerDraftFromInput(
 	input: ContentBlock[],
 	history: string[],
+	t: Translate,
 ): ComposerDraft {
 	const text = input
 		.flatMap((block) =>
@@ -746,7 +779,7 @@ function composerDraftFromInput(
 		if (block.type !== "image" || !block.mime || !block.data) continue;
 		attachments.push({
 			id: crypto.randomUUID(),
-			name: `restored-image-${index + 1}`,
+			name: t("shell.restoredImage", { number: index + 1 }),
 			kind: "image",
 			mime: block.mime,
 			data: block.data,
@@ -767,6 +800,6 @@ function shortIdentity(identity: string): string {
     : `${identity.slice(0, 10)}…${identity.slice(-6)}`;
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : "An unknown Runtime error occurred.";
+function messageOf(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }

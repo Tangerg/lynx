@@ -1,10 +1,16 @@
 import type { Plan, PlanStep } from "@lyra/runtime-contract";
 
+import {
+  useLocalization,
+  type Translate,
+} from "../localization/Localization";
+
 export function PlanCompact(props: {
   plan: Plan | undefined;
   pending: boolean;
   error: boolean;
 }) {
+  const { t } = useLocalization();
   const { plan } = props;
   const steps = plan?.steps ?? [];
   const completed = steps.filter((step) => step.status === "completed").length;
@@ -13,10 +19,10 @@ export function PlanCompact(props: {
     steps.find((step) => step.status === "in_progress") ??
     steps.find((step) => step.status === "pending");
   const summary = props.error
-    ? "Plan unavailable"
+    ? t("plan.unavailable")
     : props.pending
-      ? "Loading plan…"
-      : planSummary(steps, current);
+      ? t("plan.loading")
+      : planSummary(steps, current, t);
 
   return (
     <div
@@ -24,10 +30,14 @@ export function PlanCompact(props: {
       tabIndex={0}
       aria-label={
         props.error
-          ? "Current Plan is unavailable"
+          ? t("plan.currentUnavailable")
           : props.pending
-          ? "Loading current Plan"
-          : `Plan progress: ${completed} of ${steps.length} steps complete. ${summary}`
+          ? t("plan.loadingCurrent")
+          : t("plan.progress", {
+              completed,
+              total: steps.length,
+              summary,
+            })
       }
       aria-describedby="plan-details"
     >
@@ -44,28 +54,30 @@ export function PlanCompact(props: {
       </svg>
       <span className="plan-copy">
         <span>
-          Plan <b className="tabular">{completed}/{steps.length}</b>
+          {t("plan.title")} <b className="tabular">{completed}/{steps.length}</b>
         </span>
         <small>{summary}</small>
       </span>
       <div className="plan-popover" id="plan-details" role="tooltip">
         <header>
-          <span>Current plan</span>
-          <b className="tabular">rev {plan?.revision ?? 0}</b>
+          <span>{t("plan.current")}</span>
+          <b className="tabular">
+            {t("plan.revision", { revision: plan?.revision ?? 0 })}
+          </b>
         </header>
         {props.error ? (
-          <p>The current Plan could not be read.</p>
+          <p>{t("plan.readFailed")}</p>
         ) : props.pending ? (
-          <p aria-busy="true">Loading the current Plan…</p>
+          <p aria-busy="true">{t("plan.loadingDetail")}</p>
         ) : steps.length === 0 ? (
-          <p>No plan has been written for this session.</p>
+          <p>{t("plan.emptyDetail")}</p>
         ) : (
           <ol>
             {steps.map((step) => (
               <li key={step.id} data-status={step.status}>
                 <span aria-hidden="true">{statusGlyph(step.status)}</span>
                 <span>{step.description}</span>
-                <span className="sr-only">{statusLabel(step.status)}</span>
+                <span className="sr-only">{statusLabel(step.status, t)}</span>
               </li>
             ))}
           </ol>
@@ -75,10 +87,14 @@ export function PlanCompact(props: {
   );
 }
 
-function planSummary(steps: PlanStep[], current: PlanStep | undefined): string {
+function planSummary(
+  steps: PlanStep[],
+  current: PlanStep | undefined,
+  t: Translate,
+): string {
   if (current) return current.description;
-  if (steps.length === 0) return "No plan yet";
-  return "All steps complete";
+  if (steps.length === 0) return t("plan.empty");
+  return t("plan.complete");
 }
 
 function statusGlyph(status: string): string {
@@ -87,9 +103,9 @@ function statusGlyph(status: string): string {
   return "○";
 }
 
-function statusLabel(status: string): string {
-  if (status === "completed") return "Completed";
-  if (status === "in_progress") return "In progress";
-  if (status === "pending") return "Pending";
+function statusLabel(status: string, t: Translate): string {
+  if (status === "completed") return t("plan.status.completed");
+  if (status === "in_progress") return t("plan.status.inProgress");
+  if (status === "pending") return t("plan.status.pending");
   return status;
 }
