@@ -186,6 +186,7 @@ export function RuntimeSettings({
           <label>
             <span>{t("settings.runtime.httpsOrigin")}</span>
             <input
+              dir="ltr"
               type="url"
               inputMode="url"
               autoComplete="url"
@@ -198,6 +199,7 @@ export function RuntimeSettings({
           <label>
             <span>{t("settings.runtime.bearerSecret")}</span>
             <input
+              dir="ltr"
               type="password"
               autoComplete="new-password"
               required

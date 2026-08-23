@@ -141,6 +141,7 @@ function ToolCard(props: {
           {t("diagnostic.arguments")}
         </label>
         <textarea
+          dir="ltr"
           id={`tool-arguments-${props.tool.name}`}
           rows={5}
           maxLength={65_536}

@@ -104,7 +104,8 @@
 
 .message-content blockquote {
   margin: 11px 0;
-  padding: 5px 0 5px 13px;
+  padding-block: 5px;
+  padding-inline: 13px 0;
   border-inline-start: 3px solid color-mix(in srgb, var(--accent) 54%, transparent);
   color: var(--ink-subtle);
 }
@@ -305,8 +306,8 @@
 
 .message-image-trigger > span {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  inset-inline-end: 8px;
+  inset-block-end: 8px;
   padding: 4px 7px;
   border-radius: 7px;
   color: #fff;

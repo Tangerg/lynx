@@ -62,7 +62,7 @@ function ImageLightbox({
   onSelect(index: number): void;
   onClose(): void;
 }) {
-  const { t } = useLocalization();
+  const { direction, t } = useLocalization();
   const dialog = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const saveOperation = useRef(0);
@@ -98,10 +98,18 @@ function ImageLightbox({
         onClose();
       } else if (event.key === "ArrowLeft" && images.length > 1) {
         event.preventDefault();
-        onSelect((activeIndex - 1 + images.length) % images.length);
+        onSelect(
+          direction === "rtl"
+            ? (activeIndex + 1) % images.length
+            : (activeIndex - 1 + images.length) % images.length,
+        );
       } else if (event.key === "ArrowRight" && images.length > 1) {
         event.preventDefault();
-        onSelect((activeIndex + 1) % images.length);
+        onSelect(
+          direction === "rtl"
+            ? (activeIndex - 1 + images.length) % images.length
+            : (activeIndex + 1) % images.length,
+        );
       } else if (event.key === "Tab") {
         const controls = [
           ...(dialog.current?.querySelectorAll<HTMLElement>(
@@ -122,7 +130,7 @@ function ImageLightbox({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeIndex, images.length, onClose, onSelect]);
+  }, [activeIndex, direction, images.length, onClose, onSelect]);
 
   const save = async () => {
     if (saveState === "saving") return;
@@ -207,7 +215,7 @@ function ImageLightbox({
                 onSelect((activeIndex - 1 + images.length) % images.length)
               }
             >
-              ‹
+              {direction === "rtl" ? "›" : "‹"}
             </button>
           ) : null}
           <div className="image-lightbox-viewport">
@@ -233,7 +241,7 @@ function ImageLightbox({
               aria-label={t("image.next")}
               onClick={() => onSelect((activeIndex + 1) % images.length)}
             >
-              ›
+              {direction === "rtl" ? "‹" : "›"}
             </button>
           ) : null}
         </div>

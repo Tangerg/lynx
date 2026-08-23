@@ -651,7 +651,7 @@ function SearchHit(props: {
       onClick={() => props.onOpen(props.match.path, props.match.lineNumber)}
     >
       <strong>{baseName(props.match.path)}</strong>
-      <small>{props.match.path}:{props.match.lineNumber}</small>
+      <small dir="ltr">{props.match.path}:{props.match.lineNumber}</small>
       <span>{props.match.text.trim() || t("workspace.emptyLine")}</span>
     </button>
   );
@@ -700,7 +700,7 @@ function FileReader(props: {
   path: string;
   targetLine?: number;
 }) {
-  const { formatNumber, t } = useLocalization();
+  const { direction, formatNumber, t } = useLocalization();
   const [startLine, setStartLine] = useState(() =>
     windowStart(props.targetLine),
   );
@@ -753,7 +753,7 @@ function FileReader(props: {
   return (
     <article className="workspace-file-reader" aria-label={props.path}>
       <header>
-        <div>
+        <div dir="ltr">
           <strong>{baseName(props.path)}</strong>
           <small title={props.path}>{props.path}</small>
         </div>
@@ -769,7 +769,7 @@ function FileReader(props: {
               setStartLine(Math.max(1, startLine - fileWindowLines))
             }
           >
-            ←
+            {direction === "rtl" ? "→" : "←"}
           </button>
           <span>
             {file.data.totalLines === 0
@@ -786,7 +786,7 @@ function FileReader(props: {
             aria-label={t("workspace.nextLines")}
             onClick={() => setStartLine(startLine + fileWindowLines)}
           >
-            →
+            {direction === "rtl" ? "←" : "→"}
           </button>
         </nav>
       </header>

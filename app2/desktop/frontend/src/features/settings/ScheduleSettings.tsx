@@ -271,7 +271,7 @@ function ScheduleFields(props: {
 			</label>
 			<label className="schedule-field-cron">
 				<span>{t("settings.schedule.cron")}</span>
-				<input value={props.draft.cron} maxLength={512} list={`cron-presets-${props.titleId}`} spellCheck={false} onChange={(event) => update("cron", event.currentTarget.value)} />
+				<input dir="ltr" value={props.draft.cron} maxLength={512} list={`cron-presets-${props.titleId}`} spellCheck={false} onChange={(event) => update("cron", event.currentTarget.value)} />
 				<datalist id={`cron-presets-${props.titleId}`}>{cronPresets.map((preset) => <option key={preset.value} value={preset.value}>{t(preset.label)}</option>)}</datalist>
 			</label>
 			<label className="schedule-field-instructions">
@@ -280,15 +280,15 @@ function ScheduleFields(props: {
 			</label>
 			<label>
 				<span>{t("settings.schedule.workspace")} <small>{t("settings.schedule.emptyUsesDefault")}</small></span>
-				<input value={props.draft.workspace} maxLength={4096} placeholder={t("settings.schedule.runtimeDefault")} spellCheck={false} onChange={(event) => update("workspace", event.currentTarget.value)} />
+				<input dir="ltr" value={props.draft.workspace} maxLength={4096} placeholder={t("settings.schedule.runtimeDefault")} spellCheck={false} onChange={(event) => update("workspace", event.currentTarget.value)} />
 			</label>
 			<label>
 				<span>{t("settings.provider.provider")} <small>{t("settings.schedule.optionalPair")}</small></span>
-				<input value={props.draft.provider} maxLength={256} placeholder={t("settings.schedule.runtimeDefault")} spellCheck={false} onChange={(event) => update("provider", event.currentTarget.value)} />
+				<input dir="ltr" value={props.draft.provider} maxLength={256} placeholder={t("settings.schedule.runtimeDefault")} spellCheck={false} onChange={(event) => update("provider", event.currentTarget.value)} />
 			</label>
 			<label>
 				<span>{t("settings.provider.model")} <small>{t("settings.schedule.optionalPair")}</small></span>
-				<input value={props.draft.model} maxLength={256} placeholder={t("settings.schedule.runtimeDefault")} spellCheck={false} onChange={(event) => update("model", event.currentTarget.value)} />
+				<input dir="ltr" value={props.draft.model} maxLength={256} placeholder={t("settings.schedule.runtimeDefault")} spellCheck={false} onChange={(event) => update("model", event.currentTarget.value)} />
 			</label>
 		</div>
 	);

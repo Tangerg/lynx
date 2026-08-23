@@ -152,11 +152,11 @@ function ProviderCard(props: { connection: RuntimeConnection; provider: Provider
 			<div className="provider-fields">
 				<label>
 					<span>{t("settings.provider.baseURL")} {props.provider.requiresBaseUrl ? <b>{t("settings.common.required")}</b> : <small>{t("settings.provider.optionalOverride")}</small>}</span>
-					<input type="url" value={baseURL} maxLength={2048} placeholder={props.provider.requiresBaseUrl ? "https://…/v1" : t("settings.provider.useDefault")} onChange={(event) => setBaseURL(event.currentTarget.value)} />
+					<input dir="ltr" type="url" value={baseURL} maxLength={2048} placeholder={props.provider.requiresBaseUrl ? "https://…/v1" : t("settings.provider.useDefault")} onChange={(event) => setBaseURL(event.currentTarget.value)} />
 				</label>
 				<label>
 					<span>{t("settings.provider.apiKey")} <small>{props.provider.keySource === "env" ? t("settings.provider.environmentReadOnly") : props.provider.apiKeyMasked || t("settings.provider.notSet")}</small></span>
-					<input type="password" value={apiKey} maxLength={4096} autoComplete="off" placeholder={clearStoredKey ? t("settings.provider.keyRemoved") : t("settings.provider.replacementKey")} disabled={clearStoredKey} onChange={(event) => setAPIKey(event.currentTarget.value)} />
+					<input dir="ltr" type="password" value={apiKey} maxLength={4096} autoComplete="off" placeholder={clearStoredKey ? t("settings.provider.keyRemoved") : t("settings.provider.replacementKey")} disabled={clearStoredKey} onChange={(event) => setAPIKey(event.currentTarget.value)} />
 				</label>
 			</div>
 			<footer>
@@ -264,7 +264,7 @@ function ModelRoleEditor(props: {
 					</label>
 					<label>
 						<span>{t("settings.provider.model")}</span>
-						<input value={model} list={`role-models-${props.role}`} disabled={provider === ""} maxLength={256} placeholder={props.role === "embedding" && selectedProvider?.defaultEmbeddingModel === "" ? t("settings.provider.deploymentOrModel") : t("settings.provider.modelID")} onChange={(event) => { setModel(event.currentTarget.value); setDirty(true); }} />
+						<input dir="ltr" value={model} list={`role-models-${props.role}`} disabled={provider === ""} maxLength={256} placeholder={props.role === "embedding" && selectedProvider?.defaultEmbeddingModel === "" ? t("settings.provider.deploymentOrModel") : t("settings.provider.modelID")} onChange={(event) => { setModel(event.currentTarget.value); setDirty(true); }} />
 						{props.role === "utility" ? (
 							<datalist id={`role-models-${props.role}`}>{models.data?.data.map((candidate) => <option key={candidate.id} value={candidate.id} />)}</datalist>
 						) : null}

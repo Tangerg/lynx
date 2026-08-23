@@ -88,7 +88,7 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
       </button>
         <section
           className={`new-session-popover t-dropdown${open ? " is-open" : closing ? " is-closing" : ""}`}
-          data-origin="top-right"
+          data-origin="top-end"
           id={menuId}
           aria-label={t("session.new")}
           aria-hidden={!open}

@@ -899,6 +899,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - 七个旧能力 locale 仅按相同 English semantic value 复用无歧义人工翻译，其余 app2 新语义与 Arabic 形成独立静态词典；production 不 import 旧 app、不含 raw-key/English fallback。机器翻译只作为完整基线，关键简中术语已先行修订，最终 native-language/visual review 仍属于 R11；
 - `ShellPreferences` v2 成为 locale 唯一 owner，首次启动按 `navigator.languages` 解析受支持 BCP 47 locale，严格持久化 theme/accent/locale；Appearance 暴露九种 native-name selector。切换原子替换完整 dictionary，并由 active locale 唯一设置 `html.lang/dir` 与 Intl formatter；Arabic 声明 `rtl`，logical CSS 全面收口仍在下一批，因此 U22 保持 `in_progress`。
 
+### R10d7b Arabic RTL / bidi presentation 实现记录（尚未统一验证）
+
+- production CSS 的阅读与布局语义已改用 logical properties；Work Index、Context Dock、Settings nav、Session/action popover、Narrative nesting、approval/tool status、workspace tree/review 与 responsive padding 随 `html.dir` 镜像。只有显式 LTR 的 code/diff gutter 与带成对 RTL override 的动画原点保留物理方向；
+- file tree/review disclosure、file-window 与 image-lightbox previous/next 控件按 active direction 呈现，lightbox arrow-key 顺序同步 RTL。code/pre、diff/source material、path/URL/secret/model/cron/command/JSON 等技术内容在展示或编辑边界显式 LTR/bidi isolate，用户 instructions、reason、title、search 与 composer 内容继续继承自然语言方向；
+- 本批只改变 presentation geometry 和 bidi 语义，不改变持久化 locale ID、Runtime/Lyra wire、domain value、Desktop bridge 或 Wails surface。U22 production 纵切至此为 `implemented`；native-language copy、screen-reader、Arabic visual、WebKit、narrow-window 与 package evidence 仍统一在 R11 产出。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

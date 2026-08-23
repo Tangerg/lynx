@@ -52,20 +52,36 @@
     opacity var(--dropdown-open-dur) var(--dropdown-ease);
   will-change: transform, opacity;
 }
-.t-dropdown[data-origin="top-right"] {
+.t-dropdown[data-origin="top-end"] {
   transform-origin: top right;
 }
 .t-dropdown[data-origin="top-center"] {
   transform-origin: top center;
 }
-.t-dropdown[data-origin="bottom-left"] {
+.t-dropdown[data-origin="bottom-start"] {
   transform-origin: bottom left;
 }
 .t-dropdown[data-origin="bottom-center"] {
   transform-origin: bottom center;
 }
-.t-dropdown[data-origin="bottom-right"] {
+.t-dropdown[data-origin="bottom-end"] {
   transform-origin: bottom right;
+}
+
+[dir="rtl"] .t-dropdown:not([data-origin]) {
+  transform-origin: top right;
+}
+
+[dir="rtl"] .t-dropdown[data-origin="top-end"] {
+  transform-origin: top left;
+}
+
+[dir="rtl"] .t-dropdown[data-origin="bottom-start"] {
+  transform-origin: bottom right;
+}
+
+[dir="rtl"] .t-dropdown[data-origin="bottom-end"] {
+  transform-origin: bottom left;
 }
 
 .t-dropdown.is-open {
@@ -162,6 +178,12 @@ input::placeholder {
   font-variant-numeric: tabular-nums;
 }
 
+code,
+pre {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .eyebrow {
   color: var(--ink-muted);
   font-size: 10px;
@@ -187,23 +209,28 @@ input::placeholder {
 }
 
 .work-index {
-  border-right: 1px solid var(--divider);
+  border-inline-end: 1px solid var(--divider);
 }
 
 .context-dock {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-left: 1px solid var(--divider);
+  border-inline-start: 1px solid var(--divider);
   background: var(--paper-muted);
 }
 
 .context-dock[data-expanded="true"] {
   position: fixed;
   z-index: 24;
-  inset: 0 0 0 auto;
+  inset-block: 0;
+  inset-inline-end: 0;
   width: min(920px, calc(100vw - 264px));
   box-shadow: -18px 0 46px rgba(28, 27, 23, 0.14);
+}
+
+[dir="rtl"] .context-dock[data-expanded="true"] {
+  box-shadow: 18px 0 46px rgba(28, 27, 23, 0.14);
 }
 
 .panel-header {
@@ -421,7 +448,7 @@ input::placeholder {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) auto;
   gap: 7px;
-  margin-left: calc(var(--activity-depth) * 9px);
+  margin-inline-start: calc(var(--activity-depth) * 9px);
   padding: 8px 0;
   border-top: 1px solid var(--divider);
 }
@@ -529,7 +556,8 @@ input::placeholder {
 .terminal-toolbar {
   flex: none;
   min-height: 38px;
-  padding: 6px 8px 6px 12px;
+  padding-block: 6px;
+  padding-inline: 12px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: #aeadab;
   font-size: 9px;
@@ -605,7 +633,8 @@ input::placeholder {
 }
 
 .terminal-material {
-  padding: 0 2px 12px 19px;
+  padding-block: 0 12px;
+  padding-inline: 19px 2px;
 }
 
 .terminal-material > header {
@@ -751,7 +780,7 @@ input::placeholder {
 }
 
 .run-summary-section li > span:last-child {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .run-summary-section > p,
@@ -928,7 +957,7 @@ input::placeholder {
   min-height: 0;
   padding: 6px;
   overflow: auto;
-  border-right: 1px solid var(--divider);
+  border-inline-end: 1px solid var(--divider);
   scrollbar-width: thin;
 }
 
@@ -945,10 +974,11 @@ input::placeholder {
   grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   gap: 5px;
-  padding: 0 8px 0 calc(7px + var(--tree-depth, 0) * 13px);
+  padding-block: 0;
+  padding-inline: calc(7px + var(--tree-depth, 0) * 13px) 8px;
   color: var(--ink-subtle);
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .file-tree-entry > button:hover,
@@ -968,6 +998,10 @@ input::placeholder {
 .file-tree-entry > button small {
   color: var(--ink-muted);
   font-size: 8px;
+}
+
+[dir="rtl"] .file-tree-entry > button > span:first-child {
+  transform: scaleX(-1);
 }
 
 .tree-more {
@@ -1014,7 +1048,7 @@ input::placeholder {
   padding: 8px;
   color: var(--ink-subtle);
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .workspace-search-hit:hover {
@@ -1155,6 +1189,7 @@ input::placeholder {
 }
 
 .workspace-code-line > i {
+  /* This gutter belongs to the explicitly LTR source-code material. */
   width: 1%;
   padding: 0 12px;
   color: #77736b;
@@ -1236,8 +1271,8 @@ input::placeholder {
 }
 
 .review-button-group {
-  padding-right: 3px;
-  border-right: 1px solid var(--divider);
+  padding-inline-end: 3px;
+  border-inline-end: 1px solid var(--divider);
 }
 
 .workspace-review {
@@ -1257,7 +1292,7 @@ input::placeholder {
   min-height: 0;
   padding: 6px;
   overflow: auto;
-  border-right: 1px solid var(--divider);
+  border-inline-end: 1px solid var(--divider);
   scrollbar-width: thin;
 }
 
@@ -1272,7 +1307,7 @@ input::placeholder {
   padding: 7px;
   color: var(--ink-subtle);
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .workspace-change-row:hover,
@@ -1402,7 +1437,7 @@ input::placeholder {
   padding: 0;
   color: var(--ink-subtle);
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .file-review-toggle > span {
@@ -1430,6 +1465,10 @@ input::placeholder {
   text-align: center;
 }
 
+[dir="rtl"] .file-review-toggle > b {
+  transform: scaleX(-1);
+}
+
 .file-review > header > button:last-child:not(.file-review-toggle),
 .review-state button {
   padding: 0 11px;
@@ -1449,6 +1488,8 @@ input::placeholder {
 }
 
 .diff-rows {
+  /* Source coordinates remain physical inside this isolated LTR surface. */
+  direction: ltr;
   min-width: 0;
   overflow-x: auto;
   color: #d9d6ce;
@@ -1460,6 +1501,8 @@ input::placeholder {
 }
 
 .split-diff {
+  /* Source coordinates remain physical inside this isolated LTR surface. */
+  direction: ltr;
   min-width: 0;
   overflow-x: auto;
   color: #d9d6ce;
@@ -2086,7 +2129,7 @@ input::placeholder {
 
 .knowledge-document header time,
 .knowledge-document header > span {
-  text-align: right;
+  text-align: end;
 }
 
 .knowledge-document textarea {
@@ -2114,7 +2157,7 @@ input::placeholder {
 }
 
 .knowledge-document footer > span {
-  margin-right: auto;
+  margin-inline-end: auto;
 }
 
 .knowledge-document footer button {
@@ -2199,7 +2242,7 @@ input::placeholder {
 }
 
 .memory-byte-count {
-  margin-right: auto;
+  margin-inline-end: auto;
   color: var(--ink-muted);
   font-size: 8px;
   font-variant-numeric: tabular-nums;
@@ -2571,7 +2614,7 @@ input::placeholder {
   border: 1px solid var(--divider);
   color: var(--ink-subtle);
   background: var(--paper-raised);
-  text-align: left;
+  text-align: start;
   transition:
     border-color 120ms ease-out,
     transform 120ms ease-out;
@@ -2664,7 +2707,7 @@ input::placeholder {
   position: absolute;
   z-index: 30;
   top: calc(100% + 9px);
-  right: 0;
+  inset-inline-end: 0;
   width: 232px;
   padding: 8px;
   border-radius: 15px;
@@ -2698,7 +2741,7 @@ input::placeholder {
   padding: 7px;
   color: var(--ink);
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .new-session-popover > button:hover {
@@ -2782,7 +2825,8 @@ input::placeholder {
   grid-template-columns: 22px minmax(0, 1fr) auto;
   min-height: 40px;
   align-items: center;
-  padding: 0 5px 0 10px;
+  padding-block: 0;
+  padding-inline: 10px 5px;
   border-radius: 12px;
   color: var(--ink-muted);
   background: color-mix(in srgb, var(--paper-raised) 48%, transparent);
@@ -2878,10 +2922,11 @@ input::placeholder {
   gap: 7px;
   width: 100%;
   min-height: 62px;
-  padding: 10px 43px 10px 11px;
+  padding-block: 10px;
+  padding-inline: 11px 43px;
   color: inherit;
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .session-row-main,
@@ -2908,7 +2953,7 @@ input::placeholder {
 }
 
 .session-row-main strong > span {
-  margin-right: 5px;
+  margin-inline-end: 5px;
   color: var(--amber);
   font-size: 9px;
 }
@@ -2929,7 +2974,7 @@ input::placeholder {
   position: absolute;
   z-index: 8;
   top: 11px;
-  right: 5px;
+  inset-inline-end: 5px;
 }
 
 .session-actions summary {
@@ -2965,7 +3010,7 @@ input::placeholder {
 .session-actions > div {
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
+  inset-inline-end: 0;
   display: grid;
   width: 156px;
   padding: 6px;
@@ -2980,7 +3025,7 @@ input::placeholder {
   color: var(--ink-subtle);
   background: transparent;
   font-size: 10px;
-  text-align: left;
+  text-align: start;
 }
 
 .session-actions > div button:hover:not(:disabled) {
@@ -3007,7 +3052,8 @@ input::placeholder {
   gap: 5px;
   min-height: 62px;
   align-items: center;
-  padding: 9px 7px 9px 10px;
+  padding-block: 9px;
+  padding-inline: 10px 7px;
 }
 
 .session-rename-form input {
@@ -3305,7 +3351,7 @@ input::placeholder {
   flex: 1;
   align-items: center;
   gap: 7px;
-  padding-left: 8px;
+  padding-inline-start: 8px;
   color: var(--ink-muted);
 }
 
@@ -3361,7 +3407,7 @@ input::placeholder {
 .history-navigator > p {
   position: absolute;
   top: calc(100% + 5px);
-  right: 0;
+  inset-inline-end: 0;
   max-width: 360px;
   margin: 0;
   padding: 7px 9px;
@@ -3427,9 +3473,9 @@ input::placeholder {
 }
 
 .narrative-item[data-child="true"] {
-  margin-left: 26px;
-  padding-left: 14px;
-  border-left: 2px solid var(--paper-strong);
+  margin-inline-start: 26px;
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--paper-strong);
 }
 
 .user-turn {
@@ -3488,7 +3534,7 @@ input::placeholder {
 }
 
 .item-meta time {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   text-transform: none;
@@ -3541,7 +3587,7 @@ input::placeholder {
   position: absolute;
   z-index: 9;
   top: calc(100% + 5px);
-  right: 0;
+  inset-inline-end: 0;
   display: grid;
   width: 190px;
   padding: 6px;
@@ -3557,7 +3603,7 @@ input::placeholder {
   color: var(--ink-subtle);
   background: transparent;
   font-size: 10px;
-  text-align: left;
+  text-align: start;
 }
 
 .session-history-actions > details > div button:hover:not(:disabled) {
@@ -3587,7 +3633,7 @@ input::placeholder {
 }
 
 .feedback-actions > span:first-child {
-  margin-right: 3px;
+  margin-inline-end: 3px;
 }
 
 .feedback-actions button {
@@ -3607,7 +3653,7 @@ input::placeholder {
 
 .feedback-actions button span {
   display: inline-block;
-  margin-right: 3px;
+  margin-inline-end: 3px;
   font-size: 11px;
   line-height: 1;
 }
@@ -3691,15 +3737,15 @@ input::placeholder {
 }
 
 .tool-turn {
-  border-left: 2px solid transparent;
+  border-inline-start: 2px solid transparent;
 }
 
 .tool-turn[data-status="running"] {
-  border-left-color: var(--amber);
+  border-inline-start-color: var(--amber);
 }
 
 .tool-turn[data-status="incomplete"] {
-  border-left-color: var(--red);
+  border-inline-start-color: var(--red);
 }
 
 .tool-turn > summary {
@@ -3787,7 +3833,8 @@ input::placeholder {
 
 .tool-material {
   min-width: 0;
-  padding: 3px 0 1px 36px;
+  padding-block: 3px 1px;
+  padding-inline: 36px 0;
 }
 
 .tool-material > p {
@@ -3822,7 +3869,7 @@ input::placeholder {
 }
 
 .tool-result > header strong {
-  margin-right: auto;
+  margin-inline-end: auto;
   color: #d5d1c8;
   font-size: 9px;
 }
@@ -3922,7 +3969,8 @@ input::placeholder {
   grid-template-columns: 8px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 9px;
-  padding: 7px 9px 7px 11px;
+  padding-block: 7px;
+  padding-inline: 11px 9px;
   border-bottom: 1px solid var(--divider);
 }
 
@@ -4003,9 +4051,9 @@ input::placeholder {
 }
 
 .delegated-run .narrative-item[data-child="true"] {
-  margin-left: 0;
-  padding-left: 0;
-  border-left: 0;
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+  border-inline-start: 0;
 }
 
 .delegated-run-empty,
@@ -4151,7 +4199,7 @@ input::placeholder {
 }
 
 .risk-badge {
-  margin-left: auto;
+  margin-inline-start: auto;
   padding: 4px 7px;
   border-radius: 7px;
   color: var(--amber);
@@ -4172,7 +4220,8 @@ input::placeholder {
 }
 
 .request-reason {
-  margin: 10px 0 0 34px;
+  margin-block: 10px 0;
+  margin-inline: 34px 0;
   color: var(--ink-subtle);
   font-size: 11px;
   line-height: 1.55;
@@ -4305,7 +4354,7 @@ input::placeholder {
 
 .question-field legend span {
   display: inline-block;
-  margin-right: 7px;
+  margin-inline-end: 7px;
   padding: 3px 5px;
   border-radius: 5px;
   color: var(--accent-dark);
@@ -4478,8 +4527,8 @@ input::placeholder {
 }
 
 .live-progress small {
-  padding-left: 8px;
-  border-left: 1px solid var(--divider);
+  padding-inline-start: 8px;
+  border-inline-start: 1px solid var(--divider);
   font-variant-numeric: tabular-nums;
 }
 
@@ -4511,9 +4560,9 @@ input::placeholder {
 
 .recipe-options {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   bottom: calc(100% + 8px);
-  left: 0;
+  inset-inline-start: 0;
   display: grid;
   max-height: 310px;
   padding: 6px;
@@ -4532,7 +4581,7 @@ input::placeholder {
   padding: 8px 10px;
   color: var(--ink-subtle);
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .recipe-options > button[aria-selected="true"],
@@ -4652,7 +4701,8 @@ input::placeholder {
   gap: 6px;
   min-height: 32px;
   align-items: center;
-  padding: 3px 3px 3px 8px;
+  padding-block: 3px;
+  padding-inline: 8px 3px;
   border-radius: 9px;
   color: var(--ink-subtle);
   background: var(--paper-muted);
@@ -4723,7 +4773,7 @@ input::placeholder {
   position: absolute;
   z-index: 50;
   bottom: calc(100% + 10px);
-  left: 0;
+  inset-inline-start: 0;
   display: grid;
   width: min(560px, calc(100vw - 72px));
   max-height: min(560px, calc(100vh - 180px));
@@ -4734,6 +4784,10 @@ input::placeholder {
   box-shadow: var(--shadow-popover);
   transform-origin: bottom left;
   animation: model-picker-enter var(--dropdown-open-dur) var(--dropdown-ease) both;
+}
+
+[dir="rtl"] .model-picker-popover {
+  transform-origin: bottom right;
 }
 
 @keyframes model-picker-enter {
@@ -4817,7 +4871,7 @@ input::placeholder {
   padding: 9px 10px;
   color: var(--ink-subtle);
   background: transparent;
-  text-align: left;
+  text-align: start;
 }
 
 .model-picker-list > button:hover:not(:disabled),
@@ -4872,7 +4926,7 @@ input::placeholder {
   padding: 9px 14px;
   border-top: 1px solid color-mix(in srgb, var(--red) 20%, transparent);
   background: rgba(164, 71, 61, 0.06);
-  text-align: left;
+  text-align: start;
 }
 
 .settings-surface {
@@ -4896,7 +4950,7 @@ input::placeholder {
   min-width: 0;
   flex-direction: column;
   padding: 52px 14px 18px;
-  border-right: 1px solid var(--divider);
+  border-inline-end: 1px solid var(--divider);
 }
 
 .settings-nav header {
@@ -4929,7 +4983,7 @@ input::placeholder {
   background: transparent;
   font-size: 10px;
   font-weight: 680;
-  text-align: left;
+  text-align: start;
 }
 
 .settings-nav nav button[aria-current="page"] {
@@ -5369,7 +5423,7 @@ input::placeholder {
 .usage-breakdown article span,
 .usage-breakdown article small {
   color: var(--ink-muted);
-  text-align: right;
+  text-align: end;
 }
 
 .usage-breakdown article small {
@@ -5646,7 +5700,7 @@ input::placeholder {
   flex-basis: 100%;
   color: var(--ink-muted);
   font-size: 8px;
-  text-align: right;
+  text-align: end;
 }
 
 .hook-trust-confirm button {
@@ -5758,7 +5812,7 @@ input::placeholder {
   }
 
   .hook-trust-confirm span {
-    text-align: left;
+    text-align: start;
   }
 }
 
@@ -5817,7 +5871,7 @@ input::placeholder {
   max-width: 280px;
   justify-items: end;
   gap: 5px;
-  text-align: right;
+  text-align: end;
 }
 
 .mcp-status-block small {
@@ -6125,7 +6179,7 @@ input::placeholder {
   color: var(--ink);
   background: var(--paper-raised);
   box-shadow: var(--shadow-sm);
-  text-align: left;
+  text-align: start;
   transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
 }
 
@@ -6180,14 +6234,14 @@ input::placeholder {
 .approval-rule-card {
   padding: 14px 15px;
   border: 1px solid var(--divider);
-  border-left: 3px solid var(--green);
+  border-inline-start: 3px solid var(--green);
   border-radius: 12px;
   background: var(--paper-raised);
   box-shadow: var(--shadow-sm);
 }
 
 .approval-rule-card[data-decision="deny"] {
-  border-left-color: var(--red);
+  border-inline-start-color: var(--red);
 }
 
 .approval-rule-card > header {
@@ -6248,7 +6302,8 @@ input::placeholder {
 
 .approval-rule-card > p {
   overflow: hidden;
-  margin: 8px 0 0 163px;
+  margin-block: 8px 0;
+  margin-inline: 163px 0;
   color: var(--ink-muted);
   font-size: 7px;
   text-overflow: ellipsis;
@@ -6275,8 +6330,7 @@ input::placeholder {
 
 @media (max-width: 1180px) {
   .settings-scroll {
-    padding-right: 26px;
-    padding-left: 26px;
+    padding-inline: 26px;
   }
 
   .provider-fields {
@@ -6321,7 +6375,8 @@ input::placeholder {
   gap: 8px;
   min-width: 142px;
   align-items: center;
-  padding: 6px 9px 6px 7px;
+  padding-block: 6px;
+  padding-inline: 7px 9px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--ink) 4.5%, transparent);
   cursor: default;
@@ -6358,7 +6413,7 @@ input::placeholder {
 }
 
 .plan-copy b {
-  margin-left: 3px;
+  margin-inline-start: 3px;
 }
 
 .plan-copy small {
@@ -6373,7 +6428,7 @@ input::placeholder {
 .plan-popover {
   position: absolute;
   top: calc(100% + 9px);
-  right: 0;
+  inset-inline-end: 0;
   width: 340px;
   max-height: 360px;
   padding: 14px;
@@ -6812,7 +6867,7 @@ input::placeholder {
   margin: 0;
   font-size: 10px;
   font-weight: 650;
-  text-align: right;
+  text-align: end;
 }
 
 .identity-card {

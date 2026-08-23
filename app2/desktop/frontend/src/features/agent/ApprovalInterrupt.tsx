@@ -74,6 +74,7 @@ export function ApprovalInterrupt(props: ApprovalInterruptProps) {
         <details className="approval-arguments">
           <summary>{t("approval.editArguments")}</summary>
           <textarea
+            dir="ltr"
             value={approval.argumentsText}
             rows={Math.min(
               12,

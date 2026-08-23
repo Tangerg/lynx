@@ -316,7 +316,7 @@ function FileReview(props: {
           <StatusMark status={props.file.status} />
           <span>
             <strong>{baseName(props.file.path)}</strong>
-            <small title={props.file.path}>{renameLabel(props.file)}</small>
+            <small dir="ltr" title={props.file.path}>{renameLabel(props.file)}</small>
           </span>
           <ChangeCount change={props.file} />
           <b aria-hidden="true">{props.collapsed ? "›" : "⌄"}</b>
