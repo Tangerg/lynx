@@ -11,10 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -316,49 +314,103 @@ func (service *Service) Grep(ctx context.Context, request protocol.GrepRequest) 
 }
 
 func (service *Service) Changes(ctx context.Context, workspace protocol.WorkspaceRef) (*protocol.Page[protocol.WorkspaceFileChange], error) {
-	root, err := service.repository(ctx, workspace.Path)
+	repository, err := service.repository(ctx, workspace.Path)
 	if err != nil {
 		return nil, err
 	}
-	encoded, err := git(ctx, root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	changes, err := service.workspaceChanges(ctx, repository)
 	if err != nil {
 		return nil, err
 	}
-	changes, err := parseStatus(encoded)
+	head, err := hasHead(ctx, repository.root)
 	if err != nil {
 		return nil, err
+	}
+	if head {
+		stats, statsErr := diffStats(ctx, repository, "HEAD")
+		if statsErr != nil {
+			return nil, statsErr
+		}
+		for index := range changes {
+			if value, found := stats[changes[index].Path]; found {
+				changes[index].Added = value.added
+				changes[index].Removed = value.removed
+				changes[index].Binary = value.binary
+			}
+		}
+	}
+	for index := range changes {
+		if head && changes[index].Status != protocol.FileStatusUntracked {
+			continue
+		}
+		if changes[index].Status == protocol.FileStatusDeleted {
+			continue
+		}
+		added, binary, statErr := addedFileStat(ctx, repository, changes[index].Path)
+		if statErr != nil {
+			return nil, statErr
+		}
+		changes[index].Binary = binary
+		if !binary {
+			changes[index].Added = &added
+			removed := 0
+			changes[index].Removed = &removed
+		}
 	}
 	return protocol.NewPage(changes), nil
 }
 
 func (service *Service) Diff(ctx context.Context, request protocol.GetDiffRequest) (*protocol.Diff, error) {
-	root, err := service.repository(ctx, request.Workspace.Path)
+	repository, err := service.repository(ctx, request.Workspace.Path)
 	if err != nil {
 		return nil, err
 	}
-	arguments := []string{"diff", "--no-ext-diff", "--no-color"}
-	if request.Mode == protocol.DiffModeBase {
-		base, baseErr := mergeBase(ctx, root)
-		if baseErr != nil {
-			return nil, baseErr
-		}
-		arguments = append(arguments, base)
-	}
+	path := ""
 	if request.Path != "" {
-		_, _, relative, jailErr := service.fileOrMissing(ctx, request.Workspace.Path, request.Path)
+		relative, jailErr := repository.workspaceRequestPath(request.Path)
 		if jailErr != nil {
 			return nil, jailErr
 		}
-		arguments = append(arguments, "--", relative)
+		path = relative
 	}
-	patch, err := git(ctx, root, arguments...)
+	changes, err := service.workspaceChanges(ctx, repository)
 	if err != nil {
 		return nil, err
+	}
+	patch, includeAddedFiles, err := trackedPatch(ctx, repository, request.Mode, path)
+	if err != nil {
+		return nil, err
+	}
+	for _, change := range changes {
+		if path != "" && change.Path != path {
+			continue
+		}
+		if change.Status == protocol.FileStatusDeleted {
+			continue
+		}
+		if !includeAddedFiles && change.Status != protocol.FileStatusUntracked {
+			continue
+		}
+		addition, patchErr := addedFilePatch(ctx, repository, change.Path)
+		if patchErr != nil {
+			return nil, patchErr
+		}
+		patch, err = appendPatch(patch, addition)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if request.Format == protocol.DiffFormatRaw {
 		return &protocol.Diff{Patch: string(patch)}, nil
 	}
 	files, truncated := parsePatch(string(patch), request.Limit)
+	files = projectDiffFiles(
+		repository,
+		files,
+		changes,
+		path,
+		request.Mode != protocol.DiffModeBase,
+	)
 	return &protocol.Diff{Files: files, Truncated: truncated}, nil
 }
 
@@ -416,17 +468,6 @@ func (service *Service) fileOrMissing(ctx context.Context, workspacePath, reques
 	return root, candidate, filepath.ToSlash(relative), nil
 }
 
-func (service *Service) repository(ctx context.Context, workspacePath string) (string, error) {
-	resolved, err := service.resolver.Resolve(ctx, workspacePath)
-	if err != nil || !resolved.Available {
-		return "", fmt.Errorf("%w: workspace is unavailable", protocol.ErrWorkspaceUnavailable)
-	}
-	if _, err := os.Lstat(filepath.Join(resolved.ProjectRoot, ".git")); err != nil {
-		return "", protocol.ErrVcsUnavailable
-	}
-	return resolved.ProjectRoot, nil
-}
-
 func ignored(path string, directory bool) bool {
 	for _, part := range strings.Split(path, "/") {
 		switch part {
@@ -435,161 +476,6 @@ func ignored(path string, directory bool) bool {
 		}
 	}
 	return directory && strings.HasPrefix(filepath.Base(path), ".")
-}
-
-func git(ctx context.Context, root string, arguments ...string) ([]byte, error) {
-	command := exec.CommandContext(ctx, "git", append([]string{"-C", root, "--no-pager"}, arguments...)...)
-	command.Env = append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
-	output, err := command.Output()
-	if err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
-			return nil, fmt.Errorf("workspaceflow: git %s: %s", arguments[0], strings.TrimSpace(string(exit.Stderr)))
-		}
-		return nil, fmt.Errorf("workspaceflow: git %s: %w", arguments[0], err)
-	}
-	return output, nil
-}
-
-func parseStatus(encoded []byte) ([]protocol.WorkspaceFileChange, error) {
-	fields := bytes.Split(encoded, []byte{0})
-	changes := make([]protocol.WorkspaceFileChange, 0, len(fields))
-	for index := 0; index < len(fields); index++ {
-		line := string(fields[index])
-		if line == "" {
-			continue
-		}
-		if len(line) < 4 {
-			return nil, errors.New("workspaceflow: malformed git status")
-		}
-		code, path := line[:2], filepath.ToSlash(line[3:])
-		change := protocol.WorkspaceFileChange{Path: path, Status: statusOf(code), Added: new(int), Removed: new(int)}
-		if strings.Contains(code, "R") && index+1 < len(fields) {
-			index++
-			change.PreviousPath = filepath.ToSlash(string(fields[index]))
-		}
-		changes = append(changes, change)
-	}
-	return changes, nil
-}
-
-func statusOf(code string) protocol.FileStatus {
-	switch {
-	case code == "??":
-		return protocol.FileStatusUntracked
-	case strings.Contains(code, "R"):
-		return protocol.FileStatusRenamed
-	case strings.Contains(code, "D"):
-		return protocol.FileStatusDeleted
-	case strings.Contains(code, "A"):
-		return protocol.FileStatusAdded
-	default:
-		return protocol.FileStatusModified
-	}
-}
-
-func mergeBase(ctx context.Context, root string) (string, error) {
-	for _, ref := range []string{"origin/HEAD", "origin/main", "origin/master", "main", "master"} {
-		output, err := git(ctx, root, "merge-base", "HEAD", ref)
-		if err == nil && strings.TrimSpace(string(output)) != "" {
-			return strings.TrimSpace(string(output)), nil
-		}
-	}
-	return "", protocol.ErrVcsUnavailable
-}
-
-func parsePatch(patch string, limit int) ([]protocol.FileDiff, bool) {
-	if limit <= 0 {
-		limit = 5000
-	}
-	files := make([]protocol.FileDiff, 0)
-	var current *protocol.FileDiff
-	left, right, rows := 0, 0, 0
-	flush := func() {
-		if current != nil {
-			files = append(files, *current)
-		}
-	}
-	truncated := false
-	for scanner := bufio.NewScanner(strings.NewReader(patch)); scanner.Scan(); {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "diff --git ") {
-			flush()
-			parts := strings.SplitN(line, " b/", 2)
-			path := ""
-			if len(parts) == 2 {
-				path = parts[1]
-			}
-			current = &protocol.FileDiff{Path: path, Status: protocol.FileStatusModified, Rows: []protocol.DiffRow{}}
-			left, right = 0, 0
-			continue
-		}
-		if current == nil {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(line, "new file"):
-			current.Status = protocol.FileStatusAdded
-		case strings.HasPrefix(line, "deleted file"):
-			current.Status = protocol.FileStatusDeleted
-		case strings.HasPrefix(line, "rename from "):
-			current.Status = protocol.FileStatusRenamed
-			current.PreviousPath = strings.TrimPrefix(line, "rename from ")
-		case strings.HasPrefix(line, "Binary files"):
-			current.Binary = true
-		case strings.HasPrefix(line, "@@"):
-			left, right = parseHunk(line)
-			current.Rows = append(current.Rows, protocol.DiffRow{Type: protocol.DiffRowHunk, Text: line})
-			rows++
-		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
-			current.Rows = append(current.Rows, protocol.DiffRow{Type: protocol.DiffRowAdded, RightLine: right, Code: line[1:]})
-			right++
-			rows++
-		case strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---"):
-			current.Rows = append(current.Rows, protocol.DiffRow{Type: protocol.DiffRowDeleted, LeftLine: left, Code: line[1:]})
-			left++
-			rows++
-		case strings.HasPrefix(line, " "):
-			current.Rows = append(current.Rows, protocol.DiffRow{Type: protocol.DiffRowContext, LeftLine: left, RightLine: right, Code: line[1:]})
-			left++
-			right++
-			rows++
-		}
-		if rows >= limit {
-			truncated = true
-			break
-		}
-	}
-	flush()
-	for index := range files {
-		added, removed := 0, 0
-		for _, row := range files[index].Rows {
-			if row.Type == protocol.DiffRowAdded {
-				added++
-			}
-			if row.Type == protocol.DiffRowDeleted {
-				removed++
-			}
-		}
-		if !files[index].Binary {
-			files[index].Added, files[index].Removed = &added, &removed
-		}
-	}
-	return files, truncated
-}
-
-func parseHunk(line string) (int, int) {
-	parts := strings.Fields(line)
-	if len(parts) < 3 {
-		return 0, 0
-	}
-	parse := func(value string) int {
-		value = strings.TrimLeft(value, "+-")
-		value, _, _ = strings.Cut(value, ",")
-		parsed, _ := strconv.Atoi(value)
-		return parsed
-	}
-	return parse(parts[1]), parse(parts[2])
 }
 
 func encodePathCursor(path string) string { return base64.RawURLEncoding.EncodeToString([]byte(path)) }

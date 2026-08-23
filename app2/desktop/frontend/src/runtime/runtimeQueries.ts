@@ -5,6 +5,7 @@ import {
   type CancelRunResponse,
   type ContentBlock,
   type CreateSessionRequest,
+  type Diff,
   type EmptyObject,
   type FileContent,
   type FileEntry,
@@ -26,6 +27,7 @@ import {
   type StartRunResponse,
   type UpdateSessionRequest,
   type WorkspaceRef,
+  type WorkspaceFileChange,
 } from "@lyra/runtime-contract";
 
 const clientMeta: RequestMeta = {
@@ -94,6 +96,22 @@ export const runtimeQueryKeys = {
       ...this.workspace(connection, workspacePath),
       "search",
       query,
+    ] as const;
+  },
+  workspaceChanges(connection: RuntimeConnection, workspacePath: string) {
+    return [...this.workspace(connection, workspacePath), "changes"] as const;
+  },
+  workspaceDiff(
+    connection: RuntimeConnection,
+    workspacePath: string,
+    path: string,
+    mode: "worktree" | "base",
+  ) {
+    return [
+      ...this.workspace(connection, workspacePath),
+      "diff",
+      mode,
+      path,
     ] as const;
   },
 };
@@ -197,6 +215,32 @@ export function searchWorkspaceFiles(
   return client(connection).call(
     "workspace.files.search",
     { workspace, query, limit: 200 },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listWorkspaceChanges(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<Page<WorkspaceFileChange>> {
+  return client(connection).call(
+    "workspace.changes.list",
+    { workspace },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function getWorkspaceDiff(
+  connection: RuntimeConnection,
+  workspace: WorkspaceRef,
+  path: string,
+  mode: "worktree" | "base",
+  signal?: AbortSignal,
+): Promise<Diff> {
+  return client(connection).call(
+    "workspace.diff.get",
+    { workspace, path, mode, format: "rows", limit: 100_000 },
     { meta: clientMeta, signal },
   );
 }

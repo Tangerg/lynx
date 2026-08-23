@@ -28,7 +28,7 @@
 | R3 | root Run + Item stream + Composer + Agent Narrative + durable cold restore | pending |
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
-| R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | pending |
+| R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review production 已实现，待其余纵切与最终统一门禁） |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | pending |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
@@ -415,11 +415,21 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   暗中带到新 workspace；
 - **Files consumer**：Desktop 用 lazy per-directory cursor query 构造树，text search 只消费 canonical `GrepMatch`，点击命中
   打开包含目标行的 1000-line window。最多保留 8 个 tab、100 个展开目录和 32 个 Session 状态；大文件不会一次生成无界 DOM；
+- **Repository scope**：Git owner 显式区分 repository root、Session workspace root 与 repo-relative prefix。status/numstat/diff
+  只读取 exact workspace pathspec，再把 path/previousPath 投影回 workspace-relative identity；子目录 Session 不会泄漏同仓库其他目录；
+- **Honest working-tree material**：worktree diff 以 `HEAD` 为基线，同时覆盖 staged、unstaged、untracked；未跟踪文本以有界
+  流式扫描计算行数，binary 不伪造 `0/0`。尚无首个 commit 时直接以空树语义呈现现存文件，base mode 则明确返回 VCS
+  unavailable；structured diff 只在文件边界截断，raw patch 与 rows 来自同一 material。Git stdout/stderr 都有显式硬边界，
+  context cancel、超限与失败都会 wait/回收子进程，不允许 configured external diff/textconv 扩张执行面；
+- **Review Workspace consumer**：Workspace pane 内的 Files/Review 是同一 Session-owned context 的两个 view。Review 使用独立
+  VCS status vocabulary 展示 rename/untracked/binary 与真实增删统计；一次 bounded query 保留整组 change 的空间位置，changed-file
+  navigator 可 exact scroll，每个文件可折叠并真正 unmount rows，同时保留 worktree/branch 与 unified/split。binary、empty、loading、
+  error、truncated 都有明确状态，不把 `DiffRow.type` cast 成 file status；
 - **Reading floor**：选中文件后 Context Dock 覆盖式扩展到 Work Index 右侧的可用宽度，最窄窗口仍保留约 640px reader，
-  而不是永久挤压 Agent Narrative 或扩大应用最小宽度；关闭最后 tab 或切回 Session pane 即释放扩展面；
+  而不是永久挤压 Agent Narrative 或扩大应用最小宽度；Review 主动请求同一扩展面，关闭最后 tab 或切回 Session pane 即释放；
 - **File watch ownership**：全局 Runtime invalidation lease 随 selected Session 注册一个 exact workspace watch；Session/Runtime
   generation 切换会 abort 旧 subscription，`files.changed`/resync 只失效对应 workspace query prefix；
-- 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher 进程；仅声明式 Runtime file-watch subscription 会在
+- 当前实现批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher 进程；仅声明式 Runtime file-watch subscription 会在
   Desktop 运行时存在，并由 React effect cleanup 明确释放。
 
 ## 11. R7：能力资源

@@ -24,15 +24,19 @@ import {
   searchWorkspaceFiles,
 } from "../../runtime/runtimeQueries";
 import {
+  maxCollapsedReviewFiles,
   maxExpandedDirectories,
   maxOpenFiles,
   newDockState,
   readDockState,
   rememberDockState,
   writeDockState,
+  type DiffLayout,
   type DockPane,
+  type ReviewMode,
   type SessionDockState,
 } from "./contextDockState";
+import { WorkspaceReview } from "./WorkspaceReview";
 
 const fileWindowLines = 1_000;
 
@@ -60,9 +64,15 @@ export function ContextDock(props: ContextDockProps) {
   useEffect(() => writeDockState(states), [states]);
   useEffect(() => {
     props.onExpandedChange(
-      state?.pane === "workspace" && state.selectedPath !== undefined,
+      state?.pane === "workspace" &&
+        (state.workspaceView === "review" || state.selectedPath !== undefined),
     );
-  }, [props.onExpandedChange, state?.pane, state?.selectedPath]);
+  }, [
+    props.onExpandedChange,
+    state?.pane,
+    state?.selectedPath,
+    state?.workspaceView,
+  ]);
 
   const update = useCallback(
     (change: (current: SessionDockState) => SessionDockState) => {
@@ -91,6 +101,7 @@ export function ContextDock(props: ContextDockProps) {
       return {
         ...current,
         pane: "workspace",
+        workspaceView: "files",
         openPaths,
         selectedPath: path,
         targetLines:
@@ -190,36 +201,68 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
     <section
       className="workspace-browser"
       data-reading={props.state.selectedPath !== undefined}
-      aria-label="Workspace files"
+      aria-label="Workspace context"
     >
       <header className="workspace-browser-header">
         <div>
-          <strong>Files</strong>
+          <nav className="workspace-view-switch" aria-label="Workspace views">
+            <button
+              type="button"
+              aria-current={
+                props.state.workspaceView === "files" ? "page" : undefined
+              }
+              onClick={() =>
+                props.update((current) => ({
+                  ...current,
+                  workspaceView: "files",
+                }))
+              }
+            >
+              Files
+            </button>
+            <button
+              type="button"
+              aria-current={
+                props.state.workspaceView === "review" ? "page" : undefined
+              }
+              onClick={() =>
+                props.update((current) => ({
+                  ...current,
+                  workspaceView: "review",
+                }))
+              }
+            >
+              Review
+            </button>
+          </nav>
           <small title={props.workspace.path}>
             {compactPath(props.workspace.path)}
           </small>
         </div>
-        <form role="search" onSubmit={submitSearch}>
-          <label className="sr-only" htmlFor="workspace-file-search">
-            Search workspace text
-          </label>
-          <input
-            id="workspace-file-search"
-            type="search"
-            value={props.state.searchDraft}
-            placeholder="Search text"
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              props.update((current) => ({
-                ...current,
-                searchDraft: value,
-                ...(value === "" ? { searchQuery: "" } : {}),
-              }));
-            }}
-          />
-        </form>
+        {props.state.workspaceView === "files" ? (
+          <form role="search" onSubmit={submitSearch}>
+            <label className="sr-only" htmlFor="workspace-file-search">
+              Search workspace text
+            </label>
+            <input
+              id="workspace-file-search"
+              type="search"
+              value={props.state.searchDraft}
+              placeholder="Search text"
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                props.update((current) => ({
+                  ...current,
+                  searchDraft: value,
+                  ...(value === "" ? { searchQuery: "" } : {}),
+                }));
+              }}
+            />
+          </form>
+        ) : null}
       </header>
-      {props.state.openPaths.length > 0 ? (
+      {props.state.workspaceView === "files" &&
+      props.state.openPaths.length > 0 ? (
         <OpenFileTabs
           paths={props.state.openPaths}
           selectedPath={props.state.selectedPath}
@@ -227,37 +270,84 @@ function WorkspaceBrowser(props: WorkspaceBrowserProps) {
           onClose={props.onCloseFile}
         />
       ) : null}
-      <div className="workspace-browser-body">
-        <aside className="workspace-tree" aria-label="Workspace file tree">
-          {props.state.searchQuery ? (
-            <WorkspaceSearchResults
+      {props.state.workspaceView === "review" ? (
+        <WorkspaceReview
+          connection={props.connection}
+          workspace={props.workspace}
+          selectedPath={props.state.selectedChangePath}
+          mode={props.state.reviewMode}
+          layout={props.state.diffLayout}
+          navigatorOpen={props.state.reviewNavigatorOpen}
+          collapsedPaths={props.state.collapsedReviewPaths}
+          onSelect={(path) =>
+            props.update((current) => ({
+              ...current,
+              selectedChangePath: path,
+            }))
+          }
+          onModeChange={(mode: ReviewMode) =>
+            props.update((current) => ({
+              ...current,
+              reviewMode: mode,
+              selectedChangePath: undefined,
+            }))
+          }
+          onLayoutChange={(layout: DiffLayout) =>
+            props.update((current) => ({ ...current, diffLayout: layout }))
+          }
+          onNavigatorOpenChange={(reviewNavigatorOpen) =>
+            props.update((current) => ({
+              ...current,
+              reviewNavigatorOpen,
+            }))
+          }
+          onToggleCollapsed={(path) =>
+            props.update((current) => ({
+              ...current,
+              collapsedReviewPaths: current.collapsedReviewPaths.includes(path)
+                ? current.collapsedReviewPaths.filter(
+                    (candidate) => candidate !== path,
+                  )
+                : [...current.collapsedReviewPaths, path].slice(
+                    -maxCollapsedReviewFiles,
+                  ),
+            }))
+          }
+          onOpenFile={props.onOpenFile}
+        />
+      ) : (
+        <div className="workspace-browser-body">
+          <aside className="workspace-tree" aria-label="Workspace file tree">
+            {props.state.searchQuery ? (
+              <WorkspaceSearchResults
+                connection={props.connection}
+                workspace={props.workspace}
+                query={props.state.searchQuery}
+                onOpen={props.onOpenFile}
+              />
+            ) : (
+              <DirectoryContents
+                connection={props.connection}
+                workspace={props.workspace}
+                path=""
+                depth={0}
+                selectedPath={props.state.selectedPath}
+                expandedDirectories={props.state.expandedDirectories}
+                onToggle={toggleDirectory}
+                onOpen={props.onOpenFile}
+              />
+            )}
+          </aside>
+          {props.state.selectedPath ? (
+            <FileReader
               connection={props.connection}
               workspace={props.workspace}
-              query={props.state.searchQuery}
-              onOpen={props.onOpenFile}
+              path={props.state.selectedPath}
+              targetLine={props.state.targetLines[props.state.selectedPath]}
             />
-          ) : (
-            <DirectoryContents
-              connection={props.connection}
-              workspace={props.workspace}
-              path=""
-              depth={0}
-              selectedPath={props.state.selectedPath}
-              expandedDirectories={props.state.expandedDirectories}
-              onToggle={toggleDirectory}
-              onOpen={props.onOpenFile}
-            />
-          )}
-        </aside>
-        {props.state.selectedPath ? (
-          <FileReader
-            connection={props.connection}
-            workspace={props.workspace}
-            path={props.state.selectedPath}
-            targetLine={props.state.targetLines[props.state.selectedPath]}
-          />
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      )}
     </section>
   );
 }

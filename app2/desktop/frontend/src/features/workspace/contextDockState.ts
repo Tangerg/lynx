@@ -1,19 +1,29 @@
 const dockStorageKey = "lyra.app2.context-dock.v1";
 const maxRememberedSessions = 32;
+export const maxCollapsedReviewFiles = 100;
 
 export const maxOpenFiles = 8;
 export const maxExpandedDirectories = 100;
 
 export type DockPane = "workspace" | "session";
+export type WorkspaceView = "files" | "review";
+export type ReviewMode = "worktree" | "base";
+export type DiffLayout = "unified" | "split";
 
 export interface SessionDockState {
   workspacePath: string;
   pane: DockPane;
+  workspaceView: WorkspaceView;
   openPaths: string[];
   selectedPath?: string;
   expandedDirectories: string[];
   searchDraft: string;
   searchQuery: string;
+  selectedChangePath?: string;
+  reviewMode: ReviewMode;
+  diffLayout: DiffLayout;
+  reviewNavigatorOpen: boolean;
+  collapsedReviewPaths: string[];
   targetLines: Record<string, number>;
   touchedAt: number;
 }
@@ -22,10 +32,15 @@ export function newDockState(workspacePath: string): SessionDockState {
   return {
     workspacePath,
     pane: "session",
+    workspaceView: "files",
     openPaths: [],
     expandedDirectories: [],
     searchDraft: "",
     searchQuery: "",
+    reviewMode: "worktree",
+    diffLayout: "unified",
+    reviewNavigatorOpen: true,
+    collapsedReviewPaths: [],
     targetLines: {},
     touchedAt: Date.now(),
   };
@@ -86,6 +101,7 @@ function parseDockState(value: unknown): SessionDockState | undefined {
   return {
     workspacePath: value.workspacePath,
     pane: value.pane === "workspace" ? "workspace" : "session",
+    workspaceView: value.workspaceView === "review" ? "review" : "files",
     openPaths,
     ...(selectedPath === undefined ? {} : { selectedPath }),
     expandedDirectories: stringArray(value.expandedDirectories).slice(
@@ -93,6 +109,15 @@ function parseDockState(value: unknown): SessionDockState | undefined {
     ),
     searchDraft: typeof value.searchDraft === "string" ? value.searchDraft : "",
     searchQuery: typeof value.searchQuery === "string" ? value.searchQuery : "",
+    ...(typeof value.selectedChangePath === "string"
+      ? { selectedChangePath: value.selectedChangePath }
+      : {}),
+    reviewMode: value.reviewMode === "base" ? "base" : "worktree",
+    diffLayout: value.diffLayout === "split" ? "split" : "unified",
+    reviewNavigatorOpen: value.reviewNavigatorOpen !== false,
+    collapsedReviewPaths: stringArray(value.collapsedReviewPaths).slice(
+      -maxCollapsedReviewFiles,
+    ),
     targetLines,
     touchedAt: typeof value.touchedAt === "number" ? value.touchedAt : 0,
   };
