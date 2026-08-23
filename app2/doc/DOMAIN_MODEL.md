@@ -346,6 +346,21 @@ visible rule 按 Session > Project > Global、exact > glob > whole-tool 选择�
 因此进行中的 Run 也不会冻结旧策略。明显 root/home/device wipe 由独立高置信 confirmation override 治理，不因 Yolo、
 MCP auto-approve 或 remembered allow 静默执行。
 
+Schedule 是 recurring Run intent aggregate，不是 generic Settings record，也不拥有 Run execution。它保存 title、完整
+instructions、五字段 cron、enabled/next run、last admitted time、workspace intent、paired model selection 与 revision。
+workspace 为空表示 firing 时解析 Runtime default；显式路径则在 create/update 时规范化，并在每次 firing 时重新验证可用性。
+普通字段编辑不重排 cadence；cron 变化或 disabled→enabled 才从 transition time 计算新的 next run。runNow 不推进 cron cursor。
+
+ScheduleOccurrence 是 Dispatcher 对一个已到期 intent 的 immutable durable claim。它以 `scheduleId + dueAt` 派生稳定 identity，
+冻结 Schedule snapshot，并预分配 Session/Run identity。claim transaction 同时 CAS 推进 Schedule next run 并插入 pending
+Occurrence；因此 next run 先推进也不会丢任务，restart 会先处理 pending。已经 pending 的 occurrence 不随 Schedule edit/delete
+漂移；同 Schedule 至多一个 pending。Session、opening Run material、Occurrence `pending → accepted` 与 current Schedule
+`lastRunAt` 在一个 admission transaction 提交；若 Schedule 已在 claim 后删除，snapshot 仍可完成 admission。
+
+Schedule 管理与执行分属同一 bounded context 的两个 application owner：Service 提供 CRUD 给 operation/Agent tool，Dispatcher
+拥有 timer、pending recovery 与 runNow 并依赖 Run admission port。Agent tool 因而不会反向依赖 Run engine，也不需要 late-bound
+service locator。accepted 后的 active effect 不可安全重放；Runtime loss 由既有 Run recovery 显式收敛，而不是创建第二个 occurrence。
+
 Run consumer 只接收 Lyra Session/Run/workspace/Tool/Subagent 语义，不把 Agent Framework Process、checkpoint 或 provider payload 暴露给 Hook。
 command adapter 以 bounded typed JSON stdin/stdout 隔离 shell；只有 gated event 的 exit 2 / closed `deny` 是硬拒绝，spawn、timeout、oversized/malformed
 output 与其他 non-zero exit 都记录为非阻塞失败；exit 2 即使 stdout 损坏仍保留 deny。prompt/config discovery 是 effect 前的 fail-closed gate；PostToolUse、Subagent、Notification、

@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
+	"github.com/Tangerg/lynx/app2/runtime/domain/modelselection"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
@@ -36,6 +37,7 @@ type Store interface {
 	ListRunningRuns(context.Context) ([]rundomain.Record, error)
 	ListRuns(context.Context, string, []rundomain.Status, bool, int, *rundomain.Cursor) (rundomain.Page, error)
 	CreateRun(context.Context, rundomain.Record, *transcript.Record, *conversationdomain.Record, []rundomain.EventRecord) error
+	CreateScheduledRun(context.Context, ScheduledRunWrite) (bool, error)
 	CommitRun(context.Context, CommitWrite) error
 	CommitTreeRecovery(context.Context, TreeRecoveryWrite) error
 	CommitRunEvent(context.Context, RunEventWrite) error
@@ -160,6 +162,28 @@ type StartCommand struct {
 	Meta    protocol.RequestMeta
 }
 
+// ScheduledStart is the private atomic admission command for one manual or
+// durable cron occurrence. Session and Run identities are allocated before
+// dispatch so retries converge on one transaction rather than creating
+// duplicate headless work.
+type ScheduledStart struct {
+	ScheduleID           string
+	OccurrenceID         string
+	SessionID            string
+	RunID                string
+	Title                string
+	Workspace            string
+	Selection            modelselection.Selection
+	Instruction          string
+	FiredAt              time.Time
+	AllowMissingSchedule bool
+}
+
+type ScheduledRun struct {
+	SessionID string
+	RunID     string
+}
+
 // AutonomousStart is the private application command used by Goal orchestration.
 // It deliberately is not a Lyra wire request: autonomous instructions belong to
 // the exact conversation journal without pretending to be user-authored Items.
@@ -183,6 +207,17 @@ type rootStart struct {
 	profile      protocol.RunProtocolProfile
 	visibleInput bool
 	claim        func(context.Context, string) error
+	scheduled    *scheduledAdmission
+	startedAt    time.Time
+}
+
+type scheduledAdmission struct {
+	session              session.Session
+	runID                string
+	scheduleID           string
+	occurrenceID         string
+	firedAt              time.Time
+	allowMissingSchedule bool
 }
 
 type openedRoot struct {
@@ -236,6 +271,19 @@ type CommitWrite struct {
 	Events            []rundomain.EventRecord
 }
 
+type ScheduledRunWrite struct {
+	Session              session.Session
+	Run                  rundomain.Record
+	Opening              transcript.Record
+	OpeningMessage       conversationdomain.Record
+	Events               []rundomain.EventRecord
+	ScheduleID           string
+	OccurrenceID         string
+	FiredAt              time.Time
+	AcceptedAt           time.Time
+	AllowMissingSchedule bool
+}
+
 func (service *Service) Start(ctx context.Context, command StartCommand) (
 	*protocol.StartRunResponse,
 	iter.Seq[protocol.RunEvent],
@@ -246,6 +294,45 @@ func (service *Service) Start(ctx context.Context, command StartCommand) (
 	})
 	if err != nil { return nil, nil, err }
 	return &protocol.StartRunResponse{RunID: opened.runID, SegmentID: opened.segmentID, UserItemID: opened.userItemID}, events, nil
+}
+
+func (service *Service) StartScheduled(ctx context.Context, command ScheduledStart) (*ScheduledRun, error) {
+	if command.ScheduleID == "" || command.SessionID == "" || command.RunID == "" ||
+		strings.TrimSpace(command.Instruction) == "" || command.FiredAt.IsZero() {
+		return nil, errors.New("runflow: scheduled admission is incomplete")
+	}
+	workspace, err := session.NewWorkspace(command.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	now := service.now().UTC()
+	createdSession, err := session.New(session.Create{
+		ID: session.ID(command.SessionID), Title: command.Title,
+		Workspace: workspace, Selection: command.Selection, Now: now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	opened, _, err := service.startRoot(ctx, rootStart{
+		request: protocol.StartRunRequest{
+			SessionID: command.SessionID,
+			Input: []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: command.Instruction}},
+			Provider: command.Selection.Provider(), Model: command.Selection.Model(),
+		},
+		profile: protocol.RunProtocolProfile{
+			RequiredFeatures: []protocol.RunProtocolFeature{}, InterruptTypes: protocol.InterruptTypes(),
+		},
+		visibleInput: true, startedAt: now,
+		scheduled: &scheduledAdmission{
+			session: createdSession, runID: command.RunID, scheduleID: command.ScheduleID,
+			occurrenceID: command.OccurrenceID, firedAt: command.FiredAt.UTC(),
+			allowMissingSchedule: command.AllowMissingSchedule,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &ScheduledRun{SessionID: command.SessionID, RunID: opened.runID}, nil
 }
 
 func (service *Service) StartAutonomous(ctx context.Context, command AutonomousStart) (*AutonomousRun, error) {
@@ -271,29 +358,43 @@ func (service *Service) StartAutonomous(ctx context.Context, command AutonomousS
 
 func (service *Service) startRoot(ctx context.Context, command rootStart) (*openedRoot, iter.Seq[protocol.RunEvent], error) {
 	request := command.request
-	storedSession, err := service.store.GetSession(ctx, session.ID(request.SessionID))
-	if err != nil {
-		if errors.Is(err, session.ErrNotFound) {
-			return nil, nil, protocol.ErrSessionNotFound
+	var storedSession session.Session
+	var err error
+	if command.scheduled != nil {
+		storedSession = command.scheduled.session
+		if storedSession.ID() != session.ID(request.SessionID) {
+			return nil, nil, errors.New("runflow: scheduled Session identity changed")
 		}
-		return nil, nil, err
-	}
-	if existing, err := service.store.GetOpenRootRun(ctx, request.SessionID); err == nil {
-		presented, presentErr := presentRecord(existing)
-		if presentErr != nil {
-			return nil, nil, presentErr
+	} else {
+		storedSession, err = service.store.GetSession(ctx, session.ID(request.SessionID))
+		if err != nil {
+			if errors.Is(err, session.ErrNotFound) {
+				return nil, nil, protocol.ErrSessionNotFound
+			}
+			return nil, nil, err
 		}
-		return nil, nil, &ActiveRunError{Run: *presented}
-	} else if !errors.Is(err, rundomain.ErrNotFound) {
-		return nil, nil, err
+		if existing, err := service.store.GetOpenRootRun(ctx, request.SessionID); err == nil {
+			presented, presentErr := presentRecord(existing)
+			if presentErr != nil {
+				return nil, nil, presentErr
+			}
+			return nil, nil, &ActiveRunError{Run: *presented}
+		} else if !errors.Is(err, rundomain.ErrNotFound) {
+			return nil, nil, err
+		}
 	}
 	providerID, model, err := service.selection(ctx, request, storedSession)
 	if err != nil {
 		return nil, nil, err
 	}
-	runID, err := service.ids.New("run_")
-	if err != nil {
-		return nil, nil, err
+	runID := ""
+	if command.scheduled != nil {
+		runID = command.scheduled.runID
+	} else {
+		runID, err = service.ids.New("run_")
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	segmentID, err := service.ids.New("seg_")
 	if err != nil {
@@ -304,7 +405,10 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 		itemID, err = service.ids.New("itm_")
 		if err != nil { return nil, nil, err }
 	}
-	now := service.now().UTC()
+	now := command.startedAt.UTC()
+	if now.IsZero() {
+		now = service.now().UTC()
+	}
 	aggregate, err := rundomain.New(rundomain.Start{
 		ID: runID, SessionID: request.SessionID, SegmentID: segmentID,
 		Provider: providerID, Model: model, Now: now,
@@ -344,9 +448,13 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 	if err != nil {
 		return nil, nil, err
 	}
-	conversation, nextMessageOrdinal, err := service.conversation(ctx, request.SessionID)
-	if err != nil {
-		return nil, nil, err
+	conversation := []agentexec.Message{}
+	nextMessageOrdinal := 0
+	if command.scheduled == nil {
+		conversation, nextMessageOrdinal, err = service.conversation(ctx, request.SessionID)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	userMessage, err := agentexec.UserMessage(request.Input)
 	if err != nil { return nil, nil, err }
@@ -355,7 +463,18 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 	messageBody, err := json.Marshal(userMessage)
 	if err != nil { return nil, nil, err }
 	openingMessage := conversationdomain.Record{SessionID: request.SessionID, RunID: runID, Ordinal: nextMessageOrdinal, Body: messageBody}
-	if err := service.store.CreateRun(ctx, record, opening, &openingMessage, persisted); err != nil {
+	created := true
+	if command.scheduled != nil {
+		created, err = service.store.CreateScheduledRun(ctx, ScheduledRunWrite{
+			Session: storedSession, Run: record, Opening: *opening, OpeningMessage: openingMessage,
+			Events: persisted, ScheduleID: command.scheduled.scheduleID,
+			OccurrenceID: command.scheduled.occurrenceID, FiredAt: command.scheduled.firedAt,
+			AcceptedAt: now, AllowMissingSchedule: command.scheduled.allowMissingSchedule,
+		})
+	} else {
+		err = service.store.CreateRun(ctx, record, opening, &openingMessage, persisted)
+	}
+	if err != nil {
 		if existing, lookupErr := service.store.GetOpenRootRun(ctx, request.SessionID); lookupErr == nil {
 			active, presentErr := presentRecord(existing)
 			if presentErr == nil {
@@ -363,6 +482,13 @@ func (service *Service) startRoot(ctx context.Context, command rootStart) (*open
 			}
 		}
 		return nil, nil, err
+	}
+	if !created {
+		existing, err := service.store.GetRun(ctx, runID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return &openedRoot{runID: runID, segmentID: existing.Run.ActiveSegmentID()}, nil, nil
 	}
 	service.publishLifecycleChange(ctx, record.Run)
 	if command.claim != nil {

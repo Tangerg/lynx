@@ -60,6 +60,12 @@ type PlanGateway interface {
 	Mode(context.Context, string) (bool, error)
 }
 
+type ScheduleGateway interface {
+	List(context.Context, protocol.PageQuery) (*protocol.Page[protocol.Schedule], error)
+	Create(context.Context, protocol.CreateScheduleRequest) (*protocol.Schedule, error)
+	Delete(context.Context, protocol.DeleteScheduleRequest) error
+}
+
 type LifecycleHooks interface {
 	Evaluate(context.Context, lifecyclehook.Invocation) (lifecyclehook.Decision, error)
 	EvaluateBestEffort(context.Context, lifecyclehook.Invocation) lifecyclehook.Decision
@@ -71,6 +77,7 @@ type Catalog struct {
 	results      ToolResultReader
 	goals        GoalGateway
 	plans        PlanGateway
+	schedules    ScheduleGateway
 	skillGateway SkillGateway
 	memory       MemoryGateway
 	hooks        LifecycleHooks
@@ -82,19 +89,21 @@ type Config struct {
 	Results ToolResultReader
 	Goals   GoalGateway
 	Plans   PlanGateway
+	Schedules ScheduleGateway
 	Skills  SkillGateway
 	Memory  MemoryGateway
 	Hooks   LifecycleHooks
 }
 
 func New(config Config) (*Catalog, error) {
-	if config.Policy == nil || config.Goals == nil || config.Plans == nil ||
+	if config.Policy == nil || config.Goals == nil || config.Plans == nil || config.Schedules == nil ||
 		config.Skills == nil || config.Memory == nil || config.Hooks == nil {
 		return nil, errors.New("agenttools: policy, domain gateways, and lifecycle hooks are required")
 	}
 	return &Catalog{
 		policy: config.Policy, mcp: config.MCP, results: config.Results,
-		goals: config.Goals, plans: config.Plans, skillGateway: config.Skills,
+		goals: config.Goals, plans: config.Plans, schedules: config.Schedules,
+		skillGateway: config.Skills,
 		memory: config.Memory, hooks: config.Hooks,
 	}, nil
 }
@@ -146,6 +155,9 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		planTools, err := catalog.planTools(scope)
 		if err != nil { return nil, err }
 		values = append(values, planTools...)
+		scheduleTools, err := catalog.scheduleTools()
+		if err != nil { return nil, err }
+		values = append(values, scheduleTools...)
 	}
 	if catalog.mcp != nil {
 		remote, err := catalog.remoteTools(ctx)

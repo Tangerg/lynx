@@ -8,6 +8,7 @@ import {
   type CodebaseStatus,
   type ContentBlock,
   type CreateSessionRequest,
+	type CreateScheduleRequest,
   type Diff,
   type EmptyObject,
   type FileContent,
@@ -44,6 +45,8 @@ import {
   type RuntimeConnection,
   type OpenRuntimeStream,
   type RunEvent,
+	type RunScheduleNowResponse,
+	type Schedule,
   type Session,
   type SessionSnapshot,
   type Skill,
@@ -55,6 +58,7 @@ import {
 	type UpdateProviderRequest,
   type UpdateMCPServerRequest,
   type UpdateSessionRequest,
+	type UpdateScheduleRequest,
   type WorkspaceRef,
   type WorkspaceFileChange,
 } from "@lyra/runtime-contract";
@@ -112,6 +116,9 @@ export const runtimeQueryKeys = {
 	},
 	approvalRules(connection: RuntimeConnection, sessionId: string) {
 		return [...this.approvals(connection), "rules", sessionId] as const;
+	},
+	schedules(connection: RuntimeConnection) {
+		return [...this.scope(connection), "schedules"] as const;
 	},
   workspace(connection: RuntimeConnection, path: string) {
     return [...this.scope(connection), "workspace", path] as const;
@@ -257,6 +264,46 @@ export async function listSessions(
     { limit: 100, ...(cursor === undefined ? {} : { cursor }) },
     { meta: clientMeta, signal },
   );
+}
+
+export function listSchedules(
+	connection: RuntimeConnection,
+	cursor?: string,
+	signal?: AbortSignal,
+): Promise<Page<Schedule>> {
+	return client(connection).call(
+		"schedules.list",
+		{ limit: 100, ...(cursor === undefined ? {} : { cursor }) },
+		{ meta: clientMeta, signal },
+	);
+}
+
+export function createSchedule(
+	connection: RuntimeConnection,
+	request: CreateScheduleRequest,
+): Promise<Schedule> {
+	return client(connection).call("schedules.create", request, { meta: clientMeta });
+}
+
+export function updateSchedule(
+	connection: RuntimeConnection,
+	request: UpdateScheduleRequest,
+): Promise<Schedule> {
+	return client(connection).call("schedules.update", request, { meta: clientMeta });
+}
+
+export function deleteSchedule(
+	connection: RuntimeConnection,
+	id: string,
+): Promise<EmptyObject> {
+	return client(connection).call("schedules.delete", { id }, { meta: clientMeta });
+}
+
+export function runScheduleNow(
+	connection: RuntimeConnection,
+	id: string,
+): Promise<RunScheduleNowResponse> {
+	return client(connection).call("schedules.runNow", { id }, { meta: clientMeta });
 }
 
 export function loadSessionSnapshot(
@@ -973,6 +1020,7 @@ export async function consumeRuntimeInvalidations(
         "models.changed",
         "mcp.changed",
 		"approvals.changed",
+		"schedules.changed",
         "files.changed",
         "skills.changed",
         "knowledge.changed",

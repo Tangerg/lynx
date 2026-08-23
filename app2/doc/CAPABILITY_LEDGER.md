@@ -21,12 +21,12 @@
 
 | 集合 | 旧基线 | app2 R0 | 完成门 |
 | --- | ---: | ---: | --- |
-| Runtime operations | 89 | 1 verified，67 implemented，2 in_progress，19 specified | 89 verified |
+| Runtime operations | 89 | 1 verified，72 implemented，2 in_progress，14 specified | 89 verified |
 | Operational probes | 3 | 3 implemented；local evidence 通过，remote R10 pending | 本地/远程机制均 verified |
-| Runtime resource topics | 16 | 14 implemented，2 specified | 16 producer/consumer/resync verified |
+| Runtime resource topics | 16 | 15 implemented，1 specified | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
 | Desktop product surfaces | 24 groups | 1 verified，15 implemented，2 in_progress，6 specified | 全部 verified |
-| 内置 tool presentation | 30 + MCP/unknown | 12 + MCP/unknown implemented，4 in_progress，14 specified | 全部真实 material verified |
+| 内置 tool presentation | 30 + MCP/unknown | 15 + MCP/unknown implemented，4 in_progress，11 specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
 
@@ -49,7 +49,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O11 | `mcp.servers.list`, `mcp.servers.create`, `mcp.servers.update`, `mcp.servers.delete`, `mcp.servers.test`, `mcp.tools.list`, `mcp.servers.reconnect`, `mcp.authorizationAttempts.create`, `mcp.authorizationAttempts.get` | 9 | integration/mcp | R8 | implemented | 既有 9-method Lyra wire 不变；private revisioned aggregate、secret set/clear/keep、真实 timeout、generation-safe connect/tool refresh/OAuth CAS、terminal retention、Desktop candidate test/auth/tool trust 已接通；待最终门禁 |
 | O12 | `hooks.list`, `hooks.setTrust` | 2 | capability/hooks | R7 | in_progress | 独立 lifecyclehook domain、confined discovery/trust/observation，以及 prompt、Tool、subagent、waiting/terminal execution 已实现；`PreCompact` 等真实 compaction producer，待最终统一门禁 |
 | O13 | `approval.getMode`, `approval.setMode`, `approval.listRules`, `approval.forgetRule` | 4 | interaction policy | R4/R8 | implemented | 既有四方法 Lyra wire 不变；动态 effect stance、Session/Project/Global specificity、exact remembered subject、deny fail-closed、catastrophic override、remember/forget 与 Desktop rule consumer 已接通；待最终门禁 |
-| O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | operations/schedule | R8 | specified | cron validation、revision、workspace/model、next run、runNow 返回可导航 Run/Session |
+| O14 | `schedules.list`, `schedules.create`, `schedules.update`, `schedules.delete`, `schedules.runNow` | 5 | schedule + scheduleflow | R8 | implemented | 私有聚合与 normalized store、5-field cron、revision/no-op、显式/default workspace、paired model、durable occurrence、atomic Session/Run admission、pending recovery、runNow 可导航；待最终门禁 |
 | O15 | `goals.start`, `goals.update`, `goals.clear`, `goals.get`, `goals.stop`, `goals.resume` | 6 | goal + goalflow | R5 | implemented | one incarnation、quiesce/CAS、paused/active/blocked/completing、Session cascade、autonomous control 不进 Transcript；待最终统一门禁 |
 | O16 | `codebase.search`, `codebase.status`, `codebase.reindex` | 3 | workspace index | R6 | implemented | exact Session workspace、none/indexing/ready/error、durable operation CAS、replacement cancellation/crash recovery、Git-aware bounded source corpus、embedding role identity、atomic document replacement、bounded ranked hits 与 Desktop exact-line consumer；待最终统一门禁 |
 | O17 | `providers.list`, `providers.update`, `providers.test` | 3 | integration/provider | R8 | implemented | masked key/source、explicit secret change、base URL validation、revision CAS patch convergence、bounded redacted test verdict、changed-only invalidation 与 draft/save/test Desktop card 已接通；待最终门禁 |
@@ -77,7 +77,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `files.changed` | filesystem/watch | Context Dock files/diff | R6 | implemented | selected Session 注册 exact workspace watch；path event 或 resync 失效 workspace query scope，Session/generation switch abort 旧订阅；待最终资源门禁 |
 | `skills.changed` | skill store/watch | Skills view/query | R7 | implemented | archive/restore/approve/reject/propose committed mutation 与 project/user external edit 均失效同一 Skills query scope；每订阅 watcher 可取消并由 Bus close join，待最终统一门禁 |
 | `mcp.changed` | MCP lifecycle | MCP settings/tool catalog | R8 | implemented | durable mutation与 connecting/connected/failed/disconnected/needsAuth/auth/reconnect 均由 MCP owner 发布；Desktop 失效 Runtime-generation MCP query family；待最终门禁 |
-| `schedules.changed` | schedule transaction | Schedules settings | R8 | specified | CRUD/runNow 后 exact IDs invalidated |
+| `schedules.changed` | schedule owner/dispatcher transaction | Schedules settings | R8 | implemented | changed-only CRUD、occurrence claim/accept 与 runNow 发布 exact ID；Desktop Runtime-generation query 失效并冷读 authoritative revision；待最终门禁 |
 | `sessions.changed` | session transaction | Work Index | R2 | implemented | create/update/delete/fork/rollback/import committed mutation 发布，Desktop cursor catalog 与 exact snapshot 收敛；待统一门禁 |
 | `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | implemented | committed admission/status/recovery 发布 exact Run/Session identity；Desktop catalog/snapshot 失效并冷读收敛；待最终门禁 |
 | `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效，Desktop SSE consumer 回读 coherent snapshot；待最终统一门禁 |
@@ -129,7 +129,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
-| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | in_progress | explicit Settings section 已完成 Provider/Model、MCP 与 Approval mode/visible rules/confirmed forget；策略无 fake default，按 selected Session 冷读并消费 `approvals.changed`；schedules/usage sections 继续 R8 |
+| U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8 | in_progress | explicit Settings section 已完成 Provider/Model、MCP、Approval 与 Schedules；Schedule create/edit/pause/runNow/confirmed delete、revision conflict 回读、default/explicit workspace/model 与可导航 Session 已接通；usage section 继续 R9 |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | specified | built-in static themes、8 locale parity 或显式新范围、reload、no raw key、RTL |
 | U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | specified | keyboard scopes、collision、a11y、error isolation、no plugin host |
 | U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |
@@ -146,7 +146,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | Skill（4） | `list_skills`, `load_skill`, `read_skill_resource`, `propose_skill` | R7 | implemented | progressive tools 与 Desktop discovery 共用 archive-aware Lyra source；resource confined；root-only proposal 只进 review queue，正文与管理 UI owner 分离；待最终统一门禁 |
 | Plan（3） | `enter_plan_mode`, `set_plan`, `exit_plan_mode` | R5 | implemented | root-only、durable Session read-only policy、dynamic effect gate、committed Plan fact、revision-bound approve/reject question；待 Desktop 与最终统一门禁 |
 | Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |
-| Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |
+| Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | implemented | root-only deferred action schema、cursor list、paired model/default workspace、write safety、same Schedule owner/event invalidation；待最终门禁 |
 | 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | in_progress | `search_memory` 已使用 reviewed corpus 与有界 lexical/semantic degradation；`search_tools` 已对 Run-frozen deferred manifest 做 query→exact select 渐进暴露并跨 checkpoint 恢复；`read_tool_result` 已有界读取 durable overflow；`search_conversations` 随 R9 |
 | 委派与提问（2） | `delegate_task`, `ask_user` | R4 | implemented | child Run 以父 Delegate Item 为唯一 disclosure anchor；Question 为唯一交互真身；model/protocol field mapping 保持 Lyra 自有语义；待最终统一门禁 |
 | MCP/unknown | dynamically discovered names | R8 | implemented | private execution始终保留 `(server, remote)`；domain 唯一生成 bounded model-visible name，完整 MCP result envelope 使用 safe JSON material；待最终门禁 |

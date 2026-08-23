@@ -150,9 +150,58 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			ON run_events(root_run_id, root_segment_id, sequence)`,
 		`CREATE TABLE IF NOT EXISTS schedules (
 			id TEXT PRIMARY KEY,
-			body TEXT NOT NULL CHECK (json_valid(body)),
-			updated_at TEXT NOT NULL
+			title TEXT NOT NULL,
+			instructions TEXT NOT NULL,
+			workspace_path TEXT NOT NULL DEFAULT '',
+			provider TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			cron TEXT NOT NULL,
+			enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+			last_run_at TEXT NOT NULL DEFAULT '',
+			next_run_at TEXT NOT NULL DEFAULT '',
+			revision INTEGER NOT NULL CHECK (revision > 0),
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			CHECK ((provider = '') = (model = '')),
+			CHECK ((enabled = 1 AND next_run_at != '') OR (enabled = 0 AND next_run_at = '')),
+			CHECK (updated_at >= created_at)
 		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS schedules_catalog
+			ON schedules(created_at DESC, id DESC)`,
+		`CREATE INDEX IF NOT EXISTS schedules_due
+			ON schedules(next_run_at, id) WHERE enabled = 1`,
+		`CREATE TABLE IF NOT EXISTS schedule_occurrences (
+			id TEXT PRIMARY KEY,
+			schedule_id TEXT NOT NULL,
+			title TEXT NOT NULL,
+			instructions TEXT NOT NULL,
+			workspace_path TEXT NOT NULL,
+			provider TEXT NOT NULL,
+			model TEXT NOT NULL,
+			cron TEXT NOT NULL,
+			schedule_enabled INTEGER NOT NULL CHECK (schedule_enabled IN (0, 1)),
+			schedule_last_run_at TEXT NOT NULL,
+			schedule_next_run_at TEXT NOT NULL,
+			schedule_revision INTEGER NOT NULL CHECK (schedule_revision > 0),
+			schedule_created_at TEXT NOT NULL,
+			schedule_updated_at TEXT NOT NULL,
+			due_at TEXT NOT NULL,
+			fired_at TEXT NOT NULL,
+			next_run_at TEXT NOT NULL,
+			session_id TEXT NOT NULL UNIQUE,
+			run_id TEXT NOT NULL UNIQUE,
+			status TEXT NOT NULL CHECK (status IN ('pending', 'accepted')),
+			accepted_at TEXT NOT NULL DEFAULT '',
+			CHECK ((provider = '') = (model = '')),
+			CHECK (
+				(status = 'pending' AND accepted_at = '')
+				OR (status = 'accepted' AND accepted_at != '')
+			)
+		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS schedule_occurrences_pending
+			ON schedule_occurrences(status, due_at, id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS one_pending_occurrence_per_schedule
+			ON schedule_occurrences(schedule_id) WHERE status = 'pending'`,
 		`CREATE TABLE IF NOT EXISTS providers (
 			id TEXT PRIMARY KEY,
 			body TEXT NOT NULL CHECK (json_valid(body)),

@@ -389,3 +389,29 @@ allow 绕过；它不是 shell sandbox。remember/forget/mode 只在 durable fac
 开发期直接重建旧 app2 data home。Desktop 新增明确 Approval Settings section，模式与 selected Session visible rules 均从
 Runtime authority 冷读并消费现有 invalidation topic。Runtime Protocol 保持 `2026-08-23`，不生成新合同；该纵切在
 R11 最终统一门禁前标记为 `implemented`。
+
+## ADR-A2-031：Schedule 先持久化 occurrence，再原子 admission Run
+
+**缺陷与反例**：既有 app2 在 `settingsflow` 中持久化 protocol Schedule DTO，worker 在真实 Run launch 前就更新
+`lastRunAt/nextRunAt`，并吞掉 launch failure。Runtime 若在 cursor 前进后、Session/Run 建立前退出，该 occurrence 永久丢失；
+runNow 先建 Session 再启动 Run，失败会留下 orphan Session。普通标题编辑还会重排 cron。Schedule、Approval 与 worker 共用
+一个 owner，Agent Schedule tool 接入时又会形成 Tool catalog → Run engine → worker 的依赖环。这些是持久化边界和 ownership
+缺陷，不是 Lyra Schedule wire 不足。
+
+**决定**：保留既有 Lyra `schedules.list/create/update/delete/runNow`、Schedule DTO、五字段 cron 与
+`schedules.changed`。新建私有 Schedule aggregate 与 ScheduleOccurrence。到期 claim 在一个 SQLite transaction 内以 revision
+CAS 推进 next run，并写入带 immutable Schedule snapshot、due/fired/next time、固定 Session/Run identity 的 pending occurrence；
+同 Schedule 至多一个 pending。worker 每轮先恢复 pending，再 claim 新 due work。
+
+Run admission 使用第二个原子 transaction 同时创建 Session、Run、opening Item/Conversation/events，接受 exact occurrence，并在
+Schedule 仍存在时记录 last admitted time。多 Runtime 对同 occurrence 竞争时只有 transaction owner 可以 launch；loser 回读 exact
+Run，不重复执行。claim 后删除 Schedule 不删除 pending snapshot；runNow 复用 admission transaction但没有 occurrence、也不推进 cron。
+accepted 后的不可重放 effect 继续遵循 Run recovery 的 visible lost 语义，不能为“重试”伪造新 identity。
+
+管理 Service 与 active Dispatcher 分离：前者只依赖 repository/events 并可安全提供给 root Agent Schedule tools；后者在 Run engine
+建立后组合 launcher、timer、recovery 与 cancel/join。由此避免 late-bound locator 和依赖环。Desktop 继续使用 generated Lyra client，
+通过明确 Schedules Settings section 消费 authoritative revision/next/last 与既有 invalidation topic。
+
+**后果**：SQLite 使用 normalized Schedule 与 durable occurrence，exact epoch 提升到 13；protocol 仍为 `2026-08-23`，不生成新
+合同。Schedule edit/delete/runNow 均允许 breaking implementation change，但不破坏成熟 Lyra wire。该纵切在 R11 最终统一门禁前
+标记为 `implemented`。

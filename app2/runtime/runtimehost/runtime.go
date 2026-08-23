@@ -41,8 +41,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/runflow"
 	"github.com/Tangerg/lynx/app2/runtime/runtimeevents"
+	"github.com/Tangerg/lynx/app2/runtime/scheduleflow"
 	"github.com/Tangerg/lynx/app2/runtime/sessionflow"
-	"github.com/Tangerg/lynx/app2/runtime/settingsflow"
 	"github.com/Tangerg/lynx/app2/runtime/sqlite"
 	"github.com/Tangerg/lynx/app2/runtime/streamhub"
 	"github.com/Tangerg/lynx/app2/runtime/toolflow"
@@ -176,6 +176,12 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	guard.AddClose(events.Close)
+	schedules, err := scheduleflow.New(scheduleflow.Config{
+		Store: database, IDs: identity.Generator{}, Workspaces: workspaceResolver, Events: events,
+	})
+	if err != nil {
+		return nil, err
+	}
 	memory, err := memoryflow.New(memoryflow.Config{
 		Store: database, Resolver: workspaceResolver, IDs: identity.Generator{},
 		Events: events, Embeddings: runtimeMemoryEmbedding{providers: providers},
@@ -207,7 +213,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	}
 	agentToolCatalog, err := agenttools.New(agenttools.Config{
 		Policy: approvals, MCP: mcp, Results: database,
-		Goals: goals, Plans: plans,
+		Goals: goals, Plans: plans, Schedules: schedules,
 		Skills: runtimeSkillGateway{capabilities: capabilities, events: events},
 		Memory: runtimeMemory{service: memory}, Hooks: hooks,
 	})
@@ -247,11 +253,18 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil {
 		return nil, err
 	}
-	settings, err := settingsflow.New(database, identity.Generator{}, settingsflow.NewLauncher(sessions, runs))
+	scheduleLauncher, err := scheduleflow.NewLauncher(workspaceResolver, runs)
 	if err != nil {
 		return nil, err
 	}
-	guard.AddClose(settings.Close)
+	scheduleDispatcher, err := scheduleflow.NewDispatcher(scheduleflow.DispatcherConfig{
+		Store: database, IDs: identity.Generator{}, Events: events, Runner: scheduleLauncher,
+		Lifetime: lifetime, Logger: config.Logger,
+	})
+	if err != nil {
+		return nil, err
+	}
+	guard.AddClose(scheduleDispatcher.Close)
 	interrupts, err := interruptflow.New(database)
 	if err != nil {
 		return nil, err
@@ -273,13 +286,11 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil { return nil, err }
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
-		Runs: runs, Workspace: workspace, Settings: settings, Approvals: approvals, Interrupts: interrupts, Plans: plans, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
+		Runs: runs, Workspace: workspace, Schedules: schedules, ScheduleDispatcher: scheduleDispatcher,
+		Approvals: approvals, Interrupts: interrupts, Plans: plans, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
 		Capability: capabilities, Hooks: hooks, Memory: memory, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
 	})
 	if err != nil {
-		return nil, err
-	}
-	if err := settings.Start(lifetime); err != nil {
 		return nil, err
 	}
 	goalDriver.Start()

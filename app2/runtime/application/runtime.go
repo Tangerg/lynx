@@ -25,8 +25,8 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 	"github.com/Tangerg/lynx/app2/runtime/runflow"
 	"github.com/Tangerg/lynx/app2/runtime/runtimeevents"
+	"github.com/Tangerg/lynx/app2/runtime/scheduleflow"
 	"github.com/Tangerg/lynx/app2/runtime/sessionflow"
-	"github.com/Tangerg/lynx/app2/runtime/settingsflow"
 	"github.com/Tangerg/lynx/app2/runtime/toolflow"
 	"github.com/Tangerg/lynx/app2/runtime/workspaceflow"
 )
@@ -37,7 +37,8 @@ type Runtime struct {
 	providers *providerflow.Service
 	runs      *runflow.Service
 	workspace *workspaceflow.Service
-	settings  *settingsflow.Service
+	schedules *scheduleflow.Service
+	scheduleDispatcher *scheduleflow.Dispatcher
 	approvals *approvalflow.Service
 	interrupts *interruptflow.Service
 	plans     *planflow.Service
@@ -60,7 +61,8 @@ type Config struct {
 	Providers *providerflow.Service
 	Runs      *runflow.Service
 	Workspace *workspaceflow.Service
-	Settings *settingsflow.Service
+	Schedules *scheduleflow.Service
+	ScheduleDispatcher *scheduleflow.Dispatcher
 	Approvals *approvalflow.Service
 	Events *runtimeevents.Bus
 	Interrupts *interruptflow.Service
@@ -77,13 +79,14 @@ type Config struct {
 }
 
 func New(config Config) (*Runtime, error) {
-	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Approvals == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Hooks == nil || config.Memory == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
+	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Schedules == nil || config.ScheduleDispatcher == nil || config.Approvals == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Hooks == nil || config.Memory == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
 		return nil, errors.New("application: all required capability services must be supplied")
 	}
 	return &Runtime{
 		discovery: config.Discovery, sessions: config.Sessions,
 		providers: config.Providers, runs: config.Runs, workspace: config.Workspace,
-		settings: config.Settings, approvals: config.Approvals, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability, hooks: config.Hooks, memory: config.Memory,
+		schedules: config.Schedules, scheduleDispatcher: config.ScheduleDispatcher,
+		approvals: config.Approvals, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability, hooks: config.Hooks, memory: config.Memory,
 		codebase: config.Codebase, tools: config.Tools, operations: config.Operations, events: config.Events,
 	}, nil
 }
@@ -338,39 +341,23 @@ func (runtime *Runtime) ForgetApprovalRule(ctx context.Context, request protocol
 }
 
 func (runtime *Runtime) ListSchedules(ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {
-	return runtime.settings.ListSchedules(ctx, request)
+	return runtime.schedules.List(ctx, request)
 }
 
 func (runtime *Runtime) CreateSchedule(ctx context.Context, request protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
-	value, err := runtime.settings.CreateSchedule(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSchedulesChanged, ScheduleIDs: []string{value.ID}})
-	}
-	return value, err
+	return runtime.schedules.Create(ctx, request)
 }
 
 func (runtime *Runtime) UpdateSchedule(ctx context.Context, request protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
-	value, err := runtime.settings.UpdateSchedule(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSchedulesChanged, ScheduleIDs: []string{value.ID}})
-	}
-	return value, err
+	return runtime.schedules.Update(ctx, request)
 }
 
 func (runtime *Runtime) DeleteSchedule(ctx context.Context, request protocol.DeleteScheduleRequest) error {
-	err := runtime.settings.DeleteSchedule(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSchedulesChanged, ScheduleIDs: []string{request.ID}})
-	}
-	return err
+	return runtime.schedules.Delete(ctx, request)
 }
 
 func (runtime *Runtime) RunScheduleNow(ctx context.Context, request protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {
-	value, err := runtime.settings.RunNow(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeSchedulesChanged, ScheduleIDs: []string{request.ID}})
-	}
-	return value, err
+	return runtime.scheduleDispatcher.RunNow(ctx, request)
 }
 
 func (runtime *Runtime) StartGoal(ctx context.Context, request protocol.StartGoalRequest) (*protocol.Goal, error) {
@@ -473,7 +460,7 @@ func (runtime *Runtime) CreateFeedback(ctx context.Context, request protocol.Fee
 func (runtime *Runtime) Close() {
 	if runtime == nil { return }
 	runtime.closeOnce.Do(func() {
-		runtime.settings.Close()
+		runtime.scheduleDispatcher.Close()
 		runtime.goalDriver.Close()
 		runtime.runs.Close()
 		runtime.hooks.Close()

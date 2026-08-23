@@ -30,7 +30,7 @@
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（全部 production 纵切已实现；Hooks 只待真实 PreCompact producer，整体待最终统一门禁） |
-| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | in progress（Provider/Model/MCP/Approval production 纵切已实现，继续 Schedule/Settings topics） |
+| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | in progress（Provider/Model/MCP/Approval/Schedule production 纵切已实现，仅剩全 topic/resync 收口） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
@@ -680,6 +680,29 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - Desktop Approval section 冷读 authoritative mode，不用本地假默认；按 selected Session 展示 visible rules、scope、
   tool/subject/project 与 confirmed forget，并通过 `approvals.changed` 失效同 Runtime generation query family。
   最终 domain/property/SQLite/HITL/recovery/UI/package 门禁仍留到 R11 统一执行。
+
+### Schedule Runtime/Desktop 实现记录（尚未统一验证）
+
+- 保留 Lyra 既有 `schedules.list/create/update/delete/runNow` 五方法、Schedule DTO 与
+  `schedules.changed`；没有引入参考产品 Thread/Turn、task wire、stdio handshake 或别名 method，protocol 仍为
+  `2026-08-23`，generated contract 无 shape 变化；
+- Schedule 改为私有 aggregate：cron、enabled/next-run、last admitted time、paired provider/model、显式或 default
+  workspace、revision/timestamps 由同一 invariant boundary 管理。SQLite 使用 normalized columns 与 CAS，不再保存
+  protocol DTO JSON；exact schema epoch 提升到 13；
+- `scheduleflow.Service` 只拥有管理 use case，`scheduleflow.Dispatcher` 只拥有 runNow、timer、pending recovery 与
+  cancel/join。此拆分解除 Agent tool → Schedule management → Run engine 的依赖环，不使用 late-bound service locator；
+- cron worker 先在一个 transaction 中 CAS 推进 cursor 并保存 immutable pending occurrence。Occurrence 固定
+  Session/Run identity 与 Schedule snapshot；Runtime 重启先重放 pending，Schedule 后续编辑或删除不改变已经到期的
+  intent；同 Schedule 同时至多一个 pending occurrence；
+- Session、opening Run/Item/Conversation/events、occurrence acceptance 与 Schedule lastRun 在一个 transaction
+  admission。多 Runtime 竞争只允许一个 caller 获得 launch ownership；runNow 复用同一 admission，但不推进 cron
+  cursor。已 admission 后的进程丢失继续由 Run recovery 收敛为 visible lost，不盲目重放可能已发生的 effect；
+- root Run 获得 deferred `list_schedules/create_schedule/delete_schedule` 单动作工具，并继续经过 Plan、Hook 与
+  Approval 链；工具管理依赖不触碰 Dispatcher。Desktop Schedules section 支持 create、revisioned edit、pause/enable、
+  runNow 后导航、confirmed delete，明确显示 Runtime default workspace/model 与 authoritative next/last/revision；
+- CRUD、occurrence claim/accept 与 runNow 由 owner 发布 exact `schedules.changed`。Desktop subscription 与 resync
+  router 失效同 Runtime generation 的 Schedule query。最终 domain/transaction/race/restart/UI/package 门禁仍留到
+  R11 统一执行。
 
 ## 13. R9：高级 Session 与运营能力
 

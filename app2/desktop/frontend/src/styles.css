@@ -5034,6 +5034,197 @@ input::placeholder {
   line-height: 1.5;
 }
 
+.schedule-count {
+  min-height: 24px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+  font-size: 7px;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.schedule-list {
+  display: grid;
+  gap: 12px;
+}
+
+.schedule-load-more {
+  min-height: 38px;
+  justify-self: center;
+  padding: 0 14px;
+  font-size: 8px;
+}
+
+.schedule-editor {
+  padding: 17px;
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.schedule-editor-new {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.schedule-card-heading,
+.schedule-actions,
+.schedule-delete-confirm,
+.schedule-card-heading > div,
+.schedule-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-card-heading,
+.schedule-actions {
+  justify-content: space-between;
+}
+
+.schedule-card-heading {
+  margin-bottom: 15px;
+}
+
+.schedule-card-heading code {
+  color: var(--ink-muted);
+  font-size: 8px;
+}
+
+.schedule-status {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+  font-size: 7px;
+  font-weight: 740;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.schedule-editor[data-enabled="true"] .schedule-status {
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 10%, var(--paper-raised));
+}
+
+.schedule-card-heading button,
+.schedule-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 8px;
+}
+
+.schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.schedule-fields label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--ink-subtle);
+  font-size: 8px;
+  font-weight: 680;
+}
+
+.schedule-fields label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.schedule-fields small {
+  color: var(--ink-muted);
+  font-size: 7px;
+  font-weight: 560;
+}
+
+.schedule-fields input,
+.schedule-fields textarea {
+  width: 100%;
+  border: 1px solid var(--divider-strong);
+  border-radius: 9px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: var(--paper);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 450;
+  line-height: 1.5;
+}
+
+.schedule-fields input {
+  height: 38px;
+}
+
+.schedule-fields textarea {
+  min-height: 94px;
+  resize: vertical;
+  padding-block: 9px;
+}
+
+.schedule-field-instructions {
+  grid-column: 1 / -1;
+}
+
+.schedule-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+  margin-top: 13px;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--divider);
+  color: var(--ink-muted);
+  font-size: 8px;
+}
+
+.schedule-facts span {
+  display: flex;
+  gap: 5px;
+}
+
+.schedule-facts b {
+  color: var(--ink-subtle);
+  font-weight: 680;
+}
+
+.schedule-actions {
+  min-height: 36px;
+  margin-top: 14px;
+}
+
+.schedule-actions > span,
+.schedule-delete-confirm > span {
+  color: var(--ink-muted);
+  font-size: 8px;
+}
+
+.schedule-delete-confirm {
+  flex-wrap: wrap;
+}
+
+.schedule-delete-confirm button {
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+}
+
+.schedule-delete-confirm button.danger {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--paper-raised));
+}
+
+@media (max-width: 860px) {
+  .schedule-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .mcp-server-list {
   display: grid;
   gap: 12px;

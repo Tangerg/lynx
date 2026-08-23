@@ -5,14 +5,16 @@ import type { RuntimeConnection } from "@lyra/runtime-contract";
 import { MCPSettings } from "./MCPSettings";
 import { ApprovalSettings } from "./ApprovalSettings";
 import { ProviderModelSettings } from "./ProviderModelSettings";
+import { ScheduleSettings } from "./ScheduleSettings";
 
 interface SettingsSurfaceProps {
 	connection: RuntimeConnection;
 	sessionId?: string;
 	onClose: () => void;
+	onOpenSession: (sessionId: string) => void;
 }
 
-type SettingsPage = "providers" | "mcp" | "approvals";
+type SettingsPage = "providers" | "mcp" | "approvals" | "schedules";
 
 const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	providers: {
@@ -26,6 +28,10 @@ const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	approvals: {
 		title: "Approval policy",
 		description: "Choose the live effect stance and manage remembered decisions visible to this session.",
+	},
+	schedules: {
+		title: "Schedules",
+		description: "Create recurring Runs with durable cadence, explicit workspace intent, and recoverable firing.",
 	},
 };
 
@@ -91,6 +97,14 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<span aria-hidden="true">✓</span>
 						Approval policy
 					</button>
+					<button
+						type="button"
+						aria-current={page === "schedules" ? "page" : undefined}
+						onClick={() => setPage("schedules")}
+					>
+						<span aria-hidden="true">◷</span>
+						Schedules
+					</button>
 				</nav>
 				<p>Secrets are write-only. Runtime state remains the authority after every mutation.</p>
 			</aside>
@@ -116,8 +130,10 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<ProviderModelSettings connection={props.connection} />
 					) : page === "mcp" ? (
 						<MCPSettings connection={props.connection} />
-					) : (
+					) : page === "approvals" ? (
 						<ApprovalSettings connection={props.connection} sessionId={props.sessionId} />
+					) : (
+						<ScheduleSettings connection={props.connection} onOpenSession={props.onOpenSession} />
 					)}
 				</div>
 			</div>
