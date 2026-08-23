@@ -211,6 +211,16 @@
   overscroll-behavior: contain;
 }
 
+.session-list-heading {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 1px 8px 2px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 480;
+}
+
 .session-group > header {
   min-height: 25px;
   padding: 3px 8px;
@@ -219,6 +229,20 @@
   font-weight: 540;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.session-group > header > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-group > header .ui-icon {
+  color: var(--ink-muted);
 }
 
 .session-group > header small {

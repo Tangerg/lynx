@@ -374,6 +374,7 @@ export const spanishMessages = {
     "Mostrando sesiones guardadas. Error de actualización: {detail}",
   "session.noMatch": 'Ninguna sesión coincide con "{query}".',
   "session.groupedLabel": "Sesiones por espacio de trabajo",
+  "session.projects": "Proyectos",
   "session.loadingOlder": "Cargando…",
   "session.loadOlder": "Cargar sesiones anteriores",
   "session.titleRequired": "El título de la sesión no puede estar vacío.",
@@ -783,6 +784,7 @@ export const spanishMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "Ajustes",
   "settings.sections": "Secciones de configuración",
+  "settings.search": "Buscar en ajustes…",
   "settings.authorityNote":
     "La apariencia se mantiene local. El estado Runtime sigue siendo la autoridad después de cada mutación.",
   "settings.desktopSettings": "Configuración de escritorio",

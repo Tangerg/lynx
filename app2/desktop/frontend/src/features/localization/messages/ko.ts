@@ -362,6 +362,7 @@ export const koreanMessages = {
     "저장된 세션을 표시하는 중입니다. 새로 고침 실패: {detail}",
   "session.noMatch": '"{query}"과 일치하는 세션이 없습니다.',
   "session.groupedLabel": "작업공간별 세션",
+  "session.projects": "프로젝트",
   "session.loadingOlder": "로드 중…",
   "session.loadOlder": "이전 세션 로드",
   "session.titleRequired": "세션 제목은 비워둘 수 없습니다.",
@@ -761,6 +762,7 @@ export const koreanMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "설정",
   "settings.sections": "설정 섹션",
+  "settings.search": "설정 검색…",
   "settings.authorityNote":
     "외관은 지역적으로 유지됩니다. Runtime 상태는 모든 변경 후에도 권한을 유지합니다.",
   "settings.desktopSettings": "데스크톱 설정",

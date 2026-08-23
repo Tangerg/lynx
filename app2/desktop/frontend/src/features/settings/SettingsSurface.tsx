@@ -9,6 +9,7 @@ import {
   Plug,
   Server,
   ShieldCheck,
+  Search,
   Sparkles,
   Workflow,
 } from "lucide-react";
@@ -108,8 +109,8 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
   const [page, setPage] = useState<SettingsPage>(
     props.initialPage ?? "appearance",
   );
+  const [search, setSearch] = useState("");
   const surface = useRef<HTMLElement>(null);
-  const closeButton = useRef<HTMLButtonElement>(null);
   const close = useRef(props.onClose);
   close.current = props.onClose;
 
@@ -118,7 +119,7 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
   }, [props.initialPage]);
 
   useEffect(() => {
-    closeButton.current?.focus();
+    surface.current?.focus({ preventScroll: true });
     const handleDialogKey = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Escape") {
@@ -157,6 +158,13 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
   const activePage =
     settingsPages.find((candidate) => candidate.id === page) ??
     settingsPages[0];
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const visiblePages = settingsPages.filter(
+    (candidate) =>
+      normalizedSearch === "" ||
+      t(candidate.title).toLocaleLowerCase().includes(normalizedSearch) ||
+      t(candidate.description).toLocaleLowerCase().includes(normalizedSearch),
+  );
 
   return (
     <section
@@ -165,11 +173,11 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-title"
+      tabIndex={-1}
     >
       <aside className="settings-nav">
         <header>
           <button
-            ref={closeButton}
             className="settings-back"
             type="button"
             aria-label={t("settings.close")}
@@ -182,8 +190,19 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
             {t("settings.close")}
           </button>
         </header>
+        <label className="settings-search">
+          <Icon glyph={Search} size="sm" />
+          <span className="sr-only">{t("settings.search")}</span>
+          <input
+            type="search"
+            value={search}
+            placeholder={t("settings.search")}
+            autoComplete="off"
+            onChange={(event) => setSearch(event.currentTarget.value)}
+          />
+        </label>
         <nav aria-label={t("settings.sections")}>
-          {settingsPages.map((candidate) => (
+          {visiblePages.map((candidate) => (
             <button
               key={candidate.id}
               type="button"

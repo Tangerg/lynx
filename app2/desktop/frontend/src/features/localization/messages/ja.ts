@@ -370,6 +370,7 @@ export const japaneseMessages = {
     "保存されたセッションを表示しています。更新に失敗しました: {detail}",
   "session.noMatch": "「{query}」に一致するセッションはありません。",
   "session.groupedLabel": "ワークスペース別のセッション",
+  "session.projects": "プロジェクト",
   "session.loadingOlder": "読み込み中…",
   "session.loadOlder": "古いセッションをロードする",
   "session.titleRequired": "セッション タイトルを空にすることはできません。",
@@ -776,6 +777,7 @@ export const japaneseMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "設定",
   "settings.sections": "設定セクション",
+  "settings.search": "設定を検索…",
   "settings.authorityNote":
     "外観はローカルのままです。 Runtime 状態は、すべての突然変異の後も権限を持ち続けます。",
   "settings.desktopSettings": "デスクトップ設定",

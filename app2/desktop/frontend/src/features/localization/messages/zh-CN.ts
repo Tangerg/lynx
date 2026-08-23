@@ -339,6 +339,7 @@ export const simplifiedChineseMessages = {
   "session.refreshFailed": "显示已保存的会话。刷新失败：{detail}",
   "session.noMatch": "没有会话匹配“{query}”。",
   "session.groupedLabel": "按工作区划分的会话",
+  "session.projects": "项目",
   "session.loadingOlder": "加载中...",
   "session.loadOlder": "加载旧会话",
   "session.titleRequired": "会话标题不能为空。",
@@ -721,6 +722,7 @@ export const simplifiedChineseMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "设置",
   "settings.sections": "设置部分",
+  "settings.search": "搜索设置…",
   "settings.authorityNote":
     "外观保持本地化。 Runtime 状态在每次突变后仍然保持权威。",
   "settings.desktopSettings": "桌面设置",

@@ -68,6 +68,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
   const searchInput = useRef<HTMLInputElement>(null);
   const observedSearchRequest = useRef(props.searchRequest);
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [activeMatch, setActiveMatch] = useState(0);
   const material = useMemo(
     () => indexNarrative(props.items, props.runs, props.liveToolOutputs),
@@ -153,8 +154,12 @@ export function AgentNarrative(props: AgentNarrativeProps) {
   useEffect(() => {
     if (observedSearchRequest.current === props.searchRequest) return;
     observedSearchRequest.current = props.searchRequest;
-    searchInput.current?.focus();
-    searchInput.current?.select();
+    setSearchOpen(true);
+    const frame = window.requestAnimationFrame(() => {
+      searchInput.current?.focus();
+      searchInput.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [props.searchRequest]);
 
   const moveMatch = (direction: -1 | 1) => {
@@ -181,7 +186,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
         aria-busy={props.pending || props.historyPending}
       >
         <div className="narrative-timeline" ref={reader.contentRef}>
-          {props.items.length > 0 ? (
+          {props.items.length > 0 && searchOpen ? (
             <div className="history-navigator">
               <label>
                 <span aria-hidden="true">⌕</span>
@@ -205,7 +210,8 @@ export function AgentNarrative(props: AgentNarrativeProps) {
                     )
                       return;
                     if (event.key === "Escape") {
-                      setSearch("");
+                      if (search === "") setSearchOpen(false);
+                      else setSearch("");
                       return;
                     }
                     if (event.key === "Enter") {

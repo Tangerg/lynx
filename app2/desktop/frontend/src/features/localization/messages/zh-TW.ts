@@ -339,6 +339,7 @@ export const traditionalChineseMessages = {
   "session.refreshFailed": "顯示已儲存的會話。刷新失敗：{detail}",
   "session.noMatch": "沒有會話符合「{query}」。",
   "session.groupedLabel": "依工作空間劃分的會話",
+  "session.projects": "專案",
   "session.loadingOlder": "載入中...",
   "session.loadOlder": "載入舊會話",
   "session.titleRequired": "會話標題不能為空。",
@@ -721,6 +722,7 @@ export const traditionalChineseMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "設定",
   "settings.sections": "設定部分",
+  "settings.search": "搜尋設定…",
   "settings.authorityNote":
     "外觀保持本地化。 Runtime 狀態在每次突變後仍保持權威。",
   "settings.desktopSettings": "桌面設置",

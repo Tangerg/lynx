@@ -379,6 +379,7 @@ export const germanMessages = {
     "Gespeicherte Sitzungen werden angezeigt. Aktualisierung fehlgeschlagen: {detail}",
   "session.noMatch": "Keine Sitzungen stimmen mit „{query}“ überein.",
   "session.groupedLabel": "Sitzungen nach Arbeitsbereich",
+  "session.projects": "Projekte",
   "session.loadingOlder": "Laden…",
   "session.loadOlder": "Ältere Sitzungen laden",
   "session.titleRequired": "Sitzungstitel darf nicht leer sein.",
@@ -787,6 +788,7 @@ export const germanMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "Einstellungen",
   "settings.sections": "Settings-Abschnitte",
+  "settings.search": "Einstellungen durchsuchen…",
   "settings.authorityNote":
     "Das Erscheinungsbild bleibt lokal. Der Status Runtime bleibt nach jeder Mutation die Autorität.",
   "settings.desktopSettings": "Desktop-Einstellungen",

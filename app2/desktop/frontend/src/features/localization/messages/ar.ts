@@ -350,6 +350,7 @@ export const arabicMessages = {
   "session.refreshFailed": "عرض الجلسات المحفوظة. فشل التحديث: {detail}",
   "session.noMatch": 'لا توجد جلسات تطابق "{query}".',
   "session.groupedLabel": "الجلسات حسب مساحة العمل",
+  "session.projects": "المشاريع",
   "session.loadingOlder": "جارٍ التحميل...",
   "session.loadOlder": "تحميل الجلسات الأقدم",
   "session.titleRequired": "لا يمكن أن يكون عنوان الجلسة فارغًا.",
@@ -740,6 +741,7 @@ export const arabicMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "الإعدادات",
   "settings.sections": "أقسام الإعدادات",
+  "settings.search": "البحث في الإعدادات…",
   "settings.authorityNote":
     "يظل المظهر محليًا. Runtime تظل الدولة هي المرجعية بعد كل طفرة.",
   "settings.desktopSettings": "إعدادات سطح المكتب",

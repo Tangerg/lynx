@@ -378,6 +378,7 @@ export const frenchMessages = {
     "Affichage des sessions enregistrées. Échec de l'actualisation : {detail}",
   "session.noMatch": "Aucune session ne correspond à « {query} ».",
   "session.groupedLabel": "Sessions par espace de travail",
+  "session.projects": "Projets",
   "session.loadingOlder": "Chargement…",
   "session.loadOlder": "Charger les anciennes sessions",
   "session.titleRequired": "Le titre de la session ne peut pas être vide.",
@@ -793,6 +794,7 @@ export const frenchMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "Paramètres",
   "settings.sections": "Sections Paramètres",
+  "settings.search": "Rechercher dans les réglages…",
   "settings.authorityNote":
     "L'apparence reste locale. L'état Runtime reste l'autorité après chaque mutation.",
   "settings.desktopSettings": "Paramètres du bureau",

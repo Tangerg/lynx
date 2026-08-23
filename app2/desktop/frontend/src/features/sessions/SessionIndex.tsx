@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import { Check, Ellipsis, Search, Star, X } from "lucide-react";
+import { Check, Ellipsis, Folder, Search, Star, X } from "lucide-react";
 
 import type { Session } from "@lyra/runtime-contract";
 
@@ -127,10 +127,16 @@ export function SessionIndex(props: SessionIndexProps) {
                 navigateSessions(event, visible, props.onSelect)
               }
             >
+              <span className="session-list-heading">
+                {t("session.projects")}
+              </span>
               {groups.map((group) => (
                 <section className="session-group" key={group.path}>
                   <header title={group.path}>
-                    <span>{workspaceName(group.path)}</span>
+                    <span>
+                      <Icon glyph={Folder} size="xs" />
+                      {workspaceName(group.path)}
+                    </span>
                     <small>{group.sessions.length}</small>
                   </header>
                   {group.sessions.map((session) => (

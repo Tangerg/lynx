@@ -371,6 +371,7 @@ export const englishMessages = {
   "session.refreshFailed": "Showing saved sessions. Refresh failed: {detail}",
   "session.noMatch": "No sessions match “{query}”.",
   "session.groupedLabel": "Sessions by workspace",
+  "session.projects": "Projects",
   "session.loadingOlder": "Loading…",
   "session.loadOlder": "Load older sessions",
   "session.titleRequired": "Session title cannot be empty.",
@@ -781,6 +782,7 @@ export const englishMessages = {
   "settings.desktopBrand": "Lyra Desktop",
   "settings.title": "Settings",
   "settings.sections": "Settings sections",
+  "settings.search": "Search settings…",
   "settings.authorityNote":
     "Appearance stays local. Runtime state remains the authority after every mutation.",
   "settings.desktopSettings": "Desktop settings",
