@@ -294,8 +294,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   bottom-up Deployment family；`delegate_task` 是 Framework managed Delegate，不是一个同步 Tool。ProcessAdmitter 与
   start-outcome acknowledger 只把 opaque Framework identity 交给上述 application port，Run/Segment identity 仍由 Lyra
   分配。child Tool 通过当前 invocation 动态解析真正的 Run scope，placeholder manifest 只冻结 definition/capability，
-  绝不执行；root 未协商 `subagents` 时仍走原本单 Process deployment。tree checkpoint、child source projection 和
-  Desktop disclosure 尚未完成，因此 Desktop 仍不声明该 feature；
+  绝不执行；root 未协商 `subagents` 时仍走原本单 Process deployment；
+- **Source-owned child settlement**：model/tool/delta/progress observation 在 agentexec 边界即绑定实际 child
+  Run/Segment，不再用 root identity 二次猜测。Framework tree terminal material 按 depth-descending 收集，runflow 验证
+  每份 material 的 source 与 lineage；child transcript/metrics/context/terminal event 和父级 `delegate_task` terminal Item
+  在同一 SQLite transaction 结算，后代失败时 fail-fast，祖先不能提前完成。child provider conversation 从投影策略入口
+  排除，不会污染 root Session Conversation；
+- **仍关闭的 delegation 门**：root tree stream 的 replay/live cursor、完整 tree checkpoint/HITL resume、root/child exact
+  cancel、recovery 和 Desktop nested disclosure 尚未完成，因此 Desktop 仍不声明 `subagents` feature；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

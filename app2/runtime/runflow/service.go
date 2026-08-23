@@ -397,11 +397,14 @@ func (service *Service) conversation(ctx context.Context, sessionID string) ([]a
 }
 
 func (service *Service) finishExecution(runID, segmentID, workspace string, output agentexec.Output, executeErr error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if childErr := service.finishDelegatedExecutions(ctx, output.Children); childErr != nil && executeErr == nil {
+		executeErr = childErr
+	}
 	lock := service.runLock(runID)
 	lock.Lock()
 	defer lock.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 	record, err := service.store.GetRun(ctx, runID)
 	if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != segmentID {
 		return
@@ -417,7 +420,14 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	}
 	terminalProjection := executeErr == nil && output.Waiting == nil
 	projectedFacts := facts
-	projection, projectionErr := service.projectExecution(ctx, record, segmentID, output, &projectedFacts, terminalProjection)
+	projection, projectionErr := service.projectExecution(
+		ctx,
+		record,
+		segmentID,
+		output,
+		&projectedFacts,
+		executionProjectionPolicy{terminal: terminalProjection, sessionConversation: true},
+	)
 	if projectionErr != nil && executeErr == nil {
 		executeErr = projectionErr
 	} else if projectionErr == nil {

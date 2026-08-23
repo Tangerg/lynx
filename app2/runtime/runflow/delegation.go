@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	"github.com/Tangerg/lynx/app2/runtime/domain/delegation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
+	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
 
@@ -42,10 +44,26 @@ type DelegateAbortWrite struct {
 	Event             rundomain.EventRecord
 }
 
+// DelegateCompletionWrite settles one child and the parent ToolCall that owns
+// its result. Both Run journals advance together so lineage can never expose a
+// terminal child behind a still-running Delegate item, or the reverse.
+type DelegateCompletionWrite struct {
+	Child                  rundomain.Record
+	ExpectedChildSegmentID string
+	ChildItems             []transcript.Record
+	ChildToolResults       []toolresult.Record
+	ChildEvents            []rundomain.EventRecord
+	Parent                 rundomain.Record
+	ExpectedParentSegmentID string
+	ParentItem             transcript.Record
+	ParentEvent            rundomain.EventRecord
+}
+
 type DelegationStore interface {
 	CommitDelegateAdmission(context.Context, DelegateAdmissionWrite) (delegation.Admission, bool, error)
 	CommitDelegateStart(context.Context, DelegateStartWrite) (bool, error)
 	CommitDelegateAbort(context.Context, DelegateAbortWrite) (bool, error)
+	CommitDelegateCompletion(context.Context, DelegateCompletionWrite) error
 	GetDelegateAdmission(context.Context, string) (delegation.Admission, error)
 }
 
@@ -294,6 +312,207 @@ func (service *Service) commitDelegateAborted(
 		service.hub.PublishRun(event)
 	}
 	return delegateBinding(admission), nil
+}
+
+func (service *Service) finishDelegatedExecutions(ctx context.Context, outputs []agentexec.ChildOutput) error {
+	for _, output := range outputs {
+		if err := service.finishDelegatedExecution(ctx, output); err != nil {
+			return fmt.Errorf("settle delegated Run %s: %w", output.RunID, err)
+		}
+	}
+	return nil
+}
+
+func (service *Service) finishDelegatedExecution(ctx context.Context, output agentexec.ChildOutput) error {
+	if output.RunID == "" || output.SegmentID == "" || output.ParentRunID == "" ||
+		output.RootRunID == "" || output.StartedAt.IsZero() || output.FinishedAt.IsZero() ||
+		output.FinishedAt.Before(output.StartedAt) {
+		return errors.New("runflow: delegated execution output is incomplete")
+	}
+	outcome, problem, err := delegatedOutcome(output)
+	if err != nil {
+		return err
+	}
+	for _, model := range output.Models {
+		if model.RunID != output.RunID || model.SegmentID != output.SegmentID {
+			return errors.New("runflow: delegated model material changed source Run")
+		}
+	}
+	for _, tool := range output.Tools {
+		if tool.RunID != output.RunID || tool.SegmentID != output.SegmentID {
+			return errors.New("runflow: delegated Tool material changed source Run")
+		}
+	}
+	unlock := service.lockRunPair(output.RunID, output.ParentRunID)
+	defer unlock()
+	child, err := service.store.GetRun(ctx, output.RunID)
+	if err != nil {
+		return err
+	}
+	if child.Run.Status() == rundomain.Finished {
+		return nil
+	}
+	if child.Run.Status() != rundomain.Running || child.Run.ActiveSegmentID() != output.SegmentID ||
+		child.Run.ParentRunID() != output.ParentRunID || child.Run.RootRunID() != output.RootRunID {
+		return rundomain.ErrInvalidTransition
+	}
+	parent, err := service.store.GetRun(ctx, output.ParentRunID)
+	if err != nil {
+		return err
+	}
+	parentRootRunID := parent.Run.RootRunID()
+	if parentRootRunID == "" {
+		parentRootRunID = parent.Run.ID()
+	}
+	if child.Run.SessionID() != parent.Run.SessionID() || parentRootRunID != output.RootRunID {
+		return errors.New("runflow: delegated execution changed tree lineage")
+	}
+	parentSegmentID := parent.Run.ActiveSegmentID()
+	if parent.Run.Status() != rundomain.Running || parentSegmentID == "" {
+		return rundomain.ErrInvalidTransition
+	}
+	childFacts, err := decodeFacts(child.Body)
+	if err != nil {
+		return err
+	}
+	mergeRunUsage(&childFacts.Metrics, output.Usage, output.ModelCalls)
+	if output.ContextTokens > 0 {
+		childFacts.ContextTokens = output.ContextTokens
+	}
+	projection, err := service.projectExecution(ctx, child, output.SegmentID, agentexec.Output{
+		Text: output.Reply, Usage: output.Usage, ModelCalls: output.ModelCalls,
+		ContextTokens: output.ContextTokens, Models: output.Models, Tools: output.Tools,
+	}, &childFacts, executionProjectionPolicy{terminal: true})
+	if err != nil {
+		return err
+	}
+	finishedAt := output.FinishedAt.UTC()
+	if err := child.Run.Finish(output.SegmentID, outcome, output.Detail, service.now().UTC()); err != nil {
+		return err
+	}
+	childFinished, err := service.event(child.Run.ID(), output.SegmentID, &childFacts, protocol.StreamEvent{
+		Type: protocol.StreamSegmentFinished,
+		Outcome: segmentOutcome(outcome, problem, output.Detail), Metrics: &childFacts.Metrics,
+	}, finishedAt)
+	if err != nil {
+		return err
+	}
+	projection.events = append(projection.events, childFinished)
+	child, err = makeRecord(child.Run, childFacts)
+	if err != nil {
+		return err
+	}
+	childEvents, err := persistEvents(
+		projection.events,
+		childFacts.EventOrdinal-len(projection.events)+1,
+	)
+	if err != nil {
+		return err
+	}
+	parentFacts, err := decodeFacts(parent.Body)
+	if err != nil {
+		return err
+	}
+	parentItems, err := service.store.ListItems(ctx, "", parent.Run.ID())
+	if err != nil {
+		return err
+	}
+	parentStored, found := transcriptRecord(parentItems, child.Run.SpawnedByItemID())
+	if !found {
+		return errors.New("runflow: delegated parent Item is missing")
+	}
+	var parentItem protocol.Item
+	if err := json.Unmarshal(parentStored.Body, &parentItem); err != nil {
+		return err
+	}
+	if parentItem.RunID != parent.Run.ID() || parentItem.Type != protocol.ItemTypeToolCall || parentItem.Tool == nil ||
+		parentItem.Tool.Name != agentexec.DelegateToolName ||
+		parentItem.Status != protocol.ItemStatusRunning {
+		return errors.New("runflow: delegated parent Item is not running")
+	}
+	parentItem.FinishedAt = finishedAt
+	duration := output.FinishedAt.Sub(output.StartedAt).Milliseconds()
+	if duration >= 0 {
+		parentItem.DurationMillis = &duration
+	}
+	if outcome == rundomain.Completed {
+		parentItem.Status = protocol.ItemStatusCompleted
+		parentItem.Tool.Result = map[string]any{"runId": child.Run.ID(), "reply": output.Reply}
+		parentItem.Error = nil
+	} else {
+		parentItem.Status = protocol.ItemStatusIncomplete
+		problemType := protocol.ProblemToolFailed
+		if outcome == rundomain.Canceled {
+			problemType = protocol.ProblemChildRunCanceled
+		}
+		parentItem.Tool.Result = nil
+		parentItem.Error = &protocol.ProblemData{Type: problemType, Detail: output.Detail}
+	}
+	parentStored.Body, err = json.Marshal(parentItem)
+	if err != nil {
+		return err
+	}
+	if err := parent.Run.Touch(parentSegmentID, service.now().UTC()); err != nil {
+		return err
+	}
+	parentCompleted, err := service.event(parent.Run.ID(), parentSegmentID, &parentFacts, protocol.StreamEvent{
+		Type: protocol.StreamItemCompleted, Item: &parentItem,
+	}, finishedAt)
+	if err != nil {
+		return err
+	}
+	parent, err = makeRecord(parent.Run, parentFacts)
+	if err != nil {
+		return err
+	}
+	parentEvents, err := persistEvents([]protocol.RunEvent{parentCompleted}, parentFacts.EventOrdinal)
+	if err != nil {
+		return err
+	}
+	if err := service.store.CommitDelegateCompletion(ctx, DelegateCompletionWrite{
+		Child: child, ExpectedChildSegmentID: output.SegmentID,
+		ChildItems: projection.items, ChildToolResults: projection.results, ChildEvents: childEvents,
+		Parent: parent, ExpectedParentSegmentID: parentSegmentID,
+		ParentItem: parentStored, ParentEvent: parentEvents[0],
+	}); err != nil {
+		return err
+	}
+	service.publishLifecycleChange(child.Run)
+	service.publishRunChange(parent.Run)
+	for _, event := range projection.events {
+		service.hub.PublishRun(event)
+	}
+	service.hub.PublishRun(parentCompleted)
+	return nil
+}
+
+func delegatedOutcome(output agentexec.ChildOutput) (rundomain.Outcome, *protocol.ProblemData, error) {
+	switch output.Status {
+	case agentexec.ChildCompleted:
+		return rundomain.Completed, nil, nil
+	case agentexec.ChildTimedOut:
+		return rundomain.TimedOut, nil, nil
+	case agentexec.ChildCanceled, agentexec.ChildKilled:
+		return rundomain.Canceled, nil, nil
+	case agentexec.ChildFailed:
+		return rundomain.Failed, &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: output.Detail}, nil
+	default:
+		return "", nil, errors.New("runflow: delegated execution has invalid terminal status")
+	}
+}
+
+func (service *Service) lockRunPair(left, right string) func() {
+	if right < left {
+		left, right = right, left
+	}
+	first := service.runLock(left)
+	second := service.runLock(right)
+	first.Lock()
+	second.Lock()
+	return func() {
+		second.Unlock()
+		first.Unlock()
+	}
 }
 
 func bindingForRequest(

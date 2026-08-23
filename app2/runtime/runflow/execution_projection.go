@@ -33,7 +33,19 @@ type executionProjection struct {
 	events []protocol.RunEvent
 }
 
-func (service *Service) projectExecution(ctx context.Context, record rundomain.Record, segmentID string, output agentexec.Output, facts *runFacts, terminal bool) (executionProjection, error) {
+type executionProjectionPolicy struct {
+	terminal            bool
+	sessionConversation bool
+}
+
+func (service *Service) projectExecution(
+	ctx context.Context,
+	record rundomain.Record,
+	segmentID string,
+	output agentexec.Output,
+	facts *runFacts,
+	policy executionProjectionPolicy,
+) (executionProjection, error) {
 	existing, err := service.store.ListItems(ctx, "", record.Run.ID())
 	if err != nil {
 		return executionProjection{}, err
@@ -43,12 +55,15 @@ func (service *Service) projectExecution(ctx context.Context, record rundomain.R
 		byID[value.ID] = value
 	}
 	ordinal := nextOrdinal(existing, record.Run.ID())
-	conversation, err := service.store.ListConversationMessages(ctx, record.Run.SessionID())
-	if err != nil { return executionProjection{}, err }
-	messageOrdinal := nextConversationOrdinal(conversation)
+	messageOrdinal := 0
+	if policy.sessionConversation {
+		conversation, err := service.store.ListConversationMessages(ctx, record.Run.SessionID())
+		if err != nil { return executionProjection{}, err }
+		messageOrdinal = nextConversationOrdinal(conversation)
+	}
 	sequences := observationSequences(output.Models, output.Tools)
 	finalSequence := 0
-	if terminal {
+	if policy.terminal {
 		for _, model := range output.Models {
 			if !responseHasToolCalls(model.Response) && model.Sequence > finalSequence {
 				finalSequence = model.Sequence
@@ -62,7 +77,7 @@ func (service *Service) projectExecution(ctx context.Context, record rundomain.R
 				continue
 			}
 			choice := model.Response.First()
-			if choice != nil && choice.Message != nil {
+			if policy.sessionConversation && choice != nil && choice.Message != nil {
 				body, err := json.Marshal(choice.Message)
 				if err != nil { return executionProjection{}, err }
 				projection.messages = append(projection.messages, conversationdomain.Record{SessionID: record.Run.SessionID(), RunID: record.Run.ID(), Ordinal: messageOrdinal, Body: body})
@@ -155,7 +170,7 @@ func (service *Service) projectExecution(ctx context.Context, record rundomain.R
 			}
 			results = append(results, chat.ToolResult{ID: observation.CallID, Name: observation.Name, Result: result, IsError: observation.IsError})
 		}
-		if len(results) > 0 {
+		if policy.sessionConversation && len(results) > 0 {
 			message := chat.NewToolMessage(results...)
 			body, err := json.Marshal(message)
 			if err != nil { return executionProjection{}, err }

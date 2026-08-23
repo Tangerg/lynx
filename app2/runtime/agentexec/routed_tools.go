@@ -105,5 +105,5 @@ type scopedToolFacts struct {
 }
 
 func (facts scopedToolFacts) RecordCommittedPlan(callID string, plan protocol.Plan) {
-	facts.observer.recordCommittedPlan(facts.runID, callID, plan)
+	facts.observer.recordCommittedPlanFor(facts.runID, callID, plan)
 }

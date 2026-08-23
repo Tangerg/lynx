@@ -98,9 +98,9 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `segment.started` | authoritative/replayable | Run/Segment lifecycle | R3 | implemented | committed admission/resume/replay 使用同一 Run/Segment identity；待统一门禁 |
 | `segment.progress` | ephemeral/non-replay | usage/context/live progress | R3 | implemented | settled model call 发布 cumulative usage/step/context preview；terminal Run facts 收敛，drop 不改结果 |
 | `segment.finished` | authoritative/replayable | outcome/segment terminal | R3 | implemented | terminal outcome/metrics durable commit 后发布；待故障矩阵统一门禁 |
-| `item.started` | authoritative/replayable | placeholder/source owner | R3/R4 | implemented | model anchor 以 Effect identity 派生稳定 key；ToolCall running Item 与 event 同事务，intrinsic-input 直接投影 Question；待统一门禁 |
+| `item.started` | authoritative/replayable | placeholder/source owner | R3/R4 | implemented | model anchor 以 Effect identity 派生稳定 key；ToolCall running Item 与 event 同事务；delegated observation 先绑定 exact child Run/Segment，intrinsic-input 直接投影 Question；待统一门禁 |
 | `item.delta` | ephemeral/non-replay | message/reasoning/tool streaming | R3 | implemented | message/reasoning append bounded live-only，SSE 无 id；Tool streaming 随 R4 完成 |
-| `item.completed` | authoritative/replayable | durable content/material | R3/R4 | implemented | model completion 替换同 key provisional；Tool terminal Item、offloaded result 与 event 原子提交，settled Output 补漏；待统一门禁 |
+| `item.completed` | authoritative/replayable | durable content/material | R3/R4 | implemented | model completion 替换同 key provisional；Tool terminal Item、offloaded result 与 event 原子提交；child terminal material 与 parent Delegate Item 同事务结算，settled Output 补漏；待统一门禁 |
 | `plan.updated` | authoritative/replayable | Plan resource projection | R5 | implemented | 成功 `set_plan` 的 committed result 投影，revision/order/status 与 `plan.get` 同源；待最终统一门禁 |
 
 app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化必须满足 ADR-A2-022 的协议门槛。
@@ -115,7 +115,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U04 | Agent Session hydrate/cold restore | agent context | R2/R3 | implemented | coherent snapshot + attach-first full replay/live fold、bounded dedupe、generation fencing；待 reload/restart 统一门禁 |
 | U05 | Composer draft/attachments/paste/@file/history/IME | composer context | R3 | implemented | per-Session draft、image/text attachment+paste、history、IME-safe send、start/steer/stop、success clear/failure exact retry |
 | U06 | Root narrative commentary/final hierarchy | agent presentation | R3 | implemented | user/work/reasoning/final/tool/question/compaction 同 renderer，work/final 分层与 reader-owned follow lock；待视觉统一门禁 |
-| U07 | Delegated Run tree/disclosures | agent presentation | R4 | in_progress | managed Delegate family、bounded tree budget、dynamic child Tool scope 与 admission transaction 已建立；feature 仍关闭，待 source-owned projection/tree checkpoint、nested disclosure 与 exact cancel |
+| U07 | Delegated Run tree/disclosures | agent presentation | R4 | in_progress | managed Delegate family、bounded tree budget、dynamic child Tool scope、source-owned child projection 与 parent/child atomic terminal 已建立；feature 仍关闭，待 root tree stream、tree checkpoint、nested disclosure、recovery 与 exact cancel |
 | U08 | Approval interaction | interrupt context | R4 | implemented | 单一整组 request surface、allow once/scope split/deny、edited JSON args、reason、settled exact identity；待统一门禁 |
 | U09 | Question interaction | interrupt + composer | R4 | implemented | one atomic surface、多题顺序、text/single/multi/custom、IME-safe；当前 wire 无 Skip，待统一门禁 |
 | U10 | Plan compact progress | plan context | R5 | implemented | canonical snapshot 的 ring + N/M、当前步骤、完整 checklist hover/focus；无复制 Plan state；待最终统一门禁 |

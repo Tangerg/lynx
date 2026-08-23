@@ -41,8 +41,12 @@ type liveProjector struct {
 	input     chan liveObservation
 	done      chan struct{}
 	modelStarted map[string]bool
-	usage     protocol.Usage
-	steps     int
+	progress  map[string]*liveRunProgress
+}
+
+type liveRunProgress struct {
+	usage protocol.Usage
+	steps int
 }
 
 type liveObservation struct {
@@ -64,7 +68,10 @@ func newLiveProjector(service *Service, record rundomain.Record, segmentID strin
 	projector := &liveProjector{
 		service: service, runID: record.Run.ID(), segmentID: segmentID,
 		input: make(chan liveObservation, liveProjectionCapacity),
-		done: make(chan struct{}), modelStarted: make(map[string]bool), usage: usage, steps: steps,
+		done: make(chan struct{}), modelStarted: make(map[string]bool),
+		progress: map[string]*liveRunProgress{
+			record.Run.ID(): {usage: usage, steps: steps},
+		},
 	}
 	go projector.run()
 	return projector
@@ -127,12 +134,16 @@ func (projector *liveProjector) projectDelta(delta agentexec.ModelDelta) {
 	if delta.EffectID == "" || delta.Text == "" || delta.Index < 0 {
 		return
 	}
-	item, itemDelta, ok := projector.present(delta)
+	runID, segmentID, ok := projector.target(delta.RunID, delta.SegmentID)
+	if !ok {
+		return
+	}
+	item, itemDelta, ok := projector.present(runID, delta)
 	if !ok {
 		return
 	}
 	if !projector.modelStarted[item.ID] {
-		started, committed := projector.commitAnchor(item)
+		started, committed := projector.commitAnchor(runID, segmentID, item)
 		if !committed {
 			return
 		}
@@ -148,7 +159,7 @@ func (projector *liveProjector) projectDelta(delta agentexec.ModelDelta) {
 		occurredAt = projector.service.now().UTC()
 	}
 	projector.service.hub.PublishRun(protocol.RunEvent{
-		RunID: projector.runID, SegmentID: projector.segmentID,
+		RunID: runID, SegmentID: segmentID,
 		EventID: eventID, Timestamp: occurredAt,
 		Event: protocol.StreamEvent{Type: protocol.StreamItemDelta, ItemID: item.ID, Delta: &itemDelta},
 	})
@@ -161,16 +172,20 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 	if settled && (observation.Waiting || observation.FinishedAt.IsZero()) {
 		return
 	}
-	lock := projector.service.runLock(projector.runID)
+	runID, segmentID, ok := projector.target(observation.RunID, observation.SegmentID)
+	if !ok {
+		return
+	}
+	lock := projector.service.runLock(runID)
 	lock.Lock()
 	defer lock.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	record, err := projector.service.store.GetRun(ctx, projector.runID)
-	if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != projector.segmentID {
+	record, err := projector.service.store.GetRun(ctx, runID)
+	if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != segmentID {
 		return
 	}
-	existing, err := projector.service.store.ListItems(ctx, "", projector.runID)
+	existing, err := projector.service.store.ListItems(ctx, "", runID)
 	if err != nil {
 		return
 	}
@@ -184,18 +199,18 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 	}
 	events := make([]protocol.RunEvent, 0, 3)
 	if !existed {
-		running := runningToolItem(projector.runID, observation)
+		running := runningToolItem(runID, observation)
 		stored, err = itemRecord(
 			record.Run.SessionID(),
 			running,
-			nextOrdinal(existing, projector.runID),
+			nextOrdinal(existing, runID),
 		)
 		if err != nil {
 			return
 		}
 		started, eventErr := projector.service.event(
-			projector.runID,
-			projector.segmentID,
+			runID,
+			segmentID,
 			&facts,
 			protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &running},
 			observation.StartedAt,
@@ -211,7 +226,7 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 			stored,
 			existed,
 			record.Run.SessionID(),
-			projector.runID,
+			runID,
 			observation,
 		)
 		if itemErr != nil || skip {
@@ -223,8 +238,8 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 		}
 		offload = result
 		completed, eventErr := projector.service.event(
-			projector.runID,
-			projector.segmentID,
+			runID,
+			segmentID,
 			&facts,
 			protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item},
 			observation.FinishedAt,
@@ -239,8 +254,8 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 				return
 			}
 			updated, eventErr := projector.service.event(
-				projector.runID,
-				projector.segmentID,
+				runID,
+				segmentID,
 				&facts,
 				protocol.StreamEvent{Type: protocol.StreamPlanUpdated, Plan: &plan},
 				observation.FinishedAt,
@@ -254,7 +269,7 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 	if len(events) == 0 {
 		return
 	}
-	if err := record.Run.Touch(projector.segmentID, projector.service.now().UTC()); err != nil {
+	if err := record.Run.Touch(segmentID, projector.service.now().UTC()); err != nil {
 		return
 	}
 	record, err = makeRecord(record.Run, facts)
@@ -266,7 +281,7 @@ func (projector *liveProjector) projectTool(observation agentexec.ToolObservatio
 		return
 	}
 	if err := projector.service.store.CommitRunItemEvents(ctx, RunItemEventWrite{
-		Run: record, ExpectedSegmentID: projector.segmentID, Item: stored,
+		Run: record, ExpectedSegmentID: segmentID, Item: stored,
 		ToolResult: offload, Events: persisted,
 	}); err != nil {
 		return
@@ -286,10 +301,19 @@ func transcriptRecord(records []transcript.Record, itemID string) (transcript.Re
 }
 
 func (projector *liveProjector) projectProgress(progress agentexec.ModelProgress) {
-	mergeLiveUsage(&projector.usage, progress.Usage)
-	projector.steps++
-	step := projector.steps
-	usage := cloneLiveUsage(projector.usage)
+	runID, segmentID, ok := projector.target(progress.RunID, progress.SegmentID)
+	if !ok {
+		return
+	}
+	state := projector.progress[runID]
+	if state == nil {
+		state = &liveRunProgress{}
+		projector.progress[runID] = state
+	}
+	mergeLiveUsage(&state.usage, progress.Usage)
+	state.steps++
+	step := state.steps
+	usage := cloneLiveUsage(state.usage)
 	value := protocol.RunProgress{Step: &step, Usage: &usage, Activity: "Generating response"}
 	if progress.ContextTokens > 0 {
 		contextTokens := progress.ContextTokens
@@ -307,13 +331,13 @@ func (projector *liveProjector) projectProgress(progress agentexec.ModelProgress
 		occurredAt = projector.service.now().UTC()
 	}
 	projector.service.hub.PublishRun(protocol.RunEvent{
-		RunID: projector.runID, SegmentID: projector.segmentID,
+		RunID: runID, SegmentID: segmentID,
 		EventID: eventID, Timestamp: occurredAt,
 		Event: protocol.StreamEvent{Type: protocol.StreamSegmentProgress, Progress: &value},
 	})
 }
 
-func (projector *liveProjector) present(delta agentexec.ModelDelta) (protocol.Item, protocol.ItemDelta, bool) {
+func (projector *liveProjector) present(runID string, delta agentexec.ModelDelta) (protocol.Item, protocol.ItemDelta, bool) {
 	occurredAt := delta.OccurredAt.UTC()
 	if occurredAt.IsZero() {
 		occurredAt = projector.service.now().UTC()
@@ -322,12 +346,12 @@ func (projector *liveProjector) present(delta agentexec.ModelDelta) (protocol.It
 	case agentexec.ModelDeltaContent:
 		index := delta.Index
 		return protocol.Item{
-			ID: modelMessageItemID(projector.runID, delta.EffectID), RunID: projector.runID,
+			ID: modelMessageItemID(runID, delta.EffectID), RunID: runID,
 			Status: protocol.ItemStatusRunning, CreatedAt: occurredAt, Type: protocol.ItemTypeAgentMessage,
 		}, protocol.ItemDelta{Type: protocol.DeltaContent, Index: &index, Text: delta.Text}, true
 	case agentexec.ModelDeltaReasoning:
 		return protocol.Item{
-			ID: modelReasoningItemID(projector.runID, delta.EffectID, delta.Index), RunID: projector.runID,
+			ID: modelReasoningItemID(runID, delta.EffectID, delta.Index), RunID: runID,
 			Status: protocol.ItemStatusRunning, CreatedAt: occurredAt, Type: protocol.ItemTypeReasoning,
 		}, protocol.ItemDelta{Type: protocol.DeltaReasoning, Text: delta.Text}, true
 	default:
@@ -335,14 +359,14 @@ func (projector *liveProjector) present(delta agentexec.ModelDelta) (protocol.It
 	}
 }
 
-func (projector *liveProjector) commitAnchor(item protocol.Item) (protocol.RunEvent, bool) {
-	lock := projector.service.runLock(projector.runID)
+func (projector *liveProjector) commitAnchor(runID, segmentID string, item protocol.Item) (protocol.RunEvent, bool) {
+	lock := projector.service.runLock(runID)
 	lock.Lock()
 	defer lock.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	record, err := projector.service.store.GetRun(ctx, projector.runID)
-	if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != projector.segmentID {
+	record, err := projector.service.store.GetRun(ctx, runID)
+	if err != nil || record.Run.Status() != rundomain.Running || record.Run.ActiveSegmentID() != segmentID {
 		return protocol.RunEvent{}, false
 	}
 	facts, err := decodeFacts(record.Body)
@@ -350,13 +374,13 @@ func (projector *liveProjector) commitAnchor(item protocol.Item) (protocol.RunEv
 		return protocol.RunEvent{}, false
 	}
 	event, err := projector.service.event(
-		projector.runID, projector.segmentID, &facts,
+		runID, segmentID, &facts,
 		protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &item}, item.CreatedAt,
 	)
 	if err != nil {
 		return protocol.RunEvent{}, false
 	}
-	if err := record.Run.Touch(projector.segmentID, projector.service.now().UTC()); err != nil {
+	if err := record.Run.Touch(segmentID, projector.service.now().UTC()); err != nil {
 		return protocol.RunEvent{}, false
 	}
 	record, err = makeRecord(record.Run, facts)
@@ -368,11 +392,21 @@ func (projector *liveProjector) commitAnchor(item protocol.Item) (protocol.RunEv
 		return protocol.RunEvent{}, false
 	}
 	if err := projector.service.store.CommitRunEvent(ctx, RunEventWrite{
-		Run: record, ExpectedSegmentID: projector.segmentID, Event: persisted[0],
+		Run: record, ExpectedSegmentID: segmentID, Event: persisted[0],
 	}); err != nil {
 		return protocol.RunEvent{}, false
 	}
 	return event, true
+}
+
+func (projector *liveProjector) target(runID, segmentID string) (string, string, bool) {
+	if runID == "" {
+		runID = projector.runID
+	}
+	if segmentID == "" && runID == projector.runID {
+		segmentID = projector.segmentID
+	}
+	return runID, segmentID, runID != "" && segmentID != ""
 }
 
 var _ agentexec.LiveObservationSink = (*liveProjector)(nil)

@@ -202,6 +202,72 @@ func (database *Database) CommitDelegateAbort(
 	return true, nil
 }
 
+func (database *Database) CommitDelegateCompletion(
+	ctx context.Context,
+	write runflow.DelegateCompletionWrite,
+) error {
+	if write.Child.Run.Status() != rundomain.Finished || write.Parent.Run.Status() != rundomain.Running ||
+		write.Child.Run.ParentRunID() != write.Parent.Run.ID() {
+		return delegation.ErrAdmissionConflict
+	}
+	transaction, err := database.database.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("sqlite: begin delegate completion: %w", err)
+	}
+	defer transaction.Rollback()
+	child := write.Child.Run
+	result, err := transaction.ExecContext(ctx, `
+		UPDATE runs SET status = ?, active_segment_id = null, outcome = ?, detail = ?, body = ?,
+			updated_at = ?, finished_at = ?
+		WHERE id = ? AND status = 'running' AND active_segment_id = ?`,
+		string(child.Status()), string(child.Outcome()), child.Detail(), string(write.Child.Body),
+		encodeTime(child.UpdatedAt()), encodeTime(child.FinishedAt()),
+		child.ID(), write.ExpectedChildSegmentID,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: settle delegated Run %s: %w", child.ID(), err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect delegated Run settlement: %w", err)
+	}
+	if changed != 1 {
+		return rundomain.ErrInvalidTransition
+	}
+	for _, item := range write.ChildItems {
+		if err := putItem(ctx, transaction, item); err != nil {
+			return err
+		}
+	}
+	for _, material := range write.ChildToolResults {
+		if err := insertToolResult(ctx, transaction, material); err != nil {
+			return err
+		}
+	}
+	if err := insertRunEvents(ctx, transaction, write.ChildEvents); err != nil {
+		return err
+	}
+	if _, err := transaction.ExecContext(ctx, `DELETE FROM interrupt_sets WHERE run_id = ?`, child.ID()); err != nil {
+		return fmt.Errorf("sqlite: clear delegated interrupt: %w", err)
+	}
+	if _, err := transaction.ExecContext(ctx, `DELETE FROM executor_checkpoints WHERE run_id = ?`, child.ID()); err != nil {
+		return fmt.Errorf("sqlite: clear delegated checkpoint: %w", err)
+	}
+	if err := updateActiveRun(ctx, transaction, write.Parent, write.ExpectedParentSegmentID); err != nil {
+		return err
+	}
+	if err := putItem(ctx, transaction, write.ParentItem); err != nil {
+		return err
+	}
+	if err := insertRunEvents(ctx, transaction, []rundomain.EventRecord{write.ParentEvent}); err != nil {
+		return err
+	}
+	if err := transaction.Commit(); err != nil {
+		return fmt.Errorf("sqlite: commit delegate completion: %w", err)
+	}
+	return nil
+}
+
 const runByIDQuery = `
 	SELECT id, session_id, coalesce(parent_run_id, ''), coalesce(root_run_id, ''),
 		coalesce(spawned_by_item_id, ''), status, coalesce(active_segment_id, ''),

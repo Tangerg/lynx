@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 
 type processBinding struct {
 	runID, segmentID, parentRunID, rootRunID string
+	depth                                   uint32
 }
 
 type delegateIdentity struct {
@@ -79,6 +81,16 @@ func (bridge *delegationBridge) binding(relation agent.ProcessRelation) (process
 	}
 	bridge.mu.RLock()
 	binding, found := bridge.bindings[relation.ProcessID()]
+	bridge.mu.RUnlock()
+	return binding, found
+}
+
+func (bridge *delegationBridge) bindingProcess(processID agent.ProcessID) (processBinding, bool) {
+	if bridge == nil || !processID.Valid() {
+		return processBinding{}, false
+	}
+	bridge.mu.RLock()
+	binding, found := bridge.bindings[processID]
 	bridge.mu.RUnlock()
 	return binding, found
 }
@@ -236,12 +248,39 @@ func (bridge *delegationBridge) AcknowledgeProcessStartOutcome(
 	if command.Started {
 		bridge.bindings[relation.ProcessID()] = processBinding{
 			runID: binding.RunID, segmentID: binding.SegmentID,
-			parentRunID: binding.ParentRunID, rootRunID: binding.RootRunID,
+			parentRunID: binding.ParentRunID, rootRunID: binding.RootRunID, depth: relation.Depth(),
 		}
 	}
 	delete(bridge.pending, relation.ProcessID())
 	bridge.mu.Unlock()
 	return nil
+}
+
+type boundChildProcess struct {
+	processID agent.ProcessID
+	binding   processBinding
+}
+
+func (bridge *delegationBridge) children() []boundChildProcess {
+	if bridge == nil {
+		return nil
+	}
+	bridge.mu.RLock()
+	children := make([]boundChildProcess, 0, len(bridge.bindings))
+	for processID, binding := range bridge.bindings {
+		if binding.parentRunID == "" {
+			continue
+		}
+		children = append(children, boundChildProcess{processID: processID, binding: binding})
+	}
+	bridge.mu.RUnlock()
+	sort.Slice(children, func(left, right int) bool {
+		if children[left].binding.depth != children[right].binding.depth {
+			return children[left].binding.depth > children[right].binding.depth
+		}
+		return children[left].binding.runID < children[right].binding.runID
+	})
+	return children
 }
 
 func sameAdmission(left, right agent.ProcessAdmission) bool {

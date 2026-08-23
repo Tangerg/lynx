@@ -32,6 +32,7 @@ type ExecutableTool struct {
 }
 
 type ModelObservation struct {
+	RunID, SegmentID string
 	EffectID   string
 	Sequence   int
 	OccurredAt time.Time
@@ -51,6 +52,7 @@ const (
 // addresses a ContentBlock for content deltas and a reasoning Item for
 // reasoning deltas.
 type ModelDelta struct {
+	RunID, SegmentID string
 	EffectID       string
 	EffectSequence uint64
 	OccurredAt     time.Time
@@ -72,6 +74,7 @@ type LiveObservationSink interface {
 // ModelProgress is emitted after one complete model call. Usage belongs to that
 // call; the Run owner combines it with the durable run-cumulative baseline.
 type ModelProgress struct {
+	RunID, SegmentID string
 	Sequence      int
 	OccurredAt    time.Time
 	Usage         protocol.Usage
@@ -80,6 +83,7 @@ type ModelProgress struct {
 }
 
 type ToolObservation struct {
+	RunID, SegmentID          string
 	ItemID, CallID, Name       string
 	Arguments                  map[string]any
 	SafetyClass                protocol.SafetyClass
@@ -104,12 +108,13 @@ func ToolItemID(runID, callID string) string {
 type executionObserver struct {
 	mu             sync.Mutex
 	runID          string
+	segmentID      string
 	defaultModel   string
 	safetyByName   map[string]protocol.SafetyClass
 	intrinsicInput map[string]bool
 	models         []ModelObservation
-	tools          map[string]ToolObservation
-	plans          map[string]protocol.Plan
+	tools          map[observationIdentity]ToolObservation
+	plans          map[observationIdentity]protocol.Plan
 	live           LiveObservationSink
 	streams        map[string]*modelStream
 	delegation     *delegationBridge
@@ -120,11 +125,15 @@ type modelStream struct {
 	startedAt   time.Time
 }
 
-func newExecutionObserver(runID, model string, live LiveObservationSink, delegation *delegationBridge) *executionObserver {
+type observationIdentity struct {
+	runID, sourceID string
+}
+
+func newExecutionObserver(runID, segmentID, model string, live LiveObservationSink, delegation *delegationBridge) *executionObserver {
 	return &executionObserver{
-		runID: runID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
+		runID: runID, segmentID: segmentID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
 		intrinsicInput: make(map[string]bool),
-		tools: make(map[string]ToolObservation), plans: make(map[string]protocol.Plan), live: live,
+		tools: make(map[observationIdentity]ToolObservation), plans: make(map[observationIdentity]protocol.Plan), live: live,
 		streams: make(map[string]*modelStream), delegation: delegation,
 	}
 }
@@ -138,26 +147,32 @@ func (observer *executionObserver) bindTools(executables []ExecutableTool) {
 }
 
 func (observer *executionObserver) RecordCommittedPlan(callID string, plan protocol.Plan) {
-	observer.recordCommittedPlan(observer.runID, callID, plan)
+	observer.recordCommittedPlanFor(observer.runID, callID, plan)
 }
 
-func (observer *executionObserver) recordCommittedPlan(_ string, callID string, plan protocol.Plan) {
+func (observer *executionObserver) recordCommittedPlanFor(runID, callID string, plan protocol.Plan) {
 	observer.mu.Lock()
-	observer.plans[callID] = clonePlan(plan)
+	observer.plans[observationIdentity{runID: runID, sourceID: callID}] = clonePlan(plan)
 	observer.mu.Unlock()
 }
 
 func (observer *executionObserver) OnModelResponse(_ context.Context, invocation interaction.ModelInvocation, response *chat.Response) {
+	scope, found := observer.scope(invocation.Relation())
+	if !found {
+		return
+	}
 	effectID := invocation.EffectID().String()
+	streamID := observationIdentity{runID: scope.runID, sourceID: effectID}
 	occurredAt := time.Now().UTC()
 	observer.mu.Lock()
-	if stream := observer.streams[effectID]; stream != nil && !stream.startedAt.IsZero() {
+	if stream := observer.streams[streamID.String()]; stream != nil && !stream.startedAt.IsZero() {
 		occurredAt = stream.startedAt
 	}
 	if observer.delegation != nil {
 		observer.delegation.register(invocation, response, occurredAt)
 	}
 	observer.models = append(observer.models, ModelObservation{
+		RunID: scope.runID, SegmentID: scope.segmentID,
 		EffectID: effectID, Sequence: int(invocation.ModelCallSequence()), OccurredAt: occurredAt, Response: response.Clone(),
 	})
 	observer.mu.Unlock()
@@ -168,6 +183,7 @@ func (observer *executionObserver) OnModelResponse(_ context.Context, invocation
 		}
 		usage := usageForModel(model, response.Usage)
 		observer.live.OfferModelProgress(ModelProgress{
+			RunID: scope.runID, SegmentID: scope.segmentID,
 			Sequence: int(invocation.ModelCallSequence()), OccurredAt: time.Now().UTC(),
 			Usage: usage, ContextTokens: response.Usage.InputTokens, Model: model,
 		})
@@ -183,11 +199,16 @@ func (observer *executionObserver) OnDelta(_ context.Context, delta agent.Delta)
 		return
 	}
 	effectID := delta.EffectID().String()
+	scope, found := observer.scopeProcess(delta.ProcessID())
+	if !found {
+		return
+	}
+	streamID := observationIdentity{runID: scope.runID, sourceID: effectID}
 	observer.mu.Lock()
-	stream := observer.streams[effectID]
+	stream := observer.streams[streamID.String()]
 	if stream == nil {
 		stream = &modelStream{startedAt: delta.EmittedAt()}
-		observer.streams[effectID] = stream
+		observer.streams[streamID.String()] = stream
 	}
 	beforeContent, beforeReasoning := streamProjection(stream.accumulator.Response())
 	if err := stream.accumulator.Add(decoded.Response()); err != nil {
@@ -198,23 +219,32 @@ func (observer *executionObserver) OnDelta(_ context.Context, delta agent.Delta)
 	updates := appendedModelDeltas(effectID, delta.EffectSequence(), delta.EmittedAt(), beforeContent, afterContent, ModelDeltaContent)
 	updates = append(updates, appendedModelDeltas(effectID, delta.EffectSequence(), delta.EmittedAt(), beforeReasoning, afterReasoning, ModelDeltaReasoning)...)
 	observer.mu.Unlock()
+	for index := range updates {
+		updates[index].RunID = scope.runID
+		updates[index].SegmentID = scope.segmentID
+	}
 	for _, update := range updates {
 		observer.live.OfferModelDelta(update)
 	}
 }
 
 func (observer *executionObserver) OnToolStarted(_ context.Context, invocation interaction.ToolInvocation) {
+	scope, found := observer.scope(invocation.Relation())
+	if !found {
+		return
+	}
 	call := invocation.ToolCall()
 	arguments := decodeArguments(call.Arguments)
 	observer.mu.Lock()
 	value := ToolObservation{
-		ItemID: ToolItemID(observer.runID, call.ID), CallID: call.ID, Name: call.Name,
+		RunID: scope.runID, SegmentID: scope.segmentID,
+		ItemID: ToolItemID(scope.runID, call.ID), CallID: call.ID, Name: call.Name,
 		Arguments: arguments, SafetyClass: observer.safetyByName[call.Name],
 		IntrinsicInput: observer.intrinsicInput[call.Name],
 		ModelCallSequence: int(invocation.ModelCallSequence()), ToolCallIndex: int(invocation.ToolCallIndex()),
 		StartedAt: time.Now().UTC(),
 	}
-	observer.tools[call.ID] = value
+	observer.tools[observationIdentity{runID: scope.runID, sourceID: call.ID}] = value
 	observer.mu.Unlock()
 	if observer.live != nil {
 		observer.live.OfferToolStarted(cloneToolObservation(value))
@@ -222,12 +252,18 @@ func (observer *executionObserver) OnToolStarted(_ context.Context, invocation i
 }
 
 func (observer *executionObserver) OnToolSettled(_ context.Context, invocation interaction.ToolInvocation, settlement interaction.ToolSettlement) {
+	scope, scoped := observer.scope(invocation.Relation())
+	if !scoped {
+		return
+	}
 	call := invocation.ToolCall()
+	identity := observationIdentity{runID: scope.runID, sourceID: call.ID}
 	observer.mu.Lock()
-	value, found := observer.tools[call.ID]
+	value, found := observer.tools[identity]
 	if !found {
 		value = ToolObservation{
-			ItemID: ToolItemID(observer.runID, call.ID), CallID: call.ID, Name: call.Name,
+			RunID: scope.runID, SegmentID: scope.segmentID,
+			ItemID: ToolItemID(scope.runID, call.ID), CallID: call.ID, Name: call.Name,
 			Arguments: decodeArguments(call.Arguments), SafetyClass: observer.safetyByName[call.Name],
 			IntrinsicInput: observer.intrinsicInput[call.Name],
 			ModelCallSequence: int(invocation.ModelCallSequence()), ToolCallIndex: int(invocation.ToolCallIndex()),
@@ -244,26 +280,32 @@ func (observer *executionObserver) OnToolSettled(_ context.Context, invocation i
 	if !value.Waiting {
 		value.FinishedAt = time.Now().UTC()
 	}
-	if plan, found := observer.plans[call.ID]; found {
+	if plan, found := observer.plans[identity]; found {
 		clone := clonePlan(plan)
 		value.CommittedPlan = &clone
 	}
-	observer.tools[call.ID] = value
+	observer.tools[identity] = value
 	observer.mu.Unlock()
 	if observer.live != nil {
 		observer.live.OfferToolSettled(cloneToolObservation(value))
 	}
 }
 
-func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObservation, protocol.Usage, int64) {
+func (observer *executionObserver) snapshot(runID string) ([]ModelObservation, []ToolObservation, protocol.Usage, int64) {
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
-	models := make([]ModelObservation, len(observer.models))
+	models := make([]ModelObservation, 0, len(observer.models))
 	usage := protocol.Usage{ByModel: make(map[string]protocol.ModelUsage)}
 	contextTokens := int64(0)
 	contextSequence := 0
-	for index, value := range observer.models {
-		models[index] = ModelObservation{EffectID: value.EffectID, Sequence: value.Sequence, OccurredAt: value.OccurredAt, Response: value.Response.Clone()}
+	for _, value := range observer.models {
+		if value.RunID != runID {
+			continue
+		}
+		models = append(models, ModelObservation{
+			RunID: value.RunID, SegmentID: value.SegmentID,
+			EffectID: value.EffectID, Sequence: value.Sequence, OccurredAt: value.OccurredAt, Response: value.Response.Clone(),
+		})
 		model := value.Response.Model
 		if model == "" {
 			model = observer.defaultModel
@@ -277,8 +319,11 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 	sort.SliceStable(models, func(left, right int) bool { return models[left].Sequence < models[right].Sequence })
 	tools := make([]ToolObservation, 0, len(observer.tools))
 	for _, value := range observer.tools {
+		if value.RunID != runID {
+			continue
+		}
 		value = cloneToolObservation(value)
-		if plan, found := observer.plans[value.CallID]; found {
+		if plan, found := observer.plans[observationIdentity{runID: value.RunID, sourceID: value.CallID}]; found {
 			clone := clonePlan(plan)
 			value.CommittedPlan = &clone
 		}
@@ -295,6 +340,25 @@ func (observer *executionObserver) snapshot() ([]ModelObservation, []ToolObserva
 	}
 	return models, tools, usage, contextTokens
 }
+
+func (observer *executionObserver) scope(relation agent.ProcessRelation) (processBinding, bool) {
+	if observer.delegation != nil {
+		return observer.delegation.binding(relation)
+	}
+	if relation.IsRoot() {
+		return processBinding{runID: observer.runID, segmentID: observer.segmentID, rootRunID: observer.runID}, true
+	}
+	return processBinding{}, false
+}
+
+func (observer *executionObserver) scopeProcess(processID agent.ProcessID) (processBinding, bool) {
+	if observer.delegation != nil {
+		return observer.delegation.bindingProcess(processID)
+	}
+	return processBinding{runID: observer.runID, segmentID: observer.segmentID, rootRunID: observer.runID}, true
+}
+
+func (identity observationIdentity) String() string { return identity.runID + "\x00" + identity.sourceID }
 
 func cloneToolObservation(value ToolObservation) ToolObservation {
 	value.Arguments = cloneObject(value.Arguments)

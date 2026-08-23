@@ -105,6 +105,35 @@ type Output struct {
 	Models     []ModelObservation
 	Tools      []ToolObservation
 	Waiting    *Waiting
+	Children   []ChildOutput
+}
+
+// ChildStatus is the adapter-owned terminal vocabulary exposed to the Run
+// application layer. Framework lifecycle enums do not cross this boundary.
+type ChildStatus string
+
+const (
+	ChildCompleted ChildStatus = "completed"
+	ChildFailed    ChildStatus = "failed"
+	ChildCanceled  ChildStatus = "canceled"
+	ChildTimedOut  ChildStatus = "timed_out"
+	ChildKilled    ChildStatus = "killed"
+)
+
+// ChildOutput is the settled, source-owned material for one managed child.
+// Depth-descending order lets the application commit descendants before the
+// parent whose Delegate result depends on them.
+type ChildOutput struct {
+	RunID, SegmentID, ParentRunID, RootRunID string
+	Depth                                    uint32
+	Status                                   ChildStatus
+	Detail, Reply                            string
+	StartedAt, FinishedAt                    time.Time
+	Usage                                    protocol.Usage
+	ModelCalls                               int
+	ContextTokens                            int64
+	Models                                   []ModelObservation
+	Tools                                    []ToolObservation
 }
 
 type Waiting struct {
@@ -251,7 +280,7 @@ func (executor *Executor) deployment(ctx context.Context, request deploymentRequ
 			return preparedDeployment{}, err
 		}
 	}
-	observer := newExecutionObserver(request.runID, request.model, request.live, bridge)
+	observer := newExecutionObserver(request.runID, request.segmentID, request.model, request.live, bridge)
 	bindings := []ExecutableTool{}
 	if executor.tools != nil {
 		bindings, err = executor.tools.ForRun(ctx, ToolScope{
@@ -360,7 +389,7 @@ func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Proc
 				return Output{}, fmt.Errorf("agentexec: capture waiting interaction: %w", err)
 			}
 			waiting := &Waiting{Prompt: pending.Prompt(), ResponseSchema: pending.ResponseSchema(), Checkpoint: snapshot.JSON()}
-			models, tools, usage, contextTokens := observer.snapshot()
+			models, tools, usage, contextTokens := observer.snapshot(runID)
 			partial := Output{Waiting: waiting, Models: models, Tools: tools, Usage: usage, ModelCalls: len(models), ContextTokens: contextTokens}
 			if err := stopProcess(engine, process); err != nil {
 				return partial, fmt.Errorf("agentexec: release checkpointed interaction: %w", err)
@@ -370,8 +399,14 @@ func awaitProcess(ctx context.Context, engine *agent.Engine, process *agent.Proc
 	}
 
 completed:
-	models, tools, usage, contextTokens := observer.snapshot()
+	models, tools, usage, contextTokens := observer.snapshot(runID)
 	partial := Output{Usage: usage, ModelCalls: len(models), Models: models, Tools: tools, ContextTokens: contextTokens}
+	children, childErr := collectChildOutputs(ctx, engine, observer)
+	partial.Children = children
+	if childErr != nil {
+		_ = engine.Close()
+		return partial, childErr
+	}
 	if err := engine.Close(); err != nil {
 		return partial, fmt.Errorf("agentexec: close completed engine: %w", err)
 	}
@@ -386,6 +421,74 @@ completed:
 	if decoded.ModelResponse == nil { return partial, errors.New("agentexec: interaction produced no model response") }
 	partial.Text = decoded.ModelResponse.Text()
 	return partial, nil
+}
+
+func collectChildOutputs(
+	ctx context.Context,
+	engine *agent.Engine,
+	observer *executionObserver,
+) ([]ChildOutput, error) {
+	if observer == nil || observer.delegation == nil {
+		return nil, nil
+	}
+	bindings := observer.delegation.children()
+	children := make([]ChildOutput, 0, len(bindings))
+	for _, child := range bindings {
+		process, found := engine.Process(child.processID)
+		if !found {
+			return children, fmt.Errorf("agentexec: delegated Process %s is unavailable", child.processID)
+		}
+		result, err := process.Await(context.WithoutCancel(ctx))
+		if err != nil {
+			return children, fmt.Errorf("agentexec: await delegated Process %s: %w", child.processID, err)
+		}
+		models, tools, usage, contextTokens := observer.snapshot(child.binding.runID)
+		status, statusErr := childStatus(result.Status())
+		if statusErr != nil {
+			return children, fmt.Errorf("agentexec: project delegated Process %s status: %w", child.processID, statusErr)
+		}
+		output := ChildOutput{
+			RunID: child.binding.runID, SegmentID: child.binding.segmentID,
+			ParentRunID: child.binding.parentRunID, RootRunID: child.binding.rootRunID,
+			Depth: child.binding.depth, Status: status,
+			StartedAt: result.StartedAt(), FinishedAt: result.FinishedAt(),
+			Usage: usage, ModelCalls: len(models), ContextTokens: contextTokens,
+			Models: models, Tools: tools,
+		}
+		if status != ChildCompleted {
+			termination := result.Termination()
+			output.Detail = termination.Cause().String()
+			if termination.Reason() != "" {
+				output.Detail += ": " + termination.Reason()
+			}
+		}
+		if erased, present := result.Output(); present {
+			decoded, decodeErr := agent.DecodeOutput[delegateTaskResult](erased)
+			if decodeErr != nil {
+				return children, fmt.Errorf("agentexec: decode delegated Process %s: %w", child.processID, decodeErr)
+			}
+			output.Reply = decoded.Reply
+		}
+		children = append(children, output)
+	}
+	return children, nil
+}
+
+func childStatus(status agent.Status) (ChildStatus, error) {
+	switch status {
+	case agent.StatusCompleted:
+		return ChildCompleted, nil
+	case agent.StatusFailed:
+		return ChildFailed, nil
+	case agent.StatusCanceled:
+		return ChildCanceled, nil
+	case agent.StatusTimedOut:
+		return ChildTimedOut, nil
+	case agent.StatusKilled:
+		return ChildKilled, nil
+	default:
+		return "", fmt.Errorf("unexpected terminal status %s", status)
+	}
 }
 
 func stopProcess(engine *agent.Engine, process *agent.Process) error {
