@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import type { Item, RunSummary } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
   formatToolDuration,
   formatToolValue,
@@ -26,8 +27,9 @@ export function ToolDisclosure({
 	searchMatch,
   children,
 }: ToolDisclosureProps) {
+  const { t } = useLocalization();
   const tool = item.tool;
-  const presentation = presentTool(tool?.name ?? "", tool?.arguments ?? {});
+  const presentation = presentTool(tool?.name ?? "", tool?.arguments ?? {}, t);
   const child = run?.parentRunId !== undefined;
   return (
     <details
@@ -47,14 +49,18 @@ export function ToolDisclosure({
           {presentation.subject ? <small>{presentation.subject}</small> : null}
         </span>
         <span className="tool-facts">
-          {run?.parentRunId ? <small>delegated</small> : null}
+          {run?.parentRunId ? <small>{t("tool.delegated")}</small> : null}
           {item.approvalDecision ? (
-            <small>{item.approvalDecision === "approve" ? "approved" : "denied"}</small>
+            <small>
+              {item.approvalDecision === "approve"
+                ? t("tool.approved")
+                : t("tool.denied")}
+            </small>
           ) : null}
           {item.durationMillis !== undefined ? (
             <small>{formatToolDuration(item.durationMillis)}</small>
           ) : null}
-          <small>{toolStatusLabel(item)}</small>
+          <small>{toolStatusLabel(item, t)}</small>
         </span>
       </summary>
       <div className="tool-material">
@@ -66,12 +72,12 @@ export function ToolDisclosure({
           <p className="tool-error" role="alert">{item.error.detail}</p>
         ) : null}
         <details className="tool-arguments">
-          <summary>Arguments</summary>
+          <summary>{t("tool.arguments")}</summary>
           <pre>{formatToolValue(tool?.arguments ?? {})}</pre>
         </details>
         <footer>
           {item.safetyClass ? <span>{item.safetyClass}</span> : null}
-          <code>{tool?.name ?? "unknown_tool"}</code>
+          <code>{tool?.name ?? t("tool.unknownIdentity")}</code>
         </footer>
       </div>
     </details>
@@ -79,11 +85,12 @@ export function ToolDisclosure({
 }
 
 function LiveToolResult({ output }: { output: LiveToolOutput }) {
+  const { t } = useLocalization();
   return (
     <section className="tool-result live-tool-result">
       <header>
-        <strong>Live output</strong>
-        {output.truncated ? <span>bounded tail</span> : null}
+        <strong>{t("tool.liveOutput")}</strong>
+        {output.truncated ? <span>{t("tool.boundedTail")}</span> : null}
       </header>
       <pre>{output.text}</pre>
     </section>
@@ -91,14 +98,17 @@ function LiveToolResult({ output }: { output: LiveToolOutput }) {
 }
 
 function ToolResult({ name, result }: { name: string; result: unknown }) {
+  const { t } = useLocalization();
   if (result === undefined) return null;
   if (name === "shell" && isRecord(result)) {
     return (
       <section className="tool-result shell-result">
         <header>
-          <strong>Command output</strong>
+          <strong>{t("tool.commandOutput")}</strong>
           {typeof result.exit_code === "number" ? (
-            <span data-failed={result.exit_code !== 0}>exit {result.exit_code}</span>
+            <span data-failed={result.exit_code !== 0}>
+              {t("tool.exitCode", { code: result.exit_code })}
+            </span>
           ) : null}
           {typeof result.duration === "string" ? <span>{result.duration}</span> : null}
         </header>
@@ -115,9 +125,9 @@ function ToolResult({ name, result }: { name: string; result: unknown }) {
     return (
       <section className="tool-result file-result">
         <header>
-          <strong>File content</strong>
-          {lineRange(result) ? <span>{lineRange(result)}</span> : null}
-          {result.truncated === true ? <span>truncated</span> : null}
+          <strong>{t("tool.fileContent")}</strong>
+          {lineRange(result, t) ? <span>{lineRange(result, t)}</span> : null}
+          {result.truncated === true ? <span>{t("tool.truncated")}</span> : null}
         </header>
         <pre>{result.content}</pre>
       </section>
@@ -125,16 +135,19 @@ function ToolResult({ name, result }: { name: string; result: unknown }) {
   }
   return (
     <section className="tool-result">
-      <header><strong>Result</strong></header>
+      <header><strong>{t("tool.result")}</strong></header>
       <pre>{formatToolValue(result)}</pre>
     </section>
   );
 }
 
-function lineRange(value: Record<string, unknown>) {
+function lineRange(
+  value: Record<string, unknown>,
+  t: ReturnType<typeof useLocalization>["t"],
+) {
   const start = value.start_line;
   const end = value.end_line;
   return typeof start === "number" && typeof end === "number"
-    ? `lines ${start}–${end}`
+    ? t("tool.lineRange", { start, end })
     : undefined;
 }

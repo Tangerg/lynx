@@ -1,5 +1,10 @@
 import type { Item } from "@lyra/runtime-contract";
 
+import {
+  translateEnglish,
+  type Translate,
+} from "../localization/Localization";
+
 export interface ToolPresentation {
   title: string;
   subject?: string;
@@ -11,14 +16,15 @@ export interface ToolPresentation {
 export function presentTool(
   name: string,
   argumentsValue: Record<string, unknown>,
+  t: Translate = translateEnglish,
 ): ToolPresentation {
   const path = stringArgument(argumentsValue, "path");
   switch (name) {
     case "read":
-      return tool("Read file", path, "read", "↗");
+      return tool(t("tool.readFile"), path, "read", "↗");
     case "glob":
       return tool(
-        "Find files",
+        t("tool.findFiles"),
         stringArgument(argumentsValue, "pattern"),
         "read",
         "⌕",
@@ -26,36 +32,41 @@ export function presentTool(
     case "grep": {
       const pattern = stringArgument(argumentsValue, "pattern");
       return tool(
-        "Search text",
+        t("tool.searchText"),
         pattern,
         "read",
         "⌕",
-        path ? `Within ${path}` : undefined,
+        path ? t("tool.within", { path }) : undefined,
       );
     }
     case "apply_patch":
-      return tool("Apply patch", patchSubject(argumentsValue), "write", "±");
+      return tool(
+        t("tool.applyPatch"),
+        patchSubject(argumentsValue, t),
+        "write",
+        "±",
+      );
     case "edit":
-      return tool("Edit file", path, "write", "±");
+      return tool(t("tool.editFile"), path, "write", "±");
     case "write":
-      return tool("Write file", path, "write", "+");
+      return tool(t("tool.writeFile"), path, "write", "+");
     case "shell":
       return tool(
-        "Run command",
+        t("tool.runCommand"),
         stringArgument(argumentsValue, "command"),
         "exec",
         ">_",
       );
 	case "read_shell_output":
 	  return tool(
-		"Read command output",
+		t("tool.readCommandOutput"),
 		stringArgument(argumentsValue, "shell_id"),
 		"exec",
 		">_",
 	  );
 	case "stop_shell":
 	  return tool(
-		"Stop command",
+		t("tool.stopCommand"),
 		stringArgument(argumentsValue, "shell_id"),
 		"exec",
 		"■",
@@ -63,7 +74,7 @@ export function presentTool(
 	case "lsp": {
 	  const operation = stringArgument(argumentsValue, "operation");
 	  return tool(
-		operation ? humanize(operation) : "Query language server",
+		operation ? humanize(operation) : t("tool.queryLanguageServer"),
 		path ?? stringArgument(argumentsValue, "query"),
 		"read",
 		"⌘",
@@ -71,7 +82,7 @@ export function presentTool(
 	}
     case "web_search":
       return tool(
-        "Search the web",
+        t("tool.searchWeb"),
         stringArgument(argumentsValue, "query"),
         "network",
         "◎",
@@ -79,65 +90,65 @@ export function presentTool(
     case "web_fetch":
     case "http_request":
       return tool(
-        "Fetch network resource",
+        t("tool.fetchNetworkResource"),
         stringArgument(argumentsValue, "url"),
         "network",
         "◎",
       );
     case "list_skills":
-      return tool("Discover skills", undefined, "read", "◇");
+      return tool(t("tool.discoverSkills"), undefined, "read", "◇");
     case "load_skill":
     case "read_skill_resource":
       return tool(
-        "Read skill",
+        t("tool.readSkill"),
         stringArgument(argumentsValue, "name"),
         "read",
         "◇",
       );
     case "propose_skill":
       return tool(
-        "Propose skill",
+        t("tool.proposeSkill"),
         stringArgument(argumentsValue, "name"),
         "control",
         "◇",
       );
     case "enter_plan_mode":
-      return tool("Enter Plan mode", undefined, "control", "▤");
+      return tool(t("tool.enterPlanMode"), undefined, "control", "▤");
     case "set_plan":
       return tool(
-        "Update Plan",
-        listCount(argumentsValue, "steps"),
+        t("tool.updatePlan"),
+        listCount(argumentsValue, "steps", t),
         "control",
         "▤",
       );
     case "exit_plan_mode":
-      return tool("Review Plan", undefined, "control", "▤");
+      return tool(t("tool.reviewPlan"), undefined, "control", "▤");
     case "create_goal":
       return tool(
-        "Create goal",
+        t("tool.createGoal"),
         stringArgument(argumentsValue, "objective"),
         "control",
         "◆",
       );
     case "get_goal":
-      return tool("Inspect goal", undefined, "control", "◆");
+      return tool(t("tool.inspectGoal"), undefined, "control", "◆");
     case "report_goal_outcome":
       return tool(
-        "Settle goal run",
+        t("tool.settleGoalRun"),
         stringArgument(argumentsValue, "status"),
         "control",
         "◆",
       );
     case "read_tool_result":
       return tool(
-        "Continue tool result",
+        t("tool.continueResult"),
         stringArgument(argumentsValue, "result_id"),
         "read",
         "↗",
       );
     case "delegate_task":
       return tool(
-        "Delegate task",
+        t("tool.delegateTask"),
         stringArgument(argumentsValue, "summary"),
         "control",
         "⑂",
@@ -153,7 +164,7 @@ export function presentTool(
         );
       }
       return tool(
-        humanize(name || "Tool"),
+        name ? humanize(name) : t("tool.defaultName"),
         primaryArgument(argumentsValue),
         "tool",
         "◇",
@@ -161,10 +172,15 @@ export function presentTool(
   }
 }
 
-export function toolStatusLabel(item: Item) {
-  if (item.status === "running") return "running";
-  if (item.status === "completed") return "complete";
-  return item.error?.type === "tool_canceled" ? "canceled" : "failed";
+export function toolStatusLabel(
+  item: Item,
+  t: Translate = translateEnglish,
+) {
+  if (item.status === "running") return t("tool.status.running");
+  if (item.status === "completed") return t("tool.status.complete");
+  return item.error?.type === "tool_canceled"
+    ? t("tool.status.canceled")
+    : t("tool.status.failed");
 }
 
 export function formatToolDuration(milliseconds: number) {
@@ -220,20 +236,26 @@ function primaryArgument(value: Record<string, unknown>) {
   return undefined;
 }
 
-function patchSubject(value: Record<string, unknown>) {
+function patchSubject(value: Record<string, unknown>, t: Translate) {
   const patch = stringArgument(value, "patch");
   if (!patch) return undefined;
   const files = [
     ...patch.matchAll(/^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm),
   ];
   if (files.length === 1) return files[0]?.[1];
-  if (files.length > 1) return `${files.length} files`;
-  return "Workspace changes";
+  if (files.length > 1) return t("tool.fileCount", { count: files.length });
+  return t("tool.workspaceChanges");
 }
 
-function listCount(value: Record<string, unknown>, key: string) {
+function listCount(
+  value: Record<string, unknown>,
+  key: string,
+  t: Translate,
+) {
   const list = value[key];
-  return Array.isArray(list) ? `${list.length} steps` : undefined;
+  return Array.isArray(list)
+    ? t("tool.stepCount", { count: list.length })
+    : undefined;
 }
 
 function humanize(value: string) {

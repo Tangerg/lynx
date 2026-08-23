@@ -8,6 +8,7 @@ import {
 
 import type { Session } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
   compactPath,
   formatUpdatedAt,
@@ -36,6 +37,7 @@ interface SessionIndexProps {
 }
 
 export function SessionIndex(props: SessionIndexProps) {
+  const { t } = useLocalization();
   const [search, setSearch] = useState("");
   const groups = useMemo(
     () => groupSessions(props.sessions, search),
@@ -49,40 +51,40 @@ export function SessionIndex(props: SessionIndexProps) {
   if (props.pending) {
     return (
       <p className="panel-note" aria-busy="true">
-        Loading sessions…
+        {t("session.loading")}
       </p>
     );
   }
   if (props.error && props.sessions.length === 0) {
     return (
       <div className="panel-error" role="alert">
-        <p>{messageOf(props.error)}</p>
+        <p>{messageOf(props.error, t("session.changeFailed"))}</p>
         <button className="quiet-action" type="button" onClick={props.onRetry}>
-          Retry
+          {t("session.retry")}
         </button>
       </div>
     );
   }
   if (props.sessions.length === 0) {
-    return <p className="panel-note">No sessions yet. Start one when you’re ready.</p>;
+    return <p className="panel-note">{t("session.empty")}</p>;
   }
 
   return (
     <div className="session-index">
       <label className="session-search">
         <span aria-hidden="true">⌕</span>
-        <span className="sr-only">Search sessions</span>
+        <span className="sr-only">{t("session.search")}</span>
         <input
           type="search"
           value={search}
-          placeholder="Search sessions"
+          placeholder={t("session.search")}
           autoComplete="off"
           onChange={(event) => setSearch(event.target.value)}
         />
         {search ? (
           <button
             type="button"
-            aria-label="Clear session search"
+            aria-label={t("session.clearSearch")}
             onClick={() => setSearch("")}
           >
             ×
@@ -90,19 +92,26 @@ export function SessionIndex(props: SessionIndexProps) {
         ) : null}
       </label>
       <span className="sr-only" aria-live="polite">
-        {visible.length} sessions shown
+        {t(
+          visible.length === 1 ? "session.shownOne" : "session.shownMany",
+          { count: visible.length },
+        )}
       </span>
       {props.error ? (
         <p className="session-refresh-warning" role="status">
-          Showing saved sessions. Refresh failed: {messageOf(props.error)}
+          {t("session.refreshFailed", {
+            detail: messageOf(props.error, t("session.changeFailed")),
+          })}
         </p>
       ) : null}
       {visible.length === 0 ? (
-        <p className="panel-note">No sessions match “{search.trim()}”.</p>
+        <p className="panel-note">
+          {t("session.noMatch", { query: search.trim() })}
+        </p>
       ) : (
         <nav
           className="session-list"
-          aria-label="Sessions by workspace"
+          aria-label={t("session.groupedLabel")}
           onKeyDown={(event) =>
             navigateSessions(event, visible, props.onSelect)
           }
@@ -137,7 +146,9 @@ export function SessionIndex(props: SessionIndexProps) {
           disabled={props.loadingMore}
           onClick={props.onLoadMore}
         >
-          {props.loadingMore ? "Loading…" : "Load older sessions"}
+          {props.loadingMore
+            ? t("session.loadingOlder")
+            : t("session.loadOlder")}
         </button>
       ) : null}
     </div>
@@ -154,6 +165,7 @@ function SessionRow(props: {
 	onFork: SessionIndexProps["onFork"];
 	onExport: SessionIndexProps["onExport"];
 }) {
+  const { formatDateTime, t } = useLocalization();
   const menu = useRef<HTMLDetailsElement>(null);
   const renameInput = useRef<HTMLInputElement>(null);
   const [renaming, setRenaming] = useState(false);
@@ -172,7 +184,7 @@ function SessionRow(props: {
   const saveRename = async () => {
     const title = draft.trim();
     if (!title) {
-      setError(new Error("Session title cannot be empty."));
+      setError(new Error(t("session.titleRequired")));
       return;
     }
     const source = renameSource ?? props.session;
@@ -244,7 +256,7 @@ function SessionRow(props: {
           }}
         >
           <label>
-            <span className="sr-only">Session title</span>
+            <span className="sr-only">{t("session.title")}</span>
             <input
               ref={renameInput}
               value={draft}
@@ -261,13 +273,17 @@ function SessionRow(props: {
             />
           </label>
           <div>
-            <button type="submit" disabled={props.busy} aria-label="Save title">
+            <button
+              type="submit"
+              disabled={props.busy}
+              aria-label={t("session.saveTitle")}
+            >
               ✓
             </button>
             <button
               type="button"
               disabled={props.busy}
-              aria-label="Cancel rename"
+              aria-label={t("session.cancelRename")}
               onClick={() => {
                 setDraft(props.session.title);
                 setRenaming(false);
@@ -289,8 +305,10 @@ function SessionRow(props: {
         >
           <span className="session-row-main">
             <strong>
-              {props.session.favorite ? <span aria-label="Favorite">★</span> : null}
-              {props.session.title || "Untitled session"}
+              {props.session.favorite ? (
+                <span aria-label={t("session.favorite")}>★</span>
+              ) : null}
+              {props.session.title || t("session.untitled")}
             </strong>
             <small title={props.session.workspace.ref.path}>
               {compactPath(props.session.workspace.ref.path)}
@@ -298,10 +316,10 @@ function SessionRow(props: {
           </span>
           <span className="session-row-meta">
             <span className="session-state" data-status={props.session.status}>
-              {sessionStatus(props.session.status)}
+              {sessionStatus(props.session.status, t)}
             </span>
             <time dateTime={props.session.updatedAt}>
-              {formatUpdatedAt(props.session.updatedAt)}
+              {formatUpdatedAt(props.session.updatedAt, formatDateTime)}
             </time>
           </span>
         </button>
@@ -316,7 +334,13 @@ function SessionRow(props: {
             setError(undefined);
           }}
         >
-          <summary aria-label={`Actions for ${props.session.title}`}>•••</summary>
+          <summary
+            aria-label={t("session.actionsFor", {
+              title: props.session.title || t("session.untitled"),
+            })}
+          >
+            •••
+          </summary>
           <div>
             <button
               type="button"
@@ -328,23 +352,25 @@ function SessionRow(props: {
                 if (menu.current) menu.current.open = false;
               }}
             >
-              Rename
+              {t("session.rename")}
             </button>
             <button
               type="button"
               disabled={props.busy}
               onClick={() => void toggleFavorite()}
             >
-              {props.session.favorite ? "Remove favorite" : "Favorite"}
+              {props.session.favorite
+                ? t("session.removeFavorite")
+                : t("session.favorite")}
             </button>
 			<button type="button" disabled={props.busy} onClick={() => void fork()}>
-				Fork session
+				{t("session.fork")}
 			</button>
 			<button type="button" disabled={props.busy} onClick={() => void exportAs("json")}>
-				Export JSON…
+				{t("session.exportJSON")}
 			</button>
 			<button type="button" disabled={props.busy} onClick={() => void exportAs("md")}>
-				Export Markdown…
+				{t("session.exportMarkdown")}
 			</button>
             <button
               className={confirmDelete ? "confirm-delete" : undefined}
@@ -352,15 +378,19 @@ function SessionRow(props: {
               disabled={props.busy}
               onClick={() => void remove()}
             >
-              {confirmDelete ? "Confirm delete" : "Delete…"}
+              {confirmDelete
+                ? t("session.confirmDelete")
+                : t("session.delete")}
             </button>
-            {error ? <p role="alert">{messageOf(error)}</p> : null}
+            {error ? (
+              <p role="alert">{messageOf(error, t("session.changeFailed"))}</p>
+            ) : null}
           </div>
         </details>
       ) : null}
       {renaming && error ? (
         <p className="session-action-error" role="alert">
-          {messageOf(error)}
+          {messageOf(error, t("session.changeFailed"))}
         </p>
       ) : null}
     </article>
@@ -423,6 +453,6 @@ function sessionControlId(sessionId: string): string {
   return `session-${sessionId}`;
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : "The session could not be changed.";
+function messageOf(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }

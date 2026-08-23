@@ -845,6 +845,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - provider 当前只激活完整 English dictionary，并据此设置 `html.lang/dir`；locale preference、其余 Desktop surface、八个旧能力 locale 的精选 app2 dictionary、Arabic RTL 与 logical CSS 尚未闭合前不暴露 locale selector，因此 U22 继续保持 `in_progress`；
 - 本批不改变 Lyra wire、generated contract、Runtime method/event/error、SQLite epoch 或 Desktop bridge。其余 production copy 继续按 bounded surface 迁移，最终 compile/a11y/visual/package 仍只在 R11 统一门禁执行。
 
+### R10d2 Session / activity presentation language 实现记录（尚未统一验证）
+
+- Session index/new-session、per-Session model picker、Overview/Timeline/Terminal/Summary、Tool disclosure 与 clipboard summary 已迁入 typed localization boundary；empty/loading/error/action/a11y copy 与 locale-aware date/number presentation 使用同一 context；
+- known Tool 与 Run/Session 状态经显式 display resolver 映射，`presentTool`/activity projection 仍是 pure presentation function，并以 complete English translator 作为 isolated test/default seam；wire status、approval decision、tool name、provider/model identity、command/path/output 继续保留 canonical 原值；
+- summary projection 的本地化只影响当前 renderer/copy material，不写回 Session、Item、Run 或 artifact，也不新增 protocol operation。Settings、Workspace、Goal/Plan 与最终 locale dictionaries/selector/RTL 仍继续迁移，U22 保持 `in_progress`。
+
 ## 15. R11：Wave A 全量 parity 与切换
 
 ### 准入

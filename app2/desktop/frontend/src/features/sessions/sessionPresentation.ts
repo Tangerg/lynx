@@ -8,19 +8,33 @@ export function workspaceName(path: string): string {
   return parts.at(-1) ?? path;
 }
 
-export function sessionStatus(status: string): string {
-  if (status === "running") return "Running";
-  if (status === "waiting") return "Waiting";
-  if (status === "idle") return "Idle";
+export function sessionStatus(
+  status: string,
+  t: Translate = translateEnglish,
+): string {
+  if (status === "running") return t("session.status.running");
+  if (status === "waiting") return t("session.status.waiting");
+  if (status === "idle") return t("session.status.idle");
   return status;
 }
 
-export function formatUpdatedAt(value: string): string {
+export function formatUpdatedAt(
+  value: string,
+  format: (
+    value: Date,
+    options?: Intl.DateTimeFormatOptions,
+  ) => string = (date, options) =>
+    new Intl.DateTimeFormat("en", options).format(date),
+): string {
   const date = new Date(value);
   return Number.isNaN(date.valueOf())
     ? ""
-    : new Intl.DateTimeFormat(undefined, {
+    : format(date, {
         month: "short",
         day: "numeric",
-      }).format(date);
+      });
 }
+import {
+  translateEnglish,
+  type Translate,
+} from "../localization/Localization";

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import type { CreateSessionRequest, Session } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import { chooseDirectory } from "../../runtime/desktopBridge";
 import { compactPath } from "./sessionPresentation";
 
@@ -13,6 +14,7 @@ interface NewSessionMenuProps {
 }
 
 export function NewSessionMenu(props: NewSessionMenuProps) {
+  const { t } = useLocalization();
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -71,8 +73,8 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
       <button
         className="icon-action"
         type="button"
-        aria-label="New session"
-        title="New session (Mod+N)"
+        aria-label={t("session.new")}
+        title={t("session.newShortcut")}
         aria-expanded={open}
         aria-controls={menuId}
         disabled={props.pending}
@@ -87,13 +89,13 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
           className={`new-session-popover t-dropdown${open ? " is-open" : closing ? " is-closing" : ""}`}
           data-origin="top-right"
           id={menuId}
-          aria-label="New session"
+          aria-label={t("session.new")}
           aria-hidden={!open}
           inert={!open}
         >
           <header>
-            <strong>Start a session</strong>
-            <span>Mod N</span>
+            <strong>{t("session.start")}</strong>
+            <span>{t("session.shortcut")}</span>
           </header>
           <button
             type="button"
@@ -102,7 +104,7 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
           >
             <span aria-hidden="true">↗</span>
             <span>
-              <strong>Default workspace</strong>
+              <strong>{t("session.defaultWorkspace")}</strong>
               <small title={props.defaultWorkspace}>
                 {compactPath(props.defaultWorkspace)}
               </small>
@@ -115,8 +117,8 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
           >
             <span aria-hidden="true">⌁</span>
             <span>
-              <strong>Choose a folder…</strong>
-              <small>Bind the exact selected directory</small>
+              <strong>{t("session.chooseFolder")}</strong>
+              <small>{t("session.chooseFolderDetail")}</small>
             </span>
           </button>
 		  <button
@@ -126,11 +128,13 @@ export function NewSessionMenu(props: NewSessionMenuProps) {
 		  >
 			<span aria-hidden="true">⇣</span>
 			<span>
-			  <strong>Import session…</strong>
-			  <small>Open an exact app2 JSON artifact</small>
+			  <strong>{t("session.import")}</strong>
+			  <small>{t("session.importDetail")}</small>
 			</span>
 		  </button>
-          {error ? <p role="alert">{messageOf(error)}</p> : null}
+          {error ? (
+            <p role="alert">{messageOf(error, t("session.createFailed"))}</p>
+          ) : null}
         </section>
     </div>
   );
@@ -163,6 +167,6 @@ function useDropdownClosing(open: boolean): boolean {
   return closing;
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : "Could not create the session.";
+function messageOf(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }

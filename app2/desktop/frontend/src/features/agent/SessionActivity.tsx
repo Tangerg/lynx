@@ -13,12 +13,19 @@ import type {
   RunRef,
 } from "@lyra/runtime-contract";
 
+import {
+  useLocalization,
+  type MessageKey,
+} from "../localization/Localization";
 import type { LiveToolOutput, SessionActivityView } from "./agentSessionTypes";
 import {
+  approvalDecisionLabel,
   buildLatestRunSummary,
   buildTerminalCommands,
   buildTimeline,
+  changeActionLabel,
   runStatus,
+  runStatusLabel,
   summaryAsText,
   type SessionRunSummary,
   type TerminalCommand,
@@ -40,17 +47,18 @@ interface SessionActivityProps {
   children: ReactNode;
 }
 
-const views: { id: SessionActivityView; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "timeline", label: "Timeline" },
-  { id: "terminal", label: "Terminal" },
-  { id: "summary", label: "Summary" },
+const views: { id: SessionActivityView; label: MessageKey }[] = [
+  { id: "overview", label: "activity.overview" },
+  { id: "timeline", label: "activity.timeline" },
+  { id: "terminal", label: "activity.terminal" },
+  { id: "summary", label: "activity.summary" },
 ];
 
 export function SessionActivity(props: SessionActivityProps) {
+  const { t } = useLocalization();
   return (
-    <section className="session-activity" aria-label="Session activity">
-      <nav className="session-view-switch" aria-label="Session views">
+    <section className="session-activity" aria-label={t("activity.label")}>
+      <nav className="session-view-switch" aria-label={t("activity.views")}>
         {views.map((view) => (
           <button
             key={view.id}
@@ -58,7 +66,7 @@ export function SessionActivity(props: SessionActivityProps) {
             aria-current={props.view === view.id ? "page" : undefined}
             onClick={() => props.onViewChange(view.id)}
           >
-            {view.label}
+            {t(view.label)}
           </button>
         ))}
       </nav>
@@ -84,15 +92,16 @@ export function SessionActivity(props: SessionActivityProps) {
 }
 
 function TimelineView(props: SessionActivityProps) {
+  const { t } = useLocalization();
   const groups = useMemo(
-    () => buildTimeline(props.runs, props.items, props.interrupts),
-    [props.interrupts, props.items, props.runs],
+    () => buildTimeline(props.runs, props.items, props.interrupts, t),
+    [props.interrupts, props.items, props.runs, t],
   );
   if (groups.length === 0) {
     return (
       <ActivityEmpty
-        title="No run timeline yet"
-        detail="Run lifecycle and tool facts will appear here after Lyra starts work."
+        title={t("activity.noTimeline")}
+        detail={t("activity.noTimelineDetail")}
       />
     );
   }
@@ -103,18 +112,25 @@ function TimelineView(props: SessionActivityProps) {
           <header>
             <div>
               <span className="eyebrow">
-                {groupIndex === 0 ? "Latest run tree" : "Earlier run tree"}
+                {groupIndex === 0
+                  ? t("activity.latestRunTree")
+                  : t("activity.earlierRunTree")}
               </span>
               <strong title={group.root.id}>
                 {shortIdentity(group.root.id)}
               </strong>
             </div>
             <span className="run-state-chip" data-status={runStatus(group.root)}>
-              {humanize(runStatus(group.root))}
+              {runStatusLabel(runStatus(group.root), t)}
             </span>
           </header>
           <p className="run-tree-facts">
-            {group.runs.length} {group.runs.length === 1 ? "run" : "runs"}
+            {t(
+              group.runs.length === 1
+                ? "activity.runCountOne"
+                : "activity.runCountMany",
+              { count: group.runs.length },
+            )}
             {group.root.model ? ` · ${group.root.model}` : ""}
             {group.root.provider ? ` · ${group.root.provider}` : ""}
           </p>
@@ -152,6 +168,7 @@ function TimelineRow(props: {
   cancelError?: string;
   onCancelRun(runId: string): Promise<void>;
 }) {
+  const { t } = useLocalization();
   const entry = props.entry;
   const style = {
     "--activity-depth": Math.min(entry.depth, 6),
@@ -164,11 +181,15 @@ function TimelineRow(props: {
           !
         </span>
         <div className="timeline-row-body">
-          <strong>{approval ? "Approval requested" : "Input requested"}</strong>
+          <strong>
+            {approval
+              ? t("activity.approvalRequested")
+              : t("activity.inputRequested")}
+          </strong>
           {entry.tool?.subject ? <code>{entry.tool.subject}</code> : null}
           <span className="timeline-row-facts">
             {entry.tool ? <small>{entry.tool.title}</small> : null}
-            <small>pending</small>
+            <small>{t("activity.pending")}</small>
             <OccurredAt value={entry.timestamp} />
           </span>
           {entry.interrupt.payload?.reason ? (
@@ -194,9 +215,11 @@ function TimelineRow(props: {
           <strong>{entry.tool.title}</strong>
           {entry.tool.subject ? <code>{entry.tool.subject}</code> : null}
           <span className="timeline-row-facts">
-            <small>{toolStatusLabel(entry.item)}</small>
+            <small>{toolStatusLabel(entry.item, t)}</small>
             {entry.item.approvalDecision ? (
-              <small>{entry.item.approvalDecision}</small>
+              <small>
+                {approvalDecisionLabel(entry.item.approvalDecision, t)}
+              </small>
             ) : null}
             {entry.item.durationMillis !== undefined ? (
               <small>{formatToolDuration(entry.item.durationMillis)}</small>
@@ -216,11 +239,13 @@ function TimelineRow(props: {
   const title =
     entry.kind === "runStarted"
       ? entry.depth === 0
-        ? "Run started"
-        : "Delegated run started"
+        ? t("activity.runStarted")
+        : t("activity.delegatedRunStarted")
       : entry.kind === "runWaiting"
-        ? "Run waiting for input"
-        : `Run ${humanize(runStatus(entry.run))}`;
+        ? t("activity.runWaiting")
+        : t("activity.runState", {
+            status: runStatusLabel(runStatus(entry.run), t),
+          });
   const detail =
     entry.kind === "runSettled"
       ? entry.run.outcome?.error?.detail ?? entry.run.outcome?.detail
@@ -240,7 +265,9 @@ function TimelineRow(props: {
         <span className="timeline-row-facts">
           {entry.run.model ? <small>{entry.run.model}</small> : null}
           {entry.kind === "runSettled" ? (
-            <small>{entry.run.metrics.steps} steps</small>
+            <small>
+              {t("activity.stepCount", { count: entry.run.metrics.steps })}
+            </small>
           ) : null}
           <OccurredAt value={entry.timestamp} />
         </span>
@@ -258,7 +285,7 @@ function TimelineRow(props: {
             void props.onCancelRun(entry.run.id).catch(() => undefined)
           }
         >
-          {props.canceling ? "Canceling…" : "Cancel"}
+          {props.canceling ? t("activity.canceling") : t("activity.cancel")}
         </button>
       ) : null}
     </li>
@@ -270,9 +297,16 @@ function TerminalView(props: {
   items: Item[];
   liveToolOutputs: Record<string, LiveToolOutput>;
 }) {
+  const { t } = useLocalization();
   const commands = useMemo(
-    () => buildTerminalCommands(props.runs, props.items, props.liveToolOutputs),
-    [props.items, props.liveToolOutputs, props.runs],
+    () =>
+      buildTerminalCommands(
+        props.runs,
+        props.items,
+        props.liveToolOutputs,
+        t,
+      ),
+    [props.items, props.liveToolOutputs, props.runs, t],
   );
   const scroll = useRef<HTMLDivElement>(null);
   const followsTail = useRef(true);
@@ -309,8 +343,8 @@ function TerminalView(props: {
   if (commands.length === 0) {
     return (
       <ActivityEmpty
-        title="No commands yet"
-        detail="Shell tool calls will appear here as a read-only execution log."
+        title={t("activity.noCommands")}
+        detail={t("activity.noCommandsDetail")}
       />
     );
   }
@@ -318,7 +352,12 @@ function TerminalView(props: {
     <div className="terminal-view">
       <header className="terminal-toolbar">
         <span>
-          {commands.length} {commands.length === 1 ? "command" : "commands"}
+          {t(
+            commands.length === 1
+              ? "activity.commandCountOne"
+              : "activity.commandCountMany",
+            { count: commands.length },
+          )}
         </span>
         <button
           type="button"
@@ -326,7 +365,7 @@ function TerminalView(props: {
           onClick={follow}
           disabled={pinned}
         >
-          {pinned ? "Following output" : "Follow output"}
+          {pinned ? t("activity.followingOutput") : t("activity.followOutput")}
         </button>
       </header>
       <div className="terminal-log" ref={scroll} onScroll={trackReader}>
@@ -345,6 +384,7 @@ function CommandRecord({
   command: TerminalCommand;
   index: number;
 }) {
+  const { t } = useLocalization();
   const output =
     command.stdout || command.stderr || command.liveOutput?.text || "";
   const running = command.item.status === "running";
@@ -358,24 +398,24 @@ function CommandRecord({
           data-status={command.item.status}
         >
           {running
-            ? "running"
+            ? t("activity.running")
             : command.exitCode !== undefined
-              ? `exit ${command.exitCode}`
-              : toolStatusLabel(command.item)}
+              ? t("tool.exitCode", { code: command.exitCode })
+              : toolStatusLabel(command.item, t)}
         </span>
       </summary>
       <div className="terminal-material">
         <header>
-          <span>Command {index}</span>
+          <span>{t("activity.commandNumber", { number: index })}</span>
           <span title={command.run.id}>{shortIdentity(command.run.id)}</span>
           {command.item.durationMillis !== undefined ? (
             <span>{formatToolDuration(command.item.durationMillis)}</span>
           ) : null}
-          {command.killed ? <span>killed</span> : null}
+          {command.killed ? <span>{t("activity.killed")}</span> : null}
         </header>
         {command.liveOutput?.truncated ? (
           <p className="terminal-truncated">
-            Earlier live output was dropped to keep this preview bounded.
+            {t("activity.liveOutputTruncated")}
           </p>
         ) : null}
         {output ? (
@@ -391,8 +431,8 @@ function CommandRecord({
         ) : (
           <p className="terminal-empty-output">
             {running
-              ? "Waiting for command output…"
-              : "Command produced no captured output."}
+              ? t("activity.waitingCommandOutput")
+              : t("activity.noCapturedOutput")}
           </p>
         )}
       </div>
@@ -405,9 +445,16 @@ function SummaryView(props: {
   items: Item[];
   liveToolOutputs: Record<string, LiveToolOutput>;
 }) {
+  const { t } = useLocalization();
   const summary = useMemo(
-    () => buildLatestRunSummary(props.runs, props.items, props.liveToolOutputs),
-    [props.items, props.liveToolOutputs, props.runs],
+    () =>
+      buildLatestRunSummary(
+        props.runs,
+        props.items,
+        props.liveToolOutputs,
+        t,
+      ),
+    [props.items, props.liveToolOutputs, props.runs, t],
   );
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => setCopyState("idle"), [summary?.root.id]);
@@ -415,14 +462,14 @@ function SummaryView(props: {
   if (summary === undefined) {
     return (
       <ActivityEmpty
-        title="No run summary yet"
-        detail="The latest root run and its delegated tree will be summarized here."
+        title={t("activity.noSummary")}
+        detail={t("activity.noSummaryDetail")}
       />
     );
   }
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(summaryAsText(summary));
+      await navigator.clipboard.writeText(summaryAsText(summary, t));
       setCopyState("copied");
     } catch {
       setCopyState("failed");
@@ -432,7 +479,7 @@ function SummaryView(props: {
     <div className="activity-scroll run-summary-view">
       <header className="run-summary-heading">
         <div>
-          <span className="eyebrow">Latest run tree</span>
+          <span className="eyebrow">{t("activity.latestRunTree")}</span>
           <h3 title={summary.root.id}>{shortIdentity(summary.root.id)}</h3>
         </div>
         <button
@@ -440,32 +487,34 @@ function SummaryView(props: {
           className="secondary-action"
           onClick={() => void copy()}
         >
-          {copyState === "copied" ? "Copied" : "Copy summary"}
+          {copyState === "copied"
+            ? t("activity.copied")
+            : t("activity.copySummary")}
         </button>
       </header>
       {copyState === "failed" ? (
         <p className="activity-integrity" role="alert">
-          The system clipboard is unavailable. Nothing was copied.
+          {t("activity.clipboardUnavailable")}
         </p>
       ) : null}
       <SummaryFacts summary={summary} />
       <SummarySection
-        title="Changed files"
-        empty="No file changes were recorded."
+        title={t("activity.changedFiles")}
+        empty={t("activity.noChangedFiles")}
         omitted={summary.omitted.changes}
       >
         {summary.changes.map((change) => (
           <li key={change.path}>
             <span className="summary-action" data-action={change.action}>
-              {change.action}
+              {changeActionLabel(change.action, t)}
             </span>
             <code>{change.path}</code>
           </li>
         ))}
       </SummarySection>
       <SummarySection
-        title="Read files"
-        empty="No file reads were recorded."
+        title={t("activity.readFiles")}
+        empty={t("activity.noReadFiles")}
         omitted={summary.omitted.readFiles}
       >
         {summary.readFiles.map((path) => (
@@ -475,8 +524,8 @@ function SummaryView(props: {
         ))}
       </SummarySection>
       <SummarySection
-        title="Commands"
-        empty="No commands were run."
+        title={t("activity.commands")}
+        empty={t("activity.noCommandsRecorded")}
         omitted={summary.omitted.commands}
       >
         {summary.commands.map((command) => (
@@ -484,28 +533,28 @@ function SummaryView(props: {
             <code>{command.command}</code>
             <span>
               {command.exitCode === undefined
-                ? toolStatusLabel(command.item)
-                : `exit ${command.exitCode}`}
+                ? toolStatusLabel(command.item, t)
+                : t("tool.exitCode", { code: command.exitCode })}
             </span>
           </li>
         ))}
       </SummarySection>
       <SummarySection
-        title="Approvals"
-        empty="No approval boundary was crossed."
+        title={t("activity.approvals")}
+        empty={t("activity.noApprovals")}
         omitted={summary.omitted.approvals}
       >
         {summary.approvals.map((approval, index) => (
           <li key={`${approval.tool}:${approval.subject ?? ""}:${index}`}>
-            <span>{approval.decision}</span>
+            <span>{approvalDecisionLabel(approval.decision, t)}</span>
             <strong>{approval.tool}</strong>
             {approval.subject ? <code>{approval.subject}</code> : null}
           </li>
         ))}
       </SummarySection>
       <SummarySection
-        title="Errors"
-        empty="No errors were recorded."
+        title={t("activity.errors")}
+        empty={t("activity.noErrors")}
         omitted={summary.omitted.errors}
         tone="error"
       >
@@ -521,6 +570,7 @@ function SummaryView(props: {
 }
 
 function SummaryFacts({ summary }: { summary: SessionRunSummary }) {
+  const { formatNumber, t } = useLocalization();
   const totalTokens =
     summary.usage.inputTokens === undefined &&
     summary.usage.outputTokens === undefined
@@ -529,25 +579,25 @@ function SummaryFacts({ summary }: { summary: SessionRunSummary }) {
   return (
     <dl className="run-summary-facts">
       <Fact
-        label="Status"
-        value={humanize(summary.status)}
+        label={t("activity.status")}
+        value={runStatusLabel(summary.status, t)}
         status={summary.status}
       />
-      <Fact label="Runs" value={String(summary.runs.length)} />
-      <Fact label="Steps" value={String(summary.steps)} />
+      <Fact label={t("activity.runs")} value={formatNumber(summary.runs.length)} />
+      <Fact label={t("activity.steps")} value={formatNumber(summary.steps)} />
       <Fact
-        label="Active time"
+        label={t("activity.activeTime")}
         value={formatToolDuration(summary.activeDurationMillis)}
       />
       <Fact
-        label="Tokens"
-        value={totalTokens === undefined ? "Unknown" : formatNumber(totalTokens)}
+        label={t("activity.tokens")}
+        value={totalTokens === undefined ? t("activity.unknown") : formatNumber(totalTokens)}
       />
       <Fact
-        label="Cost"
+        label={t("activity.cost")}
         value={
           summary.usage.costUsd === undefined
-            ? "Unknown"
+            ? t("activity.unknown")
             : `$${summary.usage.costUsd.toFixed(4)}`
         }
       />
@@ -571,6 +621,7 @@ function SummarySection(props: {
   tone?: "error";
   children: ReactNode;
 }) {
+  const { t } = useLocalization();
   const hasChildren = Array.isArray(props.children)
     ? props.children.length > 0
     : props.children !== null;
@@ -579,7 +630,7 @@ function SummarySection(props: {
       <h4>{props.title}</h4>
       {hasChildren ? <ul>{props.children}</ul> : <p>{props.empty}</p>}
       {props.omitted > 0 ? (
-        <small>And {props.omitted} more bounded from this view.</small>
+        <small>{t("activity.omitted", { count: props.omitted })}</small>
       ) : null}
     </section>
   );
@@ -596,28 +647,15 @@ function ActivityEmpty(props: { title: string; detail: string }) {
 }
 
 function OccurredAt({ value }: { value?: string }) {
+  const { formatDateTime } = useLocalization();
   if (!value) return null;
-  return <time dateTime={value}>{formatTime(value)}</time>;
-}
-
-function formatTime(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  if (Number.isNaN(date.valueOf())) return <time dateTime={value}>{value}</time>;
+  return <time dateTime={value}>{formatDateTime(date, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-  }).format(date);
-}
-
-function formatNumber(value: number) {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return value.toLocaleString();
-}
-
-function humanize(value: string) {
-  return value.replaceAll(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
+  })}</time>;
 }
 
 function shortIdentity(identity: string) {

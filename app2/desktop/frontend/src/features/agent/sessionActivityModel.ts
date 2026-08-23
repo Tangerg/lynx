@@ -8,6 +8,10 @@ import type {
 
 import type { LiveToolOutput } from "./agentSessionTypes";
 import {
+  translateEnglish,
+  type Translate,
+} from "../localization/Localization";
+import {
   isRecord,
   presentTool,
   stringArgument,
@@ -96,11 +100,12 @@ export function buildTimeline(
   runs: RunRef[],
   items: Item[],
   interruptSets: PendingInterruptSet[] = [],
+  t: Translate = translateEnglish,
 ): TimelineGroup[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
   const groups = new Map<string, { runs: RunRef[]; integrity: Set<string> }>();
   for (const run of runs) {
-    const resolution = resolveRoot(run, runById);
+    const resolution = resolveRoot(run, runById, t);
     const group = groups.get(resolution.root.id) ?? {
       runs: [],
       integrity: new Set<string>(),
@@ -154,7 +159,11 @@ export function buildTimeline(
             run,
             depth,
             item,
-            tool: presentTool(item.tool?.name ?? "", item.tool?.arguments ?? {}),
+            tool: presentTool(
+              item.tool?.name ?? "",
+              item.tool?.arguments ?? {},
+              t,
+            ),
             ...((item.startedAt ?? item.createdAt)
               ? { timestamp: item.startedAt ?? item.createdAt }
               : {}),
@@ -169,7 +178,7 @@ export function buildTimeline(
             depth,
             interrupt: pending.interrupt,
             ...(tool
-              ? { tool: presentTool(tool.name, tool.arguments) }
+              ? { tool: presentTool(tool.name, tool.arguments, t) }
               : {}),
             timestamp: pending.createdAt,
           });
@@ -211,6 +220,7 @@ export function buildTerminalCommands(
   runs: RunRef[],
   items: Item[],
   liveOutputs: Record<string, LiveToolOutput>,
+  t: Translate = translateEnglish,
 ): TerminalCommand[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
   return items
@@ -232,7 +242,7 @@ export function buildTerminalCommands(
           item,
           command:
             stringArgument(item.tool.arguments, "command") ??
-            "Command unavailable",
+            t("activity.commandUnavailable"),
           ...(item.startedAt ? { startedAt: item.startedAt } : {}),
           ...(item.finishedAt ? { finishedAt: item.finishedAt } : {}),
           stdout: typeof result.stdout === "string" ? result.stdout : "",
@@ -252,18 +262,19 @@ export function buildLatestRunSummary(
   runs: RunRef[],
   items: Item[],
   liveOutputs: Record<string, LiveToolOutput>,
+  t: Translate = translateEnglish,
 ): SessionRunSummary | undefined {
-  const latest = buildTimeline(runs, items)[0];
+  const latest = buildTimeline(runs, items, [], t)[0];
   if (latest === undefined) return undefined;
   const runIds = new Set(latest.runs.map((run) => run.id));
   const material = items.filter((item) => runIds.has(item.runId));
-  const allChanges = uniqueChanges(material.flatMap(changesFromItem));
+  const allChanges = uniqueChanges(material.flatMap((item) => changesFromItem(item, t)));
   const allReads = uniqueStrings(material.flatMap(readsFromItem));
-  const allCommands = buildTerminalCommands(latest.runs, material, liveOutputs);
-  const allApprovals = material.flatMap(approvalFromItem);
+  const allCommands = buildTerminalCommands(latest.runs, material, liveOutputs, t);
+  const allApprovals = material.flatMap((item) => approvalFromItem(item, t));
   const allErrors = [
-    ...latest.runs.flatMap(errorFromRun),
-    ...material.flatMap(errorFromItem),
+    ...latest.runs.flatMap((run) => errorFromRun(run, t)),
+    ...material.flatMap((item) => errorFromItem(item, t)),
   ];
   return {
     root: latest.root,
@@ -292,41 +303,58 @@ export function buildLatestRunSummary(
   };
 }
 
-export function summaryAsText(summary: SessionRunSummary) {
+export function summaryAsText(
+  summary: SessionRunSummary,
+  t: Translate = translateEnglish,
+) {
   const lines = [
-    `Run ${summary.root.id}`,
-    `Status: ${summary.status}`,
-    `Runs: ${summary.runs.length}`,
-    `Steps: ${summary.steps}`,
-    `Active time: ${formatDuration(summary.activeDurationMillis)}`,
+    t("activity.runIdentity", { id: summary.root.id }),
+    t("activity.exportStatus", { status: runStatusLabel(summary.status, t) }),
+    t("activity.exportRuns", { count: summary.runs.length }),
+    t("activity.exportSteps", { count: summary.steps }),
+    t("activity.exportActiveTime", {
+      duration: formatDuration(summary.activeDurationMillis),
+    }),
   ];
   appendSection(
     lines,
-    "Changed files",
-    summary.changes.map((change) => `${change.action}: ${change.path}`),
+    t("activity.changedFiles"),
+    summary.changes.map(
+      (change) => `${changeActionLabel(change.action, t)}: ${change.path}`,
+    ),
     summary.omitted.changes,
+    t,
   );
-  appendSection(lines, "Read files", summary.readFiles, summary.omitted.readFiles);
   appendSection(
     lines,
-    "Commands",
+    t("activity.readFiles"),
+    summary.readFiles,
+    summary.omitted.readFiles,
+    t,
+  );
+  appendSection(
+    lines,
+    t("activity.commands"),
     summary.commands.map((command) => command.command),
     summary.omitted.commands,
+    t,
   );
   appendSection(
     lines,
-    "Approvals",
+    t("activity.approvals"),
     summary.approvals.map(
       (approval) =>
-        `${approval.decision}: ${approval.tool}${approval.subject ? ` — ${approval.subject}` : ""}`,
+        `${approvalDecisionLabel(approval.decision, t)}: ${approval.tool}${approval.subject ? ` — ${approval.subject}` : ""}`,
     ),
     summary.omitted.approvals,
+    t,
   );
   appendSection(
     lines,
-    "Errors",
+    t("activity.errors"),
     summary.errors.map((error) => `${error.source}: ${error.detail}`),
     summary.omitted.errors,
+    t,
   );
   return lines.join("\n");
 }
@@ -337,7 +365,57 @@ export function runStatus(run: RunRef) {
   return run.outcome?.type ?? run.status ?? "unknown";
 }
 
-function resolveRoot(run: RunRef, runById: Map<string, RunRef>) {
+export function runStatusLabel(
+  status: string,
+  t: Translate = translateEnglish,
+) {
+  switch (status) {
+    case "finished":
+      return t("narrative.status.finished");
+    case "running":
+      return t("narrative.status.running");
+    case "waiting":
+      return t("narrative.status.waiting");
+    case "completed":
+      return t("narrative.status.completed");
+    case "failed":
+      return t("narrative.status.failed");
+    case "canceled":
+      return t("narrative.status.canceled");
+    case "timedOut":
+      return t("narrative.status.timedOut");
+    case "maxSteps":
+      return t("narrative.status.maxSteps");
+    case "maxBudget":
+      return t("narrative.status.maxBudget");
+    case "lost":
+      return t("narrative.status.lost");
+    default:
+      return t("narrative.status.unknown");
+  }
+}
+
+export function changeActionLabel(
+  action: SummaryChange["action"],
+  t: Translate = translateEnglish,
+) {
+  return t(`activity.change.${action}`);
+}
+
+export function approvalDecisionLabel(
+  decision: string,
+  t: Translate = translateEnglish,
+) {
+  if (decision === "approve") return t("tool.approved");
+  if (decision === "deny") return t("tool.denied");
+  return decision;
+}
+
+function resolveRoot(
+  run: RunRef,
+  runById: Map<string, RunRef>,
+  t: Translate,
+) {
   if (run.parentRunId === undefined) return { root: run };
   const declared = run.rootRunId ? runById.get(run.rootRunId) : undefined;
   if (declared !== undefined && declared.parentRunId === undefined) {
@@ -349,7 +427,9 @@ function resolveRoot(run: RunRef, runById: Map<string, RunRef>) {
     if (seen.has(current.parentRunId)) {
       return {
         root: run,
-        integrity: `Run lineage contains a cycle at ${shortIdentity(current.parentRunId)}.`,
+        integrity: t("activity.lineageCycle", {
+          id: shortIdentity(current.parentRunId),
+        }),
       };
     }
     seen.add(current.parentRunId);
@@ -357,7 +437,9 @@ function resolveRoot(run: RunRef, runById: Map<string, RunRef>) {
     if (parent === undefined) {
       return {
         root: run,
-        integrity: `Parent run ${shortIdentity(current.parentRunId)} is unavailable.`,
+        integrity: t("activity.parentUnavailable", {
+          id: shortIdentity(current.parentRunId),
+        }),
       };
     }
     current = parent;
@@ -440,7 +522,7 @@ function compareTimestamp(left: string | undefined, right: string | undefined) {
   return left.localeCompare(right);
 }
 
-function changesFromItem(item: Item): SummaryChange[] {
+function changesFromItem(item: Item, t: Translate): SummaryChange[] {
   if (item.type !== "toolCall" || item.tool === undefined) return [];
   if (item.tool.name === "edit" || item.tool.name === "write") {
     const path = stringArgument(item.tool.arguments, "path");
@@ -465,7 +547,7 @@ function changesFromItem(item: Item): SummaryChange[] {
   const patch = stringArgument(item.tool.arguments, "patch") ?? "";
   return [...patch.matchAll(/^\*\*\* (Update|Add|Delete) File: (.+)$/gm)].map(
     (match) => ({
-      path: match[2] ?? "Unknown path",
+      path: match[2] ?? t("activity.unknownPath"),
       action:
         match[1] === "Add"
           ? "created"
@@ -483,11 +565,12 @@ function readsFromItem(item: Item) {
   return path ? [path] : [];
 }
 
-function approvalFromItem(item: Item): SummaryApproval[] {
+function approvalFromItem(item: Item, t: Translate): SummaryApproval[] {
   if (item.type !== "toolCall" || !item.approvalDecision) return [];
   const presentation = presentTool(
     item.tool?.name ?? "",
     item.tool?.arguments ?? {},
+    t,
   );
   return [{
     tool: presentation.title,
@@ -496,15 +579,19 @@ function approvalFromItem(item: Item): SummaryApproval[] {
   }];
 }
 
-function errorFromItem(item: Item): SummaryError[] {
+function errorFromItem(item: Item, t: Translate): SummaryError[] {
   if (item.type !== "toolCall" || item.error === undefined) return [];
   return [{
-    source: presentTool(item.tool?.name ?? "", item.tool?.arguments ?? {}).title,
+    source: presentTool(
+      item.tool?.name ?? "",
+      item.tool?.arguments ?? {},
+      t,
+    ).title,
     detail: item.error.detail ?? item.error.type,
   }];
 }
 
-function errorFromRun(run: RunRef): SummaryError[] {
+function errorFromRun(run: RunRef, t: Translate): SummaryError[] {
   if (
     run.outcome === undefined ||
     run.outcome.type === "completed" ||
@@ -513,7 +600,7 @@ function errorFromRun(run: RunRef): SummaryError[] {
     return [];
   }
   return [{
-    source: `Run ${shortIdentity(run.id)}`,
+    source: t("activity.runIdentity", { id: shortIdentity(run.id) }),
     detail: run.outcome.error?.detail ?? run.outcome.detail ?? run.outcome.type,
   }];
 }
@@ -570,10 +657,13 @@ function appendSection(
   title: string,
   values: string[],
   omittedCount: number,
+  t: Translate = translateEnglish,
 ) {
   if (values.length === 0 && omittedCount === 0) return;
   lines.push("", `${title}:`, ...values.map((value) => `- ${value}`));
-  if (omittedCount > 0) lines.push(`- … ${omittedCount} more`);
+  if (omittedCount > 0) {
+    lines.push(`- ${t("activity.exportOmitted", { count: omittedCount })}`);
+  }
 }
 
 function formatDuration(milliseconds: number) {

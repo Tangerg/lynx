@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Model, RuntimeConnection, Session } from "@lyra/runtime-contract";
 
+import { useLocalization } from "../localization/Localization";
 import {
 	listModels,
 	listProviders,
@@ -17,6 +18,7 @@ interface SessionModelPickerProps {
 }
 
 export function SessionModelPicker(props: SessionModelPickerProps) {
+	const { t } = useLocalization();
 	const root = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
 	const [provider, setProvider] = useState(props.session.provider ?? "");
@@ -80,7 +82,7 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
 			await props.onChange(model.provider, model.id);
 			setOpen(false);
 		} catch (cause) {
-			setError(messageOf(cause));
+			setError(messageOf(cause, t("model.catalogUnavailable")));
 		} finally {
 			setSavingModel(undefined);
 		}
@@ -97,7 +99,7 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
 				title={
 					props.session.model
 						? `${props.session.provider} / ${props.session.model}`
-						: "Choose the model stored on this session"
+						: t("model.chooseStored")
 				}
 				onClick={() => {
 					setError(undefined);
@@ -105,26 +107,38 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
 				}}
 			>
 				<span aria-hidden="true">◇</span>
-				{props.session.model || "Choose model"}
+				{props.session.model || t("model.choose")}
 			</button>
 			{open ? (
-				<section className="model-picker-popover" role="dialog" aria-label="Choose model">
+				<section
+				  className="model-picker-popover"
+				  role="dialog"
+				  aria-label={t("model.choose")}
+				>
 					<header>
 						<div>
-							<strong>Session model</strong>
-							<p>Stored as an explicit provider and model pair.</p>
+							<strong>{t("model.sessionModel")}</strong>
+							<p>{t("model.explicitPair")}</p>
 						</div>
-						<button type="button" aria-label="Close model picker" onClick={() => setOpen(false)}>×</button>
+						<button
+						  type="button"
+						  aria-label={t("model.closePicker")}
+						  onClick={() => setOpen(false)}
+						>
+						  ×
+						</button>
 					</header>
 					{providers.isPending ? (
-						<ModelPickerState>Loading configured providers…</ModelPickerState>
+						<ModelPickerState>{t("model.loadingProviders")}</ModelPickerState>
 					) : providers.isError ? (
-						<ModelPickerState error>{messageOf(providers.error)}</ModelPickerState>
+						<ModelPickerState error>
+						  {messageOf(providers.error, t("model.catalogUnavailable"))}
+						</ModelPickerState>
 					) : configuredProviders.length === 0 ? (
-						<ModelPickerState>No provider is configured. Open Settings first.</ModelPickerState>
+						<ModelPickerState>{t("model.noProvider")}</ModelPickerState>
 					) : (
 						<>
-							<nav aria-label="Configured providers">
+							<nav aria-label={t("model.configuredProviders")}>
 								{configuredProviders.map((candidate) => (
 									<button
 										key={candidate.id}
@@ -141,11 +155,13 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
 							</nav>
 							<div className="model-picker-list">
 								{models.isPending ? (
-									<ModelPickerState>Loading models…</ModelPickerState>
+									<ModelPickerState>{t("model.loadingModels")}</ModelPickerState>
 								) : models.isError ? (
-									<ModelPickerState error>{messageOf(models.error)}</ModelPickerState>
+									<ModelPickerState error>
+									  {messageOf(models.error, t("model.catalogUnavailable"))}
+									</ModelPickerState>
 								) : models.data?.data.length === 0 ? (
-									<ModelPickerState>This provider returned no models.</ModelPickerState>
+									<ModelPickerState>{t("model.noModels")}</ModelPickerState>
 								) : (
 									models.data?.data.map((model) => (
 										<button
@@ -162,7 +178,11 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
 												<small>{model.id}</small>
 											</span>
 											<ModelFacts model={model} />
-											<b>{savingModel === model.id ? "Saving…" : "Select"}</b>
+											<b>
+											  {savingModel === model.id
+												? t("model.saving")
+												: t("model.select")}
+											</b>
 										</button>
 									))
 								)}
@@ -177,13 +197,16 @@ export function SessionModelPicker(props: SessionModelPickerProps) {
 }
 
 function ModelFacts({ model }: { model: Model }) {
+	const { t } = useLocalization();
 	const facts = [
-		model.contextWindow ? `${formatTokens(model.contextWindow)} ctx` : undefined,
-		model.capabilities?.reasoning ? "reasoning" : undefined,
-		model.capabilities?.multimodal ? "images" : undefined,
-		model.capabilities?.toolUse ? "tools" : undefined,
+		model.contextWindow
+			? t("model.contextWindow", { count: formatTokens(model.contextWindow) })
+			: undefined,
+		model.capabilities?.reasoning ? t("model.reasoning") : undefined,
+		model.capabilities?.multimodal ? t("model.images") : undefined,
+		model.capabilities?.toolUse ? t("model.tools") : undefined,
 	].filter((value): value is string => value !== undefined);
-	return <small>{facts.join(" · ") || "Provider catalog model"}</small>;
+	return <small>{facts.join(" · ") || t("model.catalogEntry")}</small>;
 }
 
 function ModelPickerState(props: { children: string; error?: boolean }) {
@@ -205,6 +228,6 @@ function formatTokens(value: number) {
 			: String(value);
 }
 
-function messageOf(error: unknown) {
-	return error instanceof Error ? error.message : "The model catalog is unavailable.";
+function messageOf(error: unknown, fallback: string) {
+	return error instanceof Error ? error.message : fallback;
 }
