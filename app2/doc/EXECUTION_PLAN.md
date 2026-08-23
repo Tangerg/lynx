@@ -322,9 +322,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   Lyra 再按 descendant-first/root-last 原子开启新代际并终结目标子树，survivor 以 replacement checkpoint 自动续跑；整棵 waiting
   tree 的 root cancel 同样在一个事务内终结全部开放成员并消费 interrupt/checkpoint。Framework 当前不能安全变换的 paused child
   继续 fail closed，不以产品层猜测状态；
+- **Provider Conversation closure**：Lyra Transcript 继续保存产品语义，provider Conversation 则由独立投影器按模型调用顺序
+  闭合 assistant ToolCall/ToolResult。普通 Tool、managed Delegate、恢复后的旧 waiting call 走同一条投影路径；direct child
+  settlement 在对应 assistant call 已持久化时与 parent Item/result 同事务追加，segment terminal/tree wait 则把本代 observation
+  与 durable Delegate Item 合并后统一收口。single/delegated waiting cancel 同时把开放 Item 标记 incomplete 并持久化 error result，
+  fresh Run 不再继承悬空 provider ToolCall；该修正没有扩展或复制 Lyra wire；
 - **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；tree recovery、
-  provider Conversation closure 和 Desktop nested disclosure 尚未完成前，任何 client 都不能协商出半成品 tree；
-- **仍关闭的 delegation 门**：tree recovery、provider Conversation closure 和 Desktop nested disclosure 尚未完成；
+  Desktop nested disclosure 尚未完成前，任何 client 都不能协商出半成品 tree；
+- **仍关闭的 delegation 门**：tree recovery 和 Desktop nested disclosure 尚未完成；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

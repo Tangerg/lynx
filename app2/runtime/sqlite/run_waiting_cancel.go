@@ -130,6 +130,14 @@ func (database *Database) CommitWaitingTreeCancel(
 			return err
 		}
 	}
+	for _, message := range write.Messages {
+		if message.RunID != root.Run.Run.ID() || message.SessionID != root.Run.Run.SessionID() {
+			return errors.New("sqlite: waiting cancel Conversation result changed root ownership")
+		}
+		if err := insertConversationMessage(ctx, transaction, message); err != nil {
+			return err
+		}
+	}
 	if err := insertRunEvents(ctx, transaction, write.Events); err != nil {
 		return err
 	}

@@ -830,6 +830,57 @@ func (service *Service) cancelSingleWaiting(
 	if err != nil {
 		return nil, err
 	}
+	if _, err := service.store.GetInterruptSet(ctx, current.Run.ID()); err != nil {
+		return nil, protocol.ErrInterruptNotOpen
+	}
+	if _, err := service.store.GetExecutorCheckpoint(ctx, current.Run.ID()); err != nil {
+		return nil, protocol.ErrInterruptNotOpen
+	}
+	storedItems, err := service.store.ListItems(ctx, "", current.Run.ID())
+	if err != nil {
+		return nil, err
+	}
+	updatedItems := make([]transcript.Record, 0)
+	itemsByID := make(map[string]transcript.Record, len(storedItems))
+	events := []protocol.RunEvent{started}
+	for _, stored := range storedItems {
+		var item protocol.Item
+		if err := json.Unmarshal(stored.Body, &item); err != nil {
+			return nil, err
+		}
+		if item.Status == protocol.ItemStatusRunning {
+			item.Status = protocol.ItemStatusIncomplete
+			item.FinishedAt = now
+			item.DurationMillis = nil
+			if item.Tool != nil {
+				item.Tool.Result = nil
+			}
+			item.Error = &protocol.ProblemData{Type: protocol.ProblemToolCanceled, Detail: reason}
+			stored.Body, err = json.Marshal(item)
+			if err != nil {
+				return nil, err
+			}
+			updatedItems = append(updatedItems, stored)
+			completed, err := service.event(current.Run.ID(), segmentID, &facts, protocol.StreamEvent{
+				Type: protocol.StreamItemCompleted, Item: &item,
+			}, now)
+			if err != nil {
+				return nil, err
+			}
+			events = append(events, completed)
+		}
+		itemsByID[stored.ID] = stored
+	}
+	conversation, err := service.store.ListConversationMessages(ctx, current.Run.SessionID())
+	if err != nil {
+		return nil, err
+	}
+	conversationResults, err := projectConversation(
+		current, agentexec.Output{}, itemsByID, conversation,
+	)
+	if err != nil {
+		return nil, err
+	}
 	storedSession, err := service.store.GetSession(ctx, session.ID(current.Run.SessionID()))
 	if err != nil {
 		return nil, err
@@ -848,7 +899,7 @@ func (service *Service) cancelSingleWaiting(
 	if err != nil {
 		return nil, err
 	}
-	events := []protocol.RunEvent{started, finished}
+	events = append(events, finished)
 	current, err = makeRecord(current.Run, facts)
 	if err != nil {
 		return nil, err
@@ -862,7 +913,8 @@ func (service *Service) cancelSingleWaiting(
 		return nil, err
 	}
 	if err := service.store.CommitRun(ctx, CommitWrite{
-		Run: current, ExpectedStatus: rundomain.Waiting, Events: persisted,
+		Run: current, ExpectedStatus: rundomain.Waiting,
+		Items: updatedItems, Messages: conversationResults, Events: persisted,
 	}); err != nil {
 		return nil, err
 	}

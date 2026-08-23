@@ -145,6 +145,11 @@ descendant terminal 必须先于 target，target settlement 与 parent `delegate
 facts 后才返回 canceled Run；child response 的 root snapshot 来自同一 command boundary。waiting tree 的 child cancel
 必须转换并重新持久化完整 checkpoint，不能只改产品 Run 或删一个 Interrupt。
 
+Transcript 的 Delegate Item 保存 Lyra 产品语义（child `runId`、reply、Problem）；provider Conversation 只保存模型继续推理所需的
+provider-neutral ToolResult。两者由同一 durable child/parent fact 投影但不共用 wire shape。只要 assistant `delegate_task`
+ToolCall 已进入 Conversation，child terminal/cancel 就必须在同一事务或 enclosing tree/segment boundary 闭合对应结果；后继 fresh
+Run 不得读到悬空 ToolCall。
+
 ## 6. Item、Transcript、Conversation 与 WorkingContext
 
 `Item` 是持久、可回放、可归因的历史事实。最小闭合族：

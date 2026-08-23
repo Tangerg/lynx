@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
+	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	"github.com/Tangerg/lynx/app2/runtime/domain/delegation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
@@ -57,6 +58,7 @@ type DelegateCompletionWrite struct {
 	ExpectedParentSegmentID string
 	ParentItem             transcript.Record
 	ParentEvent            rundomain.EventRecord
+	ParentMessages         []conversationdomain.Record
 }
 
 type DelegationStore interface {
@@ -477,6 +479,22 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 	if err != nil {
 		return err
 	}
+	parentMessages := []conversationdomain.Record(nil)
+	if parent.Run.ParentRunID() == "" {
+		conversation, err := service.store.ListConversationMessages(ctx, parent.Run.SessionID())
+		if err != nil {
+			return err
+		}
+		byID := make(map[string]transcript.Record, len(parentItems))
+		for _, item := range parentItems {
+			byID[item.ID] = item
+		}
+		byID[parentStored.ID] = parentStored
+		parentMessages, err = projectConversation(parent, agentexec.Output{}, byID, conversation)
+		if err != nil {
+			return err
+		}
+	}
 	if err := parent.Run.Touch(parentSegmentID, service.now().UTC()); err != nil {
 		return err
 	}
@@ -502,7 +520,7 @@ func (service *Service) finishDelegatedExecution(ctx context.Context, output age
 		Child: child, ExpectedChildSegmentID: output.SegmentID,
 		ChildItems: projection.items, ChildToolResults: projection.results, ChildEvents: childEvents,
 		Parent: parent, ExpectedParentSegmentID: parentSegmentID,
-		ParentItem: parentStored, ParentEvent: parentEvents[0],
+		ParentItem: parentStored, ParentEvent: parentEvents[0], ParentMessages: parentMessages,
 	}); err != nil {
 		return err
 	}

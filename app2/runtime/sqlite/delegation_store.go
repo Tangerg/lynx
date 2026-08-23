@@ -285,6 +285,14 @@ func (database *Database) CommitDelegateCompletion(
 	if err := putItem(ctx, transaction, write.ParentItem); err != nil {
 		return err
 	}
+	for _, message := range write.ParentMessages {
+		if message.RunID != write.Parent.Run.ID() || message.SessionID != write.Parent.Run.SessionID() {
+			return errors.New("sqlite: delegated Conversation result changed parent ownership")
+		}
+		if err := insertConversationMessage(ctx, transaction, message); err != nil {
+			return err
+		}
+	}
 	if err := insertRunEvents(ctx, transaction, []rundomain.EventRecord{write.ParentEvent}); err != nil {
 		return err
 	}

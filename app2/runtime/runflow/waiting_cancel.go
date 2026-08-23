@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
+	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
 	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
@@ -24,6 +25,7 @@ type WaitingTreeCancelWrite struct {
 	Runs               []WaitingTreeCancelRunWrite
 	ExpectedInterrupts protocol.PendingInterruptSet
 	Items              []transcript.Record
+	Messages           []conversationdomain.Record
 	Events             []rundomain.EventRecord
 }
 
@@ -36,6 +38,7 @@ type waitingCancelState struct {
 type waitingCancelProjection struct {
 	writes   []WaitingTreeCancelRunWrite
 	items    []transcript.Record
+	messages []conversationdomain.Record
 	events   []protocol.RunEvent
 	persisted []rundomain.EventRecord
 	bindings []agentexec.TreeResumeMember
@@ -107,13 +110,17 @@ func (service *Service) cancelWaitingTreeChild(
 	if err != nil {
 		return nil, err
 	}
-	projection, err := service.projectWaitingTreeCancel(members, canceled, items, reason, service.now().UTC())
+	conversation, err := service.store.ListConversationMessages(ctx, root.Run.SessionID())
+	if err != nil {
+		return nil, err
+	}
+	projection, err := service.projectWaitingTreeCancel(members, canceled, items, conversation, reason, service.now().UTC())
 	if err != nil {
 		return nil, err
 	}
 	if err := service.store.CommitWaitingTreeCancel(ctx, WaitingTreeCancelWrite{
 		Runs: projection.writes, ExpectedInterrupts: pending,
-		Items: projection.items, Events: projection.persisted,
+		Items: projection.items, Messages: projection.messages, Events: projection.persisted,
 	}); err != nil {
 		return nil, err
 	}
@@ -178,13 +185,17 @@ func (service *Service) cancelWaitingTreeRoot(
 	if err != nil {
 		return nil, err
 	}
-	projection, err := service.projectWaitingTreeCancel(members, canceled, items, reason, service.now().UTC())
+	conversation, err := service.store.ListConversationMessages(ctx, root.Run.SessionID())
+	if err != nil {
+		return nil, err
+	}
+	projection, err := service.projectWaitingTreeCancel(members, canceled, items, conversation, reason, service.now().UTC())
 	if err != nil {
 		return nil, err
 	}
 	if err := service.store.CommitWaitingTreeCancel(ctx, WaitingTreeCancelWrite{
 		Runs: projection.writes, ExpectedInterrupts: pending,
-		Items: projection.items, Events: projection.persisted,
+		Items: projection.items, Messages: projection.messages, Events: projection.persisted,
 	}); err != nil {
 		return nil, err
 	}
@@ -236,6 +247,7 @@ func (service *Service) projectWaitingTreeCancel(
 	members []resumedTreeMember,
 	canceled map[string]bool,
 	storedItems []transcript.Record,
+	conversation []conversationdomain.Record,
 	reason string,
 	now time.Time,
 ) (waitingCancelProjection, error) {
@@ -391,6 +403,12 @@ func (service *Service) projectWaitingTreeCancel(
 		}
 	}
 	projection.root = projection.byRun[rootID]
+	projection.messages, err = projectConversation(
+		projection.root, agentexec.Output{}, items, conversation,
+	)
+	if err != nil {
+		return waitingCancelProjection{}, err
+	}
 	return projection, nil
 }
 
