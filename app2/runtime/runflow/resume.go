@@ -157,6 +157,7 @@ func (service *Service) ResumeWith(ctx context.Context, command ResumeCommand) (
 		return nil, nil, err
 	}
 	service.publishLifecycleChange(record.Run)
+	service.publishInterruptChange(record.Run)
 	if command.BeforeLaunch != nil {
 		if err := command.BeforeLaunch(ctx, request.RunID); err != nil {
 			service.settleUnlaunched(request.RunID)

@@ -599,6 +599,9 @@ func (service *Service) Cancel(ctx context.Context, request protocol.CancelRunRe
 		return nil, err
 	}
 	service.publishLifecycleChange(record.Run)
+	if expectedStatus == rundomain.Waiting {
+		service.publishInterruptChange(record.Run)
+	}
 	service.hub.PublishRun(event)
 	presented, err := presentRecord(record)
 	if err != nil {
@@ -726,6 +729,14 @@ func (service *Service) publishLifecycleChange(value rundomain.Run) {
 func (service *Service) publishRunChange(value rundomain.Run) {
 	service.events.Publish(protocol.RuntimeEvent{
 		Type:       protocol.RuntimeRunsChanged,
+		SessionIDs: []string{value.SessionID()},
+		RunIDs:     []string{value.ID()},
+	})
+}
+
+func (service *Service) publishInterruptChange(value rundomain.Run) {
+	service.events.Publish(protocol.RuntimeEvent{
+		Type:       protocol.RuntimeInterruptsChanged,
 		SessionIDs: []string{value.SessionID()},
 		RunIDs:     []string{value.ID()},
 	})

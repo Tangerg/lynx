@@ -215,6 +215,8 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   replay 与 live 之间不再有通知窗口，iterator 退出会释放订阅。
 - **Root lifecycle publication**：Run admission、finish、cancel、wait、resume、recovery 和 steer 的 committed transition
   已发布 `runs.changed`/`sessions.changed`；Desktop Work Index 与 mounted snapshot 可按 source owner 回拉。
+- **Interrupt invalidation**：waiting set 的 open、resume consumption 与 waiting cancel 只在各自事务提交后发布
+  `interrupts.changed`，并携带 exact Session/Run identity；runtime event 仍只是 query invalidation，不复制答案状态。
 - **Long history reads**：`items.list` 已按 Session 或 Run subtree 做 ASC/DESC keyset pagination，cursor 绑定完整 query
   identity，并返回本页引用 Run 的祖先闭包；Run cursor 同样拒绝跨 query 复用。
 - **Model streaming projection**：Agent Framework delta 只在 `agentexec` 内解析为 provider-neutral append；Run projection

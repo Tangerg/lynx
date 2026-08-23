@@ -82,7 +82,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `runs.changed` | run transaction/recovery | Work Index + Agent/Dock audit | R3/R4 | specified | Run IDs/Session IDs，terminal/restart 不丢 |
 | `plan.changed` | plan transaction | Plan pill/tooltip | R5 | implemented | committed replacement 与 Session lifecycle 精确失效，Desktop SSE consumer 回读 coherent snapshot；待最终统一门禁 |
 | `goals.changed` | goal transaction | Goal tray | R5 | implemented | API、tool、driver、recovery 的 committed mutation 统一发布，Desktop SSE consumer 精确失效；待最终统一门禁 |
-| `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | specified | answer settlement 后 exact pending 消失 |
+| `interrupts.changed` | interrupt transaction | Composer/Narrative attention | R4 | implemented | open/resume-consume/waiting-cancel transaction 后发布 exact Session/Run ids；待 Desktop HITL 与统一门禁 |
 | `knowledge.changed` | knowledge file owner | Knowledge view | R7 | specified | external edit 与 CAS update 收敛 |
 | `hooks.changed` | hook/trust owner | Hooks settings | R7 | specified | trust/source change 收敛 |
 | `models.changed` | provider/catalog owner | model picker/settings | R8 | specified | catalog/role/provider update 收敛 |

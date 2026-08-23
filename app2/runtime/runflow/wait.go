@@ -83,6 +83,7 @@ func (service *Service) parkExecution(ctx context.Context, record rundomain.Reco
 		return err
 	}
 	service.publishLifecycleChange(record.Run)
+	service.publishInterruptChange(record.Run)
 	for _, event := range events { service.hub.PublishRun(event) }
 	return nil
 }
