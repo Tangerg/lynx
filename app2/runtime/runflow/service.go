@@ -26,6 +26,7 @@ import (
 )
 
 type Store interface {
+	DelegationStore
 	GetSession(context.Context, session.ID) (session.Session, error)
 	GetRun(context.Context, string) (rundomain.Record, error)
 	GetOpenRootRun(context.Context, string) (rundomain.Record, error)
@@ -964,10 +965,14 @@ func presentRecord(record rundomain.Record) (*protocol.RunRef, error) {
 			summary.Outcome.Detail = value.Detail()
 		}
 	}
-	return &protocol.RunRef{
+	result := &protocol.RunRef{
 		RunSummary: summary, ActiveSegmentID: value.ActiveSegmentID(), Metrics: facts.Metrics,
-		ContextTokens: facts.ContextTokens, Limits: facts.Limits, ProtocolProfile: facts.Profile,
-	}, nil
+		ContextTokens: facts.ContextTokens, Limits: facts.Limits,
+	}
+	if value.ParentRunID() == "" {
+		result.ProtocolProfile = facts.Profile
+	}
+	return result, nil
 }
 
 func segmentOutcome(outcome rundomain.Outcome, problem *protocol.ProblemData, detail string) *protocol.SegmentOutcome {

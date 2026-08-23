@@ -81,10 +81,10 @@ type RunRef struct {
 	// not an echo of the request — a resume and a cross-restart recovery report
 	// the same caps as the first segment.
 	Limits *RunLimits `json:"limits,omitempty"`
-	// ProtocolProfile is the protocol contract this run was created under, and it
-	// is present in every status: a client that reconnects to a run has to know
-	// what the run may publish before it starts folding the stream.
-	ProtocolProfile RunProtocolProfile `json:"protocolProfile"`
+	// ProtocolProfile is the protocol contract the root tree was created under,
+	// and is present on a root in every status. Children omit it because their
+	// RootRunID locates the one immutable contract governing the whole tree.
+	ProtocolProfile RunProtocolProfile `json:"protocolProfile,omitzero"`
 }
 
 // RunProtocolFeature is the closed set of negotiated features that may appear in
@@ -119,6 +119,13 @@ type RunProtocolProfile struct {
 	// keeps them for its whole life, so answering an interrupt cannot quietly
 	// change what the next segment is allowed to park on.
 	InterruptTypes []InterruptType `json:"interruptTypes"`
+}
+
+// IsZero distinguishes an absent child profile (nil sets) from the root
+// minimal profile (present, non-nil empty sets). One root profile governs the
+// whole tree; child RunRefs therefore omit this field without losing meaning.
+func (profile RunProtocolProfile) IsZero() bool {
+	return profile.RequiredFeatures == nil && profile.InterruptTypes == nil
 }
 
 // RunMetrics is how much a run has consumed (§4.2). Total cost reads

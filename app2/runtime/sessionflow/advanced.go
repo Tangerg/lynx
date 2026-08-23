@@ -97,7 +97,35 @@ func (service *Service) Import(ctx context.Context, request protocol.ImportSessi
 	if err:=service.store.ReplaceSessionMaterial(ctx,ImportWrite{Material:material,ExpectedPlanRevision:expectedPlanRevision});errors.Is(err,plandomain.ErrVersionConflict){return nil,protocol.ErrRevisionConflict}else if err!=nil{return nil,err};presented:=present(value,resolved,session.StatusIdle);return &ImportResult{Response:&protocol.ImportSessionResponse{Session:presented},PlanChanged:importPlan.Revision()>0},nil
 }
 
-func presentMaterialRun(record rundomain.Record)(*protocol.RunRef,error){facts,err:=decodeMaterialFacts(record.Body);if err!=nil{return nil,err};value:=record.Run;summary:=protocol.RunSummary{ID:value.ID(),SessionID:value.SessionID(),SpawnedByItemID:value.SpawnedByItemID(),ParentRunID:value.ParentRunID(),RootRunID:value.RootRunID(),Model:value.Model(),Provider:value.Provider(),Status:protocol.RunStatus(value.Status()),CreatedAt:value.CreatedAt(),FinishedAt:value.FinishedAt()};if value.Status()==rundomain.Finished{summary.Outcome=&protocol.RunOutcome{Type:protocol.RunOutcomeType(value.Outcome())};if value.Outcome()==rundomain.Failed{summary.Outcome.Error=&protocol.ProblemData{Type:protocol.ProblemInternalError,Detail:value.Detail()}}else{summary.Outcome.Detail=value.Detail()}};return &protocol.RunRef{RunSummary:summary,ActiveSegmentID:value.ActiveSegmentID(),Metrics:facts.Metrics,ContextTokens:facts.ContextTokens,Limits:facts.Limits,ProtocolProfile:facts.Profile},nil}
+func presentMaterialRun(record rundomain.Record) (*protocol.RunRef, error) {
+	facts, err := decodeMaterialFacts(record.Body)
+	if err != nil {
+		return nil, err
+	}
+	value := record.Run
+	summary := protocol.RunSummary{
+		ID: value.ID(), SessionID: value.SessionID(), SpawnedByItemID: value.SpawnedByItemID(),
+		ParentRunID: value.ParentRunID(), RootRunID: value.RootRunID(),
+		Model: value.Model(), Provider: value.Provider(), Status: protocol.RunStatus(value.Status()),
+		CreatedAt: value.CreatedAt(), FinishedAt: value.FinishedAt(),
+	}
+	if value.Status() == rundomain.Finished {
+		summary.Outcome = &protocol.RunOutcome{Type: protocol.RunOutcomeType(value.Outcome())}
+		if value.Outcome() == rundomain.Failed {
+			summary.Outcome.Error = &protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: value.Detail()}
+		} else {
+			summary.Outcome.Detail = value.Detail()
+		}
+	}
+	result := &protocol.RunRef{
+		RunSummary: summary, ActiveSegmentID: value.ActiveSegmentID(), Metrics: facts.Metrics,
+		ContextTokens: facts.ContextTokens, Limits: facts.Limits,
+	}
+	if value.ParentRunID() == "" {
+		result.ProtocolProfile = facts.Profile
+	}
+	return result, nil
+}
 func decodeMaterialFacts(body []byte)(materialRunFacts,error){var facts materialRunFacts;if err:=json.Unmarshal(body,&facts);err!=nil{return facts,fmt.Errorf("sessionflow: decode run facts: %w",err)};return facts,nil}
 func artifactOutcome(value *protocol.RunRef)protocol.ArtifactOutcome{if value.Outcome==nil{return protocol.ArtifactOutcome{}};out:=protocol.ArtifactOutcome{Type:protocol.ArtifactOutcomeType(value.Outcome.Type),Detail:value.Outcome.Detail};if value.Outcome.Error!=nil{out.Error=&protocol.ArtifactProblem{Type:protocol.ArtifactProblemType(value.Outcome.Error.Type),Detail:value.Outcome.Error.Detail,DocURL:value.Outcome.Error.DocURL,RetryAfterSeconds:value.Outcome.Error.RetryAfterSeconds}};return out}
 func convertJSON(source,target any)error{data,err:=json.Marshal(source);if err!=nil{return err};return json.Unmarshal(data,target)}

@@ -287,8 +287,10 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   error 和 raw arguments 都由 canonical Item material 渲染，未知工具安全回退而不扩展 Lyra wire；
 - **Child admission foundation**：delegated child 采用独立 `delegation.Admission` 聚合承接 Framework 的 prospective
   Process identity 与 Lyra Run identity；SQLite 只在 private pending reservation 中保存映射，重复 admission 必须完全一致，
-  且 pending 永远不是 wire Run。后续只有 started outcome 才能原子创建 child Run，aborted outcome 只结算父级委派 Item；
-  当前尚未把 `delegate_task` 暴露给模型或向 Desktop 声明 `subagents`；
+  且 pending 永远不是 wire Run。父级 running `delegate_task` Item 与 reservation 同事务；只有 started outcome 会在同一
+  transaction 里建立 child Run + `segment.started`，aborted outcome 则原子结算父级 Item 而不伪造 child。root profile
+  继续治理整棵树，child RunRef 不复制 `protocolProfile`；当前尚未把 Delegate deployment 接入 Engine，也未向 Desktop
+  声明 `subagents`；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal
