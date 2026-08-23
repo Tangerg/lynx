@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -361,9 +363,148 @@ func TestPublicRuntimeSubscriptionResyncsAcrossTransportReconnect(t *testing.T) 
 	}
 }
 
+func TestPublicWorkspaceGitAndDirectToolSurfaces(t *testing.T) {
+	harness := newAcceptanceHarness(t)
+	workspace := harness.workspace
+	runFixtureCommand(t, workspace, "git", "init", "--initial-branch=main")
+	runFixtureCommand(t, workspace, "git", "config", "user.email", "runtime-acceptance@example.test")
+	runFixtureCommand(t, workspace, "git", "config", "user.name", "Runtime Acceptance")
+	writeFixtureFile(t, filepath.Join(workspace, "tracked.txt"), "baseline\n")
+	runFixtureCommand(t, workspace, "git", "add", "tracked.txt")
+	runFixtureCommand(t, workspace, "git", "commit", "-m", "baseline")
+	var changed strings.Builder
+	for line := 1; line <= 80; line++ {
+		fmt.Fprintf(&changed, "line %03d needle\n", line)
+	}
+	writeFixtureFile(t, filepath.Join(workspace, "tracked.txt"), changed.String())
+	writeFixtureFile(t, filepath.Join(workspace, "untracked.txt"), "untracked needle\n")
+
+	resolved := rpcCall[*protocol.WorkspaceInfo](
+		t, harness.runtime.baseURL, "workspaces.resolve", protocol.ResolveWorkspaceRequest{}, "", "",
+	)
+	if resolved.Ref.Path != workspace || resolved.Availability != protocol.WorkspaceAvailable || resolved.ProjectRoot != workspace {
+		t.Fatalf("resolved workspace = %+v", resolved)
+	}
+	missingPath := filepath.Join(filepath.Dir(workspace), "missing-workspace")
+	missing := rpcCall[*protocol.WorkspaceInfo](
+		t, harness.runtime.baseURL, "workspaces.resolve", protocol.ResolveWorkspaceRequest{
+			Ref: &protocol.WorkspaceRef{Path: missingPath},
+		}, "", "",
+	)
+	if missing.Ref.Path != missingPath || missing.Availability != protocol.WorkspaceMissing {
+		t.Fatalf("missing workspace = %+v", missing)
+	}
+	assertRPCProblem(
+		t, harness.runtime.baseURL, "workspace.files.read", protocol.ReadFileRequest{
+			Workspace: protocol.WorkspaceRef{Path: missingPath}, Path: "tracked.txt",
+		}, "", "", protocol.ErrWorkspaceUnavailable.Error(),
+	)
+
+	firstPage := rpcCall[*protocol.Page[protocol.FileEntry]](
+		t, harness.runtime.baseURL, "workspace.files.list", protocol.ListFilesRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Recursive: true,
+			PageQuery: protocol.PageQuery{Limit: 1},
+		}, "", "",
+	)
+	if len(firstPage.Data) != 1 || firstPage.NextCursor == "" {
+		t.Fatalf("first file page = %+v", firstPage)
+	}
+	secondPage := rpcCall[*protocol.Page[protocol.FileEntry]](
+		t, harness.runtime.baseURL, "workspace.files.list", protocol.ListFilesRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Recursive: true,
+			PageQuery: protocol.PageQuery{Limit: 10, Cursor: firstPage.NextCursor},
+		}, "", "",
+	)
+	if len(secondPage.Data) == 0 {
+		t.Fatalf("second file page = %+v", secondPage)
+	}
+	content := rpcCall[*protocol.FileContent](
+		t, harness.runtime.baseURL, "workspace.files.read", protocol.ReadFileRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Path: "tracked.txt",
+			StartLine: 10, EndLine: 12,
+		}, "", "",
+	)
+	if content.StartLine != 10 || content.EndLine != 12 || content.TotalLines != 80 ||
+		!strings.Contains(content.Content, "line 010 needle") {
+		t.Fatalf("windowed file content = %+v", content)
+	}
+	truncated := rpcCall[*protocol.FileContent](
+		t, harness.runtime.baseURL, "workspace.files.read", protocol.ReadFileRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Path: "tracked.txt", MaxBytes: 32,
+		}, "", "",
+	)
+	if !truncated.Truncated || len(truncated.Content) > 32 {
+		t.Fatalf("bounded file content = %+v", truncated)
+	}
+	head := rpcCall[*protocol.FileHead](
+		t, harness.runtime.baseURL, "workspace.files.head", protocol.GetFileHeadRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Path: "tracked.txt", Lines: 3,
+		}, "", "",
+	)
+	if len(head.Lines) != 3 || head.Lines[0].LineNumber != 1 {
+		t.Fatalf("file head = %+v", head)
+	}
+	grep := rpcCall[*protocol.GrepResult](
+		t, harness.runtime.baseURL, "workspace.files.search", protocol.GrepRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Query: "needle", Limit: 5,
+		}, "", "",
+	)
+	if len(grep.Matches) != 5 || grep.Total < 81 {
+		t.Fatalf("workspace grep = %+v", grep)
+	}
+	assertRPCProblem(
+		t, harness.runtime.baseURL, "workspace.files.read", protocol.ReadFileRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Path: "../outside.txt",
+		}, "", "", protocol.ErrPathOutsideRoot.Error(),
+	)
+
+	changes := rpcCallWithMeta[*protocol.Page[protocol.WorkspaceFileChange]](
+		t, harness.runtime.baseURL, "workspace.changes.list",
+		protocol.WorkspaceQuery{Workspace: protocol.WorkspaceRef{Path: workspace}}, harness.meta,
+	)
+	if len(changes.Data) != 2 {
+		t.Fatalf("workspace changes = %+v", changes.Data)
+	}
+	rows := rpcCallWithMeta[*protocol.Diff](
+		t, harness.runtime.baseURL, "workspace.diff.get", protocol.GetDiffRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Format: protocol.DiffFormatRows, Limit: 5,
+		}, harness.meta,
+	)
+	if !rows.Truncated {
+		t.Fatalf("bounded row diff = %+v", rows)
+	}
+	raw := rpcCallWithMeta[*protocol.Diff](
+		t, harness.runtime.baseURL, "workspace.diff.get", protocol.GetDiffRequest{
+			Workspace: protocol.WorkspaceRef{Path: workspace}, Format: protocol.DiffFormatRaw,
+		}, harness.meta,
+	)
+	if raw.Patch == "" || raw.Files != nil || !strings.Contains(raw.Patch, "untracked.txt") {
+		t.Fatalf("raw workspace diff = %+v", raw)
+	}
+
+	tools := rpcCall[*protocol.Page[protocol.ToolSpec]](
+		t, harness.runtime.baseURL, "tools.list", struct{}{}, "", "",
+	)
+	if len(tools.Data) != 3 || tools.Data[0].Name == "" {
+		t.Fatalf("direct tool catalog = %+v", tools.Data)
+	}
+	readResult := rpcCall[map[string]any](
+		t, harness.runtime.baseURL, "tools.invoke", protocol.InvokeToolRequest{
+			Name: "read", Workspace: &protocol.WorkspaceRef{Path: workspace},
+			Arguments: map[string]any{"path": "tracked.txt", "start_line": 1, "max_lines": 2},
+		}, "direct-read", harness.namespace,
+	)
+	totalLines, totalOK := readResult["total_lines"].(float64)
+	contentText, contentOK := readResult["content"].(string)
+	if !contentOK || contentText == "" || !totalOK || totalLines < 80 {
+		t.Fatalf("direct read result = %+v", readResult)
+	}
+}
+
 type acceptanceHarness struct {
 	runtime   *runningRuntime
 	model     *scenarioModel
+	workspace string
 	namespace string
 	meta      protocol.RequestMeta
 }
@@ -372,9 +513,14 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 	t.Helper()
 	model := newScenarioModel(t)
 	t.Cleanup(model.Close)
+	workspace := privateDirectory(t, "workspace")
+	workspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatalf("resolve acceptance workspace error = %v", err)
+	}
 	runtime := startRuntime(t, runtimehost.Config{
 		Listen: "127.0.0.1:0", DatabasePath: filepath.Join(privateDirectory(t, "data"), "runtime.sqlite"),
-		DefaultWorkspace: privateDirectory(t, "workspace"), UserHome: privateDirectory(t, "home"),
+		DefaultWorkspace: workspace, UserHome: privateDirectory(t, "home"),
 		ServerName: "lyra-runtime", ServerVersion: "acceptance",
 	})
 	t.Cleanup(func() { runtime.stop(t) })
@@ -401,7 +547,7 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 		t.Fatalf("provider probe = %+v", probe)
 	}
 	return acceptanceHarness{
-		runtime: runtime, model: model, namespace: namespace,
+		runtime: runtime, model: model, workspace: workspace, namespace: namespace,
 		meta: protocol.RequestMeta{
 			ProtocolVersion: protocol.ProtocolVersion,
 			ClientInfo:      &protocol.ClientInfo{Name: "runtime-acceptance", Version: "1"},
@@ -409,12 +555,29 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 				Features: map[string]protocol.FeaturePreference{
 					protocol.FeatureSubagents: {Enabled: true},
 					protocol.FeatureMCP:       {Enabled: true},
+					protocol.FeatureGit:       {Enabled: true},
 				},
 				InterruptTypes: []protocol.InterruptType{
 					protocol.InterruptApproval, protocol.InterruptQuestion,
 				},
 			},
 		},
+	}
+}
+
+func writeFixtureFile(t *testing.T, path string, contents string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatalf("write fixture %q error = %v", path, err)
+	}
+}
+
+func runFixtureCommand(t *testing.T, directory string, name string, arguments ...string) {
+	t.Helper()
+	command := exec.Command(name, arguments...)
+	command.Dir = directory
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("run %s %v error = %v\n%s", name, arguments, err, output)
 	}
 }
 
