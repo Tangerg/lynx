@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -105,16 +106,18 @@ func NewUserItem(
 
 func (item Item) Validate() error {
 	switch {
-	case strings.TrimSpace(item.ID) == "":
+	case strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.ID) != item.ID:
 		return errors.New("agentmemory: item id is required")
 	case !item.Scope.Valid():
 		return fmt.Errorf("agentmemory: invalid scope %q", item.Scope)
-	case item.Scope == ScopeProject && strings.TrimSpace(item.Project) == "":
-		return errors.New("agentmemory: project scope requires a project")
+	case item.Scope == ScopeProject &&
+		(!filepath.IsAbs(item.Project) || filepath.Clean(item.Project) != item.Project):
+		return errors.New("agentmemory: project scope requires a canonical absolute project")
 	case item.Scope == ScopeUser && item.Project != "":
 		return errors.New("agentmemory: user scope forbids a project")
-	case strings.TrimSpace(item.Content) == "":
-		return errors.New("agentmemory: content is required")
+	case strings.TrimSpace(item.Content) == "" ||
+		strings.TrimSpace(item.Content) != item.Content:
+		return errors.New("agentmemory: content must be canonical non-empty text")
 	case len(item.Content) > MaxContentBytes:
 		return fmt.Errorf("agentmemory: content exceeds %d bytes", MaxContentBytes)
 	case item.Digest != Digest(item.Content):
@@ -125,6 +128,12 @@ func (item Item) Validate() error {
 		return fmt.Errorf("agentmemory: invalid status %q", item.Status)
 	case item.Origin == OriginUser && item.Status != StatusActive:
 		return errors.New("agentmemory: user-authored item must be active")
+	case item.Origin == OriginAuto &&
+		(strings.TrimSpace(item.SessionID) == "" ||
+			strings.TrimSpace(item.SessionID) != item.SessionID):
+		return errors.New("agentmemory: automatic item requires a source session")
+	case item.Origin == OriginUser && item.SessionID != "":
+		return errors.New("agentmemory: user-authored item forbids a source session")
 	case item.Pinned && item.Status != StatusActive:
 		return errors.New("agentmemory: only active memory may be pinned")
 	case item.Revision == 0:
@@ -134,11 +143,9 @@ func (item Item) Validate() error {
 	case item.UpdatedAt.Before(item.CreatedAt):
 		return errors.New("agentmemory: update precedes creation")
 	}
-	if item.Day != "" {
-		parsed, err := time.Parse(time.DateOnly, item.Day)
-		if err != nil || parsed.Format(time.DateOnly) != item.Day {
-			return errors.New("agentmemory: day must be an RFC 3339 date")
-		}
+	parsed, err := time.Parse(time.DateOnly, item.Day)
+	if err != nil || parsed.Format(time.DateOnly) != item.Day {
+		return errors.New("agentmemory: day must be an RFC 3339 date")
 	}
 	return nil
 }

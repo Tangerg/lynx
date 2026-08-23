@@ -488,6 +488,7 @@ func (runtime *Runtime) Close() {
 		runtime.settings.Close()
 		runtime.goalDriver.Close()
 		runtime.runs.Close()
+		runtime.memory.Close()
 		runtime.mcp.Close()
 		runtime.codebase.Close()
 		runtime.events.Close()

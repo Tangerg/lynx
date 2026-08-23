@@ -77,7 +77,7 @@ func (database *Database) AddAgentMemory(
 			return result{}, err
 		}
 		if found {
-			// Automatic extraction is idempotent across every lifecycle state.
+			// Automatic proposals are idempotent across every lifecycle state.
 			// In particular, a rejected tombstone suppresses re-proposal of the
 			// same fact. An explicit user addition may deliberately revive it.
 			if item.Origin == agentmemory.OriginAuto ||
@@ -121,26 +121,8 @@ func (database *Database) AddAgentMemory(
 		if visible >= agentmemory.MaxVisiblePerTarget {
 			return result{}, agentmemory.ErrTargetFull
 		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO agent_memory (
-				id, scope, project_path, content, digest, origin, status, pinned,
-				session_id, day, revision, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			item.ID,
-			item.Scope,
-			item.Project,
-			item.Content,
-			item.Digest,
-			item.Origin,
-			item.Status,
-			item.Pinned,
-			item.SessionID,
-			item.Day,
-			item.Revision,
-			encodeTime(item.CreatedAt),
-			encodeTime(item.UpdatedAt),
-		); err != nil {
-			return result{}, fmt.Errorf("sqlite: add AgentMemory: %w", err)
+		if err := insertAgentMemory(ctx, tx, item); err != nil {
+			return result{}, err
 		}
 		return result{item: item, changed: true}, nil
 	})
@@ -373,6 +355,35 @@ func updateAgentMemory(
 	}
 	if changed != 1 {
 		return errors.New("sqlite: AgentMemory revision changed inside transaction")
+	}
+	return nil
+}
+
+func insertAgentMemory(
+	ctx context.Context,
+	tx *sql.Tx,
+	item agentmemory.Item,
+) error {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO agent_memory (
+			id, scope, project_path, content, digest, origin, status, pinned,
+			session_id, day, revision, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		item.ID,
+		item.Scope,
+		item.Project,
+		item.Content,
+		item.Digest,
+		item.Origin,
+		item.Status,
+		item.Pinned,
+		item.SessionID,
+		item.Day,
+		item.Revision,
+		encodeTime(item.CreatedAt),
+		encodeTime(item.UpdatedAt),
+	); err != nil {
+		return fmt.Errorf("sqlite: insert AgentMemory: %w", err)
 	}
 	return nil
 }

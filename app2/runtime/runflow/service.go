@@ -72,6 +72,10 @@ type Publisher interface {
 	Publish(protocol.RuntimeEvent)
 }
 
+type MemoryMaintenance interface {
+	RunSettled()
+}
+
 type ActiveRunError struct{ Run protocol.RunRef }
 
 func (failure *ActiveRunError) Error() string {
@@ -92,6 +96,7 @@ type Service struct {
 	checkpoints Checkpoints
 	hub       *streamhub.Hub
 	events    Publisher
+	memory    MemoryMaintenance
 	now       func() time.Time
 	lifetime  context.Context
 	cancel    context.CancelFunc
@@ -117,13 +122,14 @@ type Config struct {
 	Checkpoints Checkpoints
 	Hub *streamhub.Hub
 	Events Publisher
+	Memory MemoryMaintenance
 	Lifetime context.Context
 	Clock func() time.Time
 }
 
 func New(config Config) (*Service, error) {
-	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Events == nil || config.Checkpoints == nil {
-		return nil, errors.New("runflow: store, ids, executor, models, checkpoints, hub and events are required")
+	if config.Store == nil || config.IDs == nil || config.Executor == nil || config.Models == nil || config.Hub == nil || config.Events == nil || config.Checkpoints == nil || config.Memory == nil {
+		return nil, errors.New("runflow: store, ids, executor, models, checkpoints, hub, events and memory maintenance are required")
 	}
 	if config.Lifetime == nil {
 		return nil, errors.New("runflow: lifetime is required")
@@ -135,7 +141,8 @@ func New(config Config) (*Service, error) {
 	lifetime, cancel := context.WithCancel(config.Lifetime)
 	return &Service{
 		store: config.Store, ids: config.IDs, executor: config.Executor, models: config.Models, checkpoints: config.Checkpoints,
-		hub: config.Hub, events: config.Events, now: clock, lifetime: lifetime, cancel: cancel,
+		hub: config.Hub, events: config.Events, memory: config.Memory,
+		now: clock, lifetime: lifetime, cancel: cancel,
 		active: make(map[string]activeExecution), locks: make(map[string]*sync.Mutex),
 	}, nil
 }
@@ -573,6 +580,9 @@ func (service *Service) finishExecution(runID, segmentID, workspace string, outp
 	service.publishLifecycleChange(record.Run)
 	for _, event := range events {
 		service.hub.PublishRun(runID, segmentID, event)
+	}
+	if record.Run.ParentRunID() == "" {
+		service.memory.RunSettled()
 	}
 }
 

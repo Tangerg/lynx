@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory 管理/recall/search production 已实现，待自动提炼、其余资源与最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory 含自动维护 production 已实现，待 Hooks、Tool catalog 与最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -525,11 +525,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - **协议与资源边界**：只使用既有 `knowledge.list/get/update`、content revision 与 `knowledge.changed`，没有复制旧 app 的 Plugin Host、
   publication slot 或 Codex prompt。实现批未启动 Runtime、Wails、Vite、browser/agent-browser 或独立 watcher 进程。
 
-### R7 AgentMemory 管理 / recall / search 纵切（已实现，自动提炼待后续纵切）
+### R7 AgentMemory 管理 / recall / search / 自动维护纵切（已实现，待最终统一门禁）
 
 - **独立领域与关系事实源**：AgentMemory 从 `capabilityflow.Service` 和 protocol-shaped JSON envelope 中移出，由 `domain/agentmemory` +
-  `memoryflow` 独立拥有。SQLite epoch 7 使用 closed scope/origin/status、project partition、digest uniqueness、pin/status、revision/time 的
-  关系约束；已无 consumer 的 `knowledge_entries` 表同时删除；
+  `memoryflow` 独立拥有。SQLite epoch 8 使用 closed scope/origin/status、project partition、digest uniqueness、pin/status、revision/time、
+  source-session/day 的关系约束，并增加 extraction receipt、immutable ledger、curation CAS state；已无 consumer 的
+  `knowledge_entries` 表同时删除；
 - **review lifecycle**：user add 立即 active；auto proposal 只能 pending，approve 转 active，reject 转不可见 tombstone，避免相同事实被反复
   提案。相同 target/content 的 add 幂等返回或显式复活 pending/rejected；每个 target 保持 complete-list 上限，不能无界撑爆非分页合同；
 - **原子管理命令**：review/update 在一个 SQLite transaction 内读取、应用领域 transition、检查 digest collision 并按 internal revision
@@ -543,8 +544,17 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - **Desktop owner**：Resources 增加 Memory 子视图，使用 Runtime-generation query family 管理 project/user scopes，覆盖 unavailable、
   loading/error/retry/empty、add、pending approve/reject、active edit/pin、two-step delete 和 row-level cancellation。命令应答丢失时通过冷读
   判断 approve/reject/update/delete 是否已经收敛，不建立 Plugin Host、publication slot 或全局 mutable mirror；
-- **下一纵切**：以 terminal root Run 为输入补齐 bounded fact extraction、durable daily ledger、watermark CAS curation 与 pending proposal
-  publish；它不得改变已完成 Run outcome，也不得写入人类 LYRA.md。
+- **durable extraction**：只扫描 committed completed root Run，以 per-Run receipt 表达完成；空提炼同样提交 receipt。Conversation 只取 source
+  Run 的 first + recent 有界窗口，省略 system/private reasoning/tool result body；模型输出同时受 schema 字符上限与领域 UTF-8 bytes/count/
+  aggregate 上限约束，source Session/day 与真实 extractor provider/model provenance 在 receipt 归一化，immutable project ledger 只存有序
+  fact。durable attempt marker 让失败项在一次 sweep 中让位给后续 backlog，扫完即停，直到下一外部唤醒再试；
+- **watermark curation**：首次 ledger 立即策展，后续按事实阈值或下一次维护唤醒时的最大间隔折叠。模型只产出待人工 review 的新 proposal；
+  active/user memory 不被自动改写或删除，pending/rejected/digest duplicate 都抑制重复。watermark CAS 与 proposal commit 原子化，竞争 loser
+  无副作用；只有新增 visible pending 才发布 `agentMemory.changed`；
+- **lifecycle isolation**：terminal Run 先 durable commit 并发布既有 Run 事件，再发非阻塞维护信号；重启扫描补偿 commit/signal 间 crash。
+  utility role 可用时用于维护，否则回退 source Run 的 provider/model。单一有界/coalescing worker 归 Runtime lifetime 所有，Close cancel/join；
+  失败仅保留 backlog，不改变 Run outcome，不写 LYRA.md，也不扩张现有 Lyra wire；
+- **下一纵切**：Hooks，然后 Tool catalog。
 
 ## 12. R8：Integration 与 Settings
 

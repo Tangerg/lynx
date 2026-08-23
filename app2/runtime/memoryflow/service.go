@@ -7,8 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Tangerg/lynx/core/embedding"
@@ -24,7 +27,7 @@ const (
 	maxSemanticCandidates = 128
 )
 
-type Store interface {
+type managementStore interface {
 	ListAgentMemory(context.Context, agentmemory.Scope, string) ([]agentmemory.Item, error)
 	AddAgentMemory(context.Context, agentmemory.Item) (agentmemory.Item, bool, error)
 	ReviewAgentMemory(
@@ -40,6 +43,11 @@ type Store interface {
 		time.Time,
 	) (agentmemory.Item, bool, error)
 	DeleteAgentMemory(context.Context, string) (bool, error)
+}
+
+type Store interface {
+	managementStore
+	maintenanceStore
 }
 
 type Resolver interface {
@@ -61,35 +69,60 @@ type EmbeddingModels interface {
 }
 
 type Config struct {
-	Store    Store
-	Resolver Resolver
-	IDs      IDs
-	Events   Publisher
-	Models   EmbeddingModels
-	Clock    func() time.Time
+	Store       Store
+	Resolver    Resolver
+	IDs         IDs
+	Events      Publisher
+	Embeddings  EmbeddingModels
+	Maintenance MaintenanceModels
+	Lifetime    context.Context
+	Logger      *slog.Logger
+	Clock       func() time.Time
 }
 
 type Service struct {
-	store    Store
-	resolver Resolver
-	ids      IDs
-	events   Publisher
-	models   EmbeddingModels
-	now      func() time.Time
+	store           Store
+	resolver        Resolver
+	ids             IDs
+	events          Publisher
+	embeddings      EmbeddingModels
+	maintenance     MaintenanceModels
+	now             func() time.Time
+	lifetime        context.Context
+	cancel          context.CancelFunc
+	wake            chan struct{}
+	tasks           sync.WaitGroup
+	closeOnce       sync.Once
+	logger          *slog.Logger
+	extractionSweep time.Time
 }
 
 func New(config Config) (*Service, error) {
-	if config.Store == nil || config.Resolver == nil || config.IDs == nil || config.Events == nil {
-		return nil, errors.New("memoryflow: store, resolver, ids and events are required")
+	if config.Store == nil || config.Resolver == nil || config.IDs == nil ||
+		config.Events == nil || config.Maintenance == nil || config.Lifetime == nil {
+		return nil, errors.New(
+			"memoryflow: store, resolver, ids, events, maintenance model and lifetime are required",
+		)
 	}
 	now := config.Clock
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{
+	logger := config.Logger
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	lifetime, cancel := context.WithCancel(config.Lifetime)
+	service := &Service{
 		store: config.Store, resolver: config.Resolver, ids: config.IDs,
-		events: config.Events, models: config.Models, now: now,
-	}, nil
+		events: config.Events, embeddings: config.Embeddings,
+		maintenance: config.Maintenance, now: now,
+		lifetime: lifetime, cancel: cancel, wake: make(chan struct{}, 1),
+		logger: logger,
+	}
+	service.tasks.Add(1)
+	go service.maintenanceLoop()
+	return service, nil
 }
 
 func (service *Service) List(
@@ -263,10 +296,10 @@ func (service *Service) semanticVectors(
 	query string,
 	candidates []agentmemory.Candidate,
 ) []float64 {
-	if service.models == nil || len(candidates) == 0 {
+	if service.embeddings == nil || len(candidates) == 0 {
 		return nil
 	}
-	model, err := service.models.ResolveMemoryEmbedding(ctx)
+	model, err := service.embeddings.ResolveMemoryEmbedding(ctx)
 	if err != nil || model == nil {
 		return nil
 	}

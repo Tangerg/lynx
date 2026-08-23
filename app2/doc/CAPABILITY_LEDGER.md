@@ -57,7 +57,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | O19 | `tools.list`, `tools.invoke` | 2 | capability/tool diagnostics | R7 | specified | catalog 是诊断非 Run 配置；manual invoke 完整 approval/safety/result/error 语义 |
 | O20 | `usage.session`, `usage.summary` | 2 | operations/usage | R9 | specified | exact attribution、day/model/provider buckets、unknown cost 缺席、terminal/restart 稳定 |
 | O21 | `knowledge.list`, `knowledge.get`, `knowledge.update` | 3 | capability/knowledge | R7 | implemented | distinct home→projectRoot→cwd file cascade、confined physical-target CAS/atomic publish、fresh-root bounded injection/checkpoint freeze、exact external watcher、Desktop conflict-preserving editor 已实现；待最终统一门禁 |
-| O22 | `agentMemory.list`, `agentMemory.review`, `agentMemory.update`, `agentMemory.delete`, `agentMemory.add` | 5 | capability/memory | R7 | implemented | project/user closed target、active/pending/rejected tombstone、user/auto provenance、transactional internal revision、dedupe/cap、review-only recall、Desktop management 已实现；待自动提炼与最终统一门禁 |
+| O22 | `agentMemory.list`, `agentMemory.review`, `agentMemory.update`, `agentMemory.delete`, `agentMemory.add` | 5 | capability/memory | R7 | implemented | project/user closed target、review lifecycle、recall/search/Desktop management，以及 completed-root bounded extraction、durable ledger、watermark CAS curation、pending-only proposal 已实现；既有 Lyra wire 不变，待最终统一门禁 |
 | O23 | `feedback.create` | 1 | operations/feedback | R9 | specified | bounded/redacted payload、run/session attribution、transport failure 不改 Run outcome |
 
 总数：`1+1+10+7+1+1+1+2+6+7+2+9+2+4+5+6+3+3+5+2+2+3+5+1 = 89`。
@@ -87,7 +87,7 @@ app2 内部 owner，不代表改名或新建第二套 surface。
 | `hooks.changed` | hook/trust owner | Hooks settings | R7 | specified | trust/source change 收敛 |
 | `models.changed` | provider/catalog owner | model picker/settings | R8 | specified | catalog/role/provider update 收敛 |
 | `approvals.changed` | policy owner | Approval settings | R8 | specified | mode/rules exact invalidation |
-| `agentMemory.changed` | memory owner | Memory view | R7 | implemented | changed-only review/add/update/delete publish；Desktop Runtime-generation query family、acknowledgement-loss cold-read 收敛；待自动提炼 publish 与最终统一门禁 |
+| `agentMemory.changed` | memory owner | Memory view | R7 | implemented | changed-only review/add/update/delete/automatic pending publish；Desktop Runtime-generation query family、acknowledgement-loss cold-read 收敛；待最终统一门禁 |
 | `codebase.changed` | index worker | Search/index view | R6 | implemented | committed admission/terminal settlement 后通知；Desktop 按 Runtime generation + workspace query scope 回读 canonical status/search，resync 同样收敛；待最终统一门禁 |
 | `resync` | runtime subscription | topic router | R1 | specified | gap/new generation/buffer eviction 后只重拉列出 topics |
 

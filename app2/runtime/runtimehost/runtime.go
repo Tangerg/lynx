@@ -161,11 +161,14 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	guard.AddClose(events.Close)
 	memory, err := memoryflow.New(memoryflow.Config{
 		Store: database, Resolver: workspaceResolver, IDs: identity.Generator{},
-		Events: events, Models: runtimeMemoryEmbedding{providers: providers},
+		Events: events, Embeddings: runtimeMemoryEmbedding{providers: providers},
+		Maintenance: runtimeMemoryMaintenance{providers: providers},
+		Lifetime: lifetime, Logger: config.Logger,
 	})
 	if err != nil {
 		return nil, err
 	}
+	guard.AddClose(memory.Close)
 	goalSignals := goalflow.NewSignals()
 	goals, err := goalflow.New(database, identity.Generator{}, goalSignals, events)
 	if err != nil { return nil, err }
@@ -201,6 +204,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	runs, err := runflow.New(runflow.Config{
 		Store: database, IDs: identity.Generator{}, Executor: executor,
 		Models: providers, Hub: hub, Events: events, Lifetime: lifetime, Checkpoints: checkpoints,
+		Memory: memory,
 	})
 	if err != nil {
 		return nil, err
@@ -209,6 +213,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err := runs.Recover(ctx); err != nil {
 		return nil, fmt.Errorf("runtimehost: recover predecessor runs: %w", err)
 	}
+	memory.Recover()
 	goalDriver, err := goalflow.NewDriver(goalflow.DriverConfig{Goals: goals, Runs: runs, Signals: goalSignals, Lifetime: lifetime})
 	if err != nil { return nil, err }
 	guard.AddClose(goalDriver.Close)

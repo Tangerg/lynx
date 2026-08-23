@@ -198,7 +198,7 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			status TEXT NOT NULL CHECK (status IN ('active', 'pending', 'rejected')),
 			pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
 			session_id TEXT NOT NULL DEFAULT '',
-			day TEXT NOT NULL DEFAULT '',
+			day TEXT NOT NULL CHECK (length(day) = 10),
 			revision INTEGER NOT NULL CHECK (revision > 0),
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
@@ -207,11 +207,52 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 				OR (scope = 'user' AND project_path = '')
 			),
 			CHECK (origin != 'user' OR status = 'active'),
+			CHECK (
+				(origin = 'auto' AND length(session_id) > 0)
+				OR (origin = 'user' AND session_id = '')
+			),
 			CHECK (pinned = 0 OR status = 'active'),
 			UNIQUE(scope, project_path, digest)
 		) STRICT`,
 		`CREATE INDEX IF NOT EXISTS agent_memory_target
 			ON agent_memory(scope, project_path, status, pinned DESC, updated_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS agent_memory_extractions (
+			run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+			project_path TEXT NOT NULL CHECK (length(project_path) > 0),
+			day TEXT NOT NULL CHECK (length(day) = 10),
+			extractor_provider TEXT,
+			extractor_model TEXT,
+			completed_at TEXT NOT NULL,
+			CHECK (
+				(extractor_provider IS NULL AND extractor_model IS NULL)
+				OR (
+					extractor_provider IS NOT NULL AND extractor_model IS NOT NULL
+					AND length(extractor_provider) > 0 AND length(extractor_model) > 0
+				)
+			)
+		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS agent_memory_extractions_project
+			ON agent_memory_extractions(project_path, run_id)`,
+		`CREATE TABLE IF NOT EXISTS agent_memory_extraction_attempts (
+			run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+			attempted_at TEXT NOT NULL
+		) STRICT`,
+		`CREATE TABLE IF NOT EXISTS agent_memory_ledger (
+			sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+			run_id TEXT NOT NULL REFERENCES agent_memory_extractions(run_id) ON DELETE CASCADE,
+			content TEXT NOT NULL CHECK (
+				length(trim(content)) > 0 AND length(CAST(content AS BLOB)) <= 2048
+			),
+			digest TEXT NOT NULL CHECK (length(digest) = 64),
+			UNIQUE(run_id, digest)
+		) STRICT`,
+		`CREATE TABLE IF NOT EXISTS agent_memory_curation (
+			project_path TEXT PRIMARY KEY,
+			watermark INTEGER NOT NULL CHECK (watermark >= 0),
+			revision INTEGER NOT NULL CHECK (revision > 0),
+			updated_at TEXT NOT NULL
+		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS feedback (
 			id TEXT PRIMARY KEY,
 			body TEXT NOT NULL CHECK (json_valid(body)),

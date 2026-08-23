@@ -323,6 +323,15 @@ user-authored 条目立即 active。只有 active 可 pinned、注入或搜索�
 但不擅自扩张现有 Lyra wire；visible collection 与 rejected tombstone retention 分别有硬上限。fresh root Run 冻结 effective
 user+project recall，resume 不因后续 review 漂移。
 
+自动维护只消费已 durable commit 为 `completed` 的 root Run，不把 signal payload 当事实源。每个 Run 以 extraction receipt 保证至多一次提交；
+即使没有可保留事实，也必须提交空 receipt，避免重启后无限重复推理。输入只取该 Run 的有界 Conversation，省略 system、private reasoning
+和 tool result body；输出经数量、单项 UTF-8 bytes、总 bytes 三重边界。receipt 与 project daily ledger 在一个 transaction 提交；Run/source
+与真实 extractor selection 是不同事实：前者由 Run 保有，后者可选地归一化在 receipt，ledger fact 通过 join 获得 Session/day/model
+provenance，不重复存一份可漂移 metadata。每个 project 的 curation watermark 通过 CAS 前进；策展只能从未折叠 ledger 产生新的
+`pending` proposal，不得修改或删除
+active/user memory。watermark 与 proposal 在同一 transaction 提交，digest duplicate 和 rejected tombstone 都是负证据。terminal Run outcome 与
+event publication 先于非阻塞维护信号，抽取/策展失败只保留 durable backlog，不反向改变 Run 结果。
+
 ## 11. Runtime 生命周期与事件
 
 `RuntimeInstance` 是进程代际，不是业务聚合：每次启动获得新 `instanceId`，同一 durable store 可跨代保持；
