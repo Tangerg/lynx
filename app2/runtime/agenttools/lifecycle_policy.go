@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -14,6 +15,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
+	"github.com/Tangerg/lynx/app2/runtime/domain/approvalpolicy"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
@@ -23,26 +25,31 @@ const lifecycleApprovalStateKind = "lyra.lifecycle.approval/v1"
 type lifecyclePolicyTool struct {
 	toolcontract.Tool
 	hooks            LifecycleHooks
+	policy           ApprovalPolicy
 	scope            agentexec.ToolScope
 	safety           protocol.SafetyClass
-	approvalRequired bool
+	paths            mutationPaths
+	autoApproved     bool
 	intrinsicInput   bool
 }
 
 func (tool *lifecyclePolicyTool) Unwrap() toolcontract.Tool { return tool.Tool }
 
 type lifecycleApprovalState struct {
-	Kind      string `json:"kind"`
-	Arguments string `json:"arguments"`
+	Kind         string `json:"kind"`
+	Arguments    string `json:"arguments"`
+	Subject      string `json:"subject,omitempty"`
+	Rememberable bool   `json:"rememberable,omitempty"`
 }
 
 type lifecycleApprovalResponse struct {
 	Decision   protocol.ApprovalDecision `json:"decision"`
+	Remember   *protocol.RememberScope   `json:"remember,omitempty"`
 	EditedArgs map[string]any            `json:"editedArgs,omitempty"`
 	Reason     string                    `json:"reason,omitempty"`
 }
 
-var lifecycleApprovalSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"decision":{"type":"string","enum":["approve","deny"]},"editedArgs":{"type":"object"},"reason":{"type":"string"}},"required":["decision"]}`)
+var lifecycleApprovalSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"decision":{"type":"string","enum":["approve","deny"]},"remember":{"type":"object","additionalProperties":false,"properties":{"scope":{"type":"string","enum":["session","project","global"]}},"required":["scope"]},"editedArgs":{"type":"object"},"reason":{"type":"string"}},"required":["decision"]}`)
 
 func (tool *lifecyclePolicyTool) Call(
 	ctx context.Context,
@@ -74,10 +81,49 @@ func (tool *lifecyclePolicyTool) Call(
 	if decision.RewriteArguments != "" {
 		effective = decision.RewriteArguments
 	}
-	if tool.approvalRequired || decision.Asks() {
+	policyPrompt := false
+	if !tool.intrinsicInput && tool.safety != protocol.SafetyClassSafe {
+		mode, err := tool.policy.Mode(ctx)
+		if err != nil {
+			return "", fmt.Errorf("agenttools: read approval mode: %w", err)
+		}
+		policyPrompt = mode.RequiresApproval(effectFromSafety(tool.safety))
+	}
+	hookPrompt := decision.Asks()
+	subject, err := tool.approvalSubject(effective)
+	if err != nil {
+		return "", err
+	}
+	catastrophic := !tool.intrinsicInput && tool.safety == protocol.SafetyClassExec &&
+		approvalpolicy.CatastrophicShellCommand(subject)
+	if policyPrompt || hookPrompt || catastrophic {
+		query := approvalpolicy.Query{
+			SessionID: tool.scope.SessionID, ProjectDir: tool.scope.Workspace,
+			Tool: invocation.ToolCall().Name, Subject: subject,
+		}
+		remembered, matched, err := tool.policy.Decide(ctx, query)
+		if err != nil {
+			return "", fmt.Errorf("agenttools: decide remembered approval: %w", err)
+		}
+		if matched {
+			if remembered == approvalpolicy.DecisionDeny {
+				return "", errors.New("tool denied by remembered approval policy")
+			}
+			if !catastrophic {
+				contextText := agentexec.RenderLifecycleContext(decision.Contexts)
+				return tool.callAndEnrich(ctx, invocation, effective, contextText)
+			}
+		}
+		if tool.autoApproved && policyPrompt && !hookPrompt && !catastrophic {
+			contextText := agentexec.RenderLifecycleContext(decision.Contexts)
+			return tool.callAndEnrich(ctx, invocation, effective, contextText)
+		}
 		reasons := make([]string, 0, 2)
-		if tool.approvalRequired {
+		if policyPrompt {
 			reasons = append(reasons, approvalReason(tool.safety))
+		}
+		if catastrophic {
+			reasons = append(reasons, "This command can irreversibly destroy system or user data.")
 		}
 		if reason := strings.TrimSpace(decision.Reason); reason != "" {
 			reasons = append(reasons, "Lifecycle policy: "+reason)
@@ -88,6 +134,8 @@ func (tool *lifecyclePolicyTool) Call(
 		return "", tool.requireApproval(
 			invocation,
 			effective,
+			subject,
+			!tool.intrinsicInput && !catastrophic,
 			combineApprovalReasons(reasons...),
 		)
 	}
@@ -105,15 +153,29 @@ func (tool *lifecyclePolicyTool) resumeApproval(
 	if err := json.Unmarshal(continuation.Response(), &response); err != nil {
 		return "", fmt.Errorf("agenttools: decode lifecycle approval: %w", err)
 	}
+	if response.Decision != protocol.ApprovalApprove && response.Decision != protocol.ApprovalDeny {
+		return "", errors.New("agenttools: unknown lifecycle approval decision")
+	}
+	if response.Remember != nil {
+		if !state.Rememberable {
+			return "", errors.New("agenttools: lifecycle approval cannot be remembered")
+		}
+		remember := approvalpolicy.Remember{
+			Scope: rememberScope(response.Remember.Scope),
+			SessionID: tool.scope.SessionID, ProjectDir: tool.scope.Workspace,
+			Tool: invocation.ToolCall().Name, Subject: state.Subject,
+			Decision: approvalDecision(response.Decision),
+		}
+		if err := tool.policy.Remember(ctx, remember); err != nil {
+			return "", fmt.Errorf("agenttools: remember approval: %w", err)
+		}
+	}
 	if response.Decision == protocol.ApprovalDeny {
 		reason := strings.TrimSpace(response.Reason)
 		if reason == "" {
 			reason = "denied by user"
 		}
 		return "", fmt.Errorf("tool denied by user: %s", reason)
-	}
-	if response.Decision != protocol.ApprovalApprove {
-		return "", errors.New("agenttools: unknown lifecycle approval decision")
 	}
 	approved := state.Arguments
 	if response.EditedArgs != nil {
@@ -138,6 +200,10 @@ func (tool *lifecyclePolicyTool) resumeApproval(
 		effective = decision.RewriteArguments
 	}
 	if effective != approved {
+		subject, err := tool.approvalSubject(effective)
+		if err != nil {
+			return "", err
+		}
 		reasons := []string{
 			"A lifecycle hook changed the approved arguments; review the final action.",
 		}
@@ -147,6 +213,8 @@ func (tool *lifecyclePolicyTool) resumeApproval(
 		return "", tool.requireApproval(
 			invocation,
 			effective,
+			subject,
+			state.Rememberable,
 			combineApprovalReasons(reasons...),
 		)
 	}
@@ -181,6 +249,8 @@ func (tool *lifecyclePolicyTool) before(
 func (tool *lifecyclePolicyTool) requireApproval(
 	invocation interaction.ToolInvocation,
 	arguments string,
+	subject string,
+	rememberable bool,
 	reason string,
 ) error {
 	decoded, err := decodeLifecycleArguments(arguments)
@@ -198,7 +268,7 @@ func (tool *lifecyclePolicyTool) requireApproval(
 			Name: invocation.ToolCall().Name, Arguments: decoded,
 		},
 		SafetyClass: tool.safety, Risk: risk,
-		Reason: strings.TrimSpace(reason), Rememberable: false,
+		Reason: strings.TrimSpace(reason), Rememberable: rememberable,
 	})
 	if err != nil {
 		return err
@@ -206,6 +276,8 @@ func (tool *lifecyclePolicyTool) requireApproval(
 	state, err := json.Marshal(lifecycleApprovalState{
 		Kind: lifecycleApprovalStateKind,
 		Arguments: arguments,
+		Subject: subject,
+		Rememberable: rememberable,
 	})
 	if err != nil {
 		return err
@@ -280,6 +352,62 @@ func decodeLifecycleArguments(value string) (map[string]any, error) {
 		return nil, err
 	}
 	return object, nil
+}
+
+func (tool *lifecyclePolicyTool) approvalSubject(arguments string) (string, error) {
+	decoded, err := decodeLifecycleArguments(arguments)
+	if err != nil {
+		return "", fmt.Errorf("agenttools: decode approval subject: %w", err)
+	}
+	if tool.safety == protocol.SafetyClassExec {
+		if command, ok := decoded["command"].(string); ok {
+			return command, nil
+		}
+	}
+	if tool.paths == nil {
+		return "", nil
+	}
+	paths, err := tool.paths.MutationPaths(arguments)
+	if err != nil {
+		return "", fmt.Errorf("agenttools: derive approval subject: %w", err)
+	}
+	paths = slices.DeleteFunc(paths, func(value string) bool { return value == "" })
+	sort.Strings(paths)
+	paths = slices.Compact(paths)
+	return strings.Join(paths, "\n"), nil
+}
+
+func effectFromSafety(safety protocol.SafetyClass) approvalpolicy.Effect {
+	switch safety {
+	case protocol.SafetyClassWrite:
+		return approvalpolicy.EffectWrite
+	case protocol.SafetyClassExec:
+		return approvalpolicy.EffectExec
+	case protocol.SafetyClassNetwork:
+		return approvalpolicy.EffectNetwork
+	default:
+		return approvalpolicy.EffectSafe
+	}
+}
+
+func approvalDecision(value protocol.ApprovalDecision) approvalpolicy.Decision {
+	if value == protocol.ApprovalApprove {
+		return approvalpolicy.DecisionAllow
+	}
+	return approvalpolicy.DecisionDeny
+}
+
+func rememberScope(value protocol.RememberScopeKind) approvalpolicy.Scope {
+	switch value {
+	case protocol.RememberSession:
+		return approvalpolicy.ScopeSession
+	case protocol.RememberProject:
+		return approvalpolicy.ScopeProject
+	case protocol.RememberGlobal:
+		return approvalpolicy.ScopeGlobal
+	default:
+		return approvalpolicy.Scope(value)
+	}
 }
 
 func approvalReason(safety protocol.SafetyClass) string {

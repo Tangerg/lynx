@@ -77,6 +77,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "interrupts.changed",
         "models.changed",
         "mcp.changed",
+		"approvals.changed",
         "files.changed",
         "skills.changed",
         "knowledge.changed",
@@ -420,7 +421,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       </aside>
 	</main>
 		{settingsOpen ? (
-			<SettingsSurface connection={connection} onClose={() => setSettingsOpen(false)} />
+			<SettingsSurface connection={connection} sessionId={selectedSession?.id} onClose={() => setSettingsOpen(false)} />
 		) : null}
 		</>
   );

@@ -339,6 +339,13 @@ matcher 与 exactly-one `command | inject` 在进入 application 前成为 close
 项目文件，使恶意或损坏的 cloned config 不能破坏有效 global policy。trust false 由记录缺席表达，重复 trust/revoke 不发布伪 change。
 hooks.json 是 file-owned source；Runtime 只发布 invalidation，不建立第二份可漂移配置镜像。
 
+ApprovalPolicy 是 Tool effect 前的 standing-decision aggregate，不是 Interrupt、Transcript 或 Schedule 的子类型。Mode 只表达
+默认 stance；Rule 以 Session、canonical project directory 或 global scope，加 tool 与 subject match 构成稳定 identity。
+visible rule 按 Session > Project > Global、exact > glob > whole-tool 选择，同 specificity 冲突 fail closed。用户 remember
+只写 exact subject，避免 shell glob 字符被意外扩张；edited arguments 永远 one-shot。Mode 与 Rule 在每次 effect 边界读取，
+因此进行中的 Run 也不会冻结旧策略。明显 root/home/device wipe 由独立高置信 confirmation override 治理，不因 Yolo、
+MCP auto-approve 或 remembered allow 静默执行。
+
 Run consumer 只接收 Lyra Session/Run/workspace/Tool/Subagent 语义，不把 Agent Framework Process、checkpoint 或 provider payload 暴露给 Hook。
 command adapter 以 bounded typed JSON stdin/stdout 隔离 shell；只有 gated event 的 exit 2 / closed `deny` 是硬拒绝，spawn、timeout、oversized/malformed
 output 与其他 non-zero exit 都记录为非阻塞失败；exit 2 即使 stdout 损坏仍保留 deny。prompt/config discovery 是 effect 前的 fail-closed gate；PostToolUse、Subagent、Notification、

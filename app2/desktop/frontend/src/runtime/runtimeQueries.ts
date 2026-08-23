@@ -13,6 +13,8 @@ import {
   type FileContent,
   type FileEntry,
   type AgentDoc,
+	type ApprovalModeResult,
+	type ApprovalRule,
   type Goal,
   type GoalBudget,
   type GrepResult,
@@ -102,6 +104,15 @@ export const runtimeQueryKeys = {
   mcpTools(connection: RuntimeConnection, server: string) {
     return [...this.mcp(connection), "tools", server] as const;
   },
+	approvals(connection: RuntimeConnection) {
+		return [...this.scope(connection), "approvals"] as const;
+	},
+	approvalMode(connection: RuntimeConnection) {
+		return [...this.approvals(connection), "mode"] as const;
+	},
+	approvalRules(connection: RuntimeConnection, sessionId: string) {
+		return [...this.approvals(connection), "rules", sessionId] as const;
+	},
   workspace(connection: RuntimeConnection, path: string) {
     return [...this.scope(connection), "workspace", path] as const;
   },
@@ -412,6 +423,39 @@ export async function authorizeMCPServer(
     attempt = await getMCPAuthorizationAttempt(connection, attempt.id, signal);
   }
   return attempt;
+}
+
+export function getApprovalMode(
+	connection: RuntimeConnection,
+	signal?: AbortSignal,
+): Promise<ApprovalModeResult> {
+	return client(connection).call("approval.getMode", {}, { meta: clientMeta, signal });
+}
+
+export function setApprovalMode(
+	connection: RuntimeConnection,
+	mode: "safe" | "balanced" | "yolo",
+): Promise<ApprovalModeResult> {
+	return client(connection).call("approval.setMode", { mode }, { meta: clientMeta });
+}
+
+export function listApprovalRules(
+	connection: RuntimeConnection,
+	sessionId: string,
+	signal?: AbortSignal,
+): Promise<{ rules: ApprovalRule[] }> {
+	return client(connection).call(
+		"approval.listRules",
+		{ sessionId },
+		{ meta: clientMeta, signal },
+	);
+}
+
+export async function forgetApprovalRule(
+	connection: RuntimeConnection,
+	id: string,
+): Promise<void> {
+	await client(connection).call("approval.forgetRule", { id }, { meta: clientMeta });
 }
 
 export function listWorkspaceFiles(
@@ -928,6 +972,7 @@ export async function consumeRuntimeInvalidations(
         "interrupts.changed",
         "models.changed",
         "mcp.changed",
+		"approvals.changed",
         "files.changed",
         "skills.changed",
         "knowledge.changed",

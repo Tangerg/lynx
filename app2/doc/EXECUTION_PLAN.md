@@ -30,7 +30,7 @@
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（全部 production 纵切已实现；Hooks 只待真实 PreCompact producer，整体待最终统一门禁） |
-| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | in progress（Provider/Model/MCP production 纵切已实现，继续 Approval/Schedule/Settings topics） |
+| R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | in progress（Provider/Model/MCP/Approval production 纵切已实现，继续 Schedule/Settings topics） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
@@ -663,6 +663,23 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - durable mutation和每个 live/auth status transition 都由 MCP owner 发布 `mcp.changed`，Desktop 失效 MCP query root。
   SQLite 当前 exact epoch 提升到 11；Lyra wire 与 generated client 无 shape 变化。最终测试、恢复与 package 门禁仍留到
   R11 统一执行。
+
+### Approval Policy Runtime/Desktop 实现记录（尚未统一验证）
+
+- 保留 Lyra 既有 `approval.getMode/setMode/listRules/forgetRule` 四方法与现有 Interrupt remember shape；没有增加
+  handshake、别名 method 或第二套协议，protocol 仍为 `2026-08-23`，generated contract 无 shape 变化；
+- Approval 从 schedule-oriented `settingsflow` 分离成私有 `approvalpolicy` domain 与 `approvalflow` use case owner。
+  SQLite 不再保存 protocol DTO JSON，而以 mode revision、scope key、match kind、decision、timestamps 和 Session FK
+  表达可约束状态；exact schema epoch 提升到 12，开发期直接重建旧 app2 data home；
+- mode 不在 Run 建立时冻结。每个 Tool effect 在 Hook rewrite 后读取当前 stance，并以 Session > Project > Global、
+  exact > glob > whole-tool 的 specificity 选择 visible rule；同优先级冲突 fail closed 为 deny；
+- 用户从既有 Approval Interrupt 选择 remember 后，Runtime 用原始 subject 保存 exact rule；edited args 保持 one-shot。
+  Session rule 随 Session 删除级联，project/global rule 独立；forget missing 是幂等 no-op，事件只在事实真正变化时发布；
+- MCP auto-approve 只豁免默认 mode prompt，不绕过 Hook `ask` 或灾难命令确认。高置信 root/home/device wipe 即使
+  Yolo 或 remembered allow 仍强制确认；它是 confirmation override，不冒充 sandbox；
+- Desktop Approval section 冷读 authoritative mode，不用本地假默认；按 selected Session 展示 visible rules、scope、
+  tool/subject/project 与 confirmed forget，并通过 `approvals.changed` 失效同 Runtime generation query family。
+  最终 domain/property/SQLite/HITL/recovery/UI/package 门禁仍留到 R11 统一执行。
 
 ## 13. R9：高级 Session 与运营能力
 

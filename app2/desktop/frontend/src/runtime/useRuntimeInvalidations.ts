@@ -65,6 +65,11 @@ export function useRuntimeInvalidations(
           queryKey: runtimeQueryKeys.mcp(connection),
         });
       }
+		if (topics.includes("approvals.changed")) {
+			void queryClient.invalidateQueries({
+				queryKey: runtimeQueryKeys.approvals(connection),
+			});
+		}
       if (topics.includes("files.changed")) {
         const workspace = event.workspace ?? activeWatch?.workspace;
         if (workspace !== undefined) {

@@ -5380,6 +5380,171 @@ input::placeholder {
   font-size: 8px;
 }
 
+.approval-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.approval-mode-card {
+  display: grid;
+  min-height: 126px;
+  align-content: start;
+  gap: 18px;
+  padding: 15px;
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  color: var(--ink);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.approval-mode-card:hover:not(:disabled) {
+  border-color: var(--divider-strong);
+  transform: translateY(-1px);
+}
+
+.approval-mode-card[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--divider));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 11%, transparent), var(--shadow-sm);
+}
+
+.approval-mode-card > span,
+.approval-rule-card > header,
+.approval-forget-confirm,
+.approval-rule-count {
+  display: flex;
+  align-items: center;
+}
+
+.approval-mode-card > span {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.approval-mode-card strong {
+  font-size: 11px;
+}
+
+.approval-mode-card small,
+.approval-rule-count {
+  color: var(--ink-muted);
+  font-size: 7px;
+  font-weight: 680;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.approval-mode-card p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.approval-rule-list {
+  display: grid;
+  gap: 9px;
+}
+
+.approval-rule-card {
+  padding: 14px 15px;
+  border: 1px solid var(--divider);
+  border-left: 3px solid var(--green);
+  border-radius: 12px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.approval-rule-card[data-decision="deny"] {
+  border-left-color: var(--red);
+}
+
+.approval-rule-card > header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.approval-rule-card > header > div,
+.approval-forget-confirm {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.approval-rule-verdict,
+.approval-rule-scope {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 9%, var(--paper-raised));
+  font-size: 7px;
+  font-weight: 720;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.approval-rule-card[data-decision="deny"] .approval-rule-verdict {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--paper-raised));
+}
+
+.approval-rule-scope {
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+  text-transform: none;
+}
+
+.approval-rule-key {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 13px;
+  margin-top: 12px;
+}
+
+.approval-rule-key strong,
+.approval-rule-key code {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 8px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-rule-key code {
+  color: var(--ink-muted);
+}
+
+.approval-rule-card > p {
+  overflow: hidden;
+  margin: 8px 0 0 163px;
+  color: var(--ink-muted);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-forget-confirm {
+  color: var(--red);
+  font-size: 8px;
+}
+
+.approval-forget-confirm button {
+  min-height: 28px;
+  padding: 0 8px;
+  color: var(--ink-muted);
+  background: var(--paper-muted);
+  font-size: 7px;
+}
+
+.approval-forget-confirm button.danger {
+  color: white;
+  background: var(--red);
+}
+
 @media (max-width: 1180px) {
   .settings-scroll {
     padding-right: 26px;
@@ -5393,6 +5558,10 @@ input::placeholder {
   .mcp-field-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .approval-mode-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5400,6 +5569,10 @@ input::placeholder {
   .settings-surface,
   .settings-close {
     animation: none;
+    transition: none;
+  }
+
+  .approval-mode-card {
     transition: none;
   }
 }

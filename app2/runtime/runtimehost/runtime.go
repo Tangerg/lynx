@@ -17,6 +17,7 @@ import (
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	"github.com/Tangerg/lynx/app2/runtime/agenttools"
+	"github.com/Tangerg/lynx/app2/runtime/approvalflow"
 	"github.com/Tangerg/lynx/app2/runtime/application"
 	"github.com/Tangerg/lynx/app2/runtime/capabilityflow"
 	"github.com/Tangerg/lynx/app2/runtime/checkpoint"
@@ -198,8 +199,14 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	guard.AddClose(mcp.Close)
+	approvals, err := approvalflow.New(approvalflow.Config{
+		Store: database, Sessions: database, Events: events,
+	})
+	if err != nil {
+		return nil, err
+	}
 	agentToolCatalog, err := agenttools.New(agenttools.Config{
-		Policy: database, MCP: mcp, Results: database,
+		Policy: approvals, MCP: mcp, Results: database,
 		Goals: goals, Plans: plans,
 		Skills: runtimeSkillGateway{capabilities: capabilities, events: events},
 		Memory: runtimeMemory{service: memory}, Hooks: hooks,
@@ -266,7 +273,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	if err != nil { return nil, err }
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
-		Runs: runs, Workspace: workspace, Settings: settings, Interrupts: interrupts, Plans: plans, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
+		Runs: runs, Workspace: workspace, Settings: settings, Approvals: approvals, Interrupts: interrupts, Plans: plans, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
 		Capability: capabilities, Hooks: hooks, Memory: memory, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
 	})
 	if err != nil {

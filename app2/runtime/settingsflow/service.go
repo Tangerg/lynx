@@ -1,4 +1,4 @@
-// Package settingsflow owns approval policy and scheduled-run resources.
+// Package settingsflow owns scheduled-run resources and their worker.
 package settingsflow
 
 import (
@@ -16,10 +16,6 @@ import (
 )
 
 type Store interface {
-	GetApprovalMode(context.Context) (protocol.ApprovalMode, error)
-	SetApprovalMode(context.Context, protocol.ApprovalMode) error
-	ListApprovalRules(context.Context) ([]protocol.ApprovalRule, error)
-	DeleteApprovalRule(context.Context, string) error
 	ListSchedules(context.Context) ([]protocol.Schedule, error)
 	GetSchedule(context.Context, string) (protocol.Schedule, error)
 	PutSchedule(context.Context, protocol.Schedule, *uint64) error
@@ -83,42 +79,6 @@ func New(store Store, ids IDs, runner ScheduleRunner) (*Service, error) {
 		return nil, errors.New("settingsflow: store and ids are required")
 	}
 	return &Service{store: store, ids: ids, runner: runner, now: time.Now}, nil
-}
-
-func (service *Service) ApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
-	mode, err := service.store.GetApprovalMode(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &protocol.ApprovalModeResult{Mode: mode}, nil
-}
-
-func (service *Service) SetApprovalMode(ctx context.Context, request protocol.SetApprovalModeRequest) (*protocol.ApprovalModeResult, error) {
-	if request.Mode != protocol.ApprovalModeSafe && request.Mode != protocol.ApprovalModeBalanced && request.Mode != protocol.ApprovalModeYolo {
-		return nil, fmt.Errorf("%w: approval mode is invalid", protocol.ErrInvalidParams)
-	}
-	if err := service.store.SetApprovalMode(ctx, request.Mode); err != nil {
-		return nil, err
-	}
-	return &protocol.ApprovalModeResult{Mode: request.Mode}, nil
-}
-
-func (service *Service) ApprovalRules(ctx context.Context, _ protocol.ListApprovalRulesRequest) (*protocol.ListApprovalRulesResult, error) {
-	rules, err := service.store.ListApprovalRules(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &protocol.ListApprovalRulesResult{Rules: rules}, nil
-}
-
-func (service *Service) ForgetApprovalRule(ctx context.Context, request protocol.ForgetApprovalRuleRequest) error {
-	if err := service.store.DeleteApprovalRule(ctx, request.ID); err != nil {
-		if errors.Is(err, settings.ErrNotFound) {
-			return protocol.ErrItemNotFound
-		}
-		return err
-	}
-	return nil
 }
 
 func (service *Service) ListSchedules(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {

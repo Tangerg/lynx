@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/tools/shell"
 
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
+	"github.com/Tangerg/lynx/app2/runtime/domain/approvalpolicy"
 	"github.com/Tangerg/lynx/app2/runtime/domain/lifecyclehook"
 	"github.com/Tangerg/lynx/app2/runtime/domain/mcpserver"
 	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
@@ -29,7 +30,9 @@ import (
 )
 
 type ApprovalPolicy interface {
-	GetApprovalMode(context.Context) (protocol.ApprovalMode, error)
+	Mode(context.Context) (approvalpolicy.Mode, error)
+	Decide(context.Context, approvalpolicy.Query) (approvalpolicy.Decision, bool, error)
+	Remember(context.Context, approvalpolicy.Remember) error
 }
 
 type MCPGateway interface {
@@ -152,15 +155,11 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		values = append(values, remote...)
 	}
 
-	mode, err := catalog.policy.GetApprovalMode(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("agenttools: approval mode: %w", err)
-	}
 	result := make([]agentexec.ExecutableTool, 0, len(values)+1)
 	deferred := make([]agentexec.ExecutableTool, 0, len(values))
 	modelNames := make(map[string]struct{}, len(values)+1)
 	add := func(value scopedTool) error {
-		binding, err := catalog.bindForRun(scope, executor, mode, value)
+		binding, err := catalog.bindForRun(scope, executor, value)
 		if err != nil {
 			return err
 		}
@@ -205,7 +204,6 @@ type scopedTool struct {
 func (catalog *Catalog) bindForRun(
 	scope agentexec.ToolScope,
 	executor *workspacefs.ConfinedExecutor,
-	mode protocol.ApprovalMode,
 	value scopedTool,
 ) (agentexec.ExecutableTool, error) {
 	executable := value.tool
@@ -223,11 +221,10 @@ func (catalog *Catalog) bindForRun(
 			Tool: executable, plans: catalog.plans, sessionID: scope.SessionID,
 		}
 	}
-	approvalRequired := !value.intrinsicInput && !value.autoApproved &&
-		requiresApproval(mode, value.safety)
 	executable = &lifecyclePolicyTool{
 		Tool: executable, hooks: catalog.hooks, scope: scope,
-		safety: value.safety, approvalRequired: approvalRequired,
+		policy: catalog.policy, safety: value.safety,
+		paths: paths, autoApproved: value.autoApproved,
 		intrinsicInput: value.intrinsicInput,
 	}
 	return agentexec.ExecutableTool{
@@ -317,19 +314,6 @@ func (tool *mcpTool) Call(ctx context.Context, arguments string) (string, error)
 		return "", fmt.Errorf("agenttools: decode MCP arguments: %w", err)
 	}
 	return tool.gateway.CallText(ctx, tool.server, tool.remoteName, object)
-}
-
-func requiresApproval(mode protocol.ApprovalMode, safety protocol.SafetyClass) bool {
-	switch mode {
-	case protocol.ApprovalModeYolo:
-		return false
-	case protocol.ApprovalModeBalanced:
-		return safety == protocol.SafetyClassExec
-	case protocol.ApprovalModeSafe:
-		return safety != protocol.SafetyClassSafe
-	default:
-		return true
-	}
 }
 
 type askUserRequest struct {

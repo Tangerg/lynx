@@ -181,14 +181,34 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS approval_state (
 			singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-			body TEXT NOT NULL CHECK (json_valid(body)),
+			mode TEXT NOT NULL CHECK (mode IN ('safe', 'balanced', 'yolo')),
+			revision INTEGER NOT NULL CHECK (revision > 0),
 			updated_at TEXT NOT NULL
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS approval_rules (
 			id TEXT PRIMARY KEY,
-			body TEXT NOT NULL CHECK (json_valid(body)),
-			created_at TEXT NOT NULL
+			scope TEXT NOT NULL CHECK (scope IN ('session', 'project', 'global')),
+			scope_key TEXT NOT NULL,
+			session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+			tool TEXT NOT NULL CHECK (length(tool) > 0),
+			subject TEXT NOT NULL,
+			match_kind TEXT NOT NULL CHECK (match_kind IN ('exact', 'glob')),
+			decision TEXT NOT NULL CHECK (decision IN ('allow', 'deny')),
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			UNIQUE(scope, scope_key, tool, subject, match_kind),
+			CHECK (
+				(scope = 'global' AND scope_key = '')
+				OR (scope != 'global' AND length(scope_key) > 0)
+			),
+			CHECK (
+				(scope = 'session' AND session_id IS NOT NULL AND session_id = scope_key)
+				OR (scope != 'session' AND session_id IS NULL)
+			),
+			CHECK (updated_at >= created_at)
 		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS approval_rules_visibility
+			ON approval_rules(scope, scope_key, updated_at DESC, id)`,
 		`CREATE TABLE IF NOT EXISTS agent_memory (
 			id TEXT PRIMARY KEY,
 			scope TEXT NOT NULL CHECK (scope IN ('project', 'user')),

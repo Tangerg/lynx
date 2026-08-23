@@ -3,14 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import type { RuntimeConnection } from "@lyra/runtime-contract";
 
 import { MCPSettings } from "./MCPSettings";
+import { ApprovalSettings } from "./ApprovalSettings";
 import { ProviderModelSettings } from "./ProviderModelSettings";
 
 interface SettingsSurfaceProps {
 	connection: RuntimeConnection;
+	sessionId?: string;
 	onClose: () => void;
 }
 
-type SettingsPage = "providers" | "mcp";
+type SettingsPage = "providers" | "mcp" | "approvals";
 
 const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	providers: {
@@ -20,6 +22,10 @@ const pageCopy: Record<SettingsPage, { title: string; description: string }> = {
 	mcp: {
 		title: "MCP servers",
 		description: "Own external tool connections, authorization, and tool-level trust explicitly.",
+	},
+	approvals: {
+		title: "Approval policy",
+		description: "Choose the live effect stance and manage remembered decisions visible to this session.",
 	},
 };
 
@@ -77,6 +83,14 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 						<span aria-hidden="true">⌘</span>
 						MCP servers
 					</button>
+					<button
+						type="button"
+						aria-current={page === "approvals" ? "page" : undefined}
+						onClick={() => setPage("approvals")}
+					>
+						<span aria-hidden="true">✓</span>
+						Approval policy
+					</button>
 				</nav>
 				<p>Secrets are write-only. Runtime state remains the authority after every mutation.</p>
 			</aside>
@@ -100,8 +114,10 @@ export function SettingsSurface(props: SettingsSurfaceProps) {
 				<div className="settings-scroll">
 					{page === "providers" ? (
 						<ProviderModelSettings connection={props.connection} />
-					) : (
+					) : page === "mcp" ? (
 						<MCPSettings connection={props.connection} />
+					) : (
+						<ApprovalSettings connection={props.connection} sessionId={props.sessionId} />
 					)}
 				</div>
 			</div>

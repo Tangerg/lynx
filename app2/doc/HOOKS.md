@@ -97,6 +97,8 @@ SubagentStart/Stop、Notification、Stop 是 observe-only，control verdict 无�
 Hook `ask` 不创建第二套 approval。Runtime 将 Hook verdict 与 Lyra safety policy 合并为同一个 durable interrupt；弹窗、path/Plan gates、
 实际 Tool call 与 Transcript 使用同一 effective arguments。恢复 durable approval 时会在 effect 前按当前 trusted cascade 重新执行 PreToolUse；
 因此 policy command 必须可安全重入。用户编辑参数或 Hook 再 rewrite 且最终参数改变时，最终参数会再次展示后才执行。
+MCP auto-approve 只豁免默认 mode prompt，不豁免 Hook `ask`；remembered decision 在统一 approval boundary 匹配，deny
+fail closed。灾难 shell confirmation 是更高优先级的独立覆盖，即使 remembered allow 也不会绕过。
 
 Stop/Notification/Subagent commands 在相关 transaction commit 后进入有界单 worker。队列冻结当时的 trusted cascade；Runtime Close 会 cancel
 正在运行的 command、丢弃尚未开始的 observe-only work并 join worker。Unix command 使用独立 process group，正常完成、取消和超时都会清理残留子进程。

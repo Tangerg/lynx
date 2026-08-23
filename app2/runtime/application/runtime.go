@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/app2/runtime/boundarymeta"
+	"github.com/Tangerg/lynx/app2/runtime/approvalflow"
 	"github.com/Tangerg/lynx/app2/runtime/capabilityflow"
 	"github.com/Tangerg/lynx/app2/runtime/codebaseflow"
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
@@ -37,6 +38,7 @@ type Runtime struct {
 	runs      *runflow.Service
 	workspace *workspaceflow.Service
 	settings  *settingsflow.Service
+	approvals *approvalflow.Service
 	interrupts *interruptflow.Service
 	plans     *planflow.Service
 	goals     *goalflow.Service
@@ -59,6 +61,7 @@ type Config struct {
 	Runs      *runflow.Service
 	Workspace *workspaceflow.Service
 	Settings *settingsflow.Service
+	Approvals *approvalflow.Service
 	Events *runtimeevents.Bus
 	Interrupts *interruptflow.Service
 	Plans *planflow.Service
@@ -74,13 +77,13 @@ type Config struct {
 }
 
 func New(config Config) (*Runtime, error) {
-	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Hooks == nil || config.Memory == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
+	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Approvals == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Hooks == nil || config.Memory == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
 		return nil, errors.New("application: all required capability services must be supplied")
 	}
 	return &Runtime{
 		discovery: config.Discovery, sessions: config.Sessions,
 		providers: config.Providers, runs: config.Runs, workspace: config.Workspace,
-		settings: config.Settings, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability, hooks: config.Hooks, memory: config.Memory,
+		settings: config.Settings, approvals: config.Approvals, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability, hooks: config.Hooks, memory: config.Memory,
 		codebase: config.Codebase, tools: config.Tools, operations: config.Operations, events: config.Events,
 	}, nil
 }
@@ -319,27 +322,19 @@ func (runtime *Runtime) SubscribeRuntime(ctx context.Context, request protocol.R
 }
 
 func (runtime *Runtime) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
-	return runtime.settings.ApprovalMode(ctx)
+	return runtime.approvals.GetMode(ctx)
 }
 
 func (runtime *Runtime) SetApprovalMode(ctx context.Context, request protocol.SetApprovalModeRequest) (*protocol.ApprovalModeResult, error) {
-	value, err := runtime.settings.SetApprovalMode(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeApprovalsChanged})
-	}
-	return value, err
+	return runtime.approvals.SetMode(ctx, request)
 }
 
 func (runtime *Runtime) ListApprovalRules(ctx context.Context, request protocol.ListApprovalRulesRequest) (*protocol.ListApprovalRulesResult, error) {
-	return runtime.settings.ApprovalRules(ctx, request)
+	return runtime.approvals.ListRules(ctx, request)
 }
 
 func (runtime *Runtime) ForgetApprovalRule(ctx context.Context, request protocol.ForgetApprovalRuleRequest) error {
-	err := runtime.settings.ForgetApprovalRule(ctx, request)
-	if err == nil {
-		runtime.events.Publish(protocol.RuntimeEvent{Type: protocol.RuntimeApprovalsChanged})
-	}
-	return err
+	return runtime.approvals.ForgetRule(ctx, request)
 }
 
 func (runtime *Runtime) ListSchedules(ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {

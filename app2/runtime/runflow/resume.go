@@ -405,9 +405,10 @@ func frameworkInterruptResponse(
 	case protocol.InterruptApproval:
 		return json.Marshal(struct {
 			Decision protocol.ApprovalDecision `json:"decision"`
+			Remember *protocol.RememberScope `json:"remember,omitempty"`
 			EditedArgs map[string]any `json:"editedArgs,omitempty"`
 			Reason string `json:"reason,omitempty"`
-		}{Decision: response.Decision, EditedArgs: response.EditedArgs, Reason: response.Reason})
+		}{Decision: response.Decision, Remember: response.Remember, EditedArgs: response.EditedArgs, Reason: response.Reason})
 	case protocol.InterruptQuestion:
 		return json.Marshal(struct { Answers [][]string `json:"answers"` }{Answers: response.Answers})
 	default:

@@ -366,3 +366,26 @@ model-visible name；结果保留完整 MCP envelope。
 继续消费 generated Lyra client，并用明确 MCP Settings section 表达 candidate test、write-only secret、OAuth 与 tool trust；
 不存在 generic plugin host 或第二套配置协议。SQLite exact epoch 提升到 11，开发期直接重建旧 app2 data home；Runtime
 Protocol 仍为 `2026-08-23`，contract generator 无 shape diff。该纵切在 R11 最终统一门禁前标记为 `implemented`。
+
+## ADR-A2-030：Approval 是动态 effect policy，既有 Lyra wire 保持不变
+
+**缺陷与反例**：既有 app2 把 approval mode/rules 与 Schedule 放在同一 `settingsflow`，并把 protocol DTO 直接保存为
+SQLite JSON。Rule list 忽略请求 Session，forget missing 返回合同未声明错误；更关键的是，Agent catalog 在 Run 建立时
+冻结 mode，执行链既不匹配 rule，也不保存 Interrupt 的 remember，所有 prompt 都标记为不可记忆。于是公开合同描述的
+standing decision 实际没有进入 effect lifecycle。这是实现 ownership 断裂，不是 Lyra 协议缺字段。
+
+**决定**：保留 `approval.getMode`、`approval.setMode`、`approval.listRules`、`approval.forgetRule` 与既有
+Approval Interrupt/Remember wire。新建私有 `approvalpolicy` domain 与 `approvalflow` owner；mode 在每次 Tool effect
+读取。Rule visibility/specificity 固定为 Session > Project > Global、exact > glob > whole-tool，同级冲突 deny。
+当前 remember 永远写 exact subject；protocol 已有 subject 字段继续作为投影，不把 private scope key、match kind 或 revision
+泄漏到 wire。edited args 仍只对本次 effect 生效。
+
+Hook rewrite 后才计算 effective subject；Hook `ask` 与默认 stance 合并为一个 durable Interrupt。MCP auto-approve 只豁免
+默认 mode prompt。高置信 root/home/device wipe 是独立 confirmation override，不能被 Yolo、auto-approve 或 remembered
+allow 绕过；它不是 shell sandbox。remember/forget/mode 只在 durable fact 变化时由 Approval owner 发布
+`approvals.changed`，application facade 不重复发布。
+
+**后果**：SQLite 使用 normalized mode/rule state、Session FK cascade 与 changed-only upsert，exact epoch 提升到 12；
+开发期直接重建旧 app2 data home。Desktop 新增明确 Approval Settings section，模式与 selected Session visible rules 均从
+Runtime authority 冷读并消费现有 invalidation topic。Runtime Protocol 保持 `2026-08-23`，不生成新合同；该纵切在
+R11 最终统一门禁前标记为 `implemented`。
