@@ -1,7 +1,6 @@
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -32,6 +31,7 @@ import {
   type TimelineEntry,
 } from "./sessionActivityModel";
 import { formatToolDuration, toolStatusLabel } from "./toolPresentation";
+import { useFollowScroll } from "./useFollowScroll";
 
 interface SessionActivityProps {
   view: SessionActivityView;
@@ -308,37 +308,17 @@ function TerminalView(props: {
       ),
     [props.items, props.liveToolOutputs, props.runs, t],
   );
-  const scroll = useRef<HTMLDivElement>(null);
-  const followsTail = useRef(true);
-  const [pinned, setPinned] = useState(true);
-  const materialVersion = commands
-    .map(
-      (command) =>
-        `${command.id}:${command.item.status}:${command.stdout.length}:${command.stderr.length}:${command.liveOutput?.text.length ?? 0}`,
-    )
-    .join("|");
-
-  useEffect(() => {
-    if (!followsTail.current || scroll.current === null) return;
-    const frame = window.requestAnimationFrame(() => {
-      scroll.current?.scrollTo({ top: scroll.current.scrollHeight });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [materialVersion]);
-
-  const trackReader = () => {
-    const element = scroll.current;
-    if (element === null) return;
-    const follows =
-      element.scrollHeight - element.scrollTop - element.clientHeight < 48;
-    followsTail.current = follows;
-    setPinned(follows);
-  };
-  const follow = () => {
-    followsTail.current = true;
-    setPinned(true);
-    scroll.current?.scrollTo({ top: scroll.current.scrollHeight });
-  };
+	const materialVersion = useMemo(
+		() =>
+			commands
+				.map(
+					(command) =>
+						`${command.id}:${command.item.status}:${command.stdout.length}:${command.stderr.length}:${command.liveOutput?.text.length ?? 0}`,
+				)
+				.join("|"),
+		[commands],
+	);
+	const reader = useFollowScroll(materialVersion, 48, commands.length > 0);
 
   if (commands.length === 0) {
     return (
@@ -362,16 +342,28 @@ function TerminalView(props: {
         <button
           type="button"
           className="quiet-action"
-          onClick={follow}
-          disabled={pinned}
+          onClick={reader.follow}
+          disabled={reader.following}
+          data-new-material={reader.hasNewMaterial || undefined}
+          aria-live="polite"
         >
-          {pinned ? t("activity.followingOutput") : t("activity.followOutput")}
+          {reader.following
+            ? t("activity.followingOutput")
+            : reader.hasNewMaterial
+              ? t("activity.newOutputBelow")
+              : t("activity.followOutput")}
         </button>
       </header>
-      <div className="terminal-log" ref={scroll} onScroll={trackReader}>
-        {commands.map((command, index) => (
-          <CommandRecord key={command.id} command={command} index={index + 1} />
-        ))}
+		<div
+			className="terminal-log"
+			ref={reader.viewportRef}
+			onScroll={reader.onScroll}
+		>
+			<div className="terminal-log-material" ref={reader.contentRef}>
+          {commands.map((command, index) => (
+            <CommandRecord key={command.id} command={command} index={index + 1} />
+          ))}
+			</div>
       </div>
     </div>
   );

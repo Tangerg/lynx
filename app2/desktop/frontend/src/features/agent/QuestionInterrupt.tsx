@@ -90,7 +90,8 @@ function QuestionInput(props: QuestionInputProps) {
     if (
       event.key === "Enter" &&
       (event.metaKey || event.ctrlKey) &&
-      !event.nativeEvent.isComposing
+      !event.nativeEvent.isComposing &&
+      event.nativeEvent.keyCode !== 229
     ) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();

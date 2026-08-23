@@ -32,7 +32,7 @@
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | implemented（真实 PreCompact producer 已由 R10 compaction 纵切补齐，整体待最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | implemented（production 纵切与全 topic/resync 已闭环，最终统一门禁留到 R11） |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | implemented（production 纵切已闭环，最终统一门禁留到 R11） |
-| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | in progress（remote/content/appearance/i18n/commands production 已实现，U24 product 收口继续） |
+| R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | implemented（全部 production 纵切已闭合，统一证据归 R11） |
 | R11 | Runtime/Desktop 89/3/16 全量 parity、统一门禁与独立 package；旧 app 不动 | pending |
 | R12 | 迁移 CLI/其余 consumer（deferred，本轮不实施） | deferred |
 | R13 | 切换与删除旧 app（deferred，本轮不实施） | deferred |
@@ -895,7 +895,7 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 
 ### R10d7a Complete locale registry / preference owner 实现记录（尚未统一验证）
 
-- canonical English 的 1012 个 semantic key 已建立 `en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`、`ar` 九份 exact `MessageDictionary`；逐 locale 静态盘点确认 0 missing、0 extra、0 placeholder mismatch，并修复批量翻译中被发现的跨条目 newline 污染；
+- canonical English 的 1039 个 semantic key 已建立 `en`、`zh-CN`、`zh-TW`、`ja`、`ko`、`es`、`fr`、`de`、`ar` 九份 exact `MessageDictionary`；逐 locale 静态盘点确认 0 missing、0 extra、0 placeholder mismatch，并修复批量翻译中被发现的跨条目 newline 污染；
 - 七个旧能力 locale 仅按相同 English semantic value 复用无歧义人工翻译，其余 app2 新语义与 Arabic 形成独立静态词典；production 不 import 旧 app、不含 raw-key/English fallback。机器翻译只作为完整基线，关键简中术语已先行修订，最终 native-language/visual review 仍属于 R11；
 - `ShellPreferences` v2 成为 locale 唯一 owner，首次启动按 `navigator.languages` 解析受支持 BCP 47 locale，严格持久化 theme/accent/locale；Appearance 暴露九种 native-name selector。切换原子替换完整 dictionary，并由 active locale 唯一设置 `html.lang/dir` 与 Intl formatter；Arabic 声明 `rtl`，logical CSS 全面收口仍在下一批，因此 U22 保持 `in_progress`。
 
@@ -916,6 +916,12 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
 - New Session、Session row actions 与 history rewind 三个真实 action menu 共用一个具体 controller：open 后聚焦第一个 enabled item，ArrowUp/ArrowDown/Home/End 在 menuitem 集内循环，outside pointer/focus 关闭，Escape 在 IME guard 后关闭并把焦点归还 trigger；每个 surface 仍直接拥有自身 action/error/pending，不把业务生命周期塞进 overlay owner；
 - menu trigger/contents 使用 `aria-haspopup`、`aria-expanded`、`role=menu/menuitem`，关闭后的 native details/inert content 不留可聚焦幽灵。Work Index 的 Settings/New Session icon 改用 shared hover/focus tooltip，tooltip 从同一 command catalog 展示平台化 shortcut，并在 menu 展开时抑制；RTL transform origin、reduced motion 与 logical positioning 沿用现有 presentation tokens；
 - 关键 icon/action menu hit target 收敛到至少 40px。本批没有建立 floating-surface registry、portal manager、command bus 或 plugin contribution，也不改变 action semantics。U23 production 纵切到 `implemented`；screen-reader、keyboard matrix、focus restoration、WebKit 与 packaged app 证据仍统一在 R11。
+
+### R10f1 Resilient reader / long-history presentation 实现记录（尚未统一验证）
+
+- Narrative 与 Terminal 使用同一 concrete follow-scroll owner：用户停留尾部时，stream delta、图片、Mermaid、字体换行与 viewport resize 由 `ResizeObserver` 后继续贴尾；用户主动滚离或搜索定位后立即 escape，不再抢夺阅读位置，并用本地化状态显式提示最新 activity/output 在下方。Terminal 从空态首次 materialize 时也会重新建立 observer；
+- 长历史继续消费既有 `items.list(desc)` 的 100-item 显式分页，不引入 dynamic-height JavaScript virtualizer。已完成且不承载浮层的 Narrative/Terminal material 使用 `content-visibility` 与 intrinsic block estimate 跳过离屏 layout；DOM 语义、浏览器查找、screen reader tree、loaded-history highlight 和 exact `scrollIntoView` 均保留，不建立第二份 item/window state；
+- shell 三栏宽度改为随 1120px native minimum 流动的 bounded columns，所有 `summary` 与 action target 至少 40px；Composer 在容器宽度变化时重新测量，send/search/rename/question shortcut 统一拒绝 composition 与 keyCode 229，Markdown 使用 CJK-safe line-break。此批不改变 Lyra operation/event/error、Runtime authority、Wails surface 或 durable data；Retina/WebKit/a11y/IME/large-history/package 证据统一进入 R11。
 
 ## 15. R11：Wave A 全量 parity 与切换
 

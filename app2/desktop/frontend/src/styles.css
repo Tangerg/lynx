@@ -195,9 +195,13 @@ select {
   font: inherit;
 }
 
+button,
+summary {
+  min-height: 40px;
+}
+
 button {
   min-width: 40px;
-  min-height: 40px;
   border: 0;
   border-radius: 11px;
   cursor: pointer;
@@ -278,6 +282,7 @@ pre {
   box-shadow: var(--shadow-popover);
   pointer-events: auto;
   animation: toast-enter 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
@@ -353,8 +358,11 @@ pre {
 }
 
 .app-shell {
+  --work-index-width: clamp(232px, 22vw, 264px);
+  --context-dock-width: clamp(276px, 25vw, 310px);
   display: grid;
-  grid-template-columns: 264px minmax(540px, 1fr) 310px;
+  grid-template-columns:
+    var(--work-index-width) minmax(0, 1fr) var(--context-dock-width);
   width: 100vw;
   height: 100vh;
   background: var(--paper-muted);
@@ -385,7 +393,7 @@ pre {
   z-index: 24;
   inset-block: 0;
   inset-inline-end: 0;
-  width: min(920px, calc(100vw - 264px));
+  width: min(920px, calc(100vw - var(--work-index-width)));
   box-shadow: -18px 0 46px rgba(28, 27, 23, 0.14);
 }
 
@@ -441,7 +449,7 @@ pre {
 .session-view-switch {
   position: sticky;
   z-index: 3;
-  top: 0;
+  inset-block-start: 0;
   display: grid;
   flex: none;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -746,8 +754,29 @@ pre {
   scrollbar-width: thin;
 }
 
+.terminal-log-material {
+  min-height: 100%;
+}
+
+.terminal-toolbar .quiet-action[data-new-material="true"] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
+}
+
 .terminal-command {
   border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+@supports (content-visibility: auto) {
+  .agent-turn:not([data-running="true"]),
+  .reasoning-turn:not([open]),
+  .tool-turn:not([open]),
+  .question-turn,
+  .narrative-boundary,
+  .terminal-command:not([open]) {
+    content-visibility: auto;
+    contain-intrinsic-block-size: auto 120px;
+  }
 }
 
 .terminal-command > summary {
@@ -1971,7 +2000,7 @@ pre {
 
 .resource-view-switch button {
   display: flex;
-  min-height: 38px;
+  min-height: 40px;
   align-items: center;
   gap: 7px;
   padding: 0 11px;
@@ -2229,7 +2258,7 @@ pre {
 }
 
 .resource-state button {
-  min-height: 34px;
+  min-height: 40px;
   margin-top: 15px;
   padding: 0 10px;
   font-size: 8px;
@@ -2321,7 +2350,7 @@ pre {
 }
 
 .knowledge-document footer button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 10px;
   font-size: 8px;
   font-weight: 700;
@@ -2372,7 +2401,7 @@ pre {
 .memory-add-collapsed button,
 .memory-add-form button,
 .memory-item button {
-  min-height: 32px;
+  min-height: 40px;
   padding: 0 10px;
   font-size: 8px;
   font-weight: 700;
@@ -2516,7 +2545,7 @@ pre {
 
 .skill-view-switch button {
   display: flex;
-  min-height: 38px;
+  min-height: 40px;
   align-items: center;
   gap: 7px;
   padding: 0 11px;
@@ -2554,7 +2583,7 @@ pre {
 }
 
 .skill-action-error button {
-  min-height: 32px;
+  min-height: 40px;
   padding: 0 9px;
   color: var(--red);
   background: transparent;
@@ -2703,7 +2732,7 @@ pre {
 .skill-proposal-card > footer button,
 .managed-skill-section .skill-card button,
 .skills-state button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 10px;
   font-size: 8px;
   font-weight: 700;
@@ -2866,7 +2895,7 @@ pre {
 .new-session-popover {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 9px);
+  inset-block-start: calc(100% + 9px);
   inset-inline-end: 0;
   width: 232px;
   padding: 8px;
@@ -3008,8 +3037,8 @@ pre {
 }
 
 .session-search button {
-  min-width: 30px;
-  min-height: 30px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
   color: var(--ink-muted);
   background: transparent;
@@ -3133,7 +3162,7 @@ pre {
 .session-actions {
   position: absolute;
   z-index: 8;
-  top: 11px;
+  inset-block-start: 11px;
   inset-inline-end: 5px;
 }
 
@@ -3169,7 +3198,7 @@ pre {
 
 .session-actions > div {
   position: absolute;
-  top: calc(100% + 4px);
+  inset-block-start: calc(100% + 4px);
   inset-inline-end: 0;
   display: grid;
   width: 156px;
@@ -3233,8 +3262,8 @@ pre {
 }
 
 .session-rename-form button {
-  min-width: 36px;
-  min-height: 38px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
   color: var(--ink-muted);
   background: transparent;
@@ -3407,6 +3436,12 @@ pre {
   overflow: hidden;
 }
 
+.narrative-reader {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .narrative-empty,
 .state-panel {
   align-self: center;
@@ -3472,11 +3507,42 @@ pre {
 }
 
 .narrative-scroll {
+  height: 100%;
   min-height: 0;
-  padding: 30px 30px 18px;
+  padding: 30px 30px 72px;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+}
+
+.narrative-follow {
+  position: absolute;
+  z-index: 16;
+  inset-block-end: 14px;
+  inset-inline: 0;
+  width: max-content;
+  max-width: calc(100% - 28px);
+  min-height: 40px;
+  margin-inline: auto;
+  padding-inline: 13px;
+  border: 1px solid var(--divider-strong);
+  border-radius: 999px;
+  color: var(--ink-subtle);
+  background: color-mix(in srgb, var(--paper-raised) 94%, transparent);
+  box-shadow: var(--shadow-popover);
+  font-size: 9px;
+  font-weight: 700;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.narrative-follow[data-new-material="true"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--divider));
+  color: var(--accent-dark);
+}
+
+.narrative-follow > span {
+  margin-inline-end: 6px;
 }
 
 .narrative-timeline {
@@ -3491,7 +3557,7 @@ pre {
 .history-navigator {
   position: sticky;
   z-index: 12;
-  top: 0;
+  inset-block-start: 0;
   display: flex;
   min-height: 42px;
   align-items: center;
@@ -3529,7 +3595,7 @@ pre {
 }
 
 .history-navigator button {
-  min-height: 28px;
+  min-height: 40px;
   padding: 0 8px;
   border-radius: 8px;
   color: var(--ink-muted);
@@ -3566,7 +3632,7 @@ pre {
 
 .history-navigator > p {
   position: absolute;
-  top: calc(100% + 5px);
+  inset-block-start: calc(100% + 5px);
   inset-inline-end: 0;
   max-width: 360px;
   margin: 0;
@@ -3643,7 +3709,8 @@ pre {
   max-width: 82%;
   align-self: flex-end;
   padding: 12px 14px;
-  border-radius: 17px 17px 5px 17px;
+  border-radius: 17px;
+  border-end-end-radius: 5px;
   background: var(--paper-strong);
 }
 
@@ -3746,7 +3813,7 @@ pre {
 .session-history-actions > details > div {
   position: absolute;
   z-index: 9;
-  top: calc(100% + 5px);
+  inset-block-start: calc(100% + 5px);
   inset-inline-end: 0;
   display: grid;
   width: 190px;
@@ -3797,7 +3864,7 @@ pre {
 }
 
 .feedback-actions button {
-  min-height: 28px;
+  min-height: 40px;
   padding: 0 9px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -3849,7 +3916,7 @@ pre {
 .reasoning-turn > summary,
 .tool-turn > summary {
   display: flex;
-  min-height: 28px;
+  min-height: 40px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -4396,7 +4463,7 @@ pre {
 }
 
 .approval-decisions button {
-  min-height: 36px;
+  min-height: 40px;
   color: var(--ink-subtle);
   background: var(--paper-muted);
   font-size: 10px;
@@ -4604,7 +4671,7 @@ pre {
 
 .interrupt-actions button {
   flex: none;
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 14px;
   color: var(--on-solid);
   background: var(--ink);
@@ -4721,7 +4788,7 @@ pre {
 .recipe-options {
   position: absolute;
   inset-inline-end: 0;
-  bottom: calc(100% + 8px);
+  inset-block-end: calc(100% + 8px);
   inset-inline-start: 0;
   display: grid;
   max-height: 310px;
@@ -4882,8 +4949,8 @@ pre {
 }
 
 .composer-attachments button {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
   color: var(--ink-muted);
   background: transparent;
@@ -4932,7 +4999,7 @@ pre {
 .model-picker-popover {
   position: absolute;
   z-index: 50;
-  bottom: calc(100% + 10px);
+  inset-block-end: calc(100% + 10px);
   inset-inline-start: 0;
   display: grid;
   width: min(560px, calc(100vw - 72px));
@@ -4982,9 +5049,9 @@ pre {
 }
 
 .model-picker-popover > header button {
-  width: 30px;
-  min-width: 30px;
-  min-height: 30px;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
   color: var(--ink-muted);
   background: transparent;
   font-size: 18px;
@@ -5001,7 +5068,7 @@ pre {
 
 .model-picker-popover > nav button {
   flex: none;
-  min-height: 32px;
+  min-height: 40px;
   padding: 0 10px;
   color: var(--ink-muted);
   background: transparent;
@@ -5408,7 +5475,7 @@ pre {
 .provider-card > footer button,
 .model-role-card > footer button,
 .settings-state button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 11px;
   font-size: 8px;
 }
@@ -5476,7 +5543,7 @@ pre {
 }
 
 .usage-period button {
-  min-height: 28px;
+  min-height: 40px;
   padding: 0 9px;
   border-radius: 7px;
   color: var(--ink-muted);
@@ -5669,7 +5736,7 @@ pre {
 
 .schedule-card-heading button,
 .schedule-actions button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 11px;
   font-size: 8px;
 }
@@ -5842,7 +5909,7 @@ pre {
 
 .hook-trust-card > button,
 .hook-trust-confirm button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 11px;
   font-size: 8px;
 }
@@ -6290,7 +6357,7 @@ pre {
 }
 
 .mcp-auth-callout button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 11px;
   font-size: 8px;
   white-space: nowrap;
@@ -6312,7 +6379,7 @@ pre {
 }
 
 .mcp-editor-actions button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 11px;
   font-size: 8px;
 }
@@ -6476,7 +6543,7 @@ pre {
 }
 
 .approval-forget-confirm button {
-  min-height: 28px;
+  min-height: 40px;
   padding: 0 8px;
   color: var(--ink-muted);
   background: var(--paper-muted);
@@ -6587,7 +6654,7 @@ pre {
 
 .plan-popover {
   position: absolute;
-  top: calc(100% + 9px);
+  inset-block-start: calc(100% + 9px);
   inset-inline-end: 0;
   width: 340px;
   max-height: 360px;

@@ -621,3 +621,19 @@ operation、event、error、Wails method 或 plugin protocol。
 
 **后果**：U23 可在不复活旧 plugin host 的前提下拥有统一 shortcut、可发现性和失败隔离；menu focus/keyboard、tooltip 与最终 collision/a11y/IME/
 packaged evidence 继续在 R10e/R11 闭合。新增 shortcut 或 toast producer 必须进入同一静态目录/owner，不能直接增加 window listener 或第二队列。
+
+## ADR-A2-042：长历史保留语义 DOM，follow-scroll 由 reader 独占
+
+**缺陷与反例**：Narrative 与 Terminal 原先各自只在字符串长度变化时执行一次尾部滚动。图片 decode、Mermaid 增强、字体换行或窗口缩放发生在 effect 之后时，
+尾部会无提示漂移；Narrative 的 reader escape 还只是不可观察 ref。直接引入 variable-height JavaScript virtualizer 虽能减少节点 layout，却会复制一份窗口状态，
+破坏 loaded-history 搜索、精确 `scrollIntoView`、动态 disclosure 高度与 accessibility tree，并把分页 authority 从 Runtime 拉回 presentation。
+
+**决定**：既有 `items.list(desc)` cursor 与显式 100-item page 是唯一长历史加载 owner，Desktop 不 eager 拉取全史。已加载 material 继续保留 semantic DOM；
+对已完成且不拥有可见浮层的 Narrative/Terminal block，使用浏览器原生 `content-visibility: auto` 与 intrinsic block estimate 跳过离屏 layout，unsupported WebKit
+自然回退完整渲染。Narrative 与 Terminal 共用一个 concrete follow-scroll hook，只有 reader 处于 tail threshold 内时才允许追尾；用户滚动、搜索或加载旧页会 escape，
+新增 durable/live material 只产生可观察提示。`ResizeObserver` 同时观察 viewport 与 content，使 image、diagram、font 与 width materialization 经过同一 owner；不得新增
+第二 scroll listener、item mirror、virtual window store 或 protocol field。
+
+**后果**：长历史仍可被 DOM search、screen reader 与现有 highlight/navigation 消费，动态高度无需预测；大历史的内存上界继续由用户显式加载页数决定，而非伪装成
+无限滚动。40px action target、fluid native-minimum geometry、IME 229 guard 与 CJK line-break 同属 Desktop presentation 收口，不改变 Lyra Protocol、Runtime query、
+Session/Run/Item identity、Wails method 或 persistence。large-history、Retina、WebKit、keyboard/screen-reader 与 packaged evidence 在 R11 统一验证。

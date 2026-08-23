@@ -113,6 +113,8 @@ export const englishMessages = {
   "narrative.retryHistory": "Retry history",
   "narrative.searchOlder": "Search older",
   "narrative.loadOlder": "Load older",
+  "narrative.jumpToLatest": "Jump to latest",
+  "narrative.latestActivityBelow": "Latest activity below",
   "narrative.streamPaused":
     "Live updates paused: {detail}. Durable material is being reloaded.",
   "narrative.ready": "Ready",
@@ -308,6 +310,7 @@ export const englishMessages = {
   "activity.commandCountMany": "{count} commands",
   "activity.followingOutput": "Following output",
   "activity.followOutput": "Follow output",
+  "activity.newOutputBelow": "New output below",
   "activity.running": "running",
   "activity.commandNumber": "Command {number}",
   "activity.killed": "killed",

@@ -2,7 +2,9 @@
   min-width: 0;
   color: var(--ink);
   font-size: 13px;
+  line-break: auto;
   line-height: 1.68;
+  word-break: normal;
 }
 
 .message-content p,

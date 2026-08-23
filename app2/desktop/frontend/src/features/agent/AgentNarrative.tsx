@@ -24,6 +24,7 @@ import {
 	commandByID,
 } from "../shell/commandCatalog";
 import { useActionMenu } from "../shell/useActionMenu";
+import { useFollowScroll } from "./useFollowScroll";
 
 interface AgentNarrativeProps {
   sessionTitle: string;
@@ -66,34 +67,51 @@ interface NarrativeMaterial {
 
 export function AgentNarrative(props: AgentNarrativeProps) {
   const { t } = useLocalization();
-  const scroll = useRef<HTMLDivElement>(null);
 	const searchInput = useRef<HTMLInputElement>(null);
 	const observedSearchRequest = useRef(props.searchRequest);
-  const followsTail = useRef(true);
 	const [search, setSearch] = useState("");
 	const [activeMatch, setActiveMatch] = useState(0);
   const material = useMemo(
     () => indexNarrative(props.items, props.runs, props.liveToolOutputs),
     [props.items, props.liveToolOutputs, props.runs],
   );
-  const materialVersion = props.items
-    .map((item) => `${item.id}:${item.status}:${itemTextLength(item)}`)
-    .concat(
-      props.interrupts.map(
-        (set) => `${set.rootRunId}:${set.createdAt}:${set.interrupts.length}`,
-      ),
-    )
-    .concat(
-      props.runs.map(
-        (run) => `${run.id}:${run.status}:${run.outcome?.type ?? ""}`,
-      ),
-    )
-    .concat(
-      Object.entries(props.liveToolOutputs).map(
-        ([itemId, output]) => `${itemId}:${output.text.length}`,
-      ),
-    )
-    .join("|");
+	const materialVersion = useMemo(
+		() =>
+			props.items
+				.map((item) => `${item.id}:${item.status}:${itemTextLength(item)}`)
+				.concat(
+					props.interrupts.map(
+						(set) =>
+							`${set.rootRunId}:${set.createdAt}:${set.interrupts.length}`,
+					),
+				)
+				.concat(
+					props.runs.map(
+						(run) => `${run.id}:${run.status}:${run.outcome?.type ?? ""}`,
+					),
+				)
+				.concat(
+					Object.entries(props.liveToolOutputs).map(
+						([itemId, output]) => `${itemId}:${output.text.length}`,
+					),
+				)
+				.concat(
+					props.progress === undefined
+						? []
+						: [
+								`${props.progress.step}:${props.progress.activity ?? ""}:${(props.progress.usage?.inputTokens ?? 0) + (props.progress.usage?.outputTokens ?? 0)}`,
+							],
+				)
+				.join("|"),
+		[
+			props.interrupts,
+			props.items,
+			props.liveToolOutputs,
+			props.progress,
+			props.runs,
+		],
+	);
+	const reader = useFollowScroll(materialVersion, 56);
 	const normalizedSearch = search.trim().toLocaleLowerCase();
 	const searchMatches = useMemo(
 		() =>
@@ -106,14 +124,6 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 	);
 	const activeMatchID = searchMatches[activeMatch]?.id;
 
-  useEffect(() => {
-    if (!followsTail.current || scroll.current === null) return;
-    const frame = window.requestAnimationFrame(() => {
-      scroll.current?.scrollTo({ top: scroll.current.scrollHeight });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [materialVersion]);
-
 	useEffect(() => {
 		setActiveMatch(0);
 	}, [normalizedSearch]);
@@ -125,8 +135,9 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 
 	useEffect(() => {
 		if (activeMatchID === undefined) return;
+		reader.escape();
 		const frame = window.requestAnimationFrame(() => {
-			const target = [...(scroll.current?.querySelectorAll<HTMLElement>("[data-item-id]") ?? [])]
+			const target = [...(reader.viewportRef.current?.querySelectorAll<HTMLElement>("[data-item-id]") ?? [])]
 				.find((element) => element.dataset.itemId === activeMatchID);
 			target?.scrollIntoView({
 				block: "center",
@@ -136,7 +147,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 			});
 		});
 		return () => window.cancelAnimationFrame(frame);
-	}, [activeMatchID]);
+	}, [activeMatchID, reader.escape, reader.viewportRef]);
 
 	useEffect(() => {
 		if (observedSearchRequest.current === props.searchRequest) return;
@@ -148,31 +159,26 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 	const moveMatch = (direction: -1 | 1) => {
 		if (searchMatches.length === 0) {
 			if (props.hasOlderHistory && !props.historyPending) {
-				followsTail.current = false;
+				reader.escape();
 				void props.onLoadOlderHistory().catch(() => undefined);
 			}
 			return;
 		}
+		reader.escape();
 		setActiveMatch((current) =>
 			(current + direction + searchMatches.length) % searchMatches.length,
 		);
 	};
 
-  const trackReader = () => {
-    const element = scroll.current;
-    if (element === null) return;
-    followsTail.current =
-      element.scrollHeight - element.scrollTop - element.clientHeight < 56;
-  };
-
   return (
-    <div
-      className="narrative-scroll"
-      ref={scroll}
-      onScroll={trackReader}
-	  aria-busy={props.pending || props.historyPending}
-    >
-      <div className="narrative-timeline">
+    <div className="narrative-reader">
+      <div
+        className="narrative-scroll"
+        ref={reader.viewportRef}
+        onScroll={reader.onScroll}
+		aria-busy={props.pending || props.historyPending}
+      >
+        <div className="narrative-timeline" ref={reader.contentRef}>
 		{props.items.length > 0 ? (
 		  <div className="history-navigator">
 			<label>
@@ -189,6 +195,10 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 				)}
 				onChange={(event) => setSearch(event.target.value)}
 				onKeyDown={(event) => {
+				  if (
+					event.nativeEvent.isComposing ||
+					event.nativeEvent.keyCode === 229
+				  ) return;
 				  if (event.key === "Escape") {
 					setSearch("");
 					return;
@@ -231,7 +241,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
 				type="button"
 				disabled={props.historyPending}
 				onClick={() => {
-				  followsTail.current = false;
+				  reader.escape();
 				  void props.onLoadOlderHistory().catch(() => undefined);
 				}}
 			  >
@@ -306,7 +316,24 @@ export function AgentNarrative(props: AgentNarrativeProps) {
         ))}
         {props.children}
         {props.progress ? <LiveProgress progress={props.progress} /> : null}
+		</div>
       </div>
+		{!reader.following ? (
+			<button
+				className="narrative-follow"
+				type="button"
+				data-new-material={reader.hasNewMaterial || undefined}
+				onClick={reader.follow}
+			>
+				<span aria-hidden="true">↓</span>
+				{reader.hasNewMaterial
+					? t("narrative.latestActivityBelow")
+					: t("narrative.jumpToLatest")}
+			</button>
+		) : null}
+      <span className="sr-only" role="status" aria-live="polite">
+        {reader.hasNewMaterial ? t("narrative.latestActivityBelow") : ""}
+      </span>
     </div>
   );
 }

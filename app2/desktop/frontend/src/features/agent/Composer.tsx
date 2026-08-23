@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -106,12 +107,30 @@ export function Composer(props: ComposerProps) {
 
   useEffect(() => setRecipeIndex(0), [recipeQuery, recipeSuggestions.length]);
 
-  useLayoutEffect(() => {
+  const resizeComposer = useCallback(() => {
     const element = textarea.current;
     if (element === null) return;
     element.style.height = "0px";
     element.style.height = `${Math.min(Math.max(element.scrollHeight, 48), 180)}px`;
-  }, [props.draft.text]);
+  }, []);
+  useLayoutEffect(() => {
+    resizeComposer();
+  }, [props.draft.text, resizeComposer]);
+  useEffect(() => {
+    const element = textarea.current;
+    const container = element?.parentElement;
+    if (
+      element === null ||
+      element === undefined ||
+      container === null ||
+      typeof ResizeObserver === "undefined"
+    ) {
+      return;
+    }
+    const observer = new ResizeObserver(resizeComposer);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [resizeComposer]);
 
   const update = (patch: Partial<ComposerDraft>) => {
     props.onChange((current) => ({ ...current, ...patch }));
@@ -154,6 +173,7 @@ export function Composer(props: ComposerProps) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     if (recipesOpen) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -170,10 +190,7 @@ export function Composer(props: ComposerProps) {
         setDismissedRecipeText(props.draft.text);
         return;
       }
-      if (
-        (event.key === "Enter" || event.key === "Tab") &&
-        !event.nativeEvent.isComposing
-      ) {
+      if (event.key === "Enter" || event.key === "Tab") {
         event.preventDefault();
         chooseRecipe(
           recipeSuggestions[activeRecipeIndex] ?? recipeSuggestions[0],
@@ -181,11 +198,7 @@ export function Composer(props: ComposerProps) {
         return;
       }
     }
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.nativeEvent.isComposing
-    ) {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
       return;
