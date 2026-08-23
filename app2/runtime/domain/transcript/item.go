@@ -10,3 +10,34 @@ type Record struct {
 	Body                 []byte
 	CreatedAt            time.Time
 }
+
+type Order string
+
+const (
+	OrderAscending  Order = "asc"
+	OrderDescending Order = "desc"
+)
+
+type Scope struct {
+	SessionID         string
+	RunID             string
+	IncludeDescendants bool
+}
+
+type Cursor struct {
+	CreatedAt time.Time
+	RunID     string
+	Ordinal   int
+}
+
+type Query struct {
+	Scope  Scope
+	Order  Order
+	Limit  int
+	Cursor *Cursor
+}
+
+type Page struct {
+	Records []Record
+	Next    *Cursor
+}

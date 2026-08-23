@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ type Store interface {
 	CreateRun(context.Context, rundomain.Record, *transcript.Record, *conversationdomain.Record, []rundomain.EventRecord) error
 	CommitRun(context.Context, CommitWrite) error
 	ListItems(context.Context, string, string) ([]transcript.Record, error)
+	PageItems(context.Context, transcript.Query) (transcript.Page, error)
 	ListConversationMessages(context.Context, string) ([]conversationdomain.Record, error)
 	ListRunEvents(context.Context, string, string, string) ([]rundomain.EventRecord, error)
 	GetInterruptSet(context.Context, string) (protocol.PendingInterruptSet, error)
@@ -463,7 +465,7 @@ func (service *Service) Get(ctx context.Context, runID string) (*protocol.RunRef
 }
 
 func (service *Service) List(ctx context.Context, request protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-	cursor, err := decodeRunCursor(request.Cursor)
+	cursor, err := decodeRunCursor(request.Cursor, request)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid cursor", protocol.ErrInvalidParams)
 	}
@@ -485,7 +487,7 @@ func (service *Service) List(ctx context.Context, request protocol.ListRunsReque
 	}
 	next := ""
 	if page.Next != nil {
-		next = encodeRunCursor(*page.Next)
+		next = encodeRunCursor(*page.Next, request)
 	}
 	return protocol.NewPageWithCursor(data, next), nil
 }
@@ -724,47 +726,100 @@ func (service *Service) publishRunChange(value rundomain.Run) {
 }
 
 func (service *Service) Items(ctx context.Context, request protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	var sessionID, runID string
+	order := transcript.OrderAscending
+	switch request.Order {
+	case "", protocol.ItemOrderAsc:
+	case protocol.ItemOrderDesc:
+		order = transcript.OrderDescending
+	default:
+		return nil, fmt.Errorf("%w: item order is invalid", protocol.ErrInvalidParams)
+	}
+	query := transcript.Query{
+		Order: order,
+		Limit: request.Limit,
+	}
 	switch request.Scope.Type {
 	case protocol.ItemScopeSession:
-		sessionID = request.Scope.SessionID
+		if request.Scope.SessionID == "" || request.Scope.RunID != "" || request.Scope.IncludeDescendants {
+			return nil, fmt.Errorf("%w: session item scope is invalid", protocol.ErrInvalidParams)
+		}
+		query.Scope.SessionID = request.Scope.SessionID
 	case protocol.ItemScopeRun:
-		runID = request.Scope.RunID
+		if request.Scope.RunID == "" || request.Scope.SessionID != "" {
+			return nil, fmt.Errorf("%w: run item scope is invalid", protocol.ErrInvalidParams)
+		}
+		query.Scope.RunID = request.Scope.RunID
+		query.Scope.IncludeDescendants = request.Scope.IncludeDescendants
 	default:
 		return nil, fmt.Errorf("%w: item scope is invalid", protocol.ErrInvalidParams)
 	}
-	records, err := service.store.ListItems(ctx, sessionID, runID)
+	cursor, err := decodeItemCursor(request.Cursor, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: invalid cursor", protocol.ErrInvalidParams)
 	}
-	items := make([]protocol.Item, 0, len(records))
-	runIDs := make(map[string]bool)
-	for _, record := range records {
+	query.Cursor = cursor
+	page, err := service.store.PageItems(ctx, query)
+	if err != nil {
+		if errors.Is(err, session.ErrNotFound) {
+			return nil, protocol.ErrSessionNotFound
+		}
+		return nil, projectRunLookup(err)
+	}
+	items := make([]protocol.Item, 0, len(page.Records))
+	runIDs := make([]string, 0, len(page.Records))
+	seenRunIDs := make(map[string]bool)
+	for _, record := range page.Records {
 		var item protocol.Item
 		if err := json.Unmarshal(record.Body, &item); err != nil {
 			return nil, fmt.Errorf("runflow: decode item: %w", err)
 		}
 		items = append(items, item)
-		runIDs[item.RunID] = true
-	}
-	if request.Order == protocol.ItemOrderDesc {
-		for left, right := 0, len(items)-1; left < right; left, right = left+1, right-1 {
-			items[left], items[right] = items[right], items[left]
+		if !seenRunIDs[item.RunID] {
+			seenRunIDs[item.RunID] = true
+			runIDs = append(runIDs, item.RunID)
 		}
 	}
-	runs := make([]protocol.RunSummary, 0, len(runIDs))
-	for id := range runIDs {
-		record, err := service.store.GetRun(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		presented, err := presentRecord(record)
-		if err != nil {
-			return nil, err
-		}
-		runs = append(runs, presented.RunSummary)
+	runs, err := service.runSummaryClosure(ctx, runIDs)
+	if err != nil {
+		return nil, err
 	}
-	return &protocol.ListItemsResponse{Page: *protocol.NewPage(items), Runs: runs}, nil
+	next := ""
+	if page.Next != nil {
+		next = encodeItemCursor(*page.Next, request)
+	}
+	return &protocol.ListItemsResponse{
+		Page: *protocol.NewPageWithCursor(items, next),
+		Runs: runs,
+	}, nil
+}
+
+func (service *Service) runSummaryClosure(ctx context.Context, runIDs []string) ([]protocol.RunSummary, error) {
+	result := make([]protocol.RunSummary, 0, len(runIDs))
+	seen := make(map[string]bool)
+	for _, runID := range runIDs {
+		lineage := make([]protocol.RunSummary, 0, 2)
+		for runID != "" && !seen[runID] {
+			record, err := service.store.GetRun(ctx, runID)
+			if err != nil {
+				return nil, projectRunLookup(err)
+			}
+			presented, err := presentRecord(record)
+			if err != nil {
+				return nil, err
+			}
+			lineage = append(lineage, presented.RunSummary)
+			runID = record.Run.ParentRunID()
+		}
+		slices.Reverse(lineage)
+		for _, summary := range lineage {
+			if seen[summary.ID] {
+				continue
+			}
+			seen[summary.ID] = true
+			result = append(result, summary)
+		}
+	}
+	return result, nil
 }
 
 func (service *Service) replay(ctx context.Context, runID, segmentID, after string) ([]protocol.RunEvent, string, error) {
@@ -912,9 +967,16 @@ func itemRecord(sessionID string, item protocol.Item, ordinal int) (transcript.R
 	if err != nil {
 		return transcript.Record{}, fmt.Errorf("runflow: encode item: %w", err)
 	}
+	createdAt := item.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = item.StartedAt
+	}
+	if createdAt.IsZero() {
+		return transcript.Record{}, errors.New("runflow: item has no occurrence time")
+	}
 	return transcript.Record{
 		ID: item.ID, SessionID: sessionID, RunID: item.RunID,
-		Ordinal: ordinal, Body: body, CreatedAt: item.CreatedAt,
+		Ordinal: ordinal, Body: body, CreatedAt: createdAt,
 	}, nil
 }
 
@@ -967,11 +1029,21 @@ func (service *Service) runLock(runID string) *sync.Mutex {
 	return lock
 }
 
-func encodeRunCursor(cursor rundomain.Cursor) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(cursor.CreatedAt.UTC().Format(time.RFC3339Nano) + "\n" + cursor.ID))
+func encodeItemCursor(cursor transcript.Cursor, request protocol.ListItemsRequest) string {
+	order, scopeType, scopeID, descendants := itemCursorIdentity(request)
+	value := strings.Join([]string{
+		order,
+		scopeType,
+		scopeID,
+		descendants,
+		cursor.CreatedAt.UTC().Format(time.RFC3339Nano),
+		cursor.RunID,
+		strconv.Itoa(cursor.Ordinal),
+	}, "\n")
+	return base64.RawURLEncoding.EncodeToString([]byte(value))
 }
 
-func decodeRunCursor(value string) (*rundomain.Cursor, error) {
+func decodeItemCursor(value string, request protocol.ListItemsRequest) (*transcript.Cursor, error) {
 	if value == "" {
 		return nil, nil
 	}
@@ -979,15 +1051,91 @@ func decodeRunCursor(value string) (*rundomain.Cursor, error) {
 	if err != nil {
 		return nil, err
 	}
-	parts := strings.SplitN(string(decoded), "\n", 2)
-	if len(parts) != 2 {
-		return nil, errors.New("invalid cursor")
+	parts := strings.SplitN(string(decoded), "\n", 7)
+	if len(parts) != 7 || parts[5] == "" {
+		return nil, errors.New("invalid item cursor")
 	}
-	createdAt, err := time.Parse(time.RFC3339Nano, parts[0])
+	order, scopeType, scopeID, descendants := itemCursorIdentity(request)
+	if parts[0] != order || parts[1] != scopeType || parts[2] != scopeID || parts[3] != descendants {
+		return nil, errors.New("item cursor belongs to another query")
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, parts[4])
 	if err != nil {
 		return nil, err
 	}
-	return &rundomain.Cursor{CreatedAt: createdAt, ID: parts[1]}, nil
+	ordinal, err := strconv.Atoi(parts[6])
+	if err != nil || ordinal < 0 {
+		return nil, errors.New("invalid item cursor ordinal")
+	}
+	return &transcript.Cursor{
+		CreatedAt: createdAt,
+		RunID:     parts[5],
+		Ordinal:   ordinal,
+	}, nil
+}
+
+func itemCursorIdentity(request protocol.ListItemsRequest) (string, string, string, string) {
+	order := string(request.Order)
+	if order == "" {
+		order = string(protocol.ItemOrderAsc)
+	}
+	scopeID := request.Scope.SessionID
+	if request.Scope.Type == protocol.ItemScopeRun {
+		scopeID = request.Scope.RunID
+	}
+	descendants := "0"
+	if request.Scope.IncludeDescendants {
+		descendants = "1"
+	}
+	return order, string(request.Scope.Type), scopeID, descendants
+}
+
+func encodeRunCursor(cursor rundomain.Cursor, request protocol.ListRunsRequest) string {
+	sessionID, descendants, statuses := runCursorIdentity(request)
+	value := strings.Join([]string{
+		sessionID,
+		descendants,
+		statuses,
+		cursor.CreatedAt.UTC().Format(time.RFC3339Nano),
+		cursor.ID,
+	}, "\n")
+	return base64.RawURLEncoding.EncodeToString([]byte(value))
+}
+
+func decodeRunCursor(value string, request protocol.ListRunsRequest) (*rundomain.Cursor, error) {
+	if value == "" {
+		return nil, nil
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.SplitN(string(decoded), "\n", 5)
+	if len(parts) != 5 || parts[4] == "" {
+		return nil, errors.New("invalid cursor")
+	}
+	sessionID, descendants, statuses := runCursorIdentity(request)
+	if parts[0] != sessionID || parts[1] != descendants || parts[2] != statuses {
+		return nil, errors.New("run cursor belongs to another query")
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, parts[3])
+	if err != nil {
+		return nil, err
+	}
+	return &rundomain.Cursor{CreatedAt: createdAt, ID: parts[4]}, nil
+}
+
+func runCursorIdentity(request protocol.ListRunsRequest) (string, string, string) {
+	descendants := "0"
+	if request.IncludeDescendants {
+		descendants = "1"
+	}
+	statuses := make([]string, len(request.Statuses))
+	for index, status := range request.Statuses {
+		statuses[index] = string(status)
+	}
+	slices.Sort(statuses)
+	return request.SessionID, descendants, strings.Join(statuses, ",")
 }
 
 func (service *Service) Close() {

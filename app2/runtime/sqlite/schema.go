@@ -63,8 +63,8 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			created_at TEXT NOT NULL,
 			UNIQUE(run_id, ordinal)
 		) STRICT`,
-		`CREATE INDEX IF NOT EXISTS items_by_session
-			ON items(session_id, created_at, id)`,
+		`CREATE INDEX IF NOT EXISTS items_timeline
+			ON items(session_id, created_at, run_id, ordinal)`,
 		`CREATE TABLE IF NOT EXISTS conversation_messages (
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 			run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,

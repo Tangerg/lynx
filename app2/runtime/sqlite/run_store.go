@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
+	"github.com/Tangerg/lynx/app2/runtime/domain/session"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/runflow"
 )
@@ -367,18 +368,168 @@ func (database *Database) ListItems(ctx context.Context, sessionID, runID string
 	defer rows.Close()
 	items := make([]transcript.Record, 0)
 	for rows.Next() {
-		var item transcript.Record
-		var created string
-		if err := rows.Scan(&item.ID, &item.SessionID, &item.RunID, &item.Ordinal, &item.Body, &created); err != nil {
-			return nil, fmt.Errorf("sqlite: scan item: %w", err)
-		}
-		item.CreatedAt, err = decodeTime(created)
+		item, err := scanItem(rows)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (database *Database) PageItems(ctx context.Context, query transcript.Query) (transcript.Page, error) {
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	transaction, err := database.database.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return transcript.Page{}, fmt.Errorf("sqlite: begin item page: %w", err)
+	}
+	defer transaction.Rollback()
+
+	statement := ""
+	arguments := make([]any, 0, 5)
+	switch {
+	case query.Scope.SessionID != "" && query.Scope.RunID == "":
+		if err := requireSession(ctx, transaction, query.Scope.SessionID); err != nil {
+			return transcript.Page{}, err
+		}
+		statement = `
+			SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.created_at
+			FROM items AS i
+			WHERE i.session_id = ?`
+		arguments = append(arguments, query.Scope.SessionID)
+	case query.Scope.RunID != "" && query.Scope.SessionID == "":
+		if err := requireRun(ctx, transaction, query.Scope.RunID); err != nil {
+			return transcript.Page{}, err
+		}
+		if query.Scope.IncludeDescendants {
+			statement = `
+				WITH RECURSIVE subtree(id) AS (
+					SELECT id FROM runs WHERE id = ?
+					UNION ALL
+					SELECT child.id
+					FROM runs AS child
+					JOIN subtree ON child.parent_run_id = subtree.id
+				)
+				SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.created_at
+				FROM items AS i
+				JOIN subtree ON subtree.id = i.run_id
+				WHERE 1 = 1`
+		} else {
+			statement = `
+				SELECT i.id, i.session_id, i.run_id, i.ordinal, i.body, i.created_at
+				FROM items AS i
+				WHERE i.run_id = ?`
+		}
+		arguments = append(arguments, query.Scope.RunID)
+	default:
+		return transcript.Page{}, errors.New("sqlite: item page requires exactly one scope")
+	}
+
+	direction := "ASC"
+	comparison := ">"
+	if query.Order == transcript.OrderDescending {
+		direction = "DESC"
+		comparison = "<"
+	} else if query.Order != transcript.OrderAscending {
+		return transcript.Page{}, errors.New("sqlite: item page order is invalid")
+	}
+	if query.Cursor != nil {
+		statement += ` AND (i.created_at, i.run_id, i.ordinal) ` + comparison + ` (?, ?, ?)`
+		arguments = append(
+			arguments,
+			encodeTime(query.Cursor.CreatedAt),
+			query.Cursor.RunID,
+			query.Cursor.Ordinal,
+		)
+	}
+	statement += ` ORDER BY i.created_at ` + direction + `, i.run_id ` + direction + `, i.ordinal ` + direction + ` LIMIT ?`
+	arguments = append(arguments, limit+1)
+	rows, err := transaction.QueryContext(ctx, statement, arguments...)
+	if err != nil {
+		return transcript.Page{}, fmt.Errorf("sqlite: page items: %w", err)
+	}
+	defer rows.Close()
+	records := make([]transcript.Record, 0, limit+1)
+	for rows.Next() {
+		record, scanErr := scanItem(rows)
+		if scanErr != nil {
+			return transcript.Page{}, scanErr
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return transcript.Page{}, fmt.Errorf("sqlite: iterate item page: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return transcript.Page{}, fmt.Errorf("sqlite: close item page: %w", err)
+	}
+	if err := transaction.Commit(); err != nil {
+		return transcript.Page{}, fmt.Errorf("sqlite: commit item page: %w", err)
+	}
+	page := transcript.Page{Records: records}
+	if len(records) > limit {
+		last := records[limit-1]
+		page.Records = records[:limit]
+		page.Next = &transcript.Cursor{
+			CreatedAt: last.CreatedAt,
+			RunID:     last.RunID,
+			Ordinal:   last.Ordinal,
+		}
+	}
+	return page, nil
+}
+
+func requireSession(ctx context.Context, transaction *sql.Tx, sessionID string) error {
+	var found int
+	err := transaction.QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ?`, sessionID).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return session.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect item session scope: %w", err)
+	}
+	return nil
+}
+
+func requireRun(ctx context.Context, transaction *sql.Tx, runID string) error {
+	var found int
+	err := transaction.QueryRowContext(ctx, `SELECT 1 FROM runs WHERE id = ?`, runID).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return rundomain.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect item run scope: %w", err)
+	}
+	return nil
+}
+
+func scanItem(row rowScanner) (transcript.Record, error) {
+	var (
+		record transcript.Record
+		created string
+	)
+	if err := row.Scan(
+		&record.ID,
+		&record.SessionID,
+		&record.RunID,
+		&record.Ordinal,
+		&record.Body,
+		&created,
+	); err != nil {
+		return transcript.Record{}, fmt.Errorf("sqlite: scan item: %w", err)
+	}
+	var err error
+	record.CreatedAt, err = decodeTime(created)
+	if err != nil {
+		return transcript.Record{}, err
+	}
+	return record, nil
 }
 
 func scanRun(row rowScanner) (rundomain.Record, error) {
