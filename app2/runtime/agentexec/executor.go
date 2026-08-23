@@ -54,6 +54,16 @@ type KnowledgeDocument struct {
 	Content string
 }
 
+type MemorySource interface {
+	Recall(context.Context, string) ([]MemoryItem, error)
+}
+
+type MemoryItem struct {
+	ID      string
+	Scope   string
+	Content string
+}
+
 // ToolFactSink receives committed domain facts that cannot be reconstructed
 // from a provider-facing string result. The executor owns its lifetime and
 // attaches each fact to the exact observed ToolCall.
@@ -74,6 +84,7 @@ type Executor struct {
 	tools     ToolCatalog
 	documents AgentDocumentSource
 	knowledge KnowledgeDocumentSource
+	memory    MemorySource
 }
 
 type Config struct {
@@ -81,15 +92,17 @@ type Config struct {
 	Tools     ToolCatalog
 	Documents AgentDocumentSource
 	Knowledge KnowledgeDocumentSource
+	Memory    MemorySource
 }
 
 func New(config Config) (*Executor, error) {
-	if config.Clients == nil || config.Documents == nil || config.Knowledge == nil {
-		return nil, errors.New("agentexec: clients, agent documents and knowledge are required")
+	if config.Clients == nil || config.Documents == nil || config.Knowledge == nil || config.Memory == nil {
+		return nil, errors.New("agentexec: clients, agent documents, knowledge and memory are required")
 	}
 	return &Executor{
 		clients: config.Clients, tools: config.Tools,
 		documents: config.Documents, knowledge: config.Knowledge,
+		memory: config.Memory,
 	}, nil
 }
 
@@ -303,6 +316,14 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 		return Output{}, err
 	}
 	if input.IsRootRun {
+		memory, err := executor.memory.Recall(ctx, input.Workspace)
+		if err != nil {
+			return Output{}, fmt.Errorf("agentexec: recall memory: %w", err)
+		}
+		memoryGuidance, err := renderMemory(memory)
+		if err != nil {
+			return Output{}, err
+		}
 		knowledge, err := executor.knowledge.Knowledge(ctx, input.Workspace)
 		if err != nil {
 			return Output{}, fmt.Errorf("agentexec: load knowledge: %w", err)
@@ -320,7 +341,7 @@ func (executor *Executor) Execute(ctx context.Context, input Input) (Output, err
 			return Output{}, err
 		}
 		workingContext := strings.Join(
-			slices.DeleteFunc([]string{knowledgeGuidance, guidance}, func(value string) bool {
+			slices.DeleteFunc([]string{memoryGuidance, knowledgeGuidance, guidance}, func(value string) bool {
 				return value == ""
 			}),
 			"\n\n",

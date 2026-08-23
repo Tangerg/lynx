@@ -317,6 +317,12 @@ Knowledge 是人类编辑的 file-backed capability，不是 AgentMemory 或 gen
 绑定物理 target identity 和 content revision，symlink 不得逃逸 scope，也不得因原子替换而意外改写为普通文件。fresh root Run
 读取一次有效 cascade；checkpoint 之后外部变化只影响后续 fresh Run，不改变 waiting/resume 的历史上下文。
 
+AgentMemory 是 Agent 维护、用户复核的长期事实集合。target 是 closed `user | project` partition；条目以 content digest 去重，
+`pending → active | rejected` 是单向 review lifecycle。rejected 是不进入 API/prompt/search 的 tombstone，阻止相同自动事实反复提案；
+user-authored 条目立即 active。只有 active 可 pinned、注入或搜索。管理命令的内部 revision 与 transaction 保护原子 read-modify-write，
+但不擅自扩张现有 Lyra wire；visible collection 与 rejected tombstone retention 分别有硬上限。fresh root Run 冻结 effective
+user+project recall，resume 不因后续 review 漂移。
+
 ## 11. Runtime 生命周期与事件
 
 `RuntimeInstance` 是进程代际，不是业务聚合：每次启动获得新 `instanceId`，同一 durable store 可跨代保持；

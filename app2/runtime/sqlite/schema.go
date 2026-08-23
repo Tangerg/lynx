@@ -186,20 +186,32 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			body TEXT NOT NULL CHECK (json_valid(body)),
 			created_at TEXT NOT NULL
 		) STRICT`,
-		`CREATE TABLE IF NOT EXISTS knowledge_entries (
-			workspace_path TEXT NOT NULL,
-			name TEXT NOT NULL,
-			body TEXT NOT NULL CHECK (json_valid(body)),
-			revision INTEGER NOT NULL CHECK (revision > 0),
-			updated_at TEXT NOT NULL,
-			PRIMARY KEY(workspace_path, name)
-		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS agent_memory (
 			id TEXT PRIMARY KEY,
-			body TEXT NOT NULL CHECK (json_valid(body)),
-			status TEXT NOT NULL,
-			updated_at TEXT NOT NULL
+			scope TEXT NOT NULL CHECK (scope IN ('project', 'user')),
+			project_path TEXT NOT NULL DEFAULT '',
+			content TEXT NOT NULL CHECK (
+				length(trim(content)) > 0 AND length(CAST(content AS BLOB)) <= 8192
+			),
+			digest TEXT NOT NULL CHECK (length(digest) = 64),
+			origin TEXT NOT NULL CHECK (origin IN ('auto', 'user')),
+			status TEXT NOT NULL CHECK (status IN ('active', 'pending', 'rejected')),
+			pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+			session_id TEXT NOT NULL DEFAULT '',
+			day TEXT NOT NULL DEFAULT '',
+			revision INTEGER NOT NULL CHECK (revision > 0),
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			CHECK (
+				(scope = 'project' AND length(project_path) > 0)
+				OR (scope = 'user' AND project_path = '')
+			),
+			CHECK (origin != 'user' OR status = 'active'),
+			CHECK (pinned = 0 OR status = 'active'),
+			UNIQUE(scope, project_path, digest)
 		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS agent_memory_target
+			ON agent_memory(scope, project_path, status, pinned DESC, updated_at DESC)`,
 		`CREATE TABLE IF NOT EXISTS feedback (
 			id TEXT PRIMARY KEY,
 			body TEXT NOT NULL CHECK (json_valid(body)),

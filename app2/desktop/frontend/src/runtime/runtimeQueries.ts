@@ -17,6 +17,10 @@ import {
   type GoalBudget,
   type GrepResult,
   type InterruptResponse,
+  type AgentMemoryItem,
+  type AgentMemoryList,
+  type AgentMemoryReviewDecision,
+  type AgentMemoryScope,
   type KnowledgeEntry,
   type KnowledgeScope,
   type ManagedSkill,
@@ -165,6 +169,20 @@ export const runtimeQueryKeys = {
   },
   workspaceKnowledge(connection: RuntimeConnection, workspacePath: string) {
     return [...this.knowledge(connection), workspacePath] as const;
+  },
+  memory(connection: RuntimeConnection) {
+    return [...this.scope(connection), "agent-memory"] as const;
+  },
+  memoryTarget(
+    connection: RuntimeConnection,
+    scope: AgentMemoryScope,
+    workspacePath?: string,
+  ) {
+    return [
+      ...this.memory(connection),
+      scope,
+      scope === "project" ? workspacePath : "",
+    ] as const;
   },
 };
 
@@ -332,6 +350,72 @@ export function updateKnowledge(
   return client(connection).call(
     "knowledge.update",
     request,
+    { meta: clientMeta, signal },
+  );
+}
+
+export function listAgentMemory(
+  connection: RuntimeConnection,
+  scope: AgentMemoryScope,
+  workspace: WorkspaceRef,
+  signal?: AbortSignal,
+): Promise<AgentMemoryList> {
+  return client(connection).call(
+    "agentMemory.list",
+    scope === "project" ? { scope, workspace } : { scope },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function addAgentMemory(
+  connection: RuntimeConnection,
+  scope: AgentMemoryScope,
+  workspace: WorkspaceRef,
+  content: string,
+  signal?: AbortSignal,
+): Promise<AgentMemoryItem> {
+  return client(connection).call(
+    "agentMemory.add",
+    scope === "project"
+      ? { scope, workspace, content }
+      : { scope, content },
+    { meta: clientMeta, signal },
+  );
+}
+
+export async function reviewAgentMemory(
+  connection: RuntimeConnection,
+  id: string,
+  decision: AgentMemoryReviewDecision,
+  signal?: AbortSignal,
+): Promise<void> {
+  await client(connection).call(
+    "agentMemory.review",
+    { id, decision },
+    { meta: clientMeta, signal },
+  );
+}
+
+export function updateAgentMemory(
+  connection: RuntimeConnection,
+  request: { id: string; content?: string; pinned?: boolean },
+  signal?: AbortSignal,
+): Promise<AgentMemoryItem> {
+  return client(connection).call(
+    "agentMemory.update",
+    request,
+    { meta: clientMeta, signal },
+  );
+}
+
+export async function deleteAgentMemory(
+  connection: RuntimeConnection,
+  id: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await client(connection).call(
+    "agentMemory.delete",
+    { id },
     { meta: clientMeta, signal },
   );
 }
@@ -648,6 +732,7 @@ export async function consumeRuntimeInvalidations(
         "files.changed",
         "skills.changed",
         "knowledge.changed",
+        "agentMemory.changed",
         "codebase.changed",
       ],
       ...(watch === undefined

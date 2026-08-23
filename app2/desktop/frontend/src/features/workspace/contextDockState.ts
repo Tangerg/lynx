@@ -10,7 +10,12 @@ export const maxExpandedDirectories = 100;
 
 export type DockPane = "workspace" | "session";
 export type WorkspaceView = "files" | "review" | "codebase" | "resources";
-export type ResourceView = "skills" | "recipes" | "agentDocs" | "knowledge";
+export type ResourceView =
+  | "skills"
+  | "recipes"
+  | "agentDocs"
+  | "knowledge"
+  | "memory";
 export type SkillView = "available" | "proposals" | "library";
 export type ReviewMode = "worktree" | "base";
 export type DiffLayout = "unified" | "split";
@@ -126,7 +131,8 @@ function parseDockState(value: unknown): SessionDockState | undefined {
     resourceView:
       value.resourceView === "recipes" ||
       value.resourceView === "agentDocs" ||
-      value.resourceView === "knowledge"
+      value.resourceView === "knowledge" ||
+      value.resourceView === "memory"
         ? value.resourceView
         : "skills",
     skillView:

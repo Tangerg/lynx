@@ -28,6 +28,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/identity"
 	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
 	"github.com/Tangerg/lynx/app2/runtime/localruntime"
+	"github.com/Tangerg/lynx/app2/runtime/memoryflow"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
 	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
 	"github.com/Tangerg/lynx/app2/runtime/operation"
@@ -158,6 +159,13 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		return nil, err
 	}
 	guard.AddClose(events.Close)
+	memory, err := memoryflow.New(memoryflow.Config{
+		Store: database, Resolver: workspaceResolver, IDs: identity.Generator{},
+		Events: events, Models: runtimeMemoryEmbedding{providers: providers},
+	})
+	if err != nil {
+		return nil, err
+	}
 	goalSignals := goalflow.NewSignals()
 	goals, err := goalflow.New(database, identity.Generator{}, goalSignals, events)
 	if err != nil { return nil, err }
@@ -175,6 +183,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		goals,
 		plans,
 		runtimeSkillGateway{capabilities: capabilities, events: events},
+		runtimeMemory{service: memory},
 	)
 	if err != nil {
 		return nil, err
@@ -183,6 +192,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 		Clients: providers, Tools: agentToolCatalog,
 		Documents: runtimeAgentDocuments{capabilities: capabilities},
 		Knowledge: runtimeKnowledgeDocuments{capabilities: capabilities},
+		Memory: runtimeMemory{service: memory},
 	})
 	if err != nil {
 		return nil, err
@@ -236,7 +246,7 @@ func Open(ctx context.Context, config Config) (_ *Runtime, err error) {
 	app, err := application.New(application.Config{
 		Discovery: service, Sessions: sessions, Providers: providers,
 		Runs: runs, Workspace: workspace, Settings: settings, Interrupts: interrupts, Plans: plans, Goals: goals, GoalDriver: goalDriver, MCP: mcp,
-		Capability: capabilities, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
+		Capability: capabilities, Memory: memory, Codebase: codebase, Tools: tools, Operations: operations, Events: events,
 	})
 	if err != nil {
 		return nil, err

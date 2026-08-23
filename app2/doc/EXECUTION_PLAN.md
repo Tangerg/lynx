@@ -29,7 +29,7 @@
 | R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | in progress（Files/Git/Review/Codebase production 已实现，待其余纵切与最终统一门禁） |
-| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge production 已实现，待其余资源与最终统一门禁） |
+| R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | in progress（Skills、Recipes、AgentDocs、Knowledge、AgentMemory 管理/recall/search production 已实现，待自动提炼、其余资源与最终统一门禁） |
 | R8 | Provider/Model/MCP/Approval policy/Schedule/Settings/Runtime topics | pending |
 | R9 | Session fork/rollback/import/export、history search、usage、feedback | pending |
 | R10 | Remote HTTP(S) 加固、全量内容渲染、主题/i18n、视觉/性能/无障碍收口 | pending |
@@ -524,6 +524,27 @@ empty/error/unavailable states、Run injection boundary 和资源清理。
   authoritative revision 并保留用户正文，要求显式再次保存；若写响应丢失但冷读已与 submitted content 收敛，则直接认定已保存；
 - **协议与资源边界**：只使用既有 `knowledge.list/get/update`、content revision 与 `knowledge.changed`，没有复制旧 app 的 Plugin Host、
   publication slot 或 Codex prompt。实现批未启动 Runtime、Wails、Vite、browser/agent-browser 或独立 watcher 进程。
+
+### R7 AgentMemory 管理 / recall / search 纵切（已实现，自动提炼待后续纵切）
+
+- **独立领域与关系事实源**：AgentMemory 从 `capabilityflow.Service` 和 protocol-shaped JSON envelope 中移出，由 `domain/agentmemory` +
+  `memoryflow` 独立拥有。SQLite epoch 7 使用 closed scope/origin/status、project partition、digest uniqueness、pin/status、revision/time 的
+  关系约束；已无 consumer 的 `knowledge_entries` 表同时删除；
+- **review lifecycle**：user add 立即 active；auto proposal 只能 pending，approve 转 active，reject 转不可见 tombstone，避免相同事实被反复
+  提案。相同 target/content 的 add 幂等返回或显式复活 pending/rejected；每个 target 保持 complete-list 上限，不能无界撑爆非分页合同；
+- **原子管理命令**：review/update 在一个 SQLite transaction 内读取、应用领域 transition、检查 digest collision 并按 internal revision
+  提交；delete/add 同样只在 committed change 后发布 `agentMemory.changed`。现有 Lyra `agentMemory.*` request/result 不增加第二套 revision
+  surface；
+- **fresh Run recall**：consumer-owned `MemorySource` 合并 active user + canonical project memory，pinned-first/newest-first，以完整 item 边界
+  填充 16 KiB recall budget。Memory 明确作为 fact data 放在 system message 前部，后续人类 Knowledge/AgentDocs 始终优先；resume 使用
+  checkpoint 中已冻结的上下文，不重读 memory；
+- **渐进检索**：Run 内 `search_memory` 读取同一 effective corpus，完整词法候选始终可用；embedding role 健康时只为有界 recent/pinned
+  candidate 做即时 semantic signal，并与词法结果融合，provider/role 故障自动降级而不让安全读工具失效；Tool 输出总量与条数均有界；
+- **Desktop owner**：Resources 增加 Memory 子视图，使用 Runtime-generation query family 管理 project/user scopes，覆盖 unavailable、
+  loading/error/retry/empty、add、pending approve/reject、active edit/pin、two-step delete 和 row-level cancellation。命令应答丢失时通过冷读
+  判断 approve/reject/update/delete 是否已经收敛，不建立 Plugin Host、publication slot 或全局 mutable mirror；
+- **下一纵切**：以 terminal root Run 为输入补齐 bounded fact extraction、durable daily ledger、watermark CAS curation 与 pending proposal
+  publish；它不得改变已完成 Run outcome，也不得写入人类 LYRA.md。
 
 ## 12. R8：Integration 与 Settings
 

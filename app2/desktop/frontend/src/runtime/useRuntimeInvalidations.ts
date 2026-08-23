@@ -72,6 +72,11 @@ export function useRuntimeInvalidations(
           queryKey: runtimeQueryKeys.knowledge(connection),
         });
       }
+      if (topics.includes("agentMemory.changed")) {
+        void queryClient.invalidateQueries({
+          queryKey: runtimeQueryKeys.memory(connection),
+        });
+      }
       if (topics.includes("codebase.changed")) {
         void queryClient.invalidateQueries({
           queryKey: [...runtimeQueryKeys.scope(connection), "codebase"],

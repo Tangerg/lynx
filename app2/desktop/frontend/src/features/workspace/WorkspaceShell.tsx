@@ -61,6 +61,8 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
   const skillsEnabled = props.discovery.capabilities.features.skills?.enabled === true;
   const knowledgeEnabled =
     props.discovery.capabilities.features.knowledge?.enabled === true;
+  const memoryEnabled =
+    props.discovery.capabilities.features.agentMemory?.enabled === true;
   const liveUpdatesEnabled =
     props.discovery.capabilities.streamingMethods.includes("runtime.subscribe") &&
     (
@@ -74,6 +76,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         "files.changed",
         "skills.changed",
         "knowledge.changed",
+        "agentMemory.changed",
         "codebase.changed",
       ] as const
     ).every((topic) =>
@@ -363,6 +366,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
           onCancelRun={agentView.cancel}
           skillsEnabled={skillsEnabled}
           knowledgeEnabled={knowledgeEnabled}
+          memoryEnabled={memoryEnabled}
         >
           {selectedSession && goalsEnabled ? (
             <GoalTray

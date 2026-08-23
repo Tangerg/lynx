@@ -14,6 +14,7 @@ import {
 } from "../../runtime/runtimeQueries";
 import type { ResourceView, SkillView } from "./contextDockState";
 import { KnowledgeWorkspace } from "./KnowledgeWorkspace";
+import { MemoryWorkspace } from "./MemoryWorkspace";
 import { ResourceState } from "./ResourceState";
 import { SkillsWorkspace } from "./SkillsWorkspace";
 
@@ -22,6 +23,7 @@ interface ResourcesWorkspaceProps {
   workspace: WorkspaceRef;
   skillsEnabled: boolean;
   knowledgeEnabled: boolean;
+  memoryEnabled: boolean;
   view: ResourceView;
   skillView: SkillView;
   onViewChange(view: ResourceView): void;
@@ -73,6 +75,11 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
           selected={props.view === "knowledge"}
           onSelect={() => props.onViewChange("knowledge")}
         />
+        <ResourceButton
+          label="Memory"
+          selected={props.view === "memory"}
+          onSelect={() => props.onViewChange("memory")}
+        />
       </nav>
       {props.view === "skills" ? (
         <SkillsWorkspace
@@ -96,11 +103,17 @@ export function ResourcesWorkspace(props: ResourcesWorkspaceProps) {
           error={agentDocs.error}
           onRetry={() => void agentDocs.refetch()}
         />
-      ) : (
+      ) : props.view === "knowledge" ? (
         <KnowledgeWorkspace
           connection={props.connection}
           workspace={props.workspace}
           enabled={props.knowledgeEnabled}
+        />
+      ) : (
+        <MemoryWorkspace
+          connection={props.connection}
+          workspace={props.workspace}
+          enabled={props.memoryEnabled}
         />
       )}
     </section>

@@ -65,6 +65,7 @@ type Catalog struct {
 	goals        GoalGateway
 	plans        PlanGateway
 	skillGateway SkillGateway
+	memory       MemoryGateway
 }
 
 func New(
@@ -74,13 +75,14 @@ func New(
 	goals GoalGateway,
 	plans PlanGateway,
 	skillGateway SkillGateway,
+	memory MemoryGateway,
 ) (*Catalog, error) {
-	if policy == nil || goals == nil || plans == nil || skillGateway == nil {
-		return nil, errors.New("agenttools: approval policy, goal, Plan, and Skill gateways are required")
+	if policy == nil || goals == nil || plans == nil || skillGateway == nil || memory == nil {
+		return nil, errors.New("agenttools: approval policy, goal, Plan, Skill, and memory gateways are required")
 	}
 	return &Catalog{
 		policy: policy, mcp: mcp, results: results,
-		goals: goals, plans: plans, skillGateway: skillGateway,
+		goals: goals, plans: plans, skillGateway: skillGateway, memory: memory,
 	}, nil
 }
 
@@ -109,6 +111,11 @@ func (catalog *Catalog) ForRun(ctx context.Context, scope agentexec.ToolScope) (
 		return nil, err
 	}
 	values = append(values, skillValues...)
+	memoryValues, err := catalog.memoryTools(scope)
+	if err != nil {
+		return nil, err
+	}
+	values = append(values, memoryValues...)
 	question, err := newAskUser(scope.RunID)
 	if err != nil {
 		return nil, err

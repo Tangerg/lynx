@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/discovery"
 	"github.com/Tangerg/lynx/app2/runtime/goalflow"
 	"github.com/Tangerg/lynx/app2/runtime/interruptflow"
+	"github.com/Tangerg/lynx/app2/runtime/memoryflow"
 	"github.com/Tangerg/lynx/app2/runtime/mcpflow"
 	"github.com/Tangerg/lynx/app2/runtime/operationsflow"
 	"github.com/Tangerg/lynx/app2/runtime/planflow"
@@ -41,6 +42,7 @@ type Runtime struct {
 	goalDriver *goalflow.Driver
 	mcp       *mcpflow.Service
 	capability *capabilityflow.Service
+	memory *memoryflow.Service
 	codebase *codebaseflow.Service
 	tools *toolflow.Service
 	operations *operationsflow.Service
@@ -62,19 +64,20 @@ type Config struct {
 	GoalDriver *goalflow.Driver
 	MCP *mcpflow.Service
 	Capability *capabilityflow.Service
+	Memory *memoryflow.Service
 	Codebase *codebaseflow.Service
 	Tools *toolflow.Service
 	Operations *operationsflow.Service
 }
 
 func New(config Config) (*Runtime, error) {
-	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
+	if config.Discovery == nil || config.Sessions == nil || config.Providers == nil || config.Runs == nil || config.Workspace == nil || config.Settings == nil || config.Events == nil || config.Interrupts == nil || config.Plans == nil || config.Goals == nil || config.GoalDriver == nil || config.MCP == nil || config.Capability == nil || config.Memory == nil || config.Codebase == nil || config.Tools == nil || config.Operations == nil {
 		return nil, errors.New("application: all required capability services must be supplied")
 	}
 	return &Runtime{
 		discovery: config.Discovery, sessions: config.Sessions,
 		providers: config.Providers, runs: config.Runs, workspace: config.Workspace,
-		settings: config.Settings, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability,
+		settings: config.Settings, interrupts: config.Interrupts, plans: config.Plans, goals: config.Goals, goalDriver: config.GoalDriver, mcp: config.MCP, capability: config.Capability, memory: config.Memory,
 		codebase: config.Codebase, tools: config.Tools, operations: config.Operations, events: config.Events,
 	}, nil
 }
@@ -464,11 +467,11 @@ func (runtime *Runtime) SetHookTrust(ctx context.Context, request protocol.SetHo
 func (runtime *Runtime) ListKnowledge(ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) { return runtime.capability.ListKnowledge(ctx,request) }
 func (runtime *Runtime) GetKnowledge(ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) { return runtime.capability.GetKnowledge(ctx,request) }
 func (runtime *Runtime) UpdateKnowledge(ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) { value,err:=runtime.capability.UpdateKnowledge(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeKnowledgeChanged})};return value,err }
-func (runtime *Runtime) ListAgentMemory(ctx context.Context, request protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) { return runtime.capability.ListMemory(ctx,request) }
-func (runtime *Runtime) ReviewAgentMemory(ctx context.Context, request protocol.AgentMemoryReviewRequest) error { err:=runtime.capability.ReviewMemory(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeAgentMemoryChanged})};return err }
-func (runtime *Runtime) UpdateAgentMemory(ctx context.Context, request protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) { value,err:=runtime.capability.UpdateMemory(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeAgentMemoryChanged})};return value,err }
-func (runtime *Runtime) DeleteAgentMemory(ctx context.Context, request protocol.AgentMemoryItemRequest) error { err:=runtime.capability.DeleteMemory(ctx,request.ID);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeAgentMemoryChanged})};return err }
-func (runtime *Runtime) AddAgentMemory(ctx context.Context, request protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) { value,err:=runtime.capability.AddMemory(ctx,request);if err==nil{runtime.events.Publish(protocol.RuntimeEvent{Type:protocol.RuntimeAgentMemoryChanged})};return value,err }
+func (runtime *Runtime) ListAgentMemory(ctx context.Context, request protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) { return runtime.memory.List(ctx,request) }
+func (runtime *Runtime) ReviewAgentMemory(ctx context.Context, request protocol.AgentMemoryReviewRequest) error { return runtime.memory.Review(ctx,request) }
+func (runtime *Runtime) UpdateAgentMemory(ctx context.Context, request protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) { return runtime.memory.Update(ctx,request) }
+func (runtime *Runtime) DeleteAgentMemory(ctx context.Context, request protocol.AgentMemoryItemRequest) error { return runtime.memory.Delete(ctx,request.ID) }
+func (runtime *Runtime) AddAgentMemory(ctx context.Context, request protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) { return runtime.memory.Add(ctx,request) }
 
 func (runtime *Runtime) CodebaseSearch(ctx context.Context, request protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) { return runtime.codebase.Search(ctx,request) }
 func (runtime *Runtime) CodebaseStatus(ctx context.Context, request protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) { return runtime.codebase.Status(ctx,request) }
