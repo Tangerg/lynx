@@ -280,6 +280,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 sessionTitle={selectedSession.title}
                 items={agentView.items}
                 runs={agentView.runs}
+                liveToolOutputs={agentView.liveToolOutputs}
                 interrupts={agentView.interrupts}
                 progress={agentView.progress}
                 pending={snapshot.isFetching || agentView.actionPending}
@@ -330,7 +331,15 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
         <ContextDock
           connection={connection}
           session={selectedSession}
+          runs={agentView.runs}
+          items={agentView.items}
+          interrupts={agentView.interrupts}
+          liveToolOutputs={agentView.liveToolOutputs}
+          actionPending={agentView.actionPending}
+          cancelingRunId={agentView.cancelingRunId}
+          cancelError={agentView.cancelError}
           onExpandedChange={setDockExpanded}
+          onCancelRun={agentView.cancel}
         >
           {selectedSession && goalsEnabled ? (
             <GoalTray

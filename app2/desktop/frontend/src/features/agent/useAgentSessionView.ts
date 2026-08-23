@@ -31,8 +31,10 @@ import {
   steerRun,
   subscribeRun,
 } from "../../runtime/runtimeQueries";
+import type { LiveToolOutput } from "./agentSessionTypes";
 
 const seenEventLimit = 8_192;
+const liveToolOutputCharacterLimit = 64 * 1_024;
 
 interface AgentSessionState {
   identity: string;
@@ -40,6 +42,7 @@ interface AgentSessionState {
   runOrder: string[];
   itemsById: Record<string, Item>;
   itemOrder: string[];
+  liveToolOutputsByItemId: Record<string, LiveToolOutput>;
   interruptsByRootRunId: Record<string, PendingInterruptSet>;
   progressByRunId: Record<string, RunProgress>;
   plan?: Plan;
@@ -74,6 +77,7 @@ type RunStream = OpenRuntimeStream<unknown, RunEvent>;
 export interface AgentSessionView {
   items: Item[];
   runs: RunRef[];
+  liveToolOutputs: Record<string, LiveToolOutput>;
   interrupts: PendingInterruptSet[];
   plan?: Plan;
   activeRootRun?: RunRef;
@@ -102,6 +106,7 @@ const emptyState: AgentSessionState = {
   runOrder: [],
   itemsById: {},
   itemOrder: [],
+  liveToolOutputsByItemId: {},
   interruptsByRootRunId: {},
   progressByRunId: {},
 };
@@ -585,6 +590,7 @@ export function useAgentSessionView(
   return {
     items,
     runs,
+    liveToolOutputs: visible.liveToolOutputsByItemId,
     interrupts,
     plan: visible.plan,
     activeRootRun,
@@ -635,6 +641,7 @@ function hydrateState(
     runOrder: snapshot.runs.map((run) => run.id),
     itemsById: Object.fromEntries(snapshot.items.map((item) => [item.id, item])),
     itemOrder: snapshot.items.map((item) => item.id),
+    liveToolOutputsByItemId: {},
     interruptsByRootRunId: Object.fromEntries(
       snapshot.interrupts.map((set) => [set.rootRunId, set]),
     ),
@@ -660,6 +667,18 @@ function hydrateState(
   for (const [runId, progress] of Object.entries(state.progressByRunId)) {
     if (next.runsById[runId]?.status === "running") {
       next.progressByRunId[runId] = progress;
+    }
+  }
+  for (const [itemId, output] of Object.entries(
+    state.liveToolOutputsByItemId,
+  )) {
+    const item = next.itemsById[itemId];
+    if (
+      item?.type === "toolCall" &&
+      item.status === "running" &&
+      next.runsById[item.runId]?.status === "running"
+    ) {
+      next.liveToolOutputsByItemId[itemId] = output;
     }
   }
   for (const [rootRunId, interruptSet] of Object.entries(
@@ -769,7 +788,17 @@ function finishSegment(state: AgentSessionState, value: RunEvent) {
   });
   const progressByRunId = { ...next.progressByRunId };
   delete progressByRunId[value.runId];
-  let settled = { ...next, itemsById, itemOrder, progressByRunId };
+  const liveToolOutputsByItemId = { ...next.liveToolOutputsByItemId };
+  for (const item of Object.values(itemsById)) {
+    if (item.runId === value.runId) delete liveToolOutputsByItemId[item.id];
+  }
+  let settled = {
+    ...next,
+    itemsById,
+    itemOrder,
+    progressByRunId,
+    liveToolOutputsByItemId,
+  };
   const rootRunId = rootRunIdentity(current);
   if (outcome.type === "interrupt" && (outcome.interrupts?.length ?? 0) > 0) {
     settled = {
@@ -797,12 +826,17 @@ function startItem(state: AgentSessionState, item: Item): AgentSessionState {
 }
 
 function putItem(state: AgentSessionState, item: Item): AgentSessionState {
+  const liveToolOutputsByItemId = state.liveToolOutputsByItemId[item.id]
+    && item.status !== "running"
+    ? withoutKey(state.liveToolOutputsByItemId, item.id)
+    : state.liveToolOutputsByItemId;
   return {
     ...state,
     itemsById: { ...state.itemsById, [item.id]: item },
     itemOrder: state.itemsById[item.id]
       ? state.itemOrder
       : [...state.itemOrder, item.id],
+    liveToolOutputsByItemId,
   };
 }
 
@@ -814,6 +848,20 @@ function foldItemDelta(
   if (itemId === undefined || delta === undefined) return state;
   const item = state.itemsById[itemId];
   if (item === undefined || item.status !== "running") return state;
+  if (delta.type === "toolOutput" && item.type === "toolCall") {
+    const text = delta.text ?? "";
+    if (text === "") return state;
+    return {
+      ...state,
+      liveToolOutputsByItemId: {
+        ...state.liveToolOutputsByItemId,
+        [itemId]: appendLiveToolOutput(
+          state.liveToolOutputsByItemId[itemId],
+          text,
+        ),
+      },
+    };
+  }
   if (delta.type === "reasoning" && item.type === "reasoning") {
     return putItem(state, { ...item, text: (item.text ?? "") + (delta.text ?? "") });
   }
@@ -839,6 +887,32 @@ function foldItemDelta(
 function valueOf<Value>(values: Record<string, Value>, id: string): Value[] {
   const value = values[id];
   return value === undefined ? [] : [value];
+}
+
+function appendLiveToolOutput(
+  current: LiveToolOutput | undefined,
+  delta: string,
+): LiveToolOutput {
+  const combined = (current?.text ?? "") + delta;
+  if (combined.length <= liveToolOutputCharacterLimit) {
+    return { text: combined, truncated: current?.truncated === true };
+  }
+  let text = combined.slice(-liveToolOutputCharacterLimit);
+  if (isLowSurrogate(text.charCodeAt(0))) text = text.slice(1);
+  return {
+    text,
+    truncated: true,
+  };
+}
+
+function isLowSurrogate(value: number) {
+  return value >= 0xdc00 && value <= 0xdfff;
+}
+
+function withoutKey<Value>(values: Record<string, Value>, key: string) {
+  const next = { ...values };
+  delete next[key];
+  return next;
 }
 
 function segmentKey(runId: string, segmentId: string) {

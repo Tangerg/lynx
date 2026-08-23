@@ -1,3 +1,5 @@
+import type { SessionActivityView } from "../agent/agentSessionTypes";
+
 const dockStorageKey = "lyra.app2.context-dock.v1";
 const maxRememberedSessions = 32;
 export const maxCollapsedReviewFiles = 100;
@@ -14,6 +16,7 @@ export type DiffLayout = "unified" | "split";
 export interface SessionDockState {
   workspacePath: string;
   pane: DockPane;
+  sessionView: SessionActivityView;
   workspaceView: WorkspaceView;
   openPaths: string[];
   selectedPath?: string;
@@ -35,6 +38,7 @@ export function newDockState(workspacePath: string): SessionDockState {
   return {
     workspacePath,
     pane: "session",
+    sessionView: "overview",
     workspaceView: "files",
     openPaths: [],
     expandedDirectories: [],
@@ -106,6 +110,7 @@ function parseDockState(value: unknown): SessionDockState | undefined {
   return {
     workspacePath: value.workspacePath,
     pane: value.pane === "workspace" ? "workspace" : "session",
+    sessionView: parseSessionView(value.sessionView),
     workspaceView:
       value.workspaceView === "review" || value.workspaceView === "codebase"
         ? value.workspaceView
@@ -131,6 +136,12 @@ function parseDockState(value: unknown): SessionDockState | undefined {
     targetLines,
     touchedAt: typeof value.touchedAt === "number" ? value.touchedAt : 0,
   };
+}
+
+function parseSessionView(value: unknown): SessionActivityView {
+  return value === "timeline" || value === "terminal" || value === "summary"
+    ? value
+    : "overview";
 }
 
 function boundedCodebaseQuery(value: unknown) {

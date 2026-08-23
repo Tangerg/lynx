@@ -12,11 +12,16 @@ import {
 import type {
   FileEntry,
   GrepMatch,
+  Item,
+  PendingInterruptSet,
+  RunRef,
   RuntimeConnection,
   Session,
   WorkspaceRef,
 } from "@lyra/runtime-contract";
 
+import { SessionActivity } from "../agent/SessionActivity";
+import type { LiveToolOutput } from "../agent/agentSessionTypes";
 import {
   listWorkspaceFiles,
   readWorkspaceFile,
@@ -45,7 +50,15 @@ const fileWindowLines = 1_000;
 interface ContextDockProps {
   connection: RuntimeConnection;
   session?: Session;
+  runs: RunRef[];
+  items: Item[];
+  interrupts: PendingInterruptSet[];
+  liveToolOutputs: Record<string, LiveToolOutput>;
+  actionPending: boolean;
+  cancelingRunId?: string;
+  cancelError?: { runId: string; message: string };
   onExpandedChange(expanded: boolean): void;
+  onCancelRun(runId: string): Promise<void>;
   children: ReactNode;
 }
 
@@ -168,7 +181,28 @@ export function ContextDock(props: ContextDockProps) {
           />
         )
       ) : (
-        <div className="session-context">{props.children}</div>
+        <div className="session-context">
+          {props.session && state ? (
+            <SessionActivity
+              view={state.sessionView}
+              runs={props.runs}
+              items={props.items}
+              interrupts={props.interrupts}
+              liveToolOutputs={props.liveToolOutputs}
+              actionPending={props.actionPending}
+              cancelingRunId={props.cancelingRunId}
+              cancelError={props.cancelError}
+              onViewChange={(sessionView) =>
+                update((current) => ({ ...current, sessionView }))
+              }
+              onCancelRun={props.onCancelRun}
+            >
+              {props.children}
+            </SessionActivity>
+          ) : (
+            props.children
+          )}
+        </div>
       )}
     </>
   );

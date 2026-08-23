@@ -11,11 +11,13 @@ import type {
 
 import { InterruptSetCard } from "./InterruptSetCard";
 import { ToolDisclosure } from "./ToolDisclosure";
+import type { LiveToolOutput } from "./agentSessionTypes";
 
 interface AgentNarrativeProps {
   sessionTitle: string;
   items: Item[];
   runs: RunRef[];
+  liveToolOutputs: Record<string, LiveToolOutput>;
   interrupts: PendingInterruptSet[];
   progress?: RunProgress;
   pending: boolean;
@@ -39,14 +41,15 @@ interface NarrativeMaterial {
   childRunsByItemId: Map<string, RunRef[]>;
   rootItems: Item[];
   orphanRuns: RunRef[];
+  liveToolOutputs: Record<string, LiveToolOutput>;
 }
 
 export function AgentNarrative(props: AgentNarrativeProps) {
   const scroll = useRef<HTMLDivElement>(null);
   const followsTail = useRef(true);
   const material = useMemo(
-    () => indexNarrative(props.items, props.runs),
-    [props.items, props.runs],
+    () => indexNarrative(props.items, props.runs, props.liveToolOutputs),
+    [props.items, props.liveToolOutputs, props.runs],
   );
   const materialVersion = props.items
     .map((item) => `${item.id}:${item.status}:${itemTextLength(item)}`)
@@ -58,6 +61,11 @@ export function AgentNarrative(props: AgentNarrativeProps) {
     .concat(
       props.runs.map(
         (run) => `${run.id}:${run.status}:${run.outcome?.type ?? ""}`,
+      ),
+    )
+    .concat(
+      Object.entries(props.liveToolOutputs).map(
+        ([itemId, output]) => `${itemId}:${output.text.length}`,
       ),
     )
     .join("|");
@@ -157,7 +165,11 @@ function MaterialItem(props: MaterialItemProps) {
   const run = props.material.runById.get(props.item.runId);
   const children = props.material.childRunsByItemId.get(props.item.id) ?? [];
   return (
-    <NarrativeItem item={props.item} run={run}>
+    <NarrativeItem
+      item={props.item}
+      run={run}
+      liveOutput={props.material.liveToolOutputs[props.item.id]}
+    >
       {children.map((child) => (
         <DelegatedRunDisclosure
           key={child.id}
@@ -178,10 +190,12 @@ function NarrativeItem({
   item,
   run,
   children,
+  liveOutput,
 }: {
   item: Item;
   run?: RunRef;
   children?: ReactNode;
+  liveOutput?: LiveToolOutput;
 }) {
   const child = run?.parentRunId !== undefined;
   switch (item.type) {
@@ -222,7 +236,11 @@ function NarrativeItem({
         </details>
       );
     case "toolCall":
-      return <ToolDisclosure item={item} run={run}>{children}</ToolDisclosure>;
+      return (
+        <ToolDisclosure item={item} run={run} liveOutput={liveOutput}>
+          {children}
+        </ToolDisclosure>
+      );
     case "question":
       return (
         <article className="narrative-item question-turn" data-child={child}>
@@ -427,7 +445,11 @@ function itemTextLength(item: Item) {
   );
 }
 
-function indexNarrative(items: Item[], runs: RunRef[]): NarrativeMaterial {
+function indexNarrative(
+  items: Item[],
+  runs: RunRef[],
+  liveToolOutputs: Record<string, LiveToolOutput>,
+): NarrativeMaterial {
   const runById = new Map(runs.map((run) => [run.id, run]));
   const itemById = new Map(items.map((item) => [item.id, item]));
   const itemsByRunId = new Map<string, Item[]>();
@@ -469,6 +491,7 @@ function indexNarrative(items: Item[], runs: RunRef[]): NarrativeMaterial {
       return run === undefined || run.parentRunId === undefined;
     }),
     orphanRuns,
+    liveToolOutputs,
   };
 }
 

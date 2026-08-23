@@ -438,6 +438,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - **Codebase Desktop consumer**：Context Dock 的 Workspace view 增加 Session-owned Codebase，而不是复制另一套产品协议。UI 直接消费
   Lyra `codebase.status/reindex/search` 与 `codebase.changed`，覆盖 none/indexing/ready/error、provider/reindex/search failure、empty、
   truncated metadata 与 bounded results；点击 passage 回到 Files 并定位 exact start line，draft/submitted query 有界持久化；
+- **Session activity projections**：Context Dock 的 Session pane 以 per-Session `overview/timeline/terminal/summary` 视图取代旧式并列
+  小组件。Timeline 按 canonical root/delegated Run tree 投影 start/tool/approval-or-question interrupt/settlement，保留 lineage integrity
+  提示与 exact active Run cancel；Terminal 只聚合 `shell` ToolCall 的 authoritative result，并在运行期消费 64K-character 有界
+  `toolOutput` 展示缓存，读者离开尾部即解除 follow；Summary 只汇总最新 root tree 的 files/read/commands/approvals/errors、steps、
+  active duration 与 known usage，可复制有界纯文本。三者都在 render 时从同一个 `AgentSessionView` 派生，不建立第二个 timeline store；
+- **Tool detail sharing**：tool identity/subject/kind/status/duration/value formatting 收敛为一份 presentation helper，Narrative disclosure、
+  Timeline 与 Summary 复用同一语义。非权威 live output 只在 Tool terminal 之前显示，item completed、segment finished、snapshot
+  recovery 或 Session identity 切换都会立即清除；terminal result 始终来自 canonical Item，不用 preview 反写 durable result；
 - **Protocol boundary**：本纵切不引入 Codex wire、progress shape 或兼容 adapter；Codex 仍只作为 lifecycle/recovery 机制研究样本，
   Lyra Protocol 的既有 operation、state、event 与 generated client 继续是唯一合同真源；
 - 当前实现批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher 进程；仅声明式 Runtime file-watch subscription 会在
