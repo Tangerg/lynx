@@ -25,7 +25,7 @@
 | Operational probes | 3 | 3 implemented；local/remote production path 已闭合 | 本地/远程机制均 verified |
 | Runtime resource topics | 16 | 16 implemented | 16 producer/consumer/resync verified |
 | Run event variants | 7 | 7 implemented | live + replay + recovery verified |
-| Desktop product surfaces | 24 groups | 1 verified，20 implemented，2 in_progress，1 specified | 全部 verified |
+| Desktop product surfaces | 24 groups | 1 verified，21 implemented，1 in_progress，1 specified | 全部 verified |
 | 内置 tool presentation | 30 + MCP/unknown | 30 + MCP/unknown implemented，0 in_progress，0 specified | 全部真实 material verified |
 
 ## 3. Runtime operation 全量映射（89）
@@ -131,7 +131,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U20 | Skills/recipes/docs/memory/knowledge/tool/index views | capability/workspace | R6/R7 | implemented | Codebase 与 Resources 已覆盖 Skills、Recipes、AgentDocs、Knowledge、Memory 与 direct Tool catalog；Tools 展示真实 schema/safety/workspace，提供 cancellable JSON invoke 与 result/error/empty 状态，并明确不冒充 Run，待最终统一门禁 |
 | U21 | Provider/model/MCP/hooks/schedules/approval/usage settings | settings bounded sections | R8/R9 | implemented | explicit Settings 已完成 Provider/Model、MCP、Approval、Schedules、Lifecycle Hooks 与 7/30/all-time Usage；用量只消费 terminal Runtime authority，明确 unknown-cost，selected Session 单独展示；待最终 UI/restart/package 门禁 |
 | U22 | Theme/accent/light-dark/i18n | shell/settings/UI tokens | R10 | implemented | typed boundary/hidden error channel 与 TSX AST copy audit 已闭合；9 个 exact 1012-key static dictionaries（含 Arabic）、ShellPreferences v2 locale owner/native selector、active-only lang/dir/Intl、logical CSS、directional control 与 technical-material bidi isolation 已实现，0 missing/extra/placeholder mismatch 且无旧 app runtime dependency/raw fallback；待 R11 native-language/RTL visual/WebKit/package 统一门禁 |
-| U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | in_progress | finite typed command catalog、platform/non-US-layout shortcut dispatcher、Mod+N/K/F/, 与 Escape scopes、Settings discoverability、bounded toast owner、IME/input guard、async error isolation 已实现；action-menu keyboard/focus 与 shared tooltip 下一批闭合，不建 plugin host |
+| U23 | Commands/shortcuts/toasts/menus/tooltips | shell + concrete registries | R10 | implemented | finite typed command catalog、platform/non-US-layout dispatcher、Mod+N/K/F/, 与 Escape scopes、Settings discoverability、bounded toast owner、IME/input/dialog guard、async error isolation、shared action-menu outside/Escape/focus/arrow navigation 与 hover/focus shortcut tooltip 已实现；无 command palette/plugin host，待 R11 a11y/IME/visual/package 门禁 |
 | U24 | Streaming scroll/virtualization/layout/visual quality | agent/shell/workspace | R10 | specified | raw follow lock、reader escape、resize/materialization、WCAG/IME/CJK/Retina/WebKit |
 
 ## 8. 内置 Tool presentation 全量

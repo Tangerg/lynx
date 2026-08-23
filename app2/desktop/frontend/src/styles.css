@@ -1,13 +1,10 @@
 :root {
   color: #282722;
   background: #f2f0eb;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
+  --font-sans:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -96,6 +93,77 @@
   transition:
     transform var(--dropdown-close-dur) var(--dropdown-ease),
     opacity var(--dropdown-close-dur) var(--dropdown-ease);
+}
+
+.tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  z-index: 80;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  display: flex;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 28px));
+  min-height: 30px;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--divider-strong) 82%, transparent);
+  border-radius: 8px;
+  color: var(--paper);
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  box-shadow: var(--shadow-popover);
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1.35;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-3px) scale(0.985);
+  transform-origin: top right;
+  transition:
+    opacity 120ms ease-out 420ms,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1) 420ms,
+    visibility 0s linear 570ms;
+}
+
+[dir="rtl"] .tooltip-bubble {
+  transform-origin: top left;
+}
+
+.tooltip-anchor:hover > .tooltip-bubble,
+.tooltip-anchor:focus-within > .tooltip-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  transition-delay: 420ms, 420ms, 420ms;
+}
+
+.tooltip-anchor > [aria-expanded="true"] + .tooltip-bubble {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+
+.tooltip-shortcut {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.tooltip-shortcut kbd {
+  display: grid;
+  min-width: 18px;
+  min-height: 18px;
+  padding-inline: 4px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--paper) 24%, transparent);
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--paper) 78%, transparent);
+  font: 650 7px/1 var(--font-sans);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3015,7 +3083,7 @@ pre {
   width: 100%;
   min-height: 62px;
   padding-block: 10px;
-  padding-inline: 11px 43px;
+  padding-inline: 11px 48px;
   color: inherit;
   background: transparent;
   text-align: start;
@@ -3071,7 +3139,7 @@ pre {
 
 .session-actions summary {
   display: grid;
-  width: 36px;
+  width: 40px;
   height: 40px;
   place-items: center;
   border-radius: 9px;
@@ -3112,7 +3180,7 @@ pre {
 }
 
 .session-actions > div button {
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 9px;
   color: var(--ink-subtle);
   background: transparent;
@@ -3645,7 +3713,7 @@ pre {
 
 .session-history-actions > button,
 .session-history-actions > details > summary {
-  min-height: 28px;
+  min-height: 40px;
   padding: 0 8px;
   border-radius: 8px;
   color: var(--ink-muted);
@@ -3690,7 +3758,7 @@ pre {
 }
 
 .session-history-actions > details > div button {
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 9px;
   color: var(--ink-subtle);
   background: transparent;
@@ -4835,9 +4903,9 @@ pre {
 }
 
 .work-index-actions .icon-action {
-  width: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
   font-size: 14px;
 }
 

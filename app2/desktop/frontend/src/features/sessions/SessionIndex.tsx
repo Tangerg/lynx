@@ -17,6 +17,7 @@ import {
   workspaceName,
 } from "./sessionPresentation";
 import { ariaKeyShortcuts, commandByID } from "../shell/commandCatalog";
+import { useActionMenu } from "../shell/useActionMenu";
 
 interface SessionIndexProps {
   sessions: Session[];
@@ -173,7 +174,11 @@ function SessionRow(props: {
 	onExport: SessionIndexProps["onExport"];
 }) {
   const { formatDateTime, t } = useLocalization();
-  const menu = useRef<HTMLDetailsElement>(null);
+  const actionMenu = useActionMenu<
+    HTMLDetailsElement,
+    HTMLElement,
+    HTMLDivElement
+  >();
   const renameInput = useRef<HTMLInputElement>(null);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(props.session.title);
@@ -187,6 +192,11 @@ function SessionRow(props: {
   useEffect(() => {
     if (renaming) renameInput.current?.select();
   }, [renaming]);
+  useEffect(() => {
+    if (actionMenu.open) return;
+    setConfirmDelete(false);
+    setError(undefined);
+  }, [actionMenu.open]);
 
   const saveRename = async () => {
     const title = draft.trim();
@@ -213,7 +223,7 @@ function SessionRow(props: {
     setError(undefined);
     try {
       await props.onUpdate(props.session, { favorite: !props.session.favorite });
-      if (menu.current) menu.current.open = false;
+      actionMenu.close({ restoreFocus: true });
     } catch (failure) {
       setError(failure);
     }
@@ -234,7 +244,7 @@ function SessionRow(props: {
 		setError(undefined);
 		try {
 			await props.onFork(props.session);
-			if (menu.current) menu.current.open = false;
+			actionMenu.close();
 		} catch (failure) {
 			setError(failure);
 		}
@@ -243,7 +253,7 @@ function SessionRow(props: {
 		setError(undefined);
 		try {
 			await props.onExport(props.session, format);
-			if (menu.current) menu.current.open = false;
+			actionMenu.close({ restoreFocus: true });
 		} catch (failure) {
 			setError(failure);
 		}
@@ -334,35 +344,39 @@ function SessionRow(props: {
       {!renaming ? (
         <details
           className="session-actions"
-          ref={menu}
+          ref={actionMenu.rootRef}
+          open={actionMenu.open}
           onToggle={(event) => {
-            if (event.currentTarget.open) return;
-            setConfirmDelete(false);
-            setError(undefined);
+            actionMenu.setOpen(event.currentTarget.open);
           }}
         >
           <summary
+            ref={actionMenu.triggerRef}
+            aria-haspopup="menu"
+            aria-expanded={actionMenu.open}
             aria-label={t("session.actionsFor", {
               title: props.session.title || t("session.untitled"),
             })}
           >
             •••
           </summary>
-          <div>
+          <div ref={actionMenu.menuRef} role="menu">
             <button
               type="button"
+              role="menuitem"
               disabled={props.busy}
               onClick={() => {
                 setDraft(props.session.title);
                 setRenameSource(props.session);
                 setRenaming(true);
-                if (menu.current) menu.current.open = false;
+                actionMenu.close();
               }}
             >
               {t("session.rename")}
             </button>
             <button
               type="button"
+              role="menuitem"
               disabled={props.busy}
               onClick={() => void toggleFavorite()}
             >
@@ -370,18 +384,19 @@ function SessionRow(props: {
                 ? t("session.removeFavorite")
                 : t("session.favorite")}
             </button>
-			<button type="button" disabled={props.busy} onClick={() => void fork()}>
+			<button type="button" role="menuitem" disabled={props.busy} onClick={() => void fork()}>
 				{t("session.fork")}
 			</button>
-			<button type="button" disabled={props.busy} onClick={() => void exportAs("json")}>
+			<button type="button" role="menuitem" disabled={props.busy} onClick={() => void exportAs("json")}>
 				{t("session.exportJSON")}
 			</button>
-			<button type="button" disabled={props.busy} onClick={() => void exportAs("md")}>
+			<button type="button" role="menuitem" disabled={props.busy} onClick={() => void exportAs("md")}>
 				{t("session.exportMarkdown")}
 			</button>
             <button
               className={confirmDelete ? "confirm-delete" : undefined}
               type="button"
+              role="menuitem"
               disabled={props.busy}
               onClick={() => void remove()}
             >

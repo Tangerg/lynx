@@ -23,6 +23,7 @@ import {
 	ariaKeyShortcuts,
 	commandByID,
 } from "../shell/commandCatalog";
+import { useActionMenu } from "../shell/useActionMenu";
 
 interface AgentNarrativeProps {
   sessionTitle: string;
@@ -704,14 +705,20 @@ function SessionHistoryActions(props: {
 	onRollback(runId: string, restoreType: RestoreType): Promise<void>;
 }) {
 	const { t } = useLocalization();
+	const rewindMenu = useActionMenu<
+		HTMLDetailsElement,
+		HTMLElement,
+		HTMLDivElement
+	>();
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string>();
-	const run = async (action: () => Promise<void>) => {
+	const run = async (action: () => Promise<void>, closeMenu = false) => {
 		if (pending) return;
 		setPending(true);
 		setError(undefined);
 		try {
 			await action();
+			if (closeMenu) rewindMenu.close();
 		} catch (failure) {
 			setError(
 				failure instanceof Error
@@ -731,32 +738,45 @@ function SessionHistoryActions(props: {
 			>
 				{t("narrative.forkHere")}
 			</button>
-			<details>
-				<summary>{t("narrative.rewind")}</summary>
-				<div>
+			<details
+				ref={rewindMenu.rootRef}
+				open={rewindMenu.open}
+				onToggle={(event) => rewindMenu.setOpen(event.currentTarget.open)}
+			>
+				<summary
+					ref={rewindMenu.triggerRef}
+					aria-haspopup="menu"
+					aria-expanded={rewindMenu.open}
+				>
+					{t("narrative.rewind")}
+				</summary>
+				<div ref={rewindMenu.menuRef} role="menu">
 					<button
 						type="button"
+						role="menuitem"
 						disabled={pending}
 						onClick={() =>
-							void run(() => props.onRollback(props.runId, "history"))
+							void run(() => props.onRollback(props.runId, "history"), true)
 						}
 					>
 						{t("narrative.rewindHistory")}
 					</button>
 					<button
 						type="button"
+						role="menuitem"
 						disabled={pending}
 						onClick={() =>
-							void run(() => props.onRollback(props.runId, "files"))
+							void run(() => props.onRollback(props.runId, "files"), true)
 						}
 					>
 						{t("narrative.rewindFiles")}
 					</button>
 					<button
 						type="button"
+						role="menuitem"
 						disabled={pending}
 						onClick={() =>
-							void run(() => props.onRollback(props.runId, "both"))
+							void run(() => props.onRollback(props.runId, "both"), true)
 						}
 					>
 						{t("narrative.rewindBoth")}

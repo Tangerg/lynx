@@ -56,6 +56,7 @@ import {
 import {
 	ariaKeyShortcuts,
 	commandByID,
+	shortcutTokens,
 	type CommandDescriptor,
 } from "../shell/commandCatalog";
 import {
@@ -63,6 +64,7 @@ import {
 	type CommandBinding,
 } from "../shell/useCommandDispatcher";
 import { useToasts } from "../shell/ToastCenter";
+import { Tooltip } from "../shell/Tooltip";
 
 interface WorkspaceShellProps {
   connection: RuntimeConnection;
@@ -447,19 +449,23 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
             <h1 id="work-index-title">{t("shell.workIndex")}</h1>
           </div>
 		  <div className="work-index-actions window-no-drag">
-			<button
-			  data-settings-trigger="true"
-			  className="icon-action"
-			  type="button"
-			  aria-label={t("shell.openSettings")}
-			  title={t("shell.settings")}
-			  aria-keyshortcuts={ariaKeyShortcuts(
-				commandByID("settings.open").shortcut,
-			  )}
-			  onClick={() => setSettingsOpen(true)}
+			<Tooltip
+			  label={t("shell.settings")}
+			  shortcut={shortcutTokens(commandByID("settings.open").shortcut)}
 			>
-			  ⚙
-			</button>
+			  <button
+				data-settings-trigger="true"
+				className="icon-action"
+				type="button"
+				aria-label={t("shell.openSettings")}
+				aria-keyshortcuts={ariaKeyShortcuts(
+				  commandByID("settings.open").shortcut,
+				)}
+				onClick={() => setSettingsOpen(true)}
+			  >
+				⚙
+			  </button>
+			</Tooltip>
 			<NewSessionMenu
 			  pending={catalog.createPending || catalog.importPending}
 			  defaultWorkspace={props.discovery.serverInfo.defaultWorkspace.path}
