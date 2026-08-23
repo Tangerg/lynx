@@ -1266,6 +1266,139 @@ input::placeholder {
   white-space: nowrap;
 }
 
+.delegated-run {
+  min-width: 0;
+  margin: 9px 0;
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 1px 0 rgba(40, 39, 34, 0.025);
+}
+
+.narrative-timeline > .delegated-run {
+  padding: 0;
+  border-color: rgba(164, 71, 61, 0.22);
+}
+
+.delegated-run-header {
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px 7px 11px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.delegated-run-state {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ink-muted);
+  box-shadow: 0 0 0 3px rgba(129, 125, 115, 0.1);
+}
+
+.delegated-run[data-status="running"] .delegated-run-state {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(63, 119, 92, 0.1);
+}
+
+.delegated-run[data-status="waiting"] .delegated-run-state {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(166, 107, 37, 0.1);
+}
+
+.delegated-run[data-status="failed"] .delegated-run-state,
+.delegated-run[data-status="lost"] .delegated-run-state,
+.delegated-run[data-status="canceled"] .delegated-run-state {
+  background: var(--red);
+  box-shadow: 0 0 0 3px rgba(164, 71, 61, 0.1);
+}
+
+.delegated-run-identity {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.delegated-run-identity strong {
+  color: var(--ink-subtle);
+  font-size: 10px;
+}
+
+.delegated-run-identity small {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delegated-run-status {
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--ink-muted);
+  background: var(--paper-strong);
+  font-size: 8px;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+
+.delegated-run-cancel {
+  min-height: 40px;
+  padding: 0 9px;
+  color: var(--red);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 680;
+}
+
+.delegated-run-cancel:hover:not(:disabled) {
+  background: rgba(164, 71, 61, 0.08);
+}
+
+.delegated-run-material {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.delegated-run .narrative-item[data-child="true"] {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
+.delegated-run-empty,
+.delegated-run-integrity,
+.delegated-run-error,
+.delegated-run-outcome {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--ink-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.delegated-run-empty {
+  padding: 2px 0;
+}
+
+.delegated-run-integrity,
+.delegated-run-error {
+  color: var(--red);
+  background: rgba(164, 71, 61, 0.055);
+}
+
+.delegated-run-outcome {
+  border-top: 1px solid var(--divider);
+  white-space: pre-wrap;
+}
+
 .question-turn {
   padding: 14px;
   border-radius: 14px;

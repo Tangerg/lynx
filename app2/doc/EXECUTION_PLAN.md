@@ -26,7 +26,7 @@
 | R1 | app2 工程骨架、Lyra 合同生成、Runtime HTTP/SSE host、Wails supervisor/bootstrap、`runtime.discover` | complete |
 | R2 | Workspace + Session 首个完整纵切、snapshot hydration、Work Index、基础 shell | in progress |
 | R3 | root Run + Item stream + Composer + Agent Narrative + durable cold restore | pending |
-| R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | pending |
+| R4 | Tool/Approval/Question/delegated Run/cancel/steer/checkpoint/recovery | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R5 | Plan + Goal 完整生命周期与 UI | in progress（Runtime 与 Desktop production 已实现，待最终统一门禁） |
 | R6 | Files/Diff/Git/Search/Index/Context Dock/Terminal/Timeline | pending |
 | R7 | Skills/Recipes/AgentDocs/Knowledge/Memory/Hooks/Tool catalog | pending |
@@ -332,9 +332,14 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
   ordinal/metrics，事件统一挂到 root Segment stream；开放 Tool/Question/流式占位按各自 Item union 规则变为 incomplete，child
   对应的 parent Delegate Item、provider error result、interrupt/checkpoint 清理和 root Plan boundary 同步提交。waiting tree 不进入
   此路径，仍保留完整 checkpoint 可恢复；
-- **Capability fail-closed**：Runtime discovery 显式关闭 `subagents`，不是只依赖 Desktop 不请求；Desktop nested disclosure
-  尚未完成前，任何 client 都不能协商出半成品 tree；
-- **仍关闭的 delegation 门**：Desktop nested disclosure 尚未完成；
+- **Desktop nested disclosure**：Session snapshot 在明确协商 `subagents` 后读取完整 descendants；Agent Narrative 只把 root
+  material 放在主时间线，child/grandchild 由 `spawnedByItemId` 锚定父 `delegate_task` 并递归披露。sibling 保留 authoritative
+  顺序，status/model/exact Run identity/terminal detail 均来自 RunRef；缺失父锚点时显示完整性告警，不猜 lineage 或静默丢弃；
+- **Tree control ownership**：Desktop 只为 active root Segment 建立 stream lease，因为 root stream 已承载整棵树事件；running
+  与 waiting 的 child 均以 exact Run ID 发起 cancel，操作错误回到对应 disclosure。root waiting 也可从 Composer 明确停止；
+- **Capability gate opened**：Runtime discovery 与 Desktop client 现在共同开放并请求 Lyra `subagents` feature；profile 仍在 root
+  Run admission 时冻结，未 opt-in 的 client 仍不能创建或直接寻址 child。该能力只复用 Lyra 现有 Run/Item/Segment/feature
+  语义，没有照搬 Codex 线程或协议；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

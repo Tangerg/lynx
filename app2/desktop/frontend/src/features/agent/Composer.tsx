@@ -240,7 +240,7 @@ export function Composer(props: ComposerProps) {
           <span className="composer-hint">Enter to send · Shift+Enter for line break</span>
         </div>
         <div className="composer-actions">
-          {running ? (
+          {running || waiting ? (
             <button
               className="stop-action"
               type="button"

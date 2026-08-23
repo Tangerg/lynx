@@ -22,26 +22,42 @@ interface AgentNarrativeProps {
   interruptPending: boolean;
   interruptError?: string;
   streamError?: string;
+  cancelingRunId?: string;
+  cancelError?: { runId: string; message: string };
   onResume(
     interruptSet: PendingInterruptSet,
     responses: InterruptResponse[],
     idempotencyKey: string,
   ): Promise<void>;
+  onCancelRun(runId: string): Promise<void>;
   children?: ReactNode;
+}
+
+interface NarrativeMaterial {
+  runById: Map<string, RunRef>;
+  itemsByRunId: Map<string, Item[]>;
+  childRunsByItemId: Map<string, RunRef[]>;
+  rootItems: Item[];
+  orphanRuns: RunRef[];
 }
 
 export function AgentNarrative(props: AgentNarrativeProps) {
   const scroll = useRef<HTMLDivElement>(null);
   const followsTail = useRef(true);
-  const runById = useMemo(
-    () => new Map(props.runs.map((run) => [run.id, run])),
-    [props.runs],
+  const material = useMemo(
+    () => indexNarrative(props.items, props.runs),
+    [props.items, props.runs],
   );
   const materialVersion = props.items
     .map((item) => `${item.id}:${item.status}:${itemTextLength(item)}`)
     .concat(
       props.interrupts.map(
         (set) => `${set.rootRunId}:${set.createdAt}:${set.interrupts.length}`,
+      ),
+    )
+    .concat(
+      props.runs.map(
+        (run) => `${run.id}:${run.status}:${run.outcome?.type ?? ""}`,
       ),
     )
     .join("|");
@@ -75,7 +91,7 @@ export function AgentNarrative(props: AgentNarrativeProps) {
             reloaded.
           </p>
         ) : null}
-        {props.items.length === 0 ? (
+        {material.rootItems.length === 0 && material.orphanRuns.length === 0 ? (
           <section className="session-welcome">
             <span className="eyebrow">Ready</span>
             <h3>{props.sessionTitle || "Untitled session"}</h3>
@@ -85,14 +101,32 @@ export function AgentNarrative(props: AgentNarrativeProps) {
             </p>
           </section>
         ) : (
-          props.items.map((item) => (
-            <NarrativeItem
+          material.rootItems.map((item) => (
+            <MaterialItem
               key={item.id}
               item={item}
-              run={runById.get(item.runId)}
+              material={material}
+              ancestry={new Set<string>()}
+              pending={props.interruptPending}
+              cancelingRunId={props.cancelingRunId}
+              cancelError={props.cancelError}
+              onCancelRun={props.onCancelRun}
             />
           ))
         )}
+        {material.orphanRuns.map((run) => (
+          <DelegatedRunDisclosure
+            key={run.id}
+            run={run}
+            material={material}
+            ancestry={new Set<string>()}
+            pending={props.interruptPending}
+            cancelingRunId={props.cancelingRunId}
+            cancelError={props.cancelError}
+            onCancelRun={props.onCancelRun}
+            integrity="The parent delegation is unavailable in this snapshot."
+          />
+        ))}
         {props.interrupts.map((interruptSet) => (
           <InterruptSetCard
             key={`${interruptSet.rootRunId}:${interruptSet.createdAt}`}
@@ -109,7 +143,46 @@ export function AgentNarrative(props: AgentNarrativeProps) {
   );
 }
 
-function NarrativeItem({ item, run }: { item: Item; run?: RunRef }) {
+interface MaterialItemProps {
+  item: Item;
+  material: NarrativeMaterial;
+  ancestry: Set<string>;
+  pending: boolean;
+  cancelingRunId?: string;
+  cancelError?: { runId: string; message: string };
+  onCancelRun(runId: string): Promise<void>;
+}
+
+function MaterialItem(props: MaterialItemProps) {
+  const run = props.material.runById.get(props.item.runId);
+  const children = props.material.childRunsByItemId.get(props.item.id) ?? [];
+  return (
+    <NarrativeItem item={props.item} run={run}>
+      {children.map((child) => (
+        <DelegatedRunDisclosure
+          key={child.id}
+          run={child}
+          material={props.material}
+          ancestry={props.ancestry}
+          pending={props.pending}
+          cancelingRunId={props.cancelingRunId}
+          cancelError={props.cancelError}
+          onCancelRun={props.onCancelRun}
+        />
+      ))}
+    </NarrativeItem>
+  );
+}
+
+function NarrativeItem({
+  item,
+  run,
+  children,
+}: {
+  item: Item;
+  run?: RunRef;
+  children?: ReactNode;
+}) {
   const child = run?.parentRunId !== undefined;
   switch (item.type) {
     case "userMessage":
@@ -149,7 +222,7 @@ function NarrativeItem({ item, run }: { item: Item; run?: RunRef }) {
         </details>
       );
     case "toolCall":
-      return <ToolDisclosure item={item} run={run} />;
+      return <ToolDisclosure item={item} run={run}>{children}</ToolDisclosure>;
     case "question":
       return (
         <article className="narrative-item question-turn" data-child={child}>
@@ -171,6 +244,103 @@ function NarrativeItem({ item, run }: { item: Item; run?: RunRef }) {
     default:
       return null;
   }
+}
+
+interface DelegatedRunDisclosureProps {
+  run: RunRef;
+  material: NarrativeMaterial;
+  ancestry: Set<string>;
+  pending: boolean;
+  cancelingRunId?: string;
+  cancelError?: { runId: string; message: string };
+  integrity?: string;
+  onCancelRun(runId: string): Promise<void>;
+}
+
+function DelegatedRunDisclosure(props: DelegatedRunDisclosureProps) {
+  if (props.ancestry.has(props.run.id)) {
+    return (
+      <p className="delegated-run-integrity" role="alert">
+        Delegated run lineage contains a cycle at {shortIdentity(props.run.id)}.
+      </p>
+    );
+  }
+  const ancestry = new Set(props.ancestry).add(props.run.id);
+  const items = props.material.itemsByRunId.get(props.run.id) ?? [];
+  const active =
+    props.run.status === "running" || props.run.status === "waiting";
+  const canceling = props.cancelingRunId === props.run.id;
+  const error =
+    props.cancelError?.runId === props.run.id
+      ? props.cancelError.message
+      : undefined;
+  const outcomeDetail =
+    props.run.outcome?.error?.detail ?? props.run.outcome?.detail;
+  return (
+    <section
+      className="delegated-run"
+      data-status={runState(props.run)}
+      aria-label={`Delegated run ${props.run.id}`}
+    >
+      <header className="delegated-run-header">
+        <span className="delegated-run-state" aria-hidden="true" />
+        <span className="delegated-run-identity">
+          <strong>Delegated run</strong>
+          <small title={props.run.id}>
+            {modelIdentity(props.run)} · {shortIdentity(props.run.id)}
+          </small>
+        </span>
+        <span className="delegated-run-status">{runState(props.run)}</span>
+        {active ? (
+          <button
+            className="delegated-run-cancel"
+            type="button"
+            disabled={props.pending}
+            onClick={() =>
+              void props.onCancelRun(props.run.id).catch(() => undefined)
+            }
+          >
+            {canceling ? "Canceling…" : "Cancel"}
+          </button>
+        ) : null}
+      </header>
+      {props.integrity ? (
+        <p className="delegated-run-integrity" role="status">
+          {props.integrity}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="delegated-run-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="delegated-run-material">
+        {items.length === 0 ? (
+          <p className="delegated-run-empty">
+            {active
+              ? "Waiting for delegated material…"
+              : "No delegated material was recorded."}
+          </p>
+        ) : (
+          items.map((item) => (
+            <MaterialItem
+              key={item.id}
+              item={item}
+              material={props.material}
+              ancestry={ancestry}
+              pending={props.pending}
+              cancelingRunId={props.cancelingRunId}
+              cancelError={props.cancelError}
+              onCancelRun={props.onCancelRun}
+            />
+          ))
+        )}
+      </div>
+      {outcomeDetail ? (
+        <p className="delegated-run-outcome">{outcomeDetail}</p>
+      ) : null}
+    </section>
+  );
 }
 
 function ItemMeta(props: { label: string; item: Item; run?: RunRef }) {
@@ -255,6 +425,66 @@ function itemTextLength(item: Item) {
       0,
     )
   );
+}
+
+function indexNarrative(items: Item[], runs: RunRef[]): NarrativeMaterial {
+  const runById = new Map(runs.map((run) => [run.id, run]));
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const itemsByRunId = new Map<string, Item[]>();
+  for (const item of items) {
+    const material = itemsByRunId.get(item.runId) ?? [];
+    material.push(item);
+    itemsByRunId.set(item.runId, material);
+  }
+
+  const childRunsByItemId = new Map<string, RunRef[]>();
+  const orphanRuns: RunRef[] = [];
+  for (const run of runs) {
+    if (run.parentRunId === undefined) continue;
+    const parent = runById.get(run.parentRunId);
+    const owner = run.spawnedByItemId
+      ? itemById.get(run.spawnedByItemId)
+      : undefined;
+    if (
+      parent === undefined ||
+      owner === undefined ||
+      owner.runId !== parent.id ||
+      owner.type !== "toolCall" ||
+      owner.tool?.name !== "delegate_task"
+    ) {
+      orphanRuns.push(run);
+      continue;
+    }
+    const siblings = childRunsByItemId.get(owner.id) ?? [];
+    siblings.push(run);
+    childRunsByItemId.set(owner.id, siblings);
+  }
+
+  return {
+    runById,
+    itemsByRunId,
+    childRunsByItemId,
+    rootItems: items.filter((item) => {
+      const run = runById.get(item.runId);
+      return run === undefined || run.parentRunId === undefined;
+    }),
+    orphanRuns,
+  };
+}
+
+function runState(run: RunRef) {
+  return run.status === "finished"
+    ? (run.outcome?.type ?? "finished")
+    : (run.status ?? "unknown");
+}
+
+function modelIdentity(run: RunRef) {
+  if (run.provider && run.model) return `${run.provider}/${run.model}`;
+  return run.model ?? run.provider ?? "default model";
+}
+
+function shortIdentity(value: string) {
+  return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-3)}` : value;
 }
 
 function formatTime(value: string) {

@@ -1,11 +1,14 @@
+import type { ReactNode } from "react";
+
 import type { Item, RunRef } from "@lyra/runtime-contract";
 
 interface ToolDisclosureProps {
   item: Item;
   run?: RunRef;
+  children?: ReactNode;
 }
 
-export function ToolDisclosure({ item, run }: ToolDisclosureProps) {
+export function ToolDisclosure({ item, run, children }: ToolDisclosureProps) {
   const tool = item.tool;
   const presentation = presentTool(tool?.name ?? "", tool?.arguments ?? {});
   const child = run?.parentRunId !== undefined;
@@ -37,6 +40,7 @@ export function ToolDisclosure({ item, run }: ToolDisclosureProps) {
       </summary>
       <div className="tool-material">
         {presentation.detail ? <p>{presentation.detail}</p> : null}
+        {children}
         <ToolResult name={tool?.name ?? ""} result={tool?.result} />
         {item.error?.detail ? (
           <p className="tool-error" role="alert">{item.error.detail}</p>
@@ -149,6 +153,14 @@ function presentTool(
       return tool("Settle goal run", stringArgument(argumentsValue, "status"), "control", "◆");
     case "read_tool_result":
       return tool("Continue tool result", stringArgument(argumentsValue, "result_id"), "read", "↗");
+    case "delegate_task":
+      return tool(
+        "Delegate task",
+        stringArgument(argumentsValue, "summary"),
+        "control",
+        "⑂",
+        stringArgument(argumentsValue, "instructions"),
+      );
     default:
       if (name.startsWith("mcp_")) {
         return tool(humanize(name.slice(4)), primaryArgument(argumentsValue), "network", "◎");

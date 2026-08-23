@@ -115,7 +115,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U04 | Agent Session hydrate/cold restore | agent context | R2/R3 | implemented | coherent snapshot + attach-first full replay/live fold、bounded dedupe、generation fencing；待 reload/restart 统一门禁 |
 | U05 | Composer draft/attachments/paste/@file/history/IME | composer context | R3 | implemented | per-Session draft、image/text attachment+paste、history、IME-safe send、start/steer/stop、success clear/failure exact retry |
 | U06 | Root narrative commentary/final hierarchy | agent presentation | R3 | implemented | user/work/reasoning/final/tool/question/compaction 同 renderer，work/final 分层与 reader-owned follow lock；待视觉统一门禁 |
-| U07 | Delegated Run tree/disclosures | agent presentation | R4 | in_progress | managed Delegate family、bounded tree budget、dynamic child Tool scope、source-owned child projection、parent/child atomic terminal、root tree replay/live stream、whole-tree atomic wait/exact resume、running/waiting exact cancel、provider Conversation closure 与 tree-atomic recovery 已建立；Runtime discovery fail-closed，待 nested disclosure 后开放 feature |
+| U07 | Delegated Run tree/disclosures | agent presentation | R4 | implemented | managed Delegate family、bounded tree budget、source-owned child projection、tree wait/resume/cancel/recovery 已建立；Desktop 以 `spawnedByItemId` 递归披露 sibling/depth/status/material，root-only stream lease 与 exact child cancel 已接通，`subagents` 已开放协商；待最终统一门禁 |
 | U08 | Approval interaction | interrupt context | R4 | implemented | 单一整组 request surface、allow once/scope split/deny、edited JSON args、reason、settled exact identity；待统一门禁 |
 | U09 | Question interaction | interrupt + composer | R4 | implemented | one atomic surface、多题顺序、text/single/multi/custom、IME-safe；当前 wire 无 Skip，待统一门禁 |
 | U10 | Plan compact progress | plan context | R5 | implemented | canonical snapshot 的 ring + N/M、当前步骤、完整 checklist hover/focus；无复制 Plan state；待最终统一门禁 |
@@ -148,7 +148,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | Goal（3） | `create_goal`, `get_goal`, `report_goal_outcome` | R5 | implemented | 前两者常驻；outcome tool 仅 exact owned Run 可见；待最终统一门禁 |
 | Schedule（3） | `list_schedules`, `create_schedule`, `delete_schedule` | R8 | specified | cron/title/identity，write safety，settings invalidation |
 | 回忆与发现（4） | `search_memory`, `search_conversations`, `search_tools`, `read_tool_result` | R7/R9 | specified | prose/bounded result、完整正文按需读取、history search scope |
-| 委派与提问（2） | `delegate_task`, `ask_user` | R4 | specified | child Run disclosure、Question 为唯一交互真身、model/protocol field mapping |
+| 委派与提问（2） | `delegate_task`, `ask_user` | R4 | implemented | child Run 以父 Delegate Item 为唯一 disclosure anchor；Question 为唯一交互真身；model/protocol field mapping 保持 Lyra 自有语义；待最终统一门禁 |
 | MCP/unknown | dynamically discovered names | R8 | specified | remote original name 与 model-visible collapsed name 分离、safety class、JSON fallback |
 
 当前仅 `glob/grep/apply_patch/shell/web_search` 有旧 Runtime 归一化 result schema；app2 R1–R8 要么为被 UI

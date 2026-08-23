@@ -263,7 +263,10 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
                 interruptPending={agentView.actionPending}
                 interruptError={agentView.interruptError}
                 streamError={agentView.streamError}
+                cancelingRunId={agentView.cancelingRunId}
+                cancelError={agentView.cancelError}
                 onResume={agentView.resume}
+                onCancelRun={agentView.cancel}
               >
                 {goalsEnabled ? (
                   <GoalComposer

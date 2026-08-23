@@ -28,7 +28,11 @@ const clientMeta: RequestMeta = {
   protocolVersion,
   clientInfo: { name: "lyra-desktop-app2", version: "0.0.0" },
   clientCapabilities: {
-    features: { plan: { enabled: true }, goals: { enabled: true } },
+    features: {
+      plan: { enabled: true },
+      goals: { enabled: true },
+      subagents: { enabled: true },
+    },
     interruptTypes: ["approval", "question"],
   },
 };
@@ -91,7 +95,7 @@ export function loadSessionSnapshot(
 ): Promise<SessionSnapshot> {
   return client(connection).call(
     "sessions.snapshot",
-    { sessionId },
+    { sessionId, includeDescendants: true },
     { meta: clientMeta, signal },
   );
 }

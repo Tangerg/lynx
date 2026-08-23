@@ -84,12 +84,15 @@ export interface AgentSessionView {
   actionError?: string;
   interruptError?: string;
   streamError?: string;
+  cancelingRunId?: string;
+  cancelError?: { runId: string; message: string };
   send(input: ContentBlock[], idempotencyKey: string): Promise<void>;
   resume(
     interruptSet: PendingInterruptSet,
     responses: InterruptResponse[],
     idempotencyKey: string,
   ): Promise<void>;
+  cancel(runId: string): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -117,6 +120,11 @@ export function useAgentSessionView(
   const [actionError, setActionError] = useState<string>();
   const [interruptError, setInterruptError] = useState<string>();
   const [streamError, setStreamError] = useState<string>();
+  const [cancelingRunId, setCancelingRunId] = useState<string>();
+  const [cancelError, setCancelError] = useState<{
+    runId: string;
+    message: string;
+  }>();
   const leases = useRef(new Map<string, RunLease>());
   const actionInFlight = useRef(false);
   const pendingAction = useRef<AbortController | undefined>(undefined);
@@ -139,6 +147,8 @@ export function useAgentSessionView(
     setActionError(undefined);
     setInterruptError(undefined);
     setStreamError(undefined);
+    setCancelingRunId(undefined);
+    setCancelError(undefined);
     seenEvents.current.clear();
     seenOrder.current = [];
     return () => {
@@ -313,7 +323,9 @@ export function useAgentSessionView(
   const activeSegments = useMemo(
     () =>
       runs.flatMap((run) =>
-        run.status === "running" && run.activeSegmentId
+        run.parentRunId === undefined &&
+        run.status === "running" &&
+        run.activeSegmentId
           ? [{ runId: run.id, segmentId: run.activeSegmentId }]
           : [],
       ),
@@ -435,10 +447,11 @@ export function useAgentSessionView(
     ],
   );
 
-  const stop = useCallback(async () => {
+  const cancel = useCallback(async (runId: string) => {
+    const target = visible.runsById[runId];
     if (
-      !activeRootRun ||
-      activeRootRun.status !== "running" ||
+      target === undefined ||
+      (target.status !== "running" && target.status !== "waiting") ||
       actionInFlight.current
     ) {
       return;
@@ -448,11 +461,13 @@ export function useAgentSessionView(
     actionInFlight.current = true;
     pendingAction.current = controller;
     setActionPending(true);
-    setActionError(undefined);
+    setCancelingRunId(runId);
+    setCancelError(undefined);
+    if (target.parentRunId === undefined) setActionError(undefined);
     try {
       const result = await cancelRun(
         connection,
-        activeRootRun.id,
+        runId,
         controller.signal,
       );
       if (currentIdentity.current !== actionIdentity) return;
@@ -463,7 +478,9 @@ export function useAgentSessionView(
       invalidateMaterial();
     } catch (error) {
       if (currentIdentity.current === actionIdentity && !isAbort(error)) {
-        setActionError(messageOf(error));
+        const message = messageOf(error);
+        setCancelError({ runId, message });
+        if (target.parentRunId === undefined) setActionError(message);
       }
       throw error;
     } finally {
@@ -471,9 +488,14 @@ export function useAgentSessionView(
         pendingAction.current = undefined;
         actionInFlight.current = false;
         setActionPending(false);
+        setCancelingRunId(undefined);
       }
     }
-  }, [activeRootRun, connection, identity, invalidateMaterial]);
+  }, [connection, identity, invalidateMaterial, visible.runsById]);
+
+  const stop = useCallback(async () => {
+    if (activeRootRun !== undefined) await cancel(activeRootRun.id);
+  }, [activeRootRun, cancel]);
 
   const resume = useCallback(
     async (
@@ -580,8 +602,11 @@ export function useAgentSessionView(
     actionError,
     interruptError,
     streamError,
+    cancelingRunId,
+    cancelError,
     send,
     resume,
+    cancel,
     stop,
   };
 }
