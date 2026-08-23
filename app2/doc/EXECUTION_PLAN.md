@@ -285,6 +285,10 @@ reload/restart 后从 SQLite 恢复完全相同的 Transcript、phase、usage/co
 - **Tool disclosure adapter**：Desktop 继续消费唯一的通用 `ToolInvocation`，仅在 presentation 层为 file/search/patch/
   shell/network/Plan/Goal/MCP 建立可读标题与 subject；status、duration、safety、approval、stdout/stderr/exit、line range、
   error 和 raw arguments 都由 canonical Item material 渲染，未知工具安全回退而不扩展 Lyra wire；
+- **Child admission foundation**：delegated child 采用独立 `delegation.Admission` 聚合承接 Framework 的 prospective
+  Process identity 与 Lyra Run identity；SQLite 只在 private pending reservation 中保存映射，重复 admission 必须完全一致，
+  且 pending 永远不是 wire Run。后续只有 started outcome 才能原子创建 child Run，aborted outcome 只结算父级委派 Item；
+  当前尚未把 `delegate_task` 暴露给模型或向 Desktop 声明 `subagents`；
 - 本批未启动 Runtime、Wails、Vite、browser/agent-browser 或 watcher，无待释放的外部资源。
 
 ## 9. R5：Plan 与 Goal

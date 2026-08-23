@@ -54,6 +54,28 @@ func createSchema(ctx context.Context, database *sql.DB) error {
 			ON runs(session_id) WHERE parent_run_id IS NULL AND status != 'finished'`,
 		`CREATE INDEX IF NOT EXISTS runs_by_session
 			ON runs(session_id, created_at, id)`,
+		`CREATE TABLE IF NOT EXISTS delegate_admissions (
+			member_id TEXT PRIMARY KEY,
+			parent_member_id TEXT NOT NULL,
+			child_key TEXT NOT NULL,
+			run_id TEXT NOT NULL UNIQUE,
+			segment_id TEXT NOT NULL UNIQUE,
+			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+			parent_run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+			root_run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+			spawned_by_item_id TEXT NOT NULL,
+			provider TEXT NOT NULL,
+			model TEXT NOT NULL,
+			summary TEXT NOT NULL,
+			instructions TEXT NOT NULL,
+			status TEXT NOT NULL CHECK (status IN ('pending', 'started', 'aborted')),
+			failure TEXT NOT NULL DEFAULT '',
+			started_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			UNIQUE(parent_member_id, child_key)
+		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS delegate_admissions_by_root
+			ON delegate_admissions(root_run_id, started_at, member_id)`,
 		`CREATE TABLE IF NOT EXISTS items (
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
