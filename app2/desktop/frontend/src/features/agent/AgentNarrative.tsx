@@ -10,6 +10,7 @@ import type {
 } from "@lyra/runtime-contract";
 
 import { InterruptSetCard } from "./InterruptSetCard";
+import { ToolDisclosure } from "./ToolDisclosure";
 
 interface AgentNarrativeProps {
   sessionTitle: string;
@@ -148,19 +149,7 @@ function NarrativeItem({ item, run }: { item: Item; run?: RunRef }) {
         </details>
       );
     case "toolCall":
-      return (
-        <details className="narrative-item tool-turn" data-child={child}>
-          <summary>
-            <span>{item.tool?.name ?? "Tool"}</span>
-            <small>{item.status}</small>
-          </summary>
-          <pre>{JSON.stringify(item.tool?.arguments ?? {}, null, 2)}</pre>
-          {item.tool?.result !== undefined ? (
-            <pre>{JSON.stringify(item.tool.result, null, 2)}</pre>
-          ) : null}
-          {item.error?.detail ? <p role="alert">{item.error.detail}</p> : null}
-        </details>
-      );
+      return <ToolDisclosure item={item} run={run} />;
     case "question":
       return (
         <article className="narrative-item question-turn" data-child={child}>

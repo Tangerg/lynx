@@ -124,7 +124,7 @@ app2 精确保留这些 wire discriminants 与 authority/replay 分类；变化�
 | U13 | Context Dock tabs/split/persistence | workspace context | R6 | specified | per-Session open tabs/last view/file target、close/reopen、narrow window capability |
 | U14 | Files/tree/read/head/search | workspace context | R6 | specified | pagination、path truncation、loading/error/empty、syntax highlight、external change |
 | U15 | Diff/Review Workspace | workspace context | R6 | specified | all files、collapse/nav scroll、binary/rename/untracked、light/review density |
-| U16 | Terminal/tool detail/timeline/run summary | workspace + agent public | R4/R6 | specified | exact Tool/Run identity、durable end-only restore、connection-aware commands |
+| U16 | Terminal/tool detail/timeline/run summary | workspace + agent public | R4/R6 | specified | Tool disclosure 已覆盖 exact identity/status/duration/safety/approval 与 known material + unknown fallback；terminal/timeline/run summary 随 R6 |
 | U17 | Markdown/text/code/table/math/diagram | UI renderer | R10 | specified | semantic Markdown、Shiki、copy/wrap、table preview、KaTeX/Mermaid lazy、safe HTML |
 | U18 | Images/lightbox/native save | renderer + NativeHost | R10 | specified | grouping、zoom/keys/close、data validation、native save cancel/error、40px targets |
 | U19 | Chat/session search and long-history navigation | sessions/agent | R9/R10 | specified | cursor/pagination、highlight/range、no full-history eager load、keyboard |
