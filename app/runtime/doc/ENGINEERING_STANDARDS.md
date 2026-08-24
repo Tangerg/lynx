@@ -308,6 +308,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - SQLite schema epoch、artifact version、checkpoint envelope version 各有唯一 owner；
 - raw payload 必须有大小上限、defensive copy 和 owner-specific validation；
 - 不把数据库列名、JSON tag 或 SDK enum 当成 Domain API。
+- Agent Memory embedding 是 Search-owned derived cache，不是 curated generation 事实。缓存必须同时绑定 exact embedding-space identity 与 content digest；space identity 覆盖 provider、model 与 custom endpoint 等非秘密坐标系选择输入，但不得持久化 credential。读取只比较当前空间且维度/数值合法的 vector，迟到写入以 item identity + digest 条件提交。角色/endpoint 切换、内容编辑或维度变化由下一次真实搜索惰性修复，失败回落 keyword signal；Curation 不建立后台 backfill、双 cache owner 或错误向量兼容读取。
 
 ## 7. 测试标准
 

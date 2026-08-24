@@ -33,9 +33,6 @@ func TestAgentMemoryQueriesJoinCallerTransaction(t *testing.T) {
 		{name: "items for search", list: func(ctx context.Context) ([]agentmemory.Item, error) {
 			return store.ItemsForSearch(ctx, agentmemory.ScopeProject, "/repo")
 		}},
-		{name: "unembedded items", list: func(ctx context.Context) ([]agentmemory.Item, error) {
-			return store.UnembeddedItems(ctx, agentmemory.ScopeProject, "/repo")
-		}},
 		{name: "review list", list: func(ctx context.Context) ([]agentmemory.Item, error) {
 			return store.List(ctx, agentmemory.ScopeProject, "/repo")
 		}},

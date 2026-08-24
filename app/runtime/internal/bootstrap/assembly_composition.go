@@ -217,7 +217,6 @@ func buildExecutionComposition(
 		workspaceServices.skillMaintenance,
 		workspaceServices.memoryCuration,
 		modelServices.utilityClient,
-		modelServices.liveEmbedder.ResolveMemory,
 	)
 	defaultSelection, err := runtimeDefaultModelSelection(cfg)
 	if err != nil {

@@ -31,12 +31,18 @@ func encodeVec(vector []float32) []byte {
 	return encoded
 }
 
-func decodeVec(encoded []byte) []float32 {
+func decodeVec(encoded []byte) ([]float32, error) {
+	if len(encoded) == 0 || len(encoded)%4 != 0 {
+		return nil, errors.New("sqlite: invalid agent memory embedding encoding")
+	}
 	vector := make([]float32, len(encoded)/4)
 	for index := range vector {
 		vector[index] = math.Float32frombits(binary.LittleEndian.Uint32(encoded[index*4:]))
 	}
-	return vector
+	if err := agentmemory.ValidateEmbeddingVector(vector); err != nil {
+		return nil, fmt.Errorf("sqlite: decode agent memory embedding: %w", err)
+	}
+	return vector, nil
 }
 
 // reconcileItems applies the domain fold ([agentmemory.Fold]) to the project's
@@ -199,7 +205,7 @@ func (s *AgentMemoryStore) ItemsForSearch(ctx context.Context, scope agentmemory
 		return nil, err
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT `+agentMemoryItemColumns+`, embedding
+		`SELECT `+agentMemoryItemColumns+`, embedding_space, embedding
 		 FROM agent_memory_items
 		 WHERE scope = ? AND project = ? AND status = 'active'`, token, project)
 	if err != nil {
@@ -213,18 +219,27 @@ func (s *AgentMemoryStore) ItemsForSearch(ctx context.Context, scope agentmemory
 			scopeText, originText, statusText string
 			pinned                            int
 			createdAt, updatedAt              int64
+			space                             string
 			blob                              []byte
 		)
 		if err := rows.Scan(&item.ID, &scopeText, &item.Project, &item.Content, &originText, &statusText,
-			&pinned, &item.SessionID, &item.Day, &createdAt, &updatedAt, &blob); err != nil {
+			&pinned, &item.SessionID, &item.Day, &createdAt, &updatedAt, &space, &blob); err != nil {
 			return nil, fmt.Errorf("sqlite: scan agent memory item: %w", err)
 		}
 		item, err = decodeItem(item, scopeText, originText, statusText, pinned, createdAt, updatedAt)
 		if err != nil {
 			return nil, err
 		}
-		if len(blob) > 0 {
-			item.Embedding = decodeVec(blob)
+		if space != "" || len(blob) != 0 {
+			vector, decodeErr := decodeVec(blob)
+			if decodeErr != nil {
+				return nil, decodeErr
+			}
+			item.EmbeddingSpace = space
+			item.Embedding = vector
+			if validateErr := item.Validate(); validateErr != nil {
+				return nil, fmt.Errorf("sqlite: decode invalid agent memory search item %q: %w", item.ID, validateErr)
+			}
 		}
 		items = append(items, item)
 	}
@@ -232,19 +247,6 @@ func (s *AgentMemoryStore) ItemsForSearch(ctx context.Context, scope agentmemory
 		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
 	}
 	return items, nil
-}
-
-// UnembeddedItems lists the active (scope, project) items that still lack an
-// embedding — the searchable set an embedder should backfill.
-func (s *AgentMemoryStore) UnembeddedItems(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
-	token, err := memoryPartition(scope, project)
-	if err != nil {
-		return nil, err
-	}
-	return s.listItems(ctx,
-		`SELECT `+agentMemoryItemColumns+`
-		 FROM agent_memory_items
-		 WHERE scope = ? AND project = ? AND status = 'active' AND length(embedding) = 0`, "unembedded agent memory items", token, project)
 }
 
 // List returns the (scope, project) items the review surface shows: active and
@@ -384,7 +386,7 @@ func (s *AgentMemoryStore) UpdateContent(ctx context.Context, id, content string
 		return errors.New("sqlite: agent memory content is required")
 	}
 	result, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE agent_memory_items SET content = ?, digest = ?, embedding = x'', updated_at = ? WHERE id = ?`,
+		`UPDATE agent_memory_items SET content = ?, digest = ?, embedding_space = '', embedding = x'', updated_at = ? WHERE id = ?`,
 		content, agentmemory.Digest(content), now.UTC().UnixNano(), id)
 	if err != nil {
 		return fmt.Errorf("sqlite: edit agent memory: %w", err)
@@ -470,16 +472,29 @@ func affectedOne(result sql.Result, op string) error {
 	return nil
 }
 
-// SetEmbeddings stores a content vector for each item id, ignoring ids that no
-// longer exist (a concurrent reconcile may have pruned one).
-func (s *AgentMemoryStore) SetEmbeddings(ctx context.Context, vectors map[string][]float32) error {
-	if len(vectors) == 0 {
+// SetEmbeddings caches vectors only while the exact item content remains
+// active. A concurrent edit, review, or reconcile therefore makes the update a
+// no-op instead of attaching a late vector to different content.
+func (s *AgentMemoryStore) SetEmbeddings(ctx context.Context, updates []agentmemory.EmbeddingUpdate) error {
+	if len(updates) == 0 {
 		return nil
 	}
+	seen := make(map[string]struct{}, len(updates))
+	for _, update := range updates {
+		if err := update.Validate(); err != nil {
+			return fmt.Errorf("sqlite: invalid agent memory embedding update: %w", err)
+		}
+		if _, duplicate := seen[update.ItemID]; duplicate {
+			return fmt.Errorf("sqlite: duplicate agent memory embedding update %q", update.ItemID)
+		}
+		seen[update.ItemID] = struct{}{}
+	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		for id, vec := range vectors {
+		for _, update := range updates {
 			if _, err := conn(ctx, s.db).ExecContext(ctx,
-				`UPDATE agent_memory_items SET embedding = ? WHERE id = ?`, encodeVec(vec), id); err != nil {
+				`UPDATE agent_memory_items SET embedding_space = ?, embedding = ?
+				 WHERE id = ? AND digest = ? AND status = 'active'`,
+				update.Space, encodeVec(update.Vector), update.ItemID, update.ContentDigest); err != nil {
 				return fmt.Errorf("sqlite: set agent memory embedding: %w", err)
 			}
 		}

@@ -51,11 +51,11 @@ func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string
 // current embedding role.
 func (c *Coordinator) EmbeddingRole() modelref.Selection { return c.embeddingRoleState.Role() }
 
-// SetEmbeddingRole repoints the semantic index at (provider, model), persists
-// it, and swaps the live cell. An empty model clears the role (turns the index
-// off). A non-empty model is validated by building its embedding client, so an
-// unsupported, unconfigured, or unbuildable role fails here rather than at the
-// next search.
+// SetEmbeddingRole repoints Agent Memory semantic search at (provider, model),
+// persists it, and swaps the live cell. An empty model disables the semantic
+// signal. A non-empty model is validated by building its embedding client, so
+// an unsupported, unconfigured, or unbuildable role fails here rather than at
+// the next search.
 func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model string) (modelref.Selection, error) {
 	c.embeddingMu.Lock()
 	defer c.embeddingMu.Unlock()

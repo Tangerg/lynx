@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
-	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
@@ -58,8 +57,6 @@ type agentMemory interface {
 	State(ctx context.Context, project string) (agentmemory.State, error)
 	PublishGeneration(ctx context.Context, project string, expectedWatermark, through int64, contents []string, now time.Time) (bool, error)
 	Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
-	UnembeddedItems(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
-	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
 }
 
 type messageReader interface {
@@ -68,29 +65,26 @@ type messageReader interface {
 
 // MemoryConsolidator extracts durable facts into a daily append-only ledger,
 // then folds due ledger entries into curated memory items. It never writes the
-// human-owned LYRA.md cascade. When an embedder is configured it backfills item
-// vectors for semantic search; without one, items stay keyword-searchable.
+// human-owned LYRA.md cascade. Derived vectors belong to semantic search, not
+// this curation lifecycle.
 type MemoryConsolidator struct {
-	history  messageReader
-	memory   agentMemory
-	client   utilitymodel.Resolver
-	embedder func(context.Context) (agentmemoryapp.Embedder, error)
-	config   MemoryCurationConfig
-	minMsgs  int
-	now      func() time.Time
+	history messageReader
+	memory  agentMemory
+	client  utilitymodel.Resolver
+	config  MemoryCurationConfig
+	minMsgs int
+	now     func() time.Time
 }
 
 // NewMemoryConsolidator builds the Run-boundary memory consolidation worker.
-// embedder is optional; nil leaves memory search keyword-only.
-func NewMemoryConsolidator(store messageReader, memory agentMemory, client utilitymodel.Resolver, embedder func(context.Context) (agentmemoryapp.Embedder, error), config MemoryCurationConfig) *MemoryConsolidator {
+func NewMemoryConsolidator(store messageReader, memory agentMemory, client utilitymodel.Resolver, config MemoryCurationConfig) *MemoryConsolidator {
 	return &MemoryConsolidator{
-		history:  store,
-		memory:   memory,
-		client:   client,
-		embedder: embedder,
-		config:   config.normalized(),
-		minMsgs:  4,
-		now:      time.Now,
+		history: store,
+		memory:  memory,
+		client:  client,
+		config:  config.normalized(),
+		minMsgs: 4,
+		now:     time.Now,
 	}
 }
 
@@ -160,43 +154,8 @@ func (c *MemoryConsolidator) maybeCurate(ctx context.Context, project string, no
 	}
 	if published {
 		recordPublishedMemoryGeneration(ctx)
-		c.embedNewItems(ctx, project)
 	}
 	return nil
-}
-
-// embedNewItems backfills content vectors for the project's items that lack one,
-// so semantic search can rank them. Best-effort and vector-only: no embedder, an
-// unconfigured embedding role, or an embed failure leaves the items
-// keyword-searchable rather than failing the curation. It also backfills items
-// created before an embedding model was configured, on the next fold.
-func (c *MemoryConsolidator) embedNewItems(ctx context.Context, project string) {
-	if c.embedder == nil {
-		return
-	}
-	embedder, err := c.embedder(ctx)
-	if err != nil || embedder == nil {
-		return
-	}
-	items, err := c.memory.UnembeddedItems(ctx, agentmemory.ScopeProject, project)
-	if err != nil || len(items) == 0 {
-		return
-	}
-	texts := make([]string, len(items))
-	for i, item := range items {
-		texts[i] = item.Content
-	}
-	vectors, err := embedder.Embed(ctx, texts)
-	if err != nil || len(vectors) != len(items) {
-		return
-	}
-	byID := make(map[string][]float32, len(items))
-	for i, item := range items {
-		byID[item.ID] = vectors[i]
-	}
-	// Best-effort: a failed write just leaves the items keyword-searchable until
-	// the next fold retries the backfill.
-	_ = c.memory.SetEmbeddings(ctx, byID)
 }
 
 // currentMemory renders the project's existing automatic items as the current

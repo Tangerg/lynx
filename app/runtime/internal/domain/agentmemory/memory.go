@@ -15,6 +15,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
+	"slices"
 	"strings"
 	"time"
 )
@@ -179,10 +181,74 @@ type Item struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	// Embedding is the item's content vector for semantic search. Populated only
-	// by the search-fetch path ([Store.ItemsForSearch]); empty on ordinary reads
-	// and until an embedder has run over the item.
-	Embedding []float32
+	// EmbeddingSpace and Embedding are a search-only cache pair. Space identifies
+	// the embedder that produced the vector; both fields are empty on ordinary
+	// reads and until semantic search has cached the current content.
+	EmbeddingSpace string
+	Embedding      []float32
+}
+
+// EmbeddingUpdate conditionally caches one item's current-content vector.
+// ContentDigest prevents a late embedding result from being attached after the
+// item was edited, while Space prevents vectors from different models being
+// compared as though they shared one coordinate system.
+type EmbeddingUpdate struct {
+	ItemID        string
+	ContentDigest string
+	Space         string
+	Vector        []float32
+}
+
+// NewEmbeddingUpdate binds a vector to the exact item content and embedding
+// space that produced it.
+func NewEmbeddingUpdate(item Item, space string, vector []float32) (EmbeddingUpdate, error) {
+	if strings.TrimSpace(item.ID) == "" {
+		return EmbeddingUpdate{}, errors.New("agentmemory: embedding item id is required")
+	}
+	if strings.TrimSpace(item.Content) == "" {
+		return EmbeddingUpdate{}, errors.New("agentmemory: embedding item content is required")
+	}
+	if err := validateEmbedding(space, vector); err != nil {
+		return EmbeddingUpdate{}, err
+	}
+	return EmbeddingUpdate{
+		ItemID:        item.ID,
+		ContentDigest: Digest(item.Content),
+		Space:         space,
+		Vector:        slices.Clone(vector),
+	}, nil
+}
+
+// Validate protects a cache update received at a persistence boundary.
+func (update EmbeddingUpdate) Validate() error {
+	if strings.TrimSpace(update.ItemID) == "" {
+		return errors.New("agentmemory: embedding item id is required")
+	}
+	if strings.TrimSpace(update.ContentDigest) == "" {
+		return errors.New("agentmemory: embedding content digest is required")
+	}
+	return validateEmbedding(update.Space, update.Vector)
+}
+
+func validateEmbedding(space string, vector []float32) error {
+	if space == "" || strings.TrimSpace(space) != space {
+		return errors.New("agentmemory: embedding space is required without surrounding whitespace")
+	}
+	return ValidateEmbeddingVector(vector)
+}
+
+// ValidateEmbeddingVector rejects cache values that cannot participate in a
+// deterministic similarity calculation.
+func ValidateEmbeddingVector(vector []float32) error {
+	if len(vector) == 0 {
+		return errors.New("agentmemory: embedding vector is required")
+	}
+	for _, value := range vector {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			return errors.New("agentmemory: embedding vector must be finite")
+		}
+	}
+	return nil
 }
 
 // NewProposal builds a mined memory item awaiting review: project-scoped, auto
@@ -252,6 +318,12 @@ func (item Item) Validate() error {
 	}
 	if item.UpdatedAt.Before(item.CreatedAt) {
 		return errors.New("agentmemory: item update precedes creation")
+	}
+	if item.EmbeddingSpace == "" && len(item.Embedding) == 0 {
+		return nil
+	}
+	if err := validateEmbedding(item.EmbeddingSpace, item.Embedding); err != nil {
+		return fmt.Errorf("agentmemory: item embedding: %w", err)
 	}
 	return nil
 }

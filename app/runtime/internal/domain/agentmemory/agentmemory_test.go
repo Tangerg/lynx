@@ -1,6 +1,7 @@
 package agentmemory
 
 import (
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -82,5 +83,24 @@ func TestItemConstructionRejectsInvalidPartition(t *testing.T) {
 	}
 	if _, err := NewUserItem("mem_2", ScopeUser, "/repo", "fact", now); err == nil {
 		t.Fatal("user item with project was accepted")
+	}
+}
+
+func TestEmbeddingUpdateBindsContentAndDefensivelyCopiesVector(t *testing.T) {
+	item := Item{ID: "mem_1", Content: "current content"}
+	vector := []float32{1, 2}
+	update, err := NewEmbeddingUpdate(item, "provider:model", vector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vector[0] = 9
+	if update.ItemID != item.ID || update.ContentDigest != Digest(item.Content) || update.Space != "provider:model" || !slices.Equal(update.Vector, []float32{1, 2}) {
+		t.Fatalf("embedding update = %+v", update)
+	}
+	if err := update.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewEmbeddingUpdate(item, "provider:model", []float32{float32(math.NaN())}); err == nil {
+		t.Fatal("non-finite embedding vector was accepted")
 	}
 }

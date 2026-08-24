@@ -68,7 +68,7 @@ func memoryConsolidationFixture(t *testing.T, replies ...scriptedReply) (*Memory
 	if err != nil {
 		t.Fatal(err)
 	}
-	consolidator := NewMemoryConsolidator(messages, memoryCuration, func(context.Context) *chatclient.Client { return client }, nil, MemoryCurationConfig{MinPendingFacts: 1})
+	consolidator := NewMemoryConsolidator(messages, memoryCuration, func(context.Context) *chatclient.Client { return client }, MemoryCurationConfig{MinPendingFacts: 1})
 	consolidator.now = func() time.Time { return time.Date(2026, 7, 19, 9, 30, 0, 0, time.FixedZone("CST", 8*60*60)) }
 	return consolidator, memory, model
 }

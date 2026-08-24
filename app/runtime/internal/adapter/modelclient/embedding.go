@@ -2,6 +2,8 @@ package modelclient
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -60,9 +62,19 @@ func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Sele
 	if err != nil {
 		return nil, err
 	}
-	e := &embedder{id: providerID + ":" + model, client: client}
+	e := &embedder{id: embeddingSpaceID(providerID, model, entry.BaseURL), client: client}
 	r.cache[key] = e
 	return e, nil
+}
+
+// embeddingSpaceID fingerprints every non-secret client input that can select
+// a different vector coordinate system. In particular, two compatible
+// endpoints may expose the same model name while serving unrelated models.
+// Credentials are deliberately excluded: rotating an API key does not by
+// itself invalidate vectors, and no credential-derived material is persisted.
+func embeddingSpaceID(providerID, model, baseURL string) string {
+	digest := sha256.Sum256([]byte(providerID + "\x00" + model + "\x00" + baseURL))
+	return "embedding-v1:" + hex.EncodeToString(digest[:])
 }
 
 // ValidateEmbeddingModel implements the application role-validation port while

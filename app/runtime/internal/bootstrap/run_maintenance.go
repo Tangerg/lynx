@@ -22,7 +22,6 @@ func buildRunMaintenance(
 	skillMaintenance *workspace.SkillMaintenance,
 	memoryCuration *agentmemory.Curation,
 	resolveUtility func(context.Context) *chatclient.Client,
-	embedder func(context.Context) (agentmemory.Embedder, error),
 ) agentexec.RunMaintenance {
 	if cfg.Maintenance != nil {
 		return cfg.Maintenance
@@ -39,7 +38,7 @@ func buildRunMaintenance(
 	)
 	var consolidator *runmaintenance.MemoryConsolidator
 	if memoryCuration.Available() {
-		consolidator = runmaintenance.NewMemoryConsolidator(conversationServices.store, memoryCuration, resolveUtility, embedder, runmaintenance.MemoryCurationConfig{})
+		consolidator = runmaintenance.NewMemoryConsolidator(conversationServices.store, memoryCuration, resolveUtility, runmaintenance.MemoryCurationConfig{})
 	}
 	var skillMiner *runmaintenance.SkillProposalMiner
 	var skillArchiver *runmaintenance.IdleSkillArchiver

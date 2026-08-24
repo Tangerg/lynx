@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 80
+const schemaEpoch = 81
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -630,11 +630,15 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			day        TEXT    NOT NULL DEFAULT '',
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL,
-			-- Optional content vector for semantic ranking. Empty until a configured
-			-- embedder backfills it; keyword ranking works without it.
-			embedding  BLOB    NOT NULL DEFAULT x'',
+			-- Search-owned derived cache. embedding_space identifies the exact
+			-- vector space that produced the content vector; both values are empty
+			-- until a configured embedder lazily fills them.
+			embedding_space TEXT NOT NULL DEFAULT '',
+			embedding       BLOB NOT NULL DEFAULT x'',
 			CHECK ((scope = 'project' AND project <> '') OR (scope = 'user' AND project = '')),
 			CHECK (origin <> 'user' OR status = 'active'),
+			CHECK ((embedding_space = '' AND length(embedding) = 0) OR
+			       (embedding_space <> '' AND length(embedding) > 0 AND length(embedding) % 4 = 0)),
 			UNIQUE(scope, project, digest)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_memory_items_scope

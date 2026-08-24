@@ -46,14 +46,6 @@ func (s *fakeCurationStore) Items(context.Context, domain.Scope, string) ([]doma
 	return nil, s.err
 }
 
-func (s *fakeCurationStore) UnembeddedItems(context.Context, domain.Scope, string) ([]domain.Item, error) {
-	return nil, s.err
-}
-
-func (s *fakeCurationStore) SetEmbeddings(context.Context, map[string][]float32) error {
-	return s.err
-}
-
 func TestCurationReconcilePublishesOnlyNewGeneration(t *testing.T) {
 	store := &fakeCurationStore{published: true}
 	var notices []invalidation.Notice
@@ -79,7 +71,7 @@ func TestCurationReconcilePublishesOnlyNewGeneration(t *testing.T) {
 	}
 }
 
-func TestCurationFailureAndHiddenWritesDoNotPublish(t *testing.T) {
+func TestCurationFailureAndLedgerWritesDoNotPublish(t *testing.T) {
 	wantErr := errors.New("store unavailable")
 	store := &fakeCurationStore{published: true, err: wantErr}
 	var notices []invalidation.Notice
@@ -92,9 +84,6 @@ func TestCurationFailureAndHiddenWritesDoNotPublish(t *testing.T) {
 	}
 	store.err = nil
 	if _, err := c.AppendLedger(t.Context(), domain.FactBatch{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.SetEmbeddings(t.Context(), map[string][]float32{"mem_1": {1}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(notices) != 0 {

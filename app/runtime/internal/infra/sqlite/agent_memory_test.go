@@ -224,7 +224,11 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 	if err != nil || duplicateCreated || duplicate.ID != item.ID {
 		t.Fatalf("duplicate add = (%+v, %t, %v), want original item without insertion", duplicate, duplicateCreated, err)
 	}
-	if err := store.SetEmbeddings(t.Context(), map[string][]float32{item.ID: {1, 2, 3}}); err != nil {
+	embedding, err := agentmemory.NewEmbeddingUpdate(item, "provider:model", []float32{1, 2, 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetEmbeddings(t.Context(), []agentmemory.EmbeddingUpdate{embedding}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SetPinned(t.Context(), item.ID, true, now); err != nil {
@@ -280,31 +284,61 @@ func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 	}
 
 	// Approved items carry no embedding yet.
-	unembedded, err := store.UnembeddedItems(t.Context(), agentmemory.ScopeProject, "/repo")
-	if err != nil || len(unembedded) != 2 {
-		t.Fatalf("unembedded = (%+v, %v), want 2", unembedded, err)
+	forSearch, err := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(forSearch) != 2 {
+		t.Fatalf("items for search = (%+v, %v), want 2", forSearch, err)
 	}
-	vectors := make(map[string][]float32, len(unembedded))
-	for i, item := range unembedded {
-		vectors[item.ID] = []float32{float32(i + 1), 0.5}
+	updates := make([]agentmemory.EmbeddingUpdate, 0, len(forSearch))
+	vectors := make(map[string][]float32, len(forSearch))
+	for i, item := range forSearch {
+		vector := []float32{float32(i + 1), 0.5}
+		vectors[item.ID] = vector
+		update, updateErr := agentmemory.NewEmbeddingUpdate(item, "provider:model", vector)
+		if updateErr != nil {
+			t.Fatal(updateErr)
+		}
+		updates = append(updates, update)
 	}
-	if err := store.SetEmbeddings(t.Context(), vectors); err != nil {
+	if err := store.SetEmbeddings(t.Context(), updates); err != nil {
 		t.Fatal(err)
 	}
 
-	// After backfill nothing is unembedded, and the search fetch decodes vectors.
-	if rest, err := store.UnembeddedItems(t.Context(), agentmemory.ScopeProject, "/repo"); err != nil || len(rest) != 0 {
-		t.Fatalf("unembedded after backfill = (%+v, %v), want 0", rest, err)
-	}
-	forSearch, err := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	// The search fetch decodes both the vector and its exact space identity.
+	forSearch, err = store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
 	if err != nil || len(forSearch) != 2 {
 		t.Fatalf("items for search = (%+v, %v)", forSearch, err)
 	}
 	for _, item := range forSearch {
 		want := vectors[item.ID]
-		if len(item.Embedding) != len(want) || item.Embedding[0] != want[0] || item.Embedding[1] != want[1] {
+		if item.EmbeddingSpace != "provider:model" || len(item.Embedding) != len(want) || item.Embedding[0] != want[0] || item.Embedding[1] != want[1] {
 			t.Fatalf("embedding round-trip failed for %s: got %v want %v", item.ID, item.Embedding, want)
 		}
+	}
+}
+
+func TestAgentMemoryLateEmbeddingDoesNotOverwriteEditedContent(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
+	item, _, err := store.Add(t.Context(), agentmemory.ScopeProject, "/repo", "old content", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	late, err := agentmemory.NewEmbeddingUpdate(item, "provider:model", []float32{1, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateContent(t.Context(), item.ID, "new content", now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetEmbeddings(t.Context(), []agentmemory.EmbeddingUpdate{late}); err != nil {
+		t.Fatal(err)
+	}
+	items, err := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items for search = (%+v, %v)", items, err)
+	}
+	if items[0].Content != "new content" || items[0].EmbeddingSpace != "" || len(items[0].Embedding) != 0 {
+		t.Fatalf("late embedding polluted edited item: %+v", items[0])
 	}
 }
 

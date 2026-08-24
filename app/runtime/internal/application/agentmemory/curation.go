@@ -9,16 +9,14 @@ import (
 )
 
 // CurationStore is the persistence port for automatic memory maintenance. The
-// append-only ledger and embeddings are internal implementation state; only a
-// successful Reconcile changes the public agent-memory generation.
+// append-only ledger is internal implementation state; only a successful
+// Reconcile changes the public agent-memory generation.
 type CurationStore interface {
 	AppendLedger(ctx context.Context, batch domain.FactBatch) ([]domain.LedgerFact, error)
 	PendingLedger(ctx context.Context, project string, watermark int64, limit int) ([]domain.LedgerFact, error)
 	State(ctx context.Context, project string) (domain.State, error)
 	Reconcile(ctx context.Context, project string, expectedWatermark, through int64, contents []string, now time.Time) (bool, error)
 	Items(ctx context.Context, scope domain.Scope, project string) ([]domain.Item, error)
-	UnembeddedItems(ctx context.Context, scope domain.Scope, project string) ([]domain.Item, error)
-	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
 }
 
 // CurationConfig bundles the automatic-maintenance ports.
@@ -90,21 +88,4 @@ func (c *Curation) Items(ctx context.Context, scope domain.Scope, project string
 		return nil, ErrUnavailable
 	}
 	return c.store.Items(ctx, scope, project)
-}
-
-// UnembeddedItems returns curated items whose search vectors need backfilling.
-func (c *Curation) UnembeddedItems(ctx context.Context, scope domain.Scope, project string) ([]domain.Item, error) {
-	if !c.Available() {
-		return nil, ErrUnavailable
-	}
-	return c.store.UnembeddedItems(ctx, scope, project)
-}
-
-// SetEmbeddings updates search-only vector state and therefore does not
-// invalidate the human-readable agent-memory projection.
-func (c *Curation) SetEmbeddings(ctx context.Context, vectors map[string][]float32) error {
-	if !c.Available() {
-		return ErrUnavailable
-	}
-	return c.store.SetEmbeddings(ctx, vectors)
 }

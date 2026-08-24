@@ -2,7 +2,7 @@
 // from the runtime-mutable provider registry credentials, caching by the
 // credential tuple so a credential mutation (new key or base URL) is picked up
 // rather than serving a stale client. It is the driven adapter the runtime's
-// per-run model selection, utility-model role, and semantic-index embedding role all
+// per-run model selection, utility-model role, and Agent Memory embedding role all
 // resolve through.
 package modelclient
 
