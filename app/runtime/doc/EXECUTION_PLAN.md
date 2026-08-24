@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P144 已完成；下一阶段待独立准入。
+> 状态：P0–P145 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P144 已完成。
+> 最近基线：2026-08-24，P145 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P145 已完成，且只修改 `app/runtime`；`app/desktop` 本批没有直接爆炸半径，`app/cli` 未修改、未暂存。当前代码上的可逆反例把 `recovery_validation.go` 的局部变量 `sess` 等价改名为 `currentSession`：Application checkpoint ownership/恢复行为测试仍通过，但 `TestExecutorCheckpointBindingIsValidatedAtEveryBoundary` 仅因缺少字符串 `sess.Workspace` / `sess.Isolated` 失败。P144 也曾被迫只为 Workspace owner 改名同步更新该 marker，证明它冻结的是文件和局部语法，不是运行时不变量。
+- P145 的唯一切片是 C7 architecture guard 熵回收：已删除 `framework_boundary_test.go` 中三条逐文件 `strings.Contains` marker 守卫，让 checkpoint binding、Pending mutation ownership 与 parked continuation closure 回到 `ExecutorCheckpoint.ValidateFor`、`Pending.ValidateProjection`、Application write-set 和 SQLite owner predicate 的行为测试。新增 boot recovery 的真实 checkpoint ownership mismatch 矩阵直接证明 root/Session/workspace/isolation/Goal incarnation/provider/model/limits/capabilities 漂移都会 fail closed，且不会进入 executor resumability probe；既有 tree-barrier、waiting-subtree、material snapshot、interrupt/executor-checkpoint SQLite 测试继续覆盖其余提交边界。
+- 对 app2 的裁决：采纳小而语义化的 architecture guard、行为 owner 和人为回归仍能失败的验收方法；拒绝把原 Runtime 收敛成只有 import guard 的低覆盖实现，也不删除公共/持久 shape、唯一 owner、Agent Framework isolation 或 lifecycle 守卫。该批不改变 Runtime Protocol、Artifact、SQLite schema、公共 Go API、运行时能力或资源生命周期；没有新 facade、接口、兼容路径、第二 writer 或刷新旁路。
 - P144 已准入，允许 breaking change，且继续只修改 `app/runtime` 与直接消费者 `app/desktop`；`app/cli` 不修改、不暂存。失败优先反例已经证明 `domain/session.New` 可直接接受 `relative/work` 与 `/work/../work`，而 SQLite 仍以允许空默认值的 `sessions.cwd` 保存同一事实，Application read model 和 Desktop 又把它展开为 `CWD` / `ProjectRoot` / `CWDMissing` 与 `cwd` / `cwdMissing` 多份平行字段。注释声称 canonical workspace，并没有形成可恢复的类型或存储不变量。
 - P144 的唯一修复纵切是：Session Domain 引入 immutable `Workspace` 值，纯校验“必填、绝对、词法 clean”，filesystem adapter 继续唯一拥有存在性与物理 canonicalization；Draft/Patch/Snapshot/restore/fork 只传该值。Application 使用 consumer-owned Workspace read model，SQLite 直接切换到非空 `workspace_path` 并提升 epoch，不保留 `cwd` alias、双写、双读或 migration；Desktop adapter 一次性投影 `workspace {path, availability}`，React 消费端不复制第二份 workspace 状态。Protocol 与 Artifact 已经使用 `WorkspaceRef`，若机器 shape 不变则不为内部改名虚增版本。
 - P144 已完成：Domain、Application、SQLite 与 Desktop consumer adapter 已按上述唯一纵切切换；SQLite epoch 79 只接受 `workspace_path`，Protocol `2026-08-24` 与 Artifact v23 的 `WorkspaceRef` shape 保持不变。采纳 app2 的 exact identity、外部 admission 与 consumer-owned projection；拒绝把 app2 filesystem-root 限制、opaque JSON、额外 public package、god facade 或兼容 reader 带入原 Runtime。Frontend 316 files / 1973 tests、97 条 published context edge、89/89 operations、3/3 sidecars、16/16 events 与全部静态/bundle 门禁通过；Runtime/Desktop test/vet/build、Go 1.26.5 staticcheck、受影响 Runtime race、standalone/GOWORK-off、生成合同与 Wails production native build 通过；`app/cli` 零 diff。
@@ -308,10 +311,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P142     | Runtime/Desktop added-then-abandoned surface 熵回收                                                             | 删除命令面板条件解析、状态 patch DSL、生产动态插件 seam、未接线 content/citation 纵切与命令展示目录；测试动态性归 test harness，公开 Protocol consumer 与 Runtime 发布义务保持完整          |
 | P143     | Session exact provider/model 身份闭环                                                                          | Session Domain、opening、fork、SQLite、Artifact、Protocol/generated contract 与 Desktop Composer/Context 一次性切换 exact pair；删除 Runs/read-model 默认 fallback，不保留旧 shape          |
 | P144     | Session exact Workspace 身份闭环                                                                               | Session Domain 只拥有必填、绝对、lexical-clean value，filesystem adapter 拥有物理 admission；SQLite 与 Desktop 一次性删除 `cwd` 平行 shape，不保留兼容读取                                  |
+| P145     | Architecture guard 熵回收                                                                                     | 删除三条逐文件源码 marker 守卫；checkpoint/Pending/recovery 由真实行为矩阵守住，等价改名和移动不再被局部变量或表达式拼写误杀                                                               |
 
 ## 5. 当前里程碑结论
 
-P113–P144 共同建立了以下不可回退的心智模型：
+P113–P145 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -341,7 +345,7 @@ P113–P144 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 316 files / 1973 tests 全绿，97 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与 Go 1.26.5 toolchain 的 `staticcheck ./...` 通过；Session/Runs/Interaction/SQLite/Delivery/Bootstrap 受影响包 race 通过，Runtime 与 Desktop `GOWORK=off` tests 通过，`wails3 task build` 完成 production native build。合同生成器重跑后 digests 与 baseline 一致。当前合同为 Artifact v23、SQLite epoch 79、Protocol `2026-08-24`；Wails v3 动态绑定保持，`app/cli` 零 diff。
+最近一次完整验收基线：Frontend 316 files / 1973 tests 全绿，97 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与 Go 1.26.5 toolchain 的 `staticcheck ./...` 通过；Session/Runs/Interaction/SQLite/Delivery/Bootstrap 受影响包 race 通过，Runtime 与 Desktop `GOWORK=off` tests 通过，`wails3 task build` 完成 production native build。P145 另以当前 Runtime 全量 test/vet/build/staticcheck、Runs/Sessions/Runsegment/SQLite/Architecture race 与 `GOWORK=off` standalone 证明 architecture guard 减法没有降低行为覆盖。合同生成器重跑后 digests 与 baseline 一致。当前合同为 Artifact v23、SQLite epoch 79、Protocol `2026-08-24`；Wails v3 动态绑定保持，`app/cli` 零 diff。
 
 ## 6. 新阶段准入
 
@@ -354,4 +358,4 @@ P113–P144 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P144 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P145 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

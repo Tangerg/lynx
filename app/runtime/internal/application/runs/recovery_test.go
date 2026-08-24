@@ -43,6 +43,7 @@ type recoveryStoreStub struct {
 	commit        RecoveryCommit
 	commits       int
 	commitErr     error
+	checkpoint    *ExecutorCheckpoint
 	checkpointErr error
 }
 
@@ -104,6 +105,9 @@ func (store *recoveryStoreStub) LoadExecutorCheckpoint(
 ) (ExecutorCheckpoint, error) {
 	if store.checkpointErr != nil {
 		return ExecutorCheckpoint{}, store.checkpointErr
+	}
+	if store.checkpoint != nil {
+		return store.checkpoint.Clone(), nil
 	}
 	for _, pending := range store.pending {
 		root, found := pending.RootContinuation()
@@ -662,6 +666,96 @@ func TestRecoveryTreatsInvalidExecutorCheckpointAsResourceLoss(t *testing.T) {
 	if recovered != 1 || checkpointCalls != 0 || len(store.commit.LostRuns) != 1 ||
 		len(store.commit.PreservedCheckpointRootIDs) != 0 {
 		t.Fatalf("invalid-checkpoint recovery = %d checkpointCalls=%d commit=%+v", recovered, checkpointCalls, store.commit)
+	}
+}
+
+func TestRecoveryRejectsExecutorCheckpointOwnedByDifferentApplicationFacts(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*ExecutorCheckpoint)
+	}{
+		{name: "root member", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.RootMemberID = "member_other"
+		}},
+		{name: "session", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.Scope.SessionID = "session_other"
+		}},
+		{name: "working directory", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.Scope.CWD = "/other/workspace"
+		}},
+		{name: "workspace", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.Scope.WorkspaceCWD = "/other/workspace"
+		}},
+		{name: "isolation", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.Scope.Isolated = true
+		}},
+		{name: "goal incarnation", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.Scope.GoalIncarnationID = "goal_other"
+		}},
+		{name: "provider", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.ModelSelection = mustCheckpointSelection("openai", checkpoint.ModelSelection.Model())
+		}},
+		{name: "model", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.ModelSelection = mustCheckpointSelection(checkpoint.ModelSelection.Provider(), "model_other")
+		}},
+		{name: "limits", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.Limits.MaxSteps++
+		}},
+		{name: "capabilities", mutate: func(checkpoint *ExecutorCheckpoint) {
+			checkpoint.Capabilities.ChildRuns = true
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			run, pending, item := coherentRecoveryPark(t)
+			root, found := pending.RootContinuation()
+			if !found {
+				t.Fatal("coherent Pending has no root continuation")
+			}
+			checkpoint := ExecutorCheckpoint{
+				RootMemberID: root.MemberID,
+				Payload:      []byte(`{}`),
+				BuildID:      "test-build",
+				Scope: ExecutionScope{
+					SessionID:    run.SessionID(),
+					CWD:          "/workspace",
+					WorkspaceCWD: "/workspace",
+				},
+				ModelSelection: root.ModelSelection,
+				Limits:         root.Limits,
+				Capabilities:   pending.Capabilities.Clone(),
+			}
+			test.mutate(&checkpoint)
+
+			store := &recoveryStoreStub{
+				runs:        []rundomain.Run{run},
+				pending:     []Pending{pending},
+				transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
+				checkpoint:  &checkpoint,
+			}
+			probeCalls := 0
+			recovery, err := newTestRecovery(store, waitingExecutionResumabilityFunc(func(context.Context, WaitingContinuation) (bool, error) {
+				probeCalls++
+				return true, nil
+			}))
+			if err != nil {
+				t.Fatalf("NewRecovery: %v", err)
+			}
+
+			recovered, err := recovery.Reconcile(t.Context())
+			if err != nil {
+				t.Fatalf("Reconcile: %v", err)
+			}
+			if recovered != 1 || probeCalls != 0 || len(store.commit.LostRuns) != 1 ||
+				len(store.commit.PreservedCheckpointRootIDs) != 0 {
+				t.Fatalf(
+					"mismatched checkpoint recovery=%d probeCalls=%d commit=%+v",
+					recovered,
+					probeCalls,
+					store.commit,
+				)
+			}
+		})
 	}
 }
 
