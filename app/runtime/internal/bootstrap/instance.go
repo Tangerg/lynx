@@ -43,6 +43,9 @@ type Instance struct {
 	closeMu  sync.Mutex
 	stopping bool
 	closed   bool
+	// shutdownTimeout bounds each Close caller's wait. Zero uses the process
+	// default; tests may shorten it without changing the owner generation.
+	shutdownTimeout time.Duration
 }
 
 const instanceShutdownTimeout = 10 * time.Second
@@ -261,7 +264,11 @@ func (i *Instance) Close() error {
 		i.stopRuntime()
 	}
 
-	waitContext, cancel := context.WithTimeout(context.Background(), instanceShutdownTimeout)
+	timeout := i.shutdownTimeout
+	if timeout <= 0 {
+		timeout = instanceShutdownTimeout
+	}
+	waitContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := i.delivery.awaitShutdown(waitContext); err != nil {
 		return err

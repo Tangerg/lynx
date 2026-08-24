@@ -279,3 +279,70 @@ func TestInstanceCloseJoinsAcceptedOperationsBeforeClosingResources(t *testing.T
 		t.Fatalf("Close crossed an active operation: resourceClosed=%t closeReturned=%t", resourceClosedEarly, closeReturnedEarly)
 	}
 }
+
+func TestInstanceCloseContinuesGraphAfterCallerTimeout(t *testing.T) {
+	runtimeContext, stopRuntime := context.WithCancel(context.Background())
+	service := &blockingInstanceOperationService{
+		started:  make(chan struct{}),
+		canceled: make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	endpoint, err := operation.New(service, operation.Config{Lifetime: runtimeContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workersDone := make(chan struct{})
+	close(workersDone)
+	resourceClosed := make(chan struct{})
+	instance := &Instance{
+		delivery: operationDelivery{endpoint: endpoint, service: &runtimeserver.Server{}},
+		host: &Host{lifetime: &hostLifetime{hostResources: terminalClosers([]func() error{
+			func() error {
+				close(resourceClosed)
+				return nil
+			},
+		})}},
+		stopRuntime:         stopRuntime,
+		schedulerDone:       workersDone,
+		databaseChangesDone: workersDone,
+		recoveryDone:        workersDone,
+		shutdownTimeout:     time.Millisecond,
+	}
+
+	callDone := make(chan struct{})
+	go func() {
+		defer close(callDone)
+		endpoint.Invoke(t.Context(), "runtime.discover", struct{}{}, operation.Options{})
+	}()
+	select {
+	case <-service.started:
+	case <-time.After(time.Second):
+		t.Fatal("operation did not start")
+	}
+
+	if err := instance.Close(); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Close error = %v, want caller deadline", err)
+	}
+	select {
+	case <-service.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("operation did not observe shutdown cancellation")
+	}
+	select {
+	case <-resourceClosed:
+		t.Fatal("Host resource closed before the accepted operation returned")
+	default:
+	}
+
+	close(service.release)
+	select {
+	case <-callDone:
+	case <-time.After(time.Second):
+		t.Fatal("released operation did not return")
+	}
+	select {
+	case <-resourceClosed:
+	case <-time.After(time.Second):
+		t.Fatal("Instance abandoned its Host graph after caller timeout")
+	}
+}
