@@ -248,6 +248,38 @@ func TestFingerprintFilePreservesCancellation(t *testing.T) {
 	}
 }
 
+func TestReadTrackingRejectsAFileChangedAfterReadBeforeStamp(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "foo.txt")
+	if err := os.WriteFile(path, []byte("before\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tracker := newReadTracker()
+	base := fs.NewReadTool(fs.NewLocalExecutor(dir))
+	readFinished := make(chan struct{})
+	release := make(chan struct{})
+	blocking := decorateCall(base, func(ctx context.Context, arguments string) (string, error) {
+		out, err := base.Call(ctx, arguments)
+		close(readFinished)
+		<-release
+		return out, err
+	})
+	tracked := withReadTracking(blocking, tracker, dir)
+	done := make(chan error, 1)
+	go func() {
+		_, err := tracked.Call(t.Context(), `{"path":"foo.txt"}`)
+		done <- err
+	}()
+	<-readFinished
+	if err := os.WriteFile(path, []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-done; err == nil || !strings.Contains(err.Error(), "changed while reading") {
+		t.Fatalf("tracked read error = %v, want unstable read refusal", err)
+	}
+}
+
 func TestReadStampAndSamePathMutationAreAtomic(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "foo.txt")
