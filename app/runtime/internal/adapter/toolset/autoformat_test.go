@@ -51,6 +51,37 @@ func TestFormatPathSurfacesUnexpectedStatFailure(t *testing.T) {
 	}
 }
 
+func TestFormatPathRefusesOversizedSupportedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data.json")
+	content := `{"value":"` + strings.Repeat("x", (8<<20)+1) + `"}`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := formatPath(t.Context(), path)
+	if err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("format oversized JSON error = %v, want explicit 8 MiB refusal", err)
+	}
+}
+
+func TestRunFormatterBoundsDiagnosticOutput(t *testing.T) {
+	err := runFormatter(
+		t.Context(),
+		"/bin/sh",
+		"-c",
+		"/usr/bin/yes x | /usr/bin/head -c 131072 >&2; exit 1",
+		"fixture.ts",
+	)
+	if err == nil {
+		t.Fatal("runFormatter error = nil, want formatter failure")
+	}
+	if len(err.Error()) > (64<<10)+1024 {
+		t.Fatalf("formatter diagnostic uses %d bytes, want bounded material", len(err.Error()))
+	}
+	if !strings.Contains(err.Error(), "truncated") {
+		t.Fatalf("formatter error = %q, want honest truncation marker", err)
+	}
+}
+
 func TestRunFormatterPreservesCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

@@ -205,6 +205,36 @@ func TestMutationGuardAllowsCreatingNewFile(t *testing.T) {
 	}
 }
 
+func TestMutationGuardForgetsDeletedFileBeforeExternalRecreation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "foo.txt")
+	before := "before\n"
+	if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read, mutation := guardedPatchTools(dir, false)
+	if _, err := read.Call(t.Context(), `{"path":"foo.txt"}`); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if _, err := mutation.Call(t.Context(), patchArguments(t, "foo.txt", before, "")); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
+		t.Fatalf("external recreation: %v", err)
+	}
+
+	out, err := mutation.Call(t.Context(), patchArguments(t, "foo.txt", before, "after\n"))
+	if err != nil {
+		t.Fatalf("guarded patch: %v", err)
+	}
+	if !strings.Contains(out, "must read foo.txt before modifying") {
+		t.Fatalf("out = %q, want a fresh read after external recreation", out)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != before {
+		t.Fatalf("recreated file = %q, %v; mutation reused a deleted resource stamp", got, err)
+	}
+}
+
 func TestReadStampAndSamePathMutationAreAtomic(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "foo.txt")
