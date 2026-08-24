@@ -1,6 +1,7 @@
 package skillauthoring_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,6 +118,69 @@ func TestListProposalsExcludesApprovedProposal(t *testing.T) {
 	if len(proposals) != 0 {
 		t.Fatalf("approved proposal still listed: %+v", proposals)
 	}
+}
+
+func TestSubmitProposalSupersedesPendingProposalWithSameName(t *testing.T) {
+	store := skillauthoring.NewStore(t.TempDir(), skills.ScopeUser)
+	first := skills.Proposal{
+		Scope: skills.ScopeUser, Name: "current-review",
+		Description:  "The first version of one proposal awaiting review.",
+		Instructions: "first instructions",
+	}
+	second := first
+	second.Description = "The current version of one proposal awaiting review."
+	second.Instructions = "second instructions"
+
+	firstRef, _, err := store.SubmitProposal(t.Context(), first)
+	if err != nil {
+		t.Fatalf("SubmitProposal(first): %v", err)
+	}
+	secondRef, _, err := store.SubmitProposal(t.Context(), second)
+	if err != nil {
+		t.Fatalf("SubmitProposal(second): %v", err)
+	}
+	proposals, err := store.ListProposals(t.Context())
+	if err != nil {
+		t.Fatalf("ListProposals: %v", err)
+	}
+	if len(proposals) != 1 || proposals[0].Ref != secondRef {
+		t.Fatalf("pending proposals = %+v, want only current revision %+v", proposals, secondRef)
+	}
+	if _, err := store.ApproveProposal(t.Context(), firstRef); err == nil {
+		t.Fatal("superseded proposal revision remained reviewable")
+	}
+}
+
+func TestSubmitProposalBoundsDocumentAndPendingQueue(t *testing.T) {
+	t.Run("document", func(t *testing.T) {
+		store := skillauthoring.NewStore(t.TempDir(), skills.ScopeUser)
+		oversized := skills.Proposal{
+			Scope: skills.ScopeUser, Name: "oversized-proposal",
+			Description:  "A proposal whose rendered document exceeds the authored resource envelope.",
+			Instructions: strings.Repeat("x", (1<<20)+1),
+		}
+		if _, _, err := store.SubmitProposal(t.Context(), oversized); err == nil {
+			t.Fatal("SubmitProposal accepted a document larger than 1 MiB")
+		}
+	})
+
+	t.Run("queue", func(t *testing.T) {
+		store := skillauthoring.NewStore(t.TempDir(), skills.ScopeUser)
+		for i := range 129 {
+			proposal := skills.Proposal{
+				Scope: skills.ScopeUser, Name: fmt.Sprintf("bounded-proposal-%03d", i),
+				Description:  "One proposal in the bounded human review queue.",
+				Instructions: "review these instructions",
+			}
+			_, _, err := store.SubmitProposal(t.Context(), proposal)
+			if i < 128 && err != nil {
+				t.Fatalf("SubmitProposal(%d): %v", i, err)
+			}
+			if i == 128 && err == nil {
+				t.Fatal("SubmitProposal accepted a 129th distinct pending name")
+			}
+		}
+	})
 }
 
 func TestApproveProposalRevisionReplacesActiveAndArchivesOld(t *testing.T) {
