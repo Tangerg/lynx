@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,6 +254,62 @@ func TestWorkspaceReadFileWindowAndMaxBytes(t *testing.T) {
 	if capped.Content != "abc" || !capped.Truncated {
 		t.Fatalf("capped = %+v, want abc with truncated=true", capped)
 	}
+}
+
+func TestWorkspaceReadFileOwnsDefaultAndMaximumByteBudgets(t *testing.T) {
+	dir := t.TempDir()
+	first := strings.Repeat("a", 600<<10)
+	second := strings.Repeat("b", 600<<10)
+	if err := os.WriteFile(filepath.Join(dir, "default.txt"), []byte(first+"\n"+second), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "maximum.txt"), []byte(strings.Repeat("x\n", (9<<20)/2)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := newWorkspaceServer(dir)
+
+	t.Run("default", func(t *testing.T) {
+		defaulted, err := s.ReadWorkspaceFile(t.Context(), protocol.ReadFileRequest{Path: "default.txt"})
+		if err != nil {
+			t.Fatalf("read with default budget: %v", err)
+		}
+		if len(defaulted.Content) > 1<<20 || !defaulted.Truncated {
+			t.Fatalf("default read = {bytes:%d truncated:%t}, want at most 1 MiB and truncated", len(defaulted.Content), defaulted.Truncated)
+		}
+	})
+	t.Run("maximum", func(t *testing.T) {
+		clamped, err := s.ReadWorkspaceFile(t.Context(), protocol.ReadFileRequest{Path: "maximum.txt", MaxBytes: 16 << 20})
+		if err != nil {
+			t.Fatalf("read with oversized budget: %v", err)
+		}
+		if len(clamped.Content) > 8<<20 || !clamped.Truncated {
+			t.Fatalf("maximum read = {bytes:%d truncated:%t}, want at most 8 MiB and truncated", len(clamped.Content), clamped.Truncated)
+		}
+	})
+}
+
+func TestWorkspaceReadFilePreservesCancellationAndClassifiesBinaryText(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "text.txt"), []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "binary.txt"), []byte{'o', 'k', 0xff}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := newWorkspaceServer(dir)
+
+	t.Run("cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := s.ReadWorkspaceFile(ctx, protocol.ReadFileRequest{Path: "text.txt"}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("pre-canceled read error = %v, want context.Canceled", err)
+		}
+	})
+	t.Run("binary", func(t *testing.T) {
+		if _, err := s.ReadWorkspaceFile(t.Context(), protocol.ReadFileRequest{Path: "binary.txt"}); !errors.Is(err, protocol.ErrUnsupportedMime) {
+			t.Fatalf("binary read error = %v, want unsupported_mime", err)
+		}
+	})
 }
 
 func TestWorkspaceReadFileRejectsInvalidRange(t *testing.T) {
