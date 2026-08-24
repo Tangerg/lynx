@@ -131,25 +131,42 @@ func TestHostCloseAdvancesPastCompletedCloserError(t *testing.T) {
 }
 
 func TestHostCloseDoesNotCloseDependenciesAfterComponentJoinTimeout(t *testing.T) {
-	toolClosed := false
+	releaseComponent := make(chan struct{})
+	toolClosed := make(chan struct{})
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
 		runCoordinator: shutdownFunc{
 			wait: func(ctx context.Context) error {
-				<-ctx.Done()
-				return ctx.Err()
+				select {
+				case <-releaseComponent:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			},
 		},
 		toolResources: terminalClosers([]func() error{func() error {
-			toolClosed = true
+			close(toolClosed)
 			return nil
 		}}),
 	}}
 	if err := host.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Close error = %v, want deadline exceeded", err)
 	}
-	if toolClosed {
+	select {
+	case <-toolClosed:
 		t.Fatal("tool dependency closed despite an unjoined component")
+	default:
+	}
+
+	// A failed Open does not return the Host, so no external caller exists to
+	// issue another Close. The Host generation itself must retain this graph and
+	// advance once the component finishes after the caller's wait deadline.
+	close(releaseComponent)
+	select {
+	case <-toolClosed:
+	case <-time.After(time.Second):
+		t.Fatal("Host abandoned its dependent resource graph after caller timeout")
 	}
 }
 
