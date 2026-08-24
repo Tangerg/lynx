@@ -55,3 +55,62 @@ func TestShell_Timeout(t *testing.T) {
 		t.Fatalf("TimedOut = false, err=%v", got.Err)
 	}
 }
+
+func TestShellBoundsCommandOutputAndRejectsMalformedDecision(t *testing.T) {
+	t.Run("oversized stdout", func(t *testing.T) {
+		got := Shell{}.RunHookCommand(t.Context(), apphooks.CommandRequest{
+			Command: `printf '{"injectContext":"'; head -c 70000 /dev/zero | tr '\000' x; printf '"}'`,
+			Timeout: time.Second,
+		})
+		if got.Err == nil {
+			t.Fatal("oversized hook stdout was accepted")
+		}
+		if got.Decision.InjectContext != "" {
+			t.Fatalf("oversized stdout reached the decision: %d bytes", len(got.Decision.InjectContext))
+		}
+	})
+
+	t.Run("bounded stderr", func(t *testing.T) {
+		got := Shell{}.RunHookCommand(t.Context(), apphooks.CommandRequest{
+			Command: `head -c 70000 /dev/zero | tr '\000' x >&2`,
+			Timeout: time.Second,
+		})
+		if len(got.Stderr) > 64<<10 {
+			t.Fatalf("hook stderr retained %d bytes, want at most 64 KiB", len(got.Stderr))
+		}
+	})
+
+	for _, output := range []string{
+		`not-json`,
+		`{"decision":"unknown"}`,
+		`{"decision":"deny"} {"decision":"allow"}`,
+	} {
+		t.Run(output, func(t *testing.T) {
+			got := Shell{}.RunHookCommand(t.Context(), apphooks.CommandRequest{
+				Command: `printf '%s' ` + shellSingleQuote(output),
+				Timeout: time.Second,
+			})
+			if got.Err == nil {
+				t.Fatalf("malformed hook decision %q was silently accepted", output)
+			}
+		})
+	}
+}
+
+func TestShellTimeoutKillsDescendantProcessGroup(t *testing.T) {
+	started := time.Now()
+	got := Shell{}.RunHookCommand(t.Context(), apphooks.CommandRequest{
+		Command: `sleep 5 & wait`,
+		Timeout: 40 * time.Millisecond,
+	})
+	if !got.TimedOut {
+		t.Fatalf("TimedOut = false, err=%v", got.Err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("timed-out hook retained a descendant process for %s", elapsed)
+	}
+}
+
+func shellSingleQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
