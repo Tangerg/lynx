@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,16 @@ func TestComposePrompt_ProjectMemoryFollowsCWD(t *testing.T) {
 	}
 }
 
+func TestComposePromptReturnsKnowledgeReadFailure(t *testing.T) {
+	failure := errors.New("knowledge document is oversized")
+	_, err := NewWorkingContextComposer(WorkingContextConfig{
+		Knowledge: &stubKnowledgeStore{err: failure},
+	}).composeSystemMessage(t.Context(), "", "/projects/alpha")
+	if !errors.Is(err, failure) {
+		t.Fatalf("composeSystemMessage error = %v, want knowledge read failure", err)
+	}
+}
+
 func TestComposePromptPlacesCuratedMemoryBelowHumanProjectKnowledge(t *testing.T) {
 	store := &stubKnowledgeStore{home: "global", cwd: "human workspace rule"}
 	memory := stubAgentMemory{content: "agent learned fact"}
@@ -131,6 +142,7 @@ type stubKnowledgeStore struct {
 	projectRoot  string
 	cwd          string
 	workspaceDir string
+	err          error
 }
 
 type stubAgentMemory struct{ content string }
@@ -145,6 +157,9 @@ func (s stubAgentMemory) Items(_ context.Context, scope agentmemory.Scope, _ str
 
 func (s *stubKnowledgeStore) Entries(_ context.Context, cwd string) ([]knowledge.Entry, error) {
 	s.workspaceDir = cwd
+	if s.err != nil {
+		return nil, s.err
+	}
 	entries := make([]knowledge.Entry, 0, 3)
 	if s.home != "" {
 		entries = append(entries, knowledge.Entry{Scope: knowledge.ScopeHome, Path: "/home/.lyra/LYRA.md", Content: s.home})
