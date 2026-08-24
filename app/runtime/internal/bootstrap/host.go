@@ -33,6 +33,7 @@ type hostLifetime struct {
 	runEffectTasks      taskOwner
 	toolResources       []*teardown.Step
 	hostResources       []*teardown.Step
+	resourceGraph       *teardown.Sequence
 }
 
 type shutdownComponent interface {
@@ -49,10 +50,11 @@ const hostShutdownTimeout = 10 * time.Second
 
 // Close shuts the assembled application tier down in reverse dependency order
 // (§10.3). It first broadcasts cancellation to every task-owning component,
-// then joins them under one Host-owned deadline. A timeout leaves the graph in
-// its stopping phase: a later Close gets a new caller-owned shutdown budget and
-// resumes the same in-flight teardown before closing dependent resources.
-// Idempotent across Host copies once the graph has fully closed.
+// then joins them under one Host-owned deadline. A component timeout leaves the
+// graph in its stopping phase for a later Close budget. Once terminal resource
+// teardown starts, its Sequence runs the whole reverse graph to completion past
+// caller timeout; later Close calls only join that generation. Idempotent across
+// Host copies once the graph has fully closed.
 func (h *Host) Close() error {
 	if h == nil || h.lifetime == nil {
 		return nil
@@ -112,21 +114,21 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 			return err
 		}
 	}
-	var diagnostics []error
-	var resourceErr error
-	lifetime.toolResources, resourceErr = closePendingResources(shutdownCtx, lifetime.toolResources)
-	diagnostics = append(diagnostics, resourceErr)
-	if len(lifetime.toolResources) != 0 {
-		// The unfinished step and every dependency below it remain owned by the
-		// Host. A later Close resumes that exact graph; settled diagnostics do not
-		// keep an already-terminal resource alive.
-		return errors.Join(diagnostics...)
+	if lifetime.resourceGraph == nil {
+		// host resources are acquired before tool resources; concatenating them
+		// in creation order lets the Sequence own the whole reverse dependency
+		// graph in one self-continuing generation.
+		steps := make([]*teardown.Step, 0, len(lifetime.hostResources)+len(lifetime.toolResources))
+		steps = append(steps, lifetime.hostResources...)
+		steps = append(steps, lifetime.toolResources...)
+		lifetime.resourceGraph = teardown.NewSequence(steps)
 	}
-	lifetime.hostResources, resourceErr = closePendingResources(shutdownCtx, lifetime.hostResources)
-	diagnostics = append(diagnostics, resourceErr)
-	if len(lifetime.hostResources) != 0 {
-		return errors.Join(diagnostics...)
+	settled, resourceErr := lifetime.resourceGraph.Shutdown(shutdownCtx)
+	if !settled {
+		return resourceErr
 	}
+	lifetime.toolResources = nil
+	lifetime.hostResources = nil
 	lifetime.closed = true
-	return errors.Join(diagnostics...)
+	return resourceErr
 }

@@ -71,9 +71,10 @@ func newAssembly(
 	}
 }
 
-// BuildAssembly constructs and returns a complete Host. On failure it performs
-// one rollback attempt and returns nil; CloseAssembly retains any unfinished
-// rollback for a later caller-owned attempt.
+// BuildAssembly constructs and returns a complete Host. On failure it begins a
+// bounded rollback and returns nil. Once terminal resource teardown starts, its
+// Sequence continues the reverse graph after caller timeout; Assembly retains
+// any not-yet-joined component phase for CloseAssembly.
 func BuildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if a == nil {
 		return nil, errors.New("runtime: nil Assembly")

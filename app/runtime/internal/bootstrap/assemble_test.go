@@ -324,62 +324,6 @@ func TestAssemblyFailureRollbackContinuesAfterCloseTimeout(t *testing.T) {
 	}
 }
 
-func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
-	cfg := runtimeConfigWithRequiredDeps(t)
-	// Fail after tools exist, then make the last tool closer fail once. The
-	// Assembly must retain the same shutdown step so a retry continues the
-	// dependency-ordered teardown instead of silently abandoning it.
-	cfg.BuildID = "dev"
-	closeErr := errors.New("tool close")
-	var attempts, resourceClosed atomic.Int32
-	cfg.Resources = []TerminalResource{closerFunc(func() error {
-		resourceClosed.Add(1)
-		return nil
-	})}
-
-	assembly := newAssembly(t.Context(), cfg, func(
-		ctx context.Context,
-		deps toolEnvironmentDependencies,
-	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, deps)
-		if err != nil {
-			return toolEnvironment{}, err
-		}
-		toolRuntime.closers = append(toolRuntime.closers, teardown.Retryable(func(context.Context) error {
-			if attempts.Add(1) == 1 {
-				return closeErr
-			}
-			return nil
-		}))
-		return toolRuntime, nil
-	})
-	failedHost, err := BuildAssembly(t.Context(), assembly)
-	if err == nil || !strings.Contains(err.Error(), "build ID") || !errors.Is(err, closeErr) {
-		t.Fatalf("assemble error = %v, want joined engine and tool-close errors", err)
-	}
-	if failedHost != nil {
-		t.Fatal("failed Build returned a Host")
-	}
-	if assembly.lifetime == nil {
-		t.Fatal("failed Assembly lost ownership of incomplete tool teardown")
-	}
-	if got := attempts.Load(); got != 1 {
-		t.Fatalf("tool close attempts after assemble = %d, want 1", got)
-	}
-	if got := resourceClosed.Load(); got != 0 {
-		t.Fatalf("resource closer calls before rollback completes = %d, want 0", got)
-	}
-	if err := CloseAssembly(assembly); err != nil {
-		t.Fatalf("retry Assembly.Close: %v", err)
-	}
-	if got := attempts.Load(); got != 2 {
-		t.Fatalf("tool close attempts after retry = %d, want 2", got)
-	}
-	if got := resourceClosed.Load(); got != 1 {
-		t.Fatalf("resource closer calls after retry = %d, want 1", got)
-	}
-}
-
 func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	var toolClosed atomic.Int32

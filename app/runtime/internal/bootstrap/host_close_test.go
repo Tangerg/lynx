@@ -12,26 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 )
 
-func TestClosePendingResourcesPreservesDependenciesAfterFailure(t *testing.T) {
-	firstErr := errors.New("first")
-	lastErr := errors.New("last")
-	var calls []int
-	pending, err := closePendingResources(t.Context(), []*teardown.Step{
-		teardown.Retryable(func(context.Context) error { calls = append(calls, 1); return firstErr }),
-		nil,
-		teardown.Retryable(func(context.Context) error { calls = append(calls, 3); return lastErr }),
-	})
-	if !errors.Is(err, lastErr) || errors.Is(err, firstErr) {
-		t.Fatalf("closePendingResources err = %v, want only the first reverse-order failure", err)
-	}
-	if !slices.Equal(calls, []int{3}) {
-		t.Fatalf("calls = %v, want [3]", calls)
-	}
-	if len(pending) != 3 || pending[0] == nil || pending[1] != nil || pending[2] == nil {
-		t.Fatalf("pending = %v, want the unresolved creation-order prefix", pending)
-	}
-}
-
 func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 	var (
 		mu    sync.Mutex
@@ -111,49 +91,6 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 	}
 	if !slices.Equal(calls, wantCalls) {
 		t.Fatalf("close calls = %v, want %v", calls, wantCalls)
-	}
-}
-
-func TestHostCloseRetriesOnlyUnclosedDependencies(t *testing.T) {
-	toolErr := errors.New("tool close")
-	resourceErr := errors.New("resource close")
-	var toolCalls, resourceCalls, successfulCalls int
-	host := Host{lifetime: &hostLifetime{
-		toolResources: []*teardown.Step{
-			teardown.Retryable(func(context.Context) error { successfulCalls++; return nil }),
-			teardown.Retryable(func(context.Context) error {
-				toolCalls++
-				if toolCalls == 1 {
-					return toolErr
-				}
-				return nil
-			}),
-		},
-		hostResources: []*teardown.Step{teardown.Retryable(func(context.Context) error {
-			resourceCalls++
-			if resourceCalls == 1 {
-				return resourceErr
-			}
-			return nil
-		})},
-	}}
-	if err := host.Close(); !errors.Is(err, toolErr) || errors.Is(err, resourceErr) {
-		t.Fatalf("first Close error = %v, want tool dependency error only", err)
-	}
-	if successfulCalls != 0 || toolCalls != 1 || resourceCalls != 0 {
-		t.Fatalf("first close calls = success:%d tool:%d resource:%d", successfulCalls, toolCalls, resourceCalls)
-	}
-	if err := host.Close(); !errors.Is(err, resourceErr) {
-		t.Fatalf("second Close error = %v, want resource error", err)
-	}
-	if successfulCalls != 1 || toolCalls != 2 || resourceCalls != 1 {
-		t.Fatalf("second close calls = success:%d tool:%d resource:%d", successfulCalls, toolCalls, resourceCalls)
-	}
-	if err := host.Close(); err != nil {
-		t.Fatalf("third Close: %v", err)
-	}
-	if successfulCalls != 1 || toolCalls != 2 || resourceCalls != 2 {
-		t.Fatalf("retry close replayed closed dependency: success:%d tool:%d resource:%d", successfulCalls, toolCalls, resourceCalls)
 	}
 }
 
@@ -248,40 +185,6 @@ func TestHostCloseRetriesDrainAfterTimeout(t *testing.T) {
 	}
 	if stops != 1 || closed != 1 {
 		t.Fatalf("after retry close: stops=%d closed=%d, want 1/1", stops, closed)
-	}
-}
-
-func TestHostCloseBoundsAndRetriesContextAwareResource(t *testing.T) {
-	var (
-		attempts int
-		ready    bool
-	)
-	firstAttemptDone := make(chan struct{})
-	host := Host{lifetime: &hostLifetime{
-		shutdownTimeout: time.Millisecond,
-		hostResources: []*teardown.Step{teardown.Retryable(func(ctx context.Context) error {
-			attempts++
-			if ready {
-				return nil
-			}
-			<-ctx.Done()
-			close(firstAttemptDone)
-			return ctx.Err()
-		})},
-	}}
-	if err := host.Close(); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("first Close error = %v, want deadline exceeded", err)
-	}
-	<-firstAttemptDone
-	if attempts != 1 {
-		t.Fatalf("resource shutdown attempts = %d, want 1", attempts)
-	}
-	ready = true
-	if err := host.Close(); err != nil {
-		t.Fatalf("retry Close: %v", err)
-	}
-	if attempts != 2 {
-		t.Fatalf("resource shutdown attempts = %d, want 2", attempts)
 	}
 }
 

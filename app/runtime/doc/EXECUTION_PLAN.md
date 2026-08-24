@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P149 已完成；下一阶段待独立准入。
+> 状态：P0–P150 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P149 已完成。
+> 最近基线：2026-08-24，P150 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,12 +15,16 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P150 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先红例模拟真实 OpenInstance contract：Assembly 在取得 tools 与 host resource 后构造失败，两次有界 rollback 都在同一个 terminal closer 上 timeout；closer 随即完成，但旧图一秒内仍未关闭其依赖，因为失败 Open 不返回可供第三次 Close 的 Host/Assembly owner。
+- 唯一修复 owner 是 Infra terminal Sequence + Bootstrap hostLifetime resource graph。先取得的 host resources 与后取得的 tool resources 按 creation order 一次性交给 Sequence；它只启动一个 `context.WithoutCancel` 的逆序 generation，caller deadline 仅限制等待。失败 Open 返回后图仍自行完成，后续 Close 只 join immutable result。P149 已证明生产树没有真正 retryable resource，因此同批删除 Retryable、settlement 双态、失败前缀切片及其 test-only consumers，而不是保留未来抽象。
+- 对 app2 的裁决：完整采纳 open-guard 的 acquisition/transfer 可审计性，但补上 app2 没有表达的“失败 constructor 不返回 cleanup handle 时，图本身必须继续拥有迟到 close”的约束。保留原 Runtime 的 reverse dependency、caller deadline、并发 Host copy、component/subsystem owner 与诊断聚合；拒绝 Stop-only facade、fire-and-forget retry loop、第二清理图和 cached error replay。
+- Runtime/Desktop 全量 test、vet、build、Go 1.27-compatible Staticcheck、full race 与 standalone module 门禁全绿；根 workspace tests、Runtime generator 零漂移和 Wails v3 production build 通过。修复阶段相对已提交红例基线净减 239 行 Go（含测试），P150 连同红例相对 P149 净减 192 行；临时 Staticcheck 已回收，未启动 agent-browser；Protocol、Artifact、SQLite、生成合同、公共 Go API 与 Desktop source 均未改变。
 - P149 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例使用与 MCP SDK 相同的 one-shot closer：底层 close action 返回诊断后已被消费，旧 Connections 却仍在 ledger 保留 session，下一次 `Shutdown` 只能重放同一错误而无法推进释放。
-- 唯一修复 owner 是 MCP Connections ownership ledger + Bootstrap teardown classification。session close attempt 完成后无论诊断都退出资源 ledger，异步 Detach 只把 attempt/diagnostic 留到 `Shutdown` 汇总；加入该 generation 的 caller 仍得到错误，后续 `Shutdown` 是幂等 no-op。Bootstrap MCP pool 从 `Retryable` 改为 `Terminal`，内部 action 以 `context.WithoutCancel` 跑到真实终态，有界等待与超时续 join 由 Step 拥有；当前生产资源没有 retryable step，该原语只为“动作返回后仍有未关闭资源且下一代能执行新底层清理”的未来 owner 保留。
+- 唯一修复 owner 是 MCP Connections ownership ledger + Bootstrap teardown classification。session close attempt 完成后无论诊断都退出资源 ledger，异步 Detach 只把 attempt/diagnostic 留到 `Shutdown` 汇总；加入该 generation 的 caller 仍得到错误，后续 `Shutdown` 是幂等 no-op。Bootstrap MCP pool 从 `Retryable` 改为 terminal，内部 action 以 `context.WithoutCancel` 跑到真实终态；P150 随后把 caller wait 提升到整张 terminal Sequence 并删除已失去生产消费者的 Retryable 原语。
 - 对 app2 的裁决：继续采纳 acquisition 立即登记、single transfer 与失败逆序释放的 owner ledger；本批同时纠正 P148 因只观察 Runtime 自有 map、没有下钻 SDK 终止合同而形成的假 retryable。保留有界 Close、generation join 与 teardown diagnostic，拒绝后台循环、重复 SDK Close、第二清理图或用 map 存活代替真实资源状态。
 - Runtime/Desktop 全量 test、vet、build、Go 1.27-compatible Staticcheck、full race 与 standalone module 门禁全绿；根 workspace tests、Runtime generator 零漂移和 Wails v3 production build 通过。临时 Staticcheck 已回收，未启动 agent-browser；Protocol、Artifact、SQLite、生成合同、公共 Go API 与 Desktop source 均未改变。
 - P148 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例使用与生产 A2A/LSP/Shell/SQLite 相同的 `sync.Once` close 语义：第一次 Close 已到 terminal 但返回诊断后，旧 Host 把它当作 unfinished，既不关闭下一层 Store，也在以后每次 Close 永久回放同一错误。
-- 唯一修复 owner 是 Infra teardown settlement + Bootstrap shutdown graph。Step 现在显式分为 `Terminal` 与 `Retryable`，Shutdown 同时返回 settled 与 diagnostic；terminal error 只报告但继续逆序关闭依赖。P148 对 MCP ledger 的暂定 retryable 分类已由 P149 按 SDK 真实合同纠正；Config breaking 地只接收 one-shot `TerminalResource.Close`，SQLite Bundle 的伪 context-aware Shutdown adapter 与对应测试已删除；超时在途 closer 仍由同一 step 持有并在后续 Close join，不新增后台重试或第二清理图。
+- 唯一修复 owner 是 Infra teardown settlement + Bootstrap shutdown graph。P148 先显式区分 Terminal/Retryable 与 settled/diagnostic，让 terminal error 继续逆序关闭依赖；MCP 的暂定 retryable 分类由 P149 按 SDK 合同纠正，失去生产消费者的 Retryable/settlement 双态再由 P150 删除。Config breaking 地只接收 one-shot `TerminalResource.Close`，SQLite Bundle 的伪 context-aware Shutdown adapter 与对应测试已删除；不新增后台重试或第二清理图。
 - 对 app2 的裁决：采纳其 composition open-guard 对“获取即登记、失败逆序释放”的结构化提醒，并补足其没有表达 retryable/terminal settlement 的缺口；保留原 Runtime 的有界 Close、并发 Host copy、MCP session ledger 和完整生命周期测试，拒绝复制 app2 的简化 Stop-only facade、opaque resource bag 或吞掉 teardown 诊断。
 - P147 已完成：按用户明确要求，`app/runtime/go.mod`、`app/desktop/go.mod` 与 Desktop 隔离 `go.work` 已统一为 Go `1.27.0`，Runtime public embedded 外部消费者编译夹具同步使用同一语言版本。Go 1.27 的 `tidy` 结果一次性规范化 Runtime direct/indirect dependency 分组，没有升级依赖版本或建立兼容路径。
 - 根 workspace 的真实红例证明仅提升两个 module 会被旧 `go.work 1.26.5` 拒绝，因此根 `go.work` 只同步一行最低版本以保持默认仓库入口可构建；这不是修改 `app/cli` module，CLI 的源码、`go.mod` 与暂存区均保持零差异。Protocol、Artifact、SQLite、生成合同、公共 Go API 与运行时行为均未改变。
@@ -330,14 +334,15 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P147     | Runtime/Desktop Go 1.27 工具链统一                                                                           | 两个 module、Desktop standalone workspace、Runtime external-consumer fixture 与根 workspace coordinator 切换 1.27.0；1.27-compatible Staticcheck、full race 与 production build 封板        |
 | P148     | Bootstrap teardown settlement 闭环                                                                          | terminal one-shot Close 与真正 retryable Shutdown 显式分型；诊断不再冒充未完成状态，Host 可继续逆序释放依赖并只保留真实 unfinished step                                                    |
 | P149     | MCP teardown 终止合同纠偏                                                                                   | SDK 已消费的 ClientSession close error 退出 ownership ledger；当代 caller 保留诊断、后续 Shutdown 幂等，Bootstrap 不再声明伪 retryable                                                     |
+| P150     | 失败 Open terminal resource graph 所有权闭环                                                                | host/tool steps 进入唯一自驱 reverse Sequence；caller timeout 不取消图，失败 constructor 无 cleanup handle 仍完成依赖释放；删除 test-only Retryable 双态                                    |
 
 ## 5. 当前里程碑结论
 
-P113–P149 共同建立了以下不可回退的心智模型：
+P113–P150 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
-- Runtime shutdown 的 settlement 与 diagnostic 正交：one-shot Close 返回即 terminal，带错仍继续释放依赖；只有真实保留未关闭资源且下一代调用能取得进展的 owner 才可 retry，超时在途 operation 由原 step 继续持有。
+- Runtime resource shutdown 只接受 one-shot terminal action；diagnostic 不改变 settlement。一个 creation-ordered Sequence 独占 reverse graph，caller timeout 不取消它，失败 constructor 即使不返回 cleanup handle 也不会丢 owner；需要多 generation 推进的 subsystem 只能在自己的 ledger 内表达。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
