@@ -32,6 +32,16 @@ func (t *readTracker) refresh(session, path string, fingerprint contentFingerpri
 	t.put(session, path, readStamp{hash: fingerprint})
 }
 
+func (t *readTracker) forget(session, path string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	paths := t.seen[session]
+	delete(paths, path)
+	if len(paths) == 0 {
+		delete(t.seen, session)
+	}
+}
+
 func (t *readTracker) check(session, path string, current contentFingerprint) guardVerdict {
 	st, ok := t.get(session, path)
 	if !ok {

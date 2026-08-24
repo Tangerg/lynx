@@ -82,6 +82,8 @@ P166 收紧现有 `agentDocs.list` / fresh Run AGENTS.md 与 `recipes.list` 的 
 
 P167 收紧既有 Workspace VCS read semantics，不改变 wire shape。`workspace.changes.list` 的完整 catalog 最多 10,000 项；`workspace.diff.get` structured 结果最多 5,000 个完整文件、默认/最高 5,000 行与 64 MiB retained string material，`limit=0` 现在明确选择默认 5,000 行，超过预算只在完整文件边界返回 `truncated=true`，第一文件与 binary/zero-row 文件没有例外。Raw diff aggregate 最多 64 MiB，超界 changes/raw/process output 投影既有 `invalid_params` 并要求缩小 workspace/path；Git-backed workspace file listing 的既有 20,000-entry 合同现在在保留第 20,001 个 path 前失败。所有 Git stdout 限 64 MiB、stderr 只保留 64 KiB prefix 且继续 drain，watch fingerprint 有 10 秒 lifetime；external diff/textconv/pager 不参与事实生成，untracked symlink 不跟随 referent，binary 与 quoted path 保持无损。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P168 收紧既有 model-facing `read`/`apply_patch` 内部 Tool semantics，不改变 tool definition 或 wire shape。read-before-mutation stamp 现在对完整 regular file 做 cancellation-aware streaming SHA-256；删除撤销 stamp，创建/修改刷新 stamp，fingerprint 失败不再跳过 guard。Auto-format 只处理最多 8 MiB 的完整 input/output；Go/JSON 在进程内完成，Prettier 通过 stdin/stdout 运行且 stderr 只保留 64 KiB prefix 并继续 drain，只有验证成功后才 atomic replace。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

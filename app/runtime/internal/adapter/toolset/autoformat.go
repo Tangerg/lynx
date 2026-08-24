@@ -6,13 +6,24 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/format"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
+
+const (
+	maxAutoFormatFileBytes       int64 = 8 << 20
+	maxAutoFormatDiagnosticBytes       = 64 << 10
+	autoFormatProcessWaitDelay         = time.Second
+)
+
+var errAutoFormatFileTooLarge = errors.New("auto-format: file exceeds the 8 MiB limit")
 
 func withAutoFormat(inner toolcontract.Tool, cwd string) toolcontract.Tool {
 	return decorateCall(inner, func(ctx context.Context, arguments string) (string, error) {
@@ -48,56 +59,169 @@ func formatPath(ctx context.Context, path string) error {
 	if info.IsDir() {
 		return nil
 	}
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".go":
-		return runFormatter(ctx, "gofmt", "-w", path)
-	case ".json":
-		if err := formatJSON(path, info.Mode().Perm()); err != nil {
-			return fmt.Errorf("%s: %w", path, err)
-		}
-		return nil
+	extension := strings.ToLower(filepath.Ext(path))
+	prettier := ""
+	switch extension {
+	case ".go", ".json":
 	case ".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".html", ".md", ".yaml", ".yml":
-		if _, err := exec.LookPath("prettier"); err != nil {
+		prettier, err = exec.LookPath("prettier")
+		if err != nil {
 			return nil
 		}
-		return runFormatter(ctx, "prettier", "--write", path)
 	default:
 		return nil
 	}
-}
 
-func runFormatter(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
+	input, err := readAutoFormatFile(ctx, path)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	var formatted []byte
+	switch extension {
+	case ".go":
+		formatted, err = format.Source(input)
+		if err != nil {
+			return fmt.Errorf("%s: gofmt: %w", path, err)
+		}
+	case ".json":
+		if !json.Valid(input) {
+			return nil
+		}
+		var buffer bytes.Buffer
+		if err := json.Indent(&buffer, input, "", "  "); err != nil {
+			return nil
+		}
+		buffer.WriteByte('\n')
+		formatted = buffer.Bytes()
+	default:
+		formatted, err = runFormatter(ctx, input, prettier, "--stdin-filepath", path)
+		if err != nil {
+			return err
+		}
+	}
+	if len(formatted) > int(maxAutoFormatFileBytes) {
+		return fmt.Errorf("%s: %w: formatted output uses %d bytes", path, errAutoFormatFileTooLarge, len(formatted))
+	}
+	if err := context.Cause(ctx); err != nil {
+		return err
+	}
+	if bytes.Equal(input, formatted) {
 		return nil
 	}
-	msg := strings.TrimSpace(string(out))
+	return writeFormattedFile(path, formatted, info.Mode().Perm())
+}
+
+func runFormatter(ctx context.Context, input []byte, name string, args ...string) ([]byte, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, name, args...)
+	stdout := &formatOutputBuffer{limit: int(maxAutoFormatFileBytes)}
+	stderr := &formatOutputBuffer{limit: maxAutoFormatDiagnosticBytes}
+	cmd.Stdin = bytes.NewReader(input)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	cmd.WaitDelay = autoFormatProcessWaitDelay
+	runErr := cmd.Run()
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
 	target := name
 	if len(args) > 0 {
 		target = args[len(args)-1]
 	}
-	if msg == "" {
-		return fmt.Errorf("%s: run %s: %w", target, name, err)
+	if stdout.overflow {
+		return nil, fmt.Errorf("%s: %s output exceeds 8 MiB", target, name)
 	}
-	return fmt.Errorf("%s: %s: %w", target, msg, err)
+	if runErr == nil && !stderr.overflow {
+		return bytes.Clone(stdout.Bytes()), nil
+	}
+	msg := strings.TrimSpace(stderr.String())
+	if msg == "" {
+		if runErr == nil {
+			return nil, fmt.Errorf("%s: %s diagnostic output was truncated", target, name)
+		}
+		return nil, fmt.Errorf("%s: run %s: %w", target, name, runErr)
+	}
+	if runErr == nil {
+		return nil, fmt.Errorf("%s: %s", target, msg)
+	}
+	return nil, fmt.Errorf("%s: %s: %w", target, msg, runErr)
 }
 
-func formatJSON(path string, mode os.FileMode) error {
-	data, err := os.ReadFile(path)
+func readAutoFormatFile(ctx context.Context, path string) (_ []byte, err error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return nil, cause
+	}
+	file, err := os.Open(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if !json.Valid(data) {
-		return nil
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
 	}
-	var buf bytes.Buffer
-	if err := json.Indent(&buf, data, "", "  "); err != nil {
-		return nil
+	if info.Size() > maxAutoFormatFileBytes {
+		return nil, fmt.Errorf("%w: file uses %d bytes", errAutoFormatFileTooLarge, info.Size())
 	}
-	buf.WriteByte('\n')
-	return writeFormattedFile(path, buf.Bytes(), mode)
+	content, err := io.ReadAll(io.LimitReader(
+		autoFormatContextReader{ctx: ctx, reader: file},
+		maxAutoFormatFileBytes+1,
+	))
+	if err != nil {
+		return nil, err
+	}
+	if len(content) > int(maxAutoFormatFileBytes) {
+		return nil, fmt.Errorf("%w: file grew while reading", errAutoFormatFileTooLarge)
+	}
+	return content, nil
 }
+
+type autoFormatContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader autoFormatContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(reader.ctx); cause != nil {
+		return 0, cause
+	}
+	read, err := reader.reader.Read(buffer)
+	if cause := context.Cause(reader.ctx); cause != nil {
+		return read, cause
+	}
+	return read, err
+}
+
+type formatOutputBuffer struct {
+	buffer   bytes.Buffer
+	limit    int
+	overflow bool
+}
+
+func (buffer *formatOutputBuffer) Write(value []byte) (int, error) {
+	written := len(value)
+	remaining := buffer.limit - buffer.buffer.Len()
+	if remaining > 0 {
+		_, _ = buffer.buffer.Write(value[:min(len(value), remaining)])
+	}
+	if len(value) > remaining {
+		buffer.overflow = true
+	}
+	return written, nil
+}
+
+func (buffer *formatOutputBuffer) String() string {
+	if buffer.overflow {
+		return buffer.buffer.String() + "\n... [formatter diagnostic truncated] ..."
+	}
+	return buffer.buffer.String()
+}
+
+func (buffer *formatOutputBuffer) Bytes() []byte { return buffer.buffer.Bytes() }
 
 func writeFormattedFile(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

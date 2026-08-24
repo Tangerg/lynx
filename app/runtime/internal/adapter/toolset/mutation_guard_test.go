@@ -3,6 +3,7 @@ package toolset
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -232,6 +233,18 @@ func TestMutationGuardForgetsDeletedFileBeforeExternalRecreation(t *testing.T) {
 	}
 	if got, err := os.ReadFile(path); err != nil || string(got) != before {
 		t.Fatalf("recreated file = %q, %v; mutation reused a deleted resource stamp", got, err)
+	}
+}
+
+func TestFingerprintFilePreservesCancellation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "file.txt")
+	if err := os.WriteFile(path, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := fingerprintFile(ctx, path); !errors.Is(err, context.Canceled) {
+		t.Fatalf("fingerprintFile error = %v, want context.Canceled", err)
 	}
 }
 

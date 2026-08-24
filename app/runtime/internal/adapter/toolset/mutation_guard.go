@@ -2,8 +2,11 @@ package toolset
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -38,9 +41,15 @@ func withReadTracking(inner toolcontract.Tool, tr *readTracker, cwd string) tool
 			if pathErr != nil {
 				return out, fmt.Errorf("track read path: %w", pathErr)
 			}
-			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.record(executionctx.SessionID(ctx), abs, fingerprint)
+			fingerprint, exists, err := fingerprintExistingFile(ctx, abs)
+			if err != nil {
+				return out, fmt.Errorf("track read %s: %w", a.Path, err)
 			}
+			if !exists {
+				tr.forget(executionctx.SessionID(ctx), abs)
+				return out, fmt.Errorf("track read %s: file no longer exists", a.Path)
+			}
+			tr.record(executionctx.SessionID(ctx), abs, fingerprint)
 		}
 		return out, nil
 	})
@@ -62,11 +71,11 @@ func withMutationGuard(inner toolcontract.Tool, tr *readTracker, cwd string) too
 			if err != nil {
 				return "", fmt.Errorf("resolve mutation path: %w", err)
 			}
-			if !isExistingFile(abs) {
-				continue
-			}
-			fingerprint, err := fingerprintFile(abs)
+			fingerprint, exists, err := fingerprintExistingFile(ctx, abs)
 			if err != nil {
+				return "", fmt.Errorf("fingerprint mutation path %s: %w", path, err)
+			}
+			if !exists {
 				continue
 			}
 			if verdict := tr.check(executionctx.SessionID(ctx), abs, fingerprint); !verdict.allowed() {
@@ -82,9 +91,16 @@ func withMutationGuard(inner toolcontract.Tool, tr *readTracker, cwd string) too
 			if err != nil {
 				return out, fmt.Errorf("refresh mutation path: %w", err)
 			}
-			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.refresh(executionctx.SessionID(ctx), abs, fingerprint)
+			fingerprint, exists, fingerprintErr := fingerprintExistingFile(ctx, abs)
+			if fingerprintErr != nil {
+				tr.forget(executionctx.SessionID(ctx), abs)
+				return out, fmt.Errorf("refresh mutation path %s: %w", path, fingerprintErr)
 			}
+			if !exists {
+				tr.forget(executionctx.SessionID(ctx), abs)
+				continue
+			}
+			tr.refresh(executionctx.SessionID(ctx), abs, fingerprint)
 		}
 		return out, nil
 	})
@@ -101,17 +117,56 @@ func mutationGuardMessage(verdict guardVerdict, path string) string {
 	}
 }
 
-func fingerprintFile(path string) (contentFingerprint, error) {
-	content, err := os.ReadFile(path)
+func fingerprintExistingFile(ctx context.Context, path string) (contentFingerprint, bool, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return contentFingerprint{}, false, nil
+	}
+	if err != nil {
+		return contentFingerprint{}, false, err
+	}
+	if !info.Mode().IsRegular() {
+		return contentFingerprint{}, false, fmt.Errorf("unsupported file mode %s", info.Mode().Type())
+	}
+	fingerprint, err := fingerprintFile(ctx, path)
+	return fingerprint, true, err
+}
+
+func fingerprintFile(ctx context.Context, path string) (_ contentFingerprint, err error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return contentFingerprint{}, cause
+	}
+	file, err := os.Open(path)
 	if err != nil {
 		return contentFingerprint{}, err
 	}
-	return fingerprintOf(content), nil
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+	hash := sha256.New()
+	buffer := make([]byte, 64<<10)
+	if _, err := io.CopyBuffer(hash, fingerprintContextReader{ctx: ctx, reader: file}, buffer); err != nil {
+		return contentFingerprint{}, err
+	}
+	var fingerprint contentFingerprint
+	copy(fingerprint[:], hash.Sum(nil))
+	return fingerprint, nil
 }
 
-func isExistingFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
+type fingerprintContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader fingerprintContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(reader.ctx); cause != nil {
+		return 0, cause
+	}
+	read, err := reader.reader.Read(buffer)
+	if cause := context.Cause(reader.ctx); cause != nil {
+		return read, cause
+	}
+	return read, err
 }
 
 // withMutationDiagnostics wraps a file-mutating tool so a successful change is

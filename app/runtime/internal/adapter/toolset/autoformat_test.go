@@ -3,6 +3,7 @@ package toolset
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,8 +15,8 @@ func TestFormatJSONWritesIndentedFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"b":1,"a":2}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := formatJSON(path, 0o600); err != nil {
-		t.Fatalf("formatJSON: %v", err)
+	if err := formatPath(t.Context(), path); err != nil {
+		t.Fatalf("formatPath: %v", err)
 	}
 	got, err := os.ReadFile(path)
 	if err != nil {
@@ -31,6 +32,24 @@ func TestFormatJSONWritesIndentedFile(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %v, want 0600", info.Mode().Perm())
+	}
+}
+
+func TestFormatGoUsesBoundedInProcessFormatter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.go")
+	if err := os.WriteFile(path, []byte("package main\nfunc main(){println(\"ok\")}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := formatPath(t.Context(), path); err != nil {
+		t.Fatalf("formatPath: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "package main\n\nfunc main() { println(\"ok\") }\n"
+	if string(got) != want {
+		t.Fatalf("formatted Go = %q, want %q", got, want)
 	}
 }
 
@@ -64,8 +83,9 @@ func TestFormatPathRefusesOversizedSupportedFile(t *testing.T) {
 }
 
 func TestRunFormatterBoundsDiagnosticOutput(t *testing.T) {
-	err := runFormatter(
+	_, err := runFormatter(
 		t.Context(),
+		nil,
 		"/bin/sh",
 		"-c",
 		"/usr/bin/yes x | /usr/bin/head -c 131072 >&2; exit 1",
@@ -82,10 +102,24 @@ func TestRunFormatterBoundsDiagnosticOutput(t *testing.T) {
 	}
 }
 
+func TestFormatOutputBufferCannotBypassLimitThroughIOCopy(t *testing.T) {
+	buffer := &formatOutputBuffer{limit: 4}
+	written, err := io.Copy(buffer, strings.NewReader("oversized"))
+	if err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
+	if written != int64(len("oversized")) {
+		t.Fatalf("io.Copy wrote %d bytes, want a full drain", written)
+	}
+	if got := string(buffer.Bytes()); got != "over" || !buffer.overflow {
+		t.Fatalf("buffer = %q, overflow = %t; want bounded drain", got, buffer.overflow)
+	}
+}
+
 func TestRunFormatterPreservesCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	err := runFormatter(ctx, "gofmt", "-w", filepath.Join(t.TempDir(), "file.go"))
+	_, err := runFormatter(ctx, nil, "gofmt", "-w", filepath.Join(t.TempDir(), "file.go"))
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("formatter error = %v, want context.Canceled", err)
 	}
