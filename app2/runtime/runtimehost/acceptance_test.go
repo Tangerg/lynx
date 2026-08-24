@@ -127,6 +127,16 @@ func TestPublicRunLifecycleNormalQuestionApprovalAndDelegation(t *testing.T) {
 				Provider:  "openai-compatible", Model: "test-model",
 			}, meta, "delegation-run", namespace,
 		)
+		if !streamSettledWith(events, ack.RunID, protocol.SegmentCompleted) {
+			run := rpcCallWithMeta[*protocol.RunRef](
+				t, runtime.baseURL, "runs.get", protocol.GetRunRequest{RunID: ack.RunID}, meta,
+			)
+			var problem any
+			if run.Outcome != nil {
+				problem = run.Outcome.Error
+			}
+			t.Fatalf("delegation root did not complete: outcome=%+v problem=%+v events=%+v", run.Outcome, problem, events)
+		}
 		assertCompletedRunStream(t, ack.RunID, events)
 		runs := rpcCallWithMeta[*protocol.Page[protocol.RunRef]](
 			t, runtime.baseURL, "runs.list", protocol.ListRunsRequest{
@@ -1061,6 +1071,7 @@ func rpcRuntimeEvents(
 func assertCompletedRunStream(t *testing.T, runID string, events []protocol.RunEvent) {
 	t.Helper()
 	started, finished := false, false
+	outcomes := make([]protocol.SegmentOutcomeType, 0, 1)
 	for _, event := range events {
 		if event.RunID != runID {
 			continue
@@ -1069,11 +1080,14 @@ func assertCompletedRunStream(t *testing.T, runID string, events []protocol.RunE
 		case protocol.StreamSegmentStarted:
 			started = true
 		case protocol.StreamSegmentFinished:
-			finished = event.Event.Outcome != nil && event.Event.Outcome.Type == protocol.SegmentCompleted
+			if event.Event.Outcome != nil {
+				outcomes = append(outcomes, event.Event.Outcome.Type)
+				finished = event.Event.Outcome.Type == protocol.SegmentCompleted
+			}
 		}
 	}
 	if !started || !finished {
-		t.Fatalf("completed stream flags = started:%v finished:%v events:%+v", started, finished, events)
+		t.Fatalf("completed stream flags = started:%v finished:%v outcomes:%v events:%+v", started, finished, outcomes, events)
 	}
 }
 
@@ -1207,6 +1221,9 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 				} `json:"messages"`
 			}
 			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				if request.Context().Err() != nil {
+					return
+				}
 				t.Errorf("decode model request error = %v", err)
 				http.Error(response, "bad request", http.StatusBadRequest)
 				return
@@ -1218,40 +1235,58 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 				return
 			}
 			toolResultCount := 0
+			scenario := ""
 			for _, message := range body.Messages {
 				if message.Role == "tool" {
 					toolResultCount++
 				}
+				if message.Role != "user" {
+					continue
+				}
+				for _, candidate := range []string{
+					"SCENARIO_CHILD", "SCENARIO_QUESTION", "SCENARIO_APPROVAL", "SCENARIO_DELEGATE",
+					"SCENARIO_PLAN", "SCENARIO_PROPOSE_SKILL", "SCENARIO_REJECT_SKILL",
+					"SCENARIO_LARGE_RESULT", "SCENARIO_PROVIDER_FAILURE",
+				} {
+					if bytes.Contains(message.Content, []byte(candidate)) {
+						scenario = candidate
+					}
+				}
 			}
 			hasToolResult := toolResultCount > 0
 			switch {
-			case strings.Contains(material, "SCENARIO_CHILD"):
+			case scenario == "SCENARIO_CHILD":
+				select {
+				case <-time.After(40 * time.Millisecond):
+				case <-request.Context().Done():
+					return
+				}
 				writeScenarioTextStream(response, "child complete")
-			case strings.Contains(material, "SCENARIO_QUESTION") && !hasToolResult:
+			case scenario == "SCENARIO_QUESTION" && !hasToolResult:
 				writeScenarioToolStream(response, "call-question", "ask_user", `{"fields":[{"prompt":"Pick a color","header":"Color","type":"choice","options":[{"label":"Blue"},{"label":"Green"}]}]}`)
-			case strings.Contains(material, "SCENARIO_QUESTION"):
+			case scenario == "SCENARIO_QUESTION":
 				writeScenarioTextStream(response, "question complete")
-			case strings.Contains(material, "SCENARIO_APPROVAL") && !hasToolResult:
+			case scenario == "SCENARIO_APPROVAL" && !hasToolResult:
 				writeScenarioToolStream(response, "call-shell", "shell", `{"command":"printf r11-approved","description":"Verify approval path"}`)
-			case strings.Contains(material, "SCENARIO_APPROVAL"):
+			case scenario == "SCENARIO_APPROVAL":
 				writeScenarioTextStream(response, "approval complete")
-			case strings.Contains(material, "SCENARIO_DELEGATE") && !hasToolResult:
+			case scenario == "SCENARIO_DELEGATE" && !hasToolResult:
 				writeScenarioToolStream(response, "call-delegate", "delegate_task", `{"summary":"Independent child","instructions":"SCENARIO_CHILD"}`)
-			case strings.Contains(material, "SCENARIO_DELEGATE"):
+			case scenario == "SCENARIO_DELEGATE":
 				writeScenarioTextStream(response, "delegation complete")
-			case strings.Contains(material, "SCENARIO_PLAN") && !hasToolResult:
+			case scenario == "SCENARIO_PLAN" && !hasToolResult:
 				writeScenarioToolStream(response, "call-plan", "set_plan", `{"steps":[{"description":"Inspect architecture","status":"in_progress"},{"description":"Implement cleanly","status":"pending"}]}`)
-			case strings.Contains(material, "SCENARIO_PLAN"):
+			case scenario == "SCENARIO_PLAN":
 				writeScenarioTextStream(response, "plan complete")
-			case strings.Contains(material, "SCENARIO_PROPOSE_SKILL") && !hasToolResult:
+			case scenario == "SCENARIO_PROPOSE_SKILL" && !hasToolResult:
 				writeScenarioToolStream(response, "call-propose-skill", "propose_skill", `{"name":"proposed-skill","description":"A proposed acceptance skill","instructions":"Apply the accepted workflow carefully.","scope":"project"}`)
-			case strings.Contains(material, "SCENARIO_REJECT_SKILL") && !hasToolResult:
+			case scenario == "SCENARIO_REJECT_SKILL" && !hasToolResult:
 				writeScenarioToolStream(response, "call-reject-skill", "propose_skill", `{"name":"rejected-skill","description":"A rejected acceptance skill","instructions":"This proposal should remain inactive.","scope":"project"}`)
-			case strings.Contains(material, "SCENARIO_PROPOSE_SKILL"), strings.Contains(material, "SCENARIO_REJECT_SKILL"):
+			case scenario == "SCENARIO_PROPOSE_SKILL", scenario == "SCENARIO_REJECT_SKILL":
 				writeScenarioTextStream(response, "skill proposal complete")
-			case strings.Contains(material, "SCENARIO_LARGE_RESULT") && toolResultCount == 0:
+			case scenario == "SCENARIO_LARGE_RESULT" && toolResultCount == 0:
 				writeScenarioToolStream(response, "call-large-read", "read", `{"path":"large-result.txt"}`)
-			case strings.Contains(material, "SCENARIO_LARGE_RESULT") && toolResultCount == 1:
+			case scenario == "SCENARIO_LARGE_RESULT" && toolResultCount == 1:
 				resultID := toolResultIDFromMessages(body.Messages)
 				if resultID == "" {
 					t.Errorf("large result preview omitted result_id: %s", material)
@@ -1262,9 +1297,9 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 					"result_id": resultID, "offset_bytes": 16_000, "limit_bytes": 20_000,
 				})
 				writeScenarioToolStream(response, "call-large-result-window", "read_tool_result", string(arguments))
-			case strings.Contains(material, "SCENARIO_LARGE_RESULT"):
+			case scenario == "SCENARIO_LARGE_RESULT":
 				writeScenarioTextStream(response, "large result complete")
-			case strings.Contains(material, "SCENARIO_PROVIDER_FAILURE"):
+			case scenario == "SCENARIO_PROVIDER_FAILURE":
 				http.Error(response, "provider temporarily unavailable", http.StatusServiceUnavailable)
 			default:
 				writeScenarioTextStream(response, "normal complete")

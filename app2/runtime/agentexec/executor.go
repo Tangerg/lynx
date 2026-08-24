@@ -938,6 +938,14 @@ func awaitProcess(
 			default:
 			}
 			if observer.delegation != nil {
+				external, err := treeHasExternalToolInput(context.WithoutCancel(ctx), engine, process, observer)
+				if err != nil {
+					_ = stopProcess(engine, process)
+					return Output{}, err
+				}
+				if !external {
+					continue
+				}
 				waiting, children, err := captureWaitingTree(context.WithoutCancel(ctx), engine, process, observer)
 				models, tools, usage, contextTokens := observer.snapshot(runID)
 				partial := Output{
@@ -1006,6 +1014,34 @@ completed:
 	}
 	partial.Text = decoded.ModelResponse.Text()
 	return partial, nil
+}
+
+func treeHasExternalToolInput(
+	ctx context.Context,
+	engine *agent.Engine,
+	root *agent.Process,
+	observer *executionObserver,
+) (bool, error) {
+	processes := []*agent.Process{root}
+	for _, child := range observer.delegation.children() {
+		process, found := engine.Process(child.processID)
+		if found {
+			processes = append(processes, process)
+		}
+	}
+	for _, process := range processes {
+		if process.Status() != agent.StatusWaiting {
+			continue
+		}
+		_, found, err := interaction.PendingToolInputFromProcess(ctx, process)
+		if err != nil {
+			return false, fmt.Errorf("agentexec: inspect waiting tree member %s: %w", process.ID(), err)
+		}
+		if found {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func cancelRunTreeMember(

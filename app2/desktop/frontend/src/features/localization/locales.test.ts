@@ -10,7 +10,7 @@ import {
 describe("locale catalog", () => {
   it("publishes one exact, non-empty dictionary for every locale", () => {
     const canonical = Object.keys(localeDefinitions.en.messages).sort();
-    expect(canonical).toHaveLength(1039);
+    expect(canonical).toHaveLength(1041);
     expect(localeOptions.map((option) => option.id)).toEqual(localeIDs);
     for (const locale of localeIDs) {
       const definition = localeDefinitions[locale];
