@@ -9,13 +9,17 @@ import (
 )
 
 type fakeAgentMemorySearcher struct {
-	items []agentmemory.Item
-	err   error
-	query string
+	items        []agentmemory.Item
+	itemsByScope map[agentmemory.Scope][]agentmemory.Item
+	err          error
+	query        string
 }
 
-func (f *fakeAgentMemorySearcher) Search(_ context.Context, _ agentmemory.Scope, _, query string, _ int) ([]agentmemory.Item, error) {
+func (f *fakeAgentMemorySearcher) Search(_ context.Context, scope agentmemory.Scope, _, query string, _ int) ([]agentmemory.Item, error) {
 	f.query = query
+	if f.itemsByScope != nil {
+		return f.itemsByScope[scope], f.err
+	}
 	return f.items, f.err
 }
 
@@ -56,5 +60,24 @@ func TestRecalledMemoriesEmptyCases(t *testing.T) {
 	}
 	if _, ok, _ := composer.recallMessage(context.Background(), "/repo", "  "); ok {
 		t.Fatal("blank query → no block")
+	}
+}
+
+func TestRecalledMemoriesIncludeRelevantUserScope(t *testing.T) {
+	search := &fakeAgentMemorySearcher{itemsByScope: map[agentmemory.Scope][]agentmemory.Item{
+		agentmemory.ScopeUser: {{
+			ID:      "user-memory",
+			Content: "- user prefers concise explanations",
+			Status:  agentmemory.StatusActive,
+		}},
+	}}
+	composer := NewWorkingContextComposer(WorkingContextConfig{AgentMemorySearch: search})
+
+	message, ok, err := composer.recallMessage(context.Background(), "/repo", "how should I explain this")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || !strings.Contains(message.Text(), "user prefers concise explanations") {
+		t.Fatalf("user-scope memory was not recalled: found=%t message=%q", ok, message.Text())
 	}
 }
