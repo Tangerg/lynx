@@ -46,6 +46,9 @@ func TestCompleteBuildsOneMiddlewareFreePrompt(t *testing.T) {
 	if model.request.Messages[1].Role != chat.RoleUser || model.request.Messages[1].Text() != "input" {
 		t.Fatalf("user message = %#v", model.request.Messages[1])
 	}
+	if model.request.Options.MaxTokens == nil || *model.request.Options.MaxTokens <= 0 {
+		t.Fatalf("MaxTokens = %v, want an explicit positive auxiliary-output bound", model.request.Options.MaxTokens)
+	}
 }
 
 func TestCompleteRejectsMissingClient(t *testing.T) {
