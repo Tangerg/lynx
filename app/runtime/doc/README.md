@@ -40,3 +40,9 @@
 ## D. 外部参考
 
 [`inspiration/`](inspiration/) 是有日期的同类产品源码对比和能力证据，不是实施合同。外部证据只有通过新 ADR 和 Capability Ledger verdict 才能改变 Runtime 设计。
+
+## E. 内部复盘
+
+| 文档 | 地位 |
+|---|---|
+| [APP2_RUNTIME_RETROSPECTIVE.md](APP2_RUNTIME_RETROSPECTIVE.md) | 2026-08-24 app2 Runtime 重写实验的不可变复盘：提炼可反哺原版的正向经验、明确不可迁实现并建立候选审计队列；不拥有架构、进度、能力或合同事实 |
