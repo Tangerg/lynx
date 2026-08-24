@@ -147,6 +147,27 @@ func TestPublicRunLifecycleNormalQuestionApprovalAndDelegation(t *testing.T) {
 		}
 	})
 
+	t.Run("Plan", func(t *testing.T) {
+		session := createRunSession(t, runtime.baseURL, namespace, "plan")
+		ack, events := rpcRunStream[*protocol.StartRunResponse](
+			t, runtime.baseURL, "runs.start", protocol.StartRunRequest{
+				SessionID: session.ID,
+				Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "SCENARIO_PLAN"}},
+				Provider:  "openai-compatible", Model: "test-model",
+			}, meta, "plan-run", namespace,
+		)
+		assertCompletedRunStream(t, ack.RunID, events)
+		if !containsPlanUpdate(events, session.ID) {
+			t.Fatalf("Plan Run omitted plan.updated: %+v", events)
+		}
+		plan := rpcCallWithMeta[*protocol.Plan](
+			t, runtime.baseURL, "plan.get", protocol.GetPlanRequest{SessionID: session.ID}, meta,
+		)
+		if plan.Revision == 0 || len(plan.Steps) != 2 || plan.Steps[0].Status != protocol.PlanStatusInProgress {
+			t.Fatalf("durable Plan = %+v", plan)
+		}
+	})
+
 	t.Run("provider failure", func(t *testing.T) {
 		session := createRunSession(t, runtime.baseURL, namespace, "provider-failure")
 		ack, events := rpcRunStream[*protocol.StartRunResponse](
@@ -501,6 +522,122 @@ func TestPublicWorkspaceGitAndDirectToolSurfaces(t *testing.T) {
 	}
 }
 
+func TestPublicLongHistoryIsBoundedAndCursorComplete(t *testing.T) {
+	harness := newAcceptanceHarness(t)
+	session := createRunSession(t, harness.runtime.baseURL, harness.namespace, "long-history")
+	const runCount = 101
+	for index := 0; index < runCount; index++ {
+		ack, events := rpcRunStream[*protocol.StartRunResponse](
+			t, harness.runtime.baseURL, "runs.start", protocol.StartRunRequest{
+				SessionID: session.ID,
+				Input: []protocol.ContentBlock{{
+					Type: protocol.ContentBlockText, Text: fmt.Sprintf("history message %03d", index),
+				}},
+				Provider: "openai-compatible", Model: "test-model",
+			}, harness.meta, fmt.Sprintf("long-history-run-%03d", index), harness.namespace,
+		)
+		assertCompletedRunStream(t, ack.RunID, events)
+	}
+	snapshot := rpcCallWithMeta[*protocol.SessionSnapshot](
+		t, harness.runtime.baseURL, "sessions.snapshot", protocol.GetSessionSnapshotRequest{
+			SessionID: session.ID, IncludeDescendants: true,
+		}, harness.meta,
+	)
+	if len(snapshot.Items) != 200 {
+		t.Fatalf("bounded snapshot Items = %d, want 200", len(snapshot.Items))
+	}
+	exported := rpcCall[*protocol.ExportSessionResponse](
+		t, harness.runtime.baseURL, "sessions.export", protocol.ExportSessionRequest{
+			SessionID: session.ID, Format: protocol.ExportFormatJSON,
+		}, "", "",
+	)
+	if exported.Artifact == nil {
+		t.Fatal("long-history export omitted its artifact")
+	}
+	if len(exported.Artifact.Items) < runCount*2 {
+		t.Fatalf("long-history artifact has %d Items", len(exported.Artifact.Items))
+	}
+	seen := make(map[string]bool, runCount*2)
+	cursor := ""
+	pageCount := 0
+	for {
+		page := rpcCallWithMeta[*protocol.ListItemsResponse](
+			t, harness.runtime.baseURL, "items.list", protocol.ListItemsRequest{
+				Scope:     protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: session.ID},
+				Order:     protocol.ItemOrderDesc,
+				PageQuery: protocol.PageQuery{Limit: 100, Cursor: cursor},
+			}, harness.meta,
+		)
+		pageCount++
+		if len(page.Data) == 0 {
+			t.Fatalf("history page %d was empty before cursor exhaustion", pageCount)
+		}
+		for _, item := range page.Data {
+			if seen[item.ID] {
+				t.Fatalf("history cursor repeated Item %q", item.ID)
+			}
+			seen[item.ID] = true
+		}
+		if page.NextCursor == "" {
+			break
+		}
+		cursor = page.NextCursor
+	}
+	wantItems := len(exported.Artifact.Items)
+	wantPages := (wantItems + 99) / 100
+	if pageCount != wantPages || len(seen) != wantItems {
+		t.Fatalf("history pagination = %d pages / %d Items, want %d / %d", pageCount, len(seen), wantPages, wantItems)
+	}
+}
+
+func TestPublicGoalDriverRunsAndSettlesBudget(t *testing.T) {
+	harness := newAcceptanceHarness(t)
+	session := createRunSession(t, harness.runtime.baseURL, harness.namespace, "goal-driver")
+	started := rpcCall[*protocol.Goal](
+		t, harness.runtime.baseURL, "goals.start", protocol.StartGoalRequest{
+			SessionID: session.ID, Objective: "Complete one bounded autonomous iteration",
+			Provider: "openai-compatible", Model: "test-model",
+			Budget: protocol.GoalBudget{MaxRuns: 1},
+		}, "goal-start", harness.namespace,
+	)
+	if started.Status != protocol.GoalActive || started.Objective == "" {
+		t.Fatalf("started Goal = %+v", started)
+	}
+	var settled *protocol.Goal
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		settled = rpcCall[*protocol.Goal](
+			t, harness.runtime.baseURL, "goals.get", protocol.GoalRequest{SessionID: session.ID}, "", "",
+		)
+		if settled != nil && settled.Status == protocol.GoalBlocked {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if settled == nil || settled.Status != protocol.GoalBlocked || settled.Reason == nil ||
+		settled.Reason.Code != protocol.GoalReasonRunBudgetReached || settled.Used.Runs != 1 {
+		t.Fatalf("settled Goal = %+v", settled)
+	}
+	runs := rpcCallWithMeta[*protocol.Page[protocol.RunRef]](
+		t, harness.runtime.baseURL, "runs.list", protocol.ListRunsRequest{
+			SessionID: session.ID, IncludeDescendants: true, PageQuery: protocol.PageQuery{Limit: 100},
+		}, harness.meta,
+	)
+	if len(runs.Data) != 1 || runs.Data[0].Status != protocol.RunStatusFinished ||
+		runs.Data[0].Outcome == nil || runs.Data[0].Outcome.Type != protocol.OutcomeCompleted {
+		t.Fatalf("Goal-owned Runs = %+v", runs.Data)
+	}
+	rpcCall[struct{}](
+		t, harness.runtime.baseURL, "goals.clear", protocol.GoalRequest{SessionID: session.ID},
+		"goal-clear", harness.namespace,
+	)
+	if current := rpcCall[*protocol.Goal](
+		t, harness.runtime.baseURL, "goals.get", protocol.GoalRequest{SessionID: session.ID}, "", "",
+	); current != nil {
+		t.Fatalf("cleared Goal = %+v", current)
+	}
+}
+
 type acceptanceHarness struct {
 	runtime   *runningRuntime
 	model     *scenarioModel
@@ -553,6 +690,8 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 			ClientInfo:      &protocol.ClientInfo{Name: "runtime-acceptance", Version: "1"},
 			ClientCapabilities: &protocol.ClientCapabilities{
 				Features: map[string]protocol.FeaturePreference{
+					protocol.FeatureGoals:     {Enabled: true},
+					protocol.FeaturePlan:      {Enabled: true},
 					protocol.FeatureSubagents: {Enabled: true},
 					protocol.FeatureMCP:       {Enabled: true},
 					protocol.FeatureGit:       {Enabled: true},
@@ -814,6 +953,16 @@ func streamFailedWith(events []protocol.RunEvent, runID string, problemType stri
 	return false
 }
 
+func containsPlanUpdate(events []protocol.RunEvent, sessionID string) bool {
+	for _, event := range events {
+		if event.Event.Type == protocol.StreamPlanUpdated && event.Event.Plan != nil &&
+			event.Event.Plan.SessionID == sessionID && event.Event.Plan.Revision > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func assertFinishedRun(t *testing.T, baseURL string, runID string, meta protocol.RequestMeta) {
 	t.Helper()
 	run := rpcCallWithMeta[*protocol.RunRef](
@@ -893,6 +1042,10 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 				writeScenarioToolStream(response, "call-delegate", "delegate_task", `{"summary":"Independent child","instructions":"SCENARIO_CHILD"}`)
 			case strings.Contains(material, "SCENARIO_DELEGATE"):
 				writeScenarioTextStream(response, "delegation complete")
+			case strings.Contains(material, "SCENARIO_PLAN") && !hasToolResult:
+				writeScenarioToolStream(response, "call-plan", "set_plan", `{"steps":[{"description":"Inspect architecture","status":"in_progress"},{"description":"Implement cleanly","status":"pending"}]}`)
+			case strings.Contains(material, "SCENARIO_PLAN"):
+				writeScenarioTextStream(response, "plan complete")
 			case strings.Contains(material, "SCENARIO_PROVIDER_FAILURE"):
 				http.Error(response, "provider temporarily unavailable", http.StatusServiceUnavailable)
 			default:
