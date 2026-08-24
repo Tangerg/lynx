@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runtimeownership"
+	"github.com/Tangerg/lynx/app/runtime/internal/completion"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -46,6 +47,13 @@ type Instance struct {
 	// shutdownTimeout bounds each Close caller's wait. Zero uses the process
 	// default; tests may shorten it without changing the owner generation.
 	shutdownTimeout time.Duration
+	shutdown        *instanceShutdownAttempt
+}
+
+type instanceShutdownAttempt struct {
+	done      chan struct{}
+	err       error
+	completed bool
 }
 
 const instanceShutdownTimeout = 10 * time.Second
@@ -245,56 +253,92 @@ func (i *Instance) ServerInfo() protocol.ServerInfo {
 	return i.serverInfo
 }
 
-// Close stops admissions, cancels instance-owned operations and workers, then
-// joins the application Host. Caller timeout does not cancel the Host-owned
-// shutdown generation; a later Close joins it or starts a new attempt after a
-// settled component error.
+// Close starts or joins the Instance-owned delivery-to-Host shutdown
+// generation. Each caller has a bounded wait; its timeout cannot cancel the
+// generation. A completed phase error permits a later Close attempt.
 func (i *Instance) Close() error {
 	if i == nil {
 		return nil
 	}
 	i.closeMu.Lock()
-	defer i.closeMu.Unlock()
 	if i.closed {
+		i.closeMu.Unlock()
 		return nil
 	}
-	if !i.stopping {
-		i.stopping = true
-		i.delivery.beginShutdown()
-		i.stopRuntime()
+	attempt := i.shutdown
+	if attempt == nil || attempt.completed {
+		attempt = &instanceShutdownAttempt{done: make(chan struct{})}
+		i.shutdown = attempt
+		ownerCtx := context.Background()
+		if i.host != nil && i.host.lifetime != nil && i.host.lifetime.context != nil {
+			ownerCtx = context.WithoutCancel(i.host.lifetime.context)
+		}
+		go runInstanceShutdown(ownerCtx, i, attempt)
 	}
-
 	timeout := i.shutdownTimeout
+	i.closeMu.Unlock()
 	if timeout <= 0 {
 		timeout = instanceShutdownTimeout
 	}
 	waitContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	if err := i.delivery.awaitShutdown(waitContext); err != nil {
+	if err := completion.Wait(waitContext, attempt.done); err != nil {
 		return err
 	}
-	select {
-	case <-i.schedulerDone:
-	case <-waitContext.Done():
-		return waitContext.Err()
+	return attempt.err
+}
+
+func runInstanceShutdown(
+	ownerCtx context.Context,
+	instance *Instance,
+	attempt *instanceShutdownAttempt,
+) {
+	instance.closeMu.Lock()
+	begin := !instance.stopping
+	if begin {
+		instance.stopping = true
 	}
-	if i.databaseChangesDone != nil {
-		select {
-		case <-i.databaseChangesDone:
-		case <-waitContext.Done():
-			return waitContext.Err()
+	instance.closeMu.Unlock()
+	if begin {
+		instance.delivery.beginShutdown()
+		if instance.stopRuntime != nil {
+			instance.stopRuntime()
 		}
 	}
-	if i.recoveryDone != nil {
-		select {
-		case <-i.recoveryDone:
-		case <-waitContext.Done():
-			return waitContext.Err()
+
+	if err := instance.delivery.awaitShutdown(ownerCtx); err != nil {
+		finishInstanceShutdown(instance, attempt, false, err)
+		return
+	}
+	for _, done := range []<-chan struct{}{
+		instance.schedulerDone,
+		instance.databaseChangesDone,
+		instance.recoveryDone,
+	} {
+		if err := completion.Wait(ownerCtx, done); err != nil {
+			finishInstanceShutdown(instance, attempt, false, err)
+			return
 		}
 	}
-	if err := i.host.Close(); err != nil {
-		return err
+	if err := awaitHostShutdown(ownerCtx, instance.host); err != nil {
+		finishInstanceShutdown(instance, attempt, false, err)
+		return
 	}
-	i.closed = true
-	return nil
+	finishInstanceShutdown(instance, attempt, true, nil)
+}
+
+func finishInstanceShutdown(
+	instance *Instance,
+	attempt *instanceShutdownAttempt,
+	closed bool,
+	err error,
+) {
+	instance.closeMu.Lock()
+	defer instance.closeMu.Unlock()
+	attempt.err = err
+	attempt.completed = true
+	if closed {
+		instance.closed = true
+	}
+	close(attempt.done)
 }

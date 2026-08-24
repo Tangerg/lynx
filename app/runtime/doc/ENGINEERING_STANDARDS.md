@@ -147,6 +147,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 不使用反射 DI container、service locator 或 package globals；
 - 所有 resource closers 只有一个 owner，且只能是 one-shot terminal action；返回 error 是诊断，不是“尚未关闭”，不得提供通用 Retryable wrapper。host/tool resources 按 acquisition 顺序一次性交给唯一逆序 Sequence；Sequence 的 generation 不受 caller deadline 取消，失败 Open 返回后也必须继续释放依赖，后续 Close 只能 join、不能重放。真正需要多 generation 推进的 subsystem 在自己的 owner/ledger 内表达，不能下沉为通用 closer；
 - Host 整体 shutdown generation 与 caller wait 必须正交：第一个 Close 广播 cancellation 并由 `hostLifetime` 持有 component/executor join 直到进入 terminal Sequence，caller timeout 只返回等待诊断，不能把图留给一个在失败 Open 中根本拿不到 Host 的外层。并发 Close 只 join 同一 generation；只有 component 已返回明确 unsettled error 时，后续显式 Close 才能启动下一 generation，禁止 timer retry loop；
+- Instance 整体 shutdown 同样由唯一 active generation 连续拥有：必须先退休 operation Endpoint，再 join scheduler/database/recovery workers，最后 join Host owner attempt。CLI/public Close caller timeout 不能把推进义务退回外层；Instance 不得复制 Runtime context，只能从 Host 已注入 lifetime 派生 values-preserving owner context；
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
 - required collaborator 和 lifetime 在 constructor boundary 完整验证；constructor 必须返回可运行对象或 error，不能把半初始化对象和延迟 `unavailable` 分支交给用例；
 - optional capability 只在真实配置关闭时为 nil/absent；多个依赖共同构成一项能力时用一个显式 capability group 表达，不能允许半启用。

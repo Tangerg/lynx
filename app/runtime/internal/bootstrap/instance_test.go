@@ -161,10 +161,11 @@ func TestInstanceCloseRetainsResourcesUntilHostJoins(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
 	instance := &Instance{
-		delivery:      operationDelivery{service: &runtimeserver.Server{}},
-		host:          host,
-		stopRuntime:   func() {},
-		schedulerDone: done,
+		delivery:        operationDelivery{service: &runtimeserver.Server{}},
+		host:            host,
+		stopRuntime:     func() {},
+		schedulerDone:   done,
+		shutdownTimeout: time.Millisecond,
 	}
 	if err := instance.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("first Close error = %v, want deadline exceeded", err)

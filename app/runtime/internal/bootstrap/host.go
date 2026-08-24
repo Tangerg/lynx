@@ -74,26 +74,17 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 	if lifetime == nil {
 		return nil
 	}
-	lifetime.closeMu.Lock()
-	if lifetime.closed {
-		lifetime.closeMu.Unlock()
+	// Preserve instance trace values, but never let the caller that happened to
+	// start Close cancel the owner generation. A nil lifetime context occurs only
+	// in direct Host tests and uses the same process-owner root as the wait.
+	ownerCtx := context.Background()
+	if lifetime.context != nil {
+		ownerCtx = context.WithoutCancel(lifetime.context)
+	}
+	attempt, timeout, closed := beginHostShutdown(ownerCtx, lifetime)
+	if closed {
 		return nil
 	}
-	attempt := lifetime.shutdown
-	if attempt == nil || attempt.completed {
-		attempt = &hostShutdownAttempt{done: make(chan struct{})}
-		lifetime.shutdown = attempt
-		// Preserve instance trace values, but never let the caller that happened
-		// to start Close cancel the owner generation. A nil lifetime context occurs
-		// only in direct Host tests and uses the same process-owner root as the wait.
-		ownerCtx := context.Background()
-		if lifetime.context != nil {
-			ownerCtx = context.WithoutCancel(lifetime.context)
-		}
-		go runHostShutdown(ownerCtx, lifetime, attempt)
-	}
-	timeout := lifetime.shutdownTimeout
-	lifetime.closeMu.Unlock()
 
 	if timeout <= 0 {
 		timeout = hostShutdownTimeout
@@ -101,6 +92,38 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 	waitCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := completion.Wait(waitCtx, attempt.done); err != nil {
+		return err
+	}
+	return attempt.err
+}
+
+func beginHostShutdown(
+	ownerCtx context.Context,
+	lifetime *hostLifetime,
+) (attempt *hostShutdownAttempt, timeout time.Duration, closed bool) {
+	lifetime.closeMu.Lock()
+	defer lifetime.closeMu.Unlock()
+	if lifetime.closed {
+		return nil, lifetime.shutdownTimeout, true
+	}
+	attempt = lifetime.shutdown
+	if attempt == nil || attempt.completed {
+		attempt = &hostShutdownAttempt{done: make(chan struct{})}
+		lifetime.shutdown = attempt
+		go runHostShutdown(ownerCtx, lifetime, attempt)
+	}
+	return attempt, lifetime.shutdownTimeout, false
+}
+
+func awaitHostShutdown(ctx context.Context, host *Host) error {
+	if host == nil || host.lifetime == nil {
+		return nil
+	}
+	attempt, _, closed := beginHostShutdown(ctx, host.lifetime)
+	if closed {
+		return nil
+	}
+	if err := completion.Wait(ctx, attempt.done); err != nil {
 		return err
 	}
 	return attempt.err

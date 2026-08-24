@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P151 已完成；下一阶段待独立准入。
+> 状态：P0–P152 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P151 已完成。
+> 最近基线：2026-08-24，P152 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P152 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例让已接受 operation 穿过 Instance Close caller deadline 后才返回；旧 Instance 没有提前关闭 Host resource，但 operation 结束一秒后仍无 owner 继续图。CLI defer 与公共 embedded Close 都只调用一次，没有外层 retry 承诺。
+- 唯一修复 owner 是 Instance active shutdown attempt + Host package-private owner join。第一个 Instance Close 从 Host 已注入 Runtime lifetime 派生一个不继承 caller cancellation 的 generation，只退休一次 delivery/lifetime，再依次 join Endpoint、scheduler/database/recovery workers 与 Host attempt。每个 caller 只有独立有界 wait；并发 Close 只 join，已完成 phase error 才允许下一次显式 attempt。
+- 对 app2 的裁决：采纳完整 process owner 与 acquisition/retirement 连续性，拒绝无界 WaitGroup、ambient Background 扩散、Stop-only facade 和不完整 join。Instance 不复制第二 Runtime context，而是消费 Host 唯一 lifetime owner；不建立 timer/backoff/retry loop、第二 Host graph、兼容路径或新 public surface。
+- Runtime/Desktop 全量 test、vet、build、Go 1.27-compatible Staticcheck、full race 与 standalone module 门禁全绿；根 workspace tests、Runtime generator 零漂移和 Wails v3 production build 通过。临时 Staticcheck 已回收，未启动 agent-browser；Protocol、Artifact、SQLite、生成合同、公共 Go API 与 Desktop source 均未改变。
 - P151 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例让 Host 已广播 shutdown 的 Run component 在 caller deadline 后才结束；旧 Close 返回 timeout 时没有提前关闭 tool resource，但 component 随后结束一秒后仍没有 owner 推进下层图。post-transfer startup recovery 失败不返回 Host，因此不能把第二次 Close 当作必要条件。
 - 唯一修复 owner 是 Bootstrap `hostLifetime` 的 active shutdown attempt。第一个 Close 启动一个保留 Runtime lifetime values 但不继承 caller cancellation 的 generation，广播 component cancellation 后依次 join components、run-effect tasks、executor 与 P150 terminal Sequence。每个 caller 只等待同一 attempt 且保留有界返回；已完成的 unsettled component/executor error 可由下一次显式 Close 开新 generation，terminal resource 不重放。
 - 对 app2 的裁决：继续采纳“唯一 owner + 反向 acquisition graph”，但拒绝其无界 `WaitGroup.Wait`、`context.Background()` 扩散与不完整 join。原 Runtime 的 Close API 仍有界，owner generation 从已注入 instance lifetime 派生；没有 timer/backoff、fire-and-forget retry loop、第二清理图、兼容路径或业务 facade。
@@ -340,14 +344,15 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P149     | MCP teardown 终止合同纠偏                                                                                   | SDK 已消费的 ClientSession close error 退出 ownership ledger；当代 caller 保留诊断、后续 Shutdown 幂等，Bootstrap 不再声明伪 retryable                                                     |
 | P150     | 失败 Open terminal resource graph 所有权闭环                                                                | host/tool steps 进入唯一自驱 reverse Sequence；caller timeout 不取消图，失败 constructor 无 cleanup handle 仍完成依赖释放；删除 test-only Retryable 双态                                    |
 | P151     | Host component-to-resource shutdown graph 所有权闭环                                                    | `hostLifetime` 独占 component/executor/resource generation；caller timeout 只停止等待，post-transfer 失败 Open 无 Host handle 仍在迟到 component 终结后释放依赖                    |
+| P152     | Instance delivery-to-Host shutdown graph 所有权闭环                                                     | Instance attempt 连续 join Endpoint/workers/Host；CLI/public Close timeout 不再要求第二调用，已接受 operation 终结后自行推进依赖释放                                     |
 
 ## 5. 当前里程碑结论
 
-P113–P151 共同建立了以下不可回退的心智模型：
+P113–P152 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
-- Runtime Host shutdown 由 `hostLifetime` 的唯一 active generation 拥有 component、executor 与 resource 跨阶段连续性；caller timeout 只停止等待，不取消图。resource shutdown 只接受 one-shot terminal action，diagnostic 不改变 settlement；一个 creation-ordered Sequence 独占 reverse resource graph。失败 constructor/startup 即使不返回 cleanup handle 也不会因 caller timeout 丢 owner；需要多 generation 推进的 subsystem 只能在自己的 ledger 内表达。
+- Runtime Instance shutdown 由唯一 active generation 从 operation Endpoint/workers 连续加入 Host，Host 再由 `hostLifetime` 唯一 generation 拥有 component、executor 与 resource 跨阶段连续性；任一 caller timeout 只停止等待，不取消图。resource shutdown 只接受 one-shot terminal action，diagnostic 不改变 settlement；一个 creation-ordered Sequence 独占 reverse resource graph。失败 constructor/startup 或单次 public Close 即使不再有 cleanup caller 也不会因 timeout 丢 owner；需要多 generation 推进的 subsystem 只能在自己的 ledger 内表达。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
@@ -389,4 +394,4 @@ P113–P151 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P151 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P152 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
