@@ -18,11 +18,17 @@ func (f fakeItemSource) ItemsForSearch(context.Context, domain.Scope, string) ([
 }
 
 type fakeEmbedder struct {
+	id      string
 	vectors map[string][]float32
 	err     error
 }
 
-func (f fakeEmbedder) ID() string { return "fake" }
+func (f fakeEmbedder) ID() string {
+	if f.id != "" {
+		return f.id
+	}
+	return "fake"
+}
 
 func (f fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
 	if f.err != nil {
@@ -88,6 +94,35 @@ func TestSearchFusesVectorMatchWithoutKeywordOverlap(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("vector match b not surfaced: %+v", got)
+	}
+}
+
+func TestSearchDoesNotReuseCorpusVectorsFromAnotherEmbeddingSpace(t *testing.T) {
+	// The persisted vectors were produced by the previous role and rank a first.
+	// The current role gives the same-dimensional space different semantics: b
+	// is now the nearest item. Reusing the unlabelled cache silently returns the
+	// wrong memory instead of refreshing it or degrading to keyword ranking.
+	store := fakeItemSource{items: items(
+		domain.Item{ID: "a", Content: "alpha memory", Embedding: []float32{1, 0}},
+		domain.Item{ID: "b", Content: "beta memory", Embedding: []float32{0, 1}},
+	)}
+	resolve := func(context.Context) (Embedder, error) {
+		return fakeEmbedder{
+			id: "provider:new-space",
+			vectors: map[string][]float32{
+				"find the target": {1, 0},
+				"alpha memory":    {0, 1},
+				"beta memory":     {1, 0},
+			},
+		}, nil
+	}
+	s := NewSearcher(store, resolve)
+	got, err := s.Search(t.Context(), domain.ScopeProject, "/repo", "find the target", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "b" {
+		t.Fatalf("search after embedding-role change = %+v, want item b from the current vector space", got)
 	}
 }
 
