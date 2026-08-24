@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -19,6 +20,19 @@ func writeHooks(t *testing.T, dir, body string) {
 	if err := os.WriteFile(filepath.Join(lyra, "hooks.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func hooksDocument(count int) string {
+	var body strings.Builder
+	body.WriteString(`{"hooks":[`)
+	for index := range count {
+		if index > 0 {
+			body.WriteByte(',')
+		}
+		body.WriteString(`{"event":"Stop","command":"true"}`)
+	}
+	body.WriteString(`]}`)
+	return body.String()
 }
 
 func TestLoad_TagsGlobalAndProjectScope(t *testing.T) {
@@ -100,6 +114,52 @@ func TestLoadPreservesCancellation(t *testing.T) {
 	if _, err := Load(ctx, t.TempDir(), t.TempDir()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Load error = %v, want context.Canceled", err)
 	}
+}
+
+func TestLoadRejectsUnboundedHookFilesAndCascades(t *testing.T) {
+	t.Run("file bytes", func(t *testing.T) {
+		cwd := t.TempDir()
+		writeHooks(t, cwd, hooksDocument(0)+strings.Repeat(" ", 256<<10))
+		if _, err := Load(t.Context(), cwd, ""); err == nil {
+			t.Fatal("Load accepted hooks.json larger than 256 KiB")
+		}
+	})
+
+	t.Run("hooks per file", func(t *testing.T) {
+		cwd := t.TempDir()
+		writeHooks(t, cwd, hooksDocument(129))
+		if _, err := Load(t.Context(), cwd, ""); err == nil {
+			t.Fatal("Load accepted more than 128 hooks in one file")
+		}
+	})
+
+	t.Run("complete cascade", func(t *testing.T) {
+		home := t.TempDir()
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cwd := filepath.Join(root, "nested")
+		if err := os.MkdirAll(cwd, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeHooks(t, home, hooksDocument(128))
+		writeHooks(t, root, hooksDocument(128))
+		writeHooks(t, cwd, hooksDocument(1))
+		if _, err := Load(t.Context(), cwd, home); err == nil {
+			t.Fatal("Load accepted more than 256 hooks in one complete cascade")
+		}
+	})
+
+	t.Run("invalid UTF-8", func(t *testing.T) {
+		cwd := t.TempDir()
+		writeHooks(t, cwd, string([]byte(
+			`{"hooks":[{"event":"SessionStart","inject":"`+string([]byte{0xff})+`"}]}`,
+		)))
+		if _, err := Load(t.Context(), cwd, ""); err == nil {
+			t.Fatal("Load accepted hooks.json containing invalid UTF-8")
+		}
+	})
 }
 
 func TestProjectRoot_FindsGitAncestor(t *testing.T) {

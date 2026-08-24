@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +31,38 @@ func TestHookValidate(t *testing.T) {
 				t.Fatalf("Validate: %v", err)
 			}
 			if !test.ok && !errors.Is(err, ErrInvalidHook) {
+				t.Fatalf("Validate error = %v, want ErrInvalidHook", err)
+			}
+		})
+	}
+}
+
+func TestHookValidateRejectsUnboundedConfiguration(t *testing.T) {
+	tests := []struct {
+		name string
+		hook Hook
+	}{
+		{
+			name: "matcher",
+			hook: Hook{Event: PreToolUse, Matcher: strings.Repeat("x", 257), Command: "check"},
+		},
+		{
+			name: "command",
+			hook: Hook{Event: Stop, Command: strings.Repeat("x", (8<<10)+1)},
+		},
+		{
+			name: "inject",
+			hook: Hook{Event: SessionStart, Inject: strings.Repeat("x", (8<<10)+1)},
+		},
+		{
+			name: "timeout",
+			hook: Hook{Event: Stop, Command: "check", TimeoutMillis: (5 * 60 * 1_000) + 1},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.hook.Validate(); !errors.Is(err, ErrInvalidHook) {
 				t.Fatalf("Validate error = %v, want ErrInvalidHook", err)
 			}
 		})
