@@ -13,6 +13,8 @@ var (
 	ErrPathRequired     = errors.New("workspace: path required")
 	ErrPathOutsideRoot  = errors.New("workspace: path outside root")
 	ErrInvalidFileRange = errors.New("workspace: invalid file range")
+	ErrFileReadTooLarge = errors.New("workspace: file read exceeds its resource limit")
+	ErrUnsupportedText  = errors.New("workspace: file is not UTF-8 text")
 	ErrGrepQueryMissing = errors.New("workspace: grep query required")
 )
 

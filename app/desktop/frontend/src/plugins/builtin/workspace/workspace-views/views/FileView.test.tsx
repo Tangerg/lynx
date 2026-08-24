@@ -34,7 +34,7 @@ describe("FileView syntax ownership", () => {
   it("highlights a file in the language determined by its path", () => {
     const content = "package main\nfunc main() {}";
 
-    render(<FileView path="cmd/main.go" content={content} targetLine={0} />);
+    render(<FileView path="cmd/main.go" content={content} startLine={1} targetLine={0} />);
 
     expect(projection.highlighter.codeToHtml).toHaveBeenCalledWith(content, {
       lang: "go",
@@ -47,12 +47,27 @@ describe("FileView syntax ownership", () => {
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
     projection.currentHighlighter = null;
     const content = "package main\nfunc main() {}";
-    const view = render(<FileView path="cmd/main.go" content={content} targetLine={2} />);
+    const view = render(
+      <FileView path="cmd/main.go" content={content} startLine={1} targetLine={2} />,
+    );
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
 
     projection.currentHighlighter = projection.highlighter;
-    view.rerender(<FileView path="cmd/main.go" content={content} targetLine={2} />);
+    view.rerender(<FileView path="cmd/main.go" content={content} startLine={1} targetLine={2} />);
 
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps gutter and target identity for a window from the middle of a file", () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    const view = render(
+      <FileView path="cmd/main.go" content={"first\nsecond"} startLine={40} targetLine={41} />,
+    );
+
+    expect(view.getByText("40")).toBeTruthy();
+    expect(view.getByText("41")).toBeTruthy();
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 });

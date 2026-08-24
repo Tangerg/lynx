@@ -86,6 +86,8 @@ P168 收紧既有 model-facing `read`/`apply_patch` 内部 Tool semantics，不�
 
 P169 收紧既有 model/direct `read` 内部语义，不改变 Tool name、`path/start_line/max_lines` request 或 `content/start_line/end_line/total_lines/truncated` response shape。Runtime 最多准入 8 MiB regular file与 1 MiB line，默认一次结果最多 1 MiB 且只在完整行后停止；`EndLine` 是最后返回行，`Truncated` 对省略 prefix/suffix/result budget 均为 true。完整扫描验证 UTF-8/NUL、BOM/CRLF、读取增长与 caller cancellation；mutation stamp 只有在 Tool call 前后 8 MiB-capped streaming digest 一致时提交。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework、`tools/fs` 与 CLI 均不改变。
 
+P170 收紧既有 `workspace.files.read/head` 语义，不改变 `ReadFileRequest`、`FileContent`、`GetFileHeadRequest`、`FileHead` 或 operation shape。`maxBytes=0` 现在选择 1 MiB 默认值，显式值最高 8 MiB；完整 `TotalLines` 扫描只接纳最多 64 MiB regular file，单行最多 8 MiB，并在 64 KiB buffer 上验证 caller cancellation、UTF-8/NUL、BOM/CRLF、trailing empty line 与读取期间增长。Application 对 port result 再验证 output bytes、text、window/content correspondence 与 truncation honesty。编辑器 read 可在有效 UTF-8 边界截断最后一行并设置 `truncated=true`；越界 range/资源返回 `invalid_params`，invalid text 返回 `unsupported_mime`。Head 默认 200、最高 400 行且不发布无标记 partial result。Desktop file view 现在对带行号导航请求目标前后各 200 行并消费响应 `startLine`；这是既有字段的真实消费，不是新 wire。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated binding shape、公共 Go API、Agent Framework、`tools/fs` 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

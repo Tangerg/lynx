@@ -186,10 +186,13 @@ export interface WorkspaceFileEntry {
 export interface WorkspaceReadFileQuery {
   path: string;
   cwd?: string;
+  startLine?: number;
+  endLine?: number;
 }
 
 export interface WorkspaceFileContent {
   content: string;
+  startLine: number;
   totalLines: number;
   truncated?: boolean;
 }

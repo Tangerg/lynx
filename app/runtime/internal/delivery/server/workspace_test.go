@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,7 +115,14 @@ func newWorkspaceServerWithConfig(cwd string, cfg workspaceTestConfig) *Server {
 // numbers them 1-based, and refuses a path that climbs out of the root.
 func TestWorkspaceGetFileHead(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("a\nb\nc\nd\n"), 0o644); err != nil {
+	lines := make([]string, 500)
+	for index := range lines {
+		lines[index] = fmt.Sprintf("line-%03d", index+1)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "wide.txt"), []byte(strings.Repeat("x", (1<<20)+1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s := newWorkspaceServer(dir)
@@ -123,8 +131,18 @@ func TestWorkspaceGetFileHead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getFileHead: %v", err)
 	}
-	if len(got.Lines) != 2 || got.Lines[0].LineNumber != 1 || got.Lines[0].Text != "a" || got.Lines[1].LineNumber != 2 {
+	if len(got.Lines) != 2 || got.Lines[0].LineNumber != 1 || got.Lines[0].Text != "line-001" || got.Lines[1].LineNumber != 2 {
 		t.Fatalf("lines = %+v, want first two lines numbered 1,2", got.Lines)
+	}
+	capped, err := s.GetWorkspaceFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "f.txt", Lines: 1000})
+	if err != nil {
+		t.Fatalf("get capped file head: %v", err)
+	}
+	if len(capped.Lines) != 400 || capped.Lines[399].LineNumber != 400 {
+		t.Fatalf("capped head has %d lines, want 400", len(capped.Lines))
+	}
+	if _, err := s.GetWorkspaceFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "wide.txt", Lines: 1}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("byte-truncated head error = %v, want invalid_params", err)
 	}
 
 	if _, err := s.GetWorkspaceFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "../escape"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {

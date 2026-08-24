@@ -361,7 +361,12 @@ export function registerDefaultDataProviders(ctx: Contributor): void {
         params,
       );
       const r = await (await read.workspace(cwd)).files.read(query);
-      return { content: r.content, totalLines: r.totalLines, truncated: r.truncated };
+      return {
+        content: r.content,
+        startLine: r.startLine ?? 1,
+        totalLines: r.totalLines,
+        truncated: r.truncated,
+      };
     },
   });
 }

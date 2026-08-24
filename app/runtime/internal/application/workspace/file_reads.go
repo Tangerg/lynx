@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
 )
@@ -89,11 +90,12 @@ type FileReadInput struct {
 
 // FileReadResult is a file read with whole-file line information.
 type FileReadResult struct {
-	Content    string
-	TotalLines int
-	StartLine  int // zero-based
-	EndLine    int // one-based inclusive
-	Truncated  bool
+	Content         string
+	TotalLines      int
+	StartLine       int // zero-based
+	EndLine         int // one-based inclusive
+	Truncated       bool
+	OutputTruncated bool
 }
 
 // GrepInput specifies one root-scoped content search.
@@ -130,8 +132,20 @@ type FileLine struct {
 const (
 	defaultFileListPageLimit = 1000
 	defaultFileHeadLines     = 200
+	maxFileHeadLines         = 400
 	defaultGrepLimit         = 100
 	fileListPageNamespace    = "workspace.files"
+)
+
+// Workspace file reads retain at most 1 MiB by default and 8 MiB when a
+// caller explicitly raises the budget. The full-file scan is admitted only up
+// to 64 MiB because TotalLines describes the complete source, while no single
+// editor-facing line may exceed the largest possible response.
+const (
+	DefaultFileReadBytes   = 1 << 20
+	MaxFileReadBytes       = 8 << 20
+	MaxFileReadSourceBytes = 64 << 20
+	MaxFileReadLineBytes   = MaxFileReadBytes
 )
 
 // List returns one stable cursor page of entries below a workspace root.
@@ -190,12 +204,15 @@ func (f *Files) Head(ctx context.Context, cwd, path string, lines int) (FileHead
 	if lines <= 0 {
 		lines = defaultFileHeadLines
 	}
-	if f.files == nil {
-		return FileHead{}, errors.New("workspace: file browser is not configured")
-	}
-	read, err := f.files.Read(ctx, root, FileReadInput{Path: path, EndLine: lines, StartLine: 1})
+	lines = min(lines, maxFileHeadLines)
+	read, err := f.readFile(ctx, root, FileReadInput{
+		Path: path, EndLine: lines, StartLine: 1, MaxBytes: DefaultFileReadBytes,
+	})
 	if err != nil {
 		return FileHead{}, err
+	}
+	if read.OutputTruncated {
+		return FileHead{}, ErrFileReadTooLarge
 	}
 	return FileHead{Lines: previewLines(read)}, nil
 }
@@ -214,10 +231,67 @@ func (f *Files) Read(ctx context.Context, cwd string, input FileReadInput) (File
 	if err != nil {
 		return FileReadResult{}, err
 	}
+	return f.readFile(ctx, root, input)
+}
+
+func (f *Files) readFile(ctx context.Context, root string, input FileReadInput) (FileReadResult, error) {
 	if f.files == nil {
 		return FileReadResult{}, errors.New("workspace: file browser is not configured")
 	}
-	return f.files.Read(ctx, root, input)
+	input.MaxBytes = normalizedFileReadBytes(input.MaxBytes)
+	result, err := f.files.Read(ctx, root, input)
+	if err != nil {
+		return FileReadResult{}, err
+	}
+	if err := validateFileReadResult(input, result); err != nil {
+		return FileReadResult{}, err
+	}
+	return result, nil
+}
+
+func validateFileReadResult(input FileReadInput, result FileReadResult) error {
+	if len(result.Content) > input.MaxBytes {
+		return ErrFileReadTooLarge
+	}
+	if !utf8.ValidString(result.Content) || strings.ContainsRune(result.Content, 0) {
+		return ErrUnsupportedText
+	}
+	if result.TotalLines <= 0 {
+		return errors.New("workspace: file reader returned a non-positive total line count")
+	}
+	expectedStart := 0
+	if input.StartLine > 0 {
+		expectedStart = input.StartLine - 1
+	}
+	if expectedStart >= result.TotalLines {
+		return ErrInvalidFileRange
+	}
+	maximumEnd := result.TotalLines
+	if input.EndLine > 0 {
+		maximumEnd = min(maximumEnd, input.EndLine)
+	}
+	if result.StartLine != expectedStart || result.EndLine < result.StartLine || result.EndLine > maximumEnd {
+		return errors.New("workspace: file reader returned an invalid line window")
+	}
+	served := result.EndLine - result.StartLine
+	contentLines := 0
+	if served > 0 {
+		contentLines = strings.Count(result.Content, "\n") + 1
+	}
+	if served == 0 && result.Content != "" || contentLines != served {
+		return errors.New("workspace: file reader returned content outside its line window")
+	}
+	if (result.StartLine > 0 || result.EndLine < result.TotalLines || result.OutputTruncated) && !result.Truncated {
+		return errors.New("workspace: file reader omitted content without a truncation marker")
+	}
+	return nil
+}
+
+func normalizedFileReadBytes(requested int) int {
+	if requested == 0 {
+		return DefaultFileReadBytes
+	}
+	return min(requested, MaxFileReadBytes)
 }
 
 func (input FileReadInput) validate() error {

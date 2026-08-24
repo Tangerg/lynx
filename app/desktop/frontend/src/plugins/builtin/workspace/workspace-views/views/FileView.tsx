@@ -4,11 +4,9 @@ import { stripCodeWrapper, useCodeHighlighter } from "@/lib/highlight/useCodeHig
 import { langFromPath, resolveLang } from "@/lib/highlight/shiki";
 import { cn } from "@/lib/classNames";
 
-// Whole-file viewer (workspace.files.read) — the target of a clickable file:line
-// reference. The file is highlighted in ONE Shiki pass and split into per-line
-// HTML (Shiki separates source lines by a literal newline inside <code>), so a
-// large file costs one highlight call, not one per line. The target line is
-// scrolled to centre and tinted.
+// Bounded file-window viewer (workspace.files.read). The window is highlighted
+// in one Shiki pass and split into per-line HTML, while startLine preserves the
+// source file's gutter identity.
 
 // Split a full highlight into per-line inner HTML by stripping the <pre><code>
 // wrapper and splitting on the newlines Shiki places between line spans.
@@ -20,10 +18,12 @@ function highlightLines(h: Highlighter, code: string, theme: string, path: strin
 export function FileView({
   path,
   content,
+  startLine,
   targetLine,
 }: {
   path: string;
   content: string;
+  startLine: number;
   targetLine: number;
 }) {
   const { highlighter, theme: shikiTheme } = useCodeHighlighter();
@@ -45,7 +45,7 @@ export function FileView({
   return (
     <div className="py-2 font-mono text-code leading-relaxed">
       {plain.map((line, i) => {
-        const n = i + 1;
+        const n = startLine + i;
         const isTarget = n === targetLine;
         const html = highlighted?.[i];
         return (

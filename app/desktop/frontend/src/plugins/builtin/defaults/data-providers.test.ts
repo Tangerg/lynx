@@ -266,6 +266,44 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     expect(value).toEqual([{ lineNumber: 1, text: "import x" }]);
   });
 
+  it("read-file: preserves the requested and served source-line window", async () => {
+    const { value, requests } = await runProvider<{
+      content: string;
+      startLine: number;
+      totalLines: number;
+      truncated?: boolean;
+    }>(
+      "read-file",
+      [
+        [
+          "workspace.files.read",
+          {
+            path: "src/a.ts",
+            content: "line 400",
+            encoding: "utf-8",
+            startLine: 400,
+            endLine: 400,
+            totalLines: 900,
+            truncated: true,
+          },
+        ],
+      ],
+      { cwd: "/work/auth", path: "src/a.ts", startLine: 400, endLine: 800 },
+    );
+    expect(requests[0]?.params).toEqual({
+      path: "src/a.ts",
+      startLine: 400,
+      endLine: 800,
+      workspace: { path: "/work/auth" },
+    });
+    expect(value).toEqual({
+      content: "line 400",
+      startLine: 400,
+      totalLines: 900,
+      truncated: true,
+    });
+  });
+
   it("models: queries enabled providers only and maps their catalogs", async () => {
     const { value, requests } = await runProvider<
       Array<{ id: string; provider: string; label: string; multimodal: boolean }>

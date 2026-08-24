@@ -1,6 +1,5 @@
-// Built-in plugin: "File" workspace view — renders a file's full contents
-// (workspace.files.read) at a target line, opened by a clickable file:line
-// reference in the conversation.
+// Built-in plugin: "File" workspace view — renders a bounded file window at a
+// target line, opened by a clickable file:line reference in the conversation.
 
 import { DataView, FilePath } from "@/ui";
 import { useT } from "@/lib/i18n";
@@ -11,14 +10,26 @@ import { useWorkspaceReadFile } from "@/plugins/builtin/workspace/application/wo
 import { useWorkspaceFileViewer } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
+const targetWindowRadius = 200;
+
 function FileViewTab() {
   const t = useT();
   const workspace = useActiveSessionWorkspace();
   const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const viewer = useWorkspaceFileViewer();
+  const targetLine = viewer?.line ?? 0;
   const { data, isLoading, isError } = useWorkspaceReadFile(
     viewer && workspace.status === "ready" && cwd !== undefined
-      ? { cwd, path: viewer.path }
+      ? {
+          cwd,
+          path: viewer.path,
+          ...(targetLine > 0
+            ? {
+                startLine: Math.max(1, targetLine - targetWindowRadius),
+                endLine: targetLine + targetWindowRadius,
+              }
+            : {}),
+        }
       : undefined,
   );
 
@@ -48,7 +59,8 @@ function FileViewTab() {
           <FileView
             path={viewer?.path ?? ""}
             content={items[0]!.content}
-            targetLine={viewer?.line ?? 0}
+            startLine={items[0]!.startLine}
+            targetLine={targetLine}
           />
         )}
       </DataView>

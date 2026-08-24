@@ -36,8 +36,8 @@ type ListFilesRequest struct {
 
 // ReadFileRequest — workspace.files.read body (API.md §7.5). Reads the whole
 // file, or the StartLine..EndLine window (1-based inclusive, editor-facing)
-// when given. MaxBytes caps an over-large read (the executor self-describes the
-// cut via FileContent.Truncated).
+// when given. A zero MaxBytes selects the 1 MiB default; larger values are
+// capped at 8 MiB. FileContent.Truncated reports omitted source material.
 type ReadFileRequest struct {
 	Workspace WorkspaceRef `json:"workspace"`
 	Path      string       `json:"path"`
@@ -48,8 +48,9 @@ type ReadFileRequest struct {
 
 // FileContent is the workspace.files.read result (API.md §7.5). TotalLines is the
 // whole-file line count even for a windowed read (so the UI can show "12–40 /
-// 320"). StartLine/EndLine echo the served window (1-based inclusive), set only
-// when a range was requested.
+// 320"). StartLine/EndLine describe the served window (1-based inclusive), set
+// only when a range was requested; a byte-limited last line may be a valid
+// UTF-8 prefix of that source line.
 type FileContent struct {
 	Path       string `json:"path"`
 	Content    string `json:"content"`

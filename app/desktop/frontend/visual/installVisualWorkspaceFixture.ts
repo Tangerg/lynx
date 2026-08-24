@@ -139,6 +139,7 @@ const REVIEW_DIFF: WorkspaceDiff = {
 };
 
 const RESIZER_SOURCE: WorkspaceFileContent = {
+  startLine: 1,
   totalLines: 8,
   content: [
     "const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {",

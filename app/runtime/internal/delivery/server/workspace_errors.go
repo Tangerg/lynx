@@ -40,8 +40,11 @@ func wireWorkspaceError(err error) error {
 		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	case errors.Is(err, workspaceapp.ErrPathOutsideRoot):
 		return protocol.ErrPathOutsideRoot
+	case errors.Is(err, workspaceapp.ErrUnsupportedText):
+		return fmt.Errorf("%w: %w", protocol.ErrUnsupportedMime, err)
 	case errors.Is(err, workspaceapp.ErrPathRequired),
 		errors.Is(err, workspaceapp.ErrInvalidFileRange),
+		errors.Is(err, workspaceapp.ErrFileReadTooLarge),
 		errors.Is(err, workspaceapp.ErrInvalidFileGlob),
 		errors.Is(err, workspaceapp.ErrGrepQueryMissing),
 		errors.Is(err, workspaceapp.ErrFileListTooLarge),

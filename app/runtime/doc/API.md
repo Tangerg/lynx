@@ -1154,8 +1154,11 @@ Artifact v23 round-trip；compatibility differ 判定 breaking 并要求同批 b
 `type` / `sizeBytes` / `modifiedAt` 来自**同一次 lstat**。超过安全扫描边界时返回 `invalid_params` 并要求收窄
 path，**不静默截断**。
 
-`readFile` 读整文件或 `startLine..endLine` 窗口（**1-based 闭区间**，面向编辑器）；`totalLines` 始终是整文件行数；
-路径同样 jail 到根，binary 文件明确报错。`truncated` 自描述触顶 `maxBytes`。
+`readFile` 读整文件或 `startLine..endLine` 窗口（**1-based 闭区间**，面向编辑器）；`totalLines` 始终是整文件行数。
+一次结果默认最多 1 MiB、显式 `maxBytes` 最高 8 MiB，完整计数只接纳最多 64 MiB 的 regular file，单行最多 8 MiB；
+读取以 64 KiB buffer 响应取消并验证完整 UTF-8/NUL、BOM/CRLF 和读取期间增长。字节预算可在有效 UTF-8 边界截断最后一行，
+`truncated` 自描述窗口或预算省略；路径同样 jail 到根，binary/invalid UTF-8 明确返回 `unsupported_mime`。`head` 默认 200 行、
+最高 400 行，无法完整容纳所请求 head 时明确失败，不发布无截断标记的 partial preview。
 
 ### C.2 · `approval.*`（不门控）—— 全局审批姿态 + 记忆决策
 
